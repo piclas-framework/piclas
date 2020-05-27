@@ -366,8 +366,6 @@ CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
                                   ,'Utilize the null collision method for the determination of the number of pairs '//&
                                   'based on the maximum collision frequency and time step (only with a background gas)' &
                                   ,'.TRUE.')
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-PhotonEnergy_eV'  &
-                                , 'Photon energy to be added to the heat of formation', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CrossSection'  &
                                 , 'Photon-ionization cross-section', numberedmulti=.TRUE.)
 

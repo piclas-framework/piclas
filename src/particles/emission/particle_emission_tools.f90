@@ -101,7 +101,7 @@ PUBLIC :: CalcVelocity_taylorgreenvortex, CalcVelocity_emmert
 PUBLIC :: IntegerDivide,SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn,SamplePoissonDistri
 PUBLIC :: BessK,DEVI,SYNGE,QUASIREL
 PUBLIC :: SetCellLocalParticlePosition,InsideExcludeRegionCheck
-PUBLIC :: CalcNbrOfPhotons
+PUBLIC :: CalcNbrOfPhotons, CalcPhotonEnergy
 PUBLIC :: CalcLaserIntensity
 PUBLIC :: CalcVelocity_FromWorkFuncSEE
 #if CODE_ANALYZE
@@ -1315,7 +1315,7 @@ IF((NbrOfRepetitions+1).LE.f_rep) THEN
     E_Intensity = 0.5 * I_0 * PI**(3.0/2.0) * w_b**2 * tau &
                 * (1-EXP(-Radius**2/w_b**2)) &
                 * (ERF(t_2/tau)-ERF(t_1/tau))
-    NbrOfPhotons = E_Intensity / CalcPhotonEnergie(lambda)
+    NbrOfPhotons = E_Intensity / CalcPhotonEnergy(lambda)
   ELSE
     NbrOfPhotons = 0.0
     Species(i)%Init(iInit)%NINT_Correction = 0.0
@@ -1329,7 +1329,7 @@ END ASSOCIATE
 
 END SUBROUTINE CalcNbrOfPhotons
 
-PURE FUNCTION CalcPhotonEnergie(lambda)
+PURE FUNCTION CalcPhotonEnergy(lambda)
 !===================================================================================================================================
 !> Calculation of photon energie based on wavelength
 !===================================================================================================================================
@@ -1343,14 +1343,14 @@ IMPLICIT NONE
 REAL, INTENT(IN)         :: lambda
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                     :: CalcPhotonEnergie
+REAL                     :: CalcPhotonEnergy
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-CalcPhotonEnergie = PlanckConst * c / lambda
+CalcPhotonEnergy = PlanckConst * c / lambda
 
-END FUNCTION CalcPhotonEnergie
+END FUNCTION CalcPhotonEnergy
 
 SUBROUTINE CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit)
 !===================================================================================================================================

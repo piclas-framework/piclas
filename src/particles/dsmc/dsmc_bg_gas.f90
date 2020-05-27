@@ -651,7 +651,7 @@ SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,InsertedNbrOfParticles)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib, CalcMeanFreePath
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec, DSMC_RHS
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles, XSec_NullCollision
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
@@ -672,8 +672,12 @@ INTEGER, INTENT(IN)           :: iSpec,iInit,InsertedNbrOfParticles
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart, iPair, iNewPart, iReac, ParticleIndex, NewParticleIndex, bgSpec, NbrOfParticle
+INTEGER                       :: ParticleVecLengthOld, iPart_p1, iPart_p2
 !===================================================================================================================================
 ChemReac%NumPhotoIonization = 0
+
+IF(InsertedNbrOfParticles.LE.0) RETURN
+
 ! 1) Compute the number of photoioinzation events in the local domain of each proc
 DO iReac = 1, ChemReac%NumOfReact
   ! Only treat photoionization reactions
@@ -681,13 +685,14 @@ DO iReac = 1, ChemReac%NumOfReact
   ChemReac%NumPhotoIonization(iReac) = INT(InsertedNbrOfParticles*ChemReac%CrossSection(iReac)/SUM(ChemReac%CrossSection))
 END DO
 
+IF(SUM(ChemReac%NumPhotoIonization).EQ.0) RETURN
+
 IF(InsertedNbrOfParticles.GT.SUM(ChemReac%NumPhotoIonization)) THEN
   ! Delete left-over inserted particles
   DO iPart = SUM(ChemReac%NumPhotoIonization),InsertedNbrOfParticles
     PDM%ParticleInside(PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)) = .FALSE.
   END DO
 ELSE IF(InsertedNbrOfParticles.LT.SUM(ChemReac%NumPhotoIonization)) THEN
-  print*, InsertedNbrOfParticles, SUM(ChemReac%NumPhotoIonization)
   CALL Abort(&
     __STAMP__&
     ,'ERROR in PhotoIonization: Something is wrong, trying to perform more reactions than anticipated!')
@@ -737,17 +742,18 @@ DO WHILE (iPart.LE.NbrOfParticle)
     ! Pairing
     Coll_pData(iNewPart)%iPart_p1 = NewParticleIndex
     Coll_pData(iNewPart)%iPart_p2 = ParticleIndex
-    ! Relative velocity is simply the background gas velocity
-    Coll_pData(iNewPart)%CRela2 = DOTPRODUCT(PartState(4:6,NewParticleIndex))
-    ! ATTENTION: Hack for chemistry!
-    Coll_pData(iNewPart)%PairType = CollInf%Coll_Case(bgSpec, bgSpec)
+    ! Relative velocity is not required as the translational energy will not be considered
+    Coll_pData(iNewPart)%CRela2 = 0.
     ! Weighting factor
     IF(usevMPF) THEN
       PartMPF(NewParticleIndex) = Species(bgSpec)%MacroParticleFactor
       PartMPF(ParticleIndex) = Species(iSpec)%MacroParticleFactor
     END IF
-    ! Internal energies
-    PartStateIntEn(1:3,ParticleIndex) = 0.
+    ! Velocity (set it to zero, as it will be substracted in the chemistry module)
+    PartState(4:6,ParticleIndex) = 0.
+    ! Internal energies (set it to zero)
+    PartStateIntEn(1:2,ParticleIndex) = 0.
+    IF(DSMC%ElectronicModel) PartStateIntEn(3,ParticleIndex) = 0.
   ELSE
     CALL Abort(&
       __STAMP__&
@@ -756,6 +762,7 @@ DO WHILE (iPart.LE.NbrOfParticle)
   iPart = iPart + 1
 END DO
 
+ParticleVecLengthOld = PDM%ParticleVecLength
 ! Add the particles initialized through the emission and the background particles
 PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle + iNewPart
 ! Update the current next free position
@@ -774,6 +781,10 @@ DO iReac = 1, ChemReac%NumOfReact
   DO iPart = 1, ChemReac%NumPhotoIonization(iReac)
     iPair = iPair + 1
     CALL DSMC_Chemistry(iPair, iReac)
+    ! Add the velocity change due the energy distribution in the chemistry routine
+    iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
+    PartState(4:6,iPart_p1) = PartState(4:6,iPart_p1) + DSMC_RHS(1:3,iPart_p1)
+    PartState(4:6,iPart_p2) = PartState(4:6,iPart_p2) + DSMC_RHS(1:3,iPart_p2)
   END DO
 END DO
 

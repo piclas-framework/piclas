@@ -426,6 +426,7 @@ END IF
 !---  Emission at time step (initial emission see particle_init.f90: InitializeParticleEmission)
 DO i=1,nSpecies
   DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+    NbrOfParticle = 0
     IF (((Species(i)%Init(iInit)%ParticleEmissionType .NE. 4).AND.(Species(i)%Init(iInit)%ParticleEmissionType .NE. 6)) .AND. &
          (Species(i)%Init(iInit)%UseForEmission)) THEN ! no constant density in cell type, + to be used for init
 #if USE_MPI

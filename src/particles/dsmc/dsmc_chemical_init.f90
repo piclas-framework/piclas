@@ -43,9 +43,10 @@ SUBROUTINE DSMC_chemical_init()
   USE MOD_ReadInTools
   USE MOD_Globals
   USE MOD_Globals_Vars,           ONLY: BoltzmannConst, ElementaryCharge
-  USE MOD_PARTICLE_Vars,          ONLY: nSpecies
+  USE MOD_PARTICLE_Vars,          ONLY: nSpecies, Species
   USE MOD_Particle_Analyze_Vars,  ONLY: ChemEnergySum
   USE MOD_DSMC_ChemReact,         ONLY: CalcPartitionFunction, CalcQKAnalyticRate
+  USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -60,7 +61,8 @@ SUBROUTINE DSMC_chemical_init()
   LOGICAL, ALLOCATABLE  :: YetDefined_Help(:)
   LOGICAL               :: DoScat
   INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, MaxElecQua, ReadInNumOfReact
-  REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec, BGGasEVib
+  REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec, BGGasEVib, PhotonEnergy
+  INTEGER               :: iInit
 !===================================================================================================================================
 
 ! reading reaction values
@@ -150,8 +152,6 @@ __STAMP__&
     ALLOCATE(ChemReac%DoScat(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%ReactInfo(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%TLU_FileName(ChemReac%NumOfReact))
-    ALLOCATE(ChemReac%PhotonEnergy(ChemReac%NumOfReact))
-    ChemReac%PhotonEnergy = 0.
     ALLOCATE(ChemReac%CrossSection(ChemReac%NumOfReact))
     ChemReac%CrossSection = 0.
     ALLOCATE(ChemReac%NumPhotoIonization(ChemReac%NumOfReact))
@@ -210,7 +210,6 @@ __STAMP__&
       ! ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','0')
       ! ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','0')
       IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
-        ChemReac%PhotonEnergy(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-PhotonEnergy_eV') * ElementaryCharge
         ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
       END IF
       ! Filling up ChemReac-Array for the given non-reactive dissociation/electron-impact ionization partners
@@ -280,12 +279,18 @@ __STAMP__&
           MaxElecQua=SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%MaxElecQuant - 1
           ChemReac%EForm(iReac) = - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%ElectronicState(2,MaxElecQua)*BoltzmannConst
         END IF
-        IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
-          ! Photo-ionization reactions 
-          ChemReac%EForm(iReac) = ChemReac%EForm(iReac) + ChemReac%PhotonEnergy(iReac)
-          print*, iReac, ChemReac%EForm(iReac)
-        END IF
       END DO
+      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+        DO iSpec = 1, nSpecies
+          DO iInit = 1, Species(iSpec)%NumberOfInits
+            IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'Photon_Cylinder') THEN
+              PhotonEnergy = CalcPhotonEnergy(Species(iSpec)%Init(iInit)%WaveLength)
+              EXIT
+            END IF
+          END DO
+        END DO
+        ChemReac%EForm(iReac) = ChemReac%EForm(iReac) + PhotonEnergy
+      END IF
     END DO
 
     ! Initialize partition functions required for automatic backward rates
