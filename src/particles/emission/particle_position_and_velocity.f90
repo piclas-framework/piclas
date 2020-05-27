@@ -1716,12 +1716,14 @@ SUBROUTINE SetParticleVelocity(FractNbr,iInit,NbrOfParticle,init_or_sf)
 USE MOD_Globals
 USE MOD_PIC_Vars
 USE MOD_Particle_Vars
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_Timedisc_Vars         ,ONLY: dt
-USE MOD_Equation_Vars         ,ONLY: c,c2
-USE MOD_PICInterpolation_vars ,ONLY: externalField
-USE MOD_part_emission_tools   ,ONLY: CalcVelocity_maxwell_lpn,BessK,DEVI,SYNGE,QUASIREL,CalcVelocity_taylorgreenvortex
-USE MOD_part_emission_tools   ,ONLY: CalcVelocity_emmert,CalcVelocity_FromWorkFuncSEE
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_Timedisc_Vars           ,ONLY: dt
+USE MOD_Equation_Vars           ,ONLY: c,c2
+USE MOD_PICInterpolation_vars   ,ONLY: externalField
+USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn,BessK,DEVI,SYNGE,QUASIREL,CalcVelocity_taylorgreenvortex
+USE MOD_part_emission_tools     ,ONLY: CalcVelocity_emmert,CalcVelocity_FromWorkFuncSEE
+USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutput
+USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)               :: FractNbr,iInit,init_or_sf
@@ -2413,6 +2415,10 @@ CASE('Photon_SEE_Energy')
 !         CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
 !       END IF
        PartState(4:6,PositionNbr) = Vec3D(1:3)
+       ! Store the particle information in PartStateBoundary.h5
+       IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(PositionNbr,FractNbr,PartState(1:3,PositionNbr),&
+                                         UNITVECTOR(PartState(4:6,PositionNbr)),Species(FractNbr)%Init(iInit)%NormalIC,mode=2,&
+                                         usevMPF_optIN=.FALSE.)
     END IF
   END DO
 CASE DEFAULT

@@ -1301,8 +1301,9 @@ DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
   ! SpeciesID
   PartData(7,iPart)=PartStateBoundary(7,pcount)
 
-  ! Kinetic energy [J->eV] (do not consider the MPF here!)
-  PartData(8,iPart)=CalcEkinPart2(PartStateBoundary(4:6,pcount),INT(PartStateBoundary(7,pcount)),1.0) / ElementaryCharge
+  ! Kinetic energy [J->eV] (do not consider the MPF here! Call CalcEkinPart2 with MPF=1.0)
+  ! Take ABS() from SpecID as is might be negative (for storing particles that are emitted from a surface)
+  PartData(8,iPart)=CalcEkinPart2(PartStateBoundary(4:6,pcount),INT(ABS(PartStateBoundary(7,pcount))),1.0) / ElementaryCharge
 
   ! MPF: Macro particle factor
   PartData(9,iPart)=PartStateBoundary(8,pcount)
