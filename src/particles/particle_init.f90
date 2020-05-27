@@ -1777,6 +1777,9 @@ __STAMP__&
       Species(iSpec)%Init(iInit)%Energy             = GETREAL('Part-Species'//TRIM(hilf2)//'-Energy')
       Species(iSpec)%Init(iInit)%IntensityAmplitude = GETREAL('Part-Species'//TRIM(hilf2)//'-IntensityAmplitude')
 
+      ! Set dummy value as it might not be read
+      Species(iSpec)%Init(iInit)%RepetitionRate = -1.0
+
       IF(Species(iSpec)%Init(iInit)%Power.GT.0.0)THEN
         Species(iSpec)%Init(iInit)%RepetitionRate = GETREAL('Part-Species'//TRIM(hilf2)//'-RepetitionRate')
         Species(iSpec)%Init(iInit)%Period = 1./Species(iSpec)%Init(iInit)%RepetitionRate
@@ -1824,6 +1827,11 @@ __STAMP__&
           __STAMP__&
           ,'Photoionization in cylinderical volume: Supply either power P and repetition rate f, or energy E or intensity maximum I0!')
       END IF ! use RepetitionRate and Power
+
+      ! Sanity check: overlapping of pulses is not implemented (use multiple emissions for this)
+      IF(2.0*Species(iSpec)%Init(iInit)%tShift.GT.Species(iSpec)%Init(iInit)%Period) CALL abort(&
+        __STAMP__&
+        ,'Pulse length (2*tShift) is greater than the pulse period. This is not implemented!')
 
       ! Calculate the corrected intensity amplitude (due to temporal "-tShift to tShift" and spatial cut-off "0 to R")
       factor = PI**(3.0/2.0) * Species(iSpec)%Init(iInit)%WaistRadius**2 * Species(iSpec)%Init(iInit)%PulseDuration * &
