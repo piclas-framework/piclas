@@ -466,10 +466,6 @@ END IF
 EductReac(1:3) = ChemReac%DefinedReact(iReac,1,1:3)
 ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
 
-IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
-  EductReac(2) = EductReac(1)
-END IF
-
 IF(PRESENT(iPart_p3)) THEN
   ReactInx(3) = iPart_p3
   IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
@@ -487,10 +483,12 @@ IF(PRESENT(iPart_p3)) THEN
 END IF
 
 IF(CalcPartBalance) THEN
-  DO iPart = 1, NINT(NumWeightEduct)
-    nPartOut(EductReac(iPart))=nPartOut(EductReac(iPart)) + 1
-    PartEkinOut(EductReac(iPart))=PartEkinOut(EductReac(iPart))+CalcEkinPart(ReactInx(iPart))
-  END DO
+  IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') THEN
+    DO iPart = 1, NINT(NumWeightEduct)
+      nPartOut(EductReac(iPart))=nPartOut(EductReac(iPart)) + 1
+      PartEkinOut(EductReac(iPart))=PartEkinOut(EductReac(iPart))+CalcEkinPart(ReactInx(iPart))
+    END DO
+  END IF
 END IF
 
 Weight1 = GetParticleWeight(ReactInx(1))
@@ -501,7 +499,7 @@ IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   ReducedMass = Species(EductReac(1))%MassIC*Weight1 * Species(EductReac(2))%MassIC*Weight2 &
               / (Species(EductReac(1))%MassIC*Weight1 + Species(EductReac(2))%MassIC*Weight2)
 ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
-  ReducedMass = Species(EductReac(1))%MassIC
+  ReducedMass = 0.
 ELSE
   ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
 END IF
@@ -858,15 +856,21 @@ IF(ProductReac(3).NE.0) THEN
     VeloMz = FracMassCent1 * PartState(6,ReactInx(1)) &
             + FracMassCent2 * PartState(6,ReactInx(3))
   ELSE
-    IF (RadialWeighting%DoRadialWeighting) THEN
-      FracMassCent1 = Species(EductReac(1))%MassIC *Weight1 &
-          /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
-      FracMassCent2 = Species(EductReac(2))%MassIC *Weight2 &
-          /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
+    ! Scattering 2 -> 3
+    IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+    ! Do not consider the momentum of the photon
+      FracMassCent1 = 1.
+      FracMassCent2 = 0.
     ELSE
-      ! Scattering 2 -> 3
-      FracMassCent1 = CollInf%FracMassCent(EductReac(1), Coll_pData(iPair)%PairType)
-      FracMassCent2 = CollInf%FracMassCent(EductReac(2), Coll_pData(iPair)%PairType)
+      IF (RadialWeighting%DoRadialWeighting) THEN
+        FracMassCent1 = Species(EductReac(1))%MassIC *Weight1 &
+            /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
+        FracMassCent2 = Species(EductReac(2))%MassIC *Weight2 &
+            /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
+      ELSE
+        FracMassCent1 = CollInf%FracMassCent(EductReac(1),Coll_pData(iPair)%PairType)
+        FracMassCent2 = CollInf%FracMassCent(EductReac(2),Coll_pData(iPair)%PairType)
+      END IF
     END IF
 
     !Calculation of velo from center of mass
@@ -975,15 +979,21 @@ ELSEIF(ProductReac(3).EQ.0) THEN
     ! When RHS is set, ReactInx(2) is utilized, not an error as the old state cancels out after the particle push in the time disc,
     ! therefore, there is no need to set change the index as the proper species, ProductReac(2), was utilized for the relaxation
   ELSE
-    IF (RadialWeighting%DoRadialWeighting) THEN
-      FracMassCent1 = Species(EductReac(1))%MassIC *Weight1 &
-          /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
-      FracMassCent2 = Species(EductReac(2))%MassIC *Weight2 &
-          /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
+    ! Scattering 2 -> 2
+    IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+    ! Do not consider the momentum of the photon
+      FracMassCent1 = 1.
+      FracMassCent2 = 0.
     ELSE
-      ! Scattering 2 -> 3
-      FracMassCent1 = CollInf%FracMassCent(EductReac(1),CollInf%Coll_Case(EductReac(1),EductReac(2)))
-      FracMassCent2 = CollInf%FracMassCent(EductReac(2),CollInf%Coll_Case(EductReac(1),EductReac(2)))
+      IF (RadialWeighting%DoRadialWeighting) THEN
+        FracMassCent1 = Species(EductReac(1))%MassIC *Weight1 &
+            /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
+        FracMassCent2 = Species(EductReac(2))%MassIC *Weight2 &
+            /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
+      ELSE
+        FracMassCent1 = CollInf%FracMassCent(EductReac(1),CollInf%Coll_Case(EductReac(1),EductReac(2)))
+        FracMassCent2 = CollInf%FracMassCent(EductReac(2),CollInf%Coll_Case(EductReac(1),EductReac(2)))
+      END IF
     END IF
 
     VxPseuMolec = FracMassCent1 * PartState(4,ReactInx(1)) + FracMassCent2 * PartState(4,ReactInx(2))
@@ -1000,9 +1010,9 @@ ELSEIF(ProductReac(3).EQ.0) THEN
     ReducedMass = Species(ProductReac(1))%MassIC *Weight1* Species(ProductReac(2))%MassIC *Weight2 &
         / (Species(ProductReac(1))%MassIC*Weight1 + Species(ProductReac(2))%MassIC *Weight2)
   ELSE
-  ! Scattering of (AB)
-  FracMassCent1 = CollInf%FracMassCent(ProductReac(1),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
-  FracMassCent2 = CollInf%FracMassCent(ProductReac(2),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
+    ! Scattering of (AB)
+    FracMassCent1 = CollInf%FracMassCent(ProductReac(1),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
+    FracMassCent2 = CollInf%FracMassCent(ProductReac(2),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
     ReducedMass = CollInf%MassRed(CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
   END IF
 
