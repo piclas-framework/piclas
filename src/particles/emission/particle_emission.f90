@@ -540,22 +540,44 @@ __STAMP__&
 __STAMP__&
 ,' particle pressure not moved in picasso!')
           CALL ParticlePressureRem (i, iInit, NbrOfParticle)
-        CASE(7) ! SEE based on photonimpact
-          CALL CalcNbrOfPhotons(i, iInit, NbrOfPhotons)
-          NbrOfPhotons = Species(i)%Init(iInit)%YieldSEE * NbrOfPhotons / Species(i)%MacroParticleFactor &
-                       + Species(i)%Init(iInit)%NINT_Correction 
-          NbrOfParticle = NINT( NbrOfPhotons )
-          Species(i)%Init(iInit)%NINT_Correction = NbrOfPhotons - NbrOfParticle
-        CASE(8) ! Photo-ionization in the volume
-          CALL CalcNbrOfPhotons(i, iInit, NbrOfPhotons)
-          ! Calculation of the number of photons (using actual number and applying the weighting factor on the number of reactions)
-          NbrOfPhotons = Species(i)%Init(iInit)%EffectivIntensityFac * NbrOfPhotons
-          ! Calculation of the number of photons depending on the cylinder height (ratio of actual to virtual cylinder height, which
-          ! is spanned by the disk and the length given by c*dt)
-          NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CylinderHeightIC / (c*dt)
-          ! Calculation of the number of electron resulting from the chemical reactions in the photoionization region
-          CALL CalcPhotoIonizationNumber(NbrOfPhotons,NbrOfReactions)
-          NbrOfParticle = NbrOfReactions
+        CASE(7,8) ! SEE based on photon impact and photo-ionization in the volume
+          ASSOCIATE( tShift => Species(i)%Init(iInit)%tShift )
+            ! Check if all pulses have terminated
+            IF(Time.LE.Species(i)%Init(iInit)%tActive)THEN
+              ! Check if pulse is currently active of in between two pulses (in the latter case, do nothing)
+              IF(MOD(MERGE(Time-tShift, Time, Time.GE.tShift), Species(i)%Init(iInit)%Period).LE.2.0*tShift)THEN
+                ! Calculate the number of currently active photons (both surface SEE and volumetric emission)
+                CALL CalcNbrOfPhotons(i, iInit, NbrOfPhotons)
+
+                ! Check if only particles in the first quadrant are to be inserted that is spanned by the vectors 
+                ! x=BaseVector1IC and y=BaseVector2IC in the interval x,y in [0,R] and reduce the number of photon accordingly
+                IF(Species(i)%Init(iInit)%FirstQuadrantOnly) NbrOfPhotons = NbrOfPhotons / 4.0
+
+                ! Select surface SEE or volumetric emission
+                IF(Species(i)%Init(iInit)%ParticleEmissionType.EQ.7)THEN
+                  ! SEE based on photon impact
+                  NbrOfPhotons = Species(i)%Init(iInit)%YieldSEE * NbrOfPhotons / Species(i)%MacroParticleFactor &
+                               + Species(i)%Init(iInit)%NINT_Correction 
+                  NbrOfParticle = NINT(NbrOfPhotons)
+                  Species(i)%Init(iInit)%NINT_Correction = NbrOfPhotons - REAL(NbrOfParticle)
+                ELSE
+                  ! Photo-ionization in the volume
+                  ! Calculation of the number of photons (using actual number and applying the weighting factor on the number of reactions)
+                  NbrOfPhotons = Species(i)%Init(iInit)%EffectivIntensityFac * NbrOfPhotons
+                  ! Calculation of the number of photons depending on the cylinder height (ratio of actual to virtual cylinder height, which
+                  ! is spanned by the disk and the length given by c*dt)
+                  NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CylinderHeightIC / (c*dt)
+                  ! Calculation of the number of electron resulting from the chemical reactions in the photoionization region
+                  CALL CalcPhotoIonizationNumber(NbrOfPhotons,NbrOfReactions)
+                  NbrOfParticle = NbrOfReactions
+                END IF ! Species(i)%Init(iInit)%ParticleEmissionType.EQ.7
+              ELSE
+                NbrOfParticle = 0
+              END IF ! MOD(MERGE(Time-T0/2., Time, Time.GE.T0/2.), Period).GT.T0
+            ELSE
+              NbrOfParticle = 0
+            END IF ! Time.LE.Species(i)%Init(iInit)%tActive
+          END ASSOCIATE
         CASE DEFAULT
           NbrOfParticle = 0
         END SELECT

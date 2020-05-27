@@ -230,19 +230,32 @@ TYPE tInit                                                                   ! P
   INTEGER                                :: InitComm                          ! number of init-communicator
 #endif /*USE_MPI*/
 !====================================photo ionization =======================================================
-  INTEGER, ALLOCATABLE                    :: PhotoIonElemMap(:)
-  INTEGER                                 :: PhotoIonElems
-  REAL, ALLOCATABLE                       :: ElementRadius(:)
-  REAL                                    :: PulseDuration
-  REAL                                    :: WaistRadius
-  REAL                                    :: IntensityAmplitude
-  REAL                                    :: WaveLength
-  REAL                                    :: YieldSEE
-  INTEGER                                 :: RepetitionRate
-  REAL                                    :: NINT_Correction
-  REAL                                    :: WorkFunctionSEE
-  REAL                                    :: AngularBetaSEE
-  REAL                                    :: EffectivIntensityFac
+  INTEGER, ALLOCATABLE               :: PhotoIonElemMap(:)
+  INTEGER                            :: PhotoIonElems
+  REAL, ALLOCATABLE                  :: ElementRadius(:)
+  LOGICAL                            :: FirstQuadrantOnly  ! Only insert particles in the first quadrant that is spanned by the
+                                                           ! vectors x=BaseVector1IC and y=BaseVector2IC in the interval x,y in [0,R]
+  REAL                               :: PulseDuration      ! Pulse duration tau for a Gaussian-tpye pulse with 
+                                                           ! I~exp(-(t/tau)^2) [s]
+  REAL                               :: WaistRadius        ! Beam waist radius (in focal spot) w_b for Gaussian-tpye pulse with
+                                                           ! I~exp(-(r/w_b)^2) [m]
+  REAL                               :: IntensityAmplitude ! Beam intensity maximum I0 Gaussian-tpye pulse with 
+                                                           ! I=I0*exp(-(t/tau)^2)exp(-(r/w_b)^2) [W/m^2]
+  REAL                               :: WaveLength         ! Beam wavelength [m]
+  REAL                               :: YieldSEE           ! Secondary photoelectron yield [-]
+  REAL                               :: RepetitionRate     ! Pulse repetition rate [Hz]
+  REAL                               :: Power              ! Average pulse power (energy of a single pulse times repetition rate) [J]
+  REAL                               :: Energy             ! Single pulse energy (used when RepetitionRate and Power are not supplied [J]
+  REAL                               :: Period             ! Time between the maximum intensity of two pulses [s]
+  REAL                               :: tActive            ! Pulse will end at tActive (pulse time) [s]
+  REAL                               :: tShift             ! Time shift for pulse corresponding to half of the Pulse width (pulse time) [s]
+  INTEGER                            :: NbrOfPulses        ! Number of pulses [-]
+  REAL                               :: NINT_Correction    ! nearest integer correction factor due to cut-off when converting
+                                                           ! the number of particles calculated as real to integer for the 
+                                                           ! actual emission
+  REAL                               :: WorkFunctionSEE    ! Photoelectron work function [eV]
+  !REAL                               :: AngularBetaSEE
+  REAL                               :: EffectivIntensityFac ! Effective intensity that increases I0 [-]
 END TYPE tInit
 
 TYPE tSurfFluxSubSideData

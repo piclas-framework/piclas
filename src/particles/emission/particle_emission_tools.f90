@@ -1252,78 +1252,79 @@ SUBROUTINE CalcNbrOfPhotons(i,iInit,NbrOfPhotons)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars            ,ONLY: PI
-USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_Timedisc_Vars           ,ONLY : dt,time
+USE MOD_Globals_Vars  ,ONLY: PI
+USE MOD_Particle_Vars ,ONLY: Species
+USE MOD_Timedisc_Vars ,ONLY: dt,time
 #ifdef LSERK
-USE MOD_Timedisc_Vars           ,ONLY : iStage, RK_b, RK_a, RK_c,nRKStages
+USE MOD_Timedisc_Vars ,ONLY: iStage, RK_b, RK_a, RK_c,nRKStages
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)             :: i
-INTEGER, INTENT(IN)             :: iInit
+INTEGER, INTENT(IN) :: i
+INTEGER, INTENT(IN) :: iInit
 ! INOUTPUT VARIABLES
-REAL, INTENT(OUT)          :: NbrOfPhotons
+REAL, INTENT(OUT)   :: NbrOfPhotons
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                     :: t_1, t_2,lambda
-REAL                     :: E_Intensity
-INTEGER                  :: NbrOfRepetitions
+REAL    :: t_1, t_2,lambda
+REAL    :: E_Intensity
+INTEGER :: NbrOfRepetitions
 #ifdef LSERK
-INTEGER                  :: iStage_loc, nStage
-REAL                     :: RKdtFrac
+INTEGER :: iStage_loc, nStage
+REAL    :: RKdtFrac
 #endif
 !===================================================================================================================================
 
-ASSOCIATE( tau    => Species(i)%Init(iInit)%PulseDuration           ,&
-           w_b    => Species(i)%Init(iInit)%WaistRadius             ,&
-           Radius => Species(i)%Init(iInit)%RadiusIC                ,&
-           I_0    => Species(i)%Init(iInit)%IntensityAmplitude      ,&
-           lambda => Species(i)%Init(iInit)%WaveLength              ,&
-           f_rep  => Species(i)%Init(iInit)%RepetitionRate           &
+ASSOCIATE( tau         => Species(i)%Init(iInit)%PulseDuration      ,&
+           tShift      => Species(i)%Init(iInit)%tShift             ,&
+           w_b         => Species(i)%Init(iInit)%WaistRadius        ,&
+           Radius      => Species(i)%Init(iInit)%RadiusIC           ,&
+           I_0         => Species(i)%Init(iInit)%IntensityAmplitude ,&
+           lambda      => Species(i)%Init(iInit)%WaveLength         ,&
+           NbrOfPulses => Species(i)%Init(iInit)%NbrOfPulses        ,&
+           Period      => Species(i)%Init(iInit)%Period              &
           )
 
-NbrOfRepetitions = INT(Time/(SQRT(32.0)*tau))
-IF((NbrOfRepetitions+1).LE.f_rep) THEN
-  ! temporal bound of integration
+! Calculate the current pulse
+NbrOfRepetitions = INT(Time/Period)
+
+! Temporal bound of integration
 #ifdef LSERK
-  IF (iStage.EQ.1) THEN
-  t_1 = Time
-  t_2 = Time + RK_c(2) * dt
+IF (iStage.EQ.1) THEN
+t_1 = Time
+t_2 = Time + RK_c(2) * dt
+ELSE
+  IF (iStage.NE.nRKStages) THEN
+    t_1 = Time + RK_c(iStage) * dt
+    t_2 = Time + RK_c(iStage+1) * dt
   ELSE
-    IF (iStage.NE.nRKStages) THEN
-      t_1 = Time + RK_c(iStage) * dt
-      t_2 = Time + RK_c(iStage+1) * dt
-    ELSE
-      t_1 = Time + RK_c(iStage) * dt
-      t_2 = Time + dt
-    END IF
+    t_1 = Time + RK_c(iStage) * dt
+    t_2 = Time + dt
   END IF
-#else
-  t_1 = Time
-  t_2 = Time + dt
-#endif
-  ! add arbitrary time shift (-4 sigma_t) so that I_max is not at t=0s
-  ! sigma_t = tau / sqrt(2)
-  t_1 = t_1 - SQRT(8.0) *tau - NbrOfRepetitions * SQRT(32.0)*tau
-  t_2 = t_2 - SQRT(8.0) *tau - NbrOfRepetitions * SQRT(32.0)*tau
-  IF(t_1.LE.(SQRT(8.0)*tau)) THEN   ! temporal cutt-off (4*sigma_t)
-  ! integral of I(r,t) = I_0 exp(-(t/tau)**2)exp(-(r/w_b)**2)
-  ! for t = t_1 to t_2, r = 0 to Radius
-    E_Intensity = 0.5 * I_0 * PI**(3.0/2.0) * w_b**2 * tau &
-                * (1-EXP(-Radius**2/w_b**2)) &
-                * (ERF(t_2/tau)-ERF(t_1/tau))
-    NbrOfPhotons = E_Intensity / CalcPhotonEnergie(lambda)
-  ELSE
-    NbrOfPhotons = 0.0
-    Species(i)%Init(iInit)%NINT_Correction = 0.0
-  END IF
-ELSE ! NbrOfRepetitions .GT. RepetitionRate => Cutoff
-  NbrOfPhotons = 0.0
-  Species(i)%Init(iInit)%NINT_Correction = 0.0
 END IF
+#else
+t_1 = Time
+t_2 = Time + dt
+#endif
+! Add arbitrary time shift (-4 sigma_t) so that I_max is not at t=0s
+! Note that sigma_t = tau / sqrt(2)
+
+t_1 = t_1 - tShift - NbrOfRepetitions * Period
+t_2 = t_2 - tShift - NbrOfRepetitions * Period
+! check if t_2 is outside of the pulse
+IF(t_2.GT.2.0*tShift) t_2 = 2.0*tShift
+
+! Integral of I(r,t) = I_0 exp(-(t/tau)**2)exp(-(r/w_b)**2)
+! Integrate I(r,t)*r dr dt dphi and don't forget the Jacobian
+!   dr : from 0 to R
+!   dt : from t1 to t2
+! dphi : from 0 to 2*PI
+E_Intensity = 0.5 * I_0 * PI**(3.0/2.0) * w_b**2 * tau &
+            * (1.0-EXP(-Radius**2/w_b**2)) &
+            * (ERF(t_2/tau)-ERF(t_1/tau))
+NbrOfPhotons = E_Intensity / CalcPhotonEnergie(lambda)
 
 END ASSOCIATE
 
@@ -1383,7 +1384,7 @@ REAL                             :: Theta_temp
 
 ASSOCIATE( W     => Species(FractNbr)%Init(iInit)%WorkFunctionSEE    ,&
            m     => Species(FractNbr)%MassIC                         ,&
-           beta  => Species(FractNbr)%Init(iInit)%AngularBetaSEE     ,&
+           !beta  => Species(FractNbr)%Init(iInit)%AngularBetaSEE     ,&
            t_vec => Species(FractNbr)%Init(iInit)%BaseVector1IC      ,&
            n_vec => Species(FractNbr)%Init(iInit)%NormalIC            )
 
