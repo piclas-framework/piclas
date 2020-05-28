@@ -819,7 +819,7 @@ END IF
 DEALLOCATE(FileContent)
 
 ! calculate the maximal string length of all option-names and option-values
-this%maxNameLen  = 0
+this%maxNameLen  = 78 ! The longest option is used in PrintOption() in InitGlobals()
 this%maxValueLen = 0
 current => prms%firstLink
 DO WHILE (associated(current))
@@ -1838,7 +1838,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)            :: NameOpt ! Option name
-CHARACTER(LEN=*),INTENT(IN)            :: InfoOpt ! Option information
+CHARACTER(LEN=*),INTENT(IN)            :: InfoOpt ! Option information:
 ! optional
 INTEGER,INTENT(IN),OPTIONAL            :: IntOpt  ! Integer value
 REAL,INTENT(IN),OPTIONAL               :: RealOpt ! Real value

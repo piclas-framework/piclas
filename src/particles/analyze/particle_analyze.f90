@@ -1760,7 +1760,7 @@ SUBROUTINE CalcKineticEnergy(Ekin)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Equation_Vars         ,ONLY: c2, c2_inv
+USE MOD_Globals_Vars          ,ONLY: c2, c2_inv
 USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM
 USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
@@ -1879,7 +1879,7 @@ SUBROUTINE CalcKineticEnergyAndMaximum(Ekin,EkinMax)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Equation_Vars         ,ONLY: c2, c2_inv
+USE MOD_Globals_Vars          ,ONLY: c2, c2_inv
 USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, nSpecies
 USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze,LaserInteractionEkinMaxRadius,LaserInteractionEkinMaxZPosMin
@@ -2983,7 +2983,7 @@ USE MOD_Globals          ,ONLY: abort
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PEM
 USE MOD_Particle_Analyze_Vars ,ONLY: printDiff,printDiffVec,printDiffTime
 #if defined(LSERK) || defined(IMPA) || defined(ROS)
-USE MOD_Equation_Vars         ,ONLY: c2_inv
+USE MOD_Globals_Vars          ,ONLY: c2_inv
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -3560,7 +3560,7 @@ SUBROUTINE CalculatePlasmaFrequencyCell()
 USE MOD_Preproc                ,ONLY:PP_nElems
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,PlasmaFrequencyCell
 USE MOD_Globals_Vars           ,ONLY:ElementaryCharge,ElectronMass
-USE MOD_Equation_Vars          ,ONLY:Eps0
+USE MOD_Globals_Vars           ,ONLY:eps0
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3623,7 +3623,7 @@ SUBROUTINE CalculateDebyeLengthCell()
 USE MOD_Preproc                ,ONLY:PP_nElems
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,ElectronTemperatureCell,DebyeLengthCell,QuasiNeutralityCell
 USE MOD_Globals_Vars           ,ONLY:ElementaryCharge, BoltzmannConst
-USE MOD_Equation_Vars          ,ONLY:Eps0
+USE MOD_Globals_Vars           ,ONLY:eps0
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

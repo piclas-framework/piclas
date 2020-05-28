@@ -38,11 +38,12 @@ FUNCTION CALCTIMESTEP()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars,     ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
-USE MOD_Equation_Vars, ONLY:c,c_corr
-USE MOD_TimeDisc_Vars, ONLY:CFLScale
+USE MOD_Mesh_Vars     ,ONLY: sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
+USE MOD_Equation_Vars ,ONLY: c_corr
+USE MOD_Globals_Vars  ,ONLY: c
+USE MOD_TimeDisc_Vars ,ONLY: CFLScale
 #if USE_QDS_DG
-USE MOD_QDS_DG_Vars,   ONLY:QDSMaxVelo,DoQDS
+USE MOD_QDS_DG_Vars   ,ONLY: QDSMaxVelo,DoQDS
 #endif /*USE_QDS_DG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

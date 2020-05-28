@@ -101,87 +101,87 @@ SUBROUTINE SplitParticle(iPart, deltaE,CSquare)
 ! Split Particles
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals,        ONLY : Abort,DOTPRODUCT
-  USE MOD_Particle_Vars,  ONLY : PDM, PartState, PartSpecies, PartMPF, PEM, Species, vMPF_relativistic
-  USE MOD_DSMC_Vars,      ONLY : useDSMC, CollisMode, PartStateIntEn
-  USE MOD_Equation_Vars,  ONLY : c2
-  USE MOD_part_tools,     ONLY : DiceUnitVector
+USE MOD_Globals       ,ONLY: Abort,DOTPRODUCT
+USE MOD_Particle_Vars ,ONLY: PDM, PartState, PartSpecies, PartMPF, PEM, Species, vMPF_relativistic
+USE MOD_DSMC_Vars     ,ONLY: useDSMC, CollisMode, PartStateIntEn
+USE MOD_Globals_Vars  ,ONLY: c2
+USE MOD_part_tools    ,ONLY: DiceUnitVector
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER,INTENT(IN)              :: iPart
-  REAL, INTENT(IN)                :: deltaE
-  LOGICAL,INTENT(INOUT)           :: CSquare
+INTEGER,INTENT(IN)              :: iPart
+REAL, INTENT(IN)                :: deltaE
+LOGICAL,INTENT(INOUT)           :: CSquare
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                         :: PositionNbr
-  REAL                            :: beta, VeloSQ, Gamma
-  REAL                            :: v_old(3), oldEner, old_mom(1:3), new_mom(1:3)
-  REAL                            :: RanVec(3)
+INTEGER                         :: PositionNbr
+REAL                            :: beta, VeloSQ, Gamma
+REAL                            :: v_old(3), oldEner, old_mom(1:3), new_mom(1:3)
+REAL                            :: RanVec(3)
 !===================================================================================================================================
 
-  v_old(1:3) = PartState(4:6,iPart)
+v_old(1:3) = PartState(4:6,iPart)
 
 !.... Get free particle index for the new particle produced
-  PDM%ParticleVecLength = PDM%ParticleVecLength + 1
-  PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
-  PositionNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
-  IF (PositionNbr.EQ.0) THEN
-    CALL Abort(&
-    __STAMP__&
-    ,'ERROR in SplitParticle: New Particle Number greater max Part Num!')
-  END IF
+PDM%ParticleVecLength = PDM%ParticleVecLength + 1
+PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
+PositionNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+IF (PositionNbr.EQ.0) THEN
+  CALL Abort(&
+  __STAMP__&
+  ,'ERROR in SplitParticle: New Particle Number greater max Part Num!')
+END IF
 
 !Set new particle parameters
-  PDM%ParticleInside(PositionNbr) = .true.
-  PartSpecies(PositionNbr) = PartSpecies(iPart)
-  PartState(1:3,PositionNbr) = PartState(1:3,iPart)
-  IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-    PartStateIntEn(1,PositionNbr) = PartStateIntEn(1,iPart)
-    PartStateIntEn(2,PositionNbr) = PartStateIntEn(2,iPart)
-  END IF
-  PEM%GlobalElemID(PositionNbr) = PEM%GlobalElemID(iPart)
+PDM%ParticleInside(PositionNbr) = .true.
+PartSpecies(PositionNbr) = PartSpecies(iPart)
+PartState(1:3,PositionNbr) = PartState(1:3,iPart)
+IF (useDSMC.AND.(CollisMode.GT.1)) THEN
+  PartStateIntEn(1,PositionNbr) = PartStateIntEn(1,iPart)
+  PartStateIntEn(2,PositionNbr) = PartStateIntEn(2,iPart)
+END IF
+PEM%GlobalElemID(PositionNbr) = PEM%GlobalElemID(iPart)
 
 !set new MPFs
-  PartMPF(iPart) =  PartMPF(iPart) / 2.0
-  PartMPF(PositionNbr) = PartMPF(iPart)
+PartMPF(iPart) =  PartMPF(iPart) / 2.0
+PartMPF(PositionNbr) = PartMPF(iPart)
 
 !calulating beta = sqrt(deltaE/MPF_old)
-  IF (vMPF_relativistic) THEN
-    RanVec(1:3) = DiceUnitVector()
-    VeloSQ = v_old(1)*v_old(1)+v_old(2)*v_old(2)+v_old(3)*v_old(3)
-    Gamma = VeloSq/c2
-    Gamma = 1./SQRT(1.-Gamma)
-    oldEner = Species(PartSpecies(iPart))%MassIC * 2.0*PartMPF(iPart)* (Gamma-1.)*c2
-    old_mom(1:3) = Species(PartSpecies(iPart))%MassIC *2.0* PartMPF(iPart)* v_old(1:3)*Gamma
-    !beta = CalcRelaBeta(oldEner,RanVec(1:3), PartMPF(iPart), PartSpecies(iPart), deltaE, old_mom(1:3))
-    beta = CalcRelaBeta2(oldEner,RanVec(1:3), PartMPF(iPart), PartSpecies(iPart), deltaE, old_mom(1:3))
+IF (vMPF_relativistic) THEN
+  RanVec(1:3) = DiceUnitVector()
+  VeloSQ = v_old(1)*v_old(1)+v_old(2)*v_old(2)+v_old(3)*v_old(3)
+  Gamma = VeloSq/c2
+  Gamma = 1./SQRT(1.-Gamma)
+  oldEner = Species(PartSpecies(iPart))%MassIC * 2.0*PartMPF(iPart)* (Gamma-1.)*c2
+  old_mom(1:3) = Species(PartSpecies(iPart))%MassIC *2.0* PartMPF(iPart)* v_old(1:3)*Gamma
+  !beta = CalcRelaBeta(oldEner,RanVec(1:3), PartMPF(iPart), PartSpecies(iPart), deltaE, old_mom(1:3))
+  beta = CalcRelaBeta2(oldEner,RanVec(1:3), PartMPF(iPart), PartSpecies(iPart), deltaE, old_mom(1:3))
 
-    new_mom(1:3) = old_mom(1:3)/2.0 + beta*RanVec(1:3)
-    PartState(4:6,iPart) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart), PartMPF(iPart))
-    new_mom(1:3) = old_mom(1:3)/2.0 - beta*RanVec(1:3)
-    PartState(4:6,PositionNbr) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart), PartMPF(iPart))
-  ELSE
-    beta = SQRT(2*deltaE/(PartMPF(iPart)*Species(PartSpecies(iPart))%MassIC))
-    RanVec(1:3) = DiceUnitVector()
-    PartState(4:6,iPart) = v_old(1:3) - beta * RanVec(1:3)
-    PartState(4:6,PositionNbr) = v_old(1:3) + beta * RanVec(1:3)
-  END IF
+  new_mom(1:3) = old_mom(1:3)/2.0 + beta*RanVec(1:3)
+  PartState(4:6,iPart) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart), PartMPF(iPart))
+  new_mom(1:3) = old_mom(1:3)/2.0 - beta*RanVec(1:3)
+  PartState(4:6,PositionNbr) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart), PartMPF(iPart))
+ELSE
+  beta = SQRT(2*deltaE/(PartMPF(iPart)*Species(PartSpecies(iPart))%MassIC))
+  RanVec(1:3) = DiceUnitVector()
+  PartState(4:6,iPart) = v_old(1:3) - beta * RanVec(1:3)
+  PartState(4:6,PositionNbr) = v_old(1:3) + beta * RanVec(1:3)
+END IF
 
-  VeloSQ =DOTPRODUCT(PartState(4:6,iPart)) 
-  IF(VeloSQ.GT.c2) THEN
-    CSquare=.true.
-    PDM%ParticleInside(PositionNbr)=.false.
-  END IF
-  VeloSQ = DOTPRODUCT(PartState(4:6,PositionNbr))
-  IF(VeloSQ.GT.c2) THEN
-    CSquare=.true.
-    PDM%ParticleInside(PositionNbr)=.false.
-  END IF
+VeloSQ =DOTPRODUCT(PartState(4:6,iPart)) 
+IF(VeloSQ.GT.c2) THEN
+  CSquare=.true.
+  PDM%ParticleInside(PositionNbr)=.false.
+END IF
+VeloSQ = DOTPRODUCT(PartState(4:6,PositionNbr))
+IF(VeloSQ.GT.c2) THEN
+  CSquare=.true.
+  PDM%ParticleInside(PositionNbr)=.false.
+END IF
 END SUBROUTINE SplitParticle
 
 
@@ -189,10 +189,10 @@ SUBROUTINE DoEnergyConservation(iPart,iPart2, deltaE,CSquare)
 !===================================================================================================================================
 ! Split Particles
 !===================================================================================================================================
-  USE MOD_Globals,        ONLY : DOTPRODUCT
-  USE MOD_Particle_Vars, ONLY : PartState, PartSpecies, PartMPF, Species, vMPF_relativistic
-  USE MOD_Equation_Vars,          ONLY : c2
-  USE MOD_part_tools,     ONLY : DiceUnitVector
+USE MOD_Globals       ,ONLY: DOTPRODUCT
+USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, PartMPF, Species, vMPF_relativistic
+USE MOD_Globals_Vars  ,ONLY: c2
+USE MOD_part_tools    ,ONLY: DiceUnitVector
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -567,7 +567,7 @@ USE MOD_Globals,        ONLY: DOTPRODUCT
   USE MOD_Particle_Vars, ONLY : PartState, vMPF_oldEngSum, vMPF_oldMomSum ,Species, PartMPF, PDM, &
                                   PartStatevMPFSpec, vMPFOldPos, vMPFOldVelo, vMPFOldMPF, vMPF_relativistic
   USE MOD_Globals_Vars,          ONLY: BoltzmannConst
-  USE MOD_Equation_Vars, ONLY : c2
+  USE MOD_Globals_Vars, ONLY : c2
 !===================================================================================================================================
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -822,7 +822,7 @@ SUBROUTINE SetNewVelos(NewPartNum, Temp, SpecNum, SpecID)
   USE MOD_Particle_Vars
   USE Levenberg_Marquardt
   USE MOD_Globals
-  USE MOD_Equation_Vars,          ONLY : c2
+  USE MOD_Globals_Vars,          ONLY : c2
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -1251,7 +1251,7 @@ SUBROUTINE SetNewDistrVelo(NewPartNum, nDist, SpecNum, Csquare)                 
   USE MOD_Particle_Vars, ONLY : PartState, Species, PartSpecies, vMPF_oldEngSum, vMPF_oldMomSum, &
                      PartMPF, PartStatevMPFSpec, vMPFOldBrownVelo, vMPFOldMPF, vMPF_oldMPFSum, vMPF_relativistic
   USE MOD_Globals
-  USE MOD_Equation_Vars,          ONLY : c2
+  USE MOD_Globals_Vars,          ONLY : c2
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    !
@@ -1573,7 +1573,7 @@ SUBROUTINE SetNewDistrVeloDensEst(NewPartNum, SpecNum,Csquare)                  
   USE MOD_Particle_Vars, ONLY : PartState, Species, PartSpecies, vMPF_oldEngSum, vMPF_oldMomSum, &
                      PartMPF, PartStatevMPFSpec,  PartStateMap &
                     , vMPF_NewPosRefElem, vMPFOldVelo, vMPF_relativistic
-  USE MOD_Equation_Vars,          ONLY : c2
+  USE MOD_Globals_Vars,          ONLY : c2
   USE MOD_Globals
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -1774,7 +1774,7 @@ FUNCTION RelVeloFromMom(RelMom, SpecID, MPF)
 ! calculates relativistic velocities from relativistic momentum
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Equation_Vars,          ONLY : c2
+  USE MOD_Globals_Vars,          ONLY : c2
   USE MOD_Particle_Vars,          ONLY : Species
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -1816,7 +1816,7 @@ REAL FUNCTION CalcRelaBeta(energy,randvecin, mpf, SpecID, DeltaE, OldMomentum)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_Equation_Vars,          ONLY : c2
+  USE MOD_Globals_Vars,          ONLY : c2
   USE MOD_Particle_Vars,          ONLY : Species
 !--------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -1903,7 +1903,7 @@ REAL FUNCTION CalcRelaBeta2(energy,randvecin, mpf, SpecID, DeltaE, OldMomentum)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_Equation_Vars,          ONLY : c2
+  USE MOD_Globals_Vars,          ONLY : c2
   USE MOD_Particle_Vars,          ONLY : Species
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING

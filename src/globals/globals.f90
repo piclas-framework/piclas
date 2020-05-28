@@ -54,10 +54,6 @@ INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(18)
 INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
 #endif
 
-INTERFACE InitGlobals
-  MODULE PROCEDURE InitGlobals
-END INTERFACE
-
 INTERFACE ReOpenLogFile
   MODULE PROCEDURE ReOpenLogFile
 END INTERFACE
@@ -151,60 +147,6 @@ PUBLIC :: setstacksizeunlimited
 
 !===================================================================================================================================
 CONTAINS
-
-SUBROUTINE InitGlobals()
-!===================================================================================================================================
-! Pre-compute required constants
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars
-USE MOD_PreProc
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                        :: OpenStat
-CHARACTER(LEN=8)               :: StrDate
-CHARACTER(LEN=10)              :: StrTime
-LOGICAL                        :: LogIsOpen
-!===================================================================================================================================
-
-SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS ...'
-
-PI=ACOS(-1.)
-sPI = 1./PI
-
-! get machine accuracy
-epsMach=EPSILON(0.0)
-TwoEpsMach=2.0d0*epsMach
-
-! Open file for logging
-IF(Logging)THEN
-  INQUIRE(UNIT=UNIT_LogOut,OPENED=LogIsOpen)
-  IF(.NOT.LogIsOpen)THEN
-    WRITE(LogFile,'(A,A1,I6.6,A4)')TRIM(ProjectName),'_',myRank,'.log'
-    OPEN(UNIT=UNIT_logOut,  &
-         FILE=LogFile,      &
-         STATUS='UNKNOWN',  &
-         ACTION='WRITE',    &
-         POSITION='APPEND', &
-         IOSTAT=OpenStat)
-    CALL DATE_AND_TIME(StrDate,StrTime)
-    WRITE(UNIT_logOut,*)
-    WRITE(UNIT_logOut,'(132("#"))')
-    WRITE(UNIT_logOut,*)
-    WRITE(UNIT_logOut,*)'STARTED LOGGING FOR PROC',myRank,' ON ',StrDate(7:8),'.',StrDate(5:6),'.',StrDate(1:4),' | ',&
-                        StrTime(1:2),':',StrTime(3:4),':',StrTime(5:10)
-  END IF !logIsOpen
-END IF  ! Logging
-
-SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
-END SUBROUTINE InitGlobals
 
 
 SUBROUTINE ReOpenLogFile()

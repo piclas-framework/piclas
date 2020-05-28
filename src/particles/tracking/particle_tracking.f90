@@ -2892,16 +2892,16 @@ SUBROUTINE ParticleCollectCharges(initialCall_opt)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Surfaces_Vars,  ONLY : BCdata_auxSF,SurfMeshSubSideData,SurfFluxSideSize,TriaSurfaceFlux,SideType
-USE MOD_Equation_Vars,           ONLY : eps0
-USE MOD_TimeDisc_Vars,           ONLY : iter,IterDisplayStep,DoDisplayIter, dt,RKdtFrac
-USE MOD_Particle_Mesh_Vars,      ONLY : GEO,NbrOfRegions
-USE MOD_Particle_Vars,           ONLY : RegionElectronRef
-USE MOD_Mesh_Vars,               ONLY : SideToElem
-USE MOD_Particle_Vars,           ONLY : nCollectChargesBCs,CollectCharges
-USE MOD_Particle_Boundary_Vars,  ONLY : PartBound
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF,SurfMeshSubSideData,SurfFluxSideSize,TriaSurfaceFlux,SideType
+USE MOD_Globals_Vars           ,ONLY: eps0
+USE MOD_TimeDisc_Vars          ,ONLY: iter,IterDisplayStep,DoDisplayIter, dt,RKdtFrac
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,NbrOfRegions
+USE MOD_Particle_Vars          ,ONLY: RegionElectronRef
+USE MOD_Mesh_Vars              ,ONLY: SideToElem
+USE MOD_Particle_Vars          ,ONLY: nCollectChargesBCs,CollectCharges
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 #if USE_MPI
-USE MOD_Particle_MPI_Vars,       ONLY : PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

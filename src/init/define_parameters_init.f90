@@ -27,7 +27,8 @@ SUBROUTINE InitDefineParameters()
 ! Calls all parameter definition routines
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
-USE MOD_Globals
+USE MOD_Globals                    ,ONLY: UNIT_stdOut,MPIRoot
+USE MOD_Globals_Init               ,ONLY: DefineParametersGlobals
 USE MOD_ReadInTools                ,ONLY: prms
 USE MOD_MPI                        ,ONLY: DefineParametersMPI
 USE MOD_IO_HDF5                    ,ONLY: DefineParametersIO
@@ -94,6 +95,7 @@ SWRITE(UNIT_stdOut,'(132("="))')
 
 CALL DefineParametersMPI()
 CALL DefineParametersIO()
+CALL DefineParametersGlobals()
 CALL DefineParametersLoadBalance()
 CALL DefineParametersInterpolation()
 CALL DefineParametersRestart()

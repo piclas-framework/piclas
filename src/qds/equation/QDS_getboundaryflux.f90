@@ -49,10 +49,8 @@ USE MOD_PreProc
 USE MOD_Globals,            ONLY:Abort,CROSS
 USE MOD_QDS_Equation,       ONLY:QDS_ExactFunc
 USE MOD_Mesh_Vars    ,      ONLY:nBCSides,nBCs,BoundaryType
-USE MOD_Equation_Vars,      ONLY:nBCByType,BCSideID
-USE MOD_Equation_Vars,      ONLY:nBCByType
-USE MOD_QDS_Equation_Vars,  ONLY:U_Face_old
-USE MOD_QDS_Equation_vars,  ONLY:QDSnVar
+USE MOD_Equation_Vars,      ONLY:nBCByType,BCSideID,nBCByType
+USE MOD_QDS_Equation_Vars,  ONLY:U_Face_old,QDSnVar
 USE MOD_QDS_Riemann,        ONLY:RiemannQDS
 USE MOD_QDS_Equation,       ONLY:QDS_Q2U
 USE MOD_QDS_DG_vars,        ONLY:QDSnVar_macro

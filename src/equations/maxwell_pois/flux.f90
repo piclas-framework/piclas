@@ -37,9 +37,10 @@ SUBROUTINE EvalFlux3D(iElem,f,g,h)
 ! Compute linear scalar advection fluxes with velocity AdvVel(3) using the conservative variables for every volume Gauss point.
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc ! PP_N
-USE MOD_Equation_Vars,ONLY:c2,c_corr,c_corr_c2
-USE MOD_DG_Vars,ONLY:U
+USE MOD_PreProc
+USE MOD_Globals_Vars  ,ONLY: c2
+USE MOD_Equation_Vars ,ONLY: c_corr,c_corr_c2
+USE MOD_DG_Vars       ,ONLY: U
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

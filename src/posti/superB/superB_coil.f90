@@ -316,9 +316,8 @@ USE MOD_Preproc
 USE MOD_SuperB_Vars
 USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP
 USE MOD_Interpolation_Vars ,ONLY: BGField
-USE MOD_Equation_Vars      ,ONLY: mu0
+USE MOD_Globals_Vars       ,ONLY: mu0
 USE MOD_SuperB_Tools       ,ONLY: CalcErrorSuperB
-!USE MOD_Analyze_Vars       ,ONLY: wAnalyze
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -399,7 +398,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Preproc
 USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP
-USE MOD_Equation_Vars      ,ONLY: mu0, c
+USE MOD_Globals_Vars       ,ONLY: mu0, c
 USE MOD_SuperB_Vars        ,ONLY: CoilInfo, CurrentInfo, CoilNodes
 USE MOD_Interpolation_Vars ,ONLY: BGField
 ! IMPLICIT VARIABLE HANDLING

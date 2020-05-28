@@ -216,9 +216,8 @@ SUBROUTINE ExactFuncSuperB(ExactFunctionNumber,iCoilOrMagnet,x,resu)
 ! MODULES
 USE MOD_Globals       ,ONLY: Abort,VECNORM,OrthoNormVec,UNITVECTOR,CROSSNORM,DOTPRODUCT
 USE MOD_Globals       ,ONLY: SphericalCoordinates,TransformVectorFromSphericalCoordinates
-USE MOD_Globals_Vars  ,ONLY: Pi
+USE MOD_Globals_Vars  ,ONLY: Pi,mu0
 USE MOD_SuperB_Vars   ,ONLY: CoilInfo,PermanentMagnetInfo
-USE MOD_Equation_Vars ,ONLY: mu0
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

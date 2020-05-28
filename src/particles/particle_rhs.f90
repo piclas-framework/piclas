@@ -270,12 +270,12 @@ SUBROUTINE PartRHS_D(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
 ! Former FUNCTION SLOW_RELATIVISTIC_PUSH
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,           ONLY : abort,DOTPRODUCT
+USE MOD_Globals       ,ONLY: abort,DOTPRODUCT
 #if USE_MPI
-USE MOD_Globals,           ONLY : MyRank
+USE MOD_Globals       ,ONLY: MyRank
 #endif
-USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies
-USE MOD_Equation_Vars,     ONLY : c2_inv, c2
+USE MOD_Particle_Vars ,ONLY: PartState, Species, PartSpecies
+USE MOD_Globals_Vars  ,ONLY: c2_inv, c2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -338,7 +338,7 @@ SUBROUTINE PartRHS_W(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars ,ONLY: PartState, Species, PartSpecies
-USE MOD_Equation_Vars ,ONLY: c2_inv, c ,c2
+USE MOD_Globals_Vars  ,ONLY: c2_inv, c ,c2
 USE MOD_TimeDisc_Vars ,ONLY: dt
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -426,12 +426,12 @@ SUBROUTINE PartRHS_RN(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
 ! Former FUNCTION FAST_RELATIVISTIC_PUSH
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,           ONLY : abort
+USE MOD_Globals       ,ONLY: abort
 #if USE_MPI
-USE MOD_Globals,           ONLY : MyRank
+USE MOD_Globals       ,ONLY: MyRank
 #endif
-USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies
-USE MOD_Equation_Vars,     ONLY : c2_inv, c2
+USE MOD_Particle_Vars ,ONLY: PartState, Species, PartSpecies
+USE MOD_Globals_Vars  ,ONLY: c2_inv, c2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -526,7 +526,7 @@ USE MOD_Globals       ,ONLY: abort
 USE MOD_Globals       ,ONLY: MyRank
 #endif
 USE MOD_Particle_Vars ,ONLY: PartState, Species, PartSpecies
-USE MOD_Equation_Vars ,ONLY: c2_inv, c2
+USE MOD_Globals_Vars  ,ONLY: c2_inv, c2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -593,7 +593,7 @@ SUBROUTINE PartRHS_RM(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
 ! MODULES
 USE MOD_Globals       ,ONLY: cross,DOTPRODUCT
 USE MOD_Particle_Vars ,ONLY: PartState, Species, PartSpecies
-USE MOD_Equation_Vars ,ONLY: c2_inv
+USE MOD_Globals_Vars  ,ONLY: c2_inv
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -651,7 +651,7 @@ SUBROUTINE PartRHS_CEM(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
 ! MODULES
 USE MOD_Globals               ,ONLY: abort
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies
-USE MOD_Equation_Vars         ,ONLY: c2_inv,c2
+USE MOD_Globals_Vars          ,ONLY: c2_inv,c2
 #if USE_MPI
 USE MOD_Globals               ,ONLY: MyRank
 #endif
@@ -721,8 +721,8 @@ SUBROUTINE PartVeloToImp(VeloToImp,doParticle_In)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Vars,          ONLY : PDM, PartState, PartLorentzType
-USE MOD_Equation_Vars,          ONLY : c2_inv
+USE MOD_Particle_Vars ,ONLY: PDM, PartState, PartLorentzType
+USE MOD_Globals_Vars  ,ONLY: c2_inv
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
