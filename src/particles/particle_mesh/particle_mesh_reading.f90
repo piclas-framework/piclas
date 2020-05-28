@@ -319,8 +319,8 @@ IF (useCurveds.OR.NGeo.EQ.1) THEN
   NodeCoords_Shared(:,offsetNodeID+1:offsetNodeID+nNodeIDs) = NodeCoords_indx(:,:)
 #else
   nComputeNodeNodes = nNodeIDs
-!  ALLOCATE(NodeInfo_Shared(1:nNodeIDs))
-!  NodeInfo_Shared(1:nNodeIDs) = NodeInfo(:)
+  ALLOCATE(NodeInfo_Shared(1:nNodeIDs))
+  NodeInfo_Shared(1:nNodeIDs) = NodeInfo(:)
   ALLOCATE(NodeCoords_Shared(3,nNodeIDs))
   NodeCoords_Shared(:,:) = NodeCoords_indx(:,:)
 #endif  /*USE_MPI*/
@@ -404,6 +404,7 @@ ELSE
 
   END ASSOCIATE
 
+  DEALLOCATE(NodeInfoTmp)
 END IF
 
 ! Update node counters
@@ -420,8 +421,11 @@ END IF
 
 #if USE_MPI
 CALL MPI_WIN_SYNC(NodeCoords_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(NodeInfo_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif  /*USE_MPI*/
+
+nUniqueGlobalNodes = MAXVAL(NodeInfo_Shared)
 
 DEALLOCATE(NodeInfo,NodeCoords_indx)
 

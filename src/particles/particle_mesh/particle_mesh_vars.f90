@@ -45,6 +45,7 @@ INTEGER            :: offsetComputeNodeElem                 !> elem offset of co
 INTEGER            :: offsetComputeNodeSide                 !> side offset of compute-node root
 INTEGER            :: offsetComputeNodeNode                 !> node offset of compute-node root
 INTEGER            :: offsetComputeNodeTree                 !> tree offset of compute-node root
+INTEGER            :: nUniqueGlobalNodes                    !> MAXVAL(NodeInfo_Shared)
 
 ! ====================================================================
 ! MPI3 shared variables
@@ -74,6 +75,12 @@ REAL,ALLOCPOINT,DIMENSION(:)             :: ElemEpsOneCell     !> tolerance for 
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: BCSide2SideID      !> Mapping from compute-node BC side ID to global Side ID
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: SideID2BCSide      !> Inverse mapping
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: BCSideMetrics      !> Side origin and radius for each compute-node BC side
+
+! Shared arrays containing information for compute-node mesh mappings
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: NodeToElemMapping, NodeToElemMapping_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: NodeToElemInfo   , NodeToElemInfo_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: ElemToElemMapping, ElemToElemMapping_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemToElemInfo   , ElemToElemInfo_Shared
 
 ! Shared arrays containing information for complete mesh
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemToProcID_Shared
@@ -152,6 +159,11 @@ REAL,ALLOCPOINT    :: ElemCharLengthZ_Shared(:)
 
 #if USE_MPI
 ! integers to hold shared memory windows
+INTEGER         :: NodeToElemMapping_Shared_Win
+INTEGER         :: NodeToElemInfo_Shared_Win
+INTEGER         :: ElemToElemMapping_Shared_Win
+INTEGER         :: ElemToElemInfo_Shared_Win
+
 INTEGER         :: ElemToProcID_Shared_Win
 INTEGER         :: ElemToTree_Shared_Win
 INTEGER         :: ElemInfo_Shared_Win

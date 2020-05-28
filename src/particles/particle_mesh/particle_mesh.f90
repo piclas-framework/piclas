@@ -309,7 +309,7 @@ SELECT CASE(TrackingMethod)
       CALL BuildElemTypeAndBasisTria()
     END IF
 
-CASE(TRACING,REFMAPPING)
+  CASE(TRACING,REFMAPPING)
     CALL CalcParticleMeshMetrics()
 
     BezierElevation = GETINT('BezierElevation')
@@ -416,6 +416,9 @@ CASE(TRACING,REFMAPPING)
     CALL ABORT(__STAMP__,'Invalid tracking method in particle_mesh.f90!')
 
 END SELECT
+
+! Build mappings UniqueNodeID->CN Element IDs and CN Element ID -> CN Element IDs
+IF(FindNeighbourElems) CALL BuildNodeNeighbourhood()
 
 ! BezierAreaSample stuff:
 WRITE(tmpStr,'(L1)') (TrackingMethod.EQ.TRIATRACKING)
@@ -2713,8 +2716,8 @@ sendbuf = offsetBCSidesProc + nBCSidesProc
 CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
 nComputeNodeBCSides = sendbuf
 
-ElemToBCSides(1,firstElem:lastElem) = ElemToBCSidesProc(1,firstElem:lastElem)
-ElemToBCSides(2,firstElem:lastElem) = ElemToBCSidesProc(2,firstElem:lastElem) + offsetBCSidesProc
+ElemToBCSides(ELEM_NBR_BCSIDES ,firstElem:lastElem) = ElemToBCSidesProc(ELEM_NBR_BCSIDES ,firstElem:lastElem)
+ElemToBCSides(ELEM_FIRST_BCSIDE,firstElem:lastElem) = ElemToBCSidesProc(ELEM_FIRST_BCSIDE,firstElem:lastElem) + offsetBCSidesProc
 #else
 offsetBCSidesProc   = 0
 nComputeNodeBCSides = nBCSidesProc
@@ -6372,6 +6375,283 @@ END SUBROUTINE FinalizeParticleMesh
 
 !END SUBROUTINE ElemConnectivity
 
+
+SUBROUTINE BuildNodeNeighbourhood()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Build shared arrays for mapping
+! 1. UniqueNodeID -> all connected CN element IDs:    NodeToElemMapping(1,:) = OffsetNodeToElemMapping(:)
+!                                                     NodeToElemMapping(2,:) = NbrOfElemsOnUniqueNode(:)
+!
+!                                                     NodeToElemInfo(nNodeToElemMapping)
+!
+! 2. CN elment ID -> all connected CN element IDs:    ElemToElemMapping(1,:) = Offset
+!                                                     ElemToElemMapping(2,:) = Number of elements
+!
+!                                                     ElemToElemInfo(nElemToElemMapping)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals            ,ONLY: abort, myRank
+#if USE_MPI
+USE MPI
+USE MOD_MPI_Shared         ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,myComputeNodeRank
+USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeToElemMapping,NodeToElemInfo,ElemToElemMapping,ElemToElemInfo
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeToElemMapping_Shared,NodeToElemInfo_Shared,ElemToElemMapping_Shared,ElemToElemInfo_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeToElemMapping_Shared_Win,NodeToElemInfo_Shared_Win
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemToElemMapping_Shared_Win,ElemToElemInfo_Shared_Win
+#endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Vars ,ONLY: nUniqueGlobalNodes
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER,ALLOCATABLE            :: NbrOfElemsOnUniqueNode(:),OffsetNodeToElemMapping(:)
+INTEGER                        :: UniqueNodeID,NonUniqueNodeID,iElem,iNode,TestElemID,jElem,kElem
+INTEGER                        :: OffsetCounter,OffsetElemToElemMapping,OffsetElemToElemCounter
+INTEGER                        :: nNodeToElemMapping,iUniqueNode,firstElem,lastElem,iError,nElemToElemMapping,CountElems
+INTEGER,ALLOCATABLE            :: CheckedElemIDs(:)
+#if USE_MPI
+REAL                           :: BC_halo_eps_velo,BC_halo_diag,deltaT
+INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
+INTEGER                        :: sendbuf,recvbuf
+#endif /*USE_MPI*/
+!===================================================================================================================================
+
+! 1.1 Get number of CN elements attached to each UNIQUE node and store in NbrOfElemsOnUniqueNode(UniqueNodeID)
+! 1.2 Store the total number of counted elements in nNodeToElemMapping = SUM(NbrOfElemsOnUniqueNode)
+! 1.3 Store the element offset for each UNIQUE node in OffsetNodeToElemMapping(iUniqueNode) by summing up the number of elements
+!     from the first the previous (iUniqueNode-1) node
+
+! Only the node leader fills the arrays
+#if USE_MPI
+IF(myComputeNodeRank.EQ.0)THEN
+#endif /*USE_MPI*/
+  ALLOCATE(NbrOfElemsOnUniqueNode(nUniqueGlobalNodes))
+  NbrOfElemsOnUniqueNode=0
+  ! Loop all CN elements (iElem is CNElemID)
+  DO iElem = 1, nComputeNodeTotalElems
+    ! Loop all local nodes
+    DO iNode = 1, 8
+      NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
+      UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
+      NbrOfElemsOnUniqueNode(UniqueNodeID) = NbrOfElemsOnUniqueNode(UniqueNodeID) + 1
+    END DO ! iNode = 1, 8
+  END DO ! iElem = 1, nComputeNodeTotalElems
+  nNodeToElemMapping = SUM(NbrOfElemsOnUniqueNode)
+
+  ALLOCATE(OffsetNodeToElemMapping(nUniqueGlobalNodes))
+  OffsetNodeToElemMapping = 0
+  DO iUniqueNode = 2, nUniqueGlobalNodes
+    OffsetNodeToElemMapping(iUniqueNode) = SUM(NbrOfElemsOnUniqueNode(1:iUniqueNode-1))
+  END DO ! iUniqueNode = 1, nUniqueGlobalNodes
+#if USE_MPI
+END IF ! myComputeNodeRank.EQ.0
+CALL MPI_BCAST(nNodeToElemMapping,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+#endif /*USE_MPI*/
+
+
+! 2. Allocate shared arrays for mapping
+!    UniqueNodeID -> all CN element IDs to which it is connected      : NodeToElemMapping = [OffsetNodeToElemMapping(:), 
+!                                                                                            NbrOfElemsOnUniqueNode(:)]
+!    NodeToElemMapping (offset and number of elements) -> CN element IDs : NodeToElemInfo = [CN elem IDs]
+#if USE_MPI
+! NodeToElemMapping
+MPISharedSize = INT((2*nUniqueGlobalNodes),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/2,nUniqueGlobalNodes/),NodeToElemMapping_Shared_Win,NodeToElemMapping_Shared)
+CALL MPI_WIN_LOCK_ALL(0,NodeToElemMapping_Shared_Win,IERROR)
+NodeToElemMapping => NodeToElemMapping_Shared
+! NodeToElemInfo
+MPISharedSize = INT((nNodeToElemMapping),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nNodeToElemMapping/),NodeToElemInfo_Shared_Win,NodeToElemInfo_Shared)
+CALL MPI_WIN_LOCK_ALL(0,NodeToElemInfo_Shared_Win,IERROR)
+NodeToElemInfo => NodeToElemInfo_Shared
+#else
+ALLOCATE(NodeToElemMapping(2,nUniqueGlobalNodes))
+ALLOCATE(NodeToElemInfo(nNodeToElemMapping))
+#endif /*USE_MPI*/
+
+
+! 3.1 Fill NodeToElemMapping = [OffsetNodeToElemMapping(:), NbrOfElemsOnUniqueNode(:)]
+! 3.2 Store the CN element IDs in NodeToElemInfo(NodeToElemMapping(1,UniqueNodeID)+1 : 
+!                                                   NodeToElemMapping(1,UniqueNodeID)+NodeToElemMapping(2,UniqueNodeID))
+! Now all CN elements attached to a UniqueNodeID can be accessed
+
+! Only the node leader fills the arrays
+#if USE_MPI
+IF(myComputeNodeRank.EQ.0)THEN
+#endif /*USE_MPI*/
+  NodeToElemMapping = 0
+  NodeToElemInfo = 0
+
+  NodeToElemMapping(1,:) = OffsetNodeToElemMapping(:)
+  DEALLOCATE(OffsetNodeToElemMapping)
+  NodeToElemMapping(2,:) = NbrOfElemsOnUniqueNode(:)
+
+  NbrOfElemsOnUniqueNode=0
+  ! Loop all CN elements (iElem is CNElemID)
+  DO iElem = 1, nComputeNodeTotalElems
+    ! Loop all local nodes
+    DO iNode = 1, 8
+      NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
+      UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
+      NbrOfElemsOnUniqueNode(UniqueNodeID) = NbrOfElemsOnUniqueNode(UniqueNodeID) + 1
+      NodeToElemInfo(NodeToElemMapping(1,UniqueNodeID)+NbrOfElemsOnUniqueNode(UniqueNodeID)) = iElem
+    END DO ! iNode = 1, 8
+  END DO ! iElem = 1, nComputeNodeTotalElems
+  DEALLOCATE(NbrOfElemsOnUniqueNode)
+#if USE_MPI
+END IF ! myComputeNodeRank.EQ.0
+
+CALL MPI_WIN_SYNC(NodeToElemInfo_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(NodeToElemMapping_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#endif /*USE_MPI*/
+
+
+! 4. Allocate shared array for mapping
+!    CN element ID -> all CN element IDs to which it is connected : ElemToElemMapping = [offset, Nbr of CN elements]
+#if USE_MPI
+! ElemToElemMapping
+MPISharedSize = INT((2*nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/2,nComputeNodeTotalElems/),ElemToElemMapping_Shared_Win,ElemToElemMapping_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemToElemMapping_Shared_Win,IERROR)
+ElemToElemMapping => ElemToElemMapping_Shared
+#else
+ALLOCATE(ElemToElemMapping(2,nComputeNodeTotalElems))
+#endif /*USE_MPI*/
+
+
+! 5. Fill ElemToElemMapping = [offset, Nbr of CN elements]
+!    Note that the number of elements stored in ElemToElemMapping(2,iElem) must be shifted after communication with other procs
+firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+
+OffsetCounter = -1
+ALLOCATE(CheckedElemIDs(500))
+
+! Loop all CN elements (iElem is CNElemID)
+DO iElem = firstElem, lastElem
+  CountElems = 0
+  CheckedElemIDs = 0
+  ! Loop all local nodes
+  DO iNode = 1, 8
+    NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
+    UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
+
+    ! Loop 1D array [offset + 1 : offset + NbrOfElems]
+    ! (all CN elements that are connected to the local nodes)
+    DO jElem = NodeToElemMapping(1,UniqueNodeID) + 1, NodeToElemMapping(1,UniqueNodeID) + NodeToElemMapping(2,UniqueNodeID)
+      TestElemID = NodeToElemInfo(jElem)
+
+      IF(jElem.EQ.TestElemID) CYCLE
+
+      ! Check previously stored element IDs and cycle if an already stored ID is encountered
+      DO kElem = 1, CountElems
+        IF(CheckedElemIDs(kElem).EQ.TestElemID) CYCLE
+      END DO ! kElem = 1, CountElems
+
+      CountElems = CountElems + 1
+      OffsetCounter = OffsetCounter + 1
+
+      IF(CountElems.GT.500) CALL abort(&
+      __STAMP__&
+      ,'CountElems > 500. Inrease the number and try again!')
+
+      CheckedElemIDs(CountElems) = TestElemID
+      ElemToElemMapping(1,iElem) = OffsetCounter
+      ! Note that the number of elements stored in ElemToElemMapping(2,iElem) must be shifted after communication with other procs
+      ElemToElemMapping(2,iElem) = CountElems
+
+    END DO
+  END DO ! iNode = 1, 8
+  
+END DO ! iElem = firstElem, lastElem
+
+
+! 6. Find CN global number of connected CN elements (=nElemToElemMapping) and write into shared array
+#if USE_MPI
+sendbuf = OffsetCounter
+recvbuf = 0
+CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
+OffsetElemToElemMapping   = recvbuf
+! last proc knows CN total number of connected CN elements
+sendbuf = OffsetElemToElemMapping + OffsetCounter
+CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
+nElemToElemMapping = sendbuf
+
+!ElemToElemMapping(1,firstElem:lastElem) = ElemToElemMapping(1,firstElem:lastElem)
+ElemToElemMapping(2,firstElem:lastElem) = ElemToElemMapping(2,firstElem:lastElem) + OffsetElemToElemMapping
+#else
+OffsetElemToElemMapping = 0
+nElemToElemMapping = OffsetCounter
+!ElemToElemMapping(:,firstElem:lastElem) = ElemToElemMapping(:,firstElem:lastElem)
+#endif /*USE_MPI*/
+
+
+! 7. Allocate shared array for mapping
+!    CN element ID -> all CN element IDs to which it is connected : ElemToElemInfo = [CN elem IDs]
+#if USE_MPI
+! ElemToElemInfo
+MPISharedSize = INT((nElemToElemMapping),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nElemToElemMapping/),ElemToElemInfo_Shared_Win,ElemToElemInfo_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemToElemInfo_Shared_Win,IERROR)
+ElemToElemInfo => ElemToElemInfo_Shared
+#else
+ALLOCATE(ElemToElemInfo(nElemToElemMapping))
+#endif /*USE_MPI*/
+
+
+! 8. Fill ElemToElemInfo = [CN elem IDs] by finding all nodes connected to a CN element 
+!    (and all subsequent CN elements that are connected to those nodes)
+!    Store the CN element IDs in ElemToElemInfo(ElemToElemMapping(1,iElem)+1 : 
+!                                               ElemToElemMapping(1,iElem)+ElemToElemMapping(2,iElem))
+OffsetElemToElemCounter = OffsetElemToElemMapping
+! Loop all CN elements (iElem is CNElemID)
+DO iElem = firstElem, lastElem
+  CountElems = 0
+  CheckedElemIDs = 0
+  ! Loop all local nodes
+  DO iNode = 1, 8
+    NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
+    UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
+
+    ! Loop all CN elements that are connected to the local nodes
+    DO jElem = NodeToElemMapping(1,UniqueNodeID) + 1, NodeToElemMapping(1,UniqueNodeID) + NodeToElemMapping(2,UniqueNodeID)
+      TestElemID = NodeToElemInfo(jElem)
+
+      IF(jElem.EQ.TestElemID) CYCLE
+
+      DO kElem = 1, CountElems
+        IF(CheckedElemIDs(kElem).EQ.TestElemID) CYCLE
+      END DO ! kElem = 1, CountElems
+
+      CountElems = CountElems + 1
+      OffsetElemToElemCounter = OffsetElemToElemCounter + 1
+
+      IF(CountElems.GT.500) CALL abort(&
+      __STAMP__&
+      ,'CountElems > 500. Inrease the number and try again!')
+
+      CheckedElemIDs(CountElems) = TestElemID
+      ElemToElemInfo(OffsetElemToElemCounter) = TestElemID
+
+    END DO
+  END DO ! iNode = 1, 8
+  
+END DO ! iElem = firstElem, lastElem
+
+#if USE_MPI
+CALL MPI_WIN_SYNC(ElemToElemInfo_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(ElemToElemMapping_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#endif /*USE_MPI*/
+
+END SUBROUTINE BuildNodeNeighbourhood
 
 !SUBROUTINE NodeNeighbourhood()
 !!===================================================================================================================================
