@@ -272,8 +272,9 @@ INTEGER                        :: iElem,iNode
 INTEGER                        :: FirstElemInd,LastElemInd
 INTEGER                        :: FirstNodeInd,LastNodeInd
 INTEGER                        :: nNodeIDs,offsetNodeID
-INTEGER,ALLOCATABLE            :: NodeInfo(:)
+INTEGER,ALLOCATABLE            :: NodeInfo(:),NodeInfoTmp(:,:)
 REAL,ALLOCATABLE               :: NodeCoords_indx(:,:)
+INTEGER                        :: nNodeInfoIDs,NodeID,NodeCounter
 INTEGER                        :: CornerNodeIDswitch(8)
 REAL,ALLOCATABLE               :: NodeCoordsTmp(:,:,:,:),NodeCoordsNew(:,:,:,:)
 #if USE_MPI
@@ -326,6 +327,44 @@ IF (useCurveds.OR.NGeo.EQ.1) THEN
 
 ! Reduce NodeCoords if no curved elements are to be used
 ELSE
+  ! root builds new NodeInfo mapping
+#if USE_MPI
+  IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
+    ! Associate construct for integer KIND=8 possibility
+    ALLOCATE(NodeInfo(1:nNonUniqueGlobalNodes))
+    CALL ReadArray('GlobalNodeIDs',1,(/nNonUniqueGlobalNodes/),0,1,IntegerArray_i4=NodeInfo)
+
+    nNodeInfoIDs = MAXVAL(NodeInfo)
+    ALLOCATE(NodeInfoTmp(2,nNodeInfoIDs))
+    NodeInfoTmp = 0
+
+    ! Flag unique node IDs we will keep
+    DO iNode = 1,nNonUniqueGlobalNodes
+      NodeID = NodeInfo(iNode)
+      NodeInfoTmp(1,NodeID) = 1
+    END DO
+
+    ! Build new NodeInfo IDs
+    NodeCounter = 0
+    DO iNode = 1,nNodeInfoIDs
+      IF (NodeInfoTmp(1,iNode).EQ.0) CYCLE
+
+      NodeCounter = NodeCounter + 1
+      NodeInfoTmp(2,iNode) = NodeCounter
+    END DO
+#if USE_MPI
+  END IF
+#endif /*USE_MPI*/
+
+#if USE_MPI
+  MPISharedSize = INT(8*nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/8*nGlobalElems/),NodeInfo_Shared_Win,NodeInfo_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,NodeInfo_Shared_Win,IERROR)
+#else
+  ALLOCATE(NodeInfo_Shared(8*nGlobalElems))
+#endif /*USE_MPI*/
+
   ! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
   CornerNodeIDswitch(1)=1
   CornerNodeIDswitch(2)=(Ngeo+1)
@@ -359,6 +398,7 @@ ELSE
     ElemInfo_Shared(ELEM_LASTNODEIND ,iElem) = 8* iElem
     DO iNode = 1,8
       NodeCoords_Shared(:,8*(iElem-1) + iNode) = NodeCoords_indx(:,FirstNodeInd+CNS(iNode))
+      NodeInfo_Shared  (  8*(iElem-1) + iNode) = NodeInfoTmp(2,NodeInfo(FirstNodeInd+CNS(iNode)))
     END DO
   END DO
 
@@ -571,10 +611,8 @@ IF (myComputeNodeRank.EQ.0) THEN
       ,ELEMINFOSIZE*displsElem    ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
   CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared,(SIDEINFOSIZE+1)*recvcountSide  &
       ,(SIDEINFOSIZE+1)*displsSide,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-  IF (MeshWasCurved) THEN
-    CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeInfo_Shared,                 recvcountNode  &
-        ,displsNode                 ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-  END IF
+  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeInfo_Shared,                 recvcountNode  &
+      ,displsNode                 ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
   CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeCoords_Shared,3             *recvcountNode  &
       ,3*displsNode               ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
   IF (isMortarMesh) THEN
@@ -659,9 +697,7 @@ END IF
 ! final sync of all mesh shared arrays
 CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
-IF (MeshWasCurved) THEN
-  CALL MPI_WIN_SYNC(NodeInfo_Shared_Win,IERROR)
-END IF
+CALL MPI_WIN_SYNC(NodeInfo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(NodeCoords_Shared_Win,IERROR)
 IF (isMortarMesh) THEN
   CALL MPI_WIN_SYNC(xiMinMax_Shared_Win,IERROR)
