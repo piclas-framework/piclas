@@ -847,6 +847,8 @@ DO iElem = 1,nGlobalElems
   END DO
 END DO
 
+IF (nPeriodicElems.EQ.0) RETURN
+
 ALLOCATE(PeriodicSideBoundsOfElemCenter(1:4,1:nPeriodicElems))
 ALLOCATE(nPeriodicVectorsPerElem(1:3,1:nPeriodicElems))
 
