@@ -145,7 +145,7 @@ SUBROUTINE InitEquation()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars       ,ONLY: PI,ElectronMass,ElementaryCharge
+USE MOD_Globals_Vars       ,ONLY: PI,ElectronMass,ElementaryCharge,c,c_inv,c2,mu0,eps0
 USE MOD_ReadInTools
 #ifdef PARTICLES
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
@@ -165,7 +165,6 @@ USE MOD_ReadInTools        ,ONLY: PrintOption
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                             :: c_test
 INTEGER                          :: nRefStates,iBC,ntmp,iRefState
 INTEGER,ALLOCATABLE              :: RefStates(:)
 LOGICAL                          :: isNew
@@ -191,32 +190,10 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT MAXWELL ...'
 
 ! Read correction velocity
-c_corr             = GETREAL('c_corr','1.')
-c                  = GETREAL('c0','1.')
-eps0               = GETREAL('eps','1.')
-mu0                = GETREAL('mu','1.')
-smu0               = 1./mu0
 fDamping           = GETREAL('fDamping','0.999')
 DoParabolicDamping = GETLOGICAL('ParabolicDamping','.FALSE.')
 CentralFlux        = GETLOGICAL('CentralFlux','.FALSE.')
-!scr            = 1./ GETREAL('c_r','0.18')  !constant for damping
 Beam_t0            = GETREAL('Beam_t0','0.0')
-
-c_test = 1./SQRT(eps0*mu0)
-IF(.NOT.ALMOSTEQUALRELATIVE(c_test,c,10E-8))THEN
-  SWRITE(*,*) "ERROR: c does not equal 1/sqrt(eps*mu)!"
-  SWRITE(*,*) "c:", c
-  SWRITE(*,*) "mu:", mu0
-  SWRITE(*,*) "eps:", eps0
-  SWRITE(*,*) "1/sqrt(eps*mu):", c_test
-  CALL abort(&
-      __STAMP__&
-      ,' Speed of light coefficients does not match!')
-END IF
-
-c2     = c*c
-c_inv  = 1./c
-c2_inv = 1./c2
 
 c_corr2   = c_corr*c_corr
 c_corr_c  = c_corr*c
@@ -501,12 +478,10 @@ SUBROUTINE ExactFunc(ExactFunction,t_IN,tDeriv,x,resu)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars  ,ONLY: PI
-USE MOD_Equation_Vars ,ONLY: c,c2,eps0,WaveVector,c_inv,WaveBasePoint&
-                             ,sigma_t, E_0_vec,BeamIdir1,BeamIdir2,BeamMainDir,BeamWaveNumber &
-                             ,BeamOmega, E_0,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization,Beam_w0,&
-                             TERadius,sBeam_w0_2,xDipole,tActive,TEModeRoot,Beam_t0,DoExactFlux,ExactFluxDir,&
-                             ExactFluxPosition
+USE MOD_Globals_Vars  ,ONLY: PI,c,c2,eps0,c_inv,c_inv
+USE MOD_Equation_Vars ,ONLY: WaveVector,WaveBasePoint,sigma_t,E_0_vec,BeamIdir1,BeamIdir2,BeamMainDir,BeamWaveNumber
+USE MOD_Equation_Vars ,ONLY: BeamOmega,E_0,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization,Beam_w0,TERadius,sBeam_w0_2
+USE MOD_Equation_Vars ,ONLY: xDipole,tActive,TEModeRoot,Beam_t0,DoExactFlux,ExactFluxDir,ExactFluxPosition
 USE MOD_Equation_Vars ,ONLY: TEMode
 USE MOD_TimeDisc_Vars ,ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
@@ -1010,9 +985,9 @@ SUBROUTINE CalcSource(t,coeff,Ut)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals           ,ONLY: abort
-USE MOD_Globals_Vars      ,ONLY: PI
+USE MOD_Globals_Vars      ,ONLY: PI,eps0
 USE MOD_PreProc
-USE MOD_Equation_Vars     ,ONLY: eps0,c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
+USE MOD_Equation_Vars     ,ONLY: c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars      ,ONLY: PartSource,DoDeposition
 USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps,ElemToDielectric
@@ -1187,8 +1162,6 @@ IF(DoParabolicDamping)THEN
 END IF
 #endif /*LSERK*/
 
-!source fo divcorr damping!
-!Ut(7:8,:,:,:,:)=Ut(7:8,:,:,:,:)-(c_corr*scr)*U(7:8,:,:,:,:)
 END SUBROUTINE CalcSource
 
 

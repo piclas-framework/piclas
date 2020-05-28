@@ -263,7 +263,6 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,WallTime
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze,dtWeight,tEndDiff,tAnalyzeDiff
-!USE MOD_Equation_Vars          ,ONLY: c
 #if (PP_TimeDiscMethod==509)
 USE MOD_TimeDisc_Vars          ,ONLY: dt_old
 #endif /*(PP_TimeDiscMethod==509)*/
@@ -1908,7 +1907,7 @@ USE MOD_Precond_Vars           ,ONLY: UpdatePrecond
 USE MOD_Newton                 ,ONLY: ImplicitNorm,FullNewton
 #ifdef PARTICLES
 USE MOD_TimeDisc_Vars          ,ONLY: RK_fillSF
-USE MOD_Equation_Vars          ,ONLY: c2_inv
+USE MOD_Globals_Vars           ,ONLY: c2_inv
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_PICDepo_Vars           ,ONLY: PartSource,DoDeposition
 USE MOD_LinearSolver_Vars      ,ONLY: ExplicitPartSource
@@ -2824,7 +2823,7 @@ USE MOD_Precond                ,ONLY: BuildPrecond
 #endif /*maxwell*/
 #endif /*USE_HDG*/
 #ifdef PARTICLES
-USE MOD_Equation_Vars          ,ONLY: c2_inv
+USE MOD_Globals_Vars           ,ONLY: c2_inv
 USE MOD_LinearOperator         ,ONLY: PartMatrixVector, PartVectorDotProduct
 USE MOD_ParticleSolver         ,ONLY: Particle_GMRES
 USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK,DoFieldUpdate

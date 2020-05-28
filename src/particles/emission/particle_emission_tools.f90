@@ -701,8 +701,7 @@ PURE FUNCTION DEVI(mass, temp, gamma)
 ! derivative to find max of function
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars,  ONLY: BoltzmannConst
-USE MOD_Equation_Vars,  ONLY: c2
+USE MOD_Globals_Vars,  ONLY: BoltzmannConst,c2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -722,9 +721,7 @@ PURE FUNCTION SYNGE(velabs, temp, mass, BK2)
 ! Maxwell-Juettner distribution according to Synge Book p.48
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars,   ONLY: BoltzmannConst
-
-USE MOD_Equation_Vars,  ONLY: c_inv,c2
+USE MOD_Globals_Vars,   ONLY: BoltzmannConst,c_inv,c2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -747,8 +744,7 @@ PURE FUNCTION QUASIREL(velabs, temp, mass)
 ! discard gamma in the prefactor, maintain it in the computation of the energy
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars,  ONLY: BoltzmannConst
-USE MOD_Equation_Vars,  ONLY: c_inv,c2
+USE MOD_Globals_Vars,   ONLY: BoltzmannConst,c_inv,c2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1153,7 +1149,7 @@ USE MOD_Globals_Vars           ,ONLY: Pi
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac, dt
 USE MOD_PICInterpolation_vars  ,ONLY: useVariableExternalField, VariableExternalField
 USE MOD_PICInterpolation       ,ONLY: InterpolateVariableExternalField
-USE MOD_Equation_vars          ,ONLY: c_inv
+USE MOD_Globals_Vars           ,ONLY: c_inv
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

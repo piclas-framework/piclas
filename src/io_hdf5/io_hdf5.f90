@@ -110,8 +110,8 @@ SUBROUTINE InitIOHDF5()
 ! Initialize HDF5 IO
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
-USE MOD_ReadInTools,ONLY:GETLOGICAL
+USE MOD_Globals     ,ONLY: nLeaderProcs,nProcessors,UNIT_stdOut,MPIRoot
+USE MOD_ReadInTools ,ONLY: GETLOGICAL
 #ifdef INTEL
 USE IFPORT
 #endif
@@ -124,10 +124,13 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)')' INIT IOHDF5 ...'
 gatheredWrite=.FALSE.
 IF(nLeaderProcs.LT.nProcessors) gatheredWrite=GETLOGICAL('gatheredWrite','.FALSE.')
 
 CALL InitMPIInfo()
+SWRITE(UNIT_stdOut,'(A)')' INIT DONE!'
 END SUBROUTINE InitIOHDF5
 
 

@@ -96,7 +96,6 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT POISSON...'
 
 ! Read the velocity vector from ini file
-Pi=ACOS(-1.)
 IniWavenumber     = GETREALARRAY('IniWavenumber',3,'1.,1.,1.')
 c                  = GETREAL('c0','1.')
 eps0               = GETREAL('eps','1.')
@@ -146,11 +145,11 @@ SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,ONLY:Abort,MPIRoot
-USE MOD_Equation_Vars,ONLY:Pi
-USE MOD_Equation_Vars,ONLY: IniWavenumber
-USE MOD_Equation_Vars,ONLY: IniCenter,IniHalfwidth,IniAmplitude
-USE MOD_TimeDisc_vars,ONLY:dt
+USE MOD_Globals       ,ONLY: Abort,MPIRoot
+USE MOD_Globals_Vars  ,ONLY: PI
+USE MOD_Equation_Vars ,ONLY: IniWavenumber
+USE MOD_Equation_Vars ,ONLY: IniCenter,IniHalfwidth,IniAmplitude
+USE MOD_TimeDisc_vars ,ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -181,7 +180,7 @@ CASE(101) !constant
 CASE(2) !sinus
   Frequency=0.5
   Amplitude=0.3
-  Omega=2.*Pi*Frequency
+  Omega=2.*PI*Frequency
   Resu(:)=1.+Amplitude*SIN(Omega*SUM(Cent))
 CASE(102) !linear: z=-1: 0, z=1, 1000
   resu(:)=(1+x(3))*1000.
@@ -205,13 +204,13 @@ SUBROUTINE CalcSource(t)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,ONLY:Abort
+USE MOD_Globals       ,ONLY: Abort
 USE MOD_PreProc
-USE MOD_Equation_Vars,ONLY:Pi
-USE MOD_Equation_Vars,ONLY:IniExactFunc
-USE MOD_Equation_Vars,ONLY:IniCenter,IniHalfwidth,IniAmplitude
-USE MOD_DG_Vars,ONLY:Ut, U
-USE MOD_Mesh_Vars,ONLY:Elem_xGP
+USE MOD_Globals_Vars  ,ONLY: PI
+USE MOD_Equation_Vars ,ONLY: IniExactFunc
+USE MOD_Equation_Vars ,ONLY: IniCenter,IniHalfwidth,IniAmplitude
+USE MOD_DG_Vars       ,ONLY: Ut, U
+USE MOD_Mesh_Vars     ,ONLY: Elem_xGP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -268,16 +267,16 @@ SUBROUTINE CalcSourceHDG(t,i,j,k,iElem,resu, Phi)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,ONLY:Abort
+USE MOD_Globals            ,ONLY: Abort
 USE MOD_PreProc
-USE MOD_PICDepo_Vars,ONLY:PartSource,DoDeposition
-USE MOD_Equation_Vars,ONLY:Pi, eps0, mu0
-USE MOD_Equation_Vars,ONLY:IniExactFunc
-USE MOD_Equation_Vars,ONLY:IniCenter,IniHalfwidth,IniAmplitude
-USE MOD_DG_Vars,ONLY:Ut,U
-USE MOD_Mesh_Vars,ONLY:Elem_xGP
-USE MOD_Particle_Mesh_Vars, ONLY: GEO,NbrOfRegions
-USE MOD_Particle_Vars, ONLY :  RegionElectronRef
+USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition
+USE MOD_Globals_Vars       ,ONLY: PI, eps0, mu0
+USE MOD_Equation_Vars      ,ONLY: IniExactFunc
+USE MOD_Equation_Vars      ,ONLY: IniCenter,IniHalfwidth,IniAmplitude
+USE MOD_DG_Vars            ,ONLY: Ut,U
+USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
+USE MOD_Particle_Vars      ,ONLY:  RegionElectronRef
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

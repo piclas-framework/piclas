@@ -76,7 +76,7 @@ USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,FIBGM_nElems,FIBGM_Element,FIBGM_offsetElem
 USE MOD_Particle_Periodic_BC   ,ONLY: InitPeriodicBC
 USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance
-USE MOD_Equation_Vars          ,ONLY: c
+USE MOD_Globals_Vars           ,ONLY: c
 USE MOD_ReadInTools            ,ONLY: GETREAL, GetRealArray, PrintOption
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c

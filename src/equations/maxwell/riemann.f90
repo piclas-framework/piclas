@@ -136,9 +136,9 @@ SUBROUTINE RiemannVacuum(F,U_L,U_R,nv)
 ! Conservative States are rotated into normal direction in this routine and are NOT backrotated: don't use it after this routine!!
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc ! PP_N
-USE MOD_Equation_Vars,ONLY:eta_c,c,c2,c_corr,c_corr_c,c_corr_c2
-USE MOD_Equation_Vars,ONLY:CentralFlux
+USE MOD_PreProc
+USE MOD_Globals_Vars  ,ONLY: c,c2
+USE MOD_Equation_Vars ,ONLY: eta_c,c_corr,c_corr_c,c_corr_c2,CentralFlux
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -345,9 +345,10 @@ SUBROUTINE RiemannPML(F,U_L,U_R,nv)
 ! Conservative States are rotated into normal direction in this routine and are NOT backrotated: don't use it after this routine!!
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc ! PP_N
-USE MOD_Equation_Vars,ONLY:c,c2,c_corr,c_corr_c,c_corr_c2
-USE MOD_PML_vars,     ONLY:PMLnVar
+USE MOD_PreProc
+USE MOD_Globals_Vars  ,ONLY: c,c2
+USE MOD_Equation_Vars ,ONLY: c_corr,c_corr_c,c_corr_c2
+USE MOD_PML_vars      ,ONLY: PMLnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -780,8 +781,8 @@ SUBROUTINE RiemannDielectric(F,U_L,U_R,nv,Dielectric_Master)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Equation_Vars,   ONLY:c,c_corr,c_corr_c!  eta_c = (c_corr-1.)*c
-USE MOD_Equation_Vars,   ONLY:CentralFlux
+USE MOD_Globals_Vars  ,ONLY: c
+USE MOD_Equation_Vars ,ONLY: CentralFlux,c_corr,c_corr_c
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -905,8 +906,8 @@ SUBROUTINE RiemannDielectricInterFace(F,U_L,U_R,nv,Dielectric_Master)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Equation_Vars,   ONLY:eta_c,c,c2,c_corr,c_corr_c,c_corr_c2
-USE MOD_Equation_Vars,   ONLY:CentralFlux
+USE MOD_Globals_Vars  ,ONLY: c,c2
+USE MOD_Equation_Vars ,ONLY: CentralFlux,eta_c,c_corr,c_corr_c,c_corr_c2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1049,8 +1050,8 @@ SUBROUTINE RiemannDielectricInterFace2(F,U_L,U_R,nv,Dielectric_Master)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Equation_Vars,   ONLY:eta_c,c,c2,c_corr,c_corr_c,c_corr_c2
-USE MOD_Equation_Vars,   ONLY:CentralFlux
+USE MOD_Globals_Vars  ,ONLY: c,c2
+USE MOD_Equation_Vars ,ONLY: CentralFlux,eta_c,c_corr,c_corr_c,c_corr_c2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

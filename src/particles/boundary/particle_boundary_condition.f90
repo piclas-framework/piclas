@@ -395,7 +395,7 @@ USE MOD_Particle_Vars           ,ONLY: VarTimeStep
 USE MOD_DSMC_Vars               ,ONLY: DSMC,RadialWeighting,PartStateIntEn
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,usevMPF
 USE MOD_TImeDisc_Vars           ,ONLY: tend,time
-USE MOD_Equation_Vars           ,ONLY: c2_inv
+USE MOD_Globals_Vars            ,ONLY: c2_inv
 #if defined(LSERK)
 USE MOD_Particle_Vars           ,ONLY: Pt_temp,PDM
 #elif (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)

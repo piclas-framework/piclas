@@ -22,7 +22,6 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL              :: Pi
 REAL              :: IniWavenumber(3) ! wavenumbers in 3 directions (sinus periodic with exactfunc=6)
 INTEGER           :: IniExactFunc
 REAL              :: IniCenter(3)
@@ -39,20 +38,11 @@ REAL              :: eta_c      !(c_corr -1 )*c
 REAL              :: fDamping
 LOGICAL           :: DoParabolicDamping
 
-
 REAL,ALLOCATABLE  :: chitens(:,:,:,:,:,:)    ! diffusion 3x3 tensor on each gausspoint
 REAL,ALLOCATABLE  :: chitensInv(:,:,:,:,:,:) ! inverse of diffusion 3x3 tensor on each gausspoint
 REAL,ALLOCATABLE  :: chitens_face(:,:,:,:,:) ! diffusion 3x3 tensor on each face gausspoint
 
-
-
 LOGICAL           :: EquationInitIsDone=.FALSE.
-REAL              :: eps0
-REAL              :: mu0, smu0
-REAL              :: c
-REAL              :: c2
-REAL              :: c2_inv
-REAL              :: c_inv
 INTEGER           :: alpha_shape
 REAL              :: shapeFuncPrefix
 REAL              :: rCutoff

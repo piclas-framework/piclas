@@ -426,7 +426,7 @@ SUBROUTINE PartMatrixVector(t,Coeff,PartID,X,Y)
 USE MOD_PreProc
 USE MOD_Globals               ,ONLY: Abort
 USE MOD_LinearSolver_Vars     ,ONLY: reps0,PartXK,R_PartXK
-USE MOD_Equation_Vars         ,ONLY: c2_inv
+USE MOD_Globals_Vars          ,ONLY: c2_inv
 USE MOD_Particle_Vars         ,ONLY: PartState, PartLorentzType
 USE MOD_Part_RHS              ,ONLY: PartRHS
 USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle
