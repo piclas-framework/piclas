@@ -328,7 +328,7 @@ try :
     import h5py
     h5py_module_loaded = True
 except ImportError :
-    print(red('Could not import h5py module. This is required for anaylze functions.'))
+    print(red('Could not import h5py module. This is required for handling .h5 files.'))
     exit(0)
 
 # Start the timer
@@ -337,7 +337,7 @@ start = timer()
 """get command line arguments"""
 parser = argparse.ArgumentParser(description='DESCRIPTION:\nTool for cleaning std*.out files.\nSupply a single file or a group of files by using the wildcard "*", e.g. std* for a list of file names.', formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument('files', type=str, help='Files (std*.out) that are to be cleaned.', nargs='+')
-parser.add_argument('-d', '--debug', action='store_true', help='Print additional imformation regarding the files onto screen.')
+parser.add_argument('-d', '--debug', action='store_true', help='Print additional information regarding the files onto screen.')
 
 # Get command line arguments
 args = parser.parse_args()
