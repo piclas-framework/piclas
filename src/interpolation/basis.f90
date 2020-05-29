@@ -1044,7 +1044,7 @@ END SUBROUTINE PolynomialDerivativeMatrix
 
 
 
-FUNCTION ALMOSTEQUAL_UNITY(x,y)
+PURE FUNCTION ALMOSTEQUAL_UNITY(x,y)
 !===================================================================================================================================
 ! Based on Algorithm 139, Kopriva
 ! Compares two real numbers
@@ -1264,7 +1264,7 @@ factorialLARGE = gamma(x + 1.0)
 END FUNCTION factorialLARGE
 
 
-SUBROUTINE LagrangeInterpolationPolys(x,N_in,xGP,wBary,L)
+PURE SUBROUTINE LagrangeInterpolationPolys(x,N_in,xGP,wBary,L)
 !============================================================================================================================
 ! Algorithm 34, Kopriva
 ! Computes all Lagrange functions evaluated at position x in [-1;1]

@@ -311,7 +311,7 @@ END ASSOCIATE
 END SUBROUTINE EvaluateFieldAtPhysPos
 
 
-SUBROUTINE EvaluateFieldAtRefPos(xi_in,NVar,N_in,U_In,U_Out,ElemID)
+PURE SUBROUTINE EvaluateFieldAtRefPos(xi_in,NVar,N_in,U_In,U_Out,ElemID)
 !===================================================================================================================================
 !> 1) interpolate DG solution to position (U_In -> U_Out(xi_in))
 !> 2) interpolate backgroundfield to position ( U_Out -> U_Out(xi_in)+BG_field(xi_in) )

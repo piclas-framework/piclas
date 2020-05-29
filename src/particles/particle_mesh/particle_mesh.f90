@@ -309,7 +309,7 @@ SELECT CASE(TrackingMethod)
       CALL BuildElemTypeAndBasisTria()
     END IF
 
-  CASE(TRACING,REFMAPPING)
+CASE(TRACING,REFMAPPING)
     CALL CalcParticleMeshMetrics()
 
     BezierElevation = GETINT('BezierElevation')
