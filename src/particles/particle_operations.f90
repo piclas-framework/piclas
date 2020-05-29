@@ -100,7 +100,7 @@ END IF
 
 PDM%ParticleInside(newParticleID)   = .TRUE.
 PDM%dtFracPush(newParticleID)       = .FALSE.
-PDM%IsNewPart(newParticleID)        = .FALSE.   ! ??????? correct ????
+PDM%IsNewPart(newParticleID)        = .TRUE.
 PEM%GlobalElemID(newParticleID)     = ElemID
 PEM%LastGlobalElemID(newParticleID) = ElemID
 
