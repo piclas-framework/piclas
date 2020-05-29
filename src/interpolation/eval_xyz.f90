@@ -825,7 +825,7 @@ getInv(3,3) = ( Mat(1,1) * Mat(2,2) - Mat(1,2) * Mat(2,1) ) * sdet
 END FUNCTION getInv
 
 
-SUBROUTINE GetRefNewtonStartValue(X_in,Xi,CNElemID)
+PURE SUBROUTINE GetRefNewtonStartValue(X_in,Xi,CNElemID)
 !===================================================================================================================================
 !> Returns the initial value/ guess for the Newton's algorithm
 !===================================================================================================================================
