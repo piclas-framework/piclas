@@ -135,7 +135,7 @@ try :
     import h5py
     h5py_module_loaded = True
 except ImportError :
-    print(red('Could not import h5py module. This is required for anaylze functions.'))
+    print(red('Could not import h5py module. This is required for analyse functions.'))
     exit(0)
 
 # Start the timer
