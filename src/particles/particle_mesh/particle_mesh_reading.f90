@@ -276,7 +276,6 @@ INTEGER,ALLOCATABLE            :: NodeInfo(:),NodeInfoTmp(:,:)
 REAL,ALLOCATABLE               :: NodeCoords_indx(:,:)
 INTEGER                        :: nNodeInfoIDs,NodeID,NodeCounter
 INTEGER                        :: CornerNodeIDswitch(8)
-REAL,ALLOCATABLE               :: NodeCoordsTmp(:,:,:,:),NodeCoordsNew(:,:,:,:)
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #endif
@@ -293,8 +292,6 @@ LastNodeInd  = offsetNodeID+nNodeIDs
 ASSOCIATE (&
       nNodeIDs     => INT(nNodeIDs,IK)     ,&
       offsetNodeID => INT(offsetNodeID,IK) )
-  ALLOCATE(NodeInfo(FirstNodeInd:LastNodeInd))
-  CALL ReadArray('GlobalNodeIDs',1,(/nNodeIDs/),offsetNodeID,1,IntegerArray_i4=NodeInfo)
   ALLOCATE(NodeCoords_indx(3,nNodeIDs))
   ! read all nodes
   CALL ReadArray('NodeCoords',2,(/3_IK,nNodeIDs/),offsetNodeID,2,RealArray=NodeCoords_indx)
@@ -303,6 +300,13 @@ END ASSOCIATE
 ! Keep all nodes if elements are curved
 IF (useCurveds.OR.NGeo.EQ.1) THEN
   MeshWasCurved = .TRUE.
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        nNodeIDs     => INT(nNodeIDs,IK)     ,&
+        offsetNodeID => INT(offsetNodeID,IK) )
+    ALLOCATE(NodeInfo(FirstNodeInd:LastNodeInd))
+    CALL ReadArray('GlobalNodeIDs',1,(/nNodeIDs/),offsetNodeID,1,IntegerArray_i4=NodeInfo)
+  END ASSOCIATE
 
 #if USE_MPI
   ! allocate shared array for NodeInfo
@@ -332,8 +336,10 @@ ELSE
   IF (myComputeNodeRank.EQ.0) THEN
 #endif /*USE_MPI*/
     ! Associate construct for integer KIND=8 possibility
-    ALLOCATE(NodeInfo(1:nNonUniqueGlobalNodes))
-    CALL ReadArray('GlobalNodeIDs',1,(/nNonUniqueGlobalNodes/),0,1,IntegerArray_i4=NodeInfo)
+    ASSOCIATE (nNonUniqueGlobalNodes     => INT(nNonUniqueGlobalNodes,IK))
+      ALLOCATE(NodeInfo(1:nNonUniqueGlobalNodes))
+      CALL ReadArray('GlobalNodeIDs',1,(/nNonUniqueGlobalNodes/),0_IK,1,IntegerArray_i4=NodeInfo)
+    END ASSOCIATE
 
     nNodeInfoIDs = MAXVAL(NodeInfo)
     ALLOCATE(NodeInfoTmp(2,nNodeInfoIDs))
