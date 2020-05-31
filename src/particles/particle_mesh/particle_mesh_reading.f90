@@ -349,7 +349,6 @@ ELSE
     END ASSOCIATE
 
     nNodeInfoIDs = MAXVAL(NodeInfo)
-    WRITE (*,*) "ALLOOOOOOOOOOOOOCATE ="
     ALLOCATE(NodeInfoTmp(2,nNodeInfoIDs))
     NodeInfoTmp = 0
 
