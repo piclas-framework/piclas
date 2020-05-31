@@ -254,11 +254,11 @@ INTEGER                          :: iSpec, iSide, iPartBound
 INTEGER                          :: GlobalSideID, PartBoundID
 !===================================================================================================================================
 IF (.NOT.(ANY(PartBound%Reactive))) RETURN
-IF (CollisMode.LE.1) THEN
-  CALL abort(&
-__STAMP__&
-,'Error in InitSurfaceModel - wrong collismode! needs to be >1')
-END IF
+!IF (CollisMode.LE.1) THEN
+  !CALL abort(&
+!__STAMP__&
+!,'Error in InitSurfaceModel - wrong collismode! needs to be >1')
+!END IF
 ! initialize variables only for processors that have any surfaces in own domain else they are skipped or not allocated
 ModelERSpecular = GETLOGICAL('Surface-ModelERSpecular')
 Adsorption%EnableAdsAttraction = GETLOGICAL('Surface-Adsorption-EnableAttraction')
