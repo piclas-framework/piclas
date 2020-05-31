@@ -564,11 +564,12 @@ END DO !iElem
 !                              NODES
 !----------------------------------------------------------------------------------------------------------------------------
 #ifdef PARTICLES
-! Particles want to node coords in the old 2D format, hence this readin happens twice
+! Particles want to node coordinates in the old 2D format, hence this read-in happens twice
 CALL ReadMeshNodes()
 #endif
 
 ! get physical coordinates
+CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 IF(useCurveds)THEN
   ALLOCATE(NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nElems))
   CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoords)
