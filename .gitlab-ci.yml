@@ -101,11 +101,13 @@ stages:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_gnu_poisson
+      - build_gnu_poisson_release
+      - build_gnu_poisson_debug
   cache:
     key: "${CI_COMMIT_REF_SLUG}-GNU-POI"
     paths:
-      - build_gnu_poisson
+      - build_gnu_poisson_release
+      - build_gnu_poisson_debug
     policy: pull
 
 .template: &defaults_intel_poisson
@@ -174,17 +176,23 @@ build_gnu_poisson:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_gnu_poisson
+      - build_gnu_poisson_release
+      - build_gnu_poisson_debug
   cache:
     key: "${CI_COMMIT_REF_SLUG}-GNU-POI"
     paths:
-      - build_gnu_poisson
+      - build_gnu_poisson_release
+      - build_gnu_poisson_debug
     policy: push
   stage: build
   script:
-    - mkdir -p build_gnu_poisson ; cd build_gnu_poisson
+    - mkdir -p build_gnu_poisson_release ; cd build_gnu_poisson_release
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
+    - cd ..
+    - mkdir -p build_gnu_poisson_debug ; cd build_gnu_poisson_debug
+    - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
@@ -211,7 +219,8 @@ gnu_poisson:
   tags:
     - withmodules-concurrent
   script:
-    - cd build_gnu_poisson ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
+    - cd build_gnu_poisson_release ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
+    - cd ../build_gnu_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_feature_checkin": Run most simple reggie features with previous builds on check-in (must be very fast)
