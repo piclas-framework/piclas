@@ -1646,7 +1646,7 @@ INTEGER, INTENT(OUT)          :: NbrOfReactions
 INTEGER                       :: bgSpec, iReac
 !===================================================================================================================================
 
-NbrOfReactions = 0.
+NbrOfReactions = 0
 
 DO iReac = 1, ChemReac%NumOfReact
   ! Only treat photoionization reactions

@@ -702,6 +702,7 @@ END ASSOCIATE
 ! Suppress compiler warning
 RETURN
 velosq=LorentzFacInvIn ! dummy statement
+velosq=FieldAtParticle(1) ! dummy statement
 
 END SUBROUTINE PartRHS_CEM
 

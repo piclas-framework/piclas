@@ -650,18 +650,19 @@ SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,InsertedNbrOfParticles)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib, CalcMeanFreePath
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec, DSMC_RHS
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles, XSec_NullCollision
-USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-USE MOD_DSMC_Init               ,ONLY: DSMC_SetInternalEnr_LauxVFD
-USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
-USE MOD_part_pos_and_velo       ,ONLY: SetParticleVelocity
-USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefmapping
-USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry
+USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcMeanFreePath
+USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec, DSMC_RHS
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles, XSec_NullCollision
+USE MOD_Particle_Vars          ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_DSMC_Init              ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_part_pos_and_velo      ,ONLY: SetParticleVelocity
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
+USE MOD_part_emission_tools    ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_DSMC_ChemReact         ,ONLY: DSMC_Chemistry
 USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
+USE MOD_Particle_Analyze       ,ONLY: PARTISELECTRON
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -673,6 +674,7 @@ INTEGER, INTENT(IN)           :: iSpec,iInit,InsertedNbrOfParticles
 ! LOCAL VARIABLES
 INTEGER                       :: iPart, iPair, iNewPart, iReac, ParticleIndex, NewParticleIndex, bgSpec, NbrOfParticle
 INTEGER                       :: ParticleVecLengthOld, iPart_p1, iPart_p2
+REAL                          :: RandVal
 !===================================================================================================================================
 ChemReac%NumPhotoIonization = 0
 
@@ -782,9 +784,26 @@ DO iReac = 1, ChemReac%NumOfReact
     iPair = iPair + 1
     CALL DSMC_Chemistry(iPair, iReac)
     ! Add the velocity change due the energy distribution in the chemistry routine
-    iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
+    iPart_p1 = Coll_pData(iPair)%iPart_p1
+    iPart_p2 = Coll_pData(iPair)%iPart_p2
     PartState(4:6,iPart_p1) = PartState(4:6,iPart_p1) + DSMC_RHS(1:3,iPart_p1)
     PartState(4:6,iPart_p2) = PartState(4:6,iPart_p2) + DSMC_RHS(1:3,iPart_p2)
+    ! If an electron is created, change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
+    ASSOCIATE( b1 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC(1:3)) ,&
+               b2 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC(1:3)) )
+    ! OR check PartSpecies(iPart_p1) = iSpec and 
+    !          PartSpecies(iPart_p2) = iSpec
+      IF(PARTISELECTRON(iPart_p1)) THEN
+        CALL RANDOM_NUMBER(RandVal)
+        PartState(4:6,iPart_p1) = 0.!GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart_p1),RandVal)
+        ! Store the particle information in PartStateBoundary.h5
+      END IF
+      IF(PARTISELECTRON(iPart_p2)) THEN
+        CALL RANDOM_NUMBER(RandVal)
+        PartState(4:6,iPart_p2) = 0.!GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart_p2),RandVal)
+        ! Store the particle information in PartStateBoundary.h5
+      END IF
+  END ASSOCIATE
   END DO
 END DO
 
@@ -797,6 +816,34 @@ DSMCSumOfFormedParticles = 0
 DEALLOCATE(Coll_pData)
 
 END SUBROUTINE BGGas_PhotoIonization
+
+
+PURE FUNCTION GetRandomVectorInPlane(b1,b2,VeloVec,RandVal)
+!===================================================================================================================================
+! derivative to find max of function
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals      ,ONLY: VECNORM
+USE MOD_Globals_Vars ,ONLY: PI
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)    :: b1(1:3),b2(1:3) ! Basis vectors (normalized)
+REAL,INTENT(IN)    :: VeloVec(1:3)    ! Velocity vector before the random direction selection within the plane defined by b1 and b2
+REAL,INTENT(IN)    :: RandVal         ! Random number (given from outside to render this function PURE)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLE
+REAL               :: GetRandomVectorInPlane(1:3) ! Output velocity vector
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: Vabs ! Absolute velocity 
+REAL               :: phi ! random angle between 0 and 2*PI
+!===================================================================================================================================
+Vabs = VECNORM(VeloVec)
+phi = RandVal * 2.0 * PI
+GetRandomVectorInPlane = Vabs*(b1*COS(phi) + b2*SIN(phi))
+END FUNCTION GetRandomVectorInPlane
 
 
 END MODULE MOD_DSMC_BGGas

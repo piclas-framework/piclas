@@ -1210,7 +1210,7 @@ DO photoElem = 1, Species(iSpec)%Init(iInit)%PhotoIonElems
   waistRadius = Species(iSpec)%Init(iInit)%WaistRadius
   elemRadius = Species(iSpec)%Init(iInit)%ElementRadius(photoElem)
   pulseDuration = Species(iSpec)%Init(iInit)%PulseDuration
-  nPart = Species(iSpec)%Init(iInit)%ParticleEmission*CalcLaserIntensity(elemRadius,waistRadius)*CalcLaserIntensity(time,pulseDuration)
+  nPart = INT(Species(iSpec)%Init(iInit)%ParticleEmission*CalcLaserIntensity(elemRadius,waistRadius)*CalcLaserIntensity(time,pulseDuration))
   DO iPart = 1, nPart
     ParticleIndexNbr = PDM%nextFreePosition(iChunksize + PDM%CurrentNextFreePosition)
     IF (ParticleIndexNbr.NE.0) THEN
@@ -1245,6 +1245,7 @@ END DO
 chunkSize = ichunkSize - 1
 
 END SUBROUTINE Insert_Cylinder_PhotoIonization
+
 
 SUBROUTINE CalcNbrOfPhotons(i,iInit,NbrOfPhotons)
 !===================================================================================================================================
@@ -1330,6 +1331,7 @@ END ASSOCIATE
 
 END SUBROUTINE CalcNbrOfPhotons
 
+
 PURE FUNCTION CalcPhotonEnergy(lambda)
 !===================================================================================================================================
 !> Calculation of photon energie based on wavelength
@@ -1352,6 +1354,7 @@ REAL                     :: CalcPhotonEnergy
 CalcPhotonEnergy = PlanckConst * c / lambda
 
 END FUNCTION CalcPhotonEnergy
+
 
 SUBROUTINE CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit)
 !===================================================================================================================================
@@ -1434,5 +1437,6 @@ Vec3D = VeloVec_norm * VeloABS
 END ASSOCIATE
 
 END SUBROUTINE CalcVelocity_FromWorkFuncSEE
+
 
 END MODULE MOD_part_emission_tools

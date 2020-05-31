@@ -2350,11 +2350,11 @@ CASE('Photon_SEE_Energy')
 !       ELSE
 !         CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
 !       END IF
-       PartState(4:6,PositionNbr) = Vec3D(1:3)
-       ! Store the particle information in PartStateBoundary.h5
-       IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(PositionNbr,FractNbr,PartState(1:3,PositionNbr),&
-                                         UNITVECTOR(PartState(4:6,PositionNbr)),Species(FractNbr)%Init(iInit)%NormalIC,mode=2,&
-                                         usevMPF_optIN=.FALSE.)
+        PartState(4:6,PositionNbr) = Vec3D(1:3)
+        ! Store the particle information in PartStateBoundary.h5
+        IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(PositionNbr,FractNbr,PartState(1:3,PositionNbr),&
+                                          UNITVECTOR(PartState(4:6,PositionNbr)),Species(FractNbr)%Init(iInit)%NormalIC,mode=2,&
+                                          usevMPF_optIN=.FALSE.)
     END IF
   END DO
 CASE DEFAULT
