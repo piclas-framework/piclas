@@ -147,7 +147,7 @@ ADD_DEFINITIONS(-DPP_nElems=NELEMZ)
 OPTION(PICLAS_CODE_ANALYZE "Code Analyze" OFF)
 OPTION(PICLAS_CTAGS "Use Ctags" ON)
 
-OPTION(PICLAS_READIN_CONSTANTS "Allow read-in of user-defined constants, such as the vacuum speed of light c0, permittivity eps0 and permeability mu0." OFF)
+OPTION(PICLAS_READIN_CONSTANTS "Allow read-in of user-defined constants, such as the vacuum speed of light c0, permittivity eps and permeability mu." OFF)
 IF (PICLAS_READIN_CONSTANTS)
   ADD_DEFINITIONS(-DUSE_READIN_CONSTANTS=1)
 ELSE()

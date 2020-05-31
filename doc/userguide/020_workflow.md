@@ -164,16 +164,19 @@ For some external libraries and programs that **PICLas** uses, the following opt
 Before setting up a simulation, the code must be compiled with the desired parameters. The most important compiler options to be set are:
 
 * ``PICLAS_TIMEDISCMETHOD``: Module selection
-  * DSMC: Direct Simulation Monte Carlo
-  * RK4: Time integration method Runge-Kutta
+    * DSMC: Direct Simulation Monte Carlo
+    * RK4: Time integration method Runge-Kutta 4th order in time
 * ``PICLAS_EQNSYSNAME``: Equation system to be solved
-  * maxwell:
-  * poisson:
+    * maxwell:
+    * poisson:
 * ``PICLAS_POLYNOMIAL_DEGREE``: Defines the polynomial degree of the solution. The order of convergence follows as $N+1$. Each grid cell contains $(N+1)^3$ collocation points to represent the solution.
 * ``PICLAS_NODETYPE``: The nodal collocation points used during the simulation
-  * GAUSS:
-  * GAUSS-LOBATTO:
+    * GAUSS:
+    * GAUSS-LOBATTO:
 * ``PICLAS_INTKIND8``: Enables simulations with particle numbers above 2 147 483 647
+* ``PICLAS_READIN_CONSTANTS``: Enables user-defined natural constants for the speed of light *c0*, permittivity *eps* and permeability *mu* of vacuum, 
+    which must then be supplied in the parameter file. The default if *OFF* and the values for the speed of light c0=299792458.0 [m/s], permittivity 
+    eps=8.8541878176e-12 [F/m] and permeability mu=1.2566370614e-6 [H/m] are hard-coded.
 
 The options EQNSYSNAME, POLYNOMIAL_DEGREE and NODETYPE can be ignored for a DSMC simulation. For parallel computation the following flags should be configured:
 
