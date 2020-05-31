@@ -1463,7 +1463,7 @@ DO iElem=firstElem,lastElem
   ElemRadius2NGeo(iElem)=Radius*Radius
 END DO ! iElem
 
-IF (TRIM(DepositionType).EQ.'shape_function_simple')THEN
+IF (TRIM(DepositionType).EQ.'shape_function_simple'.OR.TRIM(DepositionType).EQ.'shape_function')THEN
   CALL abort(&
   __STAMP__&
   ,'not implemented yet')
@@ -3962,7 +3962,7 @@ END SUBROUTINE FinalizeParticleMesh
 
 
 !#if USE_MPI
-!! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical', 'shape_function_simple'
+!! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical'
 !IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
 !  ! and changed, tooo
 !  BGMimax = INT((MIN(GEO%xmax+halo_eps,GEO%xmaxglob)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
@@ -4106,7 +4106,7 @@ END SUBROUTINE FinalizeParticleMesh
 !nShapePaddingX = 0
 !nShapePaddingY = 0
 !nShapePaddingZ = 0
-!! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical', 'shape_function_simple'
+!! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical'
 !IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
 !  nShapePaddingX = INT(r_sf/GEO%FIBGMdeltas(1)+0.9999999)
 !  nShapePaddingY = INT(r_sf/GEO%FIBGMdeltas(2)+0.9999999)
