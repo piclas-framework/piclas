@@ -797,7 +797,7 @@ DO iReac = 1, ChemReac%NumOfReact
     !          PartSpecies(iPart_p2) = iSpec
       IF(PARTISELECTRON(iPart_p1)) THEN
         CALL RANDOM_NUMBER(RandVal)
-        PartState(4:6,iPart_p1) = 0.!GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart_p1),RandVal)
+        PartState(4:6,iPart_p1) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart_p1),RandVal)
         ! Store the particle information in PartStateBoundary.h5
         IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(iPart_p1,PartSpecies(iPart_p1),PartState(1:3,iPart_p1),&
                                           UNITVECTOR(PartState(4:6,iPart_p1)),Species(iSpec)%Init(iInit)%NormalIC,mode=2,&
@@ -805,7 +805,7 @@ DO iReac = 1, ChemReac%NumOfReact
       END IF
       IF(PARTISELECTRON(iPart_p2)) THEN
         CALL RANDOM_NUMBER(RandVal)
-        PartState(4:6,iPart_p2) = 0.!GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart_p2),RandVal)
+        PartState(4:6,iPart_p2) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart_p2),RandVal)
         ! Store the particle information in PartStateBoundary.h5
         IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(iPart_p2,PartSpecies(iPart_p2),PartState(1:3,iPart_p2),&
                                           UNITVECTOR(PartState(4:6,iPart_p2)),Species(iSpec)%Init(iInit)%NormalIC,mode=2,&
