@@ -1466,7 +1466,7 @@ END DO ! iElem
 IF (TRIM(DepositionType).EQ.'shape_function_simple'.OR.TRIM(DepositionType).EQ.'shape_function')THEN
   CALL abort(&
   __STAMP__&
-  ,'not implemented yet')
+  ,'Shape function is not implemented yet')
 END IF
 
 #if USE_MPI

@@ -44,7 +44,6 @@ INTEGER,PARAMETER      :: PRM_DEPO_SF1D = 1  ! shape_function_1d
 INTEGER,PARAMETER      :: PRM_DEPO_SF2D = 2  ! shape_function_2d
 INTEGER,PARAMETER      :: PRM_DEPO_SFC  = 3  ! shape_function_cylindrical
 INTEGER,PARAMETER      :: PRM_DEPO_SFS  = 4  ! shape_function_spherical
-INTEGER,PARAMETER      :: PRM_DEPO_SFSi = 5  ! shape_function_spherical
 INTEGER,PARAMETER      :: PRM_DEPO_CVW  = 6  ! cell_volweight
 INTEGER,PARAMETER      :: PRM_DEPO_CVWM = 12 ! cell_volweight_mean
 
@@ -75,31 +74,29 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%CreateLogicalOption('PIC-DoDeposition', 'Switch deposition of charge (and current density) on/off', '.TRUE.')
 
-CALL prms%CreateIntFromStringOption('PIC-Deposition-Type', "Type/Method used in the deposition step: \n"//&
-                                                             '1.1)  shape_function\n'                   //&
-                                                             '1.2)  shape_function_1d\n'                //&
-                                                             '1.3)  shape_function_2d\n'                //&
-                                                             '1.4)  shape_function_cylindrical\n'       //&
-                                                             '1.5)  shape_function_spherical\n'         //&
-                                                             '1.6)  shape_function_simple\n'            //&
-                                                             '      1.1) to 1.6) require\n'             //&
-                                                             '        PIC-shapefunction-radius\n'       //&
-                                                             '        PIC-shapefunction-alpha\n'        //&
-                                                             '      1.2) and 1.3) require\n'            //&
-                                                             '        PIC-shapefunction1d-direction\n'  //&
-                                                             '      1.4) and 1.5) require\n'            //&
-                                                             '        PIC-shapefunction-radius0\n'      //&
-                                                             '        PIC-shapefunction-scale\n'        //&
-                                                             '2.)   cell_volweight\n'                   //&
-                                                             '3.)   cell_volweight_mean'                &
-                                                       ,"cell_volweight")
+CALL prms%CreateIntFromStringOption('PIC-Deposition-Type', "Type/Method used in the deposition step: \n"           //&
+                                    '1.1)  shape_function ('//TRIM(int2strf(PRM_DEPO_SF))//')\n'                   //&
+                                    '1.2)  shape_function_1d ('//TRIM(int2strf(PRM_DEPO_SF1D))//')\n'              //&
+                                    '1.3)  shape_function_2d ('//TRIM(int2strf(PRM_DEPO_SF2D))//')\n'              //&
+                                    '1.4)  shape_function_cylindrical ('//TRIM(int2strf(PRM_DEPO_SFC))//')\n'      //&
+                                    '1.5)  shape_function_spherical ('//TRIM(int2strf(PRM_DEPO_SFS))//')\n'        //&
+                                    '      1.1) to 1.5) require\n'                                                 //&
+                                    '        PIC-shapefunction-radius\n'                                           //&
+                                    '        PIC-shapefunction-alpha\n'                                            //&
+                                    '      1.2) and 1.3) require\n'                                                //&
+                                    '        PIC-shapefunction1d-direction\n'                                      //&
+                                    '      1.4) and 1.5) require\n'                                                //&
+                                    '        PIC-shapefunction-radius0\n'                                          //&
+                                    '        PIC-shapefunction-scale\n'                                            //&
+                                    '2.)   cell_volweight ('//TRIM(int2strf(PRM_DEPO_CVW))//')\n'                  //&
+                                    '3.)   cell_volweight_mean ('//TRIM(int2strf(PRM_DEPO_CVWM))//')'                &
+                                    ,'cell_volweight')
 
 CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function'             , PRM_DEPO_SF)
 CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function_1d'          , PRM_DEPO_SF1D)
 CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function_2d'          , PRM_DEPO_SF2D)
 CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function_cylindrical' , PRM_DEPO_SFC)
 CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function_spherical'   , PRM_DEPO_SFS)
-CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function_simple'      , PRM_DEPO_SFSi)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cell_volweight'             , PRM_DEPO_CVW)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cell_volweight_mean'        , PRM_DEPO_CVWM)
 END SUBROUTINE DefineParametersDepositionMethod
@@ -136,9 +133,6 @@ SELECT CASE(DepositionType_loc)
 Case(PRM_DEPO_SF) ! shape_function
   DepositionMethod => DepositionMethod_SF
   DepositionType   = 'shape_function'
-Case(PRM_DEPO_SFSi) ! shape_function_simple
-  DepositionType   = 'shape_function_simple'
-  DepositionMethod => DepositionMethod_SF
 Case(PRM_DEPO_SF1D) ! shape_function_1d
   DepositionType   = 'shape_function_1d'
   DepositionMethod => DepositionMethod_SF1D
@@ -151,6 +145,9 @@ Case(PRM_DEPO_SFC) ! shape_function_cylindrical
 Case(PRM_DEPO_SFS) ! shape_function_spherical
   DepositionType   = 'shape_function_spherical'
   DepositionMethod => DepositionMethod_SFCS
+Case(PRM_DEPO_CVW) ! cell_volweight
+  DepositionType   = 'cell_volweight'
+  DepositionMethod => DepositionMethod_CVW
 Case(PRM_DEPO_CVWM) ! cell_volweight_mean
   DepositionType   = 'cell_volweight_mean'
   DepositionMethod => DepositionMethod_CVWM
