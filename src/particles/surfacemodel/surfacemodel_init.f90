@@ -254,11 +254,11 @@ INTEGER                          :: iSpec, iSide, iPartBound
 INTEGER                          :: GlobalSideID, PartBoundID
 !===================================================================================================================================
 IF (.NOT.(ANY(PartBound%Reactive))) RETURN
-IF (CollisMode.LE.1) THEN
-  CALL abort(&
-__STAMP__&
-,'Error in InitSurfaceModel - wrong collismode! needs to be >1')
-END IF
+!IF (CollisMode.LE.1) THEN
+  !CALL abort(&
+!__STAMP__&
+!,'Error in InitSurfaceModel - wrong collismode! needs to be >1')
+!END IF
 ! initialize variables only for processors that have any surfaces in own domain else they are skipped or not allocated
 ModelERSpecular = GETLOGICAL('Surface-ModelERSpecular')
 Adsorption%EnableAdsAttraction = GETLOGICAL('Surface-Adsorption-EnableAttraction')
@@ -499,9 +499,13 @@ ALLOCATE ( Adsorption%IncidentNormalVeloAtSurf(1:nSurfSample,1:nSurfSample,1:nCo
            Adsorption%SurfaceNormalVelo(1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides,1:nSpecies),&
            Adsorption%CollSpecPartNum(1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides,1:nSpecies) )
 DO iSpec = 1,nSpecies
-  ! Expacted value for an assumed Rayleigh distribution
-  Adsorption%IncidentNormalVeloAtSurf(:,:,:,iSpec) =  &
+  ! Expected value for an assumed Rayleigh distribution
+  IF(Species(iSpec)%NumberOfInits.GT.0)THEN
+    Adsorption%IncidentNormalVeloAtSurf(:,:,:,iSpec) =  &
       SQRT(BoltzmannConst*Species(iSpec)%Init(1)%MWTemperatureIC/Species(iSpec)%MassIC) *SQRT(PI/2.)
+  ELSE
+    Adsorption%IncidentNormalVeloAtSurf(:,:,:,iSpec) = 0.
+  END IF ! Species(iSpec)%NumberOfInits.GT.0
 END DO
 Adsorption%SurfaceNormalVelo(:,:,:,:)  = 0.
 Adsorption%CollSpecPartNum(:,:,:,:)    = 0

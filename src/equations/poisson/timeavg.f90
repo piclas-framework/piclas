@@ -197,7 +197,7 @@ iCounter=5
 ALLOCATE(DoPowerDensity(1:nSpecies))
 DoPowerDensity=.FALSE.
 nSpecPowerDensity=0
-IF(DoDeposition .AND. .NOT.RelaxDeposition)THEN ! compute powerdensity only if particles are deposited and not relaxed
+IF(DoDeposition.AND.(.NOT.RelaxDeposition))THEN ! compute powerdensity only if particles are deposited and not relaxed
   DO iSpec=1,nSpecies
     IF(ANY(CalcAvg(iCounter+1:iCounter+5))) THEN
       DoPowerDensity(iSpec)=.TRUE.

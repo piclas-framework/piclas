@@ -252,41 +252,6 @@ ELSE IF (ABS(SUM(GEO%PeriodicVectors(3,:))-NINT(SUM(GEO%PeriodicVectors(3,:))/GE
 
 END IF
 
-! check if periodic vector is multiple of BGM-Delta. This BGM is for the deposition with volume or spline weighting
-! functions
-IF((DepositionType.EQ.'cartmesh_volumeweighting').OR.(DepositionType.EQ.'cartmesh_splines'))THEN
-  IF (ABS(SUM(GEO%PeriodicVectors(1,:))-NINT(SUM(GEO%PeriodicVectors(1,:))/BGMDeltas(1))*BGMDeltas(1))                &
-       .GT.eps(1)) THEN
-    ERRWRITE(*,*)'SUM(PeriodicVectors(1,:))   =',SUM(GEO%PeriodicVectors(1,:))
-    ERRWRITE(*,*)'BGMDeltas(1)                =',BGMDeltas(1)
-    ERRWRITE(*,*)'1.E-9*(BGMDeltas(1))        =',eps(1)
-    ERRWRITE(*,*)'ABS(SUM-NINT(SUM/D(1))*D(1))=',ABS(SUM(GEO%PeriodicVectors(1,:))-                                   &
-         NINT(SUM(GEO%PeriodicVectors(1,:))/BGMDeltas(1))*BGMDeltas(1))
-     dummy=ABS(SUM(GEO%PeriodicVectors(1,:))-NINT(SUM(GEO%PeriodicVectors(1,:))/BGMDeltas(1))*BGMDeltas(1))
-    CALL abort(__STAMP__,'Periodic Vector in x-direction is not a multiple of BGMDeltas!',999,dummy)
-
-  ELSE IF (ABS(SUM(GEO%PeriodicVectors(2,:))-NINT(SUM(GEO%PeriodicVectors(2,:))/BGMDeltas(2))*BGMDeltas(2))           &
-       .GT.eps(2)) THEN
-    ERRWRITE(*,*)'SUM(PeriodicVectors(2,:))   =',SUM(GEO%PeriodicVectors(2,:))
-    ERRWRITE(*,*)'BGMDeltas(2)                =',BGMDeltas(2)
-    ERRWRITE(*,*)'1.E-9*(BGMDeltas(2))        =',eps(2)
-    ERRWRITE(*,*)'ABS(SUM-NINT(SUM/D(2))*D(2))=',ABS(SUM(GEO%PeriodicVectors(2,:))-                                   &
-         NINT(SUM(GEO%PeriodicVectors(2,:))/BGMDeltas(2))*BGMDeltas(2))
-     dummy=ABS(SUM(GEO%PeriodicVectors(2,:))-NINT(SUM(GEO%PeriodicVectors(2,:))/BGMDeltas(2))*BGMDeltas(2))
-    CALL abort(__STAMP__,'Periodic Vector in y-direction is not a multiple of BGMDeltas!',999,dummy)
-
-  ELSE IF (ABS(SUM(GEO%PeriodicVectors(3,:))-NINT(SUM(GEO%PeriodicVectors(3,:))/BGMDeltas(3))*BGMDeltas(3))           &
-       .GT.eps(3)) THEN
-    ERRWRITE(*,*)'SUM(PeriodicVectors(3,:))   =',SUM(GEO%PeriodicVectors(3,:))
-    ERRWRITE(*,*)'BGMDeltas(3)                =',BGMDeltas(3)
-    ERRWRITE(*,*)'1.E-9*(BGMDeltas(3))      =',eps(3)
-    ERRWRITE(*,*)'ABS(SUM-NINT(SUM/D(3))*D(3))=',ABS(SUM(GEO%PeriodicVectors(3,:))-                                   &
-         NINT(SUM(GEO%PeriodicVectors(3,:))/BGMDeltas(3))*BGMDeltas(3))
-     dummy=ABS(SUM(GEO%PeriodicVectors(3,:))-NINT(SUM(GEO%PeriodicVectors(3,:))/BGMDeltas(3))*BGMDeltas(3))
-    CALL abort(__STAMP__,'Periodic Vector in z-direction is not a multiple of BGMDeltas!',999,dummy)
-
-  END IF
-END IF
 END SUBROUTINE GetPeriodicVectors
 
 END MODULE MOD_Particle_Periodic_BC

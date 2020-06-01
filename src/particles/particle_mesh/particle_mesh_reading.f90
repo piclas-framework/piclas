@@ -255,7 +255,8 @@ SUBROUTINE ReadMeshNodes()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_HDF5_Input                ,ONLY: ReadArray
+USE MOD_HDF5_Input         ,ONLY: ReadArray,OpenDataFile
+USE MOD_IO_HDF5            ,ONLY: CloseDataFile
 USE MOD_Mesh_Vars
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
@@ -294,7 +295,9 @@ ASSOCIATE (&
       offsetNodeID => INT(offsetNodeID,IK) )
   ALLOCATE(NodeCoords_indx(3,nNodeIDs))
   ! read all nodes
+  CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   CALL ReadArray('NodeCoords',2,(/3_IK,nNodeIDs/),offsetNodeID,2,RealArray=NodeCoords_indx)
+  CALL CloseDataFile()
 END ASSOCIATE
 
 ! Keep all nodes if elements are curved
@@ -305,7 +308,9 @@ IF (useCurveds.OR.NGeo.EQ.1) THEN
         nNodeIDs     => INT(nNodeIDs,IK)     ,&
         offsetNodeID => INT(offsetNodeID,IK) )
     ALLOCATE(NodeInfo(FirstNodeInd:LastNodeInd))
+    CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
     CALL ReadArray('GlobalNodeIDs',1,(/nNodeIDs/),offsetNodeID,1,IntegerArray_i4=NodeInfo)
+    CALL CloseDataFile()
   END ASSOCIATE
 
 #if USE_MPI
@@ -323,8 +328,8 @@ IF (useCurveds.OR.NGeo.EQ.1) THEN
   NodeCoords_Shared(:,offsetNodeID+1:offsetNodeID+nNodeIDs) = NodeCoords_indx(:,:)
 #else
   nComputeNodeNodes = nNodeIDs
-!  ALLOCATE(NodeInfo_Shared(1:nNodeIDs))
-!  NodeInfo_Shared(1:nNodeIDs) = NodeInfo(:)
+  ALLOCATE(NodeInfo_Shared(1:nNodeIDs))
+  NodeInfo_Shared(1:nNodeIDs) = NodeInfo(:)
   ALLOCATE(NodeCoords_Shared(3,nNodeIDs))
   NodeCoords_Shared(:,:) = NodeCoords_indx(:,:)
 #endif  /*USE_MPI*/
@@ -338,7 +343,9 @@ ELSE
     ! Associate construct for integer KIND=8 possibility
     ASSOCIATE (nNonUniqueGlobalNodes     => INT(nNonUniqueGlobalNodes,IK))
       ALLOCATE(NodeInfo(1:nNonUniqueGlobalNodes))
+      CALL OpenDataFile(MeshFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
       CALL ReadArray('GlobalNodeIDs',1,(/nNonUniqueGlobalNodes/),0_IK,1,IntegerArray_i4=NodeInfo)
+      CALL CloseDataFile()
     END ASSOCIATE
 
     nNodeInfoIDs = MAXVAL(NodeInfo)
@@ -398,6 +405,9 @@ ELSE
   ! throw away all nodes except the 8 corner nodes of each hexa
   nNonUniqueGlobalNodes = 8*nGlobalElems
 
+#if USE_MPI
+  IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
   DO iElem = FirstElemInd,LastElemInd
     FirstNodeInd = ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) - offsetNodeID
     ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) = 8*(iElem-1)
@@ -407,6 +417,10 @@ ELSE
       NodeInfo_Shared  (  8*(iElem-1) + iNode) = NodeInfoTmp(2,NodeInfo(FirstNodeInd+CNS(iNode)))
     END DO
   END DO
+  DEALLOCATE(NodeInfoTmp)
+#if USE_MPI
+  END IF
+#endif /*USE_MPI*/
 
   END ASSOCIATE
 
@@ -426,10 +440,20 @@ END IF
 
 #if USE_MPI
 CALL MPI_WIN_SYNC(NodeCoords_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(NodeInfo_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif  /*USE_MPI*/
 
-DEALLOCATE(NodeInfo,NodeCoords_indx)
+nUniqueGlobalNodes = MAXVAL(NodeInfo_Shared)
+
+#if USE_MPI
+  IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
+DEALLOCATE(NodeInfo)
+#if USE_MPI
+  END IF
+#endif /*USE_MPI*/
+DEALLOCATE(NodeCoords_indx)
 
 END SUBROUTINE ReadMeshNodes
 

@@ -1622,7 +1622,8 @@ DO iPart=1,PDM%ParticleVecLength
               __STAMP__ &
               ,'Particle not inside of Element, ipart',iPart)
         ELSE ! BCElem
-          IPWRITE(UNIT_stdOut,'(I0,A,X,I0,A,X,I0)')' Fallback for Particle ', iPart, ' in Element', TestElem
+          IPWRITE(UNIT_stdOut,'(I0,A,I0,A,I0,A,I0,A)')' Fallback for Particle [', iPart, '] in Element [', TestElem,'] Species [',&
+              PartSpecies(iPart),']'
           IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' ParticlePos          ' , partstate(1:3,iPart)
           Vec=PartState(1:3,iPart)-LastPartPos(1:3,iPart)
 

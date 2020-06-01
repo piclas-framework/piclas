@@ -43,11 +43,6 @@ USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Interpolation_Vars    ,ONLY: BGType, BGField, BGFieldAnalytic, BGFieldVTKOutput, BGDataSize, PsiMag
 USE MOD_HDF5_Output_Tools     ,ONLY: WriteBGFieldToHDF5,WriteBGFieldAnalyticToHDF5
 USE MOD_SuperB_Init           ,ONLY: InitializeSuperB
-#ifdef PARTICLES
-USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType
-USE MOD_Interpolation_Vars    ,ONLY: BGField_xGP, BGField_wBary
-USE MOD_Interpolation_Vars    ,ONLY: xGP, wBary
-#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -80,13 +75,6 @@ IF(DoCalcErrorNormsSuperB)THEN
   ALLOCATE(BGFieldAnalytic(1:BGDataSize    , 0:PP_N , 0:PP_N , 0:PP_N     , 1:nElems))
   BGFieldAnalytic = 0
 END IF ! DoCalcErrorNormsSuperB
-
-#ifdef PARTICLES
-IF(TRIM(InterpolationType).EQ.'particle_position') THEN
-  BGField_xGP = xGP
-  BGField_wBary = wBary
-END IF
-#endif /*PARTICLES*/
 
 IF(NumOfPermanentMagnets.GT.0) THEN
   SWRITE(UNIT_stdOut,'(132("-"))')

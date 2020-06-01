@@ -311,7 +311,7 @@ END ASSOCIATE
 END SUBROUTINE EvaluateFieldAtPhysPos
 
 
-SUBROUTINE EvaluateFieldAtRefPos(xi_in,NVar,N_in,U_In,U_Out,ElemID)
+PURE SUBROUTINE EvaluateFieldAtRefPos(xi_in,NVar,N_in,U_In,U_Out,ElemID)
 !===================================================================================================================================
 !> 1) interpolate DG solution to position (U_In -> U_Out(xi_in))
 !> 2) interpolate backgroundfield to position ( U_Out -> U_Out(xi_in)+BG_field(xi_in) )
@@ -825,7 +825,7 @@ getInv(3,3) = ( Mat(1,1) * Mat(2,2) - Mat(1,2) * Mat(2,1) ) * sdet
 END FUNCTION getInv
 
 
-SUBROUTINE GetRefNewtonStartValue(X_in,Xi,CNElemID)
+PURE SUBROUTINE GetRefNewtonStartValue(X_in,Xi,CNElemID)
 !===================================================================================================================================
 !> Returns the initial value/ guess for the Newton's algorithm
 !===================================================================================================================================

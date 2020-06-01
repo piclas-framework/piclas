@@ -43,7 +43,7 @@ SUBROUTINE InitializeDeposition
 ! MODULES
 USE MOD_Globals
 USE MOD_PICDepo_Vars
-USE MOD_PICDepo_Tools          ,ONLY: CalcCellLocNodeVolumes,ReadTimeAverage,beta,DeBoor
+USE MOD_PICDepo_Tools          ,ONLY: CalcCellLocNodeVolumes,ReadTimeAverage,beta
 USE MOD_Particle_Vars
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_Mesh_Vars              ,ONLY: nElems,XCL_NGeo,Elem_xGP,sJ,nGlobalElems,nNodes
@@ -172,7 +172,7 @@ IF (TRIM(TimeAverageFile).NE.'none') THEN
 END IF
 
 
-! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical', 'shape_function_simple'
+! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical'
 IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
   r_sf                  = GETREAL('PIC-shapefunction-radius')
   alpha_sf              = GETINT('PIC-shapefunction-alpha')
@@ -220,9 +220,6 @@ END IF
 
 !--- init DepositionType-specific vars
 SELECT CASE(TRIM(DepositionType))
-CASE('nearest_blurrycenter')
-CASE('nearest_blurycenter')
-  DepositionType = 'nearest_blurrycenter'
 CASE('cell_volweight')
   ALLOCATE(CellVolWeightFac(0:PP_N),wGP_tmp(0:PP_N) , xGP_tmp(0:PP_N))
   ALLOCATE(CellVolWeight_Volumes(0:1,0:1,0:1,nElems))
@@ -272,46 +269,7 @@ CASE('cell_volweight_mean', 'cell_volweight_mean2')
   ALLOCATE(Vdm_EQ_N(0:PP_N,0:1))
   CALL GetVandermonde(1, NodeTypeVISU, PP_N, NodeType, Vdm_EQ_N, modal=.FALSE.)
 
-CASE('epanechnikov')
-  r_sf     = GETREAL('PIC-epanechnikov-radius','1.')
-  r2_sf = r_sf * r_sf
-  ALLOCATE( tempcharge(1:nElems))
-CASE('nearest_gausspoint')
-  ! Allocate array for particle positions in -1|1 space (used for deposition as well as interpolation)
-  ! only if NOT DoRefMapping
-  IF(.NOT.DoRefMapping)THEN
-    ALLOCATE(PartPosRef(1:3,PDM%MaxParticleNumber), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
-    ,' Cannot allocate partposref!')
-  END IF
-  ! compute the borders of the virtual volumes around the gauss points in -1|1 space
-  ALLOCATE(GaussBorder(1:PP_N),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-    __STAMP__&
-    ,'ERROR in pic_depo.f90: Cannot allocate Mapped Gauss Border Coords!')
-  END IF
-  DO i=0,PP_N
-    ! bullshit here, use xGP
-    !CALL GetPositionInRefElem(Elem_xGP(:,i,1,1,1),Temp(:),1)
-    !MappedGauss(i+1) = Temp(1)
-    MappedGauss(i+1) = xGP(i)
-  END DO
-  DO i = 1,PP_N
-    GaussBorder(i) = (MappedGauss(i+1) + MappedGauss(i))/2
-  END DO
-  ! allocate array for saving the gauss points of particles for nearest_gausspoint interpolation
-  IF(TRIM(InterpolationType).EQ.'nearest_gausspoint')THEN
-    SDEALLOCATE(PartPosGauss)
-    ALLOCATE(PartPosGauss(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) THEN
-      CALL abort(&
-      __STAMP__&
-      ,'ERROR in pic_depo.f90: Cannot allocate Part Pos Gauss!')
-    END IF
-  END IF
-CASE('shape_function','shape_function_simple')
+CASE('shape_function')
 #if USE_MPI
   DoExternalParts=.TRUE.
 #endif /*USE_MPI*/
@@ -1001,316 +959,6 @@ CASE('shape_function_cylindrical','shape_function_spherical')
     ElemDepo_xGP=Elem_xGP
   END IF
 
-CASE('delta_distri')
-  ! Allocate array for particle positions in -1|1 space (used for deposition as well as interpolation)
-  IF(.NOT.DoRefMapping)THEN
-    ALLOCATE(PartPosRef(1:3,PDM%MaxParticleNumber), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
-    ,' Cannot allocate partposref!')
-  END IF
-  DeltaType = GETINT('PIC-DeltaType','1')
-  WRITE(hilf,'(I0)') PP_N
-  NDepo     = GETINT('PIC-DeltaType-N',hilf)
-  SELECT CASE(DeltaType)
-  CASE(1)
-    SWRITE(UNIT_stdOut,'(A)') ' Lagrange-Polynomial'
-  CASE(2)
-    SWRITE(UNIT_stdOut,'(A)') ' Bernstein-Polynomial'
-    !CALL BuildBernSteinVdm(PP_N,xGP)
-    ALLOCATE(NDepochooseK(0:NDepo,0:NDepo))
-    CALL ComputeBernsteinCoeff(NDepo,NDepoChooseK)
-  CASE(3)
-    SWRITE(UNIT_stdOut,'(A)') ' Uniform B-Spline '
-    NKnots=(NDepo+1)*2-1
-    ALLOCATE( Knots(0:NKnots)  )
-    ! knots distance is 2 [-1,1)
-    X0=-1.-REAL(NDepo)*2.0
-    DO i=0,nKnots
-      Knots(i) =X0+2.0*REAL(i)
-    END DO ! i
-  CASE DEFAULT
-    CALL abort(&
-    __STAMP__&
-    ,' Wrong Delta-Type')
-  END SELECT
-  IF(NDepo.GT.PP_N) CALL abort(&
-    __STAMP__&
-    ,' NDepo must be smaller than N!')
-  DeltaDistriChangeBasis=.FALSE.
-  IF(NDepo.NE.PP_N) DeltaDistriChangeBasis=.TRUE.
-  ALLOCATE(DDMassInv(0:NDepo,0:NDepo,0:NDepo,1:PP_nElems) &
-          , XiNDepo(0:NDepo)                              &
-          , swGPNDepo(0:NDepo)                            &
-          , wBaryNDepo(0:NDepo)                           )
-  DDMassInv=0.
-#if (PP_NodeType==1)
-  CALL LegendreGaussNodesAndWeights(NDepo,XiNDepo,swGPNDepo)
-#elif (PP_NodeType==2)
-  CALL LegGaussLobNodesAndWeights(NDepo,XiNDepo,swGPNDepo)
-#endif
-  CALL BarycentricWeights(NDepo,XiNDepo,wBaryNDepo)
-
-  IF(DeltaDistriChangeBasis)THEN
-    ALLOCATE( Vdm_NDepo_GaussN(0:PP_N,0:NDepo)             &
-            , Vdm_GaussN_NDepo(0:NDepo,0:PP_N)             &
-            , dummy(1,0:PP_N,0:PP_N,0:PP_N)                &
-            , dummy2(1,0:NDepo,0:NDepo,0:NDepo)            )
-    CALL InitializeVandermonde(NDepo,PP_N,wBaryNDepo,XiNDepo,xGP,Vdm_NDepo_GaussN)
-    ! and inverse of mass matrix
-    DO i=0,NDepo
-      swGPNDepo(i)=1.0/swGPNDepo(i)
-    END DO ! i=0,PP_N
-    CALL InitializeVandermonde(PP_N,NDepo,wBary,xGP,xiNDepo,Vdm_GaussN_NDepo)
-    DO iElem=1,PP_nElems
-      dummy(1,:,:,:)=sJ(:,:,:,iElem)
-      CALL ChangeBasis3D(1,PP_N,NDepo,Vdm_GaussN_NDepo,dummy,dummy2)
-      DO k=0,NDepo
-        DO j=0,NDepo
-          DO i=0,NDepo
-            DDMassInv(i,j,k,iElem)=dummy2(1,i,j,k)*swGPNDepo(i)*swGPNDepo(j)*swGPNDepo(k)
-          END DO ! i
-        END DO ! j
-      END DO ! k
-    END DO ! iElem=1,PP_nElems
-    !DEALLOCATE(Vdm_NDepo_GaussN)
-    DEALLOCATE(Vdm_GaussN_NDepo)
-    DEALLOCATE(dummy,dummy2)
-  ELSE
-    DO i=0,NDepo
-      swGPNDepo(i)=1.0/wGP(i)
-    END DO ! i=0,PP_N
-    DO iElem=1,PP_nElems
-      DO k=0,NDepo
-        DO j=0,NDepo
-          DO i=0,NDepo
-            DDMassInv(i,j,k,iElem)=sJ(i,j,k,iElem)*swGPNDepo(i)*swGPNDepo(j)*swGPNDepo(k)
-          END DO ! i
-        END DO ! j
-      END DO ! k
-    END DO ! iElem=1,PP_nElems
-  END IF
-  DEALLOCATE(swGPNDepo)
-
-CASE('cartmesh_volumeweighting')
-
-  ! read in background mesh size
-  BGMdeltas(1:3) = GETREALARRAY('PIC-BGMdeltas',3,'0. , 0. , 0.')
-  FactorBGM(1:3) = GETREALARRAY('PIC-FactorBGM',3,'1. , 1. , 1.')
-  BGMdeltas(1:3) = 1./FactorBGM(1:3)*BGMdeltas(1:3)
-  IF (ANY(BGMdeltas.EQ.0.0)) THEN
-    CALL abort(&
-    __STAMP__&
-    ,'ERROR: PIC-BGMdeltas: No size for the cartesian background mesh definded.')
-  END IF
-  ! calc min and max coordinates for local mesh
-  xmin = 1.0E200
-  ymin = 1.0E200
-  zmin = 1.0E200
-  xmax = -1.0E200
-  ymax = -1.0E200
-  zmax = -1.0E200
-  DO iElem = 1, nElems
-    xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
-    xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
-    ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
-    ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
-    zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
-    zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
-  END DO
-  ! define minimum and maximum backgroundmesh index, compute volume
-  BGMVolume = BGMdeltas(1)*BGMdeltas(2)*BGMdeltas(3)
-  BGMminX = FLOOR(xmin/BGMdeltas(1)-0.0001)
-  BGMminY = FLOOR(ymin/BGMdeltas(2)-0.0001)
-  BGMminZ = FLOOR(zmin/BGMdeltas(3)-0.0001)
-  BGMmaxX = CEILING(xmax/BGMdeltas(1)+0.0001)
-  BGMmaxY = CEILING(ymax/BGMdeltas(2)+0.0001)
-  BGMmaxZ = CEILING(zmax/BGMdeltas(3)+0.0001)
-  ! mapping from gausspoints to BGM
-  ALLOCATE(GaussBGMIndex(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-    __STAMP__&
-    ,'ERROR in pic_depo.f90: Cannot allocate GaussBGMIndex!')
-  END IF
-  ALLOCATE(GaussBGMFactor(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-    __STAMP__&
-    ,'ERROR in pic_depo.f90: Cannot allocate GaussBGMFactor!')
-  END IF
-  DO iElem = 1, nElems
-    DO j = 0, PP_N
-      DO k = 0, PP_N
-        DO m = 0, PP_N
-          GaussBGMIndex(1,j,k,m,iElem) = FLOOR(Elem_xGP(1,j,k,m,iElem)/BGMdeltas(1))
-          GaussBGMIndex(2,j,k,m,iElem) = FLOOR(Elem_xGP(2,j,k,m,iElem)/BGMdeltas(2))
-          GaussBGMIndex(3,j,k,m,iElem) = FLOOR(Elem_xGP(3,j,k,m,iElem)/BGMdeltas(3))
-          GaussBGMFactor(1,j,k,m,iElem) = (Elem_xGP(1,j,k,m,iElem)/BGMdeltas(1))-REAL(GaussBGMIndex(1,j,k,m,iElem))
-          GaussBGMFactor(2,j,k,m,iElem) = (Elem_xGP(2,j,k,m,iElem)/BGMdeltas(2))-REAL(GaussBGMIndex(2,j,k,m,iElem))
-          GaussBGMFactor(3,j,k,m,iElem) = (Elem_xGP(3,j,k,m,iElem)/BGMdeltas(3))-REAL(GaussBGMIndex(3,j,k,m,iElem))
-        END DO
-      END DO
-    END DO
-  END DO
-#if USE_MPI
-  CALL MPIBackgroundMeshInit()
-#else
-  IF(GEO%nPeriodicVectors.GT.0)THEN
-    ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
-    ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
-    IF (allocStat .NE. 0) THEN
-      CALL abort(&
-      __STAMP__&
-      ,'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
-    END IF
-    DO i = 1, GEO%nPeriodicVectors
-      GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
-      IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
-        CALL abort(&
-        __STAMP__&
-        ,'ERROR: Periodic Vector ist not multiple of background mesh delta')
-      END IF
-      GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
-      IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
-        CALL abort(&
-        __STAMP__&
-        ,'ERROR: Periodic Vector ist not multiple of background mesh delta')
-      END IF
-      GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
-      IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
-        CALL abort(&
-        __STAMP__&
-        ,'ERROR: Periodic Vector ist not multiple of background mesh delta')
-      END IF
-    END DO
-  END IF
-#endif
-  ALLOCATE(BGMSource(BGMminX:BGMmaxX,BGMminY:BGMmaxY,BGMminZ:BGMmaxZ,1:4))
-CASE('cartmesh_splines')
-  BGMdeltas(1:3) = GETREALARRAY('PIC-BGMdeltas',3,'0. , 0. , 0.')
-  FactorBGM(1:3) = GETREALARRAY('PIC-FactorBGM',3,'1. , 1. , 1.')
-  BGMdeltas(1:3) = 1./FactorBGM(1:3)*BGMdeltas(1:3)
-  IF (ANY(BGMdeltas.EQ.0)) THEN
-    CALL abort(&
-    __STAMP__&
-    ,'ERROR: PIC-BGMdeltas: No size for the cartesian background mesh definded.')
-  END IF
-  ! calc min and max coordinates for local mesh
-  xmin = 1.0E200
-  ymin = 1.0E200
-  zmin = 1.0E200
-  xmax = -1.0E200
-  ymax = -1.0E200
-  zmax = -1.0E200
-  DO iElem = 1, nElems
-    xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
-    xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
-    ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
-    ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
-    zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
-    zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
-  END DO
-  ! define minimum and maximum backgroundmesh index, compute volume
-  BGMVolume = BGMdeltas(1)*BGMdeltas(2)*BGMdeltas(3)
-  BGMminX = FLOOR(xmin/BGMdeltas(1)-0.0001)-2
-  BGMminY = FLOOR(ymin/BGMdeltas(2)-0.0001)-2
-  BGMminZ = FLOOR(zmin/BGMdeltas(3)-0.0001)-2
-  BGMmaxX = CEILING(xmax/BGMdeltas(1)+0.0001)+2
-  BGMmaxY = CEILING(ymax/BGMdeltas(2)+0.0001)+2
-  BGMmaxZ = CEILING(zmax/BGMdeltas(3)+0.0001)+2
-  ! mapping from gausspoints to BGM
-  ALLOCATE(GaussBGMIndex(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-    __STAMP__&
-    ,'ERROR in pic_depo.f90: Cannot allocate GaussBGMIndex!')
-  END IF
-  ALLOCATE(GaussBGMFactor(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-    __STAMP__&
-    ,'ERROR in pic_depo.f90: Cannot allocate GaussBGMFactor!')
-  END IF
-  DO iElem = 1, nElems
-    DO j = 0, PP_N
-      DO k = 0, PP_N
-        DO m = 0, PP_N
-          GaussBGMIndex(1,j,k,m,iElem) = FLOOR(Elem_xGP(1,j,k,m,iElem)/BGMdeltas(1))
-          GaussBGMIndex(2,j,k,m,iElem) = FLOOR(Elem_xGP(2,j,k,m,iElem)/BGMdeltas(2))
-          GaussBGMIndex(3,j,k,m,iElem) = FLOOR(Elem_xGP(3,j,k,m,iElem)/BGMdeltas(3))
-        END DO
-      END DO
-    END DO
-  END DO
-  ! pre-build weights for BGM to gausspoint interpolation
-  ALLOCATE(GPWeight(1:nElems,0:PP_N,0:PP_N,0:PP_N,1:4,1:4,1:4),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-    __STAMP__&
-    ,'ERROR in pic_depo.f90: Cannot allocate GPWeight!')
-  END IF
-  DO iElem = 1, nElems
-    DO j = 0, PP_N
-      DO k = 0, PP_N
-        DO m = 0, PP_N
-          DO dir = 1,3               ! x,y,z direction
-            DO weightrun = 0,3
-              DO mm = 0, 3
-                IF (mm.EQ.weightrun) then
-                  auxiliary(mm) = 1.0
-                ELSE
-                  auxiliary(mm) = 0.0
-                END IF
-              END DO
-              CALL DeBoor(GaussBGMIndex(dir,j,k,m,iElem),auxiliary,Elem_xGP(dir,j,k,m,iElem),weight(dir,weightrun),dir)
-            END DO
-          END DO
-          DO r = 1,4
-            DO s = 1,4
-              DO t = 1,4
-                GPWeight(iElem,j,k,m,r,s,t) = weight(1,-(r-4)) * weight(2,-(s-4)) * weight(3,-(t-4))
-              END DO !t
-            END DO !s
-          END DO !r
-        END DO !m
-      END DO !k
-    END DO !j
-  END DO !iElem
-#if USE_MPI
-  CALL MPIBackgroundMeshInit()
-#else
-  IF(GEO%nPeriodicVectors.GT.0)THEN
-    ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
-    ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
-    IF (allocStat .NE. 0) THEN
-      CALL abort(&
-      __STAMP__&
-      ,'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
-    END IF
-    DO i = 1, GEO%nPeriodicVectors
-      GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
-      IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
-        CALL abort(&
-        __STAMP__ &
-        ,'ERROR: Periodic Vector ist not multiple of background mesh delta')
-      END IF
-      GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
-      IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
-        CALL abort(&
-        __STAMP__&
-        ,'ERROR: Periodic Vector ist not multiple of background mesh delta')
-      END IF
-      GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
-      IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
-        CALL abort(&
-        __STAMP__&
-        ,'ERROR: Periodic Vector ist not multiple of background mesh delta')
-      END IF
-    END DO
-  END IF
-#endif
-  ALLOCATE(BGMSource(BGMminX:BGMmaxX,BGMminY:BGMmaxY,BGMminZ:BGMmaxZ,1:4))
 CASE DEFAULT
   CALL abort(&
   __STAMP__&
@@ -1336,10 +984,7 @@ SUBROUTINE Deposition(DoInnerParts,doParticle_In)
 !============================================================================================================================
 ! This subroutine performs the deposition of the particle charge and current density to the grid
 ! following list of distribution methods are implemented
-! - nearest blurrycenter (barycenter of hexahedra)
-! - nearest Gauss Point  (only volume of IP - higher resolution than nearest blurrycenter )
 ! - shape function       (only one type implemented)
-! - delta distribution
 ! useVMPF added, therefore, this routine contains automatically the use of variable mpfs
 !============================================================================================================================
 ! use MODULES

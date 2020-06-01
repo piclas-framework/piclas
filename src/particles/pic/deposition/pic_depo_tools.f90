@@ -35,15 +35,7 @@ INTERFACE beta
   MODULE PROCEDURE beta
 END INTERFACE
 
-INTERFACE DeBoor
-  MODULE PROCEDURE DeBoor
-END INTERFACE
-
-INTERFACE DeBoorRef
-  MODULE PROCEDURE DeBoorRef
-END INTERFACE
-
-PUBLIC:: DepositParticleOnNodes,CalcCellLocNodeVolumes,ReadTimeAverage,beta,DeBoor,DeBoorRef
+PUBLIC:: DepositParticleOnNodes,CalcCellLocNodeVolumes,ReadTimeAverage,beta
 !===================================================================================================================================
 
 CONTAINS
@@ -312,117 +304,24 @@ REAL                     :: StartT,EndT
 END SUBROUTINE ReadTimeAverage
 
 
-SUBROUTINE DeBoor(PosInd, aux, coord, results, dir)
-!============================================================================================================================
-! recursive function for evaluating a b-spline basis function
-!============================================================================================================================
-! use MODULES
-USE MOD_PICDepo_Vars
-!-----------------------------------------------------------------------------------------------------------------------------------
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)                          :: PosInd, dir
-REAL, INTENT(IN)                             :: coord
-REAL, INTENT(INOUT)                          :: aux(0:3), results
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                          :: i,k,jL,jR
-REAL                              :: hlp1,hlp2
-!-----------------------------------------------------------------------------------------------------------------------------------
-DO i = 0, 2
-   DO k = 0, 2-i
-      jL = PosInd - k
-      jR = jL + 3 - i
-
-      hlp1 = jR * BGMdeltas(dir) - coord
-      hlp2 = coord - jL * BGMdeltas(dir)
-
-      aux(k) = (hlp1 * aux(k+1) + hlp2 * aux(k)) / (hlp1+hlp2)
-   ENDDO
-ENDDO
-results = aux(0)
-
-END SUBROUTINE DeBoor
-
-
-SUBROUTINE DeBoorRef(N_in,NKnots,Knots,Xi_in,UBspline)
-!===================================================================================================================================
-! DeBoor algorithms for uniform B-Splines
-! rule of DeBoor algorithm
-! N_i^0 (x) = 1 if x in [u_i, u_i+1); else 0
-! N_i^n (x) = (x-u_i) /(u_i+n-u_i) N_i^n-1(x) + (u_i+n+1 - x)/(u_i+n+1 - u_i+1) N_i+1^n-1(x)
-! this algorithm evaluates the complete 1D basis fuction, because certain knots can be reused
-!===================================================================================================================================
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/ OUTPUT VARIABLES
-INTEGER,INTENT(IN)      :: N_in,Nknots
-REAL,INTENT(IN)         :: Xi_in
-REAL,INTENT(OUT)        :: UBspline(0:N_in)
-REAL,INTENT(IN)         :: knots(0:Nknots) ! range of parameter
-!REAL,INTENT(IN)         :: DXi is 2 for [-1,1)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                 :: i,n, last!,first
-REAL                    :: tmpArray(0:NKnots-1,0:NKnots-1)
-REAL                    :: sDxiN!,DxiN1
-!===================================================================================================================================
-
-
-! init, first layer (constant)
-! zero order
-n=0
-tmpArray=0.
-last=nknots-1
-DO i=0,last
-  IF((knots(i).LE.Xi_in).AND.(Xi_in.LT.knots(i+1)))THEN
-    tmpArray(i,n)=1.0
-  END IF ! select
-END DO ! i
-
-DO n=1,N_in
-  last=last-1
-  DO i=0,last
-    ! standard
-!    tmpArray(i,n) = (Xi_in-knots(i))/(knots(i+n)-knots(i))*tmpArray(i,n-1) &
-!                  + (knots(i+n+1)-Xi_in)/(knots(i+n+1)-knots(i+1))*tmpArray(i+1,n-1)
-    ! optimized
-    sDxiN=0.5/REAL(n)
-    tmpArray(i,n) = sDxiN*( (Xi_in-knots(i) )*tmparray(i,n-1)+(knots(i+n+1)-Xi_in)*tmpArray(i+1,n-1))
-  END DO ! i
-END DO ! n
-
-! move back to correct range
-UBSpline(0:N_in)=tmpArray(0:N_in,N_in)
-
-END SUBROUTINE DeBoorRef
-
-
 FUNCTION beta(z,w)
 !============================================================================================================================
 ! calculates the beta function
 !============================================================================================================================
 ! use MODULES
 !-----------------------------------------------------------------------------------------------------------------------------------
-   IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-   REAL, INTENT(IN)                             :: w, z
+REAL, INTENT(IN)                             :: w, z
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-   REAL                                          :: beta
+REAL                                          :: beta
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
-   beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)
+beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)
 END FUNCTION beta
 
 
