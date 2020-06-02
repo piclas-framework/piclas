@@ -297,6 +297,9 @@ END IF
 
 WRITE(tmpStr,'(L1)') (TrackingMethod.EQ.TRIATRACKING)
 TriaSurfaceFlux = GETLOGICAL('TriaSurfaceFlux',TRIM(tmpStr))
+IF((TrackingMethod.EQ.TRIATRACKING).AND.(.NOT.TriaSurfaceFlux)) THEN
+  CALL ABORT(__STAMP__,'TriaSurfaceFlux must be for TriaTracking!')
+END IF
 IF (Symmetry2D) THEN
   SWRITE(UNIT_stdOut,'(A)') "Surface Flux set to triangle approximation due to Symmetry2D."
   TriaSurfaceFlux = .TRUE.
