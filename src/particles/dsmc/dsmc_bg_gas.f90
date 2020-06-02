@@ -675,7 +675,7 @@ INTEGER, INTENT(IN)           :: iSpec,iInit,InsertedNbrOfParticles
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart, iPair, iNewPart, iReac, ParticleIndex, NewParticleIndex, bgSpec, NbrOfParticle
-INTEGER                       :: ParticleVecLengthOld, iPart_p1, iPart_p2
+INTEGER                       :: iPart_p1, iPart_p2
 REAL                          :: RandVal
 !===================================================================================================================================
 ChemReac%NumPhotoIonization = 0
@@ -693,7 +693,7 @@ IF(SUM(ChemReac%NumPhotoIonization).EQ.0) RETURN
 
 IF(InsertedNbrOfParticles.GT.SUM(ChemReac%NumPhotoIonization)) THEN
   ! Delete left-over inserted particles
-  DO iPart = SUM(ChemReac%NumPhotoIonization),InsertedNbrOfParticles
+  DO iPart = SUM(ChemReac%NumPhotoIonization)+1,InsertedNbrOfParticles
     PDM%ParticleInside(PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)) = .FALSE.
   END DO
 ELSE IF(InsertedNbrOfParticles.LT.SUM(ChemReac%NumPhotoIonization)) THEN
@@ -766,7 +766,6 @@ DO WHILE (iPart.LE.NbrOfParticle)
   iPart = iPart + 1
 END DO
 
-ParticleVecLengthOld = PDM%ParticleVecLength
 ! Add the particles initialized through the emission and the background particles
 PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle + iNewPart
 ! Update the current next free position
