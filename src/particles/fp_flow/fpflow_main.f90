@@ -53,7 +53,7 @@ USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_M
 USE MOD_DSMC                ,ONLY: DSMC_main
 USE MOD_DSMC_Analyze        ,ONLY: DSMC_data_sampling
 USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, RadialWeighting
-USE MOD_Mesh_Vars           ,ONLY: nElems
+USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
 USE MOD_Part_Tools          ,ONLY: GetParticleWeight
 USE MOD_Particle_Vars       ,ONLY: PEM, PartState, Species, WriteMacroVolumeValues, Symmetry2D, usevMPF
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
@@ -66,7 +66,7 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iElem, nPart, iLoop, iPart
+INTEGER               :: iElem, nPart, iLoop, iPart, GlobalElemID
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
 LOGICAL               :: DoElement(nElems)
 REAL                  :: vBulk(3), dens, partWeight, totalWeight
@@ -75,6 +75,7 @@ DSMC_RHS = 0.0
 DoElement = .FALSE.
 
 DO iElem = 1, nElems
+  GlobalElemID = iElem + offsetElem
   nPart = PEM%pNumber(iElem)
   totalWeight = 0.0
   iPart = PEM%pStart(iElem)
@@ -85,9 +86,9 @@ DO iElem = 1, nElems
   END DO
 
   IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    dens = totalWeight / ElemVolume_Shared(iElem)
+    dens = totalWeight / ElemVolume_Shared(GlobalElemID)
   ELSE
-    dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(iElem)
+    dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(GlobalElemID)
   END IF
   IF (dens.LT.FPDSMCSwitchDens) THEN
     DoElement(iElem) = .TRUE.
@@ -119,7 +120,7 @@ DO iElem = 1, nElems
       FP_MeanRelaxFactorCounter=0; FP_MeanRelaxFactor=0.; FP_MaxRelaxFactor=0.; FP_MaxRotRelaxFactor=0.; FP_PrandtlNumber=0.
     END IF
 
-    CALL FP_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(iElem), vBulk)
+    CALL FP_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(GlobalElemID), vBulk)
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
@@ -154,7 +155,7 @@ USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, SamplingActive
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
 USE MOD_FPFlow_Vars         ,ONLY: FP_QualityFacSamp, FP_PrandtlNumber
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile
+USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile, offsetElem
 USE MOD_Part_Tools          ,ONLY: GetParticleWeight
 USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry2D
 USE MOD_Restart_Vars        ,ONLY: RestartTime
@@ -168,7 +169,7 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iElem, nPart, iPart, iLoop, nOutput
+INTEGER                     :: iElem, nPart, iPart, iLoop, nOutput, GlobalElemID
 REAL                        :: vBulk(1:3), partWeight, totalWeight
 INTEGER, ALLOCATABLE        :: iPartIndx_Node(:)
 !===================================================================================================================================
@@ -184,6 +185,7 @@ IF (DoBGKCellAdaptation) THEN
   END DO
 ELSE
   DO iElem = 1, nElems
+    GlobalElemID = iElem + offsetElem
     nPart = PEM%pNumber(iElem)
     IF (nPart.LT.3) CYCLE
     ALLOCATE(iPartIndx_Node(nPart))
@@ -203,7 +205,7 @@ ELSE
       FP_MeanRelaxFactorCounter=0; FP_MeanRelaxFactor=0.; FP_MaxRelaxFactor=0.; FP_MaxRotRelaxFactor=0.; FP_PrandtlNumber=0.
     END IF
 
-    CALL FP_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(iElem), vBulk)
+    CALL FP_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(GlobalElemID), vBulk)
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN

@@ -59,6 +59,7 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping
 USE MOD_Part_tools              ,ONLY: GetParticleWeight
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Vars               ,ONLY: offsetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -68,7 +69,7 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, nPart
+INTEGER                       :: iPart, iLoop, nPart, GlobalElemID
 REAL                          :: vBulk(3), Dens, partWeight, totalWeight
 TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
@@ -87,6 +88,8 @@ nPart = PEM%pNumber(iElem)
 IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
   RETURN
 END IF
+
+GlobalElemID = iElem + offsetElem
 
 NULLIFY(TreeNode)
 ALLOCATE(TreeNode)
@@ -107,9 +110,9 @@ vBulk = vBulk / totalWeight
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   ! totalWeight contains the weighted particle number
-  Dens = totalWeight / ElemVolume_Shared(iElem)
+  Dens = totalWeight / ElemVolume_Shared(GlobalElemID)
 ELSE
-  Dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(iElem)
+  Dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(GlobalElemID)
 END IF
 
 ! The octree refinement is performed if either the particle number or number density is above a user-given limit
@@ -137,16 +140,16 @@ IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
 ELSE ! No octree refinement: Call of the respective collision operator
 #if (PP_TimeDiscMethod==300)
     CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPart &
-                              , ElemVolume_Shared(iElem), vBulk)
+                              , ElemVolume_Shared(GlobalElemID), vBulk)
 #else
   IF (BGKMovingAverage) THEN
     CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, &
-              ElemVolume_Shared(iElem), vBulk, &
+              ElemVolume_Shared(GlobalElemID), vBulk, &
              ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
              CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
   ELSE
     CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart &
-                            , ElemVolume_Shared(iElem), vBulk)
+                            , ElemVolume_Shared(GlobalElemID), vBulk)
   END IF
 #endif
 END IF ! nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)
@@ -556,6 +559,7 @@ USE MOD_Particle_Vars           ,ONLY: PEM, PartState, Species,WriteMacroVolumeV
 USE MOD_Part_tools              ,ONLY: GetParticleWeight
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Vars               ,ONLY: offsetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -565,7 +569,7 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, nPart
+INTEGER                       :: iPart, iLoop, nPart, GlobalElemID
 REAL                          :: vBulk(3), Dens, partWeight, totalWeight
 TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
@@ -584,6 +588,8 @@ nPart = PEM%pNumber(iElem)
 IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
   RETURN
 END IF
+
+GlobalElemID = iElem + offsetElem
 
 NULLIFY(TreeNode)
 ALLOCATE(TreeNode)
@@ -604,9 +610,9 @@ vBulk = vBulk / totalWeight
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   ! totalWeight contains the weighted particle number
-  Dens = totalWeight / ElemVolume_Shared(iElem)
+  Dens = totalWeight / ElemVolume_Shared(GlobalElemID)
 ELSE
-  Dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(iElem)
+  Dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(GlobalElemID)
 END IF
 
 ! The quadtree refinement is performed if either the particle number or number density is above a user-given limit
@@ -630,16 +636,16 @@ IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
 ELSE ! No quadtree refinement: Call of the respective collision operator
 #if (PP_TimeDiscMethod==300)
     CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPart &
-                              , ElemVolume_Shared(iElem), vBulk)
+                              , ElemVolume_Shared(GlobalElemID), vBulk)
 #else
   ! IF (BGKMovingAverage) THEN
   !   CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, &
-  !             ElemVolume_Shared(iElem), vBulk, &
+  !             ElemVolume_Shared(GlobalElemID), vBulk, &
   !            ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
   !            CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
   ! ELSE
     CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart &
-                            , ElemVolume_Shared(iElem), vBulk)
+                            , ElemVolume_Shared(GlobalElemID), vBulk)
   ! END IF
 #endif
 END IF ! nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)
