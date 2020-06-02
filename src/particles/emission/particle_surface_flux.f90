@@ -1734,7 +1734,7 @@ __STAMP__&
             IF (TriaSurfaceFlux) THEN
               Particle_pos(1:3) = CalcPartPosTriaSurface(xyzNod, Vector1, Vector2, ndist, midpoint)
             ELSE !.NOT.TriaSurfaceFlux
-              Particle_pos(1:3) = CalcPartPosBezier(iSpec, iSF, iSample, jSample, iSide, SideID)
+              Particle_pos(1:3) = CalcPartPosBezier(iSpec, iSF, iSample, jSample, iSide, SideID, xi)
             END IF !TriaSurfaceFlux
 
             AcceptPos=.TRUE.
@@ -1910,7 +1910,7 @@ REAL                        :: point(2), radius, origin(2)
 END FUNCTION InSideCircularInflow
 
 
-FUNCTION CalcPartPosBezier(iSpec, iSF, iSample, jSample, iSide, SideID)
+FUNCTION CalcPartPosBezier(iSpec, iSF, iSample, jSample, iSide, SideID, xi)
 !===================================================================================================================================
 ! Calculate random normalized vector in 3D (unit space)
 !===================================================================================================================================
@@ -1925,12 +1925,13 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES)
 INTEGER, INTENT(IN)         :: iSpec, iSF, iSide, SideID, iSample, jSample
+REAL, INTENT(OUT)           :: xi(2)
 REAL                        :: CalcPartPosBezier(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                        :: RandVal2(2), xiab(1:2,1:2), xi(2), E, F, G, D, gradXiEta2D(1:2,1:2),gradXiEta3D(1:2,1:3), RandVal1
+REAL                        :: RandVal2(2), xiab(1:2,1:2), E, F, G, D, gradXiEta2D(1:2,1:2),gradXiEta3D(1:2,1:3), RandVal1
 INTEGER                     :: iLoop
 !===================================================================================================================================
   iLoop=0
