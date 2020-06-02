@@ -336,7 +336,7 @@ IF (useCurveds.OR.NGeo.EQ.1) THEN
 
 ! Reduce NodeCoords if no curved elements are to be used
 ELSE
-  ! root builds new NodeInfo mapping
+  ! root reads NodeInfo for new mapping
 #if USE_MPI
   IF (myComputeNodeRank.EQ.0) THEN
 #endif /*USE_MPI*/
@@ -347,28 +347,32 @@ ELSE
       CALL ReadArray('GlobalNodeIDs',1,(/nNonUniqueGlobalNodes/),0_IK,1,IntegerArray_i4=NodeInfo)
       CALL CloseDataFile()
     END ASSOCIATE
-
-    nNodeInfoIDs = MAXVAL(NodeInfo)
-    ALLOCATE(NodeInfoTmp(2,nNodeInfoIDs))
-    NodeInfoTmp = 0
-
-    ! Flag unique node IDs we will keep
-    DO iNode = 1,nNonUniqueGlobalNodes
-      NodeID = NodeInfo(iNode)
-      NodeInfoTmp(1,NodeID) = 1
-    END DO
-
-    ! Build new NodeInfo IDs
-    NodeCounter = 0
-    DO iNode = 1,nNodeInfoIDs
-      IF (NodeInfoTmp(1,iNode).EQ.0) CYCLE
-
-      NodeCounter = NodeCounter + 1
-      NodeInfoTmp(2,iNode) = NodeCounter
-    END DO
 #if USE_MPI
   END IF
+
+  ! root broadcasts NodeInfo to all procs on compute node
+  CALL MPI_BCAST(NodeInfo,nNonUniqueGlobalNodes,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
 #endif /*USE_MPI*/
+
+  ! Every proc builds new mapping. This step is required for consistency reasons since ElemInfo is not yet communicated
+  nNodeInfoIDs = MAXVAL(NodeInfo)
+  ALLOCATE(NodeInfoTmp(2,nNodeInfoIDs))
+  NodeInfoTmp = 0
+
+  ! Flag unique node IDs we will keep
+  DO iNode = 1,nNonUniqueGlobalNodes
+    NodeID = NodeInfo(iNode)
+    NodeInfoTmp(1,NodeID) = 1
+  END DO
+
+  ! Build new NodeInfo IDs
+  NodeCounter = 0
+  DO iNode = 1,nNodeInfoIDs
+    IF (NodeInfoTmp(1,iNode).EQ.0) CYCLE
+
+    NodeCounter = NodeCounter + 1
+    NodeInfoTmp(2,iNode) = NodeCounter
+  END DO
 
 #if USE_MPI
   MPISharedSize = INT(8*nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
@@ -405,9 +409,6 @@ ELSE
   ! throw away all nodes except the 8 corner nodes of each hexa
   nNonUniqueGlobalNodes = 8*nGlobalElems
 
-#if USE_MPI
-  IF (myComputeNodeRank.EQ.0) THEN
-#endif /*USE_MPI*/
   DO iElem = FirstElemInd,LastElemInd
     FirstNodeInd = ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) - offsetNodeID
     ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) = 8*(iElem-1)
@@ -417,10 +418,8 @@ ELSE
       NodeInfo_Shared  (  8*(iElem-1) + iNode) = NodeInfoTmp(2,NodeInfo(FirstNodeInd+CNS(iNode)))
     END DO
   END DO
+
   DEALLOCATE(NodeInfoTmp)
-#if USE_MPI
-  END IF
-#endif /*USE_MPI*/
 
   END ASSOCIATE
 
