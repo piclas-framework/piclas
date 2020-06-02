@@ -295,6 +295,13 @@ __STAMP__ &
 ,'Wrong guessing method for mapping from physical space in reference space.',RefMappingGuess,999.)
 END IF
 
+WRITE(tmpStr,'(L1)') (TrackingMethod.EQ.TRIATRACKING)
+TriaSurfaceFlux = GETLOGICAL('TriaSurfaceFlux',TRIM(tmpStr))
+IF (Symmetry2D) THEN
+  SWRITE(UNIT_stdOut,'(A)') "Surface Flux set to triangle approximation due to Symmetry2D."
+  TriaSurfaceFlux = .TRUE.
+END IF
+
 SELECT CASE(TrackingMethod)
 
   CASE(TRIATRACKING)
@@ -310,6 +317,7 @@ SELECT CASE(TrackingMethod)
     END IF
 
 CASE(TRACING,REFMAPPING)
+    IF(TriaSurfaceFlux) CALL InitParticleGeometry()
     CALL CalcParticleMeshMetrics()
 
     BezierElevation = GETINT('BezierElevation')
@@ -421,12 +429,6 @@ END SELECT
 IF(FindNeighbourElems) CALL BuildNodeNeighbourhood()
 
 ! BezierAreaSample stuff:
-WRITE(tmpStr,'(L1)') (TrackingMethod.EQ.TRIATRACKING)
-TriaSurfaceFlux = GETLOGICAL('TriaSurfaceFlux',TRIM(tmpStr))
-IF (Symmetry2D) THEN
-  SWRITE(UNIT_stdOut,'(A)') "Surface Flux set to Triangle-aproximation due to Symmetry2D."
-  TriaSurfaceFlux = .TRUE.
-END IF
 IF (TriaSurfaceFlux) THEN
   BezierSampleN = 1
   SurfFluxSideSize=(/1,2/)
