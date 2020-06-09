@@ -2486,8 +2486,10 @@ ELSE IF (TRIM(Species(FractNbr)%Surfaceflux(iSF)%velocityDistribution).EQ.'liqui
   velocityDistribution='liquid'
 ELSE IF (TRIM(Species(FractNbr)%Surfaceflux(iSF)%velocityDistribution).EQ.'constant' ) THEN
   velocityDistribution='constant'
-  VeloVecIC(1:3) = Species(FractNbr)%Surfaceflux(iSF)%VeloVecIC(1:3)
-  VeloVecIC(1:3) = VeloVecIC(1:3) / VECNORM(VeloVecIC(1:3))
+  IF (.NOT.Species(FractNbr)%Surfaceflux(iSF)%VeloIsNormal) THEN
+    VeloVecIC(1:3) = Species(FractNbr)%Surfaceflux(iSF)%VeloVecIC(1:3)
+    VeloVecIC(1:3) = VeloVecIC(1:3) / VECNORM(VeloVecIC(1:3))
+  END IF
 ELSE
   CALL abort(&
 __STAMP__&

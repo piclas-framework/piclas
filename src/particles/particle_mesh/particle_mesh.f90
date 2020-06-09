@@ -270,9 +270,7 @@ IF(UseCurveds)THEN ! don't use RefMappingGuess=1, because RefMappingGuess is onl
   ! RefMappingGuess 2,3 searches the closest Gauss/CL points of the considered element. This point is used as the initial value for
   ! the mapping. Note, that the position of the CL points can still be advantageous for the initial guess.
   RefMappingGuessProposal=2
-  IF(PP_N.GT.NGeo)THEN ! there are more Gauss points within an element then CL-points
-                       ! Gauss points sample the element finer
-                       ! Note: the Gauss points does not exist for HALO elements, here, the closest CL point is used
+  IF(PP_N.GT.NGeo)THEN ! there are more Gauss points within an element then CL-points, Gauss points sample the element finer
     RefMappingGuessProposal=2
   ELSE ! more CL-points than Gauss points, hence, better sampling of the element
     RefMappingGuessProposal=3
@@ -282,7 +280,7 @@ ELSE
 END IF
 WRITE(tmpStr,'(I2.2)') RefMappingGuessProposal
 RefMappingGuess = GETINT('RefMappingGuess',tmpStr)
-IF((RefMappingGuess.LT.1).AND.(UseCurveds)) THEN ! this might cause problems
+IF((RefMappingGuess.LT.1).AND.(UseCurveds)) THEN ! Linear intial guess on curved meshes might cause problems.
   SWRITE(UNIT_stdOut,'(A)')' WARNING: read-in [RefMappingGuess=1] when using [UseCurveds=T] may create problems!'
 END IF
 RefMappingEps   = GETREAL('RefMappingEps','1e-4')
@@ -641,12 +639,12 @@ USE MOD_Particle_Surfaces      ,ONLY: GetBezierControlPoints3DElevated
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,sVdm_Bezier
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3DElevated,BezierElevation
 #if USE_MPI
-USE MOD_Particle_Mesh_Vars       ,ONLY: BezierControlPoints3D_Shared,BezierControlPoints3D_Shared_Win
-USE MOD_Particle_Mesh_Vars       ,ONLY: BezierControlPoints3DElevated_Shared,BezierControlPoints3DElevated_Shared_Win
-USE MOD_MPI_Shared               ,ONLY: Allocate_Shared
-USE MOD_MPI_Shared_Vars          ,ONLY: nComputeNodeTotalElems
-USE MOD_MPI_Shared_Vars          ,ONLY: myComputeNodeRank,nComputeNodeProcessors
-USE MOD_MPI_Shared_Vars          ,ONLY: MPI_COMM_SHARED
+USE MOD_Particle_Mesh_Vars     ,ONLY: BezierControlPoints3D_Shared,BezierControlPoints3D_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: BezierControlPoints3DElevated_Shared,BezierControlPoints3DElevated_Shared_Win
+USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
+USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,nComputeNodeProcessors
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
 #else
 USE MOD_Mesh_Vars              ,ONLY: nElems
 #endif /*USE_MPI*/
@@ -725,7 +723,7 @@ lastSide  = nNonUniqueGlobalSides
 #endif /*USE_MPI*/
 
 ! iElem is CN elem
-DO iElem = firstElem, lastElem
+DO iElem = firstElem,lastElem
   DO ilocSide=1,6
     SELECT CASE(iLocSide)
     CASE(XI_MINUS)
@@ -6412,7 +6410,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemToElemMapping_Shared_Win,ElemToElemInfo_Sh
 USE MOD_Particle_Mesh_Vars ,ONLY: nUniqueGlobalNodes
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER,ALLOCATABLE            :: NbrOfElemsOnUniqueNode(:),OffsetNodeToElemMapping(:)
@@ -6461,7 +6459,7 @@ CALL MPI_BCAST(nNodeToElemMapping,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 
 
 ! 2. Allocate shared arrays for mapping
-!    UniqueNodeID -> all CN element IDs to which it is connected      : NodeToElemMapping = [OffsetNodeToElemMapping(:), 
+!    UniqueNodeID -> all CN element IDs to which it is connected      : NodeToElemMapping = [OffsetNodeToElemMapping(:),
 !                                                                                            NbrOfElemsOnUniqueNode(:)]
 !    NodeToElemMapping (offset and number of elements) -> CN element IDs : NodeToElemInfo = [CN elem IDs]
 #if USE_MPI
@@ -6482,7 +6480,7 @@ ALLOCATE(NodeToElemInfo(nNodeToElemMapping))
 
 
 ! 3.1 Fill NodeToElemMapping = [OffsetNodeToElemMapping(:), NbrOfElemsOnUniqueNode(:)]
-! 3.2 Store the CN element IDs in NodeToElemInfo(NodeToElemMapping(1,UniqueNodeID)+1 : 
+! 3.2 Store the CN element IDs in NodeToElemInfo(NodeToElemMapping(1,UniqueNodeID)+1 :
 !                                                   NodeToElemMapping(1,UniqueNodeID)+NodeToElemMapping(2,UniqueNodeID))
 ! Now all CN elements attached to a UniqueNodeID can be accessed
 
@@ -6574,7 +6572,7 @@ DO iElem = firstElem, lastElem
 
     END DO
   END DO ! iNode = 1, 8
-  
+
 END DO ! iElem = firstElem, lastElem
 
 
@@ -6611,9 +6609,9 @@ ALLOCATE(ElemToElemInfo(nElemToElemMapping))
 #endif /*USE_MPI*/
 
 
-! 8. Fill ElemToElemInfo = [CN elem IDs] by finding all nodes connected to a CN element 
+! 8. Fill ElemToElemInfo = [CN elem IDs] by finding all nodes connected to a CN element
 !    (and all subsequent CN elements that are connected to those nodes)
-!    Store the CN element IDs in ElemToElemInfo(ElemToElemMapping(1,iElem)+1 : 
+!    Store the CN element IDs in ElemToElemInfo(ElemToElemMapping(1,iElem)+1 :
 !                                               ElemToElemMapping(1,iElem)+ElemToElemMapping(2,iElem))
 OffsetElemToElemCounter = OffsetElemToElemMapping
 ! Loop all CN elements (iElem is CNElemID)
@@ -6647,7 +6645,7 @@ DO iElem = firstElem, lastElem
 
     END DO
   END DO ! iNode = 1, 8
-  
+
 END DO ! iElem = firstElem, lastElem
 
 #if USE_MPI

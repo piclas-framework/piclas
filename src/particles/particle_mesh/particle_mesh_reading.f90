@@ -338,11 +338,13 @@ IF (useCurveds.OR.NGeo.EQ.1) THEN
 ELSE
   ! root reads NodeInfo for new mapping
 #if USE_MPI
+  ! every proc needs to allocate the array
+  ALLOCATE(NodeInfo(1:nNonUniqueGlobalNodes))
+  
   IF (myComputeNodeRank.EQ.0) THEN
 #endif /*USE_MPI*/
     ! Associate construct for integer KIND=8 possibility
     ASSOCIATE (nNonUniqueGlobalNodes     => INT(nNonUniqueGlobalNodes,IK))
-      ALLOCATE(NodeInfo(1:nNonUniqueGlobalNodes))
       CALL OpenDataFile(MeshFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
       CALL ReadArray('GlobalNodeIDs',1,(/nNonUniqueGlobalNodes/),0_IK,1,IntegerArray_i4=NodeInfo)
       CALL CloseDataFile()
