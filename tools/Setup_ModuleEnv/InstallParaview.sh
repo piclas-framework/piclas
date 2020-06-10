@@ -25,29 +25,38 @@ check_module () {
 LOADMODULES=1
 for arg in "$@"
 do
-  if [ "$arg" == "--help" ] || [ "$arg" == "-h" ]
-  then
+  if [ "$arg" == "--help" ] || [ "$arg" == "-h" ]; then
     echo "Input arguments:"
     echo "--help/-h            print help information"
-    echo "--modules/-m         use modules defined in script by the user."
+    echo "--modules/-m         use modules defined in this script by the user."
     echo "                     Otherwise, find modules automatically."
     exit
   fi
-  if [ "$arg" == "--modules" ] || [ "$arg" == "-m" ]
-  then
+  if [ "$arg" == "--modules" ] || [ "$arg" == "-m" ]; then
     LOADMODULES=0
     # Set desired versions
-    CMAKEVERSION=3.15.3-d
-    GCCVERSION=9.2.0
+    #CMAKEVERSION=3.15.3-d
+    CMAKEVERSION=3.17.0-d
+    #GCCVERSION=9.2.0
+    GCCVERSION=10.1.0
     #OPENMPIVERSION=3.1.4
-    OPENMPIVERSION=4.0.1
+    #OPENMPIVERSION=4.0.1
+    OPENMPIVERSION=4.0.2
     HDF5VERSION=1.10.5
     break
   fi
 done
 
-# DOWNLOAD and INSTALL PARAVIEW (example Paraview-2.1.6)
-PARAVIEWVERSION=5.2.0
+# DOWNLOAD and INSTALL PARAVIEW (example Paraview-5.0.0)
+#PARAVIEWVERSION=5.2.0
+#PARAVIEWVERSION=5.3.0
+
+# Version 5.8.0 on Ubuntu 20.04 requires QT5, which is installed by default, but not with all required development libs
+#  sudo apt-get install libqt5x11extras5-dev
+#  sudo apt-get install libqt5svg5-dev
+#  sudo apt-get install qtxmlpatterns5-dev-tools
+#  sudo apt-get install qttools5-dev qt5-default libxt-dev libgl1-mesa-dev
+PARAVIEWVERSION=5.8.0
 
 INSTALLDIR=/opt
 SOURCEDIR=/opt/Installsources
@@ -67,6 +76,7 @@ if [[ $LOADMODULES -eq 1 ]]; then
   HDF5VERSION=$(ls ${MODULESDIR}/libraries/hdf5/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
 fi
 
+echo " "
 echo "Modules found:"
 check_module "cmake" ${CMAKEVERSION}
 check_module "gcc  " ${GCCVERSION}
@@ -81,12 +91,16 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
   echo "creating Paraview-${PARAVIEWVERSION} for GCC-${GCCVERSION} under"
   echo "$PARAVIEWMODULEFILE"
   echo " "
+  echo "Important: If the compilation step fails, try compiling single, .i.e., remove -j from make -j"
+  echo " "
   read -p "Press enter to continue"
   module purge
   module load cmake/${CMAKEVERSION}
   module load gcc/${GCCVERSION}
   module load openmpi/${OPENMPIVERSION}/gcc/${GCCVERSION}
   module load hdf5/${HDF5VERSION}/gcc/${GCCVERSION}/openmpi/${OPENMPIVERSION}
+  module list
+  echo " "
 
   # Install destination
   PARAVIEWINSTALLDIR=/opt/paraview/${PARAVIEWVERSION}/gcc-${GCCVERSION}/openmpi-${OPENMPIVERSION}/hdf5-${HDF5VERSION}
@@ -112,8 +126,10 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
     if [ -d "${SOURCEDIR}/ParaView-v${PARAVIEWVERSION}" ]; then
       # Check if renamed directory exists and create backup of it
       if [ -d "${SOURCEDIR}/paraview-${PARAVIEWVERSION}" ]; then
+        # Move directory, e.g., "paraview-5.8.0" to "paraview-5.8.0_bak"
         mv ${SOURCEDIR}/paraview-${PARAVIEWVERSION} ${SOURCEDIR}/paraview-${PARAVIEWVERSION}_bak
       fi
+      # The extracted directory is named, e.g., "ParaView-v5.8.0", which is renamed to "paraview-5.8.0" with small letters and no "v"
       mv ${SOURCEDIR}/ParaView-v${PARAVIEWVERSION} ${SOURCEDIR}/paraview-${PARAVIEWVERSION}
     fi
     #rm -rf paraview-${PARAVIEWVERSION}-source.tar.gz
@@ -124,15 +140,29 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
   fi
   cd ${SOURCEDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION}
 
-  cmake -DCMAKE_BUILD_TYPE=Release \
-    -DBUILD_TESTING=OFF \
-    -DBUILD_EXAMPLES=OFF \
-    -DPARAVIEW_ENABLE_PYTHON=ON \
-    -DPARAVIEW_USE_MPI=ON \
-    -DPARAVIEW_USE_VISITBRIDGE=OFF \
-    -DPARAVIEW_INSTALL_DEVELOPMENT_FILES=ON \
-    -DCMAKE_INSTALL_PREFIX=${PARAVIEWINSTALLDIR} \
-    ${SOURCEDIR}/paraview-${PARAVIEWVERSION}
+  # CMAKE COMPILE FLAGS DEPEND ON THE CHOSEN PARAVIEW VERSION!
+  if [ "$PARAVIEWVERSION" == "5.2.0" ] || [ "$PARAVIEWVERSION" == "5.3.0" ] || [ "$PARAVIEWVERSION" == "5.4.0" ]; then
+    cmake -DCMAKE_BUILD_TYPE=Release \
+      -DBUILD_TESTING=OFF \
+      -DBUILD_EXAMPLES=OFF \
+      -DPARAVIEW_ENABLE_PYTHON=ON \
+      -DPARAVIEW_USE_MPI=ON \
+      -DPARAVIEW_USE_VISITBRIDGE=OFF \
+      -DPARAVIEW_INSTALL_DEVELOPMENT_FILES=ON \
+      -DCMAKE_INSTALL_PREFIX=${PARAVIEWINSTALLDIR} \
+      ${SOURCEDIR}/paraview-${PARAVIEWVERSION}
+  elif [ "$PARAVIEWVERSION" == "5.7.0" ] || [ "$PARAVIEWVERSION" == "5.8.0" ]; then
+    cmake -DCMAKE_BUILD_TYPE=Release \
+      -DPARAVIEW_USE_PYTHON=ON \
+      -DPARAVIEW_USE_MPI=ON \
+      -DPARAVIEW_INSTALL_DEVELOPMENT_FILES=ON \
+      -DVTK_MODULE_USE_EXTERNAL_VTK_hdf5=ON \
+      -DCMAKE_INSTALL_PREFIX=${PARAVIEWINSTALLDIR} \
+      ${SOURCEDIR}/paraview-${PARAVIEWVERSION}
+  else
+    echo "ERROR: Set the correct cmake compile flags for the paraview version [$PARAVIEWVERSION]"
+    exit
+  fi
   make -j 2>&1 | tee make.out
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo " "
@@ -141,6 +171,7 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
   else
     make install 2>&1 | tee install.out
   fi
+
 
   # create modulefile if installation seems succesfull (check if mpicc, mpicxx, mpifort exists in installdir)
   if [ -e "${PARAVIEWINSTALLDIR}/bin/paraview" ]; then

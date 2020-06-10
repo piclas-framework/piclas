@@ -72,6 +72,7 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
         break
       fi
       module load ${WHICHCOMPILER}/${COMPILERVERSION}
+      module list
 
       # build and installation
       cd ${SOURCEDIR}
