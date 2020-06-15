@@ -208,7 +208,7 @@ IF(MPIROOT)THEN
   WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RunTimePerIteration
   WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', HDGNorm
 #endif /*USE_HDG*/
-  write(unit_index,'(/)')! write 'newline' to file to finish the current line
+  write(unit_index,'(A)') '' ! write 'newline' to file to finish the current line
 END IF
 
 
