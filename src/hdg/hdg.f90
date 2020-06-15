@@ -1034,7 +1034,7 @@ SUBROUTINE CG_solver(RHS,lambda,iVar)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_HDG_Vars          ,ONLY: nGP_face,HDGDisplayConvergence
+USE MOD_HDG_Vars          ,ONLY: nGP_face,HDGDisplayConvergence,HDGNorm,iteration,Runtime,RunTimePerIteration
 USE MOD_HDG_Vars          ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCrit,OutIterCG
 USE MOD_TimeDisc_Vars     ,ONLY: iter,IterDisplayStep
 USE MOD_Mesh_Vars         ,ONLY: nSides,nMPISides_YOUR
@@ -1056,7 +1056,6 @@ REAL,DIMENSION(nGP_face*nSides) :: V,Z,R
 REAL                            :: AbortCrit2
 REAL                            :: omega,rr,vz,rz1,rz2,Norm_r2
 REAL                            :: timestartCG,timeEndCG
-INTEGER                         :: iteration
 INTEGER                         :: VecSize
 LOGICAL                         :: converged
 #if USE_LOADBALANCE
@@ -1145,21 +1144,28 @@ DO iteration=1,MaxIterCG
   IF(converged) THEN !converged
     TimeEndCG=PICLASTIME()
     CALL EvalResidual(RHS,lambda,R)
-    CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V
-    IF(HDGDisplayConvergence.AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
-      SWRITE(UNIT_StdOut,'(A,X,I16)')      '#iterations          :',iteration
-      SWRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime           [s]:',(TimeEndCG-TimeStartCG)
-      SWRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime/iteration [s]:',(TimeEndCG-TimeStartCG)/REAL(iteration)
-!      SWRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime/iteration/DOF[s]:',(TimeEndCG-TimeStartCG)/REAL(iteration*PP_nElems*nGP_vol)
-      SWRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'Final Residual       :',SQRT(Norm_R2)
-      SWRITE(UNIT_StdOut,'(132("-"))')
-    END IF
+    CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V (function contains ALLREDUCE)
+
+    IF(MPIroot)THEN
+      RunTime             = TimeEndCG-TimeStartCG
+      RunTimePerIteration = RunTime/REAL(iteration)
+      HDGNorm             = SQRT(Norm_R2)
+
+      IF(HDGDisplayConvergence.AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
+        WRITE(UNIT_StdOut,'(A,X,I16)')      '#iterations          :',iteration
+        WRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime           [s]:',RunTime
+        WRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime/iteration [s]:',RunTimePerIteration
+        !WRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime/iteration/DOF[s]:',(TimeEndCG-TimeStartCG)/REAL(iteration*PP_nElems*nGP_vol)
+        WRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'Final Residual       :',HDGNorm
+        WRITE(UNIT_StdOut,'(132("-"))')
+      END IF
+    END IF ! MPIroot
     RETURN
   END IF !converged
+
   IF (MOD(iteration , MAX(INT(REAL(MaxIterCG)/REAL(OutIterCG)),1) ).EQ.0) THEN
     SWRITE(*,'(2(A,I0),2(A,G0))') 'CG solver reached ',iteration, ' of ',MaxIterCG, ' iterations with res = ',rr, ' > ',AbortCrit2
   END IF
-
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
