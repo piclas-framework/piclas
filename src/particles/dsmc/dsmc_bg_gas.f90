@@ -689,8 +689,6 @@ DO iReac = 1, ChemReac%NumOfReact
   ChemReac%NumPhotoIonization(iReac) = INT(InsertedNbrOfParticles*ChemReac%CrossSection(iReac)/SUM(ChemReac%CrossSection))
 END DO
 
-IF(SUM(ChemReac%NumPhotoIonization).EQ.0) RETURN
-
 IF(InsertedNbrOfParticles.GT.SUM(ChemReac%NumPhotoIonization)) THEN
   ! Delete left-over inserted particles
   DO iPart = SUM(ChemReac%NumPhotoIonization)+1,InsertedNbrOfParticles
@@ -701,6 +699,8 @@ ELSE IF(InsertedNbrOfParticles.LT.SUM(ChemReac%NumPhotoIonization)) THEN
     __STAMP__&
     ,'ERROR in PhotoIonization: Something is wrong, trying to perform more reactions than anticipated!')
 END IF
+
+IF(SUM(ChemReac%NumPhotoIonization).EQ.0) RETURN
 
 NbrOfParticle = SUM(ChemReac%NumPhotoIonization)
 
