@@ -83,15 +83,15 @@ REAL,INTENT(IN)     :: Time
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                     :: isOpen
-CHARACTER(LEN=350)          :: outfile
-INTEGER                     :: unit_index, nOutputVarTotal,iPlane
-REAL                        :: PoyntingIntegral(1:nPoyntingIntPlanes)
-CHARACTER(LEN=150)                        :: formatStr
+LOGICAL            :: isOpen
+CHARACTER(LEN=350) :: outfile
+INTEGER            :: unit_index, nOutputVarTotal,iPlane
+REAL               :: PoyntingIntegral(1:nPoyntingIntPlanes)
+CHARACTER(LEN=150) :: formatStr
 #if USE_HDG
-INTEGER,PARAMETER                        :: nOutputVar=10
+INTEGER,PARAMETER  :: nOutputVar=10
 #else
-INTEGER,PARAMETER                        :: nOutputVar=8
+INTEGER,PARAMETER  :: nOutputVar=6
 #endif /*USE_HDG*/
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
     'time', &
