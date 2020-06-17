@@ -107,12 +107,11 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'HDGNorm' &
 #endif /*USE_HDG*/
     /)
-!CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called multiple times at the beginning
-CHARACTER(LEN=255),ALLOCATABLE           :: tmpStr(:) ! needed because PerformAnalyze is called multiple times at the beginning
-CHARACTER(LEN=1000)                      :: tmpStr2
-CHARACTER(LEN=1),PARAMETER  :: delimiter=","
-INTEGER             :: I
-CHARACTER(LEN=255)  :: StrVarNameTmp
+CHARACTER(LEN=255),ALLOCATABLE :: tmpStr(:) ! needed because PerformAnalyze is called multiple times at the beginning
+CHARACTER(LEN=1000)            :: tmpStr2
+CHARACTER(LEN=1),PARAMETER     :: delimiter=","
+INTEGER                        :: I
+CHARACTER(LEN=255)             :: StrVarNameTmp
 !===================================================================================================================================
 IF ( DoRestart ) THEN
   isRestart = .true.
