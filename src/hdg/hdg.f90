@@ -1273,6 +1273,9 @@ INTEGER :: jLocSide,jSideID(6)
 #if USE_LOADBALANCE
 REAL    :: tLBStart
 #endif /*USE_LOADBALANCE*/
+#if PP_nVar==1
+INTEGER           :: dummy
+#endif /*PP_nVar==1*/
 !===================================================================================================================================
 
 #if USE_LOADBALANCE
@@ -1390,6 +1393,12 @@ END IF
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #endif /*USE_LOADBALANCE*/
+
+! Suppress compiler warning
+RETURN
+#if PP_nVar==1
+dummy=iVar
+#endif /*PP_nVar==1*/
 
 END SUBROUTINE MatVec
 
