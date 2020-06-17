@@ -1376,13 +1376,14 @@ INTEGER,INTENT(IN), OPTIONAL     :: iInit
 REAL,INTENT(OUT)                 :: Vec3D(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                             :: RandVal
-REAL                             :: E_temp, E_max, VeloABS
-REAL                             :: Theta, Chi!, Psi_temp
-REAL                             :: PDF_temp, PDF_max
-REAL                             :: VeloVec_norm(3), RotationAxi(3)
-LOGICAL                          :: ARM_SEE_PDF
-REAL                             :: Theta_temp
+REAL               :: RandVal
+REAL               :: E_temp, E_max, VeloABS
+REAL               :: Theta, Chi!, Psi_temp
+REAL               :: PDF_temp, PDF_max
+REAL, PARAMETER    :: PDF_max2=4./ACOS(-1.)
+REAL               :: VeloVec_norm(3), RotationAxi(3)
+LOGICAL            :: ARM_SEE_PDF
+REAL               :: Theta_temp
 !===================================================================================================================================
 
 ASSOCIATE( W     => Species(FractNbr)%Init(iInit)%WorkFunctionSEE    ,&
@@ -1408,7 +1409,7 @@ VeloABS = SQRT(2.0 * E_temp * ElementaryCharge / m)
 CALL RANDOM_NUMBER(RandVal)
 Chi = RandVal * 2.0 * PI
 !PDF_max = -(2.0*(beta+4.0)) / (PI * (beta-8.0)) ! Henke 1977
-PDF_max = 4. / PI
+!PDF_max2 = 4. / PI
 ARM_SEE_PDF=.TRUE.
 DO WHILE(ARM_SEE_PDF)
   CALL RANDOM_NUMBER(RandVal)
@@ -1418,7 +1419,7 @@ DO WHILE(ARM_SEE_PDF)
   Theta_temp = RandVal * 0.5 * PI
   PDF_temp = 4.0 / PI * COS(Theta_temp)**2
   CALL RANDOM_NUMBER(RandVal)
-  IF ((PDF_temp/PDF_max).GT.RandVal) ARM_SEE_PDF = .FALSE.
+  IF ((PDF_temp/PDF_max2).GT.RandVal) ARM_SEE_PDF = .FALSE.
 END DO
 !Theta = PI - Psi_temp ! Henke 1977
 Theta = Theta_temp

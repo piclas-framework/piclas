@@ -820,8 +820,11 @@ DO iReac = 1, ChemReac%NumOfReact
     ! OR check PartSpecies(iPart_p1) = iSpec and 
     !          PartSpecies(iPart_p2) = iSpec
       IF(PARTISELECTRON(iPart_p1)) THEN
+        ! Get random vector b3 in b1-b2-plane
         CALL RANDOM_NUMBER(RandVal)
         PartState(4:6,iPart_p1) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart_p1),RandVal)
+        ! Rotate the resulting vector in the b3-NormalIC-plane
+        PartState(4:6,iPart_p1) = GetRotatedVector(PartState(4:6,iPart_p1),Species(iSpec)%Init(iInit)%NormalIC)
         ! Store the particle information in PartStateBoundary.h5
         IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(iPart_p1,PartSpecies(iPart_p1),PartState(1:3,iPart_p1),&
                                           UNITVECTOR(PartState(4:6,iPart_p1)),Species(iSpec)%Init(iInit)%NormalIC,mode=2,&
@@ -829,7 +832,10 @@ DO iReac = 1, ChemReac%NumOfReact
       END IF
       IF(PARTISELECTRON(iPart_p2)) THEN
         CALL RANDOM_NUMBER(RandVal)
+        ! Get random vector b3 in b1-b2-plane
         PartState(4:6,iPart_p2) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart_p2),RandVal)
+        ! Rotate the resulting vector in the b3-NormalIC-plane
+        PartState(4:6,iPart_p2) = GetRotatedVector(PartState(4:6,iPart_p2),Species(iSpec)%Init(iInit)%NormalIC)
         ! Store the particle information in PartStateBoundary.h5
         IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(iPart_p2,PartSpecies(iPart_p2),PartState(1:3,iPart_p2),&
                                           UNITVECTOR(PartState(4:6,iPart_p2)),Species(iSpec)%Init(iInit)%NormalIC,mode=2,&
@@ -852,7 +858,7 @@ END SUBROUTINE BGGas_PhotoIonization
 
 PURE FUNCTION GetRandomVectorInPlane(b1,b2,VeloVec,RandVal)
 !===================================================================================================================================
-! derivative to find max of function
+! Pick random vector in a plane set up by the basis vectors b1 and b2
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals      ,ONLY: VECNORM
@@ -876,6 +882,51 @@ Vabs = VECNORM(VeloVec)
 phi = RandVal * 2.0 * PI
 GetRandomVectorInPlane = Vabs*(b1*COS(phi) + b2*SIN(phi))
 END FUNCTION GetRandomVectorInPlane
+
+
+FUNCTION GetRotatedVector(VeloVec,NormVec)
+!===================================================================================================================================
+! Rotate the vector in the plane set up by VeloVec and NormVec by choosing an angle from a 4.0 / PI * COS(Theta_temp)**2
+! distribution via the ARM
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals      ,ONLY: VECNORM, UNITVECTOR
+USE MOD_Globals_Vars ,ONLY: PI
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)    :: NormVec(1:3) ! Basis vector (normalized)
+REAL,INTENT(IN)    :: VeloVec(1:3) ! Velocity vector before the random direction selection within the plane defined by b1 and b2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLE
+REAL               :: GetRotatedVector(1:3) ! Output velocity vector
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: Vabs ! Absolute velocity
+REAL               :: RandVal, v(1:3)
+REAL               :: Theta, Theta_temp
+REAL               :: PDF_temp
+REAL, PARAMETER    :: PDF_max=4./ACOS(-1.)
+LOGICAL            :: ARM_SEE_PDF
+!===================================================================================================================================
+v = UNITVECTOR(VeloVec)
+Vabs = VECNORM(VeloVec)
+
+! ARM for angular distribution
+ARM_SEE_PDF=.TRUE.
+DO WHILE(ARM_SEE_PDF)
+  CALL RANDOM_NUMBER(RandVal)
+  Theta_temp = RandVal * 0.5 * PI
+  PDF_temp = 4.0 / PI * COS(Theta_temp)**2
+  CALL RANDOM_NUMBER(RandVal)
+  IF ((PDF_temp/PDF_max).GT.RandVal) ARM_SEE_PDF = .FALSE.
+END DO
+Theta = Theta_temp
+
+! Rotate original vector Vabs*v
+GetRotatedVector = Vabs*(v*COS(Theta) + NormVec*SIN(Theta))
+END FUNCTION GetRotatedVector
 
 
 END MODULE MOD_DSMC_BGGas
