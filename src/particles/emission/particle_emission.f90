@@ -414,7 +414,7 @@ REAL                             :: RiseFactor, RiseTime,NbrOfPhotons
 INTEGER                          :: mode
 INTEGER                          :: InitGroup
 #endif
-INTEGER                          :: NbrOfReactions
+REAL                             :: NbrOfReactions
 !===================================================================================================================================
 #if USE_MPI
 IF (PRESENT(mode_opt)) THEN
@@ -570,7 +570,9 @@ __STAMP__&
                   NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CylinderHeightIC / (c*dt)
                   ! Calculation of the number of electron resulting from the chemical reactions in the photoionization region
                   CALL CalcPhotoIonizationNumber(NbrOfPhotons,NbrOfReactions)
-                  NbrOfParticle = NbrOfReactions
+                  NbrOfReactions = NbrOfReactions + Species(i)%Init(iInit)%NINT_Correction
+                  NbrOfParticle = NINT(NbrOfReactions)
+                  Species(i)%Init(iInit)%NINT_Correction = NbrOfReactions - REAL(NbrOfParticle)
                 END IF ! Species(i)%Init(iInit)%ParticleEmissionType.EQ.7
               ELSE
                 NbrOfParticle = 0
