@@ -134,40 +134,47 @@ tCurrent(LB_index)=tCurrent(LB_index)+tLBEnd-tLBStart
 END SUBROUTINE LBPauseTime
 
 
+#ifdef PARTICLES
 SUBROUTINE LBElemSplitTime(ElemID,tLBStart)
 !===================================================================================================================================
-!> Splits the time and resets LB_start. Adds time to Elemtime(ElemID)
+!> Measure particle-related times for specific elements. Splits the time and resets LB_start. 
+!> Adds time to Elemtime(ElemID) and ElemTimePart.
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals          ,ONLY: LOCALTIME
+USE MOD_Globals          ,ONLY: LOCALTIME,abort
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample
+USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)  :: ElemID
-REAL,INTENT(INOUT)  :: tLBStart
+INTEGER,INTENT(IN)  :: ElemID   ! Element ID
+REAL,INTENT(INOUT)  :: tLBStart ! Time when timer was started
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-REAL                :: tLBEnd
+REAL                :: tLBEnd,DeltaTime
 !===================================================================================================================================
 IF(.NOT. PerformLBSample) RETURN
-tLBEnd = LOCALTIME() ! LB Time End
-ElemTime(ELemID)=ElemTime(ElemID)+tLBEnd-tLBStart
-tLBStart = tLBEnd !LOCALTIME() ! LB Time Start
+tLBEnd           = LOCALTIME() ! LB Time End
+DeltaTime        = tLBEnd-tLBStart
+ElemTime(ELemID) = ElemTime(ElemID) + DeltaTime
+ElemTimePart     = ElemTimePart     + DeltaTime
+tLBStart         = tLBEnd !LOCALTIME() ! LB Time Start
 END SUBROUTINE LBElemSplitTime
 
 SUBROUTINE LBElemPauseTime(ElemID,tLBStart)
 !===================================================================================================================================
-!> calculates end time and adds time to Elemtime(ElemID)
-!> does not reset tLBstart
+!> Measure particle-related times for specific elements.
+!> Calculates end time and adds time to Elemtime(ElemID) and ElemTimePart.
+!> Does not reset tLBstart
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals          ,ONLY: LOCALTIME
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample
+USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -177,23 +184,27 @@ REAL,INTENT(IN)     :: tLBStart
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-REAL                :: tLBEnd
+REAL                :: tLBEnd,DeltaTime
 !===================================================================================================================================
 IF(.NOT. PerformLBSample) RETURN
 tLBEnd = LOCALTIME() ! LB Time End
-ElemTime(ELemID)=ElemTime(ElemID)+tLBEnd-tLBStart
+DeltaTime        = tLBEnd-tLBStart
+ElemTime(ELemID) = ElemTime(ElemID) + DeltaTime
+ElemTimePart     = ElemTimePart     + DeltaTime
 END SUBROUTINE LBElemPauseTime
 
 SUBROUTINE LBElemPauseTime_avg(tLBStart)
 !===================================================================================================================================
-!> calculates end time and adds time to Elemtime(ElemID)
-!> does not reset tLBstart
+!> Measure particle-related times for all elements (averaged).
+!> Calculates end time and adds time to Elemtime(ElemID) and ElemTimePart.
+!> Does not reset tLBstart
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals          ,ONLY: LOCALTIME
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample
 USE MOD_Mesh_Vars        ,ONLY: nElems
+USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -202,24 +213,27 @@ REAL,INTENT(IN)     :: tLBStart
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-REAL                :: tLBEnd
+REAL                :: tLBEnd,DeltaTime
 !===================================================================================================================================
 IF(.NOT. PerformLBSample) RETURN
 tLBEnd = LOCALTIME() ! LB Time End
-ElemTime(:)=ElemTime(:)+(tLBEnd-tLBStart)/nElems
+DeltaTime    = (tLBEnd-tLBStart)
+ElemTime(:)  = ElemTime(:)  + DeltaTime/nElems
+ElemTimePart = ElemTimePart + DeltaTime
 END SUBROUTINE LBElemPauseTime_avg
 
 
 SUBROUTINE LBElemSplitTime_avg(tLBStart)
 !===================================================================================================================================
-!> calculates end time and adds time to Elemtime(ElemID)
-!> and resets tLBstart
+!> Measure particle-related times for all elements (averaged).
+!> Calculates end time and adds time to Elemtime(ElemID) and ElemTimePart and resets tLBstart
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals          ,ONLY: LOCALTIME
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample
 USE MOD_Mesh_Vars        ,ONLY: nElems
+USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -228,13 +242,16 @@ REAL,INTENT(INOUT)  :: tLBStart
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-REAL                :: tLBEnd
+REAL                :: tLBEnd,DeltaTime
 !===================================================================================================================================
 IF(.NOT. PerformLBSample) RETURN
 tLBEnd = LOCALTIME() ! LB Time End
-ElemTime(:)=ElemTime(:)+(tLBEnd-tLBStart)/nElems
+DeltaTime    = (tLBEnd-tLBStart)
+ElemTime(:)  = ElemTime(:)  + DeltaTime/nElems
+ElemTimePart = ElemTimePart + DeltaTime
 tLBStart = tLBEnd !LOCALTIME() ! LB Time Start
 END SUBROUTINE LBElemSplitTime_avg
+#endif /*PARTICLES*/
 
 
 END MODULE MOD_LoadBalance_Timers

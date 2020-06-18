@@ -177,7 +177,7 @@ USE MOD_MPI_Vars
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars  ,ONLY: PerformLBSample
-USE MOD_LoadBalance_Vars  ,ONLY: ElemTime
+USE MOD_LoadBalance_Vars  ,ONLY: ElemTime,ElemTimeField
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -199,6 +199,9 @@ REAL               :: coeff
 #if USE_MPI
 REAL               :: TotalTimeMPI(3)
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+REAL               :: ElemTimePrecond
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
 IF(PrecondType.EQ.0) RETURN !NO PRECONDITIONER
@@ -364,7 +367,9 @@ DO iElem=1,PP_nElems
   TotalTime=TotalTime+(TimeEnd-TimeStart)
 #if USE_LOADBALANCE
   IF(PerformLBSample)THEN
-    ElemTime(iElem)=ElemTime(iElem)+SUM(TimeEnd(1:2)-TimeStart(1:2))
+    ElemTimePrecond = SUM(TimeEnd(1:2)-TimeStart(1:2))
+    ElemTimeField   = ElemTimeField  +ElemTimePrecond
+    ElemTime(iElem) = ElemTime(iElem)+ElemTimePrecond
   END IF
 #endif /*USE_LOADBALANCE*/
   IF((PrecondType.LE.2).AND.DebugMatrix.NE.0)THEN

@@ -299,6 +299,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
 USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance,LoadBalanceMaxSteps,nLoadBalanceSteps
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample,IAR_PerformPartWeightLB
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime
+USE MOD_LoadBalance_Vars       ,ONLY: ElemTimeField
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 #ifdef PARTICLES
@@ -321,6 +322,7 @@ USE MOD_Particle_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPF
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
 #if (USE_MPI) && (USE_LOADBALANCE) && defined(PARTICLES)
 USE MOD_DSMC_Vars              ,ONLY: DSMC
+USE MOD_LoadBalance_Vars       ,ONLY: ElemTimePart
 #endif /* USE_LOADBALANCE && PARTICLES*/
 USE MOD_Part_Emission          ,ONLY: AdaptiveBCAnalyze
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, nPorousBC
@@ -669,6 +671,10 @@ DO !iter_t=0,MaxIter
       END IF
     ELSE
       ElemTime=0. ! nullify ElemTime before measuring the time in the next cycle
+#ifdef PARTICLES
+      ElemTimePart    = 0.
+#endif /*PARTICLES*/
+      ElemTimeField    = 0.
     END IF
     PerformLBSample=.FALSE.
     IF (DoInitialAutoRestart) THEN
