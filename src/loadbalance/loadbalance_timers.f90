@@ -36,6 +36,7 @@ INTERFACE LBPauseTime
   MODULE PROCEDURE LBPauseTime
 END INTERFACE
 
+#ifdef PARTICLES
 INTERFACE LBElemSplitTime
   MODULE PROCEDURE LBElemSplitTime
 END INTERFACE
@@ -52,15 +53,19 @@ INTERFACE LBElemSplitTime_avg
   MODULE PROCEDURE LBElemSplitTime_avg
 END INTERFACE
 
-PUBLIC::LBStartTime
-PUBLIC::LBSplitTime
-PUBLIC::LBPauseTime
 PUBLIC::LBElemSplitTime
 PUBLIC::LBElemPauseTime
 PUBLIC::LBElemPauseTime_avg
 PUBLIC::LBElemSplitTime_avg
+  
+#endif /*PARTICLES*/
+
+PUBLIC::LBStartTime
+PUBLIC::LBSplitTime
+PUBLIC::LBPauseTime
 
 CONTAINS
+
 
 SUBROUTINE LBStartTime(tLBStart)
 !===================================================================================================================================
@@ -82,6 +87,7 @@ REAL,INTENT(INOUT)  :: tLBStart
 IF(.NOT. PerformLBSample) RETURN
 tLBStart = LOCALTIME() ! LB Time Start
 END SUBROUTINE LBStartTime
+
 
 SUBROUTINE LBSplitTime(LB_index,tLBStart)
 !===================================================================================================================================
@@ -107,6 +113,7 @@ tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(LB_index)=tCurrent(LB_index)+tLBEnd-tLBStart
 tLBStart = tLBEnd !LOCALTIME() ! LB Time Start
 END SUBROUTINE LBSplitTime
+
 
 SUBROUTINE LBPauseTime(LB_index,tLBStart)
 !===================================================================================================================================
@@ -164,6 +171,7 @@ ElemTimePart     = ElemTimePart     + DeltaTime
 tLBStart         = tLBEnd !LOCALTIME() ! LB Time Start
 END SUBROUTINE LBElemSplitTime
 
+
 SUBROUTINE LBElemPauseTime(ElemID,tLBStart)
 !===================================================================================================================================
 !> Measure particle-related times for specific elements.
@@ -192,6 +200,7 @@ DeltaTime        = tLBEnd-tLBStart
 ElemTime(ELemID) = ElemTime(ElemID) + DeltaTime
 ElemTimePart     = ElemTimePart     + DeltaTime
 END SUBROUTINE LBElemPauseTime
+
 
 SUBROUTINE LBElemPauseTime_avg(tLBStart)
 !===================================================================================================================================

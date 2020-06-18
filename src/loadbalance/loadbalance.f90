@@ -306,43 +306,18 @@ IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
 
     ElemTime(iElem) = ElemTime(iElem) + ElemTimePartElem
     ElemTimePart    = ElemTimePart    + ElemTimePartElem
-#else
-    ElemTimePart = 0.
 #endif /*PARTICLES*/
   END DO ! iElem=1,PP_nElems
 
-  !IF(mpiroot)THEN
-    !write(*,*) ""
-    !WRITE (*,*) "ComputeElemLoad ="
-  !END IF ! mpiroot
-  !IPWRITE(UNIT_StdOut,*) "SUM(ElemTime) =", SUM(ElemTime)
-  !IPWRITE (*,*) "ElemTimeField =", ElemTimeField
-  !IPWRITE (*,*) "ElemTimePart =", ElemTimePart
-  !IPWRITE(UNIT_StdOut,*) "ElemTimeField+ElemTimePart =", ElemTimeField+ElemTimePart
   ! Collect ElemTime for particles and field separately (only on root process)
   CALL MPI_REDUCE(ElemTimeField , ElemTimeFieldTot , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
   WeightSum = ElemTimeFieldTot ! only correct on MPI root
-  !IF(MPIROOT)THEN
-    !write(*,*) ""
-    !IPWRITE (*,*) "WeightSum =", WeightSum
-    !IPWRITE (*,*) "ElemTimeFieldTot =", ElemTimeFieldTot
-  !END IF ! MPIROOT
 #ifdef PARTICLES
   CALL MPI_REDUCE(ElemTimePart , ElemTimePartTot  , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
   WeightSum = WeightSum + ElemTimePartTot ! only correct on MPI root
-  !IF(MPIROOT)THEN
-    !IPWRITE (*,*) "WeightSum =", WeightSum
-    !IPWRITE (*,*) "ElemTimePartTot =", ElemTimePartTot
-    !write(*,*) ""
-  !END IF ! MPIROOT
-#else
-  ElemTimePartTot = 0.
 #endif /*PARTICLES*/
   ! send WeightSum from MPI root to all other procs
   CALL MPI_BCAST(WeightSum,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
-  !IF(MPIroot)THEN
-    !IPWRITE (*,*) "ALL MPI_BCAST(WeightSum =", WeightSum
-  !END IF ! MPIroot
 
 
 #ifdef PARTICLES
@@ -455,18 +430,12 @@ ElemTimePart    = 0.
 ElemTimeField    = 0.
 
 IF( NewImbalance.GT.CurrentImbalance ) THEN
-  SWRITE(UNIT_stdOut,'(A)') ' WARNING: LoadBalance not successful!'
+  SWRITE(UNIT_stdOut,'(A)') ' WARNING: LoadBalance not successful! Determined new (theoretical) imbalance from elem distribution'
 ELSE
-  SWRITE(UNIT_stdOut,'(A)') ' LoadBalance successful!'
+  SWRITE(UNIT_stdOut,'(A)') ' LoadBalance successful! Determined new (theoretical) imbalance from elem distribution'
 END IF
-!SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' OldImbalance: ', CurrentImbalance
-!SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' NewImbalance: ', NewImbalance
-!SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MaxWeight:    ', MaxWeight
-!SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MinWeight:    ', MinWeight
-
-  SWRITE(UNIT_stdOut,'(A,ES9.3,A,ES9.3,A,ES9.3,A,ES9.3)')&
-      ' MinWeight: ', MinWeight, '    MaxWeight: ', MaxWeight, '    OldImbalance: ', CurrentImbalance,'    NewImbalance: ',&
-        NewImbalance
+SWRITE(UNIT_stdOut,'(A,ES9.3,A,ES9.3,A,ES9.3,A,ES9.3)')&
+  ' MinWeight: ', MinWeight, '    MaxWeight: ', MaxWeight, '    OldImbalance: ', CurrentImbalance,'    NewImbalance: ', NewImbalance
 
 #ifdef PARTICLES
 ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
@@ -514,10 +483,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL :: WeightSum_loc
 !===================================================================================================================================
-!write(*,*) ""
-!IF(mpiroot)THEN
-  !write(*,*) "COMPUTE IMBALANCE"
-!END IF ! mpiroot
 
 IF(.NOT.PerformLBSample .AND. .NOT.PerformPartWeightLB) THEN
   WeightSum        = 0.
@@ -563,10 +528,6 @@ ELSE
   ELSE
     CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
   END IF
-  !SWRITE(UNIT_stdOut,'(A25,ES15.7)')             ' MaxWeight:        ', MaxWeight
-  !SWRITE(UNIT_stdOut,'(A25,ES15.7)')             ' MinWeight:        ', MinWeight
-  !SWRITE(UNIT_stdOut,'(A25,ES15.7)')             ' TargetWeight:     ', TargetWeight
-  !SWRITE(UNIT_stdOut,'(A25,ES15.7,A,ES15.7,A1)') ' CurrentImbalance: ', CurrentImbalance, ' (Threshold: ', DeviationThreshold, ')'
   SWRITE(UNIT_stdOut,'(A,ES9.3,A,ES9.3,A,ES9.3,A,ES9.3,A,ES8.2,A)')&
       ' MinWeight: ', MinWeight, '    MaxWeight: ', MaxWeight, '    TargetWeight: ', TargetWeight,'    CurrentImbalance: ',&
         CurrentImbalance, '    (Threshold: ', DeviationThreshold, ')'

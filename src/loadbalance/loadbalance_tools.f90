@@ -45,8 +45,14 @@ SUBROUTINE DomainDecomposition()
 USE MOD_Globals
 USE MOD_Restart_Vars         ,ONLY: DoRestart
 USE MOD_Mesh_Vars            ,ONLY: offsetElem,nElems,nGlobalElems
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars     ,ONLY: ElemTimeField
+#ifdef PARTICLES
+USE MOD_LoadBalance_Vars     ,ONLY: ElemTimePart 
+#endif /*PARTICLES*/
+#endif /*USE_LOADBALANCE*/
 #if USE_HDG && USE_LOADBALANCE
-USE MOD_LoadBalance_Vars     ,ONLY: ElemHDGSides,TotalHDGSides,ElemTimePart,ElemTimeField
+USE MOD_LoadBalance_Vars     ,ONLY: ElemHDGSides,TotalHDGSides
 USE MOD_Analyze_Vars         ,ONLY: CalcMeshInfo
 #endif /*USE_HDG && USE_LOADBALANCE*/
 USE MOD_MPI_Vars             ,ONLY: offsetElemMPI
@@ -190,10 +196,6 @@ IF(ElemTimeExists.AND.MPIRoot)THEN
       __STAMP__, &
       ' LoadBalance: TargetWeight = ',RealInfoOpt=TargetWeight)
   SWRITE(UNIT_stdOut,'(A)') ' Calculated new (theoretical) imbalance with offsetElemMPI information'
-  !SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MaxWeight:        ', MaxWeight
-  !SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MinWeight:        ', MinWeight
-  !SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' TargetWeight:     ', TargetWeight
-  !SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' NewImbalance:     ', NewImbalance
   SWRITE(UNIT_stdOut,'(A,ES9.3,A,ES9.3,A,ES9.3,A,ES9.3)')&
       ' MinWeight: ', MinWeight, '    MaxWeight: ', MaxWeight, '    TargetWeight: ', TargetWeight,'    NewImbalance: ',&
         NewImbalance

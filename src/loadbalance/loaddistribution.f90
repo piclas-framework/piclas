@@ -1124,28 +1124,35 @@ REAL                                     :: time_loc
 CHARACTER(LEN=22),PARAMETER              :: outfile='ElemTimeStatistics.csv'
 INTEGER                                  :: ioUnit,I
 CHARACTER(LEN=150)                       :: formatStr
+#ifdef PARTICLES
+REAL                                     :: SumElemTime,ElemTimeFieldPercent,ElemTimePartPercent
 INTEGER,PARAMETER                        :: nOutputVar=16
+#else
+INTEGER,PARAMETER                        :: nOutputVar=12
+#endif /*PARTICLES*/
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
-    'time',                   &
-    'Procs',                  &
-    'MinWeight',              &
-    'MaxWeight',              &
-    'CurrentImbalance',       &
-    'TargetWeight (mean)',    &
-    'nLoadBalanceSteps',      &
-    'WeightSum',              &
-    'SimulationEfficiency',   &
-    'PID',                    &
-    'SimulationWallTime',     &
-    'InitializationWallTime', &
-    'FieldTime',              &
-    'PartTime',               &
-    'FieldTimePercent',       &
-    'PartTimePercent'/)
+    'time'                   , &
+    'Procs'                  , &
+    'MinWeight'              , &
+    'MaxWeight'              , &
+    'CurrentImbalance'       , &
+    'TargetWeight (mean)'    , &
+    'nLoadBalanceSteps'      , &
+    'WeightSum'              , &
+    'SimulationEfficiency'   , &
+    'PID'                    , &
+    'SimulationWallTime'     , &
+    'InitializationWallTime'   &
+#ifdef PARTICLES
+  , 'FieldTime'              , &
+    'PartTime'               , &
+    'FieldTimePercent'       , &
+    'PartTimePercent'          &
+#endif /*PARTICLES*/
+    /)
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called mutiple times at the beginning
 CHARACTER(LEN=1000)                      :: tmpStr2
 CHARACTER(LEN=1),PARAMETER               :: delimiter=","
-REAL                                     :: SumElemTime,ElemTimeFieldPercent,ElemTimePartPercent
 !===================================================================================================================================
 IF(.NOT.MPIRoot)RETURN
 
@@ -1184,20 +1191,18 @@ ELSE !
   ELSE
     time_loc=time
   END IF
+#ifdef PARTICLES
   ! Calculate elem time proportions for field and particle routines
   SumElemTime=ElemTimeField
-#ifdef PARTICLES
   SumElemTime=SumElemTime+ElemTimePart
-#endif /*PARTICLES*/
   IF(SumElemTime.LE.0.)THEN
     ElemTimeFieldPercent = 0.
     ElemTimePartPercent  = 0.
   ELSE
     ElemTimeFieldPercent = 100. * ElemTimeField / SumElemTime
-#ifdef PARTICLES
     ElemTimePartPercent  = 100. * ElemTimePart / SumElemTime
-#endif /*PARTICLES*/
   END IF ! ElemTimeField+ElemTimePart.LE.0.
+#endif /*PARTICLES*/
 
   IF(FILEEXISTS(outfile))THEN
     OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
@@ -1214,11 +1219,14 @@ ELSE !
         delimiter,SimulationEfficiency,&
         delimiter,PID,&
         delimiter,WallTime,&
-        delimiter,InitializationWallTime,&
-        delimiter,ElemTimeField,&
+        delimiter,InitializationWallTime&
+#ifdef PARTICLES
+       ,delimiter,ElemTimeField,&
         delimiter,ElemTimePart,&
         delimiter,ElemTimeFieldPercent,&
         delimiter,ElemTimePartPercent
+#endif /*PARTICLES*/
+    ; ! this is required for terminating the "&" when particles=off
     WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
     CLOSE(ioUnit)
   ELSE
