@@ -1,3 +1,4 @@
+#include "piclas.h"
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
@@ -25,7 +26,14 @@ SAVE
 LOGICAL                         :: DoDeposition              ! flag to switch deposition on/off
 LOGICAL                         :: RelaxDeposition           ! relaxation of current PartSource with RelaxFac into PartSourceOld
 REAL                            :: RelaxFac
-REAL,ALLOCATABLE                :: PartSource(:,:,:,:,:)     ! PartSource(1:4,PP_N,PP_N,PP_N,nElems) current and charge density
+
+REAL,ALLOCPOINT                 :: PartSource(:,:,:,:,:)      ! PartSource(1:4,PP_N,PP_N,PP_N,nElems) current and charge density
+#if USE_MPI
+REAL, ALLOCATABLE               :: PartSourceLoc(:,:,:,:,:)
+INTEGER                         :: PartSource_Shared_Win
+REAL,ALLOCPOINT                 :: PartSource_Shared(:)
+#endif
+
 LOGICAL                         :: PartSourceConstExists
 REAL,ALLOCATABLE                :: PartSourceConst(:,:,:,:,:)! PartSource(1:4,PP_N,PP_N,PP_N,nElems) const. part of Source
 REAL,ALLOCATABLE                :: PartSourceOld(:,:,:,:,:,:)! PartSource(:,2,PP_N,PP_N,PP_N,nElems) prev. and sec. prev. Source
@@ -87,7 +95,30 @@ INTEGER                         :: VolIntOrder
 REAL,ALLOCATABLE                :: VolInt_X(:)
 REAL,ALLOCATABLE                :: VolInt_W(:)
 REAL,ALLOCATABLE                :: CellVolWeight_Volumes(:,:,:,:)
-REAL,ALLOCATABLE                :: CellLocNodes_Volumes(:)
+REAL,ALLOCPOINT                 :: NodeVolume(:)
+#if USE_MPI
+INTEGER                         :: NodeVolume_Shared_Win
+REAL,ALLOCPOINT                 :: NodeVolume_Shared(:)
+#endif
+
+REAL,ALLOCPOINT                 :: NodeSource(:,:)
+#if USE_MPI
+REAL, ALLOCATABLE               :: NodeSourceLoc(:,:)
+INTEGER                         :: NodeSource_Shared_Win
+REAL,ALLOCPOINT                 :: NodeSource_Shared(:,:)
+
+TYPE tNodeMapping
+  INTEGER,ALLOCATABLE                   :: RecvNodeUniqueGlobalID(:)
+  INTEGER,ALLOCATABLE                   :: SendNodeUniqueGlobalID(:)
+  REAL,ALLOCATABLE                      :: RecvNodeSource(:,:)
+  REAL,ALLOCATABLE                      :: SendNodeSource(:,:)
+  INTEGER                               :: nSendUniqueNodes
+  INTEGER                               :: nRecvUniqueNodes
+END TYPE
+TYPE (tNodeMapping),ALLOCATABLE      :: NodeMapping(:)
+#endif
+
+
 INTEGER                         :: NbrOfSFdepoFixes              ! Number of fixes for shape func depo at planar BCs
 REAL    , ALLOCATABLE           :: SFdepoFixesGeo(:,:,:)         ! 1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
 REAL    , ALLOCATABLE           :: SFdepoFixesBounds(:,:,:)      ! 1:nFixes;1:2(min,max);1:3(x,y,z)

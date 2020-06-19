@@ -46,8 +46,9 @@ USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
 USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Mesh_Vars              ,ONLY: Vdm_N_EQ,offsetElem
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetCNElemID
 !USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt,CellLocNodes_Volumes
+USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt,NodeVolume
 USE MOD_Restart_Vars           ,ONLY: N_Restart
 #if USE_MPI
 USE MOD_Particle_Mesh_Vars
@@ -91,18 +92,18 @@ IF(DG_SourceExtExists)THEN
 
     ! Map the solution to the global nodes 'NodeSourceExt' and apply the volumes (charge density -> charge)
 !    ASSOCIATE( NodeID => GEO%ElemToNodeID(:,iElem) )
-    GlobalElemID = iElem+offsetElem
+    GlobalElemID = GetCNElemID(iElem+offsetElem)
     ASSOCIATE(NodeID => ElemNodeID_Shared(:,GlobalElemID))
 
       ! Copy values from equidistant distribution to Nodees
-      NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * CellLocNodes_Volumes(NodeID(1))
-      NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * CellLocNodes_Volumes(NodeID(2))
-      NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * CellLocNodes_Volumes(NodeID(3))
-      NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * CellLocNodes_Volumes(NodeID(4))
-      NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * CellLocNodes_Volumes(NodeID(5))
-      NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * CellLocNodes_Volumes(NodeID(6))
-      NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * CellLocNodes_Volumes(NodeID(7))
-      NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * CellLocNodes_Volumes(NodeID(8))
+      NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeInfo_Shared(NodeID(1)))
+      NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVolume(NodeInfo_Shared(NodeID(2)))
+      NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVolume(NodeInfo_Shared(NodeID(3)))
+      NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVolume(NodeInfo_Shared(NodeID(4)))
+      NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVolume(NodeInfo_Shared(NodeID(5)))
+      NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVolume(NodeInfo_Shared(NodeID(6)))
+      NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVolume(NodeInfo_Shared(NodeID(7)))
+      NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeInfo_Shared(NodeID(8)))
     END ASSOCIATE
   END DO
 END IF ! DG_SourceExtExists

@@ -112,14 +112,20 @@ SUBROUTINE CalcCellLocNodeVolumes()
 !> Initialize sub-cell volumes around nodes
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_PreProc            ,ONLY: PP_N
 USE MOD_Basis              ,ONLY: InitializeVandermonde
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Interpolation_Vars ,ONLY: wGP, xGP, wBary
-USE MOD_Mesh_Vars          ,ONLY: sJ, nElems
-!USE MOD_Particle_Mesh_Vars ,ONLY: GEO
-USE MOD_PICDepo_Vars       ,ONLY: CellLocNodes_Volumes
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared
+#if USE_MPI
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems, nComputeNodeProcessors, myComputeNodeRank, MPI_COMM_SHARED
+USE MOD_MPI_Shared         ,ONLY: Allocate_Shared
+USE MOD_PICDepo_Vars       ,ONLY: NodeVolume_Shared, NodeVolume_Shared_Win
+#else
+USE MOD_Mesh_Vars          ,ONLY: nElems
+#endif
+USE MOD_PICDepo_Vars       ,ONLY: NodeVolume
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemsJ, ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -130,40 +136,70 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                             :: Vdm_loc(0:1,0:PP_N),wGP_loc,xGP_loc(0:1),DetJac(1,0:1,0:1,0:1)
 REAL                             :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N)
-INTEGER                          :: j,k,l,iElem
+INTEGER                          :: j,k,l,iElem, firstElem, lastElem
+#if USE_MPI
+INTEGER(KIND=MPI_ADDRESS_KIND)   :: MPISharedSize
+INTEGER                          :: MessageSize
+REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
+#endif
 !===================================================================================================================================
-CellLocNodes_Volumes = 0.0
+#if USE_MPI
+MPISharedSize = INT((nUniqueGlobalNodes),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nUniqueGlobalNodes/),NodeVolume_Shared_Win,NodeVolume_Shared)
+CALL MPI_WIN_LOCK_ALL(0,NodeVolume_Shared_Win,IERROR)
+NodeVolume => NodeVolume_Shared
+firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+#else
+ALLOCATE(NodeVolume(1:nUniqueGlobalNodes))
+firstElem = 1
+lastElem  = nElems
+#endif /*USE_MPI*/
+NodeVolume = 0.0
+
 IF (PP_N.NE.1) THEN
   xGP_loc(0) = -0.5
   xGP_loc(1) = 0.5
   wGP_loc = 1.
   CALL InitializeVandermonde(PP_N,1,wBary,xGP,xGP_loc, Vdm_loc)
 END IF
-DO iElem = 1, nElems
+! ElemNodeID and ElemsJ use compute node elems
+DO iElem = firstElem, lastElem
   IF (PP_N.EQ.1) THEN
     wGP_loc = wGP(0)
     DO j=0, PP_N; DO k=0, PP_N; DO l=0, PP_N
-      DetJac(1,j,k,l)=1./sJ(j,k,l,iElem)
+      DetJac(1,j,k,l)=1./ElemsJ(j,k,l,iElem)
     END DO; END DO; END DO
   ELSE
     DO j=0, PP_N; DO k=0, PP_N; DO l=0, PP_N
-      DetLocal(1,j,k,l)=1./sJ(j,k,l,iElem)
+      DetLocal(1,j,k,l)=1./ElemsJ(j,k,l,iElem)
     END DO; END DO; END DO
     CALL ChangeBasis3D(1,PP_N, 1, Vdm_loc, DetLocal(:,:,:,:),DetJac(:,:,:,:))
   END IF
-  ASSOCIATE( NodeVolume => CellLocNodes_Volumes(:),  &
-!             NodeID     => GEO%ElemToNodeID(:,iElem) )
-             NodeID     => ElemNodeID_Shared(:,iElem))
-    NodeVolume(NodeID(1)) = NodeVolume(NodeID(1)) + DetJac(1,0,0,0)
-    NodeVolume(NodeID(2)) = NodeVolume(NodeID(2)) + DetJac(1,1,0,0)
-    NodeVolume(NodeID(3)) = NodeVolume(NodeID(3)) + DetJac(1,1,1,0)
-    NodeVolume(NodeID(4)) = NodeVolume(NodeID(4)) + DetJac(1,0,1,0)
-    NodeVolume(NodeID(5)) = NodeVolume(NodeID(5)) + DetJac(1,0,0,1)
-    NodeVolume(NodeID(6)) = NodeVolume(NodeID(6)) + DetJac(1,1,0,1)
-    NodeVolume(NodeID(7)) = NodeVolume(NodeID(7)) + DetJac(1,1,1,1)
-    NodeVolume(NodeID(8)) = NodeVolume(NodeID(8)) + DetJac(1,0,1,1)
+  print*, DetJac(1,:,:,:)
+  ASSOCIATE(   &
+#if USE_MPI
+             NodeVolume => NodeVolumeLoc, &
+#endif
+             NodeID     => ElemNodeID_Shared(1:8,iElem))
+    NodeVolume(NodeInfo_Shared(NodeID(1))) = NodeVolume(NodeInfo_Shared(NodeID(1))) + DetJac(1,0,0,0)
+    NodeVolume(NodeInfo_Shared(NodeID(2))) = NodeVolume(NodeInfo_Shared(NodeID(2))) + DetJac(1,1,0,0)
+    NodeVolume(NodeInfo_Shared(NodeID(3))) = NodeVolume(NodeInfo_Shared(NodeID(3))) + DetJac(1,1,1,0)
+    NodeVolume(NodeInfo_Shared(NodeID(4))) = NodeVolume(NodeInfo_Shared(NodeID(4))) + DetJac(1,0,1,0)
+    NodeVolume(NodeInfo_Shared(NodeID(5))) = NodeVolume(NodeInfo_Shared(NodeID(5))) + DetJac(1,0,0,1)
+    NodeVolume(NodeInfo_Shared(NodeID(6))) = NodeVolume(NodeInfo_Shared(NodeID(6))) + DetJac(1,1,0,1)
+    NodeVolume(NodeInfo_Shared(NodeID(7))) = NodeVolume(NodeInfo_Shared(NodeID(7))) + DetJac(1,1,1,1)
+    NodeVolume(NodeInfo_Shared(NodeID(8))) = NodeVolume(NodeInfo_Shared(NodeID(8))) + DetJac(1,0,1,1)
   END ASSOCIATE
 END DO
+
+#if USE_MPI
+! collect the information from the proc-local shadow arrays in the compute-node shared array
+MessageSize =  nUniqueGlobalNodes
+CALL MPI_REDUCE(NodeVolumeLoc,NodeVolume,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+CALL MPI_WIN_SYNC(NodeVolume_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif
 
 END SUBROUTINE CalcCellLocNodeVolumes
 

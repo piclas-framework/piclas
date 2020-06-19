@@ -773,6 +773,8 @@ USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_Particle_Surfaces_Vars ,ONLY: TriaSurfaceFlux
 USE MOD_PICInit                ,ONLY: InitPIC
+USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: InitEmissionComm
 USE MOD_Particle_MPI_Halo      ,ONLY: IdentifyPartExchangeProcs
@@ -831,10 +833,12 @@ CALL InitializeVariablesPartBoundary()
 CALL InitializeVariablesAuxBC()
 ! calculate cartesian borders of node local and global mesh
 CALL GetMeshMinMax()
-CALL InitPIC()
-
 !-- Build BGM and halo region
+DoDeposition = GETLOGICAL('PIC-DoDeposition','T')
+DoInterpolation    = GETLOGICAL('PIC-DoInterpolation')
 CALL InitParticleMesh()
+
+CALL InitPIC()
 #if USE_MPI
 !-- Build MPI communication
 CALL IdentifyPartExchangeProcs()

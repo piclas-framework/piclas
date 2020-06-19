@@ -177,14 +177,14 @@ SUBROUTINE DepositionMethod_CVW(FirstPart,LastPart,DoInnerParts,doPartInExists,d
 USE MOD_PreProc                ,ONLY: PP_N
 USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies,PDM,PEM,PartPosRef,usevMPF,PartMPF
 USE MOD_Particle_Vars          ,ONLY: PartState
-USE MOD_PICDepo_Vars           ,ONLY: PartSource,CellVolWeight_Volumes
+USE MOD_PICDepo_Vars           ,ONLY: PartSource,CellVolWeight_Volumes,CellVolWeightFac
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetCNElemID
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 USE MOD_LoadBalance_Timers     ,ONLY: LBElemSplitTime_avg
 #endif /*USE_LOADBALANCE*/
-USE MOD_Mesh_Vars              ,ONLY: nElems
-USE MOD_PICDepo_Vars           ,ONLY: PartSource,CellVolWeightFac
+USE MOD_Mesh_Vars              ,ONLY: nElems, offSetElem
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if ((USE_HDG) && (PP_nVar==1))
@@ -239,7 +239,6 @@ END IF
 
 ALLOCATE(BGMSourceCellVol(SourceDim:4,0:1,0:1,0:1,1:nElems))
 BGMSourceCellVol(:,:,:,:,:) = 0.0
-
 DO iPart = FirstPart, LastPart
   ! TODO: Info why and under which conditions the following 'CYCLE' is called
   IF(doPartInExists)THEN
@@ -300,7 +299,8 @@ DO iElem = 1, nElems
         alpha1 = CellVolWeightFac(kk)
         alpha2 = CellVolWeightFac(ll)
         alpha3 = CellVolWeightFac(mm)
-        PartSource(SourceDim:4,kk,ll,mm,iElem) =PartSource(SourceDim:4,kk,ll,mm,iElem) + &
+        PartSource(SourceDim:4,kk,ll,mm,GetCNElemID(iElem+offSetElem)) = &
+            PartSource(SourceDim:4,kk,ll,mm,GetCNElemID(iElem+offSetElem)) + &
             BGMSourceCellVol(:,0,0,0,iElem) * (1-alpha1) * (1-alpha2) * (1-alpha3)    + &
             BGMSourceCellVol(:,0,0,1,iElem) * (1-alpha1) * (1-alpha2) *   (alpha3)    + &
             BGMSourceCellVol(:,0,1,0,iElem) * (1-alpha1) *   (alpha2) * (1-alpha3)    + &
@@ -326,17 +326,21 @@ SUBROUTINE DepositionMethod_CVWM(FirstPart,LastPart,DoInnerParts,doPartInExists,
 ! Linear charge density distribution within a cell (continuous across cell interfaces)
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_PreProc            ,ONLY: PP_N
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
-USE MOD_Mesh_Vars          ,ONLY: nElems,nNodes
+USE MOD_Mesh_Vars          ,ONLY: nElems,nNodes, OffsetElem
 USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared
-USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExtTmp,NodeSourceExt,CellLocNodes_Volumes,DepositionType
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared
+USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExtTmp,NodeSourceExt,NodeVolume,DepositionType,NodeSource
+USE MOD_Particle_Mesh_Tools,ONLY: GetCNElemID
 #if USE_MPI
 USE MOD_Particle_MPI       ,ONLY: AddHaloNodeData
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceLoc, NodeMapping, NodeSource_Shared_Win
+USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myLeaderGroupRank
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors, nLeaderGroupProcs
 #endif  /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
@@ -356,10 +360,10 @@ LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL, ALLOCATABLE  :: NodeSource(:,:), tempNodeSource(:,:)
 REAL               :: Charge, TSource(1:4)
 REAL               :: alpha1, alpha2, alpha3, TempPartPos(1:3)
-INTEGER            :: NodeID(1:8)
+INTEGER            :: kk, ll, mm, iPart, iElem, iProc
+INTEGER            :: NodeID(1:8), firstElem, lastElem, firstNode, lastNode, iNode
 #if !((USE_HDG) && (PP_nVar==1))
 INTEGER, PARAMETER :: SourceDim=1
 LOGICAL, PARAMETER :: doCalculateCurrentDensity=.TRUE.
@@ -370,7 +374,10 @@ INTEGER            :: SourceDim
 #if USE_LOADBALANCE
 REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
-INTEGER            :: kk, ll, mm, iPart,iElem
+#if USE_MPI
+INTEGER            :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
+INTEGER            :: MessageSize
+#endif
 !===================================================================================================================================
 ! Return here for 2nd Deposition() call as it is not required for this deposition method,
 ! because the MPI communication is done here directly
@@ -391,10 +398,10 @@ ELSE ! do not calculate current density
 END IF
 #endif
 
-! Allocate NodeSource array and deallocate at the end of this procedure
-ALLOCATE(NodeSource(SourceDim:4,1:nNodes))
-NodeSource = 0.0
-
+#if USE_MPI
+ASSOCIATE(NodeSource => NodeSourceLoc)
+#endif
+NodeSource=0.0
 DO iPart=FirstPart,LastPart
   IF (PDM%ParticleInside(iPart)) THEN
     IF (usevMPF) THEN
@@ -413,87 +420,147 @@ DO iPart=FirstPart,LastPart
     alpha2=0.5*(TempPartPos(2)+1.0)
     alpha3=0.5*(TempPartPos(3)+1.0)
 
-!    NodeID=GEO%ElemToNodeID(1:8,iElem)
-    ! PEM already contains the global ElemID
-    NodeID = ElemNodeID_Shared(:,PEM%GlobalElemID(iPart))
-
-    NodeSource(:,NodeID(1)) = NodeSource(:,NodeID(1))+(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
-    NodeSource(:,NodeID(2)) = NodeSource(:,NodeID(2))+(TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*(1-alpha3))
-    NodeSource(:,NodeID(3)) = NodeSource(:,NodeID(3))+(TSource(SourceDim:4)*  (alpha1)*  (alpha2)*(1-alpha3))
-    NodeSource(:,NodeID(4)) = NodeSource(:,NodeID(4))+(TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*(1-alpha3))
-    NodeSource(:,NodeID(5)) = NodeSource(:,NodeID(5))+(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*  (alpha3))
-    NodeSource(:,NodeID(6)) = NodeSource(:,NodeID(6))+(TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*  (alpha3))
-    NodeSource(:,NodeID(7)) = NodeSource(:,NodeID(7))+(TSource(SourceDim:4)*  (alpha1)*  (alpha2)*  (alpha3))
-    NodeSource(:,NodeID(8)) = NodeSource(:,NodeID(8))+(TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*  (alpha3))
+    NodeID = ElemNodeID_Shared(:,PEM%CNElemID(iPart))
+    NodeSource(:,NodeInfo_Shared(NodeID(1))) = NodeSource(:,NodeInfo_Shared(NodeID(1))) &
+        +(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
+    NodeSource(:,NodeInfo_Shared(NodeID(2))) = NodeSource(:,NodeInfo_Shared(NodeID(2))) & 
+        +(TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*(1-alpha3))
+    NodeSource(:,NodeInfo_Shared(NodeID(3))) = NodeSource(:,NodeInfo_Shared(NodeID(3))) &
+        +(TSource(SourceDim:4)*  (alpha1)*  (alpha2)*(1-alpha3))
+    NodeSource(:,NodeInfo_Shared(NodeID(4))) = NodeSource(:,NodeInfo_Shared(NodeID(4))) &
+        +(TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*(1-alpha3))
+    NodeSource(:,NodeInfo_Shared(NodeID(5))) = NodeSource(:,NodeInfo_Shared(NodeID(5))) &
+        +(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*  (alpha3))
+    NodeSource(:,NodeInfo_Shared(NodeID(6))) = NodeSource(:,NodeInfo_Shared(NodeID(6))) &
+        +(TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*  (alpha3))
+    NodeSource(:,NodeInfo_Shared(NodeID(7))) = NodeSource(:,NodeInfo_Shared(NodeID(7))) &
+        +(TSource(SourceDim:4)*  (alpha1)*  (alpha2)*  (alpha3))
+    NodeSource(:,NodeInfo_Shared(NodeID(8))) = NodeSource(:,NodeInfo_Shared(NodeID(8))) &
+        +(TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*  (alpha3))
 #if USE_LOADBALANCE
    CALL LBElemSplitTime(PEM%LocalElemID(iPart),tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
 #endif /*USE_LOADBALANCE*/
   END IF
 END DO
+#if USE_MPI
+END ASSOCIATE
+MessageSize = (5-SourceDim)*nUniqueGlobalNodes
+CALL MPI_REDUCE(NodeSourceLoc(SourceDim:4,:) ,NodeSource(SourceDim:4,:), &
+        MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+CALL MPI_WIN_SYNC(NodeSource_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
+  DO iProc = 0, nLeaderGroupProcs - 1
+    IF (iProc.EQ.myLeaderGroupRank) CYCLE
+    IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
+      CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSource(SourceDim:4,:)        &
+                , (5-SourceDim)*NodeMapping(iProc)%nRecvUniqueNodes           &
+                , MPI_DOUBLE_PRECISION                                        &
+                , iProc                                                       &
+                , 666                                                         &
+                , MPI_COMM_LEADERS_SHARED                                       &
+                , RecvRequest(iProc)                                          &
+                , IERROR)
+    END IF
+    IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
+      DO iNode = 1, NodeMapping(iProc)%nSendUniqueNodes
+        NodeMapping(iProc)%SendNodeSource(SourceDim:4,iNode) = &
+              NodeSource(SourceDim:4,NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
+      END DO 
+      CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSource(SourceDim:4,:)            &
+                    , (5-SourceDim)*NodeMapping(iProc)%nSendUniqueNodes           &
+                    , MPI_DOUBLE_PRECISION                                        &
+                    , iProc                                                       &
+                    , 666                                                         &
+                    , MPI_COMM_LEADERS_SHARED                                     &
+                    , SendRequest(iProc)                                          &
+                    , IERROR)
+    END IF
+  END DO
+
+  DO iProc = 0,nLeaderGroupProcs-1
+    IF (iProc.EQ.myLeaderGroupRank) CYCLE
+    IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN 
+      CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+      IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    END IF
+    IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN 
+      CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+      IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    END IF
+  END DO
+
+  DO iProc = 0, nLeaderGroupProcs - 1
+    IF (iProc.EQ.myLeaderGroupRank) CYCLE
+    IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
+      DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
+        NodeSource(SourceDim:4,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)) = &
+          NodeSource(SourceDim:4,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)) + &
+          NodeMapping(iProc)%RecvNodeSource(SourceDim:4,iNode)              
+      END DO 
+    END IF
+  END DO
+END IF
+CALL MPI_WIN_SYNC(NodeSource_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
+lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
+#else
+firstNode = 1
+lastNode = nUniqueGlobalNodes
+#endif
 
 ! Node MPI communication
 #if USE_MPI
-IF(doCalculateCurrentDensity)THEN
-  CALL AddHaloNodeData(NodeSource(1,:))
-  CALL AddHaloNodeData(NodeSource(2,:))
-  CALL AddHaloNodeData(NodeSource(3,:))
-END IF
-CALL AddHaloNodeData(NodeSource(4,:))
-
-! Communicate dielectric surface charges stored in NodeSourceExtTmp
-IF(DoDielectricSurfaceCharge)THEN
-  CALL AddHaloNodeData(NodeSourceExtTmp)
-END IF ! DoDielectricSurfaceCharge
+!! Communicate dielectric surface charges stored in NodeSourceExtTmp
+!IF(DoDielectricSurfaceCharge)THEN
+!  CALL AddHaloNodeData(NodeSourceExtTmp)
+!END IF ! DoDielectricSurfaceCharge
 #endif /*USE_MPI*/
 
-IF(DoDielectricSurfaceCharge)THEN
-  ! Update external node source containing dielectric surface charges and nullify
-  NodeSourceExt    = NodeSourceExt + NodeSourceExtTmp
-  NodeSourceExtTmp = 0.
+!IF(DoDielectricSurfaceCharge)THEN
+!  ! Update external node source containing dielectric surface charges and nullify
+!  NodeSourceExt    = NodeSourceExt + NodeSourceExtTmp
+!  NodeSourceExtTmp = 0.
 
-  ! Add external node source (e.g. surface charging)
-  NodeSource(4,:) = NodeSource(4,:) + NodeSourceExt
-END IF ! DoDielectricSurfaceCharge
+!  ! Add external node source (e.g. surface charging)
+!  NodeSource(4,:) = NodeSource(4,:) + NodeSourceExt
+!END IF ! DoDielectricSurfaceCharge
 
 ! Currently also "Nodes" are included in time measurement that is averaged across all elements. Can this be improved?
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
-DO iElem=1, nNodes
-  NodeSource(SourceDim:4,iElem) = NodeSource(SourceDim:4,iElem)/CellLocNodes_Volumes(iElem)
+DO iNode=firstNode, lastNode
+  NodeSource(SourceDim:4,iNode) = NodeSource(SourceDim:4,iNode)/NodeVolume(iNode)
 END DO
-
-IF (TRIM(DepositionType).EQ.'cell_volweight_mean2') THEN
-  ALLOCATE(tempNodeSource(SourceDim:4,1:nNodes))
-  tempNodeSource = 0.0
-  DO iElem=1, nNodes
-    tempNodeSource(SourceDim:4,iElem) = NodeSource(SourceDim:4,iElem)
-    DO kk =1, GEO%NeighNodesOnNode(iElem)
-      tempNodeSource(SourceDim:4,iElem) = tempNodeSource(SourceDim:4,iElem) + NodeSource(SourceDim:4,GEO%NodeToNeighNode(iElem)%ElemID(kk))
-    END DO
-    tempNodeSource(SourceDim:4,iElem) = tempNodeSource(SourceDim:4,iElem) / (GEO%NeighNodesOnNode(iElem) + 1.0)
-  END DO
-  NodeSource = tempNodeSource
-END IF
-
+#if USE_MPI
+CALL MPI_WIN_SYNC(NodeSource_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+firstElem = offSetElem+1
+lastElem  = offSetElem+nElems
+#else
+firstElem = 1
+lastElem = nElems
+#endif
 ! Interpolate node source values to volume polynomial
-DO iElem = 1, nElems
+DO iElem = firstElem, lastElem
   DO kk = 0, PP_N
     DO ll = 0, PP_N
       DO mm = 0, PP_N
         alpha1 = CellVolWeightFac(kk)
         alpha2 = CellVolWeightFac(ll)
         alpha3 = CellVolWeightFac(mm)
-        NodeID=GEO%ElemToNodeID(1:8,iElem)
-        Partsource(SourceDim:4,kk,ll,mm,iElem) = &
-             NodeSource(SourceDim:4,NodeID(1)) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
-             NodeSource(SourceDim:4,NodeID(2)) * (alpha1) * (1-alpha2) * (1-alpha3) + &
-             NodeSource(SourceDim:4,NodeID(3)) * (alpha1) * (alpha2) * (1-alpha3) + &
-             NodeSource(SourceDim:4,NodeID(4)) * (1-alpha1) * (alpha2) * (1-alpha3) + &
-             NodeSource(SourceDim:4,NodeID(5)) * (1-alpha1) * (1-alpha2) * (alpha3) + &
-             NodeSource(SourceDim:4,NodeID(6)) * (alpha1) * (1-alpha2) * (alpha3) + &
-             NodeSource(SourceDim:4,NodeID(7)) * (alpha1) * (alpha2) * (alpha3) + &
-             NodeSource(SourceDim:4,NodeID(8)) * (1-alpha1) * (alpha2) * (alpha3)
+        NodeID=ElemNodeID_Shared(:,GetCNElemID(iElem))
+        Partsource(SourceDim:4,kk,ll,mm,GetCNElemID(iElem)) = &
+             NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(1))) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
+             NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(2))) * (alpha1) * (1-alpha2) * (1-alpha3) + &
+             NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(3))) * (alpha1) * (alpha2) * (1-alpha3) + &
+             NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(4))) * (1-alpha1) * (alpha2) * (1-alpha3) + &
+             NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(5))) * (1-alpha1) * (1-alpha2) * (alpha3) + &
+             NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(6))) * (alpha1) * (1-alpha2) * (alpha3) + &
+             NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(7))) * (alpha1) * (alpha2) * (alpha3) + &
+             NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(8))) * (1-alpha1) * (alpha2) * (alpha3)
       END DO !mm
     END DO !ll
   END DO !kk
@@ -501,11 +568,6 @@ END DO !iEle
 #if USE_LOADBALANCE
 CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 #endif /*USE_LOADBALANCE*/
-DEALLOCATE(NodeSource)
-
-! Suppress compiler warning
-RETURN
-IF(doPartInExists.AND.doParticle_In(1))kk=0
 END SUBROUTINE DepositionMethod_CVWM
 
 

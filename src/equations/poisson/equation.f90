@@ -508,8 +508,9 @@ SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear)
 ! MODULES
 USE MOD_Globals            ,ONLY: Abort
 USE MOD_PreProc
-USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
+USE MOD_Mesh_Vars          ,ONLY: Elem_xGP, offSetElem
 #ifdef PARTICLES
+USE MOD_Particle_Mesh_Tools,ONLY: GetCNElemID
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
 USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
@@ -535,7 +536,7 @@ REAL,INTENT(IN),OPTIONAL        :: Phi
 REAL                            :: x(3)
 REAL                            :: r1,r2, source_e
 REAL,DIMENSION(3)               :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
-INTEGER                         :: RegionID
+INTEGER                         :: RegionID, CNElemID
 !===================================================================================================================================
 ! Calculate IniExactFunc before particles are superimposed, because the IniExactFunc might be needed by the CalcError function
 SELECT CASE (IniExactFunc)
@@ -561,6 +562,7 @@ END SELECT ! ExactFunction
 
 #ifdef PARTICLES
 IF(DoDeposition)THEN
+  CNElemID = GetCNElemID(iElem+offSetElem)
   source_e=0.
   IF (PRESENT(Phi)) THEN
     RegionID=0
@@ -580,9 +582,9 @@ IF(DoDeposition)THEN
     END IF
   END IF
 #if IMPA
-  resu(1)= - (PartSource(4,i,j,k,iElem)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
+  resu(1)= - (PartSource(4,i,j,k,CNElemID)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
 #else
-  resu(1)= - (PartSource(4,i,j,k,iElem)-source_e)/eps0
+  resu(1)= - (PartSource(4,i,j,k,CNElemID)-source_e)/eps0
 #endif
 END IF
 #endif /*PARTICLES*/

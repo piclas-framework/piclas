@@ -192,6 +192,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles,NbrOfLostParticlesTotal
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLostVecLength,PartStateLost
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, WriteTriaDebugMesh,DisplayLostParticles
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
+USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
 USE MOD_Particle_Vars          ,ONLY: Symmetry2D
 #ifdef CODE_ANALYZE
@@ -314,8 +315,9 @@ SELECT CASE(TrackingMethod)
     IF (DoInterpolation) THEN
       CALL CalcParticleMeshMetrics()
 
-      CALL BuildElemTypeAndBasisTria()
+      CALL BuildElemTypeAndBasisTria()      
     END IF
+    IF (DoDeposition) CALL BuildEpsOneCell()
 
 CASE(TRACING,REFMAPPING)
     IF(TriaSurfaceFlux) CALL InitParticleGeometry()
@@ -2957,6 +2959,7 @@ USE MOD_Particle_Mesh_Vars       ,ONLY: nComputeNodeElems
 USE MOD_Particle_Mesh_Vars       ,ONLY: ElemsJ,ElemEpsOneCell
 USE MOD_Particle_Mesh_Vars       ,ONLY: RefMappingEps
 USE MOD_Particle_Mesh_Tools      ,ONLY: GetGlobalElemID
+USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod
 #if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoRef
@@ -3062,7 +3065,7 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 ALLOCATE(ElemsJ(0:PP_N,0:PP_N,0:PP_N,1:nElems))
 ElemsJ => sJ
 #endif /* USE_MPI*/
-
+IF (TrackingMethod.EQ.TRIATRACKING) RETURN
 ! allocate epsOneCell
 #if USE_MPI
 MPISharedSize = INT((nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
@@ -3476,7 +3479,6 @@ SELECT CASE (TrackingMethod)
     ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-
     IF(DoInterpolation)THEN
       ! CalcParticleMeshMetrics
       CALL MPI_WIN_UNLOCK_ALL(XCL_NGeo_Shared_Win             ,iError)

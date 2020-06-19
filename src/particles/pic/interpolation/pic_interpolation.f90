@@ -86,7 +86,6 @@ externalField(1:6) = GETREALARRAY('PIC-externalField',6)
 scaleexternalField = GETREAL('PIC-scaleexternalField')
 externalField      = externalField*ScaleExternalField
 
-DoInterpolation    = GETLOGICAL('PIC-DoInterpolation')
 useBGField         = GETLOGICAL('PIC-BG-Field')
 
 ! Variable external field

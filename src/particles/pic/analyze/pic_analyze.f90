@@ -46,10 +46,11 @@ SUBROUTINE VerifyDepositedCharge()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,            ONLY:nElems, sJ
+USE MOD_Mesh_Vars,            ONLY:nElems, sJ, offsetElem
 USE MOD_Particle_Vars,        ONLY:PDM, Species, PartSpecies ,PartMPF,usevMPF
 USE MOD_Interpolation_Vars,   ONLY:wGP
 USE MOD_Particle_Analyze_Vars,ONLY:ChargeCalcDone
+USE MOD_Particle_Mesh_Tools  ,ONLY: GetCNElemID
 #if defined(IMPA)
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource
 #else
@@ -64,7 +65,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem
+INTEGER           :: iElem, ElemID
 INTEGER           :: i,j,k
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: ChargeNumerical, ChargeLoc, ChargeAnalytical
@@ -81,10 +82,11 @@ DO iElem=1,nElems
   ChargeLoc=0.
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  ElemID = GetCNElemID(iElem + offSetElem)
 #if defined(IMPA)
     ChargeLoc = ChargeLoc + wGP(i)*wGP(j)*wGP(k) * ImplicitSource(4,i,j,k,iElem) * J_N(1,i,j,k)
 #else
-    ChargeLoc = ChargeLoc + wGP(i)*wGP(j)*wGP(k) * PartSource(4,i,j,k,iElem) * J_N(1,i,j,k)
+    ChargeLoc = ChargeLoc + wGP(i)*wGP(j)*wGP(k) * PartSource(4,i,j,k,ElemID) * J_N(1,i,j,k)
 #endif
   END DO; END DO; END DO
   ChargeNumerical = ChargeNumerical + ChargeLoc
@@ -130,11 +132,12 @@ SUBROUTINE CalcDepositedCharge()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,              ONLY:sJ
+USE MOD_Mesh_Vars,              ONLY:sJ, offsetElem
 USE MOD_Particle_Vars,          ONLY:PDM, Species, PartSpecies, usevmpf, PartMPF
 USE MOD_Interpolation_Vars,     ONLY:wGP
 USE MOD_Particle_Analyze_Vars,  ONLY:PartCharge
 USE MOD_TimeDisc_Vars,          ONLY:iter
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetCNElemID
 #if defined(IMPA)
 USE MOD_LinearSolver_Vars,      ONLY:ImplicitSource
 #else
@@ -147,7 +150,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem
+INTEGER           :: iElem, ElemID
 INTEGER           :: i,j,k,iPart
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: Charge(2)
@@ -165,6 +168,7 @@ DO iElem=1,PP_nElems
   ! compute the deposited charge
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  ElemID = GetCNElemID(iElem + offSetElem)
 #if defined(IMPA)
 #if USE_HDG
     Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(1,i,j,k,iElem) * J_N(1,i,j,k)
@@ -172,7 +176,7 @@ DO iElem=1,PP_nElems
     Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(4,i,j,k,iElem) * J_N(1,i,j,k)
 #endif
 #else
-    Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * PartSource(4,i,j,k,iElem) * J_N(1,i,j,k)
+    Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * PartSource(4,i,j,k,ElemID) * J_N(1,i,j,k)
 #endif
   END DO; END DO; END DO
 END DO
