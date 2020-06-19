@@ -1049,7 +1049,7 @@ REAL, INTENT(IN)    :: RHS(nGP_face*nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL, INTENT(INOUT) :: lambda(nGP_face*nSides)
-INTEGER, INTENT(INOUT),OPTIONAL::iVar
+INTEGER, INTENT(IN),OPTIONAL::iVar
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,DIMENSION(nGP_face*nSides) :: V,Z,R
@@ -1201,7 +1201,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL, INTENT(IN)    :: RHS(nGP_face,nSides)
 REAL, INTENT(INOUT) :: lambda(nGP_face,nSides)
-INTEGER, INTENT(INOUT),OPTIONAL::iVar
+INTEGER, INTENT(IN),OPTIONAL::iVar
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)   :: R(nGP_face,nSides)
@@ -1264,7 +1264,7 @@ REAL,INTENT(INOUT) :: lambda(nGP_face, nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT) :: mv(nGP_face, nSides)
-INTEGER, INTENT(INOUT),OPTIONAL::iVar
+INTEGER, INTENT(IN),OPTIONAL::iVar
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: firstSideID, lastSideID
@@ -1273,6 +1273,9 @@ INTEGER :: jLocSide,jSideID(6)
 #if USE_LOADBALANCE
 REAL    :: tLBStart
 #endif /*USE_LOADBALANCE*/
+#if PP_nVar==1
+INTEGER           :: dummy
+#endif /*PP_nVar==1*/
 !===================================================================================================================================
 
 #if USE_LOADBALANCE
@@ -1393,7 +1396,9 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 
 ! Suppress compiler warning
 RETURN
-iVar=0
+#if PP_nVar==1
+dummy=iVar
+#endif /*PP_nVar==1*/
 
 END SUBROUTINE MatVec
 
