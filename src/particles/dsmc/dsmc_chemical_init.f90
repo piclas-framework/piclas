@@ -47,6 +47,7 @@ SUBROUTINE DSMC_chemical_init()
   USE MOD_Particle_Analyze_Vars,  ONLY: ChemEnergySum
   USE MOD_DSMC_ChemReact,         ONLY: CalcPartitionFunction, CalcQKAnalyticRate
   USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
+  USE MOD_Particle_Analyze       ,ONLY: SPECIESISELECTRON
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -211,6 +212,11 @@ __STAMP__&
       ! ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','0')
       IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
         ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
+        ! Check if Species 3 is an electron and abort (this is not implemented yet)
+        IF(SPECIESISELECTRON(ChemReac%DefinedReact(iReac,2,3))) CALL abort(&
+        __STAMP__&
+          ,'Chemical reaction with electron as 3rd product species. This is not implemented yet for photoionization! iReac=',&
+          IntInfoOpt=iReac)
       END IF
       ! Filling up ChemReac-Array for the given non-reactive dissociation/electron-impact ionization partners
       IF((TRIM(ChemReac%ReactType(iReac)).EQ.'D').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'iQK')) THEN
