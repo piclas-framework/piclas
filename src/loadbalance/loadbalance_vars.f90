@@ -71,6 +71,7 @@ REAL                                :: targetWeight                ! optimal wei
 ! Element Local measurement
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE                    :: ElemTime(:)
+LOGICAL                             :: NullifyElemTime
 REAL,ALLOCATABLE                    :: ElemTime_tmp(:)  ! Additional container for restarting and keeping the old ElemTime values in
                                                         ! the state.h5 file
 REAL                                :: ElemTimePartTot  ! Total time spent for particle routines (all procs)
