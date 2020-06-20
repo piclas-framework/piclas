@@ -1640,13 +1640,13 @@ IMPLICIT NONE
 REAL, INTENT(IN)              :: NbrOfPhotons
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER, INTENT(OUT)          :: NbrOfReactions
+REAL, INTENT(OUT)             :: NbrOfReactions
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: bgSpec, iReac
 !===================================================================================================================================
 
-NbrOfReactions = 0
+NbrOfReactions = 0.
 
 DO iReac = 1, ChemReac%NumOfReact
   ! Only treat photoionization reactions
@@ -1655,9 +1655,8 @@ DO iReac = 1, ChemReac%NumOfReact
   bgSpec = BGGas%MapSpecToBGSpec(ChemReac%DefinedReact(iReac,1,1))
   ! Collision number: Z = n_gas * n_ph * sigma_reac * v (in the case of photons its speed of light)
   ! Number of reactions: N = Z * dt * V (number of photons cancels out the volume)
-  ChemReac%NumPhotoIonization(iReac) = NINT(BGGas%NumberDensity(bgSpec) * NbrOfPhotons * ChemReac%CrossSection(iReac) * c &
-                                            *dt / Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor)
-  NbrOfReactions = NbrOfReactions + ChemReac%NumPhotoIonization(iReac)
+  NbrOfReactions = NbrOfReactions + BGGas%NumberDensity(bgSpec) * NbrOfPhotons * ChemReac%CrossSection(iReac) * c &
+                                     *dt / Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor
 END DO
 
 END SUBROUTINE CalcPhotoIonizationNumber

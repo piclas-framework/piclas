@@ -644,7 +644,7 @@ CALL UpdateNextFreePosition()
 END SUBROUTINE BGGas_DeleteParticles
 
 
-SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,InsertedNbrOfParticles)
+SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,TotalNbrOfReactions)
 !===================================================================================================================================
 !
 !===================================================================================================================================
@@ -669,32 +669,57 @@ USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: iSpec,iInit,InsertedNbrOfParticles
+INTEGER, INTENT(IN)           :: iSpec,iInit,TotalNbrOfReactions
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart, iPair, iNewPart, iReac, ParticleIndex, NewParticleIndex, bgSpec, NbrOfParticle
 INTEGER                       :: iPart_p1, iPart_p2
-REAL                          :: RandVal
+REAL                          :: RandVal,NumTmp,ProbRest
+INTEGER                       :: TotalNbrOfReactionsTmp,iCrossSection,NbrCrossSections
+REAL                          :: SumCrossSections
 !===================================================================================================================================
 ChemReac%NumPhotoIonization = 0
 
-IF(InsertedNbrOfParticles.LE.0) RETURN
+IF(TotalNbrOfReactions.LE.0) RETURN
+TotalNbrOfReactionsTmp = TotalNbrOfReactions
 
-! 1) Compute the number of photoioinzation events in the local domain of each proc
+! 0) Calculate sum of cross-sections for photoionization
+SumCrossSections = 0.
+NbrCrossSections = 0
 DO iReac = 1, ChemReac%NumOfReact
   ! Only treat photoionization reactions
   IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
-  ChemReac%NumPhotoIonization(iReac) = INT(InsertedNbrOfParticles*ChemReac%CrossSection(iReac)/SUM(ChemReac%CrossSection))
+  SumCrossSections = SumCrossSections + ChemReac%CrossSection(iReac)
+  NbrCrossSections = NbrCrossSections + 1
+END DO ! iReac = 1, ChemReac%NumOfReact
+
+! 1) Compute the number of photoionization events in the local domain of each proc
+iCrossSection = 0
+DO iReac = 1, ChemReac%NumOfReact
+  ! Only treat photoionization reactions
+  IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
+  iCrossSection  = iCrossSection + 1
+  IF(iCrossSection.EQ.NbrCrossSections)THEN
+    ChemReac%NumPhotoIonization(iReac) = TotalNbrOfReactionsTmp
+    EXIT
+  END IF ! iCrossSection.EQ.NbrCrossSections
+  NumTmp = TotalNbrOfReactionsTmp*ChemReac%CrossSection(iReac)/SumCrossSections
+  SumCrossSections = SumCrossSections - ChemReac%CrossSection(iReac)
+  ChemReac%NumPhotoIonization(iReac) = INT(NumTmp)
+  ProbRest = NumTmp - REAL(ChemReac%NumPhotoIonization(iReac))
+  CALL RANDOM_NUMBER(RandVal)
+  IF (ProbRest.GT.RandVal) ChemReac%NumPhotoIonization(iReac) = ChemReac%NumPhotoIonization(iReac) + 1
+  TotalNbrOfReactionsTmp = TotalNbrOfReactionsTmp - ChemReac%NumPhotoIonization(iReac)
 END DO
 
-IF(InsertedNbrOfParticles.GT.SUM(ChemReac%NumPhotoIonization)) THEN
+IF(TotalNbrOfReactions.GT.SUM(ChemReac%NumPhotoIonization)) THEN
   ! Delete left-over inserted particles
-  DO iPart = SUM(ChemReac%NumPhotoIonization)+1,InsertedNbrOfParticles
+  DO iPart = SUM(ChemReac%NumPhotoIonization)+1,TotalNbrOfReactions
     PDM%ParticleInside(PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)) = .FALSE.
   END DO
-ELSE IF(InsertedNbrOfParticles.LT.SUM(ChemReac%NumPhotoIonization)) THEN
+ELSE IF(TotalNbrOfReactions.LT.SUM(ChemReac%NumPhotoIonization)) THEN
   CALL Abort(&
     __STAMP__&
     ,'ERROR in PhotoIonization: Something is wrong, trying to perform more reactions than anticipated!')
@@ -795,8 +820,11 @@ DO iReac = 1, ChemReac%NumOfReact
     ! OR check PartSpecies(iPart_p1) = iSpec and 
     !          PartSpecies(iPart_p2) = iSpec
       IF(PARTISELECTRON(iPart_p1)) THEN
+        ! Get random vector b3 in b1-b2-plane
         CALL RANDOM_NUMBER(RandVal)
         PartState(4:6,iPart_p1) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart_p1),RandVal)
+        ! Rotate the resulting vector in the b3-NormalIC-plane
+        PartState(4:6,iPart_p1) = GetRotatedVector(PartState(4:6,iPart_p1),Species(iSpec)%Init(iInit)%NormalIC)
         ! Store the particle information in PartStateBoundary.h5
         IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(iPart_p1,PartSpecies(iPart_p1),PartState(1:3,iPart_p1),&
                                           UNITVECTOR(PartState(4:6,iPart_p1)),Species(iSpec)%Init(iInit)%NormalIC,mode=2,&
@@ -804,7 +832,10 @@ DO iReac = 1, ChemReac%NumOfReact
       END IF
       IF(PARTISELECTRON(iPart_p2)) THEN
         CALL RANDOM_NUMBER(RandVal)
+        ! Get random vector b3 in b1-b2-plane
         PartState(4:6,iPart_p2) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart_p2),RandVal)
+        ! Rotate the resulting vector in the b3-NormalIC-plane
+        PartState(4:6,iPart_p2) = GetRotatedVector(PartState(4:6,iPart_p2),Species(iSpec)%Init(iInit)%NormalIC)
         ! Store the particle information in PartStateBoundary.h5
         IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(iPart_p2,PartSpecies(iPart_p2),PartState(1:3,iPart_p2),&
                                           UNITVECTOR(PartState(4:6,iPart_p2)),Species(iSpec)%Init(iInit)%NormalIC,mode=2,&
@@ -827,7 +858,7 @@ END SUBROUTINE BGGas_PhotoIonization
 
 PURE FUNCTION GetRandomVectorInPlane(b1,b2,VeloVec,RandVal)
 !===================================================================================================================================
-! derivative to find max of function
+! Pick random vector in a plane set up by the basis vectors b1 and b2
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals      ,ONLY: VECNORM
@@ -851,6 +882,51 @@ Vabs = VECNORM(VeloVec)
 phi = RandVal * 2.0 * PI
 GetRandomVectorInPlane = Vabs*(b1*COS(phi) + b2*SIN(phi))
 END FUNCTION GetRandomVectorInPlane
+
+
+FUNCTION GetRotatedVector(VeloVec,NormVec)
+!===================================================================================================================================
+! Rotate the vector in the plane set up by VeloVec and NormVec by choosing an angle from a 4.0 / PI * COS(Theta_temp)**2
+! distribution via the ARM
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals      ,ONLY: VECNORM, UNITVECTOR
+USE MOD_Globals_Vars ,ONLY: PI
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)    :: NormVec(1:3) ! Basis vector (normalized)
+REAL,INTENT(IN)    :: VeloVec(1:3) ! Velocity vector before the random direction selection within the plane defined by b1 and b2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLE
+REAL               :: GetRotatedVector(1:3) ! Output velocity vector
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: Vabs ! Absolute velocity
+REAL               :: RandVal, v(1:3)
+REAL               :: Theta, Theta_temp
+REAL               :: PDF_temp
+REAL, PARAMETER    :: PDF_max=4./ACOS(-1.)
+LOGICAL            :: ARM_SEE_PDF
+!===================================================================================================================================
+v = UNITVECTOR(VeloVec)
+Vabs = VECNORM(VeloVec)
+
+! ARM for angular distribution
+ARM_SEE_PDF=.TRUE.
+DO WHILE(ARM_SEE_PDF)
+  CALL RANDOM_NUMBER(RandVal)
+  Theta_temp = RandVal * 0.5 * PI
+  PDF_temp = 4.0 / PI * COS(Theta_temp)**2
+  CALL RANDOM_NUMBER(RandVal)
+  IF ((PDF_temp/PDF_max).GT.RandVal) ARM_SEE_PDF = .FALSE.
+END DO
+Theta = Theta_temp
+
+! Rotate original vector Vabs*v
+GetRotatedVector = Vabs*(v*COS(Theta) + NormVec*SIN(Theta))
+END FUNCTION GetRotatedVector
 
 
 END MODULE MOD_DSMC_BGGas
