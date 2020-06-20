@@ -309,17 +309,6 @@ IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
 #endif /*PARTICLES*/
   END DO ! iElem=1,PP_nElems
 
-  ! Collect ElemTime for particles and field separately (only on root process)
-  CALL MPI_REDUCE(ElemTimeField , ElemTimeFieldTot , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
-  WeightSum = ElemTimeFieldTot ! only correct on MPI root
-#ifdef PARTICLES
-  CALL MPI_REDUCE(ElemTimePart , ElemTimePartTot  , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
-  WeightSum = WeightSum + ElemTimePartTot ! only correct on MPI root
-#endif /*PARTICLES*/
-  ! send WeightSum from MPI root to all other procs
-  CALL MPI_BCAST(WeightSum,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
-
-
 #ifdef PARTICLES
 ! If no Elem times are calculated but Partweight Loadbalance is enabled
 ELSE IF(PerformLBSample .AND. LoadBalanceSample.EQ.0) THEN
@@ -327,7 +316,9 @@ ELSE IF(PerformLBSample .AND. LoadBalanceSample.EQ.0) THEN
   nLoadBalance=nLoadBalance+1
   ! no time measurement and particles are present: simply add the ParticleMPIWeight times the number of particles present
   DO iElem=1,PP_nElems
-    ElemTime(iElem) = ElemTime(iElem) + nPartsPerElem(iElem)*ParticleMPIWeight + 1.0
+    ElemTimePartElem = nPartsPerElem(iElem)*ParticleMPIWeight + 1.0
+    ElemTime(iElem)  = ElemTime(iElem) + ElemTimePartElem
+    ElemTimePart     = ElemTimePart    + ElemTimePartElem
   END DO ! iElem=1,PP_nElems
   IF((MAXVAL(nPartsPerElem).GT.0).AND.(MAXVAL(ElemTime).LE.1.0))THEN
     IPWRITE (*,*) "parts, time =", MAXVAL(nPartsPerElem),MAXVAL(ElemTime)
@@ -471,8 +462,12 @@ SUBROUTINE ComputeImbalance()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_LoadBalance_Vars,    ONLY:WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
-USE MOD_LoadBalance_Vars,    ONLY:ElemTime, PerformLBSample, PerformPartWeightLB, DeviationThreshold
+USE MOD_LoadBalance_Vars ,ONLY: WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
+USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample, PerformPartWeightLB, DeviationThreshold
+USE MOD_LoadBalance_Vars ,ONLY: ElemTimeFieldTot,ElemTimeField
+#ifdef PARTICLES
+USE MOD_LoadBalance_Vars ,ONLY: ElemTimePartTot,ElemTimePart
+#endif /*PARTICLES*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -489,6 +484,22 @@ IF(.NOT.PerformLBSample .AND. .NOT.PerformPartWeightLB) THEN
   TargetWeight     = 0.
   CurrentImbalance = -1.0
 ELSE
+
+#if (PP_TimeDiscMethod!=4)
+  ! Collect ElemTime for particles and field separately (only on root process)
+  ! Skip the reduce for DSMC timedisc
+  CALL MPI_REDUCE(ElemTimeField , ElemTimeFieldTot , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+  WeightSum = ElemTimeFieldTot ! only correct on MPI root
+#else
+  WeightSum = 0. ! initialize before adding particle info
+#endif /*(PP_TimeDiscMethod!=4)*/
+#ifdef PARTICLES
+  CALL MPI_REDUCE(ElemTimePart , ElemTimePartTot  , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+  WeightSum = WeightSum + ElemTimePartTot ! only correct on MPI root
+#endif /*PARTICLES*/
+  ! send WeightSum from MPI root to all other procs
+  CALL MPI_BCAST(WeightSum,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
+
   WeightSum_loc=SUM(ElemTime)
   !IPWRITE(UNIT_StdOut,*) "SUM(ElemTime) =", SUM(ElemTime)
 
@@ -519,14 +530,12 @@ ELSE
       !,' ERROR: after ALLREDUCE, weight sum cannot be zero! WeightSum=',RealInfoOpt=WeightSum)
 
   ! new computation of current imbalance
-  IF(ABS(TargetWeight).EQ.0.)THEN
+  IF(ABS(TargetWeight).LE.0.)THEN
     CurrentImbalance = 0.
-  ELSE IF(ABS(TargetWeight).LT.0.0)THEN
     SWRITE(UNIT_stdOut,'(A,F14.2,A1)')&
-        ' ERROR: after ALLREDUCE, WeightSum/TargetWeight cannot be zero! TargetWeight=[',TargetWeight,']'
-    CurrentImbalance = HUGE(1.0)
+        ' ERROR: after ALLREDUCE, TargetWeight (=WeightSum/nProcessors) cannot be zero! TargetWeight=[',TargetWeight,']'
   ELSE
-    CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
+    CurrentImbalance =  (MaxWeight-TargetWeight)/TargetWeight
   END IF
   SWRITE(UNIT_stdOut,'(A,ES9.3,A,ES9.3,A,ES9.3,A,ES9.3,A,ES8.2,A)')&
       ' MinWeight: ', MinWeight, '    MaxWeight: ', MaxWeight, '    TargetWeight: ', TargetWeight,'    CurrentImbalance: ',&

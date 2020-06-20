@@ -189,8 +189,8 @@ IF(ElemTimeExists.AND.MPIRoot)THEN
   ! WeightSum (Mesh global value) is already set in BalanceMethod scheme
 
   ! new computation of current imbalance
-  TargetWeight=SUM(WeightSum_proc)/nProcessors
-  NewImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
+  TargetWeight = SUM(WeightSum_proc)/nProcessors
+  NewImbalance = (MaxWeight-TargetWeight)/TargetWeight
 
   IF(TargetWeight.LE.0.0) CALL abort(&
       __STAMP__, &
