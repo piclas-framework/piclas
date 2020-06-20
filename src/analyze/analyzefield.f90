@@ -71,6 +71,9 @@ USE MOD_Analyze_Vars         ,ONLY: DoFieldAnalyze,CalcEpot,CalcPoyntingInt,nPoy
 USE MOD_Particle_Analyze_Vars,ONLY: IsRestart
 USE MOD_Restart_Vars         ,ONLY: DoRestart
 USE MOD_Dielectric_Vars      ,ONLY: DoDielectric
+#if USE_HDG
+USE MOD_HDG_Vars          ,ONLY: HDGNorm,iteration,Runtime,RunTimePerIteration
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -80,16 +83,40 @@ REAL,INTENT(IN)     :: Time
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL             :: isOpen
-CHARACTER(LEN=350)  :: outfile
-INTEGER             :: unit_index, OutputCounter,iPlane
-REAL                :: PoyntingIntegral(1:nPoyntingIntPlanes)
+LOGICAL            :: isOpen
+CHARACTER(LEN=350) :: outfile
+INTEGER            :: unit_index, nOutputVarTotal,iPlane
+REAL               :: PoyntingIntegral(1:nPoyntingIntPlanes)
+CHARACTER(LEN=150) :: formatStr
+#if USE_HDG
+INTEGER,PARAMETER  :: nOutputVar=10
+#else
+INTEGER,PARAMETER  :: nOutputVar=6
+#endif /*USE_HDG*/
+CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
+    'time', &
+    'E-El', &
+    'E-Mag', &
+    'E-phi', &
+    'E-psi', &
+    'E-pot' &
+#if USE_HDG
+   ,'#iterations', &
+    'RunTime', &
+    'RunTimePerIteration', &
+    'HDGNorm' &
+#endif /*USE_HDG*/
+    /)
+CHARACTER(LEN=255),ALLOCATABLE :: tmpStr(:) ! needed because PerformAnalyze is called multiple times at the beginning
+CHARACTER(LEN=1000)            :: tmpStr2
+CHARACTER(LEN=1),PARAMETER     :: delimiter=","
+INTEGER                        :: I
+CHARACTER(LEN=255)             :: StrVarNameTmp
 !===================================================================================================================================
 IF ( DoRestart ) THEN
   isRestart = .true.
 END IF
 IF (.NOT.DoFieldAnalyze) RETURN
-OutputCounter = 2
 unit_index = 537
 #if USE_MPI
 IF(MPIROOT)THEN
@@ -101,37 +128,43 @@ IF(MPIROOT)THEN
        OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
        !CALL FLUSH (unit_index)
     ELSE
-       OPEN(unit_index,file=TRIM(outfile))
-       !CALL FLUSH (unit_index)
-       !--- insert header
+      OPEN(unit_index,file=TRIM(outfile))
+      !CALL FLUSH (unit_index)
+      !--- insert header
 
-       WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME'
-       IF (CalcEpot) THEN
-         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-         WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-El      '
-           OutputCounter = OutputCounter + 1
-         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-         WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-Mag    '
-           OutputCounter = OutputCounter + 1
-         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-         WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-phi    '
-           OutputCounter = OutputCounter + 1
-         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-         WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-psi    '
-           OutputCounter = OutputCounter + 1
-         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-         WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-pot    '
-           OutputCounter = OutputCounter + 1
-       END IF
-       IF(CalcPoyntingInt)THEN
-         DO iPlane=1,nPoyntingIntPlanes
-           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-           WRITE(unit_index,'(I3.3,A11,I0.3,A1,E14.7,A1)',ADVANCE='NO') &
-                                          OutputCounter,'-Plane-Pos-',iPlane,'(', PosPoyntingInt(iPlane),')'
-           OutputCounter = OutputCounter + 1
-         END DO
-       END IF
-       WRITE(unit_index,'(A14)') ' '
+      ! Set the header line content
+      nPoyntingIntPlanes=MERGE(nPoyntingIntPlanes,0,CalcPoyntingInt) ! set to zero if the flag is false (otherwise not initialized)
+      ALLOCATE(tmpStr(1:nOutputVar+nPoyntingIntPlanes))
+      tmpStr=""
+      nOutputVarTotal = 0
+      DO I=1,nOutputVar
+        IF((.NOT.CalcEpot).AND.(I.LT.6)) CYCLE
+        WRITE(tmpStr(I),'(A,I0.3,A)')delimiter//'"',I,'-'//TRIM(StrVarNames(I))//'"'
+        nOutputVarTotal = nOutputVarTotal + 1
+      END DO
+
+      IF(CalcPoyntingInt)THEN
+        DO iPlane=1,nPoyntingIntPlanes
+          nOutputVarTotal = nOutputVarTotal + 1
+          WRITE(StrVarNameTmp,'(A,I0.3,A1,E23.16E3,A1)') 'Plane-Pos-',iPlane,'(',PosPoyntingInt(iPlane),')'
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+        END DO
+      END IF
+
+      ! Set the format
+      WRITE(formatStr,'(A1)')'('
+      DO I=1,nOutputVarTotal
+        IF(I.EQ.nOutputVarTotal)THEN ! skip writing "," and the end of the line
+          WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I))
+        ELSE
+          WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I)),','
+        END IF
+      END DO
+
+      WRITE(formatStr,'(A,A1)')TRIM(formatStr),')'  ! finish the format
+      WRITE(tmpStr2,formatStr)tmpStr                ! use the format and write the header names to a temporary string
+      tmpStr2(1:1) = " "                            ! remove possible delimiter at the beginning (e.g. a comma)
+      WRITE(unit_index,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the temporary string
     END IF
   END IF
 #if USE_MPI
@@ -154,32 +187,28 @@ END IF
 IF(CalcPoyntingInt) CALL CalcPoyntingIntegral(PoyntingIntegral,doProlong=.TRUE.)
 #endif
 
-#if USE_MPI
- IF(MPIROOT)THEN
-#endif /*USE_MPI*/
-   WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time
-   IF (CalcEpot) THEN
-     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-     WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WEl
-     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-     WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WMag
-     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-     WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WPhi
-     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-     WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WPsi
-     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-     WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WEl + WMag + WPhi + WPsi
-   END IF
-   IF(CalcPoyntingInt)THEN
-     DO iPlane=1,nPoyntingIntPlanes
-       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-       WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PoyntingIntegral(iPlane)
-     END DO
-   END IF
-   WRITE(unit_index,'(A1)') ' '
-#if USE_MPI
- END IF
-#endif /*USE_MPI*/
+IF(MPIROOT)THEN
+  WRITE(unit_index,'(E23.16E3)',ADVANCE='NO') Time
+  IF (CalcEpot) THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WEl
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WMag
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WPhi
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WPsi
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WEl + WMag + WPhi + WPsi
+  END IF
+  IF(CalcPoyntingInt)THEN
+    DO iPlane=1,nPoyntingIntPlanes
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',PoyntingIntegral(iPlane)
+    END DO
+  END IF
+#if USE_HDG
+  WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(iteration)
+  WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', Runtime
+  WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RunTimePerIteration
+  WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', HDGNorm
+#endif /*USE_HDG*/
+  write(unit_index,'(A)') '' ! write 'newline' to file to finish the current line
+END IF
 
 
 END SUBROUTINE AnalyzeField
