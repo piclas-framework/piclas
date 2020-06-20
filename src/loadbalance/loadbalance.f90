@@ -447,7 +447,7 @@ LB_Time=PICLASTIME()
 InitializationWallTime=LB_Time-LB_StartTime
 SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_StdOut,'(132("="))')
 END SUBROUTINE LoadBalance
 
 #if USE_LOADBALANCE
@@ -525,6 +525,10 @@ ELSE
 
   ! New
   TargetWeight = WeightSum/nProcessors ! Calculate the average value that is supposed to be the optimally distributed weight
+
+  IF((TargetWeight.GT.MaxWeight).OR.(TargetWeight.LT.MinWeight))THEN
+    SWRITE (UNIT_stdOut,'(A)') " ERROR: after ALLREDUCE, TargetWeight is either smaller than MinWeight or larger than MaxWeight!"
+  END IF ! (TargetWeight.GT.MaxWeight).OR.(TargetWeight.LT.MinWeight)
 
   !IF(ALMOSTZERO(WeightSum))CALL abort( __STAMP__&
       !,' ERROR: after ALLREDUCE, weight sum cannot be zero! WeightSum=',RealInfoOpt=WeightSum)

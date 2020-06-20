@@ -659,6 +659,10 @@ IF((MAXVAL(ElemData).LE.0.0)          .AND.& ! Restart
                             offset          = (/0_IK,offsetElem  /),&
                             collective      = .TRUE.,RealArray        = ElemTime_tmp)
   END ASSOCIATE
+
+  ! After writing the old ElemTime values to disk, the array must be nullified (because they correspond to the restart file, which
+  ! might have been created with a totally different processor number and distribution)
+  ElemTime = 0.
 ELSE
   ASSOCIATE (&
         nVar         => INT(nVar,IK)         ,&
