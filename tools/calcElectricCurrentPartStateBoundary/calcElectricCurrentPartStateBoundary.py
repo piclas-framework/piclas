@@ -6,6 +6,7 @@ import re
 import shutil
 import os.path
 import configparser
+import types
 
 # Bind raw_input to input in Python 2
 try:
@@ -83,7 +84,7 @@ def ReadConfig(parameterFile):
     return config
 
 
-def GetInfoFromDataset(statefile,data_set,NbrOfFiles,species_info_read) :
+def GetInfoFromDataset(statefile,data_set,NbrOfFiles,species_info_read,CutOff) :
     global InitialDataRead
     global SpeciesIndex
     global MPFIndex
@@ -186,14 +187,12 @@ def GetInfoFromDataset(statefile,data_set,NbrOfFiles,species_info_read) :
         #print("Charge = %s" % (Charge))
         #exit(0)
 
-    # 2   Sum the chares in PartData and divide by the time difference to the current
+    # 2   Sum the charges in PartData and divide by the time difference to the current
     TotalCharge = 0.
     SumCharge = np.zeros([len(Charge)], dtype=float)
     #print("SumCharge = %s" % (SumCharge))
     for i in range(len(b1)):
         SpecID = int(b1[i][SpeciesIndex])
-<<<<<<< Updated upstream
-=======
 
         if CutOff.Check:
             # Skip coordinate
@@ -214,7 +213,6 @@ def GetInfoFromDataset(statefile,data_set,NbrOfFiles,species_info_read) :
                     if np.linalg.norm(b1[i][0:1]) < CutOff.Rad:
                         continue
 
->>>>>>> Stashed changes
         if SpecID not in Charge :
             txt = input(yellow("    Enter the charge for species %s in multiples of the elementary charge e=1.602176634e-19 : " % SpecID))
             Charge[SpecID] = float(txt)*1.602176634e-19
@@ -292,7 +290,7 @@ try :
     import h5py
     h5py_module_loaded = True
 except ImportError :
-    print(red('Could not import h5py module. This is required for analyse functions.'))
+    print(red('Could not import h5py module. This is required for reading .h5 files. Exit.'))
     exit(0)
 
 # Start the timer
@@ -301,9 +299,6 @@ start = timer()
 """get command line arguments"""
 parser = argparse.ArgumentParser(description='DESCRIPTION:\nTool for adding up the charges of the particles in the PartState container of multiple .h5 files.\nSupply a single state file or a group of state files by using the wildcard "*", e.g. MySimulation_000.000000* for a list of file names.', formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument('files', type=str, help='Files (.h5) that are to be merged together.', nargs='+')
-<<<<<<< Updated upstream
-parser.add_argument('-d', '--debug', action='store_true', help='Print additional imformation regarding the files onto screen.')
-=======
 parser.add_argument('-d', '--debug', action='store_true', help='Print additional information regarding the files onto screen.')
 parser.add_argument('-p', '--parameter', default='parameter.ini', help='Name of the parameter file that contains the species information corresponding to the PartState containers. Default=parameter.ini')
 parser.add_argument('-c', '--cutoff', action='store_true', help='Exclude particles by given a cut-off coordinate and removing particles that are either > or < as compared with this value.')
@@ -311,7 +306,6 @@ parser.add_argument('-o', '--coordinate', type=int, help='Cut-off coordinate 0: 
 parser.add_argument('-v', '--value', type=float, help='Cut-off value for removing particles.')
 parser.add_argument('-r', '--radius', type=float, help='Cut-off value for removing particles with radius grater/lesser than the supplied value (uses -t, --type).')
 parser.add_argument('-t', '--type', type=str, help='Cut-off type. Choose "greater" or "lesser" to remove particles with a coordinate > or < as compared with the cut-off value.')
->>>>>>> Stashed changes
 
 # Get command line arguments
 args = parser.parse_args()
@@ -322,9 +316,6 @@ print("Running with the following command line options")
 for arg in list(args.__dict__) :
     print(arg.ljust(15)+" = [ "+str(getattr(args,arg))+" ]")
 print('='*132)
-<<<<<<< Updated upstream
-#print()
-=======
 
 # Check cut-off parameters
 CutOff= types.SimpleNamespace()
@@ -347,15 +338,14 @@ if args.cutoff:
     print(red("WARNING: Coordinate cut-off is activated. Removing particles with %s-coordinate %s than %s" % (mystr[CutOff.Coord], CutOff.Type, CutOff.Val)))
     if CutOff.Rad is not None:
         print(red("WARNING: Radius cut-off is activated. Removing particles with radius %s than %s" % (CutOff.Type, CutOff.Rad)))
->>>>>>> Stashed changes
 
 # Get maximum number of characters in h5 file names
 max_length=0
 for statefile in args.files :
     max_length = max(max_length,len(statefile))
 
-parameterFile="parameter.ini"
-config = ReadConfig(parameterFile)
+#parameterFile="parameter.ini"
+config = ReadConfig(args.parameter)
 
 if config :
     species_info_read=True
@@ -370,26 +360,17 @@ if config :
     Charge={}
     for iSpec in Species :
         Charge[iSpec] = float(config.get("Section1","Part-Species%d-ChargeIC" % iSpec))
-    print(yellow("    Automatically fetched species ID's and charges from %s" % parameterFile))
+    print(yellow("    Automatically fetched species ID's and charges from %s" % args.parameter))
     print(yellow("    The charges of the species are: %s" % Charge))
 else:
     species_info_read=False
 
-<<<<<<< Updated upstream
-=======
 if not species_info_read:
     print(yellow("Parameter file [%s] not found. Please enter the required species information by hand or create a symbolic link to the parameter.ini file which was used to create the data" % args.parameter))
 
->>>>>>> Stashed changes
 InitialDataRead = True
 NbrOfFiles = len(args.files)
 for statefile in args.files :
-<<<<<<< Updated upstream
-    if statefile.endswith('.h5'):
-        #print(statefile)
-        # Flip PartData
-        GetInfoFromDataset(statefile,'PartData',NbrOfFiles,species_info_read)
-=======
     if statefile.endswith('.h5') and not statefile.endswith('_merged.h5'):
         # check if file exists
         if not os.path.exists(statefile):
@@ -405,7 +386,6 @@ for statefile in args.files :
 
         # Read data from .h5 file
         GetInfoFromDataset(statefile,'PartData',NbrOfFiles,species_info_read,CutOff)
->>>>>>> Stashed changes
     else:
         print(statefile," skipping")
 
