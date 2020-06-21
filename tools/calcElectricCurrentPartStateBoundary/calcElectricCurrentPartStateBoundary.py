@@ -409,7 +409,7 @@ print(132*"-")
 #print(data)
 if 'data' in locals():
     print("The charge data has been written to CurrentOverTime_PartStateBoundary.csv")
-    np.savetxt('CurrentOverTime_PartStateBoundary.csv', data, delimiter=',', header=myheader)
+    np.savetxt('CurrentOverTime_PartStateBoundary.csv', data, delimiter=',', header=myheader, comments='') # comments='' is required to prevent the "#" from being written in the header line
 else:
     print("No output created.")
 print(132*"-")
