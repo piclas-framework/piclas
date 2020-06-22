@@ -150,6 +150,7 @@ CALL MPI_WIN_LOCK_ALL(0,NodeVolume_Shared_Win,IERROR)
 NodeVolume => NodeVolume_Shared
 firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+NodeVolumeLoc = 0.
 #else
 ALLOCATE(NodeVolume(1:nUniqueGlobalNodes))
 firstElem = 1
@@ -176,7 +177,6 @@ DO iElem = firstElem, lastElem
     END DO; END DO; END DO
     CALL ChangeBasis3D(1,PP_N, 1, Vdm_loc, DetLocal(:,:,:,:),DetJac(:,:,:,:))
   END IF
-  print*, DetJac(1,:,:,:)
   ASSOCIATE(   &
 #if USE_MPI
              NodeVolume => NodeVolumeLoc, &
