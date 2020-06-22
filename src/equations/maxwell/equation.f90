@@ -1012,7 +1012,7 @@ REAL,INTENT(IN)                 :: t,coeff
 REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i,j,k,iElem, CNElemID
+INTEGER                         :: i,j,k,iElem,CNElemID
 REAL                            :: eps0inv, x(1:3)
 REAL                            :: r           ! for Dipole
 REAL,PARAMETER                  :: Q=1, d=1    ! for Dipole
@@ -1057,6 +1057,7 @@ IF(DoDeposition)THEN
     END DO
   ELSE
     DO iElem=1,PP_nElems
+      CNElemID = GetCNElemID(iElem+offSetElem)
       DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 #if IMPA
         PartSourceLoc=PartSource(:,i,j,k,CNElemID)+ExplicitPartSource(:,i,j,k,iElem)
