@@ -88,6 +88,7 @@ USE MOD_Particle_Vars          ,ONLY: UseAdaptive
 USE MOD_Particle_Boundary_Vars ,ONLY: nPorousBC,DoBoundaryParticleOutput
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts,NbrOfLostParticlesTotal
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetCNElemID
 #endif /*PARTICLES*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars          ,ONLY: E,Phi
@@ -202,7 +203,8 @@ ASSOCIATE (&
       PP_N         => INT(PP_N,IK)         ,&
       nGlobalElems => INT(nGlobalElems,IK) ,&
       PP_nElems    => INT(PP_nElems,IK)    ,&
-      offsetElem   => INT(offsetElem,IK)   )
+      offsetElem   => INT(offsetElem,IK)   ,&
+      PartSource => PartSource(:,:,:,:,GetCNElemID(offsetElem + 1):GetCNElemID(offSetElem+PP_nElems)))
 
   ! Write DG solution ----------------------------------------------------------------------------------------------------------------
   !nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
