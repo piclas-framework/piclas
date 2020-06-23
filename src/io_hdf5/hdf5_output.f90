@@ -205,7 +205,7 @@ ASSOCIATE (&
       PP_nElems    => INT(PP_nElems,IK)    ,&
       offsetElem   => INT(offsetElem,IK)    &
 #ifdef PARTICLES
-      ,PartSource => PartSource(:,:,:,:,GetCNElemID(offsetElem + 1):GetCNElemID(offSetElem+PP_nElems))
+      ,PartSource => PartSource(:,:,:,:,GetCNElemID(offsetElem + 1):GetCNElemID(offSetElem+PP_nElems)) &
 #endif /*PARTICLES*/
       )
 
