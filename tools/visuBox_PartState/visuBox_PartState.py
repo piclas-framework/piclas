@@ -9,8 +9,8 @@ try :
     import h5py
     h5py_module_loaded = True
 except ImportError :
-    #raise ImportError('Could not import h5py module. This is required for anaylze functions.')
-    print(tools.red('Could not import h5py module. This is required for anaylze functions.'))
+    #raise ImportError('Could not import h5py module. This is required for analyse functions.')
+    print(tools.red('Could not import h5py module. This is required for analyse functions.'))
     exit(0)
 
 

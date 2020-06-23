@@ -11,6 +11,9 @@ try:
 except NameError:
     pass
 
+def hasNumbers(inputString):
+    return bool(re.search(r'\d', inputString))
+
 def getFirst(line):
     first = line.strip("\n").split()
     if first:
@@ -49,7 +52,67 @@ def getPartInfo(line):
     return PartID, Element, SpecID 
 
 
-def CleanDoPrintStatusLine(stdfile):
+def RenameFiles(differences, stdfile, stdfile_backup, stdfile_new, args):
+
+    # Check if differences exist (nLostParts or changedLines)
+    if differences > 0:
+        # Only create backup file if it does not exist (i.e. prevent over-writing backup files from other clean-up functions in the tool)
+        if not os.path.exists(stdfile_backup):
+            os.rename(stdfile, stdfile_backup) # backup original file (only once)
+        os.rename(stdfile_new, stdfile)        # replace original file with cleaned file
+    else :
+        os.remove(stdfile_new) # remove new file (it is empty when no particles were lost)
+
+    # Check if user has supplied the flag for backup file removal and the file actually exists
+    if args.clean and os.path.exists(stdfile_backup):
+        os.remove(stdfile_backup) # remove backup file
+
+
+def CleanSingleLines(stdfile,args):
+    '''Remove lines such as
+     1. [ REACTION       85084           5           1]
+     2. [ CALCULATING THE ADAPTIVE SURFACE FLUX VALUES... Number of sampled particles:   0.0000000000000000     ]
+     3. [   3382.0000000000000        1694.4798966228368]
+    '''
+
+    stdfile_new    = stdfile+".new"
+    stdfile_backup = stdfile+".bak"
+
+    # 1. Read the original file content
+    with open(stdfile) as input:
+        lines = input.readlines()
+
+    # REACTION       85084           5           1
+    n=0
+    changedLines=0
+    with open(stdfile_new, "w") as output_new:
+        for line in lines:
+            n+=1
+            #if all(c in line.strip("\n") for c in arr):
+            line_stripped = line.strip("\n")
+            line_split = line_stripped.split()
+            if line_stripped.startswith(' REACTION') and hasNumbers(line_stripped):
+                # 1. [ REACTION       85084           5           1]
+                # Ignore this line and increase the counter by 1
+                changedLines+=1
+            elif line_stripped.startswith(' CALCULATING THE ADAPTIVE SURFACE FLUX VALUES') and hasNumbers(line_stripped):
+                # 2. [ CALCULATING THE ADAPTIVE SURFACE FLUX VALUES... Number of sampled particles:   0.0000000000000000     ]
+                # Ignore this line and increase the counter by 1
+                changedLines+=1
+            elif line_stripped.count(' ') > 9 and len(line_split) == 2 and all(x.replace('.', '', 1).isdigit() for x in line_split):
+                # 3. [   3382.0000000000000        1694.4798966228368]
+                # Ignore this line and increase the counter by 1
+                changedLines+=1
+            else:
+                # Write the line to the new (clean) file
+                output_new.write(line)
+
+    # 3. Rename files
+    RenameFiles(changedLines, stdfile, stdfile_backup, stdfile_new, args)
+
+    return changedLines
+
+def CleanDoPrintStatusLine(stdfile,args):
 
     stdfile_new    = stdfile+".new"
     stdfile_backup = stdfile+".bak"
@@ -74,21 +137,23 @@ def CleanDoPrintStatusLine(stdfile):
         for line in lines:
             n+=1
             if all(c in line.strip("\n") for c in arr):
+                # Ignore this line and increase the counter by 1
                 changedLines+=1
             else:
+                # Write the line to the new (clean) file
                 output_new.write(line)
             
 
     # 3. Rename files
-    if changedLines > 0:
-        os.rename(stdfile, stdfile_backup) # backup original file
-        os.rename(stdfile_new, stdfile)    # replace original file with cleaned file
-    else :
-        os.remove(stdfile_new)         # remove new file (is empty when no particles were lost)
+    RenameFiles(changedLines, stdfile, stdfile_backup, stdfile_new, args)
 
     return changedLines
 
-def CleanLostParticles(stdfile):
+def CleanLostParticles(stdfile,args):
+
+    if not os.path.exists(stdfile):
+        print("Error: the file does not exist : %s" % stdfile)
+        exit(1)
 
     stdfile_lost   = stdfile+".lost"
     stdfile_new    = stdfile+".new"
@@ -268,26 +333,25 @@ def CleanLostParticles(stdfile):
         # 2.8. Close .h5 data file
         f1.close()
 
-
-
     # 3. Rename files
-    if nLostParts > 0:
-        os.rename(stdfile, stdfile_backup) # backup original file
-        os.rename(stdfile_new, stdfile)    # replace original file with cleaned file
-    else :
-        os.remove(stdfile_new)         # remove new file (is empty when no particles were lost)
-    os.remove(stdfile_lost)            # remove lost file (is empty when no particles were lost)
+    RenameFiles(nLostParts, stdfile, stdfile_backup, stdfile_new, args)
+    os.remove(stdfile_lost) # remove lost file (is empty when no particles were lost)
 
     return nLostParts
 
 
-def CleanFile(stdfile) :
+def CleanFile(stdfile,args) :
+
+    changedLines = 0
 
     # 1.  Remove lost particles from std.out file and write them to a .h5 file
-    nLostParts = CleanLostParticles(stdfile)
+    nLostParts = CleanLostParticles(stdfile,args)
 
     # 2.  Remove remnants of DoPrintStatusLine=T
-    changedLines = CleanDoPrintStatusLine(stdfile)
+    changedLines += CleanDoPrintStatusLine(stdfile,args)
+
+    # 3.  Remove lines containing: "REACTION       85084           5           1"
+    changedLines += CleanSingleLines(stdfile,args)
 
     return nLostParts, changedLines
 
@@ -328,7 +392,7 @@ try :
     import h5py
     h5py_module_loaded = True
 except ImportError :
-    print(red('Could not import h5py module. This is required for anaylze functions.'))
+    print(red('Could not import h5py module. This is required for handling .h5 files.'))
     exit(0)
 
 # Start the timer
@@ -337,7 +401,8 @@ start = timer()
 """get command line arguments"""
 parser = argparse.ArgumentParser(description='DESCRIPTION:\nTool for cleaning std*.out files.\nSupply a single file or a group of files by using the wildcard "*", e.g. std* for a list of file names.', formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument('files', type=str, help='Files (std*.out) that are to be cleaned.', nargs='+')
-parser.add_argument('-d', '--debug', action='store_true', help='Print additional imformation regarding the files onto screen.')
+parser.add_argument('-d', '--debug', action='store_true', help='Print additional information regarding the files onto screen.')
+parser.add_argument('-c', '--clean', action='store_true', help='Clean-up afterwards by removing any *.bak backup files.')
 
 # Get command line arguments
 args = parser.parse_args()
@@ -348,7 +413,6 @@ print("Running with the following command line options")
 for arg in list(args.__dict__) :
     print(arg.ljust(15)+" = [ "+str(getattr(args,arg))+" ]")
 print('='*132)
-
 
 # Get maximum number of characters in h5 file names
 max_length=0
@@ -365,12 +429,15 @@ NbrOfFiles = len(args.files)
 ext = ['.new', '.lost', '.h5', '.bak']
 
 for stdfile in args.files :
+    # Check if file can be skipped, see variable "ext" with all file extensions that are to be ignored
     if stdfile.endswith(tuple(ext)):
         print("%s " % stdfile + yellow("(skipping)"))
         continue
 
-    nLostParts, changedLines = CleanFile(stdfile)
+    # Clean-up the current file
+    nLostParts, changedLines = CleanFile(stdfile,args)
 
+    # Display results
     if nLostParts > 0:
         if changedLines > 0:
             print("%s " % stdfile + red("Lost %s particles" % nLostParts) + " Written particles to %s-lost-particles.h5" % stdfile + red(" and removed %s lines" % changedLines))

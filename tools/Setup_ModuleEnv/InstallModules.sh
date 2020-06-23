@@ -52,6 +52,9 @@ if [ ! -d "${MODULESHOME}" ]; then
       make install 2>&1 | tee install.out
     fi
 
+    # Copy initialization to /etc/profile
+    #   /etc/profile: system-wide .profile file for the Bourne shell (sh(1))
+    #   and Bourne compatible shells (bash(1), ksh(1), ash(1), ...).
     if [ -z "$(grep "if.*Modules.*${MODULEVERSION}.*init.*bash.*then" /etc/profile)" ]; then
       sed -i '1 i\if [ -f /opt/modules/'${MODULEVERSION}'/Modules/'${MODULEVERSION}'/init/bash ]; then' /etc/profile
       sed -i '2 i\  . /opt/modules/'${MODULEVERSION}'/Modules/'${MODULEVERSION}'/init/bash' /etc/profile
@@ -60,6 +63,9 @@ if [ ! -d "${MODULESHOME}" ]; then
       echo "modules init already exists in /etc/profile"
       exit
     fi
+
+    # Copy initialization to /etc/bash.bashrc
+    #   System-wide .bashrc file for interactive bash(1) shells.
     if [ -z "$(grep "if.*Modules.*${MODULEVERSION}.*init.*bash.*then" /etc/bash.bashrc)" ]; then
       sed -i '1 i\if [ -f /opt/modules/'${MODULEVERSION}'/Modules/'${MODULEVERSION}'/init/bash ]; then' /etc/bash.bashrc
       sed -i '2 i\  . /opt/modules/'${MODULEVERSION}'/Modules/'${MODULEVERSION}'/init/bash' /etc/bash.bashrc
