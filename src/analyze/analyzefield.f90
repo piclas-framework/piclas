@@ -190,11 +190,11 @@ IF(CalcPoyntingInt) CALL CalcPoyntingIntegral(PoyntingIntegral,doProlong=.TRUE.)
 IF(MPIROOT)THEN
   WRITE(unit_index,'(E23.16E3)',ADVANCE='NO') Time
   IF (CalcEpot) THEN
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WEl
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WMag
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WPhi
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WPsi
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WEl + WMag + WPhi + WPsi
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WEl
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WMag
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WPhi
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WPsi
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WEl + WMag + WPhi + WPsi
   END IF
   IF(CalcPoyntingInt)THEN
     DO iPlane=1,nPoyntingIntPlanes
