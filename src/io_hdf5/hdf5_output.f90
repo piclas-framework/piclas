@@ -481,7 +481,8 @@ SUBROUTINE WriteAdditionalElemData(FileName,ElemList)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars     ,ONLY:offsetElem,nGlobalElems,nElems
+USE MOD_Mesh_Vars        ,ONLY: offsetElem,nGlobalElems,nElems
+USE MOD_LoadBalance_Vars ,ONLY: ElemTime,NullifyElemTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -556,6 +557,11 @@ ASSOCIATE (&
 END ASSOCIATE
 DEALLOCATE(ElemData,StrVarNames)
 
+! Check if ElemTime is to be nullified (required after user-restart)
+! After writing the old ElemTime values to disk, the array must be nullified (because they correspond to the restart file, which
+! might have been created with a totally different processor number and distribution)
+IF(NullifyElemTime) ElemTime=0.
+
 END SUBROUTINE WriteAdditionalElemData
 
 
@@ -580,7 +586,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: nElems
 USE MOD_HDF5_Input       ,ONLY: ReadArray
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars ,ONLY: ElemTime,ElemTime_tmp
+USE MOD_LoadBalance_Vars ,ONLY: ElemTime,ElemTime_tmp,NullifyElemTime
 USE MOD_Restart_Vars     ,ONLY: DoRestart
 USE MOD_Mesh_Vars        ,ONLY: nGlobalElems,offsetelem
 #endif /*USE_LOADBALANCE*/
@@ -639,12 +645,14 @@ IF(nVar.NE.1) CALL abort(&
 
 #if USE_LOADBALANCE
 ! Check if ElemTime is all zeros and if this is a restart (save the old values)
+NullifyElemTime=.FALSE.
 IF((MAXVAL(ElemData).LE.0.0)          .AND.& ! Restart
     DoRestart                         .AND.& ! Restart
     (TRIM(ElemDataName).EQ.'ElemTime').AND.& ! only for ElemTime array
     ALLOCATED(ElemTime_tmp))THEN             ! only allocated when not starting simulation from zero
   ! Additionally, store old values in ElemData container
   ElemTime = ElemTime_tmp
+  NullifyElemTime=.TRUE. ! Set array to 0. after ElemData is written (but before ElemTime is measured again)
 
   ! Write 'ElemTime' container
   ASSOCIATE (&
@@ -659,6 +667,7 @@ IF((MAXVAL(ElemData).LE.0.0)          .AND.& ! Restart
                             offset          = (/0_IK,offsetElem  /),&
                             collective      = .TRUE.,RealArray        = ElemTime_tmp)
   END ASSOCIATE
+
 ELSE
   ASSOCIATE (&
         nVar         => INT(nVar,IK)         ,&

@@ -1351,8 +1351,7 @@ USE MOD_Globals
 USE MOD_Particle_MPI_Vars           ,ONLY: PartMPIExchange
 #endif  /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
-USE MOD_LoadBalance_Timers          ,ONLY: LBElemSplitTime_avg
+USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 USE MOD_PICDepo_Method              ,ONLY: DepositionMethod
 !-----------------------------------------------------------------------------------------------------------------------------------
