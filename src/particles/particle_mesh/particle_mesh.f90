@@ -433,7 +433,7 @@ SUBROUTINE InitParticleGeometry()
 ! Subroutine for particle geometry initialization (GEO container)
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nElems, nNodes
@@ -1613,7 +1613,7 @@ SUBROUTINE GetFIBGM(ElemToBGM)
 ! mode 2: rebuild BGM including HALO region
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Partilce_Periodic_BC ,ONLY: InitPeriodicBC
 USE MOD_Particle_Mesh_Vars   ,ONLY: GEO
@@ -2353,7 +2353,7 @@ SUBROUTINE AddHALOCellsToFIBGM(ElemToBGM,HaloElemToBGM)
 ! remap all elements including halo-elements into FIBGM
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Globals                                                        ! ,            ONLY : UNIT_StdOut
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis2D
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,nTotalElems
@@ -2649,7 +2649,7 @@ SUBROUTINE WeirdElementCheck()
 ! tl;dr: Hard/maybe impossible to fix, hence only a warning is given so the user can decide
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, WeirdElems
@@ -6487,7 +6487,7 @@ SUBROUTINE MarkAuxBCElems()
 ! -- plane: use plane equation f=a1*x+a2*y+a3*z+a4=0 and insert corresponding intervals of box -> fmin and fmax
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHasAuxBCs,GEO
 USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone
@@ -6751,7 +6751,7 @@ END SUBROUTINE CheckBoundsWithCartRadius
 SUBROUTINE SetHaloInfo()
 ! MODULES                                                                                                                          !
 USE MOD_GLobals
-USE MOD_Preproc            ,ONLY: PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemHaloInfoProc
 USE MOD_Particle_MPI_Vars  ,ONLY: PartHaloElemToProc,PartMPI
 USE MOD_Particle_Mesh_Vars ,ONLY: nTotalElems

@@ -793,7 +793,7 @@ SUBROUTINE GetRefNewtonStartValue(X_in,Xi,ElemID)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Preproc,                 ONLY:PP_N,PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingGuess,RefMappingEps
 USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,slenXiEtaZetaBasis
 USE MOD_Mesh_Vars,               ONLY:Elem_xGP,XCL_NGeo

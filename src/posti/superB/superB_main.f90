@@ -37,7 +37,7 @@ USE MOD_Globals
 USE MOD_SuperB_PermMag
 USE MOD_SuperB_Coil
 USE MOD_SuperB_Vars
-USE MOD_Preproc               ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Interpolation_Vars    ,ONLY: BGType, BGField, BGFieldAnalytic, BGFieldVTKOutput, BGDataSize, PsiMag

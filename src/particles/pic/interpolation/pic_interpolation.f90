@@ -52,7 +52,7 @@ SUBROUTINE InitializeParticleInterpolation
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PreProc,                ONLY:PP_nElems
+USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_Particle_Vars,          ONLY : PDM
 USE MOD_PICInterpolation_Vars
@@ -161,7 +161,7 @@ SUBROUTINE InterpolateFieldToParticle(DoInnerParts)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: PartPosRef,PDM,PartState,PEM,PartPosGauss,DoFieldIonization
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Part_Tools             ,ONLY: isInterpolateParticle
@@ -679,7 +679,7 @@ SUBROUTINE InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Particle_Vars,           ONLY:PartPosRef,PDM,PartState,PEM,PartPosGauss
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 #if !(USE_HDG)

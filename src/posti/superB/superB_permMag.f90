@@ -58,7 +58,7 @@ SUBROUTINE CalculateCuboidMagneticPotential(iMagnet)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars       ,ONLY: PI
-USE MOD_Preproc            ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights
 USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput, PsiMag
@@ -144,7 +144,7 @@ DO iElem=1,nElems
       psiMagTemp = psiMagTemp + wGP(ii) * wGP(jj) / (4 * PI) / dist *&
                    DOT_PRODUCT(normalUnitVector12, PermanentMagnetInfo(iMagnet)%Magnetisation)
 
-      ! Side with kk=N
+      ! Side with kk=PP_N
       ! Calculate the magnet node
       magnetNode(:) = PermanentMagnetInfo(iMagnet)%BasePoint(:) +&
                       vector1(:) / 2. * (1 + xGP(ii)) +&
@@ -179,7 +179,7 @@ DO iElem=1,nElems
       psiMagTemp = psiMagTemp + wGP(ii) * wGP(kk) / (4 * PI) / dist *&
                    DOT_PRODUCT(normalUnitVector13, PermanentMagnetInfo(iMagnet)%Magnetisation)
 
-      ! Side with jj=N
+      ! Side with jj=PP_N
       ! Calculate the magnet node
       magnetNode(:) = PermanentMagnetInfo(iMagnet)%BasePoint(:) +&
                       vector1(:) / 2. * (1 + xGP(ii)) +&
@@ -214,7 +214,7 @@ DO iElem=1,nElems
       psiMagTemp = psiMagTemp + wGP(jj) * wGP(kk) / (4 * PI) / dist *&
                    DOT_PRODUCT(normalUnitVector23, PermanentMagnetInfo(iMagnet)%Magnetisation)
 
-      ! Side with ii=N
+      ! Side with ii=PP_N
       ! Calculate the magnet node
       magnetNode(:) = PermanentMagnetInfo(iMagnet)%BasePoint(:) +&
                       vector2(:) / 2. * (1 + xGP(jj)) +&
@@ -275,7 +275,7 @@ SUBROUTINE CalculateSphericMagneticPotential(iMagnet)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars       ,ONLY: PI
-USE MOD_Preproc            ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights
 USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput, PsiMag
@@ -1009,7 +1009,7 @@ INTEGER              :: ExactFunctionNumber    ! Number of exact function to be 
 !===================================================================================================================================
 
 ! Compute the polynomial derivative Matrix
-CALL PolynomialDerivativeMatrix(N,xGP,D)
+CALL PolynomialDerivativeMatrix(PP_N,xGP,D)
 
 DO iElem=1,PP_nElems
   ! Compute the gradient in the reference system
@@ -1028,9 +1028,9 @@ DO iElem=1,PP_nElems
     END DO !k
   END DO !l
   ! Transform the gradients from the reference system to the xyz-System. Only exact for cartesian mesh!
-  DO k=0,N
-    DO j=0,N
-      DO i=0,N
+  DO k=0,PP_N
+    DO j=0,PP_N
+      DO i=0,PP_N
         HField(1,i,j,k,iElem) = -1 * sJ(i,j,k,iElem) * (&
                                  Metrics_fTilde(1,i,j,k,iElem) * gradPsi_xi(i,j,k)   +&
                                  Metrics_gTilde(1,i,j,k,iElem) * gradPsi_eta(i,j,k)  +&

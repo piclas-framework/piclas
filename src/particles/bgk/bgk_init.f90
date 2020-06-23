@@ -96,7 +96,7 @@ SUBROUTINE InitBGK()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_BGK_Vars
-USE MOD_Preproc               ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: nElems, NGeo
 USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, VarTimeStep
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting

@@ -53,7 +53,7 @@ USE MOD_Basis                  ,ONLY: ComputeBernsteinCoeff
 USE MOD_Basis                  ,ONLY: BarycentricWeights,InitializeVandermonde
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-USE MOD_PreProc                ,ONLY: PP_N,PP_nElems
+USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
