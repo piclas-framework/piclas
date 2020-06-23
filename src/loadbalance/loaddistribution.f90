@@ -1181,7 +1181,7 @@ IF(WriteHeader)THEN ! create new file
 
   WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
   WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
-  tmpStr2(1:1) = " "                           ! remove possible relimiter at the beginning (e.g. a comma)
+  tmpStr2(1:1) = " "                           ! remove possible delimiter at the beginning (e.g. a comma)
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
 
   CLOSE(ioUnit)
