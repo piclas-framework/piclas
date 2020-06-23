@@ -1108,6 +1108,10 @@ USE MOD_Globals_Vars     ,ONLY: SimulationEfficiency,PID,WallTime,Initialization
 USE MOD_Restart_Vars     ,ONLY: DoRestart
 USE MOD_Globals          ,ONLY: abort
 USE MOD_Globals          ,ONLY: nProcessors
+USE MOD_LoadBalance_Vars ,ONLY: ElemTimeField
+#ifdef PARTICLES
+USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
+#endif /*PARTICLES*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -1119,22 +1123,34 @@ INTEGER(KIND=8),INTENT(IN),OPTIONAL :: iter
 REAL                                     :: time_loc
 CHARACTER(LEN=22),PARAMETER              :: outfile='ElemTimeStatistics.csv'
 INTEGER                                  :: ioUnit,I
-CHARACTER(LEN=50)                        :: formatStr
+CHARACTER(LEN=150)                       :: formatStr
+#ifdef PARTICLES
+REAL                                     :: SumElemTime,ElemTimeFieldPercent,ElemTimePartPercent
+INTEGER,PARAMETER                        :: nOutputVar=16
+#else
 INTEGER,PARAMETER                        :: nOutputVar=12
+#endif /*PARTICLES*/
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
-    'time', &
-    'Procs', &
-    'MinWeight', &
-    'MaxWeight', &
-    'CurrentImbalance', &
-    'TargetWeight (mean)', &
-    'nLoadBalanceSteps', &
-    'WeightSum', &
-    'SimulationEfficiency',&
-    'PID', &
-    'SimulationWallTime',&
-    'InitializationWallTime'/)
-CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called multiple times at the beginning
+    'time'                   , &
+    'Procs'                  , &
+    'MinWeight'              , &
+    'MaxWeight'              , &
+    'CurrentImbalance'       , &
+    'TargetWeight (mean)'    , &
+    'nLoadBalanceSteps'      , &
+    'WeightSum'              , &
+    'SimulationEfficiency'   , &
+    'PID'                    , &
+    'SimulationWallTime'     , &
+    'InitializationWallTime'   &
+#ifdef PARTICLES
+  , 'FieldTime'              , &
+    'PartTime'               , &
+    'FieldTimePercent'       , &
+    'PartTimePercent'          &
+#endif /*PARTICLES*/
+    /)
+CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called mutiple times at the beginning
 CHARACTER(LEN=1000)                      :: tmpStr2
 CHARACTER(LEN=1),PARAMETER               :: delimiter=","
 !===================================================================================================================================
@@ -1175,6 +1191,19 @@ ELSE !
   ELSE
     time_loc=time
   END IF
+#ifdef PARTICLES
+  ! Calculate elem time proportions for field and particle routines
+  SumElemTime=ElemTimeField
+  SumElemTime=SumElemTime+ElemTimePart
+  IF(SumElemTime.LE.0.)THEN
+    ElemTimeFieldPercent = 0.
+    ElemTimePartPercent  = 0.
+  ELSE
+    ElemTimeFieldPercent = 100. * ElemTimeField / SumElemTime
+    ElemTimePartPercent  = 100. * ElemTimePart / SumElemTime
+  END IF ! ElemTimeField+ElemTimePart.LE.0.
+#endif /*PARTICLES*/
+
   IF(FILEEXISTS(outfile))THEN
     OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
     WRITE(formatStr,'(A2,I2,A14,A1)')'(',nOutputVar,CSVFORMAT,')'
@@ -1190,7 +1219,14 @@ ELSE !
         delimiter,SimulationEfficiency,&
         delimiter,PID,&
         delimiter,WallTime,&
-        delimiter,InitializationWallTime
+        delimiter,InitializationWallTime&
+#ifdef PARTICLES
+       ,delimiter,ElemTimeField,&
+        delimiter,ElemTimePart,&
+        delimiter,ElemTimeFieldPercent,&
+        delimiter,ElemTimePartPercent
+#endif /*PARTICLES*/
+    ; ! this is required for terminating the "&" when particles=off
     WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
     CLOSE(ioUnit)
   ELSE

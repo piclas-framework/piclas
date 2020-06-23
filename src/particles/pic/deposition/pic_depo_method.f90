@@ -234,8 +234,7 @@ USE MOD_PICDepo_Vars          ,ONLY: PartSource,gaussborder
 USE MOD_Particle_Vars         ,ONLY: PartState
 !#endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
-USE MOD_LoadBalance_Timers    ,ONLY: LBElemSplitTime_avg
+USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
 USE MOD_Interpolation_Vars    ,ONLY: wGP
 USE MOD_Mesh_Vars             ,ONLY: sJ
@@ -377,7 +376,7 @@ USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_PICDepo_Vars       ,ONLY: PartSource
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
+USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Part_Tools         ,ONLY: isDepositParticle
@@ -494,7 +493,7 @@ USE MOD_Particle_Vars          ,ONLY: PartState
 USE MOD_PICDepo_Vars           ,ONLY: PartSource,CellVolWeight_Volumes
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 USE MOD_LoadBalance_Timers     ,ONLY: LBElemSplitTime_avg
 #endif /*USE_LOADBALANCE*/
 USE MOD_Mesh_Vars              ,ONLY: nElems
@@ -1107,8 +1106,7 @@ USE MOD_Particle_MPI_Vars  ,ONLY: ExtPartState,ExtPartSpecies,ExtPartToFIBGM,Ext
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
-USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
-USE MOD_LoadBalance_Timers ,ONLY: LBElemSplitTime_avg
+USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars ,ONLY: NbrOfCases,casematrix
@@ -1384,8 +1382,7 @@ USE MOD_Particle_MPI_Vars           ,ONLY: ExtPartState,ExtPartSpecies,ExtPartTo
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars            ,ONLY: nDeposPerElem
-USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
-USE MOD_LoadBalance_Timers          ,ONLY: LBElemSplitTime_avg
+USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Mesh_Vars          ,ONLY: GEO,casematrix, NbrOfCases
 USE MOD_Mesh_Vars                   ,ONLY: nElems
@@ -1725,8 +1722,7 @@ USE MOD_PICDepo_Vars       ,ONLY: PartSource,Vdm_EquiN_GaussN,SfRadiusInt,r_sf_s
 USE MOD_PICDepo_Vars       ,ONLY: ElemDepo_xGP,DoSFEqui,alpha_sf,w_sf
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
-USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
-USE MOD_LoadBalance_Timers ,ONLY: LBElemSplitTime_avg
+USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,casematrix, NbrOfCases
 #if USE_MPI
