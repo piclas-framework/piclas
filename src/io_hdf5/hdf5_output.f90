@@ -203,8 +203,11 @@ ASSOCIATE (&
       PP_N         => INT(PP_N,IK)         ,&
       nGlobalElems => INT(nGlobalElems,IK) ,&
       PP_nElems    => INT(PP_nElems,IK)    ,&
-      offsetElem   => INT(offsetElem,IK)   ,&
-      PartSource => PartSource(:,:,:,:,GetCNElemID(offsetElem + 1):GetCNElemID(offSetElem+PP_nElems)))
+      offsetElem   => INT(offsetElem,IK)    &
+#ifdef PARTICLES
+      ,PartSource => PartSource(:,:,:,:,GetCNElemID(offsetElem + 1):GetCNElemID(offSetElem+PP_nElems))
+#endif /*PARTICLES*/
+      )
 
   ! Write DG solution ----------------------------------------------------------------------------------------------------------------
   !nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
