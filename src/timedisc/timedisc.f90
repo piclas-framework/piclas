@@ -733,6 +733,7 @@ USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, Delay
                                       doParticleMerge,DoFieldIonization
 USE MOD_PICModels              ,ONLY: FieldIonization
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_DSMC                   ,ONLY: DSMC_main
@@ -812,7 +813,7 @@ IF (time.GE.DelayTime) THEN
   ! can be used to hide sending of number of particles
   CALL InterpolateFieldToParticle(DoInnerParts=.TRUE.)
   IF(DoFieldIonization) CALL FieldIonization()
-  CALL CalcPartRHS()
+  IF(DoInterpolation) CALL CalcPartRHS()
 END IF
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_INTERPOLATION,tLBStart)
@@ -993,7 +994,7 @@ DO iStage=2,nRKStages
     CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
     CALL InterpolateFieldToParticle(DoInnerParts=.FALSE.)
-    CALL CalcPartRHS()
+    IF(DoInterpolation) CALL CalcPartRHS()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1820,7 +1821,7 @@ END IF
 
 IF (time.GE.DelayTime) THEN
   CALL InterpolateFieldToParticle()
-  CALL CalcPartRHS()
+  IF(DoInterpolation) CALL CalcPartRHS()
 END IF
 ! particles
 LastPartPos(1:3,1:PDM%ParticleVecLength)=PartState(1:3,1:PDM%ParticleVecLength)
@@ -1925,7 +1926,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
-USE MOD_part_RHS               ,ONLY: CalcPartRHS,PartVeloToImp
+USE MOD_part_RHS               ,ONLY: PartVeloToImp
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
@@ -2838,7 +2839,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
-USE MOD_part_RHS               ,ONLY: CalcPartRHS,PartVeloToImp
+USE MOD_part_RHS               ,ONLY: PartVeloToImp
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
@@ -3894,7 +3895,6 @@ USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,Partic
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
-USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3970,7 +3970,7 @@ IF (time.GE.DelayTime) THEN
   CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
   !-- get a(x(n))
-  CALL CalcPartRHS()
+  IF(DoInterpolation) CALL CalcPartRHS()
   IF (CalcCoupledPower) PCoupl = 0. ! if output of coupled power is active: reset PCoupl
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
@@ -4082,7 +4082,7 @@ IF (time.GE.DelayTime) THEN
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
-    CALL CalcPartRHS()
+    IF(DoInterpolation) CALL CalcPartRHS()
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         !-- v(n+0.5) => v(n+1) by a(n+1):
@@ -4280,7 +4280,7 @@ IF (time.GE.DelayTime) THEN
       dtFrac = dt
       IF (PDM%IsNewPart(iPart)) THEN
         ! Don't push the velocity component of neutral particles!
-        IF(isPushParticle(iPart))THEN
+        IF(isPushParticle(iPart).AND.DoInterpolation)THEN
             !-- Shift particle velocity back in time by half a time step dt/2.
             !-- get Pt(1:3,iPart) = a(x(n))
             CALL CalcPartRHSSingleParticle(iPart)
@@ -4291,7 +4291,7 @@ IF (time.GE.DelayTime) THEN
         PDM%IsNewPart(iPart)=.FALSE. !IsNewPart-treatment is now done
       END IF
 
-      IF(isPushParticle(iPart))THEN ! Don't push the velocity component of neutral particles!
+      IF(isPushParticle(iPart).AND.DoInterpolation)THEN ! Don't push the velocity component of neutral particles!
         !-- v(n-0.5) => v(n+0.5) by a(n):
         !PartState(4:6,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dt
 
@@ -4361,7 +4361,7 @@ IF (time.GE.DelayTime) THEN
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
-    CALL CalcPartRHS()
+    IF(DoInterpolation) CALL CalcPartRHS()
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         !-- v(n+0.5) => v(n+1) by a(n+1):
@@ -4577,7 +4577,7 @@ IF (time.GE.DelayTime) THEN
   CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
   IF(DoFieldIonization) CALL FieldIonization()
-  CALL CalcPartRHS()
+  IF(DoInterpolation) CALL CalcPartRHS()
   IF (CalcCoupledPower) PCoupl = 0. ! if output of coupled power is active: reset PCoupl
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
@@ -4742,7 +4742,7 @@ DO iStage=2,nRKStages
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
-    CALL CalcPartRHS()
+    IF(DoInterpolation) CALL CalcPartRHS()
     ! particle step
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
