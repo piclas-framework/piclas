@@ -2557,6 +2557,7 @@ SUBROUTINE InitializeVariablesImplicit()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars
+USE MOD_TimeDisc_Vars ,ONLY: nRKStages
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2664,13 +2665,13 @@ __STAMP__&
   ,' Cannot allocate PartDtFrac arrays!')
 END IF
 PartDtFrac=1.
-ALLOCATE(PEM%GlobalElemIDN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
+ALLOCATE(PEM%GlobalElemID(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
  __STAMP__&
    ,' Cannot allocate the stage position and element arrays!')
 END IF
-PEM%GlobalElemIDN=0
+PEM%GlobalElemID=0
 ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
@@ -2702,13 +2703,13 @@ __STAMP__&
   ,' Cannot allocate PartDtFrac arrays!')
 END IF
 PartDtFrac=1.
-ALLOCATE(PEM%GlobalElemIDN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
+ALLOCATE(PEM%GlobalElemID(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
  __STAMP__&
    ,' Cannot allocate the stage position and element arrays!')
 END IF
-PEM%GlobalElemIDN=0
+PEM%GlobalElemID=0
 ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
@@ -3045,7 +3046,7 @@ SDEALLOCATE(PartStage)
 SDEALLOCATE(PartStateN)
 SDEALLOCATE(PartQ)
 SDEALLOCATE(PartDtFrac)
-SDEALLOCATE(PEM%GlobalElemIDN)
+SDEALLOCATE(PEM%GlobalElemID)
 SDEALLOCATE(PEM%NormVec)
 SDEALLOCATE(PEM%PeriodicMoved)
 #endif /*defined(ROS) || defined(IMPA)*/

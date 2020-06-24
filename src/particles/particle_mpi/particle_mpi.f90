@@ -604,7 +604,7 @@ USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_Timedisc_Vars,           ONLY:iStage
 #endif /*ROS or IMPLICIT*/
 #if defined(IMPA)
-USE MOD_Particle_Vars,           ONLY:F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton &
+USE MOD_Particle_Vars,           ONLY:F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton
 USE MOD_Particle_Vars,           ONLY:PartDeltaX,PartLambdaAccept
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif /*IMPA*/
@@ -747,7 +747,7 @@ DO iProc=0,nExchangeProcessors-1
         PartSendBuf(iProc)%content(jPos+1) = 0.
       END IF
       jPos=jPos+1
-      >> FieldAtParticle
+      !>> FieldAtParticle
       PartSendBuf(iProc)%content(jPos+1:jPos+6) = FieldAtParticle(1:6,iPart)
       jPos=jPos+6
       !>> particle normVector
@@ -755,7 +755,7 @@ DO iProc=0,nExchangeProcessors-1
       PEM%NormVec(1:3,iPart) = 0.
       jPos=jPos+3
       !>> particle elmentN
-      PartSendBuf(iProc)%content(jPos+1) = REAL(ElemToGlobalElemID(PEM%GlobalElemIDN(iPart)))
+      PartSendBuf(iProc)%content(jPos+1) = REAL(ElemToGlobalElemID(PEM%GlobalElemID(iPart)))
       jPos=jPos+1
       !>> periodic movement
       IF (PEM%PeriodicMoved(iPart)) THEN
@@ -1125,14 +1125,14 @@ USE MOD_Mesh_Vars              ,ONLY: OffSetElem
 #if defined(ROS) || defined(IMPA)
 USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK
 USE MOD_Particle_Vars          ,ONLY: PartStateN,PartStage,PartDtFrac,PartQ
-USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems
+!USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToGlobalElemID
 USE MOD_Particle_MPI_Vars      ,ONLY: PartCommSize0
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 USE MOD_Timedisc_Vars          ,ONLY: iStage
 #endif /*ROS or IMPA*/
 #if defined(IMPA)
-USE MOD_Particle_Vars          ,ONLY: F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton &
+USE MOD_Particle_Vars          ,ONLY: F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton
 USE MOD_Particle_Vars          ,ONLY: PartDeltaX,PartLambdaAccept
 USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
 #endif /*IMPA*/
@@ -1281,25 +1281,25 @@ DO iProc=0,nExchangeProcessors-1
     jPos=jPos+3
     !>> particle elmentN
     LocElemID = INT(PartRecvBuf(iProc)%content(jPos+1),KIND=4)
-    IF((LocElemID-OffSetElem.GE.1).AND.(LocElemID-OffSetElem.LE.nElems))THEN
-      PEM%GlobalElemIDN(PartID)=LocElemID-OffSetElem
+    IF((LocElemID-OffSetElem.GE.1).AND.(LocElemID-OffSetElem.LE.PP_nElems))THEN
+      PEM%GlobalElemID(PartID)=LocElemID-OffSetElem
     ELSE
-      ! TODO: This is still broken, halo elems are no longer behind nElems
-      CALL ABORT(__STAMP__,'External particles not yet supported with new halo region)
+      ! TODO: This is still broken, halo elems are no longer behind PP_nElems
+      CALL ABORT(__STAMP__,'External particles not yet supported with new halo region')
 
-!       PEM%GlobalElemIDN(PartID)=0
+!       PEM%GlobalElemID(PartID)=0
 !       DO iElem=PP_nElems+1,nTotalElems
 !         IF(ElemToGlobalElemID(iElem).EQ.LocElemID)THEN
-!           PEM%GlobalElemIDN(PartID)=iElem
+!           PEM%GlobalElemID(PartID)=iElem
 !           EXIT
 !         END IF
 !       END DO ! iElem=1,nTotalElems
-!       IF(PEM%GlobalElemIDN(PartID).EQ.0)THEN
+!       IF(PEM%GlobalElemID(PartID).EQ.0)THEN
 !         CALL ABORT(&
 !           __STAMP__&
-!           ,'Error with IsNewPart in MPIParticleRecv: PEM%GlobalElemIDN(PartID) = 0!')
+!           ,'Error with IsNewPart in MPIParticleRecv: PEM%GlobalElemID(PartID) = 0!')
 !       END IF
-!     END IF
+    END IF
     ! END TODO
     jPos=jPos+1
     !>> periodic movement

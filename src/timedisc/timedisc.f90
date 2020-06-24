@@ -2126,7 +2126,7 @@ IF(time.GE.DelayTime)THEN
   ! velocity to impulse
   CALL PartVeloToImp(VeloToImp=.TRUE.)
   PartStateN(1:6,1:PDM%ParticleVecLength)=PartState(1:6,1:PDM%ParticleVecLength)
-  PEM%GlobalElemIDN(1:PDM%ParticleVecLength)  =PEM%GlobalElemID(1:PDM%ParticleVecLength)
+  PEM%GlobalElemID(1:PDM%ParticleVecLength)  =PEM%GlobalElemID(1:PDM%ParticleVecLength)
   IF(PartMeshHasReflectiveBCs) PEM%NormVec(1:3,1:PDM%ParticleVecLength) =0.
   PEM%PeriodicMoved(1:PDM%ParticleVecLength) = .FALSE.
   IF(iter.EQ.0)THEN ! caution with emission: fields should also be interpolated to new particles, this is missing
@@ -2139,7 +2139,7 @@ IF(time.GE.DelayTime)THEN
         CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
       END IF ! ParticleIsImplicit
       PDM%IsNewPart(iPart)=.FALSE.
-      !PEM%GlobalElemIDN(iPart) = PEM%GlobalElemID(iPart)
+      !PEM%GlobalElemID(iPart) = PEM%GlobalElemID(iPart)
     END DO ! iPart
   END IF
   RKdtFracTotal=0.
@@ -2179,7 +2179,7 @@ IF(time.GE.DelayTime)THEN
           ! initial velocity equals velocity of surface flux
           PartStateN(4:6,iPart) = PartState(4:6,iPart)
           ! gives entry point into domain
-          PEM%GlobalElemIDN(iPart)      = PEM%GlobalElemID(iPart)
+          PEM%GlobalElemID(iPart)      = PEM%GlobalElemID(iPart)
           IF(PartMeshHasReflectiveBCs) PEM%NormVec(1:3,iPart)   = 0.
           PEM%PeriodicMoved(iPart) = .FALSE.
           CALL RANDOM_NUMBER(RandVal)
@@ -2378,7 +2378,7 @@ DO iStage=2,nRKStages
         LastPartPos(1,iPart)  =PartStateN(1,iPart)
         LastPartPos(2,iPart)  =PartStateN(2,iPart)
         LastPartPos(3,iPart)  =PartStateN(3,iPart)
-        PEM%LastGlobalElemID(iPart)=PEM%GlobalElemIDN(iPart)
+        PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
         ! delete rotation || periodic movement
         IF(PartMeshHasReflectiveBCs) PEM%NormVec(1:3,iPart) = 0.
         PEM%PeriodicMoved(iPart) =.FALSE.
@@ -2496,7 +2496,7 @@ DO iStage=2,nRKStages
         LastPartPos(1,iPart)=PartStateN(1,iPart)
         LastPartPos(2,iPart)=PartStateN(2,iPart)
         LastPartPos(3,iPart)=PartStateN(3,iPart)
-        PEM%LastGlobalElemID(iPart)=PEM%GlobalElemIDN(iPart)
+        PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
         IF(PartMeshHasReflectiveBCs) PEM%NormVec(1:3,iPart) =0.
         PEM%PeriodicMoved(iPart) = .FALSE.
         ! compute Q and U
@@ -2638,7 +2638,7 @@ IF (time.GE.DelayTime) THEN
     LastPartPos(1,iPart)=PartStateN(1,iPart)
     LastPartPos(2,iPart)=PartStateN(2,iPart)
     LastPartPos(3,iPart)=PartStateN(3,iPart)
-    PEM%LastGlobalElemID(iPart)=PEM%GlobalElemIDN(iPart)
+    PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
     IF(.NOT.PartIsImplicit(iPart))THEN
       ! LastPartPos(1,iPart)=PartState(1,iPart)
       ! LastPartPos(2,iPart)=PartState(2,iPart)
@@ -3090,7 +3090,7 @@ IF(time.GE.DelayTime)THEN
   iStage=1
   CALL PartVeloToImp(VeloToImp=.TRUE.)
   PartStateN(1:PDM%ParticleVecLength,1:6)=PartState(1:6,1:PDM%ParticleVecLength)
-  PEM%GlobalElemIDN(1:PDM%ParticleVecLength)  =PEM%GlobalElemID(1:PDM%ParticleVecLength)
+  PEM%GlobalElemID(1:PDM%ParticleVecLength)  =PEM%GlobalElemID(1:PDM%ParticleVecLength)
   ! should be already be done
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PDM%ParticleInside(iPart))CYCLE
@@ -3099,7 +3099,7 @@ IF(time.GE.DelayTime)THEN
     LastPartPos(2,iPart)  =PartStateN(2,iPart)
     LastPartPos(3,iPart)  =PartStateN(3,iPart)
     ! copy date
-    PEM%LastGlobalElemID(iPart)=PEM%GlobalElemIDN(iPart)
+    PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
     IF(PartMeshHasReflectiveBCs) PEM%NormVec(1:3,iPart)=0.
     PEM%PeriodicMoved(iPart) = .FALSE.
     ! build RHS of particle with current DG solution and particle position
@@ -3329,7 +3329,7 @@ DO iStage=2,nRKStages
       LastPartPos(1,iPart)  =PartStateN(1,iPart)
       LastPartPos(2,iPart)  =PartStateN(2,iPart)
       LastPartPos(3,iPart)  =PartStateN(3,iPart)
-      PEM%LastGlobalElemID(iPart)=PEM%GlobalElemIDN(iPart)
+      PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
       ! build RHS of particle with current DG solution and particle position
       ! CAUTION: we have to use a local variable here. The Jacobian matrix is FIXED for one time step,
       ! hence the fields for the matrix-vector-multiplication shall NOT be updated
