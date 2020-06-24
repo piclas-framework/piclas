@@ -464,7 +464,7 @@ SUBROUTINE CalcParticleMeshMetrics()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_PreProc                ,ONLY: N
+USE MOD_PreProc
 USE MOD_Basis                  ,ONLY: BuildBezierVdm,BuildBezierDMat
 USE MOD_Basis                  ,ONLY: BarycentricWeights,ChebyGaussLobNodesAndWeights,InitializeVandermonde
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
