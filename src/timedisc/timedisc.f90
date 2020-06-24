@@ -1769,22 +1769,23 @@ SUBROUTINE TimeStepByEulerImplicit()
 ! Solve Linear System
 !===================================================================================================================================
 ! MODULES
-USE MOD_DG_Vars,          ONLY:U,Ut
-USE MOD_DG,               ONLY:DGTimeDerivative_weakForm
-USE MOD_TimeDisc_Vars,    ONLY:dt,time
-USE MOD_LinearSolver,     ONLY : LinearSolver
-USE MOD_LinearOperator,   ONLY:EvalResidual
+USE MOD_DG_Vars               ,ONLY: U,Ut
+USE MOD_DG                    ,ONLY: DGTimeDerivative_weakForm
+USE MOD_TimeDisc_Vars         ,ONLY: dt,time
+USE MOD_LinearSolver          ,ONLY: LinearSolver
+USE MOD_LinearOperator        ,ONLY: EvalResidual
 #ifdef PARTICLES
-USE MOD_PICDepo,          ONLY : Deposition!, DepositionMPF
-USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
-USE MOD_PIC_Vars,         ONLY : PIC
-USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, PEM, PDM!, usevMPF
-USE MOD_part_RHS,         ONLY : CalcPartRHS
-USE MOD_part_emission,    ONLY : ParticleInserting
-USE MOD_DSMC,             ONLY : DSMC_main
-USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS, DSMC
-USE MOD_PIC_Analyze,      ONLY: VerifyDepositedCharge
-USE MOD_part_tools,       ONLY : UpdateNextFreePosition
+USE MOD_PICDepo               ,ONLY: Deposition                                      ! , DepositionMPF
+USE MOD_PICInterpolation      ,ONLY: InterpolateFieldToParticle
+USE MOD_PIC_Vars              ,ONLY: PIC
+USE MOD_Particle_Vars         ,ONLY: PartState, Pt, LastPartPos, DelayTime, PEM, PDM ! , usevMPF
+USE MOD_part_RHS              ,ONLY: CalcPartRHS
+USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolation
+USE MOD_part_emission         ,ONLY: ParticleInserting
+USE MOD_DSMC                  ,ONLY: DSMC_main
+USE MOD_DSMC_Vars             ,ONLY: useDSMC, DSMC_RHS, DSMC
+USE MOD_PIC_Analyze           ,ONLY: VerifyDepositedCharge
+USE MOD_part_tools            ,ONLY: UpdateNextFreePosition
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3875,6 +3876,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
 USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==509)*/
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
@@ -4173,6 +4175,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
 USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
 !#endif /*(PP_TimeDiscMethod==509)*/
 USE MOD_part_RHS               ,ONLY: CalcPartRHS, CalcPartRHSSingleParticle
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
@@ -4445,6 +4448,7 @@ USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, Delay
                                       doParticleMerge,DoSurfaceFlux,DoForceFreeSurfaceFlux,DoFieldIonization
 USE MOD_PICModels              ,ONLY: FieldIonization
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
