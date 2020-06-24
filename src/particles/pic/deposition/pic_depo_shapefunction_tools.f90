@@ -231,7 +231,7 @@ SUBROUTINE depoChargeOnDOFs_sf(Position,SourceSize,Fac,const)
 USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP, PartSourceConst
 USE MOD_Mesh_Vars,              ONLY:nElems
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
-USE MOD_PreProc,                ONLY:PP_N
+USE MOD_Preproc
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
@@ -342,7 +342,7 @@ SUBROUTINE depoChargeOnDOFs_sf_simple(Position,SourceSize,Fac,const)
 USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
 USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP, ElemRadius2_sf, PartSourceConst
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo
-USE MOD_PreProc,                ONLY:PP_N, PP_nElems
+USE MOD_PreProc
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
 #endif  /*USE_LOADBALANCE*/

@@ -1300,7 +1300,7 @@ SUBROUTINE GenerateDSMCFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,Out
 !> Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: ProjectName
 USE MOD_io_HDF5

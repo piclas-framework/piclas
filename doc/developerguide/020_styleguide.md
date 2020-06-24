@@ -64,6 +64,11 @@ The separators `!====` and `!----` are exactly 132 characters long (here they ha
     PP_nVar
     ```
 
+    Note that
+
+    * `USE MOD_Preproc` cannot be used with `ONLY` because the pro-processor flags sometimes result in constants and not variables
+    * `PP_N` and other pre-processor variables that may be constants cannot be assigned in `ASSOCIATE` constructs
+
 * Counters: the counting variable (lower case) + description (the first character is capital case)
     ```
     DO iVar=1,PP_nVar

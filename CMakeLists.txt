@@ -840,6 +840,12 @@ IF(PICLAS_CTAGS)
   FOREACH(item ${EQNS_WO_ACTUAL})
      SET(EXLUDES "--exclude=src/equations/${item}/*" ${EXLUDES})
   ENDFOREACH()
+  MESSAGE(STATUS "Ctags excluding: ${EXLUDES}")
+  # ctags options:
+  # -R   Equivalent to --recurse.
+  # -f <name>
+  #    Write tags to specified file. Value of "-" writes tags to stdout
+  #    ["tags"; or "TAGS" when -e supplied].
   ADD_CUSTOM_COMMAND(OUTPUT ctags.txt COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ctags -R -f ctags.txt ${EXLUDES} src)
   ADD_CUSTOM_TARGET(tags DEPENDS ctags.txt)
   FIND_PROGRAM(CTAGS_PATH ctags)

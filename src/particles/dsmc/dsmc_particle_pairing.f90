@@ -905,9 +905,8 @@ SUBROUTINE DSMC_CalcSubNodeVolumes2D(iElem, NodeDepth, Node)
 ! MODULES
 USE MOD_DSMC_Vars,              ONLY : OctreeVdm, tNodeVolume, SymmetrySide
 USE MOD_Mesh_Vars,              ONLY : SurfElem, Face_xGP
-USE MOD_PreProc,                ONLY : PP_N
+USE MOD_Preproc
 USE MOD_ChangeBasis,            ONLY : ChangeBasis2D
-USE MOD_PreProc,                ONLY : PP_N
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -957,9 +956,8 @@ SUBROUTINE DSMC_CalcSubNodeVolumes(iElem, NodeDepth, Node)
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : OctreeVdm, tNodeVolume
   USE MOD_Mesh_Vars,              ONLY : sJ
-  USE MOD_PreProc,                ONLY : PP_N
+  USE MOD_Preproc
   USE MOD_ChangeBasis,            ONLY : ChangeBasis3D
-  USE MOD_PreProc,                ONLY : PP_N
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -998,10 +996,9 @@ RECURSIVE SUBROUTINE InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdmLoc
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : tOctreeVdm
-  USE MOD_PreProc,                ONLY : PP_N
+  USE MOD_Preproc
   USE MOD_Interpolation_Vars,     ONLY : xGP, wBary
   USE MOD_Basis,                  ONLY : InitializeVandermonde
-  USE MOD_PreProc,                ONLY : PP_N
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

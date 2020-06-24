@@ -784,7 +784,7 @@ SUBROUTINE InitParticleGeometry()
 ! Subroutine for particle geometry initialization (GEO container)
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: NGeo
@@ -7831,7 +7831,7 @@ SUBROUTINE MarkAuxBCElems()
 ! -- plane: use plane equation f=a1*x+a2*y+a3*z+a4=0 and insert corresponding intervals of box -> fmin and fmax
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHasAuxBCs,GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared

@@ -80,7 +80,7 @@ USE MOD_MPI_Vars              ,ONLY: NbProc,nMPISides_Proc
 USE MOD_Analyze               ,ONLY: CalcErrorStateFiles, CalcErrorStateFileSigma
 USE MOD_Interpolation_Vars    ,ONLY: NAnalyze
 USE MOD_Mesh_Vars             ,ONLY: sJ,NGeoRef
-USE MOD_PreProc               ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Metrics               ,ONLY: CalcMetricsErrorDiff
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

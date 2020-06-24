@@ -75,7 +75,7 @@ SUBROUTINE InitFPFlow()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Preproc               ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: NGeo, nElems
 USE MOD_Globals_Vars          ,ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools

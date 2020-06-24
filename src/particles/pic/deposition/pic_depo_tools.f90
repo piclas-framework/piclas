@@ -113,7 +113,7 @@ SUBROUTINE CalcCellLocNodeVolumes()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PreProc            ,ONLY: PP_N
+USE MOD_PreProc
 USE MOD_Basis              ,ONLY: InitializeVandermonde
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Interpolation_Vars ,ONLY: wGP, xGP, wBary
@@ -300,10 +300,9 @@ REAL                     :: StartT,EndT
     ! Associate construct for integer KIND=8 possibility
     ASSOCIATE (&
           nVars       => INT(nVars,IK)     ,&
-          PP_N        => INT(PP_N,IK)      ,&
           PP_nElems   => INT(PP_nElems,IK) ,&
           OffsetElem  => INT(OffsetElem,IK) )
-          CALL ReadArray('DG_Solution',5,(/nVars,PP_N+1_IK,PP_N+1_IK,PP_N+1_IK,PP_nElems/),OffsetElem,5,RealArray=U)
+          CALL ReadArray('DG_Solution',5,(/nVars,INT(PP_N,IK)+1_IK,INT(PP_N,IK)+1_IK,INT(PP_N,IK)+1_IK,PP_nElems/),OffsetElem,5,RealArray=U)
     END ASSOCIATE
   ELSE
     CALL abort(__STAMP__, &
