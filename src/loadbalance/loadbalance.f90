@@ -355,7 +355,7 @@ END SUBROUTINE ComputeElemLoad
 
 SUBROUTINE LoadBalance()
 !===================================================================================================================================
-! routine performing the load balancing stuff
+! Routine performing the load balancing stuff
 !===================================================================================================================================
 ! USED MODULES
 USE MOD_Globals
@@ -402,10 +402,13 @@ SWRITE(UNIT_stdOut,'(A)') ' PERFORMING LOAD BALANCE ...'
 LB_StartTime=PICLASTIME()
 
 nLoadBalanceSteps=nLoadBalanceSteps+1
-! finialize all arrays
+! Finalize all arrays
 CALL FinalizePiclas(IsLoadBalance=.TRUE.)
 ! reallocate
 CALL InitPiclas(IsLoadBalance=.TRUE.) ! determines new imbalance in InitMesh() -> ReadMesh()
+
+! restart
+CALL Restart()
 
 ! compute imbalance
 !CALL ComputeImbalance(NewImbalance,MaxWeight,MinWeight,ElemTime)  ! --> new imbalance has already been calculated in mesh_readin
@@ -446,6 +449,7 @@ SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTi
 SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
 SWRITE(UNIT_StdOut,'(132("="))')
 END SUBROUTINE LoadBalance
+
 
 #if USE_LOADBALANCE
 SUBROUTINE ComputeImbalance()
