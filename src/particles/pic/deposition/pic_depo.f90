@@ -113,7 +113,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
 #endif /*USE_MPI*/
 
 IF(.NOT.DoDeposition) THEN
-  ! fill deposition type with emtpy string
+  ! fill deposition type with empty string
   DepositionType='NONE'
   OutputSource=.FALSE.
   RelaxDeposition=.FALSE.

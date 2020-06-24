@@ -203,11 +203,7 @@ ASSOCIATE (&
       N            => INT(PP_N,IK)         ,&
       nGlobalElems => INT(nGlobalElems,IK) ,&
       PP_nElems    => INT(PP_nElems,IK)    ,&
-      offsetElem   => INT(offsetElem,IK)    &
-#ifdef PARTICLES
-      ,PartSource => PartSource(:,:,:,:,GetCNElemID(offsetElem + 1):GetCNElemID(offSetElem+PP_nElems)) &
-#endif /*PARTICLES*/
-      )
+      offsetElem   => INT(offsetElem,IK)   )
 
   ! Write DG solution ----------------------------------------------------------------------------------------------------------------
   !nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
@@ -349,7 +345,7 @@ ASSOCIATE (&
         nValGlobal=(/nVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
         nVal=      (/nVar , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
         offset=    (/0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
-        collective=.TRUE.,RealArray=PartSource)
+        collective=.TRUE.,RealArray=PartSource(:,:,:,:,GetCNElemID(offsetElem + 1):GetCNElemID(offSetElem+PP_nElems)))
 
     DEALLOCATE(LocalStrVarNames)
   END IF

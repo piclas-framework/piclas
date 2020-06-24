@@ -992,13 +992,12 @@ ALLOCATE(VarNamesParticle(nPartsVar),tmpArray(nPartsVar+3))
 CALL ReadAttribute(File_ID,'VarNamesParticles',nPartsVar+3,StrArray=tmpArray)
 VarNamesParticle(1:nPartsVar)=tmpArray(4:nPartsVar+3)
 
-IF(nParts.GT.0) THEN
-  ALLOCATE(PartData(1:nPartsVar+3,1:nParts))
-  PartData = 0.
-  SDEALLOCATE(ConnectInfo)
-  ALLOCATE(ConnectInfo(1,1:nParts))
-  ConnectInfo = 0
-END IF
+! Allocate array (also when no particles exist to prevent to tool from crashing)
+ALLOCATE(PartData(1:nPartsVar+3,1:nParts))
+PartData = 0.
+SDEALLOCATE(ConnectInfo)
+ALLOCATE(ConnectInfo(1,1:nParts))
+ConnectInfo = 0
 
 ASSOCIATE(nParts    => INT(nParts,IK),  &
           nPartsVar => INT(nPartsVar,IK))

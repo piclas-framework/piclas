@@ -489,7 +489,7 @@ ELSE
   ! Skip the reduce for DSMC timedisc
   CALL MPI_REDUCE(ElemTimeField , ElemTimeFieldTot , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
   WeightSum = ElemTimeFieldTot ! only correct on MPI root
-#endif /*(PP_TimeDiscMethod!=4)*/
+#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
 #ifdef PARTICLES
   CALL MPI_REDUCE(ElemTimePart , ElemTimePartTot  , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
   WeightSum = WeightSum + ElemTimePartTot ! only correct on MPI root

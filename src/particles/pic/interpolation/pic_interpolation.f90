@@ -73,6 +73,12 @@ CHARACTER(LEN=20)         :: tempStr
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
 
+IF(.NOT.DoInterpolation) THEN
+  ! Fill interpolation type with empty string
+  InterpolationType='NONE'
+  RETURN
+END IF
+
 InterpolationType = GETSTR('PIC-Interpolation-Type','particle_position')
 
 InterpolationElemLoop = GETLOGICAL('PIC-InterpolationElemLoop')

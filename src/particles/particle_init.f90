@@ -834,8 +834,21 @@ CALL InitializeVariablesAuxBC()
 ! calculate cartesian borders of node local and global mesh
 CALL GetMeshMinMax()
 !-- Build BGM and halo region
-DoDeposition = GETLOGICAL('PIC-DoDeposition','T')
-DoInterpolation    = GETLOGICAL('PIC-DoInterpolation')
+
+!-- Get PIC deposition (skip DSMC, FP-Flow and BGS-Flow related timediscs)
+#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
+DoDeposition    = .FALSE.
+!DoInterpolation = .FALSE.
+CALL PrintOption('No PIC-ralted Time discretization, turning deposition off. DoDeposition','*CHANGE',LogOpt=DoDeposition)
+!CALL PrintOption('No PIC-ralted Time discretization, turning interpolation off. DoInterpolation','*CHANGE',LogOpt=DoDeposition)
+#else
+DoDeposition    = GETLOGICAL('PIC-DoDeposition')
+#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
+
+!-- Get PIC interpolation (could be skipped above, but DSMC octree requires some interpolation variables, which are allocated before
+! init DSMC determines whether DSMC%UseOctree is true or false)
+DoInterpolation = GETLOGICAL('PIC-DoInterpolation')
+
 CALL InitParticleMesh()
 
 CALL InitPIC()
