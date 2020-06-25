@@ -78,7 +78,8 @@ parser = argparse.ArgumentParser(description='description:\n\
   Supply a single state file or a group of state files by using the wildcard "*", e.g. MyProject_000.00* for a list of file names.\n\n\
   Note the different modes that will be selected automatically depending on the name of the h5 container:\n\n\
     * \'PartData\' container will be concatenated (not added). To use this feature, supply [-p], [--particles]\n\
-    * \'DG_Solution\' container in *_TimeAvg_*.h5 files will be averaged over the number of supplied files ([-a], [--average] is automatically turned on)'\
+    * \'DG_Solution\' container in *_TimeAvg_*.h5 files will be averaged over the number of supplied files ([-a], [--average] is automatically turned on)\n\n\
+  Note that different types of files, e.g. "_DSMCSurfState_" and "_State_", are not allowed to be mixed. Choose one type!"'
 ,formatter_class=argparse.RawTextHelpFormatter)
 
 parser.add_argument('files', type=str, help='files (.h5) that are to be merged together.', nargs='+')
