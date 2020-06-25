@@ -206,9 +206,9 @@ DO i = 1,PDM%ParticleVecLength
             DO ind = 1, nMortarElems
               nbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide + ind
               NbElemID = SideInfo_Shared(SIDE_NBELEMID,nbSideID)
-              ! If small mortar element not defined, skip it for now, likely not inside the halo region (additional check is
-              ! performed after the MPI communication: ParticleInsideQuad3D_MortarMPI)
-              IF (NbElemID.LT.1) CYCLE
+              ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
+              ! no way to recover it during runtime
+              IF (NbElemID.LT.1) CALL ABORT(__STAMP__,'Small mortar element not defined!',ElemID)
               ! For small mortar sides, SIDE_NBSIDEID contains the SideID of the corresponding big mortar side
               nbSideID = SideInfo_Shared(SIDE_NBSIDEID,nbSideID)
               NblocSideID =  SideInfo_Shared(SIDE_LOCALID,nbSideID)
@@ -368,7 +368,7 @@ DO i = 1,PDM%ParticleVecLength
         END IF  ! NrOfThroughSides.NE.1
         ! ----------------------------------------------------------------------------
         ! 3) In case of a boundary, perform the appropriate boundary interaction
-        crossedBC=.FALSE.      
+        crossedBC=.FALSE.
         flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
         IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
           OldElemID=ElemID
@@ -2146,20 +2146,17 @@ ELSE
 
     DO iMortar = 1,nMortarElems
       NbSideID = SideInfo_Shared(SIDE_NBSIDEID,SideID + iMortar)
-      ! If small mortar side not defined, skip it for now, likely not inside the halo region (additional check is
-      ! performed after the MPI communication: ParticleInsideQuad3D_MortarMPI)
-      IF (NbSideID.LT.1) CYCLE
+      ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
+      ! no way to recover it during runtime
+      IF (NbSideID.LT.1) CALL ABORT(__STAMP__,'Small mortar side not defined!',SideID + iMortar)
 
       NbElemID = SideInfo_Shared(SIDE_ELEMID,nbSideID)
-      ! If small mortar element not defined, skip it for now, likely not inside the halo region (additional check is
-      ! performed after the MPI communication: ParticleInsideQuad3D_MortarMPI)
-      IF (NbElemID.LT.1) CYCLE
+      ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
+      ! no way to recover it during runtime
+      IF (NbElemID.LT.1) CALL ABORT(__STAMP__,'Small mortar element not defined!',ElemID)
+
       ! BezierControlPoints are now built in cell local system. We are checking mortar sides, so everything is reversed
-      IF (MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,nbSideID),10),SideInfo_Shared(SIDE_ID,nbSideID).GT.0).EQ.0) THEN
-        locFlip = 1
-      ELSE
-        locFlip = 0
-      END IF
+      locFlip = MERGE(0,MOD(SideInfo_Shared(SIDE_FLIP,nbSideID),10),SideInfo_Shared(SIDE_ID,nbSideID).GT.0)
 
       SELECT CASE(SideType(NbSideID))
         CASE(PLANAR_RECT)

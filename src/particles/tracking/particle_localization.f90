@@ -90,7 +90,7 @@ USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemRadius2NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems, FIBGM_offsetElem, FIBGM_Element
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D,GetCNElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D,GetCNElemID,GetGlobalElemID
 USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance,TriaTracking
 USE MOD_Utils                  ,ONLY: InsertionSort
 #if USE_MPI
@@ -161,7 +161,9 @@ IF(nBGMElems.GT.1) CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGME
 InElementCheck=.FALSE.
 DO iBGMElem=1,nBGMElems
   IF (ALMOSTEQUAL(Distance(iBGMElem),-1.)) CYCLE
-  ElemID=ListDistance(iBGMElem)
+
+  ElemID = GetGlobalElemID(ListDistance(iBGMElem))
+
   IF (.NOT.DoHALO) THEN
     ! TODO: THIS NEEDS TO BE ADJUSTED FOR MPI3-SHARED
     ! IF (ElemID.GT.PP_nElems) CYCLE
@@ -195,12 +197,11 @@ SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_O
 ! Checks if particle is in Element
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars              ,ONLY: ElemBaryNGeo
 USE MOD_Particle_Intersection  ,ONLY: ComputePlanarRectIntersection
 USE MOD_Particle_Intersection  ,ONLY: ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection  ,ONLY: ComputeBiLinearIntersection
 USE MOD_Particle_Intersection  ,ONLY: ComputeCurvedIntersection
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID,GetCNElemID
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Surfaces_Vars ,ONLY: SideType,SideNormVec
@@ -212,6 +213,11 @@ USE MOD_Particle_Surfaces      ,ONLY: OutputBezierControlPoints
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Intersection  ,ONLY: OutputTrajectory
 #endif /*CODE_ANALYZE*/
+#if USE_MPI
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo_Shared
+#else
+USE MOD_Mesh_Vars              ,ONLY: ElemBaryNGeo
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -230,6 +236,7 @@ REAL,INTENT(OUT),OPTIONAL                :: IntersectPoint_Opt(1:3)
 REAL,INTENT(OUT),OPTIONAL                :: Tol_Opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                                  :: CNElemID
 INTEGER                                  :: ilocSide,flip,SideID
 REAL                                     :: PartTrajectory(1:3),NormVec(1:3)
 REAL                                     :: lengthPartTrajectory,PartPos(1:3),LastPosTmp(1:3)
@@ -237,18 +244,26 @@ LOGICAL                                  :: isHit
 REAL                                     :: alpha,eta,xi,IntersectPoint(1:3)
 !===================================================================================================================================
 
-IF(PRESENT(tol_Opt)) tol_Opt=-1.
-! virtual move to element barycenter
-LastPosTmp(1:3) =LastPartPos(1:3,PartID)
-LastPartPos(1:3,PartID) =ElemBaryNGeo(1:3,ElemID)
-PartPos(1:3) =PartPos_In(1:3)
+#if USE_MPI
+ASSOCIATE(ElemBaryNGeo => ElemBaryNGeo_Shared)
+#endif
 
+IF(PRESENT(tol_Opt)) tol_Opt=-1.
+
+CNElemID = GetCNElemID(ElemID)
+
+! virtual move to element barycenter
+LastPosTmp(1:3)         = LastPartPos(1:3,PartID)
+LastPartPos(1:3,PartID) = ElemBaryNGeo(1:3,CNElemID)
+PartPos(1:3)            = PartPos_In(1:3)
+
+! get trajectory from element barycenter to current position
 PartTrajectory=PartPos - LastPartPos(1:3,PartID)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
 
-
+! output the part trajectory
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(PartID.EQ.PARTOUT)THEN
@@ -259,17 +274,21 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
   END IF
 #endif /*CODE_ANALYZE*/
 
+! we found the particle on the element barycenter
 IF(ALMOSTZERO(lengthPartTrajectory))THEN
   FoundInElem =.TRUE.
   LastPartPos(1:3,PartID) = LastPosTmp(1:3)
-  ! bugfix by Tilman
   RETURN
 END IF
+
+! normalize the part trajectory vector
 PartTrajectory=PartTrajectory/lengthPartTrajectory
+
+! reset intersection counter and alpha
 isHit=.FALSE.
 alpha=-1.
-DO ilocSide=1,6
 
+DO ilocSide=1,6
   SideID = GetGlobalNonUniqueSideID(ElemID,iLocSide)
   flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
 
@@ -361,7 +380,12 @@ IF(alpha.GT.-1) THEN
   IF(PRESENT(IntersectPoint_Opt)) IntersectPoint_Opt=IntersectPoint
 END IF
 
+! reset the LastParPos to its original value
 LastPartPos(1:3,PartID) = LastPosTmp(1:3)
+
+#if USE_MPI
+END ASSOCIATE
+#endif /*USE_MPI*/
 
 END SUBROUTINE PartInElemCheck
 

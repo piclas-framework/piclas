@@ -284,11 +284,10 @@ DO iLocSide = 1,nlocSides
           InElementCheckMortarNb = .TRUE.
           SideIDMortar = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide + ind
           NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideIDMortar)
-          ! If small mortar element not defined, skip it for now, likely not inside the halo region (additional check is performed
-          ! after the MPI communication: ParticleInsideQuad3D_MortarMPI)
-          IF (NbElemID.LT.1) THEN
-            CALL ABORT(__STAMP__,'Small mortar element not defined!',ElemID)
-          END IF
+          ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
+          ! no way to recover it during runtime
+          IF (NbElemID.LT.1) CALL ABORT(__STAMP__,'Small mortar element not defined!',ElemID)
+
           CALL ParticleInsideNbMortar(PartStateLoc,NbElemID,InElementCheckMortarNb)
           IF (InElementCheckMortarNb) THEN
             InElementCheck = .FALSE.
@@ -730,7 +729,7 @@ END FUNCTION GetGlobalElem2CNTotalElem
 
 
 !==================================================================================================================================!
-!> Initialize PEM%LocalElemID(iPart) function (mapping of global element ID, which is first obtained from PEM%GlobalElemID(iPart) to 
+!> Initialize PEM%LocalElemID(iPart) function (mapping of global element ID, which is first obtained from PEM%GlobalElemID(iPart) to
 !> compute-node element ID)
 !==================================================================================================================================!
 SUBROUTINE InitPEM_LocalElemID()
@@ -836,7 +835,7 @@ END SUBROUTINE InitPEM_CNElemID
 
 #if USE_MPI
 !==================================================================================================================================!
-!> Get the CN element ID from the global element ID, which is first obtained from PEM%GlobalElemID(iPart) in case of MPI=ON for 
+!> Get the CN element ID from the global element ID, which is first obtained from PEM%GlobalElemID(iPart) in case of MPI=ON for
 !> single or multiple compute nodes (CN)
 !==================================================================================================================================!
 PURE FUNCTION GetGlobalElem2CNTotalElem_iPart(iPart)
@@ -904,7 +903,7 @@ INTEGER, INTENT(IN)           :: SideID
 REAL, INTENT(OUT)             :: BoundingBox(1:3,1:8)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                   :: iLocSide, globElemId, iNode         
+INTEGER                   :: iLocSide, globElemId, iNode
 REAL                      :: NodePoints(1:3,1:4)
 REAL                      :: xMin, xMax, yMin, yMax, zMin, zMax
 !==================================================================================================================================
