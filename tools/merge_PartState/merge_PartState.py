@@ -35,6 +35,32 @@ def blue(text) :
 def yellow(text) :
     return bcolors.YELLOW+text+bcolors.ENDC
 
+def GetDataSets(statefile) :
+    # Open h5 file and read container info
+    # --------------------------------------------
+    #     r       : Readonly, file must exist
+    #     r+      : Read/write, file must exist
+    #     w       : Create file, truncate if exists
+    #     w- or x : Create file, fail if exists
+    #     a       : Read/write if exists, create otherwise (default
+    # --------------------------------------------
+    # When sorting is used, the sorted array is written to the original .h5 file with a new name
+    f1 = h5py.File(statefile,'r+')
+    
+    # Usage:
+    # -------------------
+    # available keys         : print("Keys: %s" % f1.keys())                                # yields, e.g., <KeysViewHDF5 ['DG_Solution', 'PartData']>
+    # first key in list      : a_group_key = list(f1.keys())[0]                             # yields 'DG_Solution'
+    # available attributes   : print('\n'.join(x for x in f1.attrs))                        # yields 'File_Type\n File_Version\n MeshFile'
+    # get specific attribute : file_version  = f1.attrs.get('File_Version', default=-1.)[0] # yields, e.g., 1.5
+    # -------------------
+    data_set = 'SurfaceData2'
+
+    datasets = list(f1.keys())
+    
+    f1.close()
+
+    return datasets
 # import h5 I/O routines
 try :
     import h5py
@@ -62,6 +88,7 @@ print('='*132)
 
 # Loop over all files and identify the latet simulation time
 maxtime=-1.0
+mintime=1.0e99
 NbrOfFiles = len(args.files)
 files = []
 for statefile in args.files :
@@ -72,16 +99,24 @@ for statefile in args.files :
     try :
         time = float(timestr)
         maxtime=max(time,maxtime)
+        mintime=min(time,mintime)
         if time == maxtime :
             maxtimestr = timestr
             maxtimeFile = statefile
             newFile = re.sub(timestr+'.h5', '', statefile)+maxtimestr+'_merged.h5'
+        if time == mintime :
+            mintimestr = timestr
         files.append(statefile)
     except :
         print("not considering "+statefile)
+print("t_min     : %s" % mintime)
+print("t_min_str : %s" % mintimestr)
 
 print("t_max     : %s" % maxtime)
-print("t_max_str : %s" % timestr)
+print("t_max_str : %s" % maxtimestr)
+
+dt = maxtime-mintime
+print("delta t   : %s" % dt)
 print("newfile   : %s" % newFile)
 print()
 
@@ -89,6 +124,9 @@ print()
 max_length=0
 for statefile in files :
     max_length = max(max_length,len(statefile))
+print(132*"-")
+datasets = GetDataSets(files[0])
+print("Found the following data sets:\n",datasets)
 
 print(132*"-")
 s="Example.h5"
@@ -117,7 +155,11 @@ for statefile in files :
     # available attributes   : print('\n'.join(x for x in f1.attrs))                        # yields 'File_Type\n File_Version\n MeshFile'
     # get specific attribute : file_version  = f1.attrs.get('File_Version', default=-1.)[0] # yields, e.g., 1.5
     # -------------------
-    data_set= 'PartData'
+    data_set = 'PartData'
+
+    if not data_set in list(f1.keys()) :
+        print(red("ERROR: Dataset ['%s'] not found in file. Stop." % data_set))
+        exit(0)
     
     # 1.1.1   Read the dataset from the hdf5 file
     b1 = f1[data_set][:]
@@ -126,10 +168,11 @@ for statefile in files :
     # Save old file
     if n > 1 :
         # Compare shape of the dataset of both files, throw error if they do not conincide
-        if b1.shape[0] != b2.shape[0] : # e.g.: b1.shape = (48, 1, 1, 32)
+        if b1.shape[0] != b2_shape : # e.g.: b1.shape = (48, 1, 1, 32)
             s="\nDatasets are not compatible due to different shapes: Files [%s] and [%s] have shapes %s and %s\nThe dimensions dim1 = %s and dim2 = %s must be equal!\n\nAborted!" % (statefile,statefile_old,b1.shape,b2.shape,b1.shape[0],b2.shape[0])
             print(s)
             exit(1)
+
         # Concatenate files depending on the file version (beginning with v1.5 PartData's dimensions are switched)
         if file_version < 1.5 :
             # Concatenate columns
@@ -139,12 +182,15 @@ for statefile in files :
             b1_merged = np.concatenate((b1_merged, b1), axis=0)
     else :
         b1_merged = b1
-    b2 = b1
+
+
+    # store the old shape for checking with next state file
+    b2_shape = b1.shape[0]
     statefile_old = statefile
     f1.close()
 print(132*"-")
 print("Files have been merged into %s | %s%s" % (newFile,data_set,b1_merged.shape))
-
+print(132*"-")
 
 
 # Copy old file and modify PartState in the new file

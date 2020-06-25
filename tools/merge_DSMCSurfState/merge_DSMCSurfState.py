@@ -35,6 +35,33 @@ def blue(text) :
 def yellow(text) :
     return bcolors.YELLOW+text+bcolors.ENDC
 
+def GetDataSets(statefile) :
+    # Open h5 file and read container info
+    # --------------------------------------------
+    #     r       : Readonly, file must exist
+    #     r+      : Read/write, file must exist
+    #     w       : Create file, truncate if exists
+    #     w- or x : Create file, fail if exists
+    #     a       : Read/write if exists, create otherwise (default
+    # --------------------------------------------
+    # When sorting is used, the sorted array is written to the original .h5 file with a new name
+    f1 = h5py.File(statefile,'r+')
+    
+    # Usage:
+    # -------------------
+    # available keys         : print("Keys: %s" % f1.keys())                                # yields, e.g., <KeysViewHDF5 ['DG_Solution', 'PartData']>
+    # first key in list      : a_group_key = list(f1.keys())[0]                             # yields 'DG_Solution'
+    # available attributes   : print('\n'.join(x for x in f1.attrs))                        # yields 'File_Type\n File_Version\n MeshFile'
+    # get specific attribute : file_version  = f1.attrs.get('File_Version', default=-1.)[0] # yields, e.g., 1.5
+    # -------------------
+    data_set = 'SurfaceData2'
+
+    datasets = list(f1.keys())
+    
+    f1.close()
+
+    return datasets
+
 # import h5 I/O routines
 try :
     import h5py
@@ -104,6 +131,10 @@ for statefile in files :
     max_length = max(max_length,len(statefile))
 
 print(132*"-")
+datasets = GetDataSets(files[0])
+print("Found the following data sets:\n",datasets)
+
+print(132*"-")
 s="Example.h5"
 print("".ljust(max_length-len(s)),s," | PartData(dim1, dim2)")
 print(132*"-")
@@ -128,16 +159,15 @@ for statefile in files :
     # available attributes   : print('\n'.join(x for x in f1.attrs))                        # yields 'File_Type\n File_Version\n MeshFile'
     # get specific attribute : file_version  = f1.attrs.get('File_Version', default=-1.)[0] # yields, e.g., 1.5
     # -------------------
-    data_set= 'SurfaceData'
+    data_set = 'SurfaceData'
+
+    if not data_set in list(f1.keys()) :
+        print(red("ERROR: Dataset ['%s'] not found in file. Stop." % data_set))
+        exit(0)
     
     # 1.1.1   Read the dataset from the hdf5 file
     b1 = f1[data_set][:]
     print("".ljust(max_length-len(statefile)),statefile," | PartData%s" % str(b1.shape))
-
-    if n == 1: 
-        # Create empty array when processing the first file
-        b1_merged = np.empty(b1.shape, dtype=float, order='C') # Whether to store multi-dimensional data in row-major (C-style) or column-major (Fortran-style) order in memory.
-
 
     # Save old file
     if n > 1 :
@@ -147,8 +177,12 @@ for statefile in files :
             print(s)
             exit(1)
     
-    # Add ne current array stored in b1 to b
-    b1_merged = b1_merged + b1
+        # Add ne current array stored in b1 to b
+        b1_merged = b1_merged + b1
+    else :
+        # Create empty array when processing the first file
+        b1_merged = b1 # np.empty(b1.shape, dtype=np.float64, order='C') # Whether to store multi-dimensional data in row-major (C-style) or column-major (Fortran-style) order in memory.
+
 
 
     # store the old shape for checking with next state file
@@ -157,7 +191,7 @@ for statefile in files :
     f1.close()
 print(132*"-")
 print("Files have been merged into %s | %s%s" % (newFile,data_set,b1_merged.shape))
-
+print(132*"-")
 
 
 # Copy old file and modify PartState in the new file
