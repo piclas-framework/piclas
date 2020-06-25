@@ -53,7 +53,7 @@ SUBROUTINE QDS_InitEquation()
 !===================================================================================================================================
 ! MODULES
 !USE MOD_Globals
-USE MOD_PreProc,            ONLY:PP_N
+USE MOD_Preproc
 USE MOD_ReadInTools,        ONLY:GETINT
 USE MOD_QDS_Equation_vars,  ONLY:QDSIniExactFunc,U_Face_old,QDSnVar
 USE MOD_Mesh_Vars,          ONLY:nBCSides

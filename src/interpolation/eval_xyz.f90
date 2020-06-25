@@ -603,7 +603,7 @@ __STAMP__&
 #endif
 #if defined(IMAP) || defined(ROS)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' last?', LastPartPos(1:3,PartID)
-      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' ElemID-N', PEM%GlobalElemIDN(PartID)+offSetElem
+      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' ElemID-N', PEM%GlobalElemID(PartID)+offSetElem
 #endif /*IMPA or ROS*/
         CALL abort(&
   __STAMP__&
@@ -831,9 +831,8 @@ PURE SUBROUTINE GetRefNewtonStartValue(X_in,Xi,CNElemID)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Preproc,                 ONLY:PP_N,PP_nElems
+USE MOD_Preproc
 USE MOD_Globals
-!USE MOD_Mesh_Vars,               ONLY:Elem_xGP,XCL_NGeo,offsetElem
 USE MOD_Mesh_Vars,               ONLY:NGeo,XiCL_NGeo
 USE MOD_Interpolation_Vars,      ONLY:xGP
 USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingGuess,RefMappingEps

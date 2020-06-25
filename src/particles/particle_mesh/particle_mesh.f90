@@ -202,6 +202,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars
 #endif /* USE_MPI */
+!USE MOD_DSMC_Vars              ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -312,11 +313,13 @@ SELECT CASE(TrackingMethod)
     CALL BuildElementRadiusTria()
 
     ! Interpolation needs coordinates in reference system
+    !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
     IF (DoInterpolation) THEN
       CALL CalcParticleMeshMetrics()
 
       CALL BuildElemTypeAndBasisTria()      
-    END IF
+    END IF ! DoInterpolation.OR.DSMC%UseOctree
+
     IF (DoDeposition) CALL BuildEpsOneCell()
 
 CASE(TRACING,REFMAPPING)
@@ -464,7 +467,7 @@ SUBROUTINE CalcParticleMeshMetrics()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_PreProc                ,ONLY: N
+USE MOD_PreProc
 USE MOD_Basis                  ,ONLY: BuildBezierVdm,BuildBezierDMat
 USE MOD_Basis                  ,ONLY: BarycentricWeights,ChebyGaussLobNodesAndWeights,InitializeVandermonde
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
@@ -784,7 +787,7 @@ SUBROUTINE InitParticleGeometry()
 ! Subroutine for particle geometry initialization (GEO container)
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: NGeo
@@ -3297,10 +3300,13 @@ USE MOD_Particle_Mesh_Readin   ,ONLY: FinalizeMeshReadin
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,Distance,ListDistance,PartStateLost
+USE MOD_PICDepo_Vars           ,ONLY: PartSource,PartSource_Shared
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 #if USE_MPI
 USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
+USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,PartSource_Shared_Win
+!USE MOD_DSMC_Vars              ,ONLY: DSMC
 #endif
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3480,6 +3486,7 @@ SELECT CASE (TrackingMethod)
     ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+    !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
     IF(DoInterpolation)THEN
       ! CalcParticleMeshMetrics
       CALL MPI_WIN_UNLOCK_ALL(XCL_NGeo_Shared_Win             ,iError)
@@ -3488,7 +3495,16 @@ SELECT CASE (TrackingMethod)
       CALL MPI_WIN_FREE(      Elem_xGP_Shared_Win             ,iError)
       CALL MPI_WIN_UNLOCK_ALL(dXCL_NGeo_Shared_Win            ,iError)
       CALL MPI_WIN_FREE(      dXCL_NGeo_Shared_Win            ,iError)
-    END IF ! DoInterpolation
+
+      ! BuildElemTypeAndBasisTria()
+      CALL MPI_WIN_UNLOCK_ALL(XiEtaZetaBasis_Shared_Win       ,iError)
+      CALL MPI_WIN_FREE(      XiEtaZetaBasis_Shared_Win       ,iError)
+      CALL MPI_WIN_UNLOCK_ALL(slenXiEtaZetaBasis_Shared_Win   ,iError)
+      CALL MPI_WIN_FREE(      slenXiEtaZetaBasis_Shared_Win   ,iError)
+      CALL MPI_WIN_UNLOCK_ALL(ElemCurved_Shared_Win           ,iError)
+      CALL MPI_WIN_FREE(      ElemCurved_Shared_Win           ,iError)
+    END IF ! DoInterpolation.OR.DSMC%UseOctree
+
 
     ! InitParticleGeometry
     CALL MPI_WIN_UNLOCK_ALL(ConcaveElemSide_Shared_Win,iError)
@@ -3506,15 +3522,14 @@ SELECT CASE (TrackingMethod)
     CALL MPI_WIN_UNLOCK_ALL(ElemRadius2NGeo_Shared_Win,iError)
     CALL MPI_WIN_FREE(ElemRadius2NGeo_Shared_Win,iError)
 
-    IF(DoInterpolation)THEN
-      ! BuildElemTypeAndBasisTria()
-      CALL MPI_WIN_UNLOCK_ALL(XiEtaZetaBasis_Shared_Win       ,iError)
-      CALL MPI_WIN_FREE(      XiEtaZetaBasis_Shared_Win       ,iError)
-      CALL MPI_WIN_UNLOCK_ALL(slenXiEtaZetaBasis_Shared_Win   ,iError)
-      CALL MPI_WIN_FREE(      slenXiEtaZetaBasis_Shared_Win   ,iError)
-      CALL MPI_WIN_UNLOCK_ALL(ElemCurved_Shared_Win           ,iError)
-      CALL MPI_WIN_FREE(      ElemCurved_Shared_Win           ,iError)
-    END IF ! DoInterpolation
+    IF(DoDeposition)THEN
+      ! BuildEpsOneCell
+      CALL MPI_WIN_UNLOCK_ALL(ElemsJ_Shared_Win     , iError)
+      CALL MPI_WIN_FREE(      ElemsJ_Shared_Win     , iError)
+      ! Deposition
+      CALL MPI_WIN_UNLOCK_ALL(PartSource_Shared_Win , iError)
+      CALL MPI_WIN_FREE(      PartSource_Shared_Win , iError)
+    END IF ! DoDeposition
 
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #endif /*USE_MPI*/
@@ -3540,6 +3555,14 @@ SELECT CASE (TrackingMethod)
     ADEALLOCATE(slenXiEtaZetaBasis_Shared)
     ADEALLOCATE(ElemCurved)
     ADEALLOCATE(ElemCurved_Shared)
+
+    ! BuildEpsOneCell
+    ADEALLOCATE(ElemsJ)
+    ADEALLOCATE(ElemsJ_Shared)
+
+    ! Deposition
+    ADEALLOCATE(PartSource)
+    ADEALLOCATE(PartSource_Shared)
 
 END SELECT
 
@@ -7832,7 +7855,7 @@ SUBROUTINE MarkAuxBCElems()
 ! -- plane: use plane equation f=a1*x+a2*y+a3*z+a4=0 and insert corresponding intervals of box -> fmin and fmax
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHasAuxBCs,GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared

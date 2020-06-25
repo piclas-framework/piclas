@@ -53,7 +53,7 @@ USE MOD_Basis                  ,ONLY: ComputeBernsteinCoeff
 USE MOD_Basis                  ,ONLY: BarycentricWeights,InitializeVandermonde
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-USE MOD_PreProc                ,ONLY: PP_N,PP_nElems
+USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
@@ -113,7 +113,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
 #endif /*USE_MPI*/
 
 IF(.NOT.DoDeposition) THEN
-  ! fill deposition type with emtpy string
+  ! fill deposition type with empty string
   DepositionType='NONE'
   OutputSource=.FALSE.
   RelaxDeposition=.FALSE.
@@ -1127,8 +1127,7 @@ USE MOD_Globals
 USE MOD_Particle_MPI_Vars           ,ONLY: PartMPIExchange
 #endif  /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
-USE MOD_LoadBalance_Timers          ,ONLY: LBElemSplitTime_avg
+USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 USE MOD_PICDepo_Method              ,ONLY: DepositionMethod
 !-----------------------------------------------------------------------------------------------------------------------------------

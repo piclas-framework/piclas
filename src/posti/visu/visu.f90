@@ -217,7 +217,7 @@ CHARACTER(LEN=255),INTENT(IN)    :: statefile
 CHARACTER(LEN=255),INTENT(INOUT) :: postifile
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL
-INTEGER                          :: nElems_State
+INTEGER                          :: nElems_State,N_HDF5
 CHARACTER(LEN=255)               :: NodeType_State, cwd
 !===================================================================================================================================
 IF (STRICMP(fileType,'Mesh')) THEN
@@ -260,7 +260,7 @@ SWRITE(*,*) " mesh file old -> new: ", TRIM(MeshFile_old) , " -> ",TRIM(MeshFile
 
 ! if Mesh or State changed readin some more attributes/parameters
 IF (changedStateFile.OR.changedMeshFile) THEN
-  CALL GetDataProps('DG_Solution',nVar_State,PP_N,nElems_State,NodeType_State)
+  CALL GetDataProps('DG_Solution',nVar_State,N_HDF5,nElems_State,NodeType_State)
   IF (.NOT.STRICMP(NodeType_State, NodeType)) THEN
     CALL CollectiveStop(__STAMP__, &
         "NodeType of state does not match with NodeType the visu-posti is compiled with!")

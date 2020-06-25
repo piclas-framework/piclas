@@ -71,10 +71,15 @@ REAL                                :: targetWeight                ! optimal wei
 ! Element Local measurement
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE                    :: ElemTime(:)
-REAL,ALLOCATABLE                    :: ElemTime_tmp(:) ! Additional container for restarting and keeping the old ElemTime values in
-                                                       ! the state.h5 file
-INTEGER,ALLOCATABLE                 :: ElemHDGSides(:) ! number of master sides for the HDG solver for each element
-INTEGER                             :: TotalHDGSides   ! total number of master sides for the HDG solver over all local elements
+LOGICAL                             :: NullifyElemTime
+REAL,ALLOCATABLE                    :: ElemTime_tmp(:)  ! Additional container for restarting and keeping the old ElemTime values in
+                                                        ! the state.h5 file
+REAL                                :: ElemTimePartTot  ! Total time spent for particle routines (all procs)
+REAL                                :: ElemTimeFieldTot ! Total time spent for field routines (all procs)
+REAL                                :: ElemTimePart     ! Time spent for particle routines
+REAL                                :: ElemTimeField    ! Time spent for field routines
+INTEGER,ALLOCATABLE                 :: ElemHDGSides(:)  ! number of master sides for the HDG solver for each element
+INTEGER                             :: TotalHDGSides    ! total number of master sides for the HDG solver over all local elements
 REAL,ALLOCATABLE                    :: ElemGlobalTime(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nPartsPerElem(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nDeposPerElem(:)

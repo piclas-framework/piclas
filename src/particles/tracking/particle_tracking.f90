@@ -1543,7 +1543,7 @@ DO iPart=1,PDM%ParticleVecLength
       IF(CNTestElem.LE.0.)THEN
         epsElement = MAXVAL(ElemEpsOneCell)
 #if defined(ROS) || defined(IMPA)
-        TestElem = PEM%GlobalElemIDN(iPart)
+        TestElem = PEM%GlobalElemID(iPart)
         CNTestElem = GetCNElemID(TestElem)
 #endif
       ELSE
@@ -1578,7 +1578,7 @@ DO iPart=1,PDM%ParticleVecLength
           IPWRITE(UNIT_stdOut,'(I0,A,X,E15.8)') ' displacementN/halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
           IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' PartStateN             ', PartStateN(1:3,iPart)
 #if USE_MPI
-          InElem=PEM%GlobalElemIDN(ipart)
+          InElem=PEM%GlobalElemID(ipart)
           IF(InElem.LE.PP_nElems)THEN
             IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
             IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID                ', InElem+offSetElem
@@ -1684,7 +1684,7 @@ DO iPart=1,PDM%ParticleVecLength
               IPWRITE(UNIT_stdOut,'(I0,A,X,E15.8)') ' displacementN/halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
               IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' PartStateN             ', PartStateN(1:3,iPart)
 #if USE_MPI
-              inelem=PEM%GlobalElemIDN(ipart)
+              inelem=PEM%GlobalElemID(ipart)
               IF(inelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = F'
                 IPWRITE(UNIT_stdout,'(I0,A,I0)') ' elemid-N               ', inelem+offsetelem
@@ -1699,7 +1699,7 @@ DO iPart=1,PDM%ParticleVecLength
               ELSE
 !                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = T'
 !                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' testelem-N       ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,testelem)) &
-                                                               + PartHaloElemToProc(NATIVE_ELEM_ID,testelem)
+                                                               !+ PartHaloElemToProc(NATIVE_ELEM_ID,testelem)
               END IF
 
 #else

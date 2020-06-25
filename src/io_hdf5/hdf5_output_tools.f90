@@ -111,13 +111,13 @@ ASSOCIATE (&
         nGlobalElems    => INT(nGlobalElems,IK)    ,&
         PP_nElems       => INT(PP_nElems,IK)       ,&
         N_variables     => INT(N_variables,IK)     ,&
-        PP_N            => INT(PP_N,IK)            ,&
+        N               => INT(PP_N,IK)            ,&
         offsetElem      => INT(offsetElem,IK)      )
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                          DataSetName='DG_Solution' , rank=5                                             , &
-                          nValGlobal =(/N_variables , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
-                          nVal       =(/N_variables , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems   /) , &
-                          offset     =(/       0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem  /) , &
+                          DataSetName='DG_Solution' , rank=5 , &
+                          nValGlobal =(/N_variables , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+                          nVal       =(/N_variables , N+1_IK , N+1_IK , N+1_IK , PP_nElems   /) , &
+                          offset     =(/       0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem  /) , &
                           collective =.TRUE.        , RealArray=DielectricGlobal)
 END ASSOCIATE
 #if USE_MPI
@@ -203,13 +203,13 @@ ASSOCIATE (&
         nGlobalElems    => INT(nGlobalElems,IK)    ,&
         PP_nElems       => INT(PP_nElems,IK)       ,&
         N_variables     => INT(N_variables,IK)     ,&
-        PP_N            => INT(PP_N,IK)            ,&
+        N               => INT(PP_N,IK)            ,&
         offsetElem      => INT(offsetElem,IK)      )
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                          DataSetName='DG_Solution' , rank=5                                             , &
-                          nValGlobal =(/N_variables , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
-                          nVal       =(/N_variables , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems   /) , &
-                          offset     =(/       0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem  /) , &
+                          DataSetName='DG_Solution' , rank=5 , &
+                          nValGlobal =(/N_variables , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+                          nVal       =(/N_variables , N+1_IK , N+1_IK , N+1_IK , PP_nElems   /) , &
+                          offset     =(/       0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem  /) , &
                           collective =.TRUE.        , RealArray=PMLzetaGlobal)
 END ASSOCIATE
 #if USE_MPI
@@ -313,13 +313,13 @@ ASSOCIATE (&
         nGlobalElems    => INT(nGlobalElems,IK)    ,&
         nQDSElems       => INT(nQDSElems,IK)       ,&
         N_variables     => INT(N_variables,IK)     ,&
-        PP_N            => INT(PP_N,IK)            ,&
+        N               => INT(PP_N,IK)            ,&
         offsetElem      => INT(offsetElem,IK)      )
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                          DataSetName    = 'DG_Solution' , rank = 5                                           , &
-                          nValGlobal     = (/N_variables , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
-                          nVal           = (/N_variables , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nQDSElems   /) , &
-                          offset         = (/       0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem  /) , &
+                          DataSetName    = 'DG_Solution' , rank = 5 , &
+                          nValGlobal     = (/N_variables , N+1_IK   , N+1_IK , N+1_IK , nGlobalElems/) , &
+                          nVal           = (/N_variables , N+1_IK   , N+1_IK , N+1_IK , nQDSElems   /) , &
+                          offset         = (/       0_IK , 0_IK     , 0_IK   , 0_IK   , offsetElem  /) , &
                           collective     = .TRUE.        , RealArray = Utemp)
 END ASSOCIATE
 #if USE_MPI
@@ -491,15 +491,15 @@ nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
   BGDataSize   => INT(BGDataSize,IK)    ,&
-  PP_N         => INT(PP_N,IK)          ,&
+  N            => INT(PP_N,IK)          ,&
   PP_nElems    => INT(PP_nElems,IK)     ,&
   offsetElem   => INT(offsetElem,IK)    ,&
   nGlobalElems => INT(nGlobalElems,IK)  )
-CALL WriteArrayToHDF5(DataSetName='BGField', rank=5,&
-                      nValGlobal=(/BGDataSize,PP_N+1_IK,PP_N+1_IK,PP_N+1_IK,nGlobalElems/),&
-                      nVal      =(/BGDataSize,PP_N+1_IK,PP_N+1_IK,PP_N+1_IK,PP_nElems/),&
-                      offset    =(/0_IK,     0_IK,     0_IK,     0_IK,offsetElem/),&
-                      collective=.false., RealArray=BGField(1:BGDataSize,0:PP_N,0:PP_N,0:PP_N,1:nElems))
+CALL WriteArrayToHDF5(DataSetName='BGField'   , rank=5 , &
+                      nValGlobal=(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+                      nVal      =(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
+                      offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+                      collective=.false., RealArray=BGField(1:BGDataSize,0:N,0:N,0:N,1:nElems))
 END ASSOCIATE
 
 CALL CloseDataFile()
@@ -569,7 +569,7 @@ IF(MPIRoot) THEN
   ! Write file header
   CALL WriteHDF5Header('BField',File_ID) ! File_Type='BField'
   ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
-  CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=N)
+  CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=PP_N)
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFile)/))
   CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
   CALL WriteAttributeToHDF5(File_ID,'VarNames',BGDataSize,StrArray=StrVarNames)
@@ -587,14 +587,14 @@ nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
   BGDataSize   => INT(BGDataSize,IK)   ,&
-  PP_N         => INT(PP_N,IK)         ,&
+  N            => INT(PP_N,IK)         ,&
   PP_nElems    => INT(PP_nElems,IK)    ,&
   offsetElem   => INT(offsetElem,IK)   ,&
   nGlobalElems => INT(nGlobalElems,IK) )
-CALL WriteArrayToHDF5(DataSetName='BField', rank=5,&
-                      nValGlobal=(/BGDataSize , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
-                      nVal      =(/BGDataSize , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems/)    , &
-                      offset    =(/0_IK       , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
+CALL WriteArrayToHDF5(DataSetName='BField'    , rank=5 , &
+                      nValGlobal=(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+                      nVal      =(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
+                      offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
                       collective=.false., RealArray=outputArray)
 END ASSOCIATE
 

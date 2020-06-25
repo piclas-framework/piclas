@@ -834,8 +834,21 @@ CALL InitializeVariablesAuxBC()
 ! calculate cartesian borders of node local and global mesh
 CALL GetMeshMinMax()
 !-- Build BGM and halo region
-DoDeposition = GETLOGICAL('PIC-DoDeposition','T')
-DoInterpolation    = GETLOGICAL('PIC-DoInterpolation')
+
+!-- Get PIC deposition (skip DSMC, FP-Flow and BGS-Flow related timediscs)
+#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
+DoDeposition    = .FALSE.
+!DoInterpolation = .FALSE.
+CALL PrintOption('No PIC-ralted Time discretization, turning deposition off. DoDeposition','*CHANGE',LogOpt=DoDeposition)
+!CALL PrintOption('No PIC-ralted Time discretization, turning interpolation off. DoInterpolation','*CHANGE',LogOpt=DoDeposition)
+#else
+DoDeposition    = GETLOGICAL('PIC-DoDeposition')
+#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
+
+!-- Get PIC interpolation (could be skipped above, but DSMC octree requires some interpolation variables, which are allocated before
+! init DSMC determines whether DSMC%UseOctree is true or false)
+DoInterpolation = GETLOGICAL('PIC-DoInterpolation')
+
 CALL InitParticleMesh()
 
 CALL InitPIC()
@@ -2251,7 +2264,7 @@ __STAMP__&
 
     !--- integer check for ParticleEmissionType 2
     IF((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2).AND. &
-         ((Species(iSpec)%Init(iInit)%ParticleEmission-INT(Species(iSpec)%Init(iInit)%ParticleEmission)).NE.0)) THEN
+         (ABS(Species(iSpec)%Init(iInit)%ParticleEmission-INT(Species(iSpec)%Init(iInit)%ParticleEmission,8)).GT.0.0)) THEN
        CALL abort(&
 __STAMP__&
        ,' If ParticleEmissionType = 2 (parts per iteration), ParticleEmission has to be an integer number')
@@ -2557,6 +2570,7 @@ SUBROUTINE InitializeVariablesImplicit()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars
+USE MOD_TimeDisc_Vars ,ONLY: nRKStages
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2664,13 +2678,13 @@ __STAMP__&
   ,' Cannot allocate PartDtFrac arrays!')
 END IF
 PartDtFrac=1.
-ALLOCATE(PEM%GlobalElemIDN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
+ALLOCATE(PEM%GlobalElemID(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
  __STAMP__&
    ,' Cannot allocate the stage position and element arrays!')
 END IF
-PEM%GlobalElemIDN=0
+PEM%GlobalElemID=0
 ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
@@ -2702,13 +2716,13 @@ __STAMP__&
   ,' Cannot allocate PartDtFrac arrays!')
 END IF
 PartDtFrac=1.
-ALLOCATE(PEM%GlobalElemIDN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
+ALLOCATE(PEM%GlobalElemID(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
  __STAMP__&
    ,' Cannot allocate the stage position and element arrays!')
 END IF
-PEM%GlobalElemIDN=0
+PEM%GlobalElemID=0
 ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
@@ -3045,7 +3059,7 @@ SDEALLOCATE(PartStage)
 SDEALLOCATE(PartStateN)
 SDEALLOCATE(PartQ)
 SDEALLOCATE(PartDtFrac)
-SDEALLOCATE(PEM%GlobalElemIDN)
+SDEALLOCATE(PEM%GlobalElemID)
 SDEALLOCATE(PEM%NormVec)
 SDEALLOCATE(PEM%PeriodicMoved)
 #endif /*defined(ROS) || defined(IMPA)*/

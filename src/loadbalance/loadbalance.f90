@@ -187,10 +187,11 @@ USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem
 USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem,nPartsPerBCElem,nSurfacePartsPerElem
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
-USE MOD_LoadBalance_Vars       ,ONLY: ParticleMPIWeight
+USE MOD_LoadBalance_Vars       ,ONLY: ParticleMPIWeight,ElemTimePartTot,ElemTimePart
 #endif /*PARTICLES*/
 USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
-USE MOD_LoadBalance_Vars       ,ONLY: CurrentImbalance,PerformLBSample
+USE MOD_LoadBalance_Vars       ,ONLY: CurrentImbalance,PerformLBSample,ElemTimeFieldTot,ElemTimeField
+USE MOD_LoadBalance_Vars       ,ONLY: WeightSum
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -202,8 +203,15 @@ INTEGER               :: iElem
 #ifdef PARTICLES
 INTEGER(KIND=8)       :: HelpSum
 REAL                  :: stotalDepos,stotalParts,sTotalTracks,stotalSurfacefluxes,sTotalBCParts,sTotalSurfaceParts
+REAL                  :: ElemTimePartElem
 #endif /*PARTICLES*/
+REAL                  :: ElemTimeFieldElem
 !====================================================================================================================================
+! Initialize
+ElemTimeFieldTot = 0.
+#ifdef PARTICLES
+  ElemTimePartTot = 0.
+#endif /*PARTICLES*/
 
 ! If elem times are calculated by time measurement (PerformLBSample) and no Partweight Loadbalance is enabled
 IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
@@ -262,23 +270,25 @@ IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
 
   ! distribute times of different routines on elements with respective weightings
   DO iElem=1,PP_nElems
-    ! time used in dg routines
+    ! Time used in DG routines
 #if USE_HDG
-    ElemTime(iElem) = ElemTime(iElem) + tCurrent(LB_DG)*REAL(ElemHDGSides(iElem))/REAL(TotalHDGSides) &
-                                      + tCurrent(LB_DGANALYZE)/REAL(PP_nElems)
+    ElemTimeFieldElem = tCurrent(LB_DG)*REAL(ElemHDGSides(iElem))/REAL(TotalHDGSides) + tCurrent(LB_DGANALYZE)/REAL(PP_nElems)
 #else
-    ElemTime(iElem) = ElemTime(iElem) + (tCurrent(LB_DG) + tCurrent(LB_DGANALYZE))/REAL(PP_nElems)
+    ElemTimeFieldElem = (tCurrent(LB_DG) + tCurrent(LB_DGANALYZE))/REAL(PP_nElems)
 #endif /*USE_HDG*/
+
 #if !(USE_HDG)
-    ! time used in pml routines
+    ! Add time used in PML routines
     IF(DoPML)THEN
-      IF(ElemToPML(iElem).GT.0 ) ElemTime(iElem) = ElemTime(iElem) + tCurrent(LB_PML)/REAL(nPMLElems)
+      IF(ElemToPML(iElem).GT.0 ) ElemTimeFieldElem = ElemTimeFieldElem + tCurrent(LB_PML)/REAL(nPMLElems)
     END IF
 #endif /*USE_HDG*/
+    ElemTime(iElem) = ElemTime(iElem)  + ElemTimeFieldElem
+    ElemTimeField   = ElemTimeField    + ElemTimeFieldElem
 
 #ifdef PARTICLES
     ! add particle LB times to elements with respective weightings
-    ElemTime(iElem) = ElemTime(iElem)                                             &
+    ElemTimePartElem =                                                            &
         + tCurrent(LB_ADAPTIVE)      * nPartsPerBCElem(iElem)*sTotalBCParts       &
         + tCurrent(LB_INTERPOLATION)   * nPartsPerElem(iElem)*sTotalParts         &
         + tCurrent(LB_PUSH)            * nPartsPerElem(iElem)*sTotalParts         &
@@ -290,11 +300,15 @@ IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
         + tCurrent(LB_SURF)     * nSurfacePartsPerElem(iElem)*stotalSurfaceParts
     ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
     IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
-      ElemTime(iElem) = ElemTime(iElem)                              &
+      ElemTimePartElem = ElemTimePartElem &
           + tCurrent(LB_DEPOSITION) * nDeposPerElem(iElem)*stotalDepos
     END IF
+
+    ElemTime(iElem) = ElemTime(iElem) + ElemTimePartElem
+    ElemTimePart    = ElemTimePart    + ElemTimePartElem
 #endif /*PARTICLES*/
   END DO ! iElem=1,PP_nElems
+
 #ifdef PARTICLES
 ! If no Elem times are calculated but Partweight Loadbalance is enabled
 ELSE IF(PerformLBSample .AND. LoadBalanceSample.EQ.0) THEN
@@ -302,8 +316,9 @@ ELSE IF(PerformLBSample .AND. LoadBalanceSample.EQ.0) THEN
   nLoadBalance=nLoadBalance+1
   ! no time measurement and particles are present: simply add the ParticleMPIWeight times the number of particles present
   DO iElem=1,PP_nElems
-    ElemTime(iElem) = ElemTime(iElem) &
-        + nPartsPerElem(iElem)*ParticleMPIWeight + 1.0
+    ElemTimePartElem = nPartsPerElem(iElem)*ParticleMPIWeight + 1.0
+    ElemTime(iElem)  = ElemTime(iElem) + ElemTimePartElem
+    ElemTimePart     = ElemTimePart    + ElemTimePartElem
   END DO ! iElem=1,PP_nElems
   IF((MAXVAL(nPartsPerElem).GT.0).AND.(MAXVAL(ElemTime).LE.1.0))THEN
     IPWRITE (*,*) "parts, time =", MAXVAL(nPartsPerElem),MAXVAL(ElemTime)
@@ -340,7 +355,7 @@ END SUBROUTINE ComputeElemLoad
 
 SUBROUTINE LoadBalance()
 !===================================================================================================================================
-! routine perfoming the load balancing stuff
+! Routine performing the load balancing stuff
 !===================================================================================================================================
 ! USED MODULES
 USE MOD_Globals
@@ -352,9 +367,11 @@ USE MOD_LoadBalance_Vars ,ONLY: ElemTime,nLoadBalanceSteps,NewImbalance,MinWeigh
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars     ,ONLY: DepositionType
 USE MOD_Particle_MPI     ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
 #endif /*PARTICLES*/
 USE MOD_LoadBalance_Vars ,ONLY: CurrentImbalance, MaxWeight, MinWeight
 USE MOD_LoadBalance_Vars ,ONLY: Currentimbalance, PerformLoadBalance
+USE MOD_LoadBalance_Vars ,ONLY: ElemTimeField
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -370,35 +387,46 @@ REAL :: LB_Time,LB_StartTime
 IF(.NOT.PerformLoadBalance) THEN
   ElemTime=0.
   InitializationWallTime=0.
+#ifdef PARTICLES
+  ElemTimePart    = 0.
+#endif /*PARTICLES*/
+  ElemTimeField    = 0.
   RETURN
 END IF
 
-SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_StdOut,'(X)')
+SWRITE(UNIT_StdOut,'(X)')
+SWRITE(UNIT_StdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)') ' PERFORMING LOAD BALANCE ...'
 ! Measure init duration
 LB_StartTime=PICLASTIME()
 
 nLoadBalanceSteps=nLoadBalanceSteps+1
-! finialize all arrays
+! Finalize all arrays
 CALL FinalizePiclas(IsLoadBalance=.TRUE.)
 ! reallocate
 CALL InitPiclas(IsLoadBalance=.TRUE.) ! determines new imbalance in InitMesh() -> ReadMesh()
+
+! restart
+CALL Restart()
 
 ! compute imbalance
 !CALL ComputeImbalance(NewImbalance,MaxWeight,MinWeight,ElemTime)  ! --> new imbalance has already been calculated in mesh_readin
 
 ! zero ElemTime, the measurement starts again
 ElemTime=0.
+#ifdef PARTICLES
+ElemTimePart    = 0.
+#endif /*PARTICLES*/
+ElemTimeField    = 0.
 
 IF( NewImbalance.GT.CurrentImbalance ) THEN
-  SWRITE(UNIT_stdOut,'(A)') ' WARNING: LoadBalance not successful!'
+  SWRITE(UNIT_stdOut,'(A)') ' WARNING: LoadBalance not successful! Determined new (theoretical) imbalance from elem distribution'
 ELSE
-  SWRITE(UNIT_stdOut,'(A)') ' LoadBalance successful!'
+  SWRITE(UNIT_stdOut,'(A)') ' LoadBalance successful! Determined new (theoretical) imbalance from elem distribution'
 END IF
-SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' OldImbalance: ', CurrentImbalance
-SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' NewImbalance: ', NewImbalance
-SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MaxWeight:    ', MaxWeight
-SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MinWeight:    ', MinWeight
+SWRITE(UNIT_stdOut,'(A,ES9.3,A,ES9.3,A,ES9.3,A,ES9.3)')&
+  ' MinWeight: ', MinWeight, '    MaxWeight: ', MaxWeight, '    OldImbalance: ', CurrentImbalance,'    NewImbalance: ', NewImbalance
 
 #ifdef PARTICLES
 ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
@@ -419,8 +447,9 @@ LB_Time=PICLASTIME()
 InitializationWallTime=LB_Time-LB_StartTime
 SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_StdOut,'(132("="))')
 END SUBROUTINE LoadBalance
+
 
 #if USE_LOADBALANCE
 SUBROUTINE ComputeImbalance()
@@ -434,8 +463,12 @@ SUBROUTINE ComputeImbalance()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_LoadBalance_Vars,    ONLY:WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
-USE MOD_LoadBalance_Vars,    ONLY:ElemTime, PerformLBSample, PerformPartWeightLB, DeviationThreshold
+USE MOD_LoadBalance_Vars ,ONLY: WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
+USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample, PerformPartWeightLB, DeviationThreshold
+USE MOD_LoadBalance_Vars ,ONLY: ElemTimeFieldTot,ElemTimeField
+#ifdef PARTICLES
+USE MOD_LoadBalance_Vars ,ONLY: ElemTimePartTot,ElemTimePart
+#endif /*PARTICLES*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -444,6 +477,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL :: WeightSum_loc
 !===================================================================================================================================
 
 IF(.NOT.PerformLBSample .AND. .NOT.PerformPartWeightLB) THEN
@@ -451,37 +485,64 @@ IF(.NOT.PerformLBSample .AND. .NOT.PerformPartWeightLB) THEN
   TargetWeight     = 0.
   CurrentImbalance = -1.0
 ELSE
-  WeightSum=SUM(ElemTime)
 
-  IF(ALMOSTZERO(WeightSum))THEN
-    IPWRITE(*,*) 'Info: The measured time of all elems is zero. ALMOSTZERO(WeightSum)=.TRUE., WeightSum=',WeightSum
+#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
+  WeightSum = 0. ! initialize before adding particle info
+#else
+  ! Collect ElemTime for particles and field separately (only on root process)
+  ! Skip the reduce for DSMC timedisc
+  CALL MPI_REDUCE(ElemTimeField , ElemTimeFieldTot , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+  WeightSum = ElemTimeFieldTot ! only correct on MPI root
+#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
+#ifdef PARTICLES
+  CALL MPI_REDUCE(ElemTimePart , ElemTimePartTot  , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+  WeightSum = WeightSum + ElemTimePartTot ! only correct on MPI root
+#endif /*PARTICLES*/
+  ! send WeightSum from MPI root to all other procs
+  CALL MPI_BCAST(WeightSum,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
+
+  WeightSum_loc=SUM(ElemTime)
+  !IPWRITE(UNIT_StdOut,*) "SUM(ElemTime) =", SUM(ElemTime)
+
+  IF(ALMOSTZERO(WeightSum_loc))THEN
+    IPWRITE(*,*) 'Info: The measured time of all elems is zero. ALMOSTZERO(WeightSum)=.TRUE., SUM(ElemTime)=',WeightSum_loc
   END IF
 
-  CALL MPI_ALLREDUCE(WeightSum,TargetWeight,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
-  CALL MPI_ALLREDUCE(WeightSum,MaxWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
-  CALL MPI_ALLREDUCE(WeightSum,MinWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
+  !CALL MPI_ALLREDUCE(WeightSum_loc,TargetWeight,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(WeightSum_loc,MaxWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(WeightSum_loc,MinWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
 
-  WeightSum    = TargetWeight ! Set total weight for writing to file
-  TargetWeight = TargetWeight/nProcessors ! Calculate the average value that is supposed to be the optimally distributed weight
+  !WeightSum    = TargetWeight ! Set total weight for writing to file
+  !IF(MPIRoot)THEN
+    ! These two must be equal!
+    !IPWRITE(UNIT_StdOut,*) "WeightSum (TargetWeight) =", TargetWeight
+    !IPWRITE(UNIT_StdOut,*) "WeightSum (WeightSum)    =", WeightSum
+  !END IF ! MPIRoot
+
+  ! Old   (ALLREDUCE of sum(ElemTime) on TargetWeight)
+  !TargetWeight = TargetWeight/nProcessors ! Calculate the average value that is supposed to be the optimally distributed weight
+
+  ! New
+  TargetWeight = WeightSum/nProcessors ! Calculate the average value that is supposed to be the optimally distributed weight
+
+  IF((TargetWeight.GT.MaxWeight).OR.(TargetWeight.LT.MinWeight))THEN
+    SWRITE (UNIT_stdOut,'(A)') " ERROR: after ALLREDUCE, TargetWeight is either smaller than MinWeight or larger than MaxWeight!"
+  END IF ! (TargetWeight.GT.MaxWeight).OR.(TargetWeight.LT.MinWeight)
 
   !IF(ALMOSTZERO(WeightSum))CALL abort( __STAMP__&
       !,' ERROR: after ALLREDUCE, weight sum cannot be zero! WeightSum=',RealInfoOpt=WeightSum)
 
   ! new computation of current imbalance
-  IF(ABS(TargetWeight).EQ.0.)THEN
+  IF(ABS(TargetWeight).LE.0.)THEN
     CurrentImbalance = 0.
-  ELSE IF(ABS(TargetWeight).LT.0.0)THEN
     SWRITE(UNIT_stdOut,'(A,F14.2,A1)')&
-        ' ERROR: after ALLREDUCE, WeightSum/TargetWeight cannot be zero! TargetWeight=[',TargetWeight,']'
-    CurrentImbalance = HUGE(1.0)
+        ' ERROR: after ALLREDUCE, TargetWeight (=WeightSum/nProcessors) cannot be zero! TargetWeight=[',TargetWeight,']'
   ELSE
-    CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
+    CurrentImbalance =  (MaxWeight-TargetWeight)/TargetWeight
   END IF
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)')             ' MaxWeight:        ', MaxWeight
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)')             ' MinWeight:        ', MinWeight
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)')             ' TargetWeight:     ', TargetWeight
-  SWRITE(UNIT_stdOut,'(A25,ES15.7,A,ES15.7,A1)') ' CurrentImbalance: ', CurrentImbalance, ' (Threshold: ', DeviationThreshold, ')'
-
+  SWRITE(UNIT_stdOut,'(A,ES9.3,A,ES9.3,A,ES9.3,A,ES9.3,A,ES8.2,A)')&
+      ' MinWeight: ', MinWeight, '    MaxWeight: ', MaxWeight, '    TargetWeight: ', TargetWeight,'    CurrentImbalance: ',&
+        CurrentImbalance, '    (Threshold: ', DeviationThreshold, ')'
 END IF
 
 END SUBROUTINE ComputeImbalance

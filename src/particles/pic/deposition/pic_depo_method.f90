@@ -174,14 +174,14 @@ SUBROUTINE DepositionMethod_CVW(FirstPart,LastPart,DoInnerParts,doPartInExists,d
 ! Linear charge density distribution within a cell (discontinuous across cell interfaces)
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc                ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies,PDM,PEM,PartPosRef,usevMPF,PartMPF
 USE MOD_Particle_Vars          ,ONLY: PartState
 USE MOD_PICDepo_Vars           ,ONLY: PartSource,CellVolWeight_Volumes,CellVolWeightFac
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetCNElemID
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 USE MOD_LoadBalance_Timers     ,ONLY: LBElemSplitTime_avg
 #endif /*USE_LOADBALANCE*/
 USE MOD_Mesh_Vars              ,ONLY: nElems, offSetElem
@@ -327,7 +327,7 @@ SUBROUTINE DepositionMethod_CVWM(FirstPart,LastPart,DoInnerParts,doPartInExists,
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PreProc            ,ONLY: PP_N
+USE MOD_PreProc
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars          ,ONLY: nElems,nNodes, OffsetElem
@@ -577,7 +577,7 @@ SUBROUTINE DepositionMethod_SF(FirstPart,LastPart,DoInnerParts,doPartInExists,do
 ! Smooth polynomial deposition via "shape functions" of various order in 3D
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc                     ,ONLY: PP_N,PP_nElems
+USE MOD_Preproc
 USE MOD_globals                     ,ONLY: abort
 USE MOD_Particle_Vars               ,ONLY: Species, PartSpecies,PDM,PartMPF,usevMPF
 USE MOD_Particle_Vars               ,ONLY: PartState
@@ -847,7 +847,7 @@ SUBROUTINE DepositionMethod_SF1D(FirstPart,LastPart,DoInnerParts,doPartInExists,
 ! distributed must be supplied)
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc            ,ONLY: PP_N,PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
@@ -858,8 +858,7 @@ USE MOD_Particle_MPI_Vars  ,ONLY: ExtPartState,ExtPartSpecies,ExtPartToFIBGM,Ext
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
-USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
-USE MOD_LoadBalance_Timers ,ONLY: LBElemSplitTime_avg
+USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars ,ONLY: NbrOfCases,casematrix
@@ -1123,7 +1122,7 @@ SUBROUTINE DepositionMethod_SF2D(FirstPart,LastPart,DoInnerParts,doPartInExists,
 ! i.e., in which it is constant, must be supplied)
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc                     ,ONLY: PP_N,PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Vars               ,ONLY: Species, PartSpecies,PDM,usevMPF,PartMPF
 USE MOD_Particle_Vars               ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
@@ -1135,8 +1134,7 @@ USE MOD_Particle_MPI_Vars           ,ONLY: ExtPartState,ExtPartSpecies,ExtPartTo
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars            ,ONLY: nDeposPerElem
-USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
-USE MOD_LoadBalance_Timers          ,ONLY: LBElemSplitTime_avg
+USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Mesh_Vars          ,ONLY: GEO,casematrix, NbrOfCases
 USE MOD_Mesh_Vars                   ,ONLY: nElems
@@ -1468,7 +1466,7 @@ SUBROUTINE DepositionMethod_SFCS(FirstPart,LastPart,DoInnerParts,doPartInExists,
 ! spherical coordinates.
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc            ,ONLY: PP_N,PP_nElems
+USE MOD_Preproc
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
@@ -1476,8 +1474,7 @@ USE MOD_PICDepo_Vars       ,ONLY: PartSource,Vdm_EquiN_GaussN,SfRadiusInt,r_sf_s
 USE MOD_PICDepo_Vars       ,ONLY: ElemDepo_xGP,DoSFEqui,alpha_sf,w_sf
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
-USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
-USE MOD_LoadBalance_Timers ,ONLY: LBElemSplitTime_avg
+USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,casematrix, NbrOfCases
 #if USE_MPI
