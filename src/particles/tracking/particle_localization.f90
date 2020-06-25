@@ -271,7 +271,7 @@ alpha=-1.
 DO ilocSide=1,6
 
   SideID = GetGlobalNonUniqueSideID(ElemID,iLocSide)
-  flip   = SideInfo_Shared(SIDE_FLIP,SideID)
+  flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
 
   SELECT CASE(SideType(SideID))
   CASE(PLANAR_RECT)

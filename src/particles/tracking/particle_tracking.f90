@@ -368,8 +368,8 @@ DO i = 1,PDM%ParticleVecLength
         END IF  ! NrOfThroughSides.NE.1
         ! ----------------------------------------------------------------------------
         ! 3) In case of a boundary, perform the appropriate boundary interaction
-        crossedBC=.FALSE.
-        flip =SideInfo_Shared(SIDE_FLIP,SideID)
+        crossedBC=.FALSE.      
+        flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
         IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
           OldElemID=ElemID
           BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
@@ -755,7 +755,7 @@ DO iPart=1,PDM%ParticleVecLength
           SideID = GetGlobalNonUniqueSideID(ElemID,iLocSide)
 
           ! BezierControlPoints are now built in cell local system. Hence, sides have always the flip from the shared SideInfo
-          flip = Sideinfo_Shared(SIDE_FLIP,SideID)
+          flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
 
           ! TODO missing!!! : mapping from GlobalNonUnique to CNtotalsides
           isCriticalParallelInFace=.FALSE.
@@ -932,7 +932,7 @@ DO iPart=1,PDM%ParticleVecLength
           CASE(1) ! intersection with cell side
           !------------------------------------
             SideID = GetGlobalNonUniqueSideID(ElemID,currentIntersect%Side)
-            flip = Sideinfo_Shared(SIDE_FLIP,SideID)
+            flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
 
             ! missing!!! : mapping from GlobalNonUnique to CNtotalsides
             CALL SelectInterSectionType( PartIsDone                   &
@@ -1863,7 +1863,7 @@ DO WHILE(DoTracing)
     locSideList(ilocSide) = ilocSide
 
     ! BezierControlPoints are now built in cell local system. Hence, sides have always the flip from the shared SideInfo
-    flip  = SideInfo_Shared(SIDE_FLIP,SideID)
+    flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
 
     ! double check
     IF (doublecheck) THEN
@@ -1959,7 +1959,7 @@ DO WHILE(DoTracing)
       IF (locAlpha(ilocSide).GT.-1) THEN
         hitlocSide = locSideList(ilocSide)
         SideID     = INT(SideBCMetrics(BCSIDE_SIDEID,hitlocSide))
-        flip  = SideInfo_Shared(SIDE_FLIP,SideID)
+        flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
         OldElemID = ElemID
         CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                    ,xi(hitlocSide),eta(hitlocSide),PartId,SideID,flip      &
@@ -2155,7 +2155,7 @@ ELSE
       ! performed after the MPI communication: ParticleInsideQuad3D_MortarMPI)
       IF (NbElemID.LT.1) CYCLE
       ! BezierControlPoints are now built in cell local system. We are checking mortar sides, so everything is reversed
-      IF (SideInfo_Shared(SIDE_FLIP,NbSideID).EQ.0) THEN
+      IF (MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,nbSideID),10),SideInfo_Shared(SIDE_ID,nbSideID).GT.0).EQ.0) THEN
         locFlip = 1
       ELSE
         locFlip = 0
@@ -2579,7 +2579,7 @@ DO iLocSide=firstSide,LastSide
   ! track particle vector until the final particle position is achieved
   SideID   = INT(SideBCMetrics(BCSIDE_SIDEID,ilocSide))
   locSideList(ilocSide) = ilocSide
-  flip     = SideInfo_Shared(SIDE_FLIP,SideID)
+  flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
 
   SELECT CASE(SideType(SideID))
     CASE(PLANAR_RECT)

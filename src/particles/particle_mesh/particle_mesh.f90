@@ -895,8 +895,12 @@ DO iElem = firstElem,lastElem
 
     IF (SideInfo_Shared(SIDE_LOCALID,GlobalSideID).LE.0) CYCLE
     localSideID = SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
-    ! Find start of CGNS mapping from flip
-    nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,GlobalSideID),10)-1)
+    ! Find start of CGNS mapping from flip    
+    IF (SideInfo_Shared(SIDE_ID,GlobalSideID).GT.0) THEN 
+      nStart = 0
+    ELSE
+      nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,GlobalSideID),10)-1)
+    END IF
     ! Shared memory array starts at 1, but NodeID at 0
     ElemSideNodeID_Shared(1:4,localSideID,iElem) = (/ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart  ,4)+1,localSideID)-1, &
                                                      ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+1,4)+1,localSideID)-1, &
@@ -932,7 +936,11 @@ DO iElem = firstElem,lastElem
     detcon = ((A(2,1) * A(3,2) - A(3,1) * A(2,2)) * A(1,3) +     &
               (A(3,1) * A(1,2) - A(1,1) * A(3,2)) * A(2,3) +     &
               (A(1,1) * A(2,2) - A(2,1) * A(1,2)) * A(3,3))
-    IF (detcon.LT.0) ConcaveElemSide_Shared(localSideID,iElem) = .TRUE.
+    IF (detcon.LT.0) THEN
+      ConcaveElemSide_Shared(localSideID,iElem) = .TRUE.
+    ELSE IF (detcon.EQ.0.0) THEN
+      IF (GlobalSideID.LT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)) ConcaveElemSide_Shared(localSideID,iElem) = .TRUE.
+    END IF
   END DO
 END DO
 
@@ -1987,14 +1995,7 @@ DO iElem=firstElem,lastElem
   ! b) use curved information to decide side type
   DO ilocSide=1,6
     SideID = GetGlobalNonUniqueSideID(GetGlobalElemID(iElem),iLocSide)
-
-    ! Why were only flips LT. 0 considered? All flips are equal!
-!    IF (SideInfo_Shared(SIDE_ID,SideID).GT.0) THEN
-!      flip = 0
-!    ELSE
-!      flip = MOD(Sideinfo_Shared(SIDE_FLIP,SideID),10)
-!    END IF
-    flip = Sideinfo_Shared(SIDE_FLIP,SideID)
+    flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
 
     IF(.NOT.ElemCurved(iElem))THEN
       BezierControlPoints_loc(1:3,0:NGeo,0:NGeo) = BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID)
