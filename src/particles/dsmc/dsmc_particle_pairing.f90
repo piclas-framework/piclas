@@ -1176,7 +1176,7 @@ TYPE (tNodeVolume), INTENT(INOUT), POINTER :: Node
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                  :: iPart, LocalNodeDepth, GlobalElemID
+INTEGER                  :: iPart, LocalNodeDepth
 REAL                     :: refPos(1:3),physPos(1:3)
 TYPE(tTreeNode), POINTER :: TreeNode
 !===================================================================================================================================
@@ -1207,7 +1207,7 @@ IF (UseMacroBody .AND. GEO%MPVolumePortion(iElem).LT.1.0 .AND. GEO%MPVolumePorti
   DO iPart=1,TreeNode%PNum_Node
     DO
       CALL RANDOM_NUMBER(physPos)
-      physPos = BoundsOfElem_Shared(1,:,iElem+offsetElem) + physPos*(BoundsOfElem_Shared(2,:,iElem)-BoundsOfElem_Shared(1,:,iElem))
+      physPos = BoundsOfElem_Shared(1,:,iElem) + physPos*(BoundsOfElem_Shared(2,:,iElem)-BoundsOfElem_Shared(1,:,iElem))
       CALL GetPositionInRefElem(physPos,refPos,iElem)
       IF (MAXVAL(ABS(refPos)).LE.1.0) EXIT ! particle inside of element
     END DO
