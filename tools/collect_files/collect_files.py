@@ -117,8 +117,9 @@ for (dirpath, dirnames, filenames) in os.walk(args.source, topdown=True):
             with open(oldfile) as input:
                 #print("load %s" % oldfile)
                 lines = input.readlines()
-                #print(len(lines))
-                if len(lines) > 1:
+
+                # The file should have at least two data points
+                if len(lines) > 2:
                     basename = os.path.basename(head)
                     newfile = "%s/%s_%s" % (home,basename, tail)
                     #print(newfile)
