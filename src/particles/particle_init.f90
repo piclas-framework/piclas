@@ -1987,7 +1987,8 @@ USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_Initialize
-USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Mesh_Vars              ,ONLY: nElems, offsetElem
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetCNElemID
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_shared
@@ -2525,7 +2526,7 @@ __STAMP__&
             particlenumber_tmp = 0.
             DO iElem = 1,nElems
               particlenumber_tmp = particlenumber_tmp + Species(iSpec)%Init(iInit)%ElemPartDensity(iElem) &
-                  / Species(iSpec)%MacroParticleFactor * ElemVolume_Shared(iElem)
+                  / Species(iSpec)%MacroParticleFactor * ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
             END DO
             Species(iSpec)%Init(iInit)%initialParticleNumber = NINT(particlenumber_tmp)
           END IF

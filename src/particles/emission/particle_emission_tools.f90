@@ -836,7 +836,7 @@ USE MOD_Particle_Localization  ,ONLY: PartInElemCheck
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemEpsOneCell
 USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D, GetCNElemID
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, PartMPF
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
@@ -898,14 +898,14 @@ __STAMP__,&
         nPart = CellChunkSize(iElem)
       ELSE
         IF(RadialWeighting%DoRadialWeighting) THEN
-          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,iElem), iSpec)
+          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,GetCNElemID(iElem)), iSpec)
         END IF
         CALL RANDOM_NUMBER(iRan)
         IF(VarTimeStep%UseVariableTimeStep) THEN
-          adaptTimestep = CalcVarTimeStep(ElemMidPoint_Shared(1,iElem), ElemMidPoint_Shared(2,iElem), iElem)
-          nPart = INT(PartDens / adaptTimestep * ElemVolume_Shared(iElem) + iRan)
+          adaptTimestep = CalcVarTimeStep(ElemMidPoint_Shared(1,GetCNElemID(iElem)), ElemMidPoint_Shared(2,GetCNElemID(iElem)), iElem)
+          nPart = INT(PartDens / adaptTimestep * ElemVolume_Shared(GetCNElemID(iElem)) + iRan)
         ELSE
-          nPart = INT(PartDens * ElemVolume_Shared(iElem) + iRan)
+          nPart = INT(PartDens * ElemVolume_Shared(GetCNElemID(iElem)) + iRan)
         END IF
       END IF
       DO iPart = 1, nPart

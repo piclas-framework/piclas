@@ -41,7 +41,7 @@ PUBLIC:: DepositParticleOnNodes,CalcCellLocNodeVolumes,ReadTimeAverage,beta
 CONTAINS
 
 
-SUBROUTINE DepositParticleOnNodes(iPart,PartPos,ElemID)
+SUBROUTINE DepositParticleOnNodes(iPart,PartPos,GlobalElemID)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Deposit the charge of a single particle on the nodes corresponding to the deposition method 'cell_volweight_mean', where the
 ! charge is stored in NodeSourceExtTmp, which is added to NodeSource in the standard deposition procedure.
@@ -50,12 +50,13 @@ SUBROUTINE DepositParticleOnNodes(iPart,PartPos,ElemID)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
-!USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Particle_Vars      ,ONLY: PartSpecies,Species
 USE MOD_Particle_Vars      ,ONLY: usevMPF,PartMPF
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared
+USE MOD_Particle_Mesh_Tools,ONLY: GetCNElemID
 #if USE_LOADBALANCE
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -63,7 +64,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)               :: iPart
 REAL,INTENT(IN)                  :: PartPos(1:3)
-INTEGER,INTENT(IN)               :: ElemID
+INTEGER,INTENT(IN)               :: GlobalElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3), Charge
@@ -80,16 +81,14 @@ ELSE
   Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
 END IF
 
-CALL GetPositionInRefElem(PartPos,TempPartPos(1:3),ElemID,ForceMode=.TRUE.)
+CALL GetPositionInRefElem(PartPos,TempPartPos(1:3),GlobalElemID,ForceMode=.TRUE.)
 
 alpha1=0.5*(TempPartPos(1)+1.0)
 alpha2=0.5*(TempPartPos(2)+1.0)
 alpha3=0.5*(TempPartPos(3)+1.0)
 
 ! Apply charge to nodes (note that the volumes are not accounted for yet here!)
-!ASSOCIATE( NodeID => GEO%ElemToNodeID(:,ElemID) )
-ASSOCIATE(NodeID => ElemNodeID_Shared(:,ElemID))
-
+ASSOCIATE(NodeID => ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
   NodeSourceExtTmp(NodeID(1)) = NodeSourceExtTmp(NodeID(1))+(Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
   NodeSourceExtTmp(NodeID(2)) = NodeSourceExtTmp(NodeID(2))+(Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
   NodeSourceExtTmp(NodeID(3)) = NodeSourceExtTmp(NodeID(3))+(Charge*  (alpha1)*  (alpha2)*(1-alpha3))
@@ -101,7 +100,7 @@ ASSOCIATE(NodeID => ElemNodeID_Shared(:,ElemID))
 END ASSOCIATE
 
 #if USE_LOADBALANCE
-CALL LBElemPauseTime(ElemID,tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to ElemID
+CALL LBElemPauseTime(GlobalElemID-offsetElem,tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to ElemID
 #endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE DepositParticleOnNodes

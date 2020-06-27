@@ -54,6 +54,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 #endif
 USE MOD_Particle_Mesh_Vars,     ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars              ,ONLY: offSetElem
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -82,9 +83,9 @@ USE MOD_Mesh_Vars              ,ONLY: offSetElem
     Volume = NodeVolume
   ELSE
     IF (ConsiderVolumePortions) THEN
-      Volume = ElemVolume_Shared(iElem+offSetElem)*(1.-GEO%MPVolumePortion(iElem))
+      Volume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))*(1.-GEO%MPVolumePortion(iElem))
     ELSE
-      Volume = ElemVolume_Shared(iElem+offSetElem)
+      Volume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
     END IF
   END IF
 

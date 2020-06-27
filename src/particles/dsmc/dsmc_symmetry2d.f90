@@ -83,7 +83,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
-USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID, GetCNElemID
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
 #if USE_MPI
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
@@ -97,7 +97,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shar
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: SideID, iLocSide, i, j, ElemID, iNode, BCSideID, locElemID
+INTEGER                         :: SideID, iLocSide, i, j, ElemID, iNode, BCSideID, locElemID, CNElemID
 REAL                            :: radius, triarea(2)
 LOGICAL                         :: SymmetryBCExists
 INTEGER                         :: firstElem,lastElem
@@ -137,11 +137,12 @@ DO BCSideID=1,nBCSides
   SideID=GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%SymmetryBC) THEN
     ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
+    CNElemID = GetCNElemID(ElemID)
     iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
     ! Exclude the symmetry axis (y=0)
-    IF(MAXVAL(NodeCoords_Shared(2,ElemSideNodeID_Shared(:,iLocSide,ElemID)+1)).GT.0.0) THEN
+    IF(MAXVAL(NodeCoords_Shared(2,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1)).GT.0.0) THEN
       ! The z-plane with the positive z component is chosen
-      IF(MINVAL(NodeCoords_Shared(3,ElemSideNodeID_Shared(:,iLocSide,ElemID)+1)).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
+      IF(MINVAL(NodeCoords_Shared(3,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1)).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
         IF(SymmetrySide(locElemID,1).GT.0) THEN
           CALL abort(__STAMP__&
             ,'ERROR: PICLas could not determine a unique symmetry surface for 2D/axisymmetric calculation!'//&
@@ -164,7 +165,7 @@ DO BCSideID=1,nBCSides
         IF (Symmetry2DAxisymmetric) THEN
           radius = 0.
           DO iNode = 1, 4
-            radius = radius + NodeCoords_Shared(2,ElemSideNodeID_Shared(iNode,iLocSide,ElemID)+1)
+            radius = radius + NodeCoords_Shared(2,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)
           END DO
           radius = radius / 4.
           ElemVolume_Shared(ElemID) = ElemVolume_Shared(ElemID) * 2. * Pi * radius
@@ -456,11 +457,10 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
     END IF
   END IF
   PartSpecies(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Species
-  ElemID = ClonedParticles(iPart,DelayCounter)%Element
   ! Set the global element number with the offset
-  PEM%GlobalElemID(PositionNbr) = ElemID
-  locElemID = ElemID - offSetElem
+  PEM%GlobalElemID(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
   PEM%LastGlobalElemID(PositionNbr) = PEM%GlobalElemID(PositionNbr)
+  locElemID = PEM%LocalElemID(PositionNbr)
   LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
   IF (VarTimeStep%UseVariableTimeStep) THEN
@@ -496,7 +496,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)            :: iElem,iLocSide
+INTEGER,INTENT(IN)            :: iElem,iLocSide           !> iElem is the compute-node element ID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL, OPTIONAL, INTENT(OUT)   :: ymax,ymin
@@ -538,7 +538,7 @@ RETURN
 END FUNCTION DSMC_2D_CalcSymmetryArea
 
 
-FUNCTION DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,iElem)!,ymin,ymax)
+FUNCTION DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,iElem)
 !===================================================================================================================================
 !> Calculates the area of the subsides for the insertion with the surface flux
 !===================================================================================================================================
@@ -552,10 +552,9 @@ USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)                :: iLocSide,iElem
+INTEGER,INTENT(IN)                :: iLocSide,iElem           !> iElem is the compute-node element ID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-! REAL, INTENT(OUT)                 :: ymax(RadialWeighting%nSubSides),ymin(RadialWeighting%nSubSides)
 REAL                              :: DSMC_2D_CalcSymmetryAreaSubSides(RadialWeighting%nSubSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -579,10 +578,6 @@ Length = SQRT((Pmax(1)-Pmin(1))**2 + (Pmax(2)-Pmin(2))**2)
 DO iNode = 1, RadialWeighting%nSubSides
   PminTemp = Pmin(2) + (Pmax(2) - Pmin(2))/RadialWeighting%nSubSides*(iNode-1.)
   PmaxTemp = Pmin(2) + (Pmax(2) - Pmin(2))/RadialWeighting%nSubSides*iNode
-  ! IF (PRESENT(ymax).AND.PRESENT(ymin)) THEN
-  !   ymin(iNode) = PminTemp
-  !   ymax(iNode) = PmaxTemp
-  ! END IF
   MidPoint = (PmaxTemp+PminTemp) / 2.
   DSMC_2D_CalcSymmetryAreaSubSides(iNode) = Length/RadialWeighting%nSubSides * MidPoint * Pi * 2.
 END DO
@@ -619,7 +614,7 @@ REAL                 :: yPosIn
 !===================================================================================================================================
 
 IF(RadialWeighting%CellLocalWeighting.AND.PRESENT(iPart)) THEN
-  yPosIn = ElemMidPoint_Shared(2,PEM%GlobalElemID(iPart))
+  yPosIn = ElemMidPoint_Shared(2,PEM%CNElemID(iPart))
 ELSE
   yPosIn = yPos
 END IF

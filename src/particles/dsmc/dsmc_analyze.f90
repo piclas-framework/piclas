@@ -783,7 +783,7 @@ CALL LBStartTime(tLBStart)
 DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
     iSpec = PartSpecies(iPart)
-    iElem = PEM%GlobalElemID(iPart) - offSetElem
+    iElem = PEM%LocalElemID(iPart)
     partWeight = GetParticleWeight(iPart)
     DSMC_Solution(1:3,iElem,iSpec) = DSMC_Solution(1:3,iElem,iSpec) + PartState(4:6,iPart)*partWeight
     DSMC_Solution(4:6,iElem,iSpec) = DSMC_Solution(4:6,iElem,iSpec) + PartState(4:6,iPart)**2*partWeight
@@ -807,7 +807,7 @@ DO iPart=1,PDM%ParticleVecLength
 END DO
 !IF(ConsiderVolumePortions) THEN
 !  ! DO iElem=1,nElems
-!  !   DSMC_VolumeSample(iElem) = DSMC_VolumeSample(iElem) + ElemVolume_Shared(iElem+offSetElem)*(1.-GEO%MPVolumePortion(iElem))
+!  !   DSMC_VolumeSample(iElem) = DSMC_VolumeSample(iElem) + ElemVolume_Shared(GetCNElemID(iElem+offSetElem))*(1.-GEO%MPVolumePortion(iElem))
 !  ! END DO
 !  CALL abort(&
 !__STAMP__&
@@ -839,6 +839,7 @@ USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars         ,ONLY: time,TEnd,iter,dt
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
+USE MOD_Particle_Mesh_Tools   ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -876,7 +877,7 @@ DO iElem = 1, nElems ! element/cell main loop
               Total_TempRot  => DSMC_MacroVal(nVarLoc*nSpecTemp+9,iElem)             ,&
               Total_Tempelec => DSMC_MacroVal(nVarLoc*nSpecTemp+10,iElem)            ,&
               Total_PartNum  => DSMC_MacroVal(nVarLoc*nSpecTemp+11,iElem)            ,&
-              SimVolume      => ElemVolume_Shared(iElem+offSetElem) &
+              SimVolume      => ElemVolume_Shared(GetCNElemID(iElem+offSetElem)) &
               )
     ! compute simulation cell volume
     DO iSpec = 1, nSpecies
@@ -1014,8 +1015,8 @@ IF (DSMC%CalcQualityFactors) THEN
       IF(VarTimeStep%UseLinearScaling.AND.Symmetry2D) THEN
         ! 2D/Axisymmetric uses a scaling of the time step per particle, no element values are used. For the output simply the cell
         ! midpoint is used to calculate the time step
-        VarTimeStep%ElemFac(iElem) = CalcVarTimeStep(ElemMidPoint_Shared(1,iElem+offSetElem), &
-                                                     ElemMidPoint_Shared(2,iElem+offSetElem))
+        VarTimeStep%ElemFac(iElem) = CalcVarTimeStep(ElemMidPoint_Shared(1,GetCNElemID(iElem + offsetElem)), &
+                                                     ElemMidPoint_Shared(2,GetCNElemID(iElem + offsetElem)))
       END IF
       DSMC_MacroVal(nVarCount+1,iElem) = VarTimeStep%ElemFac(iElem)
       nVarCount = nVarCount + 1

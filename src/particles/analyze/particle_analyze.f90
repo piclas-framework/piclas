@@ -200,6 +200,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared
+USE MOD_Particle_Mesh_Tools   ,ONLY: GetCNElemID
 USE MOD_Particle_Boundary_Vars,ONLY: nPorousBC
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, VarTimeStep, PDM, usevMPF
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
@@ -261,8 +262,8 @@ IF(CalcPointsPerShapeFunction)THEN
   DOF                 = REAL((PP_N+1)**3)
   CALL PrintOption('Max DOFs in Shape-Function per cell','OUTPUT',RealOpt=DOF)
   DO iElem = 1, nElems
-    PPSCell(iElem)     = MIN(1.,VolumeShapeFunction/ElemVolume_Shared(iElem)) * DOF
-    PPSCellEqui(iElem) =       (VolumeShapeFunction/ElemVolume_Shared(iElem)) * DOF
+    PPSCell(iElem)     = MIN(1.,VolumeShapeFunction/ElemVolume_Shared(GetCNElemID(iElem+offSetElem))) * DOF
+    PPSCellEqui(iElem) =       (VolumeShapeFunction/ElemVolume_Shared(GetCNElemID(iElem+offSetElem))) * DOF
   END DO ! iElem = 1, nElems
 END IF
 
@@ -3382,6 +3383,8 @@ USE MOD_PIC_Analyze            ,ONLY:CalculateBRElectronsPerCell
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Part_Tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Vars              ,ONLY: offSetElem
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetCNElemID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3410,7 +3413,7 @@ DO iPart=1,PDM%ParticleVecLength
     MPF = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
   END IF
   ASSOCIATE ( &
-    ElemID  => PEM%GlobalElemID(iPart)                              )  ! Element ID
+    ElemID  => PEM%LocalElemID(iPart)                              )  ! Element ID
     ASSOCIATE ( &
       n_e    => ElectronDensityCell(ElemID),& ! Electron density (cell average)
       n_i    => IonDensityCell(ElemID)     ,& ! Ion density (cell average)
@@ -3442,9 +3445,9 @@ END IF
 
 ! loop over all elements and divide by volume
 DO iElem=1,PP_nElems
-  ElectronDensityCell(iElem)=ElectronDensityCell(iElem)/ElemVolume_Shared(iElem)
-       IonDensityCell(iElem)=IonDensityCell(iElem)     /ElemVolume_Shared(iElem)
-   NeutralDensityCell(iElem)=NeutralDensityCell(iElem) /ElemVolume_Shared(iElem)
+  ElectronDensityCell(iElem)=ElectronDensityCell(iElem)/ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+       IonDensityCell(iElem)=IonDensityCell(iElem)     /ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+   NeutralDensityCell(iElem)=NeutralDensityCell(iElem) /ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculateElectronIonDensityCell
@@ -3503,7 +3506,7 @@ PartVandV2 = 0.
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     IF(.NOT.PARTISELECTRON(iPart)) CYCLE  ! ignore anything that is not an electron
-    ElemID                      = PEM%GlobalElemID(iPart)
+    ElemID                      = PEM%LocalElemID(iPart)
     IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
       WeightingFactor = GetParticleWeight(iPart)
     ELSE
@@ -3663,6 +3666,8 @@ SUBROUTINE CalculatePPDCell()
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars ,ONLY: DebyeLengthCell,PPDCell,PPDCellX,PPDCellY,PPDCellZ
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
+USE MOD_Mesh_Vars             ,ONLY: offSetElem
+USE MOD_Particle_Mesh_Tools   ,ONLY: GetCNElemID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3675,11 +3680,12 @@ INTEGER              :: iElem
 !===================================================================================================================================
 ! loop over all elements
 DO iElem=1,PP_nElems
-  ASSOCIATE( a => (REAL(PP_N)+1.0)*DebyeLengthCell(iElem) )
-    PPDCell(iElem)  = a/ElemCharLength_Shared( iElem) ! determined with characteristic cell length
-    PPDCellX(iElem) = a/ElemCharLengthX_Shared(iElem) ! determined from average distance in X
-    PPDCellY(iElem) = a/ElemCharLengthY_Shared(iElem) ! determined from average distance in Y
-    PPDCellZ(iElem) = a/ElemCharLengthZ_Shared(iElem) ! determined from average distance in Z
+  ASSOCIATE( a => (REAL(PP_N)+1.0)*DebyeLengthCell(iElem), &
+             CNElemID => GetCNElemID(iElem+offSetElem) )
+    PPDCell(iElem)  = a/ElemCharLength_Shared(CNElemID) ! determined with characteristic cell length
+    PPDCellX(iElem) = a/ElemCharLengthX_Shared(CNElemID) ! determined from average distance in X
+    PPDCellY(iElem) = a/ElemCharLengthY_Shared(CNElemID) ! determined from average distance in Y
+    PPDCellZ(iElem) = a/ElemCharLengthZ_Shared(CNElemID) ! determined from average distance in Z
   END ASSOCIATE
 END DO ! iElem=1,PP_nElems
 
@@ -3696,6 +3702,8 @@ SUBROUTINE CalculatePICCFL()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc
+USE MOD_Mesh_Vars             ,ONLY: offSetElem
+USE MOD_Particle_Mesh_Tools   ,ONLY: GetCNElemID
 USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell,PICCFLCell,PICCFLCellX,PICCFLCellY,PICCFLCellZ
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass
@@ -3713,11 +3721,13 @@ INTEGER              :: iElem
 ! loop over all elements
 DO iElem=1,PP_nElems
   ! Divide the parameter by 0.4 -> the resulting value must always be below 1.0
-  ASSOCIATE( a => (REAL(PP_N)+1.0) * 2.5 * dt * SQRT( BoltzmannConst * ElectronTemperatureCell(iElem) / ElectronMass ) )
-    PICCFLCell(iElem)  = a/ElemCharLength_Shared( iElem) ! determined with characteristic cell length
-    PICCFLCellX(iElem) = a/ElemCharLengthX_Shared(iElem) ! determined from average distance in X
-    PICCFLCellY(iElem) = a/ElemCharLengthY_Shared(iElem) ! determined from average distance in Y
-    PICCFLCellZ(iElem) = a/ElemCharLengthZ_Shared(iElem) ! determined from average distance in Z
+  ASSOCIATE( a => (REAL(PP_N)+1.0) * 2.5 * dt * SQRT( BoltzmannConst * ElectronTemperatureCell(iElem) / ElectronMass ), &
+             CNElemID => GetCNElemID(iElem+offSetElem) &
+             )
+    PICCFLCell(iElem)  = a/ElemCharLength_Shared(CNElemID) ! determined with characteristic cell length
+    PICCFLCellX(iElem) = a/ElemCharLengthX_Shared(CNElemID) ! determined from average distance in X
+    PICCFLCellY(iElem) = a/ElemCharLengthY_Shared(CNElemID) ! determined from average distance in Y
+    PICCFLCellZ(iElem) = a/ElemCharLengthZ_Shared(CNElemID) ! determined from average distance in Z
   END ASSOCIATE
 END DO ! iElem=1,PP_nElems
 
@@ -3735,7 +3745,8 @@ SUBROUTINE CalculateMaxPartDisplacement()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals               ,ONLY: VECNORM
 USE MOD_Preproc
-USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_Mesh_Vars             ,ONLY: nElems, offSetElem
+USE MOD_Particle_Mesh_Tools   ,ONLY: GetCNElemID
 USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCell
 USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCellX,MaxPartDisplacementCellY,MaxPartDisplacementCellZ
 USE MOD_Particle_Vars         ,ONLY: PDM,PEM,PartState
@@ -3758,7 +3769,7 @@ MaxVeloAbs(1:nElems,1:3) = 0.0
 ! loop over all particles
 DO iPart = 1, PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart)) THEN
-    iElem = PEM%GlobalElemID(iPart)
+    iElem = PEM%LocalElemID(iPart)
     ! Check velocity of each particle in each direction at get the highest value
     MaxVelo(iElem,1) = MAX(MaxVelo(iElem,1),PartState(4,iPart))
     MaxVelo(iElem,2) = MAX(MaxVelo(iElem,2),PartState(5,iPart))
@@ -3777,12 +3788,13 @@ DO iElem=1,PP_nElems
              vX   => MaxVelo(iElem,1)               ,&
              vY   => MaxVelo(iElem,2)               ,&
              vZ   => MaxVelo(iElem,3)               ,&
-             a    => dt*(REAL(PP_N)+1.0)             &
+             a    => dt*(REAL(PP_N)+1.0)            ,&
+             CNElemID => GetCNElemID(iElem+offSetElem)&
              )
-    MaxPartDisplacementCell(iElem)  = a*vAbs/ElemCharLength_Shared( iElem)  ! determined with characteristic cell length
-    MaxPartDisplacementCellX(iElem) = a*vX  /ElemCharLengthX_Shared(iElem)  ! determined from average distance in X
-    MaxPartDisplacementCellY(iElem) = a*vY  /ElemCharLengthY_Shared(iElem)  ! determined from average distance in Y
-    MaxPartDisplacementCellZ(iElem) = a*vZ  /ElemCharLengthZ_Shared(iElem)  ! determined from average distance in Z
+    MaxPartDisplacementCell(iElem)  = a*vAbs/ElemCharLength_Shared(CNElemID)  ! determined with characteristic cell length
+    MaxPartDisplacementCellX(iElem) = a*vX  /ElemCharLengthX_Shared(CNElemID)  ! determined from average distance in X
+    MaxPartDisplacementCellY(iElem) = a*vY  /ElemCharLengthY_Shared(CNElemID)  ! determined from average distance in Y
+    MaxPartDisplacementCellZ(iElem) = a*vZ  /ElemCharLengthZ_Shared(CNElemID)  ! determined from average distance in Z
   END ASSOCIATE
 END DO ! iElem=1,PP_nElems
 
@@ -3801,6 +3813,8 @@ USE MOD_Preproc                ,ONLY:PP_nElems
 USE MOD_Particle_Analyze_Vars  ,ONLY:IonizationCell,QuasiNeutralityCell,NeutralDensityCell,ElectronDensityCell,IonDensityCell
 USE MOD_Particle_Analyze_Vars  ,ONLY:ChargeNumberCell
 USE MOD_Particle_Mesh_Vars     ,ONLY:ElemVolume_Shared
+USE MOD_Mesh_Vars             ,ONLY: offSetElem
+USE MOD_Particle_Mesh_Tools   ,ONLY: GetCNElemID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3834,7 +3848,7 @@ DO iElem=1,PP_nElems
       ! Set quasi neutrality between zero and unity depending on which density is larger
       ! Quasi neutrality holds, when n_e ~ Z_i*n_i (electron density approximately equal to ion density multiplied with charge number)
       ! 1.  Calculate Z_i*n_i (Charge density cell average)
-      Q = ChargeNumberCell(iElem) / ElemVolume_Shared(iElem)
+      Q = ChargeNumberCell(iElem) / ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
 
       ! 2.  Calculate the quasi neutrality parameter: should be near to 1 for quasi-neutrality
       IF(Q.GT.n_e)THEN
@@ -4215,6 +4229,8 @@ USE MOD_Particle_Analyze_Vars   ,ONLY: PCoupl, PCouplAverage, PCouplSpec, EDiff
 USE MOD_Part_Tools              ,ONLY: isChargedParticle
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -4241,7 +4257,8 @@ CASE('after')
   PCouplAverage = PCouplAverage + EDiff
   iElem         = PEM%LocalElemID(iPart)
   iSpec         = PartSpecies(iPart)
-  PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/ElemVolume_Shared(iElem)
+  PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) &
+    + EDiff/ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
 END SELECT
 
 END SUBROUTINE CalcCoupledPowerPart
@@ -4257,12 +4274,13 @@ USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_Globals               ,ONLY: abort,mpiroot
 USE MOD_Particle_Analyze_Vars ,ONLY: PCouplSpec
 USE MOD_Particle_Vars         ,ONLY: nSpecies,Species
-USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_Mesh_Vars             ,ONLY: nElems, offSetElem
 #if USE_MPI
 USE MOD_Globals
 #endif /*USE_MPI*/
 USE MOD_Globals               ,ONLY: UNIT_StdOut
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
+USE MOD_Particle_Mesh_Tools   ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4285,7 +4303,7 @@ PTotal = 0.
 DO iSpec = 1, nSpecies
   IF(ABS(Species(iSpec)%ChargeIC).GT.0.0)THEN
     DO iElem = 1, nElems
-      PTotal(iSpec) = PTotal(iSpec) + PCouplSpec(iSpec)%DensityAvgElem(iElem) * ElemVolume_Shared(iElem)
+      PTotal(iSpec) = PTotal(iSpec) + PCouplSpec(iSpec)%DensityAvgElem(iElem) * ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
     END DO ! iElem = 1, nElems
   END IF ! ABS(Species(iSpec)%ChargeIC).GT.0.0)
 END DO ! iSpec = 1, nSpecies

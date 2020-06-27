@@ -1401,7 +1401,7 @@ USE MOD_Mesh_Vars               ,ONLY: offSetElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set internal energies (vibrational and rotational)
 !-----------------------------------------------------------------------------------------------------------------------------------
-ElemID = PEM%GlobalElemID(iPart) - offSetElem
+ElemID = PEM%LocalElemID(iPart)
   IF ((SpecDSMC(iSpecies)%InterID.EQ.2).OR.(SpecDSMC(iSpecies)%InterID.EQ.20)) THEN
     SELECT CASE (init_or_sf)
     CASE(1) !iInit

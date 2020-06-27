@@ -473,6 +473,7 @@ USE MOD_Particle_Vars,          ONLY:Species, nSpecies, Adaptive_MacroVal, usevM
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Timedisc_Vars,          ONLY:dt
 USE MOD_Particle_Mesh_Vars
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetCNElemID
 #if USE_MPI
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank, MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 #endif /*USE_MPI*/
@@ -484,7 +485,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: LocalElemID,GlobalElemID,SurfSideID,GlobalSideID,iPorousSide,iPBC
+INTEGER                       :: LocalElemID,CNElemID,GlobalElemID,SurfSideID,GlobalSideID,iPorousSide,iPBC
 REAL                          :: PumpingSpeedTemp,DeltaPressure,partWeight,SumPartPorousBC,dtVar
 REAL                          :: SumPartImpinged(nPorousBC)
 !===================================================================================================================================
@@ -530,6 +531,7 @@ DO iPorousSide = 1, nPorousSides
   SurfSideID = PorousBCInfo_Shared(2,iPorousSide)
   GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,SurfSideID)
   GlobalElemID = SideInfo_Shared(SIDE_ELEMID,GlobalSideID)
+  CNElemID = GetCNElemID(GlobalElemID)
   ! Only treat your proc-local elements
   IF ((GlobalElemID.LT.1+offSetElem).OR.(GlobalElemID.GT.nElems+offSetElem)) CYCLE
   LocalElemID = GlobalElemID - offsetElem
@@ -539,7 +541,7 @@ DO iPorousSide = 1, nPorousSides
   IF(SUM(Adaptive_MacroVal(DSMC_NUMDENS,LocalElemID,1:nSpecies)).EQ.0.0) CYCLE
   ! Get the correct time step of the cell
   IF(VarTimeStep%UseVariableTimeStep) THEN
-    dtVar = dt * CalcVarTimeStep(ElemMidPoint_Shared(1,GlobalElemID), ElemMidPoint_Shared(2,GlobalElemID), LocalElemID)
+    dtVar = dt * CalcVarTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), LocalElemID)
   ELSE
     dtVar = dt
   END IF

@@ -65,7 +65,7 @@ REAL                               :: U_local(1,0:N_Restart,0:N_Restart,0:N_Rest
 LOGICAL                            :: DG_SourceExtExists
 REAL                               :: NodeSourceExtEqui(1,0:1,0:1,0:1)
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp,N_RestartTmp
-INTEGER                            :: iElem,GlobalElemID
+INTEGER                            :: iElem,CNElemID
 !===================================================================================================================================
 IF(.NOT.DoDielectric) RETURN
 
@@ -92,8 +92,8 @@ IF(DG_SourceExtExists)THEN
 
     ! Map the solution to the global nodes 'NodeSourceExt' and apply the volumes (charge density -> charge)
 !    ASSOCIATE( NodeID => GEO%ElemToNodeID(:,iElem) )
-    GlobalElemID = GetCNElemID(iElem+offsetElem)
-    ASSOCIATE(NodeID => ElemNodeID_Shared(:,GlobalElemID))
+    CNElemID = GetCNElemID(iElem+offsetElem)
+    ASSOCIATE(NodeID => ElemNodeID_Shared(:,CNElemID))
 
       ! Copy values from equidistant distribution to Nodees
       NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeInfo_Shared(NodeID(1)))

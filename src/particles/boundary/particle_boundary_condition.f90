@@ -649,6 +649,7 @@ USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies
 USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric, VarTimeStep, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: dt,tend,time,RKdtFrac
 USE MOD_DSMC_ElectronicModel    ,ONLY: RelaxElectronicShellWall
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetCNElemID
 #if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
@@ -697,7 +698,7 @@ REAL                                :: rotVelY, rotVelZ, rotPosY, MacroParticleF
 REAL                                :: VelX, VelY, VelZ,VecX, VecY, VecZ
 REAL                                :: Vector1(1:3), Vector2(1:3)
 REAL                                :: nx, ny, nz, nVal
-INTEGER                             :: LocSideID, ElemID
+INTEGER                             :: LocSideID, CNElemID
 LOGICAL                             :: DoSample
 REAL                                :: EvibOld,ErotOld
 !===================================================================================================================================
@@ -732,12 +733,12 @@ IF(Symmetry2DAxisymmetric) THEN
   VelY = PartState(2,PartID) - LastPartPos(2,PartID)
   VelZ = PartState(3,PartID) - LastPartPos(3,PartID)
 
-  ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
+  CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
   LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
 
   ! Getting the vectors, which span the cell (1-2 and 1-4)
-  Vector1(1:3)=NodeCoords_Shared(1:3,ElemSideNodeID_Shared(2,LocSideID,ElemID)+1)-NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,ElemID)+1)
-  Vector2(1:3)=NodeCoords_Shared(1:3,ElemSideNodeID_Shared(4,LocSideID,ElemID)+1)-NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,ElemID)+1)
+  Vector1(1:3)=NodeCoords_Shared(1:3,ElemSideNodeID_Shared(2,LocSideID,CNElemID)+1)-NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
+  Vector2(1:3)=NodeCoords_Shared(1:3,ElemSideNodeID_Shared(4,LocSideID,CNElemID)+1)-NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
 
   ! Get the vector, which does NOT have the z-component
   IF (ABS(Vector1(3)).GT.ABS(Vector2(3))) THEN

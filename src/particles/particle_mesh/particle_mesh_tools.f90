@@ -730,7 +730,7 @@ END FUNCTION GetGlobalElem2CNTotalElem
 
 !==================================================================================================================================!
 !> Initialize PEM%LocalElemID(iPart) function (mapping of global element ID, which is first obtained from PEM%GlobalElemID(iPart) to
-!> compute-node element ID)
+!> the core local element ID)
 !==================================================================================================================================!
 SUBROUTINE InitPEM_LocalElemID()
 ! MODULES
@@ -903,14 +903,14 @@ INTEGER, INTENT(IN)           :: SideID
 REAL, INTENT(OUT)             :: BoundingBox(1:3,1:8)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                   :: iLocSide, globElemId, iNode
+INTEGER                   :: iLocSide, CNElemID, iNode
 REAL                      :: NodePoints(1:3,1:4)
 REAL                      :: xMin, xMax, yMin, yMax, zMin, zMax
 !==================================================================================================================================
-globElemId = SideInfo_Shared(SIDE_ELEMID,SideID)
+CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
 iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
 DO iNode = 1, 4
-  NodePoints(1:3,iNode) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,iLocSide,globElemId)+1)
+  NodePoints(1:3,iNode) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)
 END DO
 xMin = MINVAL(NodePoints(1,:))
 yMin = MINVAL(NodePoints(2,:))

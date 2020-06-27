@@ -349,7 +349,7 @@ USE MOD_Mesh_Vars               ,ONLY: offSetElem
   iPart2 = Coll_pData(iPair)%iPart_p2
   iSpec1 = PartSpecies(iPart1)
   iSpec2 = PartSpecies(iPart2)
-  iElem  = PEM%GlobalElemID(iPart1) - offSetElem
+  iElem  = PEM%LocalElemID(iPart1)
 
   IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     ReducedMass = (Species(iSpec1)%MassIC*GetParticleWeight(iPart1) * Species(iSpec2)%MassIC*GetParticleWeight(iPart2))  &
@@ -634,7 +634,7 @@ USE MOD_Mesh_Vars               ,ONLY: offSetElem
 
   iSpec = PartSpecies(Coll_pData(iPair)%iPart_p1)
   jSpec = PartSpecies(Coll_pData(iPair)%iPart_p2)
-  iElem  = PEM%GlobalElemID(Coll_pData(iPair)%iPart_p1) - offSetElem
+  iElem  = PEM%LocalElemID(Coll_pData(iPair)%iPart_p1)
 
   Xi_rel = 2.*(2. - SpecDSMC(iSpec)%omegaVHS) ! DOF of relative motion in VHS model
   FakXi = 0.5*Xi_rel - 1.
@@ -1017,6 +1017,7 @@ USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 USE MOD_DSMC_QK_PROCEDURES,     ONLY : QK_dissociation, QK_recombination, QK_exchange, QK_ImpactIonization, QK_IonRecombination
 USE MOD_Particle_Mesh_Vars,     ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1045,7 +1046,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
   IF (PRESENT(NodeVolume)) THEN
     Volume = NodeVolume
   ELSE
-    Volume = ElemVolume_Shared(iElem+offSetElem)
+    Volume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
   END IF
   IF (PRESENT(NodePartNum)) THEN
     nPartNode = NodePartNum
