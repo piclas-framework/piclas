@@ -168,7 +168,9 @@ USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
-USE MOD_Mesh_Vars              ,ONLY: offSetElem
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -178,7 +180,14 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: iNewPart, iPart, PositionNbr, iSpec, LocalElemID
+#if USE_LOADBALANCE
+REAL              :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+
 iNewPart=0
 PositionNbr = 0
 DO iPart = 1, PDM%ParticleVecLength
@@ -218,6 +227,9 @@ END DO
 PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,PositionNbr)
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + iNewPart
 
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DSMC,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END SUBROUTINE BGGas_InsertParticles
 
 
