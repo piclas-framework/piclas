@@ -55,7 +55,7 @@ USE MOD_MPI_Vars              ,ONLY: NbProc,nMPISides_Proc
 USE MOD_Analyze               ,ONLY: CalcErrorStateFiles, CalcErrorStateFileSigma
 USE MOD_Interpolation_Vars    ,ONLY: NAnalyze
 USE MOD_Mesh_Vars             ,ONLY: sJ,NGeoRef
-USE MOD_PreProc               ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Metrics               ,ONLY: CalcMetricsErrorDiff
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -428,7 +428,7 @@ DO iArgs = iArgsStart,nArgs
         U_first       = U
         N_State_first = N_State
 
-        PP_N=N_State
+        !PP_N=N_State
         NGeoRef=3*NGeo ! build jacobian at higher degree
         ALLOCATE(sJ            (  0:N_State,0:N_State,0:N_State,nElems))
         CALL CalcMetricsErrorDiff()
@@ -746,7 +746,7 @@ SUBROUTINE InitMesh_Connected()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Prepare_Mesh            ,ONLY: setLocalSideIDs,fillMeshInfo
 #if USE_MPI
 USE MOD_Prepare_Mesh            ,ONLY: exchangeFlip

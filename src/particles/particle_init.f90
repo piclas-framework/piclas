@@ -1977,7 +1977,7 @@ __STAMP__&
     END IF
     !--- integer check for ParticleEmissionType 2
     IF((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2).AND. &
-         ((Species(iSpec)%Init(iInit)%ParticleEmission-INT(Species(iSpec)%Init(iInit)%ParticleEmission)).NE.0)) THEN
+         (ABS(Species(iSpec)%Init(iInit)%ParticleEmission-INT(Species(iSpec)%Init(iInit)%ParticleEmission,8)).GT.0)) THEN
        CALL abort(&
 __STAMP__&
        ,' If ParticleEmissionType = 2 (parts per iteration), ParticleEmission has to be an integer number')

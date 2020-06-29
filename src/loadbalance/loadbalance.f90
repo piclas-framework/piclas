@@ -485,13 +485,13 @@ IF(.NOT.PerformLBSample .AND. .NOT.PerformPartWeightLB) THEN
   CurrentImbalance = -1.0
 ELSE
 
-#if (PP_TimeDiscMethod!=4)
+#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
+  WeightSum = 0. ! initialize before adding particle info
+#else
   ! Collect ElemTime for particles and field separately (only on root process)
   ! Skip the reduce for DSMC timedisc
   CALL MPI_REDUCE(ElemTimeField , ElemTimeFieldTot , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
   WeightSum = ElemTimeFieldTot ! only correct on MPI root
-#else
-  WeightSum = 0. ! initialize before adding particle info
 #endif /*(PP_TimeDiscMethod!=4)*/
 #ifdef PARTICLES
   CALL MPI_REDUCE(ElemTimePart , ElemTimePartTot  , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
@@ -517,9 +517,7 @@ ELSE
     !IPWRITE(UNIT_StdOut,*) "WeightSum (TargetWeight) =", TargetWeight
     !IPWRITE(UNIT_StdOut,*) "WeightSum (WeightSum)    =", WeightSum
   !END IF ! MPIRoot
-  !CALL abort(&
-  !__STAMP__&
-  !,'yolo')
+
   ! Old   (ALLREDUCE of sum(ElemTime) on TargetWeight)
   !TargetWeight = TargetWeight/nProcessors ! Calculate the average value that is supposed to be the optimally distributed weight
 

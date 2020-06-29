@@ -377,7 +377,7 @@ SUBROUTINE InitDSMC()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Preproc                ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo, SideToElem
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_ReadInTools

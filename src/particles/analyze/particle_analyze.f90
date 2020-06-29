@@ -1575,7 +1575,7 @@ USE MOD_Mesh_Vars             ,ONLY: nElems, Elem_xGP
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_PICDepo_Vars
 USE MOD_Particle_Vars
-USE MOD_PreProc
+USE MOD_Preproc
 #if USE_MPI
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 #endif
@@ -3364,7 +3364,7 @@ USE MOD_Globals_Vars           ,ONLY:ElementaryCharge
 USE MOD_Particle_Mesh_Vars     ,ONLY:GEO,NbrOfRegions
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
 USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,PEM,usevMPF
-USE MOD_Preproc                ,ONLY:PP_nElems
+USE MOD_Preproc
 USE MOD_PIC_Analyze            ,ONLY:CalculateBRElectronsPerCell
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_part_tools             ,ONLY: GetParticleWeight
@@ -3444,7 +3444,7 @@ SUBROUTINE CalculateElectronTemperatureCell()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElectronMass,ElementaryCharge
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,NbrOfRegions
-USE MOD_Preproc                ,ONLY: PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars  ,ONLY: ElectronTemperatureCell
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartState,RegionElectronRef
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
@@ -3545,7 +3545,7 @@ SUBROUTINE CalculatePlasmaFrequencyCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Preproc                ,ONLY:PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,PlasmaFrequencyCell
 USE MOD_Globals_Vars           ,ONLY:ElementaryCharge,ElectronMass
 USE MOD_Equation_Vars          ,ONLY:Eps0
@@ -3576,7 +3576,7 @@ SUBROUTINE CalculatePICTimeStepCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Preproc                ,ONLY:PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars  ,ONLY:PlasmaFrequencyCell,PICTimeStepCell
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -3608,7 +3608,7 @@ SUBROUTINE CalculateDebyeLengthCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Preproc                ,ONLY:PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,ElectronTemperatureCell,DebyeLengthCell,QuasiNeutralityCell
 USE MOD_Globals_Vars           ,ONLY:ElementaryCharge, BoltzmannConst
 USE MOD_Equation_Vars          ,ONLY:Eps0
@@ -3646,7 +3646,7 @@ SUBROUTINE CalculatePPDCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Preproc               ,ONLY: PP_nElems,PP_N
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars ,ONLY: DebyeLengthCell,PPDCell,PPDCellX,PPDCellY,PPDCellZ
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3681,7 +3681,7 @@ SUBROUTINE CalculatePICCFL()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Preproc               ,ONLY: PP_nElems,PP_N
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell,PICCFLCell,PICCFLCellX,PICCFLCellY,PICCFLCellZ
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_TimeDisc_Vars         ,ONLY: dt
@@ -3719,7 +3719,7 @@ SUBROUTINE CalculateMaxPartDisplacement()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Preproc               ,ONLY: PP_nElems,PP_N
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCell
 USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCellX,MaxPartDisplacementCellY,MaxPartDisplacementCellZ
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
@@ -3785,7 +3785,7 @@ SUBROUTINE CalculateIonizationCell()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Analyze_Vars  ,ONLY:IonizationCell,QuasiNeutralityCell,NeutralDensityCell,ElectronDensityCell,IonDensityCell
 USE MOD_Particle_Analyze_Vars  ,ONLY:ChargeNumberCell
-USE MOD_Preproc                ,ONLY:PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars     ,ONLY:GEO
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -3849,7 +3849,7 @@ SUBROUTINE CalculatePlasmaParameter()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals_Vars          ,ONLY: PI
-USE MOD_Preproc               ,ONLY: PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars ,ONLY: DebyeLengthCell,ElectronDensityCell,PlasmaParameterCell
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -3934,7 +3934,7 @@ SUBROUTINE CalcAnalyticalParticleState(t,PartStateAnalytic,alpha_out,theta_out)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: PI
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType,AnalyticInterpolationSubType,AnalyticInterpolationP
 USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationPhase
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
@@ -4159,7 +4159,7 @@ END SUBROUTINE CalcErrorParticle
 SUBROUTINE AnalyticParticleMovement(time,iter)
 ! MODULES
 USE MOD_Globals
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Analyze_Vars           ,ONLY: OutputErrorNorms
 USE MOD_Particle_Analyze_Vars  ,ONLY: TrackParticlePosition
 USE MOD_PICInterpolation_Vars  ,ONLY: L_2_Error_Part

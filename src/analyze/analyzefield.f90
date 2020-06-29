@@ -134,11 +134,15 @@ IF(MPIROOT)THEN
 
       ! Set the header line content
       nPoyntingIntPlanes=MERGE(nPoyntingIntPlanes,0,CalcPoyntingInt) ! set to zero if the flag is false (otherwise not initialized)
-      ALLOCATE(tmpStr(1:nOutputVar+nPoyntingIntPlanes))
+      nOutputVarTotal = nOutputVar + nPoyntingIntPlanes
+      IF(.NOT.CalcEpot) nOutputVarTotal = nOutputVarTotal - 5
+      ALLOCATE(tmpStr(1:nOutputVarTotal))
       tmpStr=""
+
       nOutputVarTotal = 0
       DO I=1,nOutputVar
-        IF((.NOT.CalcEpot).AND.(I.LT.6)) CYCLE
+        ! When NOT CalcEpot, skip entries 2,...,6
+        IF((.NOT.CalcEpot).AND.((1.LT.I).AND.(I.LE.6))) CYCLE
         WRITE(tmpStr(I),'(A,I0.3,A)')delimiter//'"',I,'-'//TRIM(StrVarNames(I))//'"'
         nOutputVarTotal = nOutputVarTotal + 1
       END DO
@@ -190,11 +194,11 @@ IF(CalcPoyntingInt) CALL CalcPoyntingIntegral(PoyntingIntegral,doProlong=.TRUE.)
 IF(MPIROOT)THEN
   WRITE(unit_index,'(E23.16E3)',ADVANCE='NO') Time
   IF (CalcEpot) THEN
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WEl
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WMag
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WPhi
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WPsi
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WEl + WMag + WPhi + WPsi
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WEl
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WMag
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WPhi
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WPsi
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WEl + WMag + WPhi + WPsi
   END IF
   IF(CalcPoyntingInt)THEN
     DO iPlane=1,nPoyntingIntPlanes

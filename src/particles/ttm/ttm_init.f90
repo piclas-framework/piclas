@@ -108,7 +108,7 @@ SUBROUTINE InitTTM()
 !                                = sqrt(eps0*kB*TeTTM_in_K./(         neTTM*e^2)) -> TTM_Cell_18
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
@@ -768,7 +768,7 @@ SUBROUTINE InitIMD_TTM_Coupling()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Globals_Vars        ,ONLY: BoltzmannConst, ElementaryCharge
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_TTM_Vars
 USE MOD_Particle_Vars       ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies,IMDSpeciesCharge,IMDSpeciesID
 USE MOD_Mesh_Vars           ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
@@ -918,7 +918,7 @@ SUBROUTINE WriteTTMdataToCSV()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Preproc   ,ONLY: PP_nElems
+USE MOD_Preproc
 USE MOD_Globals   ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
 USE MOD_Globals   ,ONLY: abort
 USE MOD_Mesh_Vars ,ONLY: ElemBaryNGeo
