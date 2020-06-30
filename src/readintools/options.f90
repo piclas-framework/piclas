@@ -313,6 +313,9 @@ SUBROUTINE print(this, maxNameLen, maxValueLen, mode)
 ! MODULES
 USE MOD_StringTools
 USE MOD_ISO_VARYING_STRING
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -328,6 +331,9 @@ TYPE(VARYING_STRING) :: comment,headNewline,headSpace
 INTEGER              :: length
 INTEGER              :: commentLen
 !==================================================================================================================================
+#if USE_LOADBALANCE
+IF(PerformLoadBalance) RETURN
+#endif /*USE_LOADBALANCE*/
 IF(mode.EQ.1) commentLen=80 !--help
 IF(mode.EQ.2) commentLen=50 !--markdown
 WRITE(fmtName,*) maxNameLen
