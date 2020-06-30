@@ -70,11 +70,21 @@ def yellow(text) :
 start = timer()
 
 """get command line arguments"""
-parser = argparse.ArgumentParser(description='DESCRIPTION:\nTool for cleaning std*.out files.\nSupply a single file or a group of files by using the wildcard "*", e.g. std* for a list of file names.', formatter_class=argparse.RawTextHelpFormatter)
+parser = argparse.ArgumentParser(description='DESCRIPTION:\n\
+Collects files (e.g. ElemTimeStatistics.csv) from a user-supplied folder recursively by sweeping through all sub-directories.\n\
+All files found will be copied into the current directory and are renamed using the host directory name as prefix.\n\n\
+Example:\n\
+  -  files: ElemTimeStatistics.csv\n\
+  - source: path/to/TestCases/\n\n\
+where TestCases/ contains the sub-directories folder1, folder2, folder3, each containing a separate version of ElemTimeStatistics.csv would result in\n\
+  - folder1_ElemTimeStatistics.csv\n\
+  - folder2_ElemTimeStatistics.csv\n\
+  - folder3_ElemTimeStatistics.csv\n\n\
+in the directory where the script is executed.', formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument('files', type=str, help='Files (std*.out) that are to be cleaned.')
 parser.add_argument('source', type=str, help='Files (std*.out) that are to be cleaned.')
-parser.add_argument('-d', '--debug', action='store_true', help='Print additional information regarding the files onto screen.')
-parser.add_argument('-c', '--clean', action='store_true', help='Clean-up afterwards by removing any *.bak backup files.')
+#parser.add_argument('-d', '--debug', action='store_true', help='Print additional information regarding the files onto screen.')
+#parser.add_argument('-c', '--clean', action='store_true', help='Clean-up afterwards by removing any *.bak backup files.')
 
 # Get command line arguments
 args = parser.parse_args()
