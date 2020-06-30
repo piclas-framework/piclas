@@ -74,12 +74,13 @@ start = timer()
 
 """get command line arguments"""
 parser = argparse.ArgumentParser(description='description:\n\
-  Tool for merging multiple .h5 PICLas state files (MyProject_State_000.00*******.h5) containing different hdf5 containers into a single file.\n\
+  Tool for merging multiple .h5 PICLas state files (MyProject_State_000.000000*.h5) containing different hdf5 containers into a single file.\n\
   Supply a single state file or a group of state files by using the wildcard "*", e.g. MyProject_000.00* for a list of file names.\n\n\
   Note the different modes that will be selected automatically depending on the name of the h5 container:\n\n\
-    * \'PartData\' container will be concatenated (not added). To use this feature, supply [-p], [--particles]\n\
-    * \'DG_Solution\' container in *_TimeAvg_*.h5 files will be averaged over the number of supplied files ([-a], [--average] is automatically turned on)\n\n\
-  Note that different types of files, e.g. "_DSMCSurfState_" and "_State_", are not allowed to be mixed. Choose one type!"'
+    * \'%s\', \'%s\', \'%s\' and \'%s\' are added together\n\
+    * \'%s\' container will be concatenated (not added together). To use this feature, supply [-p], [--particles]\n\
+    * \'%s\' container in *_TimeAvg_*.h5 files will be averaged over the number of supplied files ([-a], [--average] is automatically turned on)\n\n\
+  Note that different types of files, e.g. "_DSMCSurfState_" and "_State_", are not allowed to be mixed. Choose one type!' % (green("SurfaceData"), green("ElemData"), green("DG_Source"), green("DG_Solution"), green("PartData"), green("DG_Solution"))
 ,formatter_class=argparse.RawTextHelpFormatter)
 
 parser.add_argument('files', type=str, help='files (.h5) that are to be merged together.', nargs='+')
