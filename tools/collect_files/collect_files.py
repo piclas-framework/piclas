@@ -81,8 +81,8 @@ where TestCases/ contains the sub-directories folder1, folder2, folder3, each co
   - folder2_ElemTimeStatistics.csv\n\
   - folder3_ElemTimeStatistics.csv\n\n\
 in the directory where the script is executed.', formatter_class=argparse.RawTextHelpFormatter)
-parser.add_argument('files', type=str, help='Files (std*.out) that are to be cleaned.')
-parser.add_argument('source', type=str, help='Files (std*.out) that are to be cleaned.')
+parser.add_argument('files', type=str, help='Name of the files that are to be collected.')
+parser.add_argument('source', type=str, help='Directory path where the recursive search starts.')
 #parser.add_argument('-d', '--debug', action='store_true', help='Print additional information regarding the files onto screen.')
 #parser.add_argument('-c', '--clean', action='store_true', help='Clean-up afterwards by removing any *.bak backup files.')
 

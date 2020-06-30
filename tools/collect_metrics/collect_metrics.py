@@ -150,7 +150,7 @@ class CollectedParameters():
 
 
 
-def AnalyzeStdOut(functions,line):
+def AnalyzeLine(functions,line):
     for func in functions:
       #line='#GridCells :    3.6320000E+03'
       found = func(line)
@@ -170,10 +170,22 @@ def AnalyzeStdOut(functions,line):
 start = timer()
 
 """get command line arguments"""
-parser = argparse.ArgumentParser(description='DESCRIPTION:\nTool for cleaning std*.out files.\nSupply a single file or a group of files by using the wildcard "*", e.g. std* for a list of file names.', formatter_class=argparse.RawTextHelpFormatter)
+parser = argparse.ArgumentParser(description='DESCRIPTION:\n\
+Collects metrics from std*.out files.\n\
+Supply a single file or a group of files by using the wildcard "*", e.g. std* for a list of file names or supply nothing to analyze all std.out files in the current directory.\n\n\
+Collected information includes\n\
+  - Number of grid cells (#GridCells)\n\
+  - Number of processors (#Procs)\n\
+  - Number of field degrees of freedom (#DOFs)\n\
+  - Time step (Initial Timestep)\n\
+  - Total PICLas wall time (PICLAS FINISHED!)\n\
+  - Simulation efficiency (SIMULATION TIME PER CALCULATION in [s]/[Core-h])\n\
+  - Number of time steps (#Timesteps)\n\
+  - Performance index (PID: CALCULATION TIME PER TSTEP/DOF)\n\n\
+The output is stored in .stdfile.collected.csv', formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument('-f', '--files', type=str, help='Files (std*.out) that are to be cleaned.', nargs='+')
-parser.add_argument('-d', '--debug', action='store_true', help='Print additional information regarding the files onto screen.')
-parser.add_argument('-c', '--clean', action='store_true', help='Clean-up afterwards by removing any *.bak backup files.')
+#parser.add_argument('-d', '--debug', action='store_true', help='Print additional information regarding the files onto screen.')
+#parser.add_argument('-c', '--clean', action='store_true', help='Clean-up afterwards by removing any *.bak backup files.')
 
 # Get command line arguments
 args = parser.parse_args()
@@ -199,7 +211,7 @@ if args.files:
 #          - state files (".h5")
 #          - backup files (".bak")
 ext = ['.new', '.lost', '.h5', '.bak']
-#print(args.files)
+files = []
 if args.files is not None:
     for stdfile in args.files :
         # Check if file can be skipped, see variable "ext" with all file extensions that are to be ignored
@@ -207,20 +219,9 @@ if args.files is not None:
             print("%s " % stdfile + yellow("(skipping)"))
             continue
 
-        # Clean-up the current file
-        nLostParts, changedLines = CleanFile(stdfile,args)
-
-        # Display results
-        if nLostParts > 0:
-            if changedLines > 0:
-                print("%s " % stdfile + red("Lost %s particles" % nLostParts) + " Written particles to %s-lost-particles.h5" % stdfile + red(" and removed %s lines" % changedLines))
-            else:
-                print("%s " % stdfile + red("Lost %s particles" % nLostParts) + " Written particles to %s-lost-particles.h5" % stdfile)
-        else:
-            if changedLines > 0:
-                print("%s " % stdfile + red("Removed %s lines" % changedLines) )
-            else:
-                print("%s" % stdfile)
+        files.append(stdfile)
+    # Over-write files list with cleaned list
+    args.files = files
 
 print(132*"-")
 
@@ -239,43 +240,38 @@ functions = sorted(
              key = (lambda field: field.order)
             )
 
-#print(functions)
 
 total = []
 if args.files :
     for stdfile in args.files :
-        AnalyzeStdOut(functions,line)
+        MyCollParams.data = OrderedDict()
+        MyCollParams.data['stdfile'] = stdfile
+        with open(stdfile) as input:
+            print("load %s" % stdfile)
+            lines = input.readlines()
+
+        for line in lines:
+            AnalyzeLine(functions,line.strip())
+
+        total.append(MyCollParams.data)
 else :
-    #print(102*"X")
-    n=0
     directory = os.getcwd()
     for stdfile in os.listdir(directory):
         if stdfile.startswith("std") and stdfile.endswith(".out"): 
-            #print(os.path.join(directory, stdfile))
-            #MyCollParams.data['stdfile'] = os.path.join(directory, stdfile)
             MyCollParams.data = OrderedDict()
             MyCollParams.data['stdfile'] = stdfile
-            #print(stdfile)
-            # 1. Read the original file content
             with open(stdfile) as input:
                 print("load %s" % stdfile)
                 lines = input.readlines()
 
             for line in lines:
-                AnalyzeStdOut(functions,line.strip())
+                AnalyzeLine(functions,line.strip())
 
             total.append(MyCollParams.data)
-            #for key, value in MyCollParams.data.items() :
-                #print(blue(key),green(str(value)))
-            n+=1
-            #if n>1:
-                #print(n)
-                #break
         else:
             continue
 
 
-#print(total)
 n=0
 OutputFile = ".stdfile.collected.csv"
 with open(OutputFile, "w") as output:
@@ -290,8 +286,6 @@ with open(OutputFile, "w") as output:
             
 
         n+=1
-        #print(item)
-        #print(item['stdfile'])
         print("")
         for key, value in item.items() :
             print(blue(key),green(str(value)))
