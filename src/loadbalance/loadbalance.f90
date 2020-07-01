@@ -33,14 +33,15 @@ END INTERFACE
 INTERFACE ComputeElemLoad
   MODULE PROCEDURE ComputeElemLoad
 END INTERFACE
-#endif /*USE_LOADBALANCE*/
 
 INTERFACE LoadBalance
   MODULE PROCEDURE LoadBalance
 END INTERFACE
+#endif /*USE_LOADBALANCE*/
 
-PUBLIC::InitLoadBalance,LoadBalance
+PUBLIC::InitLoadBalance
 #if USE_LOADBALANCE
+PUBLIC::LoadBalance
 PUBLIC::ComputeElemLoad
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
@@ -153,7 +154,7 @@ nLoadBalanceSteps = 0
 PerformLBSample = .FALSE.
 
 #if USE_LOADBALANCE
-ALLOCATE( tCurrent(1:LB_NTIMES) )
+ALLOCATE(tCurrent(1:LB_NTIMES))
 ! Allocation length (1:number of loadbalance times)
 ! look into piclas.h for more info about time names
 tCurrent=0.
@@ -350,7 +351,6 @@ nSurfacePartsPerElem = 0
 tCurrent = 0.
 
 END SUBROUTINE ComputeElemLoad
-#endif /*USE_LOADBALANCE*/
 
 
 SUBROUTINE LoadBalance()
@@ -453,7 +453,7 @@ SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
 SWRITE(UNIT_StdOut,'(132("="))')
 END SUBROUTINE LoadBalance
 
-#if USE_LOADBALANCE
+
 SUBROUTINE ComputeImbalance()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! subroutine to compute the imbalance
