@@ -1193,8 +1193,7 @@ ELSE !
   END IF
 #ifdef PARTICLES
   ! Calculate elem time proportions for field and particle routines
-  SumElemTime=ElemTimeField
-  SumElemTime=SumElemTime+ElemTimePart
+  SumElemTime=ElemTimeField+ElemTimePart
   IF(SumElemTime.LE.0.)THEN
     ElemTimeFieldPercent = 0.
     ElemTimePartPercent  = 0.
