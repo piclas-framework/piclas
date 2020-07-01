@@ -372,6 +372,7 @@ USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
 USE MOD_LoadBalance_Vars ,ONLY: CurrentImbalance, MaxWeight, MinWeight
 USE MOD_LoadBalance_Vars ,ONLY: Currentimbalance, PerformLoadBalance
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimeField
+USE MOD_StringTools      ,ONLY: set_formatting,clear_formatting
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -397,7 +398,9 @@ END IF
 SWRITE(UNIT_StdOut,'(X)')
 SWRITE(UNIT_StdOut,'(X)')
 SWRITE(UNIT_StdOut,'(132("="))')
+CALL set_formatting("green")
 SWRITE(UNIT_stdOut,'(A)') ' PERFORMING LOAD BALANCE ...'
+CALL clear_formatting()
 ! Measure init duration
 LB_StartTime=PICLASTIME()
 

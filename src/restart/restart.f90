@@ -330,7 +330,7 @@ USE MOD_PICDepo_Vars           ,ONLY: DoDeposition, RelaxDeposition, PartSourceO
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 #endif /*PARTICLES*/
 #if USE_HDG
-USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face
+USE MOD_HDG_Vars               ,ONLY: lambda!, nGP_face
 USE MOD_HDG                    ,ONLY: RestartHDG
 #endif /*USE_HDG*/
 #if USE_QDS_DG
@@ -354,7 +354,8 @@ REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
 INTEGER                            :: iPML
 #endif
 #if USE_HDG
-LOGICAL                            :: DG_SolutionLambdaExists,DG_SolutionUExists
+!LOGICAL                            :: DG_SolutionLambdaExists
+LOGICAL                            :: DG_SolutionUExists
 INTEGER(KIND=8)                    :: iter
 #endif /*USE_HDG*/
 INTEGER                            :: iElem
@@ -533,13 +534,16 @@ IF(DoRestart)THEN
         ! !DG_Solution contains a 4er-/3er-/7er-array, not PP_nVar!!!
         CALL ReadArray('DG_Solution' ,5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
       END IF
-      CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
-      IF(DG_SolutionLambdaExists)THEN
-        CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,nSides-nMPISides_YOUR/),offsetSide,3,RealArray=lambda)
-        CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
-      ELSE
-        lambda=0.
-      END IF
+      ! CURRENTLY, THE FOLLOWING DOES NOT MAKE SENSE AS THE SIDES ARE NOT SORTED CORRECTLY!
+      !CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
+      !IF(DG_SolutionLambdaExists)THEN
+      !  write(*,*) "READ lambda"
+      !  stop
+      !  CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,nSides-nMPISides_YOUR/),offsetSide,3,RealArray=lambda)
+      !  CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
+      !ELSE
+      lambda=0.
+      !END IF
 #else
       CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
       IF(DoPML)THEN
