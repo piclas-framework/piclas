@@ -54,7 +54,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 #endif
 USE MOD_Particle_Mesh_Vars,     ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars              ,ONLY: offSetElem
-USE MOD_Particle_Mesh_Tools     ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

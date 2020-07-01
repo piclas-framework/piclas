@@ -332,7 +332,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_Mesh_Vars              ,ONLY: nBCSides, offsetElem, BC, SideToElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, ElemMidPoint_Shared, SideInfo_Shared
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, Species, DoSurfaceFlux, nSpecies, Symmetry2D, Symmetry2DAxisymmetric
 USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
@@ -1283,7 +1283,7 @@ SUBROUTINE DefineSideDirectVec2D(SideID, xyzNod, minPos, RVec)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared, SideInfo_Shared
-USE MOD_Particle_Mesh_Tools       ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

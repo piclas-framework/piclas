@@ -200,7 +200,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared
-USE MOD_Particle_Mesh_Tools   ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 USE MOD_Particle_Boundary_Vars,ONLY: nPorousBC
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, VarTimeStep, PDM, usevMPF
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
@@ -3227,7 +3227,7 @@ USE MOD_Part_RHS          ,ONLY: PartVeloToImp
 USE MOD_Mesh_Vars         ,ONLY: OffsetElem
 USE MOD_Preproc
 USE MOD_PICDepo           ,ONLY: Deposition
-USE MOD_Particle_Mesh_Tools,ONLY: GetCNElemID
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 #if !(USE_HDG)
 USE MOD_DG_Vars           ,ONLY: U
 #else
@@ -3384,7 +3384,7 @@ USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Part_Tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars              ,ONLY: offSetElem
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3667,7 +3667,7 @@ USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars ,ONLY: DebyeLengthCell,PPDCell,PPDCellX,PPDCellY,PPDCellZ
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
-USE MOD_Particle_Mesh_Tools   ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3703,7 +3703,7 @@ SUBROUTINE CalculatePICCFL()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
-USE MOD_Particle_Mesh_Tools   ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell,PICCFLCell,PICCFLCellX,PICCFLCellY,PICCFLCellZ
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass
@@ -3746,7 +3746,7 @@ SUBROUTINE CalculateMaxPartDisplacement()
 USE MOD_Globals               ,ONLY: VECNORM
 USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: nElems, offSetElem
-USE MOD_Particle_Mesh_Tools   ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCell
 USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCellX,MaxPartDisplacementCellY,MaxPartDisplacementCellZ
 USE MOD_Particle_Vars         ,ONLY: PDM,PEM,PartState
@@ -3814,7 +3814,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY:IonizationCell,QuasiNeutralityCell,NeutralD
 USE MOD_Particle_Analyze_Vars  ,ONLY:ChargeNumberCell
 USE MOD_Particle_Mesh_Vars     ,ONLY:ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
-USE MOD_Particle_Mesh_Tools   ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -4229,7 +4229,7 @@ USE MOD_Particle_Analyze_Vars   ,ONLY: PCoupl, PCouplAverage, PCouplSpec, EDiff
 USE MOD_Part_Tools              ,ONLY: isChargedParticle
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
-USE MOD_Particle_Mesh_Tools     ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -4280,7 +4280,7 @@ USE MOD_Globals
 #endif /*USE_MPI*/
 USE MOD_Globals               ,ONLY: UNIT_StdOut
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
-USE MOD_Particle_Mesh_Tools   ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

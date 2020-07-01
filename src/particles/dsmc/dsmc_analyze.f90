@@ -839,7 +839,7 @@ USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars         ,ONLY: time,TEnd,iter,dt
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
-USE MOD_Particle_Mesh_Tools   ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

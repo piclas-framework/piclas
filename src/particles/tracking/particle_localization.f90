@@ -90,7 +90,8 @@ USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemRadius2NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems, FIBGM_offsetElem, FIBGM_Element
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D,GetCNElemID,GetGlobalElemID
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetGlobalElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance,TriaTracking
 USE MOD_Utils                  ,ONLY: InsertionSort
 #if USE_MPI
@@ -201,7 +202,8 @@ USE MOD_Particle_Intersection  ,ONLY: ComputePlanarRectIntersection
 USE MOD_Particle_Intersection  ,ONLY: ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection  ,ONLY: ComputeBiLinearIntersection
 USE MOD_Particle_Intersection  ,ONLY: ComputeCurvedIntersection
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID,GetCNElemID
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Surfaces_Vars ,ONLY: SideType,SideNormVec

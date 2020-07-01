@@ -52,7 +52,7 @@ USE MOD_Particle_Vars         ,ONLY: PEM, PDM
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offsetElem
-USE MOD_Particle_Mesh_Tools   ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -386,7 +386,7 @@ USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared,GEO
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
-USE MOD_Particle_Mesh_Tools     ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -613,7 +613,7 @@ USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
-USE MOD_Particle_Mesh_Tools     ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1851,7 +1851,7 @@ SUBROUTINE GeoCoordToMap2D(x_in,xi_Out,iElem)
 USE MOD_DSMC_Vars             ,ONLY: SymmetrySide
 USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
 USE MOD_Mesh_Vars             ,ONLY: offsetElem
-USE MOD_Particle_Mesh_Tools   ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1937,7 +1937,7 @@ FUNCTION MapToGeo2D(xi,iElem)
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
-USE MOD_Particle_Mesh_Tools     ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -1988,7 +1988,7 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_Initialize
 USE MOD_Mesh_Vars              ,ONLY: nElems, offsetElem
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_shared

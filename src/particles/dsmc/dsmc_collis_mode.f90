@@ -1017,7 +1017,7 @@ USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 USE MOD_DSMC_QK_PROCEDURES,     ONLY : QK_dissociation, QK_recombination, QK_exchange, QK_ImpactIonization, QK_IonRecombination
 USE MOD_Particle_Mesh_Vars,     ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
-USE MOD_Particle_Mesh_Tools     ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -54,7 +54,7 @@ USE MOD_Particle_Vars      ,ONLY: PartSpecies,Species
 USE MOD_Particle_Vars      ,ONLY: usevMPF,PartMPF
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared
-USE MOD_Particle_Mesh_Tools,ONLY: GetCNElemID
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime

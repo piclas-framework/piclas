@@ -74,7 +74,7 @@ SUBROUTINE IntersectionWithWall(PartTrajectory,alpha,iPart,iLocSide,Element,TriN
 ! MODULES
 USE MOD_Particle_Vars,          ONLY : lastPartPos,PartState
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Mesh_Tools,    ONLY : GetCNElemID
+USE MOD_Mesh_Tools         ,    ONLY : GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

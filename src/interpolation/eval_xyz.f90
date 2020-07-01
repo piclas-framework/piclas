@@ -62,7 +62,7 @@ USE MOD_Mesh_Vars,               ONLY:NGeo,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Mesh_Vars,               ONLY:wBaryCL_NGeo1,XiCL_NGeo1
 USE MOD_Particle_Mesh_Vars,      ONLY:ElemCurved
 #if USE_MPI
-USE MOD_Particle_Mesh_Tools,     ONLY: GetCNElemID
+USE MOD_Mesh_Tools,              ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars,      ONLY:XCL_NGeo_Shared,dXCL_NGeo_Shared
 #else
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,XCL_NGeo
@@ -192,7 +192,7 @@ USE MOD_Mesh_Vars             ,ONLY: wBaryCL_NGeo1,XiCL_NGeo1
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCurved
 USE MOD_PICInterpolation_Vars ,ONLY: useBGField
 #if USE_MPI
-USE MOD_Particle_Mesh_Tools,   ONLY: GetCNElemID
+USE MOD_Mesh_Tools         ,   ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars,    ONLY: XCL_NGeo_Shared,dXCL_NGeo_Shared
 #else
 USE MOD_Mesh_Vars,             ONLY: XCL_NGeo,dXCL_NGeo

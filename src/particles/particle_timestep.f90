@@ -454,7 +454,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 #if USE_MPI
 USE MOD_Particle_Mesh_Vars
 #endif
-USE MOD_Particle_Mesh_Tools     ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES

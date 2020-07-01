@@ -133,7 +133,7 @@ USE MOD_Equation_vars         ,ONLY: Wavelength
 #endif /* maxwell */
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
-USE MOD_Particle_Mesh_Tools   ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

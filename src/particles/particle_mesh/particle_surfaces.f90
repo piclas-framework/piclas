@@ -263,7 +263,7 @@ USE MOD_PreProc
 USE MOD_Particle_Surfaces_Vars,               ONLY:SideNormVec,SideType
 USE MOD_Particle_Tracking_Vars,               ONLY:TriaTracking
 USE MOD_Particle_Mesh_Vars,                   ONLY: SideInfo_Shared,NodeCoords_Shared,ElemSideNodeID_Shared
-USE MOD_Particle_Mesh_Tools,                  ONLY: GetCNElemID
+USE MOD_Mesh_Tools         ,                  ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------

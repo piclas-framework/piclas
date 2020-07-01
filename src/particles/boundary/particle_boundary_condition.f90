@@ -649,7 +649,7 @@ USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies
 USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric, VarTimeStep, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: dt,tend,time,RKdtFrac
 USE MOD_DSMC_ElectronicModel    ,ONLY: RelaxElectronicShellWall
-USE MOD_Particle_Mesh_Tools     ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 #if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
 #endif

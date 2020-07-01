@@ -176,12 +176,13 @@ SUBROUTINE InitParticleMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalElemID,InitGetCNElemID,GetCNElemID
 USE MOD_Mesh_Vars              ,ONLY: deleteMeshPointer,NodeCoords
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
 USE MOD_Mesh_Vars              ,ONLY: useCurveds
 USE MOD_Particle_BGM           ,ONLY: BuildBGMAndIdentifyHaloRegion
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Mesh_Tools    ,ONLY: InitGetGlobalElemID,InitGetCNElemID,InitPEM_LocalElemID,InitPEM_CNElemID,GetCNElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: InitPEM_LocalElemID,InitPEM_CNElemID
 USE MOD_Particle_Surfaces      ,ONLY: GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
@@ -476,7 +477,7 @@ USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Interpolation_Vars     ,ONLY: NodeType,NodeTypeCL,NodeTypeVISU
 USE MOD_Mesh_Vars              ,ONLY: useCurveds
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID, GetGlobalElemID
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeCL
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo,dXCL_NGeo,InterpolateFromTree,Xi_NGeo
 USE MOD_Mesh_Vars              ,ONLY: wBaryCL_NGeo1,Vdm_CLNGeo1_CLNGeo,XiCL_NGeo1,nElems,offsetElem
@@ -485,7 +486,6 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: Vdm_Bezier,sVdm_Bezier,D_Bezier
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -639,7 +639,8 @@ USE MOD_Mappings               ,ONLY: CGNS_SideToVol2
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
 USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides,SideInfo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: XCL_NGeo_Shared
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID, GetGlobalNonUniqueSideID
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces      ,ONLY: GetBezierControlPoints3DElevated
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,sVdm_Bezier
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3DElevated,BezierElevation
@@ -792,7 +793,7 @@ USE MOD_ReadInTools
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: NGeo
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars
@@ -1160,7 +1161,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ConcaveElemSide_Shared,ElemSideNodeID_Shared
 USE MOD_Particle_Mesh_Vars        ,ONLY: WeirdElems
-USE MOD_Particle_Mesh_Tools       ,ONLY: GetGlobalElemID
+USE MOD_Mesh_Tools                ,ONLY: GetGlobalElemID
 #if USE_MPI
 USE MOD_MPI_Shared_Vars           ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
 #else
@@ -1356,7 +1357,8 @@ USE MOD_Mesh_Vars              ,ONLY: NGeo,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars     ,ONLY: XiEtaZetaBasis,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID, GetGlobalNonUniqueSideID
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
@@ -1503,7 +1505,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemBaryNGeo,ElemRadius2NGeo
-USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalElemID
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
@@ -1858,7 +1860,8 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides
 USE MOD_Mesh_Vars              ,ONLY: Vdm_CLNGeo1_CLNGeo,NGeo,Vdm_CLNGeo1_CLNGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: XCL_NGeo_Shared,ElemBaryNGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared,ElemCurved
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID,GetCNElemID, GetGlobalNonUniqueSideID
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID,GetCNElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,SideType,SideNormVec,SideDistance
 #if USE_MPI
@@ -2267,7 +2270,7 @@ SUBROUTINE GetBCSidesAndOrgin()
 USE MOD_Globals
 USE MOD_Basis                  ,ONLY: DeCasteljauInterpolation
 USE MOD_Mesh_Vars              ,ONLY: NGeo
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: BCSide2SideID,SideID2BCSide,BCSideMetrics
 USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides,nUniqueBCSides
@@ -2427,7 +2430,8 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides,SideBCMetrics
 USE MOD_Particle_Mesh_Vars     ,ONLY: BCSide2SideID,SideID2BCSide,BCSideMetrics
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo,ElemRadiusNGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides,nUniqueBCSides
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID,GetCNElemID,GetGlobalNonUniqueSideID
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID,GetCNElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Vars          ,ONLY: ManualTimeStep
 USE MOD_Utils                  ,ONLY: InsertionSort
@@ -2962,7 +2966,7 @@ USE MOD_Mesh_Vars                ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars       ,ONLY: nComputeNodeElems
 USE MOD_Particle_Mesh_Vars       ,ONLY: ElemsJ,ElemEpsOneCell
 USE MOD_Particle_Mesh_Vars       ,ONLY: RefMappingEps
-USE MOD_Particle_Mesh_Tools      ,ONLY: GetGlobalElemID
+USE MOD_Mesh_Tools               ,ONLY: GetGlobalElemID
 USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod
 #if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: offsetElem

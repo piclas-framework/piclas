@@ -251,7 +251,7 @@ USE MOD_DSMC_Collis           ,ONLY: FinalizeCalcVibRelaxProb, SumVibRelaxProb, 
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd, time
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Relaxation       ,ONLY: CalcMeanVibQuaDiatomic
-USE MOD_Particle_Mesh_Tools   ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -398,7 +398,7 @@ USE MOD_DSMC_Collis             ,ONLY: FinalizeCalcVibRelaxProb, SumVibRelaxProb
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
 USE MOD_DSMC_CollisionProb      ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Relaxation         ,ONLY: CalcMeanVibQuaDiatomic
-USE MOD_Particle_Mesh_Tools     ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

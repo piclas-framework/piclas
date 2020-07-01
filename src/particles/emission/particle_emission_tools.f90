@@ -836,7 +836,8 @@ USE MOD_Particle_Localization  ,ONLY: PartInElemCheck
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemEpsOneCell
 USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D, GetCNElemID
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, PartMPF
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep

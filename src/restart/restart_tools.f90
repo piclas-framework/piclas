@@ -46,7 +46,7 @@ USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
 USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Mesh_Vars              ,ONLY: Vdm_N_EQ,offsetElem
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 !USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt,NodeVolume
 USE MOD_Restart_Vars           ,ONLY: N_Restart

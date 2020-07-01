@@ -473,7 +473,7 @@ USE MOD_Particle_Vars,          ONLY:Species, nSpecies, Adaptive_MacroVal, usevM
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Timedisc_Vars,          ONLY:dt
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Mesh_Tools     ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 #if USE_MPI
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank, MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 #endif /*USE_MPI*/
