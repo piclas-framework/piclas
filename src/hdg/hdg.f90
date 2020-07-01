@@ -77,7 +77,7 @@ CALL prms%CreateIntOption(      'HDGSkip'                , 'TODO-DEFINE-PARAMETE
 CALL prms%CreateIntOption(      'HDGSkipInit'            , 'TODO-DEFINE-PARAMETER', '0')
 CALL prms%CreateRealOption(     'HDGSkip_t0'             , 'TODO-DEFINE-PARAMETER', '0.')
 
-CALL prms%CreateLogicalOption(  'HDGDisplayConvergence'  , 'Display divergence criteria: Iterations, Runtime and Residual', '.FALSE.')
+CALL prms%CreateLogicalOption(  'HDGDisplayConvergence'  , 'Display divergence criteria: Iterations, RunTime and Residual', '.FALSE.')
 
 END SUBROUTINE DefineParametersHDG
 
@@ -1034,7 +1034,7 @@ SUBROUTINE CG_solver(RHS,lambda,iVar)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_HDG_Vars          ,ONLY: nGP_face,HDGDisplayConvergence
+USE MOD_HDG_Vars          ,ONLY: nGP_face,HDGDisplayConvergence,iteration
 USE MOD_HDG_Vars          ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCrit,OutIterCG
 USE MOD_TimeDisc_Vars     ,ONLY: iter,IterDisplayStep
 USE MOD_Mesh_Vars         ,ONLY: nSides,nMPISides_YOUR
@@ -1049,14 +1049,13 @@ REAL, INTENT(IN)    :: RHS(nGP_face*nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL, INTENT(INOUT) :: lambda(nGP_face*nSides)
-INTEGER, INTENT(INOUT),OPTIONAL::iVar
+INTEGER, INTENT(IN),OPTIONAL::iVar
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,DIMENSION(nGP_face*nSides) :: V,Z,R
 REAL                            :: AbortCrit2
 REAL                            :: omega,rr,vz,rz1,rz2,Norm_r2
 REAL                            :: timestartCG,timeEndCG
-INTEGER                         :: iteration
 INTEGER                         :: VecSize
 LOGICAL                         :: converged
 #if USE_LOADBALANCE
@@ -1099,6 +1098,9 @@ END IF
 IF(converged) THEN !converged
 !  SWRITE(*,*)'CG not needed, residual already =0'
 !  SWRITE(UNIT_StdOut,'(132("-"))')
+    TimeEndCG=PICLASTIME()
+    iteration = 0
+    IF(MPIroot) CALL DisplayConvergence(TimeEndCG-TimeStartCG, iteration, Norm_R2)
   RETURN
 END IF !converged
 AbortCrit2=EpsCG**2
@@ -1145,21 +1147,14 @@ DO iteration=1,MaxIterCG
   IF(converged) THEN !converged
     TimeEndCG=PICLASTIME()
     CALL EvalResidual(RHS,lambda,R)
-    CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V
-    IF(HDGDisplayConvergence.AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
-      SWRITE(UNIT_StdOut,'(A,X,I16)')      '#iterations          :',iteration
-      SWRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime           [s]:',(TimeEndCG-TimeStartCG)
-      SWRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime/iteration [s]:',(TimeEndCG-TimeStartCG)/REAL(iteration)
-!      SWRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime/iteration/DOF[s]:',(TimeEndCG-TimeStartCG)/REAL(iteration*PP_nElems*nGP_vol)
-      SWRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'Final Residual       :',SQRT(Norm_R2)
-      SWRITE(UNIT_StdOut,'(132("-"))')
-    END IF
+    CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V (function contains ALLREDUCE)
+    IF(MPIroot) CALL DisplayConvergence(TimeEndCG-TimeStartCG, iteration, Norm_R2)
     RETURN
   END IF !converged
+
   IF (MOD(iteration , MAX(INT(REAL(MaxIterCG)/REAL(OutIterCG)),1) ).EQ.0) THEN
     SWRITE(*,'(2(A,I0),2(A,G0))') 'CG solver reached ',iteration, ' of ',MaxIterCG, ' iterations with res = ',rr, ' > ',AbortCrit2
   END IF
-
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
@@ -1187,6 +1182,43 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE CG_solver
 
 
+SUBROUTINE DisplayConvergence(ElapsedTime, iteration, Norm_R2)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Set the global convergence properties of the HDG (CG) Solver and print then to StdOut)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_HDG_Vars      ,ONLY: HDGDisplayConvergence,HDGNorm,RunTime,RunTimePerIteration
+USE MOD_Globals       ,ONLY: UNIT_StdOut
+USE MOD_TimeDisc_Vars ,ONLY: iter,IterDisplayStep
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+REAL,INTENT(IN)     :: ElapsedTime
+INTEGER,INTENT(IN)  :: iteration
+REAL,INTENT(IN)     :: Norm_R2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+RunTime = ElapsedTime
+IF(iteration.GT.0)THEN
+  RunTimePerIteration = RunTime/REAL(iteration)
+ELSE
+  RunTimePerIteration = 0.
+END IF ! iteration.GT.0
+HDGNorm = SQRT(Norm_R2)
+
+IF(HDGDisplayConvergence.AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
+  WRITE(UNIT_StdOut,'(A,X,I16)')      '#iterations          :',iteration
+  WRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime           [s]:',RunTime
+  WRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime/iteration [s]:',RunTimePerIteration
+  !WRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime/iteration/DOF[s]:',(TimeEndCG-TimeStartCG)/REAL(iteration*PP_nElems*nGP_vol)
+  WRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'Final Residual       :',HDGNorm
+  WRITE(UNIT_StdOut,'(132("-"))')
+END IF
+END SUBROUTINE DisplayConvergence
+
+
 SUBROUTINE EvalResidual(RHS,lambda,R,iVar)
 !===================================================================================================================================
 !
@@ -1201,7 +1233,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL, INTENT(IN)    :: RHS(nGP_face,nSides)
 REAL, INTENT(INOUT) :: lambda(nGP_face,nSides)
-INTEGER, INTENT(INOUT),OPTIONAL::iVar
+INTEGER, INTENT(IN),OPTIONAL::iVar
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)   :: R(nGP_face,nSides)
@@ -1264,7 +1296,7 @@ REAL,INTENT(INOUT) :: lambda(nGP_face, nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT) :: mv(nGP_face, nSides)
-INTEGER, INTENT(INOUT),OPTIONAL::iVar
+INTEGER, INTENT(IN),OPTIONAL::iVar
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: firstSideID, lastSideID
@@ -1273,6 +1305,9 @@ INTEGER :: jLocSide,jSideID(6)
 #if USE_LOADBALANCE
 REAL    :: tLBStart
 #endif /*USE_LOADBALANCE*/
+#if PP_nVar==1
+INTEGER           :: dummy
+#endif /*PP_nVar==1*/
 !===================================================================================================================================
 
 #if USE_LOADBALANCE
@@ -1393,7 +1428,9 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 
 ! Suppress compiler warning
 RETURN
-iVar=0
+#if PP_nVar==1
+dummy=iVar
+#endif /*PP_nVar==1*/
 
 END SUBROUTINE MatVec
 
@@ -1405,6 +1442,9 @@ SUBROUTINE VectorDotProduct(dim1,A,B,Resu)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1421,12 +1461,21 @@ INTEGER           :: i
 #if USE_MPI
 REAL              :: ResuSend
 #endif
+#if USE_LOADBALANCE
+REAL              :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
 Resu=0.
 DO i=1,dim1
   Resu=Resu + A(i)*B(i)
 END DO
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
+#endif /*USE_LOADBALANCE*/
 
 #if USE_MPI
   ResuSend=Resu

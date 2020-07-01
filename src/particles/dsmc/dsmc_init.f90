@@ -94,8 +94,6 @@ CALL prms%CreateRealOption(     'Particles-DSMC-PartitionMaxTemp'&
 CALL prms%CreateRealOption(     'Particles-DSMC-PartitionInterval'&
                                           , 'Define temperature interval for pre-stored partition functions that are used for '//&
                                           'calculation of backwards rates', '10.0')
-CALL prms%CreateRealOption(     'Particles-DSMC-veloMinColl-Spec[$]' , 'min velo magn. for spec allowed to perform collision' , '0.' &
-                                          , numberedmulti=.TRUE.)
 !-----------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcQualityFactors'&
                                           , 'Enables [TRUE] / disables [FALSE] the calculation and output of flow-field variable.\n'//&
@@ -357,10 +355,17 @@ CALL prms%CreateIntArrayOption( 'Particles-Chemistry-DeleteProductsList','List o
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
                                            ,'Utilize collision cross sections for the determination of collision probabilities' &
                                            ,'.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseVibXSec'  &
+                                           ,'Utilize vibrational cross sections for the determination of relaxation probabilities' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for the collision cross section database. Container '//&
                                                                'should be named with species pair (e.g. "Ar-electron"). The '//&
                                                                'first column shall contain the energy in eV and the second '//&
                                                                'column the cross-section in m^2', 'none')
+CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
+                                  ,'Utilize the null collision method for the determination of the number of pairs '//&
+                                  'based on the maximum collision frequency and time step (only with a background gas)' &
+                                  ,'.TRUE.')
 
 END SUBROUTINE DefineParametersDSMC
 
@@ -370,7 +375,7 @@ SUBROUTINE InitDSMC()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Preproc                ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo, SideToElem
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_ReadInTools
@@ -442,11 +447,6 @@ END IF
   END IF
 DSMC%ElecRelaxProb = GETREAL('Particles-DSMC-ElecRelaxProb','0.01')
 DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant', '0.5')
-ALLOCATE(DSMC%veloMinColl(nSpecies))
-DO iSpec = 1, nSpecies
-  WRITE(UNIT=hilf,FMT='(I0)') iSpec
-  DSMC%veloMinColl(iSpec) = GETREAL('Particles-DSMC-veloMinColl-Spec'//TRIM(hilf),'0.')
-END DO
 !-----------------------------------------------------------------------------------
 ! Flag for the automatic calculation of the backward reaction rate with the partition functions and equilibrium constant.
 DSMC%BackwardReacRate  = GETLOGICAL('Particles-DSMC-BackwardReacRate','.FALSE.')
@@ -648,10 +648,16 @@ ELSE !CollisMode.GT.0
   DO iSpec = 1, nSpecies
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
     SpecDSMC(iSpec)%UseCollXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseCollXSec')
+    SpecDSMC(iSpec)%UseVibXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseVibXSec')
     IF(SpecDSMC(iSpec)%UseCollXSec.AND.BGGas%BackgroundSpecies(iSpec)) THEN
       CALL Abort(&
           __STAMP__&
           ,'ERROR: Please supply the collision cross-section data for the particle species and NOT the background species!')
+    END IF
+    IF(SpecDSMC(iSpec)%UseVibXSec.AND.(.NOT.SpecDSMC(iSpec)%UseCollXSec)) THEN
+      CALL Abort(&
+          __STAMP__&
+          ,'ERROR: Use of vibrational cross-section data requires to collisional cross-sections, -UseCollXSec = T!')
     END IF
   END DO
   IF(ANY(SpecDSMC(:)%UseCollXSec)) THEN
@@ -659,6 +665,8 @@ ELSE !CollisMode.GT.0
     CALL MCC_Init()
   ELSE
     UseMCC = .FALSE.
+    XSec_NullCollision =.FALSE.
+    XSec_Relaxation = .FALSE.
   END IF
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! reading/writing molecular stuff
@@ -1270,10 +1278,8 @@ ELSE !CollisMode.GT.0
         ALLOCATE(DSMC%QualityFacSampVib(1:nElems,1,1:2))
         ALLOCATE(DSMC%QualityFacSampVibSamp(1:nElems,1,2))
       END IF
-      ALLOCATE(DSMC%CalcVibProb(1:nSpecies,1:3))
       DSMC%QualityFacSampVib = 0.
       DSMC%QualityFacSampVibSamp = 0
-      DSMC%CalcVibProb = 0.
     END IF
     CALL SetVarVibProb2Elems()
     ! CHeck if DSMC%InstantTransTemp is still needed
@@ -1296,7 +1302,15 @@ ELSE !CollisMode.GT.0
     DSMC%QualityFacSampRotSamp = 0
     DSMC%CalcRotProb = 0.
   END IF
-
+  IF(DSMC%CalcQualityFactors) THEN
+    ALLOCATE(DSMC%CalcVibProb(1:nSpecies,1:3))
+    DSMC%CalcVibProb = 0.
+    IF(XSec_Relaxation) THEN
+      DO iCase=1,CollInf%NumCase
+        SpecXSec(iCase)%VibProb(1:2) = 0.
+      END DO
+    END IF
+  END IF
 END IF !CollisMode.GT.0
 
 ! If field ionization is used without chemical reactions due to collisions (DSMC chemistry)
@@ -1781,7 +1795,6 @@ IF(DSMC%NumPolyatomMolecs.GT.0) THEN
   END DO
   SDEALLOCATE(PolyatomMolDSMC)
 END IF
-SDEALLOCATE(DSMC%veloMinColl)
 SDEALLOCATE(DSMC%NumColl)
 SDEALLOCATE(DSMC%InstantTransTemp)
 IF(DSMC%CalcQualityFactors) THEN

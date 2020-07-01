@@ -74,7 +74,7 @@ SUBROUTINE DSMC_2D_InitVolumes()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: Pi
-USE MOD_PreProc                 ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Mesh_Vars               ,ONLY: nElems, nBCSides, BC, SideToElem, SurfElem
 USE MOD_Interpolation_Vars      ,ONLY: wGP
 USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric

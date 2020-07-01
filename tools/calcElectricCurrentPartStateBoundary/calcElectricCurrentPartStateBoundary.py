@@ -1,10 +1,12 @@
 import numpy as np
+import math
 from timeit import default_timer as timer
 import argparse
 import re
 import shutil
 import os.path
 import configparser
+import types
 
 # Bind raw_input to input in Python 2
 try:
@@ -82,7 +84,7 @@ def ReadConfig(parameterFile):
     return config
 
 
-def GetInfoFromDataset(statefile,data_set,NbrOfFiles,species_info_read) :
+def GetInfoFromDataset(statefile,data_set,NbrOfFiles,species_info_read,CutOff) :
     global InitialDataRead
     global SpeciesIndex
     global MPFIndex
@@ -139,7 +141,6 @@ def GetInfoFromDataset(statefile,data_set,NbrOfFiles,species_info_read) :
     # 2   Read the attributes and determine the species charges from user input
     if InitialDataRead :
         PreviousTime = 0.0
-        data = np.empty([NbrOfFiles, 2], dtype=float)
         FileCount=0
         InitialDataRead = False
 
@@ -179,28 +180,79 @@ def GetInfoFromDataset(statefile,data_set,NbrOfFiles,species_info_read) :
                 Charge[iSpec] = float(txt)*1.602176634e-19
             print(yellow("    The charges of the species are: %s" % Charge))
 
+        # Create empy data array
+        #data = np.empty([NbrOfFiles, 2], dtype=float)
+        data = np.zeros([NbrOfFiles, 2+len(Charge)], dtype=float)
+        #print("data = %s" % (data))
+        #print("Charge = %s" % (Charge))
+        #exit(0)
 
-    # 2   Sum the chares in PartData and divide by the time difference to the current
+    # 2   Sum the charges in PartData and divide by the time difference to the current
     TotalCharge = 0.
+    SumCharge = np.zeros([len(Charge)], dtype=float)
+    #print("SumCharge = %s" % (SumCharge))
     for i in range(len(b1)):
         SpecID = int(b1[i][SpeciesIndex])
+
+        if CutOff.Check:
+            # Skip coordinate
+            if CutOff.Type == 'greater':
+                if b1[i][CutOff.Coord] > CutOff.Val:
+                    #print(b1[i][0],b1[i][1],b1[i][2]) 
+                    continue
+            elif CutOff.Type == 'lesser':
+                if b1[i][CutOff.Coord] < CutOff.Val:
+                    #print(b1[i][0],b1[i][1],b1[i][2]) 
+                    continue
+            # Skip radius
+            if CutOff.Rad is not None:
+                if CutOff.Type == 'greater':
+                    if np.linalg.norm(b1[i][0:1]) > CutOff.Rad:
+                        continue
+                elif CutOff.Type == 'lesser':
+                    if np.linalg.norm(b1[i][0:1]) < CutOff.Rad:
+                        continue
+
         if SpecID not in Charge :
             txt = input(yellow("    Enter the charge for species %s in multiples of the elementary charge e=1.602176634e-19 : " % SpecID))
             Charge[SpecID] = float(txt)*1.602176634e-19
             print(yellow("    The charges of the species are: %s" % Charge))
-        TotalCharge += Charge[SpecID] * b1[i][MPFIndex]
+            # Add another column to the data array for the new species
+            AddData = np.zeros([NbrOfFiles, 1], dtype=float)
+            data = np.concatenate((data,AddData),axis=1)
+            #print(data)
+            # Add another entry for the sum of charge
+            AddSumCharge = np.zeros([1], dtype=float)
+            #print("AddSumCharge = %s" % (AddSumCharge))
+            SumCharge = np.append(SumCharge,[0.])
+            #print("SumCharge = %s" % (SumCharge))
+            #exit(0)
 
-    dt=Time-PreviousTime
-    Current = TotalCharge / dt
-    PreviousTime = Time
+        myindex = list(Charge.keys()).index(SpecID)
+        #print("myindex = %s" % (myindex))
+        TotalCharge        += Charge[SpecID] * b1[i][MPFIndex]
+        #print("TotalCharge = %s" % (TotalCharge))
+        SumCharge[myindex] += Charge[SpecID] * b1[i][MPFIndex]
+        #print("SumCharge = %s" % (SumCharge))
+
+    dt                = Time-PreviousTime
+    Current           = TotalCharge / dt
+    PreviousTime      = Time
     data[FileCount,0] = Time
     data[FileCount,1] = Current
-    FileCount += 1
+    for SpecID, v in Charge.items():
+        myindex = list(Charge.keys()).index(SpecID)
+        Current = SumCharge[myindex] / dt
+        data[FileCount,myindex+2] = Current
+
+        #print("myindex = %s" % (myindex))
+
+    FileCount        += 1
 
     # 3   Close .h5 data file
     f1.close()
 
-    print("%s  dt=%.2E  charge=%.2E  current=%.2E"% (statefile, dt, TotalCharge, Current))
+    print("%s  t=%.2E  dt=%.2E  charge=%.2E  current=%.2E"% (statefile, Time, dt, TotalCharge, Current))
 
 class bcolors :
     """color and font style definitions for changing output appearance"""
@@ -238,7 +290,7 @@ try :
     import h5py
     h5py_module_loaded = True
 except ImportError :
-    print(red('Could not import h5py module. This is required for anaylze functions.'))
+    print(red('Could not import h5py module. This is required for reading .h5 files. Exit.'))
     exit(0)
 
 # Start the timer
@@ -247,7 +299,13 @@ start = timer()
 """get command line arguments"""
 parser = argparse.ArgumentParser(description='DESCRIPTION:\nTool for adding up the charges of the particles in the PartState container of multiple .h5 files.\nSupply a single state file or a group of state files by using the wildcard "*", e.g. MySimulation_000.000000* for a list of file names.', formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument('files', type=str, help='Files (.h5) that are to be merged together.', nargs='+')
-parser.add_argument('-d', '--debug', action='store_true', help='Print additional imformation regarding the files onto screen.')
+parser.add_argument('-d', '--debug', action='store_true', help='Print additional information regarding the files onto screen.')
+parser.add_argument('-p', '--parameter', default='parameter.ini', help='Name of the parameter file that contains the species information corresponding to the PartState containers. Default=parameter.ini')
+parser.add_argument('-c', '--cutoff', action='store_true', help='Exclude particles by given a cut-off coordinate and removing particles that are either > or < as compared with this value.')
+parser.add_argument('-o', '--coordinate', type=int, help='Cut-off coordinate 0: x-dir, 1: y-dir, 2: z-dir.')
+parser.add_argument('-v', '--value', type=float, help='Cut-off value for removing particles.')
+parser.add_argument('-r', '--radius', type=float, help='Cut-off value for removing particles with radius grater/lesser than the supplied value (uses -t, --type).')
+parser.add_argument('-t', '--type', type=str, help='Cut-off type. Choose "greater" or "lesser" to remove particles with a coordinate > or < as compared with the cut-off value.')
 
 # Get command line arguments
 args = parser.parse_args()
@@ -258,15 +316,36 @@ print("Running with the following command line options")
 for arg in list(args.__dict__) :
     print(arg.ljust(15)+" = [ "+str(getattr(args,arg))+" ]")
 print('='*132)
-#print()
+
+# Check cut-off parameters
+CutOff= types.SimpleNamespace()
+CutOff.Check = args.cutoff
+if args.cutoff:
+    CutOff.Coord = args.coordinate
+    CutOff.Val   = args.value
+    CutOff.Rad   = args.radius
+    CutOff.Type  = args.type
+    if not CutOff.Coord in [0,1,2]:
+        print(red("Cut-Off: Coordinate [-o] must either be 0, 1 or 2."))
+        exit(0)
+    if not CutOff.Type in ['greater','lesser']:
+        print(red('Cut-Off: Type [-t] must either be "greater" or "lesser".'))
+        exit(0)
+    if CutOff.Val is None and CutOff.Val is None:
+        print(red('Cut-Off: Value [-v] and/or Radius [-r] must be chosen.'))
+        exit(0)
+    mystr='xyz'
+    print(red("WARNING: Coordinate cut-off is activated. Removing particles with %s-coordinate %s than %s" % (mystr[CutOff.Coord], CutOff.Type, CutOff.Val)))
+    if CutOff.Rad is not None:
+        print(red("WARNING: Radius cut-off is activated. Removing particles with radius %s than %s" % (CutOff.Type, CutOff.Rad)))
 
 # Get maximum number of characters in h5 file names
 max_length=0
 for statefile in args.files :
     max_length = max(max_length,len(statefile))
 
-parameterFile="parameter.ini"
-config = ReadConfig(parameterFile)
+#parameterFile="parameter.ini"
+config = ReadConfig(args.parameter)
 
 if config :
     species_info_read=True
@@ -281,25 +360,57 @@ if config :
     Charge={}
     for iSpec in Species :
         Charge[iSpec] = float(config.get("Section1","Part-Species%d-ChargeIC" % iSpec))
-    print(yellow("    Automatically fetched species ID's and charges from %s" % parameterFile))
+    print(yellow("    Automatically fetched species ID's and charges from %s" % args.parameter))
     print(yellow("    The charges of the species are: %s" % Charge))
 else:
     species_info_read=False
 
+if not species_info_read:
+    print(yellow("Parameter file [%s] not found. Please enter the required species information by hand or create a symbolic link to the parameter.ini file which was used to create the data" % args.parameter))
+
 InitialDataRead = True
 NbrOfFiles = len(args.files)
-#print(NbrOfFiles)
 for statefile in args.files :
-    if statefile.endswith('.h5'):
-        #print(statefile)
-        # Flip PartData
-        GetInfoFromDataset(statefile,'PartData',NbrOfFiles,species_info_read)
+    if statefile.endswith('.h5') and not statefile.endswith('_merged.h5'):
+        # check if file exists
+        if not os.path.exists(statefile):
+            print(red('File does not exist: [%s]' % statefile))
+            exit(0)
+    else:
+        NbrOfFiles -= 1
+
+
+print("Reading %s files" % NbrOfFiles)
+for statefile in args.files :
+    if statefile.endswith('.h5') and not statefile.endswith('_merged.h5'):
+
+        # Read data from .h5 file
+        GetInfoFromDataset(statefile,'PartData',NbrOfFiles,species_info_read,CutOff)
     else:
         print(statefile," skipping")
 
+#print( )
+#print("Charge = %s" % (Charge))
+#print("len(Charge) = %s" % (len(Charge)))
+#x = ',"'.join(myTuple)
+#print("x = %s" % (x))
+
+myheader = '"time","Current [A]"'
+for k, v in Charge.items():
+    #print(k,v)
+    #print(list(Charge.keys()).index(k))
+
+    #print( )
+    myheader = myheader+str(',"Spec-(%s)"' % k)
+
+print( )
+print("myheader = %s" % (myheader))
 print(132*"-")
 #print(data)
-print("The charge data has been written to CurrentOverTime_PartStateBoundary.csv")
-np.savetxt('CurrentOverTime_PartStateBoundary.csv', data, delimiter=',', header='"time", "Current [A]"')
+if 'data' in locals():
+    print("The charge data has been written to CurrentOverTime_PartStateBoundary.csv")
+    np.savetxt('CurrentOverTime_PartStateBoundary.csv', data, delimiter=',', header=myheader, comments='') # comments='' is required to prevent the "#" from being written in the header line
+else:
+    print("No output created.")
 print(132*"-")
 

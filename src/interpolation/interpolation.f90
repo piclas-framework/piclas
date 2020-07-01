@@ -115,7 +115,7 @@ SUBROUTINE InitInterpolation(NIn)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Interpolation_Vars
-USE MOD_ReadInTools        ,ONLY: GETINT
+USE MOD_ReadInTools        ,ONLY: GETINT,CountOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
@@ -126,6 +126,9 @@ INTEGER,INTENT(IN),OPTIONAL :: NIn  !< optional polynomial degree
 !----------------------------------------------------------------------------------------------------------------------------
 !local variables
 CHARACTER(LEN=40)           :: DefStr
+#if !(PP_N == N)
+INTEGER                     :: Ntmp
+#endif /*!(PP_N == N)*/
 !============================================================================================================================
 IF (InterpolationInitIsDone) THEN
   CALL CollectiveStop(__STAMP__,&
@@ -150,7 +153,7 @@ ELSE
 END IF
 IF(PP_N.NE.Ntmp) THEN
   CALL CollectiveStop(__STAMP__,&
-  'N in ini-file is different from hard-compiled N in Flexi. Ini/Compiled:',Ntmp,REAL(PP_N))
+  'N in ini-file is different from hard-compiled N in PICLas. Ini/Compiled:',Ntmp,REAL(PP_N))
 END IF
 #endif
 

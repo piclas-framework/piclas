@@ -89,6 +89,7 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
         break
       fi
       module load ${WHICHCOMPILER}/${COMPILERVERSION}
+      module list
 
       cd ${SOURCESDIR}
       if [ ! -e "${SOURCESDIR}/hdf5-${HDF5VERSION}.tar.gz" ]; then

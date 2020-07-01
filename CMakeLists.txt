@@ -628,13 +628,15 @@ function(add_exec target)
   ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "SUCCESS: ${TARGETUP} BUILD COMPLETE!")
 endfunction()
 
-FUNCTION(add_lib target)
+FUNCTION(add_lib_shared target)
   ADD_LIBRARY(${target} SHARED ${ARGN})
   TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o libpiclasstatic userblocklib stacksizelib ${linkedlibs})
   SET_TARGET_PROPERTIES(${target} PROPERTIES PREFIX ""
                                              COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}
                                              LINKER_LANGUAGE Fortran)
-  INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target} DESTINATION bin)
+  INSTALL(TARGETS ${target} LIBRARY PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                                                GROUP_READ GROUP_EXECUTE
+                                                WORLD_READ WORLD_EXECUTE)
   STRING(TOUPPER ${target} TARGETUP)
   ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "SUCCESS: ${TARGETUP} BUILD COMPLETE!")
 ENDFUNCTION()
@@ -767,7 +769,7 @@ SET_TARGET_PROPERTIES(stacksizelib PROPERTIES LINKER_LANGUAGE C
 
 
 # we link the statically built libs
-add_lib(libpiclasshared ./src/piclaslib.f90)
+add_lib_shared(libpiclasshared ./src/piclaslib.f90)
 SET_TARGET_PROPERTIES(libpiclasshared PROPERTIES OUTPUT_NAME "libpiclas")
 ADD_DEPENDENCIES(libpiclasshared libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
 add_exec(piclas ./src/piclas.f90)
@@ -822,7 +824,6 @@ ADD_CUSTOM_COMMAND(TARGET piclas     POST_BUILD COMMAND echo \"alias piclas='${C
 # Install
 # =========================================================================
 INSTALL(FILES    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt DESTINATION bin)
-
 # =========================================================================
 # Ctags
 # =========================================================================
@@ -833,6 +834,12 @@ IF(PICLAS_CTAGS)
   FOREACH(item ${EQNS_WO_ACTUAL})
      SET(EXLUDES "--exclude=src/equations/${item}/*" ${EXLUDES})
   ENDFOREACH()
+  MESSAGE(STATUS "Ctags excluding: ${EXLUDES}")
+  # ctags options:
+  # -R   Equivalent to --recurse.
+  # -f <name>
+  #    Write tags to specified file. Value of "-" writes tags to stdout
+  #    ["tags"; or "TAGS" when -e supplied].
   ADD_CUSTOM_COMMAND(OUTPUT ctags.txt COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ctags -R -f ctags.txt ${EXLUDES} src)
   ADD_CUSTOM_TARGET(tags DEPENDS ctags.txt)
   FIND_PROGRAM(CTAGS_PATH ctags)

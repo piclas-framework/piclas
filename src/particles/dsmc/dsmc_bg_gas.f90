@@ -196,11 +196,14 @@ SUBROUTINE BGGas_InsertParticles()
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort
 USE MOD_DSMC_Init              ,ONLY: DSMC_SetInternalEnr_LauxVFD
-USE MOD_DSMC_Vars              ,ONLY: BGGas, SpecDSMC
+USE MOD_DSMC_Vars              ,ONLY: BGGas, SpecDSMC, CollisMode
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -210,7 +213,14 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: iNewPart, iPart, PositionNbr, iSpec
+#if USE_LOADBALANCE
+REAL              :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+
 iNewPart=0
 PositionNbr = 0
 DO iPart = 1, PDM%ParticleVecLength
@@ -230,10 +240,12 @@ __STAMP__&
     END IF
     iSpec = BGGas_GetSpecies()
     PartSpecies(PositionNbr) = iSpec
-    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-      CALL DSMC_SetInternalEnr_Poly(iSpec,0,PositionNbr,1)
-    ELSE
-      CALL DSMC_SetInternalEnr_LauxVFD(iSpec,0,PositionNbr,1)
+    IF(CollisMode.GT.1) THEN
+      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+        CALL DSMC_SetInternalEnr_Poly(iSpec,0,PositionNbr,1)
+      ELSE
+        CALL DSMC_SetInternalEnr_LauxVFD(iSpec,0,PositionNbr,1)
+      END IF
     END IF
     PEM%Element(PositionNbr) = PEM%Element(iPart)
     PDM%ParticleInside(PositionNbr) = .true.
@@ -248,6 +260,9 @@ END DO
 PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,PositionNbr)
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + iNewPart
 
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DSMC,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END SUBROUTINE BGGas_InsertParticles
 
 
@@ -394,7 +409,7 @@ SUBROUTINE MCC_pairing_bggas(iElem)
 USE MOD_Globals
 USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib, CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles, XSec_NullCollision
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
 USE MOD_Particle_Vars           ,ONLY: WriteMacroVolumeValues
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
@@ -420,7 +435,7 @@ INTEGER, INTENT(IN)           :: iElem
 ! LOCAL VARIABLES
 INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, jSpec, bgSpec, PartIndex, bggPartIndex, PairCount, RandomPart
 INTEGER                       :: cSpec1, cSpec2, iCase, SpecPairNumTemp
-INTEGER,ALLOCATABLE           :: iPartIndex(:), PairingPartner(:), iPartIndexSpec(:,:), SpecPartNum(:), SpecPairNum(:,:)
+INTEGER,ALLOCATABLE           :: iPartIndex(:), PairingPartner(:), iPartIndexSpec(:,:), SpecPartNum(:), SpecPairNum(:)
 REAL                          :: iRan, ProbRest, SpecPairNumReal
 !===================================================================================================================================
 nPart = PEM%pNumber(iElem)
@@ -433,7 +448,7 @@ CollInf%Coll_CaseNum = 0
 ALLOCATE(iPartIndexSpec(nPart,nSpecies))
 iPartIndexSpec = 0
 
-ALLOCATE(SpecPartNum(nSpecies),SpecPairNum(nSpecies,nSpecies))
+ALLOCATE(SpecPartNum(nSpecies),SpecPairNum(CollInf%NumCase))
 SpecPairNum = 0; SpecPairNumTemp = 0; SpecPairNumReal = 0.; SpecPartNum = 0
 CALL InitCalcVibRelaxProb()
 
@@ -459,27 +474,28 @@ DO iSpec = 1,nSpecies
   IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN    ! Loop over all non-background species
     DO jSpec = 1, nSpecies
       IF(BGGas%BackgroundSpecies(jSpec)) THEN     ! Loop over all background species
+        iCase = CollInf%Coll_Case(iSpec,jSpec)
         bgSpec = BGGas%MapSpecToBGSpec(jSpec)
-        IF(SpecDSMC(iSpec)%UseCollXSec) THEN
+        IF(SpecDSMC(iSpec)%UseCollXSec.AND.XSec_NullCollision) THEN
           ! Collision cross-section: The maximum number of pairs to check is collision pair specific and depends on the null collision probability
-          SpecPairNumReal = CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iSpec,jSpec)%ProbNull
-          SpecPairNumTemp = INT(CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iSpec,jSpec)%ProbNull)
+          SpecPairNumReal = CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iCase)%ProbNull
+          SpecPairNumTemp = INT(CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iCase)%ProbNull)
         ELSE
           ! Regular: The maximum number of pairs corresponds to the particle number
           SpecPairNumReal = BGGas%SpeciesFraction(bgSpec)*CollInf%Coll_SpecPartNum(iSpec)
           SpecPairNumTemp = INT(BGGas%SpeciesFraction(bgSpec)*CollInf%Coll_SpecPartNum(iSpec))
         END IF
         ! Avoid creating more pairs than currently particles in the simulation
-        IF(SpecPairNum(iSpec,jSpec) + SpecPairNumTemp.LT.SpecPartNum(iSpec)) THEN
+        IF(SpecPairNum(iCase) + SpecPairNumTemp.LT.SpecPartNum(iSpec)) THEN
           ! Randomly deciding whether an additional pair is added based on the difference between the real and integer value
           ProbRest = SpecPairNumReal - REAL(SpecPairNumTemp)
           CALL RANDOM_NUMBER(iRan)
           IF (ProbRest.GT.iRan) SpecPairNumTemp = SpecPairNumTemp + 1
           ! Adding the number of pairs to the species-specific number and the cell total
-          SpecPairNum(iSpec,jSpec) = SpecPairNum(iSpec,jSpec) + SpecPairNumTemp
+          SpecPairNum(iCase) = SpecPairNum(iCase) + SpecPairNumTemp
           MCC_TotalPairNum = MCC_TotalPairNum + SpecPairNumTemp
-        ELSE IF(SpecPairNum(iSpec,jSpec) + SpecPairNumTemp.EQ.SpecPartNum(iSpec)) THEN
-          SpecPairNum(iSpec,jSpec) = SpecPairNum(iSpec,jSpec) + SpecPairNumTemp
+        ELSE IF(SpecPairNum(iCase) + SpecPairNumTemp.EQ.SpecPartNum(iSpec)) THEN
+          SpecPairNum(iCase) = SpecPairNum(iCase) + SpecPairNumTemp
           MCC_TotalPairNum = MCC_TotalPairNum + SpecPairNumTemp
         END IF
       END IF
@@ -500,20 +516,15 @@ DO iSpec = 1,nSpecies                             ! Loop over all non-background
   IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN
     DO jSpec = 1, nSpecies                        ! Loop over all background species
       IF(BGGas%BackgroundSpecies(jSpec)) THEN
-        DO iLoop = 1, SpecPairNum(iSpec,jSpec)    ! Loop over all the number of pairs required for this species pairing
-          ! Getting the index of the simulation particle
-          IF(SpecDSMC(iSpec)%UseCollXSec) THEN
-            ! MCC: Choosing random particles from the available number of particles
-            IF(SpecPartNum(iSpec).GT.0) THEN
-              CALL RANDOM_NUMBER(iRan)
-              RandomPart = INT(SpecPartNum(iSpec)*iRan) + 1
-              PartIndex = iPartIndexSpec(RandomPart,iSpec)
-              iPartIndexSpec(RandomPart, iSpec) = iPartIndexSpec(SpecPartNum(iSpec),iSpec)
-              SpecPartNum(iSpec) = SpecPartNum(iSpec) - 1
-            END IF
-          ELSE
-            ! Regular: Pairing every particle with a background gas particle
-            PartIndex = iPartIndexSpec(iLoop,iSpec)
+        iCase = CollInf%Coll_Case(iSpec,jSpec)
+        DO iLoop = 1, SpecPairNum(iCase)    ! Loop over all the number of pairs required for this species pairing
+          ! Choosing random particles from the available number of particles, getting the index of the simulation particle
+          IF(SpecPartNum(iSpec).GT.0) THEN
+            CALL RANDOM_NUMBER(iRan)
+            RandomPart = INT(SpecPartNum(iSpec)*iRan) + 1
+            PartIndex = iPartIndexSpec(RandomPart,iSpec)
+            iPartIndexSpec(RandomPart, iSpec) = iPartIndexSpec(SpecPartNum(iSpec),iSpec)
+            SpecPartNum(iSpec) = SpecPartNum(iSpec) - 1
           END IF
           ! Creating a new background gas particle
           DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
@@ -530,10 +541,12 @@ DO iSpec = 1,nSpecies                             ! Loop over all non-background
           END IF
           ! Set the species of the background gas particle
           PartSpecies(bggPartIndex) = jSpec
-          IF(SpecDSMC(jSpec)%PolyatomicMol) THEN
-            CALL DSMC_SetInternalEnr_Poly(jSpec,0,bggPartIndex,1)
-          ELSE
-            CALL DSMC_SetInternalEnr_LauxVFD(jSpec,0,bggPartIndex,1)
+          IF(CollisMode.GT.1) THEN
+            IF(SpecDSMC(jSpec)%PolyatomicMol) THEN
+              CALL DSMC_SetInternalEnr_Poly(jSpec,0,bggPartIndex,1)
+            ELSE
+              CALL DSMC_SetInternalEnr_LauxVFD(jSpec,0,bggPartIndex,1)
+            END IF
           END IF
           PEM%Element(bggPartIndex) = iElem
           PDM%ParticleInside(bggPartIndex) = .TRUE.

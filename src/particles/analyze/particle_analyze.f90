@@ -563,7 +563,7 @@ IF(CalcReacRates) THEN
   END IF
 END IF
 
-IF(CalcNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcMassflowRate) DoPartAnalyze = .TRUE.
+IF(CalcNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcMassflowRate.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
 ! compute transversal or thermal velocity of whole computational domain
 CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
 IF (CalcVelos) THEN
@@ -649,7 +649,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: iter, dt, IterDisplayStep
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, BGGas
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, BGGas, XSec_Relaxation
 #endif
 USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
@@ -681,7 +681,8 @@ REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpec
 REAL                :: ETotal, MacroParticleFactor
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
-REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2)
+REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2),VibRelaxProbCase(CollInf%NumCase)
+INTEGER             :: jSpec, iCase
 #endif
 #if USE_MPI
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
@@ -692,7 +693,6 @@ INTEGER             :: RECBIM(nSpecies)
 #endif /*USE_MPI*/
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
-INTEGER             :: iCase,jSpec
 #ifdef CODE_ANALYZE
 CHARACTER(LEN=64)   :: DebugElectronicStateFilename
 INTEGER             :: ii, iunit
@@ -963,6 +963,18 @@ INTEGER             :: dir
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-VibRelaxPmax',' '
             OutputCounter = OutputCounter + 1
+            IF(XSec_Relaxation) THEN
+              DO iSpec = 1, nSpecies
+                DO jSpec = iSpec, nSpecies
+                  ! Skip entry if both species are NOT molecules
+                  IF(((SpecDSMC(iSpec)%InterID.NE.2).AND.(SpecDSMC(iSpec)%InterID.NE.20)).AND. &
+                    ((SpecDSMC(jSpec)%InterID.NE.2).AND.(SpecDSMC(jSpec)%InterID.NE.20))) CYCLE
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-VibRelaxPmean', iSpec, '+', jSpec
+                  OutputCounter = OutputCounter + 1
+                END DO
+              END DO
+            END IF
           END IF
         END IF
 #endif
@@ -1104,7 +1116,8 @@ INTEGER             :: dir
                                                               GEO%MeshVolume, SpecDSMC(1)%omegaVHS, TempTotal(nSpecAnalyze))
       END IF
     END IF
-    IF(CalcRelaxProb) CALL CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb)
+    VibRelaxProbCase = 0.
+    IF(CalcRelaxProb) CALL CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb,VibRelaxProbCase)
   END IF
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1454,6 +1467,18 @@ IF (PartMPI%MPIROOT) THEN
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') VibRelaxProb(2)
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') VibRelaxProb(1)
+        IF(XSec_Relaxation) THEN
+          DO iSpec = 1, nSpecies
+            DO jSpec = iSpec, nSpecies
+              iCase = CollInf%Coll_Case(iSpec,jSpec)
+              ! Skip entry if both species are NOT molecules
+              IF(((SpecDSMC(iSpec)%InterID.NE.2).AND.(SpecDSMC(iSpec)%InterID.NE.20)).AND. &
+                  ((SpecDSMC(jSpec)%InterID.NE.2).AND.(SpecDSMC(jSpec)%InterID.NE.20))) CYCLE
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') VibRelaxProbCase(iCase)
+            END DO
+          END DO
+        END IF
       END IF
     END IF
 #endif
@@ -1546,7 +1571,7 @@ USE MOD_Mesh_Vars             ,ONLY: nElems, Elem_xGP
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_PICDepo_Vars
 USE MOD_Particle_Vars
-USE MOD_PreProc
+USE MOD_Preproc
 #if USE_MPI
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 #endif
@@ -2148,7 +2173,7 @@ END SUBROUTINE CalcTemperature
 
 
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
-SUBROUTINE CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb)
+SUBROUTINE CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb,VibRelaxProbCase)
 !===================================================================================================================================
 ! Calculates global rotational and vibrational relaxation probability for PartAnalyse.csv
 !===================================================================================================================================
@@ -2156,19 +2181,18 @@ SUBROUTINE CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars         ,ONLY: nSpecies
-USE MOD_DSMC_Vars             ,ONLY: DSMC, VarVibRelaxProb, CollisMode
+USE MOD_DSMC_Vars             ,ONLY: DSMC, VarVibRelaxProb, CollisMode, SpecXSec, XSec_Relaxation, CollInf
 USE MOD_Mesh_Vars             ,ONLY: nElems, nGlobalElems
-#if USE_MPI
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: RotRelaxProb(2),VibRelaxProb(2)       !< output value is already the GLOBAL RelaxProbs
+REAL,INTENT(OUT)                :: VibRelaxProbCase(CollInf%NumCase)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iElem, iSpec
+INTEGER                         :: iElem, iSpec, iCase
 REAL                            :: PartNum
 !===================================================================================================================================
 IF(CollisMode.LT.2) RETURN
@@ -2225,7 +2249,40 @@ IF(DSMC%VibRelaxProb.EQ.2) THEN
   END IF
 #endif /*USE_MPI*/
 ELSE
-  VibRelaxProb = DSMC%VibRelaxProb
+  VibRelaxProb = 0.
+#if USE_MPI
+  IF(PartMPI%MPIRoot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%CalcVibProb(1:nSpecies,1),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%CalcVibProb(1:nSpecies,2),nSpecies,MPI_DOUBLE_PRECISION,MPI_MAX,0,PartMPI%COMM, IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%CalcVibProb(1:nSpecies,3),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+    IF(XSec_Relaxation) THEN
+      CALL MPI_REDUCE(MPI_IN_PLACE,SpecXSec(:)%VibProb(1),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,SpecXSec(:)%VibProb(2),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+    END IF
+  ELSE
+    CALL MPI_REDUCE(DSMC%CalcVibProb(1:nSpecies,1),DSMC%CalcVibProb(1:nSpecies,1),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+    CALL MPI_REDUCE(DSMC%CalcVibProb(1:nSpecies,2),DSMC%CalcVibProb(1:nSpecies,2),nSpecies,MPI_DOUBLE_PRECISION,MPI_MAX,0,PartMPI%COMM, IERROR)
+    CALL MPI_REDUCE(DSMC%CalcVibProb(1:nSpecies,3),DSMC%CalcVibProb(1:nSpecies,3),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+    IF(XSec_Relaxation) THEN
+      CALL MPI_REDUCE(SpecXSec(:)%VibProb(1),SpecXSec(:)%VibProb(1),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+      CALL MPI_REDUCE(SpecXSec(:)%VibProb(2),SpecXSec(:)%VibProb(2),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+    END IF
+  END IF
+#endif /*USE_MPI*/
+  IF(PartMPI%MPIRoot)THEN
+    VibRelaxProb(1) = MAXVAL(DSMC%CalcVibProb(1:nSpecies,2))
+    IF(SUM(DSMC%CalcVibProb(1:nSpecies,3)).GT.0) THEN
+      VibRelaxProb(2) = SUM(DSMC%CalcVibProb(1:nSpecies,1))/SUM(DSMC%CalcVibProb(1:nSpecies,3))
+    END IF
+    VibRelaxProbCase = 0.
+    IF(XSec_Relaxation) THEN
+      DO iCase=1,CollInf%NumCase
+        IF(SpecXSec(iCase)%VibProb(2).GT.0.0) THEN
+          VibRelaxProbCase(iCase)=SpecXSec(iCase)%VibProb(1)/SpecXSec(iCase)%VibProb(2)
+        END IF
+      END DO
+    END IF
+  END IF
 END IF
 END SUBROUTINE CalcRelaxProbRotVib
 #endif
@@ -3281,7 +3338,7 @@ USE MOD_Globals_Vars           ,ONLY:ElementaryCharge
 USE MOD_Particle_Mesh_Vars     ,ONLY:GEO,NbrOfRegions
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
 USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,PEM,usevMPF
-USE MOD_Preproc                ,ONLY:PP_nElems
+USE MOD_Preproc
 USE MOD_PIC_Analyze            ,ONLY:CalculateBRElectronsPerCell
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_part_tools             ,ONLY: GetParticleWeight
@@ -3361,7 +3418,7 @@ SUBROUTINE CalculateElectronTemperatureCell()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElectronMass,ElementaryCharge
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,NbrOfRegions
-USE MOD_Preproc                ,ONLY: PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars  ,ONLY: ElectronTemperatureCell
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartState,RegionElectronRef
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
@@ -3462,7 +3519,7 @@ SUBROUTINE CalculatePlasmaFrequencyCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Preproc                ,ONLY:PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,PlasmaFrequencyCell
 USE MOD_Globals_Vars           ,ONLY:ElementaryCharge,ElectronMass
 USE MOD_Equation_Vars          ,ONLY:Eps0
@@ -3493,7 +3550,7 @@ SUBROUTINE CalculatePICTimeStepCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Preproc                ,ONLY:PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars  ,ONLY:PlasmaFrequencyCell,PICTimeStepCell
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -3525,7 +3582,7 @@ SUBROUTINE CalculateDebyeLengthCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Preproc                ,ONLY:PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,ElectronTemperatureCell,DebyeLengthCell,QuasiNeutralityCell
 USE MOD_Globals_Vars           ,ONLY:ElementaryCharge, BoltzmannConst
 USE MOD_Equation_Vars          ,ONLY:Eps0
@@ -3563,7 +3620,7 @@ SUBROUTINE CalculatePPDCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Preproc               ,ONLY: PP_nElems,PP_N
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars ,ONLY: DebyeLengthCell,PPDCell,PPDCellX,PPDCellY,PPDCellZ
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3598,7 +3655,7 @@ SUBROUTINE CalculatePICCFL()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Preproc               ,ONLY: PP_nElems,PP_N
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell,PICCFLCell,PICCFLCellX,PICCFLCellY,PICCFLCellZ
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_TimeDisc_Vars         ,ONLY: dt
@@ -3636,7 +3693,7 @@ SUBROUTINE CalculateMaxPartDisplacement()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Preproc               ,ONLY: PP_nElems,PP_N
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCell
 USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCellX,MaxPartDisplacementCellY,MaxPartDisplacementCellZ
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
@@ -3702,7 +3759,7 @@ SUBROUTINE CalculateIonizationCell()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Analyze_Vars  ,ONLY:IonizationCell,QuasiNeutralityCell,NeutralDensityCell,ElectronDensityCell,IonDensityCell
 USE MOD_Particle_Analyze_Vars  ,ONLY:ChargeNumberCell
-USE MOD_Preproc                ,ONLY:PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars     ,ONLY:GEO
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -3766,7 +3823,7 @@ SUBROUTINE CalculatePlasmaParameter()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals_Vars          ,ONLY: PI
-USE MOD_Preproc               ,ONLY: PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars ,ONLY: DebyeLengthCell,ElectronDensityCell,PlasmaParameterCell
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -3851,7 +3908,7 @@ SUBROUTINE CalcAnalyticalParticleState(t,PartStateAnalytic,alpha_out,theta_out)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: PI
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType,AnalyticInterpolationSubType,AnalyticInterpolationP
 USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationPhase
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
@@ -4076,7 +4133,7 @@ END SUBROUTINE CalcErrorParticle
 SUBROUTINE AnalyticParticleMovement(time,iter)
 ! MODULES
 USE MOD_Globals
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Analyze_Vars           ,ONLY: OutputErrorNorms
 USE MOD_Particle_Analyze_Vars  ,ONLY: TrackParticlePosition
 USE MOD_PICInterpolation_Vars  ,ONLY: L_2_Error_Part
