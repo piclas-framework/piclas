@@ -132,6 +132,8 @@ USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_Equation_vars         ,ONLY: Wavelength
 #endif /* maxwell */
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared
+USE MOD_Mesh_Vars             ,ONLY: offSetElem
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -199,9 +201,9 @@ IF(CalcPointsPerWavelength)THEN
   PPWCellMax=-HUGE(1.)
   DO iElem = 1, nElems
 #ifdef maxwell
-    PPWCell(iElem)     = (REAL(PP_N)+1.)*Wavelength/ElemCharLength_Shared(iElem)
+    PPWCell(iElem)     = (REAL(PP_N)+1.)*Wavelength/ElemCharLength_Shared(GetCNElemID(iElem+offSetElem))
 #else
-    PPWCell(iElem)     = (REAL(PP_N)+1.)/ElemCharLength_Shared(iElem)
+    PPWCell(iElem)     = (REAL(PP_N)+1.)/ElemCharLength_Shared(GetCNElemID(iElem+offSetElem))
 #endif /* maxwell */
     PPWCellMin=MIN(PPWCellMin,PPWCell(iElem))
     PPWCellMax=MAX(PPWCellMax,PPWCell(iElem))

@@ -70,7 +70,8 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_MPI_Shared_Vars
-USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalElemID, GetGlobalNonUniqueSideID
+USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_MPI_Vars       ,ONLY: halo_eps
 USE MOD_Particle_MPI_Vars       ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc

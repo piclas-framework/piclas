@@ -474,7 +474,8 @@ USE MOD_Particle_Mesh_Vars          ,ONLY: ElemRadiusNGeo,ElemHasAuxBCs!,PartEle
 USE MOD_Particle_Boundary_Vars      ,ONLY: nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteractionAuxBC
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbrOfLostParts, NbrOfLostParticles, DisplayLostParticles
-USE MOD_Particle_Mesh_Tools         ,ONLY: GetGlobalElemID,GetCNElemID,GetGlobalNonUniqueSideID
+USE MOD_Mesh_Tools                  ,ONLY: GetGlobalElemID,GetCNElemID
+USE MOD_Particle_Mesh_Tools         ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
 USE MOD_Particle_Localization       ,ONLY: LocateParticleInElement
 USE MOD_Particle_Localization       ,ONLY: PartInElemCheck
@@ -1275,7 +1276,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemEpsOneCell
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemRadius2NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems,FIBGM_Element,FIBGM_offsetElem
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID,GetCNElemID
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID,GetCNElemID
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps2
 USE MOD_Particle_Tracking_Vars ,ONLY: nTracks,Distance,ListDistance,CartesianPeriodic
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef,LastPartPos,PartSpecies
@@ -1766,7 +1767,7 @@ USE MOD_Particle_Mesh_Vars          ,ONLY: SideBCMetrics,ElemToBCSides
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
 USE MOD_Particle_Mesh_Vars          ,ONLY: GEO,ElemRadiusNGeo
-USE MOD_Particle_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 USE MOD_Utils                       ,ONLY: InsertionSort
 USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarRectInterSection
@@ -2534,7 +2535,7 @@ USE MOD_Particle_Intersection,       ONLY: ComputeBiLinearIntersection
 USE MOD_Particle_Mesh_Vars,          ONLY: SideInfo_Shared
 USE MOD_Particle_Mesh_Vars,          ONLY: SideBCMetrics
 USE MOD_Particle_Mesh_Vars,          ONLY: ElemBaryNGeo
-USE MOD_Particle_Mesh_Tools,         ONLY: GetCNElemID
+USE MOD_Mesh_Tools         ,         ONLY: GetCNElemID
 USE MOD_Particle_Surfaces_Vars,      ONLY: SideType
 USE MOD_Utils                       ,ONLY: InsertionSort
 USE MOD_Particle_Vars,               ONLY: PDM,PartState,LastPartPos
@@ -2644,7 +2645,7 @@ SUBROUTINE ParticleThroughSideCheck3DFast(PartID,PartTrajectory,iLocSide,Element
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars
-USE MOD_Particle_Mesh_Tools,         ONLY: GetCNElemID
+USE MOD_Mesh_Tools         ,         ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2754,7 +2755,7 @@ SUBROUTINE ParticleThroughSideLastPosCheck(i,iLocSide,Element,InElementCheck,Tri
 !> is inside the element. Output of determinant is used to determine which of the sides was crossed first.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Mesh_Tools,         ONLY: GetCNElemID
+USE MOD_Mesh_Tools         ,         ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Vars
 !-----------------------------------------------------------------------------------------------------------------------------------

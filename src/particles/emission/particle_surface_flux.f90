@@ -332,6 +332,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_Mesh_Vars              ,ONLY: nBCSides, offsetElem, BC, SideToElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, ElemMidPoint_Shared, SideInfo_Shared
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, Species, DoSurfaceFlux, nSpecies, Symmetry2D, Symmetry2DAxisymmetric
 USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
@@ -352,7 +353,8 @@ TYPE(tBCdata_auxSFRadWeight), ALLOCATABLE, INTENT(INOUT)        :: BCdata_auxSFT
 INTEGER               :: TmpMapToBC(1:nDataBC), TmpSideStart(1:nDataBC), TmpSideNumber(1:nDataBC), TmpSideEnd(1:nDataBC)
 ! PartBC, Start of Linked List for Sides in SurfacefluxBC, Number of Particles in Sides in SurfacefluxBC, End of Linked List for Sides in SurfacefluxBC
 INTEGER               :: TmpSideNext(1:nBCSides) !Next: Sides of diff. BCs ar not overlapping!
-INTEGER               :: countDataBC, iBC, BCSideID, currentBC, iSF, ElemID, iCount, iLocSide, SideID, iPartBound
+INTEGER               :: countDataBC, iBC, BCSideID, currentBC, iSF, iCount, iLocSide, SideID, iPartBound
+INTEGER               :: ElemID, CNElemID, GlobalElemID
 INTEGER               :: iSample, jSample, iSpec, iSub
 REAL, ALLOCATABLE     :: areasLoc(:),areasGlob(:)
 LOGICAL               :: OutputSurfaceFluxLinked
@@ -434,11 +436,12 @@ DO iBC=1,countDataBC
       SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
       !----- symmetry specific area calculation start
       IF(Symmetry2D) THEN
-        ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
+        GlobalElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
+        CNElemID     = GetCNElemID(GlobalElemID)
         iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
         IF(Symmetry2DAxisymmetric) THEN
           ! Calculate the correct area for the axisymmetric (ring area) and 2D (length) and get ymin and ymax for element
-          SurfMeshSubSideData(1,1,BCSideID)%area = DSMC_2D_CalcSymmetryArea(iLocSide,ElemID, ymin, ymax)
+          SurfMeshSubSideData(1,1,BCSideID)%area = DSMC_2D_CalcSymmetryArea(iLocSide,CNElemID, ymin, ymax)
           SurfMeshSubSideData(1,2,BCSideID)%area = 0.0
           ! Determination of the mean radial weighting factor for calculation of the number of particles to be inserted
           IF (RadialWeighting%DoRadialWeighting) THEN
@@ -446,7 +449,7 @@ DO iBC=1,countDataBC
               ! Surfaces that are NOT parallel to the YZ-plane
               IF(RadialWeighting%CellLocalWeighting) THEN
                 ! Cell local weighting
-                BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = (1. + ElemMidPoint_Shared(2,ElemID+offsetElem)&
+                BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = (1. + ElemMidPoint_Shared(2,CNElemID) &
                                                                         / GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))
               ELSE
                 BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1.
@@ -457,7 +460,7 @@ DO iBC=1,countDataBC
                     + (yMaxTemp**2/(GEO%ymaxglob*2.)*(RadialWeighting%PartScaleFactor-1.) &
                     -  yMinTemp**2/(GEO%ymaxglob*2.)*(RadialWeighting%PartScaleFactor-1.))/(yMaxTemp - yMinTemp)
                 END DO
-                BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(iCount,:) = DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,ElemID)
+                BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(iCount,:) = DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,CNElemID)
               END IF
             ELSE ! surfaces parallel to the x-axis (ymax = ymin)
               BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1. &
@@ -465,7 +468,7 @@ DO iBC=1,countDataBC
             END IF
           END IF
         ELSE
-          SurfMeshSubSideData(1,1:2,BCSideID)%area = DSMC_2D_CalcSymmetryArea(iLocSide,ElemID) / 2.
+          SurfMeshSubSideData(1,1:2,BCSideID)%area = DSMC_2D_CalcSymmetryArea(iLocSide,CNElemID) / 2.
         END IF
       END IF
       !----- symmetry specific area calculation end
@@ -1280,6 +1283,7 @@ SUBROUTINE DefineSideDirectVec2D(SideID, xyzNod, minPos, RVec)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared, SideInfo_Shared
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1291,16 +1295,16 @@ REAL, INTENT(OUT)                   :: minPos(2), RVec(2)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: iLocSide, globElemId, Node1, Node2, minVec
+INTEGER                 :: iLocSide, CNElemID, Node1, Node2, minVec
 REAL                    :: Vector1(3), Vector2(3), Vector2D(2)
 !===================================================================================================================================
 iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
-globElemId = SideInfo_Shared(SIDE_ELEMID,SideID)
+CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
 !-- compute parallelogram of triangle (only simple 2 value adds/subs, other from init)
 Node1 = 2     ! normal = cross product of 1-2 and 1-3 for first triangle
 Node2 = 4     !          and 1-3 and 1-4 for second triangle
-Vector1(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(Node1,iLocSide,globElemId)+1) - xyzNod(1:3)
-Vector2(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(Node2,iLocSide,globElemId)+1) - xyzNod(1:3)
+Vector1(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(Node1,iLocSide,CNElemID)+1) - xyzNod(1:3)
+Vector2(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(Node2,iLocSide,CNElemID)+1) - xyzNod(1:3)
 IF (ABS(Vector1(3)).GT.ABS(Vector2(3))) THEN
   Vector2D(1:2) = Vector2(1:2)
 ELSE

@@ -990,7 +990,7 @@ USE MOD_PreProc
 USE MOD_Equation_Vars     ,ONLY: c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars      ,ONLY: PartSource,DoDeposition
-USE MOD_Particle_Mesh_Tools,ONLY: GetCNElemID
+USE MOD_Mesh_Tools        ,ONLY: GetCNElemID
 USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps,ElemToDielectric
 #if IMPA
 USE MOD_LinearSolver_Vars ,ONLY: ExplicitPartSource

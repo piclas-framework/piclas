@@ -52,6 +52,7 @@ USE MOD_Particle_Vars         ,ONLY: PEM, PDM
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offsetElem
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -80,7 +81,7 @@ DO iLoop = 1, nPart
   iPart = PEM%pNext(iPart)
 END DO
 ! 2.) Perform pairing (random pairing or nearest neighbour pairing) and collision (including the decision for a reaction/relaxation)
-CALL PerformPairingAndCollision(iPartIndx, nPart, iElem , ElemVolume_Shared(iElem+offSetElem))
+CALL PerformPairingAndCollision(iPartIndx, nPart, iElem , ElemVolume_Shared(GetCNElemID(iElem+offSetElem)))
 DEALLOCATE(iPartIndx)
 
 END SUBROUTINE DSMC_pairing_standard
@@ -385,6 +386,7 @@ USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared,GEO
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -422,9 +424,9 @@ DO iLoop = 1, nPart
 END DO
 
 IF (ConsiderVolumePortions) THEN
-  elemVolume=ElemVolume_Shared(iElem+offSetElem)*(1.-GEO%MPVolumePortion(iElem))
+  elemVolume=ElemVolume_Shared(GetCNElemID(iElem+offSetElem))*(1.-GEO%MPVolumePortion(iElem))
 ELSE
-  elemVolume=ElemVolume_Shared(iElem+offSetElem)
+  elemVolume=ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
 END IF
 
 ! 2.) Octree cell refinement algorithm
@@ -433,7 +435,7 @@ DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), elemVolume)
 IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
   ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default = 40  for 2D/axisymmetric or = 80 for 3D)
   ! or the mean free path is less than the side length of a cube (approximation) with same volume as the actual cell
-  IF((DSMC%MeanFreePath.LT.ElemCharLength_Shared(iElem+offSetElem)) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
+  IF((DSMC%MeanFreePath.LT.ElemCharLength_Shared(GetCNElemID(iElem+offSetElem))) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
     ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
     TreeNode%PNum_Node = nPart
     iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
@@ -453,10 +455,10 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     CALL AddOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
     DEALLOCATE(TreeNode%MappedPartStates)
   ELSE
-    CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(iElem+offSetElem))
+    CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(GetCNElemID(iElem+offSetElem)))
   END IF
 ELSE
-  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(iElem+offSetElem))
+  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(GetCNElemID(iElem+offSetElem)))
 END IF
 
 DEALLOCATE(TreeNode%iPartIndx_Node)
@@ -611,6 +613,7 @@ USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -620,12 +623,13 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, nPart
+INTEGER                       :: iPart, iLoop, nPart, CNElemID
 REAL                          :: SpecPartNum(nSpecies), Volume
 TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
-Volume = ElemVolume_Shared(iElem+offSetElem)
+CNElemID = GetCNElemID(iElem+offSetElem)
+Volume = ElemVolume_Shared(CNElemID)
 SpecPartNum = 0.
 
 NULLIFY(TreeNode)
@@ -650,7 +654,7 @@ DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), Volume)
 IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
   ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
   ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-  IF((DSMC%MeanFreePath.LT.ElemCharLength_Shared(iElem+offSetElem)).OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
+  IF((DSMC%MeanFreePath.LT.ElemCharLength_Shared(CNElemID)).OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
     ALLOCATE(TreeNode%MappedPartStates(1:2,1:nPart))
     TreeNode%PNum_Node = nPart
     iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
@@ -663,10 +667,10 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     CALL AddQuadTreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
     DEALLOCATE(TreeNode%MappedPartStates)
   ELSE
-    CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(iElem+offSetElem))
+    CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, Volume)
   END IF
 ELSE 
-  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(iElem+offSetElem))
+  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, Volume)
 END IF
 
 DEALLOCATE(TreeNode%iPartIndx_Node)
@@ -1847,6 +1851,7 @@ SUBROUTINE GeoCoordToMap2D(x_in,xi_Out,iElem)
 USE MOD_DSMC_Vars             ,ONLY: SymmetrySide
 USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
 USE MOD_Mesh_Vars             ,ONLY: offsetElem
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1870,7 +1875,7 @@ REAL                          :: T_inv(2,2), DP(2), T(2,2)
 ! 1.1.) initial guess from linear part:
 SideID = SymmetrySide(iElem,2)
 DO iNode = 1,4
-  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,iElem+offSetElem)+1)
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,GetCNElemID(iElem+offSetElem))+1)
 END DO
 T(:,1) = 0.5 * (P(:,2)-P(:,1))
 T(:,2) = 0.5 * (P(:,4)-P(:,1))
@@ -1932,6 +1937,7 @@ FUNCTION MapToGeo2D(xi,iElem)
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1947,7 +1953,7 @@ REAL                            :: MapToGeo2D(2),P(2,4)
 !===================================================================================================================================
 SideID = SymmetrySide(iElem,2)
 DO iNode = 1,4
-  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,iElem+offSetElem)+1)
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,GetCNElemID(iElem+offSetElem))+1)
 END DO
 
 MapToGeo2D =0.25*(P(:,1)*(1-xi(1)) * (1-xi(2)) &

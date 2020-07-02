@@ -65,7 +65,7 @@ USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED, myLeaderGroupRank, nLeade
 USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
 USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared, NodeInfo_Shared, ElemInfo_Shared, NodeToElemInfo, NodeToElemMapping
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 #endif
 USE MOD_ReadInTools            ,ONLY: PrintOption
 #if USE_MPI

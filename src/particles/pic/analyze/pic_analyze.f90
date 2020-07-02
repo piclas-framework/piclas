@@ -50,7 +50,7 @@ USE MOD_Mesh_Vars,            ONLY:nElems, sJ, offsetElem
 USE MOD_Particle_Vars,        ONLY:PDM, Species, PartSpecies ,PartMPF,usevMPF
 USE MOD_Interpolation_Vars,   ONLY:wGP
 USE MOD_Particle_Analyze_Vars,ONLY:ChargeCalcDone
-USE MOD_Particle_Mesh_Tools  ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools           ,ONLY: GetCNElemID
 #if defined(IMPA)
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource
 #else
@@ -137,7 +137,7 @@ USE MOD_Particle_Vars,          ONLY:PDM, Species, PartSpecies, usevmpf, PartMPF
 USE MOD_Interpolation_Vars,     ONLY:wGP
 USE MOD_Particle_Analyze_Vars,  ONLY:PartCharge
 USE MOD_TimeDisc_Vars,          ONLY:iter
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 #if defined(IMPA)
 USE MOD_LinearSolver_Vars,      ONLY:ImplicitSource
 #else
