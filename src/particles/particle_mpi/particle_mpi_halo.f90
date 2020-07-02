@@ -98,6 +98,10 @@ REAL,ALLOCATABLE               :: BoundsOfElemCenter(:),MPISideBoundsOfElemCente
 INTEGER                        :: GlobalElemID,GlobalElemRank,GlobalLeaderRank
 LOGICAL,ALLOCATABLE            :: FlagShapeElem(:)
 INTEGER,ALLOCATABLE            :: SendRequest(:),RecvRequest(:)
+! Non-symmetric particle exchange
+LOGICAL,ALLOCATABLE            :: GlobalProcToRecvProc(:)
+LOGICAL                        :: CommFlag
+INTEGER                        :: nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob
 !=================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -294,7 +298,9 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                   GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
                   GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
                   nExchangeProcessors = nExchangeProcessors + 1
-                  FlagShapeElem(iElem) = .TRUE.
+                  IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+                    FlagShapeElem(iElem) = .TRUE.
+                  END IF
                   CYCLE ElemLoop
                 END IF
               END DO
@@ -312,7 +318,9 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                   GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
                   GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
                   nExchangeProcessors = nExchangeProcessors + 1
-                  FlagShapeElem(iElem) = .TRUE.
+                  IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+                    FlagShapeElem(iElem) = .TRUE.
+                  END IF
                   CYCLE ElemLoop
                 END IF
 
@@ -328,7 +336,9 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                     GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
                     GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
                     nExchangeProcessors = nExchangeProcessors + 1
-                    FlagShapeElem(iElem) = .TRUE.
+                    IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+                      FlagShapeElem(iElem) = .TRUE.
+                    END IF
                     CYCLE ElemLoop
                   END IF
                 END DO
@@ -351,7 +361,9 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                   GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
                   GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
                   nExchangeProcessors = nExchangeProcessors + 1
-                  FlagShapeElem(iElem) = .TRUE.
+                  IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+                    FlagShapeElem(iElem) = .TRUE.
+                  END IF
                   CYCLE ElemLoop
                 END IF
 
@@ -368,7 +380,9 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                     GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
                     GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
                     nExchangeProcessors = nExchangeProcessors + 1
-                    FlagShapeElem(iElem) = .TRUE.
+                    IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+                      FlagShapeElem(iElem) = .TRUE.
+                    END IF
                     CYCLE ElemLoop
                   END IF
 
@@ -407,23 +421,87 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
         GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
         GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
         nExchangeProcessors = nExchangeProcessors + 1
-        FlagShapeElem(iElem) = .TRUE.
+        IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+          FlagShapeElem(iElem) = .TRUE.
+        END IF
         CYCLE ElemLoop
       END IF
     END DO ! iSide = 1, nExchangeSides
   END DO ElemLoop
 END IF
 
+! Communicate non-symmetric particle exchange partners to make sure to catch every proc waiting to talk to us
+ALLOCATE(GlobalProcToRecvProc(0:nProcessors_Global-1), &
+         SendRequest         (0:nProcessors_Global-1), &
+         RecvRequest         (0:nProcessors_Global-1))
+
+GlobalProcToRecvProc = .FALSE.
+
+DO iProc = 0,nProcessors_Global-1
+  IF (iProc.EQ.myRank) CYCLE
+
+  CALL MPI_IRECV( GlobalProcToRecvProc(iProc)  &
+                , 1                            &
+                , MPI_INTEGER                  &
+                , iProc                        &
+                , 1999                         &
+                , MPI_COMM_WORLD               &
+                , RecvRequest(iProc)           &
+                , IERROR)
+
+  ! Send flag if communication is desired
+  CommFlag = MERGE(.TRUE.,.FALSE.,GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc).NE.-1)
+  CALL MPI_ISEND( CommFlag                     &
+                , 1                            &
+                , MPI_INTEGER                  &
+                , iProc                        &
+                , 1999                         &
+                , MPI_COMM_WORLD               &
+                , SendRequest(iProc)           &
+                , IERROR)
+END DO
+
+DO iProc = 0,nProcessors_Global-1
+  IF (iProc.EQ.myRank) CYCLE
+
+  CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+END DO
+
+nNonSymmetricExchangeProcs = 0
+
+DO iProc = 0,nProcessors_Global-1
+  IF (iProc.EQ.myRank) CYCLE
+
+  ! Ignore procs that are already flagged or not requesting communication
+  IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc) .NE.-1) CYCLE
+  IF (.NOT.GlobalProcToRecvProc(iProc)) CYCLE
+
+  ! Found a previously missing proc
+  nNonSymmetricExchangeProcs = nNonSymmetricExchangeProcs + 1
+  nExchangeProcessors        = nExchangeProcessors + 1
+
+  GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc) = 2
+  GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,iProc) = nExchangeProcessors
+END DO
+
+DEALLOCATE(GlobalProcToRecvProc,RecvRequest,SendRequest)
+CALL MPI_REDUCE(nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+SWRITE(Unit_StdOut,'(A,I0,A)') ' | Found ',nNonSymmetricExchangeProcsGlob,' previously missing non-symmetric particle exchange procs'
+
 !
 ALLOCATE(ExchangeProcToGlobalProc(2,0:nExchangeProcessors-1))
 
 ! Loop through all procs and build reverse mapping
-DO iProc = 0,nComputeNodeProcessors-1
-  ExchangeProcToGlobalProc(EXCHANGE_PROC_TYPE,iProc) = 1
-  ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc) = iProc + ComputeNodeRootRank
-END DO
+!DO iProc = 0,nComputeNodeProcessors-1
+!  ExchangeProcToGlobalProc(EXCHANGE_PROC_TYPE,iProc) = 1
+!  ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc) = iProc + ComputeNodeRootRank
+!END DO
+!nExchangeProcessors = nComputeNodeProcessors
 
-nExchangeProcessors = nComputeNodeProcessors
+nExchangeProcessors = 0
 DO iProc = 0,nProcessors_Global-1
   IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc).EQ.2) THEN
     ExchangeProcToGlobalProc(EXCHANGE_PROC_TYPE,nExchangeProcessors) = 2
