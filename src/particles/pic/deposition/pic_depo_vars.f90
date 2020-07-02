@@ -163,5 +163,26 @@ TYPE tLastAnalyzeSurfCollis
   INTEGER, ALLOCATABLE          :: SpeciesForDtCalc(:)           ! Species used for SFResample-dt (def.: 0 = all)
 END TYPE
 TYPE(tLastAnalyzeSurfCollis)    :: LastAnalyzeSurfCollis
+
+#if USE_MPI
+TYPE tShapeMapping
+  INTEGER,ALLOCATABLE           :: RecvShapeElemID(:)
+  INTEGER                       :: nRecvShapeElems
+END TYPE
+TYPE(tShapeMapping),ALLOCATABLE :: ShapeMapping(:)
+
+TYPE tCNShapeMapping
+  INTEGER,ALLOCATABLE           :: RecvShapeElemID(:)
+  INTEGER,ALLOCATABLE           :: SendShapeElemID(:)
+  INTEGER                       :: nRecvShapeElems
+  INTEGER                       :: nSendShapeElems
+END TYPE
+TYPE(tCNShapeMapping),ALLOCATABLE ::CNShapeMapping(:)
+
+
+INTEGER                         :: nSendShapeElems            ! number of halo elements on proc to communicate with shape function
+INTEGER,ALLOCATABLE             :: SendShapeElemID(:)         ! mapping from CNElemID to ShapeElemID
+#endif
+
 !===================================================================================================================================
 END MODULE MOD_PICDepo_Vars

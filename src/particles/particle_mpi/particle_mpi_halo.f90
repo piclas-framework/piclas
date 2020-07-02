@@ -74,6 +74,9 @@ USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalElemID, GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_MPI_Vars       ,ONLY: halo_eps
 USE MOD_Particle_MPI_Vars       ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc
+USE MOD_PICDepo_Vars            ,ONLY: DepositionType
+USE MOD_PICDepo_Vars            ,ONLY: nSendShapeElems,SendShapeElemID
+USE MOD_PICDepo_Vars            ,ONLY: ShapeMapping,CNShapeMapping
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -90,6 +93,10 @@ INTEGER                        :: nExchangeSides
 !INTEGER                        :: nExchangeProcs
 INTEGER,ALLOCATABLE            :: ExchangeSides(:)
 REAL,ALLOCATABLE               :: BoundsOfElemCenter(:),MPISideBoundsOfElemCenter(:,:)
+! shape function
+INTEGER                        :: GlobalElemID,GlobalElemRank,GlobalLeaderRank
+LOGICAL,ALLOCATABLE            :: FlagShapeElem(:)
+INTEGER,ALLOCATABLE            :: SendRequest(:),RecvRequest(:)
 !=================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -101,19 +108,24 @@ GlobalProcToExchangeProc(:,:) = -1
 
 ! Identify all procs on same node
 nExchangeProcessors = 0
-DO iProc = ComputeNodeRootRank,ComputeNodeRootRank+nComputeNodeProcessors-1
-  ! Build mapping global to compute-node
-  GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc) = 1
-  GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,iProc) = nExchangeProcessors
-  nExchangeProcessors = nExchangeProcessors + 1
-END DO
+!DO iProc = ComputeNodeRootRank,ComputeNodeRootRank+nComputeNodeProcessors-1
+!  ! Build mapping global to compute-node
+!  GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc) = 1
+!  GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,iProc) = nExchangeProcessors
+!  nExchangeProcessors = nExchangeProcessors + 1
+!END DO
 
 ! Identify all procs with elements in range. If all elements are on the current proc, they are already added
 ! and we are done here
-IF (nComputeNodeElems.NE.nComputeNodeTotalElems) THEN
+IF (nProcessors.GT.1) THEN
   !> Count all MPI sides on current proc.
   firstElem = offsetElem+1
   lastElem  = offsetElem+nElems
+
+  IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+    ALLOCATE(FlagShapeElem(1:nComputeNodeElems))
+    FlagShapeElem = .FALSE.
+  END IF
 
   ! This approach does not work, we get only the MPI sides pointing into the compute-node halo region
   !DO iSide = firstSide,lastSide
@@ -222,7 +234,7 @@ IF (nComputeNodeElems.NE.nComputeNodeTotalElems) THEN
     MPISideBoundsOfElemCenter(1:3,iSide) = (/ SUM(BoundsOfElem_Shared(1:2,1,ElemID)), &
                                               SUM(BoundsOfElem_Shared(1:2,2,ElemID)), &
                                               SUM(BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
-    MPISideBoundsOfElemCenter(4,iSide) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+    MPISideBoundsOfElemCenter(4,iSide) = VECNORM ((/BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
                                                     BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                                     BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
   END DO
@@ -232,27 +244,31 @@ IF (nComputeNodeElems.NE.nComputeNodeTotalElems) THEN
   !>>> of the elements of the MPI-surface (local proc MPI sides)
 
   ! Use a named loop so the entire element can be cycled
-ElemLoop:  DO iElem = nComputeNodeElems+1,nComputeNodeTotalElems
+ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
     ElemID   = GetGlobalElemID(iElem)
     HaloProc = ElemInfo_Shared(ELEM_RANK,ElemID)
 
-!#if CODE_ANALYZE
-    ! Sanity checks. Elems in halo region must have ELEM_HALOFLAG=2 and the proc must not be flagged yet
-    IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.2) THEN
-      IPWRITE(UNIT_stdOut,*) 'Element ID:',ElemID,'Halo Flag: ',ElemInfo_Shared(ELEM_HALOFLAG,ElemID)
-      CALL ABORT(__STAMP__,  'Element found in range of halo elements while not flagged as such!')
-    END IF
+    IF (HaloProc.EQ.myRank) CYCLE
 
-    IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc).EQ.1) THEN
-      IPWRITE(UNIT_stdOut,*) 'Element ID:',ElemID,'Halo Proc: ',HaloProc
-      CALL ABORT(__STAMP__, 'Proc claimed to have elements both on compute node and in halo region!')
-    END IF
+!#if CODE_ANALYZE
+!    ! Sanity checks. Elems in halo region must have ELEM_HALOFLAG=2 and the proc must not be flagged yet
+!    IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.2) THEN
+!      IPWRITE(UNIT_stdOut,*) 'Element ID:',ElemID,'Halo Flag: ',ElemInfo_Shared(ELEM_HALOFLAG,ElemID)
+!      CALL ABORT(__STAMP__,  'Element found in range of halo elements while not flagged as such!')
+!    END IF
+!
+!    IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc).EQ.1) THEN
+!      IPWRITE(UNIT_stdOut,*) 'Element ID:',ElemID,'Halo Proc: ',HaloProc
+!      CALL ABORT(__STAMP__, 'Proc claimed to have elements both on compute node and in halo region!')
+!    END IF
 !#endif
 
-    ! Skip if the proc is already flagged
-    IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc).EQ.2) CYCLE
+    ! Skip if the proc is already flagged, only if the exact elements are not required (.NOT.shape_function)
+    IF(.NOT.TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+      IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc).EQ.2) CYCLE
+    END IF
 
-    BoundsOfElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,ElemID)), &
+    BoundsOfElemCenter(1:3) = (/SUM(BoundsOfElem_Shared(1:2,1,ElemID)), &
                                 SUM(BoundsOfElem_Shared(1:2,2,ElemID)), &
                                 SUM(BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
     BoundsOfElemCenter(4)   = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
@@ -273,13 +289,14 @@ ElemLoop:  DO iElem = nComputeNodeElems+1,nComputeNodeTotalElems
                          + GEO%PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)                  &
                          - MPISideBoundsOfElemCenter(1:3,iSide))                                         &
                 .LE. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
-        ! flag the proc as exchange proc (in halo region)
-        GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
-        GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
-        nExchangeProcessors = nExchangeProcessors + 1
+                  ! flag the proc as exchange proc (in halo region)
+                  GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
+                  GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
+                  nExchangeProcessors = nExchangeProcessors + 1
+                  FlagShapeElem(iElem) = .TRUE.
                   CYCLE ElemLoop
                 END IF
-  END DO
+              END DO
 
           ! Two periodic vectors. Also check linear combination, see particle_bgm.f90
           CASE(2)
@@ -294,8 +311,9 @@ ElemLoop:  DO iElem = nComputeNodeElems+1,nComputeNodeTotalElems
                   GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
                   GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
                   nExchangeProcessors = nExchangeProcessors + 1
+                  FlagShapeElem(iElem) = .TRUE.
                   CYCLE ElemLoop
-END IF
+                END IF
 
                 DO jPeriodicVector = 1,2
 
@@ -309,6 +327,7 @@ END IF
                     GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
                     GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
                     nExchangeProcessors = nExchangeProcessors + 1
+                    FlagShapeElem(iElem) = .TRUE.
                     CYCLE ElemLoop
                   END IF
                 END DO
@@ -331,6 +350,7 @@ END IF
                   GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
                   GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
                   nExchangeProcessors = nExchangeProcessors + 1
+                  FlagShapeElem(iElem) = .TRUE.
                   CYCLE ElemLoop
                 END IF
 
@@ -347,6 +367,7 @@ END IF
                     GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
                     GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
                     nExchangeProcessors = nExchangeProcessors + 1
+                    FlagShapeElem(iElem) = .TRUE.
                     CYCLE ElemLoop
                   END IF
 
@@ -366,6 +387,7 @@ END IF
                 GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
                 GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
                 nExchangeProcessors = nExchangeProcessors + 1
+                FlagShapeElem(iElem) = .TRUE.
                 CYCLE ElemLoop
               END IF
             END DO
@@ -384,6 +406,7 @@ END IF
         GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
         GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
         nExchangeProcessors = nExchangeProcessors + 1
+        FlagShapeElem(iElem) = .TRUE.
         CYCLE ElemLoop
       END IF
     END DO ! iSide = 1, nExchangeSides
@@ -407,6 +430,217 @@ DO iProc = 0,nProcessors_Global-1
     nExchangeProcessors = nExchangeProcessors +1
   END IF
 END DO
+
+! Build shapeFunction mapping
+IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+  nSendShapeElems = 0
+  DO iELem = 1,nComputeNodeTotalElems
+    IF (FlagShapeElem(iElem)) nSendShapeElems = nSendShapeElems + 1
+  END DO
+!  nSendShapeElems = SUM(FlagShapeElem)
+
+  ALLOCATE(SendShapeElemID(1:nSendShapeElems))
+
+  SendShapeElemID = -1
+
+  nSendShapeElems = 0
+  DO iELem = 1,nComputeNodeTotalElems
+    IF (FlagShapeElem(iElem)) THEN
+      nSendShapeElems = nSendShapeElems + 1
+      SendShapeElemID(nSendShapeElems) = iElem
+    END IF
+  END DO
+
+  IF (myComputeNodeRank.EQ.0) THEN
+    ALLOCATE(ShapeMapping(1:nComputeNodeProcessors-1), &
+             RecvRequest (1:nComputeNodeProcessors-1))
+
+    DO iProc = 1,nComputeNodeProcessors-1
+        CALL MPI_IRECV( ShapeMapping(iProc)%nRecvShapeElems &
+                      , 1                                   &
+                      , MPI_INTEGER                         &
+                      , iProc                               &
+                      , 2001                                &
+                      , MPI_COMM_SHARED                     &
+                      , RecvRequest(iProc)                  &
+                      , IERROR)
+    END DO
+
+    DO iProc = 1,nComputeNodeProcessors-1
+      CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+      IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    END DO
+
+    DO iProc = 1,nComputeNodeProcessors-1
+      IF (ShapeMapping(iProc)%nRecvShapeElems.EQ.0) CYCLE
+      ALLOCATE(ShapeMapping(iProc)%RecvShapeElemID(1:ShapeMapping(iProc)%nRecvShapeElems))
+
+      CALL MPI_IRECV( ShapeMapping(iProc)%RecvShapeElemID   &
+                    , ShapeMapping(iProc)%nRecvShapeElems   &
+                    , MPI_INTEGER                           &
+                    , iProc                                 &
+                    , 2001                                  &
+                    , MPI_COMM_SHARED                       &
+                    , RecvRequest(iProc)                    &
+                    , IERROR)
+    END DO
+
+    DO iProc = 1,nComputeNodeProcessors-1
+      IF (ShapeMapping(iProc)%nRecvShapeElems.EQ.0) CYCLE
+      CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+      IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    END DO
+
+    ! Second stage of communication, identify and send inter-compute-node information
+    IF (nLeaderGroupProcs.EQ.1) THEN
+      DEALLOCATE(RecvRequest)
+      ALLOCATE(CNShapeMapping(0:nLeaderGroupProcs-1), &
+               SendRequest   (0:nLeaderGroupProcs-1), &
+               RecvRequest   (0:nLeaderGroupProcs-1))
+
+      CNShapeMapping%nSendShapeElems = 0
+      ! Count number of elems per CN
+      DO iElem = nComputeNodeElems+1,nComputeNodeTotalElems
+        GlobalElemID = GetGlobalElemID(iElem)
+        IF (ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).EQ.2) THEN
+          GlobalElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
+          GlobalLeaderRank = INT(GlobalElemRank/nComputeNodeProcessors)
+          CNShapeMapping(GlobalLeaderRank)%nSendShapeElems = CNShapeMapping(GlobalLeaderRank)%nSendShapeElems + 1
+        END IF
+      END DO
+
+      DO iProc = 0,nLeaderGroupProcs-1
+        IF (iProc.EQ.myLeaderGroupRank) CYCLE
+
+        CALL MPI_IRECV( CNShapeMapping(iProc)%nRecvShapeElems   &
+                      , 1                                       &
+                      , MPI_INTEGER                             &
+                      , iProc                                   &
+                      , 2002                                    &
+                      , MPI_COMM_LEADERS_SHARED                 &
+                      , RecvRequest(iProc)                      &
+                      , IERROR)
+
+        CALL MPI_ISEND( CNShapeMapping(iProc)%nSendShapeElems   &
+                      , 1                                       &
+                      , MPI_INTEGER                             &
+                      , iProc                                   &
+                      , 2002                                    &
+                      , MPI_COMM_LEADERS_SHARED                 &
+                      , SendRequest(iProc)                     &
+                      , IERROR)
+      END DO
+
+      DO iProc = 0,nLeaderGroupProcs-1
+        IF (iProc.EQ.myLeaderGroupRank) CYCLE
+
+        CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+        IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+        CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+        IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+      END DO
+
+      DO iProc = 0,nLeaderGroupProcs-1
+        IF (iProc.EQ.myLeaderGroupRank) CYCLE
+
+        IF (CNShapeMapping(iProc)%nRecvShapeElems.EQ.0) CYCLE
+
+        ALLOCATE(CNShapeMapping(iProc)%RecvShapeElemID(CNShapeMapping(iProc)%nRecvShapeElems))
+
+        CALL MPI_IRECV( CNShapeMapping(iProc)%RecvShapeElemID   &
+                      , CNShapeMapping(iProc)%nRecvShapeElems   &
+                      , MPI_INTEGER                             &
+                      , iProc                                   &
+                      , 2002                                    &
+                      , MPI_COMM_LEADERS_SHARED                 &
+                      , RecvRequest(iProc)                      &
+                      , IERROR)
+      END DO
+
+      DO iProc = 0,nLeaderGroupProcs-1
+        IF (iProc.EQ.myLeaderGroupRank) CYCLE
+        IF (CNShapeMapping(iProc)%nSendShapeElems.EQ.0) CYCLE
+        ALLOCATE(CNShapeMapping(iProc)%SendShapeElemID(CNShapeMapping(iProc)%nSendShapeElems))
+        CNShapeMapping(iProc)%nSendShapeElems = 0
+      END DO
+
+
+      DO iElem = nComputeNodeElems+1,nComputeNodeTotalElems
+        GlobalElemID = GetGlobalElemID(iElem)
+        IF (ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).EQ.2) THEN
+          GlobalElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
+          GlobalLeaderRank = INT(GlobalElemRank/nComputeNodeProcessors)
+
+          CNShapeMapping(GlobalLeaderRank)%nSendShapeElems = CNShapeMapping(GlobalLeaderRank)%nSendShapeElems + 1
+          CNShapeMapping(GlobalLeaderRank)%SendShapeElemID(CNShapeMapping(GlobalLeaderRank)%nSendShapeElems) = GlobalElemID
+        END IF
+      END DO
+
+      DO iProc = 0,nLeaderGroupProcs-1
+        IF (iProc.EQ.myLeaderGroupRank) CYCLE
+
+        IF (CNShapeMapping(iProc)%nSendShapeElems.EQ.0) CYCLE
+
+        ALLOCATE(CNShapeMapping(iProc)%SendShapeElemID(CNShapeMapping(iProc)%nSendShapeElems))
+
+        CALL MPI_ISEND( CNShapeMapping(iProc)%SendShapeElemID   &
+                      , CNShapeMapping(iProc)%nSendShapeElems   &
+                      , MPI_INTEGER                             &
+                      , iProc                                   &
+                      , 2002                                    &
+                      , MPI_COMM_LEADERS_SHARED                 &
+                      , SendRequest(iProc)                      &
+                      , IERROR)
+      END DO
+
+      DO iProc = 0,nLeaderGroupProcs-1
+        IF (iProc.EQ.myLeaderGroupRank) CYCLE
+
+        IF (CNShapeMapping(iProc)%nRecvShapeElems.NE.0) THEN
+          CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+          IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+        END IF
+
+        IF (CNShapeMapping(iProc)%nSendShapeElems.NE.0) THEN
+          CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+          IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+        END IF
+      END DO
+    END IF ! nLeaderGroupProcs.GT.1
+
+  ! .NOT. ComputeNodeRoot
+  ELSE
+    ALLOCATE(SendRequest(1))
+
+    CALL MPI_ISEND( nSendShapeElems                          &
+                  , 1                                        &
+                  , MPI_INTEGER                              &
+                  , 0                                        &
+                  , 2001                                     &
+                  , MPI_COMM_SHARED                          &
+                  , SendRequest(1)                           &
+                  , IERROR)
+
+    CALL MPI_WAIT(SendRequest(1),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+
+    IF (nSendShapeElems.GT.1) THEN
+      CALL MPI_ISEND( SendShapeElemID                        &
+                    , nSendShapeElems                        &
+                    , MPI_INTEGER                            &
+                    , 0                                      &
+                    , 2001                                   &
+                    , MPI_COMM_SHARED                        &
+                    , SendRequest(1)                         &
+                    , IERROR)
+
+      CALL MPI_WAIT(SendRequest(1),MPIStatus,IERROR)
+      IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    END IF
+
+    DEALLOCATE(SendRequest)
+  END IF
+END IF
 
 SWRITE(UNIT_stdOut,'(A)') ' IDENTIFYING Particle Exchange Processors DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
