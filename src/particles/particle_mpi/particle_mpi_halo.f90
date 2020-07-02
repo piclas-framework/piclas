@@ -402,7 +402,9 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                 GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
                 GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
                 nExchangeProcessors = nExchangeProcessors + 1
-                FlagShapeElem(iElem) = .TRUE.
+                IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+                  FlagShapeElem(iElem) = .TRUE.
+                END IF
                 CYCLE ElemLoop
               END IF
             END DO
