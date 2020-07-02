@@ -65,6 +65,10 @@ INTERFACE SamplingRotVibRelaxProb
   MODULE PROCEDURE SamplingRotVibRelaxProb
 END INTERFACE
 
+INTERFACE CalcInstantElecTempXi
+  MODULE PROCEDURE CalcInstantElecTempXi
+END INTERFACE
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -73,7 +77,7 @@ END INTERFACE
 PUBLIC :: DSMC_data_sampling, CalcMeanFreePath,WriteDSMCToHDF5
 PUBLIC :: CalcTVib, CalcSurfaceValues, CalcTelec, CalcTVibPoly, CalcGammaVib
 PUBLIC :: CalcInstantTransTemp, SummarizeQualityFactors, DSMCMacroSampling
-PUBLIC :: SamplingRotVibRelaxProb
+PUBLIC :: SamplingRotVibRelaxProb, CalcInstantElecTempXi
 !===================================================================================================================================
 
 CONTAINS
@@ -679,6 +683,58 @@ END DO        ! iSpec = 1, nSpecies
 END SUBROUTINE CalcGammaVib
 
 
+SUBROUTINE CalcInstantElecTempXi(iPartIndx,PartNum)
+!===================================================================================================================================
+!> Calculation of the instantaneous translational temperature for the cell
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
+USE MOD_Preproc
+USE MOD_DSMC_Vars     ,ONLY: DSMC, CollInf, PartStateIntEn
+USE MOD_Particle_Vars ,ONLY: PartSpecies, Species, nSpecies
+USE MOD_part_tools    ,ONLY: GetParticleWeight
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)   :: PartNum
+INTEGER, INTENT(IN)   :: iPartIndx(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: iSpec, iPart, SpecPartNum_Simu(nSpecies), PartID, SpecID
+REAL                  :: ElecEnergy(nSpecies), partWeight
+!===================================================================================================================================
+! Actual number of particles, required to avoid calculation of temperature from one particle of the species
+SpecPartNum_Simu = 0
+! Sum of particle number, might be weighted/multiplied with PartMPF and/or VariableTimeStep
+! Setting temperature to zero
+DSMC%InstantTXiElec = 0.
+ElecEnergy=0.0
+
+DO iPart=1,PartNum
+  PartID = iPartIndx(iPart)
+  SpecID = PartSpecies(PartID)
+  partWeight = GetParticleWeight(PartID)
+  ElecEnergy(SpecID) = ElecEnergy(SpecID) + PartStateIntEn(3,PartID) * partWeight
+  SpecPartNum_Simu(SpecID) = SpecPartNum_Simu(SpecID) + 1
+END DO
+
+DO iSpec=1, nSpecies
+  IF(SpecPartNum_Simu(iSpec).GT.1) THEN
+    ElecEnergy(iSpec) = ElecEnergy(iSpec) / CollInf%Coll_SpecPartNum(iSpec)
+    ! Compute temperatures
+    DSMC%InstantTXiElec(1,iSpec) = CalcTelec(ElecEnergy(iSpec), iSpec)
+    DSMC%InstantTXiElec(2,iSpec) = 2.*ElecEnergy(iSpec) /(BoltzmannConst*DSMC%InstantTXiElec(1,iSpec))
+  ELSE
+    DSMC%InstantTXiElec(1:2,iSpec) = 0.0
+  END IF
+END DO
+END SUBROUTINE CalcInstantElecTempXi
+
+
 SUBROUTINE CalcInstantTransTemp(iPartIndx,PartNum)
 !===================================================================================================================================
 !> Calculation of the instantaneous translational temperature for the cell
@@ -745,6 +801,85 @@ IF(SumSpecPartNum.GT.0) DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTem
 
 END SUBROUTINE CalcInstantTransTemp
 
+!SUBROUTINE CalcInstantTransTemp(iPartIndx,PartNum)
+!!===================================================================================================================================
+!!> Calculation of the instantaneous translational temperature for the cell
+!!===================================================================================================================================
+!! MODULES
+!USE MOD_Globals
+!USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
+!USE MOD_Preproc
+!USE MOD_DSMC_Vars     ,ONLY: DSMC, CollInf
+!USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species, nSpecies
+!USE MOD_part_tools    ,ONLY: GetParticleWeight
+!! IMPLICIT VARIABLE HANDLING
+!IMPLICIT NONE
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! INPUT VARIABLES
+!INTEGER, INTENT(IN)   :: PartNum
+!INTEGER, INTENT(IN)   :: iPartIndx(:)
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! OUTPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!INTEGER               :: iSpec, iPart, SpecPartNum_Simu(nSpecies), PartID, SpecID
+!REAL                  :: PartV(nSpecies,3), PartV2(nSpecies), SumSpecPartNum, partWeight, vmag2, V_rel(3)
+!REAL                  :: MeanPartV(nSpecies,3), totalweight2(nSpecies)
+!!===================================================================================================================================
+
+!PartV = 0.
+!PartV2 = 0.
+!! Actual number of particles, required to avoid calculation of temperature from one particle of the species
+!SpecPartNum_Simu = 0
+!! Sum of particle number, might be weighted/multiplied with PartMPF and/or VariableTimeStep
+!SumSpecPartNum = 0.
+!! Setting temperature to zero
+!DSMC%InstantTransTemp = 0.
+!totalweight2 = 0.
+!DO iPart=1,PartNum
+!  PartID = iPartIndx(iPart)
+!  SpecID = PartSpecies(PartID)
+!  partWeight = GetParticleWeight(PartID)
+!  PartV(SpecID,1:3) = PartV(SpecID,1:3) + PartState(4:6,PartID) * partWeight
+!  totalweight2(SpecID) = totalweight2(SpecID) + partWeight*partWeight
+!  SpecPartNum_Simu(SpecID) = SpecPartNum_Simu(SpecID) + 1
+!END DO
+
+!DO iSpec=1, nSpecies
+!  IF(SpecPartNum_Simu(iSpec).GT.1) THEN
+!    ! Compute velocity averages
+!    MeanPartV(iSpec,1:3)  = PartV(iSpec,1:3) / CollInf%Coll_SpecPartNum(iSpec)      
+!    ! Summing up the weights to avoid adding single particles of a species, which do not have a temperature
+!    SumSpecPartNum = SumSpecPartNum + CollInf%Coll_SpecPartNum(iSpec)
+!  ELSE
+!    MeanPartV(iSpec,1:3) = 0.
+!  END IF
+!END DO
+
+!DO iPart=1,PartNum
+!  PartID = iPartIndx(iPart)
+!  SpecID = PartSpecies(PartID)
+!  partWeight = GetParticleWeight(PartID)
+!  V_rel(1:3) = PartState(4:6,PartID)-MeanPartV(SpecID,1:3) 
+!  vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
+!  PartV2(SpecID) = PartV2(SpecID) + vmag2 * partWeight
+!END DO
+
+!DO iSpec=1, nSpecies
+!  IF(SpecPartNum_Simu(iSpec).GT.1) THEN
+!    ! Compute temperatures
+!    DSMC%InstantTransTemp(iSpec) = Species(iSpec)%MassIC * PartV2(iSpec)  &
+!        / (3.*BoltzmannConst*(CollInf%Coll_SpecPartNum(iSpec)  - totalWeight2(iSpec)/CollInf%Coll_SpecPartNum(iSpec) ))
+!    DSMC%InstantTransTemp(nSpecies + 1) = DSMC%InstantTransTemp(nSpecies + 1)   &
+!                                          + DSMC%InstantTransTemp(iSpec)*CollInf%Coll_SpecPartNum(iSpec)
+!    ! Summing up the weights to avoid adding single particles of a species, which do not have a temperature
+!    SumSpecPartNum = SumSpecPartNum + CollInf%Coll_SpecPartNum(iSpec)
+!  END IF
+!END DO
+
+!IF(SumSpecPartNum.GT.0) DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies + 1) / SumSpecPartNum
+!print*, DSMC%InstantTransTemp(nSpecies+1)
+!END SUBROUTINE CalcInstantTransTemp
 
 SUBROUTINE DSMC_data_sampling()
 !===================================================================================================================================

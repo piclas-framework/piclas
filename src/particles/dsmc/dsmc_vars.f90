@@ -262,6 +262,7 @@ TYPE tDSMC
   INTEGER, ALLOCATABLE          :: QualityFacSampVibSamp(:,:,:)!Sample size for QualityFacSampVib
   REAL, ALLOCATABLE             :: QualityFacSampRelaxSize(:,:)! Samplie size of quality relax factors (nElem,nSpec+1)
   LOGICAL                       :: ElectronicModel          ! Flag for Electronic State of atoms and molecules
+  LOGICAL                       :: ElectronicDistrModel     ! Flag for Electronic State of atoms and molecules
   CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file
   INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules
   LOGICAL                       :: OutputMeshInit           ! Write Outputmesh (for const. pressure BC) at Init.
@@ -280,6 +281,7 @@ TYPE tDSMC
                                                             ! relaxation probability, comparison with the same random number
                                                             ! while the previous probability is added to the next)
   REAL, ALLOCATABLE             :: InstantTransTemp(:)      ! Instantaneous translational temprerature for each cell (nSpieces+1)
+  REAL, ALLOCATABLE             :: InstantTXiElec(:,:)      ! Instantaneous translational temprerature for each cell (nSpieces+1)
   LOGICAL                       :: BackwardReacRate         ! Enables the automatic calculation of the backward reaction rate
                                                             ! coefficient with the equilibrium constant by partition functions
   REAL                          :: PartitionMaxTemp         ! Temperature limit for pre-stored partition function (DEF: 20 000K)
@@ -474,6 +476,12 @@ TYPE tPolyatomMolVibQuant !DSMC Species Param
 END TYPE
 
 TYPE (tPolyatomMolVibQuant), ALLOCATABLE    :: VibQuantsPar(:)
+
+TYPE tElectronicDistriPart !DSMC Species Param
+  REAL, ALLOCATABLE               :: DistriFunc(:)            ! Vib quants of each DOF for each particle
+END TYPE
+
+TYPE (tElectronicDistriPart), ALLOCATABLE    :: ElectronicDistriPart(:)
 
 REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)      ! variables,p,q,sides
 REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)! Macrovalues for Species specific surface output

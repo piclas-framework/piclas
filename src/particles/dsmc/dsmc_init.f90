@@ -126,6 +126,8 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-TEVR-Relaxation'&
                                           '[FALSE] relaxation.' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-ElectronicModel'&
                                           , 'Set [TRUE] to model electronic states of atoms and molecules.' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-ElectronicDistrModel'&
+                                          , 'FOOBAR' , '.FALSE.')
 CALL prms%CreateStringOption(   'Particles-DSMCElectronicDatabase'&
                                           , 'If electronic model is used give (relative) path to (h5) Name of Electronic State'//&
                                           ' Database', 'none')
@@ -473,6 +475,10 @@ IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   END IF
 END IF
 DSMC%ElectronicModel         = GETLOGICAL('Particles-DSMC-ElectronicModel','.FALSE.')
+DSMC%ElectronicDistrModel    = GETLOGICAL('Particles-DSMC-ElectronicDistrModel','.FALSE.')
+IF (DSMC%ElectronicDistrModel) THEN
+  IF(.NOT.ALLOCATED(ElectronicDistriPart)) ALLOCATE(ElectronicDistriPart(PDM%maxParticleNumber))
+END IF
 DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','none'))
 IF ((DSMC%ElectronicModelDatabase .NE. 'none').AND.&
     ((CollisMode .GT. 1).OR.(CollisMode .EQ. 0))) THEN ! CollisMode=0 is for use of in PIC simulation without collisions
@@ -672,13 +678,17 @@ ELSE !CollisMode.GT.0
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! Check whether calculation of instantaneous translational temperature is required
   IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
-            .OR.(DSMC%VibRelaxProb.EQ.2)) THEN
+            .OR.(DSMC%VibRelaxProb.EQ.2).OR.(DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)) THEN
     ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
     !           relaxation probability (CalcGammaVib)
     ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
     ! 3. Case: Temperature required for the mean free path with the VHS model
     ALLOCATE(DSMC%InstantTransTemp(nSpecies+1))
     DSMC%InstantTransTemp = 0.0
+    IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+      ALLOCATE(DSMC%InstantTXiElec(2,nSpecies))
+      DSMC%InstantTXiElec = 0.0
+    END IF
   END IF
 
   IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN ! perform relaxation (molecular) reactions
