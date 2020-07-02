@@ -896,7 +896,7 @@ USE MOD_Mesh_Vars          ,ONLY: nElems, sJ
 USE MOD_Interpolation_Vars ,ONLY: wGP
 #if (PP_nVar==8)
 USE MOD_Dielectric_vars    ,ONLY: DielectricMu
-USE MOD_Equation_Vars      ,ONLY: smu0
+USE MOD_Globals_Vars       ,ONLY: smu0
 #endif /*PP_nVar=8*/
 USE MOD_Globals_Vars       ,ONLY: eps0
 USE MOD_Dielectric_vars    ,ONLY: isDielectricElem,DielectricEps,ElemToDielectric
