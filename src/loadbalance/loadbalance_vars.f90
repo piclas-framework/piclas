@@ -23,13 +23,13 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                             :: DoLoadBalance               ! DoLoadBalance
-LOGICAL                             :: PerformLoadBalance=.FALSE.  ! Flag if loadbalance is performed in current iter
-INTEGER                             :: LoadBalanceSample           ! Number of samples for loadbalance
+LOGICAL                             :: PerformLoadBalance=.FALSE.  ! Flag if load balance is performed in current time step iteration
+INTEGER                             :: LoadBalanceSample           ! Number of samples for load balance
 LOGICAL                             :: PerformLBSample             ! Flag for enabling time measurement in current
-                                                                   ! timestep (automatically set depending on LB
+                                                                   ! Time step (automatically set depending on LB
                                                                    ! sampling method)
 LOGICAL                             :: PerformPartWeightLB         ! Flag for performing LB with partMPIWeight
-                                                                   ! instead of summed Elemtimes
+                                                                   ! instead of summed ElemTimes
                                                                    ! -> nParts*PartWeight written into elemtime array
 LOGICAL                             :: InitLoadBalanceIsDone       ! Switch for checking
 

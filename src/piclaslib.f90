@@ -79,7 +79,7 @@ SWRITE(UNIT_stdOut,'(A)')"                                       | (         | |
 SWRITE(UNIT_stdOut,'(A)')"                                       | )      ___) (___| (____/\| (____/\| )   ( |/\____) |"
 SWRITE(UNIT_stdOut,'(A)')"                                       |/       \_______/(_______/(_______/|/     \|\_______)"
 SWRITE(UNIT_stdOut,'(132(" "))')
-SWRITE(UNIT_stdOut,'(A)')"piclas version 1.6.2"
+SWRITE(UNIT_stdOut,'(A)')"piclas version 1.6.3"
 SWRITE(UNIT_stdOut,'(132("="))')
 
 CALL ParseCommandlineArguments()

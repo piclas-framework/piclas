@@ -66,8 +66,10 @@ SUBROUTINE AnalyzeField(Time)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars         ,ONLY: DoFieldAnalyze,CalcEpot,CalcPoyntingInt,nPoyntingIntPlanes,PosPoyntingInt, &
-                                    Wel,Wmag,Wphi,Wpsi
+USE MOD_Analyze_Vars         ,ONLY: DoFieldAnalyze,CalcEpot,CalcPoyntingInt,nPoyntingIntPlanes,PosPoyntingInt,WEl
+#if (PP_nVar==8)
+USE MOD_Analyze_Vars         ,ONLY: WMag,WPhi,WPsi
+#endif /*PP_nVar=8*/
 USE MOD_Particle_Analyze_Vars,ONLY: IsRestart
 USE MOD_Restart_Vars         ,ONLY: DoRestart
 USE MOD_Dielectric_Vars      ,ONLY: DoDielectric
@@ -88,23 +90,31 @@ CHARACTER(LEN=350) :: outfile
 INTEGER            :: unit_index, nOutputVarTotal,iPlane
 REAL               :: PoyntingIntegral(1:nPoyntingIntPlanes)
 CHARACTER(LEN=150) :: formatStr
-#if USE_HDG
-INTEGER,PARAMETER  :: nOutputVar=10
+#if (PP_nVar==8)
+INTEGER,PARAMETER  :: helpInt=4
 #else
-INTEGER,PARAMETER  :: nOutputVar=6
+INTEGER,PARAMETER  :: helpInt=0
+#endif /*PP_nVar=8*/
+#if USE_HDG
+INTEGER,PARAMETER  :: helpInt2=4
+#else
+INTEGER,PARAMETER  :: helpInt2=0
 #endif /*USE_HDG*/
+INTEGER,PARAMETER  :: nOutputVar=2+helpInt+helpInt2
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
     'time', &
-    'E-El', &
-    'E-Mag', &
+    'E-El'  &
+#if (PP_nVar==8)
+   ,'E-Mag', &
     'E-phi', &
     'E-psi', &
-    'E-pot' &
+    'E-pot'  &
+#endif /*PP_nVar=8*/
 #if USE_HDG
-   ,'#iterations', &
-    'RunTime', &
-    'RunTimePerIteration', &
-    'HDGNorm' &
+   ,'HDG-#iterations', &
+    'HDG-RunTime', &
+    'HDG-RunTimePerIteration', &
+    'HDG-Norm' &
 #endif /*USE_HDG*/
     /)
 CHARACTER(LEN=255),ALLOCATABLE :: tmpStr(:) ! needed because PerformAnalyze is called multiple times at the beginning
@@ -135,16 +145,24 @@ IF(MPIROOT)THEN
       ! Set the header line content
       nPoyntingIntPlanes=MERGE(nPoyntingIntPlanes,0,CalcPoyntingInt) ! set to zero if the flag is false (otherwise not initialized)
       nOutputVarTotal = nOutputVar + nPoyntingIntPlanes
+#if (PP_nVar==8)
       IF(.NOT.CalcEpot) nOutputVarTotal = nOutputVarTotal - 5
+#else
+      IF(.NOT.CalcEpot) nOutputVarTotal = nOutputVarTotal - 1
+#endif /*PP_nVar=8*/
       ALLOCATE(tmpStr(1:nOutputVarTotal))
       tmpStr=""
 
       nOutputVarTotal = 0
       DO I=1,nOutputVar
         ! When NOT CalcEpot, skip entries 2,...,6
+#if (PP_nVar==8)
         IF((.NOT.CalcEpot).AND.((1.LT.I).AND.(I.LE.6))) CYCLE
-        WRITE(tmpStr(I),'(A,I0.3,A)')delimiter//'"',I,'-'//TRIM(StrVarNames(I))//'"'
+#else
+        IF((.NOT.CalcEpot).AND.(I.EQ.2)) CYCLE
+#endif /*PP_nVar=8*/
         nOutputVarTotal = nOutputVarTotal + 1
+        WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNames(I))//'"'
       END DO
 
       IF(CalcPoyntingInt)THEN
@@ -158,17 +176,14 @@ IF(MPIROOT)THEN
       ! Set the format
       WRITE(formatStr,'(A1)')'('
       DO I=1,nOutputVarTotal
-        IF(I.EQ.nOutputVarTotal)THEN ! skip writing "," and the end of the line
-          WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I))
-        ELSE
-          WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I)),','
-        END IF
+        WRITE(formatStr,'(A,A1,A1,I2)')TRIM(formatStr),',','A',LEN_TRIM(tmpStr(I))
       END DO
+      formatStr(2:2) = ' ' ! remove comma
+      WRITE(formatStr,'(A,A1)')TRIM(formatStr),')'      ! finish the format
 
-      WRITE(formatStr,'(A,A1)')TRIM(formatStr),')'  ! finish the format
-      WRITE(tmpStr2,formatStr)tmpStr                ! use the format and write the header names to a temporary string
-      tmpStr2(1:1) = " "                            ! remove possible delimiter at the beginning (e.g. a comma)
-      WRITE(unit_index,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the temporary string
+      WRITE(tmpStr2,formatStr)tmpStr(1:nOutputVarTotal) ! use the format and write the header names to a temporary string
+      tmpStr2(1:1) = " "                                ! remove possible delimiter at the beginning (e.g. a comma)
+      WRITE(unit_index,'(A)')TRIM(ADJUSTL(tmpStr2))     ! clip away the front and rear white spaces of the temporary string
     END IF
   END IF
 #if USE_MPI
@@ -181,11 +196,19 @@ IF(CalcEpot)THEN
   ! 2) magnetic field
   ! 3) divergence correction magnetic
   ! 4) divergence correction electric + charge
+#if (PP_nVar==8)
   IF(DoDielectric)THEN
-    CALL CalcPotentialEnergy_Dielectric(WEl,WMag, Wphi, Wpsi)
+    CALL CalcPotentialEnergy_Dielectric(WEl,WMag,Wphi,Wpsi)
   ELSE
     CALL CalcPotentialEnergy(WEl,WMag,Wphi,Wpsi)
   END IF
+#else
+  IF(DoDielectric)THEN
+    CALL CalcPotentialEnergy_Dielectric(WEl)
+  ELSE
+    CALL CalcPotentialEnergy(WEl)
+  END IF
+#endif /*PP_nVar=8*/
 END IF
 #if (PP_nVar>=6)
 IF(CalcPoyntingInt) CALL CalcPoyntingIntegral(PoyntingIntegral,doProlong=.TRUE.)
@@ -195,10 +218,12 @@ IF(MPIROOT)THEN
   WRITE(unit_index,'(E23.16E3)',ADVANCE='NO') Time
   IF (CalcEpot) THEN
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WEl
+#if (PP_nVar==8)
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WMag
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WPhi
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WPsi
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WEl + WMag + WPhi + WPsi
+#endif /*PP_nVar=8*/
   END IF
   IF(CalcPoyntingInt)THEN
     DO iPlane=1,nPoyntingIntPlanes
@@ -699,18 +724,26 @@ SDEALLOCATE(STEM)
 
 END SUBROUTINE FinalizePoyntingInt
 
+
+#if (PP_nVar==8)
 SUBROUTINE CalcPotentialEnergy(WEl, WMag, Wphi, Wpsi)
+#else
+SUBROUTINE CalcPotentialEnergy(WEl)
+#endif /*PP_nVar=8*/
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars          ,ONLY: nElems, sJ
-USE MOD_Interpolation_Vars ,ONLY: wGP
-USE MOD_Globals_Vars       ,ONLY: smu0, eps0
-#if ! (USE_HDG)
-USE MOD_DG_Vars            ,ONLY: U
+USE MOD_Mesh_Vars,          ONLY : nElems, sJ
+USE MOD_Interpolation_Vars, ONLY : wGP
+#if (PP_nVar==8)
+USE MOD_Globals_Vars       ,ONLY: smu0
+#endif /*PP_nVar=8*/
+USE MOD_Globals_Vars       ,ONLY: eps0
+#if !(USE_HDG)
+USE MOD_DG_Vars,            ONLY : U
 #endif /*PP_nVar=8*/
 #if USE_HDG
 #if PP_nVar==1
@@ -729,7 +762,10 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: WEl, WMag , Wpsi,Wphi
+REAL,INTENT(OUT)                :: WEl
+#if (PP_nVar==8)
+REAL,INTENT(OUT)                :: WMag,Wpsi,Wphi
+#endif /*PP_nVar=8*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: iElem
@@ -748,9 +784,11 @@ REAL              :: Wphi_tmp, Wpsi_tmp
 !===================================================================================================================================
 
 Wel=0.
+#if (PP_nVar==8)
 WMag=0.
 Wphi=0.
 Wpsi=0.
+#endif /*PP_nVar=8*/
 DO iElem=1,nElems
 #if !(USE_HDG)
   IF(DoPML)THEN
@@ -809,8 +847,8 @@ DO iElem=1,nElems
 END DO
 
 WEl = WEl * eps0 * 0.5
-WMag = WMag * smu0 * 0.5
 #if (PP_nVar==8)
+WMag = WMag * smu0 * 0.5
 ! caution: change of coefficients for divergence energies
 Wphi = Wphi * eps0*0.5
 Wpsi = Wpsi * smu0*0.5
@@ -820,15 +858,15 @@ Wpsi = Wpsi * smu0*0.5
 ! todo: only one reduce with array
 IF(MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,WEl  , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE,WMag , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
 #if (PP_nVar==8)
+  CALL MPI_REDUCE(MPI_IN_PLACE,WMag , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,Wphi , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,Wpsi , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
 #endif /*PP_nVar=8*/
 ELSE
   CALL MPI_REDUCE(WEl         ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
-  CALL MPI_REDUCE(WMag        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
 #if (PP_nVar==8)
+  CALL MPI_REDUCE(WMag        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
   CALL MPI_REDUCE(Wphi        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
   CALL MPI_REDUCE(Wpsi        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
 #endif /*PP_nVar=8*/
@@ -838,7 +876,11 @@ END IF
 END SUBROUTINE CalcPotentialEnergy
 
 
+#if (PP_nVar==8)
 SUBROUTINE CalcPotentialEnergy_Dielectric(WEl, WMag, Wphi, Wpsi)
+#else
+SUBROUTINE CalcPotentialEnergy_Dielectric(WEl)
+#endif /*PP_nVar=8*/
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
@@ -854,8 +896,9 @@ USE MOD_Mesh_Vars          ,ONLY: nElems, sJ
 USE MOD_Interpolation_Vars ,ONLY: wGP
 #if (PP_nVar==8)
 USE MOD_Dielectric_vars    ,ONLY: DielectricMu
+USE MOD_Equation_Vars      ,ONLY: smu0
 #endif /*PP_nVar=8*/
-USE MOD_Globals_Vars       ,ONLY: smu0, eps0
+USE MOD_Globals_Vars       ,ONLY: eps0
 USE MOD_Dielectric_vars    ,ONLY: isDielectricElem,DielectricEps,ElemToDielectric
 #if !(USE_HDG)
 USE MOD_DG_Vars            ,ONLY: U
@@ -877,7 +920,10 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: WEl, WMag , Wpsi,Wphi
+REAL,INTENT(OUT)                :: WEl
+#if (PP_nVar==8)
+REAL,INTENT(OUT)                :: WMag,Wpsi,Wphi
+#endif /*PP_nVar=8*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: iElem
@@ -896,9 +942,11 @@ REAL              :: Wphi_tmp, Wpsi_tmp
 !===================================================================================================================================
 
 Wel=0.
+#if (PP_nVar==8)
 WMag=0.
 Wphi=0.
 Wpsi=0.
+#endif /*PP_nVar=8*/
 
 DO iElem=1,nElems
 #if !(USE_HDG)
@@ -1001,18 +1049,24 @@ DO iElem=1,nElems
 END DO
 
 WEl = WEl * eps0 * 0.5
+#if (PP_nVar==8)
 WMag = WMag * smu0 * 0.5
 ! caution: change of coefficients for divergence energies
 Wphi = Wphi * eps0*0.5
 Wpsi = Wpsi * smu0*0.5
+#endif /*PP_nVar=8*/
 
 #if USE_MPI
 IF(MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,WEl  , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+#if (PP_nVar==8)
   CALL MPI_REDUCE(MPI_IN_PLACE,WMag , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+#endif /*PP_nVar=8*/
 ELSE
   CALL MPI_REDUCE(WEl         ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+#if (PP_nVar==8)
   CALL MPI_REDUCE(WMag        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+#endif /*PP_nVar=8*/
 END IF
 #endif /*USE_MPI*/
 

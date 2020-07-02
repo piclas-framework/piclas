@@ -126,7 +126,9 @@ INTEGER,INTENT(IN),OPTIONAL :: NIn  !< optional polynomial degree
 !----------------------------------------------------------------------------------------------------------------------------
 !local variables
 CHARACTER(LEN=40)           :: DefStr
+#if !(PP_N == N)
 INTEGER                     :: Ntmp
+#endif /*!(PP_N == N)*/
 !============================================================================================================================
 IF (InterpolationInitIsDone) THEN
   CALL CollectiveStop(__STAMP__,&
