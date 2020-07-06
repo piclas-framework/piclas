@@ -99,8 +99,9 @@ USE MOD_Globals
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement,SinglePointToElement
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,ElemToProcID_Shared
-USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGMToProc,FIBGMProcs
+!USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems, FIBGM_offsetElem, FIBGM_Element
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIInsert,PartMPILocate
 USE MOD_Particle_MPI_Vars      ,ONLY: EmissionSendBuf,EmissionRecvBuf
@@ -137,7 +138,7 @@ InitGroup = Species(FractNbr)%Init(iInit)%InitCOMM
 
 ! Arrays for communication of particles not located in final element
 ALLOCATE( PartMPIInsert%nPartsSend  (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-        , PartMPIInsert%nPartsRecv  (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+        , PartMPIInsert%nPartsRecv  (1,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
         , PartMPIInsert%SendRequest (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
         , PartMPIInsert%RecvRequest (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
         , PartMPIInsert%send_message(  0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
@@ -145,8 +146,12 @@ ALLOCATE( PartMPIInsert%nPartsSend  (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) 
 IF (ALLOCSTAT.NE.0) &
   CALL ABORT(__STAMP__,' Cannot allocate particle emission MPI arrays! ALLOCSTAT',ALLOCSTAT)
 
+PartMPIInsert%nPartsSend=0
+PartMPIInsert%nPartsRecv=0
+
+! Inter-CN communication
 ALLOCATE( PartMPILocate%nPartsSend (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-        , PartMPILocate%nPartsRecv (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+        , PartMPILocate%nPartsRecv (1,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
         , PartMPILocate%SendRequest(2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
         , PartMPILocate%RecvRequest(2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
         , EmissionRecvBuf          (  0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
@@ -155,8 +160,8 @@ ALLOCATE( PartMPILocate%nPartsSend (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
 IF (ALLOCSTAT.NE.0) &
   CALL ABORT(__STAMP__,' Cannot allocate particle emission MPI arrays! ALLOCSTAT',ALLOCSTAT)
 
-PartMPIInsert%nPartsSend=0
-PartMPIInsert%nPartsRecv=0
+PartMPILocate%nPartsSend=0
+PartMPILocate%nPartsRecv=0
 
 ! Arrays for communication of particles located in final element. Reuse particle_mpi infrastructure wherever possible
 PartCommSize   = 0
@@ -164,9 +169,6 @@ PartCommSize   = PartCommSize + 3                            ! Emission position
 IF(DoRefMapping) PartCommSize = PartCommSize+3               ! Emission position (reference space)
 !PartCommSize   = PartCommSize + 1                            ! Species-ID
 PartCommSize   = PartCommSize + 1                            ! ID of element
-
-PartMPILocate%nPartsSend=0
-PartMPILocate%nPartsRecv=0
 
 ! Temporary array to hold ElemID of located particles
 ALLOCATE( chunkState(PartCommSize,chunkSize)                                                &
@@ -182,15 +184,17 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
 
   !--- MPI_IRECV lengths of lists of particles entering local mesh
   CALL MPI_IRECV( PartMPIInsert%nPartsRecv(:,iProc)                           &
-                , 2                                                           &
+                , 1                                                           &
                 , MPI_INTEGER                                                 &
                 , iProc                                                       &
                 , 1011                                                        &
                 , PartMPI%InitGroup(InitGroup)%COMM                           &
                 , PartMPIInsert%RecvRequest(1,iProc)                          &
                 , IERROR)
+
+  ! Inter-CN communication
   CALL MPI_IRECV( PartMPILocate%nPartsRecv(:,iProc)                           &
-                , 2                                                           &
+                , 1                                                           &
                 , MPI_INTEGER                                                 &
                 , iProc                                                       &
                 , 1111                                                        &
@@ -241,19 +245,32 @@ END DO ! i = 1, chunkSize
 !--- Find non-local particles for sending to other nodes
 DO i = 1, chunkSize
   IF(.NOT.InsideMyBGM(i)) THEN
-    !--- check all cells associated with this background mesh cell. The
-    !--- information is still present as it was set in particle_bgm.f90
-    nBGMElems = FIBGM_nElems(ijkBGM(1,i),ijkBGM(2,i),ijkBGM(3,i))
+    ! Inter-CN communication
+    ASSOCIATE(iBGM => ijkBGM(1,i), &
+              jBGM => ijkBGM(2,i), &
+              kBGM => ijkBGM(3,i))
 
-    ! Loop over all BGM elements and count number of particles per procs for sending
-    DO iBGMElem = 1, nBGMElems
-      ElemID = FIBGM_Element(FIBGM_offsetElem(ijkBGM(1,i),ijkBGM(2,i),ijkBGM(3,i))+iBGMElem)
-      ProcID = ElemToProcID_Shared(ElemID)
+    ! Sanity check if the emission is within the global FIBGM region
+    IF (iBGM.LT.GEO%FIBGMiminglob .OR. iBGM.GT.GEO%FIBGMimaxglob .OR. &
+        jBGM.LT.GEO%FIBGMjminglob .OR. jBGM.GT.GEO%FIBGMjmaxglob .OR. &
+        kBGM.LT.GEO%FIBGMkminglob .OR. kBGM.GT.GEO%FIBGMkmaxglob) THEN
+      CYCLE
+    END IF
+
+    !-- Find all procs associated with the background mesh cell. Then loop over all procs and count number of particles per proc for
+    !-- sending
+    DO iProc = FIBGMToProc(FIBGM_FIRSTPROCIND,iBGM,jBGM,kBGM)+1, &
+               FIBGMToProc(FIBGM_FIRSTPROCIND,iBGM,jBGM,kBGM)+FIBGMToProc(FIBGM_NPROCS,iBGM,jBGM,kBGM)
+      ProcID = FIBGMProcs(iProc)
 
       tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(ProcID)
-      IF(tProc.EQ.-1) CYCLE ! Processor is not on emission communicator
+      ! Processor is not on emission communicator
+      IF(tProc.EQ.-1) CYCLE
+
       PartMPIInsert%nPartsSend(1,tProc) = PartMPIInsert%nPartsSend(1,tProc)+1
     END DO
+
+    END ASSOCIATE
   END IF ! .NOT.InsideMyBGM(i)
 END DO ! i = 1, chunkSize
 
@@ -284,13 +301,23 @@ END DO
 PartMPIInsert%nPartsSend(2,:)=0
 DO i = 1, chunkSize
   IF(.NOT.InsideMyBGM(i)) THEN
-    !--- check all cells associated with this background mesh cell
-    nBGMElems = FIBGM_nElems(ijkBGM(1,i),ijkBGM(2,i),ijkBGM(3,i))
+    ! Inter-CN communication
+    ASSOCIATE(iBGM => ijkBGM(1,i), &
+          jBGM => ijkBGM(2,i), &
+          kBGM => ijkBGM(3,i))
 
-    ! Loop over all BGM elements and count number of particles per procs for sending
-    DO iBGMElem = 1, nBGMElems
-      ElemID = FIBGM_Element(FIBGM_offsetElem(ijkBGM(1,i),ijkBGM(2,i),ijkBGM(3,i))+iBGMElem)
-      ProcID = ElemToProcID_Shared(ElemID)
+    ! Sanity check if the emission is within the global FIBGM region
+    IF (iBGM.LT.GEO%FIBGMiminglob .OR. iBGM.GT.GEO%FIBGMimaxglob .OR. &
+        jBGM.LT.GEO%FIBGMjminglob .OR. jBGM.GT.GEO%FIBGMjmaxglob .OR. &
+        kBGM.LT.GEO%FIBGMkminglob .OR. kBGM.GT.GEO%FIBGMkmaxglob) THEN
+      CYCLE
+    END IF
+
+    !-- Find all procs associated with the background mesh cell. Then loop over all procs and count number of particles per proc for
+    !-- sending
+    DO iProc = FIBGMToProc(FIBGM_FIRSTPROCIND,iBGM,jBGM,kBGM)+1, &
+               FIBGMToProc(FIBGM_FIRSTPROCIND,iBGM,jBGM,kBGM)+FIBGMToProc(FIBGM_NPROCS,iBGM,jBGM,kBGM)
+      ProcID = FIBGMProcs(iProc)
 
       tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(ProcID)
       ! Processor is not on emission communicator
@@ -303,6 +330,8 @@ DO i = 1, chunkSize
       ! Counter of previous particles on proc
       PartMPIInsert%nPartsSend(2,tProc)=PartMPIInsert%nPartsSend(2,tProc) + 1
     END DO
+
+    END ASSOCIATE
   END IF ! .NOT.InsideMyBGM(i)
 END DO ! i = 1, chunkSize
 
@@ -318,6 +347,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
 END DO
 
 ! recvPartPos holds particles from ALL procs
+! Inter-CN communication
 ALLOCATE(recvPartPos(1:SUM(PartMPIInsert%nPartsRecv(1,:)*DimSend)), STAT=ALLOCSTAT)
 TotalNbrOfRecvParts = 0
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
@@ -363,7 +393,7 @@ DO i = 1, chunkSize
     ! Only keep the particle if it belongs on the current proc. Otherwise prepare to send it to the correct proc
     ! TODO: Implement U_Shared, so we can finish emission on this proc and send the fully initialized particle (i.e. including
     ! velocity)
-    ProcID = ElemToProcID_Shared(ElemID)
+    ProcID = ElemInfo_Shared(ELEM_RANK,ElemID)
     IF (ProcID.NE.myRank) THEN
       ! ProcID on emission communicator
       tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(ProcID)
@@ -406,6 +436,7 @@ DO i = 1, chunkSize
 END DO ! i = 1, chunkSize
 
 !---  /  Send number of located particles
+! Inter-CN communication
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
 
@@ -433,7 +464,7 @@ DO i = 1, chunkSize
   ElemID = INT(chunkState(PartCommSize,i))
   ! Skip non-located particles
   IF(ElemID.EQ.-1) CYCLE
-  ProcID = ElemToProcID_Shared(ElemID)
+  ProcID = ElemInfo_Shared(ELEM_RANK,ElemID)
   IF (ProcID.NE.myRank) THEN
     ! ProcID on emission communicator
     tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(ProcID)
@@ -523,22 +554,18 @@ DO i = 1,TotalNbrOfRecvParts
   IF(ElemID.EQ.-1) CYCLE
 
   ! Only keep the particle if it belongs on the current proc. Trust the other procs to do their jobs and locate it if needed
-  IF (ElemToProcID_Shared(ElemID).NE.myRank) CYCLE
+  IF (ElemInfo_Shared(ELEM_RANK,ElemID).NE.myRank) CYCLE
 
   ! Find a free position in the PDM array
   ParticleIndexNbr = PDM%nextFreePosition(mySumOfMatchedParticles + 1 + PDM%CurrentNextFreePosition)
   IF (ParticleIndexNbr.NE.0) THEN
     ! Fill the PartState manually to avoid a second localization
     PartState(1:3,ParticleIndexNbr) = recvPartPos(DimSend*(i-1)+1:DimSend*(i-1)+3)
-    IF (DoRefMapping) THEN
-      PartPosRef(1:3,ParticleIndexNbr) = recvPartPos(DimSend*(i-1)+4:DimSend*(i-1)+6)
-    END IF ! DoRefMapping
-    PEM%GlobalElemID(ParticleIndexNbr)    = INT(recvPartPos(DimSend*(i-1)+PartCommSize),KIND=4)
-
     PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
-    IF(DoRefMapping)THEN
+    IF (DoRefMapping) THEN
       CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),ElemID)
     END IF ! DoRefMapping
+    PEM%GlobalElemID(ParticleIndexNbr)    = ElemID
   ELSE
     CALL ABORT(__STAMP__,'ERROR in ParticleMPIEmission:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
   END IF

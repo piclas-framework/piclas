@@ -159,22 +159,6 @@ ALLOCATE(ElemInfo_Shared(1:ELEMINFOSIZE,1:nElems))
 ElemInfo_Shared(1:ELEMINFOSIZE_H5,1:nElems) = ElemInfo(:,:)
 #endif  /*USE_MPI*/
 
-! create global element index to global processor index mapping
-#if USE_MPI
-MPISharedSize = INT(nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/nGlobalElems/),ElemToProcID_Shared_Win,ElemToProcID_Shared)
-CALL MPI_WIN_LOCK_ALL(0,ElemToProcID_Shared_Win,IERROR)
-
-! build mapping from elems to procs. This contains all procs, not just on the compute-node
-IF (myComputeNodeRank.EQ.0) THEN
-  DO iProc = 1, nProcessors
-    ElemToProcID_Shared(offsetElemMPI(iProc-1)+1:offsetElemMPI(iProc)) = iProc - 1
-  END DO ! iProc = 1, nProcessors
-END IF
-CALL MPI_WIN_SYNC(ElemToProcID_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
-#endif  /*USE_MPI*/
-
 END SUBROUTINE ReadMeshElems
 
 
@@ -830,10 +814,6 @@ IMPLICIT NONE
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
-! Only update ElemToProcID and ElemVolumes when performing load balance, keep other mesh information in shared memory
-CALL MPI_WIN_UNLOCK_ALL(ElemToProcID_Shared_Win,iError)
-CALL MPI_WIN_FREE(ElemToProcID_Shared_Win,iError)
-
 ! volumes
 CALL MPI_WIN_UNLOCK_ALL(ElemVolume_Shared_Win,iError)
 CALL MPI_WIN_FREE(ElemVolume_Shared_Win,iError)
@@ -843,7 +823,6 @@ CALL MPI_WIN_UNLOCK_ALL(ElemCharLength_Shared_Win,iError)
 CALL MPI_WIN_FREE(ElemCharLength_Shared_Win,iError)
 
 ! Then, free the pointers or arrays
-ADEALLOCATE(ElemToProcID_Shared)
 ADEALLOCATE(ElemVolume_Shared)
 ADEALLOCATE(ElemMPVolumePortion_Shared)
 ADEALLOCATE(ElemCharLength_Shared)
