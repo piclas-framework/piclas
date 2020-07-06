@@ -14,8 +14,13 @@
 #************************************************************************************
 
 # $1: CMAKE_RUNTIME_OUTPUT_DIRECTORY
+# $2: CMAKE_CACHEFILE_DIR
+# $3: CMAKE_CACHE_MAJOR_VERSION.CMAKE_CACHE_MINOR_VERSION.CMAKE_CACHE_PATCH_VERSION
 
 if [ ! -d "$1" ]; then
+  exit 1;
+fi
+if [ ! -d "$2" ]; then
   exit 1;
 fi
 
@@ -53,7 +58,7 @@ if [ -z "$PARENTCOMMIT" ]; then
   fi
 fi
 
-cd $1
+cd "$1"
 echo "{[( CMAKE )]}"               >  userblock.txt
 cat configuration.cmake            >> userblock.txt
 echo "{[( GIT BRANCH )]}"          >> userblock.txt
@@ -82,6 +87,23 @@ git diff -p                        >> userblock.txt
 echo "{[( GIT URL )]}"             >> userblock.txt
 git config --get remote.origin.url >> userblock.txt
 
+# change directory to cmake cache dir
+cd "$2/CMakeFiles"
+# copy compile flags of the piclas(lib) to userblock
+echo "{[( libpiclasstatic.dir/flags.make )]}" >> $1/userblock.txt
+cat libpiclasstatic.dir/flags.make            >> $1/userblock.txt
+echo "{[( libpiclasshared.dir/flags.make )]}" >> $1/userblock.txt
+cat libpiclasshared.dir/flags.make            >> $1/userblock.txt
+echo "{[( piclas.dir/flags.make )]}"          >> $1/userblock.txt
+cat piclas.dir/flags.make                     >> $1/userblock.txt
+
+# change directory to actual cmake version
+cd "$3"
+# copy detection of compiler to userblock
+echo "{[( COMPILER VERSIONS )]}"           >> $1/userblock.txt
+cat CMakeFortranCompiler.cmake             >> $1/userblock.txt
+
+cd "$1" # go back to the runtime output directory
 # Compress the userblock
 tar cJf userblock.tar.xz userblock.txt
 
