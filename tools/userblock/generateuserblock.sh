@@ -16,6 +16,7 @@
 # $1: CMAKE_RUNTIME_OUTPUT_DIRECTORY
 # $2: CMAKE_CACHEFILE_DIR
 # $3: CMAKE_CACHE_MAJOR_VERSION.CMAKE_CACHE_MINOR_VERSION.CMAKE_CACHE_PATCH_VERSION
+# $4: .f90 file containing MajorVersion, MinorVersion and PatchVersion of PICLas
 
 if [ ! -d "$1" ]; then
   exit 1;
@@ -63,7 +64,8 @@ echo "{[( CMAKE )]}"               >  userblock.txt
 cat configuration.cmake            >> userblock.txt
 echo "{[( GIT BRANCH )]}"          >> userblock.txt
 echo "$BRANCHNAME"                 >> userblock.txt
-echo $(git rev-parse HEAD)         >> userblock.txt
+GITCOMMIT=$(git rev-parse HEAD)
+echo "$GITCOMMIT"                  >> userblock.txt
 
 # Reference is the start commit, which is either identical to
 # the branch, if it exists on the remote or points to the first
@@ -88,20 +90,33 @@ echo "{[( GIT URL )]}"             >> userblock.txt
 git config --get remote.origin.url >> userblock.txt
 
 # change directory to cmake cache dir
-cd "$2/CMakeFiles"
-# copy compile flags of the piclas(lib) to userblock
-echo "{[( libpiclasstatic.dir/flags.make )]}" >> $1/userblock.txt
-cat libpiclasstatic.dir/flags.make            >> $1/userblock.txt
-echo "{[( libpiclasshared.dir/flags.make )]}" >> $1/userblock.txt
-cat libpiclasshared.dir/flags.make            >> $1/userblock.txt
-echo "{[( piclas.dir/flags.make )]}"          >> $1/userblock.txt
-cat piclas.dir/flags.make                     >> $1/userblock.txt
+if [ -d "$2/CMakeFiles" ]; then
+  cd "$2/CMakeFiles"
+  # copy compile flags of the piclas(lib) to userblock
+  echo "{[( libpiclasstatic.dir/flags.make )]}" >> $1/userblock.txt
+  cat libpiclasstatic.dir/flags.make            >> $1/userblock.txt
+  echo "{[( libpiclasshared.dir/flags.make )]}" >> $1/userblock.txt
+  cat libpiclasshared.dir/flags.make            >> $1/userblock.txt
+  echo "{[( piclas.dir/flags.make )]}"          >> $1/userblock.txt
+  cat piclas.dir/flags.make                     >> $1/userblock.txt
+fi
 
 # change directory to actual cmake version
-cd "$3"
-# copy detection of compiler to userblock
-echo "{[( COMPILER VERSIONS )]}"           >> $1/userblock.txt
-cat CMakeFortranCompiler.cmake             >> $1/userblock.txt
+if [ -d "$3" ]; then
+  cd "$3"
+  # copy detection of compiler to userblock
+  echo "{[( COMPILER VERSIONS )]}" >> $1/userblock.txt
+  cat CMakeFortranCompiler.cmake   >> $1/userblock.txt
+fi
+
+# write PICLas version to userblock
+if [ -f "$4" ]; then
+  echo "{[( PICLAS VERSION )]}" >> $1/userblock.txt
+  PICLAS_MAJOR_VERSION=$(grep "INTEGER.*PARAMETER.*MajorVersion.*\=" "$4" | cut -d "=" -f2 | cut -f1 -d! | sed 's/[[:space:]]//g')
+  PICLAS_MINOR_VERSION=$(grep "INTEGER.*PARAMETER.*MinorVersion.*\=" "$4" | cut -d "=" -f2 | cut -f1 -d! | sed 's/[[:space:]]//g')
+  PICLAS_MATCH_VERSION=$(grep "INTEGER.*PARAMETER.*PatchVersion.*\=" "$4" | cut -d "=" -f2 | cut -f1 -d! | sed 's/[[:space:]]//g')
+  echo "$PICLAS_MAJOR_VERSION.$PICLAS_MINOR_VERSION.$PICLAS_MATCH_VERSION" >> $1/userblock.txt
+fi
 
 cd "$1" # go back to the runtime output directory
 # Compress the userblock

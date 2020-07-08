@@ -34,7 +34,8 @@ CHARACTER(LEN=255) :: ErrorFileName='NOT_SET'
 INTEGER            :: iError
 REAL               :: StartTime
 INTEGER            :: myRank,myLocalRank,myLeaderRank,myWorkerRank
-INTEGER            :: nProcessors,nLocalProcs,nLeaderProcs,nWorkerProcs
+INTEGER            :: nProcessors,nLocalProcs,nLeaderProcs,nWorkerProcs,nGlobalNbrOfParticles
+LOGICAL            :: GlobalNbrOfParticlesUpdated ! When FALSE, then global number of particles needs to be determined
 INTEGER            :: MPI_COMM_NODE    ! local node subgroup
 INTEGER            :: MPI_COMM_LEADERS ! all node masters
 INTEGER            :: MPI_COMM_WORKERS ! all non-master nodes
@@ -119,6 +120,14 @@ INTERFACE str2int
   MODULE PROCEDURE str2int
 END INTERFACE
 
+INTERFACE int2str
+  MODULE PROCEDURE int2str
+END INTERFACE
+
+INTERFACE int2strf
+  MODULE PROCEDURE int2strf
+END INTERFACE
+
 INTERFACE str2logical
   MODULE PROCEDURE str2logical
 END INTERFACE
@@ -166,6 +175,9 @@ LOGICAL                        :: LogIsOpen
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS ...'
+
+! PiclasVersionStr is stored in each hdf5 file with hdf5 header
+PiclasVersionStr = TRIM(int2strf(MajorVersion))//"."//TRIM(int2strf(MinorVersion))//"."//TRIM(int2strf(PatchVersion))
 
 PI=ACOS(-1.)
 sPI = 1./PI
@@ -514,6 +526,53 @@ INTEGER,INTENT(OUT)         :: stat
 !===================================================================================================================================
 READ(str,*,IOSTAT=stat)  int_number
 END SUBROUTINE str2int
+
+
+!==================================================================================================================================  
+!> Convert a String to an Integer
+!==================================================================================================================================  
+SUBROUTINE int2str(str,int_number,stat)
+!=================================================================================================================================== 
+!=================================================================================================================================== 
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------- 
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------- 
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------- 
+! LOCAL VARIABLES
+CHARACTER(len=255),INTENT(OUT) :: str
+INTEGER,INTENT(IN)             :: int_number
+INTEGER,INTENT(OUT)            :: stat
+!=================================================================================================================================== 
+WRITE(str,'(I0)',IOSTAT=stat)  int_number
+END SUBROUTINE int2str
+
+
+!==================================================================================================================================  
+!> Convert an Integer to a String
+!==================================================================================================================================  
+!SUBROUTINE int2strf(str,int_number,stat)
+FUNCTION int2strf(int_number)
+!=================================================================================================================================== 
+!=================================================================================================================================== 
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------- 
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------- 
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------- 
+! LOCAL VARIABLES
+CHARACTER(len=3) :: int2strf
+INTEGER,INTENT(IN) :: int_number
+!=================================================================================================================================== 
+WRITE(int2strf,'(I0)')  int_number
+int2strf = TRIM(ADJUSTL(int2strf))
+END FUNCTION
 
 
 !==================================================================================================================================
