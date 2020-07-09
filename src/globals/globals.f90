@@ -34,7 +34,7 @@ CHARACTER(LEN=255) :: ErrorFileName='NOT_SET'
 INTEGER            :: iError
 REAL               :: StartTime
 INTEGER            :: myRank,myLocalRank,myLeaderRank,myWorkerRank
-INTEGER            :: nProcessors,nLocalProcs,nLeaderProcs,nWorkerProcs,nGlobalNbrOfParticles
+INTEGER            :: nProcessors,nLocalProcs,nLeaderProcs,nWorkerProcs
 LOGICAL            :: GlobalNbrOfParticlesUpdated ! When FALSE, then global number of particles needs to be determined
 INTEGER            :: MPI_COMM_NODE    ! local node subgroup
 INTEGER            :: MPI_COMM_LEADERS ! all node masters
@@ -54,6 +54,8 @@ INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(18)
 #else
 INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
 #endif
+
+INTEGER(KIND=IK)   :: nGlobalNbrOfParticles
 
 INTERFACE InitGlobals
   MODULE PROCEDURE InitGlobals
