@@ -28,8 +28,10 @@ INCLUDE(CMakeDependentOption)
 # Store the current commit information
 # =========================================================================
 EXECUTE_PROCESS(COMMAND git rev-parse HEAD OUTPUT_VARIABLE GIT_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE)
-MESSAGE (STATUS "Curent git commit ${GIT_COMMIT} will be written to ${CMAKE_CURRENT_SOURCE_DIR}/src/commit.h")
-EXECUTE_PROCESS(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh ${CMAKE_CURRENT_SOURCE_DIR}/src/commit.h)
+SET(commit ${CMAKE_CURRENT_SOURCE_DIR}/src/commit.h)
+MESSAGE (STATUS "Curent git commit ${GIT_COMMIT} will be written to ${commit}")
+FILE(WRITE ${commit} "! Define the current commit hash. The default must remain empty, i.e., ''. Do not commit the changed file!\n#define GIT_CURRENT_COMMIT  ''\n")
+EXECUTE_PROCESS(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh ${commit})
 
 # =========================================================================
 # Check whether we are on Github or at IAG
