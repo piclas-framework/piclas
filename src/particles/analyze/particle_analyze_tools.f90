@@ -200,9 +200,13 @@ END IF
 ! Set global number of particles (info for std out)
 IF(CalcSimNumSpec_IN)THEN
   GlobalNbrOfParticlesUpdated = .TRUE.
+#if USE_MPI
   IF(PartMPI%MPIRoot)THEN
+#endif /*USE_MPI*/
     nGlobalNbrOfParticles = SimNumSpec(nSpecAnalyze)
+#if USE_MPI
   END IF ! PartMPI%MPIRoot
+#endif /*USE_MPI*/
 END IF ! CalcSimNumSpec_IN
 
 END SUBROUTINE CalcNumPartsOfSpec

@@ -164,7 +164,7 @@ IF(CountNbrOfLostParts.AND.(NbrOfLostParticlesTotal.GT.0)) CALL WriteLostParticl
 IF(.NOT.DoWriteStateToHDF5)THEN
   ! Check if the total number of particles has already been determined
   IF(.NOT.GlobalNbrOfParticlesUpdated) CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec,.FALSE.,.TRUE.)
-  ! Output total number of particles here
+  ! Output total number of particles here as the end of this routine will not be reached
   SWRITE(UNIT_StdOut,'(A,ES16.7)') "#Particles : ", REAL(nGlobalNbrOfParticles)
 END IF ! .NOT.DoWriteStateToHDF5
 #endif /*PARTICLES*/
@@ -408,7 +408,6 @@ IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
 
 EndT=PICLASTIME()
 SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-!SWRITE(UNIT_StdOut,'(A,I16)') "#Particles : ", nGlobalNbrOfParticles
 SWRITE(UNIT_StdOut,'(A,ES16.7)') "#Particles : ", REAL(nGlobalNbrOfParticles)
 
 END SUBROUTINE WriteStateToHDF5
