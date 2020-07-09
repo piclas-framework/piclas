@@ -1103,12 +1103,13 @@ SUBROUTINE WriteElemTimeStatistics(WriteHeader,time,iter)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_LoadBalance_Vars ,ONLY: TargetWeight,nLoadBalanceSteps,CurrentImbalance,MinWeight,MaxWeight,WeightSum
-USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout,abort,nProcessors,nGlobalNbrOfParticles
+USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout,abort,nProcessors
 USE MOD_Globals_Vars     ,ONLY: SimulationEfficiency,PID,WallTime,InitializationWallTime
 USE MOD_Restart_Vars     ,ONLY: DoRestart
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimeField
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
+USE MOD_Globals          ,ONLY: nGlobalNbrOfParticles
 #endif /*PARTICLES*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
