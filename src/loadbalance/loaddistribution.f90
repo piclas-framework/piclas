@@ -1127,7 +1127,7 @@ CHARACTER(LEN=150)                       :: formatStr
 REAL                                     :: SumElemTime,ElemTimeFieldPercent,ElemTimePartPercent
 INTEGER,PARAMETER                        :: nOutputVar=17
 #else
-INTEGER,PARAMETER                        :: nOutputVar=13
+INTEGER,PARAMETER                        :: nOutputVar=12
 #endif /*PARTICLES*/
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
     'time'                   , &
