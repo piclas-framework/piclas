@@ -851,6 +851,7 @@ USE MOD_MPI_vars
 #endif
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemHDGSides,TotalHDGSides
+USE MOD_Mesh_Vars              ,ONLY: BoundaryType
 #endif /*USE_HDG && USE_LOADBALANCE*/
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -868,6 +869,9 @@ INTEGER             :: FirstElemID,LastElemID,ilocSide,locMortarSide,NBElemID,Si
 #if USE_MPI
 INTEGER             :: dummy(0:4)
 #endif
+#if USE_HDG && USE_LOADBALANCE
+  INTEGER           :: BCType
+#endif /*USE_HDG && USE_LOADBALANCE*/
 !===================================================================================================================================
 ! Element to Side mapping
 nSides_flip=0
@@ -1029,32 +1033,63 @@ DO iElem=1,nElems
 END DO ! iElem=1,PP_nElems
 
 
+ASSOCIATE(X => 6)
 #if USE_HDG && USE_LOADBALANCE
 ! Weight elements with mortar sides
 DO iElem=1,nElems
   DO ilocSide=1,6
     SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    BCType =BoundaryType(BC(SideID),BC_TYPE)
     ! TODO: don't count Dirichlet sides, but Neumann sides
     !IF(SideID.LE.nBCSides) ElemToElemGlob(1,ilocSide,offSetElem+iElem)=0
 
     locMortarSide=MortarType(2,SideID)
     IF(locMortarSide.EQ.-1)THEN ! normal side or small mortar side
       IF(MortarSlave2MasterInfo(SideID).EQ.-1)THEN
-        ElemHDGSides(iElem)=ElemHDGSides(iElem)+1
-        TotalHDGSides=TotalHDGSides+1
+        IF(myrank.eq.X)THEN
+          WRITE (*,*) "ilocside,BCtype =", ilocside,BCtype
+          WRITE (*,*) "normal side or small mortar side:   SideID ,iElem,GlobalUniqueSideID(SideID) =", SideID,iElem,GlobalUniqueSideID(SideID)
+        END IF ! myrank.eq.X
+
+        SELECT CASE(BCType)
+        CASE(1) !periodic
+          ElemHDGSides(iElem)=ElemHDGSides(iElem)+0.5
+          TotalHDGSides=TotalHDGSides+1
+        CASE(2,4,5) !dirichlet
+          !do not consider this side
+        !CASE(10,11) !Neumann,
+        CASE DEFAULT ! unknown BCType
+          ElemHDGSides(iElem)=ElemHDGSides(iElem)+1.
+          TotalHDGSides=TotalHDGSides+1
+        END SELECT ! BCType
       END IF
     ELSE ! mortar side
       DO iMortar=1,4
         SideID2=MortarInfo(MI_SIDEID,iMortar,locMortarSide)
         IF(SideID2.GT.0)THEN
-          ElemHDGSides(iElem)=ElemHDGSides(iElem)+1
-          TotalHDGSides=TotalHDGSides+1
+          IF(myrank.eq.X)THEN
+            WRITE (*,*) "ilocside,BCtype =", ilocside,BCtype
+            WRITE (*,*) "normal side or small mortar side:   SideID2 ,iElem,GlobalUniqueSideID(SideID2) =", SideID2,iElem,GlobalUniqueSideID(SideID2)
+          END IF ! myrank.eq.X
+
+          SELECT CASE(BCType)
+          CASE(1) !periodic
+            ElemHDGSides(iElem)=ElemHDGSides(iElem)+0.5
+            TotalHDGSides=TotalHDGSides+1
+          CASE(2,4,5) !dirichlet
+            !do not consider this side
+          !CASE(10,11) !Neumann,
+          CASE DEFAULT ! unknown BCType
+            ElemHDGSides(iElem)=ElemHDGSides(iElem)+1.
+            TotalHDGSides=TotalHDGSides+1
+          END SELECT ! BCType
         END IF
       END DO ! iMortar=1,4
     END IF ! locMortarSide
   END DO ! ilocSide=1,6
 END DO ! iElem=1,PP_nElems
 #endif /*USE_HDG && USE_LOADBALANCE*/
+END ASSOCIATE
 
 
 #if USE_MPI

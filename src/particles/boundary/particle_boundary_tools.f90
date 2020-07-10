@@ -481,7 +481,31 @@ END SUBROUTINE StoreBoundaryParticleProperties
 
 SUBROUTINE SortArray(EndID,ArrayA,ArrayB)
 !----------------------------------------------------------------------------------------------------------------------------------!
-! sort arryA in ascending order of arrayB
+! sort ArrayA (e.g. SideIDToSurfID) in ascending order of ArrayB (e.g. GlobalUniqueSideID)
+!
+! In the following example sorting from iSide = nBCSides+1 to nSides is performed
+!
+! BEFORE:
+!  
+!      iSide         SideIDToSurfID(iSide)      GlobalUniqueSideID(iSide)
+!        10                   -1                           3
+!        11                   10                          10
+!        12                   -1                          16
+!        13                   -1                          11
+!        14                   -1                          15
+!        15                   11                           4
+!        16                   -1                           6
+!    
+! AFTER:
+!    
+!      iSide         SideIDToSurfID(iSide)      GlobalUniqueSideID(iSide)
+!        10                   -1                           3
+!        11                   11                          10
+!        12                   -1                          16
+!        13                   -1                          11
+!        14                   -1                          15
+!        15                   10                           4
+!        16                   -1                           6
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!

@@ -158,9 +158,9 @@ END IF ! ElemTimeExists
 ! Allocate container for number of master sides for the HDG solver for each element
 SDEALLOCATE(ElemHDGSides)
 ALLOCATE(ElemHDGSides(1:nElems))
-ElemHDGSides=0
+ElemHDGSides=0.
 IF(CalcMeshInfo)THEN
-  CALL AddToElemData(ElementOut,'ElemHDGSides',IntArray=ElemHDGSides(1:nElems))
+  CALL AddToElemData(ElementOut,'ElemHDGSides',RealArray=ElemHDGSides(1:nElems))
 END IF ! CalcMeshInfo
 TotalHDGSides=0
 #endif /*USE_HDG*/

@@ -122,6 +122,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY:offSetSurfSide
 USE MOD_PICDepo_Vars            ,ONLY:SFResampleAnalyzeSurfCollis
 USE MOD_PICDepo_Vars            ,ONLY:LastAnalyzeSurfCollis
 USE MOD_Particle_Boundary_Tools ,ONLY:SortArray
+USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -146,6 +147,7 @@ LOGICAL,ALLOCATABLE                    :: IsSlaveSide(:)
 #if USE_MPI
 INTEGER                                :: iElem,HaloElemID,iHaloSide,iLocSide
 #endif /*USE_MPI*/
+INTEGER           :: i
 !===================================================================================================================================
 ! Workflow
 ! 0. Create boundary name mapping for surfaces SurfaceBC number mapping
@@ -281,11 +283,64 @@ __STAMP__&
   END IF
 END DO
 
+CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+
+DO i=0,nProcessors-1
+  IF(i.eq.myrank)THEN
+    DO iSide = 1, nSides
+      IF(iSide.LE.nBCSides)THEN
+        CALL set_formatting("green")
+        WRITE (*,'(A10)',advance='NO') "BCSide   "
+      WRITE (*,*) iSide,"     myrank",myrank,"    SideIDToSurfID(iSide) =", SurfMesh%SideIDToSurfID(iSide),"    GlobalUniqueSideID(iSide)",GlobalUniqueSideID(iSide)
+        CALL clear_formatting()
+      ELSE
+        CALL set_formatting("red")
+        WRITE (*,'(A10)',advance='NO') "innerSide"
+      WRITE (*,*) iSide,"     myrank",myrank,"    SideIDToSurfID(iSide) =", SurfMesh%SideIDToSurfID(iSide),"    GlobalUniqueSideID(iSide)",GlobalUniqueSideID(iSide)
+        CALL clear_formatting()
+      END IF ! iSide.LE.nBCSides
+    END DO
+    WRITE(UNIT_stdOut,'(132("-"))')
+  END IF
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+END DO
+
+SWRITE(UNIT_stdOut,'(132("="))')
+CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+
 ASSOCIATE( StartID => nBCSides+1            ,&
            EndID   => nSides  & !nSides &
           )
-CALL SortArray(EndID-StartID+1,SurfMesh%SideIDToSurfID(StartID:EndID),GlobalUniqueSideID(StartID:EndID))
+  CALL SortArray(EndID-StartID+1,SurfMesh%SideIDToSurfID(StartID:EndID),GlobalUniqueSideID(StartID:EndID))
 END ASSOCIATE
+
+
+DO i=0,nProcessors-1
+  IF(i.eq.myrank)THEN
+    DO iSide = 1, nSides
+      IF(iSide.LE.nBCSides)THEN
+        CALL set_formatting("green")
+        WRITE (*,'(A10)',advance='NO') "BCSide   "
+      WRITE (*,*) iSide,"     myrank",myrank,"    SideIDToSurfID(iSide) =", SurfMesh%SideIDToSurfID(iSide),"    GlobalUniqueSideID(iSide)",GlobalUniqueSideID(iSide)
+        CALL clear_formatting()
+      ELSE
+        CALL set_formatting("red")
+        WRITE (*,'(A10)',advance='NO') "innerSide"
+      WRITE (*,*) iSide,"     myrank",myrank,"    SideIDToSurfID(iSide) =", SurfMesh%SideIDToSurfID(iSide),"    GlobalUniqueSideID(iSide)",GlobalUniqueSideID(iSide)
+        CALL clear_formatting()
+      END IF ! iSide.LE.nBCSides
+    END DO
+    WRITE(UNIT_stdOut,'(132("-"))')
+  END IF
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+END DO
+
+
+
+CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+!CALL abort(&
+!__STAMP__&
+!,'STOP')
 
 ! --------------------------------------------------
 ! 3. HALO BCs

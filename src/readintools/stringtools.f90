@@ -392,7 +392,7 @@ IF (use_escape_codes) THEN
   WRITE(istring,*) LEN_TRIM(escape_sequence)
   format_string = '(' // TRIM(istring) // 'A1)'
 
-  SWRITE(UNIT_stdOut, TRIM(format_string), ADVANCE="NO") (escape_sequence_array(i), i = 1, LEN_TRIM(escape_sequence))
+  WRITE(UNIT_stdOut, TRIM(format_string), ADVANCE="NO") (escape_sequence_array(i), i = 1, LEN_TRIM(escape_sequence))
 END IF
 END SUBROUTINE set_formatting
 
@@ -406,7 +406,7 @@ IMPLICIT NONE
 !==================================================================================================================================
 IF (use_escape_codes) THEN
   ! Clear all previously set styles
-  SWRITE(UNIT_stdOut, '(3A1)', ADVANCE="NO") (/ CHAR(27), '[', 'm' /)
+  WRITE(UNIT_stdOut, '(3A1)', ADVANCE="NO") (/ CHAR(27), '[', 'm' /)
 END IF
 END SUBROUTINE clear_formatting
 
