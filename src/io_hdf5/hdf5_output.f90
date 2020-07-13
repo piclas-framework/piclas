@@ -106,10 +106,16 @@ USE MOD_Equation_Vars          ,ONLY: E,B
 #endif /*PP_nVar*/
 USE MOD_Mesh_Vars              ,ONLY: nSides
 USE MOD_Particle_Boundary_Tools,ONLY:SortArray
+USE MOD_Particle_Mesh_Vars      ,ONLY:PartElemToElemAndSide
+USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
+USE MOD_Particle_MPI_Vars       ,ONLY:PartHaloElemToProc
+USE MOD_Particle_Mesh_Vars      ,ONLY:PartSideToElem
+USE MOD_Mesh_Vars               ,ONLY:MortarType,nElems,FS2M,SideToElem
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
 USE MOD_Mesh_Vars              ,ONLY: DoWriteStateToHDF5,nBCSides,GlobalUniqueSideID
 USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
+USE MOD_HDF5_Input       ,ONLY: ReadArray
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -151,9 +157,11 @@ INTEGER(KIND=IK)               :: PP_nVarTmp
 LOGICAL                        :: usePreviousTime_loc
 INTEGER           :: iSide,i
 #if USE_HDG
-INTEGER                        :: SideID
+INTEGER                        :: SideID,HaloElemID,iLocSide,iElem,HaloProcID
 INTEGER,ALLOCATABLE            :: SortedUniqueSides(:)
 REAL,ALLOCATABLE               :: SortedLambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
+REAL,ALLOCATABLE               :: TotalLambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
+INTEGER                        :: SortedOffset,SortedStart,SortedEnd,flip,p,q
 #endif /*USE_HDG*/
 !===================================================================================================================================
 ! set local variables for output and previous times
@@ -219,10 +227,14 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 ! Associate construct for integer KIND=8 possibility
 PP_nVarTmp = INT(PP_nVar,IK)
 ASSOCIATE (&
-      N            => INT(PP_N,IK)         ,&
-      nGlobalElems => INT(nGlobalElems,IK) ,&
-      PP_nElems    => INT(PP_nElems,IK)    ,&
-      offsetElem   => INT(offsetElem,IK)   )
+      N                 => INT(PP_N,IK)               ,&
+      nGlobalElems      => INT(nGlobalElems,IK)       ,&
+      PP_nElems         => INT(PP_nElems,IK)          ,&
+      offsetElem        => INT(offsetElem,IK)         ,&
+      offsetSide        => INT(offsetSide,IK)         ,&
+      nGP_face          => INT(nGP_face,IK)           ,&
+      nUniqueSides      => INT(nUniqueSides,IK)       ,&
+      nGlobalUniqueSides=> INT(nGlobalUniqueSides,IK)  )
 
   ! Write DG solution ----------------------------------------------------------------------------------------------------------------
   !nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
@@ -286,31 +298,109 @@ ASSOCIATE (&
 #endif /*(PP_nVar==4)*/
   DEALLOCATE(Utemp)
 #elif USE_HDG
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
-      DataSetName='DG_SolutionLambda_old', rank=3,&
-      nValGlobal=(/PP_nVarTmp,nGP_face,nGlobalUniqueSides/),&
-      nVal=      (/PP_nVarTmp,nGP_face,nUniqueSides/),&
-      offset=    (/0_IK,      0_IK,       offsetSide/),&
-      collective=.TRUE., RealArray=lambda(:,:,1:nUniqueSides))
+      DataSetName = 'DG_SolutionLambda_old', rank=3,&
+      nValGlobal  = (/PP_nVarTmp , nGP_face , nGlobalUniqueSides/) , &
+      nVal        = (/PP_nVarTmp , nGP_face , nUniqueSides/)       , &
+      offset      = (/0_IK       , 0_IK     , offsetSide/)         , &
+      collective  = .TRUE.                                         , &
+      RealArray   = lambda(:,:,1:nUniqueSides))
 
   SWRITE(*,*) ""
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
   DO i=0,nProcessors-1
     IF(i.eq.myrank)THEN
-      WRITE (*,*) "nUniqueSides,nSides =", nUniqueSides,nSides
+      WRITE (UNIT_stdOut,*) "nUniqueSides,nSides =", nUniqueSides,nSides
       DO iSide = 1, nSides
+
+        iLocSide   = MERGE(S2E_NB_LOC_SIDE_ID,S2E_LOC_SIDE_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
+        iElem      = MERGE(S2E_NB_ELEM_ID,S2E_ELEM_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
+        !WRITE (UNIT_stdOut,*) "PartSideToElem(iElem,iSide) =", PartSideToElem(iElem,iSide)
+        !WRITE (UNIT_stdOut,*) "MortarType(1,iSide) =", MortarType(1,iSide)
+        IF(MortarType(1,iSide).NE.-1)THEN
+          HaloElemID = -1
+        ELSE
+          HaloElemID = PartElemToElemAndSide(1,PartSideToElem(iLocSide,iSide),PartSideToElem(iElem,iSide))
+        END IF ! MortarType(1,iSide).NE.-1)
+
+        IF(HaloElemID.GT.nElems)THEN
+          HaloProcID = PartHaloElemToProc(NATIVE_PROC_ID,HaloElemID)
+        ELSE
+          HaloProcID = myrank+1
+        END IF ! HaloElemID.GT.0
+
         IF(iSide.LE.nBCSides)THEN
           CALL set_formatting("green")
-            WRITE (*,'(A10)',advance='NO') "BCSide   "
-        WRITE (*,*) iSide,"UniqueSide",GlobalUniqueSideID(iSIde),"myrank",myrank,"lambda(:,:,iSide) =", lambda(:,:,iSide)
-          CALL clear_formatting()
+          WRITE (UNIT_stdOut,'(A12)',advance='NO') "BCSide"
         ELSE
           CALL set_formatting("red")
-            WRITE (*,'(A10)',advance='NO') "innerSide"
-          CALL clear_formatting()
-        WRITE (*,*) iSide,"UniqueSide",GlobalUniqueSideID(iSIde),"myrank",myrank,"lambda(:,:,iSide) =", lambda(:,:,iSide)
+          WRITE (UNIT_stdOut,'(A12)',advance='NO') "innerSide"
         END IF ! iSide.LE.nBCSides
+
+        CALL clear_formatting()
+        IF(GlobalUniqueSideID(iSIde).LE.0)THEN
+          CALL set_formatting("red")
+        ELSEIF(MortarType(1,iSide).NE.-1)THEN
+          CALL set_formatting("yellow")
+        END IF ! GlobalUniqueSideID(iSIde).LE.0
+
+        WRITE (UNIT_stdOut,'(I4,A12,I4,A12,I4,A22,4(1x,ES25.14E3))',advance='NO') iSide,"UniqueSide",GlobalUniqueSideID(iSIde),"myrank",myrank,"lambda(:,:,iSide) =", lambda(:,:,iSide)
+
+        IF(GlobalUniqueSideID(iSIde).LE.0)THEN
+          CALL clear_formatting()
+        ELSEIF(MortarType(1,iSide).NE.-1)THEN
+          CALL clear_formatting()
+        END IF ! GlobalUniqueSideID(iSIde).LE.0
+
+        IF(myrank.GT.HaloProcID.AND.&
+            iSide.GT.nBCSides)THEN ! not my side
+          CALL set_formatting("red")
+          WRITE (UNIT_stdOut,'(A5)',advance='NO') "NO"
+        ELSE
+          IF(iSide.GT.nBCSides)THEN
+            IF(GlobalUniqueSideID(iSIde).GT.0)THEN
+              CALL set_formatting("green")
+              WRITE (UNIT_stdOut,'(A5)',advance='NO') "YES"
+            ELSE
+              CALL set_formatting("yellow")
+              WRITE (UNIT_stdOut,'(A5)',advance='NO') "NO"
+            END IF ! GlobalUniqueSideID(iSIde).GT.0
+          ELSE
+            CALL set_formatting("yellow")
+            WRITE (UNIT_stdOut,'(A5)',advance='NO') "YES"
+          END IF ! iSide.GT.nBCSides
+        END IF ! myrank
+
+        CALL clear_formatting()
+        IF(MortarType(1,iSide).NE.-1)THEN
+          CALL set_formatting("yellow")
+        END IF ! MortarType(1,iSide).NE.-1)
+        WRITE (UNIT_stdOut,'(A20,I4)') "MortarType(1,iSide)",MortarType(1,iSide)
+        IF(MortarType(1,iSide).NE.-1)THEN
+          CALL clear_formatting()
+        END IF ! MortarType(1,iSide).NE.-1)
+
+
       END DO ! iSide = 1, nUniqueSides
       WRITE(UNIT_stdOut,'(132("-"))')
     END IF ! i.eq.myrank
@@ -330,36 +420,134 @@ ASSOCIATE (&
 
 
 
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 DO i=0,nProcessors-1
   IF(i.eq.myrank)THEN
     DO iSide = 1, nSides
+
+      iLocSide   = MERGE(S2E_NB_LOC_SIDE_ID,S2E_LOC_SIDE_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
+      iElem      = MERGE(S2E_NB_ELEM_ID,S2E_ELEM_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
+      IF(MortarType(1,iSide).NE.-1)THEN
+        HaloElemID = -1
+      ELSE
+        HaloElemID = PartElemToElemAndSide(1,PartSideToElem(iLocSide,iSide),PartSideToElem(iElem,iSide))
+      END IF ! MortarType(1,iSide).NE.-1)
+
+      IF(HaloElemID.GT.nElems)THEN
+        HaloProcID = PartHaloElemToProc(NATIVE_PROC_ID,HaloElemID)
+      ELSE
+        HaloProcID = myrank+1
+      END IF ! HaloElemID.GT.0
+
       IF(iSide.LE.nBCSides)THEN
         CALL set_formatting("green")
-        WRITE (*,'(A10)',advance='NO') "BCSide   "
-      WRITE (*,*) iSide,"     myrank",myrank,"    SortedUniqueSides(iSide) =", SortedUniqueSides(iSide),"    GlobalUniqueSideID(iSide)",GlobalUniqueSideID(iSide)
-        CALL clear_formatting()
+        WRITE (UNIT_stdOut,'(A10)',advance='NO') "BCSide   "
       ELSE
         CALL set_formatting("red")
-        WRITE (*,'(A10)',advance='NO') "innerSide"
-      WRITE (*,*) iSide,"     myrank",myrank,"    SortedUniqueSides(iSide) =", SortedUniqueSides(iSide),"    GlobalUniqueSideID(iSide)",GlobalUniqueSideID(iSide)
-        CALL clear_formatting()
+        WRITE (UNIT_stdOut,'(A10)',advance='NO') "innerSide"
       END IF ! iSide.LE.nBCSides
+      CALL clear_formatting()
+      IF(GlobalUniqueSideID(iSIde).LE.0)THEN
+        CALL set_formatting("red")
+      END IF ! GlobalUniqueSideID(iSIde).LE.0
+      WRITE (UNIT_stdOut,'(I4,A12,I4,A35,I4,A35,I4)',advance='NO') iSide,"     myrank",myrank,"    SortedUniqueSides(iSide) =", SortedUniqueSides(iSide),"    GlobalUniqueSideID(iSide)",GlobalUniqueSideID(iSide)
+      IF(GlobalUniqueSideID(iSIde).LE.0)THEN
+        CALL clear_formatting()
+      END IF ! GlobalUniqueSideID(iSIde).LE.0
+
+
+        IF(myrank.GT.HaloProcID.AND.&
+            iSide.GT.nBCSides)THEN ! not my side
+          CALL set_formatting("red")
+          WRITE (UNIT_stdOut,'(A5)',advance='Yes') "NO"
+        ELSE
+          IF(iSide.GT.nBCSides)THEN
+            IF(GlobalUniqueSideID(iSIde).GT.0)THEN
+              CALL set_formatting("green")
+              WRITE (UNIT_stdOut,'(A5)',advance='Yes') "YES"
+            ELSE
+              CALL set_formatting("yellow")
+              WRITE (UNIT_stdOut,'(A5)',advance='Yes') "NO"
+            END IF ! GlobalUniqueSideID(iSIde).GT.0
+          ELSE
+            CALL set_formatting("yellow")
+            WRITE (UNIT_stdOut,'(A5)',advance='Yes') "YES"
+          END IF ! iSide.GT.nBCSides
+        END IF ! myrank
+      CALL clear_formatting()
+
     END DO
     WRITE(UNIT_stdOut,'(132("-"))')
   END IF
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 END DO
+
+
+
+
+
+
+
+
 
 SWRITE(UNIT_stdOut,'(132("="))')
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
-  ASSOCIATE( StartID => 1       ,&
-             EndID   => nSides   &
-        )
-    CALL SortArray(EndID-StartID+1,SortedUniqueSides(StartID:EndID),GlobalUniqueSideID(StartID:EndID))
-  END ASSOCIATE
+
+
+    CALL SortArray(nSides,SortedUniqueSides(1:nSides),GlobalUniqueSideID(1:nSides))
+    ALLOCATE(SortedLambda(PP_nVar,nGP_face,nSides))
+    DO iSide = 1, nSides
+      flip = SideToElem(S2E_FLIP,iSide)
+      IPWRITE(UNIT_StdOut,*) "flip =", flip
+      SELECT CASE(flip)
+      CASE(-1,0) ! master side
+        !lambda_in(:,:,:,SideID)=U_tmp(:,:,:,iMortar)
+        SortedLambda(:,:,SortedUniqueSides(iSide)) = lambda(:,:,iSide)
+      CASE(1:4) ! slave side
+        DO q=0,PP_N; DO p=0,PP_N
+          !          U_in_slave(p,q,SideID)=U_tmp(FS2M(1,p,q,flip), &
+          !                                       FS2M(2,p,q,flip),iMortar)
+          WRITE (*,*) "FS2M(1,p,q,flip),FS2M(2,p,q,flip) =", FS2M(1,p,q,flip),FS2M(2,p,q,flip)
+          ASSOCIATE(pp => FS2M(1,p,q,flip) ,&
+                    qq => FS2M(2,p,q,flip) )
+            ASSOCIATE(sum1 => 2*q  + p  + 1 ,&
+                      sum2 => 2*qq + pp + 1)
+                  WRITE (*,*) "sum1,sum2 =", sum1,sum2
+              SortedLambda(PP_nVar,sum1,SortedUniqueSides(iSide)) = lambda(PP_nVar,sum2,iSide)
+            END ASSOCIATE
+          END ASSOCIATE
+        END DO; END DO ! q, p
+      END SELECT !flip(iMortar)
+    END DO ! iSide = 1, nSides
+    SortedOffset=HUGE(1)
+    SortedStart=HUGE(1)
+    SortedEnd=-1
+
+
+
+
+
 
 
 
@@ -368,33 +556,100 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 DO i=0,nProcessors-1
   IF(i.eq.myrank)THEN
     DO iSide = 1, nSides
+
+      iLocSide   = MERGE(S2E_NB_LOC_SIDE_ID,S2E_LOC_SIDE_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
+      iElem      = MERGE(S2E_NB_ELEM_ID,S2E_ELEM_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
+      IF(MortarType(1,iSide).NE.-1)THEN
+        HaloElemID = -1
+      ELSE
+        HaloElemID = PartElemToElemAndSide(1,PartSideToElem(iLocSide,iSide),PartSideToElem(iElem,iSide))
+      END IF ! MortarType(1,iSide).NE.-1)
+
+      IF(HaloElemID.GT.nElems)THEN
+        HaloProcID = PartHaloElemToProc(NATIVE_PROC_ID,HaloElemID)
+      ELSE
+        HaloProcID = myrank+1
+      END IF ! HaloElemID.GT.0
+
       IF(iSide.LE.nBCSides)THEN
         CALL set_formatting("green")
-        WRITE (*,'(A10)',advance='NO') "BCSide   "
-      WRITE (*,*) iSide,"     myrank",myrank,"    SortedUniqueSides(iSide) =", SortedUniqueSides(iSide),"    GlobalUniqueSideID(iSide)",GlobalUniqueSideID(iSide)
-        CALL clear_formatting()
+        WRITE (UNIT_stdOut,'(A10)',advance='NO') "BCSide   "
       ELSE
         CALL set_formatting("red")
-        WRITE (*,'(A10)',advance='NO') "innerSide"
-      WRITE (*,*) iSide,"     myrank",myrank,"    SortedUniqueSides(iSide) =", SortedUniqueSides(iSide),"    GlobalUniqueSideID(iSide)",GlobalUniqueSideID(iSide)
-        CALL clear_formatting()
+        WRITE (UNIT_stdOut,'(A10)',advance='NO') "innerSide"
       END IF ! iSide.LE.nBCSides
+      CALL clear_formatting()
+      IF(GlobalUniqueSideID(iSIde).LE.0)THEN
+        CALL set_formatting("red")
+      END IF ! GlobalUniqueSideID(iSIde).LE.0
+      WRITE (UNIT_stdOut,'(I4,A12,I4,A35,I4,A35,I4)',advance='NO') iSide,"     myrank",myrank,"    SortedUniqueSides(iSide) =", SortedUniqueSides(iSide),"    GlobalUniqueSideID(iSide)",GlobalUniqueSideID(iSide)
+      IF(GlobalUniqueSideID(iSIde).LE.0)THEN
+        CALL clear_formatting()
+      END IF ! GlobalUniqueSideID(iSIde).LE.0
+
+
+        IF(myrank.GT.HaloProcID.AND.&
+            iSide.GT.nBCSides)THEN ! not my side
+          CALL set_formatting("red")
+          WRITE (UNIT_stdOut,'(A5)',advance='Yes') "NO"
+        ELSE
+          IF(iSide.GT.nBCSides)THEN
+            IF(GlobalUniqueSideID(iSIde).GT.0)THEN
+              CALL set_formatting("green")
+              WRITE (UNIT_stdOut,'(A5)',advance='Yes') "YES"
+              IF(GlobalUniqueSideID(iSIde).LT.SortedOffset) SortedOffset=GlobalUniqueSideID(iSIde)
+              IF(SortedUniqueSides(iSide).LT.SortedStart) SortedStart = SortedUniqueSides(iSide)
+              IF(SortedUniqueSides(iSide).GT.SortedEnd)   SortedEnd   = SortedUniqueSides(iSide)
+            ELSE
+              CALL set_formatting("yellow")
+              WRITE (UNIT_stdOut,'(A5)',advance='Yes') "NO"
+            END IF ! GlobalUniqueSideID(iSIde).GT.0
+          ELSE
+            CALL set_formatting("yellow")
+            WRITE (UNIT_stdOut,'(A5)',advance='Yes') "YES"
+              IF(GlobalUniqueSideID(iSIde).LT.SortedOffset) SortedOffset=GlobalUniqueSideID(iSIde)
+              IF(SortedUniqueSides(iSide).LT.SortedStart) SortedStart = SortedUniqueSides(iSide)
+              IF(SortedUniqueSides(iSide).GT.SortedEnd)   SortedEnd   = SortedUniqueSides(iSide)
+          END IF ! iSide.GT.nBCSides
+        END IF ! myrank
+      CALL clear_formatting()
+
     END DO
+    SortedOffset=SortedOffset-1
+    WRITE (UNIT_stdOut,*) "SortedOffset, SortedStart:SortedEnd (nVal)=", SortedOffset,    SortedStart,":",SortedEnd,'(',SortedEnd-SortedStart+1,')'
     WRITE(UNIT_stdOut,'(132("-"))')
   END IF
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 END DO
 
 
+  SWRITE (*,*) "nGlobalUniqueSides =", nGlobalUniqueSides
 
-    ALLOCATE(SortedLambda(PP_nVar,nGP_face,nSides))
+  ASSOCIATE( nOutputSides => INT(SortedEnd-SortedStart+1,IK) ,&
+             SortedOffset => INT(SortedOffset,IK)            ,&
+             SortedStart  => INT(SortedStart,IK)             ,&
+             SortedEnd    => INT(SortedEnd,IK)                )
+    CALL GatheredWriteArray(FileName,create=.FALSE.,&
+        DataSetName = 'DG_SolutionLambda', rank=3,&
+        nValGlobal  = (/PP_nVarTmp , nGP_face , nGlobalUniqueSides/) , &
+        nVal        = (/PP_nVarTmp , nGP_face , nOutputSides/)       , &
+        offset      = (/0_IK       , 0_IK     , SortedOffset/)         , &
+        collective  = .TRUE.                                         , &
+        RealArray   = SortedLambda(:,:,SortedStart:SortedEnd))
+  END ASSOCIATE
 
-    DO iSide = 1, nSides
-      SideID = SortedUniqueSides(iSide)
-      SortedLambda(:,:,iSide) = lambda(:,:,SideID)
-    END DO ! iSide = 1, nSides
 
 
+  ! Root reads complete mesh for testing
+  IF(MPIRoot)THEN
+    ALLOCATE(TotalLambda(PP_nVar,nGP_face,nGlobalUniqueSides))
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,nGlobalUniqueSides/),0,3,RealArray=TotalLambda)
+    CALL CloseDataFile()
+    DO iSide = 1, nGlobalUniqueSides
+      WRITE (UNIT_stdOut,'(A12,I4,A32,4(1x,ES25.14E3))',advance='Yes') "UniqueSide",iSide,"TotalLambda(:,:,iSide) =", TotalLambda(:,:,iSide)
+    END DO
+  END IF ! MPIRoot
 
 
 
