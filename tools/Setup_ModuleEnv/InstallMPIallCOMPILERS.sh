@@ -1,4 +1,15 @@
-#!/bin/bash
+#!/bin/bash -i
+
+#==============================================================================
+# title       : InstallMPIallCOMPILERS.sh
+# description : This script installs openmpi or mpich in a pre-installed module 
+#               env for all compiler that are found and able to be loaded
+# date        : Nov 27, 2019
+# version     : 1.0   
+# usage       : bash InstallMPIallCOMPILERS.sh
+# notes       : Bash in run interactively via "-i" to use "module load/purge" 
+#               commands
+#==============================================================================
 
 # chose which mpi you want to have installed (openmpi or mpich)
 WHICHMPI=openmpi
@@ -49,12 +60,19 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
     # if no mpi module for this compiler found, install ${WHICHMPI} and create module
     if [ ! -e "${MPIMODULEFILE}" ]; then
       echo "creating ${WHICHMPI}-${MPIVERSION} for ${WHICHCOMPILER}-${COMPILERVERSION}"
+
+      if [[ -n $(module purge 2>&1) ]]; then
+        echo "module: command not found"
+        exit
+      fi
       module purge
+
       if [[ -n $(module load ${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
         echo "module ${WHICHCOMPILER}/${COMPILERVERSION} not found "
         break
       fi
       module load ${WHICHCOMPILER}/${COMPILERVERSION}
+      module list
 
       # build and installation
       cd ${SOURCEDIR}

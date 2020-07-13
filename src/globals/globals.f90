@@ -35,6 +35,7 @@ INTEGER            :: iError
 REAL               :: StartTime
 INTEGER            :: myRank,myLocalRank,myLeaderRank,myWorkerRank
 INTEGER            :: nProcessors,nLocalProcs,nLeaderProcs,nWorkerProcs
+LOGICAL            :: GlobalNbrOfParticlesUpdated ! When FALSE, then global number of particles needs to be determined
 INTEGER            :: MPI_COMM_NODE    ! local node subgroup
 INTEGER            :: MPI_COMM_LEADERS ! all node masters
 INTEGER            :: MPI_COMM_WORKERS ! all non-master nodes
@@ -53,6 +54,8 @@ INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(18)
 #else
 INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
 #endif
+
+INTEGER(KIND=IK)   :: nGlobalNbrOfParticles
 
 INTERFACE InitGlobals
   MODULE PROCEDURE InitGlobals
@@ -106,12 +109,25 @@ INTERFACE CROSS
   MODULE PROCEDURE CROSS
 END INTERFACE CROSS
 
+INTERFACE
+  SUBROUTINE setstacksizeunlimited() BIND(C)
+  END SUBROUTINE setstacksizeunlimited
+END INTERFACE
+
 INTERFACE str2real
   MODULE PROCEDURE str2real
 END INTERFACE
 
 INTERFACE str2int
   MODULE PROCEDURE str2int
+END INTERFACE
+
+INTERFACE int2str
+  MODULE PROCEDURE int2str
+END INTERFACE
+
+INTERFACE int2strf
+  MODULE PROCEDURE int2strf
 END INTERFACE
 
 INTERFACE str2logical
@@ -121,6 +137,20 @@ END INTERFACE
 INTERFACE GetParameterFromFile
   MODULE PROCEDURE GetParameterFromFile
 END INTERFACE
+
+INTERFACE SphericalCoordinates
+  MODULE PROCEDURE SphericalCoordinates
+END INTERFACE
+
+INTERFACE TransformVectorfieldSphericalCoordinates
+  MODULE PROCEDURE TransformVectorfieldSphericalCoordinates
+END INTERFACE
+
+INTERFACE TransformVectorFromSphericalCoordinates
+  MODULE PROCEDURE TransformVectorFromSphericalCoordinates
+END INTERFACE
+
+PUBLIC :: setstacksizeunlimited
 
 !===================================================================================================================================
 CONTAINS
@@ -147,6 +177,9 @@ LOGICAL                        :: LogIsOpen
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS ...'
+
+! PiclasVersionStr is stored in each hdf5 file with hdf5 header
+PiclasVersionStr = TRIM(int2strf(MajorVersion))//"."//TRIM(int2strf(MinorVersion))//"."//TRIM(int2strf(PatchVersion))
 
 PI=ACOS(-1.)
 sPI = 1./PI
@@ -495,6 +528,53 @@ INTEGER,INTENT(OUT)         :: stat
 !===================================================================================================================================
 READ(str,*,IOSTAT=stat)  int_number
 END SUBROUTINE str2int
+
+
+!==================================================================================================================================  
+!> Convert a String to an Integer
+!==================================================================================================================================  
+SUBROUTINE int2str(str,int_number,stat)
+!=================================================================================================================================== 
+!=================================================================================================================================== 
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------- 
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------- 
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------- 
+! LOCAL VARIABLES
+CHARACTER(len=255),INTENT(OUT) :: str
+INTEGER,INTENT(IN)             :: int_number
+INTEGER,INTENT(OUT)            :: stat
+!=================================================================================================================================== 
+WRITE(str,'(I0)',IOSTAT=stat)  int_number
+END SUBROUTINE int2str
+
+
+!==================================================================================================================================  
+!> Convert an Integer to a String
+!==================================================================================================================================  
+!SUBROUTINE int2strf(str,int_number,stat)
+FUNCTION int2strf(int_number)
+!=================================================================================================================================== 
+!=================================================================================================================================== 
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------- 
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------- 
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------- 
+! LOCAL VARIABLES
+CHARACTER(len=3) :: int2strf
+INTEGER,INTENT(IN) :: int_number
+!=================================================================================================================================== 
+WRITE(int2strf,'(I0)')  int_number
+int2strf = TRIM(ADJUSTL(int2strf))
+END FUNCTION
 
 
 !==================================================================================================================================
@@ -860,8 +940,12 @@ REAL            :: invL
 ! LOCAL VARIABLES
 !===================================================================================================================================
 invL=SQRT(v1(1)*v1(1)+v1(2)*v1(2)+v1(3)*v1(3))
-invL=1./invL
-UNITVECTOR=v1*invL
+IF(ABS(invL).GT.0.0)THEN
+  invL=1./invL
+  UNITVECTOR=v1*invL
+ELSE
+  UNITVECTOR = (/ 0. , 0. , 0./)
+END IF ! ABS(invL).GT.0.0
 END FUNCTION UNITVECTOR
 
 
@@ -874,10 +958,10 @@ PURE FUNCTION VECNORM(v1)
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN) :: v1(3)    !
+REAL,INTENT(IN) :: v1(3)    ! Vector
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL            :: VECNORM  !
+REAL            :: VECNORM  ! Euclidean norm (length) of the vector v1
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
@@ -890,7 +974,7 @@ PURE SUBROUTINE OrthoNormVec(v1,v2,v3)
 !> computes orthonormal basis from a given vector v1 (v1 must be normalized)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars,               ONLY:EpsMach
+USE MOD_Globals_Vars, ONLY:EpsMach
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -921,15 +1005,110 @@ PURE FUNCTION DOTPRODUCT(v1)
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN) :: v1(3)    !
+REAL,INTENT(IN) :: v1(3)       ! Input 3D vector
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL            :: DOTPRODUCT  !
+REAL            :: DOTPRODUCT  ! Dot product of v1 with itself
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
 DOTPRODUCT=v1(1)*v1(1)+v1(2)*v1(2)+v1(3)*v1(3)
 END FUNCTION DOTPRODUCT
+
+
+PURE SUBROUTINE SphericalCoordinates(X,r,theta,phi)
+!===================================================================================================================================
+!> Computes the spherical coordinates of a Cartesian Vector X
+!> r     : radial distance (Euclidean norm (length) of vector X)
+!> theta : polar angle (angle between the positive Z-axis and the vector X) 
+!>         0 <= theta <= Pi
+!> phi   : azimuthal angle (angle between the projection of the vector onto the X-Y-plane and the positive X-axis) 
+!>         0 <= phi < 2*Pi
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars, ONLY:Pi
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)  :: X(1:3) ! Vector in Cartesian coordinates
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT) :: r,theta,phi ! radial distance, polar angle and azimuthal angle
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+! Radial distance
+r = VECNORM(X(1:3))
+
+! Azimuthal angle
+phi = ATAN2(X(2),X(1))
+! If the angle comes out negative (this requires a negative Y value), add 2*Pi
+IF(phi.LT.0.0) phi=phi+2*Pi
+
+! Polar angle
+IF(ABS(r).GT.0.0)THEN
+  theta = ACOS(X(3)/r)
+ELSE
+  theta = 0.
+END IF ! ABS(r).GT.0.0
+
+END SUBROUTINE SphericalCoordinates
+
+
+PURE SUBROUTINE TransformVectorfieldSphericalCoordinates(P,XHat,X)
+!===================================================================================================================================
+!> Transform a vector field component from spherical coordinates to Cartesian coordinates
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)  :: P(1:3)    ! Position vector
+REAL,INTENT(IN)  :: XHat(1:3) ! Vector in Spherical coordinates
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT) :: X(1:3)    ! Resulting vector in Cartesian coordinates
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL  :: r,theta,phi ! radial distance, polar angle and azimuthal angle
+!===================================================================================================================================
+! Get spherical coordinates
+CALL SphericalCoordinates(P,r,theta,phi)
+
+! Apply transformation matrix to vector in spherical coordinates to obtain the vector in Cartesian coordinates
+CALL TransformVectorFromSphericalCoordinates(XHat,theta,phi,X)
+
+END SUBROUTINE TransformVectorfieldSphericalCoordinates
+
+
+PURE SUBROUTINE TransformVectorFromSphericalCoordinates(XHat,theta,phi,X)
+!===================================================================================================================================
+!> Transform a vector from spherical coordinates to Cartesian coordinates via supplied vector in spherical coordinates XHat,
+!> azimuthal angle phi and polar angle theta
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)  :: phi       !> azimuthal angle
+REAL,INTENT(IN)  :: theta     !> polar angle
+REAL,INTENT(IN)  :: XHat(1:3) !> Vector in Spherical coordinates
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT) :: X(1:3)    ! Resulting vector in Cartesian coordinates
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+! Transformation matrix x vector in spherical coordinates
+! X = M * XHat
+X(1:3) = (/SIN(theta)*COS(phi)*XHat(1) + COS(theta)*COS(phi)*XHat(2) - SIN(phi)*XHat(3) ,&
+           SIN(theta)*SIN(phi)*XHat(1) + COS(theta)*SIN(phi)*XHat(2) + COS(phi)*XHat(3) ,&
+           COS(theta)*         XHat(1) - SIN(theta)*         XHat(2)                   /)
+
+END SUBROUTINE TransformVectorFromSphericalCoordinates
 
 
 END MODULE MOD_Globals

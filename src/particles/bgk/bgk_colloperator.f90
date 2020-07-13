@@ -86,7 +86,7 @@ REAL                  :: A(3,3), Work(1000), W(3), trace, CShak
 INTEGER               :: INFO, nNotRelax, nRotRelax, nVibRelax
 REAL                  :: TRot, betaV, OldEnRot, RotExp, VibExp, NewEnRot, NewEnVib, vBulkRelaxOld(3),vBulkRelax(3)
 REAL                  :: CellTempRelax, vBulkAver(3), u2Aver, nPartAver, dtCell
-REAL                  :: partWeight, totalWeight, totalWeightRelax
+REAL                  :: partWeight, totalWeight, totalWeightRelax, totalWeight2
 #ifdef CODE_ANALYZE
 REAL                  :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
 INTEGER               :: iMom
@@ -110,12 +110,13 @@ OldEnRot = 0.; NewEnRot = 0.; NewEnVib = 0.
 u2 = 0.0; u0ij = 0.0; u0i = 0.0; u2i = 0.0
 Evib = 0.0; ERot = 0.0
 u2Aver = 0.0; vBulkRelax = 0.0; vBulkRelaxOld = 0.0
-totalWeight = 0.0; dtCell = 0.0; totalWeightRelax = 0.0
+totalWeight = 0.0; dtCell = 0.0; totalWeightRelax = 0.0; totalWeight2 = 0.0
 
 ! 1.) Summing up the relative velocities and their square to calculate the moments
 DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
   totalWeight = totalWeight + partWeight
+  totalWeight2 = totalWeight2 + partWeight*partWeight
   V_rel(1:3)=PartState(4:6,iPartIndx_Node(iLoop))-vBulkAll(1:3)
   IF (BGKMovingAverage) u2Aver = u2Aver + DOTPRODUCT(PartState(4:6,iPartIndx_Node(iLoop)))
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
@@ -150,11 +151,12 @@ IF ((BGKCollModel.EQ.2).OR.(BGKCollModel.EQ.4)) THEN
   u2i = u2i*nPart*nPart/((nPart-1.)*(nPart-2.)*totalWeight)
 END IF
 
-u2 = u2*nPart/((nPart-1.)*totalWeight)
+!u2 = u2*nPart/((nPart-1.)*totalWeight)
 u0ij = u0ij/totalWeight
 u0i(1:3) = u0i(1:3)/totalWeight
 trace = u0ij(1,1)+u0ij(2,2)+u0ij(3,3)
-CellTemp = Species(1)%MassIC * u2 / (3.0*BoltzmannConst)
+CellTemp = Species(1)%MassIC * u2 / (3.0*BoltzmannConst * (totalWeight - totalWeight2/totalWeight))
+u2 = u2 / totalWeight
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   ! totalWeight contains the weighted particle number
@@ -290,7 +292,7 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
     END IF
     !Rotation
     CALL RANDOM_NUMBER(iRan)
-    ProbAddPart = 1.-RotExp
+    ProbAddPart = (1.-RotExp)
     IF (ProbAddPart.GT.iRan) THEN
       nRotRelax = nRotRelax + 1
       iPartIndx_NodeRelaxRot(nRotRelax) = iPartIndx_Node(iLoop)
@@ -299,7 +301,7 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
     ! Vibration
     IF(BGKDoVibRelaxation) THEN
       CALL RANDOM_NUMBER(iRan)
-      ProbAddPart = 1.-VibExp
+      ProbAddPart = (1.-VibExp)
       IF (ProbAddPart.GT.iRan) THEN
         nVibRelax = nVibRelax + 1
         iPartIndx_NodeRelaxVib(nVibRelax) = iPartIndx_Node(iLoop)
@@ -394,9 +396,11 @@ IF (nRelax.GT.0) THEN
           ELSE
             KronDelta = 0.0
           END IF
+!          SMat(fillMa1, fillMa2)= KronDelta - (1.-Prandtl)/(2.*Prandtl) &
+!            *(Species(1)%MassIC/(BoltzmannConst*CellTemp)*nPart/(nPart-1.) &
+!            *(u0ij(fillMa1, fillMa2)-u0i(fillMa1)*u0i(fillMa2))-KronDelta)
           SMat(fillMa1, fillMa2)= KronDelta - (1.-Prandtl)/(2.*Prandtl) &
-            *(Species(1)%MassIC/(BoltzmannConst*CellTemp)*nPart/(nPart-1.) &
-            *(u0ij(fillMa1, fillMa2)-u0i(fillMa1)*u0i(fillMa2))-KronDelta)
+            *(3./u2*(u0ij(fillMa1, fillMa2)-u0i(fillMa1)*u0i(fillMa2))-KronDelta)
 !          SMat(fillMa1, fillMa2)= KronDelta - (1.-Prandtl)/(2.*Prandtl) &
 !            *(Species(1)%MassIC/(BoltzmannConst*CellTemp) &
 !            *(u0ij(fillMa1, fillMa2)-u0i(fillMa1)*u0i(fillMa2))-KronDelta)

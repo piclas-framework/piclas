@@ -94,8 +94,6 @@ CALL prms%CreateRealOption(     'Particles-DSMC-PartitionMaxTemp'&
 CALL prms%CreateRealOption(     'Particles-DSMC-PartitionInterval'&
                                           , 'Define temperature interval for pre-stored partition functions that are used for '//&
                                           'calculation of backwards rates', '10.0')
-CALL prms%CreateRealOption(     'Particles-DSMC-veloMinColl-Spec[$]' , 'min velo magn. for spec allowed to perform collision' , '0.' &
-                                          , numberedmulti=.TRUE.)
 !-----------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcQualityFactors'&
                                           , 'Enables [TRUE] / disables [FALSE] the calculation and output of flow-field variable.\n'//&
@@ -139,10 +137,6 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-UseQCrit'&
 CALL prms%CreateLogicalOption(  'Particles-DSMC-UseSSD'&
                                          , 'Set [TRUE] to enable steady state detection and sampling start using 3SD routines.' &
                                          , '.FALSE.')
-CALL prms%CreateIntOption(      'Particles-DSMCBackgroundGas'&
-                                         , 'Define Species number that is used as background gas species', '0')
-CALL prms%CreateRealOption(     'Particles-DSMCBackgroundGasDensity'&
-                                         , 'Define Species number density for background gas', '0.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-PolyRelaxSingleMode'&
                                          , 'Set [TRUE] for separate relaxation of each vibrational mode of a polyatomic in a '//&
                                            'loop over all vibrational modes.\n'//&
@@ -160,8 +154,7 @@ CALL prms%CreateIntOption(      'Particles-OctreePartNumNodeMin'&
                                          ,'Allow grid division until the minimum number of particles in a subcell is above '//&
                                           'OctreePartNumNodeMin')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-UseNearestNeighbour'&
-                                         ,'Allows to enable/disable the nearest neighbour search algorithm within the ocrtree '//&
-                                          'cell refinement','.TRUE.')
+                                         ,'Enable/disable the nearest neighbour search algorithm','.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-ProhibitDoubleCollisions'&
                                          ,'2D/Axisymmetric only: Prohibit the occurrence of repeated collisions between the '//&
                                           'same particle pairs in order to reduce the statistical dependence')
@@ -354,14 +347,25 @@ CALL prms%CreateRealOption(     'DSMC-Reaction[$]-MEXb'  &
 CALL prms%CreateStringOption(     'DSMC-Reaction[$]-TLU_FileName'  &
                                 , 'with DoScat=F: No TLU-File needed '//&
                                 '(def.: )', '0' , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Particles-Chemistry-NumDeleteProducts','Number of species, which should be deleted if they are '//&
+                                'a product of chemical reactions', '0')
+CALL prms%CreateIntArrayOption( 'Particles-Chemistry-DeleteProductsList','List of the species indices to be deleted if they are '//&
+                                'a product of chemical reactions')
 
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
                                            ,'Utilize collision cross sections for the determination of collision probabilities' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseVibXSec'  &
+                                           ,'Utilize vibrational cross sections for the determination of relaxation probabilities' &
                                            ,'.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for the collision cross section database. Container '//&
                                                                'should be named with species pair (e.g. "Ar-electron"). The '//&
                                                                'first column shall contain the energy in eV and the second '//&
                                                                'column the cross-section in m^2', 'none')
+CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
+                                  ,'Utilize the null collision method for the determination of the number of pairs '//&
+                                  'based on the maximum collision frequency and time step (only with a background gas)' &
+                                  ,'.TRUE.')
 
 END SUBROUTINE DefineParametersDSMC
 
@@ -371,7 +375,7 @@ SUBROUTINE InitDSMC()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Preproc                ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo, SideToElem
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_ReadInTools
@@ -397,7 +401,6 @@ IMPLICIT NONE
 CHARACTER(32)         :: hilf , hilf2
 INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF
 REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
-REAL                  :: BGGasEVib
 INTEGER               :: currentBC, ElemID, iSide, BCSideID, VarNum
 #if ( PP_TimeDiscMethod ==42 )
 #ifdef CODE_ANALYZE
@@ -444,11 +447,6 @@ END IF
   END IF
 DSMC%ElecRelaxProb = GETREAL('Particles-DSMC-ElecRelaxProb','0.01')
 DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant', '0.5')
-ALLOCATE(DSMC%veloMinColl(nSpecies))
-DO iSpec = 1, nSpecies
-  WRITE(UNIT=hilf,FMT='(I0)') iSpec
-  DSMC%veloMinColl(iSpec) = GETREAL('Particles-DSMC-veloMinColl-Spec'//TRIM(hilf),'0.')
-END DO
 !-----------------------------------------------------------------------------------
 ! Flag for the automatic calculation of the backward reaction rate with the partition functions and equilibrium constant.
 DSMC%BackwardReacRate  = GETLOGICAL('Particles-DSMC-BackwardReacRate','.FALSE.')
@@ -592,7 +590,7 @@ ELSE !CollisMode.GT.0
   nCase = iCase
   CollInf%NumCase = nCase
   ALLOCATE(DSMC%NumColl(nCase +1))
-  DSMC%NumColl = 0
+  DSMC%NumColl = 0.
   ALLOCATE(CollInf%Coll_CaseNum(nCase))
   CollInf%Coll_CaseNum = 0
   ALLOCATE(CollInf%Coll_SpecPartNum(nSpecies))
@@ -650,12 +648,25 @@ ELSE !CollisMode.GT.0
   DO iSpec = 1, nSpecies
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
     SpecDSMC(iSpec)%UseCollXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseCollXSec')
+    SpecDSMC(iSpec)%UseVibXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseVibXSec')
+    IF(SpecDSMC(iSpec)%UseCollXSec.AND.BGGas%BackgroundSpecies(iSpec)) THEN
+      CALL Abort(&
+          __STAMP__&
+          ,'ERROR: Please supply the collision cross-section data for the particle species and NOT the background species!')
+    END IF
+    IF(SpecDSMC(iSpec)%UseVibXSec.AND.(.NOT.SpecDSMC(iSpec)%UseCollXSec)) THEN
+      CALL Abort(&
+          __STAMP__&
+          ,'ERROR: Use of vibrational cross-section data requires to collisional cross-sections, -UseCollXSec = T!')
+    END IF
   END DO
   IF(ANY(SpecDSMC(:)%UseCollXSec)) THEN
     UseMCC = .TRUE.
     CALL MCC_Init()
   ELSE
     UseMCC = .FALSE.
+    XSec_NullCollision =.FALSE.
+    XSec_Relaxation = .FALSE.
   END IF
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! reading/writing molecular stuff
@@ -773,7 +784,7 @@ ELSE !CollisMode.GT.0
                     CALL Abort(&
                         __STAMP__&
                         ,'Error! TVib needs to be defined in Part-SpeciesXX-TempVib for iSpec',iSpec)
-                  ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                  ELSE IF (BGGas%BackgroundSpecies(iSpec)) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
                     CALL Abort(&
                         __STAMP__&
                         ,'Error! TVib needs to be defined in Part-SpeciesXX-TempVib for BGGas')
@@ -794,7 +805,7 @@ ELSE !CollisMode.GT.0
                     CALL Abort(&
                         __STAMP__&
                         ,'Error! TRot needs to be defined in Part-SpeciesXX-TempRot for iSpec',iSpec)
-                  ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                  ELSE IF (BGGas%BackgroundSpecies(iSpec)) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
                     CALL Abort(&
                         __STAMP__&
                         ,'Error! TRot needs to be defined in Part-SpeciesXX-TempRot for BGGas')
@@ -818,7 +829,7 @@ ELSE !CollisMode.GT.0
                     CALL Abort(&
                         __STAMP__&
                         ,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for Species',iSpec)
-                  ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                  ELSE IF (BGGas%BackgroundSpecies(iSpec)) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
                     CALL Abort(&
                         __STAMP__&
                         ,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for BGGas')
@@ -1174,14 +1185,7 @@ ELSE !CollisMode.GT.0
   ! Journal of Computational Physics 246, 28–36. doi:10.1016/j.jcp.2013.03.018
   !-----------------------------------------------------------------------------------------------------------------------------------
   DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree')
-  IF(DSMC%UseOctree) THEN
-    DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour')
-    IF((.NOT.Symmetry2D).AND.(.NOT.DSMC%UseNearestNeighbour)) THEN
-      CALL abort(&
-          __STAMP__&
-          ,'Statistical Pairing with Octree not yet supported in 3D!')
-    END IF
-  END IF
+  DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour')
   ! If number of particles is greater than OctreePartNumNode, cell is going to be divided for performance of nearest neighbour
   IF(Symmetry2D) THEN
     DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','40')
@@ -1213,45 +1217,30 @@ ELSE !CollisMode.GT.0
       CollInf%OldCollPartner = 0
     END IF
   ELSE
+    CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.FALSE.')
     IF (CollInf%ProhibitDoubleColl) THEN
-      CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.FALSE.')
       CALL abort(__STAMP__,&
           'ERROR: Prohibiting double collisions is only supported within a 2D/axisymmetric simulation!')
     END IF
   END IF
 
   !-----------------------------------------------------------------------------------------------------------------------------------
-  ! Set mean VibQua of BGGas for dissoc reaction
+  ! Background gas: Check compatibility with other features
   !-----------------------------------------------------------------------------------------------------------------------------------
-  IF (BGGas%BGGasSpecies.NE.0) THEN
+  IF (BGGas%NumberOfSpecies.GT.0) THEN
     IF (DSMC%UseOctree) THEN
       CALL abort(__STAMP__,&
-          'ERROR: Utilization of the octree and nearest neighbour scheme not possible with the background gas')
+          'ERROR: Utilization of the octree and nearest neighbour scheme not possible with the background gas!')
     END IF
-    IF(SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.4) THEN
-      CALL abort(__STAMP__,&
-          'ERROR: Electrons as background gas are not yet available!!')
-    END IF
-    IF((SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.2).OR.(SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.20)) THEN
-      IF(SpecDSMC(BGGas%BGGasSpecies)%PolyatomicMol) THEN
-        CALL abort(&
-            __STAMP__&
-            ,'ERROR: Polyatomic species as background gas are not yet available!')
-      ELSE
-        BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib &
-            + BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib  &
-            /  (EXP(SpecDSMC(BGGas%BGGasSpecies)%CharaTVib / SpecDSMC(BGGas%BGGasSpecies)%Init(0)%TVib) - 1) &
-            - BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib * SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant &
-            / (EXP(SpecDSMC(BGGas%BGGasSpecies)%CharaTVib * SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant &
-            / SpecDSMC(BGGas%BGGasSpecies)%Init(0)%TVib) - 1)
-        BGGasEVib = BGGasEVib/(BoltzmannConst*SpecDSMC(BGGas%BGGasSpecies)%CharaTVib) - DSMC%GammaQuant
-        BGGas%BGMeanEVibQua = MIN(INT(BGGasEVib) + 1, SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant)
+    DO iSpec = 1, nSpecies
+      IF(BGGas%BackgroundSpecies(iSpec)) THEN
+        IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
+          CALL abort(__STAMP__,&
+            'ERROR in BGGas: Electrons as background gas are not yet available!')
+        END IF
       END IF
-    ELSE
-      BGGas%BGMeanEVibQua = 0
-    END IF
+    END DO
   END IF
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate vib collision numbers and characteristic velocity, according to Abe
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1289,10 +1278,8 @@ ELSE !CollisMode.GT.0
         ALLOCATE(DSMC%QualityFacSampVib(1:nElems,1,1:2))
         ALLOCATE(DSMC%QualityFacSampVibSamp(1:nElems,1,2))
       END IF
-      ALLOCATE(DSMC%CalcVibProb(1:nSpecies,1:3))
       DSMC%QualityFacSampVib = 0.
       DSMC%QualityFacSampVibSamp = 0
-      DSMC%CalcVibProb = 0.
     END IF
     CALL SetVarVibProb2Elems()
     ! CHeck if DSMC%InstantTransTemp is still needed
@@ -1315,7 +1302,15 @@ ELSE !CollisMode.GT.0
     DSMC%QualityFacSampRotSamp = 0
     DSMC%CalcRotProb = 0.
   END IF
-
+  IF(DSMC%CalcQualityFactors) THEN
+    ALLOCATE(DSMC%CalcVibProb(1:nSpecies,1:3))
+    DSMC%CalcVibProb = 0.
+    IF(XSec_Relaxation) THEN
+      DO iCase=1,CollInf%NumCase
+        SpecXSec(iCase)%VibProb(1:2) = 0.
+      END DO
+    END IF
+  END IF
 END IF !CollisMode.GT.0
 
 ! If field ionization is used without chemical reactions due to collisions (DSMC chemistry)
@@ -1776,17 +1771,15 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER       :: iPoly
 !===================================================================================================================================
-IF(DSMC%VibRelaxProb.EQ.2) THEN
-  SDEALLOCATE(VarVibRelaxProb%ProbVibAv)
-  SDEALLOCATE(VarVibRelaxProb%ProbVibAvNew)
-  SDEALLOCATE(VarVibRelaxProb%nCollis)
-  SDEALLOCATE(DSMC%QualityFacSampRot)
-  SDEALLOCATE(DSMC%QualityFacSampVib)
-  SDEALLOCATE(DSMC%QualityFacSampRotSamp)
-  SDEALLOCATE(DSMC%QualityFacSampVibSamp)
-  SDEALLOCATE(DSMC%CalcVibProb)
-  SDEALLOCATE(DSMC%CalcRotProb)
-END IF
+SDEALLOCATE(VarVibRelaxProb%ProbVibAv)
+SDEALLOCATE(VarVibRelaxProb%ProbVibAvNew)
+SDEALLOCATE(VarVibRelaxProb%nCollis)
+SDEALLOCATE(DSMC%QualityFacSampRot)
+SDEALLOCATE(DSMC%QualityFacSampVib)
+SDEALLOCATE(DSMC%QualityFacSampRotSamp)
+SDEALLOCATE(DSMC%QualityFacSampVibSamp)
+SDEALLOCATE(DSMC%CalcVibProb)
+SDEALLOCATE(DSMC%CalcRotProb)
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(DSMC_RHS)
 SDEALLOCATE(PartStateIntEn)
@@ -1802,7 +1795,6 @@ IF(DSMC%NumPolyatomMolecs.GT.0) THEN
   END DO
   SDEALLOCATE(PolyatomMolDSMC)
 END IF
-SDEALLOCATE(DSMC%veloMinColl)
 SDEALLOCATE(DSMC%NumColl)
 SDEALLOCATE(DSMC%InstantTransTemp)
 IF(DSMC%CalcQualityFactors) THEN
@@ -1831,6 +1823,7 @@ SDEALLOCATE(ChemReac%EActiv)
 SDEALLOCATE(ChemReac%EForm)
 SDEALLOCATE(ChemReac%MeanEVib_PerIter)
 SDEALLOCATE(ChemReac%MeanEVibQua_PerIter)
+SDEALLOCATE(ChemReac%MeanXiVib_PerIter)
 SDEALLOCATE(ChemReac%CEXa)
 SDEALLOCATE(ChemReac%CEXb)
 SDEALLOCATE(ChemReac%MEXa)
@@ -1842,6 +1835,7 @@ SDEALLOCATE(ChemReac%ReactInfo)
 SDEALLOCATE(ChemReac%TLU_FileName)
 SDEALLOCATE(ChemReac%ReactNumRecomb)
 SDEALLOCATE(ChemReac%Hab)
+SDEALLOCATE(ChemReac%DeleteProductsList)
 SDEALLOCATE(CollInf%Coll_Case)
 SDEALLOCATE(CollInf%Coll_CaseNum)
 SDEALLOCATE(CollInf%Coll_SpecPartNum)
@@ -1857,12 +1851,96 @@ SDEALLOCATE(MacroSurfaceVal)
 ! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_HOSolution)
 SDEALLOCATE(DSMC_Volumesample)
-SDEALLOCATE(ElemNodeVol)
+CALL DeleteElemNodeVol()
 SDEALLOCATE(BGGas%PairingPartner)
+SDEALLOCATE(BGGas%BackgroundSpecies)
+SDEALLOCATE(BGGas%MapSpecToBGSpec)
+SDEALLOCATE(BGGas%SpeciesFraction)
+SDEALLOCATE(BGGas%NumberDensity)
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(SymmetrySide)
+SDEALLOCATE(SpecXSec)
 END SUBROUTINE FinalizeDSMC
+
+
+SUBROUTINE DeleteElemNodeVol()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Delete the pointer tree ElemNodeVol
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_DSMC_Vars
+USE MOD_Mesh_Vars              ,ONLY: nElems
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: iElem
+!===================================================================================================================================
+IF(.NOT.DSMC%UseOctree) RETURN
+DO iElem=1,nElems
+  CALL DeleteNodeVolume(ElemNodeVol(iElem)%Root)
+  DEALLOCATE(ElemNodeVol(iElem)%Root)
+END DO
+DEALLOCATE(ElemNodeVol)
+END SUBROUTINE DeleteElemNodeVol
+
+
+RECURSIVE SUBROUTINE DeleteNodeVolume(Node)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Check if the Node has subnodes and delete them
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_DSMC_Vars
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES
+TYPE (tNodeVolume), INTENT(IN), POINTER  :: Node
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(ASSOCIATED(Node%SubNode1)) THEN 
+  CALL DeleteNodeVolume(Node%SubNode1)
+  DEALLOCATE(Node%SubNode1)
+END IF
+IF(ASSOCIATED(Node%SubNode2)) THEN
+  CALL DeleteNodeVolume(Node%SubNode2)
+  DEALLOCATE(Node%SubNode2)
+END IF
+IF(ASSOCIATED(Node%SubNode3)) THEN
+  CALL DeleteNodeVolume(Node%SubNode3)
+  DEALLOCATE(Node%SubNode3)
+END IF
+IF(ASSOCIATED(Node%SubNode4)) THEN
+  CALL DeleteNodeVolume(Node%SubNode4)
+  DEALLOCATE(Node%SubNode4)
+END IF
+IF(ASSOCIATED(Node%SubNode5)) THEN
+  CALL DeleteNodeVolume(Node%SubNode5)
+  DEALLOCATE(Node%SubNode5)
+END IF
+IF(ASSOCIATED(Node%SubNode6)) THEN
+  CALL DeleteNodeVolume(Node%SubNode6)
+  DEALLOCATE(Node%SubNode6)
+END IF
+IF(ASSOCIATED(Node%SubNode7)) THEN
+  CALL DeleteNodeVolume(Node%SubNode7)
+  DEALLOCATE(Node%SubNode7)
+END IF
+IF(ASSOCIATED(Node%SubNode8)) THEN
+  CALL DeleteNodeVolume(Node%SubNode8)
+  DEALLOCATE(Node%SubNode8)
+END IF
+END SUBROUTINE DeleteNodeVolume
 
 
 END MODULE MOD_DSMC_Init

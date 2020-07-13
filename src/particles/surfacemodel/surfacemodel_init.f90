@@ -427,7 +427,7 @@ __STAMP__,&
       END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-    CASE(5,6)
+    CASE(5,6,7)
 !-----------------------------------------------------------------------------------------------------------------------------------
       IF (.NOT.ALLOCATED(Adsorption%ResultSpec)) ALLOCATE( Adsorption%ResultSpec(1:nPartBound,1:nSpecies))
       Adsorption%ResultSpec(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-ResultSpec')

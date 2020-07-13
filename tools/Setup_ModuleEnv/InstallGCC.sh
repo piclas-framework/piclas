@@ -1,4 +1,15 @@
 #!/bin/bash
+
+#==============================================================================
+# title       : InstallGCC.sh
+# description : This script installs the gcc compiler with a specified version 
+#               as given below via GCCVERSION='X.X.X'
+# date        : Nov 27, 2019
+# version     : 1.0   
+# usage       : bash InstallGCC.sh
+# notes       : 
+#==============================================================================
+
 INSTALLDIR=/opt
 SOURCESDIR=/opt/Installsources
 MODULETEMPLATEDIR=/opt/Installsources/moduletemplates
@@ -8,10 +19,26 @@ if [ ! -e "${SOURCESDIR}" ]; then
   mkdir -p ${SOURCESDIR}
 fi
 
+# NOTE:
+#GCC depends on:
+#
+#    GMP: GNU Multiple Precision Arithmetic Library
+#    MPFR: GNU Multiple-precision floating-point rounding library
+#    MPC: GNU Multiple-precision C library
+#    ELF: Executable and Linkable Format library
+#    PPL: Parma Polyhedra Library (optional, for memory optimizations)
+
+
 # DOWNLOAD and INSTALL GCC COMPILER (example gcc-7.4.0)
 #GCCVERSION='7.4.0'
 #GCCVERSION='8.3.0'
-GCCVERSION='9.2.0'
+#GCCVERSION='9.3.0'
+
+# 10.1.0: Building GCC requires GMP 4.2+, MPFR 3.1.0+ and MPC 0.8.0+
+# sudo apt-get install libmpfr-dev
+# sudo apt-get install libmpc-dev
+GCCVERSION='10.1.0'
+
 MODULEFILEDIR=${INSTALLDIR}/modules/modulefiles/compilers/gcc
 MODULEFILE=${MODULEFILEDIR}/${GCCVERSION}
 

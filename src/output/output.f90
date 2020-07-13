@@ -60,13 +60,17 @@ INTERFACE InitOutput
   MODULE PROCEDURE InitOutput
 END INTERFACE
 
+INTERFACE PrintStatusLine
+  MODULE PROCEDURE PrintStatusLine
+END INTERFACE
+
 INTERFACE FinalizeOutput
   MODULE PROCEDURE FinalizeOutput
 END INTERFACE
 
 PUBLIC:: InitOutput,FinalizeOutput
-
-PUBLIC::DefineParametersOutput
+PUBLIC:: PrintStatusLine
+PUBLIC:: DefineParametersOutput
 !===================================================================================================================================
 
 CONTAINS
@@ -109,8 +113,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars ,ONLY: ParameterFile,ProjectName,ParameterDSMCFile
 USE MOD_Preproc
 USE MOD_ReadInTools  ,ONLY: GetStr,GetLogical,GETINT
-USE MOD_Output_Vars  ,ONLY: OutputInitIsDone,OutputFormat
-USE MOD_Output_Vars  ,ONLY: userblock_len, userblock_total_len, UserBlockTmpFile
+USE MOD_Output_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -132,10 +135,12 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT OUTPUT...'
 
-ProjectName=GETSTR('ProjectName')
-Logging    =GETLOGICAL('Logging','.FALSE.')
+ProjectName       = GETSTR('ProjectName')
+Logging           = GETLOGICAL('Logging')
+WriteErrorFiles   = GETLOGICAL('WriteErrorFiles')
+doPrintStatusLine = GETLOGICAL("doPrintStatusLine")
+OutputFormat      = GETINT('OutputFormat')
 
-WriteErrorFiles=GETLOGICAL('WriteErrorFiles','.FALSE.')
 IF(WriteErrorFiles)THEN
   ! Open file for error output
   WRITE(ErrorFileName,'(A,A8,I6.6,A4)')TRIM(ProjectName),'_ERRORS_',myRank,'.out'
@@ -157,7 +162,6 @@ IF (MPIRoot) THEN
   INQUIRE(FILE=TRIM(UserBlockTmpFile),SIZE=userblock_total_len)
 END IF
 
-OutputFormat = GETINT('OutputFormat','1')
 ! Open file for logging
 IF(Logging)THEN
   INQUIRE(UNIT=UNIT_LogOut,OPENED=LogIsOpen)
@@ -181,6 +185,67 @@ OutputInitIsDone =.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT OUTPUT DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitOutput
+
+
+!==================================================================================================================================
+!> Displays the actual status of the simulation
+!==================================================================================================================================
+SUBROUTINE PrintStatusLine(t,dt,tStart,tEnd)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! description
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Output_Vars , ONLY: doPrintStatusLine
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(IN) :: t      !< current simulation time
+REAL,INTENT(IN) :: dt     !< current time step
+REAL,INTENT(IN) :: tStart !< start time of simulation
+REAL,INTENT(IN) :: tEnd   !< end time of simulation
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL    :: percent,time_remaining,mins,secs,hours,days
+!==================================================================================================================================
+
+IF(.NOT.doPrintStatusLine) RETURN
+
+IF(MPIroot)THEN
+#ifdef INTEL
+  OPEN(UNIT_stdOut,CARRIAGECONTROL='fortran')
+#endif
+  percent = (t-tStart) / (tend-tStart)
+  CALL CPU_TIME(time_remaining)
+  IF (percent.GT.0.0) time_remaining = time_remaining/percent - time_remaining
+  percent =  percent*100.
+  secs = MOD(time_remaining,60.)
+  time_remaining = time_remaining / 60
+  mins = MOD(time_remaining,60.)
+  time_remaining = time_remaining / 60
+  hours = MOD(time_remaining,24.)
+  time_remaining = time_remaining / 24
+  !days = MOD(time_remaining,365.) ! Use this if years are also to be displayed
+  days = time_remaining
+#if USE_COFFEE
+  WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A,A3,F6.2,A3,A1)',ADVANCE='NO') &
+      '  Time = ', t,'  dt = ', dt, ' ', ' eta = ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),'     |',&
+      REPEAT('☕',CEILING(percent/2)),REPEAT(' ',INT((100-percent)/2)),'| [',percent,'%] ',&
+      ACHAR(13) ! ACHAR(13) is carriage return
+#else
+  WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A1,A,A3,F6.2,A3,A1)',ADVANCE='NO') &
+      '  Time = ', t,'  dt = ', dt, ' ', ' eta = ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),'     |',&
+      REPEAT('=',MAX(CEILING(percent/2)-1,0)),'>',REPEAT(' ',INT((100-percent)/2)),'| [',percent,'%] ',&
+      ACHAR(13) ! ACHAR(13) is carriage return
+#endif /*USE_COFFEE*/
+#ifdef INTEL
+  CLOSE(UNIT_stdOut)
+#endif
+END IF
+END SUBROUTINE PrintStatusLine
 
 
 

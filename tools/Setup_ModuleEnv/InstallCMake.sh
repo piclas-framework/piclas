@@ -1,4 +1,15 @@
 #!/bin/bash
+
+#==============================================================================
+# title       : InstallCMake.sh
+# description : This script installs cmake with a specified version as given 
+#               below via CMAKEVERSION='X.XX.X'
+# date        : Nov 27, 2019
+# version     : 1.0   
+# usage       : bash InstallCMake.sh
+# notes       : 
+#==============================================================================
+
 INSTALLDIR=/opt
 SOURCESDIR=/opt/Installsources
 TEMPLATEDIR=/opt/Installsources/moduletemplates
@@ -11,7 +22,8 @@ fi
 # For current releases, see: https://github.com/Kitware/CMake/releases/
 #CMAKEVERSION='3.4.3'
 #CMAKEVERSION='3.13.3'
-CMAKEVERSION='3.15.3'
+#CMAKEVERSION='3.15.3'
+CMAKEVERSION='3.17.0'
 CMAKEDIR=${INSTALLDIR}/cmake/${CMAKEVERSION}/standard
 MODULEFILE=${INSTALLDIR}/modules/modulefiles/utilities/cmake/${CMAKEVERSION}-d
 

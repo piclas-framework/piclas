@@ -25,3 +25,8 @@ userguide.pdf
 developerguide.pdf
 *.pvsm
 core
+piclas
+*.out
+userblock.tmp
+*f90.orig
+commit.h

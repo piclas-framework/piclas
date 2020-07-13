@@ -105,7 +105,6 @@ USE MOD_Interpolation_Vars,      ONLY:InterpolationInitIsDone
 USE MOD_Equation_Vars
 USE MOD_HDG_vars
 USE MOD_Mesh_Vars,               ONLY:nSides
-USE MOD_TimeDisc_Vars,           ONLY:TEnd
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -117,7 +116,6 @@ USE MOD_TimeDisc_Vars,           ONLY:TEnd
 REAL                         :: chitensValue,chitensRadius  ! Deprecated variables, remove in future (by the end of 2017)
 INTEGER                      :: chitensWhichField           ! Deprecated variables, remove in future (by the end of 2017)
 !===================================================================================================================================
-TEnd=GetReal('TEnd')
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
    SWRITE(*,*) "InitPoisson not ready to be called or already called."
    RETURN
@@ -229,6 +227,9 @@ CASE(2) !sinus
   Amplitude=0.3
   Omega=2.*Pi*Frequency
   Resu(:)=1.+Amplitude*SIN(Omega*SUM(Cent))
+CASE(30) !sinus: shifted by PI into the future (ACamplitude -> -1*ACamplitude)
+  Omega=2.*Pi*ACfrequency
+  Resu(:)=-ACamplitude*SIN(Omega*t)
 CASE(31) !sinus
   Omega=2.*Pi*ACfrequency
   Resu(:)=ACamplitude*SIN(Omega*t)
@@ -636,10 +637,8 @@ FUNCTION shapefunc(r)
 END FUNCTION shapefunc
 
 FUNCTION beta(z,w)
-  ! USE nr
    IMPLICIT NONE
    REAL beta, w, z
-   !beta = exp(gammln(z)+gammln(w)-gammln(z+w))  ! old - kind=6
    beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)           ! n   - kind=8
 END FUNCTION beta
 

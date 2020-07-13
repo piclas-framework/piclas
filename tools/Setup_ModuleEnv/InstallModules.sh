@@ -1,4 +1,17 @@
 #!/bin/bash
+
+#==============================================================================
+# title       : InstallModules.sh
+# description : This script installs  either for all compilers/mpi versions 
+# description : This script installs the module env software package with a 
+#               specified version as given below via MODULEVERSION='X.X.XX' 
+#               from https://downloads.sourceforge.net/
+# date        : Nov 27, 2019
+# version     : 1.0   
+# usage       : bash InstallModules.sh
+# notes       : 
+#==============================================================================
+
 INSTALLDIR=/opt
 SOURCESDIR=/opt/Installsources
 MODULEVERSION='3.2.10'
@@ -39,6 +52,9 @@ if [ ! -d "${MODULESHOME}" ]; then
       make install 2>&1 | tee install.out
     fi
 
+    # Copy initialization to /etc/profile
+    #   /etc/profile: system-wide .profile file for the Bourne shell (sh(1))
+    #   and Bourne compatible shells (bash(1), ksh(1), ash(1), ...).
     if [ -z "$(grep "if.*Modules.*${MODULEVERSION}.*init.*bash.*then" /etc/profile)" ]; then
       sed -i '1 i\if [ -f /opt/modules/'${MODULEVERSION}'/Modules/'${MODULEVERSION}'/init/bash ]; then' /etc/profile
       sed -i '2 i\  . /opt/modules/'${MODULEVERSION}'/Modules/'${MODULEVERSION}'/init/bash' /etc/profile
@@ -47,6 +63,9 @@ if [ ! -d "${MODULESHOME}" ]; then
       echo "modules init already exists in /etc/profile"
       exit
     fi
+
+    # Copy initialization to /etc/bash.bashrc
+    #   System-wide .bashrc file for interactive bash(1) shells.
     if [ -z "$(grep "if.*Modules.*${MODULEVERSION}.*init.*bash.*then" /etc/bash.bashrc)" ]; then
       sed -i '1 i\if [ -f /opt/modules/'${MODULEVERSION}'/Modules/'${MODULEVERSION}'/init/bash ]; then' /etc/bash.bashrc
       sed -i '2 i\  . /opt/modules/'${MODULEVERSION}'/Modules/'${MODULEVERSION}'/init/bash' /etc/bash.bashrc
@@ -76,9 +95,9 @@ if [ ! -d "${MODULESHOME}" ]; then
     if [ -e "${INSTALLDIR}/modules/${MODULEVERSION}/Modules/${MODULEVERSION}/init/.modulespath" ]; then
       if [ -e "${INSTALLDIR}/modules/${MODULEVERSION}/Modules/${MODULEVERSION}/init/bash" ]; then
         echo "Modules correctly installed. System restart required."
-      fi
       else
         echo "bash was not created correctly."
+      fi
     else
       echo ".modulespath was not created correctly."
     fi

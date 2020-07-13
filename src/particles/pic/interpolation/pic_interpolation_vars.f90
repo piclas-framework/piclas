@@ -26,21 +26,14 @@ SAVE
 REAL,ALLOCATABLE        :: FieldAtParticle(:,:)          !< 1st index: Ex,Ey,Ez,Bx,By,Bz
 !                                                        !< 2nd index: PIC%maxParticleNumber
 CHARACTER(LEN=256)      :: InterpolationType             !< Type of Interpolation-Method
-LOGICAL                 :: InterpolationElemLoop         !< Interpolate with outer iElem-loop (not for many Elems per proc!)
+LOGICAL                 :: InterpolationElemLoop         !< Interpolate with outer iElem-loop (not for many elements per processor!)
 REAL                    :: externalField(6)              !< ext field is added to the maxwell-solver-field
 LOGICAL                 :: DoInterpolation               !< Flag for interpolation
-LOGICAL                 :: useBGField                    !< Flag for BGField via h5-File
-INTEGER                 :: NBG                           !< Polynomial degree of BG-Field
-INTEGER                 :: BGType                        !< Type of BG-Field (Electric,Magnetic,Both)
-INTEGER                 :: BGDataSize                    !< Type of BG-Field (Electric,Magnetic,Both)
-REAL, ALLOCATABLE       :: BGField(:,:,:,:,:)            !< BGField data
-                                                         !< (1:x,0:NBG,0:NBG,0:NBG,1:PP_nElems)
-REAL,ALLOCATABLE        :: BGField_xGP(:)                !< Gauss point coordinates
-REAL,ALLOCATABLE        :: BGField_wGP(:)                !< GP integration weights
-REAL,ALLOCATABLE        :: BGField_wBary(:)              !< barycentric weights
+LOGICAL                 :: useBGField                    !< Flag for background field BGField via h5-File
+LOGICAL                 :: CalcBField                    !< Calculate the background field BGField from parameters defined in the 
+                                                         !< input file
 
-
-CHARACTER(LEN=256)      :: FileNameVariableExternalField !< filename containing the externanl field csv table
+CHARACTER(LEN=256)      :: FileNameVariableExternalField !< filename containing the external field csv table
 LOGICAL                 :: useVariableExternalField      !< use given external field. only for Bz variation in z
 REAL,ALLOCATABLE        :: VariableExternalField(:,:)    !< z - Pos , Bz
 REAL                    :: DeltaExternalField            !< equidistant z-spacing for the VariableExternalField (fast computation)
@@ -49,15 +42,19 @@ INTEGER                 :: nIntPoints                    !< number of all interp
 #ifdef CODE_ANALYZE
 LOGICAL                 :: DoInterpolationAnalytic       !< use analytic/algebraic functions for the field at the
 !                                                        !< particle position
+LOGICAL                 :: DoInitAnalyticalParticleState !< Calculate the initial velocity of the particle from an analytic expression
 
 INTEGER                 :: AnalyticInterpolationType     !< Type of the analytic interpolation method
-!                                                        !< 1: magnetostatic field: B = B_z = B_0 * EXP(x/l)
+!                                                        !< 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
+!                                                        !< 1: magnetostatic field: B = B_z = (/ 0 , 0 , B_0 * EXP(x/l) /) = const.
 !                                                        !<
 
 INTEGER                 :: AnalyticInterpolationSubType  !< Sub-Type for the analytic interpolation method (in combination with
 !                                                        !< AnalyticInterpolationType)
 
 REAL                    :: AnalyticInterpolationP        !< parameter "p" for AnalyticInterpolationType = 1
+
+REAL                    :: AnalyticInterpolationPhase    !< Phase shift angle phi that is used for cos(w*t + phi)
 
 REAL                    :: L_2_Error_Part(1:6)           !< L2 error for the particle state
 REAL                    :: L_2_Error_Part_time           !< old time for calculating the time step (when it is variable)

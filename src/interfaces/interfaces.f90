@@ -174,7 +174,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitInterfaces
 
 
-SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DoRadius,Radius,DisplayInfo,GeometryName)
+SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DoRadius,Radius,DisplayInfo,GeometryName,GeometryAxis)
 !===================================================================================================================================
 !> Determine whether an element resides within or outside of a special region (e.g. PML or dielectric region)
 !> Additionally, a radius can be supplied for determining if an element belongs to a special region or not
@@ -184,11 +184,12 @@ SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DoRadius,Radius,Dis
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,              ONLY:abort,UNIT_stdOut
+USE MOD_Globals         ,ONLY: abort,UNIT_stdOut
 #if USE_MPI
-USE MOD_Globals,              ONLY:mpiroot
+USE MOD_Globals         ,ONLY: mpiroot
 #endif /*USE_MPI*/
-USE MOD_Mesh_Vars,            ONLY:Elem_xGP
+USE MOD_Mesh_Vars       ,ONLY: Elem_xGP
+USE MOD_Dielectric_Vars ,ONLY: DielectricRadiusValueB
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -199,12 +200,13 @@ LOGICAL,INTENT(IN)                     :: DoRadius        ! Check if DOF is insi
 REAL,INTENT(IN)                        :: Radius          ! Check if DOF is inside/outside of radius
 LOGICAL,INTENT(IN),OPTIONAL            :: DisplayInfo     ! Output to stdOut with region size info
 CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: GeometryName    ! Name of special geometry with user-defined coordinates
+INTEGER,INTENT(IN),OPTIONAL            :: GeometryAxis    ! Spatial direction for circle/cylinder definition
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,ALLOCATABLE,INTENT(INOUT):: isElem(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iElem,i,j,k,m
+INTEGER             :: iElem,i,j,k,m, dim_1, dim_2
 REAL                :: r
 REAL                :: rInterpolated
 !===================================================================================================================================
@@ -244,9 +246,9 @@ DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 END DO; END DO; END DO; END DO !iElem,k,j,i
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
-! 2.) Additionally check radius (e.g. half sphere regions)
+! 2.) Additionally check a radius (e.g. half sphere regions)
 ! ----------------------------------------------------------------------------------------------------------------------------------
-! if option 'DoRadius' is applied, elements are double checked if they are within a certain radius
+! if option 'DoRadius' is applied, elements are double-checked if they are within a certain radius
 IF(DoRadius.AND.Radius.GT.0.0)THEN
   DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     r = SQRT(Elem_xGP(1,i,j,k,iElem)**2+&
@@ -269,20 +271,20 @@ IF(PRESENT(GeometryName))THEN
   ! Set the geometrical coordinates (e.g. Axial symmetric with r(x) dependency)
   CALL SetGeometry(GeometryName)
 
-  ! inquire if DOFs/Elems are within/outside of a region
+  ! Inquire if DOFs/Elems are within/outside of a region
   SELECT CASE(TRIM(GeometryName))
   CASE('FH_lens')
-    ! loop every element and compare the DOF position
+    ! Loop every element and compare the DOF position
     DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       ! x-axis symmetric geometry: get interpolated radius of lens geometry -> r_interpolated(x)
       CALL InterpolateGeometry(Elem_xGP(1,i,j,k,iElem),dim_x=1,dim_y=2,x_OUT=rInterpolated) ! Scale radius
 
-      ! calculate 2D radius for y-z-plane for comparison with interpolated lens radius
+      ! Calculate 2D radius for y-z-plane for comparison with interpolated lens radius
       r = SQRT(&
           Elem_xGP(2,i,j,k,iElem)**2+&
           Elem_xGP(3,i,j,k,iElem)**2  )
 
-      ! check if r is larger than the interpolated radius of the geometry .AND.
+      ! Check if r is larger than the interpolated radius of the geometry .AND.
       ! if r is not almost equal to the radius invert the "isElem" logical value
       IF(r.GT.rInterpolated.AND.(.NOT.ALMOSTEQUALRELATIVE(r,rInterpolated,1e-3)))THEN
         IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.) and invert them
@@ -291,21 +293,59 @@ IF(PRESENT(GeometryName))THEN
       END IF
     END DO; END DO; END DO; END DO !iElem,k,j,i
   CASE('FishEyeLens')
-    ! Nothing to do, because the geometry is set by using the spheres radius in 2.)
-  CASE('DielectricResonatorAntenna') ! radius only in x-y (not z)
+    ! Nothing to do, because the geometry is set by using the sphere's radius in step 2.)
+  CASE('DielectricResonatorAntenna') ! Radius is checked, but only in x-y (not z)
     DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      r = SQRT(Elem_xGP(1,i,j,k,iElem)**2+&
-          Elem_xGP(2,i,j,k,iElem)**2  )
-      !only perform check for elements in z = Elem_xGP(3) > 0
-      IF(Elem_xGP(3,i,j,k,iElem).GT.0.0)THEN
-        ! check if r is larger than the supplied value .AND.
-        ! if r is not almost equal to the radius
+      IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.) and invert them
+
+        ! Calculate 2D radius for x-y-plane
+        r = SQRT(Elem_xGP(1,i,j,k,iElem)**2 + Elem_xGP(2,i,j,k,iElem)**2)
+        
+        ! Only perform check for elements in z = Elem_xGP(3) > 0
+        IF(Elem_xGP(3,i,j,k,iElem).GT.0.0)THEN
+          ! Check if r is larger than the supplied value .AND. if r is not almost equal to the radius
+          IF(r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
+              isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
+          END IF ! r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3))
+        END IF ! Elem_xGP(3,i,j,k,iElem).GT.0.0
+      END IF ! isElem(iElem).EQV.ElementIsInside
+    END DO; END DO; END DO; END DO !iElem,k,j,i
+  CASE('Circle') ! Radius is checked
+    SELECT CASE(GeometryAxis)
+      CASE(1) ! x-axis
+        dim_1 = 2
+        dim_2 = 3
+      CASE(2) ! y-axis
+        dim_1 = 1
+        dim_2 = 3
+      CASE(3) ! z-axis
+        dim_1 = 1
+        dim_2 = 2
+      CASE DEFAULT
+        SWRITE(UNIT_stdOut,'(A)') ' '
+        CALL abort(&
+            __STAMP__,&
+            'Error in CALL FindElementInRegion(GeometryName): GeometryAxis is wrong!')
+    END SELECT
+    DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+      IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.)
+
+        ! Calculate 2D radius for x-y-plane
+        r = SQRT(Elem_xGP(dim_1,i,j,k,iElem)**2 + Elem_xGP(dim_2,i,j,k,iElem)**2)
+
+        ! Check if r is larger than the supplied value .AND. if r is not almost equal to the radius
         IF(r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
-          IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.) and invert them
-            isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
-          END IF
+          isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
         END IF
-      END IF
+
+        ! For dielectric regions, check (optional) 2nd radius and exclude regions within the radius
+        ! Check if r is smaller than the radius DielectricRadiusValueB .AND. if r is not almost equal to the radius DielectricRadiusValueB
+        IF(DielectricRadiusValueB.GT.0.0)THEN
+          IF(r.LT.DielectricRadiusValueB.AND.(.NOT.ALMOSTEQUALRELATIVE(r,DielectricRadiusValueB,1e-3)))THEN
+            isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
+          END IF ! r.LT.DielectricRadiusValueB
+        END IF ! DielectricRadiusValueB.GT.0.0
+      END IF ! isElem(iElem).EQV.ElementIsInside
     END DO; END DO; END DO; END DO !iElem,k,j,i
   CASE('default')
     ! Nothing to do, because the geometry is set by using the box coordinates
@@ -593,7 +633,7 @@ SUBROUTINE Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides)
 !> array)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Preproc,     ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,nSides
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
@@ -1116,8 +1156,10 @@ CASE('FH_lens')
 
 CASE('FishEyeLens')
   ! Nothing to do, because the geometry is set by using the spheres radius in 2.)
-CASE('DielectricResonatorAntenna') ! radius only in x-y (not z)
-  ! nothing to set, because rotationally symmetry (defined by a radius in x-y)
+CASE('DielectricResonatorAntenna') ! Radius only in x-y (not z)
+  ! nothing to set, because rotationally symmetric, as defined by a radius in x-y
+CASE('Circle') ! Radius only in x-y (not z)
+  ! nothing to set, because rotationally symmetric, as defined by one or two radii in x-y: DielectricRadiusValue and DielectricRadiusValueB (optional)
 CASE('default')
   ! Nothing to do, because the geometry is set by using the box coordinates
 CASE DEFAULT

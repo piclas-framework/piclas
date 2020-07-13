@@ -67,8 +67,6 @@ IMPLICIT NONE
 CALL prms%SetSection("Analyze")
 CALL prms%CreateLogicalOption('DoCalcErrorNorms'     , 'Set true to compute L2 and LInf error norms at analyze step.','.FALSE.')
 CALL prms%CreateRealOption(   'Analyze_dt'           , 'Specifies time intervall at which analysis routines are called.','0.')
-CALL prms%CreateIntOption(    'NAnalyze'             , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\n'//&
-                                                       'Default: 2*N.')
 CALL prms%CreateRealOption(   'OutputTimeFixed'      , 'fixed time for writing state to .h5','-1.0')
 CALL prms%CreateIntOption(    'nSkipAnalyze'         , '(Skip Analyze-Dt)','1')
 CALL prms%CreateLogicalOption('CalcTimeAverage'      , 'Flag if time averaging should be performed','.FALSE.')
@@ -86,13 +84,11 @@ CALL prms%CreateIntOption(    'nSkipAvg'             , 'Iter every which CalcTim
                                                  !"Default: Same as IniExactFunc")
 !CALL prms%CreateIntOption(    'AnalyzeRefState' ,"Define state used for analyze (e.g. for computing L2 errors). "//&
                                                  !"Default: Same as IniRefState")
-!CALL prms%CreateLogicalOption('doMeasureFlops',  "Set true to measure flop count, if compiled with PAPI.",&
-                                                 !'.TRUE.')
 !CALL DefineParametersAnalyzeEquation()
 #ifdef CODE_ANALYZE
 CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput' , 'print code analyze info to CodeAnalyze.csv','.TRUE.')
 #endif /* CODE_ANALYZE */
-CALL prms%CreateIntOption(      'Field-AnalyzeStep'   , 'Analyze is performed each Nth time step','1')
+CALL prms%CreateIntOption(      'Field-AnalyzeStep'   , 'Analyze is performed each Nth time step. Set to 0 to completely skip.','1')
 CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'Calculate Potential Energy. Output file is Database.csv','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPointsPerWavelength', 'Flag to compute the points per wavelength in each cell','.FALSE.')
 
@@ -119,8 +115,8 @@ SUBROUTINE InitAnalyze()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary,InterpolationInitIsDone
-USE MOD_Analyze_Vars          ,ONLY: Nanalyze,AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
+USE MOD_Interpolation_Vars    ,ONLY: InterpolationInitIsDone
+USE MOD_Analyze_Vars          ,ONLY: AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
 USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed,FieldAnalyzeStep
 USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL
@@ -151,7 +147,7 @@ REAL                :: PPWCellMax,PPWCellMin
 IF ((.NOT.InterpolationInitIsDone).OR.AnalyzeInitIsDone) THEN
   CALL abort(&
       __STAMP__&
-      ,'InitAnalyse not ready to be called or already called.',999,999.)
+      ,'InitAnalyse not ready to be called or already called.')
   RETURN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -159,11 +155,6 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT ANALYZE...'
 
 ! Get logical for calculating the error norms L2 and LInf
 DoCalcErrorNorms = GETLOGICAL('DoCalcErrorNorms')
-
-! Set the default analyze polynomial degree NAnalyze to 2*(N+1)
-WRITE(DefStr,'(i4)') 2*(PP_N+1)
-NAnalyze = GETINT('NAnalyze',DefStr)
-CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
 
 ! Get the time step for performing analyzes and integer for skipping certain steps
 WRITE(DefStr,WRITEFORMAT) TEnd
@@ -173,9 +164,12 @@ OutputTimeFixed   = GETREAL('OutputTimeFixed')
 doCalcTimeAverage = GETLOGICAL('CalcTimeAverage')
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
 
-FieldAnalyzeStep  = GETINT('Field-AnalyzeStep','1')
-IF (FieldAnalyzeStep.EQ.0) FieldAnalyzeStep = HUGE(FieldAnalyzeStep)
+FieldAnalyzeStep  = GETINT('Field-AnalyzeStep')
 DoFieldAnalyze    = .FALSE.
+#if (USE_HDG)
+IF (FieldAnalyzeStep.GT.0) DoFieldAnalyze = .TRUE.
+#endif /*USE_HDG*/
+IF (FieldAnalyzeStep.EQ.0) FieldAnalyzeStep = HUGE(FieldAnalyzeStep)
 CalcEpot          = GETLOGICAL('CalcPotentialEnergy')
 IF(CalcEpot)        DoFieldAnalyze = .TRUE.
 IF(CalcPoyntingInt) DoFieldAnalyze = .TRUE.
@@ -233,31 +227,6 @@ END IF
 END SUBROUTINE InitAnalyze
 
 
-SUBROUTINE InitAnalyzeBasis(N_in,Nanalyze_in,xGP,wBary)
-!===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
-!===================================================================================================================================
-! MODULES
-USE MOD_Analyze_Vars, ONLY:wAnalyze,Vdm_GaussN_NAnalyze
-USE MOD_Basis,        ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)                         :: N_in,Nanalyze_in
-REAL,INTENT(IN),DIMENSION(0:N_in)          :: xGP,wBary
-!----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL ,DIMENSION(0:Nanalyze_in) :: XiAnalyze
-!===================================================================================================================================
-  ALLOCATE(wAnalyze(0:NAnalyze_in),Vdm_GaussN_NAnalyze(0:NAnalyze_in,0:N_in))
-  CALL LegGaussLobNodesAndWeights(NAnalyze_in,XiAnalyze,wAnalyze)
-  CALL InitializeVandermonde(N_in,NAnalyze_in,wBary,xGP,XiAnalyze,Vdm_GaussN_NAnalyze)
-END SUBROUTINE InitAnalyzeBasis
-
-
 #if USE_HDG
 SUBROUTINE CalcError(L_2_Error,L_Inf_Error)
 #else
@@ -271,7 +240,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: Elem_xGP,sJ
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
-USE MOD_Analyze_Vars       ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
 USE MOD_DG_Vars            ,ONLY: U
 USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
@@ -351,7 +320,7 @@ SUBROUTINE CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: sJ
-USE MOD_Analyze_Vars       ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
 USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
@@ -425,11 +394,11 @@ SUBROUTINE CalcErrorStateFiles(nVar,N1,N2,U1,U2)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars     ,ONLY: sJ
-USE MOD_Analyze_Vars  ,ONLY: NAnalyze,wAnalyze
-USE MOD_Mesh_Vars     ,ONLY: nElems
-USE MOD_ChangeBasis   ,ONLY: ChangeBasis3D
-USE MOD_Basis         ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
+USE MOD_Mesh_Vars          ,ONLY: sJ
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,wAnalyze
+USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
 ! IMPLICIT VARIABLE HANDLING
 INTEGER,INTENT(IN)           :: nVar
 INTEGER,INTENT(IN)           :: N1
@@ -455,7 +424,7 @@ REAL                          :: Volume2
 #endif
 CHARACTER(LEN=40)             :: formatStr
 REAL                          :: xGP1(0:N1),xGP2(0:N2),wGP1(0:N1),wGP2(0:N2),wBary1(0:N1),wBary2(0:N2)
-REAL ,DIMENSION(0:Nanalyze)   :: XiAnalyze
+REAL ,DIMENSION(0:NAnalyze)   :: XiAnalyze
 !===================================================================================================================================
 L_Inf_Error(:)=-1.E10
 L_2_Error(:)=0.
@@ -537,12 +506,12 @@ SUBROUTINE CalcErrorStateFileSigma(nVar,N1,U1)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars     ,ONLY: sJ
-USE MOD_Analyze_Vars  ,ONLY: NAnalyze,wAnalyze
-USE MOD_Equation      ,ONLY: ExactFunc
-USE MOD_Mesh_Vars     ,ONLY: nElems
-USE MOD_ChangeBasis   ,ONLY: ChangeBasis3D
-USE MOD_Basis         ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
+USE MOD_Mesh_Vars          ,ONLY: sJ
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,wAnalyze
+USE MOD_Equation           ,ONLY: ExactFunc
+USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -555,7 +524,7 @@ REAL,INTENT(IN)              :: U1(1:nVar,0:N1,0:N1,0:N1,nElems)
 REAL                          :: L_2_Error(nVar)   !< L2 error of the solution
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze1(:,:)    ! for interpolation to Analyze points
+REAL,ALLOCATABLE              :: Vdm_GaussN_NAnalyze1(:,:)    ! for interpolation to Analyze points
 INTEGER                       :: iElem,k,l,m
 REAL                          :: L_Inf_Error(nVar),L_2_Error2(nVar),L_Inf_Error2(nVar)
 REAL                          :: U1_NAnalyze(1:nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
@@ -567,7 +536,7 @@ REAL                          :: Volume2
 #endif
 CHARACTER(LEN=40)             :: formatStr
 REAL                          :: xGP1(0:N1),wGP1(0:N1),wBary1(0:N1)
-REAL ,DIMENSION(0:Nanalyze)   :: XiAnalyze
+REAL ,DIMENSION(0:NAnalyze)   :: XiAnalyze
 !===================================================================================================================================
 L_Inf_Error(:)=-1.E10
 L_2_Error(:)=0.
@@ -729,7 +698,7 @@ SUBROUTINE FinalizeAnalyze()
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Analyze_Vars,     ONLY: Vdm_GaussN_NAnalyze,wAnalyze,CalcPoyntingInt,PPWCell,AnalyzeInitIsDone
+USE MOD_Analyze_Vars,     ONLY: CalcPoyntingInt,PPWCell,AnalyzeInitIsDone
 USE MOD_AnalyzeField,     ONLY: FinalizePoyntingInt
 USE MOD_TimeAverage_Vars, ONLY: doCalcTimeAverage
 USE MOD_TimeAverage,      ONLY: FinalizeTimeAverage
@@ -740,8 +709,6 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SDEALLOCATE(Vdm_GaussN_NAnalyze)
-SDEALLOCATE(wAnalyze)
 IF(CalcPoyntingInt) CALL FinalizePoyntingInt()
 IF(doCalcTimeAverage) CALL FinalizeTimeAverage
 SDEALLOCATE(PPWCell)
@@ -1254,7 +1221,7 @@ IF(DoPerformErrorCalc)THEN
   IF(.NOT.DoMeasureAnalyzeTime) StartAnalyzeTime=PICLASTIME()
   IF(MPIroot) THEN
     ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
-    WRITE(UNIT_StdOut,'(A17,ES16.7)')        ' Sim time      : ',OutputTime
+    WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',OutputTime
     IF(DoMeasureAnalyzeTime)THEN
       WRITE(UNIT_StdOut,'(A17,ES16.7,A9,I11,A)')' Analyze time  : ',AnalyzeTime, ' (called ',AnalyzeCount,' times)'
       AnalyzeCount = 0

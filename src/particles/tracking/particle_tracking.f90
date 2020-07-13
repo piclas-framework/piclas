@@ -90,7 +90,9 @@ USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Mesh               ,ONLY: SingleParticleToExactElement
 USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars          ,ONLY: PartElemToSide, PartSideToElem, PartSideToElem, PartElemToElemAndSide
-USE MOD_Particle_Tracking_vars      ,ONLY: ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts, TrackInfo
+USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbrOfLostParts, NbrOfLostParticles, TrackInfo
+USE MOD_Particle_Tracking_vars      ,ONLY: DisplayLostParticles
+USE MOD_Part_Tools                  ,ONLY: StoreLostParticleProperties
 USE MOD_Mesh_Vars                   ,ONLY: MortarType
 USE MOD_Mesh_Vars                   ,ONLY: BC
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound
@@ -250,13 +252,18 @@ DO i = 1,PDM%ParticleVecLength
           ! the determinants
           IF (NrOfThroughSides.EQ.0) THEN
             ! Particle appears to have not crossed any of the checked sides. Deleted!
-            IPWRITE(*,*) 'Error in Particle TriaTracking! Particle Number',i,'lost. Element:', ElemID,'(species:',PartSpecies(i),')'
-            IPWRITE(*,*) 'LastPos: ', LastPartPos(1:3,i)
-            IPWRITE(*,*) 'Pos:     ', PartState(1:3,i)
-            IPWRITE(*,*) 'Velo:    ', PartState(4:6,i)
-            IPWRITE(*,*) 'Particle deleted!'
+            IF(DisplayLostParticles)THEN
+              IPWRITE(*,*) 'Error in Particle TriaTracking! Particle Number',i,'lost. Element:', ElemID,'(species:',PartSpecies(i),')'
+              IPWRITE(*,*) 'LastPos: ', LastPartPos(1:3,i)
+              IPWRITE(*,*) 'Pos:     ', PartState(1:3,i)
+              IPWRITE(*,*) 'Velo:    ', PartState(4:6,i)
+              IPWRITE(*,*) 'Particle deleted!'
+            END IF ! DisplayLostParticles
             PDM%ParticleInside(i) = .FALSE.
-            IF(CountNbOfLostParts) nLostParts=nLostParts+1
+            IF(CountNbrOfLostParts) THEN
+              CALL StoreLostParticleProperties(i, ElemID)
+              NbrOfLostParticles=NbrOfLostParticles+1
+            END IF
             PartisDone = .TRUE.
             EXIT
           ELSE IF (NrOfThroughSides.GT.1) THEN
@@ -344,13 +351,18 @@ DO i = 1,PDM%ParticleVecLength
             END DO  ! ind2 = 1, NrOfThroughSides
             ! Particle that went through multiple sides first, but did not cross any sides during the second check -> Deleted!
             IF (SecondNrOfThroughSides.EQ.0) THEN
-              IPWRITE(*,*) 'Error in Particle TriaTracking! Particle Number',i,'lost. Element:', ElemID,'(species:',PartSpecies(i),')'
-              IPWRITE(*,*) 'LastPos: ', LastPartPos(1:3,i)
-              IPWRITE(*,*) 'Pos:     ', PartState(1:3,i)
-              IPWRITE(*,*) 'Velo:    ', PartState(4:6,i)
-              IPWRITE(*,*) 'Particle deleted!'
+              IF(DisplayLostParticles)THEN
+                IPWRITE(*,*) 'Error in Particle TriaTracking! Particle Number',i,'lost. Element:', ElemID,'(species:',PartSpecies(i),')'
+                IPWRITE(*,*) 'LastPos: ', LastPartPos(1:3,i)
+                IPWRITE(*,*) 'Pos:     ', PartState(1:3,i)
+                IPWRITE(*,*) 'Velo:    ', PartState(4:6,i)
+                IPWRITE(*,*) 'Particle deleted!'
+              END IF ! DisplayLostParticles
               PDM%ParticleInside(i) = .FALSE.
-              IF(CountNbOfLostParts) nLostParts=nLostParts+1
+              IF(CountNbrOfLostParts) THEN
+                CALL StoreLostParticleProperties(i, ElemID)
+                NbrOfLostParticles=NbrOfLostParticles+1
+              END IF
               PartisDone = .TRUE.
               EXIT
             END IF
@@ -465,7 +477,8 @@ USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
 USE MOD_Particle_Mesh_Vars          ,ONLY: PartElemToSide,ElemRadiusNGeo,ElemHasAuxBCs,ElemToGlobalElemID!,ElemType
 USE MOD_Particle_Boundary_Vars      ,ONLY: nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteractionAuxBC
-USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbOfLostParts , nLostParts
+USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbrOfLostParts , NbrOfLostParticles, DisplayLostParticles
+USE MOD_Part_Tools                  ,ONLY: StoreLostParticleProperties
 USE MOD_Particle_Mesh               ,ONLY: SingleParticleToExactElementNoMap,PartInElemCheck
 USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarRectInterSection
@@ -769,14 +782,19 @@ __STAMP__ &
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
 #endif /*CODE_ANALYZE*/
           IF(isCriticalParallelInFace)THEN
-            IPWRITE(UNIT_stdOut,'(I0,A)') ' Warning: Particle located inside of face and moves parallel to side. Undefined position. '
-            IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
+            IF(DisplayLostParticles)THEN
+              IPWRITE(UNIT_stdOut,'(I0,A)') ' Warning: Particle located inside of face and moves parallel to side. Undefined position. '
+              IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
+            END IF ! DisplayLostParticles
             PartIsDone=.TRUE.
             PDM%ParticleInside(iPart)=.FALSE.
 #ifdef IMPA
             DoParticle=.FALSE.
 #endif /*IMPA*/
-            IF(CountNbOfLostParts) nLostParts=nLostParts+1
+            IF(CountNbrOfLostParts) THEN
+              CALL StoreLostParticleProperties(iPart, ElemID)
+              NbrOfLostParticles=NbrOfLostParticles+1
+            END IF
             EXIT
           END IF
           IF(foundHit) THEN
@@ -814,14 +832,19 @@ __STAMP__ &
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
 #endif /*CODE_ANALYZE*/
             IF(isCriticalParallelInFace)THEN
-              IPWRITE(UNIT_stdOut,'(I0,A)') ' Warning: Particle located inside of BC and moves parallel to side. Undefined position. '
-              IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
+              IF(DisplayLostParticles)THEN
+                IPWRITE(UNIT_stdOut,'(I0,A)') ' Warning: Particle located inside of BC and moves parallel to side. Undefined position. '
+                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
+              END IF ! DisplayLostParticles
               PartIsDone=.TRUE.
               PDM%ParticleInside(iPart)=.FALSE.
 #ifdef IMPA
               DoParticle=.FALSE.
 #endif /*IMPA*/
-              IF(CountNbOfLostParts) nLostParts=nLostParts+1
+              IF(CountNbrOfLostParts) THEN
+                CALL StoreLostParticleProperties(iPart, ElemID)
+                NbrOfLostParticles=NbrOfLostParticles+1
+              END IF
               EXIT
             END IF
             IF(foundHit) THEN
@@ -1077,28 +1100,32 @@ __STAMP__ &
       END IF
       PartIsDone=.TRUE.
       IF(.NOT.PDM%ParticleInside(iPart))THEN
-        !WRITE(UNIT_stdOut,'(20(=))')
-        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Tolerance issue during tracing! Unable to locate particle inside computational domain'
-        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Maybe particle intersected two or three sides exactly at connection (corner, edge)'
-        IPWRITE(UNIT_stdOut,'(I0,A)') '     | of which at least one was a boundary.'
-        IPWRITE(UNIT_stdOut,'(I0,2(A,I0))') '     | Proc: ',MyRank,' lost particle with ID: ', iPart
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartPos: ',LastPartPos(1:3,ipart)
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartPos: ',PartState(1:3,ipart)
-        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Computing reference positions of particle path in latest Element ... '
-        IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | ElemID       ', ElemToGlobalElemID(PEM%Element(iPart))
-        CALL GetPositionInRefElem(LastPartPos(1:3,iPart),refpos(1:3),PEM%Element(ipart))
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartRefPos: ',refpos
-        CALL GetPositionInRefElem(PartState(1:3,iPart),refpos(1:3),PEM%Element(ipart))
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartRefPos: ',refpos
-        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Computing reference positions of particle path in last Element ... '
-        IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | Last-ElemID  ', ElemToGlobalElemID(PEM%LastElement(iPart))
-        CALL GetPositionInRefElem(LastPartPos(1:3,iPart),refpos(1:3),PEM%lastElement(ipart))
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartRefPos: ',refpos
-        CALL GetPositionInRefElem(PartState(1:3,iPart),refpos(1:3),PEM%lastElement(ipart))
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartRefPos: ',refpos
-        !WRITE(UNIT_stdOut,'(20(=))')
-        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Particle is removed from computation! '
-        IF(CountNbOfLostParts) nLostParts=nLostParts+1
+        IF(DisplayLostParticles)THEN
+          IPWRITE(UNIT_stdOut,'(I0,A)') '     | Tolerance issue during tracing! Unable to locate particle inside computational domain'
+          IPWRITE(UNIT_stdOut,'(I0,A)') '     | Maybe particle intersected two or three sides exactly at connection (corner, edge)'
+          IPWRITE(UNIT_stdOut,'(I0,A)') '     | of which at least one was a boundary.'
+          IPWRITE(UNIT_stdOut,'(I0,2(A,I0))') '     | Proc: ',MyRank,' lost particle with ID: ', iPart
+          IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartPos: ',LastPartPos(1:3,ipart)
+          IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartPos: ',PartState(1:3,ipart)
+          IPWRITE(UNIT_stdOut,'(I0,A)') '     | Computing reference positions of particle path in latest Element ... '
+          IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | ElemID       ', ElemToGlobalElemID(PEM%Element(iPart))
+          CALL GetPositionInRefElem(LastPartPos(1:3,iPart),refpos(1:3),PEM%Element(ipart))
+          IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartRefPos: ',refpos
+          CALL GetPositionInRefElem(PartState(1:3,iPart),refpos(1:3),PEM%Element(ipart))
+          IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartRefPos: ',refpos
+          IPWRITE(UNIT_stdOut,'(I0,A)') '     | Computing reference positions of particle path in last Element ... '
+          IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | Last-ElemID  ', ElemToGlobalElemID(PEM%LastElement(iPart))
+          CALL GetPositionInRefElem(LastPartPos(1:3,iPart),refpos(1:3),PEM%lastElement(ipart))
+          IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartRefPos: ',refpos
+          CALL GetPositionInRefElem(PartState(1:3,iPart),refpos(1:3),PEM%lastElement(ipart))
+          IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartRefPos: ',refpos
+          !WRITE(UNIT_stdOut,'(20(=))')
+          IPWRITE(UNIT_stdOut,'(I0,A)') '     | Particle is removed from computation! '
+        END IF ! DisplayLostParticles
+        IF(CountNbrOfLostParts) THEN
+          CALL StoreLostParticleProperties(iPart, ElemID)
+          NbrOfLostParticles=NbrOfLostParticles+1
+        END IF
       END IF
     END IF ! markTol
 #if USE_LOADBALANCE

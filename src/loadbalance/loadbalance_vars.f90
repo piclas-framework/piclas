@@ -23,13 +23,13 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                             :: DoLoadBalance               ! DoLoadBalance
-LOGICAL                             :: PerformLoadBalance=.FALSE.  ! Flag if loadbalance is performed in current iter
-INTEGER                             :: LoadBalanceSample           ! Number of samples for loadbalance
+LOGICAL                             :: PerformLoadBalance=.FALSE.  ! Flag if load balance is performed in current time step iteration
+INTEGER                             :: LoadBalanceSample           ! Number of samples for load balance
 LOGICAL                             :: PerformLBSample             ! Flag for enabling time measurement in current
-                                                                   ! timestep (automatically set depending on LB
+                                                                   ! Time step (automatically set depending on LB
                                                                    ! sampling method)
 LOGICAL                             :: PerformPartWeightLB         ! Flag for performing LB with partMPIWeight
-                                                                   ! instead of summed Elemtimes
+                                                                   ! instead of summed ElemTimes
                                                                    ! -> nParts*PartWeight written into elemtime array
 LOGICAL                             :: InitLoadBalanceIsDone       ! Switch for checking
 
@@ -71,10 +71,15 @@ REAL                                :: targetWeight                ! optimal wei
 ! Element Local measurement
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE                    :: ElemTime(:)
-REAL,ALLOCATABLE                    :: ElemTime_tmp(:) ! Additional container for restarting and keeping the old ElemTime values in
-                                                       ! the state.h5 file
-INTEGER,ALLOCATABLE                 :: ElemHDGSides(:) ! number of master sides for the HDG solver for each element
-INTEGER                             :: TotalHDGSides   ! total number of master sides for the HDG solver over all local elements
+LOGICAL                             :: NullifyElemTime
+REAL,ALLOCATABLE                    :: ElemTime_tmp(:)  ! Additional container for restarting and keeping the old ElemTime values in
+                                                        ! the state.h5 file
+REAL                                :: ElemTimePartTot  ! Total time spent for particle routines (all procs)
+REAL                                :: ElemTimeFieldTot ! Total time spent for field routines (all procs)
+REAL                                :: ElemTimePart     ! Time spent for particle routines
+REAL                                :: ElemTimeField    ! Time spent for field routines
+INTEGER,ALLOCATABLE                 :: ElemHDGSides(:)  ! number of master sides for the HDG solver for each element
+INTEGER                             :: TotalHDGSides    ! total number of master sides for the HDG solver over all local elements
 REAL,ALLOCATABLE                    :: ElemGlobalTime(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nPartsPerElem(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nDeposPerElem(:)

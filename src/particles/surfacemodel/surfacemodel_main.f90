@@ -285,12 +285,12 @@ SUBROUTINE ReactiveSurfaceTreatment(PartTrajectory,LengthPartTrajectory,alpha,xi
 USE MOD_Globals                 ,ONLY: CROSSNORM,UNITVECTOR,OrthoNormVec
 USE MOD_Globals_Vars            ,ONLY: PI
 USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
-USE MOD_Part_Tools              ,ONLY: VeloFromDistribution, CreateParticle
+USE MOD_Part_Tools              ,ONLY: VeloFromDistribution
+USE MOD_part_operations         ,ONLY: CreateParticle, RemoveParticle
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues
 USE MOD_Particle_Vars           ,ONLY: PartState,Species,PartSpecies
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars           ,ONLY: LastPartPos, PEM
-USE MOD_Particle_Analyze        ,ONLY: RemoveParticle
 USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: DSMC
 USE MOD_Particle_Boundary_Tools ,ONLY: SurfaceToPartEnergyInternal, CalcWallSample, AnalyzeSurfaceCollisions
@@ -469,9 +469,10 @@ CASE (4)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! TODO
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE (5,6) ! Copied from CASE(1) and adjusted for secondary e- emission (SEE)
-           ! 5: SEE by Levko2015
-           ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
+CASE (5,6,7) ! Copied from CASE(1) and adjusted for secondary e- emission (SEE)
+             ! 5: SEE by Levko2015
+             ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
+             ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Get electron emission probability
   CALL SecondaryElectronEmission(PartBound%SurfaceModel(locBCID),PartID,locBCID,Adsorption_prob,ReflectionIndex,ProductSpec,&
@@ -516,10 +517,13 @@ CASE(1,2) ! (particle is treated in boundary condition)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) ! reactive interaction case
 !-----------------------------------------------------------------------------------------------------------------------------------
+  ! Old particle
   IF (ProductSpec(1).LT.0) THEN
     SurfModel%SumAdsorbPart(p,q,SurfSideID,ABS(ProductSpec(1))) = SurfModel%SumAdsorbPart(p,q,SurfSideID,ABS(ProductSpec(1))) + 1
     SurfModel%Info(SpecID)%NumOfAds = SurfModel%Info(SpecID)%NumOfAds + 1
   END IF
+
+  ! New particle
   IF (ProductSpec(2).NE.0) THEN
     SurfModel%SumAdsorbPart(p,q,SurfSideID,ABS(ProductSpec(2))) = SurfModel%SumAdsorbPart(p,q,SurfSideID,ABS(ProductSpec(2))) &
                                                                 - SIGN(1,ProductSpec(2))

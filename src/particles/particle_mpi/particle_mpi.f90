@@ -1847,11 +1847,14 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 ::iElem
-INTEGER                 ::iProc,ALLOCSTAT,iMPINeighbor
-LOGICAL                 ::TmpNeigh
-INTEGER,ALLOCATABLE     ::SideIndex(:),ElemIndex(:)
+REAL                    :: StartT,EndT
+INTEGER                 :: iElem
+INTEGER                 :: iProc,ALLOCSTAT,iMPINeighbor
+LOGICAL                 :: TmpNeigh
+INTEGER,ALLOCATABLE     :: SideIndex(:),ElemIndex(:)
 !===================================================================================================================================
+StartT=PICLASTIME()
+SWRITE(UNIT_stdOut,'(A)')' InitHaloMesh ...'
 
 ALLOCATE(SideIndex(1:nPartSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
@@ -1941,6 +1944,10 @@ IF(PartMPI%nMPINeighbors.GT.0)THEN
   IF(MAXVAL(PartHaloElemToProc(NATIVE_PROC_ID,:)).GT.PartMPI%nProcs-1) IPWRITE(UNIT_stdOut,*) ' native proc id too high.'
 END IF
 
+EndT=PICLASTIME()
+IF(PartMPI%MPIROOT)THEN
+   WRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' InitHaloMesh took [',EndT-StartT,'s]'
+END IF
 END SUBROUTINE InitHaloMesh
 
 
@@ -2310,6 +2317,7 @@ DO iSpec=1,nSpecies
        RegionOnProc=BoxInProc(xCoords,8)
     CASE ('IMD')
        RegionOnProc=.TRUE.
+    CASE ('background')
     CASE DEFAULT
       IPWRITE(*,*) 'ERROR: Species ', iSpec, 'of', iInit, 'is using an unknown SpaceIC!'
       CALL abort(&

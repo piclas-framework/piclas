@@ -313,12 +313,15 @@ SUBROUTINE print(this, maxNameLen, maxValueLen, mode)
 ! MODULES
 USE MOD_StringTools
 USE MOD_ISO_VARYING_STRING
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 CLASS(OPTION),INTENT(IN)    :: this         !< option to print
 INTEGER,INTENT(IN)          :: maxNameLen   !< max string length of name
-INTEGER,INTENT(IN)          :: maxValueLen  !< max string length of name
+INTEGER,INTENT(IN)          :: maxValueLen  !< max string length of value
 INTEGER,INTENT(IN)          :: mode         !< 0: during readin, 1: default parameter file, 2: markdown
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -326,7 +329,13 @@ CHARACTER(LEN=20)    :: fmtName
 CHARACTER(LEN=20)    :: fmtValue
 TYPE(VARYING_STRING) :: comment,headNewline,headSpace
 INTEGER              :: length
+INTEGER              :: commentLen
 !==================================================================================================================================
+#if USE_LOADBALANCE
+IF(PerformLoadBalance) RETURN
+#endif /*USE_LOADBALANCE*/
+IF(mode.EQ.1) commentLen=80 !--help
+IF(mode.EQ.2) commentLen=50 !--markdown
 WRITE(fmtName,*) maxNameLen
 WRITE(fmtValue,*) maxValueLen
 ! print name
@@ -394,7 +403,7 @@ ELSE
       !   - headSpace contains part before space or ==headNewline, if there is no space character in the headNewline anymore
       CALL SPLIT(headNewline, headSpace, " ")
       ! if word in headSpace does not fit into actual line -> insert newline
-      IF (length+LEN_TRIM(headSpace).GT.50) THEN
+      IF (length+LEN_TRIM(headSpace).GT.commentLen) THEN
         SWRITE (UNIT_StdOut,*) ''
         SWRITE(UNIT_StdOut, "(A"//fmtValue//")", ADVANCE='NO') ""
         length = 0 ! reset length of line
@@ -408,11 +417,15 @@ ELSE
     END DO
     ! insert linebreak due to newline character in comment
     SWRITE(UNIT_StdOut,*) ''
+    IF ((LEN_TRIM(comment).GT.0).OR.(mode.EQ.2)) THEN
     SWRITE(UNIT_StdOut, "(A"//fmtValue//")", ADVANCE='NO') ""
+    END IF
     length = 0
   END DO
   ! insert empty line after each option
+  IF (mode.EQ.2) THEN
   SWRITE(UNIT_StdOut,*) ''
+  END IF
 END IF
 END SUBROUTINE print
 

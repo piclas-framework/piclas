@@ -143,16 +143,22 @@ CALL addStrListEntry('TrackingMethod' , 'default'         , TRIATRACKING)
 
 CALL prms%CreateLogicalOption( 'Write-Tria-DebugMesh'&
   , 'Writes per proc triangulated Surfacemesh used for Triatracking. Requires TriaTracking=T.'&
-  ,'.FALSE.')
+  , '.FALSE.')
 CALL prms%CreateLogicalOption( 'TriaSurfaceFlux'&
   , 'Using Triangle-aproximation [T] or (bi-)linear and bezier (curved) description [F] of sides for surfaceflux.'//&
-  ' Default is set to TriaTracking')
+    ' Default is set to TriaTracking')
 CALL prms%CreateLogicalOption( 'Write-TriaSurfaceFlux-DebugMesh'&
   , 'Writes per proc triangulated Surfacemesh used for TriaSurfaceFlux. Requires TriaSurfaceFlux=T.'&
-  ,'.FALSE.')
+  , '.FALSE.')
 
-CALL prms%CreateLogicalOption( 'CountNbOfLostParts'&
-  , 'Count number of lost particles during tracking that can not be found with fallbacks.','.FALSE.')
+CALL prms%CreateLogicalOption( 'DisplayLostParticles'&
+  , 'Display position, velocity, species and host element of particles lost during particle tracking (TrackingMethod = '//&
+    'triatracking, tracing)','.FALSE.')
+CALL prms%CreateLogicalOption( 'CountNbrOfLostParts'&
+    , 'Count the number of lost particles during tracking that cannot be found with fallbacks. Additionally, the lost particle '//&
+    'information is stored in a PartStateLost*.h5 file. When particles are not found during restart in their host cell '//&
+    '(sanity check), they are marked missing and are also written to PartStateLost*.h5 file even if they are re-located '//&
+    'on a different processor.','.TRUE.')
 CALL prms%CreateIntOption(     'PartOut'&
   , 'If compiled with CODE_ANALYZE flag: For This particle number every tracking information is written as STDOUT.','0')
 CALL prms%CreateIntOption(     'MPIRankOut'&
@@ -228,8 +234,10 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation,BezierControlPoints3DElevated
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbOfLostParts,nLostParts,CartesianPeriodic
-USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking, WriteTriaDebugMesh, TrackingMethod
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbrOfLostParts
+USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles,NbrOfLostParticlesTotal
+USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLostVecLength,PartStateLost,CartesianPeriodic
+USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking, WriteTriaDebugMesh, TrackingMethod,DisplayLostParticles
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
@@ -291,24 +299,35 @@ IF ((DoRefMapping.OR.UseCurveds.OR.(NGeo.GT.1)).AND.(TriaTracking)) THEN
 __STAMP__&
 ,'DoRefMapping=T .OR. UseCurveds=T .OR. NGEO>1! Not possible with TriaTracking=T at the same time!')
 ELSE IF (TriaTracking) THEN
-  WriteTriaDebugMesh = GETLOGICAL('Write-Tria-DebugMesh','.FALSE.')
+  WriteTriaDebugMesh = GETLOGICAL('Write-Tria-DebugMesh')
 ELSE
   WriteTriaDebugMesh = .FALSE.
 END IF
-CountNbOfLostParts = GETLOGICAL('CountNbOfLostParts',".FALSE.")
-nLostParts         = 0
+CountNbrOfLostParts  = GETLOGICAL('CountNbrOfLostParts')
+IF(CountNbrOfLostParts)THEN
+  ! Nullify and reset lost parts container after write out
+  PartStateLostVecLength = 0
+
+  ! Allocate PartStateLost for a small number of particles and double the array size each time the 
+  ! maximum is reached
+  ALLOCATE(PartStateLost(1:14,1:10))
+  PartStateLost=0.
+END IF ! CountNbrOfLostParts
+NbrOfLostParticles      = 0
+NbrOfLostParticlesTotal = 0
+DisplayLostParticles    = GETLOGICAL('DisplayLostParticles')
 
 #ifdef CODE_ANALYZE
-PARTOUT            = GETINT('PartOut','0')
-MPIRankOut         = GETINT('MPIRankOut','0')
+PARTOUT            = GETINT('PartOut')
+MPIRankOut         = GETINT('MPIRankOut')
 #endif /*CODE_ANALYZE*/
 
 !IF(.NOT.DoRefMapping) THEN
 !  SDEALLOCATE(nTracksPerElem)
 !END IF
-MeasureTrackTime  = GETLOGICAL('MeasureTrackTime','.FALSE.')
-CartesianPeriodic = GETLOGICAL('CartesianPeriodic','.FALSE.')
-IF(CartesianPeriodic) FastPeriodic = GETLOGICAL('FastPeriodic','.FALSE.')
+MeasureTrackTime  = GETLOGICAL('MeasureTrackTime')
+CartesianPeriodic = GETLOGICAL('CartesianPeriodic')
+IF(CartesianPeriodic) FastPeriodic = GETLOGICAL('FastPeriodic')
 
 ! method from xPhysic to parameter space
 
@@ -348,7 +367,7 @@ END IF
 !,' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',RefMappingGuess)
 !END IF
 
-BezierElevation = GETINT('BezierElevation','0')
+BezierElevation = GETINT('BezierElevation')
 NGeoElevated    = NGeo + BezierElevation
 SDEALLOCATE(BezierControlPoints3DElevated)
 ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeo+BezierElevation,0:NGeo+BezierElevation,1:nSides) &
@@ -364,7 +383,7 @@ TriaSurfaceFlux = GETLOGICAL('TriaSurfaceFlux',TRIM(hilf))
 IF (TriaSurfaceFlux) THEN
   BezierSampleN = 1
   SurfFluxSideSize=(/1,2/)
-  WriteTriaSurfaceFluxDebugMesh = GETLOGICAL('Write-TriaSurfaceFlux-DebugMesh','.FALSE.')
+  WriteTriaSurfaceFluxDebugMesh = GETLOGICAL('Write-TriaSurfaceFlux-DebugMesh')
 ELSE
   WRITE(hilf,'(I2.2)') NGeo
   BezierSampleN = GETINT('BezierSampleN',hilf)
@@ -414,7 +433,7 @@ SUBROUTINE InitParticleGeometry()
 ! Subroutine for particle geometry initialization (GEO container)
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nElems, nNodes
@@ -703,7 +722,7 @@ SUBROUTINE FinalizeParticleMesh()
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nElems, nNodes
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance
+USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance,PartStateLost
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -776,6 +795,7 @@ SDEALLOCATE(ElemRadius2NGeo)
 SDEALLOCATE(EpsOneCell)
 SDEALLOCATE(Distance)
 SDEALLOCATE(ListDistance)
+SDEALLOCATE(PartStateLost)
 SDEALLOCATE(isTracingTrouble)
 SDEALLOCATE(ElemTolerance)
 SDEALLOCATE(ElemToGlobalElemID)
@@ -786,7 +806,7 @@ ParticleMeshInitIsDone=.FALSE.
 END SUBROUTINE FinalizeParticleMesh
 
 
-SUBROUTINE SingleParticleToExactElement(iPart,doHalo,initFix,doRelocate)
+SUBROUTINE SingleParticleToExactElement(iPart,DoHalo,initFix,DoRelocate)
 !===================================================================================================================================
 ! this subroutine maps each particle to an element
 ! currently, a background mesh is used to find possible elements. if multiple elements are possible, the element with the smallest
@@ -817,9 +837,9 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,INTENT(IN)                :: iPart
-LOGICAL,INTENT(IN)                :: doHalo
+LOGICAL,INTENT(IN)                :: DoHalo
 LOGICAL,INTENT(IN)                :: initFix
-LOGICAL,INTENT(IN)                :: doRelocate
+LOGICAL,INTENT(IN)                :: DoRelocate
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1046,7 +1066,7 @@ END IF
 END SUBROUTINE SingleParticleToExactElement
 
 
-SUBROUTINE SingleParticleToExactElementNoMap(iPart,doHALO,doRelocate)
+SUBROUTINE SingleParticleToExactElementNoMap(iPart,DoHALO,DoRelocate)
 !===================================================================================================================================
 ! this subroutine maps each particle to an element
 ! currently, a background mesh is used to find possible elements. if multiple elements are possible, the element with the smallest
@@ -1068,8 +1088,8 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,INTENT(IN)                :: iPart
-LOGICAL,INTENT(IN)                :: doHalo
-LOGICAL,INTENT(IN)                :: doRelocate
+LOGICAL,INTENT(IN)                :: DoHalo
+LOGICAL,INTENT(IN)                :: DoRelocate
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1401,7 +1421,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                     :: StartT,EndT
-INTEGER                  :: iElem,ElemToBGM(1:6,1:PP_nElems)
+INTEGER                  :: iElem,ElemToBGM(1:6,1:PP_nElems),allocstat
 INTEGER,ALLOCATABLE      :: HaloElemToBGM(:,:)
 REAL,ALLOCATABLE         :: SideOrigin(:,:), SideRadius(:)
 !=================================================================================================================================
@@ -1410,8 +1430,8 @@ SWRITE(UNIT_StdOut,'(66("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...'
 StartT=PICLASTIME()
 !! Read parameter for FastInitBackgroundMesh (FIBGM)
-GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
-GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
+GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3)
+GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3)
 GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
 ! build elem basis before halo region build
@@ -1446,8 +1466,8 @@ StartT=PICLASTIME()
 #if USE_MPI
 SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...'
 !CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
-printMPINeighborWarnings = GETLOGICAL('printMPINeighborWarnings','.FALSE.')
-printBezierControlPointsWarnings = GETLOGICAL('printBezierControlPointsWarnings','.FALSE.')
+printMPINeighborWarnings         = GETLOGICAL('printMPINeighborWarnings')
+printBezierControlPointsWarnings = GETLOGICAL('printBezierControlPointsWarnings')
 CALL InitHaloMesh()
 ! HALO mesh and region build. Unfortunately, the local FIBGM has to be extended to include the HALO elements :(
 ! rebuild is a local operation
@@ -1457,7 +1477,10 @@ END IF
 #endif /*USE_MPI*/
 
 IF(nTotalElems.GT.PP_nElems)THEN
-  ALLOCATE(HaloElemToBGM(1:6,PP_nElems+1:nTotalElems))
+  ALLOCATE(HaloElemToBGM(1:6,PP_nElems+1:nTotalElems),STAT=allocstat)
+  if (allocstat.ne.0) CALL abort(&
+    __STAMP__&
+    ,'ERROR in particle_mesh.f90: Cannot allocate HaloElemToBGM! myrank=',IntInfoOpt=myrank)
   DO iElem=PP_nElems+1,nTotalElems
     CALL BGMIndexOfElement(iElem,HaloElemToBGM(1:6,iElem))
   END DO ! iElem = nElems+1,nTotalElems
@@ -1590,7 +1613,7 @@ SUBROUTINE GetFIBGM(ElemToBGM)
 ! mode 2: rebuild BGM including HALO region
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Partilce_Periodic_BC ,ONLY: InitPeriodicBC
 USE MOD_Particle_Mesh_Vars   ,ONLY: GEO
@@ -1600,9 +1623,6 @@ USE MOD_CalcTimeStep         ,ONLY: CalcTimeStep
 #endif /*USE_HDG*/
 USE MOD_Equation_Vars        ,ONLY: c
 USE MOD_Particle_Vars        ,ONLY: manualtimestep
-#if (PP_TimeDiscMethod==201)
-USE MOD_Particle_Vars        ,ONLY: dt_part_ratio
-#endif
 USE MOD_ChangeBasis          ,ONLY: ChangeBasis2D
 #if USE_MPI
 USE MOD_Particle_MPI         ,ONLY: InitHALOMesh
@@ -1728,23 +1748,20 @@ ELSE
   deltaT=ManualTimeStep
 END IF
 IF (halo_eps_velo.EQ.0) halo_eps_velo = c
-#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43)
+#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43)
 IF (halo_eps_velo.EQ.c) THEN
    CALL abort(&
 __STAMP__&
 , 'halo_eps_velo.EQ.c -> Halo Eps Velocity for MPI not defined')
 END IF
 #endif
-#if (PP_TimeDiscMethod==201)
-deltaT=CALCTIMESTEP()
-halo_eps = c*deltaT*SafetyFactor*max(dt_part_ratio,1.0)
-#elif (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 halo_eps = RK_c(2)
 DO iStage=2,nRKStages-1
   halo_eps = MAX(halo_eps,RK_c(iStage+1)-RK_c(iStage))
 END DO
 halo_eps = MAX(halo_eps,1.-RK_c(nRKStages))
-CALL PrintOption('max. RKdtFrac','CALCUL.',RealOpt=halo_eps)
+CALL PrintOption('max. RKdtFrac (halo_eps)','CALCUL.',RealOpt=halo_eps)
 halo_eps = halo_eps*halo_eps_velo*deltaT*SafetyFactor !dt multiplied with maximum RKdtFrac
 #else
 halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
@@ -1756,7 +1773,7 @@ IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_
   IF(halo_eps.LT.r_sf)THEN
     SWRITE(UNIT_stdOut,'(A)') ' halo_eps is smaller than shape function radius. Setting halo_eps=r_sf'
     halo_eps = r_sf
-    CALL PrintOption('max. RKdtFrac','CALCUL.',RealOpt=halo_eps)
+    CALL PrintOption('halo_eps','CALCUL.',RealOpt=halo_eps)
   END IF
 END IF
 #endif /*USE_MPI*/
@@ -1766,13 +1783,14 @@ globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 &
                  + (GEO%ymaxglob-GEO%yminglob)**2 &
                  + (GEO%zmaxglob-GEO%zminglob)**2 )
 IF(halo_eps.GT.globalDiag)THEN
-  CALL PrintOption('unlimited halo distance','CALCUL.',RealOpt=halo_eps)
-  SWRITE(UNIT_stdOut,'(A38)') ' |   limitation of halo distance  |    '
+  CALL PrintOption('unlimited halo distance (halo_eps)','CALCUL.',RealOpt=halo_eps)
   halo_eps=globalDiag
+  CALL PrintOption('limitation of halo distance  (halo_eps=globalDiag)','CALCUL.',RealOpt=halo_eps)
+ELSE
+  CALL PrintOption('halo distance (halo_eps)','CALCUL.',RealOpt=halo_eps)
 END IF
 
 halo_eps2=halo_eps*halo_eps
-CALL PrintOption('halo distance','CALCUL.',RealOpt=halo_eps)
 
 
 #if USE_MPI
@@ -1877,7 +1895,13 @@ SWRITE(UNIT_stdOut,'(A)')' Building MPI-FIBGM ...'
 #if USE_MPI
 !--- MPI stuff for background mesh (FastinitBGM)
 BGMCells=0
-ALLOCATE(BGMCellsArray(1:(BGMimax-BGMimin+1)*(BGMjmax-BGMjmin+1)*(BGMkmax-BGMkmin+1)*3))
+ALLOCATE(BGMCellsArray(1:(BGMimax-BGMimin+1)*(BGMjmax-BGMjmin+1)*(BGMkmax-BGMkmin+1)*3), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+  WRITE(*,'(A,6(I0,A))')'Problem allocating BGMCellsArray(1:',(BGMimax-BGMimin+1)*(BGMjmax-BGMjmin+1)*(BGMkmax-BGMkmin+1)*3,')'
+  CALL abort(&
+    __STAMP__&
+    ,'ERROR in particle_mesh.f90: Cannot allocate BGMCellsArray! myrank=',IntInfoOpt=myrank)
+END IF
 !Count BGMCells with Elements inside and save their indices in BGMCellsArray
 DO kBGM=BGMkmin, BGMkmax
   DO jBGM=BGMjmin, BGMjmax
@@ -1894,7 +1918,14 @@ END DO ! iBGM
 
 !Communicate number of BGMCells
 CALL MPI_ALLGATHER(BGMCells, 1, MPI_INTEGER, NbrOfBGMCells(0:PartMPI%nProcs-1), 1, MPI_INTEGER, PartMPI%COMM, IERROR)
-ALLOCATE(GlobalBGMCellsArray(1:SUM(NbrOfBGMCells)*3))
+SWRITE(*,'(A,6(I0,A))')'200'
+ALLOCATE(GlobalBGMCellsArray(1:SUM(NbrOfBGMCells)*3), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+  WRITE(*,'(A,6(I0,A))')'Problem allocating GlobalBGMCellsArray(1:',SUM(NbrOfBGMCells)*3,')'
+  CALL abort(&
+    __STAMP__&
+    ,'ERROR in particle_mesh.f90: Cannot allocate GlobalBGMCellsArray! myrank=',IntInfoOpt=myrank)
+END IF
 Displacement(1)=0
 DO i=2, PartMPI%nProcs
   Displacement(i) = SUM(NbrOfBGMCells(0:i-2))*3
@@ -2322,7 +2353,7 @@ SUBROUTINE AddHALOCellsToFIBGM(ElemToBGM,HaloElemToBGM)
 ! remap all elements including halo-elements into FIBGM
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Globals                                                        ! ,            ONLY : UNIT_StdOut
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis2D
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,nTotalElems
@@ -2618,7 +2649,7 @@ SUBROUTINE WeirdElementCheck()
 ! tl;dr: Hard/maybe impossible to fix, hence only a warning is given so the user can decide
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, WeirdElems
@@ -3018,7 +3049,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,INTENT(IN)                   :: X_in(3)
-LOGICAL,INTENT(IN)                :: doHalo
+LOGICAL,INTENT(IN)                :: DoHalo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -5443,7 +5474,8 @@ USE MOD_Particle_Mesh_Vars ,ONLY: GEO, PartElemToElemAndSide
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(INOUT)  :: StartElem,HaloElem,TempHaloElems(1:500), TempHaloNumElems
+INTEGER,INTENT(IN)     :: StartElem
+INTEGER,INTENT(INOUT)  :: HaloElem,TempHaloElems(1:500), TempHaloNumElems
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -6455,7 +6487,7 @@ SUBROUTINE MarkAuxBCElems()
 ! -- plane: use plane equation f=a1*x+a2*y+a3*z+a4=0 and insert corresponding intervals of box -> fmin and fmax
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHasAuxBCs,GEO
 USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone
@@ -6719,7 +6751,7 @@ END SUBROUTINE CheckBoundsWithCartRadius
 SUBROUTINE SetHaloInfo()
 ! MODULES                                                                                                                          !
 USE MOD_GLobals
-USE MOD_Preproc            ,ONLY: PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemHaloInfoProc
 USE MOD_Particle_MPI_Vars  ,ONLY: PartHaloElemToProc,PartMPI
 USE MOD_Particle_Mesh_Vars ,ONLY: nTotalElems
