@@ -220,14 +220,12 @@ USE MOD_MPI_Shared_Vars      ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshBasics
 USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshElems,ReadMeshSides,ReadMeshSideNeighbors
 USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshNodes,ReadMeshTrees,CommunicateMeshReadin
-#endif /*PARTICLES*/
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars     ,ONLY: nDeposPerElem,nSurfacePartsPerElem
-#ifdef PARTICLES
-USE MOD_LoadBalance_Vars     ,ONLY: nTracksPerElem,nPartsPerBCElem,nPartsPerElem,nSurfacefluxPerElem
 USE MOD_Particle_Vars        ,ONLY: VarTimeStep
-#endif /*PARTICLES*/
+USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars     ,ONLY: nDeposPerElem,nSurfacePartsPerElem,nTracksPerElem,nPartsPerBCElem,nSurfacefluxPerElem
 #endif /*USE_LOADBALANCE*/
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -312,7 +310,6 @@ CALL AddToElemData(ElementOut,'nPartsPerElem',LongIntArray=nPartsPerElem(:))
 SDEALLOCATE(nDeposPerElem)
 ALLOCATE(nDeposPerElem(1:nElems))
 nDeposPerElem=0
-#endif /*USE_LOADBALANCE*/
 SDEALLOCATE(nTracksPerElem)
 ALLOCATE(nTracksPerElem(1:nElems))
 nTracksPerElem=0
@@ -322,7 +319,6 @@ nSurfacefluxPerElem=0
 SDEALLOCATE(nPartsPerBCElem)
 ALLOCATE(nPartsPerBCElem(1:nElems))
 nPartsPerBCElem=0
-#if USE_LOADBALANCE
 SDEALLOCATE(nSurfacePartsPerElem)
 ALLOCATE(nSurfacePartsPerElem(1:nElems))
 nSurfacePartsPerElem=0
