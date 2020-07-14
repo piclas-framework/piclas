@@ -89,6 +89,9 @@ INTEGER                        :: ExchangeProcLeader
 ! halo_eps reconstruction
 REAL                           :: MPI_halo_eps,MPI_halo_eps_velo,MPI_halo_diag,vec(1:3),deltaT
 LOGICAL                        :: fullMesh
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+INTEGER                        :: iStage
+#endif
 ! shape function
 INTEGER                        :: GlobalElemID,GlobalElemRank,GlobalLeaderRank
 LOGICAL,ALLOCATABLE            :: FlagShapeElem(:)
