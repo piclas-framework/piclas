@@ -22,7 +22,7 @@ IMPLICIT NONE
 PRIVATE
 
 INTERFACE BGK_CollisionOperator
-  MODULE PROCEDURE BGK_CollisionOperatorMultiSpecTodorovaOrig
+  MODULE PROCEDURE BGK_CollisionOperatorMultiSpecBrull
 END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
@@ -694,7 +694,7 @@ END DO
 END SUBROUTINE BGK_CollisionOperator_SingleSpecies
 
 
-SUBROUTINE BGK_CollisionOperatorMultiSpecBrul(iPartIndx_Node, nPart, NodeVolume, vBulkAll, AveragingPara, CorrectStep)
+SUBROUTINE BGK_CollisionOperatorMultiSpecBrull(iPartIndx_Node, nPart, NodeVolume, vBulkAll, AveragingPara, CorrectStep)
 !===================================================================================================================================
 !> Subroutine for the cell-local BGK collision operator:
 !> 1.) Moment calculation: Summing up the relative velocities and their squares
@@ -864,10 +864,12 @@ IF (BGKMixtureModel.EQ.1) THEN
   ! 2.) Calculate the reference dynamic viscosity, Prandtl number and the resulting relaxation frequency of the distribution function
   DO iSpec = 1, nSpecies
     IF ((nSpec(iSpec).GE.2).AND.(.NOT.ALMOSTZERO(u2Spec(iSpec)))) THEN
+      ! Species temperature
       dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*SpecDSMC(iSpec)%TrefVHS/Pi) &
             /(4.*(4.- 2.*SpecDSMC(iSpec)%omegaVHS) * (6. - 2.*SpecDSMC(iSpec)%omegaVHS)* SpecDSMC(iSpec)%DrefVHS**(2.) &
             *SpecDSMC(iSpec)%TrefVHS**(SpecDSMC(iSpec)%omegaVHS + 0.5)*SpecTemp(iSpec)**(-SpecDSMC(iSpec)%omegaVHS - 0.5))
     ELSE
+      ! Cell temperature
       dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*SpecDSMC(iSpec)%TrefVHS/Pi) &
             /(4.*(4.- 2.*SpecDSMC(iSpec)%omegaVHS) * (6. - 2.*SpecDSMC(iSpec)%omegaVHS)* SpecDSMC(iSpec)%DrefVHS**(2.) &
             *SpecDSMC(iSpec)%TrefVHS**(SpecDSMC(iSpec)%omegaVHS + 0.5)*CellTemp**(-SpecDSMC(iSpec)%omegaVHS - 0.5))
@@ -1075,7 +1077,7 @@ DO iMom=1,3
 END DO
 #endif /* CODE_ANALYZE */
 
-END SUBROUTINE BGK_CollisionOperatorMultiSpecBrul
+END SUBROUTINE BGK_CollisionOperatorMultiSpecBrull
 
 
 
