@@ -292,7 +292,7 @@ USE MOD_IO_HDF5
 USE MOD_DG_Vars                ,ONLY: U
 USE MOD_Mesh_Vars              ,ONLY: OffsetElem
 #if USE_HDG
-USE MOD_Mesh_Vars              ,ONLY: offsetSide,nSides,nMPISides_YOUR, offsetSide
+USE MOD_Mesh_Vars              ,ONLY: offsetSide,nSides,nMPISides_YOUR
 #endif
 #if (USE_QDS_DG) || ! (USE_HDG)
 USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
@@ -330,8 +330,10 @@ USE MOD_PICDepo_Vars           ,ONLY: DoDeposition, RelaxDeposition, PartSourceO
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 #endif /*PARTICLES*/
 #if USE_HDG
-USE MOD_HDG_Vars               ,ONLY: lambda!, nGP_face
+USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face
 USE MOD_HDG                    ,ONLY: RestartHDG
+USE MOD_Mesh_Vars              ,ONLY: GlobalUniqueSideID,MortarType
+USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
 #endif /*USE_HDG*/
 #if USE_QDS_DG
 USE MOD_QDS_DG_Vars            ,ONLY: DoQDS,QDSMacroValues,nQDSElems,QDSSpeciesMass
@@ -354,7 +356,7 @@ REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
 INTEGER                            :: iPML
 #endif
 #if USE_HDG
-!LOGICAL                            :: DG_SolutionLambdaExists
+LOGICAL                            :: DG_SolutionLambdaExists
 LOGICAL                            :: DG_SolutionUExists
 INTEGER(KIND=8)                    :: iter
 #endif /*USE_HDG*/
@@ -415,6 +417,9 @@ INTEGER                            :: i
 INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
 #if !(USE_HDG)
 INTEGER(KIND=IK)                   :: PMLnVarTmp
+#else
+INTEGER                            :: iSide,MinGlobalSideID,MaxGlobalSideID
+REAL,ALLOCATABLE                   :: ExtendedLambda(:,:,:)
 #endif /*not USE_HDG*/
 !===================================================================================================================================
 IF(DoRestart)THEN
@@ -534,16 +539,81 @@ IF(DoRestart)THEN
         ! !DG_Solution contains a 4er-/3er-/7er-array, not PP_nVar!!!
         CALL ReadArray('DG_Solution' ,5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
       END IF
-      ! CURRENTLY, THE FOLLOWING DOES NOT MAKE SENSE AS THE SIDES ARE NOT SORTED CORRECTLY!
-      !CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
-      !IF(DG_SolutionLambdaExists)THEN
-      !  write(*,*) "READ lambda"
-      !  stop
-      !  CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,nSides-nMPISides_YOUR/),offsetSide,3,RealArray=lambda)
-      !  CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
-      !ELSE
-      lambda=0.
-      !END IF
+
+
+
+
+      CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
+
+      IF(DG_SolutionLambdaExists)THEN
+        MinGlobalSideID = HUGE(1)
+        MaxGlobalSideID = -1
+
+        DO i=0,nProcessors-1
+          IF(i.eq.myrank)THEN
+            DO iSide = 1, nSides
+              !WRITE (UNIT_stdOut,'(I4,A12,I4,A12,I4,A22,4(1x,ES25.14E3))',advance='NO') iSide,"UniqueSide",GlobalUniqueSideID(iSide),"myrank",myrank,"lambda(:,:,iSide) =", lambda(:,:,iSide)
+              !WRITE (UNIT_stdOut,'(A20,I4)') "MortarType(1,iSide)",MortarType(1,iSide)
+              MaxGlobalSideID = MERGE(ABS(GlobalUniqueSideID(iSide)) , MaxGlobalSideID , ABS(GlobalUniqueSideID(iSide)).GT.MaxGlobalSideID)
+              MinGlobalSideID = MERGE(ABS(GlobalUniqueSideID(iSide)) , MinGlobalSideID , ABS(GlobalUniqueSideID(iSide)).LT.MinGlobalSideID)
+            END DO
+            IPWRITE (*,*) "MinGlobalSideID, MaxGlobalSideID,ExtendedOffsetSide,ExtendednSides =", MinGlobalSideID, MaxGlobalSideID,MinGlobalSideID-1,MaxGlobalSideID-MinGlobalSideID+1
+            !WRITE(UNIT_stdOut,'(132("-"))')
+          END IF
+          CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+        END DO
+        CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+        SWRITE(UNIT_stdOut,*) ""
+        SWRITE(UNIT_stdOut,'(132("="))')
+        SWRITE(UNIT_stdOut,*) ""
+
+
+
+
+
+
+
+        ASSOCIATE( &
+              ExtendedOffsetSide => INT(MinGlobalSideID-1,IK)                 ,&
+              ExtendednSides     => INT(MaxGlobalSideID-MinGlobalSideID+1,IK) ,&
+              nGP_face           => INT(nGP_face,IK)                           )
+          !ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,MinGlobalSideID:MaxGlobalSideID))
+          ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,1:ExtendednSides))
+          ExtendedLambda = -999.0
+          CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,ExtendednSides/),ExtendedOffsetSide,3,RealArray=ExtendedLambda)
+
+          DO i=0,nProcessors-1
+            IF(i.eq.myrank)THEN
+              DO iSide = 1, nSides
+                lambda(:,:,iSide) = ExtendedLambda(:,:,ABS(GlobalUniqueSideID(iSide))-ExtendedOffsetSide)
+                WRITE (UNIT_stdOut,'(I4,A12,I4,A12,I4,A22,4(1x,ES25.14E3))',advance='NO') iSide,"UniqueSide",GlobalUniqueSideID(iSide),"myrank",myrank,"lambda(:,:,iSide) =", lambda(:,:,iSide)
+                IF(MortarType(1,iSide).NE.-1) CALL set_formatting("red")
+                WRITE (UNIT_stdOut,'(A20,I4)') "MortarType(1,iSide)",MortarType(1,iSide)
+                IF(MortarType(1,iSide).NE.-1) CALL clear_formatting()
+              END DO
+              WRITE(UNIT_stdOut,'(132("-"))')
+            END IF
+            CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+          END DO
+          DEALLOCATE(ExtendedLambda)
+        END ASSOCIATE
+
+
+
+        !CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,nSides-nMPISides_YOUR/),offsetSide,3,RealArray=lambda)
+
+        CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
+      ELSE
+        lambda=0.
+      END IF
+
+
+
+        !call sleep(1)
+        !stop
+
+
+
 #else
       CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
       IF(DoPML)THEN

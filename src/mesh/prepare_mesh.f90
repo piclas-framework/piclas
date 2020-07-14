@@ -927,8 +927,8 @@ DO iElem=1,nElems
         mSide=>aSide%MortarSide(iMortar)%sp
         MortarType(1,mSide%SideID)=mSide%MortarType
 #ifdef PARTICLES
-        ! Store global unique side index on mortar side
-        IF(GlobalUniqueSideID(mSide%SideID).EQ.-1)THEN ! the has has not been set
+        ! Store global unique side index on mortar side: negative ID for these mortar sides
+        IF(GlobalUniqueSideID(mSide%SideID).EQ.-1)THEN ! the side has not been set previously
           GlobalUniqueSideID(mSide%SideID) = -mSide%Ind
         END IF ! GlobalUniqueSideID(mSide%SideID).EQ.-1
 #endif /*PARTICLES*/

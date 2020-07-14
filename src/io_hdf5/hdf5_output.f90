@@ -161,7 +161,7 @@ INTEGER                        :: SideID,HaloElemID,iLocSide,iElem,HaloProcID
 INTEGER,ALLOCATABLE            :: SortedUniqueSides(:)
 REAL,ALLOCATABLE               :: SortedLambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
 REAL,ALLOCATABLE               :: TotalLambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
-INTEGER                        :: SortedOffset,SortedStart,SortedEnd,flip,p,q
+INTEGER                        :: SortedOffset,SortedStart,SortedEnd,flip,p,q,r
 #endif /*USE_HDG*/
 !===================================================================================================================================
 ! set local variables for output and previous times
@@ -518,27 +518,60 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
     CALL SortArray(nSides,SortedUniqueSides(1:nSides),GlobalUniqueSideID(1:nSides))
     ALLOCATE(SortedLambda(PP_nVar,nGP_face,nSides))
     DO iSide = 1, nSides
-      flip = SideToElem(S2E_FLIP,iSide)
-      IPWRITE(UNIT_StdOut,*) "flip =", flip
-      SELECT CASE(flip)
-      CASE(-1,0) ! master side
-        !lambda_in(:,:,:,SideID)=U_tmp(:,:,:,iMortar)
-        SortedLambda(:,:,SortedUniqueSides(iSide)) = lambda(:,:,iSide)
-      CASE(1:4) ! slave side
-        DO q=0,PP_N; DO p=0,PP_N
-          !          U_in_slave(p,q,SideID)=U_tmp(FS2M(1,p,q,flip), &
-          !                                       FS2M(2,p,q,flip),iMortar)
-          WRITE (*,*) "FS2M(1,p,q,flip),FS2M(2,p,q,flip) =", FS2M(1,p,q,flip),FS2M(2,p,q,flip)
-          ASSOCIATE(pp => FS2M(1,p,q,flip) ,&
-                    qq => FS2M(2,p,q,flip) )
-            ASSOCIATE(sum1 => 2*q  + p  + 1 ,&
-                      sum2 => 2*qq + pp + 1)
-                  WRITE (*,*) "sum1,sum2 =", sum1,sum2
-              SortedLambda(PP_nVar,sum1,SortedUniqueSides(iSide)) = lambda(PP_nVar,sum2,iSide)
-            END ASSOCIATE
-          END ASSOCIATE
-        END DO; END DO ! q, p
-      END SELECT !flip(iMortar)
+      ! 1.)
+      SortedLambda(:,:,SortedUniqueSides(iSide)) = lambda(:,:,iSide)
+
+
+      ! 2.)
+      !r=q*(PP_N+1) + p+1
+      !SortedLambda(:,r:r,SortedUniqueSides(iSide)) = lambda(:,r:r,iSide)
+
+
+      ! 3.)
+      !    flip = SideToElem(S2E_FLIP,iSide)
+      !    SELECT CASE(flip)
+      !    CASE(-1,0) ! master side
+      !      SortedLambda(:,:,SortedUniqueSides(iSide)) = lambda(:,:,iSide)
+      !    CASE(1:4) ! slave side
+      !      DO q=0,PP_N
+      !        DO p=0,PP_N
+      !          ASSOCIATE( pp => FS2M(1,p,q,flip) ,&
+      !                     qq => FS2M(2,p,q,flip) )
+      !            ASSOCIATE( sum1 =>  q*(PP_N+1) + p +1 ,&
+      !                       sum2 => qq*(PP_N+1) + pp+1  )
+      !              !r=q*(PP_N+1) + p+1
+      !              !SortedLambda(:,r:r,SortedUniqueSides(iSide)) = lambda(:,r:r,iSide)
+      !              SortedLambda(:,sum1:sum1,SortedUniqueSides(iSide)) = lambda(:,sum2:sum2,iSide)
+      !            END ASSOCIATE
+      !          END ASSOCIATE
+      !        END DO
+      !      END DO
+      !    END SELECT !flip(iMortar)
+
+
+
+      ! 4.)
+      !          flip = SideToElem(S2E_FLIP,iSide)
+      !          IPWRITE(UNIT_StdOut,*) "flip =", flip
+      !          SELECT CASE(flip)
+      !          CASE(-1,0) ! master side
+      !            !lambda_in(:,:,:,SideID)=U_tmp(:,:,:,iMortar)
+      !            SortedLambda(:,:,SortedUniqueSides(iSide)) = lambda(:,:,iSide)
+      !          CASE(1:4) ! slave side
+      !            DO q=0,PP_N; DO p=0,PP_N
+      !              !          U_in_slave(p,q,SideID)=U_tmp(FS2M(1,p,q,flip), &
+      !              !                                       FS2M(2,p,q,flip),iMortar)
+      !              WRITE (*,*) "FS2M(1,p,q,flip),FS2M(2,p,q,flip) =", FS2M(1,p,q,flip),FS2M(2,p,q,flip)
+      !              ASSOCIATE(pp => FS2M(1,p,q,flip) ,&
+      !                        qq => FS2M(2,p,q,flip) )
+      !                ASSOCIATE(sum1 => 2*q  + p  + 1 ,&
+      !                          sum2 => 2*qq + pp + 1)
+      !                      WRITE (*,*) "sum1,sum2 =", sum1,sum2
+      !                  SortedLambda(PP_nVar,sum1,SortedUniqueSides(iSide)) = lambda(PP_nVar,sum2,iSide)
+      !                END ASSOCIATE
+      !              END ASSOCIATE
+      !            END DO; END DO ! q, p
+      !          END SELECT !flip(iMortar)
     END DO ! iSide = 1, nSides
     SortedOffset=HUGE(1)
     SortedStart=HUGE(1)
@@ -637,6 +670,7 @@ END DO
         collective  = .TRUE.                                         , &
         RealArray   = SortedLambda(:,:,SortedStart:SortedEnd))
   END ASSOCIATE
+  DEALLOCATE(SortedUniqueSides,SortedLambda)
 
 
 
@@ -649,6 +683,7 @@ END DO
     DO iSide = 1, nGlobalUniqueSides
       WRITE (UNIT_stdOut,'(A12,I4,A32,4(1x,ES25.14E3))',advance='Yes') "UniqueSide",iSide,"TotalLambda(:,:,iSide) =", TotalLambda(:,:,iSide)
     END DO
+    DEALLOCATE(TotalLambda)
   END IF ! MPIRoot
 
 
