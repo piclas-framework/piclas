@@ -150,7 +150,6 @@ fDamping_pois      = GETREAL('fDamping_pois','0.99')
 DoParabolicDamping = GETLOGICAL('ParabolicDamping','.FALSE.')
 xDipole(1:3)       = GETREALARRAY('xDipole',3,'0.,0.,0.') ! dipole base point for CASE(4)
 
-c_corr2   = c_corr*c_corr
 c_corr_c  = c_corr*c
 c_corr_c2 = c_corr*c2
 eta_c     = (c_corr-1.)*c
