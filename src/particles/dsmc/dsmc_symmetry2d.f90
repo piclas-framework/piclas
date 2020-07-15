@@ -105,8 +105,8 @@ INTEGER                         :: firstElem,lastElem
 !===================================================================================================================================
 
 #if USE_MPI
-FirstElem = offsetComputeNodeElem+1
-LastElem  = offsetComputeNodeElem+nElems
+FirstElem = offsetElem - offsetComputeNodeElem + 1
+LastElem  = offsetElem - offsetComputeNodeElem + nElems
 #else
 firstElem = 1
 lastElem  = nElems
