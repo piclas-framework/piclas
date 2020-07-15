@@ -75,8 +75,7 @@ SUBROUTINE DSMC_2D_InitVolumes()
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: Pi
 USE MOD_PreProc
-USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem,nBCSides,BC,SideToElem,SurfElem
-USE MOD_Interpolation_Vars      ,ONLY: wGP
+USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem,nBCSides,SideToElem
 USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
@@ -99,7 +98,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shar
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: SideID, iLocSide, i, j, ElemID, iNode, BCSideID, locElemID, CNElemID
+INTEGER                         :: SideID, iLocSide, iNode, BCSideID, locElemID, CNElemID
 REAL                            :: radius, triarea(2)
 LOGICAL                         :: SymmetryBCExists
 INTEGER                         :: firstElem,lastElem
@@ -135,8 +134,7 @@ DO BCSideID=1,nBCSides
   END IF
   SideID=GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%SymmetryBC) THEN
-    ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
-    CNElemID = GetCNElemID(ElemID)
+    CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
     iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
     ! Exclude the symmetry axis (y=0)
     IF(MAXVAL(NodeCoords_Shared(2,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1)).GT.0.0) THEN
@@ -158,7 +156,7 @@ DO BCSideID=1,nBCSides
         ! Characteristic length is compared to the mean free path as the condition to refine the mesh. For the 2D/axisymmetric case
         ! the third dimension is not considered as particle interaction occurs in the xy-plane, effectively reducing the refinement
         ! requirement.
-        ElemCharLength_Shared(ElemID) = SQRT(ElemVolume_Shared(CNElemID))
+        ElemCharLength_Shared(CNElemID) = SQRT(ElemVolume_Shared(CNElemID))
         ! Axisymmetric case: The volume is multiplied by the circumference to get the volume of the ring. The cell face in the
         ! xy-plane is rotated around the x-axis. The radius is the middle point of the cell face.
         IF (Symmetry2DAxisymmetric) THEN
@@ -389,7 +387,6 @@ USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPar
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: iter
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
-USE MOD_Mesh_Vars               ,ONLY: offsetElem
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -398,7 +395,7 @@ USE MOD_Mesh_Vars               ,ONLY: offsetElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iPart, PositionNbr, iPolyatMole, DelayCounter, ElemID, locElemID
+INTEGER                         :: iPart, PositionNbr, iPolyatMole, DelayCounter, locElemID
 REAL                            :: iRan
 !===================================================================================================================================
 
@@ -489,7 +486,6 @@ REAL FUNCTION DSMC_2D_CalcSymmetryArea(iLocSide,iElem, ymin, ymax)
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: Pi
 USE MOD_Particle_Vars         ,ONLY: Symmetry2DAxisymmetric
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -544,7 +540,6 @@ FUNCTION DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,iElem)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars              ,ONLY: Pi
-USE MOD_Particle_Mesh_Vars        ,ONLY: GEO
 USE MOD_DSMC_Vars                 ,ONLY: RadialWeighting
 USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
