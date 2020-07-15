@@ -659,7 +659,11 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
   ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
   ! are swapped
     CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
+    CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
+      - 0.5 * (GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))
     CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) - 1
+    CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
+      - 0.5 * (GetParticleWeight(Coll_pData(iPair+1)%iPart_p1) + GetParticleWeight(Coll_pData(iPair+1)%iPart_p2))
     ! Breaking up the next pair and swapping partners
     tempPart = Coll_pData(iPair)%iPart_p1
     Coll_pData(iPair)%iPart_p1 = Coll_pData(iPair + 1)%iPart_p1
@@ -669,6 +673,7 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
     cSpec1 = PartSpecies(iPart_p1); cSpec2 = PartSpecies(iPart_p2)
     iCase = CollInf%Coll_Case(cSpec1, cSpec2)
     CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
+    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
     Coll_pData(iPair)%PairType = iCase
     ! Calculation of the relative velocity for the new first pair
     Coll_pData(iPair)%CRela2 = (PartState(4,iPart_p1) - PartState(4,iPart_p2))**2 &
@@ -685,6 +690,7 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
     cSpec1 = PartSpecies(iPart_p1); cSpec2 = PartSpecies(iPart_p2)
     iCase = CollInf%Coll_Case(cSpec1, cSpec2)
     CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
+    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
     ! Calculation of the relative velocity for the new follow-up pair
     Coll_pData(iPair+1)%CRela2 = (PartState(4,iPart_p1) - PartState(4,iPart_p2))**2 &
                                + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
