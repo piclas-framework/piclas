@@ -88,6 +88,7 @@ USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
 #if USE_MPI
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
+USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -105,11 +106,8 @@ INTEGER                         :: firstElem,lastElem
 !===================================================================================================================================
 
 #if USE_MPI
-!firstElem = INT(REAL(myComputeNodeRank*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-!lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
-! Jacobians are only available for Elems on local proc
-FirstElem = offsetElem+1
-LastElem  = offsetElem+nElems
+FirstElem = offsetComputeNodeElem+1
+LastElem  = offsetComputeNodeElem+nElems
 #else
 firstElem = 1
 lastElem  = nElems
@@ -153,14 +151,14 @@ DO BCSideID=1,nBCSides
         SymmetrySide(locElemID,2) = iLocSide
         ! The volume calculated at this point (final volume for the 2D case) corresponds to the cell face area (z-dimension=1) in
         ! the xy-plane.
-        ElemVolume_Shared(ElemID) = 0.0
+        ElemVolume_Shared(CNElemID) = 0.0
         CALL CalcNormAndTangTriangle(area=triarea(1),TriNum=1, SideID=SideID)
         CALL CalcNormAndTangTriangle(area=triarea(2),TriNum=2, SideID=SideID)
-        ElemVolume_Shared(ElemID) = triarea(1) + triarea(2)
+        ElemVolume_Shared(CNElemID) = triarea(1) + triarea(2)
         ! Characteristic length is compared to the mean free path as the condition to refine the mesh. For the 2D/axisymmetric case
         ! the third dimension is not considered as particle interaction occurs in the xy-plane, effectively reducing the refinement
         ! requirement.
-        ElemCharLength_Shared(ElemID) = SQRT(ElemVolume_Shared(ElemID))
+        ElemCharLength_Shared(ElemID) = SQRT(ElemVolume_Shared(CNElemID))
         ! Axisymmetric case: The volume is multiplied by the circumference to get the volume of the ring. The cell face in the
         ! xy-plane is rotated around the x-axis. The radius is the middle point of the cell face.
         IF (Symmetry2DAxisymmetric) THEN
@@ -169,7 +167,7 @@ DO BCSideID=1,nBCSides
             radius = radius + NodeCoords_Shared(2,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)
           END DO
           radius = radius / 4.
-          ElemVolume_Shared(ElemID) = ElemVolume_Shared(ElemID) * 2. * Pi * radius
+          ElemVolume_Shared(CNElemID) = ElemVolume_Shared(CNElemID) * 2. * Pi * radius
         END IF
         SymmetryBCExists = .TRUE.
       END IF    ! y-coord greater 0.0
