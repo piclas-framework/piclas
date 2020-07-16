@@ -53,6 +53,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: c
 USE MOD_Preproc
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
+USE MOD_MPI_Vars                ,ONLY: offsetElemMPI
 USE MOD_MPI_Shared_Vars
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
@@ -73,8 +74,10 @@ USE MOD_TimeDisc_Vars           ,ONLY: nRKStages,RK_c
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: iPeriodicVector,jPeriodicVector,iPeriodicDir
+! Partner identification
+INTEGER                        :: iPeriodicVector,jPeriodicVector,iPeriodicDir,jPeriodicDir,kPeriodicDir
 INTEGER,DIMENSION(2)           :: DirPeriodicVector = [-1,1]
+REAL,DIMENSION(6)              :: xCoordsProc,xCoordsOrigin
 INTEGER                        :: iElem,ElemID,firstElem,lastElem,NbElemID
 INTEGER                        :: iSide,SideID,iLocSide
 !INTEGER                        :: firstSide,lastSide
@@ -111,7 +114,12 @@ GlobalProcToExchangeProc(:,:) = -1
 
 ! Identify all procs on same node
 nExchangeProcessors = 0
+
+! This is generally not required, keep communication to a minimum
 !DO iProc = ComputeNodeRootRank,ComputeNodeRootRank+nComputeNodeProcessors-1
+!  ! Do not attempt to communicate with myself
+!  IF (iProc.EQ.myRank) CYCLE
+!
 !  ! Build mapping global to compute-node
 !  GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc) = 1
 !  GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,iProc) = nExchangeProcessors
@@ -272,7 +280,7 @@ END DO
 !>>> Check the bounding box of each element in compute-nodes' halo domain against the bounding boxes of the
 !>>> of the elements of the MPI-surface (local proc MPI sides)
 
-! if running on one node, halo_eps is meaningless. Get a representative MPI_halo_eps for BC side identification
+! if running on one node, halo_eps is meaningless. Get a representative MPI_halo_eps for MPI proc identification
 fullMesh = .FALSE.
 IF (halo_eps.EQ.0) THEN
   ! reconstruct halo_eps_velo
@@ -332,6 +340,14 @@ ELSE
   MPI_halo_eps = halo_eps
 END IF
 
+! Identify all procs with elements in range
+xCoordsProc(1) = GEO%xmin
+xCoordsProc(2) = GEO%xmax
+xCoordsProc(3) = GEO%ymin
+xCoordsProc(4) = GEO%ymax
+xCoordsProc(5) = GEO%zmin
+xCoordsProc(6) = GEO%zmax
+
 ! Use a named loop so the entire element can be cycled
 ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
   ElemID   = GetGlobalElemID(iElem)
@@ -354,7 +370,39 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
 
   ! Skip if the proc is already flagged, only if the exact elements are not required (.NOT.shape_function)
   IF(.NOT.TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
-    IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc).EQ.2) CYCLE
+    SELECT CASE(GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc))
+      ! Proc not previously encountered, check if possibly in range
+      CASE(-1)
+        firstElem = offsetElemMPI(HaloProc)+1
+        lastElem  = offsetElemMPI(HaloProc +1)
+
+        xCoordsOrigin(1) = MINVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                     :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+        xCoordsOrigin(2) = MAXVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                     :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+        xCoordsOrigin(3) = MINVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                     :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+        xCoordsOrigin(4) = MAXVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                     :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+        xCoordsOrigin(5) = MINVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                     :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+        xCoordsOrigin(6) = MAXVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                     :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+
+        ! Check if proc is in range
+        IF (.NOT.HaloBoxInProc(xCoordsOrigin,xCoordsProc,MPI_halo_eps,GEO%nPeriodicVectors,GEO%PeriodicVectors)) THEN
+          ! Proc definitely not in range
+          GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = -2
+          CYCLE
+        ELSE
+          ! Proc possible in range
+          GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 0
+        END IF
+
+      ! Proc definitely not in range or already flagged
+      CASE(-2,1,2)
+        CYCLE
+    END SELECT
   END IF
 
   BoundsOfElemCenter(1:3) = (/SUM(BoundsOfElem_Shared(1:2,1,ElemID)), &
@@ -407,13 +455,15 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                 END IF
                 CYCLE ElemLoop
               END IF
+            END DO
+          END DO
 
-              DO jPeriodicVector = 1,2
-
+          DO iPeriodicDir = 1,2
+            DO jPeriodicDir = 1,2
                 ! check if element is within halo_eps of periodically displaced element
                 IF (VECNORM( BoundsOfElemCenter(1:3)                                                    &
-                           + GEO%PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
-                           + GEO%PeriodicVectors(1:3,jPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
+                           + GEO%PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir) &
+                         + GEO%PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir) &
                            - MPISideBoundsOfElemCenter(1:3,iSide))                                      &
                         .LE. MPI_halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
                   ! flag the proc as exchange proc (in halo region)
@@ -427,9 +477,8 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                 END IF
               END DO
             END DO
-          END DO
 
-        ! Two periodic vectors. Also check linear combination, see particle_bgm.f90
+        ! Three periodic vectors. Also check linear combination, see particle_bgm.f90
         CASE(3)
           ! check the three periodic vectors. Begin with checking the first periodic vector, followed by the combination of
           ! the first periodic vector with the others. Then check the other combinations, i.e. 1, 1+2, 1+3, 2, 2+3, 3, 1+2+3
@@ -452,13 +501,38 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
               END IF
 
               DO jPeriodicVector = 1,3
-                IF (iPeriodicVector.GE.jPeriodicVector) CYCLE
+                DO jPeriodicDir = 1,2
+                  IF (iPeriodicVector.GE.jPeriodicVector) CYCLE
 
-                ! check if element is within halo_eps of periodically displaced element
-                IF (VECNORM( BoundsOfElemCenter(1:3)                                                    &
-                           + GEO%PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
-                           + GEO%PeriodicVectors(1:3,jPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
-                           - MPISideBoundsOfElemCenter(1:3,iSide))                                      &
+                  ! check if element is within halo_eps of periodically displaced element
+                  IF (VECNORM( BoundsOfElemCenter(1:3)                                                    &
+                             + GEO%PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
+                               + GEO%PeriodicVectors(1:3,jPeriodicVector) * DirPeriodicVector(jPeriodicDir) &
+                             - MPISideBoundsOfElemCenter(1:3,iSide))                                      &
+                          .LE. MPI_halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
+                    ! flag the proc as exchange proc (in halo region)
+                    GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
+                    GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
+                    nExchangeProcessors = nExchangeProcessors + 1
+                    IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+                      FlagShapeElem(iElem) = .TRUE.
+                    END IF
+                    CYCLE ElemLoop
+                  END IF
+                END DO
+              END DO
+            END DO
+          END DO
+
+          ! check if element is within halo_eps of periodically displaced element
+          DO iPeriodicDir = 1,2
+            DO jPeriodicDir = 1,2
+              DO kPeriodicDir = 1,2
+                IF (VECNORM( BoundsOfElemCenter(1:3)                                                        &
+                           + GEO%PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)                   &
+                               + GEO%PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir)                   &
+                               + GEO%PeriodicVectors(1:3,3) * DirPeriodicVector(kPeriodicDir)                   &
+                           - MPISideBoundsOfElemCenter(1:3,iSide))                                          &
                         .LE. MPI_halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
                   ! flag the proc as exchange proc (in halo region)
                   GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
@@ -469,28 +543,8 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                   END IF
                   CYCLE ElemLoop
                 END IF
-
               END DO
             END DO
-          END DO
-
-          ! check if element is within halo_eps of periodically displaced element
-          DO iPeriodicDir = 1,2
-            IF (VECNORM( BoundsOfElemCenter(1:3)                                                        &
-                       + GEO%PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)                   &
-                       + GEO%PeriodicVectors(1:3,2) * DirPeriodicVector(iPeriodicDir)                   &
-                       + GEO%PeriodicVectors(1:3,3) * DirPeriodicVector(iPeriodicDir)                   &
-                       - MPISideBoundsOfElemCenter(1:3,iSide))                                          &
-                    .LE. MPI_halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
-              ! flag the proc as exchange proc (in halo region)
-              GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
-              GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
-              nExchangeProcessors = nExchangeProcessors + 1
-              IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
-                FlagShapeElem(iElem) = .TRUE.
-              END IF
-              CYCLE ElemLoop
-            END IF
           END DO
 
         ! No periodic vectors, element out of range
@@ -520,7 +574,7 @@ DO iProc = 0,nProcessors_Global-1
   IF (iProc.EQ.myRank) CYCLE
 
   ! CommFlag holds the information if the local proc wants to communicate with iProc
-  CommFlag = MERGE(.TRUE.,.FALSE.,GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc).NE.-1)
+  CommFlag = MERGE(.TRUE.,.FALSE.,GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc).GT.0)
   CALL MPI_ISEND( CommFlag                     &
                 , 1                            &
                 , MPI_INTEGER                  &
@@ -547,7 +601,7 @@ DO iProc = 0,nProcessors_Global-1
   IF (iProc.EQ.myRank) CYCLE
 
   ! Ignore procs that are already flagged or not requesting communication
-  IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc) .NE.-1) CYCLE
+  IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc).GT.0) CYCLE
   IF (.NOT.GlobalProcToRecvProc(iProc)) CYCLE
 
   ! Found a previously missing proc
@@ -559,6 +613,8 @@ DO iProc = 0,nProcessors_Global-1
 END DO
 
 DEALLOCATE(GlobalProcToRecvProc,RecvRequest,SendRequest)
+
+! On smooth grids, nNonSymmetricExchangeProcs should be zero. Only output if previously missing particle exchange procs are found
 CALL MPI_REDUCE(nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
 IF (nNonSymmetricExchangeProcsGlob.GT.1) THEN
   SWRITE(Unit_StdOut,'(A,I0,A)') ' | Found ',nNonSymmetricExchangeProcsGlob, &
@@ -579,7 +635,7 @@ ALLOCATE(ExchangeProcToGlobalProc(2,0:nExchangeProcessors-1))
 
 nExchangeProcessors = 0
 DO iProc = 0,nProcessors_Global-1
-  IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc).NE.-1) THEN
+  IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc).GT.0) THEN
     ! Find it the other proc is on the same compute node
     ExchangeProcLeader = INT(GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,iProc)/nComputeNodeProcessors)
     IF (ExchangeProcLeader.EQ.myLeaderGroupRank) THEN
@@ -833,6 +889,273 @@ SDEALLOCATE(ExchangeProcToGlobalProc)
 SDEALLOCATE(GlobalProcToExchangeProc)
 
 END SUBROUTINE FinalizePartExchangeProcs
+
+
+PURE FUNCTION HaloBoxInProc(CartNodes,CartProc,halo_eps,nPeriodicVectors,PeriodicVectors)
+!===================================================================================================================================
+! Check if bounding box is on proc by comparing the 8 corner nodes. Check needs to be performed in both directions in case one box
+! is completely immersed in the other
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)             :: CartNodes(6)
+REAL,INTENT(IN)             :: CartProc( 6)
+REAL,INTENT(IN)             :: halo_eps
+INTEGER,INTENT(IN)          :: nPeriodicVectors
+REAL,INTENT(IN),OPTIONAL    :: PeriodicVectors(3,nPeriodicVectors)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL                     :: HaloBoxInProc
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER,DIMENSION(2),PARAMETER :: DirPeriodicVector = [-1,1]
+INTEGER                        :: iNode,DirNode
+INTEGER                        :: iPeriodicVector,jPeriodicVector,iPeriodicDir,jPeriodicDir,kPeriodicDir
+REAL,DIMENSION(1:3,8)          :: xCordsTest,xCordsPeri1,xCoordsProc,xCordsPeri2
+!===================================================================================================================================
+
+HaloBoxInProc = .FALSE.
+
+! Reconstruct the eight corner nodes of the cuboid
+xCordsTest(1:3,1) = (/CartNodes(1), CartNodes(3), CartNodes(5)/)
+xCordsTest(1:3,2) = (/CartNodes(2), CartNodes(3), CartNodes(5)/)
+xCordsTest(1:3,3) = (/CartNodes(2), CartNodes(4), CartNodes(5)/)
+xCordsTest(1:3,4) = (/CartNodes(1), CartNodes(4), CartNodes(5)/)
+xCordsTest(1:3,5) = (/CartNodes(1), CartNodes(3), CartNodes(6)/)
+xCordsTest(1:3,6) = (/CartNodes(2), CartNodes(3), CartNodes(6)/)
+xCordsTest(1:3,7) = (/CartNodes(2), CartNodes(4), CartNodes(6)/)
+xCordsTest(1:3,8) = (/CartNodes(1), CartNodes(4), CartNodes(6)/)
+
+xCoordsProc(1:3,1) = (/CartProc(1), CartProc(3), CartProc(5)/)
+xCoordsProc(1:3,2) = (/CartProc(2), CartProc(3), CartProc(5)/)
+xCoordsProc(1:3,3) = (/CartProc(2), CartProc(4), CartProc(5)/)
+xCoordsProc(1:3,4) = (/CartProc(1), CartProc(4), CartProc(5)/)
+xCoordsProc(1:3,5) = (/CartProc(1), CartProc(3), CartProc(6)/)
+xCoordsProc(1:3,6) = (/CartProc(2), CartProc(3), CartProc(6)/)
+xCoordsProc(1:3,7) = (/CartProc(2), CartProc(4), CartProc(6)/)
+xCoordsProc(1:3,8) = (/CartProc(1), CartProc(4), CartProc(6)/)
+
+! Check if any of the eight test corner nodes is within the current proc
+DO iNode = 1,8
+  IF (   ((xCordsTest (1,iNode).LE.CartProc (2)+halo_eps).AND.(xCordsTest (1,iNode).GE.CartProc (1)-halo_eps))  &
+    .AND.((xCordsTest (2,iNode).LE.CartProc (4)+halo_eps).AND.(xCordsTest (2,iNode).GE.CartProc (3)-halo_eps))  &
+    .AND.((xCordsTest (3,iNode).LE.CartProc (6)+halo_eps).AND.(xCordsTest (3,iNode).GE.CartProc (5)-halo_eps))) THEN
+    HaloBoxInProc = .TRUE.
+  END IF
+END DO
+
+! Reverse check if any of the proc corner nodes is within the test proc
+DO iNode = 1,8
+  IF (   ((xCoordsProc(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCoordsProc(1,iNode).GE.CartNodes(1)-halo_eps))  &
+    .AND.((xCoordsProc(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCoordsProc(2,iNode).GE.CartNodes(3)-halo_eps))  &
+    .AND.((xCoordsProc(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCoordsProc(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
+    HaloBoxInProc = .TRUE.
+  END IF
+END DO
+
+! Also check periodic directions. Only MPI sides of the local proc are
+! taken into account, so do not perform additional case distinction
+SELECT CASE(nPeriodicVectors)
+  ! One periodic vector
+  CASE(1)
+    DO iPeriodicDir = 1,2
+      ! check if element is within halo_eps of periodically displaced element
+      DO DirNode = 1,8
+        xCordsPeri1(1:3,DirNode) = xCordsTest(1:3,DirNode) + PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)
+      END DO
+      ! Check if any of the eight test corner nodes is within the current proc
+      DO iNode = 1,8
+        IF (   ((xCordsPeri1 (1,iNode).LE.CartProc (2)+halo_eps).AND.(xCordsPeri1 (1,iNode).GE.CartProc (1)-halo_eps))  &
+          .AND.((xCordsPeri1 (2,iNode).LE.CartProc (4)+halo_eps).AND.(xCordsPeri1 (2,iNode).GE.CartProc (3)-halo_eps))  &
+          .AND.((xCordsPeri1 (3,iNode).LE.CartProc (6)+halo_eps).AND.(xCordsPeri1 (3,iNode).GE.CartProc (5)-halo_eps))) THEN
+          HaloBoxInProc = .TRUE.
+        END IF
+      END DO
+
+      ! Reverse check if any of the proc corner nodes is within the test proc
+      DO DirNode = 1,8
+        xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)
+      END DO
+      DO iNode = 1,8
+        IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
+          .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
+          .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
+          HaloBoxInProc = .TRUE.
+        END IF
+      END DO
+    END DO
+
+  ! Two periodic vectors. Also check linear combination, see particle_bgm.f90
+  CASE(2)
+    DO iPeriodicVector = 1,2
+      DO iPeriodicDir = 1,2
+        ! check if element is within halo_eps of periodically displaced element
+        DO DirNode = 1,8
+          xCordsPeri1(1:3,DirNode) = xCordsTest(1:3,DirNode) + PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)
+        END DO
+        ! Check if any of the eight test corner nodes is within the current proc
+        DO iNode = 1,8
+          IF (   ((xCordsPeri1 (1,iNode).LE.CartProc (2)+halo_eps).AND.(xCordsPeri1 (1,iNode).GE.CartProc (1)-halo_eps))  &
+            .AND.((xCordsPeri1 (2,iNode).LE.CartProc (4)+halo_eps).AND.(xCordsPeri1 (2,iNode).GE.CartProc (3)-halo_eps))  &
+            .AND.((xCordsPeri1 (3,iNode).LE.CartProc (6)+halo_eps).AND.(xCordsPeri1 (3,iNode).GE.CartProc (5)-halo_eps))) THEN
+            HaloBoxInProc = .TRUE.
+          END IF
+        END DO
+
+        ! Reverse check if any of the proc corner nodes is within the test proc
+        DO DirNode = 1,8
+          xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)
+        END DO
+        DO iNode = 1,8
+          IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
+            .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
+            .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
+            HaloBoxInProc = .TRUE.
+          END IF
+        END DO
+      END DO
+    END DO
+
+    DO iPeriodicDir = 1,2
+      DO jPeriodicDir = 1,2
+        ! check if element is within halo_eps of periodically displaced element
+        DO DirNode = 1,8
+          xCordsPeri1(1:3,DirNode) = xCordsTest(1:3,DirNode) + PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir) &
+                                                             + PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir)
+        END DO
+        ! Check if any of the eight test corner nodes is within the current proc
+        DO iNode = 1,8
+          IF (   ((xCordsPeri1 (1,iNode).LE.CartProc (2)+halo_eps).AND.(xCordsPeri1 (1,iNode).GE.CartProc (1)-halo_eps))  &
+            .AND.((xCordsPeri1 (2,iNode).LE.CartProc (4)+halo_eps).AND.(xCordsPeri1 (2,iNode).GE.CartProc (3)-halo_eps))  &
+            .AND.((xCordsPeri1 (3,iNode).LE.CartProc (6)+halo_eps).AND.(xCordsPeri1 (3,iNode).GE.CartProc (5)-halo_eps))) THEN
+            HaloBoxInProc = .TRUE.
+          END IF
+        END DO
+
+        ! Reverse check if any of the proc corner nodes is within the test proc
+        DO DirNode = 1,8
+        xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir) &
+                                                            + PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir)
+        END DO
+        DO iNode = 1,8
+          IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
+            .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
+            .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
+            HaloBoxInProc = .TRUE.
+          END IF
+        END DO
+      END DO
+    END DO
+
+  ! Three periodic vectors. Also check linear combination, see particle_bgm.f90
+  CASE(3)
+    ! check the three periodic vectors. Begin with checking the first periodic vector, followed by the combination of
+    ! the first periodic vector with the others. Then check the other combinations, i.e. 1, 1+2, 1+3, 2, 2+3, 3, 1+2+3
+    DO iPeriodicVector = 1,3
+      DO iPeriodicDir = 1,2
+        ! check if element is within halo_eps of periodically displaced element
+        DO DirNode = 1,8
+          xCordsPeri1(1:3,DirNode) = xCordsTest(1:3,DirNode) + PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)
+        END DO
+        ! Check if any of the eight test corner nodes is within the current proc
+        DO iNode = 1,8
+          IF (   ((xCordsPeri1 (1,iNode).LE.CartProc (2)+halo_eps).AND.(xCordsPeri1 (1,iNode).GE.CartProc (1)-halo_eps))  &
+            .AND.((xCordsPeri1 (2,iNode).LE.CartProc (4)+halo_eps).AND.(xCordsPeri1 (2,iNode).GE.CartProc (3)-halo_eps))  &
+            .AND.((xCordsPeri1 (3,iNode).LE.CartProc (6)+halo_eps).AND.(xCordsPeri1 (3,iNode).GE.CartProc (5)-halo_eps))) THEN
+            HaloBoxInProc = .TRUE.
+          END IF
+        END DO
+
+        ! Reverse check if any of the proc corner nodes is within the test proc
+        DO DirNode = 1,8
+          xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)
+        END DO
+        DO iNode = 1,8
+          IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
+            .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
+            .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
+            HaloBoxInProc = .TRUE.
+          END IF
+        END DO
+
+        DO jPeriodicVector = 1,3
+          DO jPeriodicDir = 1,2
+            IF (iPeriodicVector.GE.jPeriodicVector) CYCLE
+
+            ! check if element is within halo_eps of periodically displaced element
+            DO DirNode = 1,8
+
+              xCordsPeri1(1:3,DirNode) = xCordsTest(1:3,DirNode) + PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
+                                                                 + PeriodicVectors(1:3,jPeriodicVector) * DirPeriodicVector(jPeriodicDir)
+            END DO
+            ! Check if any of the eight test corner nodes is within the current proc
+            DO iNode = 1,8
+              IF (   ((xCordsPeri1 (1,iNode).LE.CartProc (2)+halo_eps).AND.(xCordsPeri1 (1,iNode).GE.CartProc (1)-halo_eps))  &
+                .AND.((xCordsPeri1 (2,iNode).LE.CartProc (4)+halo_eps).AND.(xCordsPeri1 (2,iNode).GE.CartProc (3)-halo_eps))  &
+                .AND.((xCordsPeri1 (3,iNode).LE.CartProc (6)+halo_eps).AND.(xCordsPeri1 (3,iNode).GE.CartProc (5)-halo_eps))) THEN
+                HaloBoxInProc = .TRUE.
+              END IF
+            END DO
+
+            ! Reverse check if any of the proc corner nodes is within the test proc
+            DO DirNode = 1,8
+              xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
+                                                                  + PeriodicVectors(1:3,jPeriodicVector) * DirPeriodicVector(jPeriodicDir)
+            END DO
+            DO iNode = 1,8
+              IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
+                .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
+                .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
+                HaloBoxInProc = .TRUE.
+              END IF
+            END DO
+          END DO
+        END DO
+      END DO
+    END DO
+
+    ! check if element is within halo_eps of periodically displaced element
+    DO iPeriodicDir = 1,2
+      DO jPeriodicDir = 1,2
+        DO kPeriodicDir = 1,2
+          ! check if element is within halo_eps of periodically displaced element
+          DO DirNode = 1,8
+            xCordsPeri1(1:3,DirNode) = xCordsTest(1:3,DirNode) + PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir) &
+                                                               + PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir) &
+                                                               + PeriodicVectors(1:3,3) * DirPeriodicVector(kPeriodicDir)
+          END DO
+          ! Check if any of the eight test corner nodes is within the current proc
+          DO iNode = 1,8
+            IF (   ((xCordsPeri1 (1,iNode).LE.CartProc (2)+halo_eps).AND.(xCordsPeri1 (1,iNode).GE.CartProc (1)-halo_eps))  &
+              .AND.((xCordsPeri1 (2,iNode).LE.CartProc (4)+halo_eps).AND.(xCordsPeri1 (2,iNode).GE.CartProc (3)-halo_eps))  &
+              .AND.((xCordsPeri1 (3,iNode).LE.CartProc (6)+halo_eps).AND.(xCordsPeri1 (3,iNode).GE.CartProc (5)-halo_eps))) THEN
+              HaloBoxInProc = .TRUE.
+            END IF
+          END DO
+
+          ! Reverse check if any of the proc corner nodes is within the test proc
+          DO DirNode = 1,8
+          xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir) &
+                                                              + PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir) &
+                                                              + PeriodicVectors(1:3,3) * DirPeriodicVector(kPeriodicDir)
+          END DO
+          DO iNode = 1,8
+            IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
+              .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
+              .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
+              HaloBoxInProc = .TRUE.
+            END IF
+          END DO
+        END DO
+      END DO
+    END DO
+
+END SELECT
+
+END FUNCTION HaloBoxInProc
 #endif /*USE_MPI*/
 
 END MODULE MOD_Particle_MPI_Halo
