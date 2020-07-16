@@ -110,7 +110,10 @@ USE MOD_Particle_Mesh_Vars      ,ONLY:PartElemToElemAndSide
 USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
 USE MOD_Particle_MPI_Vars       ,ONLY:PartHaloElemToProc
 USE MOD_Particle_Mesh_Vars      ,ONLY:PartSideToElem
-USE MOD_Mesh_Vars               ,ONLY:MortarType,nElems,FS2M,SideToElem
+USE MOD_Mesh_Vars               ,ONLY:MortarType,nElems,FS2M,SideToElem,ElemToSide,MortarInfo
+USE MOD_Mesh_Vars               ,ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mesh_Vars               ,ONLY: firstMortarMPISide,lastMortarMPISide
+USE MOD_Mesh_Vars               ,ONLY: firstMPISide_YOUR,lastMPISide_MINE,lastInnerSide
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
 USE MOD_Mesh_Vars              ,ONLY: DoWriteStateToHDF5,nBCSides,GlobalUniqueSideID
@@ -157,7 +160,7 @@ INTEGER(KIND=IK)               :: PP_nVarTmp
 LOGICAL                        :: usePreviousTime_loc
 INTEGER           :: iSide,i
 #if USE_HDG
-INTEGER                        :: SideID,HaloElemID,iLocSide,iElem,HaloProcID
+INTEGER                        :: SideID,HaloElemID,iLocSide,iElem,HaloProcID,iMortar,nMortars
 INTEGER,ALLOCATABLE            :: SortedUniqueSides(:)
 REAL,ALLOCATABLE               :: SortedLambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
 REAL,ALLOCATABLE               :: TotalLambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
@@ -333,28 +336,79 @@ ASSOCIATE (&
       WRITE (UNIT_stdOut,*) "nUniqueSides,nSides =", nUniqueSides,nSides
       DO iSide = 1, nSides
 
-        iLocSide   = MERGE(S2E_NB_LOC_SIDE_ID,S2E_LOC_SIDE_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
-        iElem      = MERGE(S2E_NB_ELEM_ID,S2E_ELEM_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
-        !WRITE (UNIT_stdOut,*) "PartSideToElem(iElem,iSide) =", PartSideToElem(iElem,iSide)
-        !WRITE (UNIT_stdOut,*) "MortarType(1,iSide) =", MortarType(1,iSide)
-        IF(MortarType(1,iSide).NE.-1)THEN
+        !IF(MortarType(1,iSide).NE.-1)THEN
+        IF((iSide.GE.firstMortarMPISide  .AND.iSide.LE.lastMortarMPISide).OR.&
+           (iSide.GE.firstMortarInnerSide.AND.iSide.LE.lastMortarInnerSide))THEN
           HaloElemID = -1
+          flip=-99
+          nMortars=MERGE(4,2,MortarType(1,iSide).EQ.1)
+          iLocSide=MortarType(2,iSide)
+          DO iMortar=1,nMortars
+            SideID= MortarInfo(MI_SIDEID,iMortar,iLocSide) !small SideID
+            flip  = MortarInfo(MI_FLIP,iMortar,iLocSide)
+            IF(flip.NE.0)THEN
+              CALL abort(&
+              __STAMP__&
+              ,'hdf5 output HDG: small sides should not be slave!')
+            END IF ! flip.NE.0
+            IPWRITE(UNIT_StdOut,*) "SideID,flip =", SideID,flip
+          END DO
         ELSE
-          HaloElemID = PartElemToElemAndSide(1,PartSideToElem(iLocSide,iSide),PartSideToElem(iElem,iSide))
+          ASSOCIATE( S2E_Side => MERGE(S2E_NB_LOC_SIDE_ID , S2E_LOC_SIDE_ID , PartSideToElem(S2E_ELEM_ID , iSide).EQ.-1),&
+                     S2E_Elem => MERGE(S2E_NB_ELEM_ID     , S2E_ELEM_ID     , PartSideToElem(S2E_ELEM_ID , iSide).EQ.-1))
+            HaloElemID = PartElemToElemAndSide(1,PartSideToElem(S2E_Side,iSide),PartSideToElem(S2E_Elem,iSide))
+          END ASSOCIATE
+
+          !flip = SideToElem(S2E_FLIP,iSide)
+          !iLocSide   = MERGE(S2E_NB_LOC_SIDE_ID , S2E_LOC_SIDE_ID , PartSideToElem(S2E_ELEM_ID , iSide).NE.-1)
+          !iElem      = MERGE(S2E_NB_ELEM_ID     , S2E_ELEM_ID     , PartSideToElem(S2E_ELEM_ID , iSide).NE.-1)
+
+          IF(iSide.GT.lastMPISide_MINE)THEN
+            iLocSide = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+            iElem    = SideToElem(S2E_NB_ELEM_ID,iSide)
+          ELSE
+            iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
+            iElem    = SideToElem(S2E_ELEM_ID,iSide)
+          END IF ! iSide.GT.lastMPISide_MINE
+          !IF(iElem.GT.nElems)THEN
+            !IPWRITE(UNIT_StdOut,*) "iElem,nElems =", iElem,nElems
+            !CALL abort(&
+            !__STAMP__&
+            !,'iElem.GT.nElems',IntInfoOpt=iElem,RealInfoOpt=REAL(nElems))
+          !END IF ! iElem.GT.nElems
+          WRITE (UNIT_stdOut,'(A9,I2,A9,I2)',advance='YES') "LocSide", iLocSide, "iElem", iElem
+          IF(MortarType(1,iSide).EQ.0)THEN
+            flip=-99
+          ELSE
+            flip = ElemToSide(E2S_FLIP,iLocSide,iElem)
+          END IF ! MortarType
+          !IPWRITE (*,*) "flip =", flip
         END IF ! MortarType(1,iSide).NE.-1)
+
+
+        IF(iSide.GT.lastInnerSide)THEN
+          IF(iSide.GT.lastMPISide_MINE)THEN
+            WRITE (UNIT_stdOut,'(A5)',advance='NO') "YOUR "
+          ELSE
+            WRITE (UNIT_stdOut,'(A5)',advance='NO') "MINE "
+          END IF ! iSide.GT.lastMPISide_MINE
+        ELSE
+          WRITE (UNIT_stdOut,'(A5)',advance='NO') "     "
+        END IF ! iSide.GT.lastInnerSide
 
         IF(HaloElemID.GT.nElems)THEN
           HaloProcID = PartHaloElemToProc(NATIVE_PROC_ID,HaloElemID)
         ELSE
           HaloProcID = myrank+1
         END IF ! HaloElemID.GT.0
+        !IPWRITE(UNIT_StdOut,*) "HaloElemID,HaloProcID =", HaloElemID,HaloProcID
 
         IF(iSide.LE.nBCSides)THEN
           CALL set_formatting("green")
-          WRITE (UNIT_stdOut,'(A12)',advance='NO') "BCSide"
+          WRITE (UNIT_stdOut,'(A9)',advance='NO') "BCSide"
         ELSE
           CALL set_formatting("red")
-          WRITE (UNIT_stdOut,'(A12)',advance='NO') "innerSide"
+          WRITE (UNIT_stdOut,'(A9)',advance='NO') "innerSide"
         END IF ! iSide.LE.nBCSides
 
         CALL clear_formatting()
@@ -364,7 +418,7 @@ ASSOCIATE (&
           CALL set_formatting("yellow")
         END IF ! GlobalUniqueSideID(iSIde).LE.0
 
-        WRITE (UNIT_stdOut,'(I4,A12,I4,A12,I4,A22,4(1x,ES25.14E3))',advance='NO') iSide,"UniqueSide",GlobalUniqueSideID(iSIde),"myrank",myrank,"lambda(:,:,iSide) =", lambda(:,:,iSide)
+        WRITE (UNIT_stdOut,'(I4,A12,I4,A10,I3,A22,4(1x,ES21.14E3))',advance='NO') iSide,"UniqueSide",GlobalUniqueSideID(iSIde),"myrank",myrank,"lambda(:,:,iSide) =", lambda(:,:,iSide)
 
         IF(GlobalUniqueSideID(iSIde).LE.0)THEN
           CALL clear_formatting()
@@ -395,10 +449,17 @@ ASSOCIATE (&
         IF(MortarType(1,iSide).NE.-1)THEN
           CALL set_formatting("yellow")
         END IF ! MortarType(1,iSide).NE.-1)
-        WRITE (UNIT_stdOut,'(A20,I4)') "MortarType(1,iSide)",MortarType(1,iSide)
+        WRITE (UNIT_stdOut,'(A20,I4)',advance='NO') "MortarType(1,iSide)",MortarType(1,iSide)
         IF(MortarType(1,iSide).NE.-1)THEN
           CALL clear_formatting()
         END IF ! MortarType(1,iSide).NE.-1)
+
+        WRITE (UNIT_stdOut,'(A5,I12)',advance='NO') "flip",flip
+
+        !WRITE (*,*) "master   : SideToElem(S2E_LOC_SIDE_ID,iSide)    =", SideToElem(S2E_LOC_SIDE_ID,iSide)
+        !WRITE (*,*) "neighbour: SideToElem(S2E_NB_LOC_SIDE_ID,iSide) =", SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+        WRITE (UNIT_stdOut,'(A5,I4)',advance='NO') "LOC",SideToElem(S2E_LOC_SIDE_ID,iSide)
+        WRITE (UNIT_stdOut,'(A7,I4)',advance='YES') "NB_LOC",SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
 
 
       END DO ! iSide = 1, nUniqueSides
@@ -445,13 +506,17 @@ DO i=0,nProcessors-1
   IF(i.eq.myrank)THEN
     DO iSide = 1, nSides
 
-      iLocSide   = MERGE(S2E_NB_LOC_SIDE_ID,S2E_LOC_SIDE_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
-      iElem      = MERGE(S2E_NB_ELEM_ID,S2E_ELEM_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
-      IF(MortarType(1,iSide).NE.-1)THEN
-        HaloElemID = -1
-      ELSE
-        HaloElemID = PartElemToElemAndSide(1,PartSideToElem(iLocSide,iSide),PartSideToElem(iElem,iSide))
-      END IF ! MortarType(1,iSide).NE.-1)
+      ASSOCIATE( S2E_Side => MERGE(S2E_NB_LOC_SIDE_ID , S2E_LOC_SIDE_ID , PartSideToElem(S2E_ELEM_ID , iSide).EQ.-1),&
+                 S2E_Elem => MERGE(S2E_NB_ELEM_ID     , S2E_ELEM_ID     , PartSideToElem(S2E_ELEM_ID , iSide).EQ.-1))
+        IF(MortarType(1,iSide).NE.-1)THEN
+          HaloElemID = -1
+          IF(MortarType(1,iSide).EQ.-10)THEN
+            HaloElemID = PartElemToElemAndSide(1,PartSideToElem(S2E_Side,iSide),PartSideToElem(S2E_Elem,iSide))
+          END IF ! MortarType(1,iSide).EQ.-10
+        ELSE
+          HaloElemID = PartElemToElemAndSide(1,PartSideToElem(S2E_Side,iSide),PartSideToElem(S2E_Elem,iSide))
+        END IF ! MortarType(1,iSide).NE.-1)
+      END ASSOCIATE
 
       IF(HaloElemID.GT.nElems)THEN
         HaloProcID = PartHaloElemToProc(NATIVE_PROC_ID,HaloElemID)
@@ -518,8 +583,46 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
     CALL SortArray(nSides,SortedUniqueSides(1:nSides),GlobalUniqueSideID(1:nSides))
     ALLOCATE(SortedLambda(PP_nVar,nGP_face,nSides))
     DO iSide = 1, nSides
+
+      IF(iSide.GT.lastMPISide_MINE)THEN
+        iLocSide = SideToElem(S2E_NB_LOC_SIDE_ID , iSide)
+        iElem    = SideToElem(S2E_NB_ELEM_ID     , iSide)
+      ELSE
+        iLocSide = SideToElem(S2E_LOC_SIDE_ID , iSide)
+        iElem    = SideToElem(S2E_ELEM_ID     , iSide)
+      END IF ! iSide.GT.lastMPISide_MINE
+      IF(MortarType(1,iSide).EQ.0)THEN
+        flip=0
+      ELSE
+        flip = ElemToSide(E2S_FLIP,iLocSide,iElem)
+      END IF ! MortarType
+      !IPWRITE(UNIT_StdOut,*) "flip =", flip
+
+      SELECT CASE(flip)
+      CASE(0)
+        SortedLambda(:,:,SortedUniqueSides(iSide)) = lambda(:,:,iSide)
+      CASE(1:4) ! slave side
+        DO q=0,PP_N
+          DO p=0,PP_N
+            ASSOCIATE( pp => FS2M(1,p,q,flip) ,&
+                       qq => FS2M(2,p,q,flip) )
+              ASSOCIATE( r =>  q*(PP_N+1) + p +1 ,&
+                         l => qq*(PP_N+1) + pp+1  )
+                SortedLambda(:,r:r,SortedUniqueSides(iSide)) = lambda(:,l:l,iSide)
+              END ASSOCIATE
+            END ASSOCIATE
+          END DO
+        END DO
+      CASE DEFAULT
+        CALL abort(&
+        __STAMP__&
+        ,'Flip=',IntInfoOpt=flip)
+      END SELECT !flip(iMortar)
+
+
+
       ! 1.)
-      SortedLambda(:,:,SortedUniqueSides(iSide)) = lambda(:,:,iSide)
+      !SortedLambda(:,:,SortedUniqueSides(iSide)) = lambda(:,:,iSide)
 
 
       ! 2.)
@@ -590,13 +693,17 @@ DO i=0,nProcessors-1
   IF(i.eq.myrank)THEN
     DO iSide = 1, nSides
 
-      iLocSide   = MERGE(S2E_NB_LOC_SIDE_ID,S2E_LOC_SIDE_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
-      iElem      = MERGE(S2E_NB_ELEM_ID,S2E_ELEM_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
-      IF(MortarType(1,iSide).NE.-1)THEN
-        HaloElemID = -1
-      ELSE
-        HaloElemID = PartElemToElemAndSide(1,PartSideToElem(iLocSide,iSide),PartSideToElem(iElem,iSide))
-      END IF ! MortarType(1,iSide).NE.-1)
+      ASSOCIATE( S2E_Side => MERGE(S2E_NB_LOC_SIDE_ID , S2E_LOC_SIDE_ID , PartSideToElem(S2E_ELEM_ID , iSide).EQ.-1),&
+                 S2E_Elem => MERGE(S2E_NB_ELEM_ID     , S2E_ELEM_ID     , PartSideToElem(S2E_ELEM_ID , iSide).EQ.-1))
+        IF(MortarType(1,iSide).NE.-1)THEN
+          HaloElemID = -1
+          IF(MortarType(1,iSide).EQ.-10)THEN
+            HaloElemID = PartElemToElemAndSide(1,PartSideToElem(S2E_Side,iSide),PartSideToElem(S2E_Elem,iSide))
+          END IF ! MortarType(1,iSide).EQ.-10
+        ELSE
+          HaloElemID = PartElemToElemAndSide(1,PartSideToElem(S2E_Side,iSide),PartSideToElem(S2E_Elem,iSide))
+        END IF ! MortarType(1,iSide).NE.-1)
+      END ASSOCIATE
 
       IF(HaloElemID.GT.nElems)THEN
         HaloProcID = PartHaloElemToProc(NATIVE_PROC_ID,HaloElemID)

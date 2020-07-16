@@ -257,8 +257,8 @@ __STAMP__&
 #if USE_MPI
     IF((PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1) &
    .OR.(PartSideToElem(S2E_NB_ELEM_ID,iSide).EQ.-1)) THEN ! innerBCSide is between two procs
-      iLocSide   = MERGE(S2E_NB_LOC_SIDE_ID,S2E_LOC_SIDE_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
-      iElem      = MERGE(S2E_NB_ELEM_ID,S2E_ELEM_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
+      iLocSide   = MERGE(S2E_NB_LOC_SIDE_ID , S2E_LOC_SIDE_ID , PartSideToElem(S2E_ELEM_ID , iSide).EQ.-1)
+      iElem      = MERGE(S2E_NB_ELEM_ID     , S2E_ELEM_ID     , PartSideToElem(S2E_ELEM_ID , iSide).EQ.-1)
       HaloElemID = PartElemToElemAndSide(1,PartSideToElem(iLocSide,iSide),PartSideToElem(iElem,iSide))
       IF(myrank.GT.PartHaloElemToProc(NATIVE_PROC_ID,HaloElemID)) THEN ! innerBCSide is between two procs and NOT on output side
         IsSlaveSide(iSide) = .TRUE.   !(1)
