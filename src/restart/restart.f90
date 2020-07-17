@@ -1469,7 +1469,7 @@ IMPLICIT NONE
           ClonedParticles(pcount(iDelay),iDelay)%PartState(5) = CloneData(5,iPart)
           ClonedParticles(pcount(iDelay),iDelay)%PartState(6) = CloneData(6,iPart)
           ClonedParticles(pcount(iDelay),iDelay)%Species = INT(CloneData(7,iPart))
-          ClonedParticles(pcount(iDelay),iDelay)%Element = iElem
+          ClonedParticles(pcount(iDelay),iDelay)%Element = INT(CloneData(8,iPart))
           ClonedParticles(pcount(iDelay),iDelay)%lastPartPos(1:3) = CloneData(1:3,iPart)
           IF (UseDSMC) THEN
             IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN

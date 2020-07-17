@@ -2404,7 +2404,7 @@ END IF
 iPart=offsetnPart
 DO iDelay=0,tempDelay
   DO pcount = 1, RadialWeighting%ClonePartNum(iDelay)
-    iElem_glob = ClonedParticles(pcount,iDelay)%Element + offsetElem
+    iElem_glob = ClonedParticles(pcount,iDelay)%Element
     iPart = iPart + 1
     PartData(1,iPart)=ClonedParticles(pcount,iDelay)%PartState(1)
     PartData(2,iPart)=ClonedParticles(pcount,iDelay)%PartState(2)
