@@ -21,7 +21,6 @@ IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Variables
-INTEGER,ALLOCATABLE       :: ElemInfo_Shared_tmp(:)
 INTEGER,ALLOCATABLE       :: SideInfo_Shared_tmp(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Interfaces
@@ -108,7 +107,6 @@ USE MOD_Globals
 USE MOD_Mesh_Vars
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
-USE MOD_MPI_Vars                  ,ONLY: offsetElemMPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 #endif
@@ -122,14 +120,17 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if USE_MPI
-INTEGER                        :: iProc
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #endif
 !===================================================================================================================================
 
 #if USE_MPI
 #if USE_LOADBALANCE
-IF (.NOT.PerformLoadBalance) THEN
+IF (PerformLoadBalance) THEN
+  ! Only update the mapping of element to rank
+  ElemInfo_Shared(ELEM_RANK        ,offsetElem+1:offsetElem+nElems) = myRank
+  CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
+ELSE
 #endif /*USE_LOADBALANCE*/
   ! allocate shared array for ElemInfo
   MPISharedSize = INT((ELEM_HALOFLAG)*nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
@@ -143,10 +144,6 @@ IF (.NOT.PerformLoadBalance) THEN
 END IF
 #endif /*USE_LOADBALANCE*/
 #endif  /*USE_MPI*/
-
-! allocate temporary array to hold processor rank for each elem
-ALLOCATE(ElemInfo_Shared_tmp(offsetElem+1:offsetElem+nElems))
-ElemInfo_Shared_tmp(offsetElem+1:offsetElem+nElems) = myRank
 
 #if USE_MPI
 ! broadcast elem offset of compute-node root
@@ -595,10 +592,51 @@ nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo(ELEM_FIRST
 
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) THEN
-  ! Update mappings with new information
-  ElemInfo_Shared(ELEM_RANK,     offsetElem+1  :offsetElem+nElems)     = ElemInfo_Shared_tmp
+  ! Update SideInfo with new information
   SideInfo_Shared(SIDEINFOSIZE+1,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo_Shared_tmp
-  DEALLOCATE(ElemInfo_Shared_tmp,SideInfo_Shared_tmp)
+  DEALLOCATE(SideInfo_Shared_tmp)
+
+  IF (myComputeNodeRank.EQ.0) THEN
+    ! Arrays for the compute-node to communicate their offsets
+    ALLOCATE(displsCN(0:nLeaderGroupProcs-1))
+    ALLOCATE(recvcountCN(0:nLeaderGroupProcs-1))
+    DO iProc=0,nLeaderGroupProcs-1
+      displsCN(iProc) = iProc
+    END DO
+    recvcountCN(:) = 1
+    ! Arrays for the compute node to hold the elem offsets
+    ALLOCATE(displsElem(0:nLeaderGroupProcs-1))
+    ALLOCATE(recvcountElem(0:nLeaderGroupProcs-1))
+    displsElem(myLeaderGroupRank) = offsetComputeNodeElem
+    CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsElem,recvcountCN,displsCN  &
+          ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
+    DO iProc=1,nLeaderGroupProcs-1
+      recvcountElem(iProc-1) = displsElem(iProc)-displsElem(iProc-1)
+    END DO
+    recvcountElem(nLeaderGroupProcs-1) = nGlobalElems - displsElem(nLeaderGroupProcs-1)
+  END IF
+
+  ! Broadcast compute node side offset on node
+  offsetComputeNodeSide=offsetSideID
+  CALL MPI_BCAST(offsetComputeNodeSide,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+
+  IF (myComputeNodeRank.EQ.0) THEN
+    ! Arrays for the compute node to hold the side offsets
+    ALLOCATE(displsSide(0:nLeaderGroupProcs-1))
+    ALLOCATE(recvcountSide(0:nLeaderGroupProcs-1))
+    displsSide(myLeaderGroupRank) = offsetComputeNodeSide
+    CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsSide,recvcountCN,displsCN &
+          ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
+    DO iProc=1,nLeaderGroupProcs-1
+      recvcountSide(iProc-1) = displsSide(iProc)-displsSide(iProc-1)
+    END DO
+    recvcountSide(nLeaderGroupProcs-1) = nNonUniqueGlobalSides - displsSide(nLeaderGroupProcs-1)
+
+    CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared(ELEM_RANK,:),recvcountElem  &
+                        ,displsElem,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
+    CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared(SIDEINFOSIZE+1,:),recvcountSide  &
+                        ,displsSide,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
+  END IF
 
   ! final sync of all mesh shared arrays
   CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
@@ -756,9 +794,8 @@ DO iElem = FirstElemInd,LastElemInd
   END DO
 END DO
 
-ElemInfo_Shared(ELEM_RANK     ,offsetElem  +1:offsetElem  +nElems  ) = ElemInfo_Shared_tmp
 SideInfo_Shared(SIDEINFOSIZE+1,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo_Shared_tmp
-DEALLOCATE(ElemInfo_Shared_tmp,SideInfo_Shared_tmp)
+DEALLOCATE(SideInfo_Shared_tmp)
 
 #if USE_MPI
 ! Perform second communication step to distribute updated SIDE_LOCALID
