@@ -221,6 +221,8 @@ CASE(21) !linear
     Resu(:)=10.+SUM(x)
 CASE(101) !constant
     Resu(:)=7.7
+CASE(1001) ! linear in y-z
+    Resu(:)=x(2)*2340 + x(3)*2340
 
 CASE(2) !sinus
   Frequency=0.5

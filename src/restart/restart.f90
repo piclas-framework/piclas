@@ -332,8 +332,13 @@ USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face
 USE MOD_HDG                    ,ONLY: RestartHDG
-USE MOD_Mesh_Vars              ,ONLY: GlobalUniqueSideID,MortarType
+USE MOD_Mesh_Vars              ,ONLY: GlobalUniqueSideID,MortarType,SideToElem
 USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
+USE MOD_Mappings               ,ONLY: CGNS_SideToVol2
+USE MOD_Mesh_Vars              ,ONLY: firstMortarInnerSide,lastMortarInnerSide,MortarInfo,firstMortarMPISide,lastInnerSide
+USE MOD_Mesh_Vars              ,ONLY: lastMortarMPISide,nBCSides,lastMPISide_MINE,ElemToSide
+USE MOD_MPI_Vars               ,ONLY: nbProc,RecRequest_U,SendRequest_U
+USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_HDG*/
 #if USE_QDS_DG
 USE MOD_QDS_DG_Vars            ,ONLY: DoQDS,QDSMacroValues,nQDSElems,QDSSpeciesMass
@@ -415,12 +420,15 @@ INTEGER                            :: IndNum    ! > auxiliary variable containin
 INTEGER                            :: i
 #endif
 INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
-#if !(USE_HDG)
-INTEGER(KIND=IK)                   :: PMLnVarTmp
-#else
+#if USE_HDG
 INTEGER                            :: iSide,MinGlobalSideID,MaxGlobalSideID
 REAL,ALLOCATABLE                   :: ExtendedLambda(:,:,:)
-#endif /*not USE_HDG*/
+INTEGER                            :: p,q,r,rr,pq(1:2),flip
+INTEGER                            :: iLocSide,iLocSide_NB,iLocSide_master
+INTEGER                            :: iMortar,MortarSideID,nMortars
+#else
+INTEGER(KIND=IK)                   :: PMLnVarTmp
+#endif /*USE_HDG*/
 !===================================================================================================================================
 IF(DoRestart)THEN
 #if USE_MPI
@@ -579,17 +587,201 @@ IF(DoRestart)THEN
               nGP_face           => INT(nGP_face,IK)                           )
           !ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,MinGlobalSideID:MaxGlobalSideID))
           ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,1:ExtendednSides))
-          ExtendedLambda = -999.0
+          ExtendedLambda = HUGE(1.)
+          lambda = HUGE(1.)
           CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,ExtendednSides/),ExtendedOffsetSide,3,RealArray=ExtendedLambda)
 
           DO i=0,nProcessors-1
             IF(i.eq.myrank)THEN
               DO iSide = 1, nSides
-                lambda(:,:,iSide) = ExtendedLambda(:,:,ABS(GlobalUniqueSideID(iSide))-ExtendedOffsetSide)
-                WRITE (UNIT_stdOut,'(I4,A12,I4,A12,I4,A22,4(1x,ES25.14E3))',advance='NO') iSide,"UniqueSide",GlobalUniqueSideID(iSide),"myrank",myrank,"lambda(:,:,iSide) =", lambda(:,:,iSide)
-                IF(MortarType(1,iSide).NE.-1) CALL set_formatting("red")
-                WRITE (UNIT_stdOut,'(A20,I4)') "MortarType(1,iSide)",MortarType(1,iSide)
-                IF(MortarType(1,iSide).NE.-1) CALL clear_formatting()
+
+
+                IF(iSide.LE.lastMPISide_MINE)THEN
+                  
+                  iLocSide        = SideToElem(S2E_LOC_SIDE_ID    , iSide)
+                  iLocSide_master = SideToElem(S2E_LOC_SIDE_ID    , iSide)
+                  iLocSide_NB     = SideToElem(S2E_NB_LOC_SIDE_ID , iSide)
+
+                  ! Check real small mortar side (when the same proc has both the big an one or more small side connected elements)
+                  IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.NE.-1) iLocSide_master = iLocSide_NB
+
+                  ! is small virtual mortar side is encountered and no NB iLocSid_mastere is given
+                  IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.EQ.-1)THEN
+                    ! check all my big mortar sides and find the one to which the small virtual is connected
+            Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+                      nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+                      DO iMortar=1,nMortars
+                        SideID= MortarInfo(MI_SIDEID,iMortar,MortarType(2,MortarSideID)) !small SideID
+                        IF(iSide.EQ.SideID)THEN
+                          iLocSide_master = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
+
+                          !iLocSide = iLocSide_NB
+                          !IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
+                            !iLocSides(:,:,iSide) = REAL(iLocSide)
+                          !ELSE
+                          IF(iLocSide_master.EQ.-1)THEN
+                            CALL abort(&
+                                __STAMP__&
+                                ,'This big mortar side must be master')
+                          END IF !iLocSide.NE.-1
+                          EXIT Check1
+                        END IF ! iSide.EQ.SideID
+                      END DO !iMortar
+                    END DO Check1 !MortarSideID
+                  END IF ! MortarType(1,iSide).EQ.0
+
+
+                  !lambda(:,:,iSide) = ExtendedLambda(:,:,GlobalUniqueSideID(iSide)-ExtendedOffsetSide)
+                  !WRITE (*,*) "iSide,iLocSide_master,iLocSide_NB =", iSide,iLocSide_master,iLocSide_NB
+                  !WRITE (*,*) "MortarType(1,iSide) =", MortarType(1,iSide)
+                  !WRITE (*,*) "iSide,iLocSide,iLocSide_NB,iLocSide_master =", iSide,iLocSide,iLocSide_NB,iLocSide_master
+                  DO q=0,PP_N
+                    DO p=0,PP_N
+                      pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_master)
+                      r  = q    *(PP_N+1)+p    +1
+                      rr = pq(2)*(PP_N+1)+pq(1)+1
+                      !lambda(:,rr:rr,iSide) = ExtendedLambda(:,r:r,GlobalUniqueSideID(iSide)-ExtendedOffsetSide)
+                      lambda(:,r:r,iSide) = ExtendedLambda(:,rr:rr,GlobalUniqueSideID(iSide)-ExtendedOffsetSide)
+                    END DO
+                  END DO !p,q
+                  
+                END IF ! iSide.LE.lastMPISide_MINE
+
+
+
+
+
+                ! Check my mortar sides to check the flip
+                IF((iSide.GE.firstMortarMPISide  .AND.iSide.LE.lastMortarMPISide).OR.&
+                   (iSide.GE.firstMortarInnerSide.AND.iSide.LE.lastMortarInnerSide))THEN
+                  flip=-99
+                  nMortars=MERGE(4,2,MortarType(1,iSide).EQ.1)
+                  iLocSide=MortarType(2,iSide)
+                  DO iMortar=1,nMortars
+                    SideID= MortarInfo(MI_SIDEID,iMortar,iLocSide) !small SideID
+                    flip  = MortarInfo(MI_FLIP,iMortar,iLocSide)
+                    IF(flip.NE.0)THEN
+                      CALL abort(&
+                      __STAMP__&
+                      ,'hdf5 output HDG: small sides should not be slave!')
+                    END IF ! flip.NE.0
+                    IPWRITE(UNIT_StdOut,*) "SideID,iLocSide,flip =", SideID,iLocSide,flip
+                  END DO
+                ELSE
+
+                  IF(iSide.GT.lastMPISide_MINE)THEN
+                    iLocSide = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+                    iElem    = SideToElem(S2E_NB_ELEM_ID,iSide)
+                  ELSE
+                    iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
+                    iElem    = SideToElem(S2E_ELEM_ID,iSide)
+                  END IF ! iSide.GT.lastMPISide_MINE
+
+                  IF(MortarType(1,iSide).EQ.0)THEN
+                    flip=-99
+                  ELSE
+                    flip = ElemToSide(E2S_FLIP,iLocSide,iElem)
+                  END IF ! MortarType
+                END IF ! MortarType(1,iSide).NE.-1)
+
+
+
+
+                IF(iSide.GT.lastInnerSide)THEN
+                  IF(iSide.GT.lastMPISide_MINE)THEN
+                    WRITE (UNIT_stdOut,'(A5)',advance='NO') "YOUR "
+                  ELSE
+                    WRITE (UNIT_stdOut,'(A5)',advance='NO') "MINE "
+                  END IF ! iSide.GT.lastMPISide_MINE
+                ELSE
+                  WRITE (UNIT_stdOut,'(A5)',advance='NO') "     "
+                END IF ! iSide.GT.lastInnerSide
+
+                IF(iSide.LE.nBCSides)THEN
+                  CALL set_formatting("green")
+                  WRITE (UNIT_stdOut,'(A9)',advance='NO') "BCSide"
+                ELSE
+                  IF(iSide.LE.lastInnerSide)THEN
+                    CALL set_formatting("green")
+                  ELSE
+                    CALL set_formatting("red")
+                  END IF ! iSide.LE.lastInnerSide
+                  WRITE (UNIT_stdOut,'(A9)',advance='NO') "innerSide"
+                END IF ! iSide.LE.nBCSides
+
+
+                CALL clear_formatting()
+                IF(GlobalUniqueSideID(iSIde).LE.0)THEN
+                  CALL set_formatting("red")
+                ELSEIF(MortarType(1,iSide).NE.-1)THEN
+                  CALL set_formatting("yellow")
+                END IF ! GlobalUniqueSideID(iSIde).LE.0
+
+
+
+
+                !WRITE (UNIT_stdOut,'(I4,A12,I4,A10,I3,A22,4(1x,ES25.14E3))',advance='NO') iSide,"UniqueSide",GlobalUniqueSideID(iSIde),"myrank",myrank,"lambda(:,:,iSide) =", lambda(:,:,iSide)
+                !WRITE (UNIT_stdOut,'(I4,A12,I4,A12,I4,A22,4(1x,ES21.14E3))',advance='NO') iSide,"UniqueSide",GlobalUniqueSideID(iSide),"myrank",myrank,"lambda(:,:,iSide) =", lambda(:,:,iSide)
+                WRITE (UNIT_stdOut,'(I4,A12,I4,A10,I3,A22,4(1x,ES17.9E3))',advance='NO') iSide,"UniqueSide",GlobalUniqueSideID(iSIde),"myrank",myrank,"lambda(:,:,iSide) =", lambda(:,:,iSide)
+
+        IF(GlobalUniqueSideID(iSIde).LE.0)THEN
+          CALL clear_formatting()
+        ELSEIF(MortarType(1,iSide).NE.-1)THEN
+          CALL clear_formatting()
+        END IF ! GlobalUniqueSideID(iSIde).LE.0
+
+
+
+        IF(iSide.GT.lastInnerSide)THEN
+          IF(GlobalUniqueSideID(iSIde).GT.0)THEN
+            !IF(OutputSide(iSide))THEN
+              CALL set_formatting("green")
+              WRITE (UNIT_stdOut,'(A5)',advance='NO') "YES"
+            !ELSE
+              !CALL set_formatting("red")
+              !WRITE (UNIT_stdOut,'(A5)',advance='NO') "NO"
+            !END IF ! OutputSide(iSide)
+          ELSE
+            CALL set_formatting("italic")
+            WRITE (UNIT_stdOut,'(A5)',advance='NO') "NO"
+          END IF ! GlobalUniqueSideID(iSIde).GT.0
+        ELSE
+          CALL set_formatting("italic")
+          WRITE (UNIT_stdOut,'(A5)',advance='NO') "YES"
+        END IF ! iSide.GT.nBCSides
+
+        CALL clear_formatting()
+        IF(MortarType(1,iSide).NE.-1)THEN
+          CALL set_formatting("yellow")
+        END IF ! MortarType(1,iSide).NE.-1)
+        WRITE (UNIT_stdOut,'(A20,I4)',advance='NO') "MortarType(1,iSide)",MortarType(1,iSide)
+        IF(MortarType(1,iSide).NE.-1)THEN
+          CALL clear_formatting()
+        END IF ! MortarType(1,iSide).NE.-1)
+
+        WRITE (UNIT_stdOut,'(A5,I4)',advance='NO') "flip",flip
+
+
+        IF(iSide.GT.lastInnerSide)THEN
+          IF(iSide.GT.lastMPISide_MINE)THEN
+            CALL set_formatting("red")
+            !WRITE (UNIT_stdOut,'(A5)',advance='NO') "YOUR "
+          ELSE
+            CALL set_formatting("green")
+            !WRITE (UNIT_stdOut,'(A5)',advance='NO') "MINE "
+          END IF ! iSide.GT.lastMPISide_MINE
+        END IF
+        WRITE (UNIT_stdOut,'(A5,I3)',advance='NO') "LOC",SideToElem(S2E_LOC_SIDE_ID,iSide)
+        CALL clear_formatting()
+        WRITE (UNIT_stdOut,'(A7,I3)',advance='NO') "NB_LOC",SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+        IF(iSide.GT.lastMPISide_MINE)THEN
+          CALL set_formatting("red")
+        ELSE
+          CALL set_formatting("green")
+        END IF
+                WRITE (UNIT_stdOut,'(A11,I3)',advance='NO') "MASTER_LOC",iLocSide_master
+        CALL clear_formatting()
+        WRITE(UNIT_stdOut,'(A)') '' ! write 'newline' to file to finish the current line
               END DO
               WRITE(UNIT_stdOut,'(132("-"))')
             END IF
@@ -599,9 +791,17 @@ IF(DoRestart)THEN
         END ASSOCIATE
 
 
+#if USE_MPI
+        ! Exchange lambda MINE -> YOUR direction (as only the master sides have read the solution until now)
+        CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+        CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+        CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+#endif /*USE_MPI*/
+
 
         !CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,nSides-nMPISides_YOUR/),offsetSide,3,RealArray=lambda)
 
+        SWRITE (*,*) "RESTART HDG: CALL RestartHDG(U"
         CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
       ELSE
         lambda=0.
@@ -609,6 +809,7 @@ IF(DoRestart)THEN
 
 
 
+      SWRITE (*,*) "" 
         !call sleep(1)
         !stop
 

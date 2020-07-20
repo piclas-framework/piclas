@@ -76,51 +76,52 @@ SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_DG_Vars                ,ONLY: U
-USE MOD_Globals_Vars           ,ONLY: ProjectName
-USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems
-USE MOD_Equation_Vars          ,ONLY: StrVarNames
-USE MOD_Restart_Vars           ,ONLY: RestartFile
+USE MOD_DG_Vars                 ,ONLY: U
+USE MOD_Globals_Vars            ,ONLY: ProjectName
+USE MOD_Mesh_Vars               ,ONLY: offsetElem,nGlobalElems
+USE MOD_Equation_Vars           ,ONLY: StrVarNames
+USE MOD_Restart_Vars            ,ONLY: RestartFile
 #ifdef PARTICLES
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PartSource
-USE MOD_Particle_Vars          ,ONLY: UseAdaptive
-USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC,nPorousBC,DoBoundaryParticleOutput
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts,NbrOfLostParticlesTotal
-USE MOD_Particle_Analyze_Vars  ,ONLY: nSpecAnalyze
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+USE MOD_PICDepo_Vars            ,ONLY: OutputSource,PartSource
+USE MOD_Particle_Vars           ,ONLY: UseAdaptive
+USE MOD_Particle_Boundary_Vars  ,ONLY: nAdaptiveBC,nPorousBC,DoBoundaryParticleOutput
+USE MOD_Dielectric_Vars         ,ONLY: DoDielectricSurfaceCharge
+USE MOD_Particle_Tracking_Vars  ,ONLY: CountNbrOfLostParts,NbrOfLostParticlesTotal
+USE MOD_Particle_Analyze_Vars   ,ONLY: nSpecAnalyze
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumPartsOfSpec
 #endif /*PARTICLES*/
 #ifdef PP_POIS
-USE MOD_Equation_Vars          ,ONLY: E,Phi
+USE MOD_Equation_Vars           ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #if USE_HDG
-USE MOD_Mesh_Vars              ,ONLY: offsetSide,nGlobalUniqueSides,nUniqueSides
-USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face
+USE MOD_Mesh_Vars               ,ONLY: offsetSide,nGlobalUniqueSides,nUniqueSides
+USE MOD_HDG_Vars                ,ONLY: lambda, nGP_face
 #if PP_nVar==1
-USE MOD_Equation_Vars          ,ONLY: E
+USE MOD_Equation_Vars           ,ONLY: E
 #elif PP_nVar==3
-USE MOD_Equation_Vars          ,ONLY: B
+USE MOD_Equation_Vars           ,ONLY: B
 #else
-USE MOD_Equation_Vars          ,ONLY: E,B
+USE MOD_Equation_Vars           ,ONLY: E,B
 #endif /*PP_nVar*/
-USE MOD_Mesh_Vars              ,ONLY: nSides
-USE MOD_Particle_Boundary_Tools,ONLY:SortArray
-USE MOD_Particle_Mesh_Vars      ,ONLY:PartElemToElemAndSide
-USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
-USE MOD_Particle_MPI_Vars       ,ONLY:PartHaloElemToProc
-USE MOD_Particle_Mesh_Vars      ,ONLY:PartSideToElem
-USE MOD_Mesh_Vars               ,ONLY:MortarType,nElems,FS2M,SideToElem,ElemToSide,MortarInfo
+USE MOD_Mesh_Vars               ,ONLY: nSides
+USE MOD_Particle_Boundary_Tools ,ONLY: SortArray
+USE MOD_Particle_Mesh_Vars      ,ONLY: PartElemToElemAndSide
+USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
+USE MOD_Particle_MPI_Vars       ,ONLY: PartHaloElemToProc
+USE MOD_Particle_Mesh_Vars      ,ONLY: PartSideToElem
+USE MOD_Mesh_Vars               ,ONLY: MortarType,nElems,FS2M,SideToElem,ElemToSide,MortarInfo
 USE MOD_Mesh_Vars               ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_Mesh_Vars               ,ONLY: firstMortarMPISide,lastMortarMPISide
 USE MOD_Mesh_Vars               ,ONLY: firstMPISide_YOUR,lastMPISide_MINE,lastInnerSide
-USE MOD_Mappings                ,ONLY:CGNS_SideToVol2
-USE MOD_MPI_Vars                ,ONLY: OffsetMPISides_rec,nNbProcs,nMPISides_rec,nbProc
+USE MOD_Mappings                ,ONLY: CGNS_SideToVol2
+USE MOD_MPI_Vars                ,ONLY: OffsetMPISides_rec,nNbProcs,nMPISides_rec,nbProc,RecRequest_U,SendRequest_U
+USE MOD_MPI                     ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_HDG*/
-USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
-USE MOD_Mesh_Vars              ,ONLY: DoWriteStateToHDF5,nBCSides,GlobalUniqueSideID
-USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
-USE MOD_HDF5_Input       ,ONLY: ReadArray
+USE MOD_Analyze_Vars            ,ONLY: OutputTimeFixed
+USE MOD_Mesh_Vars               ,ONLY: DoWriteStateToHDF5,nBCSides,GlobalUniqueSideID
+USE MOD_StringTools             ,ONLY: set_formatting,clear_formatting
+USE MOD_HDF5_Input              ,ONLY: ReadArray
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -169,6 +170,7 @@ REAL,ALLOCATABLE               :: SortedLambda(:,:,:)          ! lambda, ((PP_N+
 REAL,ALLOCATABLE               :: TotalLambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
 INTEGER                        :: SortedOffset,SortedStart,SortedEnd,flip,p,q,r,rr,pq(1:2)
 INTEGER                        :: SideID_start, SideID_end,iNbProc,SendID
+REAL,ALLOCATABLE               :: iLocSides(:,:,:)          ! iLocSides, ((PP_N+1)^2,nSides) 
 #endif /*USE_HDG*/
 !===================================================================================================================================
 ! set local variables for output and previous times
@@ -338,6 +340,7 @@ ASSOCIATE (&
 
 
 
+  ! Store true/false info for each side if it should be written to h5 by each process
   ALLOCATE(OutputSide(1:nSides))
   OutputSide=.FALSE.
 
@@ -357,6 +360,48 @@ ASSOCIATE (&
     END DO !iProc=1,nNBProcs
   END DO ! SendID = 1, 2
 
+  ! debugging
+  !OutputSide(1:lastMPISide_MINE) = .TRUE.
+
+  ! Exchange iLocSides: Send MINE, receive YOUR direction
+#if USE_MPI
+  ALLOCATE(iLocSides(PP_nVar,nGP_face,nSides))
+  iLocSides = -100.
+  DO iSide = 1, nSides
+    !WRITE (UNIT_stdOut,'(A5,I3)',advance='NO') "LOC",SideToElem(S2E_LOC_SIDE_ID,iSide)
+    iLocSides(:,:,iSide) = REAL(SideToElem(S2E_LOC_SIDE_ID,iSide))
+    
+    iLocSide_NB = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+
+    ! Check real small mortar side (when the same proc has both the big an one or more small side connected elements)
+    IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.NE.-1) iLocSides(:,:,iSide) = REAL(iLocSide_NB)
+
+    ! is small virtual mortar side is encountered and no NB iLocSide is given
+    IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.EQ.-1)THEN
+      ! check all my big mortar sides and find the one to which the small virtual is connected
+Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+        nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+        DO iMortar=1,nMortars
+          SideID= MortarInfo(MI_SIDEID,iMortar,MortarType(2,MortarSideID)) !small SideID
+          IF(iSide.EQ.SideID)THEN
+            iLocSide = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
+            IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
+              iLocSides(:,:,iSide) = REAL(iLocSide)
+            ELSE
+              CALL abort(&
+              __STAMP__&
+              ,'This big mortar side must be master')
+            END IF !iLocSide.NE.-1
+            EXIT Check1
+          END IF ! iSide.EQ.SideID
+        END DO !iMortar
+      END DO Check1 !MortarSideID
+    END IF ! MortarType(1,iSide).EQ.0
+  END DO
+  CALL StartReceiveMPIData(1,iLocSides,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+  CALL StartSendMPIData(   1,iLocSides,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+#endif /*USE_MPI*/
 
 
 
@@ -379,7 +424,7 @@ ASSOCIATE (&
               __STAMP__&
               ,'hdf5 output HDG: small sides should not be slave!')
             END IF ! flip.NE.0
-            IPWRITE(UNIT_StdOut,*) "SideID,flip =", SideID,flip
+            IPWRITE(UNIT_StdOut,*) "SideID,iLocSide,flip =", SideID,iLocSide,flip
           END DO
         ELSE
 
@@ -430,7 +475,9 @@ ASSOCIATE (&
           CALL set_formatting("yellow")
         END IF ! GlobalUniqueSideID(iSIde).LE.0
 
-        WRITE (UNIT_stdOut,'(I4,A12,I4,A10,I3,A22,4(1x,ES21.14E3))',advance='NO') iSide,"UniqueSide",GlobalUniqueSideID(iSIde),"myrank",myrank,"lambda(:,:,iSide) =", lambda(:,:,iSide)
+        !WRITE (UNIT_stdOut,'(I4,A12,I4,A10,I3,A22,4(1x,ES25.14E3))',advance='NO') iSide,"UniqueSide",GlobalUniqueSideID(iSIde),"myrank",myrank,"lambda(:,:,iSide) =", lambda(:,:,iSide)
+        !WRITE (UNIT_stdOut,'(I4,A12,I4,A10,I3,A22,4(1x,ES21.14E3))',advance='NO') iSide,"UniqueSide",GlobalUniqueSideID(iSIde),"myrank",myrank,"lambda(:,:,iSide) =", lambda(:,:,iSide)
+        WRITE (UNIT_stdOut,'(I4,A12,I4,A10,I3,A22,4(1x,ES17.9E3))',advance='NO') iSide,"UniqueSide",GlobalUniqueSideID(iSIde),"myrank",myrank,"lambda(:,:,iSide) =", lambda(:,:,iSide)
 
         IF(GlobalUniqueSideID(iSIde).LE.0)THEN
           CALL clear_formatting()
@@ -467,12 +514,30 @@ ASSOCIATE (&
           CALL clear_formatting()
         END IF ! MortarType(1,iSide).NE.-1)
 
-        WRITE (UNIT_stdOut,'(A5,I12)',advance='NO') "flip",flip
+        WRITE (UNIT_stdOut,'(A5,I4)',advance='NO') "flip",flip
 
         !WRITE (*,*) "master   : SideToElem(S2E_LOC_SIDE_ID,iSide)    =", SideToElem(S2E_LOC_SIDE_ID,iSide)
         !WRITE (*,*) "neighbour: SideToElem(S2E_NB_LOC_SIDE_ID,iSide) =", SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
-        WRITE (UNIT_stdOut,'(A5,I4)',advance='NO') "LOC",SideToElem(S2E_LOC_SIDE_ID,iSide)
-        WRITE (UNIT_stdOut,'(A7,I4)',advance='YES') "NB_LOC",SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+        IF(iSide.GT.lastInnerSide)THEN
+          IF(iSide.GT.lastMPISide_MINE)THEN
+            CALL set_formatting("red")
+            !WRITE (UNIT_stdOut,'(A5)',advance='NO') "YOUR "
+          ELSE
+            CALL set_formatting("green")
+            !WRITE (UNIT_stdOut,'(A5)',advance='NO') "MINE "
+          END IF ! iSide.GT.lastMPISide_MINE
+        END IF
+        WRITE (UNIT_stdOut,'(A5,I3)',advance='NO') "LOC",SideToElem(S2E_LOC_SIDE_ID,iSide)
+        CALL clear_formatting()
+        WRITE (UNIT_stdOut,'(A7,I3)',advance='NO') "NB_LOC",SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+        IF(iSide.GT.lastMPISide_MINE)THEN
+          CALL set_formatting("red")
+        ELSE
+          CALL set_formatting("green")
+        END IF
+        WRITE (UNIT_stdOut,'(A11,I3)',advance='NO') "MASTER_LOC",NINT(iLocSides(1,1,iSide))
+        CALL clear_formatting()
+        WRITE(UNIT_stdOut,'(A)') '' ! write 'newline' to file to finish the current line
 
 
       END DO ! iSide = 1, nUniqueSides
@@ -583,9 +648,22 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
     DO iSide = 1, nSides
       IF(.NOT.OutputSide(iSide)) CYCLE
 
+          IF(iSide.GT.lastMPISide_MINE)THEN
+            !CALL set_formatting("red")
+            WRITE (UNIT_stdOut,'(A5)',advance='NO') "YOUR "
+            iLocSide = NINT(iLocSides(1,1,iSide))
+          ELSE
+            !CALL set_formatting("green")
+            !WRITE (UNIT_stdOut,'(A5)',advance='NO') "MINE "
+            iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
+          END IF ! iSide.GT.lastMPISide_MINE
+
+
+
+
       ! 0.)
       !master element
-      iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
+      !iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
       IF(iLocSide.NE.-1)THEN ! MINE side
         DO q=0,PP_N
           DO p=0,PP_N
@@ -599,9 +677,10 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
         CYCLE
       END IF !iLocSide.NE.-1
 
-      ! neighbour element
+      ! neighbour element (e.g. small mortar sides when one proc has both the large and one or more small side connected elements)
       iLocSide_NB = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
       IF(iLocSide_NB.NE.-1)THEN ! YOUR side
+        IPWRITE(UNIT_StdOut,*) "iSide, GlobalUniqueSideID(iSide), iLocSide_NB =", iSIde, GlobalUniqueSideID(iSide), iLocSide_NB
         DO q=0,PP_N
           DO p=0,PP_N
             pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_NB)
@@ -616,9 +695,9 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
       ! is small virtual mortar side is encountered and no NB iLocSide is given
       IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.EQ.-1)THEN
-        IPWRITE (*,*) "iSide =", iSide
+        IPWRITE (*,*) "Mortar detected: iSide =", iSide
         ! check all my big mortar sides and find the one to which the small virtual is connected
-Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+Check2: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
           nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
           !locSide=MortarType(2,MortarSideID)
           DO iMortar=1,nMortars
@@ -627,7 +706,7 @@ Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
             IF(iSide.EQ.SideID)THEN
               iLocSide = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
               IPWRITE (*,*) "    iLocSide =",     iLocSide
-              IF(iLocSide.NE.-1)THEN ! MIEN side (big mortar)
+              IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
                 DO q=0,PP_N
                   DO p=0,PP_N
                     pq=CGNS_SideToVol2(PP_N,p,q,iLocSide)
@@ -642,10 +721,10 @@ Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
                 __STAMP__&
                 ,'This big mortar side must be master')
               END IF !iLocSide.NE.-1
-              EXIT Check1
+              EXIT Check2
             END IF ! iSide.EQ.SideID
           END DO !iMortar
-        END DO Check1 !MortarSideID
+        END DO Check2 !MortarSideID
       END IF ! MortarType(1,iSide).EQ.0
       
 
@@ -832,19 +911,29 @@ END DO
         DataSetName = 'DG_SolutionLambda', rank=3,&
         nValGlobal  = (/PP_nVarTmp , nGP_face , nGlobalUniqueSides/) , &
         nVal        = (/PP_nVarTmp , nGP_face , nOutputSides/)       , &
-        offset      = (/0_IK       , 0_IK     , SortedOffset/)         , &
+        offset      = (/0_IK       , 0_IK     , SortedOffset/)       , &
         collective  = .TRUE.                                         , &
         RealArray   = SortedLambda(:,:,SortedStart:SortedEnd))
   END ASSOCIATE
-  DEALLOCATE(SortedUniqueSides,SortedLambda)
 
 
-  SWRITE (*,*) "start!!!!!!!! ="
-  DO i = 1, 100000
+  DEALLOCATE(OutputSide,SortedUniqueSides,SortedLambda)
+  DEALLOCATE(iLocSides)
+
+
+
+
+
+
+
+
+  ! DEBUGGING OUTPUT START ==================================
+  !SWRITE (*,*) "start!!!!!!!! ="
+  !DO i = 1, 100000
     
-  END DO ! i = 1, 100000
+  !END DO ! i = 1, 100000
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-  SWRITE (*,*) "STOP!!!!!!!! ="
+  !SWRITE (*,*) "STOP!!!!!!!! ="
 
   ! Root reads complete mesh for testing
   IF(MPIRoot)THEN
@@ -857,6 +946,7 @@ END DO
     END DO
     DEALLOCATE(TotalLambda)
   END IF ! MPIRoot
+  ! DEBUGGING OUTPUT END ====================================
 
 
 
@@ -3693,7 +3783,7 @@ LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE WriteAttributeToHDF5
 
 
-SUBROUTINE GatheredWriteArray(FileName,create,DataSetName,rank,nValGlobal,nVal,offset,collective,RealArray,IntegerArray,StrArray)
+SUBROUTINE GatheredWriteArray(FileName,create,DataSetName,rank,nValGlobal,nVal,offset,collective,RealArray,IntegerArray,StrArray,Single_opt)
 !===================================================================================================================================
 ! Write additional (elementwise scalar) data to HDF5
 !===================================================================================================================================
@@ -3705,6 +3795,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)                   :: FileName,DataSetName
 LOGICAL,INTENT(IN)                            :: create,collective
+LOGICAL,INTENT(IN),OPTIONAL                   :: Single_opt
 INTEGER,INTENT(IN)                            :: rank
 INTEGER(KIND=IK),INTENT(IN)                   :: nValGlobal(rank)               ! max size of array in offset dimension
 INTEGER(KIND=IK),INTENT(IN)                   :: nVal(rank)                     ! size of complete (local) array to write
@@ -3723,7 +3814,12 @@ INTEGER(KIND=IK),ALLOCATABLE            :: UInt(:)
 INTEGER(KIND=IK)                        :: nValGather(rank),nDOFLocal
 INTEGER(KIND=IK),DIMENSION(nLocalProcs) :: nDOFPerNode,offsetNode
 INTEGER(KIND=IK)                        :: i
+LOGICAL :: Single
 !===================================================================================================================================
+Single = .FALSE.
+IF(PRESENT(Single_opt))THEN
+  Single = Single_opt
+END IF ! PRESENT(Single_opt)
 IF(gatheredWrite)THEN
   IF(ANY(offset(1:rank-1).NE.0)) &
     CALL abort(&
@@ -3786,7 +3882,8 @@ IF(gatheredWrite)THEN
   SDEALLOCATE(UStr)
 ELSE
 #endif
-  CALL OpenDataFile(FileName,create=create,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+  !CALL OpenDataFile(FileName,create=create,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(FileName,create=create,single=Single,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
   IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal           , nVal , &
                                                offset      , collective , RealArray=RealArray)
   IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal                  , nVal , &
