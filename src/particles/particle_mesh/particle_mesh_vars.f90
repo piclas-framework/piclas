@@ -59,6 +59,7 @@ REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:,:)   :: dXCL_NGeo_Shared   ! Jacobi matrix o
 REAL,ALLOCPOINT,DIMENSION(:,:,:)         :: XiEtaZetaBasis     ! element local basis vector (linear elem)
 
 ! FIBGM
+INTEGER,ALLOCPOINT,DIMENSION(:,:,:)      :: FIBGM_nTotalElems  !> FastInitBackgroundMesh of global domain
 INTEGER,ALLOCPOINT,DIMENSION(:,:,:)      :: FIBGM_nElems       !> FastInitBackgroundMesh of compute node
 INTEGER,ALLOCPOINT,DIMENSION(:,:,:)      :: FIBGM_offsetElem   !> element offsets in 1D FIBGM_Element_Shared array
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: FIBGM_Element      !> element offsets in 1D FIBGM_Element_Shared array
@@ -107,6 +108,7 @@ REAL,ALLOCPOINT    :: SideBCMetrics_Shared(:,:)            !> Metrics for BC sid
                                                            !> 7 - Origin of BC Side, z-coordinate
 
 INTEGER,ALLOCPOINT :: ElemToBGM_Shared(:,:)                !> BGM Bounding box around element (respective BGM indices) of compute node
+INTEGER,ALLOCPOINT :: FIBGM_nTotalElems_Shared(:)              !> FastInitBackgroundMesh of global domain
 INTEGER,ALLOCPOINT :: FIBGM_nElems_Shared(:)                   !> FastInitBackgroundMesh of compute node
 INTEGER,ALLOCPOINT :: FIBGM_Element_Shared(:)              !> FastInitBackgroundMesh of compute node
 INTEGER,ALLOCPOINT :: FIBGM_offsetElem_Shared(:)
@@ -183,6 +185,7 @@ INTEGER         :: ElemToBCSides_Shared_Win
 INTEGER         :: SideBCMetrics_Shared_Win
 
 INTEGER         :: ElemToBGM_Shared_Win
+INTEGER           :: FIBGM_nTotalElems_Shared_Win
 INTEGER         :: FIBGM_nElems_Shared_Win
 INTEGER         :: FIBGM_Element_Shared_Win
 INTEGER         :: FIBGM_offsetElem_Shared_Win
