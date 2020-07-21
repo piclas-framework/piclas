@@ -101,8 +101,9 @@ LOGICAL,ALLOCATABLE            :: FlagShapeElem(:)
 ! Non-symmetric particle exchange
 INTEGER,ALLOCATABLE            :: SendRequest(:),RecvRequest(:)
 LOGICAL,ALLOCATABLE            :: GlobalProcToRecvProc(:)
-LOGICAL                        :: CommFlag
+LOGICAL,ALLOCATABLE            :: CommFlag(:)
 INTEGER                        :: nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob
+INTEGER                        :: nExchangeProcessorsGlobal
 !=================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -129,7 +130,8 @@ nExchangeProcessors = 0
 ! Communicate non-symmetric part exchange partners to catch non-symmetric proc identification due to inverse distance calculation
 ALLOCATE(GlobalProcToRecvProc(0:nProcessors_Global-1), &
          SendRequest         (0:nProcessors_Global-1), &
-         RecvRequest         (0:nProcessors_Global-1))
+         RecvRequest         (0:nProcessors_Global-1), &
+         CommFlag            (0:nProcessors_Global-1))
 
 GlobalProcToRecvProc = .FALSE.
 
@@ -147,7 +149,7 @@ DO iProc = 0,nProcessors_Global-1
 
   CALL MPI_IRECV( GlobalProcToRecvProc(iProc)  &
                 , 1                            &
-                , MPI_INTEGER                  &
+                , MPI_LOGICAL                  &
                 , iProc                        &
                 , 1999                         &
                 , MPI_COMM_WORLD               &
@@ -573,11 +575,12 @@ END DO ElemLoop
 DO iProc = 0,nProcessors_Global-1
   IF (iProc.EQ.myRank) CYCLE
 
-  ! CommFlag holds the information if the local proc wants to communicate with iProc
-  CommFlag = MERGE(.TRUE.,.FALSE.,GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc).GT.0)
-  CALL MPI_ISEND( CommFlag                     &
+  ! CommFlag holds the information if the local proc wants to communicate with iProc. Cannot be a logical because ISEND might not
+  ! return before the next value is written
+  CommFlag(iProc) = MERGE(.TRUE.,.FALSE.,GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc).GT.0)
+  CALL MPI_ISEND( CommFlag(iProc)              &
                 , 1                            &
-                , MPI_INTEGER                  &
+                , MPI_LOGICAL                  &
                 , iProc                        &
                 , 1999                         &
                 , MPI_COMM_WORLD               &
@@ -605,14 +608,14 @@ DO iProc = 0,nProcessors_Global-1
   IF (.NOT.GlobalProcToRecvProc(iProc)) CYCLE
 
   ! Found a previously missing proc
-  nNonSymmetricExchangeProcs = nNonSymmetricExchangeProcs + 1
-  nExchangeProcessors        = nExchangeProcessors + 1
-
   GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc) = 2
   GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,iProc) = nExchangeProcessors
+
+  nNonSymmetricExchangeProcs = nNonSymmetricExchangeProcs + 1
+  nExchangeProcessors        = nExchangeProcessors + 1
 END DO
 
-DEALLOCATE(GlobalProcToRecvProc,RecvRequest,SendRequest)
+DEALLOCATE(GlobalProcToRecvProc,RecvRequest,SendRequest,CommFlag)
 
 ! On smooth grids, nNonSymmetricExchangeProcs should be zero. Only output if previously missing particle exchange procs are found
 CALL MPI_REDUCE(nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
@@ -633,8 +636,9 @@ ALLOCATE(ExchangeProcToGlobalProc(2,0:nExchangeProcessors-1))
 !END DO
 !nExchangeProcessors = nComputeNodeProcessors
 
-nExchangeProcessors = 0
 DO iProc = 0,nProcessors_Global-1
+  IF (iProc.EQ.myRank) CYCLE
+
   IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc).GT.0) THEN
     ! Find it the other proc is on the same compute node
     ExchangeProcLeader = INT(GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,iProc)/nComputeNodeProcessors)
@@ -646,9 +650,14 @@ DO iProc = 0,nProcessors_Global-1
       ExchangeProcToGlobalProc(EXCHANGE_PROC_TYPE,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,iProc)) = 2
       ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,iProc)) = iProc
     END IF
-    nExchangeProcessors = nExchangeProcessors +1
   END IF
 END DO
+
+! -- Average number of exchange processors
+CALL MPI_REDUCE(nExchangeProcessors,nExchangeProcessorsGlobal,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+SWRITE(UNIT_stdOut,'(A,I0,A)') ' | Started particle exchange communication with average ', &
+                                 nExchangeProcessorsGlobal/nProcessors_Global            , &
+                                 ' partners per proc'
 
 ! Build shapeFunction mapping
 IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN

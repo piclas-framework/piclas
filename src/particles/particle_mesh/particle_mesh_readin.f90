@@ -448,7 +448,6 @@ LastNodeInd  = offsetNodeID+nNodeIDs
 
 ! scale mesh if desired. Mesh deformation currently not supported!
 IF (ABS(meshScale-1.).GT.1e-14) THEN
-  print *, meshScale
   NodeCoords_Shared(:,FirstNodeInd:LastNodeInd) = NodeCoords_Shared(:,FirstNodeInd:LastNodeInd) * meshScale
 END IF
 
