@@ -851,7 +851,7 @@ USE MOD_MPI_vars
 #endif
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemHDGSides,TotalHDGSides
-USE MOD_Mesh_Vars              ,ONLY: BoundaryType
+USE MOD_Mesh_Vars        ,ONLY: BoundaryType,lastMPISide_MINE
 #endif /*USE_HDG && USE_LOADBALANCE*/
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1049,44 +1049,46 @@ DO iElem=1,nElems
     ELSE
       BCType=0
     END IF ! BC(SideID).GT.0
-    ! TODO: don't count Dirichlet sides, but Neumann sides
     !IF(SideID.LE.nBCSides) ElemToElemGlob(1,ilocSide,offSetElem+iElem)=0
+
+    ! Skip slave sides and add weighting only for master or inner or BC sides
+    IF(SideID.GT.lastMPISide_MINE) CYCLE
 
     locMortarSide=MortarType(2,SideID)
     IF(locMortarSide.EQ.-1)THEN ! normal side or small mortar side
       IF(MortarSlave2MasterInfo(SideID).EQ.-1)THEN
-
+        ! Add weighting depending on BC or inner sides
         SELECT CASE(BCType)
         CASE(1) !periodic
-          ElemHDGSides(iElem)=ElemHDGSides(iElem)+0.5
-          TotalHDGSides=TotalHDGSides+1
+          ElemHDGSides(iElem) = ElemHDGSides(iElem) + 0.5
+          TotalHDGSides       = TotalHDGSides       + 1
         CASE(2,4,5) !dirichlet
           !do not consider this side
         !CASE(10,11) !Neumann,
         CASE DEFAULT ! unknown BCType
-          ElemHDGSides(iElem)=ElemHDGSides(iElem)+1.
-          TotalHDGSides=TotalHDGSides+1
+          ElemHDGSides(iElem) = ElemHDGSides(iElem) + 1.
+          TotalHDGSides       = TotalHDGSides       + 1
         END SELECT ! BCType
       ELSE
         ! Add +1. for small mortar sides where the same proc has the large mortar side (and therefore the virtual side is not created)
-        ElemHDGSides(iElem)=ElemHDGSides(iElem)+1.
-        TotalHDGSides=TotalHDGSides+1
+        ElemHDGSides(iElem) = ElemHDGSides(iElem) + 1.
+        TotalHDGSides       = TotalHDGSides       + 1
       END IF
     ELSE ! mortar side
       DO iMortar=1,4
         SideID2=MortarInfo(MI_SIDEID,iMortar,locMortarSide)
         IF(SideID2.GT.0)THEN
-
+          ! Add weighting depending on BC or inner sides
           SELECT CASE(BCType)
           CASE(1) !periodic
-            ElemHDGSides(iElem)=ElemHDGSides(iElem)+0.5
-            TotalHDGSides=TotalHDGSides+1
+            ElemHDGSides(iElem) = ElemHDGSides(iElem) + 0.5
+            TotalHDGSides       = TotalHDGSides       + 1
           CASE(2,4,5) !dirichlet
             !do not consider this side
           !CASE(10,11) !Neumann,
           CASE DEFAULT ! unknown BCType
-            ElemHDGSides(iElem)=ElemHDGSides(iElem)+1.
-            TotalHDGSides=TotalHDGSides+1
+            ElemHDGSides(iElem) = ElemHDGSides(iElem) + 1.
+            TotalHDGSides       = TotalHDGSides       + 1
           END SELECT ! BCType
         END IF
       END DO ! iMortar=1,4
