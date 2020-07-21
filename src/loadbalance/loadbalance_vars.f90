@@ -79,7 +79,7 @@ REAL                                :: ElemTimeFieldTot ! Total time spent for f
 REAL                                :: ElemTimePart     ! Time spent for particle routines
 REAL                                :: ElemTimeField    ! Time spent for field routines
 REAL,ALLOCATABLE                    :: ElemHDGSides(:)  ! number of master sides for the HDG solver for each element
-INTEGER                             :: TotalHDGSides    ! total number of master sides for the HDG solver over all local elements
+REAL                                :: TotalHDGSides    ! total number of master sides for the HDG solver over all local elements
 REAL,ALLOCATABLE                    :: ElemGlobalTime(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nPartsPerElem(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nDeposPerElem(:)

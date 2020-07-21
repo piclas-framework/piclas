@@ -162,7 +162,7 @@ ElemHDGSides=0.
 IF(CalcMeshInfo)THEN
   CALL AddToElemData(ElementOut,'ElemHDGSides',RealArray=ElemHDGSides(1:nElems))
 END IF ! CalcMeshInfo
-TotalHDGSides=0
+TotalHDGSides=0.
 #endif /*USE_HDG*/
 
 ! Set new ElemTime depending on new load distribution

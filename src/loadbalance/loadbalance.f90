@@ -273,7 +273,7 @@ IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
   DO iElem=1,PP_nElems
     ! Time used in DG routines
 #if USE_HDG
-    ElemTimeFieldElem = tCurrent(LB_DG)*ElemHDGSides(iElem)/REAL(TotalHDGSides) + tCurrent(LB_DGANALYZE)/REAL(PP_nElems)
+    ElemTimeFieldElem = tCurrent(LB_DG)*ElemHDGSides(iElem)/TotalHDGSides + tCurrent(LB_DGANALYZE)/REAL(PP_nElems)
 #else
     ElemTimeFieldElem = (tCurrent(LB_DG) + tCurrent(LB_DGANALYZE))/REAL(PP_nElems)
 #endif /*USE_HDG*/
