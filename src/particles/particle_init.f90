@@ -643,6 +643,7 @@ USE MOD_PICInterpolation_Vars      ,ONLY: useBGField
 USE MOD_Restart_Vars               ,ONLY: DoRestart
 USE MOD_Surface_Flux               ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
+USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
 !USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
@@ -686,6 +687,10 @@ IF (Symmetry2D) THEN
   DoRefMapping=.FALSE.
   TriaTracking=.TRUE.
   SWRITE(UNIT_stdOut,'(A)') "TrackingMethod set to TriaTracking due to Symmetry2D."
+END IF
+
+IF(TrackingMethod.NE.TRIATRACKING) THEN
+  CALL InitParticleSurfaces()
 END IF
 
 IF(.NOT.ALLOCATED(nPartsPerElem))THEN
