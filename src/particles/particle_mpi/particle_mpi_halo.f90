@@ -923,7 +923,7 @@ LOGICAL                     :: HaloBoxInProc
 INTEGER,DIMENSION(2),PARAMETER :: DirPeriodicVector = [-1,1]
 INTEGER                        :: iNode,DirNode
 INTEGER                        :: iPeriodicVector,jPeriodicVector,iPeriodicDir,jPeriodicDir,kPeriodicDir
-REAL,DIMENSION(1:3,8)          :: xCordsTest,xCordsPeri1,xCoordsProc,xCordsPeri2
+REAL,DIMENSION(1:3,8)          :: xCordsTest,xCordsPeri1!,xCoordsProc,xCordsPeri2
 !===================================================================================================================================
 
 HaloBoxInProc = .FALSE.
@@ -938,14 +938,14 @@ xCordsTest(1:3,6) = (/CartNodes(2), CartNodes(3), CartNodes(6)/)
 xCordsTest(1:3,7) = (/CartNodes(2), CartNodes(4), CartNodes(6)/)
 xCordsTest(1:3,8) = (/CartNodes(1), CartNodes(4), CartNodes(6)/)
 
-xCoordsProc(1:3,1) = (/CartProc(1), CartProc(3), CartProc(5)/)
-xCoordsProc(1:3,2) = (/CartProc(2), CartProc(3), CartProc(5)/)
-xCoordsProc(1:3,3) = (/CartProc(2), CartProc(4), CartProc(5)/)
-xCoordsProc(1:3,4) = (/CartProc(1), CartProc(4), CartProc(5)/)
-xCoordsProc(1:3,5) = (/CartProc(1), CartProc(3), CartProc(6)/)
-xCoordsProc(1:3,6) = (/CartProc(2), CartProc(3), CartProc(6)/)
-xCoordsProc(1:3,7) = (/CartProc(2), CartProc(4), CartProc(6)/)
-xCoordsProc(1:3,8) = (/CartProc(1), CartProc(4), CartProc(6)/)
+!xCoordsProc(1:3,1) = (/CartProc(1), CartProc(3), CartProc(5)/)
+!xCoordsProc(1:3,2) = (/CartProc(2), CartProc(3), CartProc(5)/)
+!xCoordsProc(1:3,3) = (/CartProc(2), CartProc(4), CartProc(5)/)
+!xCoordsProc(1:3,4) = (/CartProc(1), CartProc(4), CartProc(5)/)
+!xCoordsProc(1:3,5) = (/CartProc(1), CartProc(3), CartProc(6)/)
+!xCoordsProc(1:3,6) = (/CartProc(2), CartProc(3), CartProc(6)/)
+!xCoordsProc(1:3,7) = (/CartProc(2), CartProc(4), CartProc(6)/)
+!xCoordsProc(1:3,8) = (/CartProc(1), CartProc(4), CartProc(6)/)
 
 ! Check if any of the eight test corner nodes is within the current proc
 DO iNode = 1,8
@@ -956,14 +956,14 @@ DO iNode = 1,8
   END IF
 END DO
 
-! Reverse check if any of the proc corner nodes is within the test proc
-DO iNode = 1,8
-  IF (   ((xCoordsProc(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCoordsProc(1,iNode).GE.CartNodes(1)-halo_eps))  &
-    .AND.((xCoordsProc(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCoordsProc(2,iNode).GE.CartNodes(3)-halo_eps))  &
-    .AND.((xCoordsProc(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCoordsProc(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
-    HaloBoxInProc = .TRUE.
-  END IF
-END DO
+!! Reverse check if any of the proc corner nodes is within the test proc
+!DO iNode = 1,8
+!  IF (   ((xCoordsProc(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCoordsProc(1,iNode).GE.CartNodes(1)-halo_eps))  &
+!    .AND.((xCoordsProc(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCoordsProc(2,iNode).GE.CartNodes(3)-halo_eps))  &
+!    .AND.((xCoordsProc(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCoordsProc(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
+!    HaloBoxInProc = .TRUE.
+!  END IF
+!END DO
 
 ! Also check periodic directions. Only MPI sides of the local proc are
 ! taken into account, so do not perform additional case distinction
@@ -984,17 +984,17 @@ SELECT CASE(nPeriodicVectors)
         END IF
       END DO
 
-      ! Reverse check if any of the proc corner nodes is within the test proc
-      DO DirNode = 1,8
-        xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)
-      END DO
-      DO iNode = 1,8
-        IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
-          .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
-          .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
-          HaloBoxInProc = .TRUE.
-        END IF
-      END DO
+!      ! Reverse check if any of the proc corner nodes is within the test proc
+!      DO DirNode = 1,8
+!        xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)
+!      END DO
+!      DO iNode = 1,8
+!        IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
+!          .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
+!          .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
+!          HaloBoxInProc = .TRUE.
+!        END IF
+!      END DO
     END DO
 
   ! Two periodic vectors. Also check linear combination, see particle_bgm.f90
@@ -1014,17 +1014,17 @@ SELECT CASE(nPeriodicVectors)
           END IF
         END DO
 
-        ! Reverse check if any of the proc corner nodes is within the test proc
-        DO DirNode = 1,8
-          xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)
-        END DO
-        DO iNode = 1,8
-          IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
-            .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
-            .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
-            HaloBoxInProc = .TRUE.
-          END IF
-        END DO
+!        ! Reverse check if any of the proc corner nodes is within the test proc
+!        DO DirNode = 1,8
+!          xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)
+!        END DO
+!        DO iNode = 1,8
+!          IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
+!            .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
+!            .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
+!            HaloBoxInProc = .TRUE.
+!          END IF
+!        END DO
       END DO
     END DO
 
@@ -1044,18 +1044,18 @@ SELECT CASE(nPeriodicVectors)
           END IF
         END DO
 
-        ! Reverse check if any of the proc corner nodes is within the test proc
-        DO DirNode = 1,8
-        xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir) &
-                                                            + PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir)
-        END DO
-        DO iNode = 1,8
-          IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
-            .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
-            .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
-            HaloBoxInProc = .TRUE.
-          END IF
-        END DO
+!        ! Reverse check if any of the proc corner nodes is within the test proc
+!        DO DirNode = 1,8
+!        xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir) &
+!                                                            + PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir)
+!        END DO
+!        DO iNode = 1,8
+!          IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
+!            .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
+!            .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
+!            HaloBoxInProc = .TRUE.
+!          END IF
+!        END DO
       END DO
     END DO
 
@@ -1078,17 +1078,17 @@ SELECT CASE(nPeriodicVectors)
           END IF
         END DO
 
-        ! Reverse check if any of the proc corner nodes is within the test proc
-        DO DirNode = 1,8
-          xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)
-        END DO
-        DO iNode = 1,8
-          IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
-            .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
-            .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
-            HaloBoxInProc = .TRUE.
-          END IF
-        END DO
+!        ! Reverse check if any of the proc corner nodes is within the test proc
+!        DO DirNode = 1,8
+!          xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)
+!        END DO
+!        DO iNode = 1,8
+!          IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
+!            .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
+!            .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
+!            HaloBoxInProc = .TRUE.
+!          END IF
+!        END DO
 
         DO jPeriodicVector = 1,3
           DO jPeriodicDir = 1,2
@@ -1109,18 +1109,18 @@ SELECT CASE(nPeriodicVectors)
               END IF
             END DO
 
-            ! Reverse check if any of the proc corner nodes is within the test proc
-            DO DirNode = 1,8
-              xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
-                                                                  + PeriodicVectors(1:3,jPeriodicVector) * DirPeriodicVector(jPeriodicDir)
-            END DO
-            DO iNode = 1,8
-              IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
-                .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
-                .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
-                HaloBoxInProc = .TRUE.
-              END IF
-            END DO
+!            ! Reverse check if any of the proc corner nodes is within the test proc
+!            DO DirNode = 1,8
+!              xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
+!                                                                  + PeriodicVectors(1:3,jPeriodicVector) * DirPeriodicVector(jPeriodicDir)
+!            END DO
+!            DO iNode = 1,8
+!              IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
+!                .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
+!                .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
+!                HaloBoxInProc = .TRUE.
+!              END IF
+!            END DO
           END DO
         END DO
       END DO
@@ -1145,19 +1145,19 @@ SELECT CASE(nPeriodicVectors)
             END IF
           END DO
 
-          ! Reverse check if any of the proc corner nodes is within the test proc
-          DO DirNode = 1,8
-          xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir) &
-                                                              + PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir) &
-                                                              + PeriodicVectors(1:3,3) * DirPeriodicVector(kPeriodicDir)
-          END DO
-          DO iNode = 1,8
-            IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
-              .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
-              .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
-              HaloBoxInProc = .TRUE.
-            END IF
-          END DO
+!          ! Reverse check if any of the proc corner nodes is within the test proc
+!          DO DirNode = 1,8
+!          xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir) &
+!                                                              + PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir) &
+!                                                              + PeriodicVectors(1:3,3) * DirPeriodicVector(kPeriodicDir)
+!          END DO
+!          DO iNode = 1,8
+!            IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
+!              .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
+!              .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
+!              HaloBoxInProc = .TRUE.
+!            END IF
+!          END DO
         END DO
       END DO
     END DO

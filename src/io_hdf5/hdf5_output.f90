@@ -1400,7 +1400,7 @@ DEALLOCATE(PartData)
 ! Nullify and reset boundary parts container after write out
 PartStateBoundaryVecLength = 0
 
-! Re-allocate PartStateBoundary for a small number of particles and double the array size each time the 
+! Re-allocate PartStateBoundary for a small number of particles and double the array size each time the
 ! maximum is reached
 DEALLOCATE(PartStateBoundary)
 ALLOCATE(PartStateBoundary(1:10,1:10))
@@ -1620,7 +1620,7 @@ PartStateLostVecLength  = 0
 NbrOfLostParticles      = 0
 NbrOfLostParticlesTotal = 0 ! total across all procs
 
-! Re-allocate PartStateLost for a small number of particles and double the array size each time the 
+! Re-allocate PartStateLost for a small number of particles and double the array size each time the
 ! maximum is reached
 DEALLOCATE(PartStateLost)
 ALLOCATE(PartStateLost(1:14,1:10))
@@ -3239,7 +3239,6 @@ CHARACTER(LEN=255),INTENT(IN),OPTIONAL,TARGET :: StrArray( PRODUCT(nVal))
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if USE_MPI
 INTEGER                        :: Color, OutPutCOMM,nOutPutProcs,MyOutputRank
 LOGICAL                        :: DataOnProc, DoNotSplit
 !===================================================================================================================================
@@ -3288,7 +3287,6 @@ IF(.NOT.DoNotSplit)THEN
   CALL MPI_BARRIER(COMMUNICATOR,IERROR)
   OutputCOMM=MPI_UNDEFINED
 ELSE
-#endif
 ! 3: else write with all procs of the given communicator
   ! communicator_opt has to be the given communicator or else procs that are not in the given communicator might block the write out
   ! e.g. surface communicator contains only procs with physical surface and MPI_COMM_WORLD contains every proc
@@ -3303,9 +3301,7 @@ ELSE
   IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal          , nVal , &
                                                offset      , collective , StrArray =StrArray)
   CALL CloseDataFile()
-#if USE_MPI
 END IF
-#endif
 
 END SUBROUTINE DistributedWriteArray
 #endif /*USE_MPI*/
