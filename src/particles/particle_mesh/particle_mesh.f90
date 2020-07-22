@@ -325,10 +325,10 @@ SELECT CASE(TrackingMethod)
 
 CASE(TRACING,REFMAPPING)
     IF(TriaSurfaceFlux) CALL InitParticleGeometry()
-    CALL CalcParticleMeshMetrics()
 
     BezierElevation = GETINT('BezierElevation')
     NGeoElevated    = NGeo + BezierElevation
+    CALL CalcParticleMeshMetrics()
     CALL CalcBezierControlPoints()
 
 #if USE_MPI
