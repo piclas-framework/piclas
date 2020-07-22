@@ -1048,24 +1048,25 @@ SUBROUTINE ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 ! particle path = LastPartPos+lengthPartTrajectory*PartTrajectory
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars,            ONLY:PI
 USE MOD_Globals,                 ONLY:Cross,abort,CROSSNORM,UNITVECTOR
-USE MOD_Mesh_Vars,               ONLY:NGeo,BC
-USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
+USE MOD_Globals_Vars,            ONLY:PI
+USE MOD_Mesh_Vars,               ONLY:NGeo
+USE MOD_Particle_Mesh_Vars,      ONLY:SideInfo_Shared
+USE MOD_Particle_Surfaces,       ONLY:CalcNormAndTangBezier
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,BezierNewtonAngle
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha
 USE MOD_Particle_Surfaces_Vars,  ONLY:BoundingBoxIsEmpty
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideSlabNormals
-USE MOD_Utils,                   ONLY:InsertionSort
-USE MOD_Particle_Tracking_Vars,  ONLY:TrackingMethod
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipLocalTol
-USE MOD_Particle_Surfaces,       ONLY:CalcNormAndTangBezier
+USE MOD_Particle_Tracking_Vars,  ONLY:TrackingMethod
+USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
+USE MOD_Utils,                   ONLY:InsertionSort
 #ifdef CODE_ANALYZE
 USE MOD_Globals,                 ONLY:MyRank,UNIT_stdOut
-USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
-USE MOD_Particle_Surfaces_Vars,  ONLY:rBoundingBoxChecks,rPerformBezierClip,rPerformBezierNewton
 USE MOD_Particle_Surfaces,       ONLY:OutputBezierControlPoints
+USE MOD_Particle_Surfaces_Vars,  ONLY:rBoundingBoxChecks,rPerformBezierClip,rPerformBezierNewton
+USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1343,7 +1344,7 @@ CASE DEFAULT
        END IF
      END IF
 #endif /*CODE_ANALYZE*/
-    IF(BC(SideID).GT.0)THEN
+    IF(SideInfo_Shared(SIDE_BCID,SideID).GT.0)THEN
       IF(PRESENT(ElemCheck_Opt))THEN
         IF(ElemCheck_Opt)THEN
           IF(MOD(realNInter,2).EQ.0) THEN
