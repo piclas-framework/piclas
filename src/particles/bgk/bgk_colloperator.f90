@@ -912,7 +912,7 @@ ELSE IF (BGKMixtureModel.EQ.2) THEN
   C_P = 5./2.*BoltzmannConst/C_P
   CellTempSpec(nSpecies+1) = CellTemp
   CALL CalcViscosityThermalCondPOCS(CellTempSpec(1:nSpecies+1), totalWeightSpec(1:nSpecies)/totalWeight, dynamicvis, thermalcond)
-ELSE
+ELSE IF (BGKMixtureModel.EQ.3) THEN
   C_P = 0.0
   DO iSpec = 1, nSpecies
     IF ((nSpec(iSpec).LT.2).OR.ALMOSTZERO(u2Spec(iSpec))) THEN
@@ -924,11 +924,10 @@ ELSE
   END DO
   C_P = 5./2.*BoltzmannConst/C_P
   CellTempSpec(nSpecies+1) = CellTemp
-  CALL CalcViscosityThermalCondPOCSVHS(CellTempSpec(1:nSpecies+1), totalWeightSpec(1:nSpecies)/totalWeight, dynamicvis, thermalcond)
+  CALL CalcViscosityThermalCondColIntVHS(CellTempSpec(1:nSpecies+1), totalWeightSpec(1:nSpecies)/totalWeight,totalWeight/NodeVolume, dynamicvis, thermalcond)
 END IF
 
 Prandtl = C_P*dynamicvis/thermalcond*PrandtlCorrection
-
 IF(DSMC%CalcQualityFactors) BGK_ExpectedPrandtlNumber = BGK_ExpectedPrandtlNumber + Prandtl
 nu = 1.-1./Prandtl
 nu= MAX(nu,-Theta/(W(3)-Theta))
@@ -2548,7 +2547,7 @@ ThermalCond = (1.+Z)/(X+Y)
 END SUBROUTINE CalcViscosityThermalCondPOCS
 
 
-SUBROUTINE CalcViscosityThermalCondPOCSVHS(CellTemp, Xi, Visc, ThermalCond)
+SUBROUTINE CalcViscosityThermalCondColIntVHS(CellTemp, Xi,totalWeight, Visc, ThermalCond)
 !===================================================================================================================================
 ! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
 !===================================================================================================================================
@@ -2559,87 +2558,113 @@ USE MOD_Particle_Vars,          ONLY : Species, nSpecies
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL, INTENT(IN)                :: CellTemp(nSpecies+1), Xi(nSpecies)
+REAL, INTENT(IN)                :: CellTemp(nSpecies+1), Xi(nSpecies), totalWeight
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)               :: Visc,ThermalCond
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL                            :: Sigma_11, Sigma_22, reducedTemp, B_12, A_12, DispCoeff, EnergyParam, HighTempCorrect
-REAL        :: EnergyScalePar, Mass, ViscSpec(nSpecies+1), ThermalCondSpec(nSpecies+1), X, Y, Z, U1, U2, UY, UZ, TVHS, omegaVHS
-REAL        :: InteractDiam
-INTEGER       :: iSpec
+REAL        :: Sigma_11, Sigma_22, B_12, A_12, F_12, m0, InteractDiam, cv, DiffCoef
+REAL        :: Mass, ViscSpec(nSpecies+1), ThermalCondSpec(nSpecies+1), X, Y, U1, U2, TVHS, omegaVHS, E_12
+INTEGER     :: iSpec, iLoop
 !===================================================================================================================================
-ViscSpec = 0.; ThermalCondSpec = 0.
-
+ViscSpec = 0.; ThermalCondSpec = 0.; DiffCoef =0.
 DO iSpec = 1, 3
   IF (iSpec.EQ.1) THEN
     InteractDiam = SpecDSMC(1)%DrefVHS
-    EnergyScalePar = 141.5
-    DispCoeff = 2.210
-    EnergyParam = 5.117E-5
-    HighTempCorrect = 0.0836
-    Mass = Species(1)%MassIC
+    Mass = Species(1)%MassIC/2. 
     TVHS = SpecDSMC(1)%TrefVHS
     omegaVHS = SpecDSMC(1)%omegaVHS
   ELSE IF (iSpec.EQ.2) THEN
     InteractDiam = SpecDSMC(2)%DrefVHS
-    EnergyScalePar = 10.4
-    DispCoeff = 3.09
-    EnergyParam = 8.5E-5
-    HighTempCorrect = 0.0797
-    Mass = Species(2)%MassIC
+    Mass = Species(2)%MassIC/2.
     TVHS = SpecDSMC(2)%TrefVHS
     omegaVHS = SpecDSMC(2)%omegaVHS
   ELSE
     InteractDiam = (SpecDSMC(1)%DrefVHS + SpecDSMC(2)%DrefVHS)/2.
-    EnergyScalePar = 30.01
-    DispCoeff = 2.681
-    EnergyParam = 9.74E-5
-    HighTempCorrect = 0.0791
-    Mass = 2.*Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC + Species(2)%MassIC)
+    Mass = Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC + Species(2)%MassIC)
     TVHS = SQRT(SpecDSMC(1)%TrefVHS*SpecDSMC(2)%TrefVHS)
     omegaVHS = (SpecDSMC(1)%omegaVHS + SpecDSMC(2)%omegaVHS)/2.
   END IF
-  reducedTemp = CellTemp(iSpec) / EnergyScalePar
-  IF (CellTemp(iSpec).EQ.0.0)   reducedTemp = CellTemp(3) / EnergyScalePar
-  Sigma_22 = CalcSigma_22POCS(reducedTemp, DispCoeff, EnergyParam, HighTempCorrect)
-  IF (iSpec.EQ.3) CALL CalcSigma_11POCS(reducedTemp, DispCoeff, EnergyParam, HighTempCorrect, Sigma_11, B_12)
-  ViscSpec(iSpec) = 30.*SQRT(Mass* BoltzmannConst* TVHS/Pi)/(4.*(4.- 2.*omegaVHS) * (6. - 2.*omegaVHS)* InteractDiam**(2.) &
-        *TVHS**(omegaVHS + 0.5)*CellTemp(iSpec)**(-omegaVHS - 0.5))
-  ThermalCondSpec(iSpec) = (15./4.)*ViscSpec(iSpec)*BoltzmannConst / Mass
+  Sigma_22 = CalcSigma_22VHS(CellTemp(iSpec),InteractDiam,Mass,TVHS, omegaVHS)
+  cv= 3./2.*BoltzmannConst/(2.*Mass)
+  IF (iSpec.EQ.3) THEN
+   CALL CalcSigma_11VHS(CellTemp(iSpec),InteractDiam,Mass,TVHS, omegaVHS, Sigma_11)
+!   DiffCoef = 3.*BoltzmannConst* CellTemp(iSpec)/(16.*Mass*totalWeight*Species(1)%MacroParticleFactor*Sigma_11)
+  END IF
+  ViscSpec(iSpec) = (5./8.)*(BoltzmannConst*CellTemp(iSpec))/(Sigma_22)
+  ThermalCondSpec(iSpec) = (25./16.)*(cv*BoltzmannConst*CellTemp(iSpec))/(Sigma_22)
+!  ThermalCondSpec(iSpec) = (15./4.)*BoltzmannConst/(2.*Mass)*ViscSpec(iSpec) 
 END DO
-A_12 = Sigma_22 / Sigma_11
-X = Xi(1)**(2.)/ViscSpec(1) + 2.*Xi(1)*Xi(2)/ViscSpec(3) + Xi(2)**(2.)/ViscSpec(2) 
-Y = (3./5.)*A_12*(Xi(1)**(2.)/ViscSpec(1)*Species(1)%MassIC/Species(2)%MassIC &
-   + 2.*Xi(1)*Xi(2)/ViscSpec(3) * (Species(1)%MassIC + Species(2)%MassIC)**(2.)/(4.*Species(1)%MassIC*Species(2)%MassIC) & 
-   * ViscSpec(3)**(2.)/(ViscSpec(1)*ViscSpec(2)) + Xi(2)**(2.)/ViscSpec(2)*Species(2)%MassIC/Species(1)%MassIC)
-Z = (3./5.)*A_12*(Xi(1)**(2.)*Species(1)%MassIC/Species(2)%MassIC &
-   + 2.*Xi(1)*Xi(2) * ((Species(1)%MassIC + Species(2)%MassIC)**(2.)/(4.*Species(1)%MassIC*Species(2)%MassIC) &
-   * (ViscSpec(3)/ViscSpec(1) + ViscSpec(2)/ViscSpec(1)) - 1.) + Xi(2)**(2.)*Species(2)%MassIC/Species(1)%MassIC)
+A_12 = Sigma_22 / (5.*Sigma_11)
+E_12 = BoltzmannConst*CellTemp(3)/(8.*Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC+Species(2)%MassIC)**2.*Sigma_11)
+F_12 = 15.*BoltzmannConst/(4.*(Species(1)%MassIC+Species(2)%MassIC))*E_12
+B_12 = (5.*GAMMA(4.-omegaVHS)-GAMMA(5.-omegaVHS))/(5.*GAMMA(3.-omegaVHS))
 
-Visc = (1.+Z)/(X+Y)
+X= Xi(1)/Xi(2)*(2./3.+Species(1)%MassIC/Species(2)%MassIC*A_12) + Xi(2)/Xi(1)*(2./3.+Species(2)%MassIC/Species(1)%MassIC*A_12) & 
+  + E_12/(2.*ViscSpec(1)) + E_12/(2.*ViscSpec(2)) + 2.*(2./3.-A_12)
+Y= Xi(1)/Xi(2)*(2./3.+Species(1)%MassIC/Species(2)%MassIC*A_12)/ViscSpec(1) &
+    + Xi(2)/Xi(1)*(2./3.+Species(2)%MassIC/Species(1)%MassIC*A_12)/ViscSpec(2) + E_12/(2.*ViscSpec(1)*ViscSpec(2)) &
+    + 4.*A_12/(3.*E_12*Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC+Species(2)%MassIC)**2.)
+Visc = X/Y
 
-X = Xi(1)**(2.)/ThermalCondSpec(1) + 2.*Xi(1)*Xi(2)/ThermalCondSpec(3) + Xi(2)**(2.)/ThermalCondSpec(2)
+m0 = Species(1)%MassIC+Species(2)%MassIC
+X = 3.*(Species(1)%MassIC/m0 - Species(2)%MassIC/m0)**2.*(5.-4.*B_12) &
+    + 4.*Species(1)%MassIC*Species(2)%MassIC/m0**2.*A_12*(11.-4.*B_12) + 2.*F_12**2./(ThermalCondSpec(1)*ThermalCondSpec(2))
+Y = 2.*F_12*(F_12/ThermalCondSpec(1)+F_12/ThermalCondSpec(2)+(11.-4.*B_12-8.*A_12)*Species(1)%MassIC*Species(2)%MassIC/m0**2.)
+U1 = F_12*(6.*(Species(2)%MassIC/m0)**2. + 5.*(Species(1)%MassIC/m0)**2. - 4.*(Species(1)%MassIC/m0)**2.*B_12 & 
+      + 8.*Species(1)%MassIC*Species(2)%MassIC/m0**2.*A_12)/ThermalCondSpec(1)
+U2 = F_12*(6.*(Species(1)%MassIC/m0)**2. + 5.*(Species(2)%MassIC/m0)**2. - 4.*(Species(2)%MassIC/m0)**2.*B_12 & 
+      + 8.*Species(1)%MassIC*Species(2)%MassIC/m0**2.*A_12)/ThermalCondSpec(2)
+ThermalCond = (U1*ThermalCondSpec(1)*Xi(1)/Xi(2) + U2*ThermalCondSpec(2)*Xi(2)/Xi(1) + Y) &
+      / (U1*Xi(1)/Xi(2) + U2*Xi(2)/Xi(1) + X)
+END SUBROUTINE CalcViscosityThermalCondColIntVHS
 
-U1 = (4./15.)*A_12 - (1./12.)*((12./5.)*B_12 + 1.)*Species(1)%MassIC/Species(2)%MassIC & 
-   + (1./2.)*(Species(1)%MassIC - Species(2)%MassIC)**(2.)/(Species(1)%MassIC*Species(2)%MassIC)
-U2 = (4./15.)*A_12 - (1./12.)*((12./5.)*B_12 + 1.)*Species(2)%MassIC/Species(1)%MassIC & 
-   + (1./2.)*(Species(2)%MassIC - Species(1)%MassIC)**(2.)/(Species(1)%MassIC*Species(2)%MassIC)
-UY = (4./15.)*A_12*(Species(2)%MassIC + Species(1)%MassIC)**(2.)/(4.*Species(1)%MassIC*Species(2)%MassIC) &
-   * ThermalCondSpec(3)**(2.)/(ThermalCondSpec(1)*ThermalCondSpec(2)) - (1./12.)*((12./5.)*B_12 + 1.) & 
-   - 5./(32.*A_12)*((12./5.)*B_12-5.)*(Species(1)%MassIC - Species(2)%MassIC)**(2.)/(Species(1)%MassIC*Species(2)%MassIC)
-UZ = (4./15.)*A_12*((Species(2)%MassIC + Species(1)%MassIC)**(2.)/(4.*Species(1)%MassIC*Species(2)%MassIC) &
-   * (ThermalCondSpec(3)/ThermalCondSpec(1) + ThermalCondSpec(3)/ThermalCondSpec(2)) - 1.) &
-   - (1./12.)*((12./5.)*B_12 + 1.)
-Y = Xi(1)**(2.)/ThermalCondSpec(1)*U1 + 2.*Xi(1)*Xi(2)/ThermalCondSpec(3)*UY + Xi(2)**(2.)/ThermalCondSpec(2)*U2 
-Z = Xi(1)**(2.)*U1 + 2.*Xi(1)*Xi(2)*UZ + Xi(2)**(2.)*U2
+SUBROUTINE CalcSigma_11VHS(CellTemp,Dref,Mass,Tref, omegaVHS, Sigma_11)
+!===================================================================================================================================
+!> Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: CellTemp,Dref,Mass,Tref, omegaVHS
+REAL, INTENT(OUT)               :: Sigma_11
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL          :: Prefactor
+!===================================================================================================================================
+  Prefactor = Pi/2.*Dref*Dref*SQRT(BoltzmannConst/(2.*Pi*Mass))*Tref**omegaVHS*GAMMA(3.-omegaVHS)/GAMMA(2.-omegaVHS)
+  Sigma_11 = Prefactor*CellTemp**(0.5-omegaVHS)
 
-ThermalCond = (1.+Z)/(X+Y)
+END SUBROUTINE CalcSigma_11VHS
 
-END SUBROUTINE CalcViscosityThermalCondPOCSVHS
+REAL FUNCTION CalcSigma_22VHS(CellTemp,Dref,Mass,Tref, omegaVHS)
+!===================================================================================================================================
+!> Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: CellTemp,Dref,Mass,Tref, omegaVHS
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: Prefactor
+!===================================================================================================================================
+  Prefactor = Pi/3.*Dref*Dref*SQRT(BoltzmannConst/(2.*Pi*Mass))*Tref**omegaVHS*GAMMA(4.-omegaVHS)/GAMMA(2.-omegaVHS)
+  CalcSigma_22VHS = Prefactor*CellTemp**(0.5-omegaVHS)
 
+END FUNCTION CalcSigma_22VHS
 
 SUBROUTINE CalcSigma_11POCS(ReducedTemp, DispCoeff, EnergyParam, HighTempCorrect, Sigma_11, B_12)
 !===================================================================================================================================
