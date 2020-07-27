@@ -505,11 +505,11 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER                        :: iElem,ElemID
+INTEGER                        :: iElem!,ElemID
 REAL                           :: Vdm_NGeo_CLNGeo(0:NGeo,0:NGeo)
-REAL                           :: Vdm_EQNGeo_CLN (0:PP_N ,0:NGeo)
-REAL                           :: Vdm_CLNloc_N   (0:PP_N ,0:PP_N)
-REAL                           :: DCL_NGeo(0:Ngeo,0:Ngeo)
+!REAL                           :: Vdm_EQNGeo_CLN (0:PP_N ,0:NGeo)
+!REAL                           :: Vdm_CLNloc_N   (0:PP_N ,0:PP_N)
+!REAL                           :: DCL_NGeo(0:Ngeo,0:Ngeo)
 !INTEGER                        :: firstElem,lastElem
 !INTEGER                        :: firstHaloElem,lastHaloElem,nComputeNodeHaloElems
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
@@ -517,11 +517,6 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 !INTEGER                        :: nNodeIDs
 !REAL                           :: NodeCoordstmp(1:3,0:NGeo,0:NGeo,0:NGeo)
 !===================================================================================================================================
-
-#if USE_LOADBALANCE
-! XCL and dXCL is global and does not change during load balance, return
-IF (PerformLoadBalance) RETURN
-#endif
 
 ! small wBaryCL_NGEO
 ALLOCATE( wBaryCL_NGeo1(            0:1)    ,&
@@ -539,6 +534,11 @@ CALL InitializeVandermonde(1, NGeo,wBaryCL_NGeo1,XiCL_NGeo1,XiCL_NGeo ,Vdm_CLNGe
 CALL BuildBezierVdm(NGeo,XiCL_NGeo,Vdm_Bezier,sVdm_Bezier) !CHANGETAG
 CALL BuildBezierDMat(NGeo,Xi_NGeo,D_Bezier)
 CALL InitializeVandermonde(NGeo,NGeo,wBaryCL_NGeo,Xi_NGeo,XiCL_NGeo,Vdm_NGeo_CLNGeo)
+
+#if USE_LOADBALANCE
+! XCL and dXCL are global and do not change during load balance, return
+IF (PerformLoadBalance) RETURN
+#endif
 
 #if USE_MPI
 ! This is a trick. Allocate as 1D array and then set a pointer with the proper array bounds
@@ -714,6 +714,9 @@ USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
 #else
 USE MOD_Mesh_Vars              ,ONLY: nElems
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -731,6 +734,11 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 INTEGER                        :: ALLOCSTAT
 #endif /*USE_MPI*/
 !===================================================================================================================================
+
+#if USE_LOADBALANCE
+! BezierControlPoints are global and do not change during load balance, return
+IF (PerformLoadBalance) RETURN
+#endif
 
 SWRITE(UNIT_stdOut,'(A)') ' CALCULATING BezierControlPoints ...'
 
@@ -3370,7 +3378,9 @@ USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 #if USE_MPI
 USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,PartSource_Shared_Win
-!USE MOD_DSMC_Vars              ,ONLY: DSMC
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars            ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3393,7 +3403,7 @@ CALL FinalizeBGM()
 SELECT CASE (TrackingMethod)
 
   ! RefMapping, Tracing
-  CASE(1,2)
+  CASE(REFMAPPING,TRACING)
     ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
@@ -3408,21 +3418,27 @@ SELECT CASE (TrackingMethod)
       CALL MPI_WIN_FREE(      BCSideMetrics_Shared_Win        ,iError)
     END IF
 
-    ! CalcParticleMeshMetrics
-    CALL MPI_WIN_UNLOCK_ALL(XCL_NGeo_Shared_Win             ,iError)
-    CALL MPI_WIN_FREE(      XCL_NGeo_Shared_Win             ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(Elem_xGP_Shared_Win             ,iError)
-    CALL MPI_WIN_FREE(      Elem_xGP_Shared_Win             ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(dXCL_NGeo_Shared_Win            ,iError)
-    CALL MPI_WIN_FREE(      dXCL_NGeo_Shared_Win            ,iError)
+#if USE_LOADBALANCE
+    IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+      ! CalcParticleMeshMetrics
+      CALL MPI_WIN_UNLOCK_ALL(XCL_NGeo_Shared_Win             ,iError)
+      CALL MPI_WIN_FREE(      XCL_NGeo_Shared_Win             ,iError)
+      CALL MPI_WIN_UNLOCK_ALL(Elem_xGP_Shared_Win             ,iError)
+      CALL MPI_WIN_FREE(      Elem_xGP_Shared_Win             ,iError)
+      CALL MPI_WIN_UNLOCK_ALL(dXCL_NGeo_Shared_Win            ,iError)
+      CALL MPI_WIN_FREE(      dXCL_NGeo_Shared_Win            ,iError)
 
-    ! CalcBezierControlPoints
-    CALL MPI_WIN_UNLOCK_ALL(BezierControlPoints3D_Shared_Win,iError)
-    CALL MPI_WIN_FREE(      BezierControlPoints3D_Shared_Win,iError)
-    IF (BezierElevation.GT.0) THEN
-      CALL MPI_WIN_UNLOCK_ALL(BezierControlPoints3DElevated_Shared_Win,iError)
-      CALL MPI_WIN_FREE(      BezierControlPoints3DElevated_Shared_Win,iError)
-    END IF
+      ! CalcBezierControlPoints
+      CALL MPI_WIN_UNLOCK_ALL(BezierControlPoints3D_Shared_Win,iError)
+      CALL MPI_WIN_FREE(      BezierControlPoints3D_Shared_Win,iError)
+      IF (BezierElevation.GT.0) THEN
+        CALL MPI_WIN_UNLOCK_ALL(BezierControlPoints3DElevated_Shared_Win,iError)
+        CALL MPI_WIN_FREE(      BezierControlPoints3DElevated_Shared_Win,iError)
+      END IF
+#if USE_LOADBALANCE
+    END IF !PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 
     ! GetSideSlabNormalsAndIntervals (allocated in particle_mesh.f90)
     CALL MPI_WIN_UNLOCK_ALL(SideSlabNormals_Shared_Win      ,iError)
@@ -3469,7 +3485,7 @@ SELECT CASE (TrackingMethod)
     CALL MPI_WIN_FREE(      BaseVectorsScale_Shared_Win     ,iError)
 
     ! BuildBCElemDistance
-    IF (TrackingMethod.EQ.1) THEN
+    IF (TrackingMethod.EQ.REFMAPPING) THEN
       CALL MPI_WIN_UNLOCK_ALL(ElemToBCSides_Shared_Win        ,iError)
       CALL MPI_WIN_FREE(      ElemToBCSides_Shared_Win        ,iError)
       CALL MPI_WIN_UNLOCK_ALL(SideBCMetrics_Shared_Win        ,iError)
@@ -3496,14 +3512,23 @@ SELECT CASE (TrackingMethod)
       ADEALLOCATE(BCSideMetrics)
     END IF
 
-    ! CalcParticleMeshMetrics
-    ADEALLOCATE(XCL_NGeo_Array)
-    ADEALLOCATE(Elem_xGP_Array)
-    ADEALLOCATE(dXCL_NGeo_Array)
+#if USE_LOADBALANCE
+    IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+      ! CalcParticleMeshMetrics
+      ADEALLOCATE(XCL_NGeo_Array)
+      ADEALLOCATE(Elem_xGP_Array)
+      ADEALLOCATE(dXCL_NGeo_Array)
+      IF(ASSOCIATED(XCL_NGeo_Shared))  NULLIFY(XCL_NGeo_Shared)
+      IF(ASSOCIATED(Elem_xGP_Shared))  NULLIFY(Elem_xGP_Shared)
+      IF(ASSOCIATED(dXCL_NGeo_Shared)) NULLIFY(dXCL_NGeo_Shared)
 
-    ! CalcBezierControlPoints
-    ADEALLOCATE(BezierControlPoints3D_Shared)
-    ADEALLOCATE(BezierControlPoints3DElevated_Shared)
+      ! CalcBezierControlPoints
+      ADEALLOCATE(BezierControlPoints3D_Shared)
+      ADEALLOCATE(BezierControlPoints3DElevated_Shared)
+#if USE_LOADBALANCE
+    END IF !PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 
     ! GetSideSlabNormalsAndIntervals (allocated in particle_mesh.f90)
     ADEALLOCATE(SideSlabNormals_Shared)
@@ -3544,32 +3569,37 @@ SELECT CASE (TrackingMethod)
     ADEALLOCATE(ElemEpsOneCell_Shared)
 
 !  ! Tracing
-!  CASE(2)
+!  CASE(TRACING)
 
   ! TriaTracking
-  CASE(3)
+  CASE(TRIATRACKING)
     ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
-    IF(DoInterpolation)THEN
-      ! CalcParticleMeshMetrics
-      CALL MPI_WIN_UNLOCK_ALL(XCL_NGeo_Shared_Win             ,iError)
-      CALL MPI_WIN_FREE(      XCL_NGeo_Shared_Win             ,iError)
-      CALL MPI_WIN_UNLOCK_ALL(Elem_xGP_Shared_Win             ,iError)
-      CALL MPI_WIN_FREE(      Elem_xGP_Shared_Win             ,iError)
-      CALL MPI_WIN_UNLOCK_ALL(dXCL_NGeo_Shared_Win            ,iError)
-      CALL MPI_WIN_FREE(      dXCL_NGeo_Shared_Win            ,iError)
+    IF (DoInterpolation) THEN
+#if USE_LOADBALANCE
+      IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+        ! CalcParticleMeshMetrics
+        CALL MPI_WIN_UNLOCK_ALL(XCL_NGeo_Shared_Win             ,iError)
+        CALL MPI_WIN_FREE(      XCL_NGeo_Shared_Win             ,iError)
+        CALL MPI_WIN_UNLOCK_ALL(Elem_xGP_Shared_Win             ,iError)
+        CALL MPI_WIN_FREE(      Elem_xGP_Shared_Win             ,iError)
+        CALL MPI_WIN_UNLOCK_ALL(dXCL_NGeo_Shared_Win            ,iError)
+        CALL MPI_WIN_FREE(      dXCL_NGeo_Shared_Win            ,iError)
+#if USE_LOADBALANCE
+      END IF !PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 
-      ! BuildElemTypeAndBasisTria()
+      ! BuildElemTypeAndBasisTria
+      CALL MPI_WIN_UNLOCK_ALL(ElemCurved_Shared_Win           ,iError)
+      CALL MPI_WIN_FREE(      ElemCurved_Shared_Win           ,iError)
       CALL MPI_WIN_UNLOCK_ALL(XiEtaZetaBasis_Shared_Win       ,iError)
       CALL MPI_WIN_FREE(      XiEtaZetaBasis_Shared_Win       ,iError)
       CALL MPI_WIN_UNLOCK_ALL(slenXiEtaZetaBasis_Shared_Win   ,iError)
       CALL MPI_WIN_FREE(      slenXiEtaZetaBasis_Shared_Win   ,iError)
-      CALL MPI_WIN_UNLOCK_ALL(ElemCurved_Shared_Win           ,iError)
-      CALL MPI_WIN_FREE(      ElemCurved_Shared_Win           ,iError)
-    END IF ! DoInterpolation.OR.DSMC%UseOctree
-
+    END IF ! DoInterpolation
 
     ! InitParticleGeometry
     CALL MPI_WIN_UNLOCK_ALL(ConcaveElemSide_Shared_Win,iError)
@@ -3581,36 +3611,47 @@ SELECT CASE (TrackingMethod)
     CALL MPI_WIN_UNLOCK_ALL(ElemMidPoint_Shared_Win,iError)
     CALL MPI_WIN_FREE(ElemMidPoint_Shared_Win,iError)
 
-    ! BuildElementRadiusTria()
+    ! BuildElementRadiusTria
     CALL MPI_WIN_UNLOCK_ALL(ElemBaryNGeo_Shared_Win,iError)
     CALL MPI_WIN_FREE(ElemBaryNGeo_Shared_Win,iError)
     CALL MPI_WIN_UNLOCK_ALL(ElemRadius2NGeo_Shared_Win,iError)
     CALL MPI_WIN_FREE(ElemRadius2NGeo_Shared_Win,iError)
 
-    IF(DoDeposition)THEN
+    IF (DoDeposition) THEN
       ! BuildEpsOneCell
       CALL MPI_WIN_UNLOCK_ALL(ElemsJ_Shared_Win     , iError)
       CALL MPI_WIN_FREE(      ElemsJ_Shared_Win     , iError)
       ! Deposition
       CALL MPI_WIN_UNLOCK_ALL(PartSource_Shared_Win , iError)
       CALL MPI_WIN_FREE(      PartSource_Shared_Win , iError)
-    END IF ! DoDeposition
+    END IF !DoDeposition
 
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
     ! Then, free the pointers or arrays
     ! CalcParticleMeshMetrics
-    ADEALLOCATE(XCL_NGeo_Array)
-    ADEALLOCATE(Elem_xGP_Array)
-    ADEALLOCATE(dXCL_NGeo_Array)
-
+#if USE_LOADBALANCE
+    IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+      ADEALLOCATE(XCL_NGeo_Array)
+      ADEALLOCATE(Elem_xGP_Array)
+      ADEALLOCATE(dXCL_NGeo_Array)
+#if USE_LOADBALANCE
+    END IF !PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
     ! Then, free the pointers or arrays
-    ! CalcParticleMeshMetrics
-    IF(ASSOCIATED(XCL_NGeo_Shared))  NULLIFY(XCL_NGeo_Shared)
-    IF(ASSOCIATED(Elem_xGP_Shared))  NULLIFY(Elem_xGP_Shared)
-    IF(ASSOCIATED(dXCL_NGeo_Shared)) NULLIFY(dXCL_NGeo_Shared)
+#if USE_LOADBALANCE
+    IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+      ! CalcParticleMeshMetrics
+      IF(ASSOCIATED(XCL_NGeo_Shared))  NULLIFY(XCL_NGeo_Shared)
+      IF(ASSOCIATED(Elem_xGP_Shared))  NULLIFY(Elem_xGP_Shared)
+      IF(ASSOCIATED(dXCL_NGeo_Shared)) NULLIFY(dXCL_NGeo_Shared)
+#if USE_LOADBALANCE
+    END IF !PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 
     ! InitParticleGeometry
     ADEALLOCATE(ConcaveElemSide_Shared)

@@ -706,7 +706,7 @@ IF(DoRestart)THEN
       END DO ! iSpec = 1, nSpecies
     END IF ! useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)
 
-    SWRITE(UNIT_stdOut,*)'Reading Particles from Restartfile...'
+    SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Reading Particles from Restartfile...'
     !read local ElemInfo from HDF5
     FirstElemInd=offsetElem+1
     LastElemInd=offsetElem+PP_nElems

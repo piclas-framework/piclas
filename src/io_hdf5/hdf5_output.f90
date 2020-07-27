@@ -2776,7 +2776,7 @@ IF((.NOT.MPIRoot).OR.(.NOT.DoWriteStateToHDF5)) RETURN
 IF(DoLoadBalance.AND.nLoadBalance.GT.0) RETURN
 #endif /*USE_LOADBALANCE*/
 
-WRITE(UNIT_stdOut,'(a)')' DELETING OLD HDF5 FILES...'
+WRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' DELETING OLD HDF5 FILES...'
 IF (.NOT.PRESENT(FlushTime_In)) THEN
   FlushTime=0.0
 ELSE

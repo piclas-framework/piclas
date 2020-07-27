@@ -110,16 +110,10 @@ SUBROUTINE InitParticleSurfaces()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,               ONLY:EpsMach
-USE MOD_Particle_Surfaces_vars
+USE MOD_Particle_Surfaces_Vars
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                  ONLY:nSides,NGeo,nBCSides
+USE MOD_Mesh_Vars,                  ONLY:NGeo
 USE MOD_ReadInTools,                ONLY:GETREAL,GETINT,GETLOGICAL
-USE MOD_Particle_Mesh_Vars,         ONLY:PartBCSideList
-USE MOD_Particle_Tracking_Vars,     ONLY:DoRefMapping
-#ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars,     ONLY:rBoundingBoxChecks,rPerformBezierClip,rPerformBezierNewton
-#endif /*CODE_ANALYZE*/
-!USE MOD_Particle_SFC_Vars,          ONLY:whichBoundBox
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -129,7 +123,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: tmp,iSide!,iBCSide
+INTEGER                         :: tmp!,iSide,iBCSide
 CHARACTER(LEN=2)                :: dummy
 !===================================================================================================================================
 
@@ -196,7 +190,10 @@ SUBROUTINE FinalizeParticleSurfaces()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Surfaces_vars
+USE MOD_Particle_Surfaces_Vars
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars            ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -217,8 +214,14 @@ SDEALLOCATE(SideBoundingBoxVolume)
 #endif
 
 ! CalcBezierControlPoints (MPI3 shared freed in FinalizeParticleMesh)
-ADEALLOCATE(BezierControlPoints3D)
-ADEALLOCATE(BezierControlPoints3DElevated)
+#if USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+  ADEALLOCATE(BezierControlPoints3D)
+  ADEALLOCATE(BezierControlPoints3DElevated)
+#if USE_LOADBALANCE
+END IF !PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 
 ! GetSideSlabNormalsAndIntervals (MPI3 shared freed in FinalizeParticleMesh)
 ADEALLOCATE(SideSlabNormals)
