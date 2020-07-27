@@ -3047,7 +3047,7 @@ SUBROUTINE ParticleSanityCheck(PartID)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Mesh_Vars,              ONLY:offsetelem
+USE MOD_Mesh_Vars,              ONLY:offsetElem
 USE MOD_Particle_Localization,  ONLY:PartInElemCheck
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo_Shared
@@ -3057,9 +3057,6 @@ USE MOD_TimeDisc_Vars,          ONLY:iStage
 #ifdef IMPA
 USE MOD_Particle_Vars,          ONLY:PartIsImplicit,PartDtFrac
 #endif /*IMPA*/
-#if USE_MPI
-USE MOD_MPI_Vars,               ONLY:offsetElemMPI
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3125,13 +3122,8 @@ IF(.NOT.DoRefMapping)THEN
 #endif /*CODE_ANALYZE*/
   IF(.NOT.isHit)THEN  ! particle not inside
     IPWRITE(UNIT_stdOut,'(I0,A)') ' PartPos not inside of element! '
-    IF(ElemID.LE.PP_nElems)THEN
-      IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID         ', ElemID+offSetElem
-!    ELSE
-!#if USE_MPI
-!          IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID         ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,ElemID)) &
-!                                                    + PartHaloElemToProc(NATIVE_ELEM_ID,ElemID)
-!#endif /*USE_MPI*/
+    IF(ElemID.GE.offSetElem+1.AND.ElemID.LE.offSetElem+PP_nElems)THEN
+      IPWRITE(UNIT_stdOut,'(I0,A,I0)')       ' ElemID             ', ElemID
     END IF
     IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' ElemBaryNGeo:      ', ElemBaryNGeo_Shared(1:3,ElemID)
     IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' IntersectionPoint: ', IntersectionPoint

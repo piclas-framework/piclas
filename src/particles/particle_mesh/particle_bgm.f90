@@ -70,12 +70,14 @@ SUBROUTINE BuildBGMAndIdentifyHaloRegion()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: c
 USE MOD_Preproc
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem,nGlobalElems
 USE MOD_Particle_Mesh_Vars
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Periodic_BC   ,ONLY: InitPeriodicBC
-USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance
-USE MOD_Globals_Vars           ,ONLY: c
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,Distance,ListDistance
 USE MOD_ReadInTools            ,ONLY: GETREAL, GetRealArray, PrintOption
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c
@@ -100,7 +102,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: iElem
+INTEGER                        :: iElem,iLocSide,SideID
 INTEGER                        :: FirstElem,LastElem
 INTEGER                        :: firstNodeID,lastNodeID
 INTEGER                        :: offsetNodeID,nNodeIDs,currentOffset,moveBGMindex
@@ -110,8 +112,7 @@ INTEGER                        :: BGMimax, BGMimin, BGMjmax, BGMjmin, BGMkmax, B
 INTEGER                        :: BGMiDelta,BGMjDelta,BGMkDelta
 INTEGER                        :: BGMCellXmax, BGMCellXmin, BGMCellYmax, BGMCellYmin, BGMCellZmax, BGMCellZmin
 #if USE_MPI
-INTEGER                        :: errType
-INTEGER                        :: iSide, SideID
+INTEGER                        :: iSide
 INTEGER                        :: ElemID
 REAL                           :: deltaT
 REAL                           :: globalDiag
@@ -159,34 +160,83 @@ lastElem  = nElems
 #endif  /*USE_MPI*/
 
 moveBGMindex = 1 ! BGM indices must be >1 --> move by 1
-DO iElem = firstElem, lastElem
-  offSetNodeID=ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)
-  nNodeIDs=ElemInfo_Shared(ELEM_LASTNODEIND,iElem)-ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)
-  firstNodeID = offsetNodeID+1
-  lastNodeID = offsetNodeID+nNodeIDs
 
-  xmin=MINVAL(NodeCoords_Shared(1,firstNodeID:lastNodeID))
-  xmax=MAXVAL(NodeCoords_Shared(1,firstNodeID:lastNodeID))
-  ymin=MINVAL(NodeCoords_Shared(2,firstNodeID:lastNodeID))
-  ymax=MAXVAL(NodeCoords_Shared(2,firstNodeID:lastNodeID))
-  zmin=MINVAL(NodeCoords_Shared(3,firstNodeID:lastNodeID))
-  zmax=MAXVAL(NodeCoords_Shared(3,firstNodeID:lastNodeID))
+! Use NodeCoords only for TriaTracking since Tracing and RefMapping have potentially curved elements, only BezierControlPoints form
+! convec hull
+SELECT CASE(TrackingMethod)
+  CASE(TRIATRACKING)
+    DO iElem = firstElem, lastElem
+      offSetNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)
+      nNodeIDs     = ElemInfo_Shared(ELEM_LASTNODEIND ,iElem)-ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)
+      firstNodeID  = offsetNodeID+1
+      lastNodeID   = offsetNodeID+nNodeIDs
 
-  BoundsOfElem_Shared(1,1,iElem) = xmin
-  BoundsOfElem_Shared(2,1,iElem) = xmax
-  BoundsOfElem_Shared(1,2,iElem) = ymin
-  BoundsOfElem_Shared(2,2,iElem) = ymax
-  BoundsOfElem_Shared(1,3,iElem) = zmin
-  BoundsOfElem_Shared(2,3,iElem) = zmax
+      xmin=MINVAL(NodeCoords_Shared(1,firstNodeID:lastNodeID))
+      xmax=MAXVAL(NodeCoords_Shared(1,firstNodeID:lastNodeID))
+      ymin=MINVAL(NodeCoords_Shared(2,firstNodeID:lastNodeID))
+      ymax=MAXVAL(NodeCoords_Shared(2,firstNodeID:lastNodeID))
+      zmin=MINVAL(NodeCoords_Shared(3,firstNodeID:lastNodeID))
+      zmax=MAXVAL(NodeCoords_Shared(3,firstNodeID:lastNodeID))
 
-  ! BGM indices must be >0 --> move by 1
-  ElemToBGM_Shared(1,iElem) = FLOOR((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)) + moveBGMindex
-  ElemToBGM_Shared(2,iElem) = FLOOR((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1)) + moveBGMindex
-  ElemToBGM_Shared(3,iElem) = FLOOR((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2)) + moveBGMindex
-  ElemToBGM_Shared(4,iElem) = FLOOR((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2)) + moveBGMindex
-  ElemToBGM_Shared(5,iElem) = FLOOR((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)) + moveBGMindex
-  ElemToBGM_Shared(6,iElem) = FLOOR((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3)) + moveBGMindex
-END DO ! iElem = firstElem, lastElem
+      BoundsOfElem_Shared(1,1,iElem) = xmin
+      BoundsOfElem_Shared(2,1,iElem) = xmax
+      BoundsOfElem_Shared(1,2,iElem) = ymin
+      BoundsOfElem_Shared(2,2,iElem) = ymax
+      BoundsOfElem_Shared(1,3,iElem) = zmin
+      BoundsOfElem_Shared(2,3,iElem) = zmax
+
+      ! BGM indices must be >0 --> move by 1
+      ElemToBGM_Shared(1,iElem) = FLOOR((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)) + moveBGMindex
+      ElemToBGM_Shared(2,iElem) = FLOOR((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1)) + moveBGMindex
+      ElemToBGM_Shared(3,iElem) = FLOOR((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2)) + moveBGMindex
+      ElemToBGM_Shared(4,iElem) = FLOOR((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2)) + moveBGMindex
+      ElemToBGM_Shared(5,iElem) = FLOOR((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)) + moveBGMindex
+      ElemToBGM_Shared(6,iElem) = FLOOR((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3)) + moveBGMindex
+    END DO ! iElem = firstElem, lastElem
+
+  CASE(TRACING,REFMAPPING)
+    DO iElem = firstElem, lastElem
+      xmin= HUGE(1.)
+      xmax=-HUGE(1.)
+      ymin= HUGE(1.)
+      ymax=-HUGE(1.)
+      zmin= HUGE(1.)
+      zmax=-HUGE(1.)
+
+      DO iLocSide = 1,6
+        SideID = GetGlobalNonUniqueSideID(iElem,iLocSide)
+        xmin = MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,SideID)))
+        xmax = MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,SideID)))
+        ymin = MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,SideID)))
+        ymax = MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,SideID)))
+        zmin = MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,SideID)))
+        zmax = MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,SideID)))
+      END DO
+
+      ! Restrict to domain extent
+      xmin = MAX(xmin,GEO%xminglob)
+      xmax = MIN(xmax,GEO%xmaxglob)
+      ymin = MAX(ymin,GEO%yminglob)
+      ymax = MIN(ymax,GEO%ymaxglob)
+      zmin = MAX(zmin,GEO%zminglob)
+      zmax = MIN(zmax,GEO%zmaxglob)
+
+      BoundsOfElem_Shared(1,1,iElem) = xmin
+      BoundsOfElem_Shared(2,1,iElem) = xmax
+      BoundsOfElem_Shared(1,2,iElem) = ymin
+      BoundsOfElem_Shared(2,2,iElem) = ymax
+      BoundsOfElem_Shared(1,3,iElem) = zmin
+      BoundsOfElem_Shared(2,3,iElem) = zmax
+
+      ! BGM indices must be >0 --> move by 1
+      ElemToBGM_Shared(1,iElem) = FLOOR((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)) + moveBGMindex
+      ElemToBGM_Shared(2,iElem) = FLOOR((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1)) + moveBGMindex
+      ElemToBGM_Shared(3,iElem) = FLOOR((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2)) + moveBGMindex
+      ElemToBGM_Shared(4,iElem) = FLOOR((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2)) + moveBGMindex
+      ElemToBGM_Shared(5,iElem) = FLOOR((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)) + moveBGMindex
+      ElemToBGM_Shared(6,iElem) = FLOOR((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3)) + moveBGMindex
+    END DO ! iElem = firstElem, lastElem
+END SELECT
 
 #if USE_MPI
 CALL MPI_WIN_SYNC(ElemToBGM_Shared_Win,IERROR)

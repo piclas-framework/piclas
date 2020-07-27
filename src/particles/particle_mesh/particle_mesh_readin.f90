@@ -564,11 +564,6 @@ INTEGER                        :: iLocSide,jLocSide,nlocSides,nlocSidesNb,NbSide
 #if USE_MPI
 INTEGER                        :: iProc
 INTEGER                        :: nNodeIDs,offsetNodeID
-INTEGER,ALLOCATABLE            :: displsCN(:),recvcountCN(:)
-INTEGER,ALLOCATABLE            :: displsElem(:),recvcountElem(:)
-INTEGER,ALLOCATABLE            :: displsSide(:),recvcountSide(:)
-INTEGER,ALLOCATABLE            :: displsNode(:),recvcountNode(:)
-INTEGER,ALLOCATABLE            :: displsTree(:),recvcountTree(:)
 #endif /*USE_MPI*/
 !===================================================================================================================================
 

@@ -53,10 +53,12 @@ REAL,ALLOCPOINT,DIMENSION(:,:)           :: ElemBaryNGeo       ! element local b
 REAL,ALLOCPOINT,DIMENSION(:)             :: ElemRadiusNGeo     ! radius of element
 REAL,ALLOCPOINT,DIMENSION(:)             :: ElemRadius2NGeo    ! radius of element + 2% tolerance
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: slenXiEtaZetaBasis ! inverse of length of basis vector
-REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:)     :: XCL_NGeo_Shared
-REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:)     :: Elem_xGP_Shared
-REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:,:)   :: dXCL_NGeo_Shared   ! Jacobi matrix of the mapping P\in NGeo
 REAL,ALLOCPOINT,DIMENSION(:,:,:)         :: XiEtaZetaBasis     ! element local basis vector (linear elem)
+
+! XCL_NGeo and dXCL_NGeo always exist for DG mesh
+REAL,POINTER,DIMENSION(:,:,:,:,:)        :: XCL_NGeo_Shared
+REAL,POINTER,DIMENSION(:,:,:,:,:)        :: Elem_xGP_Shared
+REAL,POINTER,DIMENSION(:,:,:,:,:,:)      :: dXCL_NGeo_Shared   ! Jacobi matrix of the mapping P\in NGeo
 
 ! FIBGM
 INTEGER,ALLOCPOINT,DIMENSION(:,:,:)      :: FIBGM_nTotalElems  !> FastInitBackgroundMesh of global domain

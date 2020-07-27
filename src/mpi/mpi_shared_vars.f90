@@ -60,6 +60,13 @@ INTEGER            :: nComputeNodeTotalNodes                !> Number of nodes o
 !INTEGER            :: offsetComputeNodeNode                 !> node offset of compute-node root
 !INTEGER            :: offsetComputeNodeTree                 !> tree offset of compute-node root
 
+! Offsets for MPI_ALLGATHERV
+INTEGER,ALLOCATABLE:: displsCN(:)  ,recvcountCN(:)
+INTEGER,ALLOCATABLE:: displsElem(:),recvcountElem(:)
+INTEGER,ALLOCATABLE:: displsSide(:),recvcountSide(:)
+INTEGER,ALLOCATABLE:: displsNode(:),recvcountNode(:)
+INTEGER,ALLOCATABLE:: displsTree(:),recvcountTree(:)
+
 ! Surface sampling
 INTEGER,ALLOCATABLE:: MPIRankSharedLeader(:)                !> Array of size nLeaderGroupProcs holding the leader rank of each proc
 INTEGER,ALLOCATABLE:: MPIRankSurfLeader(:)                  !> Array of size nLeaderGroupProcs holding the surf rank of each proc
