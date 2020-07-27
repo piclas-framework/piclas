@@ -232,7 +232,7 @@ __STAMP__&
 
 ! Potentially curved elements. FIBGM needs to be built on BezierControlPoints rather than NodeCoords to avoid missing elements
 IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING) THEN
-  ! Bezier elevation now more important than ever, also determined size of FIBGM extent
+  ! Bezier elevation now more important than ever, also determines size of FIBGM extent
   BezierElevation = GETINT('BezierElevation')
   NGeoElevated    = NGeo + BezierElevation
 
@@ -511,12 +511,11 @@ REAL                           :: Vdm_EQNGeo_CLN (0:PP_N ,0:NGeo)
 REAL                           :: Vdm_CLNloc_N   (0:PP_N ,0:PP_N)
 REAL                           :: DCL_NGeo(0:Ngeo,0:Ngeo)
 !INTEGER                        :: firstElem,lastElem
-INTEGER                        :: firstHaloElem,lastHaloElem,nComputeNodeHaloElems
-INTEGER                        :: CornerNodeIDswitch(8)
+!INTEGER                        :: firstHaloElem,lastHaloElem,nComputeNodeHaloElems
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
-INTEGER                        :: firstNodeID,nodeID,i,j,k,ll
+!INTEGER                        :: firstNodeID,nodeID,i,j,k,ll
 !INTEGER                        :: nNodeIDs
-REAL                           :: NodeCoordstmp(1:3,0:NGeo,0:NGeo,0:NGeo)
+!REAL                           :: NodeCoordstmp(1:3,0:NGeo,0:NGeo,0:NGeo)
 !===================================================================================================================================
 
 #if USE_LOADBALANCE
@@ -607,7 +606,6 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global .AND. myComputeNodeRank.EQ.0) T
                      , MPI_DOUBLE_PRECISION          &
                      , MPI_COMM_LEADERS_SHARED       &
                      , IERROR)
-
 END IF
 
 !nComputeNodeHaloElems = nComputeNodeTotalElems - nComputeNodeElems
