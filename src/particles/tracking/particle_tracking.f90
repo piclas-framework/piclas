@@ -1545,7 +1545,6 @@ DO iPart=1,PDM%ParticleVecLength
         epsElement = MAXVAL(ElemEpsOneCell)
 #if defined(ROS) || defined(IMPA)
         TestElem = PEM%GlobalElemID(iPart)
-        CNTestElem = GetCNElemID(TestElem)
 #endif
       ELSE
         epsElement = ElemEpsOneCell(CNTestElem)
@@ -1559,11 +1558,11 @@ DO iPart=1,PDM%ParticleVecLength
           ! ausgabe
           IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue with internal element '
           IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' xi                     ', PartPosRef(1:3,iPart)
-          IPWRITE(UNIT_stdOut,'(I0,A,X,E15.8)') ' epsOneCell             ', epsElement
+          IPWRITE(UNIT_stdOut,'(I0,A,X,E15.8)')    ' epsOneCell             ', epsElement
           IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' oldxi                  ', oldXi
           IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' newxi                  ', newXi
-          IPWRITE(UNIT_stdOut,'(I0,A)')             ' PartPos:           '
-          IPWRITE(UNIt_stdOut,'(I0,A18,x,A18,x,A18)')                  '    min ', ' value ', ' max '
+          IPWRITE(UNIT_stdOut,'(I0,A)')            ' PartPos:           '
+          IPWRITE(UNIt_stdOut,'(I0,A18,x,A18,x,A18)') '    min ', ' value ', ' max '
           IPWRITE(UNIt_stdOut,'(I0,A2,x,E27.16,x,E27.16,x,E27.16)') ' x', GEO%xminglob, PartState(1,iPart), GEO%xmaxglob
           IPWRITE(UNIt_stdOut,'(I0,A2,x,E27.16,x,E27.16,x,E27.16)') ' y', GEO%yminglob, PartState(2,iPart), GEO%ymaxglob
           IPWRITE(UNIt_stdOut,'(I0,A2,x,E27.16,x,E27.16,x,E27.16)') ' z', GEO%zminglob, PartState(3,iPart), GEO%zmaxglob
@@ -2558,10 +2557,8 @@ tmpLastPartPos(1:3) = LastPartPos(1:3,PartID)
 tmpVec              = PartTrajectory
 LastPartPos(1:3,PartID) = ElemBaryNGeo(:,GetCNElemID(ElemID))
 
-PartTrajectory = PartState(1:3,PartID) - LastPartPos(1:3,PartID)
-lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                         +PartTrajectory(2)*PartTrajectory(2) &
-                         +PartTrajectory(3)*PartTrajectory(3) )
+PartTrajectory       = PartState(1:3,PartID) - LastPartPos(1:3,PartID)
+lengthPartTrajectory = VECNORM(PartTrajectory(1:3))
 IF (lengthPartTrajectory.GT.0) PartTrajectory = PartTrajectory/lengthPartTrajectory
 
 locAlpha  = -1.0
