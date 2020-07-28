@@ -240,7 +240,7 @@ DO i=1, NbrOfParticle
   ELSE
     CALL abort(&
     __STAMP__&
-    ,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')    
+    ,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
   END IF
 END DO
 
@@ -281,7 +281,7 @@ DO WHILE (i .le. NbrOfParticle)
   ELSE
     CALL abort(&
     __STAMP__&
-    ,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')    
+    ,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
   END IF
   i = i + 1
 END DO
@@ -838,7 +838,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemEpsOneCell
 USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, PartMPF
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 ! IMPLICIT VARIABLE HANDLING
@@ -923,16 +923,18 @@ __STAMP__,&
               RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
             END IF
             IF(Symmetry2D) RandomPos(3) = 0.
-            IF (DoRefMapping) THEN
-              CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-              IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(iElem)) InsideFlag=.TRUE.
-            ELSE
-              IF (TriaTracking) THEN
+
+            SELECT CASE(TrackingMethod)
+              CASE(TRIATRACKING)
                 CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
-              ELSE
+
+              CASE(TRACING)
                 CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
-              END IF
-            END IF
+
+              CASE(REFMAPPING)
+                CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
+                IF (MAXVAL(ABS(RefPos)).LE.ElemEpsOneCell(iElem)) InsideFlag=.TRUE.
+            END SELECT
           END DO
           IF (UseMacroBody) THEN
             IF (INSIDEMACROBODY(RandomPos)) THEN

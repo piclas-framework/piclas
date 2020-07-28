@@ -1475,9 +1475,7 @@ DO iPart=1,PDM%ParticleVecLength
         IF (ElemID.EQ.OldElemID) THEN
           Distance(iBGMElem) = -1.0
         ELSE
-          Distance(iBGMElem) = ( (PartState(1,iPart)-ElemBaryNGeo(1,CNElemID))*(PartState(1,iPart)-ElemBaryNGeo(1,CNElemID)) &
-                               + (PartState(2,iPart)-ElemBaryNGeo(2,CNElemID))*(PartState(2,iPart)-ElemBaryNGeo(2,CNElemID)) &
-                               + (PartState(3,iPart)-ElemBaryNGeo(3,CNElemID))*(PartState(3,iPart)-ElemBaryNGeo(3,CNElemID)))
+          Distance(iBGMElem) = SUM((PartState(1:3,iPart)-ElemBaryNGeo(1:3,CNElemID))**2)
 
           ! Do not consider the element if it is too far away
           IF(Distance(iBGMElem).GT.ElemRadius2NGeo(CNElemID))THEN
@@ -2593,16 +2591,16 @@ DO iLocSide=firstSide,LastSide
 END DO ! ilocSide
 
 ! no intersection found. Try to locate particle manually
-IF(nInter.EQ.0) THEN
+IF (nInter.EQ.0) THEN
   PartState(1:3,PartID)   = tmpPos
   LastPartPos(1:3,PartID) = tmpLastPartPos(1:3)
-  IF(PartPosRef(1,PartID).GT. 1.) PartPosRef(1,PartID)= 0.99
-  IF(PartPosRef(1,PartID).LT.-1.) PartPosRef(1,PartID)=-0.99
-  IF(PartPosRef(2,PartID).GT. 1.) PartPosRef(2,PartID)= 0.99
-  IF(PartPosRef(2,PartID).LT.-1.) PartPosRef(2,PartID)=-0.99
-  IF(PartPosRef(3,PartID).GT. 1.) PartPosRef(3,PartID)= 0.99
-  IF(PartPosRef(3,PartID).LT.-1.) PartPosRef(3,PartID)=-0.99
-  CALL LocateParticleInElement(PartID,doHalo=.FALSE.)
+!  IF(PartPosRef(1,PartID).GT. 1.) PartPosRef(1,PartID)= 0.99
+!  IF(PartPosRef(1,PartID).LT.-1.) PartPosRef(1,PartID)=-0.99
+!  IF(PartPosRef(2,PartID).GT. 1.) PartPosRef(2,PartID)= 0.99
+!  IF(PartPosRef(2,PartID).LT.-1.) PartPosRef(2,PartID)=-0.99
+!  IF(PartPosRef(3,PartID).GT. 1.) PartPosRef(3,PartID)= 0.99
+!  IF(PartPosRef(3,PartID).LT.-1.) PartPosRef(3,PartID)=-0.99
+  CALL LocateParticleInElement(PartID,doHalo=.TRUE.)
 
   ! particle successfully located
   IF (PDM%ParticleInside(PartID)) THEN
