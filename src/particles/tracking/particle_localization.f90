@@ -89,7 +89,7 @@ USE MOD_Preproc
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemRadius2NGeo
-USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemEpsOneCell
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems, FIBGM_offsetElem, FIBGM_Element
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetGlobalElemID
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
@@ -138,7 +138,7 @@ nBGMElems = FIBGM_nElems(iBGM,jBGM,kBGM)
 Distance = -1.
 
 ListDistance=0
-DO iBGMElem = 1, nBGMElems
+DO iBGMElem = 1,nBGMElems
   ElemID   = FIBGM_Element(FIBGM_offsetElem(iBGM,jBGM,kBGM)+iBGMElem)
   CNElemID = GetCNElemID(ElemID)
 
@@ -166,12 +166,19 @@ DO iBGMElem = 1,nBGMElems
     IF (ElemID.LT.offsetElem+1 .OR. ElemID.GT.offsetElem+PP_nElems) CYCLE
   END IF
 
-  IF (TrackingMethod.EQ.TRIATRACKING) THEN
-    CALL ParticleInsideQuad3D(Pos3D(1:3),ElemID,InElementCheck,Det)
-  ELSE
-    CALL GetPositionInRefElem(Pos3D(1:3),RefPos,ElemID)
-    IF (MAXVAL(ABS(RefPos)).LE.1.0) InElementCheck = .TRUE.
-  END IF
+  SELECT CASE(TrackingMethod)
+    CASE(TRIATRACKING)
+      CALL ParticleInsideQuad3D(Pos3D(1:3),ElemID,InElementCheck,Det)
+
+    CASE(TRACING)
+      CALL GetPositionInRefElem(Pos3D(1:3),RefPos,ElemID)
+      IF (MAXVAL(ABS(RefPos)).LE.1.0) InElementCheck = .TRUE.
+
+    CASE(REFMAPPING)
+      CALL GetPositionInRefElem(Pos3D(1:3),RefPos,ElemID)
+      IF (MAXVAL(ABS(RefPos)).LE.ElemEpsOneCell(CNElemID)) InElementCheck = .TRUE.
+
+  END SELECT
 
   IF (InElementCheck) THEN
     SinglePointToElement = ElemID
