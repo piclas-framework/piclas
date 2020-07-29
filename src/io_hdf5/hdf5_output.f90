@@ -165,7 +165,7 @@ LOGICAL                        :: usePreviousTime_loc
 INTEGER           :: iSide,i
 #if USE_HDG
 INTEGER                        :: SideID,iGlobSide,HaloElemID,iLocSide,iLocSide_NB,iElem,HaloProcID,iMortar,nMortars,MortarSideID
-INTEGER,ALLOCATABLE            :: SortedUniqueSides(:)
+!INTEGER,ALLOCATABLE            :: SortedUniqueSides(:)
 INTEGER,ALLOCATABLE            :: SortedUniqueSides2(:),GlobalUniqueSideID2(:)
 !INTEGER(KIND=8),ALLOCATABLE            :: SortedUniqueSides2(:)
 LOGICAL,ALLOCATABLE            :: OutputSide(:)
@@ -561,13 +561,13 @@ Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
 
 
 
-  ALLOCATE(SortedUniqueSides(1:nSides))
+  !ALLOCATE(SortedUniqueSides(1:nSides))
   ALLOCATE(SortedUniqueSides2(1:nSides))
   ALLOCATE(GlobalUniqueSideID2(1:nSides))
-  SortedUniqueSides=0
+  !SortedUniqueSides=0
   SortedUniqueSides2=0
   DO iSide = 1, nSides
-    SortedUniqueSides(iSide)=iSide
+    !SortedUniqueSides(iSide)=iSide
     SortedUniqueSides2(iSide)=iSide
   END DO ! iSide = 1, nSides
 
@@ -615,7 +615,7 @@ Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
           IF(GlobalUniqueSideID(iSIde).LE.0)THEN
             CALL set_formatting("red")
           END IF ! GlobalUniqueSideID(iSIde).LE.0
-          WRITE (UNIT_stdOut,'(I4,A12,I4,A35,I4,A35,I4)',advance='NO') iSide,"     myrank",myrank,"    SortedUniqueSides(iSide) =", SortedUniqueSides(iSide),"    GlobalUniqueSideID(iSide)",GlobalUniqueSideID(iSide)
+          WRITE (UNIT_stdOut,'(I4,A12,I4,A35,I4,A35,I4)',advance='NO') iSide,"     myrank",myrank,"    SortedUniqueSides2(iSide) =", SortedUniqueSides2(iSide),"    GlobalUniqueSideID(iSide)",GlobalUniqueSideID(iSide)
           IF(GlobalUniqueSideID(iSIde).LE.0)THEN
             CALL clear_formatting()
           END IF ! GlobalUniqueSideID(iSIde).LE.0
@@ -662,35 +662,35 @@ Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
 
 
 
-    StartTime1=PICLASTIME()
-    CALL SortArray(nSides,SortedUniqueSides(1:nSides),GlobalUniqueSideID(1:nSides))
-    StartTime2=PICLASTIME()
-    DO i=0,nProcessors-1
-      IF(i.eq.myrank)THEN
-        IPWRITE (*,*) "StartTime2-StartTime1 =", StartTime2-StartTime1
-      END IF ! i.eq.myrank
-      CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-    end do
+    !StartTime1=PICLASTIME()
+    !CALL SortArray(nSides,SortedUniqueSides(1:nSides),GlobalUniqueSideID(1:nSides))
+    !StartTime2=PICLASTIME()
+    !DO i=0,nProcessors-1
+    !  IF(i.eq.myrank)THEN
+    !    IPWRITE (*,*) "StartTime2-StartTime1 =", StartTime2-StartTime1
+    !  END IF ! i.eq.myrank
+    !  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+    !end do
 
 
-    SWRITE (*,*) "====================================================================================="
-    CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+    !SWRITE (*,*) "====================================================================================="
+    !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 
     !SortedUniqueSides2=SortedUniqueSides
     GlobalUniqueSideID2 = GlobalUniqueSideID
     CALL SortArray2(1,nSides,GlobalUniqueSideID2(1:nSides),SortedUniqueSides2(1:nSides))
     DEALLOCATE(GlobalUniqueSideID2)
-    StartTime3=PICLASTIME()
-    DO i=0,nProcessors-1
-      IF(i.eq.myrank)THEN
-        IPWRITE (*,*) "StartTime3-StartTime2 =", StartTime3-StartTime2
-      END IF ! i.eq.myrank
-      CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-    end do
+    !   StartTime3=PICLASTIME()
+    !   DO i=0,nProcessors-1
+    !     IF(i.eq.myrank)THEN
+    !       IPWRITE (*,*) "StartTime3-StartTime2 =", StartTime3-StartTime2
+    !     END IF ! i.eq.myrank
+    !     CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+    !   end do
 
-    SWRITE (*,*) "====================================================================================="
-    CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+    !SWRITE (*,*) "====================================================================================="
+    !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
     ALLOCATE(SortedLambda(PP_nVar,nGP_face,nSides))
     SortedLambda = HUGE(1.)
@@ -848,7 +848,7 @@ Check2: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
             IF(GlobalUniqueSideID(iSIde).LE.0)THEN
               CALL set_formatting("red")
             END IF ! GlobalUniqueSideID(iSIde).LE.0
-            WRITE (UNIT_stdOut,'(I4,A12,I4,A35,I4,A35,I4)',advance='NO') iSide,"     myrank",myrank,"    SortedUniqueSides(iSide) =", SortedUniqueSides(iSide),"    GlobalUniqueSideID(iSide)",GlobalUniqueSideID(iSide)
+            WRITE (UNIT_stdOut,'(I4,A12,I4,A35,I4,A35,I4)',advance='NO') iSide,"     myrank",myrank,"    SortedUniqueSides2(iSide) =", SortedUniqueSides2(iSide),"    GlobalUniqueSideID(iSide)",GlobalUniqueSideID(iSide)
             IF(GlobalUniqueSideID(iSIde).LE.0)THEN
               CALL clear_formatting()
             END IF ! GlobalUniqueSideID(iSIde).LE.0
@@ -909,7 +909,8 @@ Check2: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
   END ASSOCIATE
 
 
-  DEALLOCATE(OutputSide,SortedUniqueSides,SortedLambda)
+  DEALLOCATE(OutputSide,SortedLambda)
+  !DEALLOCATE(SortedUniqueSides)
   DEALLOCATE(iLocSides)
 
 
