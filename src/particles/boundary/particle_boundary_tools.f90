@@ -59,7 +59,7 @@ PUBLIC :: AnalyzeSurfaceCollisions
 PUBLIC :: SurfaceToPartEnergyInternal
 PUBLIC :: CountSurfaceImpact
 PUBLIC :: StoreBoundaryParticleProperties
-PUBLIC :: SortArray
+PUBLIC :: SortArray,SortArray2
 PUBLIC :: DielectricSurfaceCharge
 PUBLIC :: GetWallTemperature
 !===================================================================================================================================
@@ -482,6 +482,7 @@ END SUBROUTINE StoreBoundaryParticleProperties
 SUBROUTINE SortArray(EndID,ArrayA,ArrayB)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! sort ArrayA (e.g. SideIDToSurfID) in ascending order of ArrayB (e.g. GlobalUniqueSideID)
+! based on running MINLOC for each element .NE. -1
 !
 ! In the following example sorting from iSide = nBCSides+1 to nSides is performed
 !
@@ -489,11 +490,11 @@ SUBROUTINE SortArray(EndID,ArrayA,ArrayB)
 !  
 !      iSide         SideIDToSurfID(iSide)      GlobalUniqueSideID(iSide)
 !        10                   -1                           3
-!        11                   10                          10
-!        12                   -1                          16
-!        13                   -1                          11
-!        14                   -1                          15
-!        15                   11                           4
+!        11               --- 10 <--                      10
+!        12               |   -1   |                      16
+!        13               |   -1   |                      11
+!        14               |   -1   |                      15
+!        15               --> 11 ---                       4
 !        16                   -1                           6
 !    
 ! AFTER:
@@ -520,26 +521,124 @@ INTEGER,INTENT(IN)    :: ArrayB(EndID)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: i,idx
-LOGICAL :: unsorted(EndID)
-LOGICAL :: unsorted_tmp(EndID)
+LOGICAL :: Mask(EndID) ! only the elements for which Mask is .TRUE. are considered
+LOGICAL :: Mask_tmp(EndID)
 INTEGER :: ArrayA_temp(EndID)
 !===================================================================================================================================
-ArrayA_temp=ArrayA
-unsorted = .TRUE.
-DO i=1, EndID
+ArrayA_temp = ArrayA
+Mask = .TRUE.
+DO i = 1, EndID
   IF(ArrayA(i).EQ.-1) THEN
-    unsorted(i)=.FALSE.
+    Mask(i) = .FALSE.
   END IF
 END DO
-unsorted_tmp=unsorted
+Mask_tmp = Mask
 DO i = 1, EndID
-  IF(.NOT.unsorted_tmp(i)) CYCLE
-   idx=MINLOC(ArrayB,1,unsorted)
+  IF(.NOT.Mask_tmp(i)) CYCLE
+   idx         = MINLOC(ArrayB,1,Mask)
    ArrayA(idx) = ArrayA_temp(i)
-   unsorted(idx) = .FALSE.
+   Mask(idx)   = .FALSE.
 END DO
 
 END SUBROUTINE SortArray
+
+
+RECURSIVE SUBROUTINE SortArray2(StartID,EndID,ArrayA,ArrayB)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! sort ArrayA (e.g. SideIDToSurfID) in ascending order of ArrayB (e.g. GlobalUniqueSideID)
+! based on QuickSort
+!
+! In the following example sorting from iSide = nBCSides+1 to nSides is performed
+!
+! BEFORE:
+!  
+!      iSide         SideIDToSurfID(iSide)      GlobalUniqueSideID(iSide)
+!        10                   -1                           3
+!        11               --- 10 <--                      10
+!        12               |   -1   |                      16
+!        13               |   -1   |                      11
+!        14               |   -1   |                      15
+!        15               --> 11 ---                       4
+!        16                   -1                           6
+!    
+! AFTER:
+!    
+!      iSide         SideIDToSurfID(iSide)      GlobalUniqueSideID(iSide)
+!        10                   -1                           3
+!        11                   11                          10
+!        12                   -1                          16
+!        13                   -1                          11
+!        14                   -1                          15
+!        15                   10                           4
+!        16                   -1                           6
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)    :: StartID,EndID
+INTEGER,INTENT(INOUT) :: ArrayA(*)
+INTEGER,INTENT(INOUT) :: ArrayB(*)
+! insert IO variables here
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: i,j,idx
+!LOGICAL :: Mask(EndID) ! only the elements for which Mask is .TRUE. are considered
+!LOGICAL :: Mask_tmp(EndID)
+!INTEGER :: ArrayA_temp(EndID)
+INTEGER :: Center,temp
+!===================================================================================================================================
+
+Center = ArrayA((StartID+EndID)/2)
+i      = StartID
+j      = EndID
+
+DO
+  DO WHILE (ArrayA(i).LT.Center)
+    i=i+1
+  END DO
+  DO WHILE (Center.LT.ArrayA(j))
+    j=j-1
+  END DO
+  IF(i.GE.j) EXIT
+  ! Sort actual array: ArrayA
+  temp      = ArrayA(i)
+  ArrayA(i) = ArrayA(j)
+  ArrayA(j) = temp
+  ! Sort corresponding array: ArrayB
+  temp      = ArrayB(i)
+  ArrayB(i) = ArrayB(j)
+  ArrayB(j) = temp
+
+  i=i+1
+  j=j-1
+END DO
+
+!IF(StartID.LT.i-1) CALL SortArray2(StartID,EndID,ArrayA,ArrayB)
+
+IF(StartID.LT.i-1  ) CALL SortArray2(StartID , i-1   , ArrayA , ArrayB)
+IF(j+1    .LT.EndID) CALL SortArray2(j+1     , EndID , ArrayA , ArrayB)
+
+
+!   RETURN
+!   ArrayA_temp = ArrayA
+!   Mask = .TRUE.
+!   DO i = 1, EndID
+!     IF(ArrayA(i).EQ.-1) THEN
+!       Mask(i) = .FALSE.
+!     END IF
+!   END DO
+!   Mask_tmp = Mask
+!   DO i = 1, EndID
+!     IF(.NOT.Mask_tmp(i)) CYCLE
+!      idx         = MINLOC(ArrayB,1,Mask)
+!      ArrayA(idx) = ArrayA_temp(i)
+!      Mask(idx)   = .FALSE.
+!   END DO
+
+END SUBROUTINE SortArray2
 
 
 SUBROUTINE DielectricSurfaceCharge(iPart,ElemID,PartTrajectory,alpha)

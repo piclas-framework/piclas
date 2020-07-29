@@ -105,7 +105,7 @@ USE MOD_Equation_Vars           ,ONLY: B
 USE MOD_Equation_Vars           ,ONLY: E,B
 #endif /*PP_nVar*/
 USE MOD_Mesh_Vars               ,ONLY: nSides
-USE MOD_Particle_Boundary_Tools ,ONLY: SortArray
+USE MOD_Particle_Boundary_Tools ,ONLY: SortArray,SortArray2
 USE MOD_Particle_Mesh_Vars      ,ONLY: PartElemToElemAndSide
 USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
 USE MOD_Particle_MPI_Vars       ,ONLY: PartHaloElemToProc
@@ -117,6 +117,7 @@ USE MOD_Mesh_Vars               ,ONLY: firstMPISide_YOUR,lastMPISide_MINE,lastIn
 USE MOD_Mappings                ,ONLY: CGNS_SideToVol2
 USE MOD_MPI_Vars                ,ONLY: OffsetMPISides_rec,nNbProcs,nMPISides_rec,nbProc,RecRequest_U,SendRequest_U
 USE MOD_MPI                     ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_Utils                   ,ONLY: Qsort1DoubleInt1PInt
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars            ,ONLY: OutputTimeFixed
 USE MOD_Mesh_Vars               ,ONLY: DoWriteStateToHDF5,nBCSides,GlobalUniqueSideID
@@ -163,8 +164,10 @@ INTEGER(KIND=IK)               :: PP_nVarTmp
 LOGICAL                        :: usePreviousTime_loc
 INTEGER           :: iSide,i
 #if USE_HDG
-INTEGER                        :: SideID,HaloElemID,iLocSide,iLocSide_NB,iElem,HaloProcID,iMortar,nMortars,MortarSideID
+INTEGER                        :: SideID,iGlobSide,HaloElemID,iLocSide,iLocSide_NB,iElem,HaloProcID,iMortar,nMortars,MortarSideID
 INTEGER,ALLOCATABLE            :: SortedUniqueSides(:)
+INTEGER,ALLOCATABLE            :: SortedUniqueSides2(:),GlobalUniqueSideID2(:)
+!INTEGER(KIND=8),ALLOCATABLE            :: SortedUniqueSides2(:)
 LOGICAL,ALLOCATABLE            :: OutputSide(:)
 REAL,ALLOCATABLE               :: SortedLambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
 REAL,ALLOCATABLE               :: TotalLambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
@@ -173,6 +176,7 @@ INTEGER                        :: SideID_start, SideID_end,iNbProc,SendID
 REAL,ALLOCATABLE               :: iLocSides(:,:,:)          ! iLocSides, ((PP_N+1)^2,nSides) 
 LOGICAL          :: HDG_DebugOutput
 #endif /*USE_HDG*/
+REAL              :: StartTime1,StartTime2,StartTime3
 !===================================================================================================================================
 ! set local variables for output and previous times
 IF(OutputTimeFixed.GE.0.0)THEN
@@ -321,6 +325,7 @@ ASSOCIATE (&
 
 
 
+      !HDG_DebugOutput = .TRUE.
       HDG_DebugOutput = .FALSE.
 
 
@@ -557,9 +562,13 @@ Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
 
 
   ALLOCATE(SortedUniqueSides(1:nSides))
+  ALLOCATE(SortedUniqueSides2(1:nSides))
+  ALLOCATE(GlobalUniqueSideID2(1:nSides))
   SortedUniqueSides=0
+  SortedUniqueSides2=0
   DO iSide = 1, nSides
     SortedUniqueSides(iSide)=iSide
+    SortedUniqueSides2(iSide)=iSide
   END DO ! iSide = 1, nSides
 
 
@@ -653,15 +662,50 @@ Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
 
 
 
+    StartTime1=PICLASTIME()
     CALL SortArray(nSides,SortedUniqueSides(1:nSides),GlobalUniqueSideID(1:nSides))
+    StartTime2=PICLASTIME()
+    DO i=0,nProcessors-1
+      IF(i.eq.myrank)THEN
+        IPWRITE (*,*) "StartTime2-StartTime1 =", StartTime2-StartTime1
+      END IF ! i.eq.myrank
+      CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+    end do
+
+
+    SWRITE (*,*) "====================================================================================="
+    CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+
+
+    !SortedUniqueSides2=SortedUniqueSides
+    GlobalUniqueSideID2 = GlobalUniqueSideID
+    CALL SortArray2(1,nSides,GlobalUniqueSideID2(1:nSides),SortedUniqueSides2(1:nSides))
+    DEALLOCATE(GlobalUniqueSideID2)
+    StartTime3=PICLASTIME()
+    DO i=0,nProcessors-1
+      IF(i.eq.myrank)THEN
+        IPWRITE (*,*) "StartTime3-StartTime2 =", StartTime3-StartTime2
+      END IF ! i.eq.myrank
+      CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+    end do
+
+    SWRITE (*,*) "====================================================================================="
+    CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+
     ALLOCATE(SortedLambda(PP_nVar,nGP_face,nSides))
     SortedLambda = HUGE(1.)
-    DO iSide = 1, nSides
+    DO iGlobSide = 1, nSides
+      ! Old
+      ! iSide = iGlobSide
+
+      ! New
+      iSide = SortedUniqueSides2(iGlobSide)
+
       IF(.NOT.OutputSide(iSide)) CYCLE
 
           IF(iSide.GT.lastMPISide_MINE)THEN
             !CALL set_formatting("red")
-            IF(HDG_DebugOutput)WRITE (UNIT_stdOut,'(A5)',advance='NO') "YOUR "
+            !IF(HDG_DebugOutput)WRITE (UNIT_stdOut,'(A5)',advance='NO') "YOUR "
             iLocSide = NINT(iLocSides(1,1,iSide))
           ELSE
             !CALL set_formatting("green")
@@ -670,9 +714,6 @@ Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
           END IF ! iSide.GT.lastMPISide_MINE
 
 
-
-
-      ! 0.)
       !master element
       !iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
       IF(iLocSide.NE.-1)THEN ! MINE side
@@ -681,8 +722,8 @@ Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
             pq=CGNS_SideToVol2(PP_N,p,q,iLocSide)
             r  = q    *(PP_N+1)+p    +1
             rr = pq(2)*(PP_N+1)+pq(1)+1
-            !SortedLambda(:,rr:rr,SortedUniqueSides(iSide)) = lambda(:,r:r,iSide)
-            SortedLambda(:,r:r,SortedUniqueSides(iSide)) = lambda(:,rr:rr,iSide)
+            !SortedLambda(:,r:r,SortedUniqueSides(iSide)) = lambda(:,rr:rr,iSide)
+            SortedLambda(:,r:r,iGlobSide) = lambda(:,rr:rr,iSide)
           END DO
         END DO !p,q
         CYCLE
@@ -699,8 +740,8 @@ Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
             pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_NB)
             r  = q    *(PP_N+1)+p    +1
             rr = pq(2)*(PP_N+1)+pq(1)+1
-            !SortedLambda(:,rr:rr,SortedUniqueSides(iSide)) = lambda(:,r:r,iSide)
-            SortedLambda(:,r:r,SortedUniqueSides(iSide)) = lambda(:,rr:rr,iSide)
+            !SortedLambda(:,r:r,SortedUniqueSides(iSide)) = lambda(:,rr:rr,iSide)
+            SortedLambda(:,r:r,iGlobSide) = lambda(:,rr:rr,iSide)
           END DO
         END DO !p,q
         CYCLE
@@ -731,8 +772,8 @@ Check2: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
                     pq=CGNS_SideToVol2(PP_N,p,q,iLocSide)
                     r  = q    *(PP_N+1)+p    +1
                     rr = pq(2)*(PP_N+1)+pq(1)+1
-                    !SortedLambda(:,rr:rr,SortedUniqueSides(iSide)) = lambda(:,r:r,iSide)
-                    SortedLambda(:,r:r,SortedUniqueSides(iSide)) = lambda(:,rr:rr,iSide)
+                    !SortedLambda(:,r:r,SortedUniqueSides(iSide)) = lambda(:,rr:rr,iSide)
+                    SortedLambda(:,r:r,iGlobSide) = lambda(:,rr:rr,iSide)
                   END DO
                 END DO !p,q
               ELSE
@@ -745,117 +786,36 @@ Check2: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
           END DO !iMortar
         END DO Check2 !MortarSideID
       END IF ! MortarType(1,iSide).EQ.0
-      
 
-
-      ! 1.)
-      !SortedLambda(:,:,SortedUniqueSides(iSide)) = lambda(:,:,iSide)
-
-
-      ! 2.)
-      !r=q*(PP_N+1) + p+1
-      !SortedLambda(:,r:r,SortedUniqueSides(iSide)) = lambda(:,r:r,iSide)
-
-
-      ! 3.)
-      !    flip = SideToElem(S2E_FLIP,iSide)
-      !    SELECT CASE(flip)
-      !    CASE(-1,0) ! master side
-      !      SortedLambda(:,:,SortedUniqueSides(iSide)) = lambda(:,:,iSide)
-      !    CASE(1:4) ! slave side
-      !      DO q=0,PP_N
-      !        DO p=0,PP_N
-      !          ASSOCIATE( pp => FS2M(1,p,q,flip) ,&
-      !                     qq => FS2M(2,p,q,flip) )
-      !            ASSOCIATE( sum1 =>  q*(PP_N+1) + p +1 ,&
-      !                       sum2 => qq*(PP_N+1) + pp+1  )
-      !              !r=q*(PP_N+1) + p+1
-      !              !SortedLambda(:,r:r,SortedUniqueSides(iSide)) = lambda(:,r:r,iSide)
-      !              SortedLambda(:,sum1:sum1,SortedUniqueSides(iSide)) = lambda(:,sum2:sum2,iSide)
-      !            END ASSOCIATE
-      !          END ASSOCIATE
-      !        END DO
-      !      END DO
-      !    END SELECT !flip(iMortar)
+    END DO ! iGlobSide = 1, nSides
 
 
 
-      ! 4.)
-      !          flip = SideToElem(S2E_FLIP,iSide)
-      !          IPWRITE(UNIT_StdOut,*) "flip =", flip
-      !          SELECT CASE(flip)
-      !          CASE(-1,0) ! master side
-      !            !lambda_in(:,:,:,SideID)=U_tmp(:,:,:,iMortar)
-      !            SortedLambda(:,:,SortedUniqueSides(iSide)) = lambda(:,:,iSide)
-      !          CASE(1:4) ! slave side
-      !            DO q=0,PP_N; DO p=0,PP_N
-      !              !          U_in_slave(p,q,SideID)=U_tmp(FS2M(1,p,q,flip), &
-      !              !                                       FS2M(2,p,q,flip),iMortar)
-      !              WRITE (*,*) "FS2M(1,p,q,flip),FS2M(2,p,q,flip) =", FS2M(1,p,q,flip),FS2M(2,p,q,flip)
-      !              ASSOCIATE(pp => FS2M(1,p,q,flip) ,&
-      !                        qq => FS2M(2,p,q,flip) )
-      !                ASSOCIATE(sum1 => 2*q  + p  + 1 ,&
-      !                          sum2 => 2*qq + pp + 1)
-      !                      WRITE (*,*) "sum1,sum2 =", sum1,sum2
-      !                  SortedLambda(PP_nVar,sum1,SortedUniqueSides(iSide)) = lambda(PP_nVar,sum2,iSide)
-      !                END ASSOCIATE
-      !              END ASSOCIATE
-      !            END DO; END DO ! q, p
-      !          END SELECT !flip(iMortar)
-
-
-
-      ! 5.)
-      !       IF(iSide.GT.lastMPISide_MINE)THEN
-      !         iLocSide = SideToElem(S2E_NB_LOC_SIDE_ID , iSide)
-      !         iElem    = SideToElem(S2E_NB_ELEM_ID     , iSide)
-      !       ELSE
-      !         iLocSide = SideToElem(S2E_LOC_SIDE_ID , iSide)
-      !         iElem    = SideToElem(S2E_ELEM_ID     , iSide)
-      !       END IF ! iSide.GT.lastMPISide_MINE
-      !       IF(MortarType(1,iSide).EQ.0)THEN
-      !         flip=0
-      !       ELSE
-      !         flip = ElemToSide(E2S_FLIP,iLocSide,iElem)
-      !       END IF ! MortarType
-      !       !IPWRITE(UNIT_StdOut,*) "flip =", flip
-
-      !       SELECT CASE(flip)
-      !       CASE(0)
-      !         SortedLambda(:,:,SortedUniqueSides(iSide)) = lambda(:,:,iSide)
-      !       CASE(1:4) ! slave side
-      !         DO q=0,PP_N
-      !           DO p=0,PP_N
-      !             ASSOCIATE( pp => FS2M(1,p,q,flip) ,&
-      !                        qq => FS2M(2,p,q,flip) )
-      !               ASSOCIATE( r =>  q*(PP_N+1) + p +1 ,&
-      !                          l => qq*(PP_N+1) + pp+1  )
-      !                 SortedLambda(:,r:r,SortedUniqueSides(iSide)) = lambda(:,l:l,iSide)
-      !               END ASSOCIATE
-      !             END ASSOCIATE
-      !           END DO
-      !         END DO
-      !       CASE DEFAULT
-      !         CALL abort(&
-      !         __STAMP__&
-      !         ,'Flip=',IntInfoOpt=flip)
-      !       END SELECT !flip(iMortar)
-
-
-    END DO ! iSide = 1, nSides
-
+    DEALLOCATE(SortedUniqueSides2)
     SortedOffset=HUGE(1)
-    SortedStart=HUGE(1)
-    SortedEnd=-1
+    ! Old
+    !SortedStart=HUGE(1)
+    !SortedEnd=-1
+
+    ! New
+    SortedStart=1
+
 
     DO iSide = 1, nSides
       IF(OutputSide(iSide))THEN
         IF(GlobalUniqueSideID(iSide).LT.SortedOffset) SortedOffset = GlobalUniqueSideID(iSide)
-        IF( SortedUniqueSides(iSide).LT.SortedStart)  SortedStart  = SortedUniqueSides(iSide)
-        IF( SortedUniqueSides(iSide).GT.SortedEnd)    SortedEnd    = SortedUniqueSides(iSide)
+        ! Old
+        !IF( SortedUniqueSides(iSide).LT.SortedStart)  SortedStart  = SortedUniqueSides(iSide)
+        !IF( SortedUniqueSides(iSide).GT.SortedEnd)    SortedEnd    = SortedUniqueSides(iSide)
+      ELSE
+        ! New
+        SortedStart = SortedStart +1
       END IF ! OutputSide(iSide))
     END DO
-    SortedOffset=SortedOffset-1
+
+    ! New
+    SortedEnd    = nSides
+    SortedOffset = SortedOffset-1
 
 
 
@@ -863,9 +823,9 @@ Check2: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
 
 
     IF(HDG_DebugOutput)THEN
-      SortedOffset=HUGE(1)
-      SortedStart=HUGE(1)
-      SortedEnd=-1
+      !SortedOffset=HUGE(1)
+      !SortedStart=HUGE(1)
+      !SortedEnd=-1
 
       CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
@@ -916,15 +876,15 @@ Check2: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
             END IF ! iSide.GT.nBCSides
             WRITE(UNIT_stdOut,'(A)') '' ! write 'newline' to file to finish the current line 
 
-            IF(OutputSide(iSide))THEN
-              IF(GlobalUniqueSideID(iSide).LT.SortedOffset) SortedOffset = GlobalUniqueSideID(iSide)
-              IF( SortedUniqueSides(iSide).LT.SortedStart)  SortedStart  = SortedUniqueSides(iSide)
-              IF( SortedUniqueSides(iSide).GT.SortedEnd)    SortedEnd    = SortedUniqueSides(iSide)
-            END IF ! OutputSide(iSide))
+            ! IF(OutputSide(iSide))THEN
+            !   IF(GlobalUniqueSideID(iSide).LT.SortedOffset) SortedOffset = GlobalUniqueSideID(iSide)
+            !   IF( SortedUniqueSides(iSide).LT.SortedStart)  SortedStart  = SortedUniqueSides(iSide)
+            !   IF( SortedUniqueSides(iSide).GT.SortedEnd)    SortedEnd    = SortedUniqueSides(iSide)
+            ! END IF ! OutputSide(iSide))
             CALL clear_formatting()
 
           END DO
-          SortedOffset=SortedOffset-1
+          !SortedOffset=SortedOffset-1
           WRITE (UNIT_stdOut,*) "SortedOffset, SortedStart:SortedEnd (nVal)=", SortedOffset,    SortedStart,":",SortedEnd,'(',SortedEnd-SortedStart+1,')'
           WRITE(UNIT_stdOut,'(132("-"))')
         END IF

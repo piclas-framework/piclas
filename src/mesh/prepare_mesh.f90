@@ -871,7 +871,7 @@ INTEGER             :: dummy(0:4)
 #endif
 #if USE_HDG && USE_LOADBALANCE
 INTEGER           :: BCType,i,iSide,nMortars
-REAL              :: ElemHDGWeight
+INTEGER           :: HDGSides
 LOGICAL           :: HDG_DebugOutput
 #endif /*USE_HDG && USE_LOADBALANCE*/
 !===================================================================================================================================
@@ -904,6 +904,7 @@ DO iElem=1,nElems
     BC(aSide%sideID)=aSide%BCIndex
 #ifdef PARTICLES
     GlobalUniqueSideID(aSide%sideID)=aSide%Ind
+    IPWRITE(UNIT_StdOut,*) "aSide%sideID,GlobalUniqueSideID(aSide%sideID) =", aSide%sideID,GlobalUniqueSideID(aSide%sideID)
 #endif /*PARTICLES*/
   END DO ! LocSideID
 END DO ! iElem
@@ -929,10 +930,8 @@ DO iElem=1,nElems
         mSide=>aSide%MortarSide(iMortar)%sp
         MortarType(1,mSide%SideID)=mSide%MortarType
 #ifdef PARTICLES
-        ! Store global unique side index on mortar side
-        IF(GlobalUniqueSideID(mSide%SideID).EQ.-1)THEN ! the side has not been set previously
-          GlobalUniqueSideID(mSide%SideID) = mSide%Ind
-        END IF ! GlobalUniqueSideID(mSide%SideID).EQ.-1
+        ! Store global unique side index on mortar side if the side has not been set previously
+        IF(GlobalUniqueSideID(mSide%SideID).EQ.-1) GlobalUniqueSideID(mSide%SideID) = mSide%Ind
 #endif /*PARTICLES*/
         MortarInfo(MI_SIDEID,iMortar,SideID)=mSide%SideID
         MortarInfo(MI_FLIP,iMortar,SideID)=mSide%Flip
@@ -1049,7 +1048,7 @@ DO i=0,nProcessors-1
     DO iElem=1,nElems
       IF(HDG_DebugOutput)WRITE (*,*) "" 
       DO ilocSide=1,6
-        ElemHDGWeight = 0.
+        HDGSides = 0
         SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
 
         ! Get BC type
@@ -1096,7 +1095,7 @@ DO i=0,nProcessors-1
             CASE(2,4,5) !Dirichlet
               ! do not consider this side
             CASE(10,11) !Neumann
-              ElemHDGWeight = ElemHDGWeight + 1.0
+              HDGSides = HDGSides + 1
             CASE DEFAULT ! unknown BCType
               CALL abort(&
               __STAMP__&
@@ -1109,19 +1108,19 @@ DO i=0,nProcessors-1
               IF(MortarSlave2MasterInfo(SideID).EQ.-1)THEN
                 ! Normal side
                 IF(SideID.GT.lastInnerSide)THEN ! MINE: take the complete weight
-                  ElemHDGWeight = ElemHDGWeight + 1.0
+                  HDGSides = HDGSides + 1
                 ELSE ! innerSide: split the weight onto two elements (either periodic or normal inner side)
 
                   ! ===================================================
                   ! method 1: slaves get nothing, masters get all
                   IF(ElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0)THEN ! master
-                    ElemHDGWeight = ElemHDGWeight + 1.0
+                    HDGSides = HDGSides + 1
                   ELSE
                     ! do not consider this side
                   END IF
                   
                   ! method 2: add half
-                  !ElemHDGWeight = ElemHDGWeight + 0.5
+                  !HDGSides = HDGSides + 1
                   ! ===================================================
                 END IF ! SideID.GT.lastInnerSide
               ELSE
@@ -1158,12 +1157,12 @@ DO i=0,nProcessors-1
 
                 ! Only account for master
                 IF(SideID2.GT.lastInnerSide)THEN ! MINE: take the complete weight
-                  ElemHDGWeight = ElemHDGWeight + 1.
+                  HDGSides = HDGSides + 1
                 ELSE ! innerSide: split the weight onto two elements (either periodic or normal inner side)
 
                   ! ===================================================
                   ! method 1: Mortar sides are alyways master and therefore get everything!
-                  ElemHDGWeight = ElemHDGWeight + 1.
+                  HDGSides = HDGSides + 1
                   
                   ! method 2: add half
                   !ElemHDGWeight = ElemHDGWeight + 0.5
@@ -1174,17 +1173,17 @@ DO i=0,nProcessors-1
             END IF ! locMortarSide
           END IF ! SideID.LE.nBCSides
 
-          ElemHDGSides(iElem) = ElemHDGSides(iElem) + ElemHDGWeight
-          TotalHDGSides       = TotalHDGSides       + ElemHDGWeight
+          ElemHDGSides(iElem) = ElemHDGSides(iElem) + HDGSides
+          TotalHDGSides       = TotalHDGSides       + HDGSides
 
         END IF ! SideID.LE.lastMPISide_MINE
 
         IF(HDG_DebugOutput)THEN
-          IF(abs(ElemHDGWeight).LE.0.0)THEN
+          IF(abs(HDGSides).LE.0)THEN
             WRITE (UNIT_stdOut,'(A8)',advance='NO') "-"
           ELSE
-            WRITE (UNIT_stdOut,'(F8.1)',advance='NO') ElemHDGWeight
-          END IF ! abs(ElemHDGWeight).LE.0.0
+            WRITE (UNIT_stdOut,'(F8.1)',advance='NO') HDGSides
+          END IF ! abs(HDGSides).LE.0
           WRITE (UNIT_stdOut,'(A)') " "
         END IF ! HDG_DebugOutput
 
@@ -1192,9 +1191,9 @@ DO i=0,nProcessors-1
 
       ! Sanity check:
       ! Elements with zero weight are not allowed as they still require some work for 2D to 3D mapping. Add small value.
-      IF(ElemHDGSides(iElem).LE.0.0)THEN
-        ElemHDGSides(iElem) = 0.1
-      END IF ! ElemHDGSides(iElem).LE.0.0
+      IF(ElemHDGSides(iElem).LE.0)THEN
+        ElemHDGSides(iElem) = 1
+      END IF ! ElemHDGSides(iElem).LE.0
 
     END DO ! iElem=1,PP_nElems
     IF(HDG_DebugOutput)WRITE(UNIT_stdOut,'(132("-"))')

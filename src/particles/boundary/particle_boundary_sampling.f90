@@ -566,7 +566,7 @@ SWRITE(UNIT_stdOut,'(A,ES25.14E3)') ' Surface-Area: ', Area
 
 DEALLOCATE(Xi_NGeo,wGP_NGeo)
 
-SWRITE(UNIT_stdOut,'(A)') ' ... DONE.'
+SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING DONE.'
 
 END SUBROUTINE InitParticleBoundarySampling
 
