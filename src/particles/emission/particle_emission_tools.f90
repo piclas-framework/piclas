@@ -82,8 +82,8 @@ INTERFACE CalcNbrOfPhotons
   MODULE PROCEDURE CalcNbrOfPhotons
 END INTERFACE
 
-INTERFACE CalcLaserIntensity
-  MODULE PROCEDURE CalcLaserIntensity
+INTERFACE CalcIntensity_Gaussian
+  MODULE PROCEDURE CalcIntensity_Gaussian
 END INTERFACE
 
 INTERFACE CalcVelocity_FromWorkFuncSEE
@@ -102,12 +102,11 @@ PUBLIC :: IntegerDivide,SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_max
 PUBLIC :: BessK,DEVI,SYNGE,QUASIREL
 PUBLIC :: SetCellLocalParticlePosition,InsideExcludeRegionCheck
 PUBLIC :: CalcNbrOfPhotons, CalcPhotonEnergy
-PUBLIC :: CalcLaserIntensity
+PUBLIC :: CalcIntensity_Gaussian
 PUBLIC :: CalcVelocity_FromWorkFuncSEE
 #if CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
-PUBLIC :: FlagElements_Cylinder_PhotoIonization, Insert_Cylinder_Photoionization
 !===================================================================================================================================
 CONTAINS
 
@@ -1069,9 +1068,10 @@ END IF
 END FUNCTION CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
 
-PURE FUNCTION CalcLaserIntensity(x,x_norm)
+PURE FUNCTION CalcIntensity_Gaussian(x,x_norm)
 !===================================================================================================================================
-!> 
+!> Calculates an exponential function of the Gaussian form for a given input variable (e.g. time) and a normalization variable
+!> (e.g. pulse duration)
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -1081,175 +1081,19 @@ IMPLICIT NONE
 REAL, INTENT(IN)         :: x, x_norm
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                     :: CalcLaserIntensity
+REAL                     :: CalcIntensity_Gaussian
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-CalcLaserIntensity = EXP(-(x/x_norm)**2)
+CalcIntensity_Gaussian = EXP(-(x/x_norm)**2)
 
-END FUNCTION CalcLaserIntensity
-
-
-SUBROUTINE FlagElements_Cylinder_PhotoIonization(iSpec,iInit)
-!===================================================================================================================================
-!>
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_Mesh_Vars               ,ONLY: nElems
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)             :: iSpec
-INTEGER, INTENT(IN)             :: iInit
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INOUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                         :: iElem, photoElem
-INTEGER, ALLOCATABLE            :: TempMapping(:)
-REAL                            :: lineVector(3), basePoint(3), radius, basePointToPos(3), height
-REAL, ALLOCATABLE               :: TempRadius(:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
-  Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
-lineVector(2) = Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(1) - &
-  Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(3)
-lineVector(3) = Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
-  Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
-
-basePoint = Species(iSpec)%Init(iInit)%BasePointIC
-
-IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
-  CALL abort(&
-    __STAMP__&
-    ,'BaseVectors are parallel!')
-ELSE
-  lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
-    lineVector(3) * lineVector(3))
-END IF
-
-ALLOCATE(TempMapping(1:nElems))
-TempMapping = 0
-ALLOCATE(TempRadius(1:nElems))
-TempRadius = 0
-photoElem = 0
-
-DO iElem = 1, nElems
-  basePointToPos(1:3) = GEO%ElemMidPoint(1:3,iElem) - basePoint(1:3)
-  height = ABS(DOT_PRODUCT(lineVector,basePointToPos))
-  IF(height.LE.Species(iSpec)%Init(iInit)%CylinderHeightIC) THEN
-    radius = SQRT(DOTPRODUCT(basePointToPos)-height**2)
-    IF(radius.LE.Species(iSpec)%Init(iInit)%RadiusIC) THEN
-      photoElem = photoElem + 1
-      TempMapping(photoElem) = iElem
-      TempRadius(photoElem) = radius
-    END IF
-  END IF
-END DO
-
-Species(iSpec)%Init(iInit)%PhotoIonElems = photoElem
-ALLOCATE(Species(iSpec)%Init(iInit)%PhotoIonElemMap(1:photoElem))
-Species(iSpec)%Init(iInit)%PhotoIonElemMap(1:photoElem) = TempMapping(1:photoElem)
-DEALLOCATE(TempMapping)
-ALLOCATE(Species(iSpec)%Init(iInit)%ElementRadius(1:photoElem))
-Species(iSpec)%Init(iInit)%ElementRadius(1:photoElem) = TempRadius(1:photoElem)
-DEALLOCATE(TempRadius)
-
-
-END SUBROUTINE FlagElements_Cylinder_PhotoIonization
-
-
-SUBROUTINE Insert_Cylinder_PhotoIonization(chunkSize,iSpec,iInit)
-!===================================================================================================================================
-!>
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM
-USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping, TriaTracking
-USE MOD_Particle_Mesh           ,ONLY: PartInElemCheck
-USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
-USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, epsOneCell
-USE MOD_TimeDisc_Vars           ,ONLY: time
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)             :: iSpec
-INTEGER, INTENT(IN)             :: iInit
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INOUTPUT VARIABLES
-INTEGER, INTENT(INOUT)          :: chunkSize
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                         :: iElem, ichunkSize, photoElem
-INTEGER                         :: iPart,  nPart
-REAL                            :: RandomPos(3)
-LOGICAL                         :: InsideFlag
-REAL                            :: Det(6,2)
-REAL                            :: RefPos(1:3)
-INTEGER                         :: ParticleIndexNbr
-REAL                            :: waistRadius, elemRadius, pulseDuration
-!-----------------------------------------------------------------------------------------------------------------------------------
-
-ichunkSize = 1
-ParticleIndexNbr = 1
-DO photoElem = 1, Species(iSpec)%Init(iInit)%PhotoIonElems
-  iElem = Species(iSpec)%Init(iInit)%PhotoIonElemMap(photoElem)
-  ! TODO: Insertion of particles based on intensity and cross-section
-  waistRadius = Species(iSpec)%Init(iInit)%WaistRadius
-  elemRadius = Species(iSpec)%Init(iInit)%ElementRadius(photoElem)
-  pulseDuration = Species(iSpec)%Init(iInit)%PulseDuration
-  nPart = INT(Species(iSpec)%Init(iInit)%ParticleEmission*CalcLaserIntensity(elemRadius,waistRadius)*CalcLaserIntensity(time,pulseDuration))
-  DO iPart = 1, nPart
-    ParticleIndexNbr = PDM%nextFreePosition(iChunksize + PDM%CurrentNextFreePosition)
-    IF (ParticleIndexNbr.NE.0) THEN
-      InsideFlag=.FALSE.
-      DO WHILE(.NOT.InsideFlag)
-        CALL RANDOM_NUMBER(RandomPos)
-        RandomPos = GEO%BoundsOfElem(1,:,iElem) + RandomPos*(GEO%BoundsOfElem(2,:,iElem)-GEO%BoundsOfElem(1,:,iElem))
-        IF (DoRefMapping) THEN
-          CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-          IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
-        ELSE
-          IF (TriaTracking) THEN
-            CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
-          ELSE
-            CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
-          END IF
-        END IF
-      END DO
-      PartState(1:3,ParticleIndexNbr) = RandomPos(1:3)
-      PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
-      PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
-      PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
-      PEM%Element(ParticleIndexNbr) = iElem
-      ichunkSize = ichunkSize + 1
-    ELSE
-      CALL abort(&
-          __STAMP__&
-          ,'ERROR in Insert_Cylinder_Photoionization: Maximum particle number reached during inserting! --> ParticleIndexNbr.EQ.0')
-    END IF
-  END DO
-END DO
-chunkSize = ichunkSize - 1
-
-END SUBROUTINE Insert_Cylinder_PhotoIonization
+END FUNCTION CalcIntensity_Gaussian
 
 
 SUBROUTINE CalcNbrOfPhotons(i,iInit,NbrOfPhotons)
 !===================================================================================================================================
-!> Calculation of Number of Photon based on intensity function integral of timestep and radius
+!> Calculation of number of photons based on an intensity function integral of timestep and radius
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1257,25 +1101,21 @@ USE MOD_Globals_Vars  ,ONLY: PI
 USE MOD_Particle_Vars ,ONLY: Species
 USE MOD_Timedisc_Vars ,ONLY: dt,time
 #ifdef LSERK
-USE MOD_Timedisc_Vars ,ONLY: iStage, RK_b, RK_a, RK_c,nRKStages
+USE MOD_Timedisc_Vars ,ONLY: iStage, RK_c, nRKStages
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN) :: i
-INTEGER, INTENT(IN) :: iInit
+INTEGER, INTENT(IN)   :: i
+INTEGER, INTENT(IN)   :: iInit
 ! INOUTPUT VARIABLES
-REAL, INTENT(OUT)   :: NbrOfPhotons
+REAL, INTENT(OUT)     :: NbrOfPhotons
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL    :: t_1, t_2,lambda
-REAL    :: E_Intensity
-INTEGER :: NbrOfRepetitions
-#ifdef LSERK
-INTEGER :: iStage_loc, nStage
-REAL    :: RKdtFrac
-#endif
+REAL                  :: t_1, t_2
+REAL                  :: E_Intensity
+INTEGER               :: NbrOfRepetitions
 !===================================================================================================================================
 
 ASSOCIATE( tau         => Species(i)%Init(iInit)%PulseDuration      ,&
@@ -1334,7 +1174,7 @@ END SUBROUTINE CalcNbrOfPhotons
 
 PURE FUNCTION CalcPhotonEnergy(lambda)
 !===================================================================================================================================
-!> Calculation of photon energie based on wavelength
+!> Calculation of photon energy based on wavelength
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars          ,ONLY: PlanckConst
@@ -1358,12 +1198,12 @@ END FUNCTION CalcPhotonEnergy
 
 SUBROUTINE CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit)
 !===================================================================================================================================
-! Subroutine to sample photon SEE electrons velocities from given energy distribution based on work function
-! Perform ARM for the energy distribution and a second ARM for the emission angle (between the impacting photon and the emitting
-! electron)
+!> Subroutine to sample photon SEE electrons velocities from given energy distribution based on a work function.
+!> Perform ARM for the energy distribution and a second ARM for the emission angle (between the impacting photon and the emitting
+!> electron)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals    !             ,ONLY: CROSS
+USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: PI, ElementaryCharge
 USE MOD_Particle_Vars           ,ONLY: Species
 IMPLICIT NONE

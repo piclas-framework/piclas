@@ -255,7 +255,7 @@ TYPE tInit                                                                   ! P
                                                            ! actual emission
   REAL                               :: WorkFunctionSEE    ! Photoelectron work function [eV]
   !REAL                               :: AngularBetaSEE
-  REAL                               :: EffectivIntensityFac ! Effective intensity that increases I0 [-]
+  REAL                               :: EffectiveIntensityFactor ! Scaling factor that increases I0 [-]
 END TYPE tInit
 
 TYPE tSurfFluxSubSideData

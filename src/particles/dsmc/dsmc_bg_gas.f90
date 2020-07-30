@@ -629,7 +629,7 @@ END SUBROUTINE MCC_pairing_bggas
 
 SUBROUTINE BGGas_DeleteParticles()
 !===================================================================================================================================
-! Kills all BG Particles
+! Deletes all background gas particles and updates the particle index list
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars,          ONLY : BGGas
@@ -659,15 +659,21 @@ END SUBROUTINE BGGas_DeleteParticles
 
 SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,TotalNbrOfReactions)
 !===================================================================================================================================
-!
+!> Particle emission through photo ionization, defined by chemical reactions of the type "phIon" and an emission with SpaceIC
+!> "photon_cylinder" for the 
+!> 0.) Determine the total ionization cross-section
+!> 1.) Compute the number of photoionization events in the local domain of each proc
+!> 2.) Delete left-over inserted particles
+!> 3.) Insert the products of the photoionization rections
+!> 4.) Perform the reaction, distribute the collision energy (including photon energy) and emit electrons perpendicular
+!>     to the photon's path
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcMeanFreePath
-USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec, DSMC_RHS
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles, XSec_NullCollision
-USE MOD_Particle_Vars          ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, PartStateIntEn, DSMC, DSMC_RHS
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, DSMCSumOfFormedParticles
+USE MOD_Particle_Vars          ,ONLY: PEM, PDM, PartSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
 USE MOD_DSMC_Init              ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_part_pos_and_velo      ,ONLY: SetParticleVelocity
@@ -698,7 +704,7 @@ ChemReac%NumPhotoIonization = 0
 IF(TotalNbrOfReactions.LE.0) RETURN
 TotalNbrOfReactionsTmp = TotalNbrOfReactions
 
-! 0) Calculate sum of cross-sections for photoionization
+!> 0.) Calculate sum of cross-sections for photoionization
 SumCrossSections = 0.
 NbrCrossSections = 0
 DO iReac = 1, ChemReac%NumOfReact
@@ -708,7 +714,7 @@ DO iReac = 1, ChemReac%NumOfReact
   NbrCrossSections = NbrCrossSections + 1
 END DO ! iReac = 1, ChemReac%NumOfReact
 
-! 1) Compute the number of photoionization events in the local domain of each proc
+!> 1.) Compute the number of photoionization events in the local domain of each proc
 iCrossSection = 0
 DO iReac = 1, ChemReac%NumOfReact
   ! Only treat photoionization reactions
@@ -727,8 +733,8 @@ DO iReac = 1, ChemReac%NumOfReact
   TotalNbrOfReactionsTmp = TotalNbrOfReactionsTmp - ChemReac%NumPhotoIonization(iReac)
 END DO
 
+!> 2.) Delete left-over inserted particles
 IF(TotalNbrOfReactions.GT.SUM(ChemReac%NumPhotoIonization)) THEN
-  ! Delete left-over inserted particles
   DO iPart = SUM(ChemReac%NumPhotoIonization)+1,TotalNbrOfReactions
     PDM%ParticleInside(PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)) = .FALSE.
   END DO
@@ -740,10 +746,11 @@ END IF
 
 IF(SUM(ChemReac%NumPhotoIonization).EQ.0) RETURN
 
+!> 3.) Insert the products of the photoionization rections
 NbrOfParticle = SUM(ChemReac%NumPhotoIonization)
 
 ALLOCATE(Coll_pData(NbrOfParticle))
-Coll_pData%Ec=0
+Coll_pData%Ec=0.
 DSMCSumOfFormedParticles = 0
 
 iPart = 1; iNewPart = 0; iPair = 0
@@ -753,7 +760,7 @@ DO WHILE (iPart.LE.NbrOfParticle)
   ParticleIndex = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
   IF(ParticleIndex.NE.0) THEN
     iNewPart = iNewPart + 1
-    ! Get a new index for the background gas particle
+    ! Get a new index for the second product
     NewParticleIndex = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition+NbrOfParticle)
     IF (NewParticleIndex.EQ.0) THEN
       CALL Abort(&
@@ -764,9 +771,11 @@ DO WHILE (iPart.LE.NbrOfParticle)
     IF(DoRefMapping)THEN ! here Nearst-GP is missing
       PartPosRef(1:3,NewParticleIndex)=PartPosRef(1:3,ParticleIndex)
     END IF
+    ! Species index given from the initialization
+    PartSpecies(ParticleIndex) = iSpec
+    ! Get the species index of the background gas
     bgSpec = BGGas_GetSpecies()
     PartSpecies(NewParticleIndex) = bgSpec
-    PartSpecies(ParticleIndex) = iSpec
     IF(CollisMode.GT.1) THEN
       IF(SpecDSMC(bgSpec)%PolyatomicMol) THEN
         CALL DSMC_SetInternalEnr_Poly(bgSpec,0,NewParticleIndex,1)
@@ -784,7 +793,7 @@ DO WHILE (iPart.LE.NbrOfParticle)
     ! Pairing
     Coll_pData(iNewPart)%iPart_p1 = NewParticleIndex
     Coll_pData(iNewPart)%iPart_p2 = ParticleIndex
-    ! Relative velocity is not required as the translational energy will not be considered
+    ! Relative velocity is not required as the relative translational energy will not be considered
     Coll_pData(iNewPart)%CRela2 = 0.
     ! Weighting factor
     IF(usevMPF) THEN
@@ -816,6 +825,8 @@ IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN
     , IntInfoOpt=PDM%ParticleVecLength)
 END IF
 
+!> 4.) Perform the reaction, distribute the collision energy (including photon energy) and emit electrons perpendicular
+!>     to the photon's path
 DO iReac = 1, ChemReac%NumOfReact
   ! Only treat photoionization reactions
   IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
@@ -940,6 +951,5 @@ Theta = Theta_temp
 ! Rotate original vector Vabs*v
 GetRotatedVector = Vabs*(v*COS(Theta) + NormVec*SIN(Theta))
 END FUNCTION GetRotatedVector
-
 
 END MODULE MOD_DSMC_BGGas

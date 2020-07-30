@@ -203,7 +203,7 @@ IF(CalcSimNumSpec_IN)THEN
 #if USE_MPI
   IF(PartMPI%MPIRoot)THEN
 #endif /*USE_MPI*/
-    nGlobalNbrOfParticles = SimNumSpec(nSpecAnalyze)
+    nGlobalNbrOfParticles = INT(SimNumSpec(nSpecAnalyze),KIND=IK)
 #if USE_MPI
   END IF ! PartMPI%MPIRoot
 #endif /*USE_MPI*/

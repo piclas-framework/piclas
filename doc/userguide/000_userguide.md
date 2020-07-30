@@ -2,7 +2,7 @@
 title: PICLas
 logo: ../logo.png
 subtitle: User Guide
-version: Version 1
+version: Version 1.7
 author: 
   - Institute for Aerodynamics and Gas Dynamics (IAG)
   - Institute for Space Systems (IRS)

@@ -42,7 +42,7 @@ SUBROUTINE DSMC_chemical_init()
   USE MOD_DSMC_Vars,              ONLY: ChemReac,CollisMode, DSMC, QKAnalytic, SpecDSMC, BGGas
   USE MOD_ReadInTools
   USE MOD_Globals
-  USE MOD_Globals_Vars,           ONLY: BoltzmannConst, ElementaryCharge
+  USE MOD_Globals_Vars,           ONLY: BoltzmannConst
   USE MOD_PARTICLE_Vars,          ONLY: nSpecies, Species
   USE MOD_Particle_Analyze_Vars,  ONLY: ChemEnergySum
   USE MOD_DSMC_ChemReact,         ONLY: CalcPartitionFunction, CalcQKAnalyticRate
@@ -212,8 +212,8 @@ __STAMP__&
       ! ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','0')
       IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
         ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
-        ! Check if Species 3 is an electron and abort (this is not implemented yet)
-        IF(SPECIESISELECTRON(ChemReac%DefinedReact(iReac,2,3))) CALL abort(&
+        ! Check if species 3 is an electron and abort (this is not implemented yet)
+        IF(SpecDSMC(ChemReac%DefinedReact(iReac,2,3))%InterID.EQ.4) CALL abort(&
         __STAMP__&
           ,'Chemical reaction with electron as 3rd product species. This is not implemented yet for photoionization! iReac=',&
           IntInfoOpt=iReac)
@@ -289,7 +289,7 @@ __STAMP__&
       IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
         DO iSpec = 1, nSpecies
           DO iInit = 1, Species(iSpec)%NumberOfInits
-            IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'Photon_Cylinder') THEN
+            IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder') THEN
               PhotonEnergy = CalcPhotonEnergy(Species(iSpec)%Init(iInit)%WaveLength)
               EXIT
             END IF

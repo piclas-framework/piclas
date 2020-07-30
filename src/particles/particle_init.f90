@@ -957,7 +957,7 @@ CALL prms%CreateIntOption( 'Part-Species[$]-Init[$]-NbrOfPulses','Number of puls
 CALL prms%CreateRealOption('Part-Species[$]-Init[$]-WorkFunctionSEE','Photoelectron work function [eV]', numberedmulti=.TRUE.)
 !CALL prms%CreateRealOption('Part-Species[$]-Init[$]-AngularBetaSEE',&
                            !'Orbital configuration of the solid from which the photoelectrons emerge','0.0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('Part-Species[$]-Init[$]-EffectivIntensityFac', 'Effective intensity that increases I0 [-]',&
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-EffectiveIntensityFactor', 'Scaling factor that increases I0 [-]',&
                             numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticles
@@ -1127,7 +1127,6 @@ USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWei
 USE MOD_part_RHS               ,ONLY: InitPartRHS
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_Initialize
-USE MOD_part_emission_tools    ,ONLY: FlagElements_Cylinder_Photoionization
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1692,7 +1691,7 @@ __STAMP__&
           ,' Wrong input parameter for VelocitySpread in [0;1].')
       Species(iSpec)%Init(iInit)%VelocitySpreadMethod  = GETINT('Part-Species'//TRIM(hilf2)//'-velocityspreadmethod','0')
     END IF
-    IF(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'Photon_SEE_Energy')THEN
+    IF(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'photon_SEE_energy')THEN
       Species(iSpec)%Init(iInit)%WorkFunctionSEE  = GETREAL('Part-Species'//TRIM(hilf2)//'-WorkFunctionSEE')
       !Species(iSpec)%Init(iInit)%AngularBetaSEE  = GETREAL('Part-Species'//TRIM(hilf2)//'-AngularBetaSEE')
     END IF
@@ -1742,11 +1741,9 @@ __STAMP__&
             ,'ERROR: Only one background definition per species is allowed!')
       END IF
     END IF
-    ! Photoionization in cylinderical volume (modelling a laser pulse)
-    ! and SEE based on photonimpact on surface
-    IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_photoionization') &
-   .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'Photon_SEE_disc')          &
-   .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'Photon_Cylinder')) THEN
+    ! Photoionization in cylinderical volume (modelling a laser pulse) and SEE based on photon impact on a surface
+    IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_SEE_disc')          &
+   .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder')) THEN
       ! Check coordinate system of normal vector and two tangential vectors (they must form an orthogonal basis)
       ASSOCIATE( v1 => UNITVECTOR(Species(iSpec)%Init(iInit)%NormalIC)      ,&
                  v2 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC) ,&
@@ -1847,10 +1844,8 @@ __STAMP__&
                                              + 2.0*Species(iSpec)%Init(iInit)%tShift
       CALL PrintOption('Pulse will end at tActive (pulse final time) [s]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%tActive)
 
-      IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_photoionization') &
-     .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'Photon_Cylinder')) THEN
-        Species(iSpec)%Init(iInit)%EffectivIntensityFac = GETREAL('Part-Species'//TRIM(hilf2)//'-EffectivIntensityFac')
-        CALL FlagElements_Cylinder_PhotoIonization(iSpec,iInit)
+      IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder') THEN
+        Species(iSpec)%Init(iInit)%EffectiveIntensityFactor = GETREAL('Part-Species'//TRIM(hilf2)//'-EffectiveIntensityFactor')
       ELSE
         Species(iSpec)%Init(iInit)%YieldSEE           = GETREAL('Part-Species'//TRIM(hilf2)//'-YieldSEE')
       END IF

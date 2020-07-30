@@ -2035,7 +2035,7 @@ DO iSpec=1,nSpecies
       xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,+zlen/)
       xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
-    CASE('Photon_SEE_disc')
+    CASE('photon_SEE_disc')
       xlen=Species(iSpec)%Init(iInit)%RadiusIC * &
            SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
       ylen=Species(iSpec)%Init(iInit)%RadiusIC * &
@@ -2158,7 +2158,7 @@ DO iSpec=1,nSpecies
         xCoords(1:3,8)=origin + (/ -radius , -radius , radius /)
       END ASSOCIATE
       RegionOnProc=BoxInProc(xCoords,8)
-    CASE('cylinder','cylinder_photoionization','Photon_Cylinder')
+    CASE('cylinder','photon_cylinder')
       lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
         Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
       lineVector(2) = Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(1) - &

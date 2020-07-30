@@ -73,7 +73,7 @@ USE MOD_Equation_vars          ,ONLY: c_inv
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_part_emission_tools    ,ONLY: IntegerDivide,CalcVelocity_maxwell_lpn,SamplePoissonDistri,SetCellLocalParticlePosition
 USE MOD_part_emission_tools    ,ONLY: InsideExcludeRegionCheck
-USE MOD_part_emission_tools    ,ONLY: Insert_Cylinder_Photoionization, CalcLaserIntensity
+USE MOD_part_emission_tools    ,ONLY: CalcIntensity_Gaussian
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -190,14 +190,6 @@ __STAMP__&
   NbrOfParticle = chunksize
   RETURN
 END IF
-
-IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cylinder_photoionization') THEN
-  chunksize = 0
-  CALL Insert_Cylinder_Photoionization(chunkSize,FractNbr,iInit)
-  NbrOfParticle = chunksize
-  RETURN
-END IF
-
 
 PartIns=0.
 lineVector = 0.0
@@ -507,7 +499,7 @@ __STAMP__&
          particle_positions(i*3  ) = Particle_pos(3)
       END DO
     !------------------SpaceIC-case: special disc case for surface disribution------------------------------------------------------
-    CASE('Photon_SEE_disc')
+    CASE('photon_SEE_disc')
 
       ! Use the base vectors BaseVector1IC and BaseVector2IC as coordinate system (they must be perpendicular)
       lineVector = UNITVECTOR(Species(FractNbr)%Init(iInit)%BaseVector1IC(1:3))
@@ -531,7 +523,7 @@ __STAMP__&
                            (Particle_pos(3)-Species(FractNbr)%Init(iInit)%BasePointIC(3)) )
             ! Start ARM for Gauss distribution
             CALL RANDOM_NUMBER(RandVal1)
-            IF(CalcLaserIntensity(radius,Species(FractNbr)%Init(iInit)%WaistRadius).GT.RandVal1) ARM_Gauss = .FALSE.
+            IF(CalcIntensity_Gaussian(radius,Species(FractNbr)%Init(iInit)%WaistRadius).GT.RandVal1) ARM_Gauss = .FALSE.
             ! End ARM for Gauss distribution
          END DO
          particle_positions(i*3-2) = Particle_pos(1)
@@ -539,7 +531,7 @@ __STAMP__&
          particle_positions(i*3  ) = Particle_pos(3)
       END DO
     !------------------SpaceIC-case: special cylinder case for photonionization----------------------------------------------------
-    CASE('Photon_Cylinder')
+    CASE('photon_cylinder')
 
       ! Use the base vectors BaseVector1IC and BaseVector2IC as coordinate system (they must be perpendicular)
       lineVector = UNITVECTOR(Species(FractNbr)%Init(iInit)%BaseVector1IC(1:3))
@@ -563,7 +555,7 @@ __STAMP__&
                            (Particle_pos(3)-Species(FractNbr)%Init(iInit)%BasePointIC(3)) )
             ! Start ARM for Gauss distribution
             CALL RANDOM_NUMBER(RandVal1)
-            IF(CalcLaserIntensity(radius,Species(FractNbr)%Init(iInit)%WaistRadius).GT.RandVal1) ARM_Gauss = .FALSE.
+            IF(CalcIntensity_Gaussian(radius,Species(FractNbr)%Init(iInit)%WaistRadius).GT.RandVal1) ARM_Gauss = .FALSE.
             ! End ARM for Gauss distribution
          END DO
          CALL RANDOM_NUMBER(RandVal1)
@@ -2341,7 +2333,7 @@ CASE('OneD-twostreaminstabilty')
 
 CASE('IMD') ! read IMD particle velocity from *.chkpt file -> velocity space has already been read when particles position was done
   ! do nothing
-CASE('Photon_SEE_Energy')
+CASE('photon_SEE_energy')
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN

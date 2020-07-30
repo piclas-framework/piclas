@@ -564,7 +564,7 @@ __STAMP__&
                 ELSE
                   ! Photo-ionization in the volume
                   ! Calculation of the number of photons (using actual number and applying the weighting factor on the number of reactions)
-                  NbrOfPhotons = Species(i)%Init(iInit)%EffectivIntensityFac * NbrOfPhotons
+                  NbrOfPhotons = Species(i)%Init(iInit)%EffectiveIntensityFactor * NbrOfPhotons
                   ! Calculation of the number of photons depending on the cylinder height (ratio of actual to virtual cylinder height, which
                   ! is spanned by the disk and the length given by c*dt)
                   NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CylinderHeightIC / (c*dt)
