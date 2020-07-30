@@ -372,6 +372,7 @@ Different `SpaceIC` are available and an overview is given in the table below.
 | Distribution    | Description                                                                      | Reference                                  |
 | --------------- | -------------------------------------------------------------------------------- | ------------------------------------------ |
 | cell_local      | Particles are inserted in every cell at a constant number density                |                                            |
+| disc            | Particles are inserted on a circular disc                                        | Section \ref{sec:particle_disc_init}       |
 | cylinder        | Particles are inserted in the given cylinder volume at a constant number density | Section \ref{sec:particle_cylinder_init}   |
 | photon_cylinder | Ionization of a background gas through photon impact                             | Section \ref{sec:particle_photoionization} |
 | WIP             | **WORK IN PROGRESS**                                                             |                                            |
@@ -392,6 +393,19 @@ In the case of molecules, the rotational and vibrational temperature [K] have to
 
 The parameters given so far are sufficient to define an initialization region for a molecular species using the `cell_local` option. Additional options required for other insertion regions are described in the following.
 
+#### Circular Disc \label{sec:particle_disc_init}
+
+To define the circular disc the following parameters are required:
+
+    Part-Species1-Init1-SpaceIC               = disc
+    Part-Species1-Init1-RadiusIC              = 1
+    Part-Species1-Init1-BasePointIC           = (/ 0.0, 0.0, 0.0 /)
+    Part-Species1-Init1-BaseVector1IC         = (/ 1.0, 0.0, 0.0 /)
+    Part-Species1-Init1-BaseVector2IC         = (/ 0.0, 1.0, 0.0 /)
+    Part-Species1-Init1-NormalIC              = (/ 0.0, 0.0, 1.0 /)
+
+The first and second base vector span a plane, where a circle with the given radius will be defined at the base point.
+
 #### Cylinder \label{sec:particle_cylinder_init}
 
 To define the cylinder the following parameters are required:
@@ -408,7 +422,7 @@ The first and second base vector span a plane, where a circle with the given rad
 
 #### Photo-ionization \label{sec:particle_photoionization}
 
-A special case of an initialization is the ionization of a background gas through photon impact, modelling a light pulse. For this purpose, the SpaceIC has to be defined and additional parameters are required:
+A special case is the ionization of a background gas through photon impact, modelling a light pulse. The volume affected by the light pulse is approximated by a cylinder, which is defined as described in Section \ref{sec:particle_cylinder_init}. Additionally, the SpaceIC has to be adapted and additional parameters are required:
 
     Part-Species1-Init1-SpaceIC                 = photon_cylinder
     Part-Species1-Init1-ParticleEmissionType    = 8
@@ -441,7 +455,7 @@ It should be noted that this initialization should be done with a particle spiec
 
 The probability that an ionization event occurs is determined based on the given cross-section, which is usually given for a certain wave length/photon energy. It should be noted that the background gas species should be given as the sole reactant and electrons should be defined as the first and/or second product. Electrons will be emitted perpendicular to the light path defined by the cylinder axis according to a cosine squared distribution.
 
-Finally, the secondary electron emission through the impinging light pulse on a surface can also be modelled by an additional insertion region (e.g. as an extra initialization for the same species). Additionally to the definition of the light pulse as described above, the following parameters have to be set
+Finally, the secondary electron emission through the impinging light pulse on a surface can also be modelled by an additional insertion region (e.g. as an extra initialization for the same species). Additionally to the definition of the light pulse as described above (pulse duration, waist radius, wave length, number of pulses, and power/energy/intensity), the following parameters have to be set
 
     Part-Species1-Init2-SpaceIC               = photon_SEE_disc
     Part-Species1-Init2-ParticleEmissionType  = 7
@@ -450,8 +464,7 @@ Finally, the secondary electron emission through the impinging light pulse on a 
     Part-Species1-Init2-YieldSEE              = 0.1                 ! [-]
     Part-Species1-Init2-WorkFunctionSEE       = 2                   ! [eV]
 
-The yield controls how many electrons are emitted per photon impact and their velocity distribution is defined by the work function
-The scaling factor defined by `EffectiveIntensityFactor` is not applied to this surface emission. Both emission regions can be sped-up if the actual computational domain corresponds only to a quarter of the cylinder:
+The emission area is defined as a disc by the parameters introduced in Section \ref{sec:particle_disc_init}. The yield controls how many electrons are emitted per photon impact and their velocity distribution is defined by the work function. The scaling factor defined by `EffectiveIntensityFactor` is not applied to this surface emission. Both emission regions can be sped-up if the actual computational domain corresponds only to a quarter of the cylinder:
 
     Part-Species1-Init1-FirstQuadrantOnly       = T
     Part-Species1-Init2-FirstQuadrantOnly       = T
