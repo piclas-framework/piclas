@@ -2913,7 +2913,7 @@ USE MOD_Globals_Vars        ,ONLY:  ElementaryCharge
 USE MOD_PreProc
 USE MOD_Particle_Vars       ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies
 USE MOD_Particle_Vars       ,ONLY: InitialIonizationChargeAverage,InitialIonizationSpeciesID,InitialIonizationSpecies
-USE MOD_Mesh_Vars           ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
+USE MOD_Mesh_Vars           ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo,offsetElem
 USE MOD_DSMC_Vars           ,ONLY: CollisMode,DSMC,PartStateIntEn
 USE MOD_part_emission_tools ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_Vars           ,ONLY: useDSMC
@@ -2975,12 +2975,12 @@ DO iPart=1,PDM%ParticleVecLength
         ! Determines the location of the element in the array with min value: get the index of the corresponding charged ion
         ! species
         location                            = MINLOC(ABS(SpeciesCharge-ChargeLower),1)
-        ElemCharge(PEM%GlobalElemID(iPart))      = ElemCharge(PEM%GlobalElemID(iPart))+ChargeLower
+        ElemCharge(PEM%LocalElemID(iPart))      = ElemCharge(PEM%LocalElemID(iPart))+ChargeLower
       ELSE ! Select the upper charge number
         ! Determines the location of the element in the array with min value: get the index of the corresponding charged ion
         ! species
         location                            = MINLOC(ABS(SpeciesCharge-ChargeUpper),1)
-        ElemCharge(PEM%GlobalElemID(iPart))      = ElemCharge(PEM%GlobalElemID(iPart))+ChargeUpper
+        ElemCharge(PEM%LocalElemID(iPart))      = ElemCharge(PEM%LocalElemID(iPart))+ChargeUpper
       END IF
 
       ! Set the species ID to atom/singly charged ion/doubly charged ... and so on
@@ -3043,7 +3043,7 @@ DO iElem=1,PP_nElems
     END IF
 
     ! Set the element ID of the electron to the current element ID
-    PEM%GlobalElemID(ParticleIndexNbr) = iElem
+    PEM%GlobalElemID(ParticleIndexNbr) = iElem + offsetElem
 
     ! Set the electron velocity using the Maxwellian distribution (use the function that is suitable for small numbers)
     CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(4:6,ParticleIndexNbr),&
