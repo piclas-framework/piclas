@@ -26,6 +26,10 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
+INTERFACE InitParticleGlobals
+  MODULE PROCEDURE InitParticleGlobals
+END INTERFACE
+
 INTERFACE InitParticles
   MODULE PROCEDURE InitParticles
 END INTERFACE
@@ -67,7 +71,9 @@ INTERFACE PortabilityGetPID
   END FUNCTION GetPID_C
 END INTERFACE
 
-PUBLIC::InitParticles,FinalizeParticles
+PUBLIC::InitParticleGlobals
+PUBLIC::InitParticles
+PUBLIC::FinalizeParticles
 PUBLIC::DefineParametersParticles
 PUBLIC::InitialIonization
 !===================================================================================================================================
@@ -619,6 +625,52 @@ CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
 
 END SUBROUTINE DefineParametersParticles
 
+
+!===================================================================================================================================
+! Global particle parameters needed for other particle inits
+!===================================================================================================================================
+SUBROUTINE InitParticleGlobals()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_Particle_Tracking_Vars,     ONLY: TrackingMethod,TriaTracking,DoRefMapping
+USE MOD_Particle_Vars              ,ONLY: Symmetry2D
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS...'
+
+! Find tracking method immediately, a lot of the later variables depend on it
+TrackingMethod = GETINTFROMSTR('TrackingMethod')
+SELECT CASE(TrackingMethod)
+CASE(REFMAPPING)
+  DoRefMapping=.TRUE.
+  TriaTracking=.FALSE.
+CASE(TRACING)
+  DoRefMapping=.FALSE.
+  TriaTracking=.FALSE.
+CASE(TRIATRACKING)
+  DoRefMapping=.FALSE.
+  TriaTracking=.TRUE.
+END SELECT
+IF (Symmetry2D) THEN
+  DoRefMapping=.FALSE.
+  TriaTracking=.TRUE.
+  SWRITE(UNIT_stdOut,'(A)') "TrackingMethod set to TriaTracking due to Symmetry2D."
+END IF
+
+SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS DONE'
+
+END SUBROUTINE InitParticleGlobals
+
+
 SUBROUTINE InitParticles()
 !===================================================================================================================================
 ! Glue Subroutine for particle initialization
@@ -636,9 +688,9 @@ USE MOD_Part_Emission              ,ONLY: InitializeParticleEmission,AdaptiveBCA
 USE MOD_Particle_Boundary_Porous   ,ONLY: InitPorousBoundaryCondition
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
 USE MOD_Particle_Boundary_Vars     ,ONLY: nPorousBC, PartBound
-USE MOD_Particle_Tracking_Vars     ,ONLY: TriaTracking,DoRefMapping,TrackingMethod
+USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
-USE MOD_Particle_Vars              ,ONLY: MacroRestartData_tmp, Symmetry2D
+USE MOD_Particle_Vars              ,ONLY: MacroRestartData_tmp
 USE MOD_PICInterpolation_Vars      ,ONLY: useBGField
 USE MOD_Restart_Vars               ,ONLY: DoRestart
 USE MOD_Surface_Flux               ,ONLY: InitializeParticleSurfaceflux
@@ -669,25 +721,6 @@ IF(ParticlesInitIsDone)THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLES ...'
-
-! Find tracking method immediately, a lot of the later variables depend on it
-TrackingMethod = GETINTFROMSTR('TrackingMethod')
-SELECT CASE(TrackingMethod)
-CASE(REFMAPPING)
-  DoRefMapping=.TRUE.
-  TriaTracking=.FALSE.
-CASE(TRACING)
-  DoRefMapping=.FALSE.
-  TriaTracking=.FALSE.
-CASE(TRIATRACKING)
-  DoRefMapping=.FALSE.
-  TriaTracking=.TRUE.
-END SELECT
-IF (Symmetry2D) THEN
-  DoRefMapping=.FALSE.
-  TriaTracking=.TRUE.
-  SWRITE(UNIT_stdOut,'(A)') "TrackingMethod set to TriaTracking due to Symmetry2D."
-END IF
 
 IF(TrackingMethod.NE.TRIATRACKING) THEN
   CALL InitParticleSurfaces()
@@ -1808,7 +1841,7 @@ DO iPartBound=1,nPartBound
   tmpString = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-Condition','open'))
   SELECT CASE (TRIM(tmpString))
   CASE('open')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic  
+    PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic
     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0.')
   CASE('reflective')
 #if defined(IMPA) || defined(ROS)
