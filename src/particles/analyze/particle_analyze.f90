@@ -537,8 +537,8 @@ IF(TrackParticlePosition)THEN
     printDiffVec=GETREALARRAY('printDiffVec',6,'0.,0.,0.,0.,0.,0.')
   END IF
 END IF
-CalcNumSpec   = GETLOGICAL('CalcNumSpec','.FALSE.')
-CalcNumDens   = GETLOGICAL('CalcNumDens','.FALSE.')
+CalcSimNumSpec = GETLOGICAL('CalcNumSpec','.FALSE.')
+CalcNumDens    = GETLOGICAL('CalcNumDens','.FALSE.')
 CalcMassflowRate = GETLOGICAL('CalcMassflowRate')
 IF(CalcMassflowRate) THEN
   ALLOCATE(MassflowRate(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
@@ -567,7 +567,7 @@ IF(CalcReacRates) THEN
   END IF
 END IF
 
-IF(CalcNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcMassflowRate.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
+IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcMassflowRate.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
 ! compute transversal or thermal velocity of whole computational domain
 CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
 IF (CalcVelos) THEN
@@ -579,9 +579,9 @@ IF (CalcVelos) THEN
   DoPartAnalyze=.TRUE.
   VeloDirs_hilf = GetIntArray('VelocityDirections',4,'1,1,1,1') ! x,y,z,abs -> 0/1 = T/F
   VeloDirs(:) = .FALSE.
-  IF(.NOT.CalcNumSpec)THEN
-    SWRITE(UNIT_stdOut,'(A)') ' Velocity computation requires NumSpec and SimNumSpec. Setting CalcNumSpec=.TRUE.'
-    CalcNumSpec = .TRUE.
+  IF(.NOT.CalcSimNumSpec)THEN
+    SWRITE(UNIT_stdOut,'(A)') ' Velocity computation requires NumSpec and SimNumSpec. Setting CalcSimNumSpec=.TRUE.'
+    CalcSimNumSpec = .TRUE.
   END IF
   DO dir = 1,4
     IF (VeloDirs_hilf(dir) .EQ. 1) THEN
@@ -665,6 +665,7 @@ USE MOD_FPFlow_Vars            ,ONLY: FP_PrandtlNumber, FPInitDone
 USE MOD_BGK_Vars               ,ONLY: BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor, BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone
 USE MOD_Restart_Vars           ,ONLY: RestartTime
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -736,7 +737,7 @@ INTEGER             :: dir
         !CALL FLUSH (unit_index)
         !--- insert header
         WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME'
-        IF (CalcNumSpec) THEN
+        IF (CalcSimNumSpec) THEN
           DO iSpec = 1, nSpecAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A12,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPart-Spec-', iSpec,' '
@@ -1043,7 +1044,7 @@ INTEGER             :: dir
 ! Analyze Routines
 !===================================================================================================================================
   ! computes the real and simulated number of particles
-  CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec)
+  CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec,.TRUE.,CalcSimNumSpec)
   IF(CalcNumDens) CALL CalcNumberDensity(NumSpec,NumDens)
   ! Determine the mass flux per species and surface flux [kg/s]
   IF(CalcMassflowRate) THEN
@@ -1295,7 +1296,7 @@ END IF
 IF (PartMPI%MPIROOT) THEN
 #endif /*USE_MPI*/
   WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time
-    IF (CalcNumSpec) THEN
+    IF (CalcSimNumSpec) THEN
       DO iSpec=1, nSpecAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(SimNumSpec(iSpec))
@@ -1975,76 +1976,6 @@ END IF
 #endif /*USE_MPI*/
 
 END SUBROUTINE CalcKineticEnergyAndMaximum
-
-
-
-SUBROUTINE CalcNumPartsOfSpec(NumSpec,SimNumSpec)
-!===================================================================================================================================
-! Computes the number of simulated particles AND number of real particles within the domain
-! Last section of the routine contains the MPI-communication
-! CAUTION: SimNumSpec equals NumSpec only for constant weighting factor
-! NOTE: Background gas particles are not considered
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-USE MOD_Globals
-USE MOD_Particle_Vars         ,ONLY: PDM,PartSpecies
-USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
-USE MOD_DSMC_Vars             ,ONLY: BGGas
-USE MOD_Particle_Vars         ,ONLY: nSpecies
-USE MOD_part_tools            ,ONLY: GetParticleWeight
-#if USE_MPI
-USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
-USE MOD_Particle_Analyze_Vars ,ONLY: CalcNumSpec
-#endif
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-REAL,INTENT(OUT)                   :: NumSpec(nSpecAnalyze)
-INTEGER(KIND=8),INTENT(OUT)        :: SimNumSpec(nSpecAnalyze)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                            :: iPart, iSpec
-!===================================================================================================================================
-
-NumSpec    = 0.
-SimNumSpec = 0
-DO iPart=1,PDM%ParticleVecLength
-  IF (PDM%ParticleInside(iPart)) THEN
-    ! NumSpec = real particle number
-    NumSpec(PartSpecies(iPart))    = NumSpec(PartSpecies(iPart)) + GetParticleWeight(iPart)
-    ! SimNumSpec = simulated particle number
-    SimNumSpec(PartSpecies(iPart)) = SimNumSpec(PartSpecies(iPart)) + 1
-  END IF
-END DO
-IF(BGGas%NumberOfSpecies.GT.0) THEN
-  DO iSpec = 1, nSpecies
-    IF(BGGas%BackgroundSpecies(iSpec)) THEN
-      NumSpec(iSpec) = 0.
-      SimNumSpec(iSpec) = 0
-    END IF
-  END DO
-END IF
-IF(nSpecAnalyze.GT.1)THEN
-  NumSpec(nSpecAnalyze)    = SUM(NumSpec(1:nSpecies))
-  SimNumSpec(nSpecAnalyze) = SUM(SimNumSpec(1:nSpecies))
-END IF
-
-#if USE_MPI
-IF (PartMPI%MPIRoot) THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,NumSpec    ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  IF(CalcNumSpec) &
-  CALL MPI_REDUCE(MPI_IN_PLACE,SimNumSpec ,nSpecAnalyze,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
-ELSE
-  CALL MPI_REDUCE(NumSpec     ,NumSpec    ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  IF(CalcNumSpec) &
-  CALL MPI_REDUCE(SimNumSpec  ,SimNumSpec ,nSpecAnalyze,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
-END IF
-#endif /*USE_MPI*/
-
-END SUBROUTINE CalcNumPartsOfSpec
 
 
 SUBROUTINE CalcNumberDensity(NumSpec,NumDens)

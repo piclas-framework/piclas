@@ -506,6 +506,7 @@ DO !iter_t=0,MaxIter
     CALL abort(&
     __STAMP__&
     ,'Error in tEndDiff or tAnalyzeDiff!')
+
   END IF
 
   IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tPreviousAverageAnalyze) ! tPreviousAnalyze not used if finalize_flag=false
@@ -692,6 +693,10 @@ DO !iter_t=0,MaxIter
     WallTimeStart=PICLASTIME()
   END IF !dt_analyze
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
+#ifdef PARTICLES
+  ! Switch flag to false after the number of particles has been written to std out and before the time next step is started
+  GlobalNbrOfParticlesUpdated = .FALSE.    
+#endif /*PARTICLES*/
 END DO ! iter_t
 END SUBROUTINE TimeDisc
 

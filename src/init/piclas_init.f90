@@ -417,7 +417,6 @@ IF(.NOT.IsLoadBalance)THEN
 #endif /*USE_LOADBALANCE*/
   CALL DisplaySimulationTime(Time, StartTime, 'FINISHED')
 ELSE
-  SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS RUNNING! [',Time-StartTime,' sec ]'
   CALL DisplaySimulationTime(Time, StartTime, 'RUNNING')
 END IF ! .NOT.IsLoadBalance
 SWRITE(UNIT_stdOut,'(132("="))')
