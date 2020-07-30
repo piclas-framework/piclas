@@ -2582,7 +2582,8 @@ DO iSpec = 1, 3
     TVHS = SpecDSMC(2)%TrefVHS
     omegaVHS = SpecDSMC(2)%omegaVHS
   ELSE
-    InteractDiam = (SpecDSMC(1)%DrefVHS + SpecDSMC(2)%DrefVHS)/2.
+!    InteractDiam = (SpecDSMC(1)%DrefVHS + SpecDSMC(2)%DrefVHS)/2.
+    InteractDiam = 2.*SpecDSMC(1)%DrefVHS*SpecDSMC(2)%DrefVHS/(SpecDSMC(1)%DrefVHS+SpecDSMC(2)%DrefVHS)
     Mass = Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC + Species(2)%MassIC)
     TVHS = SQRT(SpecDSMC(1)%TrefVHS*SpecDSMC(2)%TrefVHS)
     omegaVHS = (SpecDSMC(1)%omegaVHS + SpecDSMC(2)%omegaVHS)/2.
