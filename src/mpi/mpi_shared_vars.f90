@@ -61,7 +61,6 @@ INTEGER            :: nComputeNodeTotalNodes                !> Number of nodes o
 !INTEGER            :: offsetComputeNodeTree                 !> tree offset of compute-node root
 
 ! Offsets for MPI_ALLGATHERV
-INTEGER,ALLOCATABLE:: displsCN(:)  ,recvcountCN(:)
 INTEGER,ALLOCATABLE:: displsElem(:),recvcountElem(:)
 INTEGER,ALLOCATABLE:: displsSide(:),recvcountSide(:)
 INTEGER,ALLOCATABLE:: displsNode(:),recvcountNode(:)
