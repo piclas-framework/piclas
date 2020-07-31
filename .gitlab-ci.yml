@@ -188,7 +188,7 @@ build_gnu_poisson:
   script:
     - mkdir -p build_gnu_poisson_release ; cd build_gnu_poisson_release
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
     - cd ..
     - mkdir -p build_gnu_poisson_debug ; cd build_gnu_poisson_debug
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
@@ -220,6 +220,7 @@ gnu_poisson:
     - withmodules-concurrent
   script:
     - cd build_gnu_poisson_release ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
+    - cd ../build_gnu_poisson_release ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson_box_Dirichlet -e ./bin/piclas
     - cd ../build_gnu_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
