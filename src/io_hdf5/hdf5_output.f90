@@ -302,33 +302,34 @@ ASSOCIATE (&
 #elif USE_HDG
 
   ! Store lambda solution in sorted order by ascending global unique side ID
-  ! 0. Store true/false info for each side if it should be written to h5 by each process
-  ALLOCATE(OutputSide(1:nSides))
-  OutputSide=.FALSE.
+  IF(nProcessors.GT.1)THEN
+    ! 0. Store true/false info for each side if it should be written to h5 by each process
+    ALLOCATE(OutputSide(1:nSides))
+    OutputSide=.FALSE.
 
-  ! 1. Flag BC and inner sides
-  OutputSide(1:lastInnerSide) = .TRUE.
+    ! 1. Flag BC and inner sides
+    OutputSide(1:lastInnerSide) = .TRUE.
 
-  ! 2. Flag MINE/YOUR sides that are sent to other procs and if their rank is larger this proc, it writes the data
-  DO SendID = 1, 2
-    DO iNbProc=1,nNbProcs
-      IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
-        SideID_start=OffsetMPISides_rec(iNbProc-1,SendID)+1
-        SideID_end  =OffsetMPISides_rec(iNbProc,SendID)
-        IF(nbProc(iNbProc).GT.myrank)THEN
-          OutputSide(SideID_start:SideID_end) = .TRUE.
-        END IF ! nbProc(iNbProc)
-      END IF
-    END DO !iProc=1,nNBProcs
-  END DO ! SendID = 1, 2
+    ! 2. Flag MINE/YOUR sides that are sent to other procs and if their rank is larger this proc, it writes the data
+    DO SendID = 1, 2
+      DO iNbProc=1,nNbProcs
+        IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
+          SideID_start=OffsetMPISides_rec(iNbProc-1,SendID)+1
+          SideID_end  =OffsetMPISides_rec(iNbProc,SendID)
+          IF(nbProc(iNbProc).GT.myrank)THEN
+            OutputSide(SideID_start:SideID_end) = .TRUE.
+          END IF ! nbProc(iNbProc)
+        END IF
+      END DO !iProc=1,nNBProcs
+    END DO ! SendID = 1, 2
+  END IF ! nProcessors.GT.1
 
 #if USE_MPI
-  ! Exchange iLocSides: Send MINE, receive YOUR direction
+  ! Exchange iLocSides from master to slaves: Send MINE, receive YOUR direction
   IF(nProcessors.GT.1)THEN
     ALLOCATE(iLocSides(PP_nVar,nGP_face,nSides))
     iLocSides = -100.
     DO iSide = 1, nSides
-      !WRITE (UNIT_stdOut,'(A5,I3)',advance='NO') "LOC",SideToElem(S2E_LOC_SIDE_ID,iSide)
       iLocSides(:,:,iSide) = REAL(SideToElem(S2E_LOC_SIDE_ID,iSide))
 
       iLocSide_NB = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
@@ -385,7 +386,9 @@ ASSOCIATE (&
     iSide = SortedUniqueSides(iGlobSide)
 
     ! Skip sides that are not processed by the current proc
-    IF(.NOT.OutputSide(iSide)) CYCLE
+    IF(nProcessors.GT.1)THEN
+      IF(.NOT.OutputSide(iSide)) CYCLE
+    END IF ! nProcessors.GT.1
 
     IF(iSide.GT.lastMPISide_MINE)THEN
       iLocSide = NINT(iLocSides(1,1,iSide))
@@ -451,22 +454,32 @@ ASSOCIATE (&
       END DO Check2 !MortarSideID
     END IF ! MortarType(1,iSide).EQ.0
   END DO ! iGlobSide = 1, nSides
+
+  ! Deallocate temporary arrays
   DEALLOCATE(SortedUniqueSides)
+  IF(nProcessors.GT.1) DEALLOCATE(iLocSides)
 
 
   ! Get offset and min/max index in sorted list
-  SortedOffset=HUGE(1)
-  SortedStart=1
+  SortedStart = 1
+  SortedEnd   = nSides
 
-  DO iSide = 1, nSides
-    IF(OutputSide(iSide))THEN
-      IF(GlobalUniqueSideID(iSide).LT.SortedOffset) SortedOffset = GlobalUniqueSideID(iSide)
-    ELSE
-      SortedStart = SortedStart +1
-    END IF ! OutputSide(iSide))
-  END DO
-  SortedEnd    = nSides
-  SortedOffset = SortedOffset-1
+  IF(nProcessors.GT.1)THEN
+    SortedOffset=HUGE(1)
+    DO iSide = 1, nSides
+      ! Get local offset of global unique sides: the smallest global unique side ID
+      IF(OutputSide(iSide))THEN
+        IF(GlobalUniqueSideID(iSide).LT.SortedOffset) SortedOffset = GlobalUniqueSideID(iSide)
+      ELSE
+        ! the sum of non-output sides gives the beginning number of output sides for each proc
+        SortedStart = SortedStart +1
+      END IF ! OutputSide(iSide))
+    END DO
+    SortedOffset = SortedOffset-1
+    DEALLOCATE(OutputSide)
+  ELSE
+    SortedOffset = 0
+  END IF ! nProcessors.GT.1
 
   ASSOCIATE( nOutputSides => INT(SortedEnd-SortedStart+1,IK) ,&
         SortedOffset => INT(SortedOffset,IK)            ,&
@@ -480,8 +493,7 @@ ASSOCIATE (&
         collective  = .TRUE.                                         , &
         RealArray   = SortedLambda(:,:,SortedStart:SortedEnd))
   END ASSOCIATE
-  DEALLOCATE(OutputSide,SortedLambda)
-  DEALLOCATE(iLocSides)
+  DEALLOCATE(SortedLambda)
 
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_SolutionU', rank=5,&
