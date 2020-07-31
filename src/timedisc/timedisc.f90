@@ -305,8 +305,6 @@ USE MOD_LoadBalance_Vars       ,ONLY: ElemTimeField
 #ifdef PARTICLES
 USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
 USE MOD_HDF5_Output_Tools      ,ONLY: WriteIMDStateToHDF5
-#else
-USE MOD_AnalyzeField           ,ONLY: AnalyzeField
 #endif /*PARTICLES*/
 #if USE_QDS_DG
 USE MOD_HDF5_Output_Tools      ,ONLY: WriteQDSToHDF5

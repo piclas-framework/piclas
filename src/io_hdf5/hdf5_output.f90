@@ -78,7 +78,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars                 ,ONLY: U
 USE MOD_Globals_Vars            ,ONLY: ProjectName
-USE MOD_Mesh_Vars               ,ONLY: offsetElem,nGlobalElems
+USE MOD_Mesh_Vars               ,ONLY: offsetElem,nGlobalElems,nGlobalUniqueSides,nUniqueSides,offsetSide
 USE MOD_Equation_Vars           ,ONLY: StrVarNames
 USE MOD_Restart_Vars            ,ONLY: RestartFile
 #ifdef PARTICLES
@@ -95,7 +95,6 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumPartsOfSpec
 USE MOD_Equation_Vars           ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #if USE_HDG
-USE MOD_Mesh_Vars               ,ONLY: offsetSide,nGlobalUniqueSides,nUniqueSides
 USE MOD_HDG_Vars                ,ONLY: lambda, nGP_face
 #if PP_nVar==1
 USE MOD_Equation_Vars           ,ONLY: E
@@ -246,7 +245,6 @@ ASSOCIATE (&
       PP_nElems         => INT(PP_nElems,IK)          ,&
       offsetElem        => INT(offsetElem,IK)         ,&
       offsetSide        => INT(offsetSide,IK)         ,&
-      nGP_face          => INT(nGP_face,IK)           ,&
       nUniqueSides      => INT(nUniqueSides,IK)       ,&
       nGlobalUniqueSides=> INT(nGlobalUniqueSides,IK)  )
 
@@ -334,13 +332,15 @@ ASSOCIATE (&
 
 
 
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-      DataSetName = 'DG_SolutionLambda_old', rank=3,&
-      nValGlobal  = (/PP_nVarTmp , nGP_face , nGlobalUniqueSides/) , &
-      nVal        = (/PP_nVarTmp , nGP_face , nUniqueSides/)       , &
-      offset      = (/0_IK       , 0_IK     , offsetSide/)         , &
-      collective  = .TRUE.                                         , &
-      RealArray   = lambda(:,:,1:nUniqueSides))
+  ASSOCIATE( nGP_face => INT(nGP_face,IK) )
+    CALL GatheredWriteArray(FileName,create=.FALSE.,&
+        DataSetName = 'DG_SolutionLambda_old', rank=3,&
+        nValGlobal  = (/PP_nVarTmp , nGP_face , nGlobalUniqueSides/) , &
+        nVal        = (/PP_nVarTmp , nGP_face , nUniqueSides/)       , &
+        offset      = (/0_IK       , 0_IK     , offsetSide/)         , &
+        collective  = .TRUE.                                         , &
+        RealArray   = lambda(:,:,1:nUniqueSides))
+  END ASSOCIATE
 
   IF(HDG_DebugOutput)THEN
   SWRITE(*,*) ""
