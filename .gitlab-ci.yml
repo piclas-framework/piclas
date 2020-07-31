@@ -192,7 +192,7 @@ build_gnu_poisson:
     - cd ..
     - mkdir -p build_gnu_poisson_debug ; cd build_gnu_poisson_debug
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
@@ -385,13 +385,21 @@ gnu_NIG_PIC_poisson_Leapfrog:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_Leapfrog/ ; fi
 
+gnu_NIG_PIC_poisson_powerdensity:
+  <<: *defaults_gnu
+  stage: reggie_nightly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_powerdensity/ ; fi
+
 gnu_NIG_poisson_powerdensity:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_poisson_powerdensity/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_poisson/ ; fi
 
 gnu_NIG_maxwell_RK4:
   <<: *defaults_gnu
