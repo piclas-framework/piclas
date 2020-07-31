@@ -903,7 +903,7 @@ IF(DoRestart .AND. iter.EQ.0) DoPerformFieldAnalyze=.FALSE.
 #ifdef CODE_ANALYZE
 IF(DoRestart .AND. iter.EQ.0) DoPerformFieldAnalyze=.TRUE.
 #endif /*CODE_ANALYZE*/
-#endif /*USE_HDG
+#endif /*USE_HDG*/
 ! Finally, remove duplicates for last iteration
 ! This step is needed, because PerformAnalyze is called twice within the iterations
 IF(FirstOrLastIter .AND. .NOT.OutPutHDF5 .AND.iter.NE.0) DoPerformFieldAnalyze=.FALSE.
