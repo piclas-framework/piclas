@@ -109,9 +109,11 @@ USE MOD_Mesh_Vars               ,ONLY: MortarType,SideToElem,MortarInfo
 USE MOD_Mesh_Vars               ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_Mesh_Vars               ,ONLY: lastMPISide_MINE,lastInnerSide
 USE MOD_Mappings                ,ONLY: CGNS_SideToVol2
+USE MOD_Utils                   ,ONLY: Qsort1DoubleInt1PInt
+#if USE_MPI
 USE MOD_MPI_Vars                ,ONLY: OffsetMPISides_rec,nNbProcs,nMPISides_rec,nbProc,RecRequest_U,SendRequest_U
 USE MOD_MPI                     ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_Utils                   ,ONLY: Qsort1DoubleInt1PInt
+#endif /*USE_MPI*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars            ,ONLY: OutputTimeFixed
 USE MOD_Mesh_Vars               ,ONLY: DoWriteStateToHDF5,GlobalUniqueSideID
@@ -302,6 +304,7 @@ ASSOCIATE (&
 #elif USE_HDG
 
   ! Store lambda solution in sorted order by ascending global unique side ID
+#if USE_MPI
   IF(nProcessors.GT.1)THEN
     ! 0. Store true/false info for each side if it should be written to h5 by each process
     ALLOCATE(OutputSide(1:nSides))
@@ -322,11 +325,8 @@ ASSOCIATE (&
         END IF
       END DO !iProc=1,nNBProcs
     END DO ! SendID = 1, 2
-  END IF ! nProcessors.GT.1
 
-#if USE_MPI
   ! Exchange iLocSides from master to slaves: Send MINE, receive YOUR direction
-  IF(nProcessors.GT.1)THEN
     ALLOCATE(iLocSides(PP_nVar,nGP_face,nSides))
     iLocSides = -100.
     DO iSide = 1, nSides
@@ -3318,7 +3318,7 @@ LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE WriteAttributeToHDF5
 
 
-SUBROUTINE GatheredWriteArray(FileName,create,DataSetName,rank,nValGlobal,nVal,offset,collective,RealArray,IntegerArray,StrArray,Single_opt)
+SUBROUTINE GatheredWriteArray(FileName,create,DataSetName,rank,nValGlobal,nVal,offset,collective,RealArray,IntegerArray,StrArray)
 !===================================================================================================================================
 ! Write additional (elementwise scalar) data to HDF5
 !===================================================================================================================================
@@ -3330,7 +3330,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)                   :: FileName,DataSetName
 LOGICAL,INTENT(IN)                            :: create,collective
-LOGICAL,INTENT(IN),OPTIONAL                   :: Single_opt
 INTEGER,INTENT(IN)                            :: rank
 INTEGER(KIND=IK),INTENT(IN)                   :: nValGlobal(rank)               ! max size of array in offset dimension
 INTEGER(KIND=IK),INTENT(IN)                   :: nVal(rank)                     ! size of complete (local) array to write
@@ -3349,12 +3348,7 @@ INTEGER(KIND=IK),ALLOCATABLE            :: UInt(:)
 INTEGER(KIND=IK)                        :: nValGather(rank),nDOFLocal
 INTEGER(KIND=IK),DIMENSION(nLocalProcs) :: nDOFPerNode,offsetNode
 INTEGER(KIND=IK)                        :: i
-LOGICAL :: Single
 !===================================================================================================================================
-Single = .FALSE.
-IF(PRESENT(Single_opt))THEN
-  Single = Single_opt
-END IF ! PRESENT(Single_opt)
 IF(gatheredWrite)THEN
   IF(ANY(offset(1:rank-1).NE.0)) &
     CALL abort(&
@@ -3417,8 +3411,7 @@ IF(gatheredWrite)THEN
   SDEALLOCATE(UStr)
 ELSE
 #endif
-  !CALL OpenDataFile(FileName,create=create,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
-  CALL OpenDataFile(FileName,create=create,single=Single,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(FileName,create=create,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
   IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal           , nVal , &
                                                offset      , collective , RealArray=RealArray)
   IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal                  , nVal , &

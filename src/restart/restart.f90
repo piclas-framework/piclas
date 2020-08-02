@@ -337,8 +337,10 @@ USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
 USE MOD_Mappings               ,ONLY: CGNS_SideToVol2
 USE MOD_Mesh_Vars              ,ONLY: firstMortarInnerSide,lastMortarInnerSide,MortarInfo
 USE MOD_Mesh_Vars              ,ONLY: lastMPISide_MINE
+#if USE_MPI
 USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
 USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+#endif /*USE_MPI*/
 #endif /*USE_HDG*/
 #if USE_QDS_DG
 USE MOD_QDS_DG_Vars            ,ONLY: DoQDS,QDSMacroValues,nQDSElems,QDSSpeciesMass
