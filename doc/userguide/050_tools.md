@@ -382,3 +382,45 @@ InitPDF_State.h5. From this file, the PartData is copied to the initial file, ge
 
 Finally, the last entry of PartInt of Coarse_State.h5 has to be set to the number of all particles in InitPDF_State.h5. Note,
 that PICLas is executed on a single core.
+
+## Tools Folder
+
+PICLas comes with a collection of loose tools that perform various tasks, e.g., post-processing. An
+overview of the tools is given in [TOOLS.md](https://github.com/piclas-framework/piclas/blob/master/tools/TOOLS.md).
+
+### Userblock
+
+The `userblock` contains the complete information about a **PICLas** run (git branch of the 
+repository, differences to that branch, `cmake` configuration and parameter file) and is prepended 
+to every `.h5` state file. The parameter file is prepended in ASCII format, the rest is binary and 
+is generated automatically during the build process with the `generateuserblock.sh` script.
+
+### `extract_userblock.py`
+
+It can be extracted and printed using the `extract_userblock.py` script. Its basic usage is
+
+    python2 extract_userblock.py -XXX [statefile.h5]
+
+where `-XXX` can be replaced by
+
+* `-s` to show all available parts of the userblock (such as `CMAKE` or `GIT BRANCH`)
+* `-a` to print the complete userblock
+* `-p [part]` to print one of the parts listed with the `-s` command.
+
+### `rebuild.py`
+
+The second python tool in this folder is `rebuild.py`. It extracts the userblock from a state file 
+and builds a **PICLas** repository and binary identical to the one that the state file was created 
+with. In order to do so, it clones a **PICLas** git repository, checks out the given branch, applies 
+the stored changes to the git `HEAD` and builds **PICLas** with the stored `cmake` options. 
+If run with the parameter file given in the `INIFILE` part of the userblock, this binary should 
+reproduce the same results/behaviour (possible remaining sources of different output are for example 
+differences in restart files, compilers, linked libraries or machines). The basic usage is
+
+    python2 rebuild.py [dir] [statefile.h5]
+
+where `dir` is an empty directory that the repository is cloned into and where the `piclas` 
+executable is built. `statefile.h5` is the state file whose userblock is used to rebuild the `piclas` 
+executable. Help can be shown via `-h` for both userblock scripts.
+
+
