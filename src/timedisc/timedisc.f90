@@ -1904,7 +1904,7 @@ USE MOD_HDG                    ,ONLY: HDG
 USE MOD_DG_Vars                ,ONLY: Ut,Un
 USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
 USE MOD_Predictor              ,ONLY: Predictor,StorePredictor
-USE MOD_LinearSolver_Vars      ,ONLY: LinSolverRH,FieldStage
+USE MOD_LinearSolver_Vars      ,ONLY: LinSolverRHS,FieldStage
 USE MOD_Equation               ,ONLY: DivCleaningDamping
 USE MOD_Equation               ,ONLY: CalcSource
 #ifdef maxwell
