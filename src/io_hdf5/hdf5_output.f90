@@ -158,8 +158,8 @@ REAL                           :: OutputTime_loc
 REAL                           :: PreviousTime_loc
 INTEGER(KIND=IK)               :: PP_nVarTmp
 LOGICAL                        :: usePreviousTime_loc
-INTEGER                        :: iSide
 #if USE_HDG
+INTEGER                        :: iSide
 INTEGER                        :: SideID,iGlobSide,iLocSide,iLocSide_NB,iMortar,nMortars,MortarSideID
 INTEGER,ALLOCATABLE            :: SortedUniqueSides(:),GlobalUniqueSideID_tmp(:)
 LOGICAL,ALLOCATABLE            :: OutputSide(:)
@@ -1113,7 +1113,7 @@ offsetnPart=recvbuf(1)
 sendbuf(1)=recvbuf(1)+locnPart
 CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER_INT_KIND,nProcessors-1,MPI_COMM_WORLD,iError) !last proc knows global number
 !global numbers
-nGlobalNbrOfParticles=sendbuf(1)
+nGlobalNbrOfParticles=INT(sendbuf(1),IK)
 GlobalNbrOfParticlesUpdated = .TRUE.
 CALL MPI_GATHER(locnPart,1,MPI_INTEGER_INT_KIND,nParticles,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_WORLD,iError)
 !IF (myRank.EQ.0) THEN
@@ -1128,7 +1128,7 @@ LOGWRITE(*,*)'offsetnPart,locnPart,nGlobalNbrOfParticles',offsetnPart,locnPart,n
 CALL MPI_REDUCE(locnPart, locnPart_max, 1, MPI_INTEGER_INT_KIND, MPI_MAX, 0, MPI_COMM_WORLD, IERROR)
 #else
 offsetnPart=0_IK
-nGlobalNbrOfParticles=locnPart
+nGlobalNbrOfParticles=INT(locnPart,IK)
 locnPart_max=locnPart
 #endif
 ALLOCATE(PartInt(offsetElem+1:offsetElem+PP_nElems,PartIntSize))
@@ -1257,12 +1257,13 @@ END IF
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-      nGlobalElems    => INT(nGlobalElems,IK)    ,&
-      nVar            => INT(nVar,IK)            ,&
-      PP_nElems       => INT(PP_nElems,IK)       ,&
-      offsetElem      => INT(offsetElem,IK)      ,&
-      MaxQuantNum     => INT(MaxQuantNum,IK)     ,&
-      PartDataSize    => INT(PartDataSize,IK)    )
+      nGlobalElems          => INT(nGlobalElems,IK)          ,&
+      nVar                  => INT(nVar,IK)                  ,&
+      PP_nElems             => INT(PP_nElems,IK)             ,&
+      offsetElem            => INT(offsetElem,IK)            ,&
+      MaxQuantNum           => INT(MaxQuantNum,IK)           ,&
+      PartDataSize          => INT(PartDataSize,IK)          ,&
+      nGlobalNbrOfParticles => INT(nGlobalNbrOfParticles,IK) )
   CALL GatheredWriteArray(FileName                         , create = .FALSE.            , &
                           DataSetName     = 'PartInt'      , rank   = 2                  , &
                           nValGlobal      = (/nGlobalElems , nVar/)                      , &
