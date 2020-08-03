@@ -57,10 +57,6 @@ INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
 
 INTEGER(KIND=IK)   :: nGlobalNbrOfParticles
 
-INTERFACE InitGlobals
-  MODULE PROCEDURE InitGlobals
-END INTERFACE
-
 INTERFACE ReOpenLogFile
   MODULE PROCEDURE ReOpenLogFile
 END INTERFACE
@@ -154,64 +150,6 @@ PUBLIC :: setstacksizeunlimited
 
 !===================================================================================================================================
 CONTAINS
-
-SUBROUTINE InitGlobals()
-!===================================================================================================================================
-! Pre-compute required constants
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars
-USE MOD_PreProc
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                        :: OpenStat
-CHARACTER(LEN=8)               :: StrDate
-CHARACTER(LEN=10)              :: StrTime
-LOGICAL                        :: LogIsOpen
-!===================================================================================================================================
-
-SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS ...'
-
-! PiclasVersionStr is stored in each hdf5 file with hdf5 header
-PiclasVersionStr = TRIM(int2strf(MajorVersion))//"."//TRIM(int2strf(MinorVersion))//"."//TRIM(int2strf(PatchVersion))
-
-PI=ACOS(-1.)
-sPI = 1./PI
-
-! get machine accuracy
-epsMach=EPSILON(0.0)
-TwoEpsMach=2.0d0*epsMach
-
-! Open file for logging
-IF(Logging)THEN
-  INQUIRE(UNIT=UNIT_LogOut,OPENED=LogIsOpen)
-  IF(.NOT.LogIsOpen)THEN
-    WRITE(LogFile,'(A,A1,I6.6,A4)')TRIM(ProjectName),'_',myRank,'.log'
-    OPEN(UNIT=UNIT_logOut,  &
-         FILE=LogFile,      &
-         STATUS='UNKNOWN',  &
-         ACTION='WRITE',    &
-         POSITION='APPEND', &
-         IOSTAT=OpenStat)
-    CALL DATE_AND_TIME(StrDate,StrTime)
-    WRITE(UNIT_logOut,*)
-    WRITE(UNIT_logOut,'(132("#"))')
-    WRITE(UNIT_logOut,*)
-    WRITE(UNIT_logOut,*)'STARTED LOGGING FOR PROC',myRank,' ON ',StrDate(7:8),'.',StrDate(5:6),'.',StrDate(1:4),' | ',&
-                        StrTime(1:2),':',StrTime(3:4),':',StrTime(5:10)
-  END IF !logIsOpen
-END IF  ! Logging
-
-SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
-END SUBROUTINE InitGlobals
-
 
 SUBROUTINE ReOpenLogFile()
 !===================================================================================================================================
@@ -572,53 +510,6 @@ IMPLICIT NONE
 CHARACTER(len=3) :: int2strf
 INTEGER,INTENT(IN) :: int_number
 !=================================================================================================================================== 
-WRITE(int2strf,'(I0)')  int_number
-int2strf = TRIM(ADJUSTL(int2strf))
-END FUNCTION
-
-
-!==================================================================================================================================
-!> Convert a String to an Integer
-!==================================================================================================================================
-SUBROUTINE int2str(str,int_number,stat)
-!===================================================================================================================================
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(len=255),INTENT(OUT) :: str
-INTEGER,INTENT(IN)             :: int_number
-INTEGER,INTENT(OUT)            :: stat
-!===================================================================================================================================
-WRITE(str,'(I0)',IOSTAT=stat)  int_number
-END SUBROUTINE int2str
-
-
-!==================================================================================================================================
-!> Convert an Integer to a String
-!==================================================================================================================================
-!SUBROUTINE int2strf(str,int_number,stat)
-FUNCTION int2strf(int_number)
-!===================================================================================================================================
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(len=3) :: int2strf
-INTEGER,INTENT(IN) :: int_number
-!===================================================================================================================================
 WRITE(int2strf,'(I0)')  int_number
 int2strf = TRIM(ADJUSTL(int2strf))
 END FUNCTION
