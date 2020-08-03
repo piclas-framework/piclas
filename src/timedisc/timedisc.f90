@@ -1894,22 +1894,23 @@ SUBROUTINE TimeStepByImplicitRK()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,iStage, nRKStages,dt_old, time
+USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,iStage, nRKStages,time
 USE MOD_TimeDisc_Vars          ,ONLY: ERK_a,ESDIRK_a,RK_b,RK_c
-USE MOD_LinearSolver_Vars      ,ONLY: ImplicitSource, DoPrintConvInfo,FieldStage
-USE MOD_DG_Vars                ,ONLY: U,Un
+USE MOD_LinearSolver_Vars      ,ONLY: ImplicitSource, DoPrintConvInfo
+USE MOD_DG_Vars                ,ONLY: U
 #if USE_HDG
 USE MOD_HDG                    ,ONLY: HDG
 #else /*pure DG*/
-USE MOD_DG_Vars                ,ONLY: Ut
+USE MOD_DG_Vars                ,ONLY: Ut,Un
 USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
 USE MOD_Predictor              ,ONLY: Predictor,StorePredictor
-USE MOD_LinearSolver_Vars      ,ONLY: LinSolverRHS
+USE MOD_LinearSolver_Vars      ,ONLY: LinSolverRH,FieldStage
 USE MOD_Equation               ,ONLY: DivCleaningDamping
 USE MOD_Equation               ,ONLY: CalcSource
 #ifdef maxwell
 USE MOD_Precond                ,ONLY: BuildPrecond
 USE MOD_Precond_Vars           ,ONLY: UpdatePrecond
+USE MOD_TimeDisc_Vars          ,ONLY: dt_old
 #endif /*maxwell*/
 #endif /*USE_HDG*/
 USE MOD_Newton                 ,ONLY: ImplicitNorm,FullNewton

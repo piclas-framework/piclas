@@ -147,7 +147,6 @@ LOGICAL,ALLOCATABLE                    :: IsSlaveSide(:)
 #if USE_MPI
 INTEGER                                :: iElem,HaloElemID,iHaloSide,iLocSide
 #endif /*USE_MPI*/
-INTEGER           :: i
 !===================================================================================================================================
 ! Workflow
 ! 0. Create boundary name mapping for surfaces SurfaceBC number mapping

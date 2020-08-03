@@ -660,6 +660,8 @@ USE MOD_Equation               ,ONLY: CalcSourceHDG,ExactFunc
 USE MOD_FillMortar_HDG         ,ONLY: SmallToBigMortar_HDG
 #if defined(IMPA) || defined(ROS)
 USE MOD_LinearSolver_Vars      ,ONLY: DoPrintConvInfo
+#else
+USE MOD_TimeDisc_Vars          ,ONLY: IterDisplayStep,DoDisplayIter
 #endif
 USE MOD_Equation_Vars          ,ONLY: eps0
 USE MOD_Equation_Vars          ,ONLY: chitens_face
@@ -674,7 +676,6 @@ USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime
 #if (PP_nVar==1)
 USE MOD_Equation_Vars          ,ONLY: E
 #endif
-USE MOD_TimeDisc_Vars          ,ONLY: IterDisplayStep,DoDisplayIter
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
