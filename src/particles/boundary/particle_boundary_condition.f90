@@ -1055,9 +1055,6 @@ USE MOD_TimeDisc_Vars           ,ONLY: TEnd,Time
 USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
 USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact
 USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn
-#if defined(IMPA)
-USE MOD_Particle_Vars           ,ONLY: PartIsImplicit,DoPartInNewton
-#endif /*IMPA*/
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_part_operations         ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
@@ -1228,9 +1225,6 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,SidePeriodicType
 USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos,PEM
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
-#if defined(IMPA)
-USE MOD_TimeDisc_Vars          ,ONLY: ESDIRK_a,ERK_a
-#endif /*IMPA */
 #if defined(ROS)
 USE MOD_TimeDisc_Vars          ,ONLY: RK_A
 #endif /*ROS */

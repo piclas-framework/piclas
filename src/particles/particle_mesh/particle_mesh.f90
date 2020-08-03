@@ -1600,7 +1600,7 @@ IF(CalcHaloInfo)THEN
 END IF
 #endif /*USE_MPI*/
 
-SWRITE(UNIT_stdOut,'(A)')' ... DONE!'
+SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM DONE'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitFIBGM
