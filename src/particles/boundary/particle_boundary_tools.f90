@@ -552,25 +552,24 @@ RECURSIVE SUBROUTINE SortArray2(StartID,EndID,ArrayA,ArrayB)
 !
 ! BEFORE:
 !  
-!      iSide         SideIDToSurfID(iSide)      GlobalUniqueSideID(iSide)
-!        10                   -1                           3
-!        11               --- 10 <--                      10
-!        12               |   -1   |                      16
-!        13               |   -1   |                      11
-!        14               |   -1   |                      15
-!        15               --> 11 ---                       4
-!        16                   -1                           6
+!      iSide         GlobalUniqueSideID(iSide)      SortedUniqueSides(iSide)
+!        11                   10                          11
+!        12                    5                          12
+!        13                    6                          13
+!        14                    1                          14
+!        15                   11                          15
+!        16                    2                          16
 !    
 ! AFTER:
 !    
 !      iSide         SideIDToSurfID(iSide)      GlobalUniqueSideID(iSide)
-!        10                   -1                           3
-!        11                   11                          10
-!        12                   -1                          16
-!        13                   -1                          11
-!        14                   -1                          15
-!        15                   10                           4
-!        16                   -1                           6
+!        14                    1                          14
+!        16                    2                          16
+!        12                    5                          12
+!        13                    6                          13
+!        11                   10                          11
+!        15                   11                          15
+!
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -584,10 +583,7 @@ INTEGER,INTENT(INOUT) :: ArrayB(*)
 ! insert IO variables here
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: i,j,idx
-!LOGICAL :: Mask(EndID) ! only the elements for which Mask is .TRUE. are considered
-!LOGICAL :: Mask_tmp(EndID)
-!INTEGER :: ArrayA_temp(EndID)
+INTEGER :: i,j
 INTEGER :: Center,temp
 !===================================================================================================================================
 
@@ -616,27 +612,8 @@ DO
   j=j-1
 END DO
 
-!IF(StartID.LT.i-1) CALL SortArray2(StartID,EndID,ArrayA,ArrayB)
-
 IF(StartID.LT.i-1  ) CALL SortArray2(StartID , i-1   , ArrayA , ArrayB)
 IF(j+1    .LT.EndID) CALL SortArray2(j+1     , EndID , ArrayA , ArrayB)
-
-
-!   RETURN
-!   ArrayA_temp = ArrayA
-!   Mask = .TRUE.
-!   DO i = 1, EndID
-!     IF(ArrayA(i).EQ.-1) THEN
-!       Mask(i) = .FALSE.
-!     END IF
-!   END DO
-!   Mask_tmp = Mask
-!   DO i = 1, EndID
-!     IF(.NOT.Mask_tmp(i)) CYCLE
-!      idx         = MINLOC(ArrayB,1,Mask)
-!      ArrayA(idx) = ArrayA_temp(i)
-!      Mask(idx)   = .FALSE.
-!   END DO
 
 END SUBROUTINE SortArray2
 
