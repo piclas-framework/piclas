@@ -104,7 +104,7 @@ USE MOD_Equation_Vars           ,ONLY: B
 USE MOD_Equation_Vars           ,ONLY: E,B
 #endif /*PP_nVar*/
 USE MOD_Mesh_Vars               ,ONLY: nSides
-USE MOD_Particle_Boundary_Tools ,ONLY: SortArray,SortArray2
+USE MOD_Utils                   ,ONLY: QuickSortTwoArrays
 USE MOD_Mesh_Vars               ,ONLY: MortarType,SideToElem,MortarInfo
 USE MOD_Mesh_Vars               ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_Mesh_Vars               ,ONLY: lastMPISide_MINE,lastInnerSide
@@ -375,7 +375,7 @@ ASSOCIATE (&
 
   ! Create tmp array which will be sorted
   GlobalUniqueSideID_tmp = GlobalUniqueSideID
-  CALL SortArray2(1,nSides,GlobalUniqueSideID_tmp(1:nSides),SortedUniqueSides(1:nSides))
+  CALL QuickSortTwoArrays(1,nSides,GlobalUniqueSideID_tmp(1:nSides),SortedUniqueSides(1:nSides))
   DEALLOCATE(GlobalUniqueSideID_tmp)
 
   ! Fill array with lambda values in global unique side sorted order
