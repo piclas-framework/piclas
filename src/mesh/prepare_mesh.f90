@@ -903,7 +903,6 @@ DO iElem=1,nElems
     BC(aSide%sideID)=aSide%BCIndex
 #ifdef PARTICLES
     GlobalUniqueSideID(aSide%sideID)=aSide%Ind
-    !IPWRITE(UNIT_StdOut,*) "aSide%sideID,GlobalUniqueSideID(aSide%sideID) =", aSide%sideID,GlobalUniqueSideID(aSide%sideID)
 #endif /*PARTICLES*/
   END DO ! LocSideID
 END DO ! iElem

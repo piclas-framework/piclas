@@ -160,7 +160,6 @@ SDEALLOCATE(ElemHDGSides)
 ALLOCATE(ElemHDGSides(1:nElems))
 ElemHDGSides=0
 IF(CalcMeshInfo)THEN
-  !CALL AddToElemData(ElementOut,'ElemHDGSides',RealArray=ElemHDGSides(1:nElems))
   CALL AddToElemData(ElementOut,'ElemHDGSides',IntArray=ElemHDGSides(1:nElems))
 END IF ! CalcMeshInfo
 TotalHDGSides=0
