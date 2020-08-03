@@ -213,10 +213,12 @@ __STAMP__&
       IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
         ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
         ! Check if species 3 is an electron and abort (this is not implemented yet)
-        IF(SpecDSMC(ChemReac%DefinedReact(iReac,2,3))%InterID.EQ.4) CALL abort(&
-        __STAMP__&
-          ,'Chemical reaction with electron as 3rd product species. This is not implemented yet for photoionization! iReac=',&
-          IntInfoOpt=iReac)
+        IF(ChemReac%DefinedReact(iReac,2,3).GT.0)THEN
+          IF(SpecDSMC(ChemReac%DefinedReact(iReac,2,3))%InterID.EQ.4) CALL abort(&
+            __STAMP__&
+            ,'Chemical reaction with electron as 3rd product species. This is not implemented yet for photoionization! iReac=',&
+            IntInfoOpt=iReac)
+        END IF ! ChemReac%DefinedReact(iReac,2,3).GT.0
       END IF
       ! Filling up ChemReac-Array for the given non-reactive dissociation/electron-impact ionization partners
       IF((TRIM(ChemReac%ReactType(iReac)).EQ.'D').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'iQK')) THEN
