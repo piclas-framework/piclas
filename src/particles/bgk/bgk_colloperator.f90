@@ -737,11 +737,13 @@ INTEGER, INTENT(INOUT), OPTIONAL        :: CorrectStep
 ! LOCAL VARIABLES
 REAL                  :: KronDelta, tempVelo(3), vBulk(3), u0ij(3,3), SMat(3,3), u2, V_rel(3), vmag2
 REAL                  :: alpha, CellTemp, dens, InnerDOF, dynamicvis, iRan, NewEn, OldEn, Prandtl, relaxfreq
-REAL                  :: ProbAddPart
-INTEGER               :: iLoop, nRelax, fillMa1, fillMa2
-INTEGER, ALLOCATABLE  :: iPartIndx_NodeRelax(:),iPartIndx_NodeRelaxTemp(:)
-REAL, ALLOCATABLE     :: iRanPart(:,:)
-INTEGER               :: nNotRelax, iSpec, nSpec(nSpecies), jSpec
+REAL                  :: rotrelaxfreq, vibrelaxfreq, collisionfreq, ProbAddPart, Evib, Tvib, Xi_vib, TEqui, Xi_Vib_old, Xi_rot, ERot
+REAL                  :: MaxColQua
+INTEGER, ALLOCATABLE  :: iPartIndx_NodeRelax(:),iPartIndx_NodeRelaxTemp(:),iPartIndx_NodeRelaxRot(:),iPartIndx_NodeRelaxVib(:)
+INTEGER               :: iLoop, nRelax, fillMa1, fillMa2, iQuant, iQuaMax, iDOF, iPolyatMole
+REAL, ALLOCATABLE     :: iRanPart(:,:), Xi_vib_DOF(:), VibEnergyDOF(:,:)
+INTEGER               :: nNotRelax, iSpec, nSpec(nSpecies), jSpec, nRotRelax, nVibRelax
+REAL                  :: TRot, betaV, OldEnRot, RotExp, VibExp, NewEnRot, NewEnVib
 REAL                  :: vBulkSpec(1:3, nSpecies), TotalMass, u2Spec(nSpecies)
 REAL                  :: SpecTemp(nSpecies), dynamicvisSpec(nSpecies), Phi(nSpecies)
 REAL                  :: thermalcondspec(nSpecies), thermalcond, C_P, MassCoef, PrandtlCorrection, EnerTotal
@@ -752,7 +754,7 @@ INTEGER               :: iMom
 REAL                  :: totalWeightSpec(nSpecies), totalWeight, partWeight, totalWeightSpec2(nSpecies), totalWeight2
 REAL                  :: tempmass, tempweight, vBulkTemp(1:3), tempweight2
 
-REAL                  :: A(3,3), Work(1000), W(3), nu, Theta, G_12, S_12, sigma_12, CellTempSpec(nSpecies+1), Evib, ERot
+REAL                  :: A(3,3), Work(1000), W(3), nu, Theta, G_12, S_12, sigma_12, CellTempSpec(nSpecies+1)
 INTEGER               :: INFO
 !===================================================================================================================================
 #ifdef CODE_ANALYZE
@@ -780,6 +782,11 @@ vBulkAll = 0.0
 TotalMass = 0.0
 Evib=0.0; ERot=0.0
 CellTempSpec = 0.
+
+NewEn = 0.; OldEn = 0.
+OldEnRot = 0.; NewEnRot = 0.; NewEnVib = 0.
+Evib = 0.0; ERot = 0.0
+totalWeight = 0.0; totalWeight2 = 0.0
 
 DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
@@ -991,14 +998,14 @@ DO iSpec = 1, 2
     vibrelaxfreq = collisionfreq * DSMC%VibRelaxProb
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
       CALL CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_vib_DOF, Xi_Vib_old, RotExp, VibExp, &
-                          TEqui, rotrelaxfreq, vibrelaxfreq, dtCell)
+                          TEqui, rotrelaxfreq, vibrelaxfreq, dt)
       Xi_vib = SUM(Xi_vib_DOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
     ELSE
       CALL CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, VibExp,  &
-                      TEqui, rotrelaxfreq, vibrelaxfreq, dtCell)
+                      TEqui, rotrelaxfreq, vibrelaxfreq, dt)
     END IF
     IF(DSMC%CalcQualityFactors) THEN
-      BGK_MaxRotRelaxFactor          = MAX(BGK_MaxRotRelaxFactor,rotrelaxfreq*dtCell)
+      BGK_MaxRotRelaxFactor          = MAX(BGK_MaxRotRelaxFactor,rotrelaxfreq*dt)
     END IF
   END IF
 END DO
@@ -1006,6 +1013,7 @@ END DO
 vBulk(1:3) = 0.0; nRelax = 0; nNotRelax = 0
 ALLOCATE(iPartIndx_NodeRelax(nPart), iPartIndx_NodeRelaxTemp(nPart))
 iPartIndx_NodeRelaxTemp = 0
+ALLOCATE(iPartIndx_NodeRelaxRot(nPart),iPartIndx_NodeRelaxVib(nPart))
 
 ProbAddPart = 1.-EXP(-relaxfreq*dt)
 DO iLoop = 1, nPart  
