@@ -55,7 +55,7 @@ INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(18)
 INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
 #endif
 
-INTEGER(KIND=IK)   :: nGlobalNbrOfParticles
+INTEGER(KIND=8)    :: nGlobalNbrOfParticles
 
 INTERFACE InitGlobals
   MODULE PROCEDURE InitGlobals

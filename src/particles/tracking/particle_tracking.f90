@@ -1292,7 +1292,7 @@ USE MOD_Mesh_Vars              ,ONLY: OffSetElem,useCurveds,NGeo,ElemBaryNGeo
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Tracking_Vars ,ONLY: nTracks,Distance,ListDistance,CartesianPeriodic
 USE MOD_Particle_Mesh_Vars     ,ONLY: Geo,IsTracingBCElem,BCElem,epsOneCell
-USE MOD_Utils                  ,ONLY: BubbleSortID,InsertionSort
+USE MOD_Utils                  ,ONLY: InsertionSort
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemRadius2NGeo
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps2
 USE MOD_Particle_Mesh          ,ONLY: SingleParticleToExactElement,PartInElemCheck
@@ -1748,7 +1748,7 @@ USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
 USE MOD_Particle_Mesh_Vars          ,ONLY: PartBCSideList
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
 USE MOD_Particle_Mesh_Vars          ,ONLY: BCElem,GEO,ElemRadiusNGeo
-USE MOD_Utils                       ,ONLY: BubbleSortID,InsertionSort
+USE MOD_Utils                       ,ONLY: InsertionSort
 USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarRectInterSection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarCurvedIntersection
@@ -2367,7 +2367,7 @@ USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
 USE MOD_Mesh_Vars,                   ONLY:ElemBaryNGeo
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Particle_Mesh_Vars,          ONLY:BCElem
-USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
+USE MOD_Utils,                       ONLY:InsertionSort
 USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection

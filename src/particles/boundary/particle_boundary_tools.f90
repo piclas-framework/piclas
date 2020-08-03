@@ -59,7 +59,6 @@ PUBLIC :: AnalyzeSurfaceCollisions
 PUBLIC :: SurfaceToPartEnergyInternal
 PUBLIC :: CountSurfaceImpact
 PUBLIC :: StoreBoundaryParticleProperties
-PUBLIC :: SortArray
 PUBLIC :: DielectricSurfaceCharge
 PUBLIC :: GetWallTemperature
 !===================================================================================================================================
@@ -477,45 +476,6 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
 END ASSOCIATE
 
 END SUBROUTINE StoreBoundaryParticleProperties
-
-
-SUBROUTINE SortArray(EndID,ArrayA,ArrayB)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! sort arryA in ascending order of arrayB
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-! insert modules here
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
-INTEGER,INTENT(IN)    :: EndID
-INTEGER,INTENT(INOUT) :: ArrayA(EndID)
-INTEGER,INTENT(IN)    :: ArrayB(EndID)
-! insert IO variables here
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER :: i,idx
-LOGICAL :: unsorted(EndID)
-LOGICAL :: unsorted_tmp(EndID)
-INTEGER :: ArrayA_temp(EndID)
-!===================================================================================================================================
-ArrayA_temp=ArrayA
-unsorted = .TRUE.
-DO i=1, EndID
-  IF(ArrayA(i).EQ.-1) THEN
-    unsorted(i)=.FALSE.
-  END IF
-END DO
-unsorted_tmp=unsorted
-DO i = 1, EndID
-  IF(.NOT.unsorted_tmp(i)) CYCLE
-   idx=MINLOC(ArrayB,1,unsorted)
-   ArrayA(idx) = ArrayA_temp(i)
-   unsorted(idx) = .FALSE.
-END DO
-
-END SUBROUTINE SortArray
 
 
 SUBROUTINE DielectricSurfaceCharge(iPart,ElemID,PartTrajectory,alpha)
