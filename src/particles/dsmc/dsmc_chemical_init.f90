@@ -298,6 +298,11 @@ __STAMP__&
           END DO
         END DO
         ChemReac%EForm(iReac) = ChemReac%EForm(iReac) + PhotonEnergy
+        IF(ChemReac%EForm(iReac).LE.0.0) THEN
+          CALL abort(&
+          __STAMP__&
+          ,'ERROR: Photon energy is not sufficient for the given ionization reaction: ',iReac)
+        END IF
       END IF
     END DO
 
