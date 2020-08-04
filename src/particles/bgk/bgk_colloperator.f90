@@ -923,9 +923,14 @@ IF (BGKMixtureModel.EQ.1) THEN
             *SpecDSMC(iSpec)%TrefVHS**(SpecDSMC(iSpec)%omegaVHS + 0.5)*CellTemp**(-SpecDSMC(iSpec)%omegaVHS - 0.5))
     END IF
     ! innerdof pro spec !
-    thermalcondspec(iSpec) = 0.25 * (15. + 2. * InnerDOF) &
-                                      * dynamicvisSpec(iSpec) &
-                                      * BoltzmannConst / Species(iSpec)%MassIC
+    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      thermalcondspec(iSpec) = 0.25 * (15. + 2. * InnerDOF) &
+                                        * dynamicvisSpec(iSpec) &
+                                        * BoltzmannConst / Species(iSpec)%MassIC
+    ELSE
+      thermalcondspec(iSpec) = 0.25 * 15.* dynamicvisSpec(iSpec) &
+                                        * BoltzmannConst / Species(iSpec)%MassIC
+    END IF
   END DO
   Phi= 0.0
   DO iSpec = 1, nSpecies
