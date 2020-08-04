@@ -1015,10 +1015,11 @@ DO iSpec = 1, 2
   END IF
 END DO
 
-vBulk(1:3) = 0.0; nRelax = 0; nNotRelax = 0
+vBulk(1:3) = 0.0; nRelax = 0; nNotRelax = 0; nRotRelax = 0; nVibRelax = 0
 ALLOCATE(iPartIndx_NodeRelax(nPart), iPartIndx_NodeRelaxTemp(nPart))
-iPartIndx_NodeRelaxTemp = 0
+iPartIndx_NodeRelax = 0; iPartIndx_NodeRelaxTemp = 0
 ALLOCATE(iPartIndx_NodeRelaxRot(nPart),iPartIndx_NodeRelaxVib(nPart))
+iPartIndx_NodeRelaxRot = 0; iPartIndx_NodeRelaxVib = 0
 
 ProbAddPart = 1.-EXP(-relaxfreq*dt)
 DO iLoop = 1, nPart  
@@ -1058,27 +1059,28 @@ END DO
 IF ((nRelax.EQ.0).AND.(nRotRelax.EQ.0).AND.(nVibRelax.EQ.0)) RETURN
 !! VIB RElaxation
 IF(BGKDoVibRelaxation) THEN
-  IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-    ALLOCATE(VibEnergyDOF(nVibRelax,PolyatomMolDSMC(iPolyatMole)%VibDOF))
-    DO iLoop = 1, nVibRelax
-      partWeight = GetParticleWeight(iPartIndx_NodeRelaxVib(iLoop))
-      PartStateIntEn(1,iPartIndx_NodeRelaxVib(iLoop)) = 0.0
-      DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-        CALL RANDOM_NUMBER(iRan)
-        VibEnergyDOF(iLoop,iDOF) = - LOG(iRan)*Xi_vib_DOF(iDOF)/2.*TEqui*BoltzmannConst
-        PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) = PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) &
-                                                            + VibEnergyDOF(iLoop,iDOF)
-      END DO
-      NewEnVib = NewEnVib + PartStateIntEn(1,iPartIndx_NodeRelaxVib(iLoop)) * partWeight
-    END DO
-  ELSE
+  ! ============================ iSpec?
+  ! IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+  !   ALLOCATE(VibEnergyDOF(nVibRelax,PolyatomMolDSMC(iPolyatMole)%VibDOF))
+  !   DO iLoop = 1, nVibRelax
+  !     partWeight = GetParticleWeight(iPartIndx_NodeRelaxVib(iLoop))
+  !     PartStateIntEn(1,iPartIndx_NodeRelaxVib(iLoop)) = 0.0
+  !     DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+  !       CALL RANDOM_NUMBER(iRan)
+  !       VibEnergyDOF(iLoop,iDOF) = - LOG(iRan)*Xi_vib_DOF(iDOF)/2.*TEqui*BoltzmannConst
+  !       PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) = PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) &
+  !                                                           + VibEnergyDOF(iLoop,iDOF)
+  !     END DO
+  !     NewEnVib = NewEnVib + PartStateIntEn(1,iPartIndx_NodeRelaxVib(iLoop)) * partWeight
+  !   END DO
+  ! ELSE
     DO iLoop = 1, nVibRelax
       partWeight = GetParticleWeight(iPartIndx_NodeRelaxVib(iLoop))
       CALL RANDOM_NUMBER(iRan)
       PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) = -LOG(iRan)*Xi_vib/2.*TEqui*BoltzmannConst
       NewEnVib = NewEnVib + PartStateIntEn(1,iPartIndx_NodeRelaxVib(iLoop)) * partWeight
     END DO
-  END IF
+  ! END IF
 END IF
 !! ROT Relaxation
 DO iLoop = 1, nRotRelax
@@ -1087,7 +1089,6 @@ DO iLoop = 1, nRotRelax
   PartStateIntEn( 2,iPartIndx_NodeRelaxRot(iLoop)) = -Xi_Rot / 2. * BoltzmannConst*TEqui*LOG(iRan)
   NewEnRot = NewEnRot + PartStateIntEn( 2,iPartIndx_NodeRelaxRot(iLoop)) * partWeight
 END DO
-
 
 ! 5.) Sample new particle velocities from the target distribution function, depending on the chosen model
 IF (nRelax.GT.0) THEN
@@ -1112,7 +1113,7 @@ IF (nRelax.GT.0) THEN
   DO iLoop = 1, nRelax
     iSpec = PartSpecies(iPartIndx_NodeRelax(iLoop))
     partWeight = GetParticleWeight(iPartIndx_NodeRelax(iLoop))
-    tempVelo(1:3) = SQRT(BoltzmannConst*CellTemp/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
+    tempVelo(1:3) = SQRT(BoltzmannConst*TEqui/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
     DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop)) = vBulkAll(1:3) + MATMUL(SMat,tempVelo)
     vBulk(1:3) = vBulk(1:3) + DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop))*Species(iSpec)%MassIC*partWeight
   END DO
