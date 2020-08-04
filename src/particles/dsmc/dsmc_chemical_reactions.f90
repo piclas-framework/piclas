@@ -442,6 +442,8 @@ REAL, ALLOCATABLE             :: Xi_Vib1(:), Xi_Vib2(:), Xi_Vib3(:), XiVibPart(:
 REAL                          :: VxPseuMolec, VyPseuMolec, VzPseuMolec
 REAL                          :: Weight1, Weight2, Weight3, WeightProd, NumWeightEduct, NumWeightProd, ReducedMass
 #ifdef CODE_ANALYZE
+REAL,PARAMETER                :: RelMomTol=1e-9 ! Relative tolerance applied to conservation of momentum before/after reaction
+REAL,PARAMETER                :: RelEneTol=1e-12 ! Relative tolerance applied to conservation of energy before/after reaction
 REAL                          :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
 INTEGER                       :: iMom, iMomDim
 #endif /* CODE_ANALYZE */
@@ -1077,7 +1079,7 @@ END IF
 
 #ifdef CODE_ANALYZE
 ! Check for energy difference
-IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
+IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,RelEneTol)) THEN
   WRITE(UNIT_StdOut,*) '\n'
   IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_old             : ",Energy_old
   IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_new             : ",Energy_new
@@ -1087,7 +1089,7 @@ IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
       IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Energy difference : ",(Energy_old-Energy_new)/energy
     END IF
   END ASSOCIATE
-  IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-12
+  IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",RelEneTol
   CALL abort(&
       __STAMP__&
       ,'CODE_ANALYZE: DSMC_Chemistry is not energy conserving for chemical reaction:', IntInfoOpt=iReac)
@@ -1100,7 +1102,7 @@ ELSE
   iMomDim = 3
 END IF
 DO iMom=1,iMomDim
-  IF (.NOT.ALMOSTEQUALRELATIVE(Momentum_old(iMom),Momentum_new(iMom),1.0e-10)) THEN
+  IF (.NOT.ALMOSTEQUALRELATIVE(Momentum_old(iMom),Momentum_new(iMom),RelMomTol)) THEN
     WRITE(UNIT_StdOut,*) '\n'
     IPWRITE(UNIT_StdOut,'(I0,A,I0)')           " Direction (x,y,z)        : ",iMom
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Momentum_old             : ",Momentum_old(iMom)
@@ -1111,7 +1113,7 @@ DO iMom=1,iMomDim
         IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Momentum difference : ",(Momentum_old(iMom)-Momentum_new(iMom))/Momentum
       END IF
     END ASSOCIATE
-    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-10
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",RelMomTol
     CALL abort(&
         __STAMP__&
         ,'CODE_ANALYZE: DSMC_Chemistry is not momentum conserving for chemical reaction:', IntInfoOpt=iReac)
