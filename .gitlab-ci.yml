@@ -222,6 +222,7 @@ gnu_poisson:
     - cd build_gnu_poisson_release ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
     - cd ../build_gnu_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
 
+
 gnu_poisson_photoionization_volume:
   <<: *defaults_gnu_poisson
   stage: reggie_checkin
@@ -229,6 +230,9 @@ gnu_poisson_photoionization_volume:
     - withmodules-concurrent
   script:
     - cd build_gnu_poisson_release
+    - python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas
+    - python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas
+    - cd ../build_gnu_poisson_debug
     - python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas
     - python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas
 
@@ -504,9 +508,12 @@ gnu_NIG_Photoionization:
   tags:
     - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu_poisson_debug ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then cd python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then cd python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/surface_emission -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu_poisson_release ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/surface_emission -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd ../build_gnu_poisson_debug ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/surface_emission -e ./bin/piclas ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly_build_all": Build and run
