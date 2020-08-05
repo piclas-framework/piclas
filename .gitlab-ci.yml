@@ -228,17 +228,9 @@ gnu_poisson_photoionization_volume:
   tags:
     - withmodules-concurrent
   script:
-    - cd build_gnu_poisson_release ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas
-    - cd ../build_gnu_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas
-
-gnu_poisson_photoionization_surface:
-  <<: *defaults_gnu_poisson
-  stage: reggie_checkin
-  tags:
-    - withmodules-concurrent
-  script:
-    - cd build_gnu_poisson_release ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/surface_emission -e ./bin/piclas
-    - cd ../build_gnu_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/surface_emission -e ./bin/piclas
+    - cd build_gnu_poisson_release
+    - python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas
+    - python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_feature_checkin": Run most simple reggie features with previous builds on check-in (must be very fast)
@@ -512,7 +504,9 @@ gnu_NIG_Photoionization:
   tags:
     - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu_poisson_debug ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/surface_emission -e ./bin/piclas ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly_build_all": Build and run
