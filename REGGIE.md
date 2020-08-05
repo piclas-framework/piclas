@@ -309,10 +309,10 @@ Pure Poisson solver without particles: [Link to build](regressioncheck/checks/NI
 
 Test all features of photoionization within the HDG solver (without interpolation and deposition): [Link to build](regressioncheck/checks/NIG_Photoionization/builds.ini).
 
-| **No.** |          **Case**         | **CMAKE-CONFIG** |                 **Feature**                |   **Execution**   |                                  **Comparing**                                 |                                       **Readme**                                       |
-| :-----: | :-----------------------: | :--------------: |              :---------------:             |  :-------------:  |                        :------------------------------:                        | :------------------------------------------------------------------------------------: |
-|    1    |      surface_emission     |                  |        photoionization in the volume       | nProcs=1,2,5,8,10 | the total number of real electrons in the system with an analytical expression |      [Link](regressioncheck/checks/NIG_Photoionization/volume_emission/readme.md)      |
-|    2    |      volume_emission      |                  | secondary electron emission from a surface | nProcs=1,2,5,8,10 | the total number of real electrons in the system with an analytical expression |      [Link](regressioncheck/checks/NIG_Photoionization/surface_emission/readme.md)     |
+| **No.** |          **Case**         | **CMAKE-CONFIG** |                 **Feature**                |  **Execution**  |                                  **Comparing**                                 |                                       **Readme**                                       |
+| :-----: | :-----------------------: | :--------------: |              :---------------:             | :-------------: |                        :------------------------------:                        | :------------------------------------------------------------------------------------: |
+|    1    |      surface_emission     |                  |        photoionization in the volume       |  nProcs=1,2,5,8 | the total number of real electrons in the system with an analytical expression |      [Link](regressioncheck/checks/NIG_Photoionization/volume_emission/readme.md)      |
+|    2    |      volume_emission      |                  | secondary electron emission from a surface |  nProcs=1,2,5,8 | the total number of real electrons in the system with an analytical expression |      [Link](regressioncheck/checks/NIG_Photoionization/surface_emission/readme.md)     |
 
 ## Weekly
 
