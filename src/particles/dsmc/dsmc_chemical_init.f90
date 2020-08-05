@@ -289,6 +289,7 @@ __STAMP__&
         END IF
       END DO
       IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+        PhotonEnergy = 0.
         DO iSpec = 1, nSpecies
           DO iInit = 1, Species(iSpec)%NumberOfInits
             IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder') THEN
