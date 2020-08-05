@@ -442,7 +442,7 @@ REAL, ALLOCATABLE             :: Xi_Vib1(:), Xi_Vib2(:), Xi_Vib3(:), XiVibPart(:
 REAL                          :: VxPseuMolec, VyPseuMolec, VzPseuMolec
 REAL                          :: Weight1, Weight2, Weight3, WeightProd, NumWeightEduct, NumWeightProd, ReducedMass
 #ifdef CODE_ANALYZE
-REAL,PARAMETER                :: RelMomTol=1e-9 ! Relative tolerance applied to conservation of momentum before/after reaction
+REAL,PARAMETER                :: RelMomTol=2e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
 REAL,PARAMETER                :: RelEneTol=1e-12 ! Relative tolerance applied to conservation of energy before/after reaction
 REAL                          :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
 INTEGER                       :: iMom, iMomDim
