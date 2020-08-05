@@ -2339,7 +2339,7 @@ DO iSpec=1,nSpecies
       IPWRITE(*,*) 'ERROR: Species ', iSpec, 'of', iInit, 'is using an unknown SpaceIC!'
       CALL abort(&
       __STAMP__&
-      ,'ERROR: Given SpaceIC is not implemented!')
+      ,'ERROR: Given SpaceIC is not implemented: '//TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
     END SELECT
     ! create new communicator
     color=MPI_UNDEFINED
