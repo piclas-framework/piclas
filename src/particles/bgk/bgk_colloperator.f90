@@ -754,7 +754,8 @@ INTEGER               :: iMom
 REAL                  :: totalWeightSpec(nSpecies), totalWeight, partWeight, totalWeightSpec2(nSpecies), totalWeight2
 REAL                  :: tempmass, tempweight, vBulkTemp(1:3), tempweight2
 
-REAL                  :: A(3,3), Work(1000), W(3), nu, Theta, G_12, S_12, sigma_12, CellTempSpec(nSpecies+1)
+REAL                  :: A(3,3), Work(1000), W(3), nu, Theta, G_12, S_12, sigma_12, CellTempSpec(nSpecies+1), CellTemptmp
+REAL                  :: ProbAddPartTrans, ProbAddPartRot, ProbAddPartVib
 INTEGER               :: INFO
 !===================================================================================================================================
 #ifdef CODE_ANALYZE
@@ -996,9 +997,21 @@ END IF
 
 ! 3.) Treatment of molecules: determination of the rotational and vibrational relaxation frequency using the collision frequency,
 !     which is not the same as the relaxation frequency of distribution function, calculated above.
+collisionfreq = 0.0
+DO iSpec = 1, 2
+  DO jSpec = iSpec, 2
+    IF (iSpec.EQ.jSpec) THEN
+      CellTemptmp = SpecTemp(iSpec)
+    ELSE
+      CellTemptmp = CellTemp
+    END IF
+    collisionfreq = collisionfreq + SpecBGK(iSpec)%CollFreqPreFactor(jSpec) * totalWeightSpec(iSpec)*totalWeightSpec(jSpec) &
+            *Dens *CellTemptmp**(-SpecDSMC(iSpec)%omegaVHS +0.5) /(totalWeight*totalWeight)
+  END DO
+END DO
+
 DO iSpec = 1, 2
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    collisionfreq = SpecBGK(1)%CollFreqPreFactor(2) * Dens *CellTemp**(-SpecDSMC(iSpec)%omegaVHS +0.5)
     rotrelaxfreq = collisionfreq * DSMC%RotRelaxProb
     vibrelaxfreq = collisionfreq * DSMC%VibRelaxProb
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
@@ -1021,10 +1034,12 @@ iPartIndx_NodeRelax = 0; iPartIndx_NodeRelaxTemp = 0
 ALLOCATE(iPartIndx_NodeRelaxRot(nPart),iPartIndx_NodeRelaxVib(nPart))
 iPartIndx_NodeRelaxRot = 0; iPartIndx_NodeRelaxVib = 0
 
-ProbAddPart = 1.-EXP(-relaxfreq*dt)
+ProbAddPartTrans = 1.-EXP(-relaxfreq*dt)
+ProbAddPartRot = (1.-RotExp)
+ProbAddPartVib = (1.-VibExp)
 DO iLoop = 1, nPart  
   CALL RANDOM_NUMBER(iRan)  
-  IF (ProbAddPart.GT.iRan) THEN
+  IF (ProbAddPartTrans.GT.iRan) THEN
     nRelax = nRelax + 1
     iPartIndx_NodeRelax(nRelax) = iPartIndx_Node(iLoop)
   ELSE
@@ -1038,8 +1053,7 @@ DO iLoop = 1, nPart
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     !Rotation
     CALL RANDOM_NUMBER(iRan)
-    ProbAddPart = (1.-RotExp)
-    IF (ProbAddPart.GT.iRan) THEN
+    IF (ProbAddPartRot.GT.iRan) THEN
       nRotRelax = nRotRelax + 1
       iPartIndx_NodeRelaxRot(nRotRelax) = iPartIndx_Node(iLoop)
       OldEnRot = OldEnRot + PartStateIntEn(2,iPartIndx_Node(iLoop)) * partWeight
@@ -1047,8 +1061,7 @@ DO iLoop = 1, nPart
     ! Vibration
     IF(BGKDoVibRelaxation) THEN
       CALL RANDOM_NUMBER(iRan)
-      ProbAddPart = (1.-VibExp)
-      IF (ProbAddPart.GT.iRan) THEN
+      IF (ProbAddPartVib.GT.iRan) THEN
         nVibRelax = nVibRelax + 1
         iPartIndx_NodeRelaxVib(nVibRelax) = iPartIndx_Node(iLoop)
         OldEn = OldEn + (PartStateIntEn(1,iPartIndx_NodeRelaxVib(nVibRelax)) - SpecDSMC(iSpec)%EZeroPoint) * partWeight
@@ -1113,7 +1126,7 @@ IF (nRelax.GT.0) THEN
   DO iLoop = 1, nRelax
     iSpec = PartSpecies(iPartIndx_NodeRelax(iLoop))
     partWeight = GetParticleWeight(iPartIndx_NodeRelax(iLoop))
-    tempVelo(1:3) = SQRT(BoltzmannConst*TEqui/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
+    tempVelo(1:3) = SQRT(BoltzmannConst*CellTemp/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
     DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop)) = vBulkAll(1:3) + MATMUL(SMat,tempVelo)
     vBulk(1:3) = vBulk(1:3) + DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop))*Species(iSpec)%MassIC*partWeight
   END DO
@@ -2477,7 +2490,7 @@ REAL, INTENT(OUT)               :: Xi_vib, TEqui, RotExp, VibExp
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL                            :: TEqui_Old, betaR, betaV, RotFrac, VibFrac, TEqui_Old2
 REAL                            :: eps_prec=1.0E-0
-REAL                            :: correctFac, correctFacRot, maxexp    !, Xi_rel
+REAL                            :: correctFac, correctFacRot, maxexp   !, Xi_rel
 LOGICAL                         :: DoVibRelax
 !===================================================================================================================================
 IF (PRESENT(DoVibRelaxIn)) THEN

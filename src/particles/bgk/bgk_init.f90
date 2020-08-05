@@ -116,13 +116,19 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iSpec2
+REAL                  :: delta_ij
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)') ' INIT BGK Solver...'
 ALLOCATE(SpecBGK(nSpecies))
 DO iSpec=1, nSpecies
   ALLOCATE(SpecBGK(iSpec)%CollFreqPreFactor(nSpecies))
   DO iSpec2=1, nSpecies
-    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*(SpecDSMC(iSpec)%DrefVHS + SpecDSMC(iSpec2)%DrefVHS)**2.0 &
+    IF (iSpec.EQ.iSpec2) THEN
+      delta_ij = 1.0
+    ELSE
+      delta_ij = 0.0
+    END IF
+    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*(2.-delta_ij)*(SpecDSMC(iSpec)%DrefVHS + SpecDSMC(iSpec2)%DrefVHS)**2.0 &
         * SQRT(2.*Pi*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
         /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/SpecDSMC(iSpec)%TrefVHS**(-SpecDSMC(iSpec)%omegaVHS +0.5)
   END DO
