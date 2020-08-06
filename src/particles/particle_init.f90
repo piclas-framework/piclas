@@ -608,8 +608,7 @@ CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-ParticleEmissionType'  
                                   '3 = user def. emission rate\n'//&
                                   '4 = const. cell pressure\n'//&
                                   '5 = cell pres. w. complete part removal\n'//&
-                                  '6 = outflow BC (characteristics method)\n'//&
-                                  '7 = SEE Photon-Electron emission', '2', numberedmulti=.TRUE.)
+                                  '6 = outflow BC (characteristics method)\n', '2', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-ParticleEmission' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Emission in [1/s] or [1/Iteration]', '0.', numberedmulti=.TRUE.)
@@ -1675,6 +1674,13 @@ DO iSpec = 1, nSpecies
              'cell_local-SpaceIC and/or surface flux!')
       END IF
     END IF
+    IF (Species(iSpec)%Init(iInit)%UseForEmission) THEN
+      Species(iSpec)%Init(iInit)%ParticleEmissionType  = GETINT('Part-Species'//TRIM(hilf2)//'-ParticleEmissionType','2')
+      Species(iSpec)%Init(iInit)%ParticleEmission      = GETREAL('Part-Species'//TRIM(hilf2)//'-ParticleEmission','0.')
+    ELSE
+      Species(iSpec)%Init(iInit)%ParticleEmissionType  = 0 !dummy
+      Species(iSpec)%Init(iInit)%ParticleEmission      = 0. !dummy
+    END IF
     !-------------------------------------------------------------------------------------------------------------------------------
     IF (Species(iSpec)%Init(iInit)%ElemTemperatureFileID.EQ.0) THEN
       Species(iSpec)%Init(iInit)%velocityDistribution  = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution'&
@@ -1744,6 +1750,8 @@ __STAMP__&
     ! Photoionization in cylinderical volume (modelling a laser pulse) and SEE based on photon impact on a surface
     IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_SEE_disc')          &
    .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder')) THEN
+      Species(iSpec)%Init(iInit)%ParticleEmissionType = 7
+      Species(iSpec)%Init(iInit)%UseForEmission = .TRUE.
       ! Check coordinate system of normal vector and two tangential vectors (they must form an orthogonal basis)
       ASSOCIATE( v1 => UNITVECTOR(Species(iSpec)%Init(iInit)%NormalIC)      ,&
                  v2 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC) ,&
@@ -1849,13 +1857,6 @@ __STAMP__&
       ELSE
         Species(iSpec)%Init(iInit)%YieldSEE           = GETREAL('Part-Species'//TRIM(hilf2)//'-YieldSEE')
       END IF
-    END IF
-    IF (Species(iSpec)%Init(iInit)%UseForEmission) THEN
-      Species(iSpec)%Init(iInit)%ParticleEmissionType  = GETINT('Part-Species'//TRIM(hilf2)//'-ParticleEmissionType','2')
-      Species(iSpec)%Init(iInit)%ParticleEmission      = GETREAL('Part-Species'//TRIM(hilf2)//'-ParticleEmission','0.')
-    ELSE
-      Species(iSpec)%Init(iInit)%ParticleEmissionType  = 0 !dummy
-      Species(iSpec)%Init(iInit)%ParticleEmission      = 0. !dummy
     END IF
     Species(iSpec)%Init(iInit)%NSigma                = GETREAL('Part-Species'//TRIM(hilf2)//'-NSigma','10.')
     Species(iSpec)%Init(iInit)%NumberOfExcludeRegions= GETINT('Part-Species'//TRIM(hilf2)//'-NumberOfExcludeRegions','0')

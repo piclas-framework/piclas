@@ -425,8 +425,6 @@ The first and second base vector span a plane, where a circle with the given rad
 A special case is the ionization of a background gas through photon impact, modelling a light pulse. The volume affected by the light pulse is approximated by a cylinder, which is defined as described in Section \ref{sec:particle_cylinder_init}. Additionally, the SpaceIC has to be adapted and additional parameters are required:
 
     Part-Species1-Init1-SpaceIC                 = photon_cylinder
-    Part-Species1-Init1-ParticleEmissionType    = 8
-    Part-Species1-Init1-UseForEmission          = T
     Part-Species1-Init1-PulseDuration           = 1         ! [s]
     Part-Species1-Init1-WaistRadius             = 1E-6      ! [m]
     Part-Species1-Init1-WaveLength              = 1E-9      ! [m]
@@ -458,8 +456,6 @@ The probability that an ionization event occurs is determined based on the given
 Finally, the secondary electron emission through the impinging light pulse on a surface can also be modelled by an additional insertion region (e.g. as an extra initialization for the same species). Additionally to the definition of the light pulse as described above (pulse duration, waist radius, wave length, number of pulses, and power/energy/intensity), the following parameters have to be set
 
     Part-Species1-Init2-SpaceIC               = photon_SEE_disc
-    Part-Species1-Init2-ParticleEmissionType  = 7
-    Part-Species1-Init2-UseForEmission        = T
     Part-Species1-Init2-velocityDistribution  = photon_SEE_energy
     Part-Species1-Init2-YieldSEE              = 0.1                 ! [-]
     Part-Species1-Init2-WorkFunctionSEE       = 2                   ! [eV]

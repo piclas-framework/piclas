@@ -47,7 +47,6 @@ SUBROUTINE DSMC_chemical_init()
   USE MOD_Particle_Analyze_Vars,  ONLY: ChemEnergySum
   USE MOD_DSMC_ChemReact,         ONLY: CalcPartitionFunction, CalcQKAnalyticRate
   USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
-  USE MOD_Particle_Analyze       ,ONLY: SPECIESISELECTRON
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -155,8 +154,6 @@ __STAMP__&
     ALLOCATE(ChemReac%TLU_FileName(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%CrossSection(ChemReac%NumOfReact))
     ChemReac%CrossSection = 0.
-    ALLOCATE(ChemReac%NumPhotoIonization(ChemReac%NumOfReact))
-    ChemReac%NumPhotoIonization = 0
 
     IF (BGGas%NumberOfSpecies.GT.0) THEN
       DO iSpec = 1, nSpecies
@@ -407,11 +404,11 @@ __STAMP__&
           CALL abort(__STAMP__,&
           'Recombination - Error in Definition: Not all reactant species are defined! ReacNbr: ',iReac)
         END IF
-      ! ELSE
-      !   IF ((ChemReac%DefinedReact(iReac,1,1)*ChemReac%DefinedReact(iReac,1,2)).EQ.0) THEN
-      !     CALL abort(__STAMP__,&
-      !     'Chemistry - Error in Definition: Reactant species not properly defined. ReacNbr:',iReac)
-      !   END IF
+      ELSE IF (TRIM(ChemReac%ReactType(iReac)).NE.'phIon') THEN
+        IF ((ChemReac%DefinedReact(iReac,1,1)*ChemReac%DefinedReact(iReac,1,2)).EQ.0) THEN
+          CALL abort(__STAMP__,&
+          'Chemistry - Error in Definition: Reactant species not properly defined. ReacNbr:',iReac)
+        END IF
       END IF
       ! Proof of product definition
       IF (TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN

@@ -230,16 +230,13 @@ TYPE tInit                                                                   ! P
   INTEGER                                :: InitComm                          ! number of init-communicator
 #endif /*USE_MPI*/
 !====================================photo ionization =======================================================
-  INTEGER, ALLOCATABLE               :: PhotoIonElemMap(:)
-  INTEGER                            :: PhotoIonElems
-  REAL, ALLOCATABLE                  :: ElementRadius(:)
   LOGICAL                            :: FirstQuadrantOnly  ! Only insert particles in the first quadrant that is spanned by the
                                                            ! vectors x=BaseVector1IC and y=BaseVector2IC in the interval x,y in [0,R]
-  REAL                               :: PulseDuration      ! Pulse duration tau for a Gaussian-tpye pulse with 
+  REAL                               :: PulseDuration      ! Pulse duration tau for a Gaussian-type pulse with 
                                                            ! I~exp(-(t/tau)^2) [s]
-  REAL                               :: WaistRadius        ! Beam waist radius (in focal spot) w_b for Gaussian-tpye pulse with
+  REAL                               :: WaistRadius        ! Beam waist radius (in focal spot) w_b for Gaussian-type pulse with
                                                            ! I~exp(-(r/w_b)^2) [m]
-  REAL                               :: IntensityAmplitude ! Beam intensity maximum I0 Gaussian-tpye pulse with 
+  REAL                               :: IntensityAmplitude ! Beam intensity maximum I0 Gaussian-type pulse with 
                                                            ! I=I0*exp(-(t/tau)^2)exp(-(r/w_b)^2) [W/m^2]
   REAL                               :: WaveLength         ! Beam wavelength [m]
   REAL                               :: YieldSEE           ! Secondary photoelectron yield [-]

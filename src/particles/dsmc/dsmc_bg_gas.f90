@@ -697,9 +697,10 @@ INTEGER                       :: iPart, iPair, iNewPart, iReac, ParticleIndex, N
 INTEGER                       :: iPart_p1, iPart_p2
 REAL                          :: RandVal,NumTmp,ProbRest
 INTEGER                       :: TotalNbrOfReactionsTmp,iCrossSection,NbrCrossSections
+INTEGER                       :: NumPhotoIonization(ChemReac%NumOfReact)
 REAL                          :: SumCrossSections
 !===================================================================================================================================
-ChemReac%NumPhotoIonization = 0
+NumPhotoIonization = 0
 
 IF(TotalNbrOfReactions.LE.0) RETURN
 TotalNbrOfReactionsTmp = TotalNbrOfReactions
@@ -721,33 +722,33 @@ DO iReac = 1, ChemReac%NumOfReact
   IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
   iCrossSection  = iCrossSection + 1
   IF(iCrossSection.EQ.NbrCrossSections)THEN
-    ChemReac%NumPhotoIonization(iReac) = TotalNbrOfReactionsTmp
+    NumPhotoIonization(iReac) = TotalNbrOfReactionsTmp
     EXIT
   END IF ! iCrossSection.EQ.NbrCrossSections
   NumTmp = TotalNbrOfReactionsTmp*ChemReac%CrossSection(iReac)/SumCrossSections
   SumCrossSections = SumCrossSections - ChemReac%CrossSection(iReac)
-  ChemReac%NumPhotoIonization(iReac) = INT(NumTmp)
-  ProbRest = NumTmp - REAL(ChemReac%NumPhotoIonization(iReac))
+  NumPhotoIonization(iReac) = INT(NumTmp)
+  ProbRest = NumTmp - REAL(NumPhotoIonization(iReac))
   CALL RANDOM_NUMBER(RandVal)
-  IF (ProbRest.GT.RandVal) ChemReac%NumPhotoIonization(iReac) = ChemReac%NumPhotoIonization(iReac) + 1
-  TotalNbrOfReactionsTmp = TotalNbrOfReactionsTmp - ChemReac%NumPhotoIonization(iReac)
+  IF (ProbRest.GT.RandVal) NumPhotoIonization(iReac) = NumPhotoIonization(iReac) + 1
+  TotalNbrOfReactionsTmp = TotalNbrOfReactionsTmp - NumPhotoIonization(iReac)
 END DO
 
 !> 2.) Delete left-over inserted particles
-IF(TotalNbrOfReactions.GT.SUM(ChemReac%NumPhotoIonization)) THEN
-  DO iPart = SUM(ChemReac%NumPhotoIonization)+1,TotalNbrOfReactions
+IF(TotalNbrOfReactions.GT.SUM(NumPhotoIonization)) THEN
+  DO iPart = SUM(NumPhotoIonization)+1,TotalNbrOfReactions
     PDM%ParticleInside(PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)) = .FALSE.
   END DO
-ELSE IF(TotalNbrOfReactions.LT.SUM(ChemReac%NumPhotoIonization)) THEN
+ELSE IF(TotalNbrOfReactions.LT.SUM(NumPhotoIonization)) THEN
   CALL Abort(&
     __STAMP__&
     ,'ERROR in PhotoIonization: Something is wrong, trying to perform more reactions than anticipated!')
 END IF
 
-IF(SUM(ChemReac%NumPhotoIonization).EQ.0) RETURN
+IF(SUM(NumPhotoIonization).EQ.0) RETURN
 
 !> 3.) Insert the products of the photoionization rections
-NbrOfParticle = SUM(ChemReac%NumPhotoIonization)
+NbrOfParticle = SUM(NumPhotoIonization)
 
 ALLOCATE(Coll_pData(NbrOfParticle))
 Coll_pData%Ec=0.
@@ -830,7 +831,7 @@ END IF
 DO iReac = 1, ChemReac%NumOfReact
   ! Only treat photoionization reactions
   IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
-  DO iPart = 1, ChemReac%NumPhotoIonization(iReac)
+  DO iPart = 1, NumPhotoIonization(iReac)
     iPair = iPair + 1
     CALL DSMC_Chemistry(iPair, iReac)
     ! Add the velocity change due the energy distribution in the chemistry routine

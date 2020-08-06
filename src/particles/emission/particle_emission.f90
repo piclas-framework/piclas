@@ -541,7 +541,7 @@ __STAMP__&
 __STAMP__&
 ,' particle pressure not moved in picasso!')
           CALL ParticlePressureRem (i, iInit, NbrOfParticle)
-        CASE(7,8) ! SEE based on photon impact and photo-ionization in the volume
+        CASE(7) ! SEE based on photon impact and photo-ionization in the volume
           ASSOCIATE( tShift => Species(i)%Init(iInit)%tShift )
             ! Check if all pulses have terminated
             IF(Time.LE.Species(i)%Init(iInit)%tActive)THEN
@@ -555,7 +555,7 @@ __STAMP__&
                 IF(Species(i)%Init(iInit)%FirstQuadrantOnly) NbrOfPhotons = NbrOfPhotons / 4.0
 
                 ! Select surface SEE or volumetric emission
-                IF(Species(i)%Init(iInit)%ParticleEmissionType.EQ.7)THEN
+                IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_SEE_disc')THEN
                   ! SEE based on photon impact
                   NbrOfPhotons = Species(i)%Init(iInit)%YieldSEE * NbrOfPhotons / Species(i)%MacroParticleFactor &
                                + Species(i)%Init(iInit)%NINT_Correction 
@@ -573,7 +573,7 @@ __STAMP__&
                   NbrOfReactions = NbrOfReactions + Species(i)%Init(iInit)%NINT_Correction
                   NbrOfParticle = NINT(NbrOfReactions)
                   Species(i)%Init(iInit)%NINT_Correction = NbrOfReactions - REAL(NbrOfParticle)
-                END IF ! Species(i)%Init(iInit)%ParticleEmissionType.EQ.7
+                END IF
               ELSE
                 NbrOfParticle = 0
               END IF ! MOD(MERGE(Time-T0/2., Time, Time.GE.T0/2.), Period).GT.T0
@@ -593,7 +593,7 @@ __STAMP__&
         CALL SetParticlePosition(i,iInit,NbrOfParticle)
 #endif
         ! Pairing of "electrons" with the background species and performing the reaction
-        IF(Species(i)%Init(iInit)%ParticleEmissionType.EQ.8) THEN
+        IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_cylinder') THEN
           CALL BGGas_PhotoIonization(i,iInit,NbrOfParticle)
           CYCLE
         END IF
