@@ -489,7 +489,7 @@ gnu_NIG_MacroBody:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_MacroBody/ ; fi
 
 gnu_NIG_Photoionization:
-  <<: *defaults_gnu
+  <<: *defaults_gnu_poisson
   stage: reggie_nightly
   tags:
     - withmodules-concurrent
