@@ -1450,10 +1450,13 @@ DO iPart=1,PDM%ParticleVecLength
     oldElemID = PEM%LastGlobalElemID(iPart) ! this is not!  a possible elem
 
     ! get background mesh cell of particle
-    ! FLOOR might give the wrong element if we are right on the edge
+    ! get background mesh cell of particle. MAX might give the wrong element if we are right on the edge, so restrict to valid value
     CellX = MAX(FLOOR((PartState(1,iPart)-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + 1
+    CellX = MIN(GEO%FIBGMimax,CellX)
     CellY = MAX(FLOOR((PartState(2,iPart)-GEO%yminglob)/GEO%FIBGMdeltas(2)),0) + 1
+    CellY = MIN(GEO%FIBGMjmax,CellY)
     CellZ = MAX(FLOOR((PartState(3,iPart)-GEO%zminglob)/GEO%FIBGMdeltas(3)),0) + 1
+    CellZ = MIN(GEO%FIBGMkmax,CellZ)
 
     ! check all cells associated with this background mesh cell
     nBGMElems = FIBGM_nElems(CellX,CellY,CellZ)
