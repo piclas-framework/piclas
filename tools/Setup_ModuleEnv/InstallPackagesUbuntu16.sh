@@ -21,7 +21,7 @@ sudo apt-get install  libboost-dev
 sudo apt-get install  libncurses-dev
 
 # ctags 
-sudo apt-get install  ctags
+sudo apt-get install  exuberant-ctags
 
 # paraview
 sudo apt-get install  qt4-qmake  qt4-dev-tools  libqt4-opengl-dev  libqt4-dev 
