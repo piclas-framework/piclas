@@ -27,10 +27,196 @@ INTERFACE DepoSFParticleLocally
   MODULE PROCEDURE DepoSFParticleLocally
 END INTERFACE
 
-PUBLIC:: calcSfSource,DepoSFParticleLocally
+INTERFACE calcSfSourceNew
+  MODULE PROCEDURE calcSfSourceNew
+END INTERFACE
+
+PUBLIC:: calcSfSource,DepoSFParticleLocally, calcSfSourceNew
 !===================================================================================================================================
 
 CONTAINS
+
+SUBROUTINE calcSfSourceNew(SourceSize_in,ChargeMPF,Vec1,Vec2,Vec3,PartPos,PartIdx,PartVelo)
+!============================================================================================================================
+! deposit charges on DOFs via shapefunction including periodic displacements and mirroring with SFdepoFixes
+!============================================================================================================================
+! use MODULES
+USE MOD_PICDepo_Vars,           ONLY:r_sf,DepositionType
+USE MOD_PICDepo_Vars,           ONLY:NbrOfSFdepoFixes,SFdepoFixesGeo,SFdepoFixesBounds,SFdepoFixesChargeMult
+USE MOD_PICDepo_Vars,           ONLY:SFdepoFixesPartOfLink,SFdepoFixesEps,NbrOfSFdepoFixLinks,SFdepoFixLinks
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars,     ONLY:casematrix,NbrOfCases
+!-----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)              :: SourceSize_in,PartIdx
+REAL, INTENT(IN)                 :: ChargeMPF,PartPos(3),Vec1(3),Vec2(3),Vec3(3)
+REAL, INTENT(IN), OPTIONAL       :: PartVelo(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!#if ((USE_HDG) && (PP_nVar==1))
+!yes, PartVelo and SourceSize_in are not used, but the subroutine-call and -head would be ugly with the preproc-flags...
+!INTEGER, PARAMETER               :: SourceSize=1
+!REAL                             :: Fac(4:4), Fac2(4:4)
+!#else
+INTEGER                          :: SourceSize
+REAL                             :: Fac(4-SourceSize_in+1:4), Fac2(4-SourceSize_in+1:4)
+!#endif
+INTEGER                          :: iCase, ind
+REAL                             :: ShiftedPart(1:3), caseShiftedPart(1:3), n_loc(1:3)
+INTEGER                          :: iSFfix, LinkLoopEnd(2), iSFfixLink, iTwin, iLinkRecursive, SFfixIdx, SFfixIdx2
+LOGICAL                          :: DoCycle, DoNotDeposit
+REAL                             :: SFfixDistance, SFfixDistance2
+LOGICAL , ALLOCATABLE            :: SFdepoFixDone(:)
+LOGICAL                          :: const
+!----------------------------------------------------------------------------------------------------------------------------------
+!#if !((USE_HDG) && (PP_nVar==1))
+SourceSize=SourceSize_in
+!#endif
+IF (SourceSize.EQ.1) THEN
+  Fac2= ChargeMPF
+!#if !((USE_HDG) && (PP_nVar==1))
+ELSE IF (SourceSize.EQ.4) THEN
+  Fac2(1:3) = PartVelo*ChargeMPF
+  Fac2(4)= ChargeMPF
+!#endif
+ELSE
+  CALL abort(&
+__STAMP__ &
+,'SourceSize has to be either 1 or 4!',SourceSize)
+END IF
+
+!  DO iCase = 1, NbrOfCases
+!    DO ind = 1,3
+!      ShiftedPart(ind) = PartPos(ind) + casematrix(iCase,1)*Vec1(ind) + &
+!        casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
+!    END DO
+    Fac = Fac2
+    CALL depoChargeOnDOFs_sfNew(PartPos,SourceSize,Fac,const)
+
+!  END DO ! iCase (periodicity)
+
+END SUBROUTINE calcSfSourceNew
+
+
+SUBROUTINE depoChargeOnDOFs_sfNew(Position,SourceSize,Fac,const)
+!============================================================================================================================
+! actual deposition of single charge on DOFs via shapefunction
+!============================================================================================================================
+! use MODULES
+USE MOD_Globals
+USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf
+USE MOD_Mesh_Vars,              ONLY:nElems, offSetElem
+USE MOD_Particle_Mesh_Vars,     ONLY:GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
+USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo
+USE MOD_Preproc
+USE MOD_Mesh_Tools,             ONLY: GetCNElemID
+#if USE_MPI
+USE MOD_PICDepo_Vars,           ONLY:PartSource_Shared_Win
+USE MOD_MPI_Shared_Vars,        ONLY: nComputeNodeTotalElems
+#endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
+#endif  /*USE_LOADBALANCE*/
+!-----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                 :: Position(3)
+INTEGER, INTENT(IN)              :: SourceSize
+!#if ((USE_HDG) && (PP_nVar==1))
+!REAL, INTENT(IN)                 :: Fac(4:4)
+!#else
+REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
+!#endif
+LOGICAL, INTENT(IN)              :: const
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: k, l, m
+LOGICAL                          :: chargedone(1:nComputeNodeTotalElems)
+INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
+INTEGER                          :: kk, ll, mm, ppp
+INTEGER                          :: globElemID, CNElemID
+REAL                             :: radius2, S, S1
+REAL                             :: dx,dy,dz, PartSourceLoc(4-SourceSize+1:4,0:PP_N,0:PP_N,0:PP_N)
+INTEGER                          :: PartSourceSize, PartSourceSizeTarget
+INTEGER                          :: expo
+!----------------------------------------------------------------------------------------------------------------------------------
+PartSourceSize =  SourceSize*(PP_N+1)**3
+PartSourceSizeTarget = 4*(PP_N+1)**3*nComputeNodeTotalElems
+chargedone(:) = .FALSE.
+!-- determine which background mesh cells (and interpolation points within) need to be considered
+kmax = CEILING((Position(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
+kmax = MIN(kmax,GEO%FIBGMimax)
+kmin = FLOOR((Position(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
+kmin = MAX(kmin,GEO%FIBGMimin)
+lmax = CEILING((Position(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
+lmax = MIN(lmax,GEO%FIBGMjmax)
+lmin = FLOOR((Position(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
+lmin = MAX(lmin,GEO%FIBGMjmin)
+mmax = CEILING((Position(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
+mmax = MIN(mmax,GEO%FIBGMkmax)
+mmin = FLOOR((Position(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+mmin = MAX(mmin,GEO%FIBGMkmin)
+DO kk = kmin,kmax
+  DO ll = lmin, lmax
+    DO mm = mmin, mmax
+      !--- go through all mapped elements not done yet
+      DO ppp = 1,FIBGM_nElems(kk,ll,mm)
+        globElemID = FIBGM_Element(FIBGM_offsetElem(kk,ll,mm)+ppp)      
+        CNElemID = GetCNElemID(globElemID)   
+        IF (chargedone(CNElemID)) CYCLE
+        IF (VECNORM(Position(1:3)-ElemBaryNgeo(1:3,CNElemID)).GT.(r_sf+ElemRadiusNGeo(CNElemID))) CYCLE
+#if USE_LOADBALANCE
+        nDeposPerElem(globElemID-offSetElem)=nDeposPerElem(globElemID-offSetElem)+1
+#endif /*USE_LOADBALANCE*/
+          !--- go through all gauss points
+        PartSourceLoc = 0.0
+        DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
+          !-- calculate distance between gauss and particle
+          radius2 = SUM((Position(1:3) - Elem_xGP_Shared(1:3,k,l,m,globElemID))**2.) 
+          !-- calculate charge and current density at ip point using a shape function
+          !-- currently only one shapefunction available, more to follow (including structure change)
+          IF (radius2 .LE. r2_sf) THEN
+            S = 1. - r2_sf_inv * radius2
+            S1 = S*S
+            DO expo = 3, alpha_sf
+              S1 = S*S1
+            END DO
+            IF (SourceSize.EQ.1) THEN
+              PartSourceLoc(4,k,l,m) = PartSourceLoc(4,k,l,m) + Fac(4) * S1
+!#if !((USE_HDG) && (PP_nVar==1))
+            ELSE IF (SourceSize.EQ.4) THEN
+              PartSourceLoc(1:4,k,l,m) = PartSourceLoc(1:4,k,l,m) + Fac(1:4) * S1
+!#endif
+            END IF        
+          END IF
+        END DO; END DO; END DO
+        chargedone(CNElemID) = .TRUE.
+#if USE_MPI
+        CALL MPI_Get_accumulate(PartSourceLoc(4-SourceSize+1:4,:,:,:),PartSourceSize,MPI_DOUBLE_PRECISION, &
+            PartSource(4-SourceSize+1,0,0,0,globElemID), PartSourceSizeTarget, MPI_DOUBLE_PRECISION, 0, &
+            INT(4*(PP_N+1)**3*(globElemID-1),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND, &
+            PartSourceSize, MPI_DOUBLE_PRECISION, MPI_SUM, PartSource_Shared_Win, IERROR)
+!  CALL MPI_Win_flush(0,PartSource_Shared_Win, IERROR)
+#else
+        PartSource(4-SourceSize+1:4,:,:,:,globElemID) = PartSource(4-SourceSize+1:4,:,:,:,globElemID) &
+            + PartSourceLoc(4-SourceSize+1:4,:,:,:)
+#endif
+      END DO ! ppp
+    END DO ! mm
+  END DO ! ll
+END DO ! kk
+
+END SUBROUTINE depoChargeOnDOFs_sfNew
+
 
 SUBROUTINE calcSfSource(SourceSize_in,ChargeMPF,Vec1,Vec2,Vec3,PartPos,PartIdx,PartVelo,const_opt)
 !============================================================================================================================

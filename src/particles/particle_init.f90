@@ -635,6 +635,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Tracking_Vars,     ONLY: TrackingMethod,TriaTracking,DoRefMapping
 USE MOD_Particle_Vars              ,ONLY: Symmetry2D
+USE MOD_PICDepo_Method             ,ONLY: InitDepositionMethod
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -665,6 +666,8 @@ IF (Symmetry2D) THEN
   TriaTracking=.TRUE.
   SWRITE(UNIT_stdOut,'(A)') "TrackingMethod set to TriaTracking due to Symmetry2D."
 END IF
+
+CALL InitDepositionMethod()
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS DONE'
 

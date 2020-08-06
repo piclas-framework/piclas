@@ -121,7 +121,7 @@ IF(.NOT.DoDeposition) THEN
 END IF
 
 ! Initialize Deposition
-CALL InitDepositionMethod()
+!CALL InitDepositionMethod()
 
 !--- Allocate arrays for charge density collection and initialize
 #if USE_MPI
@@ -402,7 +402,7 @@ CASE('cell_volweight_mean')
 !  END IF ! DoDielectricSurfaceCharge
 CASE('shape_function')
 #if USE_MPI
-  DoExternalParts=.TRUE.
+!  DoExternalParts=.TRUE.
 #endif /*USE_MPI*/
   !ALLOCATE(PartToFIBGM(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
   !IF (ALLOCSTAT.NE.0) CALL abort(&

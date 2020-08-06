@@ -131,7 +131,7 @@ END IF
 ! Select the deposition method function pointer
 SELECT CASE(DepositionType_loc)
 Case(PRM_DEPO_SF) ! shape_function
-  DepositionMethod => DepositionMethod_SF
+  DepositionMethod => DepositionMethod_SFNew
   DepositionType   = 'shape_function'
 Case(PRM_DEPO_SF1D) ! shape_function_1d
   DepositionType   = 'shape_function_1d'
@@ -569,6 +569,89 @@ END DO !iEle
 CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 #endif /*USE_LOADBALANCE*/
 END SUBROUTINE DepositionMethod_CVWM
+
+
+SUBROUTINE DepositionMethod_SFNew(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
+!===================================================================================================================================
+! 'shape_function'
+! Smooth polynomial deposition via "shape functions" of various order in 3D
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_globals                     ,ONLY: abort, IERROR
+USE MOD_Particle_Vars               ,ONLY: Species, PartSpecies,PDM,PartMPF,usevMPF
+USE MOD_Particle_Vars               ,ONLY: PartState
+USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
+USE MOD_PICDepo_Vars                ,ONLY: PartSource,SFdepoLayersGeo,SFdepoLayersBaseVector,LastAnalyzeSurfCollis,PartSourceConst
+USE MOD_PICDepo_Vars                ,ONLY: RelaxFac,sfdepofixesgeo,SFdepoLayersSpace,sfdepolayersbounds,SFdepoLayersUseFixBounds
+USE MOD_PICDepo_Vars                ,ONLY: sfdepolayersradius,sfdepolayerspartnum,PartSourceOld,w_sf,SFdepoLayersMPF,SFdepoLayersSpec
+USE MOD_PICDepo_Vars                ,ONLY: Vdm_EquiN_GaussN,SFResampleAnalyzeSurfCollis,SFdepoLayersAlreadyDone,RelaxDeposition,r_SF
+USE MOD_PICDepo_Vars                ,ONLY: PartSourceConstExists,NbrOfSFdepoLayers,NbrOfSFdepoFixes,DoSFEqui
+USE MOD_PICDepo_Vars                ,ONLY: ConstantSFdepoLayers
+USE MOD_PICDepo_Shapefunction_Tools ,ONLY: calcSfSourceNew
+#if USE_MPI
+USE MOD_PICDepo_Vars                ,ONLY: PartSource_Shared_Win
+USE MOD_Particle_MPI_Vars           ,ONLY: ExtPartState,ExtPartSpecies,ExtPartToFIBGM,ExtPartMPF,NbrOfextParticles
+USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_SHARED
+#endif /*USE_MPI*/
+USE MOD_TimeDisc_Vars               ,ONLY: dtWeight
+USE MOD_Part_Tools                  ,ONLY: isDepositParticle
+USE MOD_Mesh_Vars                   ,ONLY: nElems
+USE MOD_ChangeBasis                 ,ONLY: ChangeBasis3D
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)          :: FirstPart,LastPart ! Start and end of particle loop
+LOGICAL,INTENT(IN)          :: DoInnerParts ! TRUE: do cell-local particles, FALSE: do external particles from other (MPI) cells
+LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
+LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: Vec1(1:3), Vec2(1:3), Vec3(1:3), Charge
+REAL               :: RandVal, RandVal2(2), layerPartPos(3), PartRadius, FractPush(3), SFfixDistance
+INTEGER            :: iElem, iPart, iPart2, iSFfix
+INTEGER            :: iLayer, layerParts
+INTEGER            :: kk, ll, mm
+LOGICAL            :: DoCycle
+!===================================================================================================================================
+!-- "normal" particles
+! TODO: Info why and under which conditions the following 'RETURN' is called
+!IF((DoInnerParts).AND.(LastPart.LT.FirstPart)) RETURN
+!Vec1(1:3) = 0.
+!Vec2(1:3) = 0.
+!Vec3(1:3) = 0.
+!IF (GEO%nPeriodicVectors.EQ.1) THEN
+!  Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+!END IF
+!IF (GEO%nPeriodicVectors.EQ.2) THEN
+!  Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+!  Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
+!END IF
+!IF (GEO%nPeriodicVectors.EQ.3) THEN
+!  Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+!  Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
+!  Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
+!END IF
+DO iPart=1,PDM%ParticleVecLength
+  IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+  IF (.NOT.isDepositParticle(iPart)) CYCLE
+  IF (usevMPF) THEN
+    Charge = Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
+  ELSE
+    Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
+  END IF
+  CALL calcSfSourceNew(4,Charge*w_sf ,Vec1,Vec2,Vec3,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
+END DO
+#if USE_MPI
+  CALL MPI_Win_flush(0,PartSource_Shared_Win, IERROR)
+  print*, PartSource
+  CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
+  CALL MPI_BARRIER(MPI_COMM_SHARED)
+#endif
+END SUBROUTINE DepositionMethod_SFNew
 
 
 SUBROUTINE DepositionMethod_SF(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)

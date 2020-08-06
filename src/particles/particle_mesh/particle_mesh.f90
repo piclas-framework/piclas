@@ -1574,15 +1574,16 @@ SUBROUTINE BuildElementRadiusTria()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,NodeCoords_Shared
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemBaryNGeo,ElemRadius2NGeo
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo,ElemRadius2NGeo, ElemRadiusNGeo
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemBaryNGeo_Shared,ElemRadius2NGeo_Shared
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo_Shared_Win,ElemRadius2NGeo_Shared_Win
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemBaryNGeo_Shared,ElemRadius2NGeo_Shared,ElemRadiusNGeo_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo_Shared_Win,ElemRadius2NGeo_Shared_Win, ElemRadiusNGeo_Shared_Win
 #else
 USE MOD_Mesh_Vars              ,ONLY: nELems
 #endif /*USE_MPI*/
@@ -1611,19 +1612,27 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
   CALL MPI_WIN_LOCK_ALL(0,ElemRadius2NGeo_Shared_Win,IERROR)
   ElemRadius2NGeo    => ElemRadius2NGeo_Shared
   ElemBaryNGeo       => ElemBaryNGeo_Shared
+  IF (TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function') THEN
+    CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalElems/),ElemRadiusNGeo_Shared_Win,ElemRadiusNGEO_Shared)
+    CALL MPI_WIN_LOCK_ALL(0,ElemRadiusNGeo_Shared_Win,IERROR)
+    ElemRadiusNGeo    => ElemRadiusNGeo_Shared
+  END IF
 
 #else
 ALLOCATE(ElemBaryNGeo(1:3,nElems) &
         ,ElemRadius2NGeo( nElems))
+IF (TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function') ALLOCATE(ElemRadiusNGeo( nElems))
 #endif /*USE_MPI*/
 
 #if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
 #endif /* USE_MPI*/
   ElemRadius2NGeo = 0.
+  IF (TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function') ElemRadiusNGeo = 0.
 #if USE_MPI
 END IF
-
+IF (TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function') &
+    CALL MPI_WIN_SYNC(ElemRadiusNGeo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(ElemRadius2NGeo_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #endif /* USE_MPI*/
@@ -1650,9 +1659,12 @@ DO iElem=firstElem,lastElem
     Radius = MAX(Radius,VECNORM(xPos))
   END DO
   ElemRadius2NGeo(iElem) = Radius*Radius
+  IF (TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function') ElemRadiusNGeo(iElem) = Radius
 END DO ! iElem
 
 #if USE_MPI
+IF (TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function') &
+    CALL MPI_WIN_SYNC(ElemRadiusNGeo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(ElemRadius2NGeo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(ElemBaryNGeo_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
