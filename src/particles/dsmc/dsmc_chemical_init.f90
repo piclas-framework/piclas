@@ -43,9 +43,10 @@ SUBROUTINE DSMC_chemical_init()
   USE MOD_ReadInTools
   USE MOD_Globals
   USE MOD_Globals_Vars,           ONLY: BoltzmannConst
-  USE MOD_PARTICLE_Vars,          ONLY: nSpecies
+  USE MOD_PARTICLE_Vars,          ONLY: nSpecies, Species
   USE MOD_Particle_Analyze_Vars,  ONLY: ChemEnergySum
   USE MOD_DSMC_ChemReact,         ONLY: CalcPartitionFunction, CalcQKAnalyticRate
+  USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -60,7 +61,8 @@ SUBROUTINE DSMC_chemical_init()
   LOGICAL, ALLOCATABLE  :: YetDefined_Help(:)
   LOGICAL               :: DoScat
   INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, MaxElecQua, ReadInNumOfReact
-  REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec, BGGasEVib
+  REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec, BGGasEVib, PhotonEnergy
+  INTEGER               :: iInit
 !===================================================================================================================================
 
 ! reading reaction values
@@ -150,6 +152,8 @@ __STAMP__&
     ALLOCATE(ChemReac%DoScat(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%ReactInfo(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%TLU_FileName(ChemReac%NumOfReact))
+    ALLOCATE(ChemReac%CrossSection(ChemReac%NumOfReact))
+    ChemReac%CrossSection = 0.
 
     IF (BGGas%NumberOfSpecies.GT.0) THEN
       DO iSpec = 1, nSpecies
@@ -203,7 +207,16 @@ __STAMP__&
       END IF
       ! ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','0')
       ! ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','0')
-
+      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+        ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
+        ! Check if species 3 is an electron and abort (this is not implemented yet)
+        IF(ChemReac%DefinedReact(iReac,2,3).GT.0)THEN
+          IF(SpecDSMC(ChemReac%DefinedReact(iReac,2,3))%InterID.EQ.4) CALL abort(&
+            __STAMP__&
+            ,'Chemical reaction with electron as 3rd product species. This is not implemented yet for photoionization! iReac=',&
+            IntInfoOpt=iReac)
+        END IF ! ChemReac%DefinedReact(iReac,2,3).GT.0
+      END IF
       ! Filling up ChemReac-Array for the given non-reactive dissociation/electron-impact ionization partners
       IF((TRIM(ChemReac%ReactType(iReac)).EQ.'D').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'iQK')) THEN
         IF((ChemReac%DefinedReact(iReac,1,2).EQ.0).AND.(ChemReac%DefinedReact(iReac,2,2).EQ.0)) THEN
@@ -272,6 +285,23 @@ __STAMP__&
           ChemReac%EForm(iReac) = - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%ElectronicState(2,MaxElecQua)*BoltzmannConst
         END IF
       END DO
+      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+        PhotonEnergy = 0.
+        DO iSpec = 1, nSpecies
+          DO iInit = 1, Species(iSpec)%NumberOfInits
+            IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder') THEN
+              PhotonEnergy = CalcPhotonEnergy(Species(iSpec)%Init(iInit)%WaveLength)
+              EXIT
+            END IF
+          END DO
+        END DO
+        ChemReac%EForm(iReac) = ChemReac%EForm(iReac) + PhotonEnergy
+        IF(ChemReac%EForm(iReac).LE.0.0) THEN
+          CALL abort(&
+          __STAMP__&
+          ,'ERROR: Photon energy is not sufficient for the given ionization reaction: ',iReac)
+        END IF
+      END IF
     END DO
 
     ! Initialize partition functions required for automatic backward rates
@@ -374,7 +404,7 @@ __STAMP__&
           CALL abort(__STAMP__,&
           'Recombination - Error in Definition: Not all reactant species are defined! ReacNbr: ',iReac)
         END IF
-      ELSE
+      ELSE IF (TRIM(ChemReac%ReactType(iReac)).NE.'phIon') THEN
         IF ((ChemReac%DefinedReact(iReac,1,1)*ChemReac%DefinedReact(iReac,1,2)).EQ.0) THEN
           CALL abort(__STAMP__,&
           'Chemistry - Error in Definition: Reactant species not properly defined. ReacNbr:',iReac)
@@ -407,6 +437,14 @@ __STAMP__&
     PairCombID = 0
     CALL DSMC_BuildChem_IDArray(PairCombID)
 
+    ! Case: photo-ionization (NOT to be included in regular chemistry)
+    DO iReac = 1, ChemReac%NumOfReact
+      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+        IF(.NOT.YetDefined_Help(iReac)) THEN
+          YetDefined_Help(iReac) = .TRUE.
+        END IF
+      END IF
+    END DO
 
     ! Case 6: One ionization and one ion recombination possible
     DO iReac = 1, ChemReac%NumOfReact
@@ -868,6 +906,7 @@ SUBROUTINE Calc_Arrhenius_Factors()
 !===================================================================================================================================
 
   DO iReac = 1, ChemReac%NumOfReact
+    IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') CYCLE
     ! Calculate the Arrhenius arrays only if the reaction is not a QK reaction
     IF (.NOT.ChemReac%QKProcedure(iReac)) THEN
       ! Compute VHS Factor H_ab necessary for reaction probs, only defined for one omega for all species (laux diss page 24)

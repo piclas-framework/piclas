@@ -42,8 +42,12 @@ INTERFACE CalcPowerDensity
   MODULE PROCEDURE CalcPowerDensity
 END INTERFACE
 
-INTERFACE PartIsElectron
-  MODULE PROCEDURE PartIsElectron
+INTERFACE PARTISELECTRON
+  MODULE PROCEDURE PARTISELECTRON
+END INTERFACE
+
+INTERFACE SPECIESISELECTRON
+  MODULE PROCEDURE SPECIESISELECTRON
 END INTERFACE
 
 INTERFACE CalculatePartElemData
@@ -68,7 +72,7 @@ END INTERFACE
 #endif /*CODE_ANALYZE*/
 
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
-PUBLIC:: AnalyzeParticles, PartIsElectron
+PUBLIC:: AnalyzeParticles, PARTISELECTRON, SPECIESISELECTRON
 PUBLIC:: CalcPowerDensity
 PUBLIC:: CalculatePartElemData
 PUBLIC:: WriteParticleTrackingData
@@ -3244,18 +3248,40 @@ IMPLICIT NONE
 INTEGER,INTENT(IN) :: PartID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-LOGICAL            :: PartIsElectron  !
+LOGICAL            :: PARTISELECTRON  !
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: SpeciesID
 !===================================================================================================================================
-
-PartIsElectron=.FALSE.
+PARTISELECTRON=.FALSE.
 SpeciesID = PartSpecies(PartID)
 IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
-IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) PartIsElectron=.TRUE.
-
+IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) PARTISELECTRON=.TRUE.
 END FUNCTION PARTISELECTRON
+
+
+PURE FUNCTION SPECIESISELECTRON(SpeciesID)
+!===================================================================================================================================
+! check if species is an electron (species-charge = -1.609)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
+USE MOD_Particle_Vars          ,ONLY: Species
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: SpeciesID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL            :: SPECIESISELECTRON  !
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+SPECIESISELECTRON=.FALSE.
+IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
+IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) SPECIESISELECTRON=.TRUE.
+END FUNCTION SPECIESISELECTRON
 
 
 SUBROUTINE CalculateElectronIonDensityCell()

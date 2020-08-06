@@ -59,7 +59,7 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 USE MOD_PreProc
 USE MOD_Globals                  ,ONLY: abort
 USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars            ,ONLY: PDM, UseCircularInflow
+USE MOD_Particle_Vars            ,ONLY: PDM, UseCircularInflow,PartSpecies
 USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars       ,ONLY: PartBCSideList
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,nPorousBC,DoBoundaryParticleOutput
@@ -136,7 +136,7 @@ END IF
 ASSOCIATE( iBC => PartBound%MapToPartBC(BC(SideID)) )
   ! Surface particle output to .h5
   IF(DoBoundaryParticleOutput.AND.PartBound%BoundaryParticleOutput(iBC))THEN
-    CALL StoreBoundaryParticleProperties(iPart,LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,PartTrajectory(1:3),n_loc)
+    CALL StoreBoundaryParticleProperties(iPart,PartSpecies(iPart),LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,PartTrajectory(1:3),n_loc,mode=1)
   END IF
 
   ! Select the corresponding boundary condition and calculate particle treatment

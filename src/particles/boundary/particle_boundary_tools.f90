@@ -405,38 +405,52 @@ SampWall(SurfSideID)%ImpactNumber(SpecID,p,q) = SampWall(SurfSideID)%ImpactNumbe
 END SUBROUTINE CountSurfaceImpact
 
 
-SUBROUTINE StoreBoundaryParticleProperties(iPart,PartPos,PartTrajectory,SurfaceNormal)
+SUBROUTINE StoreBoundaryParticleProperties(iPart,SpecID,PartPos,PartTrajectory,SurfaceNormal,mode,usevMPF_optIN)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Save particle position, velocity and species to PartDataBoundary container for writing to .h5 later
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals                ,ONLY: abort
-USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,PartSpecies,Species,PartState
+USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,Species,PartState
 USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength
 USE MOD_TimeDisc_Vars          ,ONLY: time
 USE MOD_Globals_Vars           ,ONLY: PI
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
-INTEGER,INTENT(IN)   :: iPart
-REAL,INTENT(IN)      :: PartPos(1:3)
-REAL,INTENT(IN)      :: PartTrajectory(1:3)
-REAL,INTENT(IN)      :: SurfaceNormal(1:3)
-INTEGER              :: dims(2)
+INTEGER,INTENT(IN) :: iPart
+INTEGER,INTENT(IN) :: SpecID ! The species ID is required as it might not yet be set during emission
+REAL,INTENT(IN)    :: PartPos(1:3)
+REAL,INTENT(IN)    :: PartTrajectory(1:3)
+REAL,INTENT(IN)    :: SurfaceNormal(1:3)
+INTEGER,INTENT(IN) :: mode ! 1: particle impacts on BC (species is stored as positive value)
+                             ! 2: particles is emitted from the BC into the simulation domain (species is stored as negative value)
+LOGICAL,INTENT(IN),OPTIONAL :: usevMPF_optIN ! For setting MPF for cases when PartMPF(iPart) might not yet be set during emission
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                 :: MPF
+INTEGER              :: dims(2)
 ! Temporary arrays
 REAL, ALLOCATABLE    :: PartStateBoundary_tmp(:,:) ! (1:10,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle
 !                                                  !                 2nd index: 1 to number of boundary-crossed particles
 INTEGER              :: ALLOCSTAT
 !===================================================================================================================================
-IF (usevMPF) THEN
-  MPF = PartMPF(iPart)
+IF(PRESENT(usevMPF_optIN))THEN
+  IF(usevMPF_optIN)THEN
+    CALL abort(&
+    __STAMP__&
+    ,'StoreBoundaryParticleProperties: usevMPF_optIN cannot be true!')
+  ELSE
+    MPF = Species(SpecID)%MacroParticleFactor
+  END IF ! usevMPF_optIN
 ELSE
-  MPF = Species(PartSpecies(iPart))%MacroParticleFactor
-END IF
+  IF (usevMPF) THEN
+    MPF = PartMPF(iPart)
+  ELSE
+    MPF = Species(SpecID)%MacroParticleFactor
+  END IF
+END IF ! PRESENT(MPF_optIN)
 
 dims = SHAPE(PartStateBoundary)
 
@@ -469,7 +483,15 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
 
   PartStateBoundary(1:3,iMax) = PartPos
   PartStateBoundary(4:6,iMax) = PartState(4:6,iPart)
-  PartStateBoundary(7  ,iMax) = REAL(PartSpecies(iPart))
+  IF(mode.EQ.1)THEN
+    PartStateBoundary(7  ,iMax) = REAL(SpecID)
+  ELSEIF(mode.EQ.2)THEN
+    PartStateBoundary(7  ,iMax) = -REAL(SpecID)
+  ELSE
+    CALL abort(&
+    __STAMP__&
+    ,'StoreBoundaryParticleProperties: mode must be either 1 or 2! mode=',IntInfoOpt=mode)
+  END IF ! mode.EQ.1
   PartStateBoundary(8  ,iMax) = MPF
   PartStateBoundary(9  ,iMax) = time
   PartStateBoundary(10 ,iMax) = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal))))
