@@ -674,7 +674,7 @@ REAL,INTENT(IN)                 :: Time
 LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, iSpec, OutputCounter, iPBC, iSF, MaxSurfaceFluxBCs
-INTEGER(KIND=8)     :: SimNumSpec(nSpecAnalyze)
+INTEGER(KIND=IK)    :: SimNumSpec(nSpecAnalyze)
 REAL                :: NumSpec(nSpecAnalyze), NumDens(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
 REAL                :: EkinMax(nSpecies)
@@ -2322,7 +2322,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)                :: NumSpec(nSpecAnalyze)
-INTEGER(KIND=8),INTENT(IN)     :: SimNumSpec(nSpecAnalyze)
+INTEGER(KIND=IK),INTENT(IN)    :: SimNumSpec(nSpecAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)               :: PartVtrans(nSpecies,4), PartVtherm(nSpecies,4)

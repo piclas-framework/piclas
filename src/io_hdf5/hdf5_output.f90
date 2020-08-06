@@ -135,7 +135,7 @@ CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER(KIND=IK)               :: nVar
 REAL                           :: NumSpec(nSpecAnalyze)
-INTEGER(KIND=8)                :: SimNumSpec(nSpecAnalyze)
+INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
 
@@ -1113,7 +1113,7 @@ offsetnPart=recvbuf(1)
 sendbuf(1)=recvbuf(1)+locnPart
 CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER_INT_KIND,nProcessors-1,MPI_COMM_WORLD,iError) !last proc knows global number
 !global numbers
-nGlobalNbrOfParticles=INT(sendbuf(1),IK)
+nGlobalNbrOfParticles=sendbuf(1)
 GlobalNbrOfParticlesUpdated = .TRUE.
 CALL MPI_GATHER(locnPart,1,MPI_INTEGER_INT_KIND,nParticles,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_WORLD,iError)
 !IF (myRank.EQ.0) THEN
@@ -1128,7 +1128,7 @@ LOGWRITE(*,*)'offsetnPart,locnPart,nGlobalNbrOfParticles',offsetnPart,locnPart,n
 CALL MPI_REDUCE(locnPart, locnPart_max, 1, MPI_INTEGER_INT_KIND, MPI_MAX, 0, MPI_COMM_WORLD, IERROR)
 #else
 offsetnPart=0_IK
-nGlobalNbrOfParticles=INT(locnPart,IK)
+nGlobalNbrOfParticles=locnPart
 locnPart_max=locnPart
 #endif
 ALLOCATE(PartInt(offsetElem+1:offsetElem+PP_nElems,PartIntSize))
@@ -1262,8 +1262,8 @@ ASSOCIATE (&
       PP_nElems             => INT(PP_nElems,IK)             ,&
       offsetElem            => INT(offsetElem,IK)            ,&
       MaxQuantNum           => INT(MaxQuantNum,IK)           ,&
-      PartDataSize          => INT(PartDataSize,IK)          ,&
-      nGlobalNbrOfParticles => INT(nGlobalNbrOfParticles,IK) )
+      PartDataSize          => INT(PartDataSize,IK)          )
+      
   CALL GatheredWriteArray(FileName                         , create = .FALSE.            , &
                           DataSetName     = 'PartInt'      , rank   = 2                  , &
                           nValGlobal      = (/nGlobalElems , nVar/)                      , &
