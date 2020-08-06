@@ -1,4 +1,4 @@
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
+ph# ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Settings
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Export the paths on new reggie2@reggie2 (no module env any more)
@@ -495,7 +495,7 @@ gnu_NIG_Photoionization:
   tags:
     - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd ../build_gnu_poisson_debug ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu_poisson_debug ; fi
     - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas ; fi
     - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/surface_emission -e ./bin/piclas ; fi
 
