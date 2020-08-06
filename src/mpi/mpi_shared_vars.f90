@@ -81,6 +81,9 @@ INTEGER,ALLOCATABLE,DIMENSION(:,:):: nSurfSidesLeader       !> number of surf si
 INTEGER, ALLOCATABLE :: CNTotalElem2GlobalElem(:)           !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
 INTEGER, ALLOCATABLE :: GlobalElem2CNTotalElem(:)           !> Reverse Mapping
 
+INTEGER            :: MPI_INFO_SHARED_LOOSE                 !> MPI_INFO object allowing for re-ordering of same origin atomic RMA operations
+!INTEGER            :: MPI_INFO_SHARED_STRICT                !> MPI_INFO object not allowing for re-ordering of same origin atomic RMA operations
+
 !> Other variables in particle_mesh_vars.f90
 #endif /* USE_MPI */
 END MODULE
