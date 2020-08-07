@@ -43,6 +43,7 @@ INTERFACE Allocate_Shared
   MODULE PROCEDURE Allocate_Shared_Int_1
   MODULE PROCEDURE Allocate_Shared_Int_2
   MODULE PROCEDURE Allocate_Shared_Int_3
+  MODULE PROCEDURE Allocate_Shared_Int_4
   MODULE PROCEDURE Allocate_Shared_Real_1
   MODULE PROCEDURE Allocate_Shared_Real_2
   MODULE PROCEDURE Allocate_Shared_Real_3
@@ -158,6 +159,13 @@ IF(myComputeNodeRank.EQ.0)THEN
 END IF
 CALL MPI_BCAST(MPIRankLeader,nLeaderGroupProcs,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
 
+! Create MPI_Info for shared memory windows
+CALL MPI_INFO_CREATE(MPI_INFO_SHARED_LOOSE,IERROR)
+CALL MPI_INFO_SET(   MPI_INFO_SHARED_LOOSE,'accumulate_ordering','none',IERROR)
+! Only root allocates, size differs between ranks
+!CALL MPI_INFO_SET(   MPI_INFO_SHARED_LOOSE,'same_size'          ,'true',IERROR)
+CALL MPI_INFO_SET(   MPI_INFO_SHARED_LOOSE,'same_disp_unit'     ,'true',IERROR)
+
 ! synchronize everything or bad things will happen
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
@@ -166,6 +174,7 @@ SWRITE(UNIT_stdOut,'(A)')      ' INIT MPI SHARED COMMUNICATION DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitMPIShared
+
 
 !==================================================================================================================================
 !> Allocate data with MPI-3 shared memory option
@@ -202,7 +211,7 @@ END IF
 DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
-CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
+CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -249,7 +258,7 @@ END IF
 DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
-CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
+CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -296,7 +305,7 @@ END IF
 DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
-CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
+CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -344,7 +353,7 @@ END IF
 DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
-CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
+CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -392,7 +401,7 @@ END IF
 DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
-CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
+CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -403,6 +412,54 @@ END IF
 CALL C_F_POINTER(SM_PTR, DataPointer,nVal)
 
 END SUBROUTINE ALLOCATE_SHARED_INT_3
+
+
+!==================================================================================================================================
+!> Allocate data with MPI-3 shared memory option
+!==================================================================================================================================
+SUBROUTINE Allocate_Shared_Int_4(Datasize_Byte,nVal,SM_WIN,DataPointer)
+! MODULES
+USE,INTRINSIC :: ISO_C_BINDING
+USE MOD_Globals
+USE MOD_MPI_Vars
+USE MOD_MPI_Shared_Vars
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER(KIND=MPI_ADDRESS_KIND),INTENT(IN) :: Datasize_Byte            !> Length of the data size in bytes
+INTEGER,INTENT(IN)                        :: nVal(4)                  !> Local number of variables in each rank
+INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+INTEGER,INTENT(OUT),POINTER               :: DataPointer(:,:,:,:)     !> Pointer to the RMA window
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+TYPE(C_PTR)                               :: SM_PTR                   !> Base pointer, translated to DataPointer later
+INTEGER                                   :: DISP_UNIT                !> Displacement unit
+INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
+!==================================================================================================================================
+IF (ASSOCIATED(DataPointer)) CALL abort(&
+__STAMP__&
+,'ERROR: Datapointer (Int3) already associated')
+
+! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
+IF (myComputeNodeRank.EQ.0) THEN
+  WIN_SIZE  = datasize_byte
+ELSE
+  WIN_SIZE  = 0
+END IF
+DISP_UNIT = 1
+
+! Allocate MPI-3 remote memory access (RMA) type memory window
+CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
+
+! Node MPI root already knows the location in virtual memory, all other find it here
+IF (myComputeNodeRank.NE.0) THEN
+  CALL MPI_WIN_SHARED_QUERY(SM_WIN, 0, WIN_SIZE, DISP_UNIT, SM_PTR,IERROR)
+END IF
+
+! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
+CALL C_F_POINTER(SM_PTR, DataPointer,nVal)
+
+END SUBROUTINE ALLOCATE_SHARED_INT_4
 
 
 !==================================================================================================================================
@@ -440,7 +497,7 @@ END IF
 DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
-CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
+CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -488,7 +545,7 @@ END IF
 DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
-CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
+CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -536,7 +593,7 @@ END IF
 DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
-CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
+CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -584,7 +641,7 @@ END IF
 DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
-CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
+CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -632,7 +689,7 @@ END IF
 DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
-CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
+CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -680,7 +737,7 @@ END IF
 DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
-CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
+CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -712,9 +769,12 @@ IMPLICIT NONE
 SDEALLOCATE(MPIRankGlobal)
 SDEALLOCATE(MPIRankShared)
 
+! Free MPI_INFO objects
+CALL MPI_INFO_FREE(MPI_INFO_SHARED_LOOSE,IERROR)
+
 ! Free the shared communicator
-CALL MPI_COMM_FREE(MPI_COMM_SHARED, IERROR)
-CALL MPI_COMM_FREE(MPI_COMM_LEADERS_SHARED, IERROR)
+IF(MPI_COMM_SHARED        .NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_SHARED        ,IERROR)
+IF(MPI_COMM_LEADERS_SHARED.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_LEADERS_SHARED,IERROR)
 MPISharedInitIsDone=.FALSE.
 
 END SUBROUTINE FinalizeMPIShared

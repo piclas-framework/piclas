@@ -505,6 +505,7 @@ DO !iter_t=0,MaxIter
     CALL abort(&
     __STAMP__&
     ,'Error in tEndDiff or tAnalyzeDiff!')
+
   END IF
 
   IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tPreviousAverageAnalyze) ! tPreviousAnalyze not used if finalize_flag=false
@@ -691,6 +692,10 @@ DO !iter_t=0,MaxIter
     WallTimeStart=PICLASTIME()
   END IF !dt_analyze
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
+#ifdef PARTICLES
+  ! Switch flag to false after the number of particles has been written to std out and before the time next step is started
+  GlobalNbrOfParticlesUpdated = .FALSE.    
+#endif /*PARTICLES*/
 END DO ! iter_t
 END SUBROUTINE TimeDisc
 
@@ -829,7 +834,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   END IF
 #endif /*USE_MPI*/
   ! because of emission and UpdateParticlePosition
-  CALL Deposition(DoInnerParts=.TRUE.)
+!  CALL Deposition(DoInnerParts=.TRUE.)
 #if USE_MPI
   IF(DoExternalParts)THEN
     ! finish communication
@@ -840,7 +845,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! ALWAYS require
   PartMPIExchange%nMPIParticles=0
 #endif /*USE_MPI*/
-  CALL Deposition(DoInnerParts=.FALSE.)
+  CALL Deposition(DoInnerParts=.TRUE.)
   IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 END IF
 
@@ -986,7 +991,7 @@ DO iStage=2,nRKStages
 #endif /*USE_LOADBALANCE*/
 
     !    ! deposition
-    CALL Deposition(DoInnerParts=.TRUE.)
+!    CALL Deposition(DoInnerParts=.TRUE.)
 #if USE_MPI
     CALL MPIParticleRecv()
 #endif /*USE_MPI*/
@@ -999,7 +1004,7 @@ DO iStage=2,nRKStages
     CALL LBPauseTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-    CALL Deposition(DoInnerParts=.FALSE.)
+    CALL Deposition(DoInnerParts=.TRUE.)
     IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 #if USE_MPI
     ! null here, careful
@@ -3939,7 +3944,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! ALWAYS require
   PartMPIExchange%nMPIParticles=0
 #endif /*USE_MPI*/
-  CALL Deposition(DoInnerParts=.FALSE.) ! needed for closing communication
+!  CALL Deposition(DoInnerParts=.FALSE.) ! needed for closing communication
   IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
     IF(DoVerifyCharge) CALL VerifyDepositedCharge()
   END IF
@@ -4071,7 +4076,7 @@ IF (time.GE.DelayTime) THEN
     PartMPIExchange%nMPIParticles=0
 #endif /*USE_MPI*/
     CALL Deposition(DoInnerParts=.TRUE.) ! because of emission and UpdateParticlePosition
-    CALL Deposition(DoInnerParts=.FALSE.) ! needed for closing communication
+!    CALL Deposition(DoInnerParts=.FALSE.) ! needed for closing communication
     IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
       IF(DoVerifyCharge) CALL VerifyDepositedCharge()
     END IF

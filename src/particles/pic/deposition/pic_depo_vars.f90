@@ -29,7 +29,9 @@ REAL                            :: RelaxFac
 
 REAL,ALLOCPOINT                 :: PartSource(:,:,:,:,:)      ! PartSource(1:4,PP_N,PP_N,PP_N,nElems) current and charge density
 #if USE_MPI
+REAL, ALLOCATABLE               :: PartSourceProc(:,:,:,:,:)
 REAL, ALLOCATABLE               :: PartSourceLoc(:,:,:,:,:)
+REAL, ALLOCATABLE               :: PartSourceLocHalo(:,:,:,:,:)
 INTEGER                         :: PartSource_Shared_Win
 REAL,ALLOCPOINT                 :: PartSource_Shared(:)
 #endif
@@ -58,6 +60,7 @@ REAL                            :: r_sf_scale                ! scaling of shape 
 REAL                            :: BetaFac                   ! betafactor of shape-function || integral =1
 INTEGER                         :: sf1d_dir                  ! direction of 1D shape function
 LOGICAL                         :: sfDepo3D                  ! when using 1D or 2D deposition, the charge can be deposited over the
+LOGICAL                         :: DoSFChargeCons
 !                                                            ! volume (3D) or line (1D) / area (2D)
 INTEGER                         :: NDepo                     ! polynomial degree of delta distri
 REAL,ALLOCATABLE                :: tempcharge(:)             ! temp-charge for epo. kernal
@@ -163,5 +166,30 @@ TYPE tLastAnalyzeSurfCollis
   INTEGER, ALLOCATABLE          :: SpeciesForDtCalc(:)           ! Species used for SFResample-dt (def.: 0 = all)
 END TYPE
 TYPE(tLastAnalyzeSurfCollis)    :: LastAnalyzeSurfCollis
+
+#if USE_MPI
+TYPE tShapeMapping
+  INTEGER,ALLOCATABLE           :: RecvShapeElemID(:)
+  INTEGER                       :: nRecvShapeElems
+  REAL,ALLOCATABLE              :: RecvBuffer(:,:,:,:,:)
+END TYPE
+TYPE(tShapeMapping),ALLOCATABLE :: ShapeMapping(:)
+
+TYPE tCNShapeMapping
+  INTEGER,ALLOCATABLE           :: RecvShapeElemID(:)
+  INTEGER,ALLOCATABLE           :: SendShapeElemID(:)
+  INTEGER                       :: nRecvShapeElems
+  INTEGER                       :: nSendShapeElems
+  REAL,ALLOCATABLE              :: RecvBuffer(:,:,:,:,:)
+  REAL,ALLOCATABLE              :: SendBuffer(:,:,:,:,:)
+END TYPE
+TYPE(tCNShapeMapping),ALLOCATABLE ::CNShapeMapping(:)
+
+
+INTEGER                         :: nSendShapeElems            ! number of halo elements on proc to communicate with shape function
+INTEGER,ALLOCATABLE             :: SendShapeElemID(:)         ! mapping from CNElemID to ShapeElemID
+INTEGER,ALLOCATABLE             :: SendElemShapeID(:)         ! mapping from ShapeElemID to CNElemID
+#endif
+
 !===================================================================================================================================
 END MODULE MOD_PICDepo_Vars

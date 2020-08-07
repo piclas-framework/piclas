@@ -510,7 +510,7 @@ USE MOD_Globals            ,ONLY: Abort
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: Elem_xGP, offSetElem
 #ifdef PARTICLES
-USE MOD_Particle_Mesh_Tools,ONLY: GetCNElemID
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
 USE MOD_Particle_Vars      ,ONLY: RegionElectronRef

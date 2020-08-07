@@ -136,7 +136,7 @@ IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
       PDM%nextFreePosition(counter1) = i
       counter1 = counter1 + 1
     ELSE
-      ElemID = PEM%GlobalElemID(i) - offsetElem
+      ElemID = PEM%LocalElemID(i)
       IF (PEM%pNumber(ElemID).EQ.0) THEN
         PEM%pStart(ElemID) = i                     ! Start of Linked List for Particles in Elem
       ELSE

@@ -65,7 +65,7 @@ USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED, myLeaderGroupRank, nLeade
 USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
 USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared, NodeInfo_Shared, ElemInfo_Shared, NodeToElemInfo, NodeToElemMapping
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 #endif
 USE MOD_ReadInTools            ,ONLY: PrintOption
 #if USE_MPI
@@ -121,7 +121,7 @@ IF(.NOT.DoDeposition) THEN
 END IF
 
 ! Initialize Deposition
-CALL InitDepositionMethod()
+!CALL InitDepositionMethod()
 
 !--- Allocate arrays for charge density collection and initialize
 #if USE_MPI
@@ -129,6 +129,9 @@ MPISharedSize = INT(4*(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems,MPI_ADDR
 CALL Allocate_Shared(MPISharedSize,(/4*(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems/),PartSource_Shared_Win,PartSource_Shared)
 CALL MPI_WIN_LOCK_ALL(0,PartSource_Shared_Win,IERROR)
 PartSource(1:4,0:PP_N,0:PP_N,0:PP_N,1:nComputeNodeTotalElems) => PartSource_Shared(1:4*(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems)
+ALLOCATE(PartSourceProc(1:4,0:PP_N,0:PP_N,0:PP_N,1:nSendShapeElems))
+ALLOCATE(PartSourceLoc(1:4,0:PP_N,0:PP_N,0:PP_N,1:nElems))
+ALLOCATE(PartSourceLocHalo(1:4,0:PP_N,0:PP_N,0:PP_N,1:nSendShapeElems))
 #else
 ALLOCATE(PartSource(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
 #endif
@@ -200,6 +203,7 @@ IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_
   alpha_sf              = GETINT('PIC-shapefunction-alpha')
   DoSFEqui              = GETLOGICAL('PIC-shapefunction-equi')
   DoSFLocalDepoAtBounds = GETLOGICAL('PIC-shapefunction-local-depo-BC')
+  DoSFChargeCons        = GETLOGICAL('PIC-shapefunction-charge-conservation')
   r2_sf = r_sf * r_sf  ! Radius squared
   r2_sf_inv = 1./r2_sf ! Inverse of radius squared
 
@@ -402,7 +406,7 @@ CASE('cell_volweight_mean')
 !  END IF ! DoDielectricSurfaceCharge
 CASE('shape_function')
 #if USE_MPI
-  DoExternalParts=.TRUE.
+!  DoExternalParts=.TRUE.
 #endif /*USE_MPI*/
   !ALLOCATE(PartToFIBGM(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
   !IF (ALLOCSTAT.NE.0) CALL abort(&
@@ -910,7 +914,7 @@ CASE('shape_function')
 
 CASE('shape_function_1d','shape_function_2d')
 #if USE_MPI
-  DoExternalParts=.TRUE.
+!  DoExternalParts=.TRUE.
 #endif /*USE_MPI*/
   ! Get deposition direction for 1D or perpendicular direction for 2D
   sf1d_dir = GETINT ('PIC-shapefunction1d-direction')
@@ -1028,7 +1032,7 @@ CASE('shape_function_1d','shape_function_2d')
 
 CASE('shape_function_cylindrical','shape_function_spherical')
 #if USE_MPI
-  DoExternalParts=.TRUE.
+!  DoExternalParts=.TRUE.
 #endif /*USE_MPI*/
   !IF(.NOT.DoRefMapping) CALL abort(&
   !  __STAMP__&
@@ -1130,6 +1134,7 @@ USE MOD_Particle_MPI_Vars           ,ONLY: PartMPIExchange
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 USE MOD_PICDepo_Method              ,ONLY: DepositionMethod
+USE MOD_MPI_Shared_Vars             ,ONLY: myComputeNodeRank, MPI_COMM_SHARED
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1161,20 +1166,22 @@ END IF ! TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'
 doPartInExists=.FALSE.
 IF(PRESENT(doParticle_In)) doPartInExists=.TRUE.
 
-IF(DoInnerParts)THEN
-  PartSource = 0.0
+!IF(DoInnerParts)THEN
+  IF (myComputeNodeRank.EQ.0) PartSource = 0.0
+  CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
+  CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
   FirstPart  = 1
   LastPart   = PDM%ParticleVecLength
   !IF(FirstPart.GT.LastPart) RETURN
-ELSE
-#if USE_MPI
-  FirstPart=PDM%ParticleVecLength-PartMPIExchange%nMPIParticles+1
-  LastPart =PDM%ParticleVecLength
-#else
-  FirstPart=1
-  LastPart =0
-#endif /*USE_MPI*/
-END IF
+!ELSE
+!#if USE_MPI
+!  FirstPart=PDM%ParticleVecLength-PartMPIExchange%nMPIParticles+1
+!  LastPart =PDM%ParticleVecLength
+!#else
+!  FirstPart=1
+!  LastPart =0
+!#endif /*USE_MPI*/
+!END IF
 
 ! Do the actual deposition (cell_volweight, shapefunction, spline etc.)
 CALL DepositionMethod(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)

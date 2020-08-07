@@ -190,12 +190,12 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT MAXWELL ...'
 
 ! Read correction velocity
+c_corr             = GETREAL('c_corr','1.')
 fDamping           = GETREAL('fDamping','0.999')
 DoParabolicDamping = GETLOGICAL('ParabolicDamping','.FALSE.')
 CentralFlux        = GETLOGICAL('CentralFlux','.FALSE.')
 Beam_t0            = GETREAL('Beam_t0','0.0')
 
-c_corr2   = c_corr*c_corr
 c_corr_c  = c_corr*c
 c_corr_c2 = c_corr*c2
 eta_c     = (c_corr-1.)*c
@@ -990,7 +990,7 @@ USE MOD_PreProc
 USE MOD_Equation_Vars     ,ONLY: c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars      ,ONLY: PartSource,DoDeposition
-USE MOD_Particle_Mesh_Tools,ONLY: GetCNElemID
+USE MOD_Mesh_Tools        ,ONLY: GetCNElemID
 USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps,ElemToDielectric
 #if IMPA
 USE MOD_LinearSolver_Vars ,ONLY: ExplicitPartSource

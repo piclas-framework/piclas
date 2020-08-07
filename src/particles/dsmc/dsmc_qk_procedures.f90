@@ -137,12 +137,12 @@ LOGICAL                       :: recomb
 IF (PRESENT(NodeVolume)) THEN
   Volume = NodeVolume
 ELSE
-  Volume = ElemVolume_Shared(PEM%GlobalElemID(iPart_p3))
+  Volume = ElemVolume_Shared(PEM%CNElemID(iPart_p3))
 END IF
 IF (PRESENT(NodePartNum)) THEN
   nPartNode = NodePartNum
 ELSE
-  nPartNode = PEM%pNumber(PEM%GlobalElemID(iPart_p3) - offSetElem)
+  nPartNode = PEM%pNumber(PEM%LocalElemID(iPart_p3))
 END IF
 ! select Q-K Model // do not use Gallis
 SELECT CASE (ChemReac%QKMethod(iReac))
@@ -553,12 +553,12 @@ INTEGER                             :: PartReac1,PartReac2
 IF (PRESENT(NodeVolume)) THEN
   Volume = NodeVolume
 ELSE
-  Volume = ElemVolume_Shared(PEM%GlobalElemID(iPart_p3))
+  Volume = ElemVolume_Shared(PEM%CNElemID(iPart_p3))
 END IF
 IF (PRESENT(NodePartNum)) THEN
   nPartNode = NodePartNum
 ELSE
-  nPartNode = PEM%pNumber(PEM%GlobalElemID(iPart_p3) - offSetElem)
+  nPartNode = PEM%pNumber(PEM%LocalElemID(iPart_p3))
 END IF
 
 IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN

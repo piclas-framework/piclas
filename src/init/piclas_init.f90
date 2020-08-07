@@ -89,7 +89,7 @@ USE MOD_MPI                  ,ONLY: InitMPIvars
 USE MOD_DSMC_Vars            ,ONLY: UseDSMC, RadialWeighting
 USE MOD_Particle_Vars        ,ONLY: Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
 USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_Init
-USE MOD_ParticleInit         ,ONLY: InitParticles
+USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles
 USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
 USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
 USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
@@ -174,6 +174,7 @@ IF (VarTimeStep%UseLinearScaling.OR.VarTimeStep%UseDistribution)  THEN
 ELSE
   VarTimeStep%UseVariableTimeStep = .FALSE.
 END IF
+CALL InitParticleGlobals()
 #endif
 
 CALL InitMesh(2)
@@ -408,7 +409,6 @@ IF(.NOT.IsLoadBalance)THEN
 #endif /*USE_LOADBALANCE*/
   CALL DisplaySimulationTime(Time, StartTime, 'FINISHED')
 ELSE
-  SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS RUNNING! [',Time-StartTime,' sec ]'
   CALL DisplaySimulationTime(Time, StartTime, 'RUNNING')
 END IF ! .NOT.IsLoadBalance
 SWRITE(UNIT_stdOut,'(132("="))')

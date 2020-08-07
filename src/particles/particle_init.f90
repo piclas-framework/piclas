@@ -26,6 +26,10 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
+INTERFACE InitParticleGlobals
+  MODULE PROCEDURE InitParticleGlobals
+END INTERFACE
+
 INTERFACE InitParticles
   MODULE PROCEDURE InitParticles
 END INTERFACE
@@ -67,7 +71,9 @@ INTERFACE PortabilityGetPID
   END FUNCTION GetPID_C
 END INTERFACE
 
-PUBLIC::InitParticles,FinalizeParticles
+PUBLIC::InitParticleGlobals
+PUBLIC::InitParticles
+PUBLIC::FinalizeParticles
 PUBLIC::DefineParametersParticles
 PUBLIC::InitialIonization
 !===================================================================================================================================
@@ -619,6 +625,55 @@ CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
 
 END SUBROUTINE DefineParametersParticles
 
+
+!===================================================================================================================================
+! Global particle parameters needed for other particle inits
+!===================================================================================================================================
+SUBROUTINE InitParticleGlobals()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_Particle_Tracking_Vars,     ONLY: TrackingMethod,TriaTracking,DoRefMapping
+USE MOD_Particle_Vars              ,ONLY: Symmetry2D
+USE MOD_PICDepo_Method             ,ONLY: InitDepositionMethod
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS...'
+
+! Find tracking method immediately, a lot of the later variables depend on it
+TrackingMethod = GETINTFROMSTR('TrackingMethod')
+SELECT CASE(TrackingMethod)
+CASE(REFMAPPING)
+  DoRefMapping=.TRUE.
+  TriaTracking=.FALSE.
+CASE(TRACING)
+  DoRefMapping=.FALSE.
+  TriaTracking=.FALSE.
+CASE(TRIATRACKING)
+  DoRefMapping=.FALSE.
+  TriaTracking=.TRUE.
+END SELECT
+IF (Symmetry2D) THEN
+  DoRefMapping=.FALSE.
+  TriaTracking=.TRUE.
+  SWRITE(UNIT_stdOut,'(A)') "TrackingMethod set to TriaTracking due to Symmetry2D."
+END IF
+
+CALL InitDepositionMethod()
+
+SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS DONE'
+
+END SUBROUTINE InitParticleGlobals
+
+
 SUBROUTINE InitParticles()
 !===================================================================================================================================
 ! Glue Subroutine for particle initialization
@@ -636,13 +691,14 @@ USE MOD_Part_Emission              ,ONLY: InitializeParticleEmission,AdaptiveBCA
 USE MOD_Particle_Boundary_Porous   ,ONLY: InitPorousBoundaryCondition
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
 USE MOD_Particle_Boundary_Vars     ,ONLY: nPorousBC, PartBound
-USE MOD_Particle_Tracking_Vars     ,ONLY: TriaTracking,DoRefMapping,TrackingMethod
+USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
-USE MOD_Particle_Vars              ,ONLY: MacroRestartData_tmp, Symmetry2D
+USE MOD_Particle_Vars              ,ONLY: MacroRestartData_tmp
 USE MOD_PICInterpolation_Vars      ,ONLY: useBGField
 USE MOD_Restart_Vars               ,ONLY: DoRestart
 USE MOD_Surface_Flux               ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
+USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
 !USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
@@ -669,23 +725,8 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLES ...'
 
-! Find tracking method immediately, a lot of the later variables depend on it
-TrackingMethod = GETINTFROMSTR('TrackingMethod')
-SELECT CASE(TrackingMethod)
-CASE(REFMAPPING)
-  DoRefMapping=.TRUE.
-  TriaTracking=.FALSE.
-CASE(TRACING)
-  DoRefMapping=.FALSE.
-  TriaTracking=.FALSE.
-CASE(TRIATRACKING)
-  DoRefMapping=.FALSE.
-  TriaTracking=.TRUE.
-END SELECT
-IF (Symmetry2D) THEN
-  DoRefMapping=.FALSE.
-  TriaTracking=.TRUE.
-  SWRITE(UNIT_stdOut,'(A)') "TrackingMethod set to TriaTracking due to Symmetry2D."
+IF(TrackingMethod.NE.TRIATRACKING) THEN
+  CALL InitParticleSurfaces()
 END IF
 
 IF(.NOT.ALLOCATED(nPartsPerElem))THEN
@@ -850,12 +891,12 @@ DoDeposition    = GETLOGICAL('PIC-DoDeposition')
 DoInterpolation = GETLOGICAL('PIC-DoInterpolation')
 
 CALL InitParticleMesh()
-
-CALL InitPIC()
 #if USE_MPI
 !-- Build MPI communication
 CALL IdentifyPartExchangeProcs()
 #endif
+CALL InitPIC()
+
 !-- Macroscopic bodies inside domain
 CALL InitMacroBody()
 CALL MarkMacroBodyElems()
@@ -1803,7 +1844,7 @@ DO iPartBound=1,nPartBound
   tmpString = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-Condition','open'))
   SELECT CASE (TRIM(tmpString))
   CASE('open')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic  
+    PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic
     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0.')
   CASE('reflective')
 #if defined(IMPA) || defined(ROS)
@@ -1987,7 +2028,8 @@ USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_Initialize
-USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Mesh_Vars              ,ONLY: nElems, offsetElem
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_shared
@@ -2525,7 +2567,7 @@ __STAMP__&
             particlenumber_tmp = 0.
             DO iElem = 1,nElems
               particlenumber_tmp = particlenumber_tmp + Species(iSpec)%Init(iInit)%ElemPartDensity(iElem) &
-                  / Species(iSpec)%MacroParticleFactor * ElemVolume_Shared(iElem)
+                  / Species(iSpec)%MacroParticleFactor * ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
             END DO
             Species(iSpec)%Init(iInit)%initialParticleNumber = NINT(particlenumber_tmp)
           END IF
@@ -2874,7 +2916,7 @@ USE MOD_Globals_Vars        ,ONLY:  ElementaryCharge
 USE MOD_PreProc
 USE MOD_Particle_Vars       ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies
 USE MOD_Particle_Vars       ,ONLY: InitialIonizationChargeAverage,InitialIonizationSpeciesID,InitialIonizationSpecies
-USE MOD_Mesh_Vars           ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
+USE MOD_Mesh_Vars           ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo,offsetElem
 USE MOD_DSMC_Vars           ,ONLY: CollisMode,DSMC,PartStateIntEn
 USE MOD_part_emission_tools ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_Vars           ,ONLY: useDSMC
@@ -2936,12 +2978,12 @@ DO iPart=1,PDM%ParticleVecLength
         ! Determines the location of the element in the array with min value: get the index of the corresponding charged ion
         ! species
         location                            = MINLOC(ABS(SpeciesCharge-ChargeLower),1)
-        ElemCharge(PEM%GlobalElemID(iPart))      = ElemCharge(PEM%GlobalElemID(iPart))+ChargeLower
+        ElemCharge(PEM%LocalElemID(iPart))      = ElemCharge(PEM%LocalElemID(iPart))+ChargeLower
       ELSE ! Select the upper charge number
         ! Determines the location of the element in the array with min value: get the index of the corresponding charged ion
         ! species
         location                            = MINLOC(ABS(SpeciesCharge-ChargeUpper),1)
-        ElemCharge(PEM%GlobalElemID(iPart))      = ElemCharge(PEM%GlobalElemID(iPart))+ChargeUpper
+        ElemCharge(PEM%LocalElemID(iPart))      = ElemCharge(PEM%LocalElemID(iPart))+ChargeUpper
       END IF
 
       ! Set the species ID to atom/singly charged ion/doubly charged ... and so on
@@ -3004,7 +3046,7 @@ DO iElem=1,PP_nElems
     END IF
 
     ! Set the element ID of the electron to the current element ID
-    PEM%GlobalElemID(ParticleIndexNbr) = iElem
+    PEM%GlobalElemID(ParticleIndexNbr) = iElem + offsetElem
 
     ! Set the electron velocity using the Maxwellian distribution (use the function that is suitable for small numbers)
     CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(4:6,ParticleIndexNbr),&

@@ -87,11 +87,13 @@ INTEGER FUNCTION SinglePointToElement(Pos3D,doHALO)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemRadius2NGeo
-USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemEpsOneCell
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems, FIBGM_offsetElem, FIBGM_Element
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D,GetCNElemID,GetGlobalElemID
-USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance,TriaTracking
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetGlobalElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
+USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance,TrackingMethod
 USE MOD_Utils                  ,ONLY: InsertionSort
 #if USE_MPI
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo_Shared
@@ -110,7 +112,7 @@ LOGICAL,INTENT(IN) :: doHalo
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iBGMElem,nBGMElems, ElemID, iBGM,jBGM,kBGM
+INTEGER :: iBGMElem,nBGMElems,ElemID,CNElemID,iBGM,jBGM,kBGM
 REAL    :: Distance2, RefPos(1:3)
 REAL    :: Det(6,2)
 LOGICAL :: InElementCheck
@@ -133,47 +135,51 @@ kBGM = MAX(MIN(GEO%FIBGMkmax,kBGM),GEO%FIBGMkmin)
 nBGMElems = FIBGM_nElems(iBGM,jBGM,kBGM)
 
 ! get closest element barycenter
-Distance=-1.
+Distance = -1.
 
 ListDistance=0
-DO iBGMElem = 1, nBGMElems
-  ElemID = GetCNElemID(FIBGM_Element(FIBGM_offsetElem(iBGM,jBGM,kBGM)+iBGMElem))
+DO iBGMElem = 1,nBGMElems
+  ElemID   = FIBGM_Element(FIBGM_offsetElem(iBGM,jBGM,kBGM)+iBGMElem)
+  CNElemID = GetCNElemID(ElemID)
 
-  Distance2=(Pos3D(1)-ElemBaryNGeo(1,ElemID))*(Pos3D(1)-ElemBaryNGeo(1,ElemID)) &
-           +(Pos3D(2)-ElemBaryNGeo(2,ElemID))*(Pos3D(2)-ElemBaryNGeo(2,ElemID)) &
-           +(Pos3D(3)-ElemBaryNGeo(3,ElemID))*(Pos3D(3)-ElemBaryNGeo(3,ElemID))
+  Distance2 = SUM((Pos3D(1:3)-ElemBaryNGeo(1:3,CNElemID))**2.)
 
-  IF(Distance2.GT.ElemRadius2NGeo(ElemID))THEN
-    Distance(iBGMElem)=-1.
-  ELSE
-    Distance(iBGMElem)=Distance2
-  END IF
-  ListDistance(iBGMElem)=ElemID
+  ! element in range
+  Distance(iBGMElem)     = MERGE(Distance2,-1.,Distance2.LE.ElemRadius2NGeo(CNElemID))
+  ListDistance(iBGMElem) = ElemID
 END DO ! nBGMElems
 
 IF(ALMOSTEQUAL(MAXVAL(Distance),-1.))THEN
   RETURN
 END IF
 
-IF(nBGMElems.GT.1) CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGMElems),nBGMElems)
+IF (nBGMElems.GT.1) CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGMElems),nBGMElems)
 
 ! loop through sorted list and start by closest element
-InElementCheck=.FALSE.
-DO iBGMElem=1,nBGMElems
+InElementCheck = .FALSE.
+DO iBGMElem = 1,nBGMElems
   IF (ALMOSTEQUAL(Distance(iBGMElem),-1.)) CYCLE
 
-  ElemID = GetGlobalElemID(ListDistance(iBGMElem))
+  ElemID = ListDistance(iBGMElem)
 
   IF (.NOT.DoHALO) THEN
-    ! TODO: THIS NEEDS TO BE ADJUSTED FOR MPI3-SHARED
-    ! IF (ElemID.GT.PP_nElems) CYCLE
+    IF (ElemID.LT.offsetElem+1 .OR. ElemID.GT.offsetElem+PP_nElems) CYCLE
   END IF
-  IF (TriaTracking) THEN
-    CALL ParticleInsideQuad3D(Pos3D(1:3),ElemID,InElementCheck,Det)
-  ELSE
-    CALL GetPositionInRefElem(Pos3D(1:3),RefPos,ElemID)
-    IF (MAXVAL(ABS(RefPos)).LE.1.0) InElementCheck=.TRUE.
-  END IF
+
+  SELECT CASE(TrackingMethod)
+    CASE(TRIATRACKING)
+      CALL ParticleInsideQuad3D(Pos3D(1:3),ElemID,InElementCheck,Det)
+
+    CASE(TRACING)
+      CALL GetPositionInRefElem(Pos3D(1:3),RefPos,ElemID)
+      IF (MAXVAL(ABS(RefPos)).LE.1.0) InElementCheck = .TRUE.
+
+    CASE(REFMAPPING)
+      CALL GetPositionInRefElem(Pos3D(1:3),RefPos,ElemID)
+      IF (MAXVAL(ABS(RefPos)).LE.ElemEpsOneCell(CNElemID)) InElementCheck = .TRUE.
+
+  END SELECT
+
   IF (InElementCheck) THEN
     SinglePointToElement = ElemID
     RETURN
@@ -197,11 +203,13 @@ SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_O
 ! Checks if particle is in Element
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals                ,ONLY: VECNORM
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Intersection  ,ONLY: ComputePlanarRectIntersection
 USE MOD_Particle_Intersection  ,ONLY: ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection  ,ONLY: ComputeBiLinearIntersection
 USE MOD_Particle_Intersection  ,ONLY: ComputeCurvedIntersection
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID,GetCNElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Surfaces_Vars ,ONLY: SideType,SideNormVec
@@ -258,10 +266,8 @@ LastPartPos(1:3,PartID) = ElemBaryNGeo(1:3,CNElemID)
 PartPos(1:3)            = PartPos_In(1:3)
 
 ! get trajectory from element barycenter to current position
-PartTrajectory=PartPos - LastPartPos(1:3,PartID)
-lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                         +PartTrajectory(2)*PartTrajectory(2) &
-                         +PartTrajectory(3)*PartTrajectory(3) )
+PartTrajectory       = PartPos - LastPartPos(1:3,PartID)
+lengthPartTrajectory = VECNORM(PartTrajectory(1:3))
 
 ! output the part trajectory
 #ifdef CODE_ANALYZE
@@ -275,32 +281,32 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
 #endif /*CODE_ANALYZE*/
 
 ! we found the particle on the element barycenter
-IF(ALMOSTZERO(lengthPartTrajectory))THEN
-  FoundInElem =.TRUE.
+IF (ALMOSTZERO(lengthPartTrajectory)) THEN
+  FoundInElem = .TRUE.
   LastPartPos(1:3,PartID) = LastPosTmp(1:3)
   RETURN
 END IF
 
 ! normalize the part trajectory vector
-PartTrajectory=PartTrajectory/lengthPartTrajectory
+PartTrajectory = PartTrajectory/lengthPartTrajectory
 
 ! reset intersection counter and alpha
-isHit=.FALSE.
-alpha=-1.
+isHit = .FALSE.
+alpha = -1.
 
-DO ilocSide=1,6
+DO ilocSide = 1,6
   SideID = GetGlobalNonUniqueSideID(ElemID,iLocSide)
-  flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
+  flip   = MERGE(0,MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
 
   SELECT CASE(SideType(SideID))
-  CASE(PLANAR_RECT)
-    CALL ComputePlanarRectIntersection(  ishit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,flip,SideID)
-  CASE(PLANAR_CURVED)
-    CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,flip,SideID)
-  CASE(BILINEAR,PLANAR_NONRECT)
-      CALL ComputeBiLinearIntersection(  isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,     SideID,ElemCheck_Opt=.TRUE.)
-  CASE(CURVED)
-    CALL ComputeCurvedIntersection(      isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,     SideID,ElemCheck_Opt=.TRUE.)
+    CASE(PLANAR_RECT)
+      CALL ComputePlanarRectIntersection(  ishit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,flip,SideID)
+    CASE(PLANAR_CURVED)
+      CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,flip,SideID)
+    CASE(BILINEAR,PLANAR_NONRECT)
+        CALL ComputeBiLinearIntersection(  isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,     SideID,ElemCheck_Opt=.TRUE.)
+    CASE(CURVED)
+      CALL ComputeCurvedIntersection(      isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,     SideID,ElemCheck_Opt=.TRUE.)
   END SELECT
 
 #ifdef CODE_ANALYZE
@@ -340,15 +346,15 @@ DO ilocSide=1,6
 #endif /*CODE_ANALYZE*/
   IF(alpha.GT.-1)THEN
     SELECT CASE(SideType(SideID))
-    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-      NormVec=SideNormVec(1:3,SideID)
-    CASE(BILINEAR)
-      CALL CalcNormAndTangBilinear(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
-    CASE(CURVED)
-      CALL CalcNormAndTangBezier(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
+      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+        NormVec=SideNormVec(1:3,SideID)
+      CASE(BILINEAR)
+        CALL CalcNormAndTangBilinear(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
+      CASE(CURVED)
+        CALL CalcNormAndTangBezier(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
     END SELECT
-    IF(flip.NE.0) NormVec=-NormVec
-    IntersectPoint=LastPartPos(1:3,PartID)+alpha*PartTrajectory
+    IF(flip.NE.0) NormVec = -NormVec
+    IntersectPoint = LastPartPos(1:3,PartID)+alpha*PartTrajectory
 
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN

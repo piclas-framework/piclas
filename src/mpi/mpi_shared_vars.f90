@@ -60,6 +60,12 @@ INTEGER            :: nComputeNodeTotalNodes                !> Number of nodes o
 !INTEGER            :: offsetComputeNodeNode                 !> node offset of compute-node root
 !INTEGER            :: offsetComputeNodeTree                 !> tree offset of compute-node root
 
+! Offsets for MPI_ALLGATHERV
+INTEGER,ALLOCATABLE:: displsElem(:),recvcountElem(:)
+INTEGER,ALLOCATABLE:: displsSide(:),recvcountSide(:)
+INTEGER,ALLOCATABLE:: displsNode(:),recvcountNode(:)
+INTEGER,ALLOCATABLE:: displsTree(:),recvcountTree(:)
+
 ! Surface sampling
 INTEGER,ALLOCATABLE:: MPIRankSharedLeader(:)                !> Array of size nLeaderGroupProcs holding the leader rank of each proc
 INTEGER,ALLOCATABLE:: MPIRankSurfLeader(:)                  !> Array of size nLeaderGroupProcs holding the surf rank of each proc
@@ -74,6 +80,9 @@ INTEGER,ALLOCATABLE,DIMENSION(:,:):: nSurfSidesLeader       !> number of surf si
 
 INTEGER, ALLOCATABLE :: CNTotalElem2GlobalElem(:)           !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
 INTEGER, ALLOCATABLE :: GlobalElem2CNTotalElem(:)           !> Reverse Mapping
+
+INTEGER            :: MPI_INFO_SHARED_LOOSE                 !> MPI_INFO object allowing for re-ordering of same origin atomic RMA operations
+!INTEGER            :: MPI_INFO_SHARED_STRICT                !> MPI_INFO object not allowing for re-ordering of same origin atomic RMA operations
 
 !> Other variables in particle_mesh_vars.f90
 #endif /* USE_MPI */

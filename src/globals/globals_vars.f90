@@ -21,32 +21,37 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-CHARACTER(LEN=6),PARAMETER   :: ProgramName    = 'PICLas'             !> name of this program
-REAL,PARAMETER               :: FileVersion    = 1.62                 !> FileVersion number saved in each hdf5 file with hdf5 header
-REAL                         :: FileVersionHDF5                       !> FileVersion number read from hdf5 restart file
-REAL                         :: WallTime                              !> Wall time needed by a simulation (is not reset by
-                                                                      !> performing a load balance step, only by user restart)
-REAL                         :: InitializationWallTime                !> Wall time needed to initialize a simulation (or
-                                                                      !> re-initialize a simulation by performing a load balance
-                                                                      !>  step)
-REAL                         :: SimulationEfficiency                  !> relates the simulated time to the used CPUh (SIMULATION TIME PER
-                                                                      !> CALCULATION in [s]/[CPUh])
-REAL                         :: PID                                   !> Performance index: (CalcTimeEnd-CalcTimeStart)*nProcessors/
-                                                                      !> (nGlobalElems*(PP_N+1)**3*iter_loc)
-REAL,PARAMETER               :: PI=ACOS(-1.0)                         !> the number pi ~= 3.14
-REAL,PARAMETER               :: sPI=1.0/PI                            !> inverse of pi
-REAL,PARAMETER               :: epsMach=EPSILON(0.0)                  !> Machine accuracy
-REAL,PARAMETER               :: TwoepsMach=2.0d0*epsMach              !> twice the machine accuracy
-REAL,PARAMETER               :: EuMas          = 0.577215664901533_8  !> Euler-Mascheroni constant
-REAL,PARAMETER               :: PlanckConst    = 6.62606957e-34       !> Planck constant [J s] SI-Unit!
-REAL,PARAMETER               :: ElementaryCharge = 1.602176634e-19    !> redefinition of SI base units in 2018-2019,
-                                                                      !> => negative charge of an electron, joule to eV, ...
-REAL,PARAMETER               :: ElectronMass   = 9.1093826e-31        !> mass of an electron
-CHARACTER(LEN=255)           :: ProjectName                           !> TODO-DEFINE-PARAMETER
-CHARACTER(LEN=255)           :: ParameterFile                         !> filename of the parameter file
-CHARACTER(LEN=255)           :: ParameterDSMCFile                     !> filename of the parameterDSMC file
-REAL, PARAMETER              :: BoltzmannConst=1.380648813e-23        !> Boltzmann constant [J/K] SI-Unit! in m^2/(s^2*K)
-CHARACTER(LEN=5)             :: TimeStampLenStr,TimeStampLenStr2      !> Strings for timestamp format of time
+CHARACTER(LEN=6),PARAMETER :: ProgramName  = 'PICLas'              !> name of this program
+INTEGER,PARAMETER          :: MajorVersion = 1                     !> FileVersion number saved in each hdf5 file with hdf5 header
+INTEGER,PARAMETER          :: MinorVersion = 6                     !> FileVersion number saved in each hdf5 file with hdf5 header
+INTEGER,PARAMETER          :: PatchVersion = 4                     !> FileVersion number saved in each hdf5 file with hdf5 header
+REAL,PARAMETER             :: FileVersion  = REAL(MajorVersion,8)+REAL(MinorVersion,8)/10.+REAL(PatchVersion,8)/100. !> FileVersion 
+                                                                   !> number saved in each hdf5 file with hdf5 header
+CHARACTER(LEN=10)          :: PiclasVersionStr                     !> PiclasVersionStrnumber saved in each hdf5 file with hdf5 header
+REAL                       :: FileVersionHDF5                      !> FileVersion number read from hdf5 restart file
+REAL                       :: WallTime                             !> Wall time needed by a simulation (is not reset by
+                                                                   !> performing a load balance step, only by user restart)
+REAL                       :: InitializationWallTime               !> Wall time needed to initialize a simulation (or
+                                                                   !> re-initialize a simulation by performing a load balance
+                                                                   !>  step)
+REAL                       :: SimulationEfficiency                 !> relates the simulated time to the used CPUh (SIMULATION TIME PER
+                                                                   !> CALCULATION in [s]/[CPUh])
+REAL                       :: PID                                  !> Performance index: (CalcTimeEnd-CalcTimeStart)*nProcessors/
+                                                                   !> (nGlobalElems*(PP_N+1)**3*iter_loc)
+REAL,PARAMETER             :: PI=ACOS(-1.0)                         !> the number pi ~= 3.14
+REAL,PARAMETER             :: sPI=1.0/PI                            !> inverse of pi
+REAL,PARAMETER             :: epsMach=EPSILON(0.0)                  !> Machine accuracy
+REAL,PARAMETER             :: TwoepsMach=2.0d0*epsMach              !> twice the machine accuracy
+REAL,PARAMETER             :: EuMas          = 0.577215664901533_8  !> Euler-Mascheroni constant
+REAL,PARAMETER             :: PlanckConst    = 6.62606957e-34       !> Planck constant [J s] SI-Unit!
+REAL,PARAMETER             :: ElementaryCharge = 1.602176634e-19    !> redefinition of SI base units in 2018-2019,
+                                                                    !> => negative charge of an electron, joule to eV, ...
+REAL,PARAMETER             :: ElectronMass   = 9.1093826e-31        !> mass of an electron
+CHARACTER(LEN=255)         :: ProjectName                           !> TODO-DEFINE-PARAMETER
+CHARACTER(LEN=255)         :: ParameterFile                         !> filename of the parameter file
+CHARACTER(LEN=255)         :: ParameterDSMCFile                     !> filename of the parameterDSMC file
+REAL, PARAMETER            :: BoltzmannConst=1.380648813e-23        !> Boltzmann constant [J/K] SI-Unit! in m^2/(s^2*K)
+CHARACTER(LEN=5)           :: TimeStampLenStr,TimeStampLenStr2      !> Strings for timestamp format of time
 
 ! Set variables (natural constants and derived quantities) from user input or hard coded 
 ! depending on compile flag (PICLAS_READIN_CONSTANTS=ON)

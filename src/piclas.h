@@ -128,6 +128,10 @@
 #define ELEM_NBR_BCSIDES   1
 #define ELEM_FIRST_BCSIDE  2
 
+! Entry position in FIBGMToProc
+#define FIBGM_FIRSTPROCIND 1
+#define FIBGM_NPROCS       2
+
 ! Entry position in SideBCMetrics
 #define BCSIDE_SIDEID      1
 #define BCSIDE_ELEMID      2

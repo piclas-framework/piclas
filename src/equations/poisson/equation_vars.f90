@@ -31,7 +31,6 @@ REAL              :: ACfrequency,ACamplitude ! used for alternate current BC
 
 ! needed for various stuff (compilation)
 REAL              :: c_corr
-REAL              :: c_corr2    !c_corr^2
 REAL              :: c_corr_c   !c_corr*c
 REAL              :: c_corr_c2  !c_corr*c^2
 REAL              :: eta_c      !(c_corr -1 )*c

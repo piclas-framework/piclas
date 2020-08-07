@@ -25,6 +25,15 @@ INCLUDE(ExternalProject)
 INCLUDE(CMakeDependentOption)
 
 # =========================================================================
+# Store the current commit information
+# =========================================================================
+EXECUTE_PROCESS(COMMAND git rev-parse HEAD OUTPUT_VARIABLE GIT_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE)
+SET(commit ${CMAKE_CURRENT_SOURCE_DIR}/src/commit.h)
+MESSAGE (STATUS "Curent git commit ${GIT_COMMIT} will be written to ${commit}")
+FILE(WRITE ${commit} "! Define the current commit hash. The default must remain empty, i.e., ''. Do not commit the changed file!\n#define GIT_CURRENT_COMMIT  ''\n")
+EXECUTE_PROCESS(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh ${commit})
+
+# =========================================================================
 # Check whether we are on Github or at IAG
 # =========================================================================
 EXECUTE_PROCESS(COMMAND git ls-remote --get-url OUTPUT_VARIABLE GIT_ORIGIN)
@@ -635,13 +644,16 @@ function(add_exec target)
   ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "SUCCESS: ${TARGETUP} BUILD COMPLETE!")
 endfunction()
 
-FUNCTION(add_lib target)
+FUNCTION(add_lib_shared target)
   ADD_LIBRARY(${target} SHARED ${ARGN})
   TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o libpiclasstatic userblocklib stacksizelib ${linkedlibs})
   SET_TARGET_PROPERTIES(${target} PROPERTIES PREFIX ""
                                              COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}
                                              LINKER_LANGUAGE Fortran)
-  INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target} DESTINATION bin)
+  INSTALL(TARGETS ${target} LIBRARY PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                                                GROUP_READ GROUP_EXECUTE
+                                                WORLD_READ WORLD_EXECUTE
+                            DESTINATION lib)
   STRING(TOUPPER ${target} TARGETUP)
   ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "SUCCESS: ${TARGETUP} BUILD COMPLETE!")
 ENDFUNCTION()
@@ -774,7 +786,7 @@ SET_TARGET_PROPERTIES(stacksizelib PROPERTIES LINKER_LANGUAGE C
 
 
 # we link the statically built libs
-add_lib(libpiclasshared ./src/piclaslib.f90)
+add_lib_shared(libpiclasshared ./src/piclaslib.f90)
 SET_TARGET_PROPERTIES(libpiclasshared PROPERTIES OUTPUT_NAME "libpiclas")
 ADD_DEPENDENCIES(libpiclasshared libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
 add_exec(piclas ./src/piclas.f90)
@@ -816,8 +828,12 @@ ENDIF()
 # =========================================================================
 # Userblock
 # =========================================================================
+#MESSAGE(STATUS "Running: generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CACHEFILE_DIR} ${CMAKE_CACHE_MAJOR_VERSION}.${CMAKE_CACHE_MINOR_VERSION}.${CMAKE_CACHE_PATCH_VERSION} ${CMAKE_CURRENT_SOURCE_DIR}/src/globals/globals_vars.f90")
+MESSAGE(STATUS "Running: generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_VERSION} ${CMAKE_CURRENT_SOURCE_DIR}/src/globals/globals_vars.f90")
+#ADD_CUSTOM_COMMAND(TARGET libpiclasstatic PRE_BUILD COMMAND
+  #sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/userblock/generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CACHEFILE_DIR} "${CMAKE_CACHE_MAJOR_VERSION}.${CMAKE_CACHE_MINOR_VERSION}.${CMAKE_CACHE_PATCH_VERSION}" "${CMAKE_CURRENT_SOURCE_DIR}/src/globals/globals_vars.f90")
 ADD_CUSTOM_COMMAND(TARGET libpiclasstatic PRE_BUILD COMMAND
-  sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/userblock/generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CACHEFILE_DIR} "${CMAKE_CACHE_MAJOR_VERSION}.${CMAKE_CACHE_MINOR_VERSION}.${CMAKE_CACHE_PATCH_VERSION}")
+  sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/userblock/generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_VERSION} "${CMAKE_CURRENT_SOURCE_DIR}/src/globals/globals_vars.f90")
 
 # =========================================================================
 # generate .piclas in $HOME
@@ -829,7 +845,6 @@ ADD_CUSTOM_COMMAND(TARGET piclas     POST_BUILD COMMAND echo \"alias piclas='${C
 # Install
 # =========================================================================
 INSTALL(FILES    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt DESTINATION bin)
-
 # =========================================================================
 # Ctags
 # =========================================================================

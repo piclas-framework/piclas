@@ -88,7 +88,7 @@ CALL prms%CreateIntOption(    'nSkipAvg'             , 'Iter every which CalcTim
 #ifdef CODE_ANALYZE
 CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput' , 'print code analyze info to CodeAnalyze.csv','.TRUE.')
 #endif /* CODE_ANALYZE */
-CALL prms%CreateIntOption(      'Field-AnalyzeStep'   , 'Analyze is performed each Nth time step','1')
+CALL prms%CreateIntOption(      'Field-AnalyzeStep'   , 'Analyze is performed each Nth time step. Set to 0 to completely skip.','1')
 CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'Calculate Potential Energy. Output file is Database.csv','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPointsPerWavelength', 'Flag to compute the points per wavelength in each cell','.FALSE.')
 
@@ -132,6 +132,8 @@ USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_Equation_vars         ,ONLY: Wavelength
 #endif /* maxwell */
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared
+USE MOD_Mesh_Vars             ,ONLY: offSetElem
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -145,7 +147,7 @@ REAL                :: PPWCellMax,PPWCellMin
 IF ((.NOT.InterpolationInitIsDone).OR.AnalyzeInitIsDone) THEN
   CALL abort(&
       __STAMP__&
-      ,'InitAnalyse not ready to be called or already called.',999,999.)
+      ,'InitAnalyse not ready to be called or already called.')
   RETURN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -162,9 +164,12 @@ OutputTimeFixed   = GETREAL('OutputTimeFixed')
 doCalcTimeAverage = GETLOGICAL('CalcTimeAverage')
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
 
-FieldAnalyzeStep  = GETINT('Field-AnalyzeStep','1')
-IF (FieldAnalyzeStep.EQ.0) FieldAnalyzeStep = HUGE(FieldAnalyzeStep)
+FieldAnalyzeStep  = GETINT('Field-AnalyzeStep')
 DoFieldAnalyze    = .FALSE.
+#if (USE_HDG)
+IF (FieldAnalyzeStep.GT.0) DoFieldAnalyze = .TRUE.
+#endif /*USE_HDG*/
+IF (FieldAnalyzeStep.EQ.0) FieldAnalyzeStep = HUGE(FieldAnalyzeStep)
 CalcEpot          = GETLOGICAL('CalcPotentialEnergy')
 IF(CalcEpot)        DoFieldAnalyze = .TRUE.
 IF(CalcPoyntingInt) DoFieldAnalyze = .TRUE.
@@ -199,9 +204,9 @@ IF(CalcPointsPerWavelength)THEN
   PPWCellMax=-HUGE(1.)
   DO iElem = 1, nElems
 #ifdef maxwell
-    PPWCell(iElem)     = (REAL(PP_N)+1.)*Wavelength/ElemCharLength_Shared(iElem)
+    PPWCell(iElem)     = (REAL(PP_N)+1.)*Wavelength/ElemCharLength_Shared(GetCNElemID(iElem+offSetElem))
 #else
-    PPWCell(iElem)     = (REAL(PP_N)+1.)/ElemCharLength_Shared(iElem)
+    PPWCell(iElem)     = (REAL(PP_N)+1.)/ElemCharLength_Shared(GetCNElemID(iElem+offSetElem))
 #endif /* maxwell */
     PPWCellMin=MIN(PPWCellMin,PPWCell(iElem))
     PPWCellMax=MAX(PPWCellMax,PPWCell(iElem))

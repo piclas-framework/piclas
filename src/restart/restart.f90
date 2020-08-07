@@ -317,7 +317,7 @@ USE MOD_Eval_XYZ               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking, NbrOfLostParticles, CountNbrOfLostParts, NbrOfLostParticlesTotal
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,NbrOfLostParticles, CountNbrOfLostParts, NbrOfLostParticlesTotal
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfBC
@@ -330,7 +330,7 @@ USE MOD_PICDepo_Vars           ,ONLY: DoDeposition, RelaxDeposition, PartSourceO
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 #endif /*PARTICLES*/
 #if USE_HDG
-USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face
+USE MOD_HDG_Vars               ,ONLY: lambda!, nGP_face
 USE MOD_HDG                    ,ONLY: RestartHDG
 #endif /*USE_HDG*/
 #if USE_QDS_DG
@@ -354,7 +354,8 @@ REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
 INTEGER                            :: iPML
 #endif
 #if USE_HDG
-LOGICAL                            :: DG_SolutionLambdaExists,DG_SolutionUExists
+!LOGICAL                            :: DG_SolutionLambdaExists
+LOGICAL                            :: DG_SolutionUExists
 INTEGER(KIND=8)                    :: iter
 #endif /*USE_HDG*/
 INTEGER                            :: iElem
@@ -533,13 +534,16 @@ IF(DoRestart)THEN
         ! !DG_Solution contains a 4er-/3er-/7er-array, not PP_nVar!!!
         CALL ReadArray('DG_Solution' ,5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
       END IF
-      CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
-      IF(DG_SolutionLambdaExists)THEN
-        CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,nSides-nMPISides_YOUR/),offsetSide,3,RealArray=lambda)
-        CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
-      ELSE
-        lambda=0.
-      END IF
+      ! CURRENTLY, THE FOLLOWING DOES NOT MAKE SENSE AS THE SIDES ARE NOT SORTED CORRECTLY!
+      !CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
+      !IF(DG_SolutionLambdaExists)THEN
+      !  write(*,*) "READ lambda"
+      !  stop
+      !  CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,nSides-nMPISides_YOUR/),offsetSide,3,RealArray=lambda)
+      !  CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
+      !ELSE
+      lambda=0.
+      !END IF
 #else
       CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
       IF(DoPML)THEN
@@ -702,7 +706,7 @@ IF(DoRestart)THEN
       END DO ! iSpec = 1, nSpecies
     END IF ! useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)
 
-    SWRITE(UNIT_stdOut,*)'Reading Particles from Restartfile...'
+    SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Reading Particles from Restartfile...'
     !read local ElemInfo from HDF5
     FirstElemInd=offsetElem+1
     LastElemInd=offsetElem+PP_nElems
@@ -871,56 +875,33 @@ IF(DoRestart)THEN
         CALL abort(__STAMP__&
             ,' Number of Particles in Restart file is higher than MaxParticleNumber! Increase MaxParticleNumber!')
       END IF ! PDM%ParticleVecLength.GT.PDM%maxParticleNumber
+
       ! Since the elementside-local node number are NOT persistant and dependent on the location
       ! of the MPI borders, all particle-element mappings need to be checked after a restart
       ! Step 1: Identify particles that are not in the element in which they were before the restart
       NbrOfMissingParticles = 0
-      NbrOfLostParticles = 0
-      CounterPoly = 0
+      NbrOfLostParticles    = 0
+      CounterPoly           = 0
 
-      IF(DoRefMapping) THEN
-        DO i = 1,PDM%ParticleVecLength
-          CALL GetPositionInRefElem(PartState(1:3,i),Xi,PEM%GlobalElemID(i))
-          IF(ALL(ABS(Xi).LE.ElemEpsOneCell(PEM%GlobalElemID(i)))) THEN ! particle inside
-            InElementCheck=.TRUE.
-            PartPosRef(1:3,i)=Xi
-          ELSE
-            InElementCheck=.FALSE.
-          END IF
-          IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
-            NbrOfMissingParticles = NbrOfMissingParticles + 1
-            CALL LocateParticleInElement(i,doHALO=.FALSE.)
-            IF (.NOT.PDM%ParticleInside(i)) THEN
-              NbrOfLostParticles = NbrOfLostParticles + 1
-#if !(USE_MPI)
-              IF(CountNbrOfLostParts) CALL StoreLostParticleProperties(i, PEM%GlobalElemID(i), UsePartState_opt=.TRUE.)
-#endif /*!(USE_MPI)*/
-              IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-                IF(SpecDSMC(PartSpecies(i))%PolyatomicMol) THEN
-                  iPolyatMole = SpecDSMC(PartSpecies(i))%SpecToPolyArray
-                  CounterPoly = CounterPoly + PolyatomMolDSMC(iPolyatMole)%VibDOF
-                END IF
-              END IF
-              PartPosRef(1:3,i) = -888.
-            ELSE
-              PEM%LastGlobalElemID(i) = PEM%GlobalElemID(i)
-            END IF
-          END IF
-        END DO ! i = 1,PDM%ParticleVecLength
-      ELSE ! no Ref Mapping
-        IF (TriaTracking) THEN
+      SELECT CASE(TrackingMethod)
+        CASE(TRIATRACKING)
           DO i = 1,PDM%ParticleVecLength
+            ! Check if particle is inside the correct element
             CALL ParticleInsideQuad3D(PartState(1:3,i),PEM%GlobalElemID(i),InElementCheck,det)
-            IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
+
+            ! Particle not in correct element, try to find them within MyProc
+            IF (.NOT.InElementCheck) THEN
               NbrOfMissingParticles = NbrOfMissingParticles + 1
               CALL LocateParticleInElement(i,doHALO=.FALSE.)
+
+              ! Particle not found within MyProc
               IF (.NOT.PDM%ParticleInside(i)) THEN
                 NbrOfLostParticles = NbrOfLostParticles + 1
 #if !(USE_MPI)
-                IF(CountNbrOfLostParts) CALL StoreLostParticleProperties(i, PEM%GlobalElemID(i), UsePartState_opt=.TRUE.)
+                IF (CountNbrOfLostParts) CALL StoreLostParticleProperties(i, PEM%GlobalElemID(i), UsePartState_opt=.TRUE.)
 #endif /*!(USE_MPI)*/
-                IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-                  IF(SpecDSMC(PartSpecies(i))%PolyatomicMol) THEN
+                IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+                  IF (SpecDSMC(PartSpecies(i))%PolyatomicMol) THEN
                     iPolyatMole = SpecDSMC(PartSpecies(i))%SpecToPolyArray
                     CounterPoly = CounterPoly + PolyatomMolDSMC(iPolyatMole)%VibDOF
                   END IF
@@ -930,25 +911,31 @@ IF(DoRestart)THEN
               END IF
             END IF
           END DO ! i = 1,PDM%ParticleVecLength
-        ELSE ! not TriaTracking
+
+        CASE(TRACING)
           DO i = 1,PDM%ParticleVecLength
+            ! Check if particle is inside the correct element
             CALL GetPositionInRefElem(PartState(1:3,i),Xi,PEM%GlobalElemID(i))
-            IF(ALL(ABS(Xi).LE.1.0)) THEN ! particle inside
-              InElementCheck=.TRUE.
+            IF (ALL(ABS(Xi).LE.1.0)) THEN ! particle inside
+              InElementCheck = .TRUE.
               IF(ALLOCATED(PartPosRef)) PartPosRef(1:3,i)=Xi
             ELSE
-              InElementCheck=.FALSE.
+              InElementCheck = .FALSE.
             END IF
-            IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
+
+            ! Particle not in correct element, try to find them within MyProc
+            IF (.NOT.InElementCheck) THEN
               NbrOfMissingParticles = NbrOfMissingParticles + 1
               CALL LocateParticleInElement(i,doHALO=.FALSE.)
+
+              ! Particle not found within MyProc
               IF (.NOT.PDM%ParticleInside(i)) THEN
                 NbrOfLostParticles = NbrOfLostParticles + 1
 #if !(USE_MPI)
-                IF(CountNbrOfLostParts) CALL StoreLostParticleProperties(i, PEM%GlobalElemID(i), UsePartState_opt=.TRUE.)
+                IF (CountNbrOfLostParts) CALL StoreLostParticleProperties(i, PEM%GlobalElemID(i), UsePartState_opt=.TRUE.)
 #endif /*!(USE_MPI)*/
-                IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-                  IF(SpecDSMC(PartSpecies(i))%PolyatomicMol) THEN
+                IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+                  IF (SpecDSMC(PartSpecies(i))%PolyatomicMol) THEN
                     iPolyatMole = SpecDSMC(PartSpecies(i))%SpecToPolyArray
                     CounterPoly = CounterPoly + PolyatomMolDSMC(iPolyatMole)%VibDOF
                   END IF
@@ -958,8 +945,44 @@ IF(DoRestart)THEN
               END IF ! .NOT.PDM%ParticleInside(i)
             END IF ! .NOT.InElementCheck
           END DO ! i = 1,PDM%ParticleVecLength
-        END IF ! TriaTracking
-      END IF ! DoRefMapping
+
+        CASE(REFMAPPING)
+          DO i = 1,PDM%ParticleVecLength
+            ! Check if particle is inside the correct element
+            CALL GetPositionInRefElem(PartState(1:3,i),Xi,PEM%GlobalElemID(i))
+            IF (ALL(ABS(Xi).LE.ElemEpsOneCell(PEM%GlobalElemID(i)))) THEN ! particle inside
+              InElementCheck    = .TRUE.
+              PartPosRef(1:3,i) = Xi
+            ELSE
+              InElementCheck    = .FALSE.
+            END IF
+
+            ! Particle not in correct element, try to find them within MyProc
+            IF (.NOT.InElementCheck) THEN
+              NbrOfMissingParticles = NbrOfMissingParticles + 1
+              CALL LocateParticleInElement(i,doHALO=.FALSE.)
+
+              ! Particle not found within MyProc
+              IF (.NOT.PDM%ParticleInside(i)) THEN
+                NbrOfLostParticles = NbrOfLostParticles + 1
+#if !(USE_MPI)
+                IF (CountNbrOfLostParts) CALL StoreLostParticleProperties(i, PEM%GlobalElemID(i), UsePartState_opt=.TRUE.)
+#endif /*!(USE_MPI)*/
+                IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+                  IF (SpecDSMC(PartSpecies(i))%PolyatomicMol) THEN
+                    iPolyatMole = SpecDSMC(PartSpecies(i))%SpecToPolyArray
+                    CounterPoly = CounterPoly + PolyatomMolDSMC(iPolyatMole)%VibDOF
+                  END IF
+                END IF
+                PartPosRef(1:3,i) = -888.
+              ELSE
+                PEM%LastGlobalElemID(i) = PEM%GlobalElemID(i)
+              END IF
+            END IF
+          END DO ! i = 1,PDM%ParticleVecLength
+      END SELECT
+
+
 #if USE_MPI
       ! Step 2: All particles that are not found within MyProc need to be communicated to the others and located there
       ! Combine number of lost particles of all processes and allocate variables
@@ -1035,7 +1058,7 @@ IF(DoRestart)THEN
             RecBuffPoly, LostPartsPoly, DisplacePoly, MPI_INTEGER, PartMPI%COMM, IERROR)
         ! Add them to particle list and check if they are in MyProcs domain
         NbrOfFoundParts = 0
-        CurrentPartNum = PDM%ParticleVecLength+1
+        CurrentPartNum  = PDM%ParticleVecLength+1
         NbrOfMissingParticles = 0
         CounterPoly = 0
         DO i = 1, SUM(TotalNbrOfMissingParticles)
@@ -1044,7 +1067,7 @@ IF(DoRestart)THEN
           CALL LocateParticleInElement(CurrentPartNum,doHALO=.FALSE.)
           IF (PDM%ParticleInside(CurrentPartNum)) THEN
             PEM%LastGlobalElemID(CurrentPartNum) = PEM%GlobalElemID(CurrentPartNum)
-            NbrOfMissingParticles = NbrOfMissingParticles + 1
+!            NbrOfMissingParticles = NbrOfMissingParticles + 1
 
             ! Set particle properties (if the particle is lost, it's properties are written to a .h5 file)
             PartSpecies(CurrentPartNum) = INT(RecBuff(NbrOfMissingParticles+7))
@@ -1071,7 +1094,7 @@ IF(DoRestart)THEN
             ELSE IF (usevMPF) THEN
               PartMPF(CurrentPartNum)          = RecBuff(NbrOfMissingParticles+8)
             END IF
-
+            NbrOfFoundParts = NbrOfFoundParts + 1
             ! Check if particle was found inside of an element
             IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
               IF(SpecDSMC(PartSpecies(CurrentPartNum))%PolyatomicMol) THEN
@@ -1086,7 +1109,8 @@ IF(DoRestart)THEN
             CurrentPartNum = CurrentPartNum + 1
           ELSE ! Particle could not be found and is therefore lost
             ! Save particle properties for writing to a .h5 file
-            IF(CountNbrOfLostParts) CALL StoreLostParticleProperties(CurrentPartNum, PEM%GlobalElemID(CurrentPartNum), UsePartState_opt=.TRUE.)
+!             This call makes no sense here! EVERY proc gets the particle, so only one can find it in the first place
+!            IF(CountNbrOfLostParts) CALL StoreLostParticleProperties(CurrentPartNum, PEM%GlobalElemID(CurrentPartNum), UsePartState_opt=.TRUE.)
           END IF
           NbrOfMissingParticles = NbrOfMissingParticles + PartDataSize
         END DO ! i = 1, SUM(TotalNbrOfMissingParticles)
@@ -1097,9 +1121,9 @@ IF(DoRestart)THEN
         SWRITE(UNIT_stdOut,*) SUM(TotalNbrOfMissingParticles),'were not in the correct proc after restart.'
         SWRITE(UNIT_stdOut,*) CompleteNbrOfFound,'of these were found in other procs.'
         SWRITE(UNIT_stdOut,*) NbrOfLostParticlesTotal,'were not found and have been removed.'
-        SWRITE(UNIT_stdOut,*)'The lost particles have been written to PartStateLost*.h5.'
-        SWRITE(UNIT_stdOut,*)'Note that also missing particles will be written to that file and '//&
-                             'it will therefore contain a mix of missing and lost particles.'
+!        SWRITE(UNIT_stdOut,*)'The lost particles have been written to PartStateLost*.h5.'
+!        SWRITE(UNIT_stdOut,*)'Note that also missing particles will be written to that file and '//&
+!                             'it will therefore contain a mix of missing and lost particles.'
       END IF ! SUM(TotalNbrOfMissingParticles).GT.0
 #else /*not USE_MPI*/
       NbrOfLostParticlesTotal=NbrOfLostParticles
@@ -1465,7 +1489,7 @@ IMPLICIT NONE
           ClonedParticles(pcount(iDelay),iDelay)%PartState(5) = CloneData(5,iPart)
           ClonedParticles(pcount(iDelay),iDelay)%PartState(6) = CloneData(6,iPart)
           ClonedParticles(pcount(iDelay),iDelay)%Species = INT(CloneData(7,iPart))
-          ClonedParticles(pcount(iDelay),iDelay)%Element = iElem
+          ClonedParticles(pcount(iDelay),iDelay)%Element = INT(CloneData(8,iPart))
           ClonedParticles(pcount(iDelay),iDelay)%lastPartPos(1:3) = CloneData(1:3,iPart)
           IF (UseDSMC) THEN
             IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN

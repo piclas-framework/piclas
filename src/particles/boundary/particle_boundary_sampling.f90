@@ -104,7 +104,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactEnergy
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactVector
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactAngle
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber
-USE MOD_Particle_Mesh_Tools     ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID_Shared
 USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient

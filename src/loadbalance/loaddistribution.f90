@@ -1103,14 +1103,13 @@ SUBROUTINE WriteElemTimeStatistics(WriteHeader,time,iter)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_LoadBalance_Vars ,ONLY: TargetWeight,nLoadBalanceSteps,CurrentImbalance,MinWeight,MaxWeight,WeightSum
-USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
+USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout,abort,nProcessors
 USE MOD_Globals_Vars     ,ONLY: SimulationEfficiency,PID,WallTime,InitializationWallTime
 USE MOD_Restart_Vars     ,ONLY: DoRestart
-USE MOD_Globals          ,ONLY: abort
-USE MOD_Globals          ,ONLY: nProcessors
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimeField
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
+USE MOD_Globals          ,ONLY: nGlobalNbrOfParticles
 #endif /*PARTICLES*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -1126,7 +1125,7 @@ INTEGER                                  :: ioUnit,I
 CHARACTER(LEN=150)                       :: formatStr
 #ifdef PARTICLES
 REAL                                     :: SumElemTime,ElemTimeFieldPercent,ElemTimePartPercent
-INTEGER,PARAMETER                        :: nOutputVar=16
+INTEGER,PARAMETER                        :: nOutputVar=17
 #else
 INTEGER,PARAMETER                        :: nOutputVar=12
 #endif /*PARTICLES*/
@@ -1144,7 +1143,8 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'SimulationWallTime'     , &
     'InitializationWallTime'   &
 #ifdef PARTICLES
-  , 'FieldTime'              , &
+  , '#Particles'             , &
+    'FieldTime'              , &
     'PartTime'               , &
     'FieldTimePercent'       , &
     'PartTimePercent'          &
@@ -1193,8 +1193,7 @@ ELSE !
   END IF
 #ifdef PARTICLES
   ! Calculate elem time proportions for field and particle routines
-  SumElemTime=ElemTimeField
-  SumElemTime=SumElemTime+ElemTimePart
+  SumElemTime=ElemTimeField+ElemTimePart
   IF(SumElemTime.LE.0.)THEN
     ElemTimeFieldPercent = 0.
     ElemTimePartPercent  = 0.
@@ -1208,20 +1207,21 @@ ELSE !
     OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
     WRITE(formatStr,'(A2,I2,A14,A1)')'(',nOutputVar,CSVFORMAT,')'
     WRITE(tmpStr2,formatStr)&
-              " ",time_loc, &
-        delimiter,REAL(nProcessors), &
-        delimiter,MinWeight, &
-        delimiter,MaxWeight, &
-        delimiter,CurrentImbalance, &
-        delimiter,TargetWeight, &
-        delimiter,REAL(nLoadBalanceSteps), &
-        delimiter,WeightSum, &
+              " ",time_loc,&
+        delimiter,REAL(nProcessors),&
+        delimiter,MinWeight,&
+        delimiter,MaxWeight,&
+        delimiter,CurrentImbalance,&
+        delimiter,TargetWeight,&
+        delimiter,REAL(nLoadBalanceSteps),&
+        delimiter,WeightSum,&
         delimiter,SimulationEfficiency,&
         delimiter,PID,&
         delimiter,WallTime,&
         delimiter,InitializationWallTime&
 #ifdef PARTICLES
-       ,delimiter,ElemTimeField,&
+       ,delimiter,REAL(nGlobalNbrOfParticles),&
+        delimiter,ElemTimeField,&
         delimiter,ElemTimePart,&
         delimiter,ElemTimeFieldPercent,&
         delimiter,ElemTimePartPercent
