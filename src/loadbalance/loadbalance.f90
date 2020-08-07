@@ -192,7 +192,6 @@ USE MOD_LoadBalance_Vars       ,ONLY: ParticleMPIWeight,ElemTimePartTot,ElemTime
 #endif /*PARTICLES*/
 USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 USE MOD_LoadBalance_Vars       ,ONLY: CurrentImbalance,PerformLBSample,ElemTimeFieldTot,ElemTimeField
-USE MOD_LoadBalance_Vars       ,ONLY: WeightSum
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES

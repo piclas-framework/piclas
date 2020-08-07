@@ -40,6 +40,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: BGGas_Initialize, BGGas_InsertParticles, DSMC_pairing_bggas, MCC_pairing_bggas, BGGas_DeleteParticles
+PUBLIC :: BGGas_PhotoIonization
 !===================================================================================================================================
 
 CONTAINS
@@ -628,7 +629,7 @@ END SUBROUTINE MCC_pairing_bggas
 
 SUBROUTINE BGGas_DeleteParticles()
 !===================================================================================================================================
-! Kills all BG Particles
+! Deletes all background gas particles and updates the particle index list
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars,          ONLY : BGGas
@@ -654,5 +655,302 @@ BGGas%PairingPartner = 0
 CALL UpdateNextFreePosition()
 
 END SUBROUTINE BGGas_DeleteParticles
+
+
+SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,TotalNbrOfReactions)
+!===================================================================================================================================
+!> Particle emission through photo ionization, defined by chemical reactions of the type "phIon" and an emission with SpaceIC
+!> "photon_cylinder" for the 
+!> 0.) Determine the total ionization cross-section
+!> 1.) Compute the number of photoionization events in the local domain of each proc
+!> 2.) Delete left-over inserted particles
+!> 3.) Insert the products of the photoionization rections
+!> 4.) Perform the reaction, distribute the collision energy (including photon energy) and emit electrons perpendicular
+!>     to the photon's path
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcMeanFreePath
+USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, PartStateIntEn, DSMC, DSMC_RHS
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, DSMCSumOfFormedParticles
+USE MOD_Particle_Vars          ,ONLY: PEM, PDM, PartSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
+USE MOD_DSMC_Init              ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_part_pos_and_velo      ,ONLY: SetParticleVelocity
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
+USE MOD_part_emission_tools    ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_DSMC_ChemReact         ,ONLY: DSMC_Chemistry
+USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
+USE MOD_Particle_Analyze       ,ONLY: PARTISELECTRON
+USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutput
+USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iSpec,iInit,TotalNbrOfReactions
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iPart, iPair, iNewPart, iReac, ParticleIndex, NewParticleIndex, bgSpec, NbrOfParticle
+INTEGER                       :: iPart_p1, iPart_p2
+REAL                          :: RandVal,NumTmp,ProbRest
+INTEGER                       :: TotalNbrOfReactionsTmp,iCrossSection,NbrCrossSections
+INTEGER                       :: NumPhotoIonization(ChemReac%NumOfReact)
+REAL                          :: SumCrossSections
+!===================================================================================================================================
+NumPhotoIonization = 0
+
+IF(TotalNbrOfReactions.LE.0) RETURN
+TotalNbrOfReactionsTmp = TotalNbrOfReactions
+
+!> 0.) Calculate sum of cross-sections for photoionization
+SumCrossSections = 0.
+NbrCrossSections = 0
+DO iReac = 1, ChemReac%NumOfReact
+  ! Only treat photoionization reactions
+  IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
+  SumCrossSections = SumCrossSections + ChemReac%CrossSection(iReac)
+  NbrCrossSections = NbrCrossSections + 1
+END DO ! iReac = 1, ChemReac%NumOfReact
+
+!> 1.) Compute the number of photoionization events in the local domain of each proc
+iCrossSection = 0
+DO iReac = 1, ChemReac%NumOfReact
+  ! Only treat photoionization reactions
+  IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
+  iCrossSection  = iCrossSection + 1
+  IF(iCrossSection.EQ.NbrCrossSections)THEN
+    NumPhotoIonization(iReac) = TotalNbrOfReactionsTmp
+    EXIT
+  END IF ! iCrossSection.EQ.NbrCrossSections
+  NumTmp = TotalNbrOfReactionsTmp*ChemReac%CrossSection(iReac)/SumCrossSections
+  SumCrossSections = SumCrossSections - ChemReac%CrossSection(iReac)
+  NumPhotoIonization(iReac) = INT(NumTmp)
+  ProbRest = NumTmp - REAL(NumPhotoIonization(iReac))
+  CALL RANDOM_NUMBER(RandVal)
+  IF (ProbRest.GT.RandVal) NumPhotoIonization(iReac) = NumPhotoIonization(iReac) + 1
+  TotalNbrOfReactionsTmp = TotalNbrOfReactionsTmp - NumPhotoIonization(iReac)
+END DO
+
+!> 2.) Delete left-over inserted particles
+IF(TotalNbrOfReactions.GT.SUM(NumPhotoIonization)) THEN
+  DO iPart = SUM(NumPhotoIonization)+1,TotalNbrOfReactions
+    PDM%ParticleInside(PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)) = .FALSE.
+  END DO
+ELSE IF(TotalNbrOfReactions.LT.SUM(NumPhotoIonization)) THEN
+  CALL Abort(&
+    __STAMP__&
+    ,'ERROR in PhotoIonization: Something is wrong, trying to perform more reactions than anticipated!')
+END IF
+
+IF(SUM(NumPhotoIonization).EQ.0) RETURN
+
+!> 3.) Insert the products of the photoionization rections
+NbrOfParticle = SUM(NumPhotoIonization)
+
+ALLOCATE(Coll_pData(NbrOfParticle))
+Coll_pData%Ec=0.
+DSMCSumOfFormedParticles = 0
+
+iPart = 1; iNewPart = 0; iPair = 0
+
+DO WHILE (iPart.LE.NbrOfParticle)
+  ! Loop over the particles with a set position (from SetParticlePosition)
+  ParticleIndex = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+  IF(ParticleIndex.NE.0) THEN
+    iNewPart = iNewPart + 1
+    ! Get a new index for the second product
+    NewParticleIndex = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition+NbrOfParticle)
+    IF (NewParticleIndex.EQ.0) THEN
+      CALL Abort(&
+        __STAMP__&
+        ,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
+    END IF
+    PartState(1:3,NewParticleIndex) = PartState(1:3,ParticleIndex)
+    IF(DoRefMapping)THEN ! here Nearst-GP is missing
+      PartPosRef(1:3,NewParticleIndex)=PartPosRef(1:3,ParticleIndex)
+    END IF
+    ! Species index given from the initialization
+    PartSpecies(ParticleIndex) = iSpec
+    ! Get the species index of the background gas
+    bgSpec = BGGas_GetSpecies()
+    PartSpecies(NewParticleIndex) = bgSpec
+    IF(CollisMode.GT.1) THEN
+      IF(SpecDSMC(bgSpec)%PolyatomicMol) THEN
+        CALL DSMC_SetInternalEnr_Poly(bgSpec,0,NewParticleIndex,1)
+      ELSE
+        CALL DSMC_SetInternalEnr_LauxVFD(bgSpec,0,NewParticleIndex,1)
+      END IF
+    END IF
+    CALL CalcVelocity_maxwell_lpn(FractNbr=bgSpec, Vec3D=PartState(4:6,NewParticleIndex), iInit=0)
+    ! Particle flags
+    PDM%ParticleInside(NewParticleIndex)  = .TRUE.
+    PDM%IsNewPart(NewParticleIndex)       = .TRUE.
+    PDM%dtFracPush(NewParticleIndex)      = .FALSE.
+    ! Particle element
+    PEM%Element(NewParticleIndex) = PEM%Element(ParticleIndex)
+    ! Pairing
+    Coll_pData(iNewPart)%iPart_p1 = NewParticleIndex
+    Coll_pData(iNewPart)%iPart_p2 = ParticleIndex
+    ! Relative velocity is not required as the relative translational energy will not be considered
+    Coll_pData(iNewPart)%CRela2 = 0.
+    ! Weighting factor
+    IF(usevMPF) THEN
+      PartMPF(NewParticleIndex) = Species(bgSpec)%MacroParticleFactor
+      PartMPF(ParticleIndex) = Species(iSpec)%MacroParticleFactor
+    END IF
+    ! Velocity (set it to zero, as it will be substracted in the chemistry module)
+    PartState(4:6,ParticleIndex) = 0.
+    ! Internal energies (set it to zero)
+    PartStateIntEn(1:2,ParticleIndex) = 0.
+    IF(DSMC%ElectronicModel) PartStateIntEn(3,ParticleIndex) = 0.
+  ELSE
+    CALL Abort(&
+      __STAMP__&
+      ,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
+  END IF
+  iPart = iPart + 1
+END DO
+
+! Add the particles initialized through the emission and the background particles
+PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle + iNewPart
+! Update the current next free position
+PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle + iNewPart
+
+IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN
+  CALL Abort(&
+    __STAMP__&
+    ,'ERROR in PhotoIonization: ParticleVecLength greater than MaxParticleNumber! Increase the MaxParticleNumber to at least: ' &
+    , IntInfoOpt=PDM%ParticleVecLength)
+END IF
+
+!> 4.) Perform the reaction, distribute the collision energy (including photon energy) and emit electrons perpendicular
+!>     to the photon's path
+DO iReac = 1, ChemReac%NumOfReact
+  ! Only treat photoionization reactions
+  IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
+  DO iPart = 1, NumPhotoIonization(iReac)
+    iPair = iPair + 1
+    CALL DSMC_Chemistry(iPair, iReac)
+    ! Add the velocity change due the energy distribution in the chemistry routine
+    iPart_p1 = Coll_pData(iPair)%iPart_p1
+    iPart_p2 = Coll_pData(iPair)%iPart_p2
+    PartState(4:6,iPart_p1) = PartState(4:6,iPart_p1) + DSMC_RHS(1:3,iPart_p1)
+    PartState(4:6,iPart_p2) = PartState(4:6,iPart_p2) + DSMC_RHS(1:3,iPart_p2)
+    ! If an electron is created, change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
+    ASSOCIATE( b1 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC(1:3)) ,&
+               b2 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC(1:3)) )
+    ! OR check PartSpecies(iPart_p1) = iSpec and 
+    !          PartSpecies(iPart_p2) = iSpec
+      IF(PARTISELECTRON(iPart_p1)) THEN
+        ! Get random vector b3 in b1-b2-plane
+        CALL RANDOM_NUMBER(RandVal)
+        PartState(4:6,iPart_p1) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart_p1),RandVal)
+        ! Rotate the resulting vector in the b3-NormalIC-plane
+        PartState(4:6,iPart_p1) = GetRotatedVector(PartState(4:6,iPart_p1),Species(iSpec)%Init(iInit)%NormalIC)
+        ! Store the particle information in PartStateBoundary.h5
+        IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(iPart_p1,PartSpecies(iPart_p1),PartState(1:3,iPart_p1),&
+                                          UNITVECTOR(PartState(4:6,iPart_p1)),Species(iSpec)%Init(iInit)%NormalIC,mode=2,&
+                                          usevMPF_optIN=.FALSE.)
+      END IF
+      IF(PARTISELECTRON(iPart_p2)) THEN
+        CALL RANDOM_NUMBER(RandVal)
+        ! Get random vector b3 in b1-b2-plane
+        PartState(4:6,iPart_p2) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart_p2),RandVal)
+        ! Rotate the resulting vector in the b3-NormalIC-plane
+        PartState(4:6,iPart_p2) = GetRotatedVector(PartState(4:6,iPart_p2),Species(iSpec)%Init(iInit)%NormalIC)
+        ! Store the particle information in PartStateBoundary.h5
+        IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(iPart_p2,PartSpecies(iPart_p2),PartState(1:3,iPart_p2),&
+                                          UNITVECTOR(PartState(4:6,iPart_p2)),Species(iSpec)%Init(iInit)%NormalIC,mode=2,&
+                                          usevMPF_optIN=.FALSE.)
+      END IF
+  END ASSOCIATE
+  END DO
+END DO
+
+! Advance particle vector length and the current next free position with newly created particles
+PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
+PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
+
+DSMCSumOfFormedParticles = 0
+
+DEALLOCATE(Coll_pData)
+
+END SUBROUTINE BGGas_PhotoIonization
+
+
+PURE FUNCTION GetRandomVectorInPlane(b1,b2,VeloVec,RandVal)
+!===================================================================================================================================
+! Pick random vector in a plane set up by the basis vectors b1 and b2
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals      ,ONLY: VECNORM
+USE MOD_Globals_Vars ,ONLY: PI
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)    :: b1(1:3),b2(1:3) ! Basis vectors (normalized)
+REAL,INTENT(IN)    :: VeloVec(1:3)    ! Velocity vector before the random direction selection within the plane defined by b1 and b2
+REAL,INTENT(IN)    :: RandVal         ! Random number (given from outside to render this function PURE)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLE
+REAL               :: GetRandomVectorInPlane(1:3) ! Output velocity vector
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: Vabs ! Absolute velocity 
+REAL               :: phi ! random angle between 0 and 2*PI
+!===================================================================================================================================
+Vabs = VECNORM(VeloVec)
+phi = RandVal * 2.0 * PI
+GetRandomVectorInPlane = Vabs*(b1*COS(phi) + b2*SIN(phi))
+END FUNCTION GetRandomVectorInPlane
+
+
+FUNCTION GetRotatedVector(VeloVec,NormVec)
+!===================================================================================================================================
+! Rotate the vector in the plane set up by VeloVec and NormVec by choosing an angle from a 4.0 / PI * COS(Theta_temp)**2
+! distribution via the ARM
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals      ,ONLY: VECNORM, UNITVECTOR
+USE MOD_Globals_Vars ,ONLY: PI
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)    :: NormVec(1:3) ! Basis vector (normalized)
+REAL,INTENT(IN)    :: VeloVec(1:3) ! Velocity vector before the random direction selection within the plane defined by b1 and b2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLE
+REAL               :: GetRotatedVector(1:3) ! Output velocity vector
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: Vabs ! Absolute velocity
+REAL               :: RandVal, v(1:3)
+REAL               :: Theta, Theta_temp
+REAL               :: PDF_temp
+REAL, PARAMETER    :: PDF_max=4./ACOS(-1.)
+LOGICAL            :: ARM_SEE_PDF
+!===================================================================================================================================
+v = UNITVECTOR(VeloVec)
+Vabs = VECNORM(VeloVec)
+
+! ARM for angular distribution
+ARM_SEE_PDF=.TRUE.
+DO WHILE(ARM_SEE_PDF)
+  CALL RANDOM_NUMBER(RandVal)
+  Theta_temp = RandVal * 0.5 * PI
+  PDF_temp = 4.0 / PI * COS(Theta_temp)**2
+  CALL RANDOM_NUMBER(RandVal)
+  IF ((PDF_temp/PDF_max).GT.RandVal) ARM_SEE_PDF = .FALSE.
+END DO
+Theta = Theta_temp
+
+! Rotate original vector Vabs*v
+GetRotatedVector = Vabs*(v*COS(Theta) + NormVec*SIN(Theta))
+END FUNCTION GetRotatedVector
 
 END MODULE MOD_DSMC_BGGas

@@ -305,8 +305,6 @@ USE MOD_LoadBalance_Vars       ,ONLY: ElemTimeField
 #ifdef PARTICLES
 USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
 USE MOD_HDF5_Output_Tools      ,ONLY: WriteIMDStateToHDF5
-#else
-USE MOD_AnalyzeField           ,ONLY: AnalyzeField
 #endif /*PARTICLES*/
 #if USE_QDS_DG
 USE MOD_HDF5_Output_Tools      ,ONLY: WriteQDSToHDF5
@@ -506,6 +504,7 @@ DO !iter_t=0,MaxIter
     CALL abort(&
     __STAMP__&
     ,'Error in tEndDiff or tAnalyzeDiff!')
+
   END IF
 
   IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tPreviousAverageAnalyze) ! tPreviousAnalyze not used if finalize_flag=false
@@ -692,6 +691,10 @@ DO !iter_t=0,MaxIter
     WallTimeStart=PICLASTIME()
   END IF !dt_analyze
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
+#ifdef PARTICLES
+  ! Switch flag to false after the number of particles has been written to std out and before the time next step is started
+  GlobalNbrOfParticlesUpdated = .FALSE.    
+#endif /*PARTICLES*/
 END DO ! iter_t
 END SUBROUTINE TimeDisc
 
@@ -1891,22 +1894,23 @@ SUBROUTINE TimeStepByImplicitRK()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,iStage, nRKStages,dt_old, time
+USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,iStage, nRKStages,time
 USE MOD_TimeDisc_Vars          ,ONLY: ERK_a,ESDIRK_a,RK_b,RK_c
-USE MOD_LinearSolver_Vars      ,ONLY: ImplicitSource, DoPrintConvInfo,FieldStage
-USE MOD_DG_Vars                ,ONLY: U,Un
+USE MOD_LinearSolver_Vars      ,ONLY: ImplicitSource, DoPrintConvInfo
+USE MOD_DG_Vars                ,ONLY: U
 #if USE_HDG
 USE MOD_HDG                    ,ONLY: HDG
 #else /*pure DG*/
-USE MOD_DG_Vars                ,ONLY: Ut
+USE MOD_DG_Vars                ,ONLY: Ut,Un
 USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
 USE MOD_Predictor              ,ONLY: Predictor,StorePredictor
-USE MOD_LinearSolver_Vars      ,ONLY: LinSolverRHS
+USE MOD_LinearSolver_Vars      ,ONLY: LinSolverRHS,FieldStage
 USE MOD_Equation               ,ONLY: DivCleaningDamping
 USE MOD_Equation               ,ONLY: CalcSource
 #ifdef maxwell
 USE MOD_Precond                ,ONLY: BuildPrecond
 USE MOD_Precond_Vars           ,ONLY: UpdatePrecond
+USE MOD_TimeDisc_Vars          ,ONLY: dt_old
 #endif /*maxwell*/
 #endif /*USE_HDG*/
 USE MOD_Newton                 ,ONLY: ImplicitNorm,FullNewton
@@ -3855,7 +3859,7 @@ SUBROUTINE TimeStepPoisson()
 ! Euler (500) or Leapfrog (509) -push with HDG
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: Abort, LocalTime, MPIRoot
+USE MOD_Globals                ,ONLY: Abort, LocalTime
 USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
@@ -3895,7 +3899,6 @@ USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,Partic
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
-USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

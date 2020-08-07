@@ -366,6 +366,8 @@ CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
                                   ,'Utilize the null collision method for the determination of the number of pairs '//&
                                   'based on the maximum collision frequency and time step (only with a background gas)' &
                                   ,'.TRUE.')
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CrossSection'  &
+                                , 'Photon-ionization cross-section', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersDSMC
 
@@ -1805,6 +1807,7 @@ SDEALLOCATE(Coll_pData)
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(MacroDSMC)
 SDEALLOCATE(QKAnalytic)
+
 SDEALLOCATE(ChemReac%QKProcedure)
 SDEALLOCATE(ChemReac%QKMethod)
 SDEALLOCATE(ChemReac%QKCoeff)
@@ -1833,9 +1836,11 @@ SDEALLOCATE(ChemReac%ELb)
 SDEALLOCATE(ChemReac%DoScat)
 SDEALLOCATE(ChemReac%ReactInfo)
 SDEALLOCATE(ChemReac%TLU_FileName)
+SDEALLOCATE(ChemReac%CrossSection)
 SDEALLOCATE(ChemReac%ReactNumRecomb)
 SDEALLOCATE(ChemReac%Hab)
 SDEALLOCATE(ChemReac%DeleteProductsList)
+
 SDEALLOCATE(CollInf%Coll_Case)
 SDEALLOCATE(CollInf%Coll_CaseNum)
 SDEALLOCATE(CollInf%Coll_SpecPartNum)
@@ -1844,6 +1849,7 @@ SDEALLOCATE(CollInf%KronDelta)
 SDEALLOCATE(CollInf%FracMassCent)
 SDEALLOCATE(CollInf%MassRed)
 SDEALLOCATE(CollInf%MeanMPF)
+
 SDEALLOCATE(HValue)
 !SDEALLOCATE(SampWall)
 SDEALLOCATE(MacroSurfaceVal)
