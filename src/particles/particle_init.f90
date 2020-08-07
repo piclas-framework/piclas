@@ -891,12 +891,12 @@ DoDeposition    = GETLOGICAL('PIC-DoDeposition')
 DoInterpolation = GETLOGICAL('PIC-DoInterpolation')
 
 CALL InitParticleMesh()
-
-CALL InitPIC()
 #if USE_MPI
 !-- Build MPI communication
 CALL IdentifyPartExchangeProcs()
 #endif
+CALL InitPIC()
+
 !-- Macroscopic bodies inside domain
 CALL InitMacroBody()
 CALL MarkMacroBodyElems()

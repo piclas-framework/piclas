@@ -834,7 +834,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   END IF
 #endif /*USE_MPI*/
   ! because of emission and UpdateParticlePosition
-  CALL Deposition(DoInnerParts=.TRUE.)
+!  CALL Deposition(DoInnerParts=.TRUE.)
 #if USE_MPI
   IF(DoExternalParts)THEN
     ! finish communication
@@ -845,7 +845,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! ALWAYS require
   PartMPIExchange%nMPIParticles=0
 #endif /*USE_MPI*/
-  CALL Deposition(DoInnerParts=.FALSE.)
+  CALL Deposition(DoInnerParts=.TRUE.)
   IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 END IF
 
@@ -991,7 +991,7 @@ DO iStage=2,nRKStages
 #endif /*USE_LOADBALANCE*/
 
     !    ! deposition
-    CALL Deposition(DoInnerParts=.TRUE.)
+!    CALL Deposition(DoInnerParts=.TRUE.)
 #if USE_MPI
     CALL MPIParticleRecv()
 #endif /*USE_MPI*/
@@ -1004,7 +1004,7 @@ DO iStage=2,nRKStages
     CALL LBPauseTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-    CALL Deposition(DoInnerParts=.FALSE.)
+    CALL Deposition(DoInnerParts=.TRUE.)
     IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 #if USE_MPI
     ! null here, careful
