@@ -750,6 +750,8 @@ REAL                  :: thermalcondspec(nSpecies), thermalcond, C_P, MassCoef, 
 #ifdef CODE_ANALYZE
 REAL                  :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
 INTEGER               :: iMom
+REAL,PARAMETER        :: RelMomTol=1e-6  ! Relative tolerance applied to conservation of momentum before/after reaction
+REAL,PARAMETER        :: RelEneTol=1e-12 ! Relative tolerance applied to conservation of energy before/after reaction
 #endif /* CODE_ANALYZE */
 REAL                  :: totalWeightSpec(nSpecies), totalWeight, partWeight, totalWeightSpec2(nSpecies), totalWeight2
 REAL                  :: tempmass, tempweight, vBulkTemp(1:3), tempweight2
@@ -767,7 +769,7 @@ DO iLoop = 1, nPart
   Momentum_old(1:3) = Momentum_old(1:3) + PartState(4:6,iPartIndx_Node(iLoop))*Species(iSpec)%MassIC*partWeight
   Energy_old = Energy_old + (PartState(4,iPartIndx_Node(iLoop))**(2.) + PartState(5,iPartIndx_Node(iLoop))**(2.) &
            + PartState(6,iPartIndx_Node(iLoop))**(2.))*0.5*Species(iSpec)%MassIC*partWeight
-  IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
+  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     Energy_old = Energy_old + (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop)))*partWeight
   END IF
 END DO
@@ -1010,6 +1012,8 @@ DO iSpec = 1, 2
   END DO
 END DO
 
+RotExp = 0.; VibExp = 0.;
+
 DO iSpec = 1, 2
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     rotrelaxfreq = collisionfreq * DSMC%RotRelaxProb
@@ -1035,8 +1039,10 @@ ALLOCATE(iPartIndx_NodeRelaxRot(nPart),iPartIndx_NodeRelaxVib(nPart))
 iPartIndx_NodeRelaxRot = 0; iPartIndx_NodeRelaxVib = 0
 
 ProbAddPartTrans = 1.-EXP(-relaxfreq*dt)
-ProbAddPartRot = (1.-RotExp)
-ProbAddPartVib = (1.-VibExp)
+IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
+  ProbAddPartRot = (1.-RotExp)
+  ProbAddPartVib = (1.-VibExp)
+END IF
 DO iLoop = 1, nPart  
   CALL RANDOM_NUMBER(iRan)  
   IF (ProbAddPartTrans.GT.iRan) THEN
@@ -1264,12 +1270,12 @@ DO iLoop = 1, nPart
           + ((DSMC_RHS(1,iPartIndx_Node(iLoop)) + PartState(4,iPartIndx_Node(iLoop)))**(2.) &
           +  (DSMC_RHS(2,iPartIndx_Node(iLoop)) + PartState(5,iPartIndx_Node(iLoop)))**(2.) &
           +  (DSMC_RHS(3,iPartIndx_Node(iLoop)) + PartState(6,iPartIndx_Node(iLoop)))**(2.))*0.5*Species(iSpec)%MassIC*partWeight
-  IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
+  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     Energy_new = Energy_new + (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop)))*partWeight
   END IF
 END DO
 ! Check for energy difference
-IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
+IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,RelEneTol)) THEN
   WRITE(UNIT_StdOut,*) '\n'
   IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_old             : ",Energy_old
   IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_new             : ",Energy_new
@@ -1279,7 +1285,7 @@ IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
       IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Energy difference : ",(Energy_old-Energy_new)/energy
     END IF
   END ASSOCIATE
-  IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-12
+  IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",RelEneTol
   IPWRITE(UNIT_StdOut,*)                     " OldEn, alpha           : ", OldEn, alpha
   IPWRITE(UNIT_StdOut,*)                     " nPart, nRelax, nRotRelax, nVibRelax: ", nPart, nRelax
   CALL abort(&
@@ -1288,7 +1294,7 @@ IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
 END IF
 ! Check for momentum difference
 DO iMom=1,3
-  IF (.NOT.ALMOSTEQUALRELATIVE(Momentum_old(iMom),Momentum_new(iMom),1.0e-9)) THEN
+  IF (.NOT.ALMOSTEQUALRELATIVE(Momentum_old(iMom),Momentum_new(iMom),RelMomTol)) THEN
     WRITE(UNIT_StdOut,*) '\n'
     IPWRITE(UNIT_StdOut,'(I0,A,I0)')           " Direction (x,y,z)        : ",iMom
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Momentum_old             : ",Momentum_old(iMom)
@@ -1299,7 +1305,7 @@ DO iMom=1,3
         IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Momentum difference : ",(Momentum_old(iMom)-Momentum_new(iMom))/Momentum
       END IF
     END ASSOCIATE
-    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance        : ",1.0e-9
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance        : ",RelMomTol
     IPWRITE(UNIT_StdOut,*)                     " OldEn, alpha             : ", OldEn, alpha
     IPWRITE(UNIT_StdOut,*)                     " nPart, nRelax, nRotRelax, nVibRelax: ", nPart, nRelax
     CALL abort(&
