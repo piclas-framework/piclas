@@ -79,6 +79,7 @@ USE MOD_Particle_Boundary_Tools  ,ONLY: StoreBoundaryParticleProperties,Dielectr
 #if CODE_ANALYZE
 USE MOD_Globals                  ,ONLY: myRank,UNIT_stdout
 USE MOD_Mesh_Vars                ,ONLY: NGeo
+USE MOD_Mesh_Tools               ,ONLY: GetCNElemID
 USE MOD_Particle_Surfaces_Vars   ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars       ,ONLY: ElemBaryNGeo_Shared
 #endif /* CODE_ANALYZE */

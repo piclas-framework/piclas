@@ -470,7 +470,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
-USE MOD_Particle_Mesh_Vars          ,ONLY: ElemRadiusNGeo,ElemHasAuxBCs!,PartElemToSide
+USE MOD_Particle_Mesh_Vars          ,ONLY: ElemRadiusNGeo,ElemHasAuxBCs
 USE MOD_Particle_Boundary_Vars      ,ONLY: nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteractionAuxBC
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbrOfLostParts, NbrOfLostParticles, DisplayLostParticles
@@ -603,7 +603,7 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
     END IF
     ! caution: reuse of variable, foundHit=TRUE == inside
-    ElemID   = PEM%lastElement(iPart)
+    ElemID   = PEM%LastGlobalElemID(iPart)
     CNElemID = GetCNElemID(ElemID)
     CALL GetPositionInRefElem(LastPartPos(1:3,iPart),RefPos,ElemID)
     IF (MAXVAL(ABS(RefPos)).LE.1.0+1e-4) foundHit=.TRUE.
@@ -917,7 +917,7 @@ DO iPart=1,PDM%ParticleVecLength
           WRITE(UNIT_stdout,'(A,G0)')  '     -> alpha: '  ,currentIntersect%alpha
           WRITE(UNIT_stdout,'(A,I0)')  '     -> locSide: ',currentIntersect%Side
           IF (currentIntersect%IntersectCase.EQ.1) THEN
-            WRITE(UNIT_stdout,'(A,I0)') '     -> SideID: ',PartElemToSide(E2S_SIDE_ID,currentIntersect%Side,ElemID)
+            WRITE(UNIT_stdout,'(A,I0)') '     -> SideID: ',GetGlobalNonUniqueSideID(ElemID,currentIntersect%Side)
           END IF
         END IF ; END IF
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
@@ -2521,21 +2521,21 @@ SUBROUTINE FallBackFaceIntersection(ElemID,firstSide,LastSide,nlocSides,PartID)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Eval_xyz,                    ONLY: TensorProductInterpolation
-USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
-USE MOD_Particle_Localization,       ONLY:LocateParticleInElement
-USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
-USE MOD_Particle_Intersection,       ONLY: ComputeBiLinearIntersection
-USE MOD_Particle_Mesh_Vars,          ONLY: SideInfo_Shared
-USE MOD_Particle_Mesh_Vars,          ONLY: SideBCMetrics
-USE MOD_Particle_Mesh_Vars,          ONLY: ElemBaryNGeo
-USE MOD_Mesh_Tools         ,         ONLY: GetCNElemID
-USE MOD_Particle_Surfaces_Vars,      ONLY: SideType
+USE MOD_Eval_xyz                    ,ONLY: TensorProductInterpolation
+USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
+USE MOD_Particle_Localization       ,ONLY: LocateParticleInElement
+USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
+USE MOD_Particle_Intersection       ,ONLY: ComputePlanarCurvedIntersection
+USE MOD_Particle_Intersection       ,ONLY: ComputePlanarRectInterSection
+USE MOD_Particle_Intersection       ,ONLY: ComputeBiLinearIntersection
+USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
+USE MOD_Particle_Mesh_Vars          ,ONLY: SideBCMetrics
+USE MOD_Particle_Mesh_Vars          ,ONLY: ElemBaryNGeo
+USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
+USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
 USE MOD_Utils                       ,ONLY: InsertionSort
-USE MOD_Particle_Vars,               ONLY: PDM,PartState,LastPartPos
-USE MOD_Particle_Vars,               ONLY:PartPosRef
+USE MOD_Particle_Vars               ,ONLY: PDM,PartState,LastPartPos
+!USE MOD_Particle_Vars,               ONLY:PartPosRef
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
