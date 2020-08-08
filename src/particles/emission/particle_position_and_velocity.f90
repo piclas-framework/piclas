@@ -224,7 +224,9 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
   CASE('sin_deviation')
     CALL SetParticlePositionSinDeviation(FractNbr,iInit,chunkSize,particle_positions)
   CASE('photon_SEE_disc') ! disc case for surface disribution
+    !CALL SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize,particle_positions)
   CASE('photon_cylinder') ! cylinder case for photonionization
+    !CALL SetParticlePositionPhotonCylinder(FractNbr,iInit,chunkSize,particle_positions)
   END SELECT
   !------------------SpaceIC-cases: end-------------------------------------------------------------------------------------------
 #if USE_MPI

@@ -1688,8 +1688,7 @@ PURE FUNCTION CalcPhotonEnergy(lambda)
 !> Calculation of photon energy based on wavelength
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars          ,ONLY: PlanckConst
-USE MOD_Equation_Vars         ,ONLY: c
+USE MOD_Globals_Vars          ,ONLY: PlanckConst,c
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -1631,7 +1631,7 @@ SUBROUTINE CalcPhotoIonizationNumber(NbrOfPhotons,NbrOfReactions)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Equation_Vars ,ONLY: c
+USE MOD_Globals_Vars  ,ONLY: c
 USE MOD_Particle_Vars ,ONLY: Species
 USE MOD_DSMC_Vars     ,ONLY: BGGas, ChemReac
 USE MOD_TimeDisc_Vars ,ONLY: dt

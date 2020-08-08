@@ -765,7 +765,7 @@ DO WHILE (iPart.LE.NbrOfParticle)
     PDM%IsNewPart(NewParticleIndex)       = .TRUE.
     PDM%dtFracPush(NewParticleIndex)      = .FALSE.
     ! Particle element
-    PEM%Element(NewParticleIndex) = PEM%Element(ParticleIndex)
+    PEM%GlobalElemID(NewParticleIndex) = PEM%GlobalElemID(ParticleIndex)
     ! Pairing
     Coll_pData(iNewPart)%iPart_p1 = NewParticleIndex
     Coll_pData(iNewPart)%iPart_p2 = ParticleIndex
