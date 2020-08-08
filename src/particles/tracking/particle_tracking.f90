@@ -2523,7 +2523,12 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Eval_xyz,                    ONLY: TensorProductInterpolation
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
+<<<<<<< HEAD
 USE MOD_Particle_Localization,       ONLY:LocateParticleInElement
+=======
+USE MOD_Particle_Mesh_Vars,          ONLY:BCElem
+USE MOD_Utils,                       ONLY:InsertionSort
+>>>>>>> 944c0247fa8da5ea777cd8089a6e617857c11dfc
 USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection

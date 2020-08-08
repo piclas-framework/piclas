@@ -64,6 +64,7 @@ INTEGER,INTENT(INOUT)                    :: NbrOfParticle
 ! LOCAL VARIABLES
 INTEGER                                  :: chunkSize
 LOGICAL                                  :: DoExactPartNumInsert
+LOGICAL                                  :: ARM_Gauss
 #if USE_MPI
 INTEGER                                  :: InitGroup
 REAL,ALLOCATABLE                         :: ProcMeshVol(:)
@@ -124,7 +125,6 @@ __STAMP__&
   NbrOfParticle = chunksize
 
 END SUBROUTINE SetParticlePositionCellLocal
-
 
 SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
@@ -223,6 +223,8 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
     CALL SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions)
   CASE('sin_deviation')
     CALL SetParticlePositionSinDeviation(FractNbr,iInit,chunkSize,particle_positions)
+  CASE('photon_SEE_disc') ! disc case for surface disribution
+  CASE('photon_cylinder') ! cylinder case for photonionization
   END SELECT
   !------------------SpaceIC-cases: end-------------------------------------------------------------------------------------------
 #if USE_MPI
@@ -310,7 +312,9 @@ SUBROUTINE SetParticleVelocity(FractNbr,iInit,NbrOfParticle)
 USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_part_emission_tools   ,ONLY: CalcVelocity_maxwell_lpn, CalcVelocity_taylorgreenvortex
+USE MOD_part_emission_tools   ,ONLY: CalcVelocity_maxwell_lpn, CalcVelocity_taylorgreenvortex,CalcVelocity_FromWorkFuncSEE
+USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutput
+USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_FPFlow_Init           ,ONLY: FP_BuildTransGaussNums
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -397,6 +401,22 @@ CASE('maxwell')
   END DO
 CASE('IMD') ! read IMD particle velocity from *.chkpt file -> velocity space has already been read when particles position was done
   ! do nothing
+CASE('photon_SEE_energy')
+  DO i = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr .NE. 0) THEN
+!       IF (Is_ElemMacro) THEN
+         CALL CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit=iInit)
+!       ELSE
+!         CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
+!       END IF
+        PartState(4:6,PositionNbr) = Vec3D(1:3)
+        ! Store the particle information in PartStateBoundary.h5
+        IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(PositionNbr,FractNbr,PartState(1:3,PositionNbr),&
+                                          UNITVECTOR(PartState(4:6,PositionNbr)),Species(FractNbr)%Init(iInit)%NormalIC,mode=2,&
+                                          usevMPF_optIN=.FALSE.)
+    END IF
+  END DO
 CASE DEFAULT
   CALL abort(&
 __STAMP__&
