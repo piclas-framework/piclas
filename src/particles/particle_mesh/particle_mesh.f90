@@ -185,7 +185,7 @@ USE MOD_Particle_BGM           ,ONLY: BuildBGMAndIdentifyHaloRegion
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Tools    ,ONLY: InitPEM_LocalElemID,InitPEM_CNElemID
 USE MOD_Particle_Surfaces      ,ONLY: GetSideSlabNormalsAndIntervals
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux,SideBoundingBoxVolume
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierControlPoints3DElevated,SideSlabNormals,SideSlabIntervals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty
@@ -199,6 +199,7 @@ USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GE
 USE MOD_Particle_Vars          ,ONLY: Symmetry2D
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
+USE MOD_MPI_Vars               ,ONLY: offsetMPISides_YOUR
 #endif /*CODE_ANALYZE*/
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
@@ -222,6 +223,9 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #else
 INTEGER          :: ALLOCSTAT
 #endif
+#ifdef CODE_ANALYZE
+REAL             :: dx,dy,dz
+#endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -405,7 +409,7 @@ CASE(TRACING,REFMAPPING)
 #endif /* USE_MPI */
 #ifdef CODE_ANALYZE
     ! TODO: bounding box volumes must be calculated for all unique sides.
-    offsetSideID = ElemInfo_Shared(SideIf
+    !offsetSideID = ElemInfo_Shared(SideIf
     DO iSide=offsetMPISides_YOUR,LastSide
       dx=ABS(SideSlabIntervals(2)-SideSlabIntervals(1))
       dy=ABS(SideSlabIntervals(4)-SideSlabIntervals(3))

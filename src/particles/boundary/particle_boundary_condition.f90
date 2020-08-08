@@ -77,7 +77,7 @@ USE MOD_Dielectric_Vars          ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
 USE MOD_Particle_Boundary_Tools  ,ONLY: StoreBoundaryParticleProperties,DielectricSurfaceCharge
 #if CODE_ANALYZE
-USE MOD_Globals                  ,ONLY: myRank
+USE MOD_Globals                  ,ONLY: myRank,UNIT_stdout
 USE MOD_Mesh_Vars                ,ONLY: NGeo
 USE MOD_Particle_Surfaces_Vars   ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars       ,ONLY: ElemBaryNGeo_Shared

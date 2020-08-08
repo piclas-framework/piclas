@@ -370,7 +370,6 @@ USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES 
 REAL,INTENT(IN)    :: PartPos(1:3)
-INTEGER,INTENT(IN) :: AnalyticInterpolationType
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL :: GetAnalyticFieldAtParticle(1:6)
