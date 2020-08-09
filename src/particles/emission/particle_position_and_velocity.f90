@@ -139,6 +139,7 @@ USE MOD_part_emission_tools    ,ONLY: IntegerDivide,SetCellLocalParticlePosition
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionEquidistLine, SetParticlePositionLine, SetParticlePositionDisk
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionCuboidCylinder, SetParticlePositionGyrotronCircle,SetParticlePositionCircle
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionSphere, SetParticlePositionSinDeviation
+USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: SendEmissionParticlesToProcs
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
@@ -224,9 +225,9 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
   CASE('sin_deviation')
     CALL SetParticlePositionSinDeviation(FractNbr,iInit,chunkSize,particle_positions)
   CASE('photon_SEE_disc') ! disc case for surface disribution
-    !CALL SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize,particle_positions)
   CASE('photon_cylinder') ! cylinder case for photonionization
-    !CALL SetParticlePositionPhotonCylinder(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionPhotonCylinder(FractNbr,iInit,chunkSize,particle_positions)
   END SELECT
   !------------------SpaceIC-cases: end-------------------------------------------------------------------------------------------
 #if USE_MPI

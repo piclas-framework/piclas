@@ -103,6 +103,7 @@ PUBLIC :: SetParticlePositionSphere, SetParticlePositionSinDeviation, SetParticl
 PUBLIC :: CalcNbrOfPhotons, CalcPhotonEnergy
 PUBLIC :: CalcIntensity_Gaussian
 PUBLIC :: CalcVelocity_FromWorkFuncSEE
+PUBLIC :: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
 #if CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
@@ -1788,4 +1789,121 @@ Vec3D = VeloVec_norm * VeloABS
 END ASSOCIATE
 
 END SUBROUTINE CalcVelocity_FromWorkFuncSEE
+
+
+SUBROUTINE SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize,particle_positions)
+!===================================================================================================================================
+! Set particle position
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: Species
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)       :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                    :: Particle_pos(3),radius
+INTEGER                 :: i
+REAL                    :: lineVector(3),lineVector2(3)
+LOGICAL                 :: ARM_Gauss
+REAL                    :: RandVal(2),RandVal1
+!===================================================================================================================================
+! Use the base vectors BaseVector1IC and BaseVector2IC as coordinate system (they must be perpendicular)
+lineVector = UNITVECTOR(Species(FractNbr)%Init(iInit)%BaseVector1IC(1:3))
+lineVector2 = UNITVECTOR(Species(FractNbr)%Init(iInit)%BaseVector2IC(1:3))
+
+DO i=1,chunkSize
+  radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1
+  ARM_Gauss = .TRUE.
+  DO WHILE((radius.GT.Species(FractNbr)%Init(iInit)%RadiusIC).OR.(ARM_Gauss))
+    CALL RANDOM_NUMBER(RandVal)
+    ! Check if particles are to be inserted in the first quadrant only, otherwise map R [0,1] -> R [-1,1]
+    IF(.NOT.Species(FractNbr)%Init(iInit)%FirstQuadrantOnly) RandVal = RandVal * 2. - 1.
+    Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + Species(FractNbr)%Init(iInit)%RadiusIC * &
+        (RandVal(1) * lineVector + RandVal(2) *lineVector2)
+
+    radius = SQRT( (Particle_pos(1)-Species(FractNbr)%Init(iInit)%BasePointIC(1)) * &
+        (Particle_pos(1)-Species(FractNbr)%Init(iInit)%BasePointIC(1)) + &
+        (Particle_pos(2)-Species(FractNbr)%Init(iInit)%BasePointIC(2)) * &
+        (Particle_pos(2)-Species(FractNbr)%Init(iInit)%BasePointIC(2)) + &
+        (Particle_pos(3)-Species(FractNbr)%Init(iInit)%BasePointIC(3)) * &
+        (Particle_pos(3)-Species(FractNbr)%Init(iInit)%BasePointIC(3)) )
+    ! Start ARM for Gauss distribution
+    CALL RANDOM_NUMBER(RandVal1)
+    IF(CalcIntensity_Gaussian(radius,Species(FractNbr)%Init(iInit)%WaistRadius).GT.RandVal1) ARM_Gauss = .FALSE.
+    ! End ARM for Gauss distribution
+  END DO
+  particle_positions(i*3-2) = Particle_pos(1)
+  particle_positions(i*3-1) = Particle_pos(2)
+  particle_positions(i*3  ) = Particle_pos(3)
+END DO
+END SUBROUTINE SetParticlePositionPhotonSEEDisc
+
+
+SUBROUTINE SetParticlePositionPhotonCylinder(FractNbr,iInit,chunkSize,particle_positions)
+!===================================================================================================================================
+! Set particle position
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: Species
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)       :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                    :: Particle_pos(3),radius
+INTEGER                 :: i
+REAL                    :: lineVector(3),lineVector2(3)
+LOGICAL                 :: ARM_Gauss
+REAL                    :: RandVal(2),RandVal1
+!===================================================================================================================================
+! Use the base vectors BaseVector1IC and BaseVector2IC as coordinate system (they must be perpendicular)
+lineVector = UNITVECTOR(Species(FractNbr)%Init(iInit)%BaseVector1IC(1:3))
+lineVector2 = UNITVECTOR(Species(FractNbr)%Init(iInit)%BaseVector2IC(1:3))
+
+DO i=1,chunkSize
+  radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1
+  ARM_Gauss = .TRUE.
+  DO WHILE((radius.GT.Species(FractNbr)%Init(iInit)%RadiusIC).OR.(ARM_Gauss))
+    CALL RANDOM_NUMBER(RandVal)
+    ! Check if particles are to be inserted in the first quadrant only, otherwise map R [0,1] -> R [-1,1]
+    IF(.NOT.Species(FractNbr)%Init(iInit)%FirstQuadrantOnly) RandVal = RandVal * 2. - 1.
+    Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + Species(FractNbr)%Init(iInit)%RadiusIC * &
+        (RandVal(1) * lineVector + RandVal(2) *lineVector2)
+
+    radius = SQRT( (Particle_pos(1)-Species(FractNbr)%Init(iInit)%BasePointIC(1)) * &
+        (Particle_pos(1)-Species(FractNbr)%Init(iInit)%BasePointIC(1)) + &
+        (Particle_pos(2)-Species(FractNbr)%Init(iInit)%BasePointIC(2)) * &
+        (Particle_pos(2)-Species(FractNbr)%Init(iInit)%BasePointIC(2)) + &
+        (Particle_pos(3)-Species(FractNbr)%Init(iInit)%BasePointIC(3)) * &
+        (Particle_pos(3)-Species(FractNbr)%Init(iInit)%BasePointIC(3)) )
+    ! Start ARM for Gauss distribution
+    CALL RANDOM_NUMBER(RandVal1)
+    IF(CalcIntensity_Gaussian(radius,Species(FractNbr)%Init(iInit)%WaistRadius).GT.RandVal1) ARM_Gauss = .FALSE.
+    ! End ARM for Gauss distribution
+  END DO
+  CALL RANDOM_NUMBER(RandVal1)
+  Particle_pos = Particle_pos &
+      + Species(FractNbr)%Init(iInit)%NormalIC * Species(FractNbr)%Init(iInit)%CylinderHeightIC * RandVal1
+  particle_positions(i*3-2) = Particle_pos(1)
+  particle_positions(i*3-1) = Particle_pos(2)
+  particle_positions(i*3  ) = Particle_pos(3)
+END DO
+END SUBROUTINE SetParticlePositionPhotonCylinder
+
+
 END MODULE MOD_part_emission_tools

@@ -794,6 +794,7 @@ USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers        ,ONLY: LBStartTime,LBPauseTime
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars              ,ONLY: DoDeposition, RelaxDeposition
@@ -1177,25 +1178,27 @@ END IF ! only during output like Doftime
 
 #ifdef CODE_ANALYZE
 ! particle analyze
-IF (DoPartAnalyze)  THEN
-  IF(DoPerformPartAnalyze) CALL CodeAnalyzeOutput(OutputTime)
-  IF(LastIter)THEN
-    CALL CodeAnalyzeOutput(OutputTime)
-    SWRITE(UNIT_stdOut,'(A51)') 'CODE_ANALYZE: Following output has been accumulated'
-    SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBBChecks    : ' , rTotalBBChecks
-    SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierClips : ' , rTotalBezierClips
-    SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierNewton: ' , rTotalBezierNewton
-    TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
+IF(TrackingMethod.NE.TRIATRACKING)THEN
+  IF (DoPartAnalyze)  THEN
+    IF(DoPerformPartAnalyze) CALL CodeAnalyzeOutput(OutputTime)
+    IF(LastIter)THEN
+      CALL CodeAnalyzeOutput(OutputTime)
+      SWRITE(UNIT_stdOut,'(A51)') 'CODE_ANALYZE: Following output has been accumulated'
+      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBBChecks    : ' , rTotalBBChecks
+      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierClips : ' , rTotalBezierClips
+      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierNewton: ' , rTotalBezierNewton
+      TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
 #if USE_MPI
-    IF(MPIRoot) THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE,TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
-    ELSE ! no Root
-      CALL MPI_REDUCE(TotalSideBoundingBoxVolume,rDummy  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
-    END IF
+      IF(MPIRoot) THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE,TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+      ELSE ! no Root
+        CALL MPI_REDUCE(TotalSideBoundingBoxVolume,rDummy  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
+      END IF
 #endif /*USE_MPI*/
-    SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
+      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
+    END IF
   END IF
-END IF
+END IF ! TrackingMethod.NE.TRIATRACKING
 #endif /*CODE_ANALYZE*/
 
 ! Time for analysis
