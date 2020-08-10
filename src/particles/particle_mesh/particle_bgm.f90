@@ -833,6 +833,8 @@ END DO
 ! Sum global number of elements per FIBGM cell
 MessageSize = (BGMimaxglob-BGMiminglob+1)*(BGMjmaxglob-BGMjminglob+1)*(BGMkmaxglob-BGMkminglob+1)
 CALL MPI_REDUCE(FIBGM_nTotalElemsTmp,FIBGM_nTotalElems,MessageSize,MPI_INTEGER,MPI_SUM,0,MPI_COMM_SHARED,iERROR)
+CALL MPI_WIN_SYNC(FIBGM_nTotalElems_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 DEALLOCATE(FIBGM_nTotalElemsTmp)
 
 ! Perform logical OR and place data on CN root
