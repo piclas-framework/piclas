@@ -880,10 +880,12 @@ DO iSpec = 1, nSpecies
     vBulkTemp(1:3) = vBulkTemp(1:3) + MeanPartV(iSpec,1:3)*totalweight(iSpec) * Species(iSpec)%MassIC 
   END IF
 END DO
-vBulkTemp(1:3) = vBulkTemp(1:3) / tempmass
-vmag2 = vBulkTemp(1)*vBulkTemp(1) + vBulkTemp(2)*vBulkTemp(2) + vBulkTemp(3)*vBulkTemp(3)
-EnerTotal = EnerTotal -  tempmass / 2. * vmag2
-DSMC%InstantTransTemp(nSpecies+1) = 2. * EnerTotal / (3.*tempweighttotal*BoltzmannConst)
+IF ((tempmass.GT.0.0).AND.(tempweighttotal.GT.0.0)) THEN
+  vBulkTemp(1:3) = vBulkTemp(1:3) / tempmass
+  vmag2 = vBulkTemp(1)*vBulkTemp(1) + vBulkTemp(2)*vBulkTemp(2) + vBulkTemp(3)*vBulkTemp(3)
+  EnerTotal = EnerTotal -  tempmass / 2. * vmag2
+  DSMC%InstantTransTemp(nSpecies+1) = 2. * EnerTotal / (3.*tempweighttotal*BoltzmannConst)
+END IF
 
 END SUBROUTINE CalcInstantTransTemp
 

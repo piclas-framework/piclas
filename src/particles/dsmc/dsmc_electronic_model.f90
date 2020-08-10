@@ -14,7 +14,7 @@
 
 MODULE MOD_DSMC_ElectronicModel
 !===================================================================================================================================
-! module including qk procedures
+! module including °qk procedures
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -223,10 +223,11 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi)
 !===================================================================================================================================
   USE MOD_Globals
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn, RadialWeighting, Coll_pData, DSMC, ElectronicDistriPart  
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, VarTimeStep, usevMPF, nSpecies
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, VarTimeStep, usevMPF, nSpecies, PEM
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst, Pi
   USE MOD_part_tools              ,ONLY: GetParticleWeight
-  USE MOD_DSMC_Analyze,           ONLY: CalcTelec         
+  USE MOD_DSMC_Analyze,           ONLY: CalcTelec 
+  USE MOD_Mesh_Vars              ,ONLY: OffSetElem
 #if (PP_TimeDiscMethod==42)
   USE MOD_DSMC_Vars,              ONLY : DSMC
 #endif
@@ -251,6 +252,7 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi)
     END IF
     iSpecies = PartSpecies(iPart1)
     TransElec = DSMC%InstantTransTemp(nSpecies + 1) !CalcTelec(ETraRel, iSpecies)
+    IF (TransElec.LE.0.0) TransElec = 1./(BoltzmannConst*(FakXi+1.))*ETraRel
     ElectronicPartition = 0.0
     DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
       tmpExp = SpecDSMC(iSpecies)%ElectronicState(2,iQua) / TransElec
