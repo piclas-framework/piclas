@@ -808,6 +808,7 @@ USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Particle_Vars          ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF, nSpecies, VarTimeStep
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
+USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
@@ -835,9 +836,10 @@ LOGICAL                        :: withDSMC=.FALSE.
 INTEGER                        :: iElem_glob, iElem_loc
 REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER, ALLOCATABLE           :: VibQuantData(:,:)
+REAL, ALLOCATABLE              :: ElecDistriData(:,:)
 INTEGER,PARAMETER              :: PartIntSize=2        !number of entries in each line of PartInt
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
-INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec
+INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec, MaxElecQuant
 ! Integers of KIND=IK
 INTEGER(KIND=IK)               :: locnPart,offsetnPart
 INTEGER(KIND=IK)               :: iPart
@@ -887,6 +889,15 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
   END DO
 END IF
 
+IF (withDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+  MaxElecQuant = 0
+  DO iSpec = 1, nSpecies
+    IF (.NOT.((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized)) THEN
+      IF (SpecDSMC(iSpec)%MaxElecQuant.GT.MaxElecQuant) MaxElecQuant = SpecDSMC(iSpec)%MaxElecQuant
+    END IF
+  END DO
+END IF
+
 locnPart =   0_IK
 DO pcount = 1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(pcount)) THEN
@@ -928,6 +939,11 @@ IF (ALLOCSTAT.NE.0) CALL abort(&
 IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
   ALLOCATE(VibQuantData(MaxQuantNum,offsetnPart+1_IK:offsetnPart+locnPart))
   VibQuantData = 0
+  !+1 is real number of necessary vib quants for the particle
+END IF
+IF (withDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)  THEN
+  ALLOCATE(ElecDistriData(MaxElecQuant,offsetnPart+1_IK:offsetnPart+locnPart))
+  ElecDistriData = 0
   !+1 is real number of necessary vib quants for the particle
 END IF
 
@@ -1010,6 +1026,15 @@ DO iElem_loc=1,PP_nElems
             VibQuantsPar(pcount)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
         ELSE
            VibQuantData(:,iPart) = 0
+        END IF
+      END IF
+
+      IF (withDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+        IF (.NOT.((SpecDSMC(PartSpecies(pcount))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(pcount))%FullyIonized)) THEN
+          ElecDistriData(1:SpecDSMC(PartSpecies(pcount))%MaxElecQuant,iPart) = &
+            ElectronicDistriPart(pcount)%DistriFunc(1:SpecDSMC(PartSpecies(pcount))%MaxElecQuant)
+        ELSE
+           ElecDistriData(:,iPart) = 0
         END IF
       END IF
 
@@ -1137,6 +1162,16 @@ ASSOCIATE (&
                               communicator=PartMPI%COMM  , IntegerArray_i4=VibQuantData)
     DEALLOCATE(VibQuantData)
   END IF
+  IF (withDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+    CALL DistributedWriteArray(FileName , &
+                              DataSetName ='ElecDistriData', rank=2           , &
+                              nValGlobal  =(/MaxElecQuant , nGlobalNbrOfParticles  /)   , &
+                              nVal        =(/MaxElecQuant , locnPart    /)   , &
+                              offset      =(/0_IK        , offsetnPart /)   , &
+                              collective  =.FALSE.       , offSetDim=2      , &
+                              communicator=PartMPI%COMM  , RealArray=ElecDistriData)
+    DEALLOCATE(ElecDistriData)
+  END IF
   ! Output of the element-wise time step as a separate container in state file
   IF(VarTimeStep%UseDistribution) THEN
     CALL DistributedWriteArray(FileName , &
@@ -1161,6 +1196,14 @@ ASSOCIATE (&
                           offset      = (/ 0_IK        , offsetnPart  /)      , &
                           collective  = .TRUE.         , IntegerArray_i4 = VibQuantData)
     DEALLOCATE(VibQuantData)
+  END IF
+  IF (withDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+    CALL WriteArrayToHDF5(DataSetName = 'ElecDistriData' , rank = 2             , &
+                          nValGlobal  = (/ MaxElecQuant , nGlobalNbrOfParticles   /)      , &
+                          nVal        = (/ MaxElecQuant , locnPart     /)      , &
+                          offset      = (/ 0_IK        , offsetnPart  /)      , &
+                          collective  = .TRUE.         , RealArray = ElecDistriData)
+    DEALLOCATE(ElecDistriData)
   END IF
     ! Output of the element-wise time step as a separate container in state file
   IF(VarTimeStep%UseDistribution) THEN
