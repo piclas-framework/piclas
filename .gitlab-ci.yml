@@ -221,9 +221,9 @@ gnu_poisson:
     - cd build_gnu_poisson_release ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
     - cd ../build_gnu_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
 
-gnu_NIG_Photoionization:
+gnu_CHE_Photoionization:
   <<: *defaults_gnu_poisson
-  stage: reggie_nightly
+  stage: reggie_checkin
   tags:
     - withmodules-concurrent
   script:
