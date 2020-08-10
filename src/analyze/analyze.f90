@@ -779,6 +779,12 @@ USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
 #if (PP_TimeDiscMethod!=42) && !defined(LSERK)
 USE MOD_Particle_Vars             ,ONLY: DelayTime
 #endif /*PP_TimeDiscMethod!=42 && !defined(LSERK)*/
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
+USE MOD_Particle_Analyze          ,ONLY: AnalyticParticleMovement
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
+USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
+#endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField              ,ONLY: CalcPoyntingIntegral
@@ -787,14 +793,8 @@ USE MOD_AnalyzeField              ,ONLY: CalcPoyntingIntegral
 USE MOD_Analyze_Vars              ,ONLY: DoFieldAnalyze
 USE MOD_RecordPoints_Vars         ,ONLY: RP_onProc
 #endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS) || USE_HDG*/
-#ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
-USE MOD_Particle_Analyze          ,ONLY: AnalyticParticleMovement
-USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
-#endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers        ,ONLY: LBStartTime,LBPauseTime
-USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars              ,ONLY: DoDeposition, RelaxDeposition
@@ -1170,7 +1170,6 @@ IF(OutPutHDF5 .AND. MeasureTrackTime)THEN
   tTracking=0.
   tLocalization=0.
 END IF ! only during output like Doftime
-#endif /*PARTICLES*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Code Analyze
@@ -1200,6 +1199,7 @@ IF(TrackingMethod.NE.TRIATRACKING)THEN
   END IF
 END IF ! TrackingMethod.NE.TRIATRACKING
 #endif /*CODE_ANALYZE*/
+#endif /*PARTICLES*/
 
 ! Time for analysis
 IF((DoPerformFieldAnalyze.OR.DoPerformPartAnalyze.OR.DoPerformSurfaceAnalyze).AND.DoMeasureAnalyzeTime)THEN

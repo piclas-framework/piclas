@@ -326,11 +326,11 @@ USE MOD_Particle_Boundary_Vars ,ONLY: nPorousBC
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
-#endif /*PARTICLES*/
-USE MOD_Output                 ,ONLY: PrintStatusLine
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation       ,ONLY: InitAnalyticalParticleState
 #endif /*CODE_ANALYZE*/
+#endif /*PARTICLES*/
+USE MOD_Output                 ,ONLY: PrintStatusLine
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -428,10 +428,12 @@ IF (DoInitialAutoRestart) THEN
 END IF
 #endif /*USE_LOADBALANCE*/
 
+#ifdef PARTICLES
 #ifdef CODE_ANALYZE
 ! Set specific particle position and velocity (calculated from an analytical expression)
 CALL InitAnalyticalParticleState()
 #endif /*CODE_ANALYZE*/
+#endif /*PARTICLES*/
 
 CALL PerformAnalyze(time,FirstOrLastIter=.TRUE.,OutPutHDF5=.FALSE.)
 
