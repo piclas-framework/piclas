@@ -66,7 +66,7 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                       :: iQua
-  REAL                          :: iRan, ElectronicPartition, ElectronicPartitionTemp, iRan2
+  REAL                          :: iRan, ElectronicPartition, ElectronicPartitionTemp, iRan2, tmpExp
   REAL                        :: Telec                      ! electronic temperature
 !===================================================================================================================================
   SELECT CASE (init_or_sf)
@@ -91,19 +91,28 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
     ALLOCATE(ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(iSpecies)%MaxElecQuant))
     PartStateIntEn(3,iPart) = 0.0
     DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
-      ElectronicPartition = ElectronicPartition + SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
-              EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec)
+      tmpExp = SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec
+      IF (CHECKEXP(tmpExp)) &
+        ElectronicPartition = ElectronicPartition + SpecDSMC(iSpecies)%ElectronicState(1,iQua) * EXP(-tmpExp)
     END DO
     DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
-      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
-              EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec)/ElectronicPartition
+      tmpExp = SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec
+      IF (CHECKEXP(tmpExp)) THEN
+        ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = SpecDSMC(iSpecies)%ElectronicState(1,iQua)*EXP(-tmpExp)/ElectronicPartition
+      ELSE
+        ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = 0.0
+      END IF
       PartStateIntEn(3,iPart) = PartStateIntEn(3,iPart) + &
           ElectronicDistriPart(iPart)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpecies)%ElectronicState(2,iQua)
     END DO
   ELSE
     DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
-      ElectronicPartitionTemp = SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
-              EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec)
+      tmpExp = SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec
+      IF (CHECKEXP(tmpExp)) THEN
+        ElectronicPartitionTemp = SpecDSMC(iSpecies)%ElectronicState(1,iQua) *EXP(-tmpExp)
+      ELSE
+        ElectronicPartitionTemp = 0.0
+      END IF
       IF ( ElectronicPartitionTemp .GT. ElectronicPartition ) THEN
         ElectronicPartition = ElectronicPartitionTemp
       END IF
@@ -114,8 +123,12 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
     DO WHILE ( iRan2 .GE. ElectronicPartitionTemp / ElectronicPartition )
       CALL RANDOM_NUMBER(iRan)
       iQua = int( ( SpecDSMC(iSpecies)%MaxElecQuant ) * iRan)
-      ElectronicPartitionTemp  = SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
-               EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec)
+      tmpExp = SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec
+      IF (CHECKEXP(tmpExp)) THEN
+        ElectronicPartitionTemp = SpecDSMC(iSpecies)%ElectronicState(1,iQua) *EXP(-tmpExp)
+      ELSE
+        ElectronicPartitionTemp = 0.0
+      END IF
       CALL RANDOM_NUMBER(iRan2)
     END DO
 #if ( PP_TimeDiscMethod == 42 )
@@ -147,7 +160,7 @@ REAL                          :: RelaxElectronicShellWall
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iQua, iSpec
-REAL                          :: iRan, ElectronicPartition, ElectronicPartitionTemp, iRan2, TempRatio
+REAL                          :: iRan, ElectronicPartition, ElectronicPartitionTemp, iRan2, TempRatio, tmpExp
 !===================================================================================================================================
 ElectronicPartition  = 0.
 ElectronicPartitionTemp = 0.
@@ -155,12 +168,17 @@ iSpec = PartSpecies(iPart)
 IF (DSMC%ElectronicDistrModel) THEN
   RelaxElectronicShellWall = 0.0
   DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
-    ElectronicPartition = ElectronicPartition + SpecDSMC(iSpec)%ElectronicState(1,iQua) * &
-            EXP ( - SpecDSMC(iSpec)%ElectronicState(2,iQua) / TWall)
+    tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TWall
+    IF (CHECKEXP(tmpExp)) &
+      ElectronicPartition = ElectronicPartition + SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-tmpExp)
   END DO
   DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
-    ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = SpecDSMC(iSpec)%ElectronicState(1,iQua) * &
-            EXP ( - SpecDSMC(iSpec)%ElectronicState(2,iQua) / TWall)/ElectronicPartition
+    tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TWall
+    IF (CHECKEXP(tmpExp)) THEN
+      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-tmpExp)/ElectronicPartition
+    ELSE
+      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = 0.0
+    END IF
     RelaxElectronicShellWall = RelaxElectronicShellWall+ &
         ElectronicDistriPart(iPart)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
   END DO
@@ -208,7 +226,7 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi)
   USE MOD_Particle_Vars,          ONLY : PartSpecies, VarTimeStep, usevMPF, nSpecies
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst, Pi
   USE MOD_part_tools              ,ONLY: GetParticleWeight
-  USE MOD_DSMC_Analyze,           ONLY: CalcTelec            
+  USE MOD_DSMC_Analyze,           ONLY: CalcTelec         
 #if (PP_TimeDiscMethod==42)
   USE MOD_DSMC_Vars,              ONLY : DSMC
 #endif
@@ -222,9 +240,9 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi)
 ! LOCAL VARIABLES
   INTEGER                       :: iQuaMax, MaxElecQuant, iQua, iSpecies
   REAL                          :: iRan, iRan2, gmax, gtemp, PartStateTemp, CollisionEnergy, ETraRel, TransElec, ElectronicPartition
-  REAL                          :: Erel,  Eold, DistriOld(SpecDSMC(PartSpecies(iPart1))%MaxElecQuant), Etmp
+  REAL                          :: Erel,  Eold, DistriOld(SpecDSMC(PartSpecies(iPart1))%MaxElecQuant), Etmp, tmpExp
 !===================================================================================================================================
-  IF (DSMC%ElectronicDistrModel) THEN
+  IF (DSMC%ElectronicDistrModel) THEN    
     Eold=  PartStateIntEn(3,iPart1)
     DistriOld(:) = ElectronicDistriPart(iPart1)%DistriFunc(:)
     ETraRel = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart1) * GetParticleWeight(iPart1)
@@ -235,15 +253,22 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi)
     TransElec = DSMC%InstantTransTemp(nSpecies + 1) !CalcTelec(ETraRel, iSpecies)
     ElectronicPartition = 0.0
     DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
-      ElectronicPartition = ElectronicPartition + SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
-              EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / TransElec)
+      tmpExp = SpecDSMC(iSpecies)%ElectronicState(2,iQua) / TransElec
+      IF (CHECKEXP(tmpExp)) &
+        ElectronicPartition = ElectronicPartition + SpecDSMC(iSpecies)%ElectronicState(1,iQua) * EXP (-tmpExp)
     END DO
     PartStateIntEn(3,iPart1) = 0.0
     DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
-      ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) = &
-        (1.-SpecDSMC(iSpecies)%ElecRelaxProb)*ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) + &
-        SpecDSMC(iSpecies)%ElecRelaxProb * SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
-              EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / TransElec)/ElectronicPartition
+      tmpExp = SpecDSMC(iSpecies)%ElectronicState(2,iQua) / TransElec
+      IF (CHECKEXP(tmpExp)) THEN
+        ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) = &
+          (1.-SpecDSMC(iSpecies)%ElecRelaxProb)*ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) + &
+          SpecDSMC(iSpecies)%ElecRelaxProb * SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
+              EXP (-tmpExp)/ElectronicPartition
+      ELSE
+        ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) = &
+          (1.-SpecDSMC(iSpecies)%ElecRelaxProb)*ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) 
+      END IF
 !      ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) =  SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
 !              EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / TransElec)/ElectronicPartition
       PartStateIntEn(3,iPart1) = PartStateIntEn(3,iPart1) + &
@@ -255,17 +280,22 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi)
       TransElec = CalcTelec(Etmp, iSpecies)*0.98
       ElectronicPartition = 0.0
       DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
-        ElectronicPartition = ElectronicPartition + SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
-                EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / TransElec)
+        tmpExp = SpecDSMC(iSpecies)%ElectronicState(2,iQua) / TransElec
+        IF (CHECKEXP(tmpExp)) &
+          ElectronicPartition = ElectronicPartition + SpecDSMC(iSpecies)%ElectronicState(1,iQua) * EXP (-tmpExp)
       END DO
       PartStateIntEn(3,iPart1) = 0.0
       DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
-        ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) = &
-          (1.-SpecDSMC(iSpecies)%ElecRelaxProb)*DistriOld(iQua+1) + &
-          SpecDSMC(iSpecies)%ElecRelaxProb * SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
-                EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / TransElec)/ElectronicPartition
-  !      ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) =  SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
-  !              EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / TransElec)/ElectronicPartition
+        tmpExp = SpecDSMC(iSpecies)%ElectronicState(2,iQua) / TransElec
+        IF (CHECKEXP(tmpExp)) THEN
+          ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) = &
+            (1.-SpecDSMC(iSpecies)%ElecRelaxProb)*DistriOld(iQua+1)+ &
+            SpecDSMC(iSpecies)%ElecRelaxProb * SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
+                EXP (-tmpExp)/ElectronicPartition
+        ELSE
+          ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) = &
+            (1.-SpecDSMC(iSpecies)%ElecRelaxProb)*DistriOld(iQua+1)
+        END IF
         PartStateIntEn(3,iPart1) = PartStateIntEn(3,iPart1) + &
             ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpecies)%ElectronicState(2,iQua)
       END DO
