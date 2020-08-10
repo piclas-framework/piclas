@@ -758,7 +758,7 @@ DO WHILE (iPart.LE.NbrOfParticle)
         CALL DSMC_SetInternalEnr_LauxVFD(bgSpec,1,NewParticleIndex,1)
       END IF
     END IF
-    CALL CalcVelocity_maxwell_lpn(FractNbr=bgSpec, Vec3D=PartState(4:6,NewParticleIndex), iInit=0)
+    CALL CalcVelocity_maxwell_lpn(FractNbr=bgSpec, Vec3D=PartState(4:6,NewParticleIndex), iInit=1)
     ! Particle flags
     PDM%ParticleInside(NewParticleIndex)  = .TRUE.
     PDM%IsNewPart(NewParticleIndex)       = .TRUE.
