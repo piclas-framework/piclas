@@ -402,7 +402,7 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac, iPart_p3)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                ,ONLY: abort
-USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles, ElectronicDistriPart
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep
 USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange, CalcXiElec
@@ -690,24 +690,57 @@ IF (DSMC%ElectronicModel) THEN
   FakXi = FakXi + 0.5*(Xi_elec(1)+Xi_elec(2))
   IF(ProductReac(3).NE.0) THEN
     IF((SpecDSMC(ProductReac(3))%InterID.EQ.4).OR.SpecDSMC(ProductReac(3))%FullyIonized) THEN
+      IF ((DSMC%ElectronicDistrModel).AND.(EductReac(3).NE.0)) THEN
+        IF (.NOT.((SpecDSMC(EductReac(3))%InterID.EQ.4).OR.SpecDSMC(EductReac(3))%FullyIonized)) THEN
+          DEALLOCATE(ElectronicDistriPart(ReactInx(3))%DistriFunc)
+        END IF
+      END IF
       PartStateIntEn(3,ReactInx(3)) = 0.0
     ELSE
-      CALL ElectronicEnergyExchange(iPair,ReactInx(3),FakXi)
+      IF (DSMC%ElectronicDistrModel) THEN
+        IF(ALLOCATED(ElectronicDistriPart(ReactInx(3))%DistriFunc)) DEALLOCATE(ElectronicDistriPart(ReactInx(3))%DistriFunc)
+        ALLOCATE(ElectronicDistriPart(ReactInx(3))%DistriFunc(1:SpecDSMC(ProductReac(3))%MaxElecQuant))
+        ElectronicDistriPart(ReactInx(3))%DistriFunc = 0.0
+        PartStateIntEn(3,ReactInx(3)) = 0.0
+      END IF
+      CALL ElectronicEnergyExchange(iPair,ReactInx(3),FakXi, .TRUE.)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(3))*WeightProd
     END IF
   END IF
   FakXi = FakXi - 0.5*Xi_elec(2)
   IF((SpecDSMC(ProductReac(2))%InterID.EQ.4).OR.SpecDSMC(ProductReac(2))%FullyIonized) THEN
+    IF (DSMC%ElectronicDistrModel) THEN
+      IF (.NOT.((SpecDSMC(EductReac(2))%InterID.EQ.4).OR.SpecDSMC(EductReac(2))%FullyIonized)) THEN
+        DEALLOCATE(ElectronicDistriPart(ReactInx(2))%DistriFunc)
+      END IF
+    END IF
     PartStateIntEn(3,ReactInx(2)) = 0.0
   ELSE
-    CALL ElectronicEnergyExchange(iPair,ReactInx(2),FakXi)
+    IF (DSMC%ElectronicDistrModel) THEN
+      IF(ALLOCATED(ElectronicDistriPart(ReactInx(2))%DistriFunc)) DEALLOCATE(ElectronicDistriPart(ReactInx(2))%DistriFunc)
+      ALLOCATE(ElectronicDistriPart(ReactInx(2))%DistriFunc(1:SpecDSMC(ProductReac(2))%MaxElecQuant))
+      ElectronicDistriPart(ReactInx(2))%DistriFunc = 0.0
+      PartStateIntEn(3,ReactInx(2)) = 0.0
+    END IF
+    CALL ElectronicEnergyExchange(iPair,ReactInx(2),FakXi, .TRUE.)
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(2))*Weight2
   END IF
   FakXi = FakXi - 0.5*Xi_elec(1)
   IF((SpecDSMC(ProductReac(1))%InterID.EQ.4).OR.SpecDSMC(ProductReac(1))%FullyIonized) THEN
+    IF (DSMC%ElectronicDistrModel) THEN
+      IF (.NOT.((SpecDSMC(EductReac(1))%InterID.EQ.4).OR.SpecDSMC(EductReac(1))%FullyIonized)) THEN
+        DEALLOCATE(ElectronicDistriPart(ReactInx(1))%DistriFunc)
+      END IF
+    END IF
     PartStateIntEn(3,ReactInx(1)) = 0.0
   ELSE
-    CALL ElectronicEnergyExchange(iPair,ReactInx(1),FakXi)
+    IF (DSMC%ElectronicDistrModel) THEN
+      IF(ALLOCATED(ElectronicDistriPart(ReactInx(1))%DistriFunc)) DEALLOCATE(ElectronicDistriPart(ReactInx(1))%DistriFunc)
+      ALLOCATE(ElectronicDistriPart(ReactInx(1))%DistriFunc(1:SpecDSMC(ProductReac(1))%MaxElecQuant))
+      ElectronicDistriPart(ReactInx(1))%DistriFunc = 0.0
+      PartStateIntEn(3,ReactInx(1)) = 0.0
+    END IF
+    CALL ElectronicEnergyExchange(iPair,ReactInx(1),FakXi, .TRUE.)
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(1))*Weight1
   END IF
 END IF ! DSMC%ElectronicModel
