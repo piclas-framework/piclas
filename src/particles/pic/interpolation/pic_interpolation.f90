@@ -493,25 +493,31 @@ GetField(1:6)=0.
 #ifdef PP_POIS
 HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
 HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,HelperU,GetField(1:6),ElemID)
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,HelperU,6,GetField(1:6),ElemID)
 #else
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,U(1:6,:,:,:,ElemID),GetField(1:6),ElemID)
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,U(1:6,:,:,:,ElemID),6,GetField(1:6),ElemID)
 #endif
 #else
 #ifdef PP_POIS
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),GetField(1:3),ElemID)
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),3,GetField(1:3),ElemID)
 #elif USE_HDG
 #if PP_nVar==1
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),GetField(1:3),ElemID)
+#if (PP_TimeDiscMethod==508)
+! Boris: consider B-Field, e.g., from SuperB
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),6,GetField(1:6),ElemID)
+#else
+! Consider only electric fields
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),3,GetField(1:3),ElemID)
+#endif
 #elif PP_nVar==3
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,B(1:3,:,:,:,ElemID),GetField(4:6),ElemID)
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,B(1:3,:,:,:,ElemID),3,GetField(4:6),ElemID)
 #else
 HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
 HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,HelperU,GetField(1:6),ElemID)
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,HelperU,6,GetField(1:6),ElemID)
 #endif
 #else
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,U(1:3,:,:,:,ElemID),GetField(1:3),ElemID)
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,U(1:3,:,:,:,ElemID),3,GetField(1:3),ElemID)
 #endif
 #endif
 END FUNCTION GetField
