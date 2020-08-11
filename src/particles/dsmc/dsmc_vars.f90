@@ -307,11 +307,11 @@ END TYPE tBGGas
 
 TYPE(tBGGas)                        :: BGGas
 
-LOGICAL                             :: UseMCC
-CHARACTER(LEN=256)                  :: XSec_Database
-LOGICAL                             :: XSec_NullCollision
-LOGICAL                             :: XSec_Relaxation
-INTEGER                             :: MCC_TotalPairNum
+LOGICAL                             :: UseMCC               ! Flag (set automatically) to differentiate between MCC/XSec and regular DSMC
+CHARACTER(LEN=256)                  :: XSec_Database        ! Name of the cross-section database
+LOGICAL                             :: XSec_NullCollision   ! Flag (read-in) whether null collision method (determining number of pairs based on maximum relaxation frequency)
+LOGICAL                             :: XSec_Relaxation      ! Flag (set automatically): usage of XSec data for the total relaxation probability
+INTEGER                             :: MCC_TotalPairNum     ! Total number of collision pairs for the MCC method
 
 TYPE tPairData
   REAL              :: CRela2                               ! squared relative velo of the particles in a pair
@@ -376,13 +376,13 @@ TYPE tReactInfo
 END TYPE
 
 TYPE tArbDiss
-  INTEGER                         :: NumOfNonReactives      ! Number
+  INTEGER                         :: NumOfNonReactives      ! Number of non-reactive collisions partners
   INTEGER, ALLOCATABLE            :: NonReactiveSpecies(:)  ! Array with the non-reactive collision partners for dissociation
 END TYPE
 
 TYPE tChemReactions
-  INTEGER                         :: NumOfReact             ! Number of possible Reactions
-  TYPE(tArbDiss), ALLOCATABLE     :: ArbDiss(:)             !
+  INTEGER                         :: NumOfReact             ! Number of possible reactions
+  TYPE(tArbDiss), ALLOCATABLE     :: ArbDiss(:)             ! Construct to allow the definition of a list of non-reactive educts
   LOGICAL, ALLOCATABLE            :: QKProcedure(:)         ! Defines if QK Procedure is selected
   INTEGER, ALLOCATABLE            :: QKMethod(:)            ! Recombination method for Q-K model (1 by Bird / 2 by Gallis)
   REAL,ALLOCATABLE,DIMENSION(:,:) :: QKCoeff                ! QKRecombiCoeff for Birds method
@@ -444,8 +444,9 @@ TYPE tChemReactions
   INTEGER                         :: nPairForRec            !
   REAL, ALLOCATABLE               :: Hab(:)                 ! Factor Hab of Arrhenius Ansatz for diatomic/polyatomic molecs
   TYPE(tReactInfo), ALLOCATABLE   :: ReactInfo(:)           ! Information of Reactions (nReactions)
-  INTEGER                         :: NumDeleteProducts      !
-  INTEGER, ALLOCATABLE            :: DeleteProductsList(:)  !
+  INTEGER                         :: NumDeleteProducts      ! Number of species to be considered to deletion after the reaction
+  INTEGER, ALLOCATABLE            :: DeleteProductsList(:)  ! Indices of the species to be deleted [1:NumDeleteProducts]
+  REAL, ALLOCATABLE               :: CrossSection(:)        ! Cross-section of the given photo-ionization reaction
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac

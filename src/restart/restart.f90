@@ -292,7 +292,7 @@ USE MOD_IO_HDF5
 USE MOD_DG_Vars                ,ONLY: U
 USE MOD_Mesh_Vars              ,ONLY: OffsetElem
 #if USE_HDG
-USE MOD_Mesh_Vars              ,ONLY: offsetSide,nSides,nMPISides_YOUR, offsetSide
+USE MOD_Mesh_Vars              ,ONLY: nSides
 #endif
 #if (USE_QDS_DG) || ! (USE_HDG)
 USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
@@ -331,8 +331,17 @@ USE MOD_PICDepo_Vars           ,ONLY: DoDeposition, RelaxDeposition, PartSourceO
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 #endif /*PARTICLES*/
 #if USE_HDG
-USE MOD_HDG_Vars               ,ONLY: lambda!, nGP_face
+USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face
 USE MOD_HDG                    ,ONLY: RestartHDG
+USE MOD_Mesh_Vars              ,ONLY: GlobalUniqueSideID,MortarType,SideToElem
+USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
+USE MOD_Mappings               ,ONLY: CGNS_SideToVol2
+USE MOD_Mesh_Vars              ,ONLY: firstMortarInnerSide,lastMortarInnerSide,MortarInfo
+USE MOD_Mesh_Vars              ,ONLY: lastMPISide_MINE
+#if USE_MPI
+USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
+USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+#endif /*USE_MPI*/
 #endif /*USE_HDG*/
 #if USE_QDS_DG
 USE MOD_QDS_DG_Vars            ,ONLY: DoQDS,QDSMacroValues,nQDSElems,QDSSpeciesMass
@@ -355,7 +364,7 @@ REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
 INTEGER                            :: iPML
 #endif
 #if USE_HDG
-!LOGICAL                            :: DG_SolutionLambdaExists
+LOGICAL                            :: DG_SolutionLambdaExists
 LOGICAL                            :: DG_SolutionUExists
 INTEGER(KIND=8)                    :: iter
 #endif /*USE_HDG*/
@@ -417,9 +426,15 @@ INTEGER                            :: IndNum    ! > auxiliary variable containin
 INTEGER                            :: i
 #endif
 INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
-#if !(USE_HDG)
+#if USE_HDG
+INTEGER                            :: iSide,MinGlobalSideID,MaxGlobalSideID
+REAL,ALLOCATABLE                   :: ExtendedLambda(:,:,:)
+INTEGER                            :: p,q,r,rr,pq(1:2)
+INTEGER                            :: iLocSide,iLocSide_NB,iLocSide_master
+INTEGER                            :: iMortar,MortarSideID,nMortars
+#else
 INTEGER(KIND=IK)                   :: PMLnVarTmp
-#endif /*not USE_HDG*/
+#endif /*USE_HDG*/
 !===================================================================================================================================
 IF(DoRestart)THEN
 #if USE_MPI
@@ -538,16 +553,85 @@ IF(DoRestart)THEN
         ! !DG_Solution contains a 4er-/3er-/7er-array, not PP_nVar!!!
         CALL ReadArray('DG_Solution' ,5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
       END IF
-      ! CURRENTLY, THE FOLLOWING DOES NOT MAKE SENSE AS THE SIDES ARE NOT SORTED CORRECTLY!
-      !CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
-      !IF(DG_SolutionLambdaExists)THEN
-      !  write(*,*) "READ lambda"
-      !  stop
-      !  CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,nSides-nMPISides_YOUR/),offsetSide,3,RealArray=lambda)
-      !  CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
-      !ELSE
-      lambda=0.
-      !END IF
+
+
+
+      ! Read HDG lambda solution (sorted in ascending global unique side ID ordering)
+      CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
+
+      IF(DG_SolutionLambdaExists)THEN
+        MinGlobalSideID = HUGE(1)
+        MaxGlobalSideID = -1
+        DO iSide = 1, nSides
+          MaxGlobalSideID = MERGE(ABS(GlobalUniqueSideID(iSide)) , MaxGlobalSideID , ABS(GlobalUniqueSideID(iSide)).GT.MaxGlobalSideID)
+          MinGlobalSideID = MERGE(ABS(GlobalUniqueSideID(iSide)) , MinGlobalSideID , ABS(GlobalUniqueSideID(iSide)).LT.MinGlobalSideID)
+        END DO
+
+        ASSOCIATE( &
+              ExtendedOffsetSide => INT(MinGlobalSideID-1,IK)                 ,&
+              ExtendednSides     => INT(MaxGlobalSideID-MinGlobalSideID+1,IK) ,&
+              nGP_face           => INT(nGP_face,IK)                           )
+          !ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,MinGlobalSideID:MaxGlobalSideID))
+          ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,1:ExtendednSides))
+          ExtendedLambda = HUGE(1.)
+          lambda = HUGE(1.)
+          CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,ExtendednSides/),ExtendedOffsetSide,3,RealArray=ExtendedLambda)
+
+          DO iSide = 1, nSides
+            IF(iSide.LE.lastMPISide_MINE)THEN
+              iLocSide        = SideToElem(S2E_LOC_SIDE_ID    , iSide)
+              iLocSide_master = SideToElem(S2E_LOC_SIDE_ID    , iSide)
+              iLocSide_NB     = SideToElem(S2E_NB_LOC_SIDE_ID , iSide)
+
+              ! Check real small mortar side (when the same proc has both the big an one or more small side connected elements)
+              IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.NE.-1) iLocSide_master = iLocSide_NB
+
+              ! is small virtual mortar side is encountered and no NB iLocSid_mastere is given
+              IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.EQ.-1)THEN
+                ! check all my big mortar sides and find the one to which the small virtual is connected
+                Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+                  nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+                  DO iMortar=1,nMortars
+                    SideID= MortarInfo(MI_SIDEID,iMortar,MortarType(2,MortarSideID)) !small SideID
+                    IF(iSide.EQ.SideID)THEN
+                      iLocSide_master = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
+                      IF(iLocSide_master.EQ.-1)THEN
+                        CALL abort(&
+                            __STAMP__&
+                            ,'This big mortar side must be master')
+                      END IF !iLocSide.NE.-1
+                      EXIT Check1
+                    END IF ! iSide.EQ.SideID
+                  END DO !iMortar
+                END DO Check1 !MortarSideID
+              END IF ! MortarType(1,iSide).EQ.0
+
+              DO q=0,PP_N
+                DO p=0,PP_N
+                  pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_master)
+                  r  = q    *(PP_N+1)+p    +1
+                  rr = pq(2)*(PP_N+1)+pq(1)+1
+                  lambda(:,r:r,iSide) = ExtendedLambda(:,rr:rr,GlobalUniqueSideID(iSide)-ExtendedOffsetSide)
+                END DO
+              END DO !p,q
+            END IF ! iSide.LE.lastMPISide_MINE
+          END DO
+          DEALLOCATE(ExtendedLambda)
+        END ASSOCIATE
+
+
+#if USE_MPI
+        ! Exchange lambda MINE -> YOUR direction (as only the master sides have read the solution until now)
+        CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+        CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+        CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+#endif /*USE_MPI*/
+
+        CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
+      ELSE
+        lambda=0.
+      END IF
+
 #else
       CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
       IF(DoPML)THEN

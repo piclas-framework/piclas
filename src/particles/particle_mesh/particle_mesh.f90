@@ -198,7 +198,10 @@ USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
 USE MOD_Particle_Vars          ,ONLY: Symmetry2D
 #ifdef CODE_ANALYZE
+USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
+USE MOD_Mesh_Vars              ,ONLY: nSides
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
+USE MOD_MPI_Vars               ,ONLY: offsetMPISides_YOUR
 #endif /*CODE_ANALYZE*/
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
@@ -222,6 +225,9 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #else
 INTEGER          :: ALLOCSTAT
 #endif
+#ifdef CODE_ANALYZE
+REAL             :: dx,dy,dz
+#endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -405,14 +411,14 @@ CASE(TRACING,REFMAPPING)
 #endif /* USE_MPI */
 #ifdef CODE_ANALYZE
     ! TODO: bounding box volumes must be calculated for all unique sides.
-    offsetSideID = ElemInfo_Shared(SideIf
-    DO iSide=offsetMPISides_YOUR,LastSide
-      dx=ABS(SideSlabIntervals(2)-SideSlabIntervals(1))
-      dy=ABS(SideSlabIntervals(4)-SideSlabIntervals(3))
-      dz=ABS(SideSlabIntervals(6)-SideSlabIntervals(5))
-      SideID = SideInfo
-      SideBoundingBoxVolume(SideID)=dx*dy*dz
-    END DO
+    !               offsetSideID = ElemInfo_Shared(SideIf
+    !               DO iSide=offsetMPISides_YOUR,LastSide
+    !                 dx=ABS(SideSlabIntervals(2)-SideSlabIntervals(1))
+    !                 dy=ABS(SideSlabIntervals(4)-SideSlabIntervals(3))
+    !                 dz=ABS(SideSlabIntervals(6)-SideSlabIntervals(5))
+    !                 SideID = SideInfo
+    !                 SideBoundingBoxVolume(SideID)=dx*dy*dz
+    !               END DO
 #endif /*CODE_ANALYZE*/
 
     ! Compute element bary and element radius for node elements (with halo region)

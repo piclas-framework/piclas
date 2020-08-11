@@ -156,7 +156,7 @@ For some external libraries and programs that **PICLas** uses, the following opt
 
 * ``PICLAS_BUILD_POSTI``: Enables the compilation of additional tools and activates the following options:
   * ``POSTI_BUILD_SUPERB``: Enables the compilation of **superB**, which is allows the computation of magnetic fields based on an input of coils and permanent magnets (Section \ref{sec:superB})
-  * ``POSTI_BUILD_VISU``: Enables the compilation of the post-processing tool **h5piclas2vtk**, which enables the conversion of output files into the VTK format (Section \ref{sec:tools_posti_visu})
+  * ``POSTI_BUILD_VISU``: Enables the compilation of the post-processing tool **h5piclas2vtk**, which enables the conversion of output files into the VTK format (Chapter \ref{chap:visu_output})
   * ``POSTI_USE_PARAVIEW``: Enables the compilation of the ParaView plugin, which enables the direct read-in of output files within ParaView
 
 ## Solver settings

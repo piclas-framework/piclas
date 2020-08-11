@@ -368,6 +368,8 @@ CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
                                   ,'Utilize the null collision method for the determination of the number of pairs '//&
                                   'based on the maximum collision frequency and time step (only with a background gas)' &
                                   ,'.TRUE.')
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CrossSection'  &
+                                , 'Photon-ionization cross-section', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersDSMC
 
@@ -899,13 +901,7 @@ ELSE !CollisMode.GT.0
     ! Setting the internal energy value of every particle
     DO iPart = 1, PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
-        IF (Species(PartSpecies(iPart))%NumberOfInits.EQ.0) THEN
-          IF (SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
-            CALL DSMC_SetInternalEnr_Poly(PartSpecies(iPart),0,iPart,1)
-          ELSE
-            CALL DSMC_SetInternalEnr_LauxVFD(PartSpecies(iPart),0,iPart,1)
-          END IF
-        ELSE
+        IF (Species(PartSpecies(iPart))%NumberOfInits.GT.0) THEN
           iInit = PDM%PartInit(iPart)
           IF (SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
             CALL DSMC_SetInternalEnr_Poly(PartSpecies(iPart),iInit,iPart,1)
@@ -1685,6 +1681,7 @@ SDEALLOCATE(Coll_pData)
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(MacroDSMC)
 SDEALLOCATE(QKAnalytic)
+
 SDEALLOCATE(ChemReac%QKProcedure)
 SDEALLOCATE(ChemReac%QKMethod)
 SDEALLOCATE(ChemReac%QKCoeff)
@@ -1713,9 +1710,11 @@ SDEALLOCATE(ChemReac%ELb)
 SDEALLOCATE(ChemReac%DoScat)
 SDEALLOCATE(ChemReac%ReactInfo)
 SDEALLOCATE(ChemReac%TLU_FileName)
+SDEALLOCATE(ChemReac%CrossSection)
 SDEALLOCATE(ChemReac%ReactNumRecomb)
 SDEALLOCATE(ChemReac%Hab)
 SDEALLOCATE(ChemReac%DeleteProductsList)
+
 SDEALLOCATE(CollInf%Coll_Case)
 SDEALLOCATE(CollInf%Coll_CaseNum)
 SDEALLOCATE(CollInf%Coll_SpecPartNum)
@@ -1724,6 +1723,7 @@ SDEALLOCATE(CollInf%KronDelta)
 SDEALLOCATE(CollInf%FracMassCent)
 SDEALLOCATE(CollInf%MassRed)
 SDEALLOCATE(CollInf%MeanMPF)
+
 SDEALLOCATE(HValue)
 !SDEALLOCATE(SampWall)
 SDEALLOCATE(MacroSurfaceVal)

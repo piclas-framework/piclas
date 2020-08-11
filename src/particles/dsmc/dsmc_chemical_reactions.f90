@@ -55,6 +55,7 @@ END INTERFACE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb, CalcBackwardRate, gammainc, CalcPartitionFunction
 PUBLIC :: CalcQKAnalyticRate, GetQKAnalyticRate
+PUBLIC :: CalcPhotoIonizationNumber
 !===================================================================================================================================
 
 CONTAINS
@@ -417,6 +418,8 @@ USE MOD_part_operations        ,ONLY: RemoveParticle
 USE MOD_Globals                ,ONLY: unit_stdout,myrank
 USE MOD_Particle_Vars          ,ONLY: Symmetry2D
 #endif /* CODE_ANALYZE */
+USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartIn,nPartOut,PartEkinIn,PartEkinOut
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -428,7 +431,7 @@ INTEGER, INTENT(IN), OPTIONAL :: iPart_p3
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: ReactInx(1:3), ProductReac(1:3), EductReac(1:3), nProd, nDOFMAX, iProd, iPolyatMole, iSpec
-INTEGER                       :: SpecToDelete
+INTEGER                       :: SpecToDelete, iPart
 REAL                          :: FracMassCent1, FracMassCent2, MassRed     ! mx/(mx+my)
 REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
 REAL                          :: RanVelox, RanVeloy, RanVeloz , RanVec(3)   ! random relativ velo
@@ -439,6 +442,8 @@ REAL, ALLOCATABLE             :: Xi_Vib1(:), Xi_Vib2(:), Xi_Vib3(:), XiVibPart(:
 REAL                          :: VxPseuMolec, VyPseuMolec, VzPseuMolec
 REAL                          :: Weight1, Weight2, Weight3, WeightProd, NumWeightEduct, NumWeightProd, ReducedMass
 #ifdef CODE_ANALYZE
+REAL,PARAMETER                :: RelMomTol=2e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
+REAL,PARAMETER                :: RelEneTol=1e-12 ! Relative tolerance applied to conservation of energy before/after reaction
 REAL                          :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
 INTEGER                       :: iMom, iMomDim
 #endif /* CODE_ANALYZE */
@@ -479,6 +484,15 @@ IF(PRESENT(iPart_p3)) THEN
   END IF
 END IF
 
+IF(CalcPartBalance) THEN
+  IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') THEN
+    DO iPart = 1, NINT(NumWeightEduct)
+      nPartOut(EductReac(iPart))=nPartOut(EductReac(iPart)) + 1
+      PartEkinOut(EductReac(iPart))=PartEkinOut(EductReac(iPart))+CalcEkinPart(ReactInx(iPart))
+    END DO
+  END IF
+END IF
+
 Weight1 = GetParticleWeight(ReactInx(1))
 Weight2 = GetParticleWeight(ReactInx(2))
 IF(EductReac(3).NE.0) Weight3 = GetParticleWeight(iPart_p3)
@@ -486,6 +500,8 @@ IF(EductReac(3).NE.0) Weight3 = GetParticleWeight(iPart_p3)
 IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   ReducedMass = Species(EductReac(1))%MassIC*Weight1 * Species(EductReac(2))%MassIC*Weight2 &
               / (Species(EductReac(1))%MassIC*Weight1 + Species(EductReac(2))%MassIC*Weight2)
+ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+  ReducedMass = 0.
 ELSE
   ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
 END IF
@@ -875,15 +891,21 @@ IF(ProductReac(3).NE.0) THEN
     VeloMz = FracMassCent1 * PartState(6,ReactInx(1)) &
             + FracMassCent2 * PartState(6,ReactInx(3))
   ELSE
-    IF (RadialWeighting%DoRadialWeighting) THEN
-      FracMassCent1 = Species(EductReac(1))%MassIC *Weight1 &
-          /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
-      FracMassCent2 = Species(EductReac(2))%MassIC *Weight2 &
-          /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
+    ! Scattering 2 -> 3
+    IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+    ! Do not consider the momentum of the photon
+      FracMassCent1 = 1.
+      FracMassCent2 = 0.
     ELSE
-      ! Scattering 2 -> 3
-      FracMassCent1 = CollInf%FracMassCent(EductReac(1), Coll_pData(iPair)%PairType)
-      FracMassCent2 = CollInf%FracMassCent(EductReac(2), Coll_pData(iPair)%PairType)
+      IF (RadialWeighting%DoRadialWeighting) THEN
+        FracMassCent1 = Species(EductReac(1))%MassIC *Weight1 &
+            /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
+        FracMassCent2 = Species(EductReac(2))%MassIC *Weight2 &
+            /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
+      ELSE
+        FracMassCent1 = CollInf%FracMassCent(EductReac(1),Coll_pData(iPair)%PairType)
+        FracMassCent2 = CollInf%FracMassCent(EductReac(2),Coll_pData(iPair)%PairType)
+      END IF
     END IF
 
     !Calculation of velo from center of mass
@@ -992,15 +1014,21 @@ ELSEIF(ProductReac(3).EQ.0) THEN
     ! When RHS is set, ReactInx(2) is utilized, not an error as the old state cancels out after the particle push in the time disc,
     ! therefore, there is no need to set change the index as the proper species, ProductReac(2), was utilized for the relaxation
   ELSE
-    IF (RadialWeighting%DoRadialWeighting) THEN
-      FracMassCent1 = Species(EductReac(1))%MassIC *Weight1 &
-          /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
-      FracMassCent2 = Species(EductReac(2))%MassIC *Weight2 &
-          /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
+    ! Scattering 2 -> 2
+    IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+    ! Do not consider the momentum of the photon
+      FracMassCent1 = 1.
+      FracMassCent2 = 0.
     ELSE
-      ! Scattering 2 -> 3
-      FracMassCent1 = CollInf%FracMassCent(EductReac(1),CollInf%Coll_Case(EductReac(1),EductReac(2)))
-      FracMassCent2 = CollInf%FracMassCent(EductReac(2),CollInf%Coll_Case(EductReac(1),EductReac(2)))
+      IF (RadialWeighting%DoRadialWeighting) THEN
+        FracMassCent1 = Species(EductReac(1))%MassIC *Weight1 &
+            /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
+        FracMassCent2 = Species(EductReac(2))%MassIC *Weight2 &
+            /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
+      ELSE
+        FracMassCent1 = CollInf%FracMassCent(EductReac(1),CollInf%Coll_Case(EductReac(1),EductReac(2)))
+        FracMassCent2 = CollInf%FracMassCent(EductReac(2),CollInf%Coll_Case(EductReac(1),EductReac(2)))
+      END IF
     END IF
 
     VxPseuMolec = FracMassCent1 * PartState(4,ReactInx(1)) + FracMassCent2 * PartState(4,ReactInx(2))
@@ -1017,9 +1045,9 @@ ELSEIF(ProductReac(3).EQ.0) THEN
     ReducedMass = Species(ProductReac(1))%MassIC *Weight1* Species(ProductReac(2))%MassIC *Weight2 &
         / (Species(ProductReac(1))%MassIC*Weight1 + Species(ProductReac(2))%MassIC *Weight2)
   ELSE
-  ! Scattering of (AB)
-  FracMassCent1 = CollInf%FracMassCent(ProductReac(1),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
-  FracMassCent2 = CollInf%FracMassCent(ProductReac(2),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
+    ! Scattering of (AB)
+    FracMassCent1 = CollInf%FracMassCent(ProductReac(1),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
+    FracMassCent2 = CollInf%FracMassCent(ProductReac(2),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
     ReducedMass = CollInf%MassRed(CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
   END IF
 
@@ -1075,9 +1103,16 @@ IF(ChemReac%NumDeleteProducts.GT.0) THEN
   END DO
 END IF
 
+IF(CalcPartBalance) THEN
+  DO iPart = 1, NINT(NumWeightProd)
+    nPartIn(ProductReac(iPart))=nPartIn(ProductReac(iPart)) + 1
+    PartEkinIn(ProductReac(iPart))=PartEkinIn(ProductReac(iPart))+CalcEkinPart(ReactInx(iPart))
+  END DO
+END IF
+
 #ifdef CODE_ANALYZE
 ! Check for energy difference
-IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
+IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,RelEneTol)) THEN
   WRITE(UNIT_StdOut,*) '\n'
   IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_old             : ",Energy_old
   IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_new             : ",Energy_new
@@ -1087,7 +1122,7 @@ IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
       IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Energy difference : ",(Energy_old-Energy_new)/energy
     END IF
   END ASSOCIATE
-  IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-12
+  IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",RelEneTol
   CALL abort(&
       __STAMP__&
       ,'CODE_ANALYZE: DSMC_Chemistry is not energy conserving for chemical reaction:', IntInfoOpt=iReac)
@@ -1100,7 +1135,7 @@ ELSE
   iMomDim = 3
 END IF
 DO iMom=1,iMomDim
-  IF (.NOT.ALMOSTEQUALRELATIVE(Momentum_old(iMom),Momentum_new(iMom),1.0e-10)) THEN
+  IF (.NOT.ALMOSTEQUALRELATIVE(Momentum_old(iMom),Momentum_new(iMom),RelMomTol)) THEN
     WRITE(UNIT_StdOut,*) '\n'
     IPWRITE(UNIT_StdOut,'(I0,A,I0)')           " Direction (x,y,z)        : ",iMom
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Momentum_old             : ",Momentum_old(iMom)
@@ -1111,7 +1146,7 @@ DO iMom=1,iMomDim
         IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Momentum difference : ",(Momentum_old(iMom)-Momentum_new(iMom))/Momentum
       END IF
     END ASSOCIATE
-    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-10
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",RelMomTol
     CALL abort(&
         __STAMP__&
         ,'CODE_ANALYZE: DSMC_Chemistry is not momentum conserving for chemical reaction:', IntInfoOpt=iReac)
@@ -1621,5 +1656,45 @@ FUNCTION gammainc( arg )
     gammainc=exp(-arg(2)+arg(1)*log(arg(2))-gln) * h
   END IF
 END FUNCTION gammainc
+
+
+SUBROUTINE CalcPhotoIonizationNumber(NbrOfPhotons,NbrOfReactions)
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars  ,ONLY: c
+USE MOD_Particle_Vars ,ONLY: Species
+USE MOD_DSMC_Vars     ,ONLY: BGGas, ChemReac
+USE MOD_TimeDisc_Vars ,ONLY: dt
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)              :: NbrOfPhotons
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)             :: NbrOfReactions
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: bgSpec, iReac
+!===================================================================================================================================
+
+NbrOfReactions = 0.
+
+DO iReac = 1, ChemReac%NumOfReact
+  ! Only treat photoionization reactions
+  IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
+  ! First reactant of the reaction is the actual heavy particle species
+  bgSpec = BGGas%MapSpecToBGSpec(ChemReac%DefinedReact(iReac,1,1))
+  ! Collision number: Z = n_gas * n_ph * sigma_reac * v (in the case of photons its speed of light)
+  ! Number of reactions: N = Z * dt * V (number of photons cancels out the volume)
+  NbrOfReactions = NbrOfReactions + BGGas%NumberDensity(bgSpec) * NbrOfPhotons * ChemReac%CrossSection(iReac) * c &
+                                     *dt / Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor
+END DO
+
+END SUBROUTINE CalcPhotoIonizationNumber
+
 
 END MODULE MOD_DSMC_ChemReact

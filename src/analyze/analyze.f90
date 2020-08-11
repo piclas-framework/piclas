@@ -779,6 +779,12 @@ USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
 #if (PP_TimeDiscMethod!=42) && !defined(LSERK)
 USE MOD_Particle_Vars             ,ONLY: DelayTime
 #endif /*PP_TimeDiscMethod!=42 && !defined(LSERK)*/
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
+USE MOD_Particle_Analyze          ,ONLY: AnalyticParticleMovement
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
+USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
+#endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField              ,ONLY: CalcPoyntingIntegral
@@ -787,11 +793,6 @@ USE MOD_AnalyzeField              ,ONLY: CalcPoyntingIntegral
 USE MOD_Analyze_Vars              ,ONLY: DoFieldAnalyze
 USE MOD_RecordPoints_Vars         ,ONLY: RP_onProc
 #endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS) || USE_HDG*/
-#ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
-USE MOD_Particle_Analyze          ,ONLY: AnalyticParticleMovement
-USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
-#endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers        ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -900,6 +901,12 @@ IF(MOD(iter,FieldAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformFieldAnalyze
 IF(MOD(iter,FieldAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformFieldAnalyze=.TRUE.
 ! Remove analyze during restart or load-balance step
 IF(DoRestart .AND. iter.EQ.0) DoPerformFieldAnalyze=.FALSE.
+! BUT print analyze info for CODE_ANALYZE and USE_HDG to get the HDG solver statistics (number of iterations, runtime and norm)
+#if USE_HDG
+#ifdef CODE_ANALYZE
+IF(DoRestart .AND. iter.EQ.0) DoPerformFieldAnalyze=.TRUE.
+#endif /*CODE_ANALYZE*/
+#endif /*USE_HDG*/
 ! Finally, remove duplicates for last iteration
 ! This step is needed, because PerformAnalyze is called twice within the iterations
 IF(FirstOrLastIter .AND. .NOT.OutPutHDF5 .AND.iter.NE.0) DoPerformFieldAnalyze=.FALSE.
@@ -1163,7 +1170,6 @@ IF(OutPutHDF5 .AND. MeasureTrackTime)THEN
   tTracking=0.
   tLocalization=0.
 END IF ! only during output like Doftime
-#endif /*PARTICLES*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Code Analyze
@@ -1171,26 +1177,29 @@ END IF ! only during output like Doftime
 
 #ifdef CODE_ANALYZE
 ! particle analyze
-IF (DoPartAnalyze)  THEN
-  IF(DoPerformPartAnalyze) CALL CodeAnalyzeOutput(OutputTime)
-  IF(LastIter)THEN
-    CALL CodeAnalyzeOutput(OutputTime)
-    SWRITE(UNIT_stdOut,'(A51)') 'CODE_ANALYZE: Following output has been accumulated'
-    SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBBChecks    : ' , rTotalBBChecks
-    SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierClips : ' , rTotalBezierClips
-    SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierNewton: ' , rTotalBezierNewton
-    TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
+IF(TrackingMethod.NE.TRIATRACKING)THEN
+  IF (DoPartAnalyze)  THEN
+    IF(DoPerformPartAnalyze) CALL CodeAnalyzeOutput(OutputTime)
+    IF(LastIter)THEN
+      CALL CodeAnalyzeOutput(OutputTime)
+      SWRITE(UNIT_stdOut,'(A51)') 'CODE_ANALYZE: Following output has been accumulated'
+      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBBChecks    : ' , rTotalBBChecks
+      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierClips : ' , rTotalBezierClips
+      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierNewton: ' , rTotalBezierNewton
+      TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
 #if USE_MPI
-    IF(MPIRoot) THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE,TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
-    ELSE ! no Root
-      CALL MPI_REDUCE(TotalSideBoundingBoxVolume,rDummy  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
-    END IF
+      IF(MPIRoot) THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE,TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+      ELSE ! no Root
+        CALL MPI_REDUCE(TotalSideBoundingBoxVolume,rDummy  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
+      END IF
 #endif /*USE_MPI*/
-    SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
+      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
+    END IF
   END IF
-END IF
+END IF ! TrackingMethod.NE.TRIATRACKING
 #endif /*CODE_ANALYZE*/
+#endif /*PARTICLES*/
 
 ! Time for analysis
 IF((DoPerformFieldAnalyze.OR.DoPerformPartAnalyze.OR.DoPerformSurfaceAnalyze).AND.DoMeasureAnalyzeTime)THEN

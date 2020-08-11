@@ -851,6 +851,7 @@ USE MOD_MPI_vars
 #endif
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemHDGSides,TotalHDGSides
+USE MOD_Mesh_Vars        ,ONLY: BoundaryType,lastMPISide_MINE,lastInnerSide
 #endif /*USE_HDG && USE_LOADBALANCE*/
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -868,6 +869,10 @@ INTEGER             :: FirstElemID,LastElemID,ilocSide,locMortarSide,NBElemID,Si
 #if USE_MPI
 INTEGER             :: dummy(0:4)
 #endif
+#if USE_HDG && USE_LOADBALANCE
+INTEGER           :: BCType,nMortars
+INTEGER           :: HDGSides
+#endif /*USE_HDG && USE_LOADBALANCE*/
 !===================================================================================================================================
 ! Element to Side mapping
 nSides_flip=0
@@ -922,6 +927,10 @@ DO iElem=1,nElems
       DO iMortar=1,aSide%nMortars
         mSide=>aSide%MortarSide(iMortar)%sp
         MortarType(1,mSide%SideID)=mSide%MortarType
+#ifdef PARTICLES
+        ! Store global unique side index on mortar side if the side has not been set previously
+        IF(GlobalUniqueSideID(mSide%SideID).EQ.-1) GlobalUniqueSideID(mSide%SideID) = mSide%Ind
+#endif /*PARTICLES*/
         MortarInfo(MI_SIDEID,iMortar,SideID)=mSide%SideID
         MortarInfo(MI_FLIP,iMortar,SideID)=mSide%Flip
       END DO ! iMortar
@@ -1030,29 +1039,118 @@ END DO ! iElem=1,PP_nElems
 
 
 #if USE_HDG && USE_LOADBALANCE
-! Weight elements with mortar sides
+! Weight elements with HDG sides for load balance
 DO iElem=1,nElems
   DO ilocSide=1,6
-    SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    ! TODO: don't count Dirichlet sides, but Neumann sides
-    !IF(SideID.LE.nBCSides) ElemToElemGlob(1,ilocSide,offSetElem+iElem)=0
+    HDGSides = 0
+    SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
 
-    locMortarSide=MortarType(2,SideID)
-    IF(locMortarSide.EQ.-1)THEN ! normal side or small mortar side
-      IF(MortarSlave2MasterInfo(SideID).EQ.-1)THEN
-        ElemHDGSides(iElem)=ElemHDGSides(iElem)+1
-        TotalHDGSides=TotalHDGSides+1
-      END IF
-    ELSE ! mortar side
-      DO iMortar=1,4
-        SideID2=MortarInfo(MI_SIDEID,iMortar,locMortarSide)
-        IF(SideID2.GT.0)THEN
-          ElemHDGSides(iElem)=ElemHDGSides(iElem)+1
-          TotalHDGSides=TotalHDGSides+1
-        END IF
-      END DO ! iMortar=1,4
-    END IF ! locMortarSide
+    ! Get BC type
+    IF(BC(SideID).GT.0)THEN
+      BCType = BoundaryType(BC(SideID),BC_TYPE)
+    ELSE
+      BCType=0
+    END IF ! BC(SideID).GT.0
+
+    ! Skip slave sides and add weighting only for master or inner or BC sides
+    IF(SideID.LE.lastMPISide_MINE) THEN
+
+      ! Set BC weights
+      IF(SideID.LE.nBCSides)THEN
+        ! Add weighting depending on BC or inner sides
+        SELECT CASE(BCType)
+        CASE(1) !periodic
+          CALL abort(&
+              __STAMP__&
+              ,'SideID.LE.nBCSides and SideID is periodic should not happen')
+        CASE(2,4,5) !Dirichlet
+          ! do not consider this side
+        CASE(10,11) !Neumann
+          HDGSides = HDGSides + 1
+        CASE DEFAULT ! unknown BCType
+          CALL abort(&
+              __STAMP__&
+              ,'Unknoqn BCType for HDG Load Balancing. BCType=',IntInfoOpt=BCType)
+        END SELECT ! BCType
+      ELSE
+        ! Check for Mortars
+        locMortarSide=MortarType(2,SideID)
+        IF(locMortarSide.EQ.-1)THEN ! normal side or small mortar side
+          IF(MortarSlave2MasterInfo(SideID).EQ.-1)THEN
+            ! Normal side
+            IF(SideID.GT.lastInnerSide)THEN ! MINE: take the complete weight
+              HDGSides = HDGSides + 1
+            ELSE ! innerSide: split the weight onto two elements (either periodic or normal inner side)
+
+              ! ===================================================
+              ! method 1: slaves get nothing, masters get all
+              IF(ElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0)THEN ! master
+                HDGSides = HDGSides + 1
+              ELSE
+                ! do not consider this side
+              END IF
+
+              ! method 2: add half
+              !HDGSides = HDGSides + 1
+              ! ===================================================
+            END IF ! SideID.GT.lastInnerSide
+          ELSE
+            ! For small mortar sides where the same proc has the large mortar side (and therefore the virtual side is not created)
+            IF(SideID.GT.lastInnerSide)THEN ! MINE: take the complete weight
+              CALL abort(&
+                  __STAMP__&
+                  ,'small mortar sides cannot be MINE!')
+            ELSE ! innerSide: split the weight onto two elements (either periodic or normal inner side)
+
+              ! ===================================================
+              ! method 1: slaves get nothing!
+              ! Hence, do not consider this side
+
+              ! method 2: add half
+              !ElemHDGWeight = ElemHDGWeight + 0.5
+              ! ===================================================
+            END IF ! SideID.GT.lastInnerSide
+          END IF
+        ELSE ! big mortar side
+          nMortars=MERGE(4,2,MortarType(1,SideID).EQ.1)
+          DO iMortar=1,nMortars
+            SideID2= MortarInfo(MI_SIDEID,iMortar,locMortarSide) ! small SideID
+            IF(SideID2.LE.0)THEN
+              CALL abort(&
+                  __STAMP__&
+                  ,'Small SideID of big mortar side must have an ID!')
+            END IF ! SideID2.LE.0
+
+            ! Only account for master
+            IF(SideID2.GT.lastInnerSide)THEN ! MINE: take the complete weight
+              HDGSides = HDGSides + 1
+            ELSE ! innerSide: split the weight onto two elements (either periodic or normal inner side)
+
+              ! ===================================================
+              ! method 1: Mortar sides are alyways master and therefore get everything!
+              HDGSides = HDGSides + 1
+
+              ! method 2: add half
+              !ElemHDGWeight = ElemHDGWeight + 0.5
+              ! ===================================================
+            END IF
+          END DO ! iMortar=1,4
+        END IF ! locMortarSide
+      END IF ! SideID.LE.nBCSides
+
+      ElemHDGSides(iElem) = ElemHDGSides(iElem) + HDGSides
+      TotalHDGSides       = TotalHDGSides       + HDGSides
+
+    END IF ! SideID.LE.lastMPISide_MINE
+
   END DO ! ilocSide=1,6
+
+  ! Sanity check:
+  ! Elements with zero weight are not allowed as they still require some work for 2D to 3D mapping. Add small value.
+  IF(ElemHDGSides(iElem).LE.0)THEN
+    ElemHDGSides(iElem) = 1
+  END IF ! ElemHDGSides(iElem).LE.0
+
 END DO ! iElem=1,PP_nElems
 #endif /*USE_HDG && USE_LOADBALANCE*/
 

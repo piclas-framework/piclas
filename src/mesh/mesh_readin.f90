@@ -464,6 +464,10 @@ DO iElem=FirstElemInd,LastElemInd
 #endif /*PARTICLES*/
       END IF
     ELSE !mortartype>0
+#ifdef PARTICLES
+      ! Store global unique side index
+      aSide%Ind=-ABS(SideInfo(SIDE_ID,iSide))
+#endif /*PARTICLES*/
       DO iMortar=1,aSide%nMortars
         iSide=iSide+1
         aSide%mortarSide(iMortar)%sp%Elem=>aElem

@@ -604,12 +604,15 @@ SUBROUTINE DefineCircInflowRejectType(iSpec, iSF, iSide)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars                 ,ONLY: offsetElem, SideToElem
-USE MOD_Particle_Surfaces         ,ONLY: GetSideBoundingBox
-USE MOD_Particle_Surfaces_Vars    ,ONLY: BCdata_auxSF
-USE MOD_Particle_Vars             ,ONLY: Species
-USE MOD_Particle_Mesh_Tools       ,ONLY: GetGlobalNonUniqueSideID, GetSideBoundingBoxTria
-USE MOD_Particle_Tracking_Vars    ,ONLY: TriaTracking
+USE MOD_Mesh_Vars              ,ONLY: offsetElem, SideToElem
+USE MOD_Particle_Surfaces      ,ONLY: GetSideBoundingBox
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
+USE MOD_Particle_Vars          ,ONLY: Species
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID, GetSideBoundingBoxTria
+USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Vars          ,ONLY: CountCircInflowType
+#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1505,8 +1508,11 @@ SUBROUTINE AnalyzePartPos(ParticleIndexNbr)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars                 ,ONLY: LastPartPos, PDM, PartDtFrac,PartIsImplicit
+USE MOD_Particle_Vars                 ,ONLY: LastPartPos, PDM
 USE MOD_Particle_Mesh_Vars            ,ONLY: GEO
+#ifdef IMPA
+USE MOD_Particle_Vars                 ,ONLY: PartDtFrac,PartIsImplicit
+#endif /*IMPA*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

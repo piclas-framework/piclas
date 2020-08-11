@@ -711,7 +711,7 @@ IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_
       IF (ShapeMapping(iProc)%nRecvShapeElems.EQ.0) CYCLE
       ALLOCATE(ShapeMapping(iProc)%RecvShapeElemID(1:ShapeMapping(iProc)%nRecvShapeElems), &
         ShapeMapping(iProc)%RecvBuffer(4,0:PP_N,0:PP_N,0:PP_N,1:ShapeMapping(iProc)%nRecvShapeElems))
-      
+
       CALL MPI_IRECV( ShapeMapping(iProc)%RecvShapeElemID   &
                     , ShapeMapping(iProc)%nRecvShapeElems   &
                     , MPI_INTEGER                           &
@@ -913,8 +913,7 @@ END SUBROUTINE FinalizePartExchangeProcs
 
 PURE FUNCTION HaloBoxInProc(CartNodes,CartProc,halo_eps,nPeriodicVectors,PeriodicVectors)
 !===================================================================================================================================
-! Check if bounding box is on proc by comparing the 8 corner nodes. Check needs to be performed in both directions in case one box
-! is completely immersed in the other
+! Check if bounding box is on proc by comparing against the other bounding box extended by halo_eps
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -932,80 +931,34 @@ LOGICAL                     :: HaloBoxInProc
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER,DIMENSION(2),PARAMETER :: DirPeriodicVector = [-1,1]
-INTEGER                        :: iNode,DirNode
 INTEGER                        :: iPeriodicVector,jPeriodicVector,iPeriodicDir,jPeriodicDir,kPeriodicDir
-REAL,DIMENSION(1:3,8)          :: xCordsTest,xCordsPeri1!,xCoordsProc,xCordsPeri2
+REAL,DIMENSION(1:6)            :: xCordsPeri
 !===================================================================================================================================
 
 HaloBoxInProc = .FALSE.
 
-! Reconstruct the eight corner nodes of the cuboid
-xCordsTest(1:3,1) = (/CartNodes(1), CartNodes(3), CartNodes(5)/)
-xCordsTest(1:3,2) = (/CartNodes(2), CartNodes(3), CartNodes(5)/)
-xCordsTest(1:3,3) = (/CartNodes(2), CartNodes(4), CartNodes(5)/)
-xCordsTest(1:3,4) = (/CartNodes(1), CartNodes(4), CartNodes(5)/)
-xCordsTest(1:3,5) = (/CartNodes(1), CartNodes(3), CartNodes(6)/)
-xCordsTest(1:3,6) = (/CartNodes(2), CartNodes(3), CartNodes(6)/)
-xCordsTest(1:3,7) = (/CartNodes(2), CartNodes(4), CartNodes(6)/)
-xCordsTest(1:3,8) = (/CartNodes(1), CartNodes(4), CartNodes(6)/)
+! Check whether the bounding boxes intersect
+IF (   ((CartNodes(1).LE.CartProc(2)+halo_eps).AND.(CartNodes(2).GE.CartProc(1)-halo_eps))  &
+  .AND.((CartNodes(3).LE.CartProc(4)+halo_eps).AND.(CartNodes(4).GE.CartProc(3)-halo_eps))  &
+  .AND.((CartNodes(5).LE.CartProc(6)+halo_eps).AND.(CartNodes(6).GE.CartProc(5)-halo_eps))) HaloBoxInProc = .TRUE.
 
-!xCoordsProc(1:3,1) = (/CartProc(1), CartProc(3), CartProc(5)/)
-!xCoordsProc(1:3,2) = (/CartProc(2), CartProc(3), CartProc(5)/)
-!xCoordsProc(1:3,3) = (/CartProc(2), CartProc(4), CartProc(5)/)
-!xCoordsProc(1:3,4) = (/CartProc(1), CartProc(4), CartProc(5)/)
-!xCoordsProc(1:3,5) = (/CartProc(1), CartProc(3), CartProc(6)/)
-!xCoordsProc(1:3,6) = (/CartProc(2), CartProc(3), CartProc(6)/)
-!xCoordsProc(1:3,7) = (/CartProc(2), CartProc(4), CartProc(6)/)
-!xCoordsProc(1:3,8) = (/CartProc(1), CartProc(4), CartProc(6)/)
-
-! Check if any of the eight test corner nodes is within the current proc
-DO iNode = 1,8
-  IF (   ((xCordsTest (1,iNode).LE.CartProc (2)+halo_eps).AND.(xCordsTest (1,iNode).GE.CartProc (1)-halo_eps))  &
-    .AND.((xCordsTest (2,iNode).LE.CartProc (4)+halo_eps).AND.(xCordsTest (2,iNode).GE.CartProc (3)-halo_eps))  &
-    .AND.((xCordsTest (3,iNode).LE.CartProc (6)+halo_eps).AND.(xCordsTest (3,iNode).GE.CartProc (5)-halo_eps))) THEN
-    HaloBoxInProc = .TRUE.
-  END IF
-END DO
-
-!! Reverse check if any of the proc corner nodes is within the test proc
-!DO iNode = 1,8
-!  IF (   ((xCoordsProc(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCoordsProc(1,iNode).GE.CartNodes(1)-halo_eps))  &
-!    .AND.((xCoordsProc(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCoordsProc(2,iNode).GE.CartNodes(3)-halo_eps))  &
-!    .AND.((xCoordsProc(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCoordsProc(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
-!    HaloBoxInProc = .TRUE.
-!  END IF
-!END DO
-
-! Also check periodic directions. Only MPI sides of the local proc are
-! taken into account, so do not perform additional case distinction
+! Also check periodic directions. Only MPI sides of the local proc are taken into account, so do not perform additional case distinction
 SELECT CASE(nPeriodicVectors)
   ! One periodic vector
   CASE(1)
     DO iPeriodicDir = 1,2
       ! check if element is within halo_eps of periodically displaced element
-      DO DirNode = 1,8
-        xCordsPeri1(1:3,DirNode) = xCordsTest(1:3,DirNode) + PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)
-      END DO
-      ! Check if any of the eight test corner nodes is within the current proc
-      DO iNode = 1,8
-        IF (   ((xCordsPeri1 (1,iNode).LE.CartProc (2)+halo_eps).AND.(xCordsPeri1 (1,iNode).GE.CartProc (1)-halo_eps))  &
-          .AND.((xCordsPeri1 (2,iNode).LE.CartProc (4)+halo_eps).AND.(xCordsPeri1 (2,iNode).GE.CartProc (3)-halo_eps))  &
-          .AND.((xCordsPeri1 (3,iNode).LE.CartProc (6)+halo_eps).AND.(xCordsPeri1 (3,iNode).GE.CartProc (5)-halo_eps))) THEN
-          HaloBoxInProc = .TRUE.
-        END IF
-      END DO
+      xCordsPeri(1:2) = CartNodes(1:2) + PeriodicVectors(1,1) * DirPeriodicVector(iPeriodicDir)
+      xCordsPeri(3:4) = CartNodes(3:4) + PeriodicVectors(2,1) * DirPeriodicVector(iPeriodicDir)
+      xCordsPeri(5:6) = CartNodes(5:6) + PeriodicVectors(3,1) * DirPeriodicVector(iPeriodicDir)
 
-!      ! Reverse check if any of the proc corner nodes is within the test proc
-!      DO DirNode = 1,8
-!        xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)
-!      END DO
-!      DO iNode = 1,8
-!        IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
-!          .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
-!          .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
-!          HaloBoxInProc = .TRUE.
-!        END IF
-!      END DO
+      ! Check whether the bounding boxes intersect
+      IF (   ((xCordsPeri(1).LE.CartProc(2)+halo_eps).AND.(xCordsPeri(2).GE.CartProc(1)-halo_eps))  &
+        .AND.((xCordsPeri(3).LE.CartProc(4)+halo_eps).AND.(xCordsPeri(4).GE.CartProc(3)-halo_eps))  &
+        .AND.((xCordsPeri(5).LE.CartProc(6)+halo_eps).AND.(xCordsPeri(6).GE.CartProc(5)-halo_eps))) THEN
+        HaloBoxInProc = .TRUE.
+        RETURN
+      END IF
     END DO
 
   ! Two periodic vectors. Also check linear combination, see particle_bgm.f90
@@ -1013,60 +966,37 @@ SELECT CASE(nPeriodicVectors)
     DO iPeriodicVector = 1,2
       DO iPeriodicDir = 1,2
         ! check if element is within halo_eps of periodically displaced element
-        DO DirNode = 1,8
-          xCordsPeri1(1:3,DirNode) = xCordsTest(1:3,DirNode) + PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)
-        END DO
-        ! Check if any of the eight test corner nodes is within the current proc
-        DO iNode = 1,8
-          IF (   ((xCordsPeri1 (1,iNode).LE.CartProc (2)+halo_eps).AND.(xCordsPeri1 (1,iNode).GE.CartProc (1)-halo_eps))  &
-            .AND.((xCordsPeri1 (2,iNode).LE.CartProc (4)+halo_eps).AND.(xCordsPeri1 (2,iNode).GE.CartProc (3)-halo_eps))  &
-            .AND.((xCordsPeri1 (3,iNode).LE.CartProc (6)+halo_eps).AND.(xCordsPeri1 (3,iNode).GE.CartProc (5)-halo_eps))) THEN
-            HaloBoxInProc = .TRUE.
-          END IF
-        END DO
+        xCordsPeri(1:2) = CartNodes(1:2) + PeriodicVectors(1,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)
+        xCordsPeri(3:4) = CartNodes(3:4) + PeriodicVectors(2,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)
+        xCordsPeri(5:6) = CartNodes(5:6) + PeriodicVectors(3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)
 
-!        ! Reverse check if any of the proc corner nodes is within the test proc
-!        DO DirNode = 1,8
-!          xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)
-!        END DO
-!        DO iNode = 1,8
-!          IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
-!            .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
-!            .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
-!            HaloBoxInProc = .TRUE.
-!          END IF
-!        END DO
+        ! Check whether the bounding boxes intersect
+        IF (   ((xCordsPeri(1).LE.CartProc(2)+halo_eps).AND.(xCordsPeri(2).GE.CartProc(1)-halo_eps))  &
+          .AND.((xCordsPeri(3).LE.CartProc(4)+halo_eps).AND.(xCordsPeri(4).GE.CartProc(3)-halo_eps))  &
+          .AND.((xCordsPeri(5).LE.CartProc(6)+halo_eps).AND.(xCordsPeri(6).GE.CartProc(5)-halo_eps))) THEN
+          HaloBoxInProc = .TRUE.
+          RETURN
+        END IF
       END DO
     END DO
 
     DO iPeriodicDir = 1,2
       DO jPeriodicDir = 1,2
         ! check if element is within halo_eps of periodically displaced element
-        DO DirNode = 1,8
-          xCordsPeri1(1:3,DirNode) = xCordsTest(1:3,DirNode) + PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir) &
-                                                             + PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir)
-        END DO
-        ! Check if any of the eight test corner nodes is within the current proc
-        DO iNode = 1,8
-          IF (   ((xCordsPeri1 (1,iNode).LE.CartProc (2)+halo_eps).AND.(xCordsPeri1 (1,iNode).GE.CartProc (1)-halo_eps))  &
-            .AND.((xCordsPeri1 (2,iNode).LE.CartProc (4)+halo_eps).AND.(xCordsPeri1 (2,iNode).GE.CartProc (3)-halo_eps))  &
-            .AND.((xCordsPeri1 (3,iNode).LE.CartProc (6)+halo_eps).AND.(xCordsPeri1 (3,iNode).GE.CartProc (5)-halo_eps))) THEN
-            HaloBoxInProc = .TRUE.
-          END IF
-        END DO
+        xCordsPeri(1:2) = CartNodes(1:2) + PeriodicVectors(1,1) * DirPeriodicVector(iPeriodicDir) &
+                                         + PeriodicVectors(1,2) * DirPeriodicVector(jPeriodicDir)
+        xCordsPeri(3:4) = CartNodes(3:4) + PeriodicVectors(2,1) * DirPeriodicVector(iPeriodicDir) &
+                                         + PeriodicVectors(2,2) * DirPeriodicVector(jPeriodicDir)
+        xCordsPeri(5:6) = CartNodes(5:6) + PeriodicVectors(3,1) * DirPeriodicVector(iPeriodicDir) &
+                                         + PeriodicVectors(3,2) * DirPeriodicVector(jPeriodicDir)
 
-!        ! Reverse check if any of the proc corner nodes is within the test proc
-!        DO DirNode = 1,8
-!        xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir) &
-!                                                            + PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir)
-!        END DO
-!        DO iNode = 1,8
-!          IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
-!            .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
-!            .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
-!            HaloBoxInProc = .TRUE.
-!          END IF
-!        END DO
+        ! Check whether the bounding boxes intersect
+        IF (   ((xCordsPeri(1).LE.CartProc(2)+halo_eps).AND.(xCordsPeri(2).GE.CartProc(1)-halo_eps))  &
+          .AND.((xCordsPeri(3).LE.CartProc(4)+halo_eps).AND.(xCordsPeri(4).GE.CartProc(3)-halo_eps))  &
+          .AND.((xCordsPeri(5).LE.CartProc(6)+halo_eps).AND.(xCordsPeri(6).GE.CartProc(5)-halo_eps))) THEN
+          HaloBoxInProc = .TRUE.
+          RETURN
+        END IF
       END DO
     END DO
 
@@ -1077,61 +1007,36 @@ SELECT CASE(nPeriodicVectors)
     DO iPeriodicVector = 1,3
       DO iPeriodicDir = 1,2
         ! check if element is within halo_eps of periodically displaced element
-        DO DirNode = 1,8
-          xCordsPeri1(1:3,DirNode) = xCordsTest(1:3,DirNode) + PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)
-        END DO
-        ! Check if any of the eight test corner nodes is within the current proc
-        DO iNode = 1,8
-          IF (   ((xCordsPeri1 (1,iNode).LE.CartProc (2)+halo_eps).AND.(xCordsPeri1 (1,iNode).GE.CartProc (1)-halo_eps))  &
-            .AND.((xCordsPeri1 (2,iNode).LE.CartProc (4)+halo_eps).AND.(xCordsPeri1 (2,iNode).GE.CartProc (3)-halo_eps))  &
-            .AND.((xCordsPeri1 (3,iNode).LE.CartProc (6)+halo_eps).AND.(xCordsPeri1 (3,iNode).GE.CartProc (5)-halo_eps))) THEN
-            HaloBoxInProc = .TRUE.
-          END IF
-        END DO
+        xCordsPeri(1:2) = CartNodes(1:2) + PeriodicVectors(1,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)
+        xCordsPeri(3:4) = CartNodes(3:4) + PeriodicVectors(2,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)
+        xCordsPeri(5:6) = CartNodes(5:6) + PeriodicVectors(3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)
 
-!        ! Reverse check if any of the proc corner nodes is within the test proc
-!        DO DirNode = 1,8
-!          xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)
-!        END DO
-!        DO iNode = 1,8
-!          IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
-!            .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
-!            .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
-!            HaloBoxInProc = .TRUE.
-!          END IF
-!        END DO
+        ! Check whether the bounding boxes intersect
+        IF (   ((xCordsPeri(1).LE.CartProc(2)+halo_eps).AND.(xCordsPeri(2).GE.CartProc(1)-halo_eps))  &
+          .AND.((xCordsPeri(3).LE.CartProc(4)+halo_eps).AND.(xCordsPeri(4).GE.CartProc(3)-halo_eps))  &
+          .AND.((xCordsPeri(5).LE.CartProc(6)+halo_eps).AND.(xCordsPeri(6).GE.CartProc(5)-halo_eps))) THEN
+          HaloBoxInProc = .TRUE.
+          RETURN
+        END IF
 
         DO jPeriodicVector = 1,3
           DO jPeriodicDir = 1,2
             IF (iPeriodicVector.GE.jPeriodicVector) CYCLE
-
             ! check if element is within halo_eps of periodically displaced element
-            DO DirNode = 1,8
+            xCordsPeri(1:2) = CartNodes(1:2) + PeriodicVectors(1,iPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
+                                             + PeriodicVectors(1,jPeriodicVector) * DirPeriodicVector(jPeriodicDir)
+            xCordsPeri(3:4) = CartNodes(3:4) + PeriodicVectors(2,iPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
+                                             + PeriodicVectors(2,jPeriodicVector) * DirPeriodicVector(jPeriodicDir)
+            xCordsPeri(5:6) = CartNodes(5:6) + PeriodicVectors(3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
+                                             + PeriodicVectors(3,jPeriodicVector) * DirPeriodicVector(jPeriodicDir)
 
-              xCordsPeri1(1:3,DirNode) = xCordsTest(1:3,DirNode) + PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
-                                                                 + PeriodicVectors(1:3,jPeriodicVector) * DirPeriodicVector(jPeriodicDir)
-            END DO
-            ! Check if any of the eight test corner nodes is within the current proc
-            DO iNode = 1,8
-              IF (   ((xCordsPeri1 (1,iNode).LE.CartProc (2)+halo_eps).AND.(xCordsPeri1 (1,iNode).GE.CartProc (1)-halo_eps))  &
-                .AND.((xCordsPeri1 (2,iNode).LE.CartProc (4)+halo_eps).AND.(xCordsPeri1 (2,iNode).GE.CartProc (3)-halo_eps))  &
-                .AND.((xCordsPeri1 (3,iNode).LE.CartProc (6)+halo_eps).AND.(xCordsPeri1 (3,iNode).GE.CartProc (5)-halo_eps))) THEN
-                HaloBoxInProc = .TRUE.
-              END IF
-            END DO
-
-!            ! Reverse check if any of the proc corner nodes is within the test proc
-!            DO DirNode = 1,8
-!              xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
-!                                                                  + PeriodicVectors(1:3,jPeriodicVector) * DirPeriodicVector(jPeriodicDir)
-!            END DO
-!            DO iNode = 1,8
-!              IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
-!                .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
-!                .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
-!                HaloBoxInProc = .TRUE.
-!              END IF
-!            END DO
+            ! Check whether the bounding boxes intersect
+            IF (   ((xCordsPeri(1).LE.CartProc(2)+halo_eps).AND.(xCordsPeri(2).GE.CartProc(1)-halo_eps))  &
+              .AND.((xCordsPeri(3).LE.CartProc(4)+halo_eps).AND.(xCordsPeri(4).GE.CartProc(3)-halo_eps))  &
+              .AND.((xCordsPeri(5).LE.CartProc(6)+halo_eps).AND.(xCordsPeri(6).GE.CartProc(5)-halo_eps))) THEN
+              HaloBoxInProc = .TRUE.
+              RETURN
+            END IF
           END DO
         END DO
       END DO
@@ -1142,33 +1047,23 @@ SELECT CASE(nPeriodicVectors)
       DO jPeriodicDir = 1,2
         DO kPeriodicDir = 1,2
           ! check if element is within halo_eps of periodically displaced element
-          DO DirNode = 1,8
-            xCordsPeri1(1:3,DirNode) = xCordsTest(1:3,DirNode) + PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir) &
-                                                               + PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir) &
-                                                               + PeriodicVectors(1:3,3) * DirPeriodicVector(kPeriodicDir)
-          END DO
-          ! Check if any of the eight test corner nodes is within the current proc
-          DO iNode = 1,8
-            IF (   ((xCordsPeri1 (1,iNode).LE.CartProc (2)+halo_eps).AND.(xCordsPeri1 (1,iNode).GE.CartProc (1)-halo_eps))  &
-              .AND.((xCordsPeri1 (2,iNode).LE.CartProc (4)+halo_eps).AND.(xCordsPeri1 (2,iNode).GE.CartProc (3)-halo_eps))  &
-              .AND.((xCordsPeri1 (3,iNode).LE.CartProc (6)+halo_eps).AND.(xCordsPeri1 (3,iNode).GE.CartProc (5)-halo_eps))) THEN
-              HaloBoxInProc = .TRUE.
-            END IF
-          END DO
+          xCordsPeri(1:2) = CartNodes(1:2) + PeriodicVectors(1,1) * DirPeriodicVector(iPeriodicDir) &
+                                           + PeriodicVectors(1,2) * DirPeriodicVector(jPeriodicDir) &
+                                           + PeriodicVectors(1,3) * DirPeriodicVector(kPeriodicDir)
+          xCordsPeri(3:4) = CartNodes(3:4) + PeriodicVectors(2,1) * DirPeriodicVector(iPeriodicDir) &
+                                           + PeriodicVectors(2,2) * DirPeriodicVector(jPeriodicDir) &
+                                           + PeriodicVectors(1,3) * DirPeriodicVector(kPeriodicDir)
+          xCordsPeri(5:6) = CartNodes(5:6) + PeriodicVectors(3,1) * DirPeriodicVector(iPeriodicDir) &
+                                           + PeriodicVectors(3,2) * DirPeriodicVector(jPeriodicDir) &
+                                           + PeriodicVectors(1,3) * DirPeriodicVector(kPeriodicDir)
 
-!          ! Reverse check if any of the proc corner nodes is within the test proc
-!          DO DirNode = 1,8
-!          xCordsPeri2(1:3,DirNode) = xCoordsProc(1:3,DirNode) + PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir) &
-!                                                              + PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir) &
-!                                                              + PeriodicVectors(1:3,3) * DirPeriodicVector(kPeriodicDir)
-!          END DO
-!          DO iNode = 1,8
-!            IF (   ((xCordsPeri2(1,iNode).LE.CartNodes(2)+halo_eps).AND.(xCordsPeri2(1,iNode).GE.CartNodes(1)-halo_eps))  &
-!              .AND.((xCordsPeri2(2,iNode).LE.CartNodes(4)+halo_eps).AND.(xCordsPeri2(2,iNode).GE.CartNodes(3)-halo_eps))  &
-!              .AND.((xCordsPeri2(3,iNode).LE.CartNodes(6)+halo_eps).AND.(xCordsPeri2(3,iNode).GE.CartNodes(5)-halo_eps))) THEN
-!              HaloBoxInProc = .TRUE.
-!            END IF
-!          END DO
+          ! Check whether the bounding boxes intersect
+          IF (   ((xCordsPeri(1).LE.CartProc(2)+halo_eps).AND.(xCordsPeri(2).GE.CartProc(1)-halo_eps))  &
+            .AND.((xCordsPeri(3).LE.CartProc(4)+halo_eps).AND.(xCordsPeri(4).GE.CartProc(3)-halo_eps))  &
+            .AND.((xCordsPeri(5).LE.CartProc(6)+halo_eps).AND.(xCordsPeri(6).GE.CartProc(5)-halo_eps))) THEN
+            HaloBoxInProc = .TRUE.
+            RETURN
+          END IF
         END DO
       END DO
     END DO
