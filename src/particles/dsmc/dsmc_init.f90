@@ -891,13 +891,7 @@ ELSE !CollisMode.GT.0
     ! Setting the internal energy value of every particle
     DO iPart = 1, PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
-        IF (Species(PartSpecies(iPart))%NumberOfInits.EQ.0) THEN
-          IF (SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
-            CALL DSMC_SetInternalEnr_Poly(PartSpecies(iPart),0,iPart,1)
-          ELSE
-            CALL DSMC_SetInternalEnr_LauxVFD(PartSpecies(iPart),0,iPart,1)
-          END IF
-        ELSE
+        IF (Species(PartSpecies(iPart))%NumberOfInits.GT.0) THEN
           iInit = PDM%PartInit(iPart)
           IF (SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
             CALL DSMC_SetInternalEnr_Poly(PartSpecies(iPart),iInit,iPart,1)

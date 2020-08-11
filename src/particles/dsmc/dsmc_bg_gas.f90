@@ -393,7 +393,6 @@ USE MOD_Mesh_Vars               ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Particle_Vars           ,ONLY: WriteMacroVolumeValues
 USE MOD_DSMC_Init               ,ONLY: DSMC_SetInternalEnr_LauxVFD
-USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
 USE MOD_DSMC_Collis             ,ONLY: FinalizeCalcVibRelaxProb, SumVibRelaxProb, InitCalcVibRelaxProb
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
@@ -754,12 +753,12 @@ DO WHILE (iPart.LE.NbrOfParticle)
     PartSpecies(NewParticleIndex) = bgSpec
     IF(CollisMode.GT.1) THEN
       IF(SpecDSMC(bgSpec)%PolyatomicMol) THEN
-        CALL DSMC_SetInternalEnr_Poly(bgSpec,0,NewParticleIndex,1)
+        CALL DSMC_SetInternalEnr_Poly(bgSpec,1,NewParticleIndex,1)
       ELSE
-        CALL DSMC_SetInternalEnr_LauxVFD(bgSpec,0,NewParticleIndex,1)
+        CALL DSMC_SetInternalEnr_LauxVFD(bgSpec,1,NewParticleIndex,1)
       END IF
     END IF
-    CALL CalcVelocity_maxwell_lpn(FractNbr=bgSpec, Vec3D=PartState(4:6,NewParticleIndex), iInit=0)
+    CALL CalcVelocity_maxwell_lpn(FractNbr=bgSpec, Vec3D=PartState(4:6,NewParticleIndex), iInit=1)
     ! Particle flags
     PDM%ParticleInside(NewParticleIndex)  = .TRUE.
     PDM%IsNewPart(NewParticleIndex)       = .TRUE.
