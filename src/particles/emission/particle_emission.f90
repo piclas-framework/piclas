@@ -156,10 +156,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: i, NbrOfParticle,iInit,iPart,PositionNbr
-INTEGER               :: nPartInside
 INTEGER(KIND=8)       :: insertParticles
-REAL                  :: EInside,TempInside
-LOGICAL               :: EmType6
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' Initial particle inserting... '
