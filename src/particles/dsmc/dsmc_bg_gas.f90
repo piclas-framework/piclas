@@ -727,67 +727,60 @@ ALLOCATE(Coll_pData(NbrOfParticle))
 Coll_pData%Ec=0.
 DSMCSumOfFormedParticles = 0
 
-iPart = 1; iNewPart = 0; iPair = 0
+iNewPart = 0; iPair = 0
 
-DO WHILE (iPart.LE.NbrOfParticle)
+DO iPart = 1, NbrOfParticle
   ! Loop over the particles with a set position (from SetParticlePosition)
   ParticleIndex = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-  IF(ParticleIndex.NE.0) THEN
-    iNewPart = iNewPart + 1
-    ! Get a new index for the second product
-    NewParticleIndex = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition+NbrOfParticle)
-    IF (NewParticleIndex.EQ.0) THEN
-      CALL Abort(&
-        __STAMP__&
-        ,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
-    END IF
-    PartState(1:3,NewParticleIndex) = PartState(1:3,ParticleIndex)
-    IF(DoRefMapping)THEN ! here Nearst-GP is missing
-      PartPosRef(1:3,NewParticleIndex)=PartPosRef(1:3,ParticleIndex)
-    END IF
-    ! Species index given from the initialization
-    PartSpecies(ParticleIndex) = iSpec
-    ! Get the species index of the background gas
-    bgSpec = BGGas_GetSpecies()
-    PartSpecies(NewParticleIndex) = bgSpec
-    IF(CollisMode.GT.1) THEN
-      IF(SpecDSMC(bgSpec)%PolyatomicMol) THEN
-        CALL DSMC_SetInternalEnr_Poly(bgSpec,1,NewParticleIndex,1)
-      ELSE
-        CALL DSMC_SetInternalEnr_LauxVFD(bgSpec,1,NewParticleIndex,1)
-      END IF
-    END IF
-    CALL CalcVelocity_maxwell_lpn(FractNbr=bgSpec, Vec3D=PartState(4:6,NewParticleIndex), iInit=1)
-    ! Particle flags
-    PDM%ParticleInside(NewParticleIndex)  = .TRUE.
-    PDM%IsNewPart(NewParticleIndex)       = .TRUE.
-    PDM%dtFracPush(NewParticleIndex)      = .FALSE.
-    ! Particle element
-    PEM%GlobalElemID(NewParticleIndex) = PEM%GlobalElemID(ParticleIndex)
-    ! Last element ID
-    PEM%LastGlobalElemID(NewParticleIndex) = PEM%GlobalElemID(NewParticleIndex)
-    PEM%LastGlobalElemID(ParticleIndex) = PEM%GlobalElemID(ParticleIndex)
-    ! Pairing (first particle is the background gas species)
-    Coll_pData(iNewPart)%iPart_p1 = NewParticleIndex
-    Coll_pData(iNewPart)%iPart_p2 = ParticleIndex
-    ! Relative velocity is not required as the relative translational energy will not be considered
-    Coll_pData(iNewPart)%CRela2 = 0.
-    ! Weighting factor
-    IF(usevMPF) THEN
-      PartMPF(NewParticleIndex) = Species(bgSpec)%MacroParticleFactor
-      PartMPF(ParticleIndex) = Species(iSpec)%MacroParticleFactor
-    END IF
-    ! Velocity (set it to zero, as it will be substracted in the chemistry module)
-    PartState(4:6,ParticleIndex) = 0.
-    ! Internal energies (set it to zero)
-    PartStateIntEn(1:2,ParticleIndex) = 0.
-    IF(DSMC%ElectronicModel) PartStateIntEn(3,ParticleIndex) = 0.
-  ELSE
+  iNewPart = iNewPart + 1
+  ! Get a new index for the second product
+  NewParticleIndex = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition+NbrOfParticle)
+  IF (NewParticleIndex.EQ.0) THEN
     CALL Abort(&
       __STAMP__&
       ,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
   END IF
-  iPart = iPart + 1
+  PartState(1:3,NewParticleIndex) = PartState(1:3,ParticleIndex)
+  IF(DoRefMapping)THEN ! here Nearst-GP is missing
+    PartPosRef(1:3,NewParticleIndex)=PartPosRef(1:3,ParticleIndex)
+  END IF
+  ! Species index given from the initialization
+  PartSpecies(ParticleIndex) = iSpec
+  ! Get the species index of the background gas
+  bgSpec = BGGas_GetSpecies()
+  PartSpecies(NewParticleIndex) = bgSpec
+  IF(CollisMode.GT.1) THEN
+    IF(SpecDSMC(bgSpec)%PolyatomicMol) THEN
+      CALL DSMC_SetInternalEnr_Poly(bgSpec,1,NewParticleIndex,1)
+    ELSE
+      CALL DSMC_SetInternalEnr_LauxVFD(bgSpec,1,NewParticleIndex,1)
+    END IF
+  END IF
+  CALL CalcVelocity_maxwell_lpn(FractNbr=bgSpec, Vec3D=PartState(4:6,NewParticleIndex), iInit=1)
+  ! Particle flags
+  PDM%ParticleInside(NewParticleIndex)  = .TRUE.
+  PDM%IsNewPart(NewParticleIndex)       = .TRUE.
+  PDM%dtFracPush(NewParticleIndex)      = .FALSE.
+  ! Particle element
+  PEM%GlobalElemID(NewParticleIndex) = PEM%GlobalElemID(ParticleIndex)
+  ! Last element ID
+  PEM%LastGlobalElemID(NewParticleIndex) = PEM%GlobalElemID(NewParticleIndex)
+  PEM%LastGlobalElemID(ParticleIndex) = PEM%GlobalElemID(ParticleIndex)
+  ! Pairing (first particle is the background gas species)
+  Coll_pData(iNewPart)%iPart_p1 = NewParticleIndex
+  Coll_pData(iNewPart)%iPart_p2 = ParticleIndex
+  ! Relative velocity is not required as the relative translational energy will not be considered
+  Coll_pData(iNewPart)%CRela2 = 0.
+  ! Weighting factor
+  IF(usevMPF) THEN
+    PartMPF(NewParticleIndex) = Species(bgSpec)%MacroParticleFactor
+    PartMPF(ParticleIndex) = Species(iSpec)%MacroParticleFactor
+  END IF
+  ! Velocity (set it to zero, as it will be substracted in the chemistry module)
+  PartState(4:6,ParticleIndex) = 0.
+  ! Internal energies (set it to zero)
+  PartStateIntEn(1:2,ParticleIndex) = 0.
+  IF(DSMC%ElectronicModel) PartStateIntEn(3,ParticleIndex) = 0.
 END DO
 
 ! Add the particles initialized through the emission and the background particles
