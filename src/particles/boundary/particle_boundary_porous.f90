@@ -112,7 +112,7 @@ SUBROUTINE InitPorousBoundaryCondition()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Mesh_Vars                   ,ONLY: nElems, offsetElem
+USE MOD_Mesh_Vars                   ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars               ,ONLY: nSpecies, Adaptive_MacroVal, Symmetry2D, Symmetry2DAxisymmetric
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound, nPorousBC, nPorousSides, PorousBCMacroVal
@@ -945,8 +945,7 @@ SUBROUTINE InitPorousCommunication()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 USE MOD_Globals
-USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_SURF
-USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: MPIRankSurfLeader
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank,nSurfLeaders
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode,nComputeNodeSurfTotalSides
@@ -966,7 +965,6 @@ INTEGER                       :: LeaderID
 INTEGER                       :: iSide, iPorousSide
 INTEGER                       :: nSendPorousSidesTmp(0:nSurfLeaders-1)
 INTEGER                       :: nRecvPorousSidesTmp(0:nSurfLeaders-1)
-!INTEGER                       :: nSurfSidesLeader(1:2,0:nLeaderGroupProcs-1)
 INTEGER                       :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 INTEGER                       :: SendPorousGlobalID(0:nSurfLeaders-1,1:nComputeNodeSurfTotalSides)
 INTEGER                       :: SampSizeAllocate
