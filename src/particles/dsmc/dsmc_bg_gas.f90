@@ -243,7 +243,6 @@ USE MOD_Globals
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcMeanFreePath
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC
-USE MOD_DSMC_Vars             ,ONLY: VarVibRelaxProb
 USE MOD_Particle_Vars         ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species, WriteMacroVolumeValues
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offsetElem
@@ -668,7 +667,7 @@ INTEGER, INTENT(IN)           :: iSpec,iInit,TotalNbrOfReactions
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart, iPair, iNewPart, iReac, ParticleIndex, NewParticleIndex, bgSpec, NbrOfParticle
-INTEGER                       :: iPart_p1, iPart_p2
+INTEGER                       :: iPart_p1, iPart_p2, iPart_p3
 REAL                          :: RandVal,NumTmp,ProbRest
 INTEGER                       :: TotalNbrOfReactionsTmp,iCrossSection,NbrCrossSections
 INTEGER                       :: NumPhotoIonization(ChemReac%NumOfReact)
@@ -728,64 +727,60 @@ ALLOCATE(Coll_pData(NbrOfParticle))
 Coll_pData%Ec=0.
 DSMCSumOfFormedParticles = 0
 
-iPart = 1; iNewPart = 0; iPair = 0
+iNewPart = 0; iPair = 0
 
-DO WHILE (iPart.LE.NbrOfParticle)
+DO iPart = 1, NbrOfParticle
   ! Loop over the particles with a set position (from SetParticlePosition)
   ParticleIndex = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-  IF(ParticleIndex.NE.0) THEN
-    iNewPart = iNewPart + 1
-    ! Get a new index for the second product
-    NewParticleIndex = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition+NbrOfParticle)
-    IF (NewParticleIndex.EQ.0) THEN
-      CALL Abort(&
-        __STAMP__&
-        ,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
-    END IF
-    PartState(1:3,NewParticleIndex) = PartState(1:3,ParticleIndex)
-    IF(DoRefMapping)THEN ! here Nearst-GP is missing
-      PartPosRef(1:3,NewParticleIndex)=PartPosRef(1:3,ParticleIndex)
-    END IF
-    ! Species index given from the initialization
-    PartSpecies(ParticleIndex) = iSpec
-    ! Get the species index of the background gas
-    bgSpec = BGGas_GetSpecies()
-    PartSpecies(NewParticleIndex) = bgSpec
-    IF(CollisMode.GT.1) THEN
-      IF(SpecDSMC(bgSpec)%PolyatomicMol) THEN
-        CALL DSMC_SetInternalEnr_Poly(bgSpec,1,NewParticleIndex,1)
-      ELSE
-        CALL DSMC_SetInternalEnr_LauxVFD(bgSpec,1,NewParticleIndex,1)
-      END IF
-    END IF
-    CALL CalcVelocity_maxwell_lpn(FractNbr=bgSpec, Vec3D=PartState(4:6,NewParticleIndex), iInit=1)
-    ! Particle flags
-    PDM%ParticleInside(NewParticleIndex)  = .TRUE.
-    PDM%IsNewPart(NewParticleIndex)       = .TRUE.
-    PDM%dtFracPush(NewParticleIndex)      = .FALSE.
-    ! Particle element
-    PEM%GlobalElemID(NewParticleIndex) = PEM%GlobalElemID(ParticleIndex)
-    ! Pairing
-    Coll_pData(iNewPart)%iPart_p1 = NewParticleIndex
-    Coll_pData(iNewPart)%iPart_p2 = ParticleIndex
-    ! Relative velocity is not required as the relative translational energy will not be considered
-    Coll_pData(iNewPart)%CRela2 = 0.
-    ! Weighting factor
-    IF(usevMPF) THEN
-      PartMPF(NewParticleIndex) = Species(bgSpec)%MacroParticleFactor
-      PartMPF(ParticleIndex) = Species(iSpec)%MacroParticleFactor
-    END IF
-    ! Velocity (set it to zero, as it will be substracted in the chemistry module)
-    PartState(4:6,ParticleIndex) = 0.
-    ! Internal energies (set it to zero)
-    PartStateIntEn(1:2,ParticleIndex) = 0.
-    IF(DSMC%ElectronicModel) PartStateIntEn(3,ParticleIndex) = 0.
-  ELSE
+  iNewPart = iNewPart + 1
+  ! Get a new index for the second product
+  NewParticleIndex = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition+NbrOfParticle)
+  IF (NewParticleIndex.EQ.0) THEN
     CALL Abort(&
       __STAMP__&
       ,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
   END IF
-  iPart = iPart + 1
+  PartState(1:3,NewParticleIndex) = PartState(1:3,ParticleIndex)
+  IF(DoRefMapping)THEN ! here Nearst-GP is missing
+    PartPosRef(1:3,NewParticleIndex)=PartPosRef(1:3,ParticleIndex)
+  END IF
+  ! Species index given from the initialization
+  PartSpecies(ParticleIndex) = iSpec
+  ! Get the species index of the background gas
+  bgSpec = BGGas_GetSpecies()
+  PartSpecies(NewParticleIndex) = bgSpec
+  IF(CollisMode.GT.1) THEN
+    IF(SpecDSMC(bgSpec)%PolyatomicMol) THEN
+      CALL DSMC_SetInternalEnr_Poly(bgSpec,1,NewParticleIndex,1)
+    ELSE
+      CALL DSMC_SetInternalEnr_LauxVFD(bgSpec,1,NewParticleIndex,1)
+    END IF
+  END IF
+  CALL CalcVelocity_maxwell_lpn(FractNbr=bgSpec, Vec3D=PartState(4:6,NewParticleIndex), iInit=1)
+  ! Particle flags
+  PDM%ParticleInside(NewParticleIndex)  = .TRUE.
+  PDM%IsNewPart(NewParticleIndex)       = .TRUE.
+  PDM%dtFracPush(NewParticleIndex)      = .FALSE.
+  ! Particle element
+  PEM%GlobalElemID(NewParticleIndex) = PEM%GlobalElemID(ParticleIndex)
+  ! Last element ID
+  PEM%LastGlobalElemID(NewParticleIndex) = PEM%GlobalElemID(NewParticleIndex)
+  PEM%LastGlobalElemID(ParticleIndex) = PEM%GlobalElemID(ParticleIndex)
+  ! Pairing (first particle is the background gas species)
+  Coll_pData(iNewPart)%iPart_p1 = NewParticleIndex
+  Coll_pData(iNewPart)%iPart_p2 = ParticleIndex
+  ! Relative velocity is not required as the relative translational energy will not be considered
+  Coll_pData(iNewPart)%CRela2 = 0.
+  ! Weighting factor
+  IF(usevMPF) THEN
+    PartMPF(NewParticleIndex) = Species(bgSpec)%MacroParticleFactor
+    PartMPF(ParticleIndex) = Species(iSpec)%MacroParticleFactor
+  END IF
+  ! Velocity (set it to zero, as it will be substracted in the chemistry module)
+  PartState(4:6,ParticleIndex) = 0.
+  ! Internal energies (set it to zero)
+  PartStateIntEn(1:2,ParticleIndex) = 0.
+  IF(DSMC%ElectronicModel) PartStateIntEn(3,ParticleIndex) = 0.
 END DO
 
 ! Add the particles initialized through the emission and the background particles
@@ -813,6 +808,11 @@ DO iReac = 1, ChemReac%NumOfReact
     iPart_p2 = Coll_pData(iPair)%iPart_p2
     PartState(4:6,iPart_p1) = PartState(4:6,iPart_p1) + DSMC_RHS(1:3,iPart_p1)
     PartState(4:6,iPart_p2) = PartState(4:6,iPart_p2) + DSMC_RHS(1:3,iPart_p2)
+    ! Treatment of the third product
+    IF(ChemReac%DefinedReact(iReac,2,3).NE.0) THEN
+      iPart_p3 = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
+      PartState(4:6,iPart_p3) = PartState(4:6,iPart_p3) + DSMC_RHS(1:3,iPart_p3)
+    END IF
     ! If an electron is created, change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
     ASSOCIATE( b1 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC(1:3)) ,&
                b2 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC(1:3)) )
@@ -840,7 +840,22 @@ DO iReac = 1, ChemReac%NumOfReact
                                           UNITVECTOR(PartState(4:6,iPart_p2)),Species(iSpec)%Init(iInit)%NormalIC,mode=2,&
                                           usevMPF_optIN=.FALSE.)
       END IF
-  END ASSOCIATE
+      ! Treatment of the third product
+      IF(ChemReac%DefinedReact(iReac,2,3).NE.0) THEN
+        iPart_p3 = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
+        IF(PARTISELECTRON(iPart_p3)) THEN
+          CALL RANDOM_NUMBER(RandVal)
+          ! Get random vector b3 in b1-b2-plane
+          PartState(4:6,iPart_p3) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart_p3),RandVal)
+          ! Rotate the resulting vector in the b3-NormalIC-plane
+          PartState(4:6,iPart_p3) = GetRotatedVector(PartState(4:6,iPart_p3),Species(iSpec)%Init(iInit)%NormalIC)
+          ! Store the particle information in PartStateBoundary.h5
+          IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(iPart_p3,PartSpecies(iPart_p3),PartState(1:3,iPart_p3),&
+                                            UNITVECTOR(PartState(4:6,iPart_p3)),Species(iSpec)%Init(iInit)%NormalIC,mode=2,&
+                                            usevMPF_optIN=.FALSE.)
+        END IF
+      END IF
+    END ASSOCIATE
   END DO
 END DO
 

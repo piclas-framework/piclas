@@ -64,7 +64,6 @@ INTEGER,INTENT(INOUT)                    :: NbrOfParticle
 ! LOCAL VARIABLES
 INTEGER                                  :: chunkSize
 LOGICAL                                  :: DoExactPartNumInsert
-LOGICAL                                  :: ARM_Gauss
 #if USE_MPI
 INTEGER                                  :: InitGroup
 REAL,ALLOCATABLE                         :: ProcMeshVol(:)
@@ -132,8 +131,7 @@ SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState, Symmetry2DAxisymmetric
-USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
+USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 USE MOD_part_emission_tools    ,ONLY: IntegerDivide,SetCellLocalParticlePosition,SetParticlePositionPoint
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionEquidistLine, SetParticlePositionLine, SetParticlePositionDisk
@@ -158,11 +156,8 @@ INTEGER,INTENT(INOUT)                    :: NbrOfParticle
 REAL,ALLOCATABLE                         :: particle_positions(:)
 INTEGER                                  :: i,ParticleIndexNbr,allocStat,nChunks, chunkSize
 INTEGER                                  :: mySumOfMatchedParticles, sumOfMatchedParticles, DimSend
-LOGICAL                                  :: DoExactPartNumInsert
 #if USE_MPI
 INTEGER                                  :: InitGroup
-REAL,ALLOCATABLE                         :: ProcMeshVol(:)
-INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:)
 #endif
 !===================================================================================================================================
 IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
@@ -314,24 +309,25 @@ SUBROUTINE SetParticleVelocity(FractNbr,iInit,NbrOfParticle)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_part_emission_tools   ,ONLY: CalcVelocity_maxwell_lpn, CalcVelocity_taylorgreenvortex,CalcVelocity_FromWorkFuncSEE
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, CalcVelocity_taylorgreenvortex, CalcVelocity_FromWorkFuncSEE
+USE MOD_part_emission_tools     ,ONLY: CalcVelocity_gyrotroncircle
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutput
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
-USE MOD_FPFlow_Init           ,ONLY: FP_BuildTransGaussNums
+USE MOD_FPFlow_Init             ,ONLY: FP_BuildTransGaussNums
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)               :: FractNbr,iInit
+INTEGER,INTENT(IN)              :: FractNbr,iInit
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER,INTENT(INOUT)            :: NbrOfParticle
+INTEGER,INTENT(INOUT)           :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: i, PositionNbr
-LOGICAL                          :: Is_ElemMacro
-CHARACTER(30)                    :: velocityDistribution
-REAL                             :: VeloIC, VeloVecIC(3), maxwellfac, VeloVecNorm
-REAL                             :: iRanPart(3, NbrOfParticle), Vec3D(3)
+INTEGER                         :: i, PositionNbr
+LOGICAL                         :: Is_ElemMacro
+CHARACTER(30)                   :: velocityDistribution
+REAL                            :: VeloIC, VeloVecIC(3), maxwellfac, VeloVecNorm
+REAL                            :: iRanPart(3, NbrOfParticle), Vec3D(3)
 !===================================================================================================================================
 
 IF(NbrOfParticle.LT.1) RETURN
@@ -369,7 +365,7 @@ CASE('gyrotron_circle')
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr.GT.0) THEN
-      CALL CalcVelocity_taylorgreenvortex(FractNbr, Vec3D, iInit, PositionNbr)
+      CALL CalcVelocity_gyrotroncircle(FractNbr, Vec3D, iInit, PositionNbr)
       PartState(4:6,PositionNbr) = Vec3D(1:3)
     END IF
   END DO

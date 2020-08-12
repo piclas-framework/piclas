@@ -420,10 +420,8 @@ DO i = 1, chunkSize
       END IF ! TrackingMethod.EQ.REFMAPPING
     ! Located particle on local proc.
     ELSE
-      ! Find a free position in the PDM array
-      IF ((i.EQ.1).OR.PDM%ParticleInside(ParticleIndexNbr)) THEN
-        ParticleIndexNbr = PDM%nextFreePosition(mySumOfMatchedParticles + 1 + PDM%CurrentNextFreePosition)
-      END IF
+      ! Get the next free position in the PDM array
+      ParticleIndexNbr = PDM%nextFreePosition(mySumOfMatchedParticles + 1 + PDM%CurrentNextFreePosition)
       IF (ParticleIndexNbr.NE.0) THEN
         ! Fill the PartState manually to avoid a second localization
         PartState(1:DimSend,ParticleIndexNbr) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
