@@ -549,7 +549,7 @@ END DO ! iBGM
 ALLOCATE(offsetElemsInBGMCell(BGMimin:BGMimax,BGMjmin:BGMjmax,BGMkmin:BGMkmax))
 CALL MPI_EXSCAN(sendbuf(:,:,:),recvbuf(:,:,:),((BGMimax-BGMimin)+1)*((BGMjmax-BGMjmin)+1)*((BGMkmax-BGMkmin)+1) &
                 ,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
-offsetElemsInBGMCell=recvbuf
+offsetElemsInBGMCell = recvbuf
 DEALLOCATE(recvbuf)
 
 ! last proc of compute-node calculates total number of elements in each BGM-cell
@@ -558,7 +558,7 @@ IF(myComputeNodeRank.EQ.nComputeNodeProcessors-1)THEN
   DO iBGM = BGMimin,BGMimax
     DO jBGM = BGMjmin,BGMjmax
       DO kBGM = BGMkmin,BGMkmax
-        sendbuf(iBGM,jBGM,kBGM)=offsetElemsInBGMCell(iBGM,jBGM,kBGM)+GEO%FIBGM(iBGM,jBGM,kBGM)%nElem
+        sendbuf(iBGM,jBGM,kBGM) = offsetElemsInBGMCell(iBGM,jBGM,kBGM) + GEO%FIBGM(iBGM,jBGM,kBGM)%nElem
       END DO ! kBGM
     END DO ! jBGM
   END DO ! iBGM
@@ -632,6 +632,14 @@ ALLOCATE( FIBGM_Element(1:FIBGM_offsetElem(BGMimax,BGMjmax,BGMkmax) + &
                           FIBGM_nElems    (BGMimax,BGMjmax,BGMkmax)))
 #endif  /*USE_MPI*/
 
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
+  FIBGM_Element = -1
+#if USE_MPI
+END IF
+#endif /*USE_MPI*/
+
 DO iBGM = BGMimin,BGMimax
   DO jBGM = BGMjmin,BGMjmax
     DO kBGM = BGMkmin,BGMkmax
@@ -648,56 +656,77 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
   DO iElem = firstHaloElem, lastHaloElem
     ElemID = offsetCNHalo2GlobalElem(iElem)
     IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).EQ.0) CYCLE
-!    BGMCellXmin = ElemToBGM_Shared(1,ElemID)
-!    BGMCellXmax = ElemToBGM_Shared(2,ElemID)
-!    BGMCellYmin = ElemToBGM_Shared(3,ElemID)
-!    BGMCellYmax = ElemToBGM_Shared(4,ElemID)
-!    BGMCellZmin = ElemToBGM_Shared(5,ElemID)
-!    BGMCellZmax = ElemToBGM_Shared(6,ElemID)
+
     BGMCellXmin = MAX(ElemToBGM_Shared(1,ElemID),BGMimin)
     BGMCellXmax = MIN(ElemToBGM_Shared(2,ElemID),BGMimax)
     BGMCellYmin = MAX(ElemToBGM_Shared(3,ElemID),BGMjmin)
     BGMCellYmax = MIN(ElemToBGM_Shared(4,ElemID),BGMjmax)
     BGMCellZmin = MAX(ElemToBGM_Shared(5,ElemID),BGMkmin)
     BGMCellZmax = MIN(ElemToBGM_Shared(6,ElemID),BGMkmax)
+
     ! add current Element to BGM-Elem
     DO kBGM = BGMCellZmin,BGMCellZmax
       DO jBGM = BGMCellYmin,BGMCellYmax
         DO iBGM = BGMCellXmin,BGMCellXmax
           GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
-          FIBGM_Element( FIBGM_offsetElem(iBGM,jBGM,kBGM)            & ! offset of BGM cell in 1D array
-                              + offsetElemsInBGMCell(iBGM,jBGM,kBGM) & ! offset of BGM nElems in local proc
-                              + GEO%FIBGM(iBGM,jBGM,kBGM)%nElem) = ElemID
+          FIBGM_Element( FIBGM_offsetElem    (iBGM,jBGM,kBGM)        & ! offset of BGM cell in 1D array
+                       + offsetElemsInBGMCell(iBGM,jBGM,kBGM)        & ! offset of BGM nElems in local proc
+                       + GEO%FIBGM           (iBGM,jBGM,kBGM)%nElem) = ElemID
+                     IF (FIBGM_offsetElem(iBGM,jBGM,kBGM).EQ.116645) IPWRITE(*,*) 'halo', ElemID,offsetElemsInBGMCell(iBGM,jBGM,kBGM),iBGM,jBGM,kBGM
         END DO ! kBGM
       END DO ! jBGM
     END DO ! iBGM
   END DO ! iElem = firstHaloElem, lastHaloElem
+
+  ! Also add the periodic elements found on the same proc
+  IF (GEO%nPeriodicVectors.GT.0) THEN
+    DO ElemID = firstElem, lastElem
+      IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.3) CYCLE
+
+      BGMCellXmin = MAX(ElemToBGM_Shared(1,ElemID),BGMimin)
+      BGMCellXmax = MIN(ElemToBGM_Shared(2,ElemID),BGMimax)
+      BGMCellYmin = MAX(ElemToBGM_Shared(3,ElemID),BGMjmin)
+      BGMCellYmax = MIN(ElemToBGM_Shared(4,ElemID),BGMjmax)
+      BGMCellZmin = MAX(ElemToBGM_Shared(5,ElemID),BGMkmin)
+      BGMCellZmax = MIN(ElemToBGM_Shared(6,ElemID),BGMkmax)
+
+      ! add current Element to BGM-Elem
+      DO kBGM = BGMCellZmin,BGMCellZmax
+        DO jBGM = BGMCellYmin,BGMCellYmax
+          DO iBGM = BGMCellXmin,BGMCellXmax
+            GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
+            FIBGM_Element( FIBGM_offsetElem    (iBGM,jBGM,kBGM)        & ! offset of BGM cell in 1D array
+                         + offsetElemsInBGMCell(iBGM,jBGM,kBGM)        & ! offset of BGM nElems in local proc
+                         + GEO%FIBGM           (iBGM,jBGM,kBGM)%nElem) = ElemID
+                       IF (FIBGM_offsetElem(iBGM,jBGM,kBGM).EQ.116645) IPWRITE(*,*) 'halo', ElemID,offsetElemsInBGMCell(iBGM,jBGM,kBGM),iBGM,jBGM,kBGM
+          END DO ! kBGM
+        END DO ! jBGM
+      END DO ! iBGM
+    END DO ! iElem = firstHaloElem, lastHaloElem
+  END IF
 END IF
 #endif  /*USE_MPI*/
 
 DO iElem = offsetElem+1, offsetElem+nElems
-!  BGMCellXmin = ElemToBGM_Shared(1,iElem)
-!  BGMCellXmax = ElemToBGM_Shared(2,iElem)
-!  BGMCellYmin = ElemToBGM_Shared(3,iElem)
-!  BGMCellYmax = ElemToBGM_Shared(4,iElem)
-!  BGMCellZmin = ElemToBGM_Shared(5,iElem)
-!  BGMCellZmax = ElemToBGM_Shared(6,iElem)
+
   BGMCellXmin = MAX(ElemToBGM_Shared(1,iElem),BGMimin)
   BGMCellXmax = MIN(ElemToBGM_Shared(2,iElem),BGMimax)
   BGMCellYmin = MAX(ElemToBGM_Shared(3,iElem),BGMjmin)
   BGMCellYmax = MIN(ElemToBGM_Shared(4,iElem),BGMjmax)
   BGMCellZmin = MAX(ElemToBGM_Shared(5,iElem),BGMkmin)
   BGMCellZmax = MIN(ElemToBGM_Shared(6,iElem),BGMkmax)
+
   ! add current Element to BGM-Elem
   DO kBGM = BGMCellZmin,BGMCellZmax
     DO jBGM = BGMCellYmin,BGMCellYmax
       DO iBGM = BGMCellXmin,BGMCellXmax
         GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
-        FIBGM_Element( FIBGM_offsetElem(iBGM,jBGM,kBGM) & ! offset of BGM cell in 1D array
+        FIBGM_Element( FIBGM_offsetElem    (iBGM,jBGM,kBGM)        & ! offset of BGM cell in 1D array
 #if USE_MPI
-                            + offsetElemsInBGMCell(iBGM,jBGM,kBGM)    & ! offset of BGM nElems in local proc
+                     + offsetElemsInBGMCell(iBGM,jBGM,kBGM)        & ! offset of BGM nElems in local proc
 #endif  /*USE_MPI*/
-                            + GEO%FIBGM(iBGM,jBGM,kBGM)%nElem         ) = iElem
+                     + GEO%FIBGM           (iBGM,jBGM,kBGM)%nElem) = iElem
+        IF (FIBGM_offsetElem(iBGM,jBGM,kBGM).EQ.116645) IPWRITE(*,*) 'loca', iElem,offsetElemsInBGMCell(iBGM,jBGM,kBGM)
       END DO ! kBGM
     END DO ! jBGM
   END DO ! iBGM
@@ -1121,7 +1150,7 @@ DO iElem = firstElem,lastElem
 
   DO iPeriodicElem = 1,nPeriodicElems
     ! element might be already added back
-    IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.2) EXIT
+    IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).NE.0) EXIT
 
     SELECT CASE(SUM(ABS(nPeriodicVectorsPerElem(:,iPeriodicElem))))
 
@@ -1136,7 +1165,7 @@ DO iElem = firstElem,lastElem
                    - PeriodicSideBoundsOfElemCenter(1:3,iPeriodicElem))                                                    &
                 .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem) ) THEN
           ! add element back to halo region
-          ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 2
+          ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
           CALL AddElementToFIBGM(iElem)
         END IF
 
@@ -1145,7 +1174,7 @@ DO iElem = firstElem,lastElem
         ! the first periodic vector with the other. Finally check the second periodic vector, i.e. 1, 1+2, 2
         DO iPeriodicVector = 1,3
           ! element might be already added back
-          IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.2) EXIT
+          IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).NE.0) EXIT
 
           IF (nPeriodicVectorsPerElem(iPeriodicVector,iPeriodicElem).EQ.0) CYCLE
 
@@ -1155,7 +1184,7 @@ DO iElem = firstElem,lastElem
                      - PeriodicSideBoundsOfElemCenter(1:3,iPeriodicElem))                                                  &
                     .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem) ) THEN
             ! add element back to halo region
-            ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 2
+            ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
             CALL AddElementToFIBGM(iElem)
             EXIT
           END IF
@@ -1171,7 +1200,7 @@ DO iElem = firstElem,lastElem
                        - PeriodicSideBoundsOfElemCenter(1:3,iPeriodicElem))                                                &
                     .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem) ) THEN
               ! add element back to halo region
-              ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 2
+              ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
               CALL AddElementToFIBGM(iElem)
               EXIT
             END IF
@@ -1183,7 +1212,7 @@ DO iElem = firstElem,lastElem
         ! the first periodic vector with the others. Then check the other combinations, i.e. 1, 1+2, 1+3, 2, 2+3, 3, 1+2+3
         DO iPeriodicVector = 1,3
           ! element might be already added back
-          IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.2) EXIT
+          IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).NE.0) EXIT
 
           ! check if element is within halo_eps of periodically displaced element
           IF (VECNORM( BoundsOfElemCenter(1:3)                                                                             &
@@ -1191,7 +1220,7 @@ DO iElem = firstElem,lastElem
                      - PeriodicSideBoundsOfElemCenter(1:3,iPeriodicElem))                                                  &
                     .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem) ) THEN
             ! add element back to halo region
-            ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 2
+            ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
             CALL AddElementToFIBGM(iElem)
             EXIT
           END IF
@@ -1206,7 +1235,7 @@ DO iElem = firstElem,lastElem
                        - PeriodicSideBoundsOfElemCenter(1:3,iPeriodicElem))                                                &
                     .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem) ) THEN
               ! add element back to halo region
-              ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 2
+              ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
               CALL AddElementToFIBGM(iElem)
               EXIT
             END IF
@@ -1222,7 +1251,7 @@ DO iElem = firstElem,lastElem
                    - PeriodicSideBoundsOfElemCenter(1:3,iPeriodicElem))                                                    &
                 .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem) ) THEN
           ! add element back to halo region
-          ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 2
+          ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
           CALL AddElementToFIBGM(iElem)
         END IF
 
