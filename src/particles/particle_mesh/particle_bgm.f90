@@ -762,6 +762,9 @@ DEALLOCATE(offsetElemsInBGMCell)
 CALL MPI_WIN_SYNC(FIBGM_Element_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
+! Abort if FIBGM_Element still contains unfilled entries
+IF (ANY(FIBGM_Element.EQ.-1)) CALL ABORT(__STAMP__,'Error while filling FIBGM element array')
+
 ! sum up Number of all elements on current compute-node (including halo region)
 IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
   nComputeNodeTotalElems = nGlobalElems
