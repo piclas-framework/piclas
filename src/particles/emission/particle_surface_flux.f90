@@ -444,7 +444,7 @@ __STAMP__&
       END IF
       IF((Symmetry%Order.LE.2).OR.VarTimeStep%UseVariableTimeStep) THEN
         CALL abort(__STAMP__&
-            ,'ERROR: Adaptive surface flux boundary conditions are not implemented with 2D/CircularSymmetric or variable time step!')
+            ,'ERROR: Adaptive surface flux boundary conditions are not implemented with 2D/axisymmetric or variable time step!')
       END IF
       ! Total area of surface flux
       IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
@@ -596,8 +596,8 @@ DO iBC=1,nDataBC
       SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
       !----- symmetry specific area calculation start
       IF(Symmetry%Order.EQ.2) THEN
-        IF(Symmetry%CircularSymmetric) THEN
-          ! Calculate the correct area for the CircularSymmetric (ring area) and 2D (length) and get ymin and ymax for element
+        IF(Symmetry%Axisymmetric) THEN
+          ! Calculate the correct area for the axisymmetric (ring area) and 2D (length) and get ymin and ymax for element
           SurfMeshSubSideData(1,1,BCSideID)%area = DSMC_2D_CalcSymmetryArea(iLocSide,ElemID, ymin, ymax)
           SurfMeshSubSideData(1,2,BCSideID)%area = 0.0
           ! Determination of the mean radial weighting factor for calculation of the number of particles to be inserted
@@ -1385,7 +1385,7 @@ __STAMP__&
       END IF
       DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
         ExtraParts = 0 !set here number of additional to-be-inserted particles in current BCSideID/subsides (e.g. desorption)
-        IF(Symmetry%CircularSymmetric.AND.(jSample.EQ.2)) CYCLE
+        IF(Symmetry%Axisymmetric.AND.(jSample.EQ.2)) CYCLE
         IF (TriaSurfaceFlux) THEN
           !-- compute parallelogram of triangle
           Node1 = jSample+1     ! normal = cross product of 1-2 and 1-3 for first triangle
@@ -1420,7 +1420,7 @@ __STAMP__&
         END IF !noAdaptive
 
         ! REQUIRED LATER FOR THE POSITION START
-        IF(Symmetry%CircularSymmetric) THEN
+        IF(Symmetry%Axisymmetric) THEN
           !-- compute parallelogram of triangle (only simple 2 value adds/subs, other from init)
           Node1 = 2     ! normal = cross product of 1-2 and 1-3 for first triangle
           Node2 = 4     !          and 1-3 and 1-4 for second triangle
@@ -1628,7 +1628,7 @@ __STAMP__&
               END DO
             END IF
           END IF
-        END IF ! noAdaptive.AND.(.NOT.Symmetry%CircularSymmetric)
+        END IF ! noAdaptive.AND.(.NOT.Symmetry%Axisymmetric)
         !-- proceed with calculated to be inserted particles
         IF (PartInsSubSide.LT.0) THEN
           CALL abort(&
@@ -1658,7 +1658,7 @@ __STAMP__&
         nReject=0
         allowedRejections=0
 
-        IF(Symmetry%CircularSymmetric) THEN
+        IF(Symmetry%Axisymmetric) THEN
           IF (RadialWeighting%DoRadialWeighting.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))))) THEN
             IF(RadialWeighting%CellLocalWeighting) THEN
               DO WHILE (iPart .LE. PartInsSubSide)

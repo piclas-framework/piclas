@@ -72,8 +72,8 @@ TYPE tRadialWeighting
   REAL                        :: PartScaleFactor
   INTEGER                     :: NextClone
   INTEGER                     :: CloneDelayDiff
-  LOGICAL                     :: DoRadialWeighting          ! Enables radial weighting in the CircularSymmetric simulations
-  LOGICAL                     :: DoSphericalWeighting       ! Enables radial weighting in the CircularSymmetric simulations
+  LOGICAL                     :: DoRadialWeighting          ! Enables radial weighting in the axisymmetric simulations
+  LOGICAL                     :: DoSphericalWeighting       ! Enables radial weighting in the axisymmetric simulations
   LOGICAL                     :: PerformCloning             ! Flag whether the cloning/deletion routine should be performed,
                                                             ! when using radial weighting (e.g. no cloning for the BGK/FP methods)
   INTEGER                     :: CloneMode                  ! 1 = Clone Delay

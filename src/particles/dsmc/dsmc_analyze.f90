@@ -367,7 +367,7 @@ DO iSurfSide=1,SurfMesh%nSides
       ! Force per area in x,y,z-direction
       MacroSurfaceVal(1:3,p,q,OutputCounter) = SampWall(iSurfSide)%State(SAMPWALL_DELTA_MOMENTUMX:SAMPWALL_DELTA_MOMENTUMZ,p,q) &
                                            / (SurfMesh%SurfaceArea(p,q,iSurfSide)*TimeSampleTemp)
-      ! Deleting the z-component for 2D/CircularSymmetric simulations
+      ! Deleting the z-component for 2D/axisymmetric simulations
       IF(Symmetry%Order.LE.2) MacroSurfaceVal(3,p,q,OutputCounter) = 0.
       IF(Symmetry%Order.LE.1) MacroSurfaceVal(2,p,q,OutputCounter) = 0.
       MacroSurfaceVal(4,p,q,OutputCounter) = (SampWall(iSurfSide)%State(SAMPWALL_ETRANSOLD,p,q) &
@@ -1741,7 +1741,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
       nVarCount = nVar + 3
       IF(VarTimeStep%UseVariableTimeStep) THEN
         IF(VarTimeStep%UseLinearScaling.AND.(Symmetry%Order.EQ.2)) THEN
-          ! 2D/CircularSymmetric uses a scaling of the time step per particle, no element values are used. For the output simply the cell
+          ! 2D/Axisymmetric uses a scaling of the time step per particle, no element values are used. For the output simply the cell
           ! midpoint is used to calculate the time step
           VarTimeStep%ElemFac(iElem) = CalcVarTimeStep(GEO%ElemMidPoint(1,iElem), GEO%ElemMidPoint(2,iElem))
         END IF

@@ -1799,7 +1799,7 @@ ELSE
       realDirY = dirY
     END IF
   END DO; END DO
-  IF (Symmetry%CircularSymmetric) THEN
+  IF (Symmetry%Axisymmetric) THEN
     Node%Volume = DetJac(1, realDirX, realDirY) * VdmLocal%wGP**2 * 2. * Pi * Pos(2)
   ELSE
     Node%Volume = DetJac(1, realDirX, realDirY) * VdmLocal%wGP**2
@@ -2398,7 +2398,7 @@ IF (OldNodeNum.NE.NodeDepth) THEN
   IF(.NOT.ASSOCIATED(Node%SubNode2)) ALLOCATE(Node%SubNode2)
   CALL AddNodeVolumes1D(NodeDepth, Node%SubNode2, iElem, SubNodesOut)
 ELSE
-  IF(Symmetry%CircularSymmetric.OR.Symmetry%SphericalSymmetric) THEN
+  IF(Symmetry%Axisymmetric.OR.Symmetry%SphericalSymmetric) THEN
     Xmin=GEO%XMinMax(1,iElem)
     Xmax=GEO%XMinMax(2,iElem)
     DO iDepth=1,NodeDepth
@@ -2413,7 +2413,7 @@ ELSE
       END SELECT
     END DO
     Node%Length = Xmax-Xmin
-    IF(Symmetry%CircularSymmetric) THEN
+    IF(Symmetry%Axisymmetric) THEN
       Node%Volume = (Xmax-Xmin) * Pi * (Xmax+Xmin)
     ELSE
       Node%Volume = 4./3. * PI * ( Xmax**3 - Xmin**3 )

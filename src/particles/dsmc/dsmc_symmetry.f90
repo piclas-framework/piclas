@@ -14,7 +14,7 @@
 
 MODULE MOD_DSMC_Symmetry
 !===================================================================================================================================
-!> Routines for 2D (planar/CircularSymmetric) simulations
+!> Routines for 2D (planar/axisymmetric) simulations
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -46,18 +46,15 @@ CALL prms%CreateIntOption(    'Particles-Symmetry-Order',  &
                               'Order of the Simulation 1, 2 or 3 D', '3')
 CALL prms%CreateLogicalOption('Particles-Symmetry2D', 'Activating a 2D simulation on a mesh with one cell in z-direction in the '//&
                               'xy-plane (y ranging from 0 to the domain boundaries)', '.FALSE.')
-CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetric', 'Activating an Circular Symmetric simulation with the same mesh '//&
-                              'requirements as for the 2D case (y is then the radial direction); old parameter - do not use' &
-                              , '.FALSE.')
-CALL prms%CreateLogicalOption('Particles-Symmetry2DCircularSymmetric', 'Activating an Circular Symmetric simulation with the same '//&
-                              'mesh requirements as for the 2D case (y is then the radial direction)', '.FALSE.')
+CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetric', 'Activating an axisymmetric simulation with the same mesh '//&
+                              'requirements as for the 2D case (y is then the radial direction)', '.FALSE.')
 ! CALL prms%CreateLogicalOption('Particles-Symmetry1DSphericalsymmetric', 'Activating an sphrical symmetric simulation with the'//&
 !                               ' same mesh requirements as for the 1D case and x ranging from 0 to the domain boundary', '.FALSE.')
 ! CALL prms%CreateLogicalOption('Particles-SphericalWeighting', 'Activates a sphrical weighting in y for the spherical '//&
 !                               'symmetric simulation based on the particle position.', '.FALSE.')
-CALL prms%CreateLogicalOption('Particles-RadialWeighting', 'Activates a radial weighting in y for the Circular Symmetric '//&
+CALL prms%CreateLogicalOption('Particles-RadialWeighting', 'Activates a radial weighting in y for the axisymmetric '//&
                               'simulation based on the particle position.', '.FALSE.')
-CALL prms%CreateRealOption(   'Particles-RadialWeighting-PartScaleFactor', 'Circular Symmetric radial weighting factor, defining '//&
+CALL prms%CreateRealOption(   'Particles-RadialWeighting-PartScaleFactor', 'Axisymmetric radial weighting factor, defining '//&
                               'the linear increase of the weighting factor (e.g. factor 2 means that the weighting factor will '//&
                               'be twice as large at the outer radial domain boudary than at the rotational axis')
 CALL prms%CreateLogicalOption('Particles-RadialWeighting-CellLocalWeighting', 'Enables a cell-local radial weighting, '//&
@@ -77,7 +74,7 @@ END SUBROUTINE DefineParametersParticleSymmetry
 
 SUBROUTINE DSMC_2D_InitVolumes()
 !===================================================================================================================================
-!> Routine determines a symmetry side and calculates the 2D (area faces in symmetry plane) and Circular Symmetric volumes (cells are
+!> Routine determines a symmetry side and calculates the 2D (area faces in symmetry plane) and axisymmetric volumes (cells are
 !> revolved around the symmetry axis). The symmetry side will be used later on to determine in which two directions the quadtree
 !> shall refine the mesh, skipping the z-dimension to avoid an unnecessary refinement.
 !===================================================================================================================================
@@ -132,7 +129,7 @@ DO SideID=1,nBCSides
       IF(MINVAL(GEO%NodeCoords(3,GEO%ElemSideNodeID(:,iLocSide,ElemID))).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
         IF(SymmetrySide(ElemID,1).GT.0) THEN
           CALL abort(__STAMP__&
-            ,'ERROR: PICLas could not determine a unique symmetry surface for 2D/CircularSymmetric calculation!'//&
+            ,'ERROR: PICLas could not determine a unique symmetry surface for 2D/axisymmetric calculation!'//&
             ' Please orient your mesh with x as the symmetry axis and positive y as the second/radial direction!')
         END IF
         SymmetrySide(ElemID,1) = SideID
@@ -143,13 +140,13 @@ DO SideID=1,nBCSides
         DO j=0,PP_N; DO i=0,PP_N
           GEO%Volume(ElemID) = GEO%Volume(ElemID) + wGP(i)*wGP(j)*SurfElem(i,j,SideID)
         END DO; END DO
-        ! Characteristic length is compared to the mean free path as the condition to refine the mesh. For the 2D/CircularSymmetric case
+        ! Characteristic length is compared to the mean free path as the condition to refine the mesh. For the 2D/axisymmetric case
         ! the third dimension is not considered as particle interaction occurs in the xy-plane, effectively reducing the refinement
         ! requirement.
         GEO%CharLength(ElemID) = SQRT(GEO%Volume(ElemID))
-        ! CircularSymmetric case: The volume is multiplied by the circumference to get the volume of the ring. The cell face in the
+        ! Axisymmetric case: The volume is multiplied by the circumference to get the volume of the ring. The cell face in the
         ! xy-plane is rotated around the x-axis. The radius is the middle point of the cell face.
-        IF (Symmetry%CircularSymmetric) THEN
+        IF (Symmetry%Axisymmetric) THEN
           radius = 0.
           DO iNode = 1, 4
             radius = radius + GEO%NodeCoords(2,GEO%ElemSideNodeID(iNode,iLocSide,ElemID))
@@ -181,7 +178,7 @@ END SUBROUTINE DSMC_2D_InitVolumes
 
 SUBROUTINE DSMC_1D_InitVolumes()
 !===================================================================================================================================
-!> Routine determines a symmetry side and calculates the 1D (area faces at x axis) and Circular Symmetric volumes (cells are
+!> Routine determines a symmetry side and calculates the 1D (area faces at x axis) and axisymmetric volumes (cells are
 !> revolved around the symmetry axis). The symmetry side will be used later on to determine in which two directions the quadtree
 !> shall refine the mesh, skipping the z-dimension to avoid an unnecessary refinement.
 !===================================================================================================================================
@@ -224,8 +221,8 @@ END IF
 ! IF(Symmetry%SphericalSymmetric.AND.(GEO%xminglob.NE.0.)) CALL abort(__STAMP__&
 ! ,'ERROR: mesh has to start at x=0 and gors along positive x-direction in the spherical symmetric case')
 
-! IF(Symmetry%CircularSymmetric.AND.(GEO%xminglob.NE.0.)) CALL abort(__STAMP__&
-! ,'ERROR: mesh has to start at x=0 and gors along positive x-direction in the CircularSymmetric case')
+! IF(Symmetry%Axisymmetric.AND.(GEO%xminglob.NE.0.)) CALL abort(__STAMP__&
+! ,'ERROR: mesh has to start at x=0 and gors along positive x-direction in the axissymmetric case')
 
 DO iElem = 1,nElems
   ! Check if all sides of the element are parallel to xy-, xz-, or yz-plane and Sides parallel to xy-,and xz-plane are symmetric
@@ -267,12 +264,12 @@ DO iElem = 1,nElems
   END DO !iSide = 1,6
   GEO%XMinMax(1,iElem) = MINVAL(X)
   GEO%XMinMax(2,iElem) = MAXVAL(X)
-  ! IF((Symmetry%SphericalSymmetric.OR.Symmetry%CircularSymmetric).AND.(MINVAL(X).LT.0.)) CALL abort(__STAMP__&
-  ! ,'ERROR: mesh has to start at x=0 and goes along positive x-direction in the Circular Symmetric and spherical symmetric case, respectively')
+  ! IF((Symmetry%SphericalSymmetric.OR.Symmetry%Axisymmetric).AND.(MINVAL(X).LT.0.)) CALL abort(__STAMP__&
+  ! ,'ERROR: mesh has to start at x=0 and goes along positive x-direction in the axissymmetric and spherical symmetric case, respectively')
   ! Volume calculation with dimension in y and z direction of 1, respectively
   GEO%Volume(iElem) = ABS(X(1)-X(2))
   GEO%CharLength(iElem) = GEO%Volume(iElem)
-  ! IF(Symmetry%CircularSymmetric) THEN
+  ! IF(Symmetry%Axisymmetric) THEN
   !   ! Calulate the Volume of the ring
   !   Radius = ABS(X(1)+X(2))*0.5
   !   GEO%Volume(iElem) = GEO%Volume(iElem) * 2. * Pi * Radius
@@ -317,7 +314,7 @@ RadialWeighting%PartScaleFactor = GETREAL('Particles-RadialWeighting-PartScaleFa
 IF(RadialWeighting%PartScaleFactor.LT.1.) THEN
   CALL Abort(&
       __STAMP__,&
-    'ERROR in 2D CircularSymmetric simulation: PartScaleFactor has to be greater than 1!',RealInfoOpt=RadialWeighting%PartScaleFactor)
+    'ERROR in 2D axisymmetric simulation: PartScaleFactor has to be greater than 1!',RealInfoOpt=RadialWeighting%PartScaleFactor)
 END IF
 RadialWeighting%CloneMode = GETINT('Particles-RadialWeighting-CloneMode')
 RadialWeighting%CloneInputDelay = GETINT('Particles-RadialWeighting-CloneDelay')
@@ -336,7 +333,7 @@ SELECT CASE(RadialWeighting%CloneMode)
     IF(RadialWeighting%CloneInputDelay.LT.1) THEN
       CALL Abort(&
           __STAMP__,&
-        'ERROR in 2D CircularSymmetric simulation: Clone delay should be greater than 0')
+        'ERROR in 2D axisymmetric simulation: Clone delay should be greater than 0')
     END IF
     ALLOCATE(RadialWeighting%ClonePartNum(0:(RadialWeighting%CloneInputDelay-1)))
     ALLOCATE(ClonedParticles(1:INT(PDM%maxParticleNumber/RadialWeighting%CloneInputDelay),0:(RadialWeighting%CloneInputDelay-1)))
@@ -346,7 +343,7 @@ SELECT CASE(RadialWeighting%CloneMode)
     IF(RadialWeighting%CloneInputDelay.LT.2) THEN
       CALL Abort(&
           __STAMP__,&
-        'ERROR in 2D CircularSymmetric simulation: Clone delay should be greater than 1')
+        'ERROR in 2D axisymmetric simulation: Clone delay should be greater than 1')
     END IF
     ALLOCATE(RadialWeighting%ClonePartNum(0:RadialWeighting%CloneInputDelay))
     ALLOCATE(ClonedParticles(1:INT(PDM%maxParticleNumber/RadialWeighting%CloneInputDelay),0:RadialWeighting%CloneInputDelay))
@@ -355,7 +352,7 @@ SELECT CASE(RadialWeighting%CloneMode)
   CASE DEFAULT
     CALL Abort(&
         __STAMP__,&
-      'ERROR in Radial Weighting of 2D/CircularSymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
+      'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
         ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
 END SELECT
 
@@ -406,7 +403,7 @@ IF((CloneProb.GT.iRan).AND.(NewMPF.LT.OldMPF)) THEN
     IPWRITE(*,*) 'New weighting factor:', NewMPF, 'Old weighting factor:', OldMPF
     CALL Abort(&
         __STAMP__,&
-      'ERROR in 2D CircularSymmetric simulation: More than one clone per particle is not allowed! Reduce the time step or'//&
+      'ERROR in 2D axisymmetric simulation: More than one clone per particle is not allowed! Reduce the time step or'//&
         ' the radial weighting factor! Cloning probability is:',RealInfoOpt=CloneProb)
   END IF
 END IF
@@ -460,7 +457,7 @@ ELSE
     IF (DeleteProb.GT.0.5) THEN
       IPWRITE(*,*) 'New weighting factor:', NewMPF, 'Old weighting factor:', OldMPF
       CALL abort(__STAMP__,&
-        'ERROR in Radial Weighting of 2D/CircularSymmetric: The deletion probability is higher than 0.5! Reduce the time step or'//&
+        'ERROR in Radial Weighting of 2D/Axisymmetric: The deletion probability is higher than 0.5! Reduce the time step or'//&
         ' the radial weighting factor! Deletion probability is:',RealInfoOpt=DeleteProb)
     END IF
     CALL RANDOM_NUMBER(iRan)
@@ -535,7 +532,7 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   IF (PDM%ParticleVecLength.GT.PDM%maxParticleNumber) THEN
     CALL Abort(&
        __STAMP__,&
-      'ERROR in 2D CircularSymmetric simulation: New Particle Number greater max Part Num!')
+      'ERROR in 2D axisymmetric simulation: New Particle Number greater max Part Num!')
   END IF
   ! Copy particle parameters
   PDM%ParticleInside(PositionNbr) = .TRUE.
@@ -581,7 +578,7 @@ END SUBROUTINE DSMC_2D_SetInClones
 
 REAL FUNCTION DSMC_2D_CalcSymmetryArea(iLocSide,iElem, ymin, ymax)
 !===================================================================================================================================
-!> Calculates the actual area of an element for 2D simulations (plane/CircularSymmetric) regardless of the mesh dimension in z
+!> Calculates the actual area of an element for 2D simulations (plane/axisymmetric) regardless of the mesh dimension in z
 !> Utilized in the particle emission (surface flux) and boundary sampling
 !===================================================================================================================================
 ! MODULES
@@ -623,7 +620,7 @@ END IF
 Length = SQRT((Pmax(1)-Pmin(1))**2 + (Pmax(2)-Pmin(2))**2)
 
 MidPoint = (Pmax(2)+Pmin(2)) / 2.
-IF(Symmetry%CircularSymmetric) THEN
+IF(Symmetry%Axisymmetric) THEN
   DSMC_2D_CalcSymmetryArea = Length * MidPoint * Pi * 2.
   ! Area of the cells on the rotational symmetry axis is set to one
   IF(.NOT.(DSMC_2D_CalcSymmetryArea.GT.0.0)) DSMC_2D_CalcSymmetryArea = 1.
@@ -674,7 +671,7 @@ Pmin = MINVAL(P(:))
 
 Length = Pmax-Pmin
 
-! IF(Symmetry%CircularSymmetric) THEN
+! IF(Symmetry%Axisymmetric) THEN
 !   MidPoint = (Pmax(2)+Pmin(2)) / 2.
 !   DSMC_1D_CalcSymmetryArea = Length * MidPoint * Pi * 2.
 !   ! Area of the cells on the rotational symmetry axis is set to one
@@ -743,7 +740,7 @@ END FUNCTION DSMC_2D_CalcSymmetryAreaSubSides
 
 PURE REAL FUNCTION CalcRadWeightMPF(yPos, iSpec, iPart)
 !===================================================================================================================================
-!> Determines the weighting factor when using an additional radial weighting for CircularSymmetric simulations. Linear increase from the
+!> Determines the weighting factor when using an additional radial weighting for axisymmetric simulations. Linear increase from the
 !> rotational axis (y=0) to the outer domain boundary (y=ymax).
 !===================================================================================================================================
 ! MODULES
@@ -797,7 +794,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-LOGICAL                 :: Symmetry2D, Axisymmetric
+LOGICAL                 :: Symmetry2D
 !===================================================================================================================================
 Symmetry%Order = GETINT('Particles-Symmetry-Order')
 Symmetry2D = GETLOGICAL('Particles-Symmetry2D')
@@ -813,19 +810,12 @@ END IF
 IF((Symmetry%Order.LE.0).OR.(Symmetry%Order.GE.4)) CALL ABORT(__STAMP__&
 ,'Particles-Symmetry-Order (space dimension) has to be in the range of 1 to 3')
 
-Symmetry%CircularSymmetric = GETLOGICAL('Particles-Symmetry2DCircularSymmetric')
-Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
-IF(Axisymmetric) THEN
-  ! Old variable name handling
-  SWRITE(*,*) 'WARNING: Please use the new input parameter: Particles-Symmetry2DCircularSymmetric'
-  SWRITE(*,*) 'WARNING: Circular Symmetric simulation enabled'
-  Symmetry%CircularSymmetric = .TRUE.
-END IF
-IF(Symmetry%CircularSymmetric.AND.(Symmetry%Order.EQ.3)) CALL ABORT(__STAMP__&
-    ,'ERROR: Circular Symmetric Simulations only for 1D or 2D')
-IF(Symmetry%CircularSymmetric.AND.(Symmetry%Order.EQ.1))CALL ABORT(__STAMP__&
-,'ERROR: Circular Symmetric Simulations are only implemented for 2D yet')
-IF(Symmetry%CircularSymmetric) THEN
+Symmetry%Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
+IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.3)) CALL ABORT(__STAMP__&
+    ,'ERROR: Axissymmetric Simulations only for 1D or 2D')
+IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.1))CALL ABORT(__STAMP__&
+,'ERROR: Axissymmetric Simulations are only implemented for 2D yet')
+IF(Symmetry%Axisymmetric) THEN
   RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
 ELSE
   RadialWeighting%DoRadialWeighting = .FALSE.
@@ -840,7 +830,7 @@ END IF
 !   CALL ABORT(__STAMP__&
 !     ,'ERROR: Spherical Simulations are not implemented yet')
 !   RadialWeighting%DoSphericalWeighting = GETLOGICAL('Particles-SphericalWeighting')
-! ELSE IF(.NOT.Symmetry%CircularSymmetric)
+! ELSE IF(.NOT.Symmetry%Axisymmetric)
 !   RadialWeighting%DoSphericalWeighting = .FALSE.
 !   RadialWeighting%DoRadialWeighting = .FALSE.
 !   RadialWeighting%PerformCloning = .FALSE.

@@ -1676,7 +1676,7 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%ElemTElecFileID      = 0
       IF((Symmetry%Order.LE.2).OR.VarTimeStep%UseVariableTimeStep) THEN
         CALL abort(__STAMP__&
-            ,'ERROR: Particle insertion/emission for 2D/CircularSymmetric or variable time step only possible with'//&
+            ,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step only possible with'//&
              'cell_local-SpaceIC and/or surface flux!')
       END IF
     END IF
@@ -2932,7 +2932,7 @@ CALL InitFIBGM()
 CALL InitMacroBody()
 CALL MarkMacroBodyElems()
 
-! === 2D/1D/CircularSymmetric initialization
+! === 2D/1D/Axisymmetric initialization
 ! Calculate the volumes for 2D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)
 IF(Symmetry%Order.EQ.1) THEN
   TriaEps = 2.22e-16
@@ -2941,18 +2941,18 @@ ELSE
 END IF
 IF(Symmetry%Order.EQ.2) CALL DSMC_2D_InitVolumes()
 IF(Symmetry%Order.EQ.1) CALL DSMC_1D_InitVolumes()
-IF(Symmetry%CircularSymmetric) THEN
+IF(Symmetry%Axisymmetric) THEN
   IF(RadialWeighting%DoRadialWeighting) THEN
-    ! Initialization of RadialWeighting in 2D CircularSymmetric simulations
+    ! Initialization of RadialWeighting in 2D axisymmetric simulations
     RadialWeighting%PerformCloning = .TRUE.
     CALL DSMC_2D_InitRadialWeighting()
   END IF
   IF(.NOT.TriaTracking) CALL abort(&
     __STAMP__&
-    ,'ERROR: CircularSymmetric simulation only supported with TriaTracking = T')
+    ,'ERROR: Axisymmetric simulation only supported with TriaTracking = T')
   IF(.NOT.TriaSurfaceFlux) CALL abort(&
     __STAMP__&
-    ,'ERROR: CircularSymmetric simulation only supported with TriaSurfaceFlux = T')
+    ,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
 END IF
 
 #if USE_MPI

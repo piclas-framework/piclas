@@ -884,7 +884,7 @@ __STAMP__,&
           InsideFlag=.FALSE.
           DO WHILE(.NOT.InsideFlag)
             CALL RANDOM_NUMBER(RandomPos)
-            IF(Symmetry%CircularSymmetric.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+            IF(Symmetry%Axisymmetric.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
               ! Treatment of axisymmetry without weighting
               RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
               RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)

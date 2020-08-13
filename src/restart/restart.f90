@@ -1469,7 +1469,7 @@ END SUBROUTINE Restart
 #ifdef PARTICLES
 SUBROUTINE RestartClones()
 !===================================================================================================================================
-! Circular Symmetric 2D simulation with particle weighting: Read-in of clone particles saved during output of particle data
+! Axisymmetric 2D simulation with particle weighting: Read-in of clone particles saved during output of particle data
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
