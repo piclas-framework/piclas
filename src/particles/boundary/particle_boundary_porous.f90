@@ -135,7 +135,7 @@ IF(DoRefMapping) THEN
       ,'ERROR: Porous boundary conditions are not implemented with DoRefMapping!')
 END IF
 
-IF((Symmetry%Order.LE.2).AND.(.NOT.Symmetry%Axisymmetric)) THEN
+IF((Symmetry%Order.LE.2).AND.(.NOT.Symmetry%CircularSymmetric)) THEN
   CALL abort(__STAMP__&
       ,'ERROR: Porous boundary conditions are not implemented for 2D simulations!')
 END IF
@@ -212,14 +212,14 @@ DO iPorousBC = 1, nPorousBC
         WRITE(UNIT=hilf2,FMT='(E16.8)') HUGE(PorousBC(iPorousBC)%rmax)
         PorousBC(iPorousBC)%rmax = GETREAL('Part-PorousBC'//TRIM(hilf)//'-rmax',TRIM(hilf2))
         PorousBC(iPorousBC)%rmin = GETREAL('Part-PorousBC'//TRIM(hilf)//'-rmin','0.')
-        IF(Symmetry%Axisymmetric) THEN
+        IF(Symmetry%CircularSymmetric) THEN
           IF(PorousBC(iPorousBC)%dir(1).NE.1) THEN
             CALL abort(__STAMP__&
-              ,'ERROR in Porous BC: For axisymmetric simulations, only regions perpendicular to the axis are allowed!', iPorousBC)
+              ,'ERROR in Porous BC: For CircularSymmetric simulations, only regions perpendicular to the axis are allowed!', iPorousBC)
           END IF
           IF(PorousBC(iPorousBC)%origin(1)*PorousBC(iPorousBC)%origin(2).NE.0.0) THEN
             CALL abort(__STAMP__&
-              ,'ERROR in Porous BC: For axisymmetric simulations, the origin has to be at (0,0)!', iPorousBC)
+              ,'ERROR in Porous BC: For CircularSymmetric simulations, the origin has to be at (0,0)!', iPorousBC)
           END IF
         END IF
       CASE DEFAULT

@@ -139,10 +139,10 @@ IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
   IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleEmission.EQ.0)) RETURN
   IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) THEN
     DoExactPartNumInsert = .TRUE.
-    IF(Symmetry%Axisymmetric) THEN
+    IF(Symmetry%CircularSymmetric) THEN
       CALL abort(&
 __STAMP__&
-,'Axisymmetric: Particle insertion only possible with PartDensity!')
+,'CircularSymmetric: Particle insertion only possible with PartDensity!')
     END IF
   END IF
   !IF ((Species(FractNbr)%Init(iInit)%ParticleEmission.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.GT.0.)) CALL abort(&

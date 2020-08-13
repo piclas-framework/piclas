@@ -1333,8 +1333,8 @@ REAL                       :: tLBStart
       PEM%lastElement(iPart)=PEM%Element(iPart)
     END IF
     PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
-    ! Axisymmetric treatment of particles: rotation of the position and velocity vector
-    IF(Symmetry%Axisymmetric) THEN
+    ! Circular treatment of particles: rotation of the position and velocity vector
+    IF(Symmetry%CircularSymmetric) THEN
       IF (PartState(2,iPart).LT.0.0) THEN
         NewYPart = -SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
       ELSE
@@ -1356,7 +1356,7 @@ REAL                       :: tLBStart
   CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-  ! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
+  ! Resetting the particle positions in the third dimension for the 2D/CircularSymmetric case
   ! IF(Symmetry%Order.EQ.2) THEN
   !   LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
   !   PartState(3,1:PDM%ParticleVecLength) = 0.0
@@ -1650,8 +1650,8 @@ REAL                       :: tLBStart
     PartState(1,iPart) = PartState(1,iPart) + PartState(4,iPart) * dtVar
     PartState(2,iPart) = PartState(2,iPart) + PartState(5,iPart) * dtVar
     PartState(3,iPart) = PartState(3,iPart) + PartState(6,iPart) * dtVar
-    ! Axisymmetric treatment of particles: rotation of the position and velocity vector
-    IF(Symmetry%Axisymmetric) THEN
+    ! CircularSymmetric treatment of particles: rotation of the position and velocity vector
+    IF(Symmetry%CircularSymmetric) THEN
       IF (PartState(2,iPart).LT.0.0) THEN
         NewYPart = -SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
       ELSE
@@ -1673,7 +1673,7 @@ REAL                       :: tLBStart
   CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-  ! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
+  ! Resetting the particle positions in the third dimension for the 2D/CircularSymmetric case
   ! IF(Symmetry%Order.EQ.2) THEN
   !   LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
   !   PartState(3,1:PDM%ParticleVecLength) = 0.0
@@ -3631,8 +3631,8 @@ DO iPart=1,PDM%ParticleVecLength
   PartState(1,iPart) = PartState(1,iPart) + PartState(4,iPart) * dtVar
   PartState(2,iPart) = PartState(2,iPart) + PartState(5,iPart) * dtVar
   PartState(3,iPart) = PartState(3,iPart) + PartState(6,iPart) * dtVar
-  ! Axisymmetric treatment of particles: rotation of the position and velocity vector
-  IF(Symmetry%Axisymmetric) THEN
+  ! CircularSymmetric treatment of particles: rotation of the position and velocity vector
+  IF(Symmetry%CircularSymmetric) THEN
     IF (PartState(2,iPart).LT.0.0) THEN
       NewYPart = -SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
     ELSE
@@ -3651,7 +3651,7 @@ DO iPart=1,PDM%ParticleVecLength
   END IF
 END DO
 
-! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
+! Resetting the particle positions in the third dimension for the 2D/CircularSymmetric case
 ! IF(Symmetry%Order.EQ.2) THEN
 !   LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
 !   PartState(3,1:PDM%ParticleVecLength) = 0.0
@@ -3775,8 +3775,8 @@ DO iPart=1,PDM%ParticleVecLength
     PEM%lastElement(iPart)=PEM%Element(iPart)
   END IF
   PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
-  ! Axisymmetric treatment of particles: rotation of the position and velocity vector
-  IF(Symmetry%Axisymmetric) THEN
+  ! CircularSymmetric treatment of particles: rotation of the position and velocity vector
+  IF(Symmetry%CircularSymmetric) THEN
     IF (PartState(2,iPart).LT.0.0) THEN
       NewYPart = -SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
     ELSE
@@ -3795,7 +3795,7 @@ DO iPart=1,PDM%ParticleVecLength
   END IF
 END DO
 
-! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
+! Resetting the particle positions in the third dimension for the 2D/CircularSymmetric case
 ! IF(Symmetry%Order.EQ.2) THEN
 !   LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
 !   PartState(3,1:PDM%ParticleVecLength) = 0.0

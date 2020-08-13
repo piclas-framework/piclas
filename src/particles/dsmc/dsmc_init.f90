@@ -163,10 +163,10 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-UseNearestNeighbour'&
                                          ,'Allows to enable/disable the nearest neighbour search algorithm within the ocrtree '//&
                                           'cell refinement','.TRUE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-ProhibitDoubleCollisions'&
-                                         ,'2D/Axisymmetric only: Prohibit the occurrence of repeated collisions between the '//&
+                                         ,'2D/CircularSymmetric only: Prohibit the occurrence of repeated collisions between the '//&
                                           'same particle pairs in order to reduce the statistical dependence')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-MergeSubcells'&
-                                         ,'2D/Axisymmetric only: Merge subcells divided by the quadtree algorithm to satisfy '//&
+                                         ,'2D/CircularSymmetric only: Merge subcells divided by the quadtree algorithm to satisfy '//&
                                           'the minimum particle per subcell requirement', '.FALSE.')
 
 
@@ -433,7 +433,7 @@ END IF
 DSMC%MergeSubcells = GETLOGICAL('Particles-DSMC-MergeSubcells','.FALSE.')
 IF(DSMC%MergeSubcells.AND.(Symmetry%Order.LE.2)) THEN
   CALL abort(__STAMP__&
-      ,'ERROR: Merging of subcells only supported within a 2D/axisymmetric simulation!')
+      ,'ERROR: Merging of subcells only supported within a 2D/CircularSymmetric simulation!')
 END IF
   IF(CollisMode.GE.2) THEN
     DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb','0.2')
@@ -1230,7 +1230,7 @@ ELSE !CollisMode.GT.0
     IF (CollInf%ProhibitDoubleColl) THEN
       CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.FALSE.')
       CALL abort(__STAMP__,&
-          'ERROR: Prohibiting double collisions is only supported within a 2D/axisymmetric simulation!')
+          'ERROR: Prohibiting double collisions is only supported within a 2D/CircularSymmetric simulation!')
     END IF
   END IF
 

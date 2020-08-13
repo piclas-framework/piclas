@@ -315,9 +315,9 @@ END FUNCTION VeloFromDistribution
 
 PURE REAL FUNCTION GetParticleWeight(iPart)
 !===================================================================================================================================
-!> Determines the appropriate particle weighting for the axisymmetric case with radial weighting and the variable time step. For
-!> radial weighting, the radial factor is multiplied by the regular weighting factor. If only a variable time step is used, at the
-!> moment, the regular weighting factor is not included.
+!> Determines the appropriate particle weighting for the Circular Symmetric case with radial weighting and the variable time step.
+!> For radial weighting, the radial factor is multiplied by the regular weighting factor. If only a variable time step is used, at
+!> the moment, the regular weighting factor is not included.
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING

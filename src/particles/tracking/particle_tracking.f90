@@ -414,7 +414,7 @@ DO i = 1,PDM%ParticleVecLength
     IF (PEM%Element(i).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(i),tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF
-  ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
+  ! Particle treatment for an Circular Symmetric simulation (cloning/deleting particles)
   IF(RadialWeighting%PerformCloning) THEN
     IF(PDM%ParticleInside(i)) THEN
       IF (PEM%Element(i).LE.PP_nElems) CALL DSMC_2D_RadialWeighting(i,PEM%Element(i))
@@ -1105,7 +1105,7 @@ __STAMP__ &
     IF (PEM%Element(iPart).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(iPart),tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF ! Part inside
-  ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
+  ! Particle treatment for an Circular Symmetric simulation (cloning/deleting particles)
   ! IF(RadialWeighting%PerformCloning) THEN
   !   IF(PDM%ParticleInside(iPart)) THEN
   !     CALL DSMC_2D_RadialWeighting(iPart,PEM%Element(iPart))

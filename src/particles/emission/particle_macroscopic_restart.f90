@@ -72,7 +72,7 @@ locnPart = 1
 DO iElem = 1, nElems
   ASSOCIATE( Bounds => GEO%BoundsOfElem(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
 ! #################### 2D ##########################################################################################################
-    IF (Symmetry%Axisymmetric) THEN
+    IF (Symmetry%CircularSymmetric) THEN
       IF (RadialWeighting%DoRadialWeighting) THEN
         DO iSpec = 1, nSpecies
           yPartitions = 6
@@ -238,7 +238,7 @@ DO iElem = 1, nElems
           END IF
         END DO ! nPart
       END DO ! nSpecies
-    END IF ! Symmetry2D/Axisymmetric/3D
+    END IF ! Symmetry2D/CircularSymmetric/3D
   END ASSOCIATE
 END DO ! nElems
 
