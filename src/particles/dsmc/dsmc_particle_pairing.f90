@@ -350,7 +350,7 @@ IF (CollInf%ProhibitDoubleColl) THEN
   END IF
 END IF
 Dist1 = (PartState(1,Coll_pData(iPair)%iPart_p1) &
-        - PartState(1,iPartIndx_Node(iPart2)))**2 &
+        - PartState(1,iPartIndx_Node(iPart2)))**2
 DO iLoop = 2 + loopStart, nPart
   IF (CollInf%ProhibitDoubleColl) THEN
       IF (iPartIndx_Node(iLoop).EQ.CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1)) THEN
@@ -358,7 +358,7 @@ DO iLoop = 2 + loopStart, nPart
       END IF
   END IF
   Dist2 = (PartState(1,Coll_pData(iPair)%iPart_p1) &
-          - PartState(1,iPartIndx_Node(iLoop)))**2 &
+          - PartState(1,iPartIndx_Node(iLoop)))**2
   IF (Dist2.LT.Dist1) THEN
     iPart2 = iLoop
     Dist1 = Dist2
