@@ -550,7 +550,7 @@ SUBROUTINE SwapMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,  ONLY:ProjectName
-USE MOD_PreProc,       ONLY:PP_N
+USE MOD_Preproc
 USE MOD_Mesh_Vars,     ONLY:SwapMeshExePath,SwapMeshLevel,MeshFile
 USE MOD_Restart_Vars,  ONLY:RestartFile
 ! IMPLICIT VARIABLE HANDLING
@@ -762,7 +762,7 @@ END SUBROUTINE SwapMesh
 
 SUBROUTINE GetMeshMinMaxBoundaries()
 !============================================================================================================================
-! Deallocate all global interpolation variables.
+! Get min and max coordinates of the face xGP and store them in "xyzMinMax" array
 !============================================================================================================================
 ! MODULES
 USE MOD_Globals

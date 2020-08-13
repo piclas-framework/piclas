@@ -29,8 +29,8 @@ INTERFACE DSMC_pairing_dotree
   MODULE PROCEDURE DSMC_pairing_dotree
 END INTERFACE
 
-INTERFACE DSMC_pairing_statistical
-  MODULE PROCEDURE DSMC_pairing_statistical
+INTERFACE DSMC_pairing_standard
+  MODULE PROCEDURE DSMC_pairing_standard
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -38,11 +38,160 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_pairing_statistical, DSMC_pairing_octree, DSMC_init_octree, DSMC_pairing_quadtree, DSMC_CalcSubNodeVolumes
+PUBLIC :: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_init_octree, DSMC_pairing_quadtree, DSMC_CalcSubNodeVolumes
 PUBLIC :: DSMC_CalcSubNodeVolumes2D, GeoCoordToMap2D, DSMC_pairing_dotree
 !===================================================================================================================================
 
 CONTAINS
+
+
+SUBROUTINE DSMC_pairing_standard(iElem)
+!===================================================================================================================================
+!> Collisions within a single cell: creates mapping between particle number within the cell to the particle index on the processor.
+!> Calls the pairing and collision routine, where the actual pairing with a random partner or nearest neighbour as well as the
+!> collision procedure is performed.
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars         ,ONLY: PEM, PDM, KeepWallParticles
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iPart, iLoop, nPart
+INTEGER, ALLOCATABLE          :: iPartIndx(:)                 !< List of particles in the cell required for pairing
+!===================================================================================================================================
+
+IF (KeepWallParticles) THEN
+  nPart = PEM%pNumber(iElem)-PEM%wNumber(iElem)
+ELSE
+  nPart = PEM%pNumber(iElem)
+END IF
+
+ALLOCATE(iPartIndx(nPart))
+iPartIndx = 0
+
+! 1.) Create particle index list for pairing
+!     Using PEM%pStart to get the first particle index based on the element index and PEM%pNext to get the next particle index based
+!     on the previous particle index. This mapping is done in the UpdateNextFreePosition routine.
+iPart = PEM%pStart(iElem)
+DO iLoop = 1, nPart
+  ! check if particle is on wall and chose next particle until particle is not at wall
+  IF (KeepWallParticles) THEN
+    DO WHILE (PDM%ParticleAtWall(iPart))
+      iPart = PEM%pNext(iPart)
+    END DO
+  END IF
+  iPartIndx(iLoop) = iPart
+  ! Choose next particle in the element
+  iPart = PEM%pNext(iPart)
+END DO
+! 2.) Perform pairing (random pairing or nearest neighbour pairing) and collision (including the decision for a reaction/relaxation)
+CALL PerformPairingAndCollision(iPartIndx, nPart, iElem , GEO%Volume(iElem))
+DEALLOCATE(iPartIndx)
+
+END SUBROUTINE DSMC_pairing_standard
+
+
+SUBROUTINE DSMC_pairing_octree(iElem)
+!===================================================================================================================================
+!> Collisions within a cell/subcell using a recursive octree mesh refinement based on the mean free path criterion for DSMC and/or
+!> the number of particles per cell (to accelerate a potential nearest neighbour search). Creates mapping between particle number
+!> within the cell/subcell to the particle index on the processor. Calls the pairing and collision routine, where the actual pairing
+!> with a random partner or nearest neighbour as well as the collision procedure is performed.
+!===================================================================================================================================
+! MODULES
+  USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
+  USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, ConsiderVolumePortions
+  USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies,PartPosRef
+  USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+  USE MOD_Particle_Tracking_vars  ,ONLY: DoRefMapping
+  USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+  USE MOD_part_tools              ,ONLY: GetParticleWeight
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(IN)           :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER                       :: iPart, iLoop, nPart
+  REAL                          :: SpecPartNum(nSpecies)
+  TYPE(tTreeNode), POINTER      :: TreeNode
+  REAL                          :: elemVolume
+!===================================================================================================================================
+
+SpecPartNum = 0.
+nPart = PEM%pNumber(iElem)
+
+NULLIFY(TreeNode)
+
+ALLOCATE(TreeNode)
+ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
+TreeNode%iPartIndx_Node(1:nPart) = 0
+
+! 1.) Create particle index list for pairing
+!     Using PEM%pStart to get the first particle index based on the element index and PEM%pNext to get the next particle index based
+!     on the previous particle index. This mapping is done in the UpdateNextFreePosition routine.
+iPart = PEM%pStart(iElem)
+DO iLoop = 1, nPart
+  TreeNode%iPartIndx_Node(iLoop) = iPart
+  iPart = PEM%pNext(iPart)
+  ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
+  SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) = &
+            SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + GetParticleWeight(TreeNode%iPartIndx_Node(iLoop))
+END DO
+
+IF (ConsiderVolumePortions) THEN
+  elemVolume=GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem))
+ELSE
+  elemVolume=GEO%Volume(iElem)
+END IF
+
+! 2.) Octree cell refinement algorithm
+DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), elemVolume)
+! Octree can only performed if nPart is greater than the defined value (default = 28 for 2D/axisymmetric or = 50 for 3D)
+IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
+  ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default = 40  for 2D/axisymmetric or = 80 for 3D)
+  ! or the mean free path is less than the side length of a cube (approximation) with same volume as the actual cell
+  IF((DSMC%MeanFreePath.LT.(GEO%CharLength(iElem))) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
+    ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
+    TreeNode%PNum_Node = nPart
+    iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+    IF (DoRefMapping) THEN
+      DO iLoop = 1, nPart
+        TreeNode%MappedPartStates(1:3,iLoop)=PartPosRef(1:3,iPart)
+        iPart = PEM%pNext(iPart)
+      END DO
+    ELSE ! position in reference space [-1,1] has to be computed
+      DO iLoop = 1, nPart
+        CALL GetPositionInRefElem(PartState(1:3,iPart),TreeNode%MappedPartStates(1:3,iLoop),iElem)
+        iPart = PEM%pNext(iPart)
+      END DO
+    END IF ! DoRefMapping
+    TreeNode%NodeDepth = 1
+    TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
+    CALL AddOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
+    DEALLOCATE(TreeNode%MappedPartStates)
+  ELSE
+    CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
+  END IF
+ELSE
+  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
+END IF
+
+DEALLOCATE(TreeNode%iPartIndx_Node)
+DEALLOCATE(TreeNode)
+
+END SUBROUTINE DSMC_pairing_octree
 
 
 SUBROUTINE FindNearestNeigh(iPartIndx_Node, nPart, iPair)
@@ -63,8 +212,8 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, nPart, iPair)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: iPart1, iPart2, iLoop
-  REAL                          :: Dist1, Dist2, iRan
+INTEGER                       :: iPart1, iPart2, iLoop
+REAL                          :: Dist1, Dist2, iRan
 !===================================================================================================================================
 
 CALL RANDOM_NUMBER(iRan)
@@ -96,66 +245,6 @@ iPartIndx_Node(iPart2) = iPartIndx_Node(nPart)
 nPart = nPart - 1
 
 END SUBROUTINE FindNearestNeigh
-
-
-SUBROUTINE DSMC_pairing_statistical(iElem)
-!===================================================================================================================================
-! Classic statistical pairing method
-!===================================================================================================================================
-! MODULES
-  USE MOD_DSMC_Vars              ,ONLY: CollisMode, ChemReac, PartStateIntEn, CollInf
-  USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcInstantTransTemp
-  USE MOD_Particle_Vars          ,ONLY: PEM, nSpecies, PartSpecies
-  USE MOD_Particle_Vars          ,ONLY: KeepWallParticles, PDM
-  USE MOD_part_tools             ,ONLY: GetParticleWeight
-  USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iElem
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  INTEGER                       :: nPair, iPart, iLoop, nPart
-  INTEGER, ALLOCATABLE          :: iPartIndx(:) ! List of particles in the cell nec for stat pairing
-!===================================================================================================================================
-  
-  IF (KeepWallParticles) THEN
-    nPart = PEM%pNumber(iElem)-PEM%wNumber(iElem)
-  ELSE
-    nPart = PEM%pNumber(iElem)
-  END IF
-  nPair = INT(nPart/2)
-  IF (CollisMode.EQ.3) THEN
-    ChemReac%RecombParticle = 0
-  END IF
-
-  ALLOCATE(iPartIndx(nPart))
-  iPartIndx = 0
-  IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
-
-  iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
-  DO iLoop = 1, nPart
-    ! check if particle is on wall and chose next particle until particle is not at wall
-    IF (KeepWallParticles) THEN
-      DO WHILE (PDM%ParticleAtWall(iPart))
-        iPart = PEM%pNext(iPart)
-      END DO
-    END IF
-    iPartIndx(iLoop) = iPart
-    ! Counter for part num of spec per cell
-    CollInf%Coll_SpecPartNum(PartSpecies(iPart)) = CollInf%Coll_SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
-    ! Calculation of mean evib per cell and iter, necessary for disso prob
-    IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) = ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) &
-                                                                  + PartStateIntEn(1,iPart) * GetParticleWeight(iPart)
-    ! Choose next particle in Element
-    iPart = PEM%pNext(iPart)
-  END DO
-  CALL PerformPairingAndCollision(iPartIndx, nPart, iElem , GEO%Volume(iElem))
-  DEALLOCATE(iPartIndx)
-END SUBROUTINE DSMC_pairing_statistical
 
 
 SUBROUTINE FindNearestNeigh2D(iPartIndx_Node, nPart, iPair)
@@ -190,7 +279,7 @@ nPart = nPart - 1
 iPart2 = 1
 IF (CollInf%ProhibitDoubleColl) THEN
   IF (nPart.GT.1) THEN
-    IF (iPartIndx_Node(ipart2).EQ.CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1)) THEN
+    IF (iPartIndx_Node(iPart2).EQ.CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1)) THEN
       iPart2 = 2
       loopStart = 1
     END IF
@@ -222,13 +311,19 @@ nPart = nPart - 1
 END SUBROUTINE FindNearestNeigh2D
 
 
-SUBROUTINE PerformPairingAndCollision(iPartIndx_Node, PartNum, iElem, NodeVolume, MidPoint, Depth)
+SUBROUTINE PerformPairingAndCollision(iPartIndx_Node, PartNum, iElem, NodeVolume)
 !===================================================================================================================================
-! Classic statistical pairing method for the use in the octree routines
+!> Main pairing and collision routine performed in a cell/subcell: calls the statistical and nearest neighbour pairing routines
+!> as well as the collision probability calculation and actual collision execution
+!> 1). Reset collision and pair specific variables
+!> 2.) Calculate cell/subcell local variables and count the number of particles per species
+!> 3.) Perform the particle pairing (statistical or nearest neighbour) and determine the relative velocity
+!> 4.) Perform additional operations for radial weighting and chemistry (AFTER pairing)
+!> 5). Calculate the collision probability and perform the collision (if required)
+!> 6.) Calculate the mean free path and the mean collision separation distance within a cell
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Relaxation       ,ONLY: SetMeanVibQua
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision, SumVibRelaxProb
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
@@ -237,16 +332,15 @@ USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, WriteMacr
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd, time
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_Particle_Analyze_Vars ,ONLY: CalcEkin
+USE MOD_DSMC_Relaxation       ,ONLY: CalcMeanVibQuaDiatomic
+USE MOD_DSMC_Symmetry         ,ONLY: DSMC_2D_TreatIdenticalParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL, INTENT(IN)                        :: NodeVolume
-INTEGER, INTENT(IN)                     :: PartNum, iElem
-INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
-REAL, INTENT(IN), OPTIONAL              :: MidPoint(3)
-INTEGER, INTENT(IN), OPTIONAL           :: Depth
+REAL, INTENT(IN)              :: NodeVolume
+INTEGER, INTENT(IN)           :: PartNum, iElem
+INTEGER, INTENT(INOUT)        :: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -256,6 +350,7 @@ INTEGER                       :: cSpec1, cSpec2, iCase
 REAL                          :: iRan
 !===================================================================================================================================
 
+! 1). Reset collision and pair specific variables
 nPart = PartNum
 nPair = INT(nPart/2)
 CollInf%Coll_SpecPartNum = 0
@@ -265,21 +360,23 @@ Coll_pData%Ec=0
 
 IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
 
+! 2.) Calculate cell/subcell local variables and count the number of particles per species
+DO iPart = 1, PartNum
+  CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) &
+                                                                  + GetParticleWeight(iPartIndx_Node(iPart))
+END DO
+
 IF (CollisMode.EQ.3) THEN
   ChemReac%RecombParticle = 0
   ChemReac%nPairForRec = 0
-! Determination of the mean vibrational energy for the cell, only needed for chemical reactions
+! Determination of the mean vibrational energy for the cell
   ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
   DO iPart = 1, PartNum
     ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart)))=ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) &
       + PartStateIntEn(1,iPartIndx_Node(iPart)) * GetParticleWeight(iPartIndx_Node(iPart))
   END DO
+  CALL CalcMeanVibQuaDiatomic()
 END IF
-
-DO iPart = 1, PartNum
-  CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) &
-                                                                  + GetParticleWeight(iPartIndx_Node(iPart))
-END DO
 
 IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
 .OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1))) THEN
@@ -287,6 +384,7 @@ IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%B
   !           relaxation probability (CalcGammaVib)
   ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
   ! 3. Case: Temperature required for the mean free path with the VHS model
+  ! 4. Case: Needed to calculate the correction factor
   CALL CalcInstantTransTemp(iPartIndx_Node,PartNum)
   IF((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)) CALL CalcGammaVib()
 END IF
@@ -297,6 +395,7 @@ IF (CollInf%ProhibitDoubleColl.AND.(nPair.EQ.1)) THEN
   CollInf%OldCollPartner(iPartIndx_Node(2)) = 0
 END IF
 
+! 3.) Perform the particle pairing (statistical or nearest neighbour) and determine the relative velocity
 DO iPair = 1, nPair
   IF(DSMC%UseNearestNeighbour) THEN
     IF(Symmetry%Order.EQ.2) THEN
@@ -305,7 +404,7 @@ DO iPair = 1, nPair
       CALL FindNearestNeigh(iPartIndx_Node, nPart, iPair)
     END IF
   ELSE
-    CALL FindStatisticalNeigh(iPartIndx_Node, nPart, iPair, nPair)
+    CALL FindRandomPartner(iPartIndx_Node, nPart, iPair, nPair)
   END IF
 
   cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
@@ -318,11 +417,6 @@ DO iPair = 1, nPair
                                                         + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
   END IF
 
-  IF(VarTimeStep%UseVariableTimeStep) THEN
-    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
-                                                         + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
-  END IF
-
   CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
   Coll_pData(iPair)%CRela2 =  (PartState(4,Coll_pData(iPair)%iPart_p1) &
                             -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
@@ -333,39 +427,25 @@ DO iPair = 1, nPair
   Coll_pData(iPair)%PairType = iCase
   Coll_pData(iPair)%NeedForRec = .FALSE.
 END DO
-IF ((nPair.NE.0).AND.(CollisMode.EQ.3).AND.(MOD(nPart, nPair).NE.0)) THEN
-  ChemReac%RecombParticle = iPartIndx_Node(1)
-END IF
 
-! Resetting the previous collision partner of the remaining particle due to uneven PartNum
+! 4.) Perform additional operations for chemistry (AFTER pairing)
+! If a third particle is required of a recombination, the last particle due to uneven nPart is used
+IF(CollisMode.EQ.3) THEN
+  IF(nPart.EQ.1) ChemReac%RecombParticle = iPartIndx_Node(1)
+END IF
+! Resetting the previous collision partner of the remaining particle due to uneven nPart
 IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
 
-IF (CollisMode.EQ.3) THEN
-  CALL SetMeanVibQua()
-END IF
-
-IF(RadialWeighting%DoRadialWeighting) THEN
-  IF(DSMC%UseOctree) THEN
-    CALL DoRadialWeightingOctree(nPair, iElem, MidPoint, Depth)
-  ELSE
-    CALL DoRadialWeighting(nPair, nPart, iElem, iPartIndx_Node)
-  END IF
-END IF
-
+! 5). Calculate the collision probability and perform the collision (if required)
 DO iPair = 1, nPair
   IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
     CALL SumVibRelaxProb(iPair)
+    ! 2D axisymmetric with radial weighting: split up pairs of identical particles
+    IF(RadialWeighting%DoRadialWeighting) CALL DSMC_2D_TreatIdenticalParticles(iPair, nPair, nPart, iElem, iPartIndx_Node)
+    ! Calculate the collision probability and test it against a random number
     CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
     CALL RANDOM_NUMBER(iRan)
-    IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
-#if (PP_TimeDiscMethod==42)
-      IF(CalcEkin.OR.DSMC%ReservoirSimu) THEN
-#else
-      IF(CalcEkin) THEN
-#endif
-        DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + 1
-        DSMC%NumColl(CollInf%NumCase + 1) = DSMC%NumColl(CollInf%NumCase + 1) + 1
-      END IF
+    IF (Coll_pData(iPair)%Prob.GE.iRan) THEN
       CALL DSMC_perform_collision(iPair,iElem, NodeVolume, PartNum)
       IF (CollInf%ProhibitDoubleColl) THEN
         CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1) = Coll_pData(iPair)%iPart_p2
@@ -380,6 +460,7 @@ DO iPair = 1, nPair
   END IF
 END DO
 
+! 6.) Calculate the mean free path and the mean collision separation distance within a cell
 IF(DSMC%CalcQualityFactors) THEN
   IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
     ! Calculation of the mean free path with VHS model and the current translational temperature in the cell
@@ -395,299 +476,6 @@ DEALLOCATE(Coll_pData)
 
 END SUBROUTINE PerformPairingAndCollision
 
-
-SUBROUTINE DoRadialWeightingOctree(nPair, iElem, MidPoint, Depth)
-!===================================================================================================================================
-! Do radial weighting for octree routine. Used for axis symmetric 2D simulations
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_DSMC_Vars             ,ONLY: Coll_pData,DSMC
-USE MOD_DSMC_Vars             ,ONLY: SamplingActive,CollInf
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, WriteMacroVolumeValues, PartMPF
-USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_DSMC_Symmetry         ,ONLY: CalcRadWeightMPF
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)                     :: nPair
-INTEGER, INTENT(IN)                     :: iElem
-REAL, INTENT(IN)                        :: MidPoint(3)
-INTEGER, INTENT(IN)                     :: Depth
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                       :: iPair, tempPart
-INTEGER                       :: cSpec1, cSpec2, iCase
-REAL                          :: iRanVec(2), NodeLength
-!===================================================================================================================================
-DO iPair = 1, nPair
-  IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
-    ! Two particles with the exact same velocities at the same positions -> sick clones
-    IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
-      IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
-        IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
-      END IF
-      IF (iPair.LT.nPair) THEN
-        ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
-        ! are swapped but first, changing z-direction
-        PartState(6,Coll_pData(iPair)%iPart_p1) = - PartState(6,Coll_pData(iPair)%iPart_p1)
-        ! Removing the pairs from the weighting factor and the case num sums
-        CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
-          -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
-        CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
-          - (GetParticleWeight(Coll_pData(iPair+1)%iPart_p1) + GetParticleWeight(Coll_pData(iPair+1)%iPart_p2))*0.5
-        CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
-        CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) - 1
-        ! Breaking up the next pair and swapping partners
-        tempPart = Coll_pData(iPair)%iPart_p1
-        Coll_pData(iPair)%iPart_p1 = Coll_pData(iPair + 1)%iPart_p1
-        Coll_pData(iPair + 1)%iPart_p1 = tempPart
-        ! Calculation of the relative velocity for the new first pair
-        cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
-        cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
-        iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-        ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-        CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
-        CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-        Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) &
-                                  -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
-                                  + (PartState(5,Coll_pData(iPair)%iPart_p1) &
-                                  -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
-                                  + (PartState(6,Coll_pData(iPair)%iPart_p1) &
-                                  -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
-        Coll_pData(iPair)%PairType = iCase
-        ! Calculation of the relative velocity for the new follow-up pair
-        cSpec1 = PartSpecies(Coll_pData(iPair+1)%iPart_p1)
-        cSpec2 = PartSpecies(Coll_pData(iPair+1)%iPart_p2)
-        iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-        ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-        CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
-        CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-        Coll_pData(iPair+1)%CRela2 = (PartState(4,Coll_pData(iPair+1)%iPart_p1) &
-                                    -  PartState(4,Coll_pData(iPair+1)%iPart_p2))**2 &
-                                    + (PartState(5,Coll_pData(iPair+1)%iPart_p1) &
-                                    -  PartState(5,Coll_pData(iPair+1)%iPart_p2))**2 &
-                                    + (PartState(6,Coll_pData(iPair+1)%iPart_p1) &
-                                    -  PartState(6,Coll_pData(iPair+1)%iPart_p2))**2
-        Coll_pData(iPair+1)%PairType = iCase
-      ELSE
-        ! For the last pair, the z-direction is changed and a random position for the first particle is chosen (last resort)
-        CALL RANDOM_NUMBER(iRanVec)
-        NodeLength = 2./2.**(Depth)
-        PartState(1,Coll_pData(iPair)%iPart_p1) = MidPoint(1) - NodeLength + 2.*NodeLength*iRanVec(1)
-        PartState(2,Coll_pData(iPair)%iPart_p1) = MidPoint(2) - NodeLength + 2.*NodeLength*iRanVec(2)
-        PartState(1:2,Coll_pData(iPair)%iPart_p1) = MapToGeo2D(PartState(1:2,Coll_pData(iPair)%iPart_p1),iElem)
-        PartState(3,Coll_pData(iPair)%iPart_p1) = 0.0
-        ! creating relative velocity
-        PartState(6,Coll_pData(iPair)%iPart_p1) = - PartState(6,Coll_pData(iPair)%iPart_p1)
-        Coll_pData(iPair)%CRela2 = (PartState(6,Coll_pData(iPair)%iPart_p1) - PartState(6,Coll_pData(iPair)%iPart_p2))**2
-        PartMPF(Coll_pData(iPair)%iPart_p1) = &
-                            CalcRadWeightMPF(PartState(2,Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p1) &
-                            ,Coll_pData(iPair)%iPart_p1)
-      END IF
-    END IF
-  END IF
-END DO      ! DO iPair=1, nPair
-
-END SUBROUTINE DoRadialWeightingOctree
-
-
-SUBROUTINE DoRadialWeighting(nPair, nPart, iElem, iPartIndx_Node)
-!===================================================================================================================================
-! Do radial weighting not for octree routine. Used for axis symmetric 2D simulations
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf,CollisMode,ChemReac,DSMC
-USE MOD_DSMC_Vars             ,ONLY: SamplingActive
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, WriteMacroVolumeValues
-USE MOD_part_tools            ,ONLY: GetParticleWeight
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)                     :: nPair
-INTEGER, INTENT(IN)                     :: nPart
-INTEGER, INTENT(IN)                     :: iElem
-INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                       :: iPair, tempPart
-INTEGER                       :: cSpec1, cSpec2, iCase
-!===================================================================================================================================
-DO iPair = 1, nPair
-  ! Two particles with the exact same velocities at the same positions -> clones that did not interact with other particles/walls
-  IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
-    IF(DSMC%CalcQualityFactors.AND.(SamplingActive.OR.WriteMacroVolumeValues)) THEN
-      DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
-    END IF
-    ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
-    ! are swapped but first, changing z-direction
-    IF (nPart.EQ.1) THEN
-      ! Uneven number of particles in the cell, a single particle is left without a pair
-      PartState(6,Coll_pData(iPair)%iPart_p1) = - PartState(6,Coll_pData(iPair)%iPart_p1)
-      ! Removing the pairs from the weighting factor and the case num sums
-      CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
-        -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
-      CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
-      ! Swapping particle without a pair with the first particle of the current pair
-      tempPart = Coll_pData(iPair)%iPart_p1
-      Coll_pData(iPair)%iPart_p1 = iPartIndx_Node(1)
-      iPartIndx_Node(1) = tempPart
-      IF (CollisMode.EQ.3) ChemReac%RecombParticle = iPartIndx_Node(1)
-      IF (CollInf%ProhibitDoubleColl)  CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
-      ! Calculation of the relative velocity for the new first pair
-      cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
-      cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
-      iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-      ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
-      CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-      Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) &
-                                -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
-                                + (PartState(5,Coll_pData(iPair)%iPart_p1) &
-                                -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
-                                + (PartState(6,Coll_pData(iPair)%iPart_p1) &
-                                -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
-      Coll_pData(iPair)%PairType = iCase
-    ELSE IF (iPair.LT.nPair) THEN
-      PartState(6,Coll_pData(iPair)%iPart_p1) = - PartState(6,Coll_pData(iPair)%iPart_p1)
-      ! Removing the pairs from the weighting factor and the case num sums
-      CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
-        -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
-      CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
-        - (GetParticleWeight(Coll_pData(iPair+1)%iPart_p1) + GetParticleWeight(Coll_pData(iPair+1)%iPart_p2))*0.5
-      CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
-      CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) - 1
-      ! Breaking up the next pair and swapping partners
-      tempPart = Coll_pData(iPair)%iPart_p1
-      Coll_pData(iPair)%iPart_p1 = Coll_pData(iPair + 1)%iPart_p1
-      Coll_pData(iPair + 1)%iPart_p1 = tempPart
-      ! Calculation of the relative velocity for the new first pair
-      cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
-      cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
-      iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-      ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
-      CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-      Coll_pData(iPair)%CRela2 =  (PartState(4,Coll_pData(iPair)%iPart_p1) &
-                                -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
-                                + (PartState(5,Coll_pData(iPair)%iPart_p1) &
-                                -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
-                                + (PartState(6,Coll_pData(iPair)%iPart_p1) &
-                                -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
-      Coll_pData(iPair)%PairType = iCase
-      ! Calculation of the relative velocity for the new follow-up pair
-      cSpec1 = PartSpecies(Coll_pData(iPair+1)%iPart_p1)
-      cSpec2 = PartSpecies(Coll_pData(iPair+1)%iPart_p2)
-      iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-      ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
-      CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-      Coll_pData(iPair+1)%CRela2 =  (PartState(4,Coll_pData(iPair+1)%iPart_p1) &
-                                  -  PartState(4,Coll_pData(iPair+1)%iPart_p2))**2 &
-                                  + (PartState(5,Coll_pData(iPair+1)%iPart_p1) &
-                                  -  PartState(5,Coll_pData(iPair+1)%iPart_p2))**2 &
-                                  + (PartState(6,Coll_pData(iPair+1)%iPart_p1) &
-                                  -  PartState(6,Coll_pData(iPair+1)%iPart_p2))**2
-      Coll_pData(iPair+1)%PairType = iCase
-    END IF
-  END IF  ! Coll_pData(iPair)%CRela2.EQ.0.0
-END DO      ! DO iPair=1, nPair
-
-END SUBROUTINE DoRadialWeighting
-
-
-SUBROUTINE DSMC_pairing_octree(iElem)
-!===================================================================================================================================
-! Pairing subroutine for octree and nearest neighbour, decides whether to create a new octree node or start nearest neighbour search
-!===================================================================================================================================
-! MODULES
-  USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
-  USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, ConsiderVolumePortions
-  USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies,PartPosRef
-  USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-  USE MOD_Particle_Tracking_vars  ,ONLY: DoRefMapping
-  USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
-  USE MOD_part_tools              ,ONLY: GetParticleWeight
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iElem
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  INTEGER                       :: iPart, iLoop, nPart
-  REAL                          :: SpecPartNum(nSpecies)
-  TYPE(tTreeNode), POINTER      :: TreeNode
-  REAL                          :: elemVolume
-!===================================================================================================================================
-
-SpecPartNum = 0.
-nPart = PEM%pNumber(iElem)
-
-NULLIFY(TreeNode)
-
-ALLOCATE(TreeNode)
-ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
-TreeNode%iPartIndx_Node(1:nPart) = 0
-
-iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
-DO iLoop = 1, nPart
-  TreeNode%iPartIndx_Node(iLoop) = iPart
-  iPart = PEM%pNext(iPart)
-  ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
-  SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) = &
-            SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + GetParticleWeight(TreeNode%iPartIndx_Node(iLoop))
-END DO
-
-IF (ConsiderVolumePortions) THEN
-  elemVolume=GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem))
-ELSE
-  elemVolume=GEO%Volume(iElem)
-END IF
-DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), elemVolume)
-! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
-IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
-  ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
-  ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-  IF((DSMC%MeanFreePath.LT.(GEO%CharLength(iElem))) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
-    ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
-    TreeNode%PNum_Node = nPart
-    iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
-    IF (DoRefMapping) THEN
-      DO iLoop = 1, nPart
-        TreeNode%MappedPartStates(1:3,iLoop)=PartPosRef(1:3,iPart)
-        iPart = PEM%pNext(iPart)
-      END DO
-    ELSE ! position in reference space [-1,1] has to be computed
-      DO iLoop = 1, nPart
-        CALL GetPositionInRefElem(PartState(1:3,iPart),TreeNode%MappedPartStates(1:3,iLoop),iElem)
-        iPart = PEM%pNext(iPart)
-      END DO
-    END IF ! DoRefMapping
-    TreeNode%NodeDepth = 1
-    TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
-    CALL AddOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
-    DEALLOCATE(TreeNode%MappedPartStates)
-  ELSE
-    CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
-  END IF
-ELSE
-  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
-END IF
-
-DEALLOCATE(TreeNode%iPartIndx_Node)
-DEALLOCATE(TreeNode)
-
-END SUBROUTINE DSMC_pairing_octree
 
 RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
 !===================================================================================================================================
@@ -856,7 +644,7 @@ NULLIFY(TreeNode)
 nPart = PEM%pNumber(iElem)
 
 ALLOCATE(TreeNode)
-ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
+ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell necessary for stat pairing
 TreeNode%iPartIndx_Node(1:nPart) = 0
 
 iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
@@ -887,10 +675,10 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     CALL AddQuadTreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
     DEALLOCATE(TreeNode%MappedPartStates)
   ELSE
-    CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem), (/0.0,0.0,0.0/), 1)
+    CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
   END IF
 ELSE 
-  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem), (/0.0,0.0,0.0/), 1)
+  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
 END IF
 
 DEALLOCATE(TreeNode%iPartIndx_Node)
@@ -1072,11 +860,11 @@ DO iLoop = 1, 4
       DEALLOCATE(TreeNode%ChildNode)
     ELSE
       CALL PerformPairingAndCollision(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-            PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), TreeNode%MidPoint(1:3), TreeNode%NodeDepth)
+            PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop))
     END IF
   ELSE IF (PartNumChildNode(iLoop).GT.1) THEN
     CALL PerformPairingAndCollision(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-          PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), TreeNode%MidPoint(1:3), TreeNode%NodeDepth)
+          PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop))
   ELSE IF (CollInf%ProhibitDoubleColl.AND.(PartNumChildNode(iLoop).EQ.1)) THEN
     CollInf%OldCollPartner(iPartIndx_ChildNode(iLoop, 1)) = 0
   END IF
@@ -1147,10 +935,10 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     CALL AddDoTreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
     DEALLOCATE(TreeNode%MappedPartStates)
   ELSE
-    CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem), (/0.0,0.0,0.0/), 1)
+    CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
   END IF
 ELSE 
-  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem), (/0.0,0.0,0.0/), 1)
+  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
 END IF
 
 DEALLOCATE(TreeNode%iPartIndx_Node)
@@ -1290,11 +1078,11 @@ DO iLoop = 1, 2
       DEALLOCATE(TreeNode%ChildNode)
     ELSE
       CALL PerformPairingAndCollision(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-            PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), TreeNode%MidPoint(1:3), TreeNode%NodeDepth)
+            PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop))
     END IF
   ELSE IF (PartNumChildNode(iLoop).GT.1) THEN
     CALL PerformPairingAndCollision(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-          PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), TreeNode%MidPoint(1:3), TreeNode%NodeDepth)
+          PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop))
   ELSE IF (CollInf%ProhibitDoubleColl.AND.(PartNumChildNode(iLoop).EQ.1)) THEN
     CollInf%OldCollPartner(iPartIndx_ChildNode(iLoop, 1)) = 0
   END IF
@@ -1348,15 +1136,14 @@ SUBROUTINE DSMC_CalcSubNodeVolumes2D(iElem, NodeDepth, Node)
 ! MODULES
 USE MOD_DSMC_Vars,              ONLY : OctreeVdm, tNodeVolume, SymmetrySide
 USE MOD_Mesh_Vars,              ONLY : SurfElem, Face_xGP
-USE MOD_PreProc,                ONLY : PP_N
+USE MOD_Preproc
 USE MOD_ChangeBasis,            ONLY : ChangeBasis2D
-USE MOD_PreProc,                ONLY : PP_N
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)                       :: iElem
-INTEGER, INTENT(INOUT)                    :: NodeDepth
+INTEGER, INTENT(IN)                       :: NodeDepth
 TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1400,15 +1187,14 @@ SUBROUTINE DSMC_CalcSubNodeVolumes(iElem, NodeDepth, Node)
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : OctreeVdm, tNodeVolume
   USE MOD_Mesh_Vars,              ONLY : sJ
-  USE MOD_PreProc,                ONLY : PP_N
+  USE MOD_Preproc
   USE MOD_ChangeBasis,            ONLY : ChangeBasis3D
-  USE MOD_PreProc,                ONLY : PP_N
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)                       :: iElem
-  INTEGER, INTENT(INOUT)                    :: NodeDepth
+  INTEGER, INTENT(IN)                       :: NodeDepth
   TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1441,15 +1227,15 @@ RECURSIVE SUBROUTINE InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdmLoc
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : tOctreeVdm
-  USE MOD_PreProc,                ONLY : PP_N
+  USE MOD_Preproc
   USE MOD_Interpolation_Vars,     ONLY : xGP, wBary
   USE MOD_Basis,                  ONLY : InitializeVandermonde
-  USE MOD_PreProc,                ONLY : PP_N
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(INOUT)                    :: NodeDepth, LocalDepth
+  INTEGER, INTENT(IN)                       :: NodeDepth
+  INTEGER, INTENT(INOUT)                    :: LocalDepth
   REAL, INTENT(OUT)                         :: LocalVdm(0:2**NodeDepth-1,0:PP_N)
   TYPE (tOctreeVdm), POINTER, INTENT(INOUT) :: OctreeVdmLoc
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1487,7 +1273,7 @@ RECURSIVE SUBROUTINE AddNodeVolumes(NodeDepth, Node, DetJac, VdmLocal, SubNodesI
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(INOUT)                    :: NodeDepth
+  INTEGER, INTENT(IN)                       :: NodeDepth
   INTEGER, INTENT(IN), OPTIONAL             :: SubNodesIn(:)
   TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node
   REAL, INTENT(INOUT)                       :: DetJac(1,0:2**NodeDepth-1,0:2**NodeDepth-1,0:2**NodeDepth-1)
@@ -1596,7 +1382,7 @@ SUBROUTINE CalcSubNodeMPVolumePortions(iElem, NodeDepth, Node)
 !>     a. allocate and initialize container for treenode of current node level
 !>     b. insert (nPointsMCVolumeEstimate*(8**(NodeDepth))) number of points into element and match which are inside of macrobody
 !>     c. find volume portions of each node by matching the inserted points to each subnode
-!> 3.2 If macroscopic body occupies the total element or element has no macroscopic body then set all subnodes to 1 or 0 
+!> 3.2 If macroscopic body occupies the total element or element has no macroscopic body then set all subnodes to 1 or 0
 !>     (MPVolumePortion of total element)
 !===================================================================================================================================
 ! MODULES
@@ -1679,17 +1465,17 @@ END SUBROUTINE CalcSubNodeMPVolumePortions
 RECURSIVE SUBROUTINE AddNodeMPVolumePortions(iElem, NodeDepth, Node, TreeNode, LocalNodeDepth)
 !===================================================================================================================================
 !> 1. TreeNode Mode:
-!>   Select whether deepest octree level is reached 
-!>     1-A. not deepest level: 
+!>   Select whether deepest octree level is reached
+!>     1-A. not deepest level:
 !>       1-A.1. find the correct childnode ID for each point in the current treenode and assign to childnode arrays
 !>       1-A.2. move to deeper level
-!>     1-B. deepest level: 
+!>     1-B. deepest level:
 !>       assign correct volumeportion to octree subnode
-!> 2. LocalNodeDepth: 
-!>   Select whether deepest octree level is reached 
-!>     2-A. not deepest level: 
+!> 2. LocalNodeDepth:
+!>   Select whether deepest octree level is reached
+!>     2-A. not deepest level:
 !>       move to deeper level
-!>     2-B. deepest level: 
+!>     2-B. deepest level:
 !>       assign correct volumeportion to octree subnode
 !===================================================================================================================================
 ! MODULES
@@ -1869,7 +1655,7 @@ USE MOD_Particle_Vars   ,ONLY: Symmetry
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(INOUT)                    :: NodeDepth
+INTEGER, INTENT(IN)                       :: NodeDepth
 INTEGER, INTENT(IN)                       :: iElem
 INTEGER, INTENT(IN), OPTIONAL             :: SubNodesIn(:)
 TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node
@@ -1962,7 +1748,7 @@ END IF
 END SUBROUTINE AddNodeVolumes2D
 
 
-SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, nPart, iPair, nPair)
+SUBROUTINE FindRandomPartner(iPartIndx_Node, nPart, iPair, nPair)
 !===================================================================================================================================
 ! Classic statistical pairing method for the use in the octree routines
 !===================================================================================================================================
@@ -1972,9 +1758,9 @@ USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(INOUT)                  :: nPart
-INTEGER, INTENT(IN)                     :: iPair, nPair
-INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
+INTEGER, INTENT(INOUT)        :: nPart
+INTEGER, INTENT(IN)           :: iPair, nPair
+INTEGER, INTENT(INOUT)        :: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2007,10 +1793,10 @@ Coll_pData(iPair)%iPart_p2 = iPartIndx_Node(cPart2)
 iPartIndx_Node(cPart2) = iPartIndx_Node(nPart)
 nPart = nPart - 1
 
-END SUBROUTINE FindStatisticalNeigh
+END SUBROUTINE FindRandomPartner
 
 
-INTEGER FUNCTION OCTANTCUBEID(centerPoint,coord)
+PURE INTEGER FUNCTION OCTANTCUBEID(centerPoint,coord)
 !===================================================================================================================================
 !> determine position of Coord in a cube Octant in reference to a 3D centerpoint
 !>         Numbering of the 8 Octant IDs (octree)
@@ -2028,7 +1814,7 @@ INTEGER FUNCTION OCTANTCUBEID(centerPoint,coord)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 REAL,INTENT(IN) :: centerPoint(1:3)
 REAL,INTENT(IN) :: coord(1:3)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -2056,14 +1842,15 @@ END IF
 
 END FUNCTION OCTANTCUBEID
 
-FUNCTION OCTANTCUBEMIDPOINT(CubeID,octantDepth,octantCenter)
+
+PURE FUNCTION OCTANTCUBEMIDPOINT(CubeID,octantDepth,octantCenter)
 !===================================================================================================================================
 !> determines the position of the center of the given cubeID of an Octant for a given 3D centerpoint and depth
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 INTEGER,INTENT(IN) :: CubeID
 INTEGER,INTENT(IN) :: octantDepth
 REAL,INTENT(IN)    :: octantCenter(1:3)
@@ -2148,7 +1935,7 @@ LOGICAL RECURSIVE FUNCTION GETMPVOLDONE(maxDepth,currentDepth,Node) RESULT(doneF
 USE MOD_DSMC_Vars ,ONLY: tNodeVolume
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 INTEGER,INTENT(IN)                      :: maxDepth
 INTEGER,INTENT(IN)                      :: currentDepth
 TYPE (tNodeVolume), INTENT(IN), POINTER :: Node

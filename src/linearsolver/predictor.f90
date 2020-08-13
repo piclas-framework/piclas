@@ -54,9 +54,12 @@ SUBROUTINE InitPredictor()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_ReadInTools,          ONLY:GETINT
-USE MOD_Linearsolver_vars,    ONLY:Upast,Upredict,tpast
-USE MOD_TimeDisc_Vars,        ONLY:nRKStages
+USE MOD_ReadInTools       ,ONLY: GETINT
+USE MOD_Linearsolver_vars ,ONLY: Upast,tpast
+#if !(USE_HDG)
+USE MOD_Linearsolver_vars ,ONLY: Upredict
+USE MOD_TimeDisc_Vars     ,ONLY: nRKStages
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -355,7 +358,7 @@ SUBROUTINE StorePredictor()
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
 USE MOD_LinearSolver_Vars,    ONLY:Upast,tpast
-USE MOD_TimeDisc_Vars,        ONLY:iStage,nRKStages,time,dt
+USE MOD_TimeDisc_Vars,        ONLY:iStage,time,dt
 #if (PP_TimeDiscMethod==120) || defined(ROS) || (PP_TimeDiscMethod==123)
 USE MOD_TimeDisc_Vars,        ONLY: RK_c
 #endif
@@ -368,6 +371,7 @@ USE MOD_TimeDisc_Vars,        ONLY: RK_c,RK_bsO3,RK_bs,RK_b
 USE MOD_LinearSolver_Vars,    ONLY:FieldStage,ImplicitSource,Upredict
 #endif
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+USE MOD_TimeDisc_Vars,        ONLY:nRKStages
 USE MOD_LinearSolver_Vars,    ONLY:FieldStage, ImplicitSource,Upredict
 USE MOD_DG_Vars,              ONLY:Ut,Un
 #endif

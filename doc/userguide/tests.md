@@ -17,7 +17,7 @@ or indented style (4 whitespaces)
       moveShip(5 * gravity, DOWN);
     }
 
-Both works with pandoc and wordpress. Also see [pandoc verbatim code](http://pandoc.org/README.html#verbatim-code-blocks "pandoc verbatim code").
+Both works with pandoc and wordpress. Also check [pandoc verbatim code](http://pandoc.org/README.html#verbatim-code-blocks "pandoc verbatim code").
 
 ## Equations
 (@gleichung1) $$a=b*c$$
@@ -35,7 +35,7 @@ Hindenlang [bibcite key=Hindenlang2015], Gassner [bibcite key=gassner2011disp]
 ## Figures, caption
 ![This is the caption\label{mylabel}](https://www.flexi-project.org/wp-content/uploads/2016/01/M7_ROE_N7M10_q_0000060p2000000.jpg)
 
-See figure \ref{mylabel}.
+Depicted in figure \ref{mylabel}.
 
 ## tables
 ## unnumbered section headings

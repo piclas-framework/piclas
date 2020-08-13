@@ -231,7 +231,7 @@ SUBROUTINE depoChargeOnDOFs_sf(Position,SourceSize,Fac,const)
 USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP, PartSourceConst
 USE MOD_Mesh_Vars,              ONLY:nElems
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
-USE MOD_PreProc,                ONLY:PP_N
+USE MOD_Preproc
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
@@ -342,7 +342,7 @@ SUBROUTINE depoChargeOnDOFs_sf_simple(Position,SourceSize,Fac,const)
 USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
 USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP, ElemRadius2_sf, PartSourceConst
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo
-USE MOD_PreProc,                ONLY:PP_N, PP_nElems
+USE MOD_PreProc
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
@@ -353,11 +353,11 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL, INTENT(IN)                 :: Position(3)
 INTEGER, INTENT(IN)              :: SourceSize
-#if ((USE_HDG) && (PP_nVar==1))
-REAL, INTENT(IN)                 :: Fac(4:4)
-#else
+!#if ((USE_HDG) && (PP_nVar==1))
+!REAL, INTENT(IN)                 :: Fac(4:4)
+!#else
 REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
-#endif
+!#endif
 LOGICAL, INTENT(IN)              :: const
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -402,18 +402,18 @@ DO ElemID=1,PP_nElems
     IF (const) THEN
       IF (SourceSize.EQ.1) THEN
         PartSourceConst(4,k,l,m,ElemID) = PartSourceConst(4,k,l,m,ElemID) + Fac(4) * S1
-#if !((USE_HDG) && (PP_nVar==1))
+!#if !((USE_HDG) && (PP_nVar==1))
       ELSE IF (SourceSize.EQ.4) THEN
         PartSourceConst(1:4,k,l,m,ElemID) = PartSourceConst(1:4,k,l,m,ElemID) + Fac(1:4) * S1
-#endif
+!#endif
       END IF
     ELSE !.NOT.const
       IF (SourceSize.EQ.1) THEN
         PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(4) * S1
-#if !((USE_HDG) && (PP_nVar==1))
+!#if !((USE_HDG) && (PP_nVar==1))
       ELSE IF (SourceSize.EQ.4) THEN
         PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
-#endif
+!#endif
       END IF
     END IF !const
   END DO; END DO; END DO

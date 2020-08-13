@@ -221,12 +221,17 @@ CASE(21) !linear
     Resu(:)=10.+SUM(x)
 CASE(101) !constant
     Resu(:)=7.7
+CASE(1001) ! linear in y-z
+    Resu(:)=x(2)*2340 + x(3)*2340
 
 CASE(2) !sinus
   Frequency=0.5
   Amplitude=0.3
   Omega=2.*Pi*Frequency
   Resu(:)=1.+Amplitude*SIN(Omega*SUM(Cent))
+CASE(30) !sinus: shifted by PI into the future (ACamplitude -> -1*ACamplitude)
+  Omega=2.*Pi*ACfrequency
+  Resu(:)=-ACamplitude*SIN(Omega*t)
 CASE(31) !sinus
   Omega=2.*Pi*ACfrequency
   Resu(:)=ACamplitude*SIN(Omega*t)

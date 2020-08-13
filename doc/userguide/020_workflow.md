@@ -16,7 +16,7 @@ The basic command for either mesh generation or conversion of an extermal mesh i
 hopr hopr.ini
 ~~~~~~~
 
-Note that the path to the **HOPR** executable is omitted in the command (see \ref{sec:installation_directory}).
+Note that the path to the **HOPR** executable is omitted in the command (visit \ref{sec:installation_directory}).
 
 ### Mesh generation with HEXPRESS
 
@@ -70,7 +70,7 @@ HOPR can then read-in the mesh with following mode option:
 
     Mode = 4
 
-More recent versions of GridPro also support a CGNS output. Here, the option *Export* -> *Grid* -> *CGNS* -> *Elementary* should be chosen. For different boundary labels, different property types have to be defined (Note: The property type *Wall* seems to be causing problems during the HOPR read-in and should be avoided). The following errors can be ignored as long as HOPR finishes successfully and a mesh file is written out
+More recent versions of GridPro also support a CGNS output. Here, the option *Export* -> *Grid* -> *CGNS* -> *Elementary* should be chosen. For different boundary labels, different property types have to be defined (Note: The property type *Wall* might be causing problems during the HOPR read-in and should be avoided). The following errors can be ignored as long as HOPR finishes successfully and a mesh file is written out
 
     ERROR: number of zones in inifile does not correspond to number of zones in meshfile(s)
     ERROR - Could not find corresponding boundary definition of ws.Interblck
@@ -156,7 +156,7 @@ For some external libraries and programs that **PICLas** uses, the following opt
 
 * ``PICLAS_BUILD_POSTI``: Enables the compilation of additional tools and activates the following options:
   * ``POSTI_BUILD_SUPERB``: Enables the compilation of **superB**, which is allows the computation of magnetic fields based on an input of coils and permanent magnets (Section \ref{sec:superB})
-  * ``POSTI_BUILD_VISU``: Enables the compilation of the post-processing tool **h5piclas2vtk**, which enables the conversion of output files into the VTK format (Section \ref{sec:tools_posti_visu})
+  * ``POSTI_BUILD_VISU``: Enables the compilation of the post-processing tool **h5piclas2vtk**, which enables the conversion of output files into the VTK format (Chapter \ref{chap:visu_output})
   * ``POSTI_USE_PARAVIEW``: Enables the compilation of the ParaView plugin, which enables the direct read-in of output files within ParaView
 
 ## Solver settings

@@ -88,7 +88,7 @@ CALL prms%CreateIntOption(    'nSkipAvg'             , 'Iter every which CalcTim
 #ifdef CODE_ANALYZE
 CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput' , 'print code analyze info to CodeAnalyze.csv','.TRUE.')
 #endif /* CODE_ANALYZE */
-CALL prms%CreateIntOption(      'Field-AnalyzeStep'   , 'Analyze is performed each Nth time step','1')
+CALL prms%CreateIntOption(      'Field-AnalyzeStep'   , 'Analyze is performed each Nth time step. Set to 0 to completely skip.','1')
 CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'Calculate Potential Energy. Output file is Database.csv','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPointsPerWavelength', 'Flag to compute the points per wavelength in each cell','.FALSE.')
 
@@ -147,7 +147,7 @@ REAL                :: PPWCellMax,PPWCellMin
 IF ((.NOT.InterpolationInitIsDone).OR.AnalyzeInitIsDone) THEN
   CALL abort(&
       __STAMP__&
-      ,'InitAnalyse not ready to be called or already called.',999,999.)
+      ,'InitAnalyse not ready to be called or already called.')
   RETURN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -164,9 +164,12 @@ OutputTimeFixed   = GETREAL('OutputTimeFixed')
 doCalcTimeAverage = GETLOGICAL('CalcTimeAverage')
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
 
-FieldAnalyzeStep  = GETINT('Field-AnalyzeStep','1')
-IF (FieldAnalyzeStep.EQ.0) FieldAnalyzeStep = HUGE(FieldAnalyzeStep)
+FieldAnalyzeStep  = GETINT('Field-AnalyzeStep')
 DoFieldAnalyze    = .FALSE.
+#if (USE_HDG)
+IF (FieldAnalyzeStep.GT.0) DoFieldAnalyze = .TRUE.
+#endif /*USE_HDG*/
+IF (FieldAnalyzeStep.EQ.0) FieldAnalyzeStep = HUGE(FieldAnalyzeStep)
 CalcEpot          = GETLOGICAL('CalcPotentialEnergy')
 IF(CalcEpot)        DoFieldAnalyze = .TRUE.
 IF(CalcPoyntingInt) DoFieldAnalyze = .TRUE.
@@ -895,6 +898,12 @@ IF(MOD(iter,FieldAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformFieldAnalyze
 IF(MOD(iter,FieldAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformFieldAnalyze=.TRUE.
 ! Remove analyze during restart or load-balance step
 IF(DoRestart .AND. iter.EQ.0) DoPerformFieldAnalyze=.FALSE.
+! BUT print analyze info for CODE_ANALYZE and USE_HDG to get the HDG solver statistics (number of iterations, runtime and norm)
+#if USE_HDG
+#ifdef CODE_ANALYZE
+IF(DoRestart .AND. iter.EQ.0) DoPerformFieldAnalyze=.TRUE.
+#endif /*CODE_ANALYZE*/
+#endif /*USE_HDG*/
 ! Finally, remove duplicates for last iteration
 ! This step is needed, because PerformAnalyze is called twice within the iterations
 IF(FirstOrLastIter .AND. .NOT.OutPutHDF5 .AND.iter.NE.0) DoPerformFieldAnalyze=.FALSE.
@@ -1218,7 +1227,7 @@ IF(DoPerformErrorCalc)THEN
   IF(.NOT.DoMeasureAnalyzeTime) StartAnalyzeTime=PICLASTIME()
   IF(MPIroot) THEN
     ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
-    WRITE(UNIT_StdOut,'(A17,ES16.7)')        ' Sim time      : ',OutputTime
+    WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',OutputTime
     IF(DoMeasureAnalyzeTime)THEN
       WRITE(UNIT_StdOut,'(A17,ES16.7,A9,I11,A)')' Analyze time  : ',AnalyzeTime, ' (called ',AnalyzeCount,' times)'
       AnalyzeCount = 0

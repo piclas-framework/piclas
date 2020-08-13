@@ -23,7 +23,7 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                       :: ParticleAnalyzeInitIsDone = .FALSE.
-LOGICAL                       :: CalcNumSpec                         !< Calculate the number of simulated particles per species
+LOGICAL                       :: CalcSimNumSpec                      !< Calculate the number of simulated particles per species
 LOGICAL                       :: CalcNumDens                         !< Calculate the number density per species within the domain
 LOGICAL                       :: CalcMassflowRate                    !< Calculate the mass flow through the adaptive inlet boundary
 LOGICAL                       :: CalcCollRates                       !< Calculate the collision rates per collision pair
@@ -34,6 +34,7 @@ LOGICAL                       :: CalcEtot                            !< Compute 
 LOGICAL                       :: CalcEint                            !< Compute the internal energy of each species
 LOGICAL                       :: CalcTemp                            !< Computation of the temperature (trans, rot, vib, total)
 LOGICAL                       :: CalcCoupledPower                    !< Computation of the power that is coupled into plasma
+LOGICAL                       :: DisplayCoupledPower                 !< Display coupled power in UNIT_stdOut
 REAL                          :: PCoupl                              !< Power that is coupled into plasma in [W]
 REAL                          :: PCouplAverage                       !< Power that is coupled into plasma (moving average) in [W]
 TYPE tPCoupl

@@ -98,6 +98,9 @@ USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
 USE MOD_DSMC_Symmetry        ,ONLY: Init_Symmetry
+#ifdef MPI
+USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
+#endif /* MPI */
 #if defined(IMPA) || defined(ROS)
 USE MOD_ParticleSolver       ,ONLY: InitPartSolver
 #endif
@@ -214,13 +217,19 @@ CALL InitHDG()
 #endif
 
 #ifdef PARTICLES
+! Old IMD format
   CALL InitTTM() ! FD grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
 IF(DoImportTTMFile)THEN
   CALL InitIMD_TTM_Coupling() ! use MD and TTM data to distribute the cell averaged charge to the atoms/ions
 END IF
+#ifdef MPI
+! New IMD binary format (not TTM needed as this information is stored on the atoms)
+CALL initReadIMDdata()
+CALL read_IMD_results()
+#endif /* MPI */
 #endif /*PARTICLES*/
 
-CALL InitInterfaces() ! set riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)
+CALL InitInterfaces() ! set Riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)
 
 #if USE_QDS_DG
 CALL InitQDS()
@@ -234,6 +243,7 @@ IF (.NOT.IsLoadBalance) THEN
   CALL prms%WriteUnused()
   CALL prms%RemoveUnnecessary()
 END IF
+
 
 END SUBROUTINE InitPiclas
 
@@ -395,9 +405,9 @@ IF(.NOT.IsLoadBalance)THEN
   !ParticlesInitIsDone=.FALSE.
   CALL FinalizeLoadBalance()
 #endif /*USE_LOADBALANCE*/
-  SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS FINISHED! [',Time-StartTime,' sec ]'
+  CALL DisplaySimulationTime(Time, StartTime, 'FINISHED')
 ELSE
-  SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS RUNNING! [',Time-StartTime,' sec ]'
+  CALL DisplaySimulationTime(Time, StartTime, 'RUNNING')
 END IF ! .NOT.IsLoadBalance
 SWRITE(UNIT_stdOut,'(132("="))')
 
@@ -425,6 +435,44 @@ InitLoadBalanceIsDone = .FALSE.
 
 END SUBROUTINE FinalizeLoadBalance
 #endif /*USE_LOADBALANCE*/
+
+
+SUBROUTINE DisplaySimulationTime(Time, StartTime, Message)
+!===================================================================================================================================
+! Finalizes variables necessary for analyse subroutines
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: Message         !< Output message
+REAL,INTENT(IN)             :: Time, StartTime !< Current simulation time and beginning of simulation time
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL :: SimulationTime,mins,secs,hours,days
+!===================================================================================================================================
+IF(.NOT.MPIRoot) RETURN
+
+SimulationTime = Time-StartTime
+
+! Get secs, mins, hours and days
+secs = MOD(SimulationTime,60.)
+SimulationTime = SimulationTime / 60
+mins = MOD(SimulationTime,60.)
+SimulationTime = SimulationTime / 60
+hours = MOD(SimulationTime,24.)
+SimulationTime = SimulationTime / 24
+!days = MOD(SimulationTime,365.) ! Use this if years are also to be displayed
+days = SimulationTime
+
+! Output
+WRITE(UNIT_stdOut,'(A,F16.2,A)',ADVANCE='NO')  ' PICLAS '//TRIM(Message)//'! [',Time-StartTime,' sec ]'
+WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),']'
+END SUBROUTINE DisplaySimulationTime
 
 
 SUBROUTINE FinalizeTimeDisc()

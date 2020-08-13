@@ -59,7 +59,7 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 USE MOD_PreProc
 USE MOD_Globals                  ,ONLY: abort
 USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars            ,ONLY: PDM, UseCircularInflow
+USE MOD_Particle_Vars            ,ONLY: PDM, UseCircularInflow,PartSpecies
 USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars       ,ONLY: PartBCSideList
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,nPorousBC,DoBoundaryParticleOutput
@@ -74,7 +74,7 @@ USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
 #endif /*IMPA*/
 USE MOD_Dielectric_Vars          ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
-USE MOD_Particle_Boundary_Tools  ,ONLY: BoundaryParticleOutput,DielectricSurfaceCharge
+USE MOD_Particle_Boundary_Tools  ,ONLY: StoreBoundaryParticleProperties,DielectricSurfaceCharge
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -136,7 +136,7 @@ END IF
 ASSOCIATE( iBC => PartBound%MapToPartBC(BC(SideID)) )
   ! Surface particle output to .h5
   IF(DoBoundaryParticleOutput.AND.PartBound%BoundaryParticleOutput(iBC))THEN
-    CALL BoundaryParticleOutput(iPart,LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,PartTrajectory(1:3),n_loc)
+    CALL StoreBoundaryParticleProperties(iPart,PartSpecies(iPart),LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,PartTrajectory(1:3),n_loc,mode=1)
   END IF
 
   ! Select the corresponding boundary condition and calculate particle treatment
@@ -364,15 +364,15 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SurfMesh,SampWall,CalcSurfColli
 USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,nSpecies,PartSpecies,Species,WriteMacroSurfaceValues,PartLorentzType
-USE MOD_Particle_Vars           ,ONLY: VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: VarTimeStep, usevMPF
 USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: DSMC,RadialWeighting,PartStateIntEn
-USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues, usevMPF
+USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues
 USE MOD_TImeDisc_Vars           ,ONLY: tend,time
 USE MOD_Equation_Vars           ,ONLY: c2_inv
 #if defined(LSERK)
 USE MOD_Particle_Vars           ,ONLY: Pt_temp,PDM
-#elif (PP_TimeDiscMethod==509)
+#elif (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
 #if defined(IMPA) || defined(ROS)
@@ -554,7 +554,7 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
 PartTrajectory=PartTrajectory/lengthPartTrajectory
 ! #endif
 
-#if defined(LSERK) || (PP_TimeDiscMethod==509)
+#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
    ! correction for Runge-Kutta (correct position!!)
 !---------- old ----------
@@ -577,7 +577,7 @@ ELSE
   END IF
 #endif  /*LSERK*/
 END IF
-#endif  /*LSERK || (PP_TimeDiscMethod==509)*/
+#endif  /*LSERK || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 
 ! rotation for IMEX and Rosenbrock Method (requires the rotation of the previous rk-stages... simplification of boundary condition)
 ! results in an order reduction
@@ -614,13 +614,14 @@ USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact, GetWallTemperature
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,nSpecies,WriteMacroSurfaceValues,Symmetry
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep, usevMPF
-#if defined(LSERK) || (PP_TimeDiscMethod==509)
+#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
 USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC,CollisMode
 USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn,DSMC, useDSMC, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: PolyatomMolDSMC, VibQuantsPar
+USE MOD_DSMC_ElectronicModel    ,ONLY: RelaxElectronicShellWall
 USE MOD_TimeDisc_Vars           ,ONLY: dt,tend,time,RKdtFrac
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, PartSideToElem
 #if (PP_TimeDiscMethod==400)
@@ -648,7 +649,7 @@ REAL                                 :: VibQuantNewR                            
 !REAL,PARAMETER                       :: oneMinus=0.99999999
 REAL                                 :: VeloReal, RanNum, EtraOld, VeloCrad, Fak_D
 REAL                                 :: EtraWall, EtraNew
-REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC
+REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC, ElecACC
 REAL                                 :: tang1(1:3),tang2(1:3), NewVelo(3)
 REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, VeloCx, VeloCy, VeloCz
 REAL                                 :: Xitild,EtaTild
@@ -684,6 +685,7 @@ IF (IsAuxBC) THEN
   TransACC   = PartAuxBC%TransACC(AuxBCIdx)
   VibACC     = PartAuxBC%VibACC(AuxBCIdx)
   RotACC     = PartAuxBC%RotACC(AuxBCIdx)
+  ElecACC    = PartAuxBC%ElecACC(AuxBCIdx)
 ELSE
   ! additional states
   locBCID=PartBound%MapToPartBC(BC(SideID))
@@ -693,7 +695,7 @@ ELSE
   TransACC   = PartBound%TransACC(locBCID)
   VibACC     = PartBound%VibACC(locBCID)
   RotACC     = PartBound%RotACC(locBCID)
-
+  ElecACC    = PartBound%ElecACC(locBCID)
 END IF !IsAuxBC
 CALL OrthoNormVec(n_loc,tang1,tang2)
 
@@ -922,6 +924,20 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
         END IF ! FPDoVibRelaxation || BGKDoVibRelaxation
 #endif
       END IF
+
+      IF ( DSMC%ElectronicModel ) THEN
+        IF((SpecDSMC(PartSpecies(PartID))%InterID.NE.4).AND.(.NOT.SpecDSMC(PartSpecies(PartID))%FullyIonized)) THEN
+          CALL RANDOM_NUMBER(RanNum)
+          IF (RanNum.LT.ElecACC) THEN
+            IF (DoSample) SampWall(SurfSideID)%State(4,p,q)=SampWall(SurfSideID)%State(4,p,q)+PartStateIntEn(3,PartID) * MacroParticleFactor
+            PartStateIntEn(3,PartID) = RelaxElectronicShellWall(PartID, WallTemp)
+            IF (DoSample) THEN
+              SampWall(SurfSideID)%State(5,p,q)=SampWall(SurfSideID)%State(5,p,q)+PartStateIntEn(3,PartID) * MacroParticleFactor
+              SampWall(SurfSideID)%State(6,p,q)=SampWall(SurfSideID)%State(6,p,q)+PartStateIntEn(3,PartID) * MacroParticleFactor
+            END IF
+          END IF
+        END IF
+      END IF
     END IF ! CollisMode > 1
   END IF ! useDSMC
 
@@ -1019,7 +1035,7 @@ ELSE
 END IF
 IF(ABS(lengthPartTrajectory).GT.0.) PartTrajectory=PartTrajectory/lengthPartTrajectory
 
-#if defined(LSERK) || (PP_TimeDiscMethod==509)
+#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
 #endif
 
@@ -1043,9 +1059,6 @@ USE MOD_TimeDisc_Vars           ,ONLY: TEnd,Time
 USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
 USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact
 USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn
-#if defined(IMPA)
-USE MOD_Particle_Vars           ,ONLY: PartIsImplicit,DoPartInNewton
-#endif /*IMPA*/
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_part_operations         ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
@@ -1216,9 +1229,6 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,SidePeriodicType
 USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos,PEM
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
-#if defined(IMPA)
-USE MOD_TimeDisc_Vars          ,ONLY: ESDIRK_a,ERK_a
-#endif /*IMPA */
 #if defined(ROS)
 USE MOD_TimeDisc_Vars          ,ONLY: RK_A
 #endif /*ROS */

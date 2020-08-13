@@ -41,16 +41,15 @@ SUBROUTINE DSMC_main(DoElement)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_BGGas            ,ONLY: DSMC_InitBGGas, DSMC_pairing_bggas, MCC_pairing_bggas, DSMC_FinalizeBGGas
+USE MOD_DSMC_BGGas            ,ONLY: BGGas_InsertParticles, DSMC_pairing_bggas, MCC_pairing_bggas, BGGas_DeleteParticles
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, DSMC, DSMCSumOfFormedParticles, BGGas, CollisMode
-USE MOD_DSMC_Vars             ,ONLY: ChemReac, UseMCC, CollInf
+USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
+USE MOD_DSMC_Vars             ,ONLY: ChemReac, UseMCC, XSec_Relaxation, SpecXSec
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SummarizeQualityFactors, DSMCMacroSampling
 USE MOD_DSMC_Collis           ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
 USE MOD_Particle_Vars         ,ONLY: PDM, WriteMacroVolumeValues, Symmetry, PEM
 USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
-USE MOD_DSMC_Relaxation       ,ONLY: SetMeanVibQua
-USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree, DSMC_pairing_dotree
+USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_octree, DSMC_pairing_standard, DSMC_pairing_quadtree, DSMC_pairing_dotree
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
@@ -70,16 +69,20 @@ INTEGER           :: iElem, nPart
 #if USE_LOADBALANCE
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
+INTEGER           :: iCase
 !===================================================================================================================================
 
+! Reset the right-hand side (DoElement: coupled BGK/FP-DSMC simulations, which might utilize the RHS)
 IF(.NOT.PRESENT(DoElement)) THEN
   DSMC_RHS(1,1:PDM%ParticleVecLength) = 0
   DSMC_RHS(2,1:PDM%ParticleVecLength) = 0
   DSMC_RHS(3,1:PDM%ParticleVecLength) = 0
 END IF
+! Reset the number of particles created during the DSMC loop
 DSMCSumOfFormedParticles = 0
+! Insert background gas particles for every simulation particle
+IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_InsertParticles
 
-IF((BGGas%BGGasSpecies.NE.0).AND.(.NOT.UseMCC)) CALL DSMC_InitBGGas
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -92,22 +95,26 @@ DO iElem = 1, nElems ! element/cell main loop
   IF(DSMC%CalcQualityFactors) THEN
     DSMC%CollProbMax = 0.0; DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
     DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
-    IF(DSMC%RotRelaxProb.GT.2) THEN
-      DSMC%CalcRotProb = 0.
-    END IF
-    IF(DSMC%VibRelaxProb.EQ.2) THEN
-      DSMC%CalcVibProb = 0.
+    IF(DSMC%RotRelaxProb.GT.2) DSMC%CalcRotProb = 0.
+    DSMC%CalcVibProb = 0.
+    IF(XSec_Relaxation) THEN
+      DO iCase=1,CollInf%NumCase
+        SpecXSec(iCase)%VibProb(1:2) = 0.
+      END DO
     END IF
   END IF
   IF (CollisMode.NE.0) THEN
     ChemReac%nPairForRec = 0
     CALL InitCalcVibRelaxProb
-    IF(UseMCC) THEN
-      CALL MCC_pairing_bggas(iElem)
-    ELSE IF(BGGas%BGGasSpecies.NE.0) THEN
-      CALL DSMC_pairing_bggas(iElem)
+    IF(BGGas%NumberOfSpecies.GT.0) THEN
+      IF(UseMCC) THEN
+        CALL MCC_pairing_bggas(iElem)
+      ELSE
+        CALL DSMC_pairing_bggas(iElem)
+      END IF
     ELSE IF (nPart.GT.1) THEN
       IF (DSMC%UseOctree) THEN
+        ! On-the-fly cell refinement and pairing within subcells
         IF(Symmetry%Order.EQ.3) THEN
           CALL DSMC_pairing_octree(iElem)
         ELSE IF(Symmetry%Order.EQ.2) THEN
@@ -116,7 +123,8 @@ DO iElem = 1, nElems ! element/cell main loop
           CALL DSMC_pairing_dotree(iElem)
         END IF
       ELSE
-        CALL DSMC_pairing_statistical(iElem)  ! pairing of particles per cell
+        ! Standard pairing of particles within a cell
+        CALL DSMC_pairing_standard(iElem)
       END IF
     ELSE ! less than 2 particles
       IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(PEM%pStart(iElem)) = 0
@@ -129,17 +137,27 @@ DO iElem = 1, nElems ! element/cell main loop
   CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
 END DO ! iElem Loop
-! Output!
+
+! Advance particle vector length and the current next free position with newly created particles
 PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
-IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_FinalizeBGGas
-#if (PP_TimeDiscMethod==42)
-IF ((.NOT.DSMC%ReservoirSimu).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
-#else
+
+IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN
+  CALL Abort(&
+    __STAMP__&
+    ,'ERROR in DSMC: ParticleVecLength greater than MaxParticleNumber! Increase the MaxParticleNumber to at least: ' &
+    , IntInfoOpt=PDM%ParticleVecLength)
+END IF
+
+! Delete background gas particles
+IF(BGGas%NumberOfSpecies.GT.0) CALL BGGas_DeleteParticles
+
+! Sampling of macroscopic values
+! (here for a continuous average; average over N iterations is performed in src/analyze/analyze.f90)
 IF (.NOT.WriteMacroVolumeValues .AND. .NOT.WriteMacroSurfaceValues) THEN
-#endif
   CALL DSMCMacroSampling()
 END IF
+
 END SUBROUTINE DSMC_main
 
 END MODULE MOD_DSMC

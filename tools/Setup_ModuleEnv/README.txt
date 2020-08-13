@@ -3,20 +3,23 @@ These scripts help setting up an environment for development with piclas
 ------------------------------------------------------------
 Order of how to setup environment
 
-1. open console and run:
+0. change dir to script directory ( cd /path/to/piclas/tools )
+1. Install the basic packages depending on the OS
+   - ./InstallPackagesUbuntu16.sh
+   - ./InstallPackagesUbuntu20.sh
+2. open a new terminal and run:
       sudo -s
-2. change dir to script directory ( cd /path/to/piclas/tools )
-3. ./InstallPackages.sh
-4. ./InstallModules.sh
-  5. reboot and maybe second time ./InstallModules.sh is needed
-6. ./InstallCMake.sh
-7. ./InstallGCC.sh
-8. ./InstallMPIallCOMPILERS.sh
-9. ./InstallHDF5.sh
+   or run the following script with sudo ./Install...
+3. ./InstallModules.sh
+  4. reboot and maybe second time ./InstallModules.sh is needed
+5. ./InstallCMake.sh
+6. ./InstallGCC.sh
+7. ./InstallMPIallCOMPILERS.sh
+8. ./InstallHDF5.sh
 
 ! next one might currently not work
-10. ./InstallParaview.sh
+9. ./InstallParaview.sh
 
 ------------------------------------------------------------
-all scripts (6-9) can be rerun with "-r" or "-rerun" argument
+all scripts (5-8) can be rerun with "-r" or "-rerun" argument
   this cleans the created module file and build directory of the to-be-build version and rebuilds it

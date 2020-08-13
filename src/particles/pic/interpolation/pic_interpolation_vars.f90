@@ -42,15 +42,19 @@ INTEGER                 :: nIntPoints                    !< number of all interp
 #ifdef CODE_ANALYZE
 LOGICAL                 :: DoInterpolationAnalytic       !< use analytic/algebraic functions for the field at the
 !                                                        !< particle position
+LOGICAL                 :: DoInitAnalyticalParticleState !< Calculate the initial velocity of the particle from an analytic expression
 
 INTEGER                 :: AnalyticInterpolationType     !< Type of the analytic interpolation method
-!                                                        !< 1: magnetostatic field: B = B_z = B_0 * EXP(x/l)
+!                                                        !< 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
+!                                                        !< 1: magnetostatic field: B = B_z = (/ 0 , 0 , B_0 * EXP(x/l) /) = const.
 !                                                        !<
 
 INTEGER                 :: AnalyticInterpolationSubType  !< Sub-Type for the analytic interpolation method (in combination with
 !                                                        !< AnalyticInterpolationType)
 
 REAL                    :: AnalyticInterpolationP        !< parameter "p" for AnalyticInterpolationType = 1
+
+REAL                    :: AnalyticInterpolationPhase    !< Phase shift angle phi that is used for cos(w*t + phi)
 
 REAL                    :: L_2_Error_Part(1:6)           !< L2 error for the particle state
 REAL                    :: L_2_Error_Part_time           !< old time for calculating the time step (when it is variable)
