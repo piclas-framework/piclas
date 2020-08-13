@@ -754,10 +754,10 @@ REAL,PARAMETER        :: RelMomTol=1e-6  ! Relative tolerance applied to conserv
 REAL,PARAMETER        :: RelEneTol=1e-12 ! Relative tolerance applied to conservation of energy before/after reaction
 #endif /* CODE_ANALYZE */
 REAL                  :: totalWeightSpec(nSpecies), totalWeight, partWeight, totalWeightSpec2(nSpecies), totalWeight2
-REAL                  :: tempmass, tempweight, vBulkTemp(1:3), tempweight2
+REAL                  :: tempmass, tempweight, vBulkTemp(1:3), tempweight2, MassFraction(1:nSpecies), MolarFraction(1:nSpecies)
 
 REAL                  :: A(3,3), Work(1000), W(3), nu, Theta, G_12, S_12, sigma_12, CellTempSpec(nSpecies+1), CellTemptmp
-REAL                  :: ProbAddPartTrans, ProbAddPartRot, ProbAddPartVib
+REAL                  :: ProbAddPartTrans, ProbAddPartRot, ProbAddPartVib, MassIC_Mixture
 INTEGER               :: INFO
 !===================================================================================================================================
 #ifdef CODE_ANALYZE
@@ -799,12 +799,17 @@ DO iLoop = 1, nPart
   vBulkAll(1:3)  =  vBulkAll(1:3) + PartState(4:6,iPartIndx_Node(iLoop))*Species(iSpec)%MassIC*partWeight
   TotalMass = TotalMass + Species(iSpec)%MassIC*partWeight
   vBulkSpec(1:3,iSpec) = vBulkSpec(1:3,iSpec) + PartState(4:6,iPartIndx_Node(iLoop))*partWeight
-  nSpec(iSpec) = nSpec(iSpec) + 1   
+  nSpec(iSpec) = nSpec(iSpec) + 1
 END DO
 IF (MAXVAL(nSpec(:)).EQ.1) RETURN
 vBulkAll(1:3) = vBulkAll(1:3) / TotalMass
 totalWeight = SUM(totalWeightSpec)
 totalWeight2 = SUM(totalWeightSpec2)
+
+IF(totalWeight.LE.0.0) RETURN
+
+MolarFraction(1:nSpecies) = totalWeightSpec(1:nSpecies) / totalWeight
+MassIC_Mixture = TotalMass / totalWeight
 
 MassCoef = 0.0
 DO iSpec = 1, nSpecies
@@ -838,6 +843,7 @@ END DO
 SpecTemp = 0.0
 EnerTotal = 0.0 
 tempweight = 0.0; tempweight2 = 0.0; tempmass = 0.0; vBulkTemp = 0.0
+MassFraction = 0.
 DO iSpec = 1, nSpecies
   IF ((nSpec(iSpec).GE.2).AND.(.NOT.ALMOSTZERO(u2Spec(iSpec)))) THEN
     SpecTemp(iSpec) = Species(iSpec)%MassIC * u2Spec(iSpec) &
@@ -850,7 +856,9 @@ DO iSpec = 1, nSpecies
     tempmass = tempmass +  totalWeightSpec(iSpec) * Species(iSpec)%MassIC 
     vBulkTemp(1:3) = vBulkTemp(1:3) + vBulkSpec(1:3,iSpec)*totalWeightSpec(iSpec) * Species(iSpec)%MassIC 
   END IF
+  MassFraction(iSpec) = MolarFraction(iSpec) * Species(iSpec)%MassIC / MassIC_Mixture
 END DO
+
 vBulkTemp(1:3) = vBulkTemp(1:3) / tempmass
 vmag2 = vBulkTemp(1)*vBulkTemp(1) + vBulkTemp(2)*vBulkTemp(2) + vBulkTemp(3)*vBulkTemp(3)
 EnerTotal = EnerTotal -  tempmass / 2. * vmag2
@@ -860,6 +868,8 @@ u2 = 3. * CellTemp * BoltzmannConst * (tempweight - tempweight2/tempweight) / te
 A = u0ij
 CALL DSYEV('N','U',3,A,3,W,Work,1000,INFO)
 Theta = u2 / 3.
+
+IF(CellTemp.LE.0) RETURN
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   ! totalWeight contains the weighted particle number
@@ -927,7 +937,7 @@ IF (BGKMixtureModel.EQ.1) THEN
     END IF
     ! innerdof pro spec !
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-      thermalcondspec(iSpec) = 0.25 * (15. + 2. * InnerDOF) &
+      thermalcondspec(iSpec) = 0.25 * (15. + 2. * InnerDOF * 1.328) &
                                         * dynamicvisSpec(iSpec) &
                                         * BoltzmannConst / Species(iSpec)%MassIC
     ELSE
@@ -952,9 +962,12 @@ IF (BGKMixtureModel.EQ.1) THEN
     IF (nSpec(iSpec).EQ.0) CYCLE
     dynamicvis = dynamicvis + REAL(totalWeightSpec(iSpec)) * dynamicvisSpec(iSpec) / Phi(iSpec)
     thermalcond = thermalcond + REAL(totalWeightSpec(iSpec)) * thermalcondspec(iSpec) / Phi(iSpec)
-    C_P = C_P + REAL(totalWeightSpec(iSpec))/REAL(totalWeight)*Species(iSpec)%MassIC
+    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      C_P = C_P + ((5. + InnerDOF)/2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec)
+    ELSE
+      C_P = C_P + (5./2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec)
+    END IF
   END DO
-  C_P = 5./2.*BoltzmannConst/C_P
 ELSE IF (BGKMixtureModel.EQ.2) THEN
   C_P = 0.0
   DO iSpec = 1, nSpecies
