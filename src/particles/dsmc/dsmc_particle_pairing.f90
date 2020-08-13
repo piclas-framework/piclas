@@ -311,6 +311,66 @@ nPart = nPart - 1
 END SUBROUTINE FindNearestNeigh2D
 
 
+SUBROUTINE FindNearestNeigh1D(iPartIndx_Node, nPart, iPair)
+!===================================================================================================================================
+! Finds nearest neighbour for collision pairing
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf
+USE MOD_Particle_Vars,          ONLY: PartState
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(INOUT)          :: nPart
+INTEGER, INTENT(IN)             :: iPair
+INTEGER, INTENT(INOUT)          :: iPartIndx_Node(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iPart1, iPart2, iLoop, loopStart
+REAL                            :: Dist1, Dist2, iRan
+!===================================================================================================================================
+
+loopStart = 0
+CALL RANDOM_NUMBER(iRan)
+iPart1 = 1 + INT(nPart * iRan)
+Coll_pData(iPair)%iPart_p1 = iPartIndx_Node(iPart1)
+iPartIndx_Node(iPart1) = iPartIndx_Node(nPart)
+nPart = nPart - 1
+iPart2 = 1
+IF (CollInf%ProhibitDoubleColl) THEN
+  IF (nPart.GT.1) THEN
+    IF (iPartIndx_Node(iPart2).EQ.CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1)) THEN
+      iPart2 = 2
+      loopStart = 1
+    END IF
+  END IF
+END IF
+Dist1 = (PartState(1,Coll_pData(iPair)%iPart_p1) &
+        - PartState(1,iPartIndx_Node(iPart2)))**2 &
+DO iLoop = 2 + loopStart, nPart
+  IF (CollInf%ProhibitDoubleColl) THEN
+      IF (iPartIndx_Node(iLoop).EQ.CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1)) THEN
+        CYCLE
+      END IF
+  END IF
+  Dist2 = (PartState(1,Coll_pData(iPair)%iPart_p1) &
+          - PartState(1,iPartIndx_Node(iLoop)))**2 &
+  IF (Dist2.LT.Dist1) THEN
+    iPart2 = iLoop
+    Dist1 = Dist2
+  END IF
+END DO
+Coll_pData(iPair)%iPart_p2 = iPartIndx_Node(iPart2)
+iPartIndx_Node(iPart2) = iPartIndx_Node(nPart)
+nPart = nPart - 1
+
+END SUBROUTINE FindNearestNeigh1D
+
+
 SUBROUTINE PerformPairingAndCollision(iPartIndx_Node, PartNum, iElem, NodeVolume)
 !===================================================================================================================================
 !> Main pairing and collision routine performed in a cell/subcell: calls the statistical and nearest neighbour pairing routines
@@ -398,10 +458,12 @@ END IF
 ! 3.) Perform the particle pairing (statistical or nearest neighbour) and determine the relative velocity
 DO iPair = 1, nPair
   IF(DSMC%UseNearestNeighbour) THEN
-    IF(Symmetry%Order.EQ.2) THEN
+    IF(Symmetry%Order.EQ.3) THEN
+      CALL FindNearestNeigh(iPartIndx_Node, nPart, iPair)
+    ELSE IF (Symmetry%Order.EQ.2) THEN
       CALL FindNearestNeigh2D(iPartIndx_Node, nPart, iPair)
     ELSE
-      CALL FindNearestNeigh(iPartIndx_Node, nPart, iPair)
+      CALL FindNearestNeigh1D(iPartIndx_Node, nPart, iPair)
     END IF
   ELSE
     CALL FindRandomPartner(iPartIndx_Node, nPart, iPair, nPair)
