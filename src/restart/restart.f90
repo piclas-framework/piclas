@@ -1585,8 +1585,9 @@ IMPLICIT NONE
   INTEGER                           :: nDimsClone, CloneDataSize, ClonePartNum, iPart, iDelay, maxDelay, iElem, tempDelay
   INTEGER(HSIZE_T), POINTER         :: SizeClone(:)
   REAL,ALLOCATABLE                  :: CloneData(:,:)
-  INTEGER                           :: iPolyatmole, MaxQuantNum, iSpec, compareDelay
+  INTEGER                           :: iPolyatmole, MaxQuantNum, iSpec, compareDelay, MaxElecQuant
   INTEGER,ALLOCATABLE               :: pcount(:), VibQuantData(:,:)
+  REAL, ALLOCATABLE                 :: ElecDistriData(:,:)
 !===================================================================================================================================
 
   CALL GetDataSize(File_ID,'CloneData',nDimsClone,SizeClone)
@@ -1641,6 +1642,18 @@ IMPLICIT NONE
         CALL ReadArray('CloneVibQuantData',2,(/MaxQuantNum,ClonePartNum/),0_IK,2,IntegerArray_i4=VibQuantData)
       END ASSOCIATE
     END IF
+    IF (UseDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+      MaxElecQuant = 0
+      DO iSpec = 1, nSpecies
+        IF (.NOT.((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized)) THEN
+          IF (SpecDSMC(iSpec)%MaxElecQuant.GT.MaxElecQuant) MaxElecQuant = SpecDSMC(iSpec)%MaxElecQuant
+        END IF
+      END DO
+      ALLOCATE(ElecDistriData(1:MaxElecQuant,1:ClonePartNum))
+      ASSOCIATE(ClonePartNum => INT(ClonePartNum,IK),MaxElecQuant => INT(MaxElecQuant,IK))
+        CALL ReadArray('CloneElecDistriData',2,(/MaxElecQuant,ClonePartNum/),0_IK,2,RealArray=ElecDistriData)
+      END ASSOCIATE
+    END IF
     ! Copying particles into ClonedParticles array
     DO iPart = 1, ClonePartNum
       iDelay = INT(CloneData(9,iPart))
@@ -1687,8 +1700,15 @@ IMPLICIT NONE
               ALLOCATE(ClonedParticles(pcount(iDelay),iDelay)%VibQuants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
               ClonedParticles(pcount(iDelay),iDelay)%VibQuants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF) &
                 = VibQuantData(1:PolyatomMolDSMC(iPolyatMole)%VibDOF,iPart)
-            ELSE
-               VibQuantData(:,iPart) = 0
+            END IF
+          END IF
+          IF (UseDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)  THEN
+            IF (.NOT.((SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%InterID.EQ.4) &
+                .OR.SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%FullyIonized)) THEN 
+              ALLOCATE(ClonedParticles(pcount(iDelay),iDelay)%DistriFunc( &
+                      1:SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%MaxElecQuant))
+              ClonedParticles(pcount(iDelay),iDelay)%DistriFunc(1:SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%MaxElecQuant) &
+                = ElecDistriData(1:SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%MaxElecQuant,iPart)
             END IF
           END IF
         END IF

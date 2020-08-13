@@ -270,7 +270,7 @@ SUBROUTINE DSMC_2D_RadialWeighting(iPart,iElem)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, DSMC, PartStateIntEn, useDSMC, CollisMode
-USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, VibQuantsPar, SpecDSMC, PolyatomMolDSMC
+USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, VibQuantsPar, SpecDSMC, PolyatomMolDSMC, ElectronicDistriPart
 USE MOD_Particle_Vars           ,ONLY: PartMPF, PartSpecies, PartState, Species, LastPartPos
 USE MOD_TimeDisc_Vars           ,ONLY: iter
 USE MOD_part_operations         ,ONLY: RemoveParticle
@@ -335,7 +335,16 @@ IF(DoCloning) THEN
   ClonedParticles(cloneIndex,DelayCounter)%PartState(1:6)= PartState(1:6,iPart)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
     ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(1:2) = PartStateIntEn(1:2,iPart)
-    IF(DSMC%ElectronicModel) ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(3) =   PartStateIntEn(3,iPart)
+    IF(DSMC%ElectronicModel) THEN
+      ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(3) =   PartStateIntEn(3,iPart)
+      IF ((DSMC%ElectronicDistrModel).AND.(.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4) & 
+          .OR.SpecDSMC(PartSpecies(iPart))%FullyIonized))) THEN
+        IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)) &
+          DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)
+        ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant))
+        ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(:) = ElectronicDistriPart(iPart)%DistriFunc(:)
+      END IF
+    END IF
     IF(SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
       IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%VibQuants)) &
@@ -382,7 +391,7 @@ SUBROUTINE DSMC_2D_SetInClones()
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, PartStateIntEn, useDSMC, CollisMode, DSMC, RadialWeighting
-USE MOD_DSMC_Vars               ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive
+USE MOD_DSMC_Vars               ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive, ElectronicDistriPart
 USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, VarTimeStep
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: iter
@@ -444,7 +453,15 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   PartState(6,PositionNbr) = - ClonedParticles(iPart,DelayCounter)%PartState(6)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
     PartStateIntEn(1:2,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
-    IF(DSMC%ElectronicModel) PartStateIntEn(3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
+    IF(DSMC%ElectronicModel) THEN
+      PartStateIntEn(3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
+      IF ((DSMC%ElectronicDistrModel).AND.(.NOT.((SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) & 
+          .OR.SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%FullyIonized))) THEN
+        IF(ALLOCATED(ElectronicDistriPart(PositionNbr)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc)
+        ALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc(1:SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%MaxElecQuant))
+        ElectronicDistriPart(PositionNbr)%DistriFunc(:) = ClonedParticles(iPart,DelayCounter)%DistriFunc(:)
+      END IF
+    END IF
     IF(SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%SpecToPolyArray
       IF(ALLOCATED(VibQuantsPar(PositionNbr)%Quants)) DEALLOCATE(VibQuantsPar(PositionNbr)%Quants)
