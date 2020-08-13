@@ -694,7 +694,7 @@ INTEGER, INTENT(IN)           :: iSpec,iInit,TotalNbrOfReactions
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart, iPair, iNewPart, iReac, ParticleIndex, NewParticleIndex, bgSpec, NbrOfParticle
-INTEGER                       :: iPart_p1, iPart_p2
+INTEGER                       :: iPart_p1, iPart_p2, iPart_p3
 REAL                          :: RandVal,NumTmp,ProbRest
 INTEGER                       :: TotalNbrOfReactionsTmp,iCrossSection,NbrCrossSections
 INTEGER                       :: NumPhotoIonization(ChemReac%NumOfReact)
@@ -839,6 +839,11 @@ DO iReac = 1, ChemReac%NumOfReact
     iPart_p2 = Coll_pData(iPair)%iPart_p2
     PartState(4:6,iPart_p1) = PartState(4:6,iPart_p1) + DSMC_RHS(1:3,iPart_p1)
     PartState(4:6,iPart_p2) = PartState(4:6,iPart_p2) + DSMC_RHS(1:3,iPart_p2)
+    ! Treatment of the third product
+    IF(ChemReac%DefinedReact(iReac,2,3).NE.0) THEN
+      iPart_p3 = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
+      PartState(4:6,iPart_p3) = PartState(4:6,iPart_p3) + DSMC_RHS(1:3,iPart_p3)
+    END IF
     ! If an electron is created, change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
     ASSOCIATE( b1 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC(1:3)) ,&
                b2 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC(1:3)) )
@@ -866,7 +871,22 @@ DO iReac = 1, ChemReac%NumOfReact
                                           UNITVECTOR(PartState(4:6,iPart_p2)),Species(iSpec)%Init(iInit)%NormalIC,mode=2,&
                                           usevMPF_optIN=.FALSE.)
       END IF
-  END ASSOCIATE
+      ! Treatment of the third product
+      IF(ChemReac%DefinedReact(iReac,2,3).NE.0) THEN
+        iPart_p3 = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
+        IF(PARTISELECTRON(iPart_p3)) THEN
+          CALL RANDOM_NUMBER(RandVal)
+          ! Get random vector b3 in b1-b2-plane
+          PartState(4:6,iPart_p3) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart_p3),RandVal)
+          ! Rotate the resulting vector in the b3-NormalIC-plane
+          PartState(4:6,iPart_p3) = GetRotatedVector(PartState(4:6,iPart_p3),Species(iSpec)%Init(iInit)%NormalIC)
+          ! Store the particle information in PartStateBoundary.h5
+          IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(iPart_p3,PartSpecies(iPart_p3),PartState(1:3,iPart_p3),&
+                                            UNITVECTOR(PartState(4:6,iPart_p3)),Species(iSpec)%Init(iInit)%NormalIC,mode=2,&
+                                            usevMPF_optIN=.FALSE.)
+        END IF
+      END IF
+    END ASSOCIATE
   END DO
 END DO
 
