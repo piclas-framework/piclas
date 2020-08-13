@@ -2807,7 +2807,7 @@ IF (withDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
                         nVal=      (/MaxElecQuant        , locnPart       /)   , &
                         offset=    (/0_IK               , offsetnPart    /)   , &
                         collective=.FALSE.              , RealArray=ElecDistriData)
-  DEALLOCATE(VibQuantData)
+  DEALLOCATE(ElecDistriData)
 END IF
 END ASSOCIATE
 
