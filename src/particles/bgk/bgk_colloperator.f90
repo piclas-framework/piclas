@@ -759,6 +759,10 @@ REAL                  :: tempmass, tempweight, vBulkTemp(1:3), tempweight2, Mass
 REAL                  :: A(3,3), Work(1000), W(3), nu, Theta, G_12, S_12, sigma_12, CellTempSpec(nSpecies+1), CellTemptmp
 REAL                  :: ProbAddPartTrans, ProbAddPartRot, ProbAddPartVib, MassIC_Mixture
 INTEGER               :: INFO
+REAL                  :: EVibSpec(nSpecies), ERotSpec(nSpecies), Xi_VibSpec(nSpecies), Xi_RotSpec(nSpecies),Xi_Vib_oldSpec(nSpecies)
+REAL                  :: TVibSpec(nSpecies), TRotSpec(nSpecies), RotExpSpec(nSpecies), VibExpSpec(nSpecies), Xi_VibTotal
+REAL                  :: collisionfreqSpec(nSpecies),rotrelaxfreqSpec(nSpecies), vibrelaxfreqSpec(nSpecies), Xi_RotTotal
+INTEGER               :: nVibRelaxSpec(nSpecies), nRotRelaxSpec(nSpecies)
 !===================================================================================================================================
 #ifdef CODE_ANALYZE
 ! Momentum and energy conservation check: summing up old values
@@ -790,6 +794,7 @@ NewEn = 0.; OldEn = 0.
 OldEnRot = 0.; NewEnRot = 0.; NewEnVib = 0.
 Evib = 0.0; ERot = 0.0
 totalWeight = 0.0; totalWeight2 = 0.0
+EVibSpec = 0.0; ERotSpec = 0.0
 
 DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
@@ -835,8 +840,12 @@ DO iLoop = 1, nPart
   END DO
   OldEn = OldEn + 0.5*Species(iSpec)%MassIC * vmag2*partWeight
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    IF(BGKDoVibRelaxation) Evib = Evib + (PartStateIntEn(1,iPartIndx_Node(iLoop)) - SpecDSMC(iSpec)%EZeroPoint) * partWeight
+    IF(BGKDoVibRelaxation) THEN
+      Evib = Evib + (PartStateIntEn(1,iPartIndx_Node(iLoop)) - SpecDSMC(iSpec)%EZeroPoint) * partWeight
+      EVibSpec(iSpec) = EVibSpec(iSpec) + (PartStateIntEn(1,iPartIndx_Node(iLoop)) - SpecDSMC(iSpec)%EZeroPoint) * partWeight
+    END IF 
     ERot = ERot + PartStateIntEn(2,iPartIndx_Node(iLoop)) * partWeight
+    ERotSpec(iSpec) = ERotSpec(iSpec) + PartStateIntEn(2,iPartIndx_Node(iLoop)) * partWeight
   END IF
 END DO
 
@@ -881,10 +890,15 @@ END IF
 InnerDOF = 0.
 Xi_rot = 0.
 Xi_vib = 0.
+Xi_VibSpec=0.0; Xi_RotSpec=0.0; Xi_Vib_oldSpec=0.0
 ! Calculation of the rotational and vibrational degrees of freedom for molecules
-DO iSpec = 1, 2
+DO iSpec = 1, nSpecies
+  IF (nSpec(iSpec).EQ.0) THEN
+    TVibSpec(iSpec) = 0.0 
+    TRotSpec(iSpec) = 0.0
+    CYCLE
+  END IF
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    Xi_vib = 0.0
     IF(BGKDoVibRelaxation) THEN
       IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
         iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
@@ -898,20 +912,17 @@ DO iSpec = 1, 2
           END DO
         END IF
       ELSE
-        TVib=Evib / (totalWeight*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
-        IF (TVib.GT.0.0) THEN
-          Tvib= SpecDSMC(iSpec)%CharaTVib/LOG(1. + 1./(TVib))
-          Xi_vib = 2.* Evib / (totalWeight*BoltzmannConst*Tvib)
+        TVibSpec(iSpec)=EVibSpec(iSpec) / (totalWeightSpec(iSpec)*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
+        IF (TVibSpec(iSpec).GT.0.0) THEN
+          TVibSpec(iSpec)= SpecDSMC(iSpec)%CharaTVib/LOG(1. + 1./(TVibSpec(iSpec)))
+          Xi_VibSpec(iSpec) = 2.* EVibSpec(iSpec) / (totalWeightSpec(iSpec)*BoltzmannConst*TVibSpec(iSpec))
         END IF
       END IF
-      Xi_Vib_old = Xi_Vib
-    ELSE
-      Xi_Vib_old = 0.0
-      TVib = 0.0
+      Xi_Vib_oldSpec(iSpec) = Xi_VibSpec(iSpec)
     END IF
-    Xi_rot = SpecDSMC(iSpec)%Xi_Rot
-    TRot = 2.*ERot/(Xi_rot*totalWeight*BoltzmannConst)
-    InnerDOF = Xi_rot + Xi_Vib
+    Xi_RotSpec(iSpec) = SpecDSMC(iSpec)%Xi_Rot
+    TRotSpec(iSpec) = 2.*ERotSpec(iSpec)/(Xi_RotSpec(iSpec)*totalWeightSpec(iSpec)*BoltzmannConst)
+    InnerDOF = InnerDOF + Xi_RotSpec(iSpec)  + Xi_VibSpec(iSpec)
   END IF
 END DO
 
@@ -937,7 +948,7 @@ IF (BGKMixtureModel.EQ.1) THEN
     END IF
     ! innerdof pro spec !
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-      thermalcondspec(iSpec) = 0.25 * (15. + 2. * InnerDOF * 1.328) &
+      thermalcondspec(iSpec) = 0.25 * (15. + 2. * (Xi_VibSpec(iSpec)+Xi_RotSpec(iSpec))  * 1.328) &
                                         * dynamicvisSpec(iSpec) &
                                         * BoltzmannConst / Species(iSpec)%MassIC
     ELSE
@@ -963,7 +974,7 @@ IF (BGKMixtureModel.EQ.1) THEN
     dynamicvis = dynamicvis + REAL(totalWeightSpec(iSpec)) * dynamicvisSpec(iSpec) / Phi(iSpec)
     thermalcond = thermalcond + REAL(totalWeightSpec(iSpec)) * thermalcondspec(iSpec) / Phi(iSpec)
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-      C_P = C_P + ((5. + InnerDOF)/2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec)
+      C_P = C_P + ((5. + (Xi_VibSpec(iSpec)+Xi_RotSpec(iSpec)))/2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec)
     ELSE
       C_P = C_P + (5./2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec)
     END IF
@@ -1012,38 +1023,39 @@ END IF
 
 ! 3.) Treatment of molecules: determination of the rotational and vibrational relaxation frequency using the collision frequency,
 !     which is not the same as the relaxation frequency of distribution function, calculated above.
+! should be changed again, atom-atom doesnt count
 collisionfreq = 0.0
-DO iSpec = 1, 2
-  DO jSpec = iSpec, 2
+collisionfreqSpec = 0.0
+DO iSpec = 1, nSpecies
+  DO jSpec = 1, nSpecies
     IF (iSpec.EQ.jSpec) THEN
       CellTemptmp = SpecTemp(iSpec)
     ELSE
       CellTemptmp = CellTemp
     END IF
-    collisionfreq = collisionfreq + SpecBGK(iSpec)%CollFreqPreFactor(jSpec) * totalWeightSpec(iSpec)*totalWeightSpec(jSpec) &
+    collisionfreqSpec(iSpec) = collisionfreqSpec(iSpec) + SpecBGK(iSpec)%CollFreqPreFactor(jSpec) * totalWeightSpec(iSpec)*totalWeightSpec(jSpec) &
             *Dens *CellTemptmp**(-SpecDSMC(iSpec)%omegaVHS +0.5) /(totalWeight*totalWeight)
   END DO
 END DO
 
-RotExp = 0.; VibExp = 0.;
-
-DO iSpec = 1, 2
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    rotrelaxfreq = collisionfreq * DSMC%RotRelaxProb
-    vibrelaxfreq = collisionfreq * DSMC%VibRelaxProb
-    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-      CALL CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_vib_DOF, Xi_Vib_old, RotExp, VibExp, &
-                          TEqui, rotrelaxfreq, vibrelaxfreq, dt)
-      Xi_vib = SUM(Xi_vib_DOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
-    ELSE
-      CALL CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, VibExp,  &
-                      TEqui, rotrelaxfreq, vibrelaxfreq, dt)
-    END IF
-    IF(DSMC%CalcQualityFactors) THEN
-      BGK_MaxRotRelaxFactor          = MAX(BGK_MaxRotRelaxFactor,rotrelaxfreq*dt)
-    END IF
+RotExp = 0.; VibExp = 0.; RotExpSpec=0.; VibExpSpec=0.
+IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
+  rotrelaxfreqSpec(:) = collisionfreqSpec(:) * DSMC%RotRelaxProb
+  vibrelaxfreqSpec(:) = collisionfreqSpec(:) * DSMC%VibRelaxProb
+!  IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+!    CALL CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_vib_DOF, Xi_Vib_old, RotExp, VibExp, &
+!                        TEqui, rotrelaxfreq, vibrelaxfreq, dt)
+!    Xi_vib = SUM(Xi_vib_DOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
+!  ELSE
+!    CALL CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, VibExp,  &
+!                    TEqui, rotrelaxfreq, vibrelaxfreq, dt)
+    CALL CalcTEquiMulti(nPart, nSpec, CellTemp, TRotSpec, TVibSpec, Xi_VibSpec, Xi_Vib_oldSpec, RotExpSpec, VibExpSpec,  &
+      TEqui, rotrelaxfreqSpec, vibrelaxfreqSpec, dt)
+!  END IF
+  IF(DSMC%CalcQualityFactors) THEN
+    BGK_MaxRotRelaxFactor          = MAX(BGK_MaxRotRelaxFactor,rotrelaxfreq*dt)
   END IF
-END DO
+END IF
 
 vBulk(1:3) = 0.0; nRelax = 0; nNotRelax = 0; nRotRelax = 0; nVibRelax = 0
 ALLOCATE(iPartIndx_NodeRelax(nPart), iPartIndx_NodeRelaxTemp(nPart))
@@ -1051,11 +1063,12 @@ iPartIndx_NodeRelax = 0; iPartIndx_NodeRelaxTemp = 0
 ALLOCATE(iPartIndx_NodeRelaxRot(nPart),iPartIndx_NodeRelaxVib(nPart))
 iPartIndx_NodeRelaxRot = 0; iPartIndx_NodeRelaxVib = 0
 
+nVibRelaxSpec =0; nRotRelaxSpec =0
 ProbAddPartTrans = 1.-EXP(-relaxfreq*dt)
-IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
-  ProbAddPartRot = (1.-RotExp)
-  ProbAddPartVib = (1.-VibExp)
-END IF
+!IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
+!  ProbAddPartRot = (1.-RotExp)
+!  ProbAddPartVib = (1.-VibExp)
+!END IF
 DO iLoop = 1, nPart  
   CALL RANDOM_NUMBER(iRan)  
   IF (ProbAddPartTrans.GT.iRan) THEN
@@ -1072,16 +1085,18 @@ DO iLoop = 1, nPart
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     !Rotation
     CALL RANDOM_NUMBER(iRan)
-    IF (ProbAddPartRot.GT.iRan) THEN
+    IF ((1.-RotExpSpec(iSpec)).GT.iRan) THEN
       nRotRelax = nRotRelax + 1
+      nRotRelaxSpec(iSpec) = nRotRelaxSpec(iSpec) + 1
       iPartIndx_NodeRelaxRot(nRotRelax) = iPartIndx_Node(iLoop)
       OldEnRot = OldEnRot + PartStateIntEn(2,iPartIndx_Node(iLoop)) * partWeight
     END IF
     ! Vibration
     IF(BGKDoVibRelaxation) THEN
       CALL RANDOM_NUMBER(iRan)
-      IF (ProbAddPartVib.GT.iRan) THEN
+      IF ((1.-VibExpSpec(iSpec)).GT.iRan) THEN
         nVibRelax = nVibRelax + 1
+        nVibRelaxSpec(iSpec) = nVibRelaxSpec(iSpec) + 1
         iPartIndx_NodeRelaxVib(nVibRelax) = iPartIndx_Node(iLoop)
         OldEn = OldEn + (PartStateIntEn(1,iPartIndx_NodeRelaxVib(nVibRelax)) - SpecDSMC(iSpec)%EZeroPoint) * partWeight
       END IF
@@ -1107,18 +1122,20 @@ IF(BGKDoVibRelaxation) THEN
   !   END DO
   ! ELSE
     DO iLoop = 1, nVibRelax
+      iSpec = PartSpecies(iPartIndx_NodeRelaxVib(iLoop)) 
       partWeight = GetParticleWeight(iPartIndx_NodeRelaxVib(iLoop))
       CALL RANDOM_NUMBER(iRan)
-      PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) = -LOG(iRan)*Xi_vib/2.*TEqui*BoltzmannConst
+      PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) = -LOG(iRan)*Xi_VibSpec(iSpec)/2.*TEqui*BoltzmannConst
       NewEnVib = NewEnVib + PartStateIntEn(1,iPartIndx_NodeRelaxVib(iLoop)) * partWeight
     END DO
   ! END IF
 END IF
 !! ROT Relaxation
 DO iLoop = 1, nRotRelax
+  iSpec = PartSpecies(iPartIndx_NodeRelaxRot(iLoop)) 
   partWeight = GetParticleWeight(iPartIndx_NodeRelaxRot(iLoop))
   CALL RANDOM_NUMBER(iRan)
-  PartStateIntEn( 2,iPartIndx_NodeRelaxRot(iLoop)) = -Xi_Rot / 2. * BoltzmannConst*TEqui*LOG(iRan)
+  PartStateIntEn( 2,iPartIndx_NodeRelaxRot(iLoop)) = -Xi_RotSpec(iSpec) / 2. * BoltzmannConst*TEqui*LOG(iRan)
   NewEnRot = NewEnRot + PartStateIntEn( 2,iPartIndx_NodeRelaxRot(iLoop)) * partWeight
 END DO
 
@@ -1169,92 +1186,101 @@ END DO
 
 ! 7.) Vibrational energy of the molecules: Determine the new state (either quantized or continuous) and ensure energy conservation
 !     by scaling the new vibrational states with the factor alpha
-DO iSpec = 1, 2
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    IF(BGKDoVibRelaxation) THEN
-      IF ((NewEnVib.GT.0.0).AND.(nVibRelax.GT.0)) THEN
-        IF (BGKUseQuantVibEn) THEN
-          alpha = OldEn/NewEnVib*(Xi_Vib*nVibRelax/(3.*(nPart-1.)+Xi_Vib*nVibRelax))
-          IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-            DO iLoop = 1, nVibRelax
-              partWeight = GetParticleWeight(iPartIndx_NodeRelaxVib(iLoop))
-              PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) = 0.0
-              DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-                betaV = alpha*VibEnergyDOF(iLoop,iDOF)/(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst)
-                CALL RANDOM_NUMBER(iRan)
-                iQuant = INT(betaV+iRan)
-                IF(iQuant.GT.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF)) iQuant=PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF)
-                IF ((OldEn - iQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst*partWeight).LT.0.0) THEN
-                  MaxColQua = OldEn/(BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*partWeight)
-                  IF (INT(MaxColQua).EQ.0) THEN
-                    iQuant = 0
-                  ELSE
-                    CALL RANDOM_NUMBER(iRan)
-                    iQuant = INT(-LOG(iRan)*TEqui/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
-                    iQuaMax = MIN(INT(MaxColQua)+1, PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF))
-                    DO WHILE (iQuant.GE.iQuaMax)
-                      CALL RANDOM_NUMBER(iRan)
-                      iQuant = INT(-LOG(iRan)*TEqui/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
-                    END DO
-                  END IF
-                END IF
-                PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop))  = PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) &
-                   + iQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
-                VibQuantsPar(iPartIndx_NodeRelaxVib(iLoop))%Quants(iDOF) = iQuant
-                OldEn = OldEn - iQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst*partWeight
-              END DO
-              PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop))  = PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) &
-                   + SpecDSMC(iSpec)%EZeroPoint
-            END DO
-          ELSE  ! Diatomic molecules
-            DO iLoop = 1, nVibRelax
-              partWeight = GetParticleWeight(iPartIndx_NodeRelaxVib(iLoop))
-              betaV = alpha*PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop))/(SpecDSMC(iSpec)%CharaTVib*BoltzmannConst)
+IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
+  IF(BGKDoVibRelaxation) THEN
+    IF ((NewEnVib.GT.0.0).AND.(nVibRelax.GT.0)) THEN
+      IF (BGKUseQuantVibEn) THEN
+        alpha = OldEn/NewEnVib*(Xi_Vib*nVibRelax/(3.*(nPart-1.)+Xi_Vib*nVibRelax))
+        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+          DO iLoop = 1, nVibRelax
+            partWeight = GetParticleWeight(iPartIndx_NodeRelaxVib(iLoop))
+            PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) = 0.0
+            DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+              betaV = alpha*VibEnergyDOF(iLoop,iDOF)/(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst)
               CALL RANDOM_NUMBER(iRan)
               iQuant = INT(betaV+iRan)
-              IF (iQuant.GT.SpecDSMC(iSpec)%MaxVibQuant) iQuant = SpecDSMC(iSpec)%MaxVibQuant
-              PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop))  = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
-              IF ((OldEn - (PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) - SpecDSMC(iSpec)%EZeroPoint)*partWeight).LT.0.0) THEN
-                MaxColQua = OldEn/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib*partWeight)
+              IF(iQuant.GT.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF)) iQuant=PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF)
+              IF ((OldEn - iQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst*partWeight).LT.0.0) THEN
+                MaxColQua = OldEn/(BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*partWeight)
                 IF (INT(MaxColQua).EQ.0) THEN
                   iQuant = 0
                 ELSE
                   CALL RANDOM_NUMBER(iRan)
-                  iQuant = INT(-LOG(iRan)*TEqui/SpecDSMC(iSpec)%CharaTVib)
-                  iQuaMax = MIN(INT(MaxColQua)+1, SpecDSMC(iSpec)%MaxVibQuant)
+                  iQuant = INT(-LOG(iRan)*TEqui/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
+                  iQuaMax = MIN(INT(MaxColQua)+1, PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF))
                   DO WHILE (iQuant.GE.iQuaMax)
                     CALL RANDOM_NUMBER(iRan)
-                    iQuant = INT(-LOG(iRan)*TEqui/SpecDSMC(iSpec)%CharaTVib)
+                    iQuant = INT(-LOG(iRan)*TEqui/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
                   END DO
                 END IF
-                PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop))  = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
               END IF
-              OldEn = OldEn - (PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) - SpecDSMC(iSpec)%EZeroPoint)*partWeight
+              PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop))  = PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) &
+                 + iQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
+              VibQuantsPar(iPartIndx_NodeRelaxVib(iLoop))%Quants(iDOF) = iQuant
+              OldEn = OldEn - iQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst*partWeight
             END DO
-          END IF ! SpecDSMC(1)%PolyatomicMol
-        ELSE ! Continuous treatment of vibrational energy
-          alpha = OldEn/NewEnVib*(Xi_Vib*nVibRelax/(3.*(nPart-1.)+Xi_Vib*nVibRelax))
+            PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop))  = PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) &
+                 + SpecDSMC(iSpec)%EZeroPoint
+          END DO
+        ELSE  ! Diatomic molecules
           DO iLoop = 1, nVibRelax
             partWeight = GetParticleWeight(iPartIndx_NodeRelaxVib(iLoop))
-            PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) = alpha*PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) &
-              + SpecDSMC(iSpec)%EZeroPoint
+            betaV = alpha*PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop))/(SpecDSMC(iSpec)%CharaTVib*BoltzmannConst)
+            CALL RANDOM_NUMBER(iRan)
+            iQuant = INT(betaV+iRan)
+            IF (iQuant.GT.SpecDSMC(iSpec)%MaxVibQuant) iQuant = SpecDSMC(iSpec)%MaxVibQuant
+            PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop))  = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
+            IF ((OldEn - (PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) - SpecDSMC(iSpec)%EZeroPoint)*partWeight).LT.0.0) THEN
+              MaxColQua = OldEn/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib*partWeight)
+              IF (INT(MaxColQua).EQ.0) THEN
+                iQuant = 0
+              ELSE
+                CALL RANDOM_NUMBER(iRan)
+                iQuant = INT(-LOG(iRan)*TEqui/SpecDSMC(iSpec)%CharaTVib)
+                iQuaMax = MIN(INT(MaxColQua)+1, SpecDSMC(iSpec)%MaxVibQuant)
+                DO WHILE (iQuant.GE.iQuaMax)
+                  CALL RANDOM_NUMBER(iRan)
+                  iQuant = INT(-LOG(iRan)*TEqui/SpecDSMC(iSpec)%CharaTVib)
+                END DO
+              END IF
+              PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop))  = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
+            END IF
             OldEn = OldEn - (PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) - SpecDSMC(iSpec)%EZeroPoint)*partWeight
           END DO
-        END IF ! BGKUseQuantVibEn
-      ELSE IF (nVibRelax.GT.0) THEN ! Relaxation towards the vibrational ground-state (new state is simply the zero-point energy)
-        DO iLoop = 1, nVibRelax
-          PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) = SpecDSMC(iSpec)%EZeroPoint
+        END IF ! SpecDSMC(1)%PolyatomicMol
+      ELSE ! Continuous treatment of vibrational energy
+        Xi_VibTotal = 0.0
+        DO iSpec = 1, nSpecies
+          Xi_VibTotal = Xi_VibTotal + Xi_VibSpec(iSpec)*nVibRelaxSpec(iSpec)
         END DO
-      END IF ! (NewEnVib.GT.0.0).AND.(nVibRelax.GT.0)
-    END IF ! BGKDoVibRelaxation
-  END IF
-END DO
+        alpha = OldEn/NewEnVib*(Xi_VibTotal/(3.*(nPart-1.)+Xi_VibTotal))
+        DO iLoop = 1, nVibRelax
+          iSpec = PartSpecies(iPartIndx_NodeRelaxVib(iLoop))
+          partWeight = GetParticleWeight(iPartIndx_NodeRelaxVib(iLoop))
+          PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) = alpha*PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) &
+            + SpecDSMC(iSpec)%EZeroPoint
+          OldEn = OldEn - (PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) - SpecDSMC(iSpec)%EZeroPoint)*partWeight
+        END DO
+      END IF ! BGKUseQuantVibEn
+    ELSE IF (nVibRelax.GT.0) THEN ! Relaxation towards the vibrational ground-state (new state is simply the zero-point energy)
+      DO iLoop = 1, nVibRelax
+        iSpec = PartSpecies(iPartIndx_NodeRelaxVib(iLoop))
+        PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) = SpecDSMC(iSpec)%EZeroPoint
+      END DO
+    END IF ! (NewEnVib.GT.0.0).AND.(nVibRelax.GT.0)
+  END IF ! BGKDoVibRelaxation
+END IF
+
 
 OldEn = OldEn + OldEnRot
 ! 8.) Determine the new particle state (for molecules including rotational energy) and ensure energy conservation by scaling the new
 !     velocities with the factor alpha. The actual update of particle velocity happens in the TimeDisc through the change in the
 !     velocity (DSMC_RHS), to enable an easier coupling with existing routines and DSMC)
-alpha = SQRT(OldEn/NewEn*(3.*(nPart-1.))/(Xi_rot*nRotRelax+3.*(nPart-1.)))
+Xi_RotTotal = 0.0
+DO iSpec = 1, nSpecies
+  Xi_RotTotal = Xi_RotTotal + Xi_RotSpec(iSpec)*nRotRelaxSpec(iSpec)
+END DO
+alpha = SQRT(OldEn/NewEn*(3.*(nPart-1.))/(Xi_RotTotal+3.*(nPart-1.)))
 DO iLoop = 1, nRelax
   DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop)) = vBulkAll(1:3) + alpha*(DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop))-vBulk(1:3)) &
                       - PartState(4:6,iPartIndx_NodeRelax(iLoop))
@@ -1266,7 +1292,7 @@ DO iLoop = 1, nPart-nRelax
 END DO
 
 ! 9.) Rotation: Scale the new rotational state of the molecules to ensure energy conservation
-IF ( (nRotRelax.GT.0)) alpha = OldEn/NewEnRot*(Xi_rot*nRotRelax/(Xi_rot*nRotRelax+3.*(nPart-1.)))
+IF ( (nRotRelax.GT.0)) alpha = OldEn/NewEnRot*(Xi_RotTotal/(Xi_RotTotal+3.*(nPart-1.)))
 DO iLoop = 1, nRotRelax
   PartStateIntEn( 2,iPartIndx_NodeRelaxRot(iLoop)) = alpha*PartStateIntEn( 2,iPartIndx_NodeRelaxRot(iLoop))
 END DO
@@ -2589,6 +2615,148 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
 END DO
 
 END SUBROUTINE CalcTEqui
+
+SUBROUTINE CalcTEquiMulti(nPart, nSpec, CellTemp, TRotSpec, TVibSpec, Xi_VibSpec, Xi_Vib_oldSpec, RotExpSpec, VibExpSpec,  &
+      TEqui, rotrelaxfreqSpec, vibrelaxfreqSpec, dtCell, DoVibRelaxIn)
+!===================================================================================================================================
+! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars,              ONLY: SpecDSMC
+USE MOD_BGK_Vars,               ONLY: BGKDoVibRelaxation
+USE MOD_Particle_Vars,          ONLY: nSpecies
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: CellTemp, TRotSpec(nSpecies), TVibSpec(nSpecies), Xi_Vib_oldSpec(nSpecies)
+REAL, INTENT(IN)                :: rotrelaxfreqSpec(nSpecies), vibrelaxfreqSpec(nSpecies), dtCell
+INTEGER, INTENT(IN)             :: nPart, nSpec(nSpecies)
+LOGICAL, OPTIONAL, INTENT(IN)   :: DoVibRelaxIn
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)               :: Xi_VibSpec(nSpecies), TEqui, RotExpSpec(nSpecies), VibExpSpec(nSpecies)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+REAL                            :: TEqui_Old, betaR, betaV, RotFracSpec(nSpecies), VibFracSpec(nSpecies), TEqui_Old2
+REAL                            :: eps_prec=1.0E-0
+REAL                            :: correctFac, correctFacRot, maxexp, TEquiNumDof   !, Xi_rel, 
+LOGICAL                         :: DoVibRelax
+INTEGER                         :: iSpec
+!===================================================================================================================================
+IF (PRESENT(DoVibRelaxIn)) THEN
+  DoVibRelax = DoVibRelaxIn
+ELSE
+  DoVibRelax = BGKDoVibRelaxation
+END IF
+maxexp = LOG(HUGE(maxexp))
+!  Xi_rel = 2.*(2. - SpecDSMC(1)%omegaVHS)
+!  correctFac = 1. + (2.*SpecDSMC(1)%CharaTVib / (CellTemp*(EXP(SpecDSMC(1)%CharaTVib / CellTemp)-1.)))**(2.) &
+!        * EXP(SpecDSMC(1)%CharaTVib /CellTemp) / (2.*Xi_rel)
+!  correctFacRot = 1. + 2./Xi_rel
+
+correctFac = 1.
+correctFacRot = 1.
+DO iSpec=1, nSpecies
+  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    RotExpSpec(iSpec) = exp(-rotrelaxfreqSpec(iSpec)*dtCell/correctFacRot)
+    RotFracSpec(iSpec) = nSpec(iSpec)*(1.-RotExpSpec(iSpec))
+    IF(DoVibRelax) THEN
+      VibExpSpec(iSpec) = exp(-vibrelaxfreqSpec(iSpec)*dtCell/correctFac)
+      VibFracSpec(iSpec) = nSpec(iSpec)*(1.-VibExpSpec(iSpec))
+    ELSE
+      VibExpSpec(iSpec) = 0.0
+      VibFracSpec(iSpec) = 0.0
+      Xi_VibSpec(iSpec) = 0.0
+    END IF
+  END IF
+END DO
+TEqui_Old = 0.0
+TEqui = 3.*(nPart-1.)*CellTemp
+TEquiNumDof = 3.*(nPart-1.)
+DO iSpec=1, nSpecies
+  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    TEqui = TEqui + 2.*RotFracSpec(iSpec)*TRotSpec(iSpec)+Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
+    TEquiNumDof = TEquiNumDof + 2.*RotFracSpec(iSpec) + Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)
+  END IF
+END DO
+TEqui = TEqui / TEquiNumDof
+DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
+  DO iSpec = 1, nSpecies
+    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      IF (ABS(TRotSpec(iSpec)-TEqui).LT.1E-3) THEN
+        RotExpSpec(iSpec) = exp(-rotrelaxfreqSpec(iSpec)*dtCell/correctFacRot)
+      ELSE
+        betaR = ((TRotSpec(iSpec)-CellTemp)/(TRotSpec(iSpec)-TEqui))*rotrelaxfreqSpec(iSpec)*dtCell/correctFacRot
+        IF (-betaR.GT.0.0) THEN
+          RotExpSpec(iSpec) = 0.
+        ELSE IF (betaR.GT.maxexp) THEN
+          RotExpSpec(iSpec) = 0.
+        ELSE
+          RotExpSpec(iSpec) = exp(-betaR)
+        END IF
+      END IF
+      RotFracSpec(iSpec) = nSpec(iSpec)*(1.-RotExpSpec(iSpec))
+      IF(DoVibRelax) THEN
+        IF (ABS(TVibSpec(iSpec)-TEqui).LT.1E-3) THEN
+          VibExpSpec(iSpec) = exp(-vibrelaxfreqSpec(iSpec)*dtCell/correctFac)
+        ELSE
+          betaV = ((TVibSpec(iSpec)-CellTemp)/(TVibSpec(iSpec)-TEqui))*vibrelaxfreqSpec(iSpec)*dtCell/correctFac
+          IF (-betaV.GT.0.0) THEN
+            VibExpSpec(iSpec) = 0.
+          ELSE IF (betaV.GT.maxexp) THEN
+            VibExpSpec(iSpec) = 0.
+          ELSE
+            VibExpSpec(iSpec) = exp(-betaV)
+          END IF
+        END IF
+        IF ((SpecDSMC(iSpec)%CharaTVib/TEqui).GT.maxexp) THEN
+          Xi_VibSpec(iSpec) = 0.0
+        ELSE
+          Xi_VibSpec(iSpec) = 2.*SpecDSMC(iSpec)%CharaTVib/TEqui/(EXP(SpecDSMC(iSpec)%CharaTVib/TEqui)-1.)
+        END IF
+        VibFracSpec = nSpec(iSpec)*(1.-VibExpSpec(iSpec))
+      END IF
+    END IF
+  END DO
+  TEqui_Old = TEqui
+  TEqui_Old2 = TEqui
+
+  TEqui = 3.*(nPart-1.)*CellTemp
+  TEquiNumDof = 3.*(nPart-1.)
+  DO iSpec=1, nSpecies
+    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      TEqui = TEqui + 2.*RotFracSpec(iSpec)*TRotSpec(iSpec)+Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
+      TEquiNumDof = TEquiNumDof + 2.*RotFracSpec(iSpec) + Xi_VibSpec(iSpec)*VibFracSpec(iSpec)
+    END IF
+  END DO
+  TEqui = TEqui / TEquiNumDof
+  IF(DoVibRelax) THEN
+    DO WHILE( ABS( TEqui - TEqui_Old2 ) .GT. eps_prec )
+      TEqui =(TEqui + TEqui_Old2)*0.5
+      DO iSpec=1, nSpecies
+        IF ((SpecDSMC(iSpec)%CharaTVib/TEqui).GT.maxexp) THEN
+          Xi_VibSpec(iSpec) = 0.0
+        ELSE
+          Xi_VibSpec(iSpec) = 2.*SpecDSMC(iSpec)%CharaTVib/TEqui/(EXP(SpecDSMC(iSpec)%CharaTVib/TEqui)-1.)
+        END IF
+      END DO
+      TEqui_Old2 = TEqui
+      TEqui = 3.*(nPart-1.)*CellTemp
+      TEquiNumDof = 3.*(nPart-1.)
+      DO iSpec=1, nSpecies
+        IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+          TEqui = TEqui + 2.*RotFracSpec(iSpec)*TRotSpec(iSpec)+Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
+          TEquiNumDof = TEquiNumDof + 2.*RotFracSpec(iSpec) + Xi_VibSpec(iSpec)*VibFracSpec(iSpec)
+        END IF
+      END DO
+      TEqui = TEqui / TEquiNumDof
+    END DO
+  END IF
+END DO
+
+END SUBROUTINE CalcTEquiMulti
 
 
 SUBROUTINE CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_Vib_DOF, Xi_Vib_old, RotExp, VibExp, TEqui, rotrelaxfreq, vibrelaxfreq, &
