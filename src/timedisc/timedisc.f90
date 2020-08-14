@@ -4222,34 +4222,7 @@ REAL, DIMENSION(3)         :: v_minus, v_plus, v_prime, t_vec
 #ifdef PARTICLES
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! communicate shape function particles
-#if USE_MPI
-  PartMPIExchange%nMPIParticles=0
-  IF(DoExternalParts)THEN
-    ! as we do not have the shape function here, we have to deallocate something
-    SDEALLOCATE(ExtPartState)
-    SDEALLOCATE(ExtPartSpecies)
-    SDEALLOCATE(ExtPartToFIBGM)
-    SDEALLOCATE(ExtPartMPF)
-    ! open receive buffer for number of particles
-    CALL IRecvNbofParticles()
-    ! send number of particles
-    CALL SendNbOfParticles()
-    ! finish communication of number of particles and send particles
-    CALL MPIParticleSend()
-  END IF
-#endif /*USE_MPI*/
-  CALL Deposition(DoInnerParts=.TRUE.) ! because of emission and UpdateParticlePosition
-#if USE_MPI
-  IF(DoExternalParts)THEN
-    ! finish communication
-    CALL MPIParticleRecv()
-  END IF
-  ! here: finish deposition with delta kernel
-  !       maps source terms in physical space
-  ! ALWAYS require
-  PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
-  CALL Deposition(DoInnerParts=.FALSE.) ! needed for closing communication
+  CALL Deposition(DoInnerParts=.TRUE.) ! needed for closing communication
   IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
     IF(DoVerifyCharge) CALL VerifyDepositedCharge()
   END IF
@@ -4357,7 +4330,6 @@ IF (time.GE.DelayTime) THEN
     PartMPIExchange%nMPIParticles=0
 #endif /*USE_MPI*/
     CALL Deposition(DoInnerParts=.TRUE.) ! because of emission and UpdateParticlePosition
-    CALL Deposition(DoInnerParts=.FALSE.) ! needed for closing communication
     IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
       IF(DoVerifyCharge) CALL VerifyDepositedCharge()
     END IF

@@ -421,21 +421,21 @@ DO iPart=FirstPart,LastPart
     alpha3=0.5*(TempPartPos(3)+1.0)
 
     NodeID = ElemNodeID_Shared(:,PEM%CNElemID(iPart))
-    NodeSource(:,NodeInfo_Shared(NodeID(1))) = NodeSource(:,NodeInfo_Shared(NodeID(1))) &
+    NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(1))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(1))) &
         +(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
-    NodeSource(:,NodeInfo_Shared(NodeID(2))) = NodeSource(:,NodeInfo_Shared(NodeID(2))) & 
+    NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(2))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(2))) & 
         +(TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*(1-alpha3))
-    NodeSource(:,NodeInfo_Shared(NodeID(3))) = NodeSource(:,NodeInfo_Shared(NodeID(3))) &
+    NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(3))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(3))) &
         +(TSource(SourceDim:4)*  (alpha1)*  (alpha2)*(1-alpha3))
-    NodeSource(:,NodeInfo_Shared(NodeID(4))) = NodeSource(:,NodeInfo_Shared(NodeID(4))) &
+    NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(4))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(4))) &
         +(TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*(1-alpha3))
-    NodeSource(:,NodeInfo_Shared(NodeID(5))) = NodeSource(:,NodeInfo_Shared(NodeID(5))) &
+    NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(5))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(5))) &
         +(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*  (alpha3))
-    NodeSource(:,NodeInfo_Shared(NodeID(6))) = NodeSource(:,NodeInfo_Shared(NodeID(6))) &
+    NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(6))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(6))) &
         +(TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*  (alpha3))
-    NodeSource(:,NodeInfo_Shared(NodeID(7))) = NodeSource(:,NodeInfo_Shared(NodeID(7))) &
+    NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(7))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(7))) &
         +(TSource(SourceDim:4)*  (alpha1)*  (alpha2)*  (alpha3))
-    NodeSource(:,NodeInfo_Shared(NodeID(8))) = NodeSource(:,NodeInfo_Shared(NodeID(8))) &
+    NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(8))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(8))) &
         +(TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*  (alpha3))
 #if USE_LOADBALANCE
    CALL LBElemSplitTime(PEM%LocalElemID(iPart),tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
