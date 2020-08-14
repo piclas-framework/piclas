@@ -190,18 +190,15 @@ SUBROUTINE ReadMesh(FileString)
 !> its own subset of the mesh.
 !> For a documentation of the mesh format see the documentation provided with HOPR (hopr-project.org)
 !> The arrays ElemInfo, SideInfo and NodeCoords are read, alongside with the boundary condition data.
-!> If the mesh is non-conforming and based on a tree representation, the corresponding tree data (Coords, parameter ranges,
-!> connectivity) is also read in.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars            ,ONLY: tElem,tSide
-USE MOD_Mesh_Vars            ,ONLY: NGeo,NGeoTree
-USE MOD_Mesh_Vars            ,ONLY: NodeCoords,TreeCoords
-USE MOD_Mesh_Vars            ,ONLY: offsetElem,offsetTree,nElems,nGlobalElems,nTrees,nGlobalTrees,nNodes
-USE MOD_Mesh_Vars            ,ONLY: xiMinMax,ElemToTree
+USE MOD_Mesh_Vars            ,ONLY: NGeo
+USE MOD_Mesh_Vars            ,ONLY: NodeCoords
+USE MOD_Mesh_Vars            ,ONLY: offsetElem,nElems,nGlobalElems,nNodes
 USE MOD_Mesh_Vars            ,ONLY: nSides,nInnerSides,nBCSides,nMPISides,nAnalyzeSides,nGlobalMortarSides
-USE MOD_Mesh_Vars            ,ONLY: nMortarSides,isMortarMesh
+USE MOD_Mesh_Vars            ,ONLY: nMortarSides
 USE MOD_Mesh_Vars            ,ONLY: nGlobalUniqueSidesFromMesh
 USE MOD_Mesh_Vars            ,ONLY: useCurveds
 USE MOD_Mesh_Vars            ,ONLY: BoundaryType
@@ -219,7 +216,7 @@ USE MOD_MPI_Shared_Vars      ,ONLY: MPI_COMM_SHARED
 #ifdef PARTICLES
 USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshBasics
 USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshElems,ReadMeshSides,ReadMeshSideNeighbors
-USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshNodes,ReadMeshTrees,CommunicateMeshReadin
+USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshNodes,CommunicateMeshReadin
 USE MOD_Particle_Vars        ,ONLY: VarTimeStep
 USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem
 #if USE_LOADBALANCE
@@ -255,7 +252,6 @@ INTEGER,ALLOCATABLE            :: MPISideCount(:)
 #endif /*USE_MPI*/
 LOGICAL                        :: doConnection
 LOGICAL                        :: oriented
-LOGICAL                        :: isMortarMeshExists
 #ifdef PARTICLES
 REAL, ALLOCATABLE              :: GlobVarTimeStep(:)
 #endif
@@ -599,54 +595,6 @@ ENDIF
 !  ALLOCATE(Elem_IJK(3,nLocalElems))
 !  CALL ReadArray('Elem_IJK',2,(/3,nElems/),offsetElem,2,IntegerArray=Elem_IJK)
 !END IF
-
-! Get Mortar specific arrays
-isMortarMeshExists=.FALSE.
-iMortar=0
-CALL DatasetExists(File_ID,'isMortarMesh',isMortarMeshExists,.TRUE.)
-IF(isMortarMeshExists)&
-    CALL ReadAttribute(File_ID,'isMortarMesh',1,IntegerScalar=iMortar)
-isMortarMesh=(iMortar.EQ.1)
-IF(isMortarMesh)THEN
-  CALL ReadAttribute(File_ID,'NgeoTree',1,IntegerScalar=NGeoTree)
-  CALL ReadAttribute(File_ID,'nTrees',1,IntegerScalar=nGlobalTrees)
-
-  ALLOCATE(xiMinMax(3,2,1:nElems))
-  ! Associate construct for integer KIND=8 possibility
-  ASSOCIATE (&
-        nElems     => INT(nElems,IK)     ,&
-        offsetElem => INT(offsetElem,IK) )
-    xiMinMax=-1.
-    CALL ReadArray('xiMinMax',3,(/3_IK,2_IK,nElems/),offsetElem,3,RealArray=xiMinMax)
-
-    ALLOCATE(ElemToTree(1:nElems))
-    ElemToTree=0
-    CALL ReadArray('ElemToTree',1,(/nElems/),offsetElem,1,IntegerArray_i4=ElemToTree)
-  END ASSOCIATE
-
-  ! only read trees, connected to a procs elements
-  offsetTree=MINVAL(ElemToTree)-1
-  ElemToTree=ElemToTree-offsetTree
-  nTrees=MAXVAL(ElemToTree)
-
-  ALLOCATE(TreeCoords(3,0:NGeoTree,0:NGeoTree,0:NGeoTree,nTrees))
-  TreeCoords=-1.
-  ! Associate construct for integer KIND=8 possibility
-  ASSOCIATE (&
-        NGeoTree   => INT(NGeoTree,IK)            ,&
-        nTrees     => INT(nTrees,IK)              ,&
-        offsetTree => INT(offsetTree,IK)          )
-    CALL ReadArray('TreeCoords',2,(/3_IK,(NGeoTree+1_IK)**3_IK*nTrees/),&
-        (NGeoTree+1_IK)**3_IK*offsetTree,2,RealArray=TreeCoords)
-  END ASSOCIATE
-
-#ifdef PARTICLES
-  CALL ReadMeshTrees()
-#endif
-
-ELSE
-  nTrees=0
-END IF
 
 CALL CloseDataFile()
 
