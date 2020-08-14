@@ -58,19 +58,6 @@ REAL,ALLOCATABLE :: Face_xGP(:,:,:,:)            !< XYZ positions (first index 1
 REAL,DIMENSION(6):: xyzMinMax                    !< from Face_xGP points determined maximum domain extension (min/max of domain)
 LOGICAL          :: GetMeshMinMaxBoundariesIsDone =.FALSE. !< don't call twice the calculation of xyzMinMax
 REAL,ALLOCATABLE,DIMENSION(:,:):: ElemBaryNGeo   !< element local basis: origin
-!----------------------------------------------------------------------------------------------------------------------------------
-! MORTAR DATA FOR NON-CONFORMING MESHES ORIGINATING FROM AN OCTREE BASIS (ONLY ALLOCATED IF isMortarMesh=.TRUE.!!!)
-!----------------------------------------------------------------------------------------------------------------------------------
-LOGICAL          :: isMortarMesh               !< Marker whether non-conforming data is present (false for conforming meshes)
-LOGICAL          :: interpolateFromTree        !< Switch whether to build metrics on tree level and interpolate to elements.
-                                               !< Only applicable if tree data is present in mesh file
-REAL,ALLOCATABLE,TARGET :: TreeCoords(:,:,:,:,:) !< XYZ positions (equidistant,NGeoTree) of tree interpolation points from meshfile
-REAL,ALLOCATABLE :: xiMinMax(:,:,:)            !< Position of the 2 bounding nodes of a quadrant in its tree
-INTEGER          :: NGeoTree                   !< Polynomial degree of trees geometric transformation
-INTEGER          :: nTrees                     !< Local number of trees in mesh
-INTEGER          :: nGlobalTrees               !< Global number of trees in mesh
-INTEGER          :: offsetTree                 !< Tree offset (for MPI)
-INTEGER,ALLOCATABLE :: ElemToTree(:)           !< Index of the tree corresponding to an element
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Metrics on GaussPoints
 !-----------------------------------------------------------------------------------------------------------------------------------

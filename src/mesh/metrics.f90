@@ -43,8 +43,6 @@ MODULE MOD_Metrics
 !>
 !>   3.) Compute the surface metrics (normal/tangential vectors, surface area) from volume metrics for each side.
 !>
-!>  Special case if non-conforming meshes with octree mappings are used. Then compute ALL volume quantities on tree (macro element)
-!>  level and interpolate down to small actual elements. This will ensure watertight meshes and free-stream preservation.
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -87,14 +85,12 @@ CONTAINS
 !==================================================================================================================================
 !> This routine takes the equidistant node coordinats of the mesh (on NGeo+1 points) and uses them to build the coordinates
 !> of solution/interpolation points of type NodeType on polynomial degree Nloc (Nloc+1 points per direction).
-!> The coordinates (for a non-conforming mesh) can also be built from an octree if the mesh is based on a conforming baseline mesh.
 !==================================================================================================================================
-SUBROUTINE BuildCoords(NodeCoords,Nloc,VolumeCoords,TreeCoords)
+SUBROUTINE BuildCoords(NodeCoords,Nloc,VolumeCoords)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: NGeo,nElems
-USE MOD_Mesh_Vars          ,ONLY: ElemToTree,xiMinMax,nTrees,NGeoTree
 USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType
 USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D_XYZ, ChangeBasis3D
@@ -107,18 +103,11 @@ REAL,INTENT(INOUT)            :: NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nElems)      
 INTEGER,INTENT(IN)            :: Nloc                                                  !< Convert to Nloc+1 points per direction
 REAL,INTENT(OUT)              :: VolumeCoords(3,0:Nloc,0:Nloc,0:Nloc,nElems)       !< OUT: Coordinates of solution/interpolation
                                                                                        !< points
-REAL,INTENT(INOUT),OPTIONAL   :: TreeCoords(3,0:NGeoTree,0:NGeoTree,0:NGeoTree,nTrees) !< coordinates of nodes of tree-elements
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: i,iElem
-REAL                          :: XCL_Nloc(3,0:Nloc,0:Nloc,0:Nloc)
-REAL,DIMENSION(0:Nloc,0:Nloc) :: Vdm_xi_N,Vdm_eta_N
-REAL,DIMENSION(0:Nloc,0:Nloc) :: Vdm_zeta_N
+INTEGER                       :: iElem
 REAL                          :: Vdm_EQNGeo_CLNloc(0:Nloc ,0:Ngeo)
 REAL                          :: Vdm_CLNloc_Nloc  (0:Nloc ,0:Nloc)
-REAL                          :: xi0(3),dxi(3),length(3)
-REAL                          :: xiCL_Nloc(0:Nloc),wBaryCL_Nloc(0:Nloc)
-REAL                          :: xiNloc(0:Nloc)
 !==================================================================================================================================
 
 CALL GetVandermonde(    NGeo, NodeTypeVISU, NLoc, NodeTypeCL, Vdm_EQNGeo_CLNloc,  modal=.FALSE.)
@@ -128,27 +117,10 @@ CALL GetVandermonde(    Nloc, NodeTypeCL  , Nloc, NodeType  , Vdm_CLNloc_Nloc,  
 !       Important for curved meshes if NGeo<N, no effect for N>=NGeo
 
 !1.a) Transform from EQUI_NGeo to solution points on Nloc
-IF(PRESENT(TreeCoords))THEN
-  CALL GetNodesAndWeights(Nloc, NodeTypeCL  , xiCL_Nloc  , wIPBary=wBaryCL_Nloc)
-  CALL GetNodesAndWeights(Nloc, NodeType  ,   xiNloc)
-  DO iElem=1,nElems
-    xi0   =xiMinMax(:,1,iElem)
-    length=xiMinMax(:,2,iElem)-xi0
-    CALL ChangeBasis3D(3,NGeo,Nloc,Vdm_EQNGeo_CLNloc,TreeCoords(:,:,:,:,ElemToTree(iElem)),XCL_Nloc)
-    DO i=0,Nloc
-      dxi=0.5*(xiNloc(i)+1.)*length
-      CALL LagrangeInterpolationPolys(xi0(1) + dxi(1),Nloc,xiCL_Nloc,wBaryCL_Nloc,Vdm_xi_N(  i,:))
-      CALL LagrangeInterpolationPolys(xi0(2) + dxi(2),Nloc,xiCL_Nloc,wBaryCL_Nloc,Vdm_eta_N( i,:))
-      CALL LagrangeInterpolationPolys(xi0(3) + dxi(3),Nloc,xiCL_Nloc,wBaryCL_Nloc,Vdm_zeta_N(i,:))
-    END DO
-    CALL ChangeBasis3D_XYZ(3,PP_N,PP_N,Vdm_xi_N,Vdm_eta_N,Vdm_zeta_N,XCL_Nloc,VolumeCoords(:,:,:,:,iElem))
-  END DO
-ELSE
-  Vdm_EQNGeo_CLNloc=MATMUL(Vdm_CLNloc_Nloc,Vdm_EQNGeo_CLNloc)
-  DO iElem=1,nElems
-    CALL ChangeBasis3D(3,NGeo,Nloc,Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iElem),VolumeCoords(:,:,:,:,iElem))
-  END DO
-END IF
+Vdm_EQNGeo_CLNloc=MATMUL(Vdm_CLNloc_Nloc,Vdm_EQNGeo_CLNloc)
+DO iElem=1,nElems
+  CALL ChangeBasis3D(3,NGeo,Nloc,Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iElem),VolumeCoords(:,:,:,:,iElem))
+END DO
 
 END SUBROUTINE BuildCoords
 
@@ -166,13 +138,12 @@ USE MOD_Mesh_Vars,               ONLY:Face_xGP,normVec,surfElem,TangVec1,TangVec
 USE MOD_Mesh_Vars,               ONLY:nElems,dXCL_N
 USE MOD_Mesh_Vars,               ONLY:detJac_Ref,Ja_Face
 USE MOD_Mesh_Vars,               ONLY:crossProductMetrics
-USE MOD_Mesh_Vars,               ONLY:NodeCoords,TreeCoords,Elem_xGP
-USE MOD_Mesh_Vars,               ONLY:ElemToTree,xiMinMax,interpolateFromTree
+USE MOD_Mesh_Vars,               ONLY:NodeCoords,Elem_xGP
 USE MOD_Mesh_Vars,               ONLY:nElems,offSetElem
 USE MOD_Interpolation,           ONLY:GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
 USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
-USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU,NodeType,xGP
+USE MOD_Interpolation_Vars,      ONLY:NodeTypeCL,NodeTypeVISU,NodeType
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -189,18 +160,14 @@ INTEGER :: i,j,k,q,iElem
 INTEGER :: ll
 ! Jacobian on CL N and NGeoRef
 REAL    :: DetJac_N( 1,0:PP_N,   0:PP_N,   0:PP_N)
-REAL    :: tmp(      1,0:NgeoRef,0:NgeoRef,0:NgeoRef)
-!REAL    :: tmp2(     1,0:Ngeo,0:Ngeo,0:Ngeo)
 ! interpolation points and derivatives on CL N
 REAL    :: XCL_N(      3,  0:PP_N,0:PP_N,0:PP_N)          ! mapping X(xi) P\in N
 REAL    :: XCL_Ngeo(   3,  0:Ngeo,0:Ngeo,0:Ngeo)          ! mapping X(xi) P\in Ngeo
-REAL    :: XCL_N_quad( 3,  0:PP_N,0:PP_N,0:PP_N)          ! mapping X(xi) P\in N
 REAL    :: dXCL_Ngeo(  3,3,0:Ngeo,0:Ngeo,0:Ngeo)          ! jacobi matrix on CL Ngeo
 REAL    :: dX_NgeoRef( 3,3,0:NgeoRef,0:NgeoRef,0:NgeoRef) ! jacobi matrix on SOL NgeoRef
 
 REAL    :: R_CL_N(     3,3,0:PP_N,0:PP_N,0:PP_N)    ! buffer for metric terms, uses XCL_N,dXCL_N
 REAL    :: JaCL_N(     3,3,0:PP_N,0:PP_N,0:PP_N)    ! metric terms P\in N
-REAL    :: JaCL_N_quad(3,3,0:PP_N,0:PP_N,0:PP_N)    ! metric terms P\in N
 REAL    :: scaledJac(2)
 
 ! Polynomial derivativion matrices
@@ -215,13 +182,9 @@ REAL    :: Vdm_CLNGeo_CLN(    0:PP_N   ,0:Ngeo)
 REAL    :: Vdm_CLN_N(         0:PP_N   ,0:PP_N)
 
 ! 3D Vandermonde matrices and lengths,nodes,weights
-REAL,DIMENSION(0:NgeoRef,0:NgeoRef) :: Vdm_xi_Ref,Vdm_eta_Ref,Vdm_zeta_Ref
-REAL,DIMENSION(0:PP_N   ,0:PP_N)    :: Vdm_xi_N  ,Vdm_eta_N  ,Vdm_zeta_N
-REAL,DIMENSION(0:NGeo   ,0:NGeo)    :: Vdm_xi_NGeo  ,Vdm_eta_NGeo  ,Vdm_zeta_NGeo
 REAL    :: xiRef( 0:NgeoRef),wBaryRef( 0:NgeoRef)
 REAL    :: xiCL_N(0:PP_N)   ,wBaryCL_N(0:PP_N)
 REAL    :: xiCL_NGeo(0:NGeo)   ,wBaryCL_NGeo(0:NGeo)
-REAL    :: xi0(3),dxi(3),length(3)
 
 REAL               :: StartT,EndT
 !===================================================================================================================================
@@ -258,7 +221,6 @@ CALL GetDerivativeMatrix(PP_N  , NodeTypeCL  , DCL_N)
 CALL GetVandermonde(    PP_N   , NodeTypeCL  , PP_N    , NodeType,   Vdm_CLN_N         , modal=.FALSE.)
 CALL GetNodesAndWeights(PP_N   , NodeTypeCL  , xiCL_N  , wIPBary=wBaryCL_N)
 
-! 3.a) Interpolate from Tree for particls
 CALL GetNodesAndWeights(NGeo   , NodeTypeCL  , XiCL_NGeo  , wIPBary=wBaryCL_NGeo)
 
 ! Outer loop over all elements
@@ -266,14 +228,8 @@ detJac_Ref=0.
 dXCL_N=0.
 DO iElem=1,nElems
   !1.a) Transform from EQUI_Ngeo to CL points on Ngeo and N
-  IF(interpolateFromTree)THEN
-    xi0   =xiMinMax(:,1,iElem)
-    length=xiMinMax(:,2,iElem)-xi0
-    CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_EQNGeo_CLNGeo,TreeCoords(:,:,:,:,ElemToTree(iElem)),XCL_Ngeo)
-  ELSE
-    CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_EQNGeo_CLNGeo,NodeCoords(:,:,:,:,iElem)            ,XCL_Ngeo)
-  END IF
-  CALL   ChangeBasis3D(3,NGeo,PP_N,Vdm_CLNGeo_CLN,   XCL_Ngeo                             ,XCL_N)
+  CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_EQNGeo_CLNGeo,NodeCoords(:,:,:,:,iElem)            ,XCL_Ngeo)
+  CALL ChangeBasis3D(3,NGeo,PP_N,Vdm_CLNGeo_CLN,   XCL_Ngeo                             ,XCL_N)
 
   !1.b) Jacobi Matrix of d/dxi_dd(X_nn): dXCL_NGeo(dd,nn,i,j,k))
   dXCL_NGeo=0.
@@ -299,18 +255,6 @@ DO iElem=1,nElems
       + dX_NgeoRef(3,1,i,j,k)*(dX_NgeoRef(1,2,i,j,k)*dX_NgeoRef(2,3,i,j,k) - dX_NgeoRef(2,2,i,j,k)*dX_NgeoRef(1,3,i,j,k))
   END DO; END DO; END DO !i,j,k=0,NgeoRef
 
-  IF(interpolateFromTree)THEN
-    !interpolate detJac to the GaussPoints
-    DO i=0,NgeoRef
-      dxi=0.5*(xiRef(i)+1.)*Length
-      CALL LagrangeInterpolationPolys(xi0(1) + dxi(1),NgeoRef,xiRef,wBaryRef,Vdm_xi_Ref(  i,:))
-      CALL LagrangeInterpolationPolys(xi0(2) + dxi(2),NgeoRef,xiRef,wBaryRef,Vdm_eta_Ref( i,:))
-      CALL LagrangeInterpolationPolys(xi0(3) + dxi(3),NgeoRef,xiRef,wBaryRef,Vdm_zeta_Ref(i,:))
-    END DO
-    tmp=DetJac_Ref(:,:,:,:,iElem)
-    CALL ChangeBasis3D_XYZ(1,NgeoRef,NgeoRef,Vdm_xi_Ref,Vdm_eta_Ref,Vdm_zeta_Ref,&
-                           tmp,DetJac_Ref(:,:,:,:,iElem))
-  END IF
   ! interpolate detJac_ref to the solution points
   CALL ChangeBasis3D(1,NgeoRef,PP_N,Vdm_NgeoRef_N,DetJac_Ref(:,:,:,:,iElem),DetJac_N)
 
@@ -408,87 +352,21 @@ DO iElem=1,nElems
     END DO; END DO; END DO !i,j,k=0,N
   END IF !crossProductMetrics
 
-
-  IF(interpolateFromTree)THEN
-    ! interpolate Metrics from Cheb-Lobatto N on tree level onto GaussPoints N on quad level
-    DO i=0,PP_N
-      dxi=0.5*(xGP(i)+1.)*length
-      CALL LagrangeInterpolationPolys(xi0(1) + dxi(1),PP_N,xiCL_N,wBaryCL_N,Vdm_xi_N(  i,:))
-      CALL LagrangeInterpolationPolys(xi0(2) + dxi(2),PP_N,xiCL_N,wBaryCL_N,Vdm_eta_N( i,:))
-      CALL LagrangeInterpolationPolys(xi0(3) + dxi(3),PP_N,xiCL_N,wBaryCL_N,Vdm_zeta_N(i,:))
-    END DO
-    CALL ChangeBasis3D_XYZ(3,PP_N,PP_N,Vdm_xi_N,Vdm_eta_N,Vdm_zeta_N,JaCL_N(1,:,:,:,:),Metrics_fTilde(:,:,:,:,iElem))
-    CALL ChangeBasis3D_XYZ(3,PP_N,PP_N,Vdm_xi_N,Vdm_eta_N,Vdm_zeta_N,JaCL_N(2,:,:,:,:),Metrics_gTilde(:,:,:,:,iElem))
-    CALL ChangeBasis3D_XYZ(3,PP_N,PP_N,Vdm_xi_N,Vdm_eta_N,Vdm_zeta_N,JaCL_N(3,:,:,:,:),Metrics_hTilde(:,:,:,:,iElem))
-    ! for the metrics and the jacobian, we have to take into account the level !!!!!
-    Metrics_fTilde(:,:,:,:,iElem)=(length(1)/2.)**2*Metrics_fTilde(:,:,:,:,iElem)
-    Metrics_gTilde(:,:,:,:,iElem)=(length(2)/2.)**2*Metrics_gTilde(:,:,:,:,iElem)
-    Metrics_hTilde(:,:,:,:,iElem)=(length(3)/2.)**2*Metrics_hTilde(:,:,:,:,iElem)
-    sJ(:,:,:,iElem)=(8./PRODUCT(length))*sJ(:,:,:,iElem) ! scale down sJ
-
-    ! interpolate Metrics and grid to Cheb-Lobatto on quadrant level for Surface metrics
-    DO i=0,PP_N
-      dxi=0.5*(xiCL_N(i)+1.)*length
-      CALL LagrangeInterpolationPolys(xi0(1) + dxi(1),PP_N,xiCL_N,wBaryCL_N,Vdm_xi_N(  i,:))
-      CALL LagrangeInterpolationPolys(xi0(2) + dxi(2),PP_N,xiCL_N,wBaryCL_N,Vdm_eta_N( i,:))
-      CALL LagrangeInterpolationPolys(xi0(3) + dxi(3),PP_N,xiCL_N,wBaryCL_N,Vdm_zeta_N(i,:))
-    END DO
-    CALL ChangeBasis3D_XYZ(3,PP_N,PP_N,Vdm_xi_N,Vdm_eta_N,Vdm_zeta_N,XCL_N            ,XCL_N_quad            )
-    CALL ChangeBasis3D_XYZ(3,PP_N,PP_N,Vdm_xi_N,Vdm_eta_N,Vdm_zeta_N,JaCL_N(1,:,:,:,:),JaCL_N_quad(1,:,:,:,:))
-    CALL ChangeBasis3D_XYZ(3,PP_N,PP_N,Vdm_xi_N,Vdm_eta_N,Vdm_zeta_N,JaCL_N(2,:,:,:,:),JaCL_N_quad(2,:,:,:,:))
-    CALL ChangeBasis3D_XYZ(3,PP_N,PP_N,Vdm_xi_N,Vdm_eta_N,Vdm_zeta_N,JaCL_N(3,:,:,:,:),JaCL_N_quad(3,:,:,:,:))
-    !TODO: scale Ja for anisotropic
-    JaCL_N_quad(:,1,:,:,:)=(length(2)*length(3)/4.)*JaCL_N_quad(:,1,:,:,:)
-    JaCL_N_quad(:,2,:,:,:)=(length(1)*length(3)/4.)*JaCL_N_quad(:,2,:,:,:)
-    JaCL_N_quad(:,3,:,:,:)=(length(1)*length(2)/4.)*JaCL_N_quad(:,3,:,:,:)
-    CALL CalcSurfMetrics(PP_N,JaCL_N_quad,XCL_N_quad,Vdm_CLN_N,iElem,&
-                         NormVec,TangVec1,TangVec2,SurfElem,Face_xGP,Ja_Face)
+  ! interpolate Metrics from Cheb-Lobatto N onto GaussPoints N
+  CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_N,JaCL_N(1,:,:,:,:),Metrics_fTilde(:,:,:,:,iElem))
+  CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_N,JaCL_N(2,:,:,:,:),Metrics_gTilde(:,:,:,:,iElem))
+  CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_N,JaCL_N(3,:,:,:,:),Metrics_hTilde(:,:,:,:,iElem))
+  CALL CalcSurfMetrics(PP_N,JaCL_N,XCL_N,Vdm_CLN_N,iElem,&
+                        NormVec,TangVec1,TangVec2,SurfElem,Face_xGP,Ja_Face)
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)
-    CALL CalcElemLocalSurfMetrics(PP_N,JaCL_N_quad,Vdm_CLN_N,iElem)
+  CALL CalcElemLocalSurfMetrics(PP_N,JaCL_N,Vdm_CLN_N,iElem)
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
-  ELSE
-    ! interpolate Metrics from Cheb-Lobatto N onto GaussPoints N
-    CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_N,JaCL_N(1,:,:,:,:),Metrics_fTilde(:,:,:,:,iElem))
-    CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_N,JaCL_N(2,:,:,:,:),Metrics_gTilde(:,:,:,:,iElem))
-    CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_N,JaCL_N(3,:,:,:,:),Metrics_hTilde(:,:,:,:,iElem))
-    CALL CalcSurfMetrics(PP_N,JaCL_N,XCL_N,Vdm_CLN_N,iElem,&
-                         NormVec,TangVec1,TangVec2,SurfElem,Face_xGP,Ja_Face)
-#ifdef maxwell
-#if defined(ROS) || defined(IMPA)
-    CALL CalcElemLocalSurfMetrics(PP_N,JaCL_N,Vdm_CLN_N,iElem)
-#endif /*ROS or IMPA*/
-#endif /*maxwell*/
-  END IF
 
   ! particle mapping
-  IF(interpolateFromTree)THEN
-    IF((PRESENT(XCL_Ngeo_Out)).OR.(PRESENT(dXCL_NGeo_Out)))THEN
-      ! interpolate Metrics from Cheb-Lobatto N on tree level onto GaussPoints N on quad level
-      DO i=0,NGeo
-        dxi=0.5*(xiCL_NGeo(i)+1.)*length
-        CALL LagrangeInterpolationPolys(xi0(1) + dxi(1),NGeo,xiCL_NGeo,wBaryCL_NGeo,Vdm_xi_NGeo(  i,:))
-        CALL LagrangeInterpolationPolys(xi0(2) + dxi(2),NGeo,xiCL_NGeo,wBaryCL_NGeo,Vdm_eta_NGeo( i,:))
-        CALL LagrangeInterpolationPolys(xi0(3) + dxi(3),NGeo,xiCL_NGeo,wBaryCL_NGeo,Vdm_zeta_NGeo(i,:))
-      END DO
-      IF(PRESENT(XCL_Ngeo_Out))THEN
-        CALL ChangeBasis3D_XYZ(3,NGeo,NGeo,Vdm_xi_NGeo,Vdm_eta_NGeo,Vdm_zeta_NGeo, XCL_NGeo    (1:3,0:NGeo,0:NGeo,0:NGeo) &
-                                                                                 , XCL_NGeo_Out(1:3,0:NGeo,0:NGeo,0:NGeo,iElem))
-      END IF
-      IF(PRESENT(dXCL_nGeo_out))THEN
-        CALL ChangeBasis3D_XYZ(3,NGeo,NGeo,Vdm_xi_NGeo,Vdm_eta_NGeo,Vdm_zeta_NGeo,dXCL_NGeo    (1,1:3,0:NGeo,0:NGeo,0:NGeo) &
-                                                                                 ,dXCL_NGeo_Out(1,1:3,0:NGeo,0:NGeo,0:NGeo,iElem))
-        CALL ChangeBasis3D_XYZ(3,NGeo,NGeo,Vdm_xi_NGeo,Vdm_eta_NGeo,Vdm_zeta_NGeo,dXCL_NGeo    (2,1:3,0:NGeo,0:NGeo,0:NGeo) &
-                                                                                 ,dXCL_NGeo_Out(2,1:3,0:NGeo,0:NGeo,0:NGeo,iElem))
-        CALL ChangeBasis3D_XYZ(3,NGeo,NGeo,Vdm_xi_NGeo,Vdm_eta_NGeo,Vdm_zeta_NGeo,dXCL_NGeo    (3,1:3,0:NGeo,0:NGeo,0:NGeo) &
-                                                                                 ,dXCL_NGeo_Out(3,1:3,0:NGeo,0:NGeo,0:NGeo,iElem))
-      END IF
-    END IF
-  ELSE
-    IF(PRESENT(XCL_Ngeo_Out))   XCL_Ngeo_Out(1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)= XCL_Ngeo(1:3,0:Ngeo,0:Ngeo,0:Ngeo)
-    IF(PRESENT(dXCL_ngeo_out)) dXCL_Ngeo_Out(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)=dXCL_Ngeo(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo)
-  END IF
+  IF(PRESENT(XCL_Ngeo_Out))   XCL_Ngeo_Out(1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)= XCL_Ngeo(1:3,0:Ngeo,0:Ngeo,0:Ngeo)
+  IF(PRESENT(dXCL_ngeo_out)) dXCL_Ngeo_Out(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)=dXCL_Ngeo(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo)
 END DO !iElem=1,nElems
 
 endt=PICLASTIME()
@@ -811,7 +689,6 @@ CALL GetDerivativeMatrix(PP_N  , NodeTypeCL  , DCL_N)
 CALL GetVandermonde(    PP_N   , NodeTypeCL  , PP_N    , NodeType,   Vdm_CLN_N         , modal=.FALSE.)
 CALL GetNodesAndWeights(PP_N   , NodeTypeCL  , xiCL_N  , wIPBary=wBaryCL_N)
 
-! 3.a) Interpolate from Tree for particles
 CALL GetNodesAndWeights(NGeo   , NodeTypeCL  , XiCL_NGeo  , wIPBary=wBaryCL_NGeo)
 
 ! Outer loop over all elements

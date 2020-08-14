@@ -74,10 +74,6 @@ CALL prms%CreateLogicalOption( 'useCurveds',          "Controls usage of high-or
                                                       "high-order data and treat curved meshes as linear meshes.", '.TRUE.')
 
 CALL prms%CreateLogicalOption( 'DoWriteStateToHDF5',  "Write state of calculation to hdf5-file. TODO-DEFINE-PARAMETER",'.TRUE.')
-CALL prms%CreateLogicalOption( 'interpolateFromTree', "For non-conforming meshes, built by refinement from a tree structure, "//&
-                                                      "the metrics can be built from the tree geometry if it is contained "//&
-                                                      "in the mesh. Can improve free-stream preservation.",&
-                                                      '.TRUE.')
 CALL prms%CreateRealOption(    'meshScale',           "Scale the mesh by this factor (shrink/enlarge).",&
                                                       '1.0')
 CALL prms%CreateLogicalOption( 'meshdeform',          "Apply simple sine-shaped deformation on cartesion mesh (for testing).",&
@@ -242,17 +238,8 @@ CALL ReadMesh(MeshFile) !set nElems
 !schmutz fink
 PP_nElems=nElems
 
-! if trees are available: compute metrics on tree level and interpolate to elements
-interpolateFromTree=.FALSE.
-IF(isMortarMesh) interpolateFromTree=GETLOGICAL('interpolateFromTree','.TRUE.')
-IF(interpolateFromTree)THEN
-  coords=>TreeCoords
-  NGeo=NGeoTree
-  nElemsLoc=nTrees
-ELSE
-  coords=>NodeCoords
-  nElemsLoc=nElems
-ENDIF
+coords=>NodeCoords
+nElemsLoc=nElems
 
 ! scale and deform mesh if desired (warning: no mesh output!)
 #if !PARTICLES
@@ -271,11 +258,7 @@ IF(GETLOGICAL('meshdeform','.FALSE.'))THEN
 END IF
 
 ALLOCATE(Elem_xGP      (3,0:PP_N,0:PP_N,0:PP_N,nElems))
-IF(interpolateFromTree)THEN
-  CALL BuildCoords(NodeCoords,PP_N,Elem_xGP,TreeCoords)
-ELSE
-  CALL BuildCoords(NodeCoords,PP_N,Elem_xGP)
-ENDIF
+CALL BuildCoords(NodeCoords,PP_N,Elem_xGP)
 
 ! Return if no connectivity and metrics are required (e.g. for visualization mode)
 IF (meshMode.GT.0) THEN
@@ -1093,9 +1076,6 @@ SDEALLOCATE(XiCL_NGeo)
 SDEALLOCATE(MortarType)
 SDEALLOCATE(MortarInfo)
 SDEALLOCATE(MortarSlave2MasterInfo)
-SDEALLOCATE(xiMinMax)
-SDEALLOCATE(ElemToTree)
-SDEALLOCATE(TreeCoords)
 ! mappings
 SDEALLOCATE(VolToSideA)
 SDEALLOCATE(VolToSide2A)
