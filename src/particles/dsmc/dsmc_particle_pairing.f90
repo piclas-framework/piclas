@@ -48,7 +48,7 @@ SUBROUTINE DSMC_pairing_standard(iElem)
 !> collision procedure is performed.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: PEM, PDM
+USE MOD_Particle_Vars         ,ONLY: PEM
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offsetElem

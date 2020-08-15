@@ -39,7 +39,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, Pi
 USE MOD_Particle_Vars          ,ONLY: AdaptiveWeightFac,nSpecies, Species, VarTimeStep, DoPoissonRounding, DoTimeDepInflow
-USE MOD_Particle_Vars          ,ONLY: nMacroRestartFiles, Symmetry2D, UseAdaptive, UseCircularInflow
+USE MOD_Particle_Vars          ,ONLY: Symmetry2D, UseAdaptive, UseCircularInflow
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, TriaSurfaceFlux
@@ -145,11 +145,9 @@ __STAMP__&
     END IF !.NOT.VeloIsNormal
     IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
       !--- normalize VeloVecIC
-      IF (nMacroRestartFiles.EQ.0) THEN
-        IF (.NOT. ALL(Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(:).eq.0.)) THEN
-          Species(iSpec)%Surfaceflux(iSF)%VeloVecIC = Species(iSpec)%Surfaceflux(iSF)%VeloVecIC &
-            /SQRT(DOT_PRODUCT(Species(iSpec)%Surfaceflux(iSF)%VeloVecIC,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC))
-        END IF
+      IF (.NOT. ALL(Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(:).eq.0.)) THEN
+        Species(iSpec)%Surfaceflux(iSF)%VeloVecIC = Species(iSpec)%Surfaceflux(iSF)%VeloVecIC &
+          /SQRT(DOT_PRODUCT(Species(iSpec)%Surfaceflux(iSF)%VeloVecIC,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC))
       END IF
     END IF
     Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC       = GETREAL('Part-Species'//TRIM(hilf2)//'-MWTemperatureIC','0.')
