@@ -1053,7 +1053,7 @@ IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
       TEqui, rotrelaxfreqSpec, vibrelaxfreqSpec, dt)
 !  END IF
   IF(DSMC%CalcQualityFactors) THEN
-    BGK_MaxRotRelaxFactor          = MAX(BGK_MaxRotRelaxFactor,rotrelaxfreq*dt)
+    BGK_MaxRotRelaxFactor          = MAX(BGK_MaxRotRelaxFactor,MAXVAL(rotrelaxfreqSpec(:))*dt)
   END IF
 END IF
 
@@ -2736,10 +2736,12 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
     DO WHILE( ABS( TEqui - TEqui_Old2 ) .GT. eps_prec )
       TEqui =(TEqui + TEqui_Old2)*0.5
       DO iSpec=1, nSpecies
-        IF ((SpecDSMC(iSpec)%CharaTVib/TEqui).GT.maxexp) THEN
-          Xi_VibSpec(iSpec) = 0.0
-        ELSE
-          Xi_VibSpec(iSpec) = 2.*SpecDSMC(iSpec)%CharaTVib/TEqui/(EXP(SpecDSMC(iSpec)%CharaTVib/TEqui)-1.)
+        IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+          IF ((SpecDSMC(iSpec)%CharaTVib/TEqui).GT.maxexp) THEN
+            Xi_VibSpec(iSpec) = 0.0
+          ELSE
+            Xi_VibSpec(iSpec) = 2.*SpecDSMC(iSpec)%CharaTVib/TEqui/(EXP(SpecDSMC(iSpec)%CharaTVib/TEqui)-1.)
+          END IF
         END IF
       END DO
       TEqui_Old2 = TEqui
