@@ -1989,6 +1989,8 @@ ALLOCATE(BGGas%BackgroundSpecies(nSpecies))
 BGGas%BackgroundSpecies = .FALSE.
 ALLOCATE(BGGas%NumberDensity(nSpecies))
 BGGas%NumberDensity = 0.
+ALLOCATE(SpecReset(1:nSpecies))
+SpecReset=.FALSE.
 
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -2363,7 +2365,7 @@ __STAMP__&
           PartDens_OnlyInit=.TRUE.
         ELSE
           CALL abort(&
-__STAMP__&
+            __STAMP__&
             , 'PartDensity is only supported for EmiType1 or initial ParticleInserting with EmiType1/2!')
         END IF
       END IF
@@ -2374,8 +2376,8 @@ __STAMP__&
           .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') ) ) THEN
           IF (Species(iSpec)%Init(iInit)%ParticleEmission .GT. 0.) THEN
             CALL abort(&
-__STAMP__&
-            ,'Either ParticleEmission or PartDensity can be defined for selected emission parameters, not both!')
+              __STAMP__&
+              ,'Either ParticleEmission or PartDensity can be defined for selected emission parameters, not both!')
           END IF
           !---calculation of Base-Area and corresponding component of VeloVecIC
           lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
@@ -2398,7 +2400,7 @@ __STAMP__&
                 PartDens_OnlyInit=.TRUE.
               ELSE
                 CALL abort(&
-__STAMP__&
+                  __STAMP__&
                   ,'PartDensity is only supported for CalcHeightFromDt, or initial ParticleInserting!')
               END IF
             END IF
@@ -2414,7 +2416,7 @@ __STAMP__&
             IF (Species(iSpec)%Init(iInit)%UseForInit) THEN
               IF (Species(iSpec)%Init(iInit)%initialParticleNumber .GT. 0) THEN
                 CALL abort(&
-__STAMP__&
+                  __STAMP__&
                   ,'Either initialParticleNumber or PartDensity can be defined for selected parameters, not both!')
               END IF
               IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid') THEN
@@ -2433,28 +2435,28 @@ __STAMP__&
             END IF
           ELSE
             CALL abort(&
-__STAMP__&
+              __STAMP__&
               ,'BaseVectors are parallel or zero!')
           END IF
         ELSE
           CALL abort(&
-__STAMP__&
-          ,'Only const. or maxwell(_lpn) is supported as velocityDistr. for PartDensity!')
+            __STAMP__&
+            ,'Only const. or maxwell(_lpn) is supported as velocityDistr. for PartDensity!')
         END IF
       ELSE IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cell_local')) THEN
-           IF( (TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
+        IF( (TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
            .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') &
            .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'taylorgreenvortex') )THEN
           IF (Species(iSpec)%Init(iInit)%ParticleEmission .GT. 0.) THEN
             CALL abort(&
-__STAMP__&
-            ,'Either ParticleEmission or PartDensity can be defined for cell_local emission parameters, not both!')
+              __STAMP__&
+              ,'Either ParticleEmission or PartDensity can be defined for cell_local emission parameters, not both!')
           END IF
           IF (LocalVolume.GT.0.) THEN
             IF (Species(iSpec)%Init(iInit)%UseForInit) THEN
               IF (Species(iSpec)%Init(iInit)%initialParticleNumber .GT. 0) THEN
                 CALL abort(&
-__STAMP__&
+                  __STAMP__&
                   ,'Either initialParticleNumber or PartDensity can be defined for selected parameters, not both!')
               END IF
               Species(iSpec)%Init(iInit)%initialParticleNumber &
@@ -2462,21 +2464,22 @@ __STAMP__&
             END IF
           ELSE
             CALL abort(&
-__STAMP__&
+              __STAMP__&
               ,'Local mesh volume is zero!')
           END IF
         ELSE
           ! maxwell might also work for cell_local but not with cell dependant temperatures as with MacroRestart
           CALL abort(&
-__STAMP__&
-          ,'Only const. or maxwell_lpn is supported as velocityDistr. using cell_local inserting with PartDensity!')
+            __STAMP__&
+            ,'Only const. or maxwell_lpn is supported as velocityDistr. using cell_local inserting with PartDensity!')
         END IF
       ELSE IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'background') THEN
         ! do nothing
       ELSE
+        SWRITE(*,*) 'SpaceIC is: ', TRIM(Species(iSpec)%Init(iInit)%SpaceIC)
         CALL abort(&
-__STAMP__&
-        ,'ERROR: Unknown SpaceIC for species: ', iSpec)
+          __STAMP__&
+          ,'ERROR: Unknown SpaceIC for species: ', iSpec)
       END IF
     END IF
     IF(Species(iSpec)%Init(iInit)%InflowRiseTime.GT.0.)THEN
