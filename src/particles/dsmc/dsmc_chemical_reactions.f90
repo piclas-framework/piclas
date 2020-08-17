@@ -110,7 +110,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   IF((EductReac(3).NE.0).AND.(.NOT.PRESENT(iPart_p3))) THEN
     CALL abort(&
      __STAMP__&
-     ,'Optional argument (iPart_p3) is missing for the recombination reaction. Reaction: ',iReac)
+     ,'Third particle is missing for the recombination reaction. Reaction: ',iReac)
   END IF
 
   IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
@@ -371,7 +371,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
       ELSE
         ReactionProb = BetaReaction * ((EReact - ChemReac%EActiv(iReac)))                                                       &
               ** (ChemReac%Arrhenius_Powerfactor(iReac) - 1.5 + SpecDSMC(EductReac(1))%omegaVHS             &
-              + Xi_Total/2.) * (EReact) ** (1.0 - SpecDSMC(EductReac(1))%VFD_Phi3_Factor - Xi_Total/2.)
+              + Xi_Total/2.) * (EReact) ** (1.0 - Xi_Total/2.)
       END IF
     END IF
   ELSE
@@ -393,6 +393,16 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
     END IF
 #endif
   END IF
+
+! Calculation of reaction rate coefficient
+#if (PP_TimeDiscMethod==42)
+  IF (DSMC%ReservoirRateStatistic) THEN
+    ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1
+  ELSE
+    ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb
+    ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
+  END IF
+#endif
 
 END SUBROUTINE CalcReactionProb
 
@@ -448,6 +458,20 @@ REAL                          :: Energy_old,Energy_new,Momentum_old(3),Momentum_
 INTEGER                       :: iMom, iMomDim
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
+! Do not perform the reaction in case the reaction is to be calculated at a constant gas composition
+#if (PP_TimeDiscMethod==42)
+IF (DSMC%ReservoirSimuRate) THEN
+  IF(ChemReac%RecombParticle.EQ.0) THEN
+    Coll_pData(PairForRec)%NeedForRec = .TRUE.
+    ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+    ChemReac%nPairForRec = ChemReac%nPairForRec + 1
+  ELSE
+    ChemReac%RecombParticle = 0
+  END IF
+  RETURN
+END IF
+#endif
+
 Xi_elec = 0.
 Telec = 0.
 EZeroTempToExec = 0.
@@ -1076,6 +1100,19 @@ IF(CalcPartBalance) THEN
     nPartIn(ProductReac(iPart))=nPartIn(ProductReac(iPart)) + 1
     PartEkinIn(ProductReac(iPart))=PartEkinIn(ProductReac(iPart))+CalcEkinPart(ReactInx(iPart))
   END DO
+END IF
+
+IF(EductReac(3).NE.0) THEN
+  IF(ChemReac%RecombParticle.EQ.0) THEN
+    ! A pair was broken up before to use its first collision partner as a third recombination partner. Now that the
+    ! recombination occurred, the collision will not be performed anymore and the second collision partner is saved as
+    ! a possible third recombination partner
+    Coll_pData(ChemReac%LastPairForRec)%NeedForRec = .TRUE.
+    ChemReac%RecombParticle = Coll_pData(ChemReac%LastPairForRec)%iPart_p2
+    ChemReac%nPairForRec = ChemReac%nPairForRec + 1
+  ELSE
+    ChemReac%RecombParticle = 0
+  END IF
 END IF
 
 #ifdef CODE_ANALYZE

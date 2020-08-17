@@ -273,95 +273,6 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot[$]'  &
                                            ,'Characteristic rotational temperature [K]. Linear molecules require only a single '//&
                                             'input, while non-linear molecules require three.', '0.', numberedmulti=.TRUE.)
 
-CALL prms%SetSection("DSMC Chemistry")
-CALL prms%CreateIntOption(      'DSMC-NumOfReactions'  &
-                                           ,'Number of reactions.', '0')
-CALL prms%CreateIntOption(      'DSMC-Reaction[$]-NumberOfNonReactives'  &
-                                           ,'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
-CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-NonReactiveSpecies'  &
-                                           ,'Array with the non-reactive collision partners for dissociation'&
-                                           ,numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'DSMC-Reaction[$]-ReactionType'  &
-                                           ,'Used reaction type\n'//&
-                                            'I: electron impact ionization\n'//&
-                                            'R: molecular recombination\n'//&
-                                            'D: molecular dissociation\n'//&
-                                            'E: molecular exchange reaction\n'//&
-                                            'X: simple charge exchange reaction)', 'none', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'DSMC-Reaction[$]-QKProcedure'  &
-                                           ,'Flag to use quantum-kinetic model', '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'DSMC-Reaction[$]-QK-Method'  &
-                                           ,'Recombination Method for Q-K model\n'//&
-                                            '1: by Bird\n'//&
-                                            '2: by Gallis)\n'//&
-                                            'If using bird, define the variables:\n'//&
-                                            'DSMC-Reaction[$]-QK-Coeff1\n'//&
-                                            'DSMC-Reaction[$]-QK-Coeff2 ', '0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-QK-Coeff1'  &
-                                           ,'First Q-K coefficient for Birds method.', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-QK-Coeff2'  &
-                                           ,'Second Q-K coefficient for Birds method.', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Reactants'  &
-                                           ,'Reactants of Reaction[$]\n'//&
-                                            '(SpecNumOfReactant1,\n'//&
-                                            'SpecNumOfReactant2,\n'//&
-                                            'SpecNumOfReactant3)', '0 , 0 , 0' , numberedmulti=.TRUE.)
-CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Products'  &
-                                           ,'Products of Reaction[j] (Product1, Product2, Product3)', '0 , 0 , 0' &
-                                           , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-Arrhenius-Prefactor'  &
-                                           , 'TODO-DEFINE-PARAMETER ', '0.' , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-Arrhenius-Powerfactor'  &
-                                           , 'TODO-DEFINE-PARAMETER', '0.' , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-Activation-Energy_K'  &
-                                           , 'Activation energy (relativ to k_Boltzmann) for Reaction[$].', '0.' &
-                                           , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CEXa'  &
-                                , 'CEX log-factor '//&
-                                '(g-dep. cross section in Angstrom, def.: value for Xe+)', '-27.2' , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CEXb'  &
-                                , 'CEX const. factor '//&
-                                '(g-dep. cross section in Angstrom, def.: value for Xe+)', '175.269' , numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'DSMC-Reaction[$]-DoScat'  &
-                                , 'Perform scattering-based charge-exchange instead of isotropic '//&
-                                '(model of Samuel Araki by lookup table)', '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-ELa'  &
-                                , 'with DoScat=T: EL log-factor '//&
-                                '(g&cut-off-angle-dep. cs in Angstrom, def.: value for Xe+)', '-26.8' , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-ELb'  &
-                                , 'with DoScat=T: EL const. factor '//&
-                                '(g&cut-off-angle-dep. cs in Angstrom, def.: value for Xe+)', '148.975' , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-MEXa'  &
-                                , 'with DoScat=F: MEX log-factor '//&
-                                '(g-dep. cross section in Angstrom, def.: value for Xe+)', '-27.2' , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-MEXb'  &
-                                , 'with DoScat=F: MEX const. factor '//&
-                                '(g-dep. cross section in Angstrom, def.: value for Xe+)', '175.269' , numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(     'DSMC-Reaction[$]-TLU_FileName'  &
-                                , 'with DoScat=F: No TLU-File needed '//&
-                                '(def.: )', '0' , numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Particles-Chemistry-NumDeleteProducts','Number of species, which should be deleted if they are '//&
-                                'a product of chemical reactions', '0')
-CALL prms%CreateIntArrayOption( 'Particles-Chemistry-DeleteProductsList','List of the species indices to be deleted if they are '//&
-                                'a product of chemical reactions')
-
-CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
-                                           ,'Utilize collision cross sections for the determination of collision probabilities' &
-                                           ,'.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-UseVibXSec'  &
-                                           ,'Utilize vibrational cross sections for the determination of relaxation probabilities' &
-                                           ,'.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for the collision cross section database. Container '//&
-                                                               'should be named with species pair (e.g. "Ar-electron"). The '//&
-                                                               'first column shall contain the energy in eV and the second '//&
-                                                               'column the cross-section in m^2', 'none')
-CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
-                                  ,'Utilize the null collision method for the determination of the number of pairs '//&
-                                  'based on the maximum collision frequency and time step (only with a background gas)' &
-                                  ,'.TRUE.')
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CrossSection'  &
-                                , 'Photon-ionization cross-section', numberedmulti=.TRUE.)
-
 END SUBROUTINE DefineParametersDSMC
 
 SUBROUTINE InitDSMC()
@@ -711,7 +622,6 @@ ELSE !CollisMode.GT.0
           ! Calculation of the dissociation quantum number (used for QK chemistry)
           SpecDSMC(iSpec)%DissQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib))
         END IF
-        SpecDSMC(iSpec)%VFD_Phi3_Factor = GETREAL('Part-Species'//TRIM(hilf)//'-VFDPhi3','0.')
         ! Read in species values for rotational relaxation models of Boyd/Zhang if necessary
         IF(DSMC%RotRelaxProb.GT.1.0.AND.((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20))) THEN
           SpecDSMC(iSpec)%CollNumRotInf = GETREAL('Part-Species'//TRIM(hilf)//'-CollNumRotInf')

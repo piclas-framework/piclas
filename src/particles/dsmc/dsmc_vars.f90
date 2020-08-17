@@ -143,7 +143,6 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL                        :: VibRelaxProb               ! vibrational relaxation probability
   REAL                        :: ElecRelaxProb              ! electronic relaxation probability
                                                             !this should be a value for every transition, and not fix!
-  REAL                        :: VFD_Phi3_Factor            ! Factor of Phi3 in VFD Method: Phi3 = 0 => VFD -> TCE, ini_2
   REAL                        :: CollNumRotInf              ! Collision number for rotational relaxation according to Parker or
                                                             ! Zhang, ini_2 -> model dependent!
   REAL                        :: TempRefRot                 ! Referece temperature for rotational relaxation according to Parker or
@@ -440,6 +439,7 @@ TYPE tChemReactions
   CHARACTER(LEN=200),ALLOCATABLE  :: TLU_FileName(:)        ! Name of file containing table lookup data for Scattering
   INTEGER                         :: RecombParticle = 0     ! P. Index for Recombination, if zero -> no recomb particle avaible
   INTEGER                         :: nPairForRec            !
+  INTEGER                         :: LastPairForRec         !
   REAL, ALLOCATABLE               :: Hab(:)                 ! Factor Hab of Arrhenius Ansatz for diatomic/polyatomic molecs
   TYPE(tReactInfo), ALLOCATABLE   :: ReactInfo(:)           ! Information of Reactions (nReactions)
   INTEGER                         :: NumDeleteProducts      ! Number of species to be considered to deletion after the reaction
