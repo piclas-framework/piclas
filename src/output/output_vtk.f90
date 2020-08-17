@@ -196,7 +196,8 @@ ELSE
       "Only 2D and 3D connectivity can be created. dim must be 1, 2 or 3.")
 END IF
 
-SWRITE(UNIT_stdOut,'(A,I1,A)',ADVANCE='NO')"   WRITE ",dim,"D DATA TO VTX XML BINARY (VTU) FILE..."
+SWRITE(UNIT_stdOut,'(A,I1,A)',ADVANCE='NO')"   WRITE ",dim,"D DATA TO VTX XML BINARY (VTU) FILE "
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '['//TRIM(FileString)//'] ...'
 
 ! get total number of elements on all processors
 #if USE_MPI
