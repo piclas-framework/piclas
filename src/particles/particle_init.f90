@@ -2445,6 +2445,7 @@ __STAMP__&
         END IF
       ELSE IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cell_local')) THEN
         IF( (TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
+           .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell') &
            .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') &
            .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'taylorgreenvortex') )THEN
           IF (Species(iSpec)%Init(iInit)%ParticleEmission .GT. 0.) THEN
@@ -2468,7 +2469,6 @@ __STAMP__&
               ,'Local mesh volume is zero!')
           END IF
         ELSE
-          ! maxwell might also work for cell_local but not with cell dependant temperatures as with MacroRestart
           CALL abort(&
             __STAMP__&
             ,'Only const. or maxwell_lpn is supported as velocityDistr. using cell_local inserting with PartDensity!')

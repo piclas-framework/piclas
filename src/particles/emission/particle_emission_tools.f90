@@ -326,7 +326,7 @@ REAL,INTENT(IN), OPTIONAL       :: Temperature
 REAL,INTENT(OUT)                :: Vec3D(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: RandVal(2), Velo1, Velo2, Velosq, Tx, ty, Tz, v_drift(3)
+REAL                            :: RandVal(3), Velo1, Velo2, Velosq, Tx, ty, Tz, v_drift(3)
 !===================================================================================================================================
 IF(PRESENT(iInit).AND.PRESENT(Temperature)) CALL abort(&
   __STAMP__&
