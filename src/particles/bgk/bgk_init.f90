@@ -116,7 +116,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iSpec2
-REAL                  :: delta_ij
+REAL                  :: delta_ij, omega_mix, Tref_mix
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)') ' INIT BGK Solver...'
 ALLOCATE(SpecBGK(nSpecies))
@@ -128,9 +128,14 @@ DO iSpec=1, nSpecies
     ELSE
       delta_ij = 0.0
     END IF
-    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*(2.-delta_ij)*(SpecDSMC(iSpec)%DrefVHS + SpecDSMC(iSpec2)%DrefVHS)**2.0 &
-        * SQRT(2.*Pi*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
-        /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/SpecDSMC(iSpec)%TrefVHS**(-SpecDSMC(iSpec)%omegaVHS +0.5)
+    omega_mix = (SpecDSMC(iSpec)%omegaVHS+SpecDSMC(iSpec2)%omegaVHS)/2.
+    Tref_mix = SQRT(SpecDSMC(iSpec)%TrefVHS*SpecDSMC(iSpec2)%TrefVHS)
+!    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*delta_ij*(SpecDSMC(iSpec)%DrefVHS + SpecDSMC(iSpec2)%DrefVHS)**2.0 &
+!        * SQRT(2.*Pi*BoltzmannConst*Tref_mix*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
+!        /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/Tref_mix**(-omega_mix +0.5)
+    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= (2.-delta_ij)*(SpecDSMC(iSpec)%DrefVHS + SpecDSMC(iSpec2)%DrefVHS)**2.0 &
+        * SQRT(Pi*BoltzmannConst*Tref_mix*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
+        /(2.*(Species(iSpec)%MassIC * Species(iSpec2)%MassIC)))/Tref_mix**(-omega_mix +0.5)
   END DO
 END DO
 

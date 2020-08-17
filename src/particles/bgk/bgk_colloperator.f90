@@ -760,8 +760,8 @@ REAL                  :: A(3,3), Work(1000), W(3), nu, Theta, G_12, S_12, sigma_
 REAL                  :: ProbAddPartTrans, ProbAddPartRot, ProbAddPartVib, MassIC_Mixture
 INTEGER               :: INFO
 REAL                  :: EVibSpec(nSpecies), ERotSpec(nSpecies), Xi_VibSpec(nSpecies), Xi_RotSpec(nSpecies),Xi_Vib_oldSpec(nSpecies)
-REAL                  :: TVibSpec(nSpecies), TRotSpec(nSpecies), RotExpSpec(nSpecies), VibExpSpec(nSpecies), Xi_VibTotal
-REAL                  :: collisionfreqSpec(nSpecies),rotrelaxfreqSpec(nSpecies), vibrelaxfreqSpec(nSpecies), Xi_RotTotal
+REAL                  :: TVibSpec(nSpecies), TRotSpec(nSpecies), RotExpSpec(nSpecies), VibExpSpec(nSpecies), Xi_VibTotal, omega_mix
+REAL                  :: collisionfreqSpec(nSpecies),rotrelaxfreqSpec(nSpecies), vibrelaxfreqSpec(nSpecies), Xi_RotTotal, CellTempRelax
 INTEGER               :: nVibRelaxSpec(nSpecies), nRotRelaxSpec(nSpecies)
 !===================================================================================================================================
 #ifdef CODE_ANALYZE
@@ -923,6 +923,7 @@ DO iSpec = 1, nSpecies
     Xi_RotSpec(iSpec) = SpecDSMC(iSpec)%Xi_Rot
     TRotSpec(iSpec) = 2.*ERotSpec(iSpec)/(Xi_RotSpec(iSpec)*totalWeightSpec(iSpec)*BoltzmannConst)
     InnerDOF = InnerDOF + Xi_RotSpec(iSpec)  + Xi_VibSpec(iSpec)
+!    Xi_RotSpec(iSpec) = 0.0
   END IF
 END DO
 
@@ -1029,15 +1030,21 @@ collisionfreqSpec = 0.0
 DO iSpec = 1, nSpecies
   DO jSpec = 1, nSpecies
     IF (iSpec.EQ.jSpec) THEN
-      CellTemptmp = SpecTemp(iSpec)
+      CellTemptmp = CellTemp !SpecTemp(iSpec)
     ELSE
       CellTemptmp = CellTemp
     END IF
+!    print*,  totalWeightSpec(iSpec)*totalWeightSpec(jSpec) &
+!            *Dens *CellTemptmp**(-SpecDSMC(iSpec)%omegaVHS +0.5) /(totalWeight*totalWeight)
+!    print*, SpecBGK(iSpec)%CollFreqPreFactor(jSpec)
+    omega_mix = (SpecDSMC(iSpec)%omegaVHS+SpecDSMC(jSpec)%omegaVHS)/2.
+!    collisionfreqSpec(iSpec) = collisionfreqSpec(iSpec) + SpecBGK(iSpec)%CollFreqPreFactor(jSpec)  * totalWeightSpec(jSpec) &
+!            *Dens *CellTemptmp**(-omega_mix +0.5) /(totalWeight)
     collisionfreqSpec(iSpec) = collisionfreqSpec(iSpec) + SpecBGK(iSpec)%CollFreqPreFactor(jSpec) * totalWeightSpec(iSpec)*totalWeightSpec(jSpec) &
-            *Dens *CellTemptmp**(-SpecDSMC(iSpec)%omegaVHS +0.5) /(totalWeight*totalWeight)
+            *Dens *CellTemptmp**(-omega_mix +0.5) /(totalWeight*totalWeight)
   END DO
 END DO
-
+!read*
 RotExp = 0.; VibExp = 0.; RotExpSpec=0.; VibExpSpec=0.
 IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
   rotrelaxfreqSpec(:) = collisionfreqSpec(:) * DSMC%RotRelaxProb
@@ -1047,8 +1054,19 @@ IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
 !                        TEqui, rotrelaxfreq, vibrelaxfreq, dt)
 !    Xi_vib = SUM(Xi_vib_DOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
 !  ELSE
+!  TRot = TRotSpec(1)
+!  TVib = TVibSpec(1)
+!  Xi_Vib_old = Xi_VibSpec(1)
+!  rotrelaxfreq = rotrelaxfreqSpec(1)
+!  vibrelaxfreq = vibrelaxfreqSpec(1)
 !    CALL CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, VibExp,  &
 !                    TEqui, rotrelaxfreq, vibrelaxfreq, dt)
+!    RotExpSpec = RotExp
+!    VibExpSpec = VibExp
+!    Xi_VibSpec = Xi_Vib
+!    print*, CellTemp, TVibSpec, Xi_Vib_oldSpec
+!    print*, vibrelaxfreqSpec, collisionfreqSpec
+!  print*, collisionfreqSpec
     CALL CalcTEquiMulti(nPart, nSpec, CellTemp, TRotSpec, TVibSpec, Xi_VibSpec, Xi_Vib_oldSpec, RotExpSpec, VibExpSpec,  &
       TEqui, rotrelaxfreqSpec, vibrelaxfreqSpec, dt)
 !  END IF
@@ -1056,6 +1074,8 @@ IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
     BGK_MaxRotRelaxFactor          = MAX(BGK_MaxRotRelaxFactor,MAXVAL(rotrelaxfreqSpec(:))*dt)
   END IF
 END IF
+!print*, TEqui, VibExpSpec
+!read*
 
 vBulk(1:3) = 0.0; nRelax = 0; nNotRelax = 0; nRotRelax = 0; nVibRelax = 0
 ALLOCATE(iPartIndx_NodeRelax(nPart), iPartIndx_NodeRelaxTemp(nPart))
@@ -2658,6 +2678,8 @@ maxexp = LOG(HUGE(maxexp))
 
 correctFac = 1.
 correctFacRot = 1.
+RotFracSpec = 0.0
+VibFracSpec = 0.0
 DO iSpec=1, nSpecies
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     RotExpSpec(iSpec) = exp(-rotrelaxfreqSpec(iSpec)*dtCell/correctFacRot)
@@ -2716,7 +2738,7 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
         ELSE
           Xi_VibSpec(iSpec) = 2.*SpecDSMC(iSpec)%CharaTVib/TEqui/(EXP(SpecDSMC(iSpec)%CharaTVib/TEqui)-1.)
         END IF
-        VibFracSpec = nSpec(iSpec)*(1.-VibExpSpec(iSpec))
+        VibFracSpec(iSpec) = nSpec(iSpec)*(1.-VibExpSpec(iSpec))
       END IF
     END IF
   END DO
@@ -2756,8 +2778,10 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
       TEqui = TEqui / TEquiNumDof
     END DO
   END IF
+!  print*, CellTemp, TEqui, TEqui_Old, Xi_VibSpec(:) ,VibFracSpec(:),  TVibSpec(:)
 END DO
-
+!print*, 'hm'
+!read*
 END SUBROUTINE CalcTEquiMulti
 
 
