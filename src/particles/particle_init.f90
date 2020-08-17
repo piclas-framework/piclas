@@ -1675,9 +1675,11 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%ElemTRotFileID       = 0
       Species(iSpec)%Init(iInit)%ElemTElecFileID      = 0
       IF((Symmetry%Order.LE.2).OR.VarTimeStep%UseVariableTimeStep) THEN
-        CALL abort(__STAMP__&
-            ,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step only possible with'//&
-             'cell_local-SpaceIC and/or surface flux!')
+        IF(.NOT.((Symmetry%Order.EQ.1).AND.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid'))) THEN
+          CALL abort(__STAMP__&
+              ,'ERROR: Particle insertion/emission for 1D/2D/axisymmetric or variable time step only possible with'//&
+              'cell_local-SpaceIC and/or surface flux!, exept 1D and cuboid')
+        END IF
       END IF
     END IF
     IF (Species(iSpec)%Init(iInit)%UseForEmission) THEN
@@ -1723,6 +1725,25 @@ __STAMP__&
     Species(iSpec)%Init(iInit)%CuboidHeightIC        = GETREAL('Part-Species'//TRIM(hilf2)//'-CuboidHeightIC','1.')
     Species(iSpec)%Init(iInit)%CylinderHeightIC      = GETREAL('Part-Species'//TRIM(hilf2)//'-CylinderHeightIC','1.')
     Species(iSpec)%Init(iInit)%CalcHeightFromDt      = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-CalcHeightFromDt','.FALSE.')
+    IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid').AND.Symmetry%Order.EQ.1) THEN
+      IF(Species(iSpec)%Init(iInit)%BasePointIC(2).NE.-0.5 &
+         .AND.Species(iSpec)%Init(iInit)%BasePointIC(3).NE.-0.5 &
+         .AND.Species(iSpec)%Init(iInit)%BaseVector1IC(2).NE.1 &
+         .AND.Species(iSpec)%Init(iInit)%BaseVector1IC(3).NE.0 &
+         .AND.Species(iSpec)%Init(iInit)%BaseVector2IC(1).NE.0 &
+         .AND.Species(iSpec)%Init(iInit)%BaseVector2IC(2).NE.0 &
+         .AND.Species(iSpec)%Init(iInit)%BaseVector1IC(1).NE.0 &
+         .AND.Species(iSpec)%Init(iInit)%BaseVector2IC(3).NE.1 ) THEN
+
+        SWRITE(*,*) 'For 1D Simulation with SpaceIC cuboid, the vectors has to be in the following from:'
+        SWRITE(*,*) 'Part-Species[$]-Init[$]-BasePointIC=(/x,-0.5,-0.5/), with x is the basepoint in x direction'
+        SWRITE(*,*) 'Part-Species[$]-Init[$]-BaseVector1IC=(/0.,1.,0/)'
+        SWRITE(*,*) 'Part-Species[$]-Init[$]-BaseVector2IC=(/0.,0.,1/)'
+        SWRITE(*,*) 'Part-Species[$]-Init[$]-CuboidHeightIC is the extention of the insertion region and has to be positive'
+        CALL abort(__STAMP__&
+        ,'See above')
+      END IF
+    END IF
     IF (Species(iSpec)%Init(iInit)%ElemVelocityICFileID.EQ.0) THEN
       Species(iSpec)%Init(iInit)%VeloIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-VeloIC','0.')
       Species(iSpec)%Init(iInit)%VeloVecIC             = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-VeloVecIC',3,'0. , 0. , 0.')

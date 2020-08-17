@@ -794,6 +794,7 @@ __STAMP__&
           ELSE
             Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal(3)
           END IF
+          IF(Symmetry%Order.EQ.1) Particle_pos(2:3) = 0.
         CASE ('cylinder')
           radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1.
           DO WHILE((radius.GT.Species(FractNbr)%Init(iInit)%RadiusIC) .OR.(radius.LT.Species(FractNbr)%Init(iInit)%Radius2IC))
