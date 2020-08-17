@@ -232,7 +232,8 @@ DO iElem = 1,nElems
   DO iSide = 1,6
     SideInPlane=.FALSE.
     DO iDim=1,3
-      IF(ALMOSTEQUAL(MAXVAL(GEO%NodeCoords(iDim,GEO%ElemSideNodeID(:,iSide,iElem))),MINVAL(GEO%NodeCoords(iDim,GEO%ElemSideNodeID(:,iSide,iElem))))) THEN
+      IF(ALMOSTALMOSTEQUAL(MAXVAL(GEO%NodeCoords(iDim,GEO%ElemSideNodeID(:,iSide,iElem))),MINVAL(GEO%NodeCoords(iDim,GEO%ElemSideNodeID(:,iSide,iElem)))) &
+      .OR.(ALMOSTZERO(MAXVAL(GEO%NodeCoords(iDim,GEO%ElemSideNodeID(:,iSide,iElem)))).AND.ALMOSTZERO(MINVAL(GEO%NodeCoords(iDim,GEO%ElemSideNodeID(:,iSide,iElem)))))) THEN
         IF(SideInPlane) CALL abort(__STAMP__&
           ,'ERROR: Please orient your mesh with all element sides parallel to xy-,xz-,or yz-plane')
         SideInPlane=.TRUE.
