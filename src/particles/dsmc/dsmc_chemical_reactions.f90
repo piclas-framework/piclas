@@ -396,9 +396,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
 
 ! Calculation of reaction rate coefficient
 #if (PP_TimeDiscMethod==42)
-  IF (DSMC%ReservoirRateStatistic) THEN
-    ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1
-  ELSE
+  IF (.NOT.DSMC%ReservoirRateStatistic) THEN
     ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb
     ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
   END IF
@@ -458,16 +456,14 @@ REAL                          :: Energy_old,Energy_new,Momentum_old(3),Momentum_
 INTEGER                       :: iMom, iMomDim
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
-! Do not perform the reaction in case the reaction is to be calculated at a constant gas composition
+! Do not perform the reaction in case the reaction is to be calculated at a constant gas composition (DSMC%ReservoirSimuRate = T)
 #if (PP_TimeDiscMethod==42)
 IF (DSMC%ReservoirSimuRate) THEN
-  IF(ChemReac%RecombParticle.EQ.0) THEN
-    Coll_pData(PairForRec)%NeedForRec = .TRUE.
-    ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
-    ChemReac%nPairForRec = ChemReac%nPairForRec + 1
-  ELSE
-    ChemReac%RecombParticle = 0
+  ! Count the number of reactions to determine the actual reaction rate
+  IF (DSMC%ReservoirRateStatistic) THEN
+    ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1
   END IF
+  ! Leave the routine again
   RETURN
 END IF
 #endif
