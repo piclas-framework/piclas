@@ -139,11 +139,12 @@ SUBROUTINE DSMC_chemical_init()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, QKAnalytic, SpecDSMC, BGGas
+USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
-USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction, CalcQKAnalyticRate
+USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
+USE MOD_DSMC_QK_PROCEDURES      ,ONLY: QK_Init
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -413,28 +414,7 @@ __STAMP__&
     END DO
   END DO
 END IF
-! Initialize analytic QK reaction rate (required for calculation of backward rate with QK and if multiple QK reactions can occur
-! during a single collision, e.g. N2+e -> ionization or dissociation)
-IF(ANY(ChemReac%QKProcedure)) THEN
-  IF(MOD(DSMC%PartitionMaxTemp,DSMC%PartitionInterval).EQ.0.0) THEN
-    PartitionArraySize = NINT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)
-  ELSE
-    CALL abort(&
-__STAMP__&
-,'ERROR in Chemistry Init: Partition temperature limit must be multiple of partition interval!')
-  END IF
-  ALLOCATE(QKAnalytic(ChemReac%NumOfReact))
-  DO iReac = 1, ChemReac%NumOfReact
-    IF(ChemReac%QKProcedure(iReac)) THEN
-      ! Calculation of the analytical rate, to be able to calculate the backward rate with partition function
-      ALLOCATE(QKAnalytic(iReac)%ForwardRate(1:PartitionArraySize))
-      DO iInter = 1, PartitionArraySize
-        Temp = iInter * DSMC%PartitionInterval
-        QKAnalytic(iReac)%ForwardRate(iInter) = CalcQKAnalyticRate(iReac,Temp)
-      END DO
-    END IF
-  END DO
-END IF
+
 ! Filling up ChemReac-Array with forward rate coeff., switching reactants with products and setting new energies
 IF(DSMC%BackwardReacRate) THEN
   DO iReac = ChemReac%NumOfReact/2+1, ChemReac%NumOfReact
@@ -452,7 +432,6 @@ IF(DSMC%BackwardReacRate) THEN
         ChemReac%DefinedReact(iReac,2,:)      = ChemReac%DefinedReact(iReacForward,1,:)
         ChemReac%EForm(iReac)                 = -ChemReac%EForm(iReacForward)
         ChemReac%EActiv(iReac) = 0.0
-        QKAnalytic(iReac)%ForwardRate         = QKAnalytic(iReacForward)%ForwardRate
       ELSE
         CALL abort(__STAMP__,&
         'Other reaction types than iQK are not implemented with the automatic backward rate determination, Reaction:', iReac)
@@ -486,6 +465,12 @@ IF(DSMC%BackwardReacRate) THEN
       ChemReac%EForm(iReac)                   = -ChemReac%EForm(iReacForward)
     END IF
   END DO
+END IF
+
+! Initialize analytic QK reaction rate (required for calculation of backward rate with QK and if multiple QK reactions can occur
+! during a single collision, e.g. N2+e -> ionization or dissociation)
+IF(ANY(ChemReac%QKProcedure)) THEN
+  CALL QK_Init()
 END IF
 
 DO iReac = 1, ChemReac%NumOfReact

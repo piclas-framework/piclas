@@ -41,13 +41,6 @@ INTERFACE CalcBackwardRate
   MODULE PROCEDURE CalcBackwardRate
 END INTERFACE
 
-INTERFACE CalcQKAnalyticRate
-  MODULE PROCEDURE CalcQKAnalyticRate
-END INTERFACE
-
-INTERFACE GetQKAnalyticRate
-  MODULE PROCEDURE GetQKAnalyticRate
-END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -65,15 +58,14 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,NumDens)
 ! Calculates the reaction probability for dissociation, exchange, recombination and associative ionization reactions
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
-  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-  USE MOD_DSMC_PolyAtomicModel,   ONLY : Calc_Beta_Poly
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf, ReactionProbGTUnityCounter
-  USE MOD_DSMC_Vars,              ONLY : RadialWeighting
-  USE MOD_Particle_Vars,          ONLY : PartState, Species, PartSpecies, nSpecies, VarTimeStep
-  USE MOD_DSMC_Analyze,           ONLY : CalcTVibPoly, CalcTelec
-  USE MOD_Globals_Vars,           ONLY : Pi
-USE MOD_part_tools                ,ONLY: GetParticleWeight
+USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: Pi, BoltzmannConst
+USE MOD_DSMC_PolyAtomicModel    ,ONLY: Calc_Beta_Poly
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf, ReactionProbGTUnityCounter
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, VarTimeStep
+USE MOD_DSMC_Analyze            ,ONLY: CalcTVibPoly, CalcTelec
+USE MOD_part_tools              ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -86,11 +78,11 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   REAL, INTENT(OUT)             :: ReactionProb
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: ReactInx(1:2), ProductReac(1:3), EductReac(1:3), iReacForward
+  INTEGER                       :: ReactInx(1:2), ProductReac(1:3), EductReac(1:3), iReacForward, iCase
   REAL                          :: EZeroPoint_Educt, EZeroPoint_Prod, EReact, ReducedMass, ReducedMassUnweighted
   REAL                          :: Xi_vib1, Xi_vib2, Xi_vib3, Xi_Total, Xi_elec1, Xi_elec2, Xi_elec3, WeightProd
   REAL                          :: BetaReaction, BackwardRate
-  REAL                          :: Rcoll, Tcoll, Telec, b, TiQK, Weight1, Weight2, Weight3, NumWeightEduct, NumWeightProd
+  REAL                          :: Rcoll, Tcoll, Telec, TiQK, Weight1, Weight2, Weight3, NumWeightEduct, NumWeightProd
 !===================================================================================================================================
   Weight1=0.; Weight2=0.; Weight3=0.; WeightProd = 0.
   NumWeightEduct = 2.
@@ -106,6 +98,8 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
 
   EductReac(1:3) = ChemReac%DefinedReact(iReac,1,1:3)
   ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
+
+  iCase = CollInf%Coll_Case(EductReac(1), EductReac(2))
 
   IF((EductReac(3).NE.0).AND.(.NOT.PRESENT(iPart_p3))) THEN
     CALL abort(&
@@ -318,13 +312,12 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
       END IF
       IF(DSMC%BackwardReacRate.AND.((iReac.GT.ChemReac%NumOfReact/2))) THEN
         Tcoll =ReducedMassUnweighted*Coll_pData(iPair)%CRela2 / (BoltzmannConst * 2.*(2.-SpecDSMC(EductReac(1))%omegaVHS))
-        b=     (0.5 - SpecDSMC(EductReac(1))%omegaVHS)
         Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(EductReac(1),EductReac(2)))) &
           * (SpecDSMC(EductReac(1))%DrefVHS/2. + SpecDSMC(EductReac(2))%DrefVHS/2.)**2 &
           * (Tcoll / SpecDSMC(EductReac(1))%TrefVHS)**(0.5 - SpecDSMC(EductReac(1))%omegaVHS) &
           * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%TrefVHS / ReducedMassUnweighted)
-        Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omegaVHS)**b &
-             * gamma(2.-SpecDSMC(EductReac(1))%omegaVHS)/gamma(2.-SpecDSMC(EductReac(1))%omegaVHS+b)
+        Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omegaVHS)**(0.5 - SpecDSMC(EductReac(1))%omegaVHS) &
+             * gamma(2.-SpecDSMC(EductReac(1))%omegaVHS)/gamma(2.-SpecDSMC(EductReac(1))%omegaVHS+(0.5 - SpecDSMC(EductReac(1))%omegaVHS))
         ReactionProb = BackwardRate / Rcoll * NumDens
       ELSE
         ! Reaction probability after regular TCE-model
@@ -337,13 +330,8 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
                 + Xi_elec1)*BoltzmannConst)
       Tcoll = ReducedMassUnweighted*Coll_pData(iPair)%CRela2  &
               / (BoltzmannConst * 2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS))
-      b=     (0.5 - SpecDSMC(EductReac(1))%omegaVHS)
-      Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(EductReac(1),EductReac(2)))) &
-        * (SpecDSMC(EductReac(1))%DrefVHS/2. + SpecDSMC(EductReac(2))%DrefVHS/2.)**2 &
-        * (Tcoll / SpecDSMC(EductReac(1))%TrefVHS)**(0.5 - SpecDSMC(EductReac(1))%omegaVHS) &
-        * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%TrefVHS / ReducedMassUnweighted)
-      Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omegaVHS)**b &
-           * gamma(2.-SpecDSMC(EductReac(1))%omegaVHS)/gamma(2.-SpecDSMC(EductReac(1))%omegaVHS+b)
+      Rcoll = (Tcoll / SpecDSMC(EductReac(1))%TrefVHS)**(0.5 - SpecDSMC(EductReac(1))%omegaVHS) &
+               * ChemReac%QKRColl(iCase) / SQRT(ReducedMassUnweighted) * ChemReac%QKTCollCorrFac(iCase)
       ReactionProb = GetQKAnalyticRate(iReac,TiQK) / Rcoll
     ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'D'.AND.ChemReac%QKProcedure(iReac)) THEN
       TiQK = (ReducedMassUnweighted*Coll_pData(iPair)%CRela2  &
@@ -351,13 +339,8 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
                 + Xi_vib1)*BoltzmannConst)
       Tcoll = ReducedMassUnweighted*Coll_pData(iPair)%CRela2  &
               / (BoltzmannConst * 2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS))
-      b=     (0.5 - SpecDSMC(EductReac(1))%omegaVHS)
-      Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(EductReac(1),EductReac(2)))) &
-        * (SpecDSMC(EductReac(1))%DrefVHS/2. + SpecDSMC(EductReac(2))%DrefVHS/2.)**2 &
-        * (Tcoll / SpecDSMC(EductReac(1))%TrefVHS)**(0.5 - SpecDSMC(EductReac(1))%omegaVHS) &
-        * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%TrefVHS / ReducedMassUnweighted)
-      Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omegaVHS)**b &
-           * gamma(2.-SpecDSMC(EductReac(1))%omegaVHS)/gamma(2.-SpecDSMC(EductReac(1))%omegaVHS+b)
+      Rcoll = (Tcoll / SpecDSMC(EductReac(1))%TrefVHS)**(0.5 - SpecDSMC(EductReac(1))%omegaVHS) &
+               * ChemReac%QKRColl(iCase) / SQRT(ReducedMassUnweighted) * ChemReac%QKTCollCorrFac(iCase)
       ! Get the analytic forward rate for QK
       ReactionProb = GetQKAnalyticRate(iReac,TiQK) / Rcoll
     ELSE
@@ -456,6 +439,23 @@ REAL                          :: Energy_old,Energy_new,Momentum_old(3),Momentum_
 INTEGER                       :: iMom, iMomDim
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
+
+EductReac(1:3) = ChemReac%DefinedReact(iReac,1,1:3)
+ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
+
+IF(EductReac(3).NE.0) THEN
+  IF(ChemReac%RecombParticle.EQ.0) THEN
+    ! A pair was broken up before to use its first collision partner as a third recombination partner. Now that the
+    ! recombination occurred, the collision will not be performed anymore and the second collision partner is saved as
+    ! a possible third recombination partner
+    Coll_pData(ChemReac%LastPairForRec)%NeedForRec = .TRUE.
+    ChemReac%RecombParticle = Coll_pData(ChemReac%LastPairForRec)%iPart_p2
+    ChemReac%nPairForRec = ChemReac%nPairForRec + 1
+  ELSE
+    ChemReac%RecombParticle = 0
+  END IF
+END IF
+
 ! Do not perform the reaction in case the reaction is to be calculated at a constant gas composition (DSMC%ReservoirSimuRate = T)
 #if (PP_TimeDiscMethod==42)
 IF (DSMC%ReservoirSimuRate) THEN
@@ -484,9 +484,6 @@ ELSE
   ReactInx(2) = Coll_pData(iPair)%iPart_p1
   ReactInx(1) = Coll_pData(iPair)%iPart_p2
 END IF
-
-EductReac(1:3) = ChemReac%DefinedReact(iReac,1,1:3)
-ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
 
 IF(PRESENT(iPart_p3)) THEN
   ReactInx(3) = iPart_p3
@@ -1098,19 +1095,6 @@ IF(CalcPartBalance) THEN
   END DO
 END IF
 
-IF(EductReac(3).NE.0) THEN
-  IF(ChemReac%RecombParticle.EQ.0) THEN
-    ! A pair was broken up before to use its first collision partner as a third recombination partner. Now that the
-    ! recombination occurred, the collision will not be performed anymore and the second collision partner is saved as
-    ! a possible third recombination partner
-    Coll_pData(ChemReac%LastPairForRec)%NeedForRec = .TRUE.
-    ChemReac%RecombParticle = Coll_pData(ChemReac%LastPairForRec)%iPart_p2
-    ChemReac%nPairForRec = ChemReac%nPairForRec + 1
-  ELSE
-    ChemReac%RecombParticle = 0
-  END IF
-END IF
-
 #ifdef CODE_ANALYZE
 ! Check for energy difference
 IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,RelEneTol)) THEN
@@ -1329,8 +1313,8 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_DSMC_Vars,             ONLY : DSMC, SpecDSMC, ChemReac, QKAnalytic
-  USE MOD_Particle_Vars,         ONLY : nSpecies
+  USE MOD_DSMC_Vars,             ONLY: DSMC, SpecDSMC, ChemReac, QKAnalytic
+  USE MOD_Particle_Vars,         ONLY: nSpecies
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1478,7 +1462,6 @@ REAL FUNCTION CalcQKAnalyticRate(iReac,Temp)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals        ,ONLY: abort
-USE MOD_Globals_Vars   ,ONLY: Pi, BoltzmannConst
 USE MOD_DSMC_Vars      ,ONLY: SpecDSMC, ChemReac, CollInf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1488,21 +1471,18 @@ INTEGER, INTENT(IN)           :: iReac
 REAL, INTENT(IN)              :: Temp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iSpec1, iSpec2, MaxElecQua, iQua
+INTEGER                       :: iSpec1, iSpec2, MaxElecQua, iQua, iCase
 REAL                          :: z ! contribution of the relevant mode to the electronic or vibrational partition function
 REAL                          :: Q ! incomplete gamma function
 INTEGER                       :: MaxVibQuant ! highest vibrational quantum state
-REAL                          :: Rcoll, TrefVHS, TempRatio
+REAL                          :: TrefVHS, TempRatio
 !===================================================================================================================================
 CalcQKAnalyticRate = 0.0
 z = 0.0
 iSpec1 = ChemReac%DefinedReact(iReac,1,1)
 iSpec2 = ChemReac%DefinedReact(iReac,1,2)
+iCase = CollInf%Coll_Case(iSpec1, iSpec2)
 TrefVHS=(SpecDSMC(iSpec1)%TrefVHS + SpecDSMC(iSpec2)%TrefVHS)/2.
-Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(iSpec1, iSpec2))) &
-    * (SpecDSMC(iSpec1)%DrefVHS/2. + SpecDSMC(iSpec2)%DrefVHS/2.)**2 &
-    * SQRT(2. * BoltzmannConst * TrefVHS &
-    / (CollInf%MassRed(CollInf%Coll_Case(iSpec1, iSpec2))))
 
 SELECT CASE (ChemReac%ReactType(iReac))
 CASE('iQK')
@@ -1516,7 +1496,8 @@ CASE('iQK')
       z = z + SpecDSMC(iSpec1)%ElectronicState(1,iQua) * EXP(-TempRatio)
     END IF
   END DO
-  CalcQKAnalyticRate = CalcQKAnalyticRate*(Temp / TrefVHS)**(0.5 - SpecDSMC(iSpec1)%omegaVHS)*Rcoll/z
+  CalcQKAnalyticRate = CalcQKAnalyticRate*(Temp / TrefVHS)**(0.5 - SpecDSMC(iSpec1)%omegaVHS)*ChemReac%QKRColl(iCase) &
+                        / (z * SQRT(CollInf%MassRed(iCase)))
 CASE('D')
   MaxVibQuant = SpecDSMC(iSpec1)%DissQuant
   TempRatio = SpecDSMC(iSpec1)%CharaTVib / Temp
@@ -1531,7 +1512,8 @@ CASE('D')
   ELSE
     z = 1.
   END IF
-  CalcQKAnalyticRate = CalcQKAnalyticRate*(Temp / TrefVHS)**(0.5 - SpecDSMC(iSpec1)%omegaVHS)*Rcoll/z
+  CalcQKAnalyticRate = CalcQKAnalyticRate*(Temp / TrefVHS)**(0.5 - SpecDSMC(iSpec1)%omegaVHS)*ChemReac%QKRColl(iCase) &
+                        / (z * SQRT(CollInf%MassRed(iCase)))
 END SELECT
 
 END FUNCTION CalcQKAnalyticRate

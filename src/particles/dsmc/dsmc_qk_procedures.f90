@@ -21,30 +21,75 @@ MODULE MOD_DSMC_QK_PROCEDURES
 IMPLICIT NONE
 PRIVATE
 
-INTERFACE QK_dissociation
-  MODULE PROCEDURE QK_dissociation
-END INTERFACE
-
-INTERFACE QK_recombination
-  MODULE PROCEDURE QK_recombination
-END INTERFACE
-
-INTERFACE QK_exchange
-  MODULE PROCEDURE QK_exchange
-END INTERFACE
-
-INTERFACE QK_ImpactIonization
-  MODULE PROCEDURE QK_ImpactIonization
-END INTERFACE
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part
 ! Public Part
-PUBLIC :: QK_dissociation, QK_recombination, QK_exchange, QK_ImpactIonization, QK_IonRecombination
+PUBLIC :: QK_Init, QK_dissociation, QK_recombination, QK_exchange, QK_ImpactIonization, QK_IonRecombination
 !===================================================================================================================================
 CONTAINS
+
+SUBROUTINE QK_Init()
+!===================================================================================================================================
+!> Calculate the collision constant per collision case (for every reaction, as recombination probability through equilibrium
+!> constant also utilizes RColl) and the analytical QK reaction rate
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals         ,ONLY: abort
+USE MOD_Globals_Vars    ,ONLY: Pi, BoltzmannConst
+USE MOD_DSMC_Vars       ,ONLY: DSMC, SpecDSMC, ChemReac, CollInf, QKAnalytic
+USE MOD_DSMC_ChemReact  ,ONLY: CalcQKAnalyticRate
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iSpec1, iSpec2, iCase, iReac, iInter, PartitionArraySize
+REAL                          :: OmegaVHS, TrefVHS, DrefVHS, TCollExponent, Temp
+!===================================================================================================================================
+ALLOCATE(ChemReac%QKRColl(CollInf%NumCase),ChemReac%QKTCollCorrFac(CollInf%NumCase))
+ChemReac%QKRColl = 0.
+ChemReac%QKTCollCorrFac = 0.
+
+DO iReac = 1, ChemReac%NumOfReact
+  iSpec1 = ChemReac%DefinedReact(iReac,1,1)
+  iSpec2 = ChemReac%DefinedReact(iReac,1,2)
+  iCase = CollInf%Coll_Case(iSpec1, iSpec2)
+  TrefVHS = (SpecDSMC(iSpec1)%TrefVHS + SpecDSMC(iSpec2)%TrefVHS)/2.
+  OmegaVHS = (SpecDSMC(iSpec1)%omegaVHS + SpecDSMC(iSpec2)%omegaVHS)/2.
+  DrefVHS = (SpecDSMC(iSpec1)%DrefVHS + SpecDSMC(iSpec2)%DrefVHS)/2.
+  ! Reduced mass is omitted; a weighted mass is required in case of an axisymmetric simulation and included in CalcReactionProb
+  ChemReac%QKRColl(iCase) = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(iCase)) * (DrefVHS)**2 * SQRT(2. * BoltzmannConst * TrefVHS)
+  TCollExponent = (0.5 - OmegaVHS)
+  ChemReac%QKTCollCorrFac(iCase) = (2. - OmegaVHS)**TCollExponent * GAMMA(2. - OmegaVHS) / GAMMA(2. - OmegaVHS + TCollExponent)
+END DO
+
+IF(MOD(DSMC%PartitionMaxTemp,DSMC%PartitionInterval).EQ.0.0) THEN
+  PartitionArraySize = NINT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)
+ELSE
+  CALL abort(&
+    __STAMP__&
+    ,'ERROR in Chemistry Init: Partition temperature limit must be multiple of partition interval!')
+END IF
+
+ALLOCATE(QKAnalytic(ChemReac%NumOfReact))
+DO iReac = 1, ChemReac%NumOfReact
+  IF(ChemReac%QKProcedure(iReac)) THEN
+    ! Calculation of the analytical rate, to be able to calculate the backward rate with partition function
+    ALLOCATE(QKAnalytic(iReac)%ForwardRate(1:PartitionArraySize))
+    DO iInter = 1, PartitionArraySize
+      Temp = iInter * DSMC%PartitionInterval
+      QKAnalytic(iReac)%ForwardRate(iInter) = CalcQKAnalyticRate(iReac,Temp)
+    END DO
+    ! For backward rates, the corresponding forward rate is stored to be used with the equilibrium constant
+    IF(DSMC%BackwardReacRate.AND.(iReac.GT.ChemReac%NumOfReact/2)) THEN
+      QKAnalytic(iReac)%ForwardRate = QKAnalytic(iReac - ChemReac%NumOfReact/2)%ForwardRate
+    END IF
+  END IF
+END DO
+
+END SUBROUTINE QK_Init
+
 
 SUBROUTINE QK_dissociation(iPair,iReac,RelaxToDo)
 !===================================================================================================================================

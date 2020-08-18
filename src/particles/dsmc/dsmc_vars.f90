@@ -383,6 +383,8 @@ TYPE tChemReactions
   LOGICAL, ALLOCATABLE            :: QKProcedure(:)         ! Defines if QK Procedure is selected
   INTEGER, ALLOCATABLE            :: QKMethod(:)            ! Recombination method for Q-K model (1 by Bird / 2 by Gallis)
   REAL,ALLOCATABLE,DIMENSION(:,:) :: QKCoeff                ! QKRecombiCoeff for Birds method
+  REAL, ALLOCATABLE               :: QKRColl(:)             ! Collision factor in QK model
+  REAL, ALLOCATABLE               :: QKTCollCorrFac(:)      ! Correction factor for collision temperature due to averaging over T^b
   REAL, ALLOCATABLE               :: NumReac(:)             ! Number of occurred reactions for each reaction number
   INTEGER, ALLOCATABLE            :: ReacCount(:)           ! Counter of chemical reactions for the determination of rate
                                                             ! coefficient based on the reaction probabilities
