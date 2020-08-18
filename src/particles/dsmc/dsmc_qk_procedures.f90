@@ -64,29 +64,31 @@ DO iReac = 1, ChemReac%NumOfReact
   ChemReac%QKTCollCorrFac(iCase) = (2. - OmegaVHS)**TCollExponent * GAMMA(2. - OmegaVHS) / GAMMA(2. - OmegaVHS + TCollExponent)
 END DO
 
-IF(MOD(DSMC%PartitionMaxTemp,DSMC%PartitionInterval).EQ.0.0) THEN
-  PartitionArraySize = NINT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)
-ELSE
-  CALL abort(&
-    __STAMP__&
-    ,'ERROR in Chemistry Init: Partition temperature limit must be multiple of partition interval!')
-END IF
 
-ALLOCATE(QKAnalytic(ChemReac%NumOfReact))
-DO iReac = 1, ChemReac%NumOfReact
-  IF(ChemReac%QKProcedure(iReac)) THEN
-    ! Calculation of the analytical rate, to be able to calculate the backward rate with partition function
-    ALLOCATE(QKAnalytic(iReac)%ForwardRate(1:PartitionArraySize))
-    DO iInter = 1, PartitionArraySize
-      Temp = iInter * DSMC%PartitionInterval
-      QKAnalytic(iReac)%ForwardRate(iInter) = CalcQKAnalyticRate(iReac,Temp)
-    END DO
-    ! For backward rates, the corresponding forward rate is stored to be used with the equilibrium constant
-    IF(DSMC%BackwardReacRate.AND.(iReac.GT.ChemReac%NumOfReact/2)) THEN
-      QKAnalytic(iReac)%ForwardRate = QKAnalytic(iReac - ChemReac%NumOfReact/2)%ForwardRate
-    END IF
+IF(ANY(ChemReac%QKProcedure)) THEN
+  IF(MOD(DSMC%PartitionMaxTemp,DSMC%PartitionInterval).EQ.0.0) THEN
+    PartitionArraySize = NINT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)
+  ELSE
+    CALL abort(&
+      __STAMP__&
+      ,'ERROR in Chemistry Init: Partition temperature limit must be multiple of partition interval!')
   END IF
-END DO
+  ALLOCATE(QKAnalytic(ChemReac%NumOfReact))
+  DO iReac = 1, ChemReac%NumOfReact
+    IF(ChemReac%QKProcedure(iReac)) THEN
+      ! Calculation of the analytical rate, to be able to calculate the backward rate with partition function
+      ALLOCATE(QKAnalytic(iReac)%ForwardRate(1:PartitionArraySize))
+      DO iInter = 1, PartitionArraySize
+        Temp = iInter * DSMC%PartitionInterval
+        QKAnalytic(iReac)%ForwardRate(iInter) = CalcQKAnalyticRate(iReac,Temp)
+      END DO
+      ! For backward rates, the corresponding forward rate is stored to be used with the equilibrium constant
+      IF(DSMC%BackwardReacRate.AND.(iReac.GT.ChemReac%NumOfReact/2)) THEN
+        QKAnalytic(iReac)%ForwardRate = QKAnalytic(iReac - ChemReac%NumOfReact/2)%ForwardRate
+      END IF
+    END IF
+  END DO
+END IF
 
 END SUBROUTINE QK_Init
 

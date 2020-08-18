@@ -469,7 +469,7 @@ END IF
 
 ! Initialize analytic QK reaction rate (required for calculation of backward rate with QK and if multiple QK reactions can occur
 ! during a single collision, e.g. N2+e -> ionization or dissociation)
-IF(ANY(ChemReac%QKProcedure)) THEN
+IF(ANY(ChemReac%QKProcedure).OR.DSMC%BackwardReacRate) THEN
   CALL QK_Init()
 END IF
 
