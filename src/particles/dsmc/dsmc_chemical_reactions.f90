@@ -312,12 +312,8 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
       END IF
       IF(DSMC%BackwardReacRate.AND.((iReac.GT.ChemReac%NumOfReact/2))) THEN
         Tcoll =ReducedMassUnweighted*Coll_pData(iPair)%CRela2 / (BoltzmannConst * 2.*(2.-SpecDSMC(EductReac(1))%omegaVHS))
-        Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(EductReac(1),EductReac(2)))) &
-          * (SpecDSMC(EductReac(1))%DrefVHS/2. + SpecDSMC(EductReac(2))%DrefVHS/2.)**2 &
-          * (Tcoll / SpecDSMC(EductReac(1))%TrefVHS)**(0.5 - SpecDSMC(EductReac(1))%omegaVHS) &
-          * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%TrefVHS / ReducedMassUnweighted)
-        Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omegaVHS)**(0.5 - SpecDSMC(EductReac(1))%omegaVHS) &
-             * gamma(2.-SpecDSMC(EductReac(1))%omegaVHS)/gamma(2.-SpecDSMC(EductReac(1))%omegaVHS+(0.5 - SpecDSMC(EductReac(1))%omegaVHS))
+        Rcoll = (Tcoll / SpecDSMC(EductReac(1))%TrefVHS)**(0.5 - SpecDSMC(EductReac(1))%omegaVHS) &
+               * ChemReac%QKRColl(iCase) / SQRT(ReducedMassUnweighted) * ChemReac%QKTCollCorrFac(iCase)
         ReactionProb = BackwardRate / Rcoll * NumDens
       ELSE
         ! Reaction probability after regular TCE-model
