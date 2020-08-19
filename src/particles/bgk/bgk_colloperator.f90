@@ -763,6 +763,7 @@ REAL                  :: EVibSpec(nSpecies), ERotSpec(nSpecies), Xi_VibSpec(nSpe
 REAL                  :: TVibSpec(nSpecies), TRotSpec(nSpecies), RotExpSpec(nSpecies), VibExpSpec(nSpecies), Xi_VibTotal, omega_mix
 REAL                  :: collisionfreqSpec(nSpecies),rotrelaxfreqSpec(nSpecies), vibrelaxfreqSpec(nSpecies), Xi_RotTotal, CellTempRelax
 INTEGER               :: nVibRelaxSpec(nSpecies), nRotRelaxSpec(nSpecies)
+!REAL                  :: collisfreqMat(nSpecies, nSpecies)
 !===================================================================================================================================
 #ifdef CODE_ANALYZE
 ! Momentum and energy conservation check: summing up old values
@@ -1009,6 +1010,8 @@ ELSE IF (BGKMixtureModel.EQ.3) THEN
 END IF
 
 Prandtl = C_P*dynamicvis/thermalcond*PrandtlCorrection
+!print*,'dynamicvis', dynamicvis, thermalcond, Prandtl
+!read*
 IF(DSMC%CalcQualityFactors) BGK_ExpectedPrandtlNumber = BGK_ExpectedPrandtlNumber + Prandtl
 nu = 1.-1./Prandtl
 nu= MAX(nu,-Theta/(W(3)-Theta))
@@ -1027,6 +1030,7 @@ END IF
 ! should be changed again, atom-atom doesnt count
 collisionfreq = 0.0
 collisionfreqSpec = 0.0
+!collisfreqMat = 0.0
 DO iSpec = 1, nSpecies
   DO jSpec = 1, nSpecies
     IF (iSpec.EQ.jSpec) THEN
@@ -1034,48 +1038,35 @@ DO iSpec = 1, nSpecies
     ELSE
       CellTemptmp = CellTemp
     END IF
-!    print*,  totalWeightSpec(iSpec)*totalWeightSpec(jSpec) &
-!            *Dens *CellTemptmp**(-SpecDSMC(iSpec)%omegaVHS +0.5) /(totalWeight*totalWeight)
-!    print*, SpecBGK(iSpec)%CollFreqPreFactor(jSpec)
     omega_mix = (SpecDSMC(iSpec)%omegaVHS+SpecDSMC(jSpec)%omegaVHS)/2.
 !    collisionfreqSpec(iSpec) = collisionfreqSpec(iSpec) + SpecBGK(iSpec)%CollFreqPreFactor(jSpec)  * totalWeightSpec(jSpec) &
 !            *Dens *CellTemptmp**(-omega_mix +0.5) /(totalWeight)
     collisionfreqSpec(iSpec) = collisionfreqSpec(iSpec) + SpecBGK(iSpec)%CollFreqPreFactor(jSpec) * totalWeightSpec(iSpec)*totalWeightSpec(jSpec) &
             *Dens *CellTemptmp**(-omega_mix +0.5) /(totalWeight*totalWeight)
+!    collisfreqMat(iSpec, jSpec) = SpecBGK(iSpec)%CollFreqPreFactor(jSpec) * totalWeightSpec(iSpec)*totalWeightSpec(jSpec) &
+!            *Dens *CellTemptmp**(-omega_mix +0.5) /(totalWeight*totalWeight)
   END DO
 END DO
-!read*
+
 RotExp = 0.; VibExp = 0.; RotExpSpec=0.; VibExpSpec=0.
 IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
   rotrelaxfreqSpec(:) = collisionfreqSpec(:) * DSMC%RotRelaxProb
   vibrelaxfreqSpec(:) = collisionfreqSpec(:) * DSMC%VibRelaxProb
+!  collisfreqMat = collisfreqMat * DSMC%RotRelaxProb
 !  IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
 !    CALL CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_vib_DOF, Xi_Vib_old, RotExp, VibExp, &
 !                        TEqui, rotrelaxfreq, vibrelaxfreq, dt)
 !    Xi_vib = SUM(Xi_vib_DOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
 !  ELSE
-!  TRot = TRotSpec(1)
-!  TVib = TVibSpec(1)
-!  Xi_Vib_old = Xi_VibSpec(1)
-!  rotrelaxfreq = rotrelaxfreqSpec(1)
-!  vibrelaxfreq = vibrelaxfreqSpec(1)
-!    CALL CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, VibExp,  &
-!                    TEqui, rotrelaxfreq, vibrelaxfreq, dt)
-!    RotExpSpec = RotExp
-!    VibExpSpec = VibExp
-!    Xi_VibSpec = Xi_Vib
-!    print*, CellTemp, TVibSpec, Xi_Vib_oldSpec
-!    print*, vibrelaxfreqSpec, collisionfreqSpec
-!  print*, collisionfreqSpec
     CALL CalcTEquiMulti(nPart, nSpec, CellTemp, TRotSpec, TVibSpec, Xi_VibSpec, Xi_Vib_oldSpec, RotExpSpec, VibExpSpec,  &
       TEqui, rotrelaxfreqSpec, vibrelaxfreqSpec, dt)
+!    CALL CalcTEquiMulti2(nPart, nSpec, CellTemp, TRotSpec, TVibSpec, Xi_VibSpec, Xi_Vib_oldSpec, RotExpSpec, VibExpSpec,  &
+!      TEqui, collisfreqMat, vibrelaxfreqSpec, dt)
 !  END IF
   IF(DSMC%CalcQualityFactors) THEN
     BGK_MaxRotRelaxFactor          = MAX(BGK_MaxRotRelaxFactor,MAXVAL(rotrelaxfreqSpec(:))*dt)
   END IF
 END IF
-!print*, TEqui, VibExpSpec
-!read*
 
 vBulk(1:3) = 0.0; nRelax = 0; nNotRelax = 0; nRotRelax = 0; nVibRelax = 0
 ALLOCATE(iPartIndx_NodeRelax(nPart), iPartIndx_NodeRelaxTemp(nPart))
@@ -2785,6 +2776,154 @@ END DO
 END SUBROUTINE CalcTEquiMulti
 
 
+SUBROUTINE CalcTEquiMulti2(nPart, nSpec, CellTemp, TRotSpec, TVibSpec, Xi_VibSpec, Xi_Vib_oldSpec, RotExpSpec, VibExpSpec,  &
+      TEqui, rotrelaxfreqSpec, vibrelaxfreqSpec, dtCell, DoVibRelaxIn)
+!===================================================================================================================================
+! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars,              ONLY: SpecDSMC
+USE MOD_BGK_Vars,               ONLY: BGKDoVibRelaxation
+USE MOD_Particle_Vars,          ONLY: nSpecies
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: CellTemp, TRotSpec(nSpecies), TVibSpec(nSpecies), Xi_Vib_oldSpec(nSpecies)
+REAL, INTENT(IN)                :: rotrelaxfreqSpec(nSpecies, nSpecies), vibrelaxfreqSpec(nSpecies), dtCell
+INTEGER, INTENT(IN)             :: nPart, nSpec(nSpecies)
+LOGICAL, OPTIONAL, INTENT(IN)   :: DoVibRelaxIn
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)               :: Xi_VibSpec(nSpecies), TEqui, RotExpSpec(nSpecies), VibExpSpec(nSpecies)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+REAL                            :: TEqui_Old, betaR, betaV, RotFracSpec(nSpecies), VibFracSpec(nSpecies), TEqui_Old2
+REAL                            :: eps_prec=1.0E-0
+REAL                            :: correctFac, correctFacRot, maxexp, TEquiNumDof   !, Xi_rel, 
+LOGICAL                         :: DoVibRelax
+INTEGER                         :: iSpec, jSpec
+!===================================================================================================================================
+IF (PRESENT(DoVibRelaxIn)) THEN
+  DoVibRelax = DoVibRelaxIn
+ELSE
+  DoVibRelax = BGKDoVibRelaxation
+END IF
+maxexp = LOG(HUGE(maxexp))
+!  Xi_rel = 2.*(2. - SpecDSMC(1)%omegaVHS)
+!  correctFac = 1. + (2.*SpecDSMC(1)%CharaTVib / (CellTemp*(EXP(SpecDSMC(1)%CharaTVib / CellTemp)-1.)))**(2.) &
+!        * EXP(SpecDSMC(1)%CharaTVib /CellTemp) / (2.*Xi_rel)
+!  correctFacRot = 1. + 2./Xi_rel
+
+correctFac = 1.
+correctFacRot = 1.
+RotFracSpec = 0.0
+VibFracSpec = 0.0
+DO iSpec=1, nSpecies
+  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    RotExpSpec(iSpec) = 0.0
+    DO jSpec=1, nSpecies
+      RotExpSpec(iSpec) =  RotExpSpec(iSpec) -rotrelaxfreqSpec(iSpec, jSpec)*dtCell/correctFacRot
+    END DO
+    RotExpSpec(iSpec) = EXP(RotExpSpec(iSpec))
+    RotFracSpec(iSpec) =  nSpec(iSpec)*(1.-RotExpSpec(iSpec))
+    IF(DoVibRelax) THEN
+      VibExpSpec(iSpec) = exp(-vibrelaxfreqSpec(iSpec)*dtCell/correctFac)
+      VibFracSpec(iSpec) = nSpec(iSpec)*(1.-VibExpSpec(iSpec))
+    ELSE
+      VibExpSpec(iSpec) = 0.0
+      VibFracSpec(iSpec) = 0.0
+      Xi_VibSpec(iSpec) = 0.0
+    END IF
+  END IF
+END DO
+TEqui_Old = 0.0
+TEqui = 3.*(nPart-1.)*CellTemp
+TEquiNumDof = 3.*(nPart-1.)
+DO iSpec=1, nSpecies
+  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    TEqui = TEqui + 2.*RotFracSpec(iSpec)*TRotSpec(iSpec)+Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
+    TEquiNumDof = TEquiNumDof + 2.*RotFracSpec(iSpec) + Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)
+  END IF
+END DO
+TEqui = TEqui / TEquiNumDof
+DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
+  DO iSpec = 1, nSpecies
+    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      RotExpSpec(iSpec) = 0.0
+      DO jSpec =1 ,nSpecies
+        IF (ABS(TRotSpec(iSpec)-TEqui).LT.1E-3) THEN
+          RotExpSpec(iSpec) = RotExpSpec(iSpec) - rotrelaxfreqSpec(iSpec,jSpec)*dtCell/correctFacRot
+        ELSE
+          betaR = ((TRotSpec(iSpec)-CellTemp)/(TRotSpec(iSpec)-TEqui))*rotrelaxfreqSpec(iSpec,jSpec)*dtCell/correctFacRot
+          IF ((-betaR.LT.0.0).AND.(betaR.LT.maxexp)) RotExpSpec(iSpec) = RotExpSpec(iSpec) - betaR
+        END IF
+      END DO 
+      RotExpSpec(iSpec) = EXP( RotExpSpec(iSpec))
+      RotFracSpec(iSpec) = nSpec(iSpec)*(1.-RotExpSpec(iSpec))             
+      IF(DoVibRelax) THEN
+        IF (ABS(TVibSpec(iSpec)-TEqui).LT.1E-3) THEN
+          VibExpSpec(iSpec) = exp(-vibrelaxfreqSpec(iSpec)*dtCell/correctFac)
+        ELSE
+          betaV = ((TVibSpec(iSpec)-CellTemp)/(TVibSpec(iSpec)-TEqui))*vibrelaxfreqSpec(iSpec)*dtCell/correctFac
+          IF (-betaV.GT.0.0) THEN
+            VibExpSpec(iSpec) = 0.
+          ELSE IF (betaV.GT.maxexp) THEN
+            VibExpSpec(iSpec) = 0.
+          ELSE
+            VibExpSpec(iSpec) = exp(-betaV)
+          END IF
+        END IF
+        IF ((SpecDSMC(iSpec)%CharaTVib/TEqui).GT.maxexp) THEN
+          Xi_VibSpec(iSpec) = 0.0
+        ELSE
+          Xi_VibSpec(iSpec) = 2.*SpecDSMC(iSpec)%CharaTVib/TEqui/(EXP(SpecDSMC(iSpec)%CharaTVib/TEqui)-1.)
+        END IF
+        VibFracSpec(iSpec) = nSpec(iSpec)*(1.-VibExpSpec(iSpec))
+      END IF
+    END IF
+  END DO
+  TEqui_Old = TEqui
+  TEqui_Old2 = TEqui
+
+  TEqui = 3.*(nPart-1.)*CellTemp
+  TEquiNumDof = 3.*(nPart-1.)
+  DO iSpec=1, nSpecies
+    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      TEqui = TEqui + 2.*RotFracSpec(iSpec)*TRotSpec(iSpec)+Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
+      TEquiNumDof = TEquiNumDof + 2.*RotFracSpec(iSpec) + Xi_VibSpec(iSpec)*VibFracSpec(iSpec)
+    END IF
+  END DO
+  TEqui = TEqui / TEquiNumDof
+  IF(DoVibRelax) THEN
+    DO WHILE( ABS( TEqui - TEqui_Old2 ) .GT. eps_prec )
+      TEqui =(TEqui + TEqui_Old2)*0.5
+      DO iSpec=1, nSpecies
+        IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+          IF ((SpecDSMC(iSpec)%CharaTVib/TEqui).GT.maxexp) THEN
+            Xi_VibSpec(iSpec) = 0.0
+          ELSE
+            Xi_VibSpec(iSpec) = 2.*SpecDSMC(iSpec)%CharaTVib/TEqui/(EXP(SpecDSMC(iSpec)%CharaTVib/TEqui)-1.)
+          END IF
+        END IF
+      END DO
+      TEqui_Old2 = TEqui
+      TEqui = 3.*(nPart-1.)*CellTemp
+      TEquiNumDof = 3.*(nPart-1.)
+      DO iSpec=1, nSpecies
+        IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+          TEqui = TEqui + 2.*RotFracSpec(iSpec)*TRotSpec(iSpec)+Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
+          TEquiNumDof = TEquiNumDof + 2.*RotFracSpec(iSpec) + Xi_VibSpec(iSpec)*VibFracSpec(iSpec)
+        END IF
+      END DO
+      TEqui = TEqui / TEquiNumDof
+    END DO
+  END IF
+END DO
+END SUBROUTINE CalcTEquiMulti2
+
+
 SUBROUTINE CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_Vib_DOF, Xi_Vib_old, RotExp, VibExp, TEqui, rotrelaxfreq, vibrelaxfreq, &
       dtCell, DoVibRelaxIn)
 !===================================================================================================================================
@@ -3066,6 +3205,122 @@ U2 = F_12*(6.*(Species(1)%MassIC/m0)**2. + 5.*(Species(2)%MassIC/m0)**2. - 4.*(S
 ThermalCond = (U1*ThermalCondSpec(1)*Xi(1)/Xi(2) + U2*ThermalCondSpec(2)*Xi(2)/Xi(1) + Y) &
       / (U1*Xi(1)/Xi(2) + U2*Xi(2)/Xi(1) + X)
 END SUBROUTINE CalcViscosityThermalCondColIntVHS
+
+
+
+SUBROUTINE CalcViscosityThermalCondColIntVHSNew(CellTemp, Xi,totalWeight, Visc, ThermalCond)
+!===================================================================================================================================
+! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars,              ONLY : SpecDSMC
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst, Pi
+USE MOD_Particle_Vars,          ONLY : Species, nSpecies
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: CellTemp(nSpecies+1), Xi(nSpecies), totalWeight
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)               :: Visc,ThermalCond
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+REAL        :: Sigma_11, Sigma_22, B_12, A_12, F_12, m0, InteractDiam, cv, DiffCoef, B_vis(2), A_vis(2), pressure
+REAL        :: Mass, ViscSpec(nSpecies+1), ThermalCondSpec(nSpecies+1), X, Y, U1, U2, TVHS, omegaVHS, E_12
+INTEGER     :: iSpec, iLoop
+!===================================================================================================================================
+ViscSpec = 0.; ThermalCondSpec = 0.; DiffCoef =0.
+DO iSpec = 1, 3
+  IF (iSpec.EQ.1) THEN
+    InteractDiam = SpecDSMC(1)%DrefVHS
+    Mass = Species(1)%MassIC/2. 
+    TVHS = SpecDSMC(1)%TrefVHS
+    omegaVHS = SpecDSMC(1)%omegaVHS
+  ELSE IF (iSpec.EQ.2) THEN
+    InteractDiam = SpecDSMC(2)%DrefVHS
+    Mass = Species(2)%MassIC/2.
+    TVHS = SpecDSMC(2)%TrefVHS
+    omegaVHS = SpecDSMC(2)%omegaVHS
+  ELSE
+    InteractDiam = (SpecDSMC(1)%DrefVHS + SpecDSMC(2)%DrefVHS)/2.
+    Mass = Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC + Species(2)%MassIC)
+    TVHS = SQRT(SpecDSMC(1)%TrefVHS*SpecDSMC(2)%TrefVHS)
+    omegaVHS = (SpecDSMC(1)%omegaVHS + SpecDSMC(2)%omegaVHS)/2.
+  END IF
+  Sigma_22 = CalcSigma_22VHS(CellTemp(iSpec),InteractDiam,Mass,TVHS, omegaVHS)
+  cv= 3./2.*BoltzmannConst/(2.*Mass)
+  IF (iSpec.EQ.3) THEN
+   CALL CalcSigma_11VHS(CellTemp(iSpec),InteractDiam,Mass,TVHS, omegaVHS, Sigma_11)
+   DiffCoef = 3.*BoltzmannConst* CellTemp(iSpec)/(16.*Mass*totalWeight*Species(1)%MacroParticleFactor*Sigma_11)
+  END IF
+  ViscSpec(iSpec) = (5./8.)*(BoltzmannConst*CellTemp(iSpec))/(Sigma_22)
+  ThermalCondSpec(iSpec) = (25./16.)*(cv*BoltzmannConst*CellTemp(iSpec))/(Sigma_22)
+!  ThermalCondSpec(iSpec) = (15./4.)*BoltzmannConst/(2.*Mass)*ViscSpec(iSpec) 
+END DO
+!print*,'vor', DiffCoef
+A_12 = Sigma_22 / (5.*Sigma_11)
+E_12 = BoltzmannConst*CellTemp(3)/(8.*Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC+Species(2)%MassIC)**2.*Sigma_11)
+F_12 = 15.*BoltzmannConst/(4.*(Species(1)%MassIC+Species(2)%MassIC))*E_12
+B_12 = (5.*GAMMA(4.-omegaVHS)-GAMMA(5.-omegaVHS))/(5.*GAMMA(3.-omegaVHS))
+DiffCoef = 3.*E_12/(2.*(Species(1)%MassIC+Species(2)%MassIC)*totalWeight*Species(1)%MacroParticleFactor)
+!print*, 'nach', DiffCoef
+!read*
+X= Xi(1)/Xi(2)*(2./3.+Species(1)%MassIC/Species(2)%MassIC*A_12) + Xi(2)/Xi(1)*(2./3.+Species(2)%MassIC/Species(1)%MassIC*A_12) & 
+  + E_12/(2.*ViscSpec(1)) + E_12/(2.*ViscSpec(2)) + 2.*(2./3.-A_12)
+Y= Xi(1)/Xi(2)*(2./3.+Species(1)%MassIC/Species(2)%MassIC*A_12)/ViscSpec(1) &
+    + Xi(2)/Xi(1)*(2./3.+Species(2)%MassIC/Species(1)%MassIC*A_12)/ViscSpec(2) + E_12/(2.*ViscSpec(1)*ViscSpec(2)) &
+    + 4.*A_12/(3.*E_12*Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC+Species(2)%MassIC)**2.)
+Visc = X/Y
+print*,'Viscalt', Visc, ViscSpec(:)
+B_vis(1:2) = ViscSpec(1:2)
+DO iLoop =1, 10
+B_vis(1) = Xi(1)*(1.+ 3.*B_vis(2) &
+  / ((Species(1)%MassIC*Xi(1)*totalWeight*Species(1)%MacroParticleFactor &
+   + Species(2)%MassIC*Xi(2)*totalWeight*Species(1)%MacroParticleFactor)*DiffCoef)*(2./3.-A_12)) & 
+  / (Xi(1)/ViscSpec(1)+ 3.*Xi(2) &
+  / ((Species(1)%MassIC*Xi(1)*totalWeight*Species(1)%MacroParticleFactor &
+   + Species(2)%MassIC*Xi(2)*totalWeight*Species(1)%MacroParticleFactor)*DiffCoef)*(2./3.+Species(2)%MassIC/Species(1)%MassIC*A_12))
+B_vis(2) = Xi(2)*(1.+ 3.*B_vis(1) &
+  / ((Species(1)%MassIC*Xi(1)*totalWeight*Species(1)%MacroParticleFactor &
+   + Species(2)%MassIC*Xi(2)*totalWeight*Species(1)%MacroParticleFactor)*DiffCoef)*(2./3.-A_12)) & 
+  / (Xi(2)/ViscSpec(2)+ 3.*Xi(1) &
+  / ((Species(1)%MassIC*Xi(1)*totalWeight*Species(1)%MacroParticleFactor &
+   + Species(2)%MassIC*Xi(2)*totalWeight*Species(1)%MacroParticleFactor)*DiffCoef)*(2./3.+Species(1)%MassIC/Species(2)%MassIC*A_12))
+print*, B_vis
+END DO
+print*, 'viscnew', SUM(B_vis)
+Visc = SUM(B_vis)
+m0 = Species(1)%MassIC+Species(2)%MassIC
+X = 3.*(Species(1)%MassIC/m0 - Species(2)%MassIC/m0)**2.*(5.-4.*B_12) &
+    + 4.*Species(1)%MassIC*Species(2)%MassIC/m0**2.*A_12*(11.-4.*B_12) + 2.*F_12**2./(ThermalCondSpec(1)*ThermalCondSpec(2))
+Y = 2.*F_12*(F_12/ThermalCondSpec(1)+F_12/ThermalCondSpec(2)+(11.-4.*B_12-8.*A_12)*Species(1)%MassIC*Species(2)%MassIC/m0**2.)
+U1 = F_12*(6.*(Species(2)%MassIC/m0)**2. + 5.*(Species(1)%MassIC/m0)**2. - 4.*(Species(1)%MassIC/m0)**2.*B_12 & 
+      + 8.*Species(1)%MassIC*Species(2)%MassIC/m0**2.*A_12)/ThermalCondSpec(1)
+U2 = F_12*(6.*(Species(1)%MassIC/m0)**2. + 5.*(Species(2)%MassIC/m0)**2. - 4.*(Species(2)%MassIC/m0)**2.*B_12 & 
+      + 8.*Species(1)%MassIC*Species(2)%MassIC/m0**2.*A_12)/ThermalCondSpec(2)
+ThermalCond = (U1*ThermalCondSpec(1)*Xi(1)/Xi(2) + U2*ThermalCondSpec(2)*Xi(2)/Xi(1) + Y) &
+      / (U1*Xi(1)/Xi(2) + U2*Xi(2)/Xi(1) + X)
+
+print*, 'thermalcon alt', ThermalCond, ThermalCondSpec
+pressure = BoltzmannConst*totalWeight*Species(1)%MacroParticleFactor*CellTemp(3)
+A_vis(1:2) = ThermalCondSpec(1:2)
+DO iLoop=1,10
+A_vis(1) = Xi(1)*(1.+A_vis(2)*CellTemp(3)*Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC+Species(2)%MassIC)**2. &
+      /(5.*pressure*DiffCoef)*(11.-4.*B_12-8.*A_12)) &
+      /(Xi(1)/ThermalCondSpec(1)+CellTemp(3)*Xi(2)/(5.*pressure*DiffCoef)*(6.*Species(1)%MassIC**2./(Species(1)%MassIC+Species(2)%MassIC)**2.&
+      +(5.-4.*B_12)*Species(1)%MassIC**2./(Species(1)%MassIC+Species(2)%MassIC)**2.+8.*Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC+Species(2)%MassIC)**2.*A_12))
+A_vis(2) = Xi(2)*(1.+A_vis(1)*CellTemp(3)*Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC+Species(2)%MassIC)**2. &
+      /(5.*pressure*DiffCoef)*(11.-4.*B_12-8.*A_12)) &
+      /(Xi(2)/ThermalCondSpec(2)+CellTemp(3)*Xi(1)/(5.*pressure*DiffCoef)*(6.*Species(2)%MassIC**2./(Species(1)%MassIC+Species(2)%MassIC)**2.&
+      +(5.-4.*B_12)*Species(2)%MassIC**2./(Species(1)%MassIC+Species(2)%MassIC)**2.+8.*Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC+Species(2)%MassIC)**2.*A_12))
+print*, A_vis
+END DO
+print*, 'thermalcon new', SUM(A_vis)
+read*
+ThermalCond = SUM(A_vis)
+END SUBROUTINE CalcViscosityThermalCondColIntVHSNew
+
 
 SUBROUTINE CalcSigma_11VHS(CellTemp,Dref,Mass,Tref, omegaVHS, Sigma_11)
 !===================================================================================================================================
