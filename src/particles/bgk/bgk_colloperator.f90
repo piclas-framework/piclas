@@ -1010,8 +1010,6 @@ ELSE IF (BGKMixtureModel.EQ.3) THEN
 END IF
 
 Prandtl = C_P*dynamicvis/thermalcond*PrandtlCorrection
-!print*,'dynamicvis', dynamicvis, thermalcond, Prandtl
-!read*
 IF(DSMC%CalcQualityFactors) BGK_ExpectedPrandtlNumber = BGK_ExpectedPrandtlNumber + Prandtl
 nu = 1.-1./Prandtl
 nu= MAX(nu,-Theta/(W(3)-Theta))
@@ -3150,176 +3148,90 @@ REAL, INTENT(OUT)               :: Visc,ThermalCond
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL        :: Sigma_11, Sigma_22, B_12, A_12, F_12, m0, InteractDiam, cv, DiffCoef
-REAL        :: Mass, ViscSpec(nSpecies+1), ThermalCondSpec(nSpecies+1), X, Y, U1, U2, TVHS, omegaVHS, E_12
-INTEGER     :: iSpec, iLoop
+REAL        :: Sigma_11, Sigma_22, B_12(nSpecies,nSpecies), A_12(nSpecies,nSpecies), InteractDiam, cv, DiffCoef(nSpecies, nSpecies)
+REAL        :: Mass, ViscSpec(nSpecies), ThermalCondSpec(nSpecies), TVHS, omegaVHS, E_12, CellTemptmp
+REAL        :: ViscMat(nSpecies, nSpecies), RHSSolve(nSpecies), m0, pressure
+INTEGER     :: iSpec, jSpec, kSpec, IPIV(nSpecies), info_dgesv
 !===================================================================================================================================
-ViscSpec = 0.; ThermalCondSpec = 0.; DiffCoef =0.
-DO iSpec = 1, 3
-  IF (iSpec.EQ.1) THEN
-    InteractDiam = SpecDSMC(1)%DrefVHS
-    Mass = Species(1)%MassIC/2. 
-    TVHS = SpecDSMC(1)%TrefVHS
-    omegaVHS = SpecDSMC(1)%omegaVHS
-  ELSE IF (iSpec.EQ.2) THEN
-    InteractDiam = SpecDSMC(2)%DrefVHS
-    Mass = Species(2)%MassIC/2.
-    TVHS = SpecDSMC(2)%TrefVHS
-    omegaVHS = SpecDSMC(2)%omegaVHS
-  ELSE
-    InteractDiam = (SpecDSMC(1)%DrefVHS + SpecDSMC(2)%DrefVHS)/2.
-    Mass = Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC + Species(2)%MassIC)
-    TVHS = SQRT(SpecDSMC(1)%TrefVHS*SpecDSMC(2)%TrefVHS)
-    omegaVHS = (SpecDSMC(1)%omegaVHS + SpecDSMC(2)%omegaVHS)/2.
-  END IF
-  Sigma_22 = CalcSigma_22VHS(CellTemp(iSpec),InteractDiam,Mass,TVHS, omegaVHS)
-  cv= 3./2.*BoltzmannConst/(2.*Mass)
-  IF (iSpec.EQ.3) THEN
-   CALL CalcSigma_11VHS(CellTemp(iSpec),InteractDiam,Mass,TVHS, omegaVHS, Sigma_11)
-!   DiffCoef = 3.*BoltzmannConst* CellTemp(iSpec)/(16.*Mass*totalWeight*Species(1)%MacroParticleFactor*Sigma_11)
-  END IF
-  ViscSpec(iSpec) = (5./8.)*(BoltzmannConst*CellTemp(iSpec))/(Sigma_22)
-  ThermalCondSpec(iSpec) = (25./16.)*(cv*BoltzmannConst*CellTemp(iSpec))/(Sigma_22)
-!  ThermalCondSpec(iSpec) = (15./4.)*BoltzmannConst/(2.*Mass)*ViscSpec(iSpec) 
+ViscSpec = 0.; ThermalCondSpec = 0.; DiffCoef =0.; A_12 = 0.; B_12 = 0.
+DO iSpec = 1, nSpecies
+  DO jSpec = iSpec, nSpecies
+    InteractDiam = (SpecDSMC(iSpec)%DrefVHS + SpecDSMC(jSpec)%DrefVHS)/2.
+    Mass = Species(iSpec)%MassIC*Species(jSpec)%MassIC/(Species(iSpec)%MassIC + Species(jSpec)%MassIC)
+    TVHS = SQRT(SpecDSMC(iSpec)%TrefVHS*SpecDSMC(jSpec)%TrefVHS)
+    omegaVHS = (SpecDSMC(iSpec)%omegaVHS + SpecDSMC(jSpec)%omegaVHS)/2.
+    IF (iSpec.EQ.jSpec) THEN
+      CellTemptmp = CellTemp(iSpec)
+    ELSE
+      CellTemptmp = CellTemp(nSpecies+1)
+    END IF
+    Sigma_22 = CalcSigma_22VHS(CellTemptmp,InteractDiam,Mass,TVHS, omegaVHS)
+    IF (iSpec.EQ.jSpec) THEN
+      cv= 3./2.*BoltzmannConst/(2.*Mass)
+      ViscSpec(iSpec) = (5./8.)*(BoltzmannConst*CellTemp(iSpec))/Sigma_22
+      ThermalCondSpec(iSpec) = (25./16.)*(cv*BoltzmannConst*CellTemp(iSpec))/Sigma_22
+      !ThermalCondSpec(iSpec) = (15./4.)*BoltzmannConst/(2.*Mass)*ViscSpec(iSpec) 
+    ELSE     
+      CALL CalcSigma_11VHS(CellTemp(nSpecies+1),InteractDiam,Mass,TVHS, omegaVHS, Sigma_11)
+      B_12(iSpec,jSpec) = (5.*GAMMA(4.-omegaVHS)-GAMMA(5.-omegaVHS))/(5.*GAMMA(3.-omegaVHS))
+      B_12(jSpec,iSpec) = B_12(iSpec,jSpec)
+      A_12(iSpec,jSpec) = Sigma_22 / (5.*Sigma_11)
+      A_12(jSpec,iSpec) = A_12(iSpec,jSpec)
+      E_12 = BoltzmannConst*CellTemp(nSpecies+1)/(8.*Species(iSpec)%MassIC*Species(jSpec)%MassIC & 
+          /(Species(iSpec)%MassIC+Species(jSpec)%MassIC)**2.*Sigma_11)
+      DiffCoef(iSpec,jSpec) = 3.*E_12/(2.*(Species(iSpec)%MassIC+Species(jSpec)%MassIC)*totalWeight*Species(1)%MacroParticleFactor)
+      DiffCoef(jSpec,iSpec) = DiffCoef(iSpec,jSpec)
+    END IF
+  END DO
 END DO
-A_12 = Sigma_22 / (5.*Sigma_11)
-E_12 = BoltzmannConst*CellTemp(3)/(8.*Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC+Species(2)%MassIC)**2.*Sigma_11)
-F_12 = 15.*BoltzmannConst/(4.*(Species(1)%MassIC+Species(2)%MassIC))*E_12
-B_12 = (5.*GAMMA(4.-omegaVHS)-GAMMA(5.-omegaVHS))/(5.*GAMMA(3.-omegaVHS))
 
-X= Xi(1)/Xi(2)*(2./3.+Species(1)%MassIC/Species(2)%MassIC*A_12) + Xi(2)/Xi(1)*(2./3.+Species(2)%MassIC/Species(1)%MassIC*A_12) & 
-  + E_12/(2.*ViscSpec(1)) + E_12/(2.*ViscSpec(2)) + 2.*(2./3.-A_12)
-Y= Xi(1)/Xi(2)*(2./3.+Species(1)%MassIC/Species(2)%MassIC*A_12)/ViscSpec(1) &
-    + Xi(2)/Xi(1)*(2./3.+Species(2)%MassIC/Species(1)%MassIC*A_12)/ViscSpec(2) + E_12/(2.*ViscSpec(1)*ViscSpec(2)) &
-    + 4.*A_12/(3.*E_12*Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC+Species(2)%MassIC)**2.)
-Visc = X/Y
+ViscMat = 0.0
+DO iSpec = 1, nSpecies
+  DO jSpec = 1, nSpecies
+    IF (iSpec.EQ.jSpec) THEN
+      ViscMat(iSpec, jSpec) = ViscMat(iSpec, jSpec) + Xi(iSpec)/ViscSpec(iSpec)
+      DO kSpec = 1, nSpecies
+        IF(kSpec.EQ.iSpec) CYCLE
+        ViscMat(iSpec, jSpec) = ViscMat(iSpec, jSpec) + 3.*Xi(kSpec) / ((Species(iSpec)%MassIC*totalWeight*Species(iSpec)%MacroParticleFactor &
+        + Species(kSpec)%MassIC*totalWeight*Species(kSpec)%MacroParticleFactor)*DiffCoef(iSpec,kSpec)) &
+        *(2./3.+Species(kSpec)%MassIC/Species(iSpec)%MassIC*A_12(iSpec,kSpec))
+      END DO
+    ELSE
+      ViscMat(iSpec, jSpec) = ViscMat(iSpec, jSpec) -  Xi(iSpec)*3. / ((Species(iSpec)%MassIC*totalWeight*Species(iSpec)%MacroParticleFactor &
+        + Species(jSpec)%MassIC*totalWeight*Species(jSpec)%MacroParticleFactor)*DiffCoef(iSpec,jSpec))*(2./3.-A_12(iSpec,jSpec))
+    END IF
+  END DO
+  RHSSolve(iSpec) = Xi(iSpec)
+END DO
+CALL DGESV(nSpecies, 1, ViscMat, nSpecies, IPIV, RHSSolve, nSpecies, info_dgesv)
+Visc = SUM(RHSSolve)
 
-m0 = Species(1)%MassIC+Species(2)%MassIC
-X = 3.*(Species(1)%MassIC/m0 - Species(2)%MassIC/m0)**2.*(5.-4.*B_12) &
-    + 4.*Species(1)%MassIC*Species(2)%MassIC/m0**2.*A_12*(11.-4.*B_12) + 2.*F_12**2./(ThermalCondSpec(1)*ThermalCondSpec(2))
-Y = 2.*F_12*(F_12/ThermalCondSpec(1)+F_12/ThermalCondSpec(2)+(11.-4.*B_12-8.*A_12)*Species(1)%MassIC*Species(2)%MassIC/m0**2.)
-U1 = F_12*(6.*(Species(2)%MassIC/m0)**2. + 5.*(Species(1)%MassIC/m0)**2. - 4.*(Species(1)%MassIC/m0)**2.*B_12 & 
-      + 8.*Species(1)%MassIC*Species(2)%MassIC/m0**2.*A_12)/ThermalCondSpec(1)
-U2 = F_12*(6.*(Species(1)%MassIC/m0)**2. + 5.*(Species(2)%MassIC/m0)**2. - 4.*(Species(2)%MassIC/m0)**2.*B_12 & 
-      + 8.*Species(1)%MassIC*Species(2)%MassIC/m0**2.*A_12)/ThermalCondSpec(2)
-ThermalCond = (U1*ThermalCondSpec(1)*Xi(1)/Xi(2) + U2*ThermalCondSpec(2)*Xi(2)/Xi(1) + Y) &
-      / (U1*Xi(1)/Xi(2) + U2*Xi(2)/Xi(1) + X)
+pressure = BoltzmannConst*totalWeight*Species(1)%MacroParticleFactor*CellTemp(nSpecies+1)
+ViscMat = 0.0
+DO iSpec = 1, nSpecies
+  DO jSpec = 1, nSpecies
+    IF (iSpec.EQ.jSpec) THEN
+      ViscMat(iSpec, jSpec) = ViscMat(iSpec, jSpec) + Xi(iSpec)/ThermalCondSpec(iSpec)
+      DO kSpec = 1, nSpecies
+        IF(kSpec.EQ.iSpec) CYCLE
+        m0 = Species(iSpec)%MassIC+Species(kSpec)%MassIC
+        ViscMat(iSpec, jSpec) = ViscMat(iSpec, jSpec) + CellTemp(nSpecies+1)*Xi(kSpec)/(5.*pressure*DiffCoef(iSpec,kSpec)) &
+          * (6.*Species(iSpec)%MassIC**2./m0**2.+(5.-4.*B_12(iSpec,kSpec))*Species(kSpec)%MassIC**2./m0**2. &
+          + 8.*Species(iSpec)%MassIC*Species(kSpec)%MassIC/m0**2.*A_12(iSpec, kSpec))
+      END DO
+    ELSE
+      m0 = Species(iSpec)%MassIC+Species(jSpec)%MassIC
+      ViscMat(iSpec, jSpec) = ViscMat(iSpec, jSpec) - Xi(iSpec)*CellTemp(nSpecies+1) &
+        *(Species(iSpec)%MassIC*Species(jSpec)%MassIC/m0**2.)/(5.*pressure*DiffCoef(iSpec,jSpec)) &
+        *(11.-4.*B_12(iSpec,jSpec)-8.*A_12(iSpec,jSpec))
+    END IF
+  END DO
+  RHSSolve(iSpec) = Xi(iSpec)
+END DO
+CALL DGESV(nSpecies, 1, ViscMat, nSpecies, IPIV, RHSSolve, nSpecies, info_dgesv)
+ThermalCond = SUM(RHSSolve)
+
 END SUBROUTINE CalcViscosityThermalCondColIntVHS
-
-
-
-SUBROUTINE CalcViscosityThermalCondColIntVHSNew(CellTemp, Xi,totalWeight, Visc, ThermalCond)
-!===================================================================================================================================
-! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
-!===================================================================================================================================
-! MODULES
-USE MOD_DSMC_Vars,              ONLY : SpecDSMC
-USE MOD_Globals_Vars,           ONLY : BoltzmannConst, Pi
-USE MOD_Particle_Vars,          ONLY : Species, nSpecies
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)                :: CellTemp(nSpecies+1), Xi(nSpecies), totalWeight
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)               :: Visc,ThermalCond
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-REAL        :: Sigma_11, Sigma_22, B_12, A_12, F_12, m0, InteractDiam, cv, DiffCoef, B_vis(2), A_vis(2), pressure
-REAL        :: Mass, ViscSpec(nSpecies+1), ThermalCondSpec(nSpecies+1), X, Y, U1, U2, TVHS, omegaVHS, E_12
-INTEGER     :: iSpec, iLoop
-!===================================================================================================================================
-ViscSpec = 0.; ThermalCondSpec = 0.; DiffCoef =0.
-DO iSpec = 1, 3
-  IF (iSpec.EQ.1) THEN
-    InteractDiam = SpecDSMC(1)%DrefVHS
-    Mass = Species(1)%MassIC/2. 
-    TVHS = SpecDSMC(1)%TrefVHS
-    omegaVHS = SpecDSMC(1)%omegaVHS
-  ELSE IF (iSpec.EQ.2) THEN
-    InteractDiam = SpecDSMC(2)%DrefVHS
-    Mass = Species(2)%MassIC/2.
-    TVHS = SpecDSMC(2)%TrefVHS
-    omegaVHS = SpecDSMC(2)%omegaVHS
-  ELSE
-    InteractDiam = (SpecDSMC(1)%DrefVHS + SpecDSMC(2)%DrefVHS)/2.
-    Mass = Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC + Species(2)%MassIC)
-    TVHS = SQRT(SpecDSMC(1)%TrefVHS*SpecDSMC(2)%TrefVHS)
-    omegaVHS = (SpecDSMC(1)%omegaVHS + SpecDSMC(2)%omegaVHS)/2.
-  END IF
-  Sigma_22 = CalcSigma_22VHS(CellTemp(iSpec),InteractDiam,Mass,TVHS, omegaVHS)
-  cv= 3./2.*BoltzmannConst/(2.*Mass)
-  IF (iSpec.EQ.3) THEN
-   CALL CalcSigma_11VHS(CellTemp(iSpec),InteractDiam,Mass,TVHS, omegaVHS, Sigma_11)
-   DiffCoef = 3.*BoltzmannConst* CellTemp(iSpec)/(16.*Mass*totalWeight*Species(1)%MacroParticleFactor*Sigma_11)
-  END IF
-  ViscSpec(iSpec) = (5./8.)*(BoltzmannConst*CellTemp(iSpec))/(Sigma_22)
-  ThermalCondSpec(iSpec) = (25./16.)*(cv*BoltzmannConst*CellTemp(iSpec))/(Sigma_22)
-!  ThermalCondSpec(iSpec) = (15./4.)*BoltzmannConst/(2.*Mass)*ViscSpec(iSpec) 
-END DO
-!print*,'vor', DiffCoef
-A_12 = Sigma_22 / (5.*Sigma_11)
-E_12 = BoltzmannConst*CellTemp(3)/(8.*Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC+Species(2)%MassIC)**2.*Sigma_11)
-F_12 = 15.*BoltzmannConst/(4.*(Species(1)%MassIC+Species(2)%MassIC))*E_12
-B_12 = (5.*GAMMA(4.-omegaVHS)-GAMMA(5.-omegaVHS))/(5.*GAMMA(3.-omegaVHS))
-DiffCoef = 3.*E_12/(2.*(Species(1)%MassIC+Species(2)%MassIC)*totalWeight*Species(1)%MacroParticleFactor)
-!print*, 'nach', DiffCoef
-!read*
-X= Xi(1)/Xi(2)*(2./3.+Species(1)%MassIC/Species(2)%MassIC*A_12) + Xi(2)/Xi(1)*(2./3.+Species(2)%MassIC/Species(1)%MassIC*A_12) & 
-  + E_12/(2.*ViscSpec(1)) + E_12/(2.*ViscSpec(2)) + 2.*(2./3.-A_12)
-Y= Xi(1)/Xi(2)*(2./3.+Species(1)%MassIC/Species(2)%MassIC*A_12)/ViscSpec(1) &
-    + Xi(2)/Xi(1)*(2./3.+Species(2)%MassIC/Species(1)%MassIC*A_12)/ViscSpec(2) + E_12/(2.*ViscSpec(1)*ViscSpec(2)) &
-    + 4.*A_12/(3.*E_12*Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC+Species(2)%MassIC)**2.)
-Visc = X/Y
-print*,'Viscalt', Visc, ViscSpec(:)
-B_vis(1:2) = ViscSpec(1:2)
-DO iLoop =1, 10
-B_vis(1) = Xi(1)*(1.+ 3.*B_vis(2) &
-  / ((Species(1)%MassIC*Xi(1)*totalWeight*Species(1)%MacroParticleFactor &
-   + Species(2)%MassIC*Xi(2)*totalWeight*Species(1)%MacroParticleFactor)*DiffCoef)*(2./3.-A_12)) & 
-  / (Xi(1)/ViscSpec(1)+ 3.*Xi(2) &
-  / ((Species(1)%MassIC*Xi(1)*totalWeight*Species(1)%MacroParticleFactor &
-   + Species(2)%MassIC*Xi(2)*totalWeight*Species(1)%MacroParticleFactor)*DiffCoef)*(2./3.+Species(2)%MassIC/Species(1)%MassIC*A_12))
-B_vis(2) = Xi(2)*(1.+ 3.*B_vis(1) &
-  / ((Species(1)%MassIC*Xi(1)*totalWeight*Species(1)%MacroParticleFactor &
-   + Species(2)%MassIC*Xi(2)*totalWeight*Species(1)%MacroParticleFactor)*DiffCoef)*(2./3.-A_12)) & 
-  / (Xi(2)/ViscSpec(2)+ 3.*Xi(1) &
-  / ((Species(1)%MassIC*Xi(1)*totalWeight*Species(1)%MacroParticleFactor &
-   + Species(2)%MassIC*Xi(2)*totalWeight*Species(1)%MacroParticleFactor)*DiffCoef)*(2./3.+Species(1)%MassIC/Species(2)%MassIC*A_12))
-print*, B_vis
-END DO
-print*, 'viscnew', SUM(B_vis)
-Visc = SUM(B_vis)
-m0 = Species(1)%MassIC+Species(2)%MassIC
-X = 3.*(Species(1)%MassIC/m0 - Species(2)%MassIC/m0)**2.*(5.-4.*B_12) &
-    + 4.*Species(1)%MassIC*Species(2)%MassIC/m0**2.*A_12*(11.-4.*B_12) + 2.*F_12**2./(ThermalCondSpec(1)*ThermalCondSpec(2))
-Y = 2.*F_12*(F_12/ThermalCondSpec(1)+F_12/ThermalCondSpec(2)+(11.-4.*B_12-8.*A_12)*Species(1)%MassIC*Species(2)%MassIC/m0**2.)
-U1 = F_12*(6.*(Species(2)%MassIC/m0)**2. + 5.*(Species(1)%MassIC/m0)**2. - 4.*(Species(1)%MassIC/m0)**2.*B_12 & 
-      + 8.*Species(1)%MassIC*Species(2)%MassIC/m0**2.*A_12)/ThermalCondSpec(1)
-U2 = F_12*(6.*(Species(1)%MassIC/m0)**2. + 5.*(Species(2)%MassIC/m0)**2. - 4.*(Species(2)%MassIC/m0)**2.*B_12 & 
-      + 8.*Species(1)%MassIC*Species(2)%MassIC/m0**2.*A_12)/ThermalCondSpec(2)
-ThermalCond = (U1*ThermalCondSpec(1)*Xi(1)/Xi(2) + U2*ThermalCondSpec(2)*Xi(2)/Xi(1) + Y) &
-      / (U1*Xi(1)/Xi(2) + U2*Xi(2)/Xi(1) + X)
-
-print*, 'thermalcon alt', ThermalCond, ThermalCondSpec
-pressure = BoltzmannConst*totalWeight*Species(1)%MacroParticleFactor*CellTemp(3)
-A_vis(1:2) = ThermalCondSpec(1:2)
-DO iLoop=1,10
-A_vis(1) = Xi(1)*(1.+A_vis(2)*CellTemp(3)*Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC+Species(2)%MassIC)**2. &
-      /(5.*pressure*DiffCoef)*(11.-4.*B_12-8.*A_12)) &
-      /(Xi(1)/ThermalCondSpec(1)+CellTemp(3)*Xi(2)/(5.*pressure*DiffCoef)*(6.*Species(1)%MassIC**2./(Species(1)%MassIC+Species(2)%MassIC)**2.&
-      +(5.-4.*B_12)*Species(1)%MassIC**2./(Species(1)%MassIC+Species(2)%MassIC)**2.+8.*Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC+Species(2)%MassIC)**2.*A_12))
-A_vis(2) = Xi(2)*(1.+A_vis(1)*CellTemp(3)*Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC+Species(2)%MassIC)**2. &
-      /(5.*pressure*DiffCoef)*(11.-4.*B_12-8.*A_12)) &
-      /(Xi(2)/ThermalCondSpec(2)+CellTemp(3)*Xi(1)/(5.*pressure*DiffCoef)*(6.*Species(2)%MassIC**2./(Species(1)%MassIC+Species(2)%MassIC)**2.&
-      +(5.-4.*B_12)*Species(2)%MassIC**2./(Species(1)%MassIC+Species(2)%MassIC)**2.+8.*Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC+Species(2)%MassIC)**2.*A_12))
-print*, A_vis
-END DO
-print*, 'thermalcon new', SUM(A_vis)
-read*
-ThermalCond = SUM(A_vis)
-END SUBROUTINE CalcViscosityThermalCondColIntVHSNew
 
 
 SUBROUTINE CalcSigma_11VHS(CellTemp,Dref,Mass,Tref, omegaVHS, Sigma_11)
