@@ -266,14 +266,9 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
           .OR.SpecDSMC(ProductReac(2))%PolyatomicMol) THEN
         BetaReaction = Calc_Beta_Poly(iReac,Xi_Total)
       ELSE
-        IF(TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
-          BetaReaction = ChemReac%ReactInfo(iReac)%Beta_Diss_Arrhenius(                                                         &
-                                ChemReac%MeanEVibQua_PerIter(EductReac(1)),                                          &
-                                ChemReac%MeanEVibQua_PerIter(EductReac(2)))
-        ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'E') THEN
-          BetaReaction = ChemReac%ReactInfo(iReac)%Beta_Exch_Arrhenius(                                                         &
-                                ChemReac%MeanEVibQua_PerIter(EductReac(1)),                                          &
-                                ChemReac%MeanEVibQua_PerIter(EductReac(2)))
+        IF((TRIM(ChemReac%ReactType(iReac)).EQ.'D').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'E')) THEN
+          BetaReaction = ChemReac%ReactInfo(iReac)%Beta_Arrhenius(ChemReac%MeanEVibQua_PerIter(EductReac(1)), &
+                                                                  ChemReac%MeanEVibQua_PerIter(EductReac(2)))
         ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
           IF(SpecDSMC(EductReac(3))%PolyatomicMol) THEN
             BetaReaction = Calc_Beta_Poly(iReac,Xi_Total)
@@ -281,10 +276,6 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
             BetaReaction = &
               ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(EductReac(3),ChemReac%MeanEVibQua_PerIter(EductReac(3)))
           END IF
-        ELSE
-!          CALL abort(&
-!         __STAMP__&
-!          ,'Reaction Type is not properly specified. Reaction: ',iReac)
         END IF
       END IF
     END IF

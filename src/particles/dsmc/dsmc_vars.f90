@@ -362,11 +362,8 @@ END TYPE
 TYPE(tMacroDSMC), ALLOCATABLE     :: MacroDSMC(:,:)         ! DSMC sample array (number of Elements, nSpec)
 
 TYPE tReactInfo
-   REAL,  ALLOCATABLE             :: Xi_Total(:,:)          ! Total DOF of Reaction (quant num part1, quant num part2)
-   REAL,  ALLOCATABLE             :: Beta_Diss_Arrhenius(:,:) ! Beta_d for calculation of the Dissociation probability
-                                                            ! (quant num part1, quant num part2)
-   REAL,  ALLOCATABLE             :: Beta_Exch_Arrhenius(:,:) ! Beta_d for calculation of the Excchange reaction probability
-                                                            ! (quant num part1, quant num part2)
+   REAL,  ALLOCATABLE             :: Beta_Arrhenius(:,:)    ! Beta for calculation of the reaction probability by TCE
+                                                            ! (quant number species 1, quant number species 2)
    REAL,  ALLOCATABLE             :: Beta_Rec_Arrhenius(:,:)  ! Beta_d for calculation of the Recombination reaction probability
                                                             ! (nSpecies, quant num part3)
    INTEGER, ALLOCATABLE           :: StoichCoeff(:,:)       ! Stoichiometric coefficient (nSpecies,1:2) (1: reactants, 2: products)

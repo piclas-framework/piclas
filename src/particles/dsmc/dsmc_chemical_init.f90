@@ -959,311 +959,145 @@ SUBROUTINE Calc_Arrhenius_Factors()
 ! Calculates variables for Arrhenius calculation (H_ab, Beta) for diatomic chemical reactions
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals,            ONLY : Abort
-  USE MOD_Globals_Vars,       ONLY: BoltzmannConst
-  USE MOD_DSMC_Vars,          ONLY : ChemReac, SpecDSMC, CollInf
-  USE MOD_PARTICLE_Vars,      ONLY : nSpecies
-  USE MOD_Globals_Vars,       ONLY : Pi
-  USE MOD_DSMC_Analyze,       ONLY : CalcTVib
+USE MOD_Globals         ,ONLY: Abort
+USE MOD_Globals_Vars    ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars       ,ONLY: ChemReac, SpecDSMC, CollInf
+USE MOD_PARTICLE_Vars   ,ONLY: nSpecies
+USE MOD_Globals_Vars    ,ONLY: Pi
+USE MOD_DSMC_Analyze    ,ONLY: CalcTVib
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                 :: iQuaMax1, iQuaMax2, iQua1, iQua2, iReac, iQuaMax1_temp, iQuaMax2_temp
-  INTEGER                 :: iQuaMax3, iQua3, iSpec
-  REAL                    :: Xi_vib1, Xi_vib2, Xi_vib3
-!  REAL                    :: EVib1, TVib1, EVib2, TVib2              ! needed for TSHO
+INTEGER                 :: iQuaMax1, iQuaMax2, iQuaMax3, iQua1, iQua2, iQua3, iReac, iSpec, iSpec1, iSpec2
+REAL                    :: omegaVHS, Xi_rot1, Xi_rot2, Xi_vib1, Xi_vib2, Xi_vib3, Xi_rel_rot, Xi_total
 !===================================================================================================================================
 
-  DO iReac = 1, ChemReac%NumOfReact
-    IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') CYCLE
-    ! Calculate the Arrhenius arrays only if the reaction is not a QK reaction
-    IF (.NOT.ChemReac%QKProcedure(iReac)) THEN
-      ! Compute VHS Factor H_ab necessary for reaction probs, only defined for one omega for all species (laux diss page 24)
-      ChemReac%Hab(iReac) = GAMMA(2.0 - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS) * 2.0 &
-              * CollInf%Cab(CollInf%Coll_Case(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2))) &
-              / ((1 + CollInf%KronDelta(CollInf%Coll_Case(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)))) &
-              * SQRT(Pi)) * (2.0 * BoltzmannConst &
-              / CollInf%MassRed(CollInf%Coll_Case(ChemReac%DefinedReact(iReac,1,1), ChemReac%DefinedReact(iReac,1,2)))) &
-              ** (0.5 - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)
-      IF((.NOT.SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%PolyatomicMol) &
-          .AND.(.NOT.SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%PolyatomicMol)) THEN
+DO iReac = 1, ChemReac%NumOfReact
+  ! Skip photo-ionization reactions
+  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') CYCLE
+  ! Skip reactions modelled with QK
+  IF(ChemReac%QKProcedure(iReac)) CYCLE
+  iSpec1 = ChemReac%DefinedReact(iReac,1,1)
+  iSpec2 = ChemReac%DefinedReact(iReac,1,2)
+  omegaVHS = (SpecDSMC(iSpec1)%omegaVHS + SpecDSMC(iSpec2)%omegaVHS)/2.
+  ! Compute VHS Factor H_ab necessary for reaction probs, only defined for one omega for all species (laux diss page 24)
+  ChemReac%Hab(iReac) = GAMMA(2.0 - omegaVHS) * 2.0 * CollInf%Cab(CollInf%Coll_Case(iSpec1,iSpec2)) &
+                        / ((1 + CollInf%KronDelta(CollInf%Coll_Case(iSpec1,iSpec2))) * SQRT(Pi)) &
+                        * (2.0 * BoltzmannConst / CollInf%MassRed(CollInf%Coll_Case(iSpec1, iSpec2))) ** (0.5 - omegaVHS)
+  ! Skip reactions with polyatomic educts, currently beta is calculated on the fly
+  IF((SpecDSMC(iSpec1)%PolyatomicMol).OR.(SpecDSMC(iSpec2)%PolyatomicMol)) CYCLE
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! Recombination
 ! ----------------------------------------------------------------------------------------------------------------------------------
-        IF (TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
-          IF(SpecDSMC(ChemReac%DefinedReact(iReac,1,3))%PolyatomicMol &
-            .OR.SpecDSMC(ChemReac%DefinedReact(iReac,2,1))%PolyatomicMol) CYCLE
-          iQuaMax3 = MAXVAL(SpecDSMC(:)%MaxVibQuant)
-          ALLOCATE(ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(nSpecies,0:iQuaMax3-1))
-          ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(:,:) = 0.0
-          DO iSpec=1,nSpecies
-            IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-              DO iQua3 = 0 , iQuaMax3-1
-                IF (iQua3.NE.0) THEN
-                  Xi_vib3 = 2 * iQua3 * LOG(1.0/ iQua3 + 1.0 )
-                ELSE
-                  Xi_vib3 = 0
-                END IF
-                ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(iSpec,iQua3) = ChemReac%Arrhenius_Prefactor(iReac) &
-                                         * BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) &
-                                         - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS) &
-                                         * GAMMA(( 3.0 + Xi_vib3 + SpecDSMC(iSpec)%Xi_Rot)/2 &
-                                         - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS + 2 ) &
-                                         / (ChemReac%Hab(iReac) * GAMMA(( 3.0 + Xi_vib3 &
-                                         + SpecDSMC(iSpec)%Xi_Rot)/2 &
-                                         + 1.5 + ChemReac%Arrhenius_Powerfactor(iReac) ))
-              END DO
-            ELSE
-              ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(iSpec,0) = ChemReac%Arrhenius_Prefactor(iReac) &
-                                         * BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) &
-                                         - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS) &
-                                         * GAMMA(1.5 &
-                                         - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS + 2 ) &
-                                         / ( ChemReac%Hab(iReac) * GAMMA(3.0 + ChemReac%Arrhenius_Powerfactor(iReac)))
-            END IF
-          END DO
+  IF (TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
+    IF(SpecDSMC(ChemReac%DefinedReact(iReac,1,3))%PolyatomicMol &
+      .OR.SpecDSMC(ChemReac%DefinedReact(iReac,2,1))%PolyatomicMol) CYCLE
+    iQuaMax3 = MAXVAL(SpecDSMC(:)%MaxVibQuant)
+    ALLOCATE(ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(nSpecies,0:iQuaMax3-1))
+    ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(:,:) = 0.0
+    DO iSpec=1,nSpecies
+      IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+        iQuaMax3 = SpecDSMC(iSpec)%MaxVibQuant
+      ELSE
+        iQuaMax3 = 1
+      END IF
+      DO iQua3 = 0 , iQuaMax3-1
+        IF (iQua3.NE.0) THEN
+          Xi_vib3 = 2. * iQua3 * LOG(1.0/iQua3 + 1.0)
+        ELSE
+          Xi_vib3 = 0
         END IF
+        Xi_total = 3. + SpecDSMC(iSpec)%Xi_Rot + Xi_vib3
+        ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(iSpec,iQua3) = ChemReac%Arrhenius_Prefactor(iReac) &
+                                  * BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) - omegaVHS) &
+                                  * GAMMA(Xi_total/2. - omegaVHS + 2.) / (ChemReac%Hab(iReac) * GAMMA(Xi_total/2. &
+                                  + 1.5 + ChemReac%Arrhenius_Powerfactor(iReac) ))
+      END DO
+    END DO
+  END IF
 ! ----------------------------------------------------------------------------------------------------------------------------------
-! Dissociation
+! Dissociation & Exchange
 ! ----------------------------------------------------------------------------------------------------------------------------------
-        IF (TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
-          iQuaMax1 = SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%MaxVibQuant
-          iQuaMax2 = SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%MaxVibQuant
-          iQuaMax1_temp = 100
-          iQuaMax2_temp = 100
-          !!!!!!would be needed in TSHO Case!!!!!
-          ! iQuaMax1_temp = iQuaMax1 - 1
-          ! iQuaMax2_temp = iQuaMax2 - 1
-          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-          IF(iQuaMax2.EQ.0) THEN
-            ALLOCATE(ChemReac%ReactInfo(iReac)%Xi_Total(0:iQuaMax1-1, 0:1))
-            ALLOCATE(ChemReac%ReactInfo(iReac)%Beta_Diss_Arrhenius(0:iQuaMax1-1,0:1))
-          ELSE
-            ALLOCATE(ChemReac%ReactInfo(iReac)%Xi_Total(0:iQuaMax1-1, 0:iQuaMax2-1))
-            ALLOCATE(ChemReac%ReactInfo(iReac)%Beta_Diss_Arrhenius(0:iQuaMax1-1,0:iQuaMax2-1))
-          END IF
-          DO iQua1 = 0 , iQuaMax1_temp
-            !Calculation of the vibrational DOF in TSHO Model
-            IF (iQua1.NE.0) THEN
-              Xi_vib1 = 2 * iQua1 * LOG(1.0/ iQua1 + 1.0 )
-              !!!!!!would be needed in TSHO Case!!!!!
-              !  EVib1 = (iQua1 + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%CharaTVib
-              !  TVib1 = CalcTVib(SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%CharaTVib &
-              !          , EVib1, iQuaMax1)
-              !  Xi_vib1 = 2 * SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%CharaTVib  &
-              !          / (TVib1 * (EXP(SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%CharaTVib / TVib1) - 1)) &
-              !          - 2 * SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%CharaTVib * iQuaMax1  &
-              !          / (TVib1 * (EXP(SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%CharaTVib * iQuaMax1 / TVib1) - 1))
-              !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            ELSE
-              Xi_vib1 = 0
-            END IF
-
-            IF(iQuaMax2.EQ.0) THEN
-              Xi_vib2 = 0
-              ChemReac%ReactInfo(iReac)%Xi_Total(iQua1,0) = Xi_vib1+ SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%Xi_Rot &
-                        + 2*(2 - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)
-              IF (Xi_vib1.GT.0) THEN
-                ChemReac%ReactInfo(iReac)%Beta_Diss_Arrhenius(iQua1,0) = ChemReac%Arrhenius_Prefactor(iReac) &
-                    *(BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) &
-                    - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)) &
-                    * GAMMA(ChemReac%ReactInfo(iReac)%Xi_Total(iQua1,0)/2) &
-                    / (ChemReac%Hab(iReac) * GAMMA(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 &
-                    + SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS + ChemReac%ReactInfo(iReac)%Xi_Total(iQua1,0)/2))
-              ELSE
-                ChemReac%ReactInfo(iReac)%Beta_Diss_Arrhenius(iQua1,0) = 0
-              END IF
-            ELSE
-              DO iQua2 = 0, iQuaMax2_temp
-                !Calculation of the vibrational DOF in TSHO Model
-                IF (iQua2.NE.0) THEN
-                  Xi_vib2 = 2 * iQua2 * LOG(1.0/ iQua2 + 1.0 )
-                  !!!!!!would be needed in TSHO Case!!!!!
-                  !  EVib2 = (iQua2 + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%CharaTVib
-                  ! TVib2 = CalcTVib(SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%CharaTVib &
-                  !          , EVib2, iQuaMax2)
-                  !  Xi_vib2 = 2 * SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%CharaTVib  &
-                  !          / (TVib2 * (EXP(SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%CharaTVib / TVib2) - 1)) &
-                  !          - 2 * SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%CharaTVib * iQuaMax2  &
-                  !          / (TVib2 * (EXP(SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%CharaTVib * iQuaMax2 / TVib2) - 1))
-                  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                ELSE
-                  Xi_vib2 = 0
-                END IF
-                !also only defined for one omega VHS for each species
-                ChemReac%ReactInfo(iReac)%Xi_Total(iQua1,iQua2) = Xi_vib1 + Xi_vib2  &
-                        + SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%Xi_Rot &
-                        + SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%Xi_Rot &
-                        + 2*(2 - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)
-                IF (Xi_vib1.GT.0) THEN
-                  ChemReac%ReactInfo(iReac)%Beta_Diss_Arrhenius(iQua1,iQua2) = ChemReac%Arrhenius_Prefactor(iReac) &
-                      *(BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) &
-                      - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)) &
-                      * GAMMA(ChemReac%ReactInfo(iReac)%Xi_Total(iQua1,iQua2)/2) &
-                      / (ChemReac%Hab(iReac) * GAMMA(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 &
-                      + SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS + ChemReac%ReactInfo(iReac)%Xi_Total(iQua1,iQua2)/2))
-                ELSE
-                  ChemReac%ReactInfo(iReac)%Beta_Diss_Arrhenius(iQua1,iQua2) = 0
-                END IF
-              END DO
-            END IF
-          END DO
-          !! would not be needed in TSHO Case
-          IF (iQuaMax2.EQ.0) THEN
-            ChemReac%ReactInfo(iReac)%Xi_Total(101:iQuaMax1-1,0) = ChemReac%ReactInfo(iReac)%Xi_Total(100,0)
-          ELSE
-            ChemReac%ReactInfo(iReac)%Xi_Total(101:iQuaMax1-1,101:iQuaMax2-1) = ChemReac%ReactInfo(iReac)%Xi_Total(100,100)
-          END IF
+  IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'D').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'E')) THEN
+    IF ((SpecDSMC(iSpec1)%InterID.EQ.2).OR.(SpecDSMC(iSpec1)%InterID.EQ.20)) THEN
+      iQuaMax1 = SpecDSMC(iSpec1)%MaxVibQuant
+      Xi_Rot1 = SpecDSMC(iSpec1)%Xi_Rot
+    ELSE
+      iQuaMax1 = 1
+      Xi_Rot1 = 0.
+    END IF
+    IF ((SpecDSMC(iSpec2)%InterID.EQ.2).OR.(SpecDSMC(iSpec2)%InterID.EQ.20)) THEN
+      iQuaMax2 = SpecDSMC(iSpec2)%MaxVibQuant
+      Xi_Rot2 = SpecDSMC(iSpec2)%Xi_Rot
+    ELSE
+      iQuaMax2 = 1
+      Xi_Rot2 = 0.
+    END IF
+    Xi_rel_rot = 2.*(2. - (SpecDSMC(iSpec1)%omegaVHS+SpecDSMC(iSpec2)%omegaVHS)/2.) + Xi_Rot1 + Xi_Rot2
+    ALLOCATE(ChemReac%ReactInfo(iReac)%Beta_Arrhenius(0:iQuaMax1-1,0:iQuaMax2-1))
+    DO iQua1 = 0 , iQuaMax1 - 1
+      IF (iQua1.NE.0) THEN
+        Xi_vib1 = 2. * iQua1 * LOG(1.0/iQua1 + 1.0)
+      ELSE
+        Xi_vib1 = 0.
+      END IF
+      DO iQua2 = 0, iQuaMax2 - 1
+        IF (iQua2.NE.0) THEN
+          Xi_vib2 = 2. * iQua2 * LOG(1.0/iQua2 + 1.0)
+        ELSE
+          Xi_vib2 = 0
         END IF
-! ----------------------------------------------------------------------------------------------------------------------------------
-! Exchange
-! ----------------------------------------------------------------------------------------------------------------------------------
-        IF (TRIM(ChemReac%ReactType(iReac)).EQ.'E') THEN
-          iQuaMax1 = SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%MaxVibQuant
-          iQuaMax2 = SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%MaxVibQuant
-          iQuaMax1_temp = 100
-          iQuaMax2_temp = 100
-          !!!!!!would be needed in TSHO Case!!!!!
-          ! iQuaMax1_temp = iQuaMax1 - 1
-          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-          IF(iQuaMax1.EQ.0) THEN
-            IF(iQuaMax2.EQ.0) THEN
-              ALLOCATE(ChemReac%ReactInfo(iReac)%Xi_Total(0:1, 0:1))
-              ALLOCATE(ChemReac%ReactInfo(iReac)%Beta_Exch_Arrhenius(0:1,0:1))
-            ELSE
-              ALLOCATE(ChemReac%ReactInfo(iReac)%Xi_Total(0:1, 0:iQuaMax2-1))
-              ALLOCATE(ChemReac%ReactInfo(iReac)%Beta_Exch_Arrhenius(0:1,0:iQuaMax2-1))
-            END IF
-          ELSE
-            IF(iQuaMax2.EQ.0) THEN
-              ALLOCATE(ChemReac%ReactInfo(iReac)%Xi_Total(0:iQuaMax1-1, 0:1))
-              ALLOCATE(ChemReac%ReactInfo(iReac)%Beta_Exch_Arrhenius(0:iQuaMax1-1,0:1))
-            ELSE
-              ALLOCATE(ChemReac%ReactInfo(iReac)%Xi_Total(0:iQuaMax1-1, 0:iQuaMax2-1))
-              ALLOCATE(ChemReac%ReactInfo(iReac)%Beta_Exch_Arrhenius(0:iQuaMax1-1,0:iQuaMax2-1))
-            END IF
-          END IF
-          IF(iQuaMax1.EQ.0) THEN
-            IF(iQuaMax2.EQ.0) THEN
-              ChemReac%ReactInfo(iReac)%Xi_Total(0,0) = 2*(2 - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)
-              ChemReac%ReactInfo(iReac)%Beta_Exch_Arrhenius(0,0) = ChemReac%Arrhenius_Prefactor(iReac) &
-                    *(BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) &
-                    - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)) &
-                    * GAMMA(ChemReac%ReactInfo(iReac)%Xi_Total(0,0)/2) &
-                    / (ChemReac%Hab(iReac) * GAMMA(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 &
-                    + SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS + ChemReac%ReactInfo(iReac)%Xi_Total(0,0)/2))
-            ELSE
-              DO iQua2 = 0, iQuaMax2_temp
-                ! Calculation of the vibrational DOF in TSHO Model
-                IF (iQua2.NE.0) THEN
-                  Xi_vib2 = 2 * iQua2 * LOG(1.0/ iQua2 + 1.0 )
-                ELSE
-                  Xi_vib2 = 0
-                END IF
-                ! also only defined for one omega VHS for each species
-                ChemReac%ReactInfo(iReac)%Xi_Total(0,iQua2) = Xi_vib2  &
-                        + SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%Xi_Rot &
-                        + 2*(2 - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)
-                ChemReac%ReactInfo(iReac)%Beta_Exch_Arrhenius(0,iQua2) = ChemReac%Arrhenius_Prefactor(iReac) &
-                    *(BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) &
-                    - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)) &
-                    * GAMMA(ChemReac%ReactInfo(iReac)%Xi_Total(0,iQua2)/2) &
-                    / (ChemReac%Hab(iReac) * GAMMA(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 &
-                    + SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS + ChemReac%ReactInfo(iReac)%Xi_Total(0,iQua2)/2))
-              END DO
-            END IF
-          ELSE
-            DO iQua1 = 0 , iQuaMax1_temp
-              !Calculation of the vibrational DOF in TSHO Model
-              IF (iQua1.NE.0) THEN
-                Xi_vib1 = 2 * iQua1 * LOG(1.0/ iQua1 + 1.0 )
-                !!!!!!would be needed in TSHO Case!!!!!
-                !  EVib1 = (iQua1 + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%CharaTVib
-                !  TVib1 = CalcTVib(SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%CharaTVib &
-                !          , EVib1, iQuaMax1)
-                !  Xi_vib1 = 2 * SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%CharaTVib  &
-                !          / (TVib1 * (EXP(SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%CharaTVib / TVib1) - 1)) &
-                !          - 2 * SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%CharaTVib * iQuaMax1  &
-                !          / (TVib1 * (EXP(SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%CharaTVib * iQuaMax1 / TVib1) - 1))
-                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-              ELSE
-                Xi_vib1 = 0
-              END IF
-              IF(iQuaMax2.EQ.0) THEN
-                Xi_vib2 = 0
-                ChemReac%ReactInfo(iReac)%Xi_Total(iQua1,0) = Xi_vib1+ SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%Xi_Rot &
-                          + 2*(2 - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)
-                IF (Xi_vib1.GT.0) THEN
-                  ChemReac%ReactInfo(iReac)%Beta_Exch_Arrhenius(iQua1,0) = ChemReac%Arrhenius_Prefactor(iReac) &
-                      *(BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) &
-                      - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)) &
-                      * GAMMA(ChemReac%ReactInfo(iReac)%Xi_Total(iQua1,0)/2) &
-                      / (ChemReac%Hab(iReac) * GAMMA(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 &
-                      + SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS + ChemReac%ReactInfo(iReac)%Xi_Total(iQua1,0)/2))
-                ELSE
-                  ChemReac%ReactInfo(iReac)%Beta_Exch_Arrhenius(iQua1,0) = 0
-                END IF
-              ELSE
-                DO iQua2 = 0, iQuaMax2_temp
-                  !Calculation of the vibrational DOF in TSHO Model
-                  IF (iQua2.NE.0) THEN
-                    Xi_vib2 = 2 * iQua2 * LOG(1.0/ iQua2 + 1.0 )
-                    !!!!!!would be needed in TSHO Case!!!!!
-                    !  EVib2 = (iQua2 + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%CharaTVib
-                    ! TVib2 = CalcTVib(SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%CharaTVib &
-                    !          , EVib2, iQuaMax2)
-                    !  Xi_vib2 = 2 * SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%CharaTVib  &
-                    !          / (TVib2 * (EXP(SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%CharaTVib / TVib2) - 1)) &
-                    !          - 2 * SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%CharaTVib * iQuaMax2  &
-                    !          / (TVib2 * (EXP(SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%CharaTVib * iQuaMax2 / TVib2) - 1))
-                    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                  ELSE
-                    Xi_vib2 = 0
-                  END IF
-                  !also only defined for one omega VHS for each species
-                  ChemReac%ReactInfo(iReac)%Xi_Total(iQua1,iQua2) = Xi_vib1 + Xi_vib2  &
-                          + SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%Xi_Rot &
-                          + SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%Xi_Rot &
-                          + 2*(2 - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)
-                  IF (Xi_vib1.GT.0) THEN
-                    ChemReac%ReactInfo(iReac)%Beta_Exch_Arrhenius(iQua1,iQua2) = ChemReac%Arrhenius_Prefactor(iReac) &
-                        *(BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) &
-                        - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)) &
-                        * GAMMA(ChemReac%ReactInfo(iReac)%Xi_Total(iQua1,iQua2)/2) &
-                        / (ChemReac%Hab(iReac) * GAMMA(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 &
-                        + SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS + ChemReac%ReactInfo(iReac)%Xi_Total(iQua1,iQua2)/2))
-                  ELSE
-                    ChemReac%ReactInfo(iReac)%Beta_Exch_Arrhenius(iQua1,iQua2) = 0
-                  END IF
-                END DO
-              END IF
-            END DO
-          END IF
-          !! would not be needed in TSHO Case
-          IF (iQuaMax1.EQ.0) THEN
-            IF (iQuaMax2.EQ.0) THEN
-              ChemReac%ReactInfo(iReac)%Xi_Total(101:iQuaMax1-1,0) = ChemReac%ReactInfo(iReac)%Xi_Total(0,0)
-            ELSE
-              ChemReac%ReactInfo(iReac)%Xi_Total(101:iQuaMax1-1,101:iQuaMax2-1) = ChemReac%ReactInfo(iReac)%Xi_Total(0,100)
-            END IF
-          ELSE
-            IF (iQuaMax2.EQ.0) THEN
-              ChemReac%ReactInfo(iReac)%Xi_Total(101:iQuaMax1-1,0) = ChemReac%ReactInfo(iReac)%Xi_Total(100,0)
-            ELSE
-              ChemReac%ReactInfo(iReac)%Xi_Total(101:iQuaMax1-1,101:iQuaMax2-1) = ChemReac%ReactInfo(iReac)%Xi_Total(100,100)
-            END IF
-          END IF
-        END IF ! Exchange reaction
-      END IF ! First and second educt not polyatomic
-    END IF ! Not Q-K
-  END DO
+        Xi_total = Xi_rel_rot + Xi_vib1 + Xi_vib2
+        ChemReac%ReactInfo(iReac)%Beta_Arrhenius(iQua1,iQua2) = Calc_Beta_Arrhenius_Diatomic(iReac,Xi_total)
+      END DO
+    END DO
+  END IF
+END DO
 
 END SUBROUTINE Calc_Arrhenius_Factors
+
+
+PURE REAL FUNCTION Calc_Beta_Arrhenius_Diatomic(iReac,Xi_total)
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals           ,ONLY: Abort
+USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars         ,ONLY: ChemReac, SpecDSMC, CollInf
+USE MOD_PARTICLE_Vars     ,ONLY: nSpecies
+USE MOD_Globals_Vars      ,ONLY: Pi
+USE MOD_DSMC_Analyze      ,ONLY: CalcTVib
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)       :: iReac
+REAL, INTENT(IN)          :: Xi_total
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                   :: iSpec1, iSpec2
+REAL                      :: omegaVHS, A_Arrhenius, b_Arrhenius
+!===================================================================================================================================
+
+iSpec1 = ChemReac%DefinedReact(iReac,1,1)
+iSpec2 = ChemReac%DefinedReact(iReac,1,2)
+
+omegaVHS = (SpecDSMC(iSpec1)%omegaVHS + SpecDSMC(iSpec2)%omegaVHS)/2.
+A_Arrhenius = ChemReac%Arrhenius_Prefactor(iReac)
+b_Arrhenius = ChemReac%Arrhenius_Powerfactor(iReac)
+
+Calc_Beta_Arrhenius_Diatomic = A_Arrhenius * (BoltzmannConst**(0.5 - b_Arrhenius - omegaVHS)) * GAMMA(Xi_total/2.) &
+                                / (ChemReac%Hab(iReac) * GAMMA(b_Arrhenius - 0.5 + omegaVHS + Xi_total/2.))
+
+END FUNCTION Calc_Beta_Arrhenius_Diatomic
 
 
 SUBROUTINE Init_TLU_Data

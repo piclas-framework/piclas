@@ -1167,137 +1167,20 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
 ! ############################################################################################################################### !
       iReac  = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
       iReac2 = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 2)
-      IF (ChemReac%QKProcedure(iReac).AND.ChemReac%QKProcedure(iReac2)) THEN ! both Reaction QK
-        ! collision energy without internal energy
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
-        ! first pseudo reaction probability
-        IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
-          PartToExec = Coll_pData(iPair)%iPart_p1
-          PartReac2 = Coll_pData(iPair)%iPart_p2
-        ELSE
-          PartToExec = Coll_pData(iPair)%iPart_p2
-          PartReac2 = Coll_pData(iPair)%iPart_p1
-        END IF
-        ReactionProb = ( Coll_pData(iPair)%Ec + PartStateIntEn(1,PartToExec)    - &
-                         SpecDSMC(PartSpecies(PartToExec))%Ediss_eV * ElementaryCharge  )  / &
-                       ( Coll_pData(iPair)%Ec + PartStateIntEn(1,PartToExec) )
-        IF (ReactionProb.LE.0.) THEN
-          ReactionProb = 0.
-        END IF
-        IF (ChemReac%DefinedReact(iReac2,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
-          PartToExecSec = Coll_pData(iPair)%iPart_p1
-          PartReac2Sec = Coll_pData(iPair)%iPart_p2
-        ELSE
-          PartToExecSec = Coll_pData(iPair)%iPart_p2
-          PartReac2Sec = Coll_pData(iPair)%iPart_p1
-        END IF
-        ! pseudo probability for second reaction
-        ReactionProb2 = ( Coll_pData(iPair)%Ec + PartStateIntEn(1 ,PartToExecSec)  - &
-                          SpecDSMC(PartSpecies(PartToExecSec))%Ediss_eV * ElementaryCharge )  / &
-                        ( Coll_pData(iPair)%Ec + PartStateIntEn(1,PartToExecSec) )
-        IF (ReactionProb2.LE.0.) THEN
-          ReactionProb2 = 0
-        END IF
-        IF (ReactionProb.GT.0.) THEN
-          ! determine if first molecule dissociates
-          CALL RANDOM_NUMBER(iRan)
-          IF ( ReactionProb / ( ReactionProb + ReactionProb2) .gt. iRan) THEN
-            CALL QK_dissociation(iPair,iReac,RelaxToDo)
-            ! first molecule does not dissociate. what is the second particle doing?
-          ELSE IF ( ReactionProb2 .gt. 0 ) THEN
-          ! dissociation second molecule
-            CALL QK_dissociation(iPair,iReac2,RelaxToDo)
-          END IF
-        ! ReactionProb = 0, check if second dissociation is possible
-        ELSE IF ( ReactionProb2 .gt. 0 ) THEN
-!           ! dissociationof second molecule
-            CALL QK_dissociation(iPair,iReac2,RelaxToDo)
-        END IF
-      ELSE IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) ) THEN ! only one Reaction QK
-        ! collision energy without internal energy
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
-        ! set QK reaction as first tested reaction
-        IF (ChemReac%QKProcedure(iReac2)) THEN
-          iReac  = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 2)
-          iReac2 = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
-        END IF
-        ! first pseude reaction probability
-        IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
-          PartToExec = Coll_pData(iPair)%iPart_p1
-          PartReac2 = Coll_pData(iPair)%iPart_p2
-        ELSE
-          PartToExec = Coll_pData(iPair)%iPart_p2
-          PartReac2 = Coll_pData(iPair)%iPart_p1
-        END IF
-        ReactionProb = ( Coll_pData(iPair)%Ec + PartStateIntEn(1,PartToExec)    - &
-                         SpecDSMC(PartSpecies(PartToExec))%Ediss_eV * ElementaryCharge  )  / &
-                       ( Coll_pData(iPair)%Ec + PartStateIntEn(1,PartToExec) )
-        IF (ReactionProb.LE.0.) THEN
-          ReactionProb = 0.
-        END IF
-        ! second reaction probability
-        IF (ChemReac%DefinedReact(iReac2,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
-          PartToExecSec = Coll_pData(iPair)%iPart_p1
-          PartReac2Sec = Coll_pData(iPair)%iPart_p2
-        ELSE
-          PartToExecSec = Coll_pData(iPair)%iPart_p2
-          PartReac2Sec = Coll_pData(iPair)%iPart_p1
-        END IF
-        ! pseudo probability for second reaction
-        ReactionProb2 = ( Coll_pData(iPair)%Ec + PartStateIntEn(1 ,PartToExecSec)  - &
-                          SpecDSMC(PartSpecies(PartToExecSec))%Ediss_eV * ElementaryCharge )  / &
-                        ( Coll_pData(iPair)%Ec + PartStateIntEn(1,PartToExecSec) )
-        IF (ReactionProb2.LE.0.) THEN
-          ReactionProb2 = 0.
-        END IF
-        IF ( ReactionProb .gt. 0 ) THEN
-          ! determine if first molecule dissociates
-          CALL RANDOM_NUMBER(iRan)
-          IF ( ReactionProb / ( ReactionProb + ReactionProb2) .gt. iRan) THEN
-            CALL QK_dissociation(iPair,iReac,RelaxToDo)
-          ELSE
-          ! perform Arrhenius dissociation
-            Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
-                                  + PartStateIntEn(1,Coll_pData(iPair)%iPart_p1) + PartStateIntEn(1,Coll_pData(iPair)%iPart_p2) &
-                                  + PartStateIntEn(2,Coll_pData(iPair)%iPart_p1) + PartStateIntEn(2,Coll_pData(iPair)%iPart_p2)
-            EZeroPoint = DSMC%GammaQuant*BoltzmannConst*SpecDSMC(PartSpecies(PartReac2Sec))%CharaTVib
-            IF((Coll_pData(iPair)%Ec-EZeroPoint).GE.ChemReac%EActiv(iReac2)) THEN
-              ReactionProb = ChemReac%ReactInfo(iReac2)%Beta_Diss_Arrhenius(                                                     &
-                             ChemReac%MeanEVibQua_PerIter(PartSpecies(PartToExecSec))                                            &
-                             , ChemReac%MeanEVibQua_PerIter(PartSpecies(PartReac2Sec)))                                          &
-                             * (Coll_pData(iPair)%Ec - ChemReac%EActiv(iReac2))                                                  &
-                          ** (ChemReac%Arrhenius_Powerfactor(iReac2) - 1.5 + SpecDSMC(ChemReac%DefinedReact(iReac2,1,1))%omegaVHS&
-                             + ChemReac%ReactInfo(iReac2)%Xi_Total(ChemReac%MeanEVibQua_PerIter(PartSpecies(PartToExecSec))      &
-                            , ChemReac%MeanEVibQua_PerIter(PartSpecies(PartReac2Sec)))/2)                                        &
-                             * Coll_pData(iPair)%Ec                                                                              &
-                             ** (1.0-ChemReac%ReactInfo(iReac2)%Xi_Total(ChemReac%MeanEVibQua_PerIter(PartSpecies(PartToExecSec))  &
-                                  , ChemReac%MeanEVibQua_PerIter(PartSpecies(PartReac2Sec)))/2)
-            ELSE
-              ReactionProb = 0.0
-            END IF
-            CALL RANDOM_NUMBER(iRan)
-            IF (ReactionProb.GT.iRan) THEN
-              CALL DSMC_Chemistry(iPair, iReac2)
-              RelaxToDo = .FALSE.
-            END IF
-          END IF
-        END IF
-      ELSE ! both reactions Arrhenius
 !-----------------------------------------------------------------------------------------------------------------------------------
-        ! Arrhenius-based reaction probability
-        CALL CalcReactionProb(iPair,iReac,ReactionProb)
-        ! calculation of dissociation probability
-        CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
+      ! Arrhenius-based reaction probability
+      CALL CalcReactionProb(iPair,iReac,ReactionProb)
+      ! calculation of dissociation probability
+      CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
+      CALL RANDOM_NUMBER(iRan)
+      IF ((ReactionProb + ReactionProb2).GT.iRan) THEN
         CALL RANDOM_NUMBER(iRan)
-        IF ((ReactionProb + ReactionProb2).GT.iRan) THEN
-          CALL RANDOM_NUMBER(iRan)
-          IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
-            CALL DSMC_Chemistry(iPair, iReac)
-          ELSE
-            CALL DSMC_Chemistry(iPair, iReac2)
-          END IF
-          RelaxToDo = .FALSE.
+        IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
+          CALL DSMC_Chemistry(iPair, iReac)
+        ELSE
+          CALL DSMC_Chemistry(iPair, iReac2)
         END IF
+        RelaxToDo = .FALSE.
       END IF
 ! ############################################################################################################################### !
     CASE(6) ! ionization or ion recombination
