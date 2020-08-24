@@ -1918,10 +1918,9 @@ END DO ! iBGM
 
 !Communicate number of BGMCells
 CALL MPI_ALLGATHER(BGMCells, 1, MPI_INTEGER, NbrOfBGMCells(0:PartMPI%nProcs-1), 1, MPI_INTEGER, PartMPI%COMM, IERROR)
-SWRITE(*,'(A,6(I0,A))')'200'
 ALLOCATE(GlobalBGMCellsArray(1:SUM(NbrOfBGMCells)*3), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
-  WRITE(*,'(A,6(I0,A))')'Problem allocating GlobalBGMCellsArray(1:',SUM(NbrOfBGMCells)*3,')'
+  WRITE(*,'(A,I0,A)')'Problem allocating GlobalBGMCellsArray(1:',SUM(NbrOfBGMCells)*3,')'
   CALL abort(&
     __STAMP__&
     ,'ERROR in particle_mesh.f90: Cannot allocate GlobalBGMCellsArray! myrank=',IntInfoOpt=myrank)

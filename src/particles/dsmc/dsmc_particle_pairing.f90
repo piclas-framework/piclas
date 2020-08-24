@@ -966,7 +966,7 @@ NULLIFY(TreeNode)
 nPart = PEM%pNumber(iElem)
 
 ALLOCATE(TreeNode)
-ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
+ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell necessary for stat pairing
 TreeNode%iPartIndx_Node(1:nPart) = 0
 
 iPart = PEM%pStart(iElem)                         ! create particle index list for pairing

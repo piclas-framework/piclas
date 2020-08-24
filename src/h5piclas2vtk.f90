@@ -582,7 +582,8 @@ INTEGER,ALLOCATABLE           :: VarNameCombine(:), VarNameCombineLen(:)
 nVTKPoints=nNodes
 nVTKCells=nElems
 
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE 3D DATA TO VTX XML BINARY (VTU) FILE..."
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE 3D DATA TO VTX XML BINARY (VTU) FILE "
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '['//TRIM(FileString)//'] ...'
 IF(nElems.LT.1)THEN
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
   RETURN

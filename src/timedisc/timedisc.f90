@@ -1303,7 +1303,7 @@ IMPLICIT NONE
 REAL                       :: timeEnd, timeStart, dtVar, RandVal, NewYPart, NewYVelo
 INTEGER                    :: iPart, iLoop
 #if USE_LOADBALANCE
-REAL                       :: tLBStart
+REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 #if USE_LOADBALANCE
