@@ -28,7 +28,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_1D_InitVolumes, DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting, DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
 PUBLIC :: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea, CalcRadWeightMPF, DSMC_2D_CalcSymmetryAreaSubSides
-PUBLIC :: DefineParametersParticleSymmetry, Init_Symmetry, DSMC_2D_TreatIdenticalParticles, DSMC_2D_TreatIdenticalParticles
+PUBLIC :: DefineParametersParticleSymmetry, Init_Symmetry, DSMC_2D_TreatIdenticalParticles
 !===================================================================================================================================
 
 CONTAINS
