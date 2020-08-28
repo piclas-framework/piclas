@@ -139,7 +139,7 @@ USE MOD_Particle_MPI_Vars   ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Dielectric_Vars     ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
-USE MOD_DSMC_Vars           ,ONLY: useDSMC, DSMC, RadialWeighting
+USE MOD_DSMC_Vars           ,ONLY: useDSMC, RadialWeighting
 USE MOD_Part_Emission_Tools ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
 USE MOD_Part_Pos_and_Velo   ,ONLY: SetParticlePosition,SetParticleVelocity
 USE MOD_Part_Tools          ,ONLY: UpdateNextFreePosition
@@ -216,7 +216,7 @@ __STAMP__&
       SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle charge and mass for species ',i,' ... '
       CALL SetParticleChargeAndMass(i,NbrOfParticle)
       IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
-      IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(i,NbrOfParticle)
+      IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
       IF (useDSMC) THEN
         iPart = 1
         DO WHILE (iPart .le. NbrOfParticle)
@@ -274,7 +274,7 @@ USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, SpecDSMC, RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, SpecDSMC
 USE MOD_DSMC_Init              ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
@@ -453,7 +453,7 @@ DO i=1,nSpecies
        CALL SetParticleVelocity(i,iInit,NbrOfParticle)
        CALL SetParticleChargeAndMass(i,NbrOfParticle)
        IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
-       IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(i,NbrOfParticle)
+       IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
        ! define molecule stuff
        IF (useDSMC.AND.(CollisMode.GT.1)) THEN
          iPart = 1

@@ -155,18 +155,6 @@ TYPE tInit                                                                   ! P
   REAL                                   :: Alpha                            ! WaveNumber for sin-deviation initiation.
   REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
   REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3) 
-  INTEGER                                :: ElemTemperatureFileID
-  REAL , ALLOCATABLE                     :: ElemTemperatureIC(:,:)           ! Temperature from macrorestart [1:3,1:nElems)
-  INTEGER                                :: ElemPartDensityFileID
-  REAL , ALLOCATABLE                     :: ElemPartDensity(:)
-  INTEGER                                :: ElemVelocityICFileID
-  REAL , ALLOCATABLE                     :: ElemVelocityIC(:,:)
-  INTEGER                                :: ElemTVibFileID
-  REAL , ALLOCATABLE                     :: ElemTVib(:)                      ! vibrational temperature [nElems]
-  INTEGER                                :: ElemTRotFileID
-  REAL , ALLOCATABLE                     :: ElemTRot(:)                      ! rotational temperature [nElems]
-  INTEGER                                :: ElemTelecFileID
-  REAL , ALLOCATABLE                     :: ElemTelec(:)                     ! electronic temperature [nElems]
   INTEGER                                :: ParticleEmissionType             ! Emission Type 1 = emission rate in 1/s,
                                                                              !               2 = emission rate 1/iteration
   REAL                                   :: ParticleEmission                 ! Emission in [1/s] or [1/Iteration]
@@ -303,13 +291,10 @@ REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! M
                                                                              ! 11:  Pumping capacity [m3/s]
                                                                              ! 12:  Static pressure [Pa]
                                                                              ! 13:  Integral pressure difference [Pa]
-REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)    ! Array of macrovalues read from macrorestartfile
-
 INTEGER                                  :: nSpecies                         ! number of species
 INTEGER                                  :: nPointsMCVolumeEstimate          ! numer of points seeded into one element for volume
                                                                              ! portion (that is occupied) estimtaion 
                                                                              ! with a Monte Carlo method
-INTEGER                                  :: nMacroRestartFiles                ! number of macroscopic restart files used for particles
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
 LOGICAL                                  :: PartMeshHasPeriodicBCs

@@ -374,8 +374,8 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)TH
   DO iElem = 1, nElems
     ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iElem + offsetElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
       ElemCharLengthX_Shared(iElem + offsetElemCNProc) = ABS(Bounds(2,1)-Bounds(1,1)) ! ABS(max - min)
-      ElemCharLengthX_Shared(iElem + offsetElemCNProc) = ABS(Bounds(2,2)-Bounds(1,2)) ! ABS(max - min)
-      ElemCharLengthX_Shared(iElem + offsetElemCNProc) = ABS(Bounds(2,3)-Bounds(1,3)) ! ABS(max - min)
+      ElemCharLengthY_Shared(iElem + offsetElemCNProc) = ABS(Bounds(2,2)-Bounds(1,2)) ! ABS(max - min)
+      ElemCharLengthZ_Shared(iElem + offsetElemCNProc) = ABS(Bounds(2,3)-Bounds(1,3)) ! ABS(max - min)
     END ASSOCIATE
   END DO ! iElem = 1, nElems
 

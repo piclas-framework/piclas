@@ -54,7 +54,6 @@ USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_standard, DSMC_pairing_octree,
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared,ElemMPVolumePortion_Shared
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/

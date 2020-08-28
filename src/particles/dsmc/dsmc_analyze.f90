@@ -752,16 +752,12 @@ SUBROUTINE DSMC_data_sampling()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, DSMC, CollisMode, SpecDSMC, DSMC_Solution
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_VolumeSample, ConsiderVolumePortions
-USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, PartStateIntEn, DSMC, CollisMode, SpecDSMC, DSMC_Solution
 USE MOD_Part_tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
-USE MOD_Mesh_Vars              ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -805,16 +801,6 @@ DO iPart=1,PDM%ParticleVecLength
     DSMC_Solution(11,iElem, iSpec) = DSMC_Solution(11,iElem, iSpec) + 1.0 !simpartnum
   END IF
 END DO
-!IF(ConsiderVolumePortions) THEN
-!  ! DO iElem=1,nElems
-!  !   DSMC_VolumeSample(iElem) = DSMC_VolumeSample(iElem) + ElemVolume_Shared(GetCNElemID(iElem+offSetElem))*(1.-GEO%MPVolumePortion(iElem))
-!  ! END DO
-!  CALL abort(&
-!__STAMP__&
-!  ,' OUTPUT OF MACROBUDDIES NOT IMPLEMENTED YET!')
-!ELSE
-!  DSMC_VolumeSample(1:nElems) = ElemVolume_Shared(1+offSetElem:nElems+offSetElem)
-!END IF
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DSMC,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -830,7 +816,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_PreProc
 USE MOD_BGK_Vars              ,ONLY: BGKInitDone, BGK_QualityFacSamp
-USE MOD_DSMC_Vars             ,ONLY: DSMC_Solution, DSMC_VolumeSample, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting
 USE MOD_FPFlow_Vars           ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry2D

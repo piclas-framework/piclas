@@ -212,26 +212,19 @@ CALL prms%CreateRealOption(     'Particles-DSMC-alpha'  &
 CALL prms%CreateRealOption(     'Part-Species[$]-VibCrossSection'  &
                                            , 'Vibrational collision cross-section to Boyd, ini_2','1.E-19', numberedmulti=.TRUE.)
 ! ----------------------------------------------------------------------------------------------------------------------------------
-CALL prms%CreateRealOption(     'Part-Species[$]-TempVib'  &
-                                           ,'Vibrational temperature.', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-TempRot'  &
-                                           ,'Rotational temperature.', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-TempElec'  &
-                                           ,'Electronic temperature.', '0.', numberedmulti=.TRUE.)
-
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-TempVib'  &
-                                           ,'Vibrational temperature.', '0.', numberedmulti=.TRUE.)
+                                           ,'Vibrational temperature.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-TempRot'  &
-                                           ,'Rotational temperature.', '0.', numberedmulti=.TRUE.)
+                                           ,'Rotational temperature.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-TempElec'  &
-                                           ,'Electronic temperature.', '0.', numberedmulti=.TRUE.)
+                                           ,'Electronic temperature.', numberedmulti=.TRUE.)
 
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-TempVib'  &
-                                           ,'Vibrational temperature.', '0.', numberedmulti=.TRUE.)
+                                           ,'Vibrational temperature.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-TempRot'  &
-                                           ,'Rotational temperature.', '0.', numberedmulti=.TRUE.)
+                                           ,'Rotational temperature.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-TempElec'  &
-                                           ,'Electronic temperature.', '0.', numberedmulti=.TRUE.)
+                                           ,'Electronic temperature.', numberedmulti=.TRUE.)
 
 CALL prms%CreateRealOption(     'Part-Species[$]-HeatOfFormation_K'  &
                                            ,'Heat of formation of the respective species [Kelvin]'&
@@ -378,18 +371,17 @@ SUBROUTINE InitDSMC()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo, SideToElem
-USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal, Symmetry2D, VarTimeStep
+USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
+USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Symmetry2D, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState       ,ONLY: DSMC_SteadyStateInit
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
-USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
+USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
-USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_DSMC_SpecXSec          ,ONLY: MCC_Init
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -400,9 +392,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(32)         :: hilf , hilf2
-INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF
+INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF, VarNum
 REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
-INTEGER               :: currentBC, ElemID, iSide, BCSideID, VarNum
 #if ( PP_TimeDiscMethod ==42 )
 #ifdef CODE_ANALYZE
 CHARACTER(LEN=64)     :: DebugElectronicStateFilename
@@ -773,35 +764,12 @@ ELSE !CollisMode.GT.0
           WRITE(UNIT=hilf2,FMT='(I0)') iInit
           hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
           IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-            IF (Species(iSpec)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
-              SpecDSMC(iSpec)%Init(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib','0.')
-              IF (SpecDSMC(iSpec)%Init(iInit)%TVib.EQ.0.) THEN               
-                CALL Abort(&
-                    __STAMP__&
-                    ,'Error! TVib needs to be defined in Part-SpeciesXX-InitXX-TempVib for iSpec, iInit'&
-                ,iSpec,REAL(iInit))
-              END IF
-            END IF !ElemMacroRestart TVib
-            IF (Species(iSpec)%Init(iInit)%ElemTRotFileID.EQ.0) THEN
-              SpecDSMC(iSpec)%Init(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot','0.')
-              IF (SpecDSMC(iSpec)%Init(iInit)%TRot.EQ.0.) THEN
-                CALL Abort(&
-                    __STAMP__&
-                    ,'Error! TRot needs to be defined in Part-SpeciesXX-InitXX-TempRot for iSpec, iInit'&
-                ,iSpec,REAL(iInit))
-              END IF
-            END IF
-          END IF ! ElemMacroRestart TRot
+            SpecDSMC(iSpec)%Init(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib')
+            SpecDSMC(iSpec)%Init(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot')
+          END IF
           ! read electronic temperature
           IF ( DSMC%ElectronicModel ) THEN
-            IF (Species(iSpec)%Init(iInit)%ElemTElecFileID.EQ.0) THEN
-              SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec','0.')
-              IF (SpecDSMC(iSpec)%Init(iInit)%Telec.EQ.0.) THEN
-                CALL Abort(&
-                    __STAMP__&
-                    ,' Error! Telec needs to defined in Part-SpeciesXX-InitXX-Tempelc for iSpec, iInit',iSpec,REAL(iInit))
-              END IF
-            END IF !ElemMacroRestart TElec
+            SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec')
           END IF ! electronic model
         END DO !Inits
         ALLOCATE(SpecDSMC(iSpec)%Surfaceflux(1:Species(iSpec)%nSurfacefluxBCs))
@@ -1368,100 +1336,88 @@ END SUBROUTINE SetNextIonizationSpecies
 
 SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
 !===================================================================================================================================
-! Energy distribution according to dissertation of Laux (diatomic)
+!> Energy distribution according to dissertation of Laux (diatomic)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals,               ONLY : abort, myRank
-  USE MOD_Globals_Vars,          ONLY : BoltzmannConst
-  USE MOD_DSMC_Vars,             ONLY : PartStateIntEn, SpecDSMC, DSMC
-  USE MOD_Particle_Vars,         ONLY : Species, PEM, Adaptive_MacroVal
-  USE MOD_Particle_Boundary_Vars,ONLY: PartBound
-  USE MOD_DSMC_ElectronicModel,  ONLY : InitElectronShell
-USE MOD_Mesh_Vars               ,ONLY: offSetElem
+USE MOD_Globals                 ,ONLY: abort
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn, SpecDSMC, DSMC
+USE MOD_Particle_Vars           ,ONLY: Species, PEM, Adaptive_MacroVal
+USE MOD_DSMC_ElectronicModel    ,ONLY: InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iSpecies, iInit, iPart, init_or_sf
+INTEGER, INTENT(IN)             :: iSpecies, iInit, iPart, init_or_sf
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                          :: iRan
-  INTEGER                       :: iQuant
-  REAL                        :: TVib                       ! vibrational temperature
-  REAL                        :: TRot                       ! rotational temperature
-  INTEGER                     :: ElemID
-  REAL                        :: pressure
+REAL                            :: iRan
+INTEGER                         :: iQuant
+REAL                            :: TVib                       ! vibrational temperature
+REAL                            :: TRot                       ! rotational temperature
+INTEGER                         :: ElemID
 !===================================================================================================================================
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set internal energies (vibrational and rotational)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ElemID = PEM%LocalElemID(iPart)
-  IF ((SpecDSMC(iSpecies)%InterID.EQ.2).OR.(SpecDSMC(iSpecies)%InterID.EQ.20)) THEN
-    SELECT CASE (init_or_sf)
-    CASE(1) !iInit
-      IF (Species(iSpecies)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
-        TVib=SpecDSMC(iSpecies)%Init(iInit)%TVib
-      ELSE
-        TVib=Species(iSpecies)%Init(iInit)%ElemTVib(ElemID)
-      END IF
-      IF (Species(iSpecies)%Init(iInit)%ElemTRotFileID.EQ.0) THEN
-        TRot=SpecDSMC(iSpecies)%Init(iInit)%TRot
-      ELSE
-        TRot=Species(iSpecies)%Init(iInit)%ElemTRot(ElemID)
-      END IF
-    CASE(2) !SurfaceFlux
-      IF(Species(iSpecies)%Surfaceflux(iInit)%Adaptive) THEN
-        SELECT CASE(Species(iSpecies)%Surfaceflux(iInit)%AdaptiveType)
-          CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
-            TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
-            TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
-          CASE(2) ! adaptive Outlet/freestream
-            TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
-                    / (BoltzmannConst * Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpecies))
-            TRot = TVib
-          CASE DEFAULT
-            CALL abort(&
-            __STAMP__&
-            ,'Wrong adaptive type for Surfaceflux in int_energy -> lauxVDF!')
-        END SELECT
-      ELSE
-        TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
-        TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
-      END IF
-    CASE DEFAULT
-      CALL abort(&
-      __STAMP__&
-      ,'neither iInit nor Surfaceflux defined as reference!')
-    END SELECT
-    ! Set vibrational energy
+IF ((SpecDSMC(iSpecies)%InterID.EQ.2).OR.(SpecDSMC(iSpecies)%InterID.EQ.20)) THEN
+  SELECT CASE (init_or_sf)
+  CASE(1) !iInit
+    TVib=SpecDSMC(iSpecies)%Init(iInit)%TVib
+    TRot=SpecDSMC(iSpecies)%Init(iInit)%TRot
+  CASE(2) !SurfaceFlux
+    IF(Species(iSpecies)%Surfaceflux(iInit)%Adaptive) THEN
+      SELECT CASE(Species(iSpecies)%Surfaceflux(iInit)%AdaptiveType)
+        CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
+          TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
+          TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+        CASE(2) ! adaptive Outlet/freestream
+          TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
+                  / (BoltzmannConst * Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpecies))
+          TRot = TVib
+        CASE DEFAULT
+          CALL abort(&
+          __STAMP__&
+          ,'Wrong adaptive type for Surfaceflux in int_energy -> lauxVDF!')
+      END SELECT
+    ELSE
+      TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
+      TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+    END IF
+  CASE DEFAULT
+    CALL abort(&
+    __STAMP__&
+    ,'neither iInit nor Surfaceflux defined as reference!')
+  END SELECT
+  ! Set vibrational energy
+  CALL RANDOM_NUMBER(iRan)
+  iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpecies)%CharaTVib)
+  DO WHILE (iQuant.GE.SpecDSMC(iSpecies)%MaxVibQuant)
     CALL RANDOM_NUMBER(iRan)
     iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpecies)%CharaTVib)
-    DO WHILE (iQuant.GE.SpecDSMC(iSpecies)%MaxVibQuant)
-      CALL RANDOM_NUMBER(iRan)
-      iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpecies)%CharaTVib)
-    END DO
-    !evtl muss partstateinten nochmal geändert werden, mpi, resize etc..
-    PartStateIntEn( 1,iPart) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpecies)%CharaTVib*BoltzmannConst
-    ! Set rotational energy
-    CALL RANDOM_NUMBER(iRan)
-    PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan)
-  ELSE
-    ! Nullify energy for atomic species
-    PartStateIntEn( 1,iPart) = 0
-    PartStateIntEn( 2,iPart) = 0
-  END IF
+  END DO
+  PartStateIntEn( 1,iPart) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpecies)%CharaTVib*BoltzmannConst
+  ! Set rotational energy
+  CALL RANDOM_NUMBER(iRan)
+  PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan)
+ELSE
+  ! Nullify energy for atomic species
+  PartStateIntEn( 1,iPart) = 0
+  PartStateIntEn( 2,iPart) = 0
+END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set electronic energy
 !-----------------------------------------------------------------------------------------------------------------------------------
-  IF (DSMC%ElectronicModel) THEN
-    IF((SpecDSMC(iSpecies)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpecies)%FullyIonized)) THEN
-      CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
-    ELSE
-      PartStateIntEn( 3,iPart) = 0.
-    END IF
-  ENDIF
+IF (DSMC%ElectronicModel) THEN
+  IF((SpecDSMC(iSpecies)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpecies)%FullyIonized)) THEN
+    CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
+  ELSE
+    PartStateIntEn( 3,iPart) = 0.
+  END IF
+ENDIF
 
 END SUBROUTINE DSMC_SetInternalEnr_LauxVFD
 

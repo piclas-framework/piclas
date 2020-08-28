@@ -493,7 +493,7 @@ USE MOD_Basis                  ,ONLY: BarycentricWeights,ChebyGaussLobNodesAndWe
 !USE MOD_Interpolation_Vars     ,ONLY: NodeType,NodeTypeCL,NodeTypeVISU
 !USE MOD_Mesh_Vars              ,ONLY: useCurveds
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
-USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo,dXCL_NGeo,Xi_NGeo!,InterpolateFromTree
+USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo,dXCL_NGeo,Xi_NGeo
 USE MOD_Mesh_Vars              ,ONLY: wBaryCL_NGeo1,Vdm_CLNGeo1_CLNGeo,XiCL_NGeo1,nElems
 !USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetGlobalElemID
 USE MOD_Particle_Mesh_Vars
@@ -636,9 +636,6 @@ END IF
 !Vdm_EQNGeo_CLN = MATMUL(Vdm_CLNloc_N,Vdm_EQNGeo_CLN)
 !
 !! Build XCL and dXCL for compute node halo region (each proc of compute-node build only its fair share)
-!IF(interpolateFromTree) THEN
-!  CALL abort(__STAMP__,'ERROR: InterpolateFromTree not yet implemented for new halo region!')
-!ELSE
 !  CALL GetDerivativeMatrix(NGeo  , NodeTypeCL  , DCL_Ngeo)
 !
 !  DO iElem = firstHaloElem, lastHaloElem
@@ -677,7 +674,6 @@ END IF
 !      END DO
 !    END DO; END DO; END DO !i,j,k=0,Ngeo
 !    END DO ! iElem = firstHaloElem, lastHaloElem
-!END IF
 
 CALL MPI_WIN_SYNC(XCL_NGeo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(Elem_xGP_Shared_Win,IERROR)

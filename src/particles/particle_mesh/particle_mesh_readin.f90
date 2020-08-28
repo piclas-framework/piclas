@@ -44,10 +44,6 @@ INTERFACE ReadMeshNodes
   MODULE PROCEDURE ReadMeshNodes
 END INTERFACE
 
-INTERFACE ReadMeshTrees
-  MODULE PROCEDURE ReadMeshTrees
-END INTERFACE
-
 INTERFACE CommunicateMeshReadin
   MODULE PROCEDURE CommunicateMeshReadin
 END INTERFACE
@@ -61,7 +57,6 @@ PUBLIC :: ReadMeshElems
 PUBLIC :: ReadMeshSides
 PUBLIC :: ReadMeshSideNeighbors
 PUBLIC :: ReadMeshNodes
-PUBLIC :: ReadMeshTrees
 PUBLIC :: CommunicateMeshReadin
 PUBLIC :: FinalizeMeshReadin
 !===================================================================================================================================
@@ -471,69 +466,6 @@ DEALLOCATE(NodeCoords_indx)
 END SUBROUTINE ReadMeshNodes
 
 
-SUBROUTINE ReadMeshTrees()
-!===================================================================================================================================
-! Create particle mesh arrays for trees
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Mesh_Vars
-USE MOD_Particle_Mesh_Vars
-#if USE_MPI
-USE MOD_MPI_Shared
-USE MOD_MPI_Shared_Vars
-#endif
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-#if USE_MPI
-INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
-#endif
-!===================================================================================================================================
-
-#if USE_LOADBALANCE
-IF (PerformLoadBalance) RETURN
-#endif /*USE_LOADBALANCE*/
-
-#if USE_MPI
-MPISharedSize = INT(3*2*nGlobalElems,MPI_ADDRESS_KIND)*MPI_DOUBLE
-CALL Allocate_Shared(MPISharedSize,(/3,2,nGlobalElems/),xiMinMax_Shared_Win,xiMinMax_Shared)
-CALL MPI_WIN_LOCK_ALL(0,xiMinMax_Shared_Win,IERROR)
-xiMinMax_Shared(:,:,offsetElem+1:offsetElem+nElems) = xiMinMax(:,:,:)
-MPISharedSize = INT(nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/nGlobalElems/),ElemToTree_Shared_Win,ElemToTree_Shared)
-CALL MPI_WIN_LOCK_ALL(0,ElemToTree_Shared_Win,IERROR)
-ElemToTree_Shared(offsetElem+1:offsetElem+nElems) = ElemToTree(:)
-! allocate shared array for TreeCoords
-CALL MPI_ALLREDUCE(nTrees,nNonUniqueGlobalTrees,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
-MPISharedSize = INT((NGeoTree+1)**3*nNonUniqueGlobalTrees,MPI_ADDRESS_KIND)*MPI_DOUBLE
-CALL Allocate_Shared(MPISharedSize,(/3,nGeoTree+1,nGeoTree+1,nGeoTree+1,nNonUniqueGlobalTrees/),TreeCoords_Shared_Win,TreeCoords_Shared)
-CALL MPI_WIN_LOCK_ALL(0,TreeCoords_Shared_Win,IERROR)
-TreeCoords_Shared(:,:,:,:,offsetTree:offsetTree+nTrees) = TreeCoords(:,:,:,:,:)
-
-CALL MPI_WIN_SYNC(xiMinMax_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(ElemToTree_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(TreeCoords_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
-#else
-nNonUniqueGlobalTrees = nTrees
-ALLOCATE(xiMinMax_Shared(3,2,nElems))
-xiMinMax_Shared(:,:,:) = xiMinMax(:,:,:)
-ALLOCATE(ElemToTree_Shared(nElems))
-ElemToTree_Shared(:) = ElemToTree(:)
-ALLOCATE(TreeCoords_Shared(3,nGeoTree+1,nGeoTree+1,nGeoTree+1,nNonUniqueGlobalTrees))
-TreeCoords_Shared(:,:,:,:,:) = TreeCoords(:,:,:,:,:)
-#endif  /*USE_MPI*/
-
-END SUBROUTINE ReadMeshTrees
-
-
 SUBROUTINE CommunicateMeshReadin()
 !===================================================================================================================================
 ! Communicates the readin mesh between MPI leaders
@@ -681,21 +613,8 @@ IF (myComputeNodeRank.EQ.0) THEN
   recvcountNode(nLeaderGroupProcs-1) = nNonUniqueGlobalNodes - displsNode(nLeaderGroupProcs-1)
 END IF
 
-! Broadcast compute node tree offset on node
-offsetComputeNodeTree=offsetTree
-CALL MPI_BCAST(offsetComputeNodeTree,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
-
 IF (myComputeNodeRank.EQ.0) THEN
   ! Arrays for the compute node to hold the node offsets
-  ALLOCATE(displsTree(   0:nLeaderGroupProcs-1),&
-           recvcountTree(0:nLeaderGroupProcs-1))
-  displsTree(myLeaderGroupRank) = offsetComputeNodeTree
-  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsTree,1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
-  DO iProc=1,nLeaderGroupProcs-1
-    recvcountTree(iProc-1) = displsTree(iProc)-displsTree(iProc-1)
-  END DO
-  recvcountTree(nLeaderGroupProcs-1) = nNonUniqueGlobalTrees - displsTree(nLeaderGroupProcs-1)
-
   CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared,ELEMINFOSIZE    *recvcountElem  &
       ,ELEMINFOSIZE*displsElem    ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
   CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared,(SIDEINFOSIZE+1)*recvcountSide  &
@@ -704,14 +623,6 @@ IF (myComputeNodeRank.EQ.0) THEN
       ,displsNode                 ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
   CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeCoords_Shared,3             *recvcountNode  &
       ,3*displsNode               ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
-  IF (isMortarMesh) THEN
-    CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,xiMinMax_Shared,3*2           *recvcountElem  &
-        ,3*2*displsElem           ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
-    CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemToTree_Shared ,            recvcountElem  &
-        ,displsElem               ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-    CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,TreeCoords_Shared ,(NGeoTree+1)**3*recvcountTree &
-        ,displsTree               ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
-  END IF
 END IF
 
 ! Ensure communication for determination of SIDE_LOCALID
@@ -787,11 +698,6 @@ CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(NodeInfo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(NodeCoords_Shared_Win,IERROR)
-IF (isMortarMesh) THEN
-  CALL MPI_WIN_SYNC(xiMinMax_Shared_Win,IERROR)
-  CALL MPI_WIN_SYNC(ElemToTree_Shared_Win,IERROR)
-  CALL MPI_WIN_SYNC(TreeCoords_Shared_Win,IERROR)
-END IF
 
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif  /*USE_MPI*/
@@ -866,12 +772,6 @@ CALL MPI_WIN_FREE(NodeInfo_Shared_Win,iError)
 CALL MPI_WIN_UNLOCK_ALL(NodeCoords_Shared_Win,iError)
 CALL MPI_WIN_FREE(NodeCoords_Shared_Win,iError)
 
-! trees
-IF (ASSOCIATED(TreeCoords_Shared)) THEN
-  CALL MPI_WIN_UNLOCK_ALL(TreeCoords_Shared_Win,iError)
-  CALL MPI_WIN_FREE(TreeCoords_Shared_Win,iError)
-END IF
-
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #endif /*USE_MPI*/
 
@@ -880,13 +780,10 @@ ADEALLOCATE(ElemInfo_Shared)
 ADEALLOCATE(SideInfo_Shared)
 ADEALLOCATE(NodeInfo_Shared)
 ADEALLOCATE(NodeCoords_Shared)
-ADEALLOCATE(TreeCoords_Shared)
 
 ! Free communication arrays
 SDEALLOCATE(displsNode)
 SDEALLOCATE(recvcountNode)
-SDEALLOCATE(displsTree)
-SDEALLOCATE(recvcountTree)
 
 END SUBROUTINE FinalizeMeshReadin
 

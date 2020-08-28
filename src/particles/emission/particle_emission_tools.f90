@@ -200,28 +200,28 @@ END IF
 END SUBROUTINE IntegerDivide
 
 
-SUBROUTINE SetParticleTimeStep(FractNbr,NbrOfParticle)
+SUBROUTINE SetParticleTimeStep(NbrOfParticle)
 !===================================================================================================================================
-! And partilces mass and charge
+!> Set the particle time step based on its position (2D/axisymmetric simulations). Can only be used for particle not yet added to
+!> the particle vector, loops over the total number of particles and the indices in the nextFreePosition array.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars           ,ONLY : PDM, PartSpecies, VarTimeStep, PEM, PartState
-USE MOD_Particle_VarTimeStep    ,ONLY : CalcVarTimeStep
+USE MOD_Particle_Vars           ,ONLY: PDM, VarTimeStep, PEM, PartState
+USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)                       :: FractNbr
+INTEGER,INTENT(IN)              :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER,INTENT(INOUT)                    :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                  :: i,PositionNbr
+INTEGER                         :: iPart, PositionNbr
 !===================================================================================================================================
-DO i=1, NbrOfParticle
-  PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+DO iPart=1, NbrOfParticle
+  PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
   VarTimeStep%ParticleTimeStep(PositionNbr) = &
                 CalcVarTimeStep(PartState(1,PositionNbr), PartState(2,PositionNbr),PEM%LocalElemID(PositionNbr))
 END DO
@@ -231,7 +231,7 @@ END SUBROUTINE SetParticleTimeStep
 
 SUBROUTINE SetParticleChargeAndMass(FractNbr,NbrOfParticle)
 !===================================================================================================================================
-! And partilces mass and charge
+!> Set the mass and charge of the particles based on the input species index.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -305,100 +305,76 @@ END DO
 END SUBROUTINE SetParticleMPF
 
 
-SUBROUTINE CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit, Element, Temperature)
+SUBROUTINE CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit, Temperature)
 !===================================================================================================================================
-! Subroutine to sample current cell values (partly copied from 'LD_DSMC_Mean_Bufferzone_A_Val' and 'dsmc_analyze')
+!> Calculate the velocity vector for a particle of a certain species based on the Maxwell distribution function.
+!> Input: Index of the init or a temperature. Routine is suitable for low particle numbers (lpn).
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-USE MOD_Particle_Vars,          ONLY : Species!, DoZigguratSampling
-!USE Ziggurat,                   ONLY : rnor
+USE MOD_Globals_Vars,           ONLY: BoltzmannConst
+USE MOD_Particle_Vars,          ONLY: Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)               :: FractNbr
-INTEGER,INTENT(IN), OPTIONAL     :: iInit
-INTEGER, OPTIONAL                :: Element !for BGG from VTK
-REAL,INTENT(IN), OPTIONAL        :: Temperature
+INTEGER,INTENT(IN)              :: FractNbr
+INTEGER,INTENT(IN), OPTIONAL    :: iInit
+REAL,INTENT(IN), OPTIONAL       :: Temperature
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                 :: Vec3D(3)
+REAL,INTENT(OUT)                :: Vec3D(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                             :: RandVal(3), Velo1, Velo2, Velosq, Tx, ty, Tz, v_drift(3)
+REAL                            :: RandVal(3), Velo1, Velo2, Velosq, Tx, ty, Tz, v_drift(3)
 !===================================================================================================================================
-IF(PRESENT(iInit).AND.PRESENT(Temperature))CALL abort(&
-__STAMP__&
-,'CalcVelocity_maxwell_lpn. iInit and Temperature cannot both be input arguments!')
-IF(PRESENT(iInit).AND..NOT.PRESENT(Element))THEN
+IF(PRESENT(iInit).AND.PRESENT(Temperature)) CALL abort(&
+  __STAMP__&
+  ,'CalcVelocity_maxwell_lpn: iInit and Temperature cannot both be input arguments!')
+IF(PRESENT(iInit))THEN
   Tx=Species(FractNbr)%Init(iInit)%MWTemperatureIC
   Ty=Species(FractNbr)%Init(iInit)%MWTemperatureIC
   Tz=Species(FractNbr)%Init(iInit)%MWTemperatureIC
-  v_drift=Species(FractNbr)%Init(iInit)%VeloIC *Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
-ELSE IF (PRESENT(Element)) THEN
-  IF (Species(FractNbr)%Init(iInit)%ElemTemperatureFileID.GT.0) THEN
-    Tx=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(1,Element)
-    Ty=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(2,Element)
-    Tz=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(3,Element)
-  ELSE
-    Tx=Species(FractNbr)%Init(iInit)%MWTemperatureIC
-    Ty=Species(FractNbr)%Init(iInit)%MWTemperatureIC
-    Tz=Species(FractNbr)%Init(iInit)%MWTemperatureIC
-  END IF
-  IF (Species(FractNbr)%Init(iInit)%ElemVelocityICFileID.GT.0) THEN
-    v_drift=Species(FractNbr)%Init(iInit)%ElemVelocityIC(1:3,Element)
-  ELSE
-    v_drift=Species(FractNbr)%Init(iInit)%VeloIC *Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
-  END IF
+  v_drift=Species(FractNbr)%Init(iInit)%VeloIC * Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
 ELSE IF(PRESENT(Temperature))THEN
   Tx=Temperature
   Ty=Temperature
   Tz=Temperature
   v_drift=0.0
 ELSE
-CALL abort(&
-__STAMP__&
-,'PO: force temperature!!')
+  CALL abort(&
+        __STAMP__&
+        ,'CalcVelocity_maxwell_lpn: No iInit or temperature given for species: ', FractNbr)
 END IF
 
-!IF (.NOT.DoZigguratSampling) THEN !polar method
-  Velosq = 2
-  DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
-    CALL RANDOM_NUMBER(RandVal)
-    Velo1 = 2.*RandVal(1) - 1.
-    Velo2 = 2.*RandVal(2) - 1.
-    Velosq = Velo1**2 + Velo2**2
-  END DO
-  Vec3D(1) = Velo1*SQRT(-2*BoltzmannConst*Tx/ &
-    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !x-Komponente
-  Vec3D(2) = Velo2*SQRT(-2*BoltzmannConst*Ty/ &
-  Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !y-Komponente
-  Velosq = 2
-  DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
-    CALL RANDOM_NUMBER(RandVal)
-    Velo1 = 2.*RandVal(1) - 1.
-    Velo2 = 2.*RandVal(2) - 1.
-    Velosq = Velo1**2 + Velo2**2
-  END DO
-  Vec3D(3) = Velo1*SQRT(-2*BoltzmannConst*Tz/ &
-    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !z-Komponente
-!ELSE !ziggurat method
-!  Velo1 = rnor()
-!  Vec3D(1) = Velo1*SQRT(BoltzmannConst*Tx/Species(FractNbr)%MassIC)             !x-Komponente
-!  Velo1 = rnor()
-!  Vec3D(2) = Velo1*SQRT(BoltzmannConst*Ty/Species(FractNbr)%MassIC)             !y-Komponente
-!  Velo1 = rnor()
-!  Vec3D(3) = Velo1*SQRT(BoltzmannConst*Tz/Species(FractNbr)%MassIC)             !z-Komponente
-!END IF
+Velosq = 2
+DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+  CALL RANDOM_NUMBER(RandVal)
+  Velo1 = 2.*RandVal(1) - 1.
+  Velo2 = 2.*RandVal(2) - 1.
+  Velosq = Velo1**2 + Velo2**2
+END DO
+! x component
+Vec3D(1) = Velo1*SQRT(-2*BoltzmannConst*Tx / Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)
+! y component
+Vec3D(2) = Velo2*SQRT(-2*BoltzmannConst*Ty / Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)
+Velosq = 2
+DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+  CALL RANDOM_NUMBER(RandVal)
+  Velo1 = 2.*RandVal(1) - 1.
+  Velo2 = 2.*RandVal(2) - 1.
+  Velosq = Velo1**2 + Velo2**2
+END DO
+! z component
+Vec3D(3) = Velo1*SQRT(-2*BoltzmannConst*Tz / Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)
+! Adding the bulk drift velocity
 Vec3D(1:3) = Vec3D(1:3) + v_drift
 
 END SUBROUTINE CalcVelocity_maxwell_lpn
 
 SUBROUTINE CalcVelocity_taylorgreenvortex(FractNbr, Vec3D, iInit, Element)
 !===================================================================================================================================
-! Subroutine to sample current cell values (partly copied from 'LD_DSMC_Mean_Bufferzone_A_Val' and 'dsmc_analyze')
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -850,12 +826,12 @@ USE MOD_MacroBody_Tools        ,ONLY: INSIDEMACROBODY
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Localization  ,ONLY: PartInElemCheck
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemEpsOneCell
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
 USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, PartMPF
+USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -889,12 +865,8 @@ __STAMP__,&
 'ERROR in SetCellLocalParticlePosition: Maximum particle number reached! max. particles needed: ',chunksize)
     END IF
     CellChunkSize(:)=0
-    IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0) THEN
-      CALL IntegerDivide(chunkSize,nElems,ElemVolume_Shared(1+offsetElem:nElems+offsetElem) &
-          ,CellChunkSize(1+offsetElem:nElems+offsetElem))
-    ELSE
-      CALL IntegerDivide(chunkSize,nElems,Species(iSpec)%Init(iInit)%ElemPartDensity(:)*ElemVolume_Shared(:),CellChunkSize(:))
-    END IF
+    CALL IntegerDivide(chunkSize,nElems,ElemVolume_Shared(1+offsetElem:nElems+offsetElem) &
+        ,CellChunkSize(1+offsetElem:nElems+offsetElem))
   ELSE
     PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
     IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
@@ -909,7 +881,6 @@ __STAMP__,&
   ichunkSize = 1
   ParticleIndexNbr = 1
   DO iElem = 1+offsetElem, nElems+offsetElem
-    !ASSOCIATE( Bounds => GEO%BoundsOfElem(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
     ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
       IF (UseExactPartNum) THEN
         nPart = CellChunkSize(iElem)
@@ -1253,7 +1224,6 @@ SUBROUTINE SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_p
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac, dt
-USE MOD_Globals_Vars           ,ONLY: Pi
 USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
 USE MOD_MacroBody_tools        ,ONLY: INSIDEMACROBODY
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1391,7 +1361,7 @@ LOGICAL                 :: insideExcludeRegion
 END SUBROUTINE SetParticlePositionSphere
 
 
-SUBROUTINE SetParticlePositionSinDeviation(FractNbr,iInit,chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionSinDeviation(FractNbr,iInit,particle_positions)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
@@ -1405,13 +1375,13 @@ USE MOD_Globals_Vars           ,ONLY: Pi
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
+INTEGER, INTENT(IN)     :: FractNbr, iInit
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                    :: Particle_pos(3), xlen, ylen, zlen, pilen, x_step, y_step, z_step, x_pos, y_pos
+REAL                    :: xlen, ylen, zlen, pilen, x_step, y_step, z_step, x_pos, y_pos
 INTEGER                 :: i, iPart, j, k
 !===================================================================================================================================
   IF(Species(FractNbr)%Init(iInit)%initialParticleNumber.NE. &
