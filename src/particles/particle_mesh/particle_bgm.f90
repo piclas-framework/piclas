@@ -809,7 +809,7 @@ IF ((SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)  ,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:
 
 ! Debug output
 IF (myRank.EQ.0) THEN
-  SWRITE(Unit_StdOut,'(A)') ' DETERMINED compute-node (CN) halo region ...
+  SWRITE(Unit_StdOut,'(A)') ' DETERMINED compute-node (CN) halo region ...'
   SWRITE(Unit_StdOut,'(A)') ' | CN Rank | Local Elements | Halo Elements (non-peri) | Halo Elements (peri) |'
   CALL FLUSH(UNIT_stdOut)
   ALLOCATE(NumberOfElements(3*nLeaderGroupProcs))
@@ -834,7 +834,7 @@ IF (myRank.EQ.0) THEN
                                       ' |'  ,NumberOfElements(iProc*3+3), ' |'
   END DO
 END IF
-CALL MPI_BARRIER(MPI_COMM_FLEXI,iError)
+CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*CODE_ANALYZE*/
 
 ! Loop over all elements and build a global FIBGM to processor mapping. This is required to identify potential emission procs
