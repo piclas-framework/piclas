@@ -285,15 +285,19 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #endif
 !===================================================================================================================================
 
-#if USE_LOADBALANCE
-IF (PerformLoadBalance) RETURN
-#endif /*USE_LOADBALANCE*/
-
 ! calculate all offsets
 FirstElemInd = offsetElem+1
 LastElemInd  = offsetElem+nElems
 offsetNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
 nNodeIDs     = ElemInfo_Shared(ELEM_LASTNODEIND ,LastElemInd)-ElemInfo_Shared(ELEM_FIRSTNODEIND,FirstElemind)
+
+#if USE_LOADBALANCE
+IF (PerformLoadBalance) THEN
+  CALL MPI_ALLREDUCE(nNodeIDs,nComputeNodeNodes,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
+  RETURN
+END IF
+#endif /*USE_LOADBALANCE*/
+
 FirstNodeInd = offsetNodeID+1
 LastNodeInd  = offsetNodeID+nNodeIDs
 
@@ -556,6 +560,10 @@ IF (PerformLoadBalance) THEN
     CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared(SIDEINFOSIZE+1,:),recvcountSide  &
                         ,displsSide,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
   END IF
+
+  ! Broadcast compute node node offset on node
+  offsetComputeNodeNode=offsetNodeID
+  CALL MPI_BCAST(offsetComputeNodeNode,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 
   ! final sync of all mesh shared arrays
   CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
