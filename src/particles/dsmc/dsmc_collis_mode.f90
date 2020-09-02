@@ -932,7 +932,7 @@ IF(DSMC%CalcQualityFactors) THEN
       Distance = SQRT((PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))**2 &
                       +(PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,Coll_pData(iPair)%iPart_p2))**2)
     ELSE
-      Distance = PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2)
+      Distance = ABS(PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))
     END IF
     DSMC%CollSepDist = DSMC%CollSepDist + Distance
     DSMC%CollSepCount = DSMC%CollSepCount + 1

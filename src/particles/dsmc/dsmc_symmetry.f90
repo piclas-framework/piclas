@@ -623,7 +623,7 @@ RETURN
 END FUNCTION DSMC_2D_CalcSymmetryArea
 
 
-REAL FUNCTION DSMC_1D_CalcSymmetryArea(iLocSide,iElem)!, ymin, ymax)
+REAL FUNCTION DSMC_1D_CalcSymmetryArea(iLocSide,iElem)
 !===================================================================================================================================
 !> Calculates the actual area of an element for 1D simulations regardless of the mesh dimension in z and y
 !> Utilized in the particle emission (surface flux) and boundary sampling
@@ -637,30 +637,14 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)            :: iElem,iLocSide
 !-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-! REAL, OPTIONAL, INTENT(OUT)   :: ymax,ymin
-!-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iNode
-REAL                          :: P(1:4), Pmin, Pmax, Length!, MidPoint
+REAL                          :: Pmin, Pmax, Length
 !===================================================================================================================================
 
-Pmin = HUGE(Pmin)
-Pmax = -HUGE(Pmax)
+Pmax = MAXVAL(GEO%NodeCoords(1,GEO%ElemSideNodeID(:,iLocSide,iElem)))
+Pmin = MINVAL(GEO%NodeCoords(1,GEO%ElemSideNodeID(:,iLocSide,iElem)))
 
-DO iNode = 1,4
-  P(iNode) = GEO%NodeCoords(1,GEO%ElemSideNodeID(iNode,iLocSide,iElem))
-END DO
-
-Pmax = MAXVAL(P(:))
-Pmin = MINVAL(P(:))
-
-! IF (PRESENT(ymax).AND.PRESENT(ymin)) THEN
-!   ymin = Pmin(2)
-!   ymax = Pmax(2)
-! END IF
-
-Length = Pmax-Pmin
+Length = ABS(Pmax-Pmin)
 
 ! IF(Symmetry%Axisymmetric) THEN
 !   MidPoint = (Pmax(2)+Pmin(2)) / 2.
@@ -803,9 +787,9 @@ IF((Symmetry%Order.LE.0).OR.(Symmetry%Order.GE.4)) CALL ABORT(__STAMP__&
 
 Symmetry%Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
 IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.3)) CALL ABORT(__STAMP__&
-    ,'ERROR: Axissymmetric Simulations only for 1D or 2D')
+  ,'ERROR: Axisymmetric simulations only for 1D or 2D')
 IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.1))CALL ABORT(__STAMP__&
-,'ERROR: Axissymmetric Simulations are only implemented for 2D yet')
+  ,'ERROR: Axisymmetric simulations are only implemented for Particles-Symmetry-Order=2 !')
 IF(Symmetry%Axisymmetric) THEN
   RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
 ELSE
