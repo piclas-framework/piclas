@@ -27,9 +27,7 @@ LOGICAL               :: useManualTimeStep                                   ! L
                                                                              ! with IAG programming style
 TYPE tSymmetry
   INTEGER             :: Order                                               ! 1-3 D
-  LOGICAL             :: Mirrorsymmetric                                     ! Neither Axis nor spherical symmetric (normal case)
   LOGICAL             :: Axisymmetric
-  LOGICAL             :: SphericalSymmetric
 END TYPE tSymmetry
 
 TYPE(tSymmetry)       :: Symmetry

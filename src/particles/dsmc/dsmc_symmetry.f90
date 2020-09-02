@@ -48,10 +48,6 @@ CALL prms%CreateLogicalOption('Particles-Symmetry2D', 'Activating a 2D simulatio
                               'xy-plane (y ranging from 0 to the domain boundaries)', '.FALSE.')
 CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetric', 'Activating an axisymmetric simulation with the same mesh '//&
                               'requirements as for the 2D case (y is then the radial direction)', '.FALSE.')
-! CALL prms%CreateLogicalOption('Particles-Symmetry1DSphericalsymmetric', 'Activating an sphrical symmetric simulation with the'//&
-!                               ' same mesh requirements as for the 1D case and x ranging from 0 to the domain boundary', '.FALSE.')
-! CALL prms%CreateLogicalOption('Particles-SphericalWeighting', 'Activates a sphrical weighting in y for the spherical '//&
-!                               'symmetric simulation based on the particle position.', '.FALSE.')
 CALL prms%CreateLogicalOption('Particles-RadialWeighting', 'Activates a radial weighting in y for the axisymmetric '//&
                               'simulation based on the particle position.', '.FALSE.')
 CALL prms%CreateRealOption(   'Particles-RadialWeighting-PartScaleFactor', 'Axisymmetric radial weighting factor, defining '//&
@@ -217,12 +213,6 @@ IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
   CALL abort(__STAMP__&
     ,'ERROR: Please orient your mesh with one cell in z-direction around 0, |z_min| = z_max !')
 END IF
-
-! IF(Symmetry%SphericalSymmetric.AND.(GEO%xminglob.NE.0.)) CALL abort(__STAMP__&
-! ,'ERROR: mesh has to start at x=0 and gors along positive x-direction in the spherical symmetric case')
-
-! IF(Symmetry%Axisymmetric.AND.(GEO%xminglob.NE.0.)) CALL abort(__STAMP__&
-! ,'ERROR: mesh has to start at x=0 and gors along positive x-direction in the axissymmetric case')
 
 DO iElem = 1,nElems
   ! Check if all sides of the element are parallel to xy-, xz-, or yz-plane and Sides parallel to xy-,and xz-plane are symmetric
@@ -821,21 +811,7 @@ IF(Symmetry%Axisymmetric) THEN
 ELSE
   RadialWeighting%DoRadialWeighting = .FALSE.
   RadialWeighting%PerformCloning = .FALSE.
-  RadialWeighting%DoSphericalWeighting = .FALSE.
 END IF
-
-! Symmetry%SphericalSymmetric = GETLOGICAL('Particles-Symmetry1DSphericalsymmetric')
-! IF(Symmetry%SphericalSymmetric.AND.(Symmetry%Order.NE.1)) CALL ABORT(__STAMP__&
-! ,'ERROR: Spherical Simulation only for 1D')
-! IF(Symmetry%SphericalSymmetric) THEN
-!   CALL ABORT(__STAMP__&
-!     ,'ERROR: Spherical Simulations are not implemented yet')
-!   RadialWeighting%DoSphericalWeighting = GETLOGICAL('Particles-SphericalWeighting')
-! ELSE IF(.NOT.Symmetry%Axisymmetric)
-!   RadialWeighting%DoSphericalWeighting = .FALSE.
-!   RadialWeighting%DoRadialWeighting = .FALSE.
-!   RadialWeighting%PerformCloning = .FALSE.
-! END IF
 
 END SUBROUTINE Init_Symmetry
 
