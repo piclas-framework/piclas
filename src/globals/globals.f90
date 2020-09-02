@@ -33,6 +33,7 @@ CHARACTER(LEN=255) :: LogFile
 CHARACTER(LEN=255) :: ErrorFileName='NOT_SET'
 INTEGER            :: iError
 REAL               :: StartTime
+REAL               :: StartCPUTime ! Required when MPI_Abort is called
 INTEGER            :: myRank,myLocalRank,myLeaderRank,myWorkerRank
 INTEGER            :: nProcessors,nLocalProcs,nLeaderProcs,nWorkerProcs
 LOGICAL            :: GlobalNbrOfParticlesUpdated ! When FALSE, then global number of particles needs to be determined
@@ -370,6 +371,7 @@ REAL                              :: RealInfo        ! Error info (real)
 INTEGER                           :: errOut          ! Output of MPI_ABORT
 INTEGER                           :: signalout       ! Output errorcode
 #endif /*USE_MPI*/
+REAL                              :: Time
 !===================================================================================================================================
 IF(logging) CLOSE(UNIT_logOut)
 #if USE_MPI
@@ -398,6 +400,9 @@ WRITE(UNIT_stdOut,*)
 WRITE(UNIT_stdOut,'(A,A,A)')'See ',TRIM(ErrorFileName),' for more details'
 WRITE(UNIT_stdOut,*)
 !CALL delete()
+CALL CPU_TIME(Time)
+CALL DisplaySimulationTime(Time, StartTime, 'ABORTED')
+CALL DisplaySimulationTime(Time, StartCPUTime, 'ABORTED')
 #if USE_MPI
 signalout=2 ! MPI_ABORT requires an output error-code /=0
 errOut = 1
@@ -1109,6 +1114,44 @@ X(1:3) = (/SIN(theta)*COS(phi)*XHat(1) + COS(theta)*COS(phi)*XHat(2) - SIN(phi)*
            COS(theta)*         XHat(1) - SIN(theta)*         XHat(2)                   /)
 
 END SUBROUTINE TransformVectorFromSphericalCoordinates
+
+
+SUBROUTINE DisplaySimulationTime(Time, StartTime, Message)
+!===================================================================================================================================
+! Finalizes variables necessary for analyse subroutines
+!===================================================================================================================================
+! MODULES
+!USE MOD_Globals ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: Message         !< Output message
+REAL,INTENT(IN)             :: Time, StartTime !< Current simulation time and beginning of simulation time
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL :: SimulationTime,mins,secs,hours,days
+!===================================================================================================================================
+IF(.NOT.MPIRoot) RETURN
+
+SimulationTime = Time-StartTime
+
+! Get secs, mins, hours and days
+secs = MOD(SimulationTime,60.)
+SimulationTime = SimulationTime / 60
+mins = MOD(SimulationTime,60.)
+SimulationTime = SimulationTime / 60
+hours = MOD(SimulationTime,24.)
+SimulationTime = SimulationTime / 24
+!days = MOD(SimulationTime,365.) ! Use this if years are also to be displayed
+days = SimulationTime
+
+! Output
+WRITE(UNIT_stdOut,'(A,F16.2,A)',ADVANCE='NO')  ' PICLAS '//TRIM(Message)//'! [',Time-StartTime,' sec ]'
+WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),']'
+END SUBROUTINE DisplaySimulationTime
 
 
 END MODULE MOD_Globals
