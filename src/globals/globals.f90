@@ -792,7 +792,6 @@ DO i=1,LEN(TRIM(TimeStamp))
   IF(TimeStamp(i:i).EQ.' ') TimeStamp(i:i)='0'
 END DO
 TimeStamp=TRIM(Filename)//'_'//TRIM(TimeStamp)
-
 END FUNCTION TIMESTAMP
 
 

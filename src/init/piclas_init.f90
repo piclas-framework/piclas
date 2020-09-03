@@ -128,8 +128,6 @@ TimeStampLength = GETINT('TimeStampLength')
 IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(&
     __STAMP__&
     ,'TimeStampLength cannot be smaller than 4 and not larger than 30')
-
-
 WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
 ! Check if TEnd overflows the output floating format
 IF(TEnd.GE.1000.)THEN
