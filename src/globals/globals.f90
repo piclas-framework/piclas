@@ -33,7 +33,6 @@ CHARACTER(LEN=255) :: LogFile
 CHARACTER(LEN=255) :: ErrorFileName='NOT_SET'
 INTEGER            :: iError
 REAL               :: StartTime
-REAL               :: StartCPUTime ! Required when MPI_Abort is called
 INTEGER            :: myRank,myLocalRank,myLeaderRank,myWorkerRank
 INTEGER            :: nProcessors,nLocalProcs,nLeaderProcs,nWorkerProcs
 LOGICAL            :: GlobalNbrOfParticlesUpdated ! When FALSE, then global number of particles needs to be determined
@@ -400,9 +399,9 @@ WRITE(UNIT_stdOut,*)
 WRITE(UNIT_stdOut,'(A,A,A)')'See ',TRIM(ErrorFileName),' for more details'
 WRITE(UNIT_stdOut,*)
 !CALL delete()
-CALL CPU_TIME(Time)
+! Can't use PICLASTIME() here because it requires MPI_WAIT
+Time=MPI_WTIME()
 CALL DisplaySimulationTime(Time, StartTime, 'ABORTED')
-CALL DisplaySimulationTime(Time, StartCPUTime, 'ABORTED')
 #if USE_MPI
 signalout=2 ! MPI_ABORT requires an output error-code /=0
 errOut = 1
@@ -793,6 +792,7 @@ DO i=1,LEN(TRIM(TimeStamp))
   IF(TimeStamp(i:i).EQ.' ') TimeStamp(i:i)='0'
 END DO
 TimeStamp=TRIM(Filename)//'_'//TRIM(TimeStamp)
+
 END FUNCTION TIMESTAMP
 
 

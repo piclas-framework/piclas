@@ -133,7 +133,6 @@ ELSE IF (STRICMP(GetFileExtension(ParameterFile), "h5")) THEN
 END IF
 
 StartTime=PICLASTIME()
-CALL CPU_TIME(StartCPUTime) ! Required when MPI_Abort is called
 CALL prms%read_options(ParameterFile)
 ! Measure init duration
 SystemTime=PICLASTIME()
