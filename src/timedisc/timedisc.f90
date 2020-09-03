@@ -1609,7 +1609,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                       :: timeEnd, timeStart, dtVar, RandVal, NewYPart, NewYVelo
-INTEGER                    :: iPart, iLoop
+INTEGER                    :: iPart
 #if USE_LOADBALANCE
 REAL                       :: tLBStart
 #endif /*USE_LOADBALANCE*/

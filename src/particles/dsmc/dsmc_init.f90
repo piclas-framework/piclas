@@ -1188,42 +1188,8 @@ ELSE !CollisMode.GT.0
   !-----------------------------------------------------------------------------------------------------------------------------------
   DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree')
   DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour')
-  ! If number of particles is greater than OctreePartNumNode, cell is going to be divided for performance of nearest neighbour
-  IF(Symmetry%Order.EQ.3) THEN
-    DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','80')
-  ELSE IF(Symmetry%Order.EQ.2) THEN
-    DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','40')
-  ELSE
-    DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','20')
-  END IF
-  ! If number of particles is less than OctreePartNumNodeMin, cell is NOT going to be split even if mean free path is not resolved
-  ! 3D: 50/8; 2D: 28/4 -> ca. 6-7 particles per cell
-  IF(Symmetry%Order.EQ.3) THEN
-    DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','50')
-    IF (DSMC%PartNumOctreeNodeMin.LT.20) THEN
-      CALL abort(&
-          __STAMP__&
-          ,'ERROR: Given Particles-OctreePartNumNodeMin is less than 20!')
-    END IF
-  ELSE IF(Symmetry%Order.EQ.2) THEN
-    DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','28')
-    IF (DSMC%PartNumOctreeNodeMin.LT.10) THEN
-      CALL abort(&
-          __STAMP__&
-          ,'ERROR: Given Particles-OctreePartNumNodeMin is less than 10!')
-    END IF
-  ELSE
-    DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','14')
-    IF (DSMC%PartNumOctreeNodeMin.LT.5) THEN
-      CALL abort(&
-          __STAMP__&
-          ,'ERROR: Given Particles-OctreePartNumNodeMin is less than 5!')
-    END IF
-  END IF
   IF(DSMC%UseOctree) THEN
-    IF(NGeo.GT.PP_N) CALL abort(&
-        __STAMP__&
-        ,' Set PP_N to NGeo, else, the volume is not computed correctly.')
+    IF(NGeo.GT.PP_N) CALL abort(__STAMP__,' Set PP_N to NGeo, else, the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
   IF(Symmetry%Order.LE.2) THEN
@@ -1234,10 +1200,8 @@ ELSE !CollisMode.GT.0
     END IF
   ELSE
     CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.FALSE.')
-    IF (CollInf%ProhibitDoubleColl) THEN
-      CALL abort(__STAMP__,&
-          'ERROR: Prohibiting double collisions is only supported within a 2D/axisymmetric simulation!')
-    END IF
+    IF (CollInf%ProhibitDoubleColl) CALL abort(__STAMP__,&
+      'ERROR: Prohibiting double collisions is only supported within a 2D/axisymmetric simulation!')
   END IF
 
   !-----------------------------------------------------------------------------------------------------------------------------------

@@ -194,7 +194,7 @@ DEALLOCATE(TreeNode)
 END SUBROUTINE DSMC_pairing_octree
 
 
-SUBROUTINE FindNearestNeigh(iPartIndx_Node, nPart, iPair)
+SUBROUTINE FindNearestNeigh3D(iPartIndx_Node, nPart, iPair)
 !===================================================================================================================================
 ! Finds nearest neighbour for collision pairing
 !===================================================================================================================================
@@ -222,19 +222,13 @@ Coll_pData(iPair)%iPart_p1 = iPartIndx_Node(iPart1)
 iPartIndx_Node(iPart1) = iPartIndx_Node(nPart)
 nPart = nPart - 1
 iPart2 = 1
-Dist1 = (PartState(1,Coll_pData(iPair)%iPart_p1) &
-        - PartState(1,iPartIndx_Node(iPart2)))**2 &
-        +(PartState(2,Coll_pData(iPair)%iPart_p1) &
-        - PartState(2,iPartIndx_Node(iPart2)))**2 &
-        +(PartState(3,Coll_pData(iPair)%iPart_p1) &
-        - PartState(3,iPartIndx_Node(iPart2)))**2
+Dist1 = (PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,iPartIndx_Node(iPart2)))**2 &
+      + (PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,iPartIndx_Node(iPart2)))**2 &
+      + (PartState(3,Coll_pData(iPair)%iPart_p1) - PartState(3,iPartIndx_Node(iPart2)))**2
 DO iLoop = 2, nPart
-  Dist2 = (PartState(1,Coll_pData(iPair)%iPart_p1) &
-          - PartState(1,iPartIndx_Node(iLoop)))**2 &
-          +(PartState(2,Coll_pData(iPair)%iPart_p1) &
-          - PartState(2,iPartIndx_Node(iLoop)))**2 &
-          +(PartState(3,Coll_pData(iPair)%iPart_p1) &
-          - PartState(3,iPartIndx_Node(iLoop)))**2
+  Dist2 = (PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,iPartIndx_Node(iLoop)))**2 &
+        + (PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,iPartIndx_Node(iLoop)))**2 &
+        + (PartState(3,Coll_pData(iPair)%iPart_p1) - PartState(3,iPartIndx_Node(iLoop)))**2
   IF (Dist2.LT.Dist1) THEN
     iPart2 = iLoop
     Dist1 = Dist2
@@ -244,7 +238,7 @@ Coll_pData(iPair)%iPart_p2 = iPartIndx_Node(iPart2)
 iPartIndx_Node(iPart2) = iPartIndx_Node(nPart)
 nPart = nPart - 1
 
-END SUBROUTINE FindNearestNeigh
+END SUBROUTINE FindNearestNeigh3D
 
 
 SUBROUTINE FindNearestNeigh2D(iPartIndx_Node, nPart, iPair)
@@ -285,20 +279,16 @@ IF (CollInf%ProhibitDoubleColl) THEN
     END IF
   END IF
 END IF
-Dist1 = (PartState(1,Coll_pData(iPair)%iPart_p1) &
-        - PartState(1,iPartIndx_Node(iPart2)))**2 &
-        +(PartState(2,Coll_pData(iPair)%iPart_p1) &
-        - PartState(2,iPartIndx_Node(iPart2)))**2
+Dist1 = (PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,iPartIndx_Node(iPart2)))**2 &
+      + (PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,iPartIndx_Node(iPart2)))**2
 DO iLoop = 2 + loopStart, nPart
   IF (CollInf%ProhibitDoubleColl) THEN
       IF (iPartIndx_Node(iLoop).EQ.CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1)) THEN
         CYCLE
       END IF
   END IF
-  Dist2 = (PartState(1,Coll_pData(iPair)%iPart_p1) &
-          - PartState(1,iPartIndx_Node(iLoop)))**2 &
-          +(PartState(2,Coll_pData(iPair)%iPart_p1) &
-          - PartState(2,iPartIndx_Node(iLoop)))**2
+  Dist2 = (PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,iPartIndx_Node(iLoop)))**2 &
+        + (PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,iPartIndx_Node(iLoop)))**2
   IF (Dist2.LT.Dist1) THEN
     iPart2 = iLoop
     Dist1 = Dist2
@@ -457,7 +447,7 @@ END IF
 DO iPair = 1, nPair
   IF(DSMC%UseNearestNeighbour) THEN
     IF(Symmetry%Order.EQ.3) THEN
-      CALL FindNearestNeigh(iPartIndx_Node, nPart, iPair)
+      CALL FindNearestNeigh3D(iPartIndx_Node, nPart, iPair)
     ELSE IF (Symmetry%Order.EQ.2) THEN
       CALL FindNearestNeigh2D(iPartIndx_Node, nPart, iPair)
     ELSE
@@ -1124,38 +1114,62 @@ END SUBROUTINE AddDoTreeNode
 
 SUBROUTINE DSMC_init_octree()
 !===================================================================================================================================
-! Building of the octree for a node depth of 2 during the initialization
+! Read-in of octree variables and building of the octree for a node depth of 2 during the initialization
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY : ElemNodeVol
-  USE MOD_Mesh_Vars,              ONLY : nElems
-  USE MOD_Particle_Vars,          ONLY : Symmetry
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_DSMC_Vars             ,ONLY: DSMC, ElemNodeVol
+USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_Particle_Vars         ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: iElem, NodeDepth
+INTEGER                       :: iElem, NodeDepth
 !===================================================================================================================================
-  ALLOCATE(ElemNodeVol(nElems))
 
-  !Calculate recursive Volumes
-  DO iElem = 1, nElems
-    ALLOCATE(ElemNodeVol(iElem)%Root)
-    DO NodeDepth = 1, 2
-      IF (Symmetry%Order.EQ.3) THEN
-        CALL DSMC_CalcSubNodeVolumes(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
-        CALL CalcSubNodeMPVolumePortions(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
-      ELSE IF(Symmetry%Order.EQ.2) THEN
-        CALL DSMC_CalcSubNodeVolumes2D(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
-      ELSE
-        CALL AddNodeVolumes1D(NodeDepth, ElemNodeVol(iElem)%Root, iElem)
-      END IF
-    END DO
+! If number of particles is greater than OctreePartNumNode, cell is going to be divided for performance of nearest neighbour
+IF(Symmetry%Order.EQ.3) THEN
+  DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','80')
+ELSE IF(Symmetry%Order.EQ.2) THEN
+  DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','40')
+ELSE
+  DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','20')
+END IF
+! If number of particles is less than OctreePartNumNodeMin, cell is NOT going to be split even if mean free path is not resolved
+! 3D: 50/8; 2D: 28/4 -> ca. 6-7 particles per cell
+IF(Symmetry%Order.EQ.3) THEN
+  DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','50')
+  IF (DSMC%PartNumOctreeNodeMin.LT.20) CALL abort(__STAMP__,'ERROR: Given Particles-OctreePartNumNodeMin is less than 20!')
+ELSE IF(Symmetry%Order.EQ.2) THEN
+  DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','28')
+  IF (DSMC%PartNumOctreeNodeMin.LT.10) CALL abort(__STAMP__,'ERROR: Given Particles-OctreePartNumNodeMin is less than 10!')
+ELSE
+  DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','14')
+  IF (DSMC%PartNumOctreeNodeMin.LT.5) CALL abort(__STAMP__,'ERROR: Given Particles-OctreePartNumNodeMin is less than 5!')
+END IF
+
+ALLOCATE(ElemNodeVol(nElems))
+
+!Calculate recursive Volumes
+DO iElem = 1, nElems
+  ALLOCATE(ElemNodeVol(iElem)%Root)
+  DO NodeDepth = 1, 2
+    IF (Symmetry%Order.EQ.3) THEN
+      CALL DSMC_CalcSubNodeVolumes(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
+      CALL CalcSubNodeMPVolumePortions(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
+    ELSE IF(Symmetry%Order.EQ.2) THEN
+      CALL DSMC_CalcSubNodeVolumes2D(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
+    ELSE
+      CALL AddNodeVolumes1D(NodeDepth, ElemNodeVol(iElem)%Root, iElem)
+    END IF
   END DO
+END DO
 
 END SUBROUTINE DSMC_init_octree
 
