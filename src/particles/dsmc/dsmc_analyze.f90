@@ -367,9 +367,8 @@ DO iSurfSide=1,SurfMesh%nSides
       ! Force per area in x,y,z-direction
       MacroSurfaceVal(1:3,p,q,OutputCounter) = SampWall(iSurfSide)%State(SAMPWALL_DELTA_MOMENTUMX:SAMPWALL_DELTA_MOMENTUMZ,p,q) &
                                            / (SurfMesh%SurfaceArea(p,q,iSurfSide)*TimeSampleTemp)
-      ! Deleting the z-component for 2D/axisymmetric simulations
-      IF(Symmetry%Order.LE.2) MacroSurfaceVal(3,p,q,OutputCounter) = 0.
-      IF(Symmetry%Order.LE.1) MacroSurfaceVal(2,p,q,OutputCounter) = 0.
+      ! Deleting the y/z-component for 1D/2D/axisymmetric simulations
+      IF(Symmetry%Order.LT.3) MacroSurfaceVal(Symmetry%Order+1:3,p,q,OutputCounter) = 0.
       MacroSurfaceVal(4,p,q,OutputCounter) = (SampWall(iSurfSide)%State(SAMPWALL_ETRANSOLD,p,q) &
                                          +SampWall(iSurfSide)%State(SAMPWALL_EROTOLD  ,p,q) &
                                          +SampWall(iSurfSide)%State(SAMPWALL_EVIBOLD  ,p,q) &

@@ -925,11 +925,6 @@ The mesh constraints are mostly the same, like in the 2D case, but also in y-dir
     Part-Boundary5-SourceName=SYM
     Part-Boundary5-Condition=symmetric
 
-In a future version, it would be possible to enable axisymmetric or sherical symmetric simulations with the following flags:
-
-    Particles-SymmetryAxisymmetric=T
-    Particles-SymmetrySphericalSymmetric=T
-
 ### Species Definition \label{sec:dsmc_species}
 
 For the DSMC simulation, additional species-specific parameters (collision model parameters, characteristic vibrational temperature, etc.) are required. This file is also utilized for the definition of chemical reactions paths. To define a species, its name as well as an `InteractionID` have to be defined

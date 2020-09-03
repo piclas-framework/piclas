@@ -27,17 +27,11 @@ LOGICAL               :: useManualTimeStep                                   ! L
                                                                              ! with IAG programming style
 TYPE tSymmetry
   INTEGER             :: Order                                               ! 1-3 D
-  LOGICAL             :: Mirrorsymmetric                                     ! Neither Axis nor spherical symmetric (normal case)
   LOGICAL             :: Axisymmetric
-  LOGICAL             :: SphericalSymmetric
 END TYPE tSymmetry
 
 TYPE(tSymmetry)       :: Symmetry
 
-! LOGICAL               :: Symmetry2D                                          ! Enables 2D simulation: symmetry in xy-Plane
-! LOGICAL               :: Symmetry2DAxisymmetric                              ! Enables axisymmetric simulation around z-axis
-! LOGICAL               :: Symmetry1D                                          ! Enables 1D simulation: calculation along x-axis
-! LOGICAL               :: Symmetry1DSpherical                                 ! Enables spherical symmetric simulation along x-axis
 LOGICAL               :: DoFieldIonization                                   ! Do Field Ionization by quantum tunneling
 INTEGER               :: FieldIonizationModel                                !'Field Ionization models. Implemented models are:
 !                                                                            ! * Ammosov-Delone-Krainov (ADK) model

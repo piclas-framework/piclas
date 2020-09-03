@@ -137,7 +137,7 @@ END IF
 
 IF((Symmetry%Order.LE.2).AND.(.NOT.Symmetry%Axisymmetric)) THEN
   CALL abort(__STAMP__&
-      ,'ERROR: Porous boundary conditions are not implemented for 2D simulations!')
+      ,'ERROR: Porous boundary conditions are not implemented for 1D/2D simulations!')
 END IF
 
 ! 1) Read-in of parameters

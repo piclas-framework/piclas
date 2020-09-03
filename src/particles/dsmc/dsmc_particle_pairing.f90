@@ -349,16 +349,14 @@ IF (CollInf%ProhibitDoubleColl) THEN
     END IF
   END IF
 END IF
-Dist1 = (PartState(1,Coll_pData(iPair)%iPart_p1) &
-        - PartState(1,iPartIndx_Node(iPart2)))**2
+Dist1 = ABS(PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,iPartIndx_Node(iPart2)))
 DO iLoop = 2 + loopStart, nPart
   IF (CollInf%ProhibitDoubleColl) THEN
       IF (iPartIndx_Node(iLoop).EQ.CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1)) THEN
         CYCLE
       END IF
   END IF
-  Dist2 = (PartState(1,Coll_pData(iPair)%iPart_p1) &
-          - PartState(1,iPartIndx_Node(iLoop)))**2
+  Dist2 = ABS(PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,iPartIndx_Node(iLoop)))
   IF (Dist2.LT.Dist1) THEN
     iPart2 = iLoop
     Dist1 = Dist2
@@ -1064,7 +1062,7 @@ END DO
 
 IF((.NOT.ASSOCIATED(NodeVol)).OR.(.NOT.ASSOCIATED(NodeVol%SubNode1))) THEN
   localDepth = TreeNode%NodeDepth
-  CALL DSMC_CalcSubNodeVolumes1D(iElem, localDepth, ElemNodeVol(iElem)%Root)
+  CALL AddNodeVolumes1D(localDepth, ElemNodeVol(iElem)%Root, iElem)
 END IF
 
 NodeVolumeTemp(1) = NodeVol%SubNode1%Volume
@@ -1073,37 +1071,8 @@ LengthVolumeTemp(1) = NodeVol%SubNode1%Length
 LengthVolumeTemp(2) = NodeVol%SubNode2%Length
 Volume(1:2) = NodeVolumeTemp(1:2)
 
-! IF(DSMC%MergeSubcells) THEN
-!   IF (ALL(PartNumChildNode.LT.DSMC%PartNumOctreeNodeMin)) THEN
-
-!     ForceNearestNeigh =.TRUE.
-!     DO iLoop = 1, 3
-!       IF (PartNumChildNode(iLoop).LT.7) THEN
-!         DO iPart=1, PartNumChildNode(iLoop)
-!           iPartIndx_ChildNode(iLoop+1,PartNumChildNode(iLoop+1)+iPart) = iPartIndx_ChildNode(iLoop,iPart)
-!           MappedPart_ChildNode(1:2,PartNumChildNode(iLoop+1)+iPart,iLoop+1) = MappedPart_ChildNode(1:2,iPart,iLoop)
-!         END DO
-!         PartNumChildNode(iLoop+1) = PartNumChildNode(iLoop+1) + PartNumChildNode(iLoop)
-!         PartNumChildNode(iLoop) = 0
-!         NodeVolumeTemp(iLoop+1) = NodeVolumeTemp(iLoop+1) + NodeVolumeTemp(iLoop)
-!         NodeVolumeTemp(iLoop) = 0.0
-!       END IF
-!     END DO
-!     IF (PartNumChildNode(4).LT.7) THEN
-!       DO iPart=1, PartNumChildNode(4)
-!         iPartIndx_ChildNode(1,PartNumChildNode(1)+iPart) = iPartIndx_ChildNode(4,iPart)
-!         MappedPart_ChildNode(1:2,PartNumChildNode(1)+iPart,1) = MappedPart_ChildNode(1:2,iPart,4)
-!       END DO
-!       PartNumChildNode(1) = PartNumChildNode(1) + PartNumChildNode(4)
-!       PartNumChildNode(4) = 0
-!       NodeVolumeTemp(1) = NodeVolumeTemp(1) + NodeVolumeTemp(4)
-!       NodeVolumeTemp(4) = 0.0
-!     END IF
-!   END IF
-! END IF
-
 DO iLoop = 1, 2
-! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
+! DoTree can only performed if nPart is greater than the defined value, otherwise nearest neighbour pairing
   ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
   SpecPartNum(:,iLoop) = 0.
   RealParts(iLoop) = 0.
@@ -1112,10 +1081,10 @@ DO iLoop = 1, 2
     SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart)),iLoop) = &
         SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart)),iLoop) + GetParticleWeight(iPartIndx_ChildNode(iLoop,iPart))
   END DO
-  ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
+  ! DoTree can only performed if nPart is greater than the defined value, otherwise nearest neighbour pairing
   IF((PartNumChildNode(iLoop).GE.DSMC%PartNumOctreeNodeMin).AND.(.NOT.ForceNearestNeigh)) THEN
     ! Additional check if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
-    ! the side length of a cube (approximation) with same volume as the actual cell -> octree
+    ! the side length of a cube (approximation) with same volume as the actual cell -> DoTree
     ! IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     !   DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop), RealParts(iLoop), Volume(iLoop))
     ! ELSE
@@ -1182,9 +1151,8 @@ SUBROUTINE DSMC_init_octree()
         CALL CalcSubNodeMPVolumePortions(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
       ELSE IF(Symmetry%Order.EQ.2) THEN
         CALL DSMC_CalcSubNodeVolumes2D(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
-        !CALL CalcSubNodeMPVolumePortions(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
       ELSE
-        CALL DSMC_CalcSubNodeVolumes1D(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
+        CALL AddNodeVolumes1D(NodeDepth, ElemNodeVol(iElem)%Root, iElem)
       END IF
     END DO
   END DO
@@ -2302,7 +2270,7 @@ ELSE
   DOTANTCUBEMIDPOINT(1) = -1.0
 END IF
 DOTANTCUBEMIDPOINT(2:3) = 0.0
-DOTANTCUBEMIDPOINT(1:3) = octantCenter(1:3) + DOTANTCUBEMIDPOINT(1:3)*2.0/REAL(2.0**(octantDepth+1))
+DOTANTCUBEMIDPOINT(1) = octantCenter(1) + DOTANTCUBEMIDPOINT(1)*2.0/REAL(2.0**(octantDepth+1))
 END FUNCTION DOTANTCUBEMIDPOINT
 
 
@@ -2329,29 +2297,6 @@ xi_Out = -1. + (2.)/(GEO%XMinMax(2,iElem)-GEO%XMinMax(1,iElem)) * (x_in-GEO%XMin
 
 END SUBROUTINE GeoCoordToMap1D
 
-SUBROUTINE DSMC_CalcSubNodeVolumes1D(iElem, NodeDepth, Node)
-!===================================================================================================================================
-! Pairing subroutine for octree and nearest neighbour, decides whether to create a new octree node or start nearest neighbour search
-!===================================================================================================================================
-! MODULES
-USE MOD_DSMC_Vars,              ONLY : tNodeVolume
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)                       :: iElem
-INTEGER, INTENT(INOUT)                    :: NodeDepth
-TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-
-CALL AddNodeVolumes1D(NodeDepth, Node, iElem)
-
-END SUBROUTINE DSMC_CalcSubNodeVolumes1D
-
 
 RECURSIVE SUBROUTINE AddNodeVolumes1D(NodeDepth, Node, iElem, SubNodesIn)
 !===================================================================================================================================
@@ -2367,7 +2312,7 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(INOUT)                    :: NodeDepth
+INTEGER, INTENT(IN)                       :: NodeDepth
 INTEGER, INTENT(IN)                       :: iElem
 INTEGER, INTENT(IN), OPTIONAL             :: SubNodesIn(:)
 TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node
@@ -2398,7 +2343,7 @@ IF (OldNodeNum.NE.NodeDepth) THEN
   IF(.NOT.ASSOCIATED(Node%SubNode2)) ALLOCATE(Node%SubNode2)
   CALL AddNodeVolumes1D(NodeDepth, Node%SubNode2, iElem, SubNodesOut)
 ELSE
-  IF(Symmetry%Axisymmetric.OR.Symmetry%SphericalSymmetric) THEN
+  IF(Symmetry%Axisymmetric) THEN
     Xmin=GEO%XMinMax(1,iElem)
     Xmax=GEO%XMinMax(2,iElem)
     DO iDepth=1,NodeDepth

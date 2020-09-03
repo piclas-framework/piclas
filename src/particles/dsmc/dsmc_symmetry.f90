@@ -48,10 +48,6 @@ CALL prms%CreateLogicalOption('Particles-Symmetry2D', 'Activating a 2D simulatio
                               'xy-plane (y ranging from 0 to the domain boundaries)', '.FALSE.')
 CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetric', 'Activating an axisymmetric simulation with the same mesh '//&
                               'requirements as for the 2D case (y is then the radial direction)', '.FALSE.')
-! CALL prms%CreateLogicalOption('Particles-Symmetry1DSphericalsymmetric', 'Activating an sphrical symmetric simulation with the'//&
-!                               ' same mesh requirements as for the 1D case and x ranging from 0 to the domain boundary', '.FALSE.')
-! CALL prms%CreateLogicalOption('Particles-SphericalWeighting', 'Activates a sphrical weighting in y for the spherical '//&
-!                               'symmetric simulation based on the particle position.', '.FALSE.')
 CALL prms%CreateLogicalOption('Particles-RadialWeighting', 'Activates a radial weighting in y for the axisymmetric '//&
                               'simulation based on the particle position.', '.FALSE.')
 CALL prms%CreateRealOption(   'Particles-RadialWeighting-PartScaleFactor', 'Axisymmetric radial weighting factor, defining '//&
@@ -217,12 +213,6 @@ IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
   CALL abort(__STAMP__&
     ,'ERROR: Please orient your mesh with one cell in z-direction around 0, |z_min| = z_max !')
 END IF
-
-! IF(Symmetry%SphericalSymmetric.AND.(GEO%xminglob.NE.0.)) CALL abort(__STAMP__&
-! ,'ERROR: mesh has to start at x=0 and gors along positive x-direction in the spherical symmetric case')
-
-! IF(Symmetry%Axisymmetric.AND.(GEO%xminglob.NE.0.)) CALL abort(__STAMP__&
-! ,'ERROR: mesh has to start at x=0 and gors along positive x-direction in the axissymmetric case')
 
 DO iElem = 1,nElems
   ! Check if all sides of the element are parallel to xy-, xz-, or yz-plane and Sides parallel to xy-,and xz-plane are symmetric
@@ -633,7 +623,7 @@ RETURN
 END FUNCTION DSMC_2D_CalcSymmetryArea
 
 
-REAL FUNCTION DSMC_1D_CalcSymmetryArea(iLocSide,iElem)!, ymin, ymax)
+REAL FUNCTION DSMC_1D_CalcSymmetryArea(iLocSide,iElem)
 !===================================================================================================================================
 !> Calculates the actual area of an element for 1D simulations regardless of the mesh dimension in z and y
 !> Utilized in the particle emission (surface flux) and boundary sampling
@@ -647,30 +637,14 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)            :: iElem,iLocSide
 !-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-! REAL, OPTIONAL, INTENT(OUT)   :: ymax,ymin
-!-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iNode
-REAL                          :: P(1:4), Pmin, Pmax, Length!, MidPoint
+REAL                          :: Pmin, Pmax, Length
 !===================================================================================================================================
 
-Pmin = HUGE(Pmin)
-Pmax = -HUGE(Pmax)
+Pmax = MAXVAL(GEO%NodeCoords(1,GEO%ElemSideNodeID(:,iLocSide,iElem)))
+Pmin = MINVAL(GEO%NodeCoords(1,GEO%ElemSideNodeID(:,iLocSide,iElem)))
 
-DO iNode = 1,4
-  P(iNode) = GEO%NodeCoords(1,GEO%ElemSideNodeID(iNode,iLocSide,iElem))
-END DO
-
-Pmax = MAXVAL(P(:))
-Pmin = MINVAL(P(:))
-
-! IF (PRESENT(ymax).AND.PRESENT(ymin)) THEN
-!   ymin = Pmin(2)
-!   ymax = Pmax(2)
-! END IF
-
-Length = Pmax-Pmin
+Length = ABS(Pmax-Pmin)
 
 ! IF(Symmetry%Axisymmetric) THEN
 !   MidPoint = (Pmax(2)+Pmin(2)) / 2.
@@ -813,29 +787,15 @@ IF((Symmetry%Order.LE.0).OR.(Symmetry%Order.GE.4)) CALL ABORT(__STAMP__&
 
 Symmetry%Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
 IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.3)) CALL ABORT(__STAMP__&
-    ,'ERROR: Axissymmetric Simulations only for 1D or 2D')
+  ,'ERROR: Axisymmetric simulations only for 1D or 2D')
 IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.1))CALL ABORT(__STAMP__&
-,'ERROR: Axissymmetric Simulations are only implemented for 2D yet')
+  ,'ERROR: Axisymmetric simulations are only implemented for Particles-Symmetry-Order=2 !')
 IF(Symmetry%Axisymmetric) THEN
   RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
 ELSE
   RadialWeighting%DoRadialWeighting = .FALSE.
   RadialWeighting%PerformCloning = .FALSE.
-  RadialWeighting%DoSphericalWeighting = .FALSE.
 END IF
-
-! Symmetry%SphericalSymmetric = GETLOGICAL('Particles-Symmetry1DSphericalsymmetric')
-! IF(Symmetry%SphericalSymmetric.AND.(Symmetry%Order.NE.1)) CALL ABORT(__STAMP__&
-! ,'ERROR: Spherical Simulation only for 1D')
-! IF(Symmetry%SphericalSymmetric) THEN
-!   CALL ABORT(__STAMP__&
-!     ,'ERROR: Spherical Simulations are not implemented yet')
-!   RadialWeighting%DoSphericalWeighting = GETLOGICAL('Particles-SphericalWeighting')
-! ELSE IF(.NOT.Symmetry%Axisymmetric)
-!   RadialWeighting%DoSphericalWeighting = .FALSE.
-!   RadialWeighting%DoRadialWeighting = .FALSE.
-!   RadialWeighting%PerformCloning = .FALSE.
-! END IF
 
 END SUBROUTINE Init_Symmetry
 

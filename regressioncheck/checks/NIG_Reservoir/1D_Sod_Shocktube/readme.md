@@ -3,4 +3,4 @@
 * Basic test case for Riemann solvers
 * Regression check for 1D flow problems as well as the flow pattern
 * Executed until 2.25E-5 seconds and sampled for the last 3% of execution time
-* high amount of differences in analyse.ini needet due to mostly zero velocit in y and z direction as well of a increased particle number in the reference file
+* High amount of allowed differences in analyse.ini needed due to mostly zero velocity in y and z direction as well of an increased particle number in the reference file
