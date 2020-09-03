@@ -112,6 +112,7 @@ USE MOD_Interfaces           ,ONLY: InitInterfaces
 USE MOD_QDS                  ,ONLY: InitQDS
 #endif /*USE_QDS_DG*/
 USE MOD_ReadInTools          ,ONLY: GETLOGICAL,GETREALARRAY,GETINT
+USE MOD_TimeDisc_Vars        ,ONLY: TEnd
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -127,8 +128,13 @@ TimeStampLength = GETINT('TimeStampLength')
 IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(&
     __STAMP__&
     ,'TimeStampLength cannot be smaller than 4 and not larger than 30')
-WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
+! Check if TEnd overflows the output floating format
+IF(TEnd.GE.1000.)THEN
+  ! Add at least 1 digit
+  TimeStampLength = TimeStampLength + MAX(1,CEILING(LOG10(TEnd))-3)
+END IF
+WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 
 #ifdef PARTICLES
 ! DSMC handling:
@@ -445,44 +451,6 @@ InitLoadBalanceIsDone = .FALSE.
 
 END SUBROUTINE FinalizeLoadBalance
 #endif /*USE_LOADBALANCE*/
-
-
-SUBROUTINE DisplaySimulationTime(Time, StartTime, Message)
-!===================================================================================================================================
-! Finalizes variables necessary for analyse subroutines
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN) :: Message         !< Output message
-REAL,INTENT(IN)             :: Time, StartTime !< Current simulation time and beginning of simulation time
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL :: SimulationTime,mins,secs,hours,days
-!===================================================================================================================================
-IF(.NOT.MPIRoot) RETURN
-
-SimulationTime = Time-StartTime
-
-! Get secs, mins, hours and days
-secs = MOD(SimulationTime,60.)
-SimulationTime = SimulationTime / 60
-mins = MOD(SimulationTime,60.)
-SimulationTime = SimulationTime / 60
-hours = MOD(SimulationTime,24.)
-SimulationTime = SimulationTime / 24
-!days = MOD(SimulationTime,365.) ! Use this if years are also to be displayed
-days = SimulationTime
-
-! Output
-WRITE(UNIT_stdOut,'(A,F16.2,A)',ADVANCE='NO')  ' PICLAS '//TRIM(Message)//'! [',Time-StartTime,' sec ]'
-WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),']'
-END SUBROUTINE DisplaySimulationTime
 
 
 SUBROUTINE FinalizeTimeDisc()
