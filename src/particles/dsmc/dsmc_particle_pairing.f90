@@ -461,7 +461,7 @@ IF(DSMC%CalcQualityFactors) THEN
   IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
     ! Calculation of the mean free path with VHS model and the current translational temperature in the cell
     DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(SUM(CollInf%Coll_SpecPartNum)), NodeVolume, &
-                                          CollInf%omega(1,1),DSMC%InstantTransTemp(nSpecies+1))
+                                          DSMC%InstantTransTemp(nSpecies+1))
     ! Determination of the maximum MCS/MFP for the cell
     IF((DSMC%CollSepCount.GT.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = &
                                                     MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)

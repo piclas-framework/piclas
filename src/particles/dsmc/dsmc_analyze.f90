@@ -677,9 +677,9 @@ RETURN
 END FUNCTION CalcTVibPoly
 
 
-REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
+REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_temp)
 !===================================================================================================================================
-!> Calculation of the mean free path for the hard sphere and variable hard sphere (if omega and temperature are given)
+!> Calculation of the mean free path for the hard sphere and variable hard sphere (if a temperature is given)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -691,16 +691,15 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL, INTENT(IN)                :: Volume,SpecPartNum(:),nPart
-REAL, OPTIONAL, INTENT(IN)      :: opt_omega, opt_temp
+REAL, OPTIONAL, INTENT(IN)      :: opt_temp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                         :: iSpec, jSpec
-REAL                            :: DrefMixture, omega, Temp, MFP_Tmp, MacroParticleFactor
+REAL                            :: Temp, MFP_Tmp, MacroParticleFactor
 !===================================================================================================================================
-DrefMixture = 0.0
 CalcMeanFreePath = 0.0
 
 IF (nPart.LE.1 .OR. ALL(SpecPartNum.EQ.0.) .OR.Volume.EQ.0) RETURN
@@ -711,14 +710,9 @@ ELSE
   MacroParticleFactor = Species(1)%MacroParticleFactor ! assumption macroparticlefactor of all species are identical!!!
 END IF
 
-! Calculation of mixture reference diameter
-DO iSpec = 1, nSpecies
-  DrefMixture = DrefMixture + SpecPartNum(iSpec)*CollInf%dref(iSpec,iSpec) / nPart
-END DO
 ! Calculation of mean free path for a gas mixture (Bird 1986, p. 96, Eq. 4.77)
-! (only defined for a single weighting factor, if omega is present calculation of the mean free path with the VHS model)
-IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
-  omega = opt_omega
+! (only defined for a single weighting factor, if a temperature is present calculation of the mean free path with the VHS model)
+IF(PRESENT(opt_temp)) THEN
   Temp = opt_temp
   IF(Temp.LE.0.0) RETURN
     DO iSpec = 1, nSpecies
@@ -726,8 +720,8 @@ IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
       IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
         DO jSpec = 1, nSpecies
           IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-            MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*MacroParticleFactor / Volume &
-                                  * (CollInf%Tref(iSpec,jSpec)/Temp)**(omega) &
+            MFP_Tmp = MFP_Tmp + (Pi*CollInf%dref(iSpec,jSpec)**2.*SpecPartNum(jSpec)*MacroParticleFactor / Volume &
+                                  * (CollInf%Tref(iSpec,jSpec)/Temp)**(CollInf%omega(iSpec,jSpec)) &
                                   * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
           END IF
         END DO
@@ -740,7 +734,7 @@ ELSE
     IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
       DO jSpec = 1, nSpecies
         IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-          MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*MacroParticleFactor / Volume &
+          MFP_Tmp = MFP_Tmp + (Pi*CollInf%dref(iSpec,jSpec)**2.*SpecPartNum(jSpec)*MacroParticleFactor / Volume &
                                 * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
         END IF
       END DO
@@ -748,7 +742,7 @@ ELSE
     END IF
   END DO
 END IF
-! WRITE(*,*) "MEANFREEPATH",CalcMeanFreePath ! to be solved
+
 RETURN
 
 END FUNCTION CalcMeanFreePath

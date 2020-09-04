@@ -399,10 +399,10 @@ INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
 REAL                                 :: v_old(1:3),WallVelo(3)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 !#if defined(LSERK)
-!REAL                                :: absPt_temp
+!REAL                                 :: absPt_temp
 !#endif
-!REAL,PARAMETER                      :: oneMinus=0.99999999
-!REAL                                :: oneMinus!=0.99999999
+!REAL,PARAMETER                       :: oneMinus=0.99999999
+!REAL                                 :: oneMinus!=0.99999999
 REAL                                 :: LorentzFac, LorentzFacInv
 REAL                                 :: Xitild,EtaTild
 INTEGER                              :: p,q, SurfSideID, locBCID
@@ -661,8 +661,8 @@ REAL, ALLOCATABLE                    :: RanNumPoly(:), VibQuantNewRPoly(:)
 REAL                                 :: NormProb
 INTEGER                              :: iPolyatMole, iDOF
 INTEGER, ALLOCATABLE                 :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
-! REAL, ALLOCATABLE                   :: VecXVibPolyFP(:), VecYVibPolyFP(:), CmrVibPolyFP(:)
-! REAL, ALLOCATABLE                   :: EVPolyNewFP(:), EVPolyWallFP(:)
+! REAL, ALLOCATABLE                    :: VecXVibPolyFP(:), VecYVibPolyFP(:), CmrVibPolyFP(:)
+! REAL, ALLOCATABLE                    :: EVPolyNewFP(:), EVPolyWallFP(:)
 !REAL                                 :: ErotOldPoly(3), ErotNewPoly(3), ErotWallPoly(3), CmrRotPoly(3)
 LOGICAL                              :: IsAuxBC
 ! Symmetry
