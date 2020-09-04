@@ -42,10 +42,12 @@ SUBROUTINE CreateParticle(Species,Pos,ElemID,Velocity,RotEnergy,VibEnergy,ElecEn
 !===================================================================================================================================
 !> creates a single particle at correct array position and assign properties
 !===================================================================================================================================
-! MODULES                                                                                                                          !
+! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies
-USE MOD_DSMC_Vars     ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn     ! , RadialWeighting
+USE MOD_Particle_Vars          ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies,PartPosRef
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -62,15 +64,6 @@ INTEGER, INTENT(OUT),OPTIONAL :: NewPartID
 INTEGER :: newParticleID
 !===================================================================================================================================
 
-
-!IPWRITE(UNIT_stdOut,*) 'NEW PARTICLE!'
-
-!newParticleID = PDM%nextFreePosition(PDM%CurrentNextFreePosition+1) ! add +1 because PDM%CurrentNextFreePosition starts at 0
-!IF (newParticleID .EQ. 0) CALL abort(&
-!__STAMP__&
-!,'ERROR in CreateParticle: newParticleID.EQ.0 - maximum nbr of particles reached?')
-!#if USE_MPI
-
 ! Do not increase the ParticleVecLength for Phantom particles!
 PDM%ParticleVecLength = PDM%ParticleVecLength + 1 ! Increase particle vector length
 newParticleID = PDM%ParticleVecLength
@@ -79,16 +72,16 @@ IF(newParticleID.GT.PDM%MaxParticleNumber)THEN
       __STAMP__&
       ,'CreateParticle: newParticleID.GT.PDM%MaxParticleNumber. newParticleID=',IntInfoOpt=newParticleID)
 END IF
-!IF(Species.LT.0) PDM%PhantomParticles = PDM%PhantomParticles + 1
-!#endif /*USE_MPI*/
 
-! Increase the NextFreePosition for further particle creation
-!PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
+PartSpecies(newParticleID)     = Species
+LastPartPos(1:3,newParticleID) = Pos(1:3)
+PartState(1:3,newParticleID)   = Pos(1:3)
+PartState(4:6,newParticleID)   = Velocity(1:3)
 
-PartSpecies(newParticleID) = Species
-LastPartPos(1:3,newParticleID)=Pos(1:3)
-PartState(1:3,newParticleID) = Pos(1:3)
-PartState(4:6,newParticleID) = Velocity(1:3)
+! Set the new reference position here
+IF(TrackingMethod.EQ.REFMAPPING)THEN
+  CALL GetPositionInRefElem(PartState(1:3,newParticleID),PartPosRef(1:3,newParticleID),ElemID)
+END IF ! TrackingMethod.EQ.REFMAPPING
 
 IF (useDSMC.AND.(CollisMode.GT.1)) THEN
   PartStateIntEn(1,newParticleID) = VibEnergy
@@ -100,7 +93,7 @@ END IF
 
 PDM%ParticleInside(newParticleID) = .TRUE.
 PDM%dtFracPush(newParticleID)     = .FALSE.
-PDM%IsNewPart(newParticleID)      = .FALSE.   ! ??????? correct ????
+PDM%IsNewPart(newParticleID)      = .TRUE.
 PEM%Element(newParticleID)        = ElemID
 PEM%lastElement(newParticleID)    = ElemID
 

@@ -25,6 +25,15 @@ INCLUDE(ExternalProject)
 INCLUDE(CMakeDependentOption)
 
 # =========================================================================
+# Store the current commit information
+# =========================================================================
+EXECUTE_PROCESS(COMMAND git rev-parse HEAD OUTPUT_VARIABLE GIT_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE)
+SET(commit ${CMAKE_CURRENT_SOURCE_DIR}/src/commit.h)
+MESSAGE (STATUS "Curent git commit ${GIT_COMMIT} will be written to ${commit}")
+FILE(WRITE ${commit} "! Define the current commit hash. The default must remain empty, i.e., ''. Do not commit the changed file!\n#define GIT_CURRENT_COMMIT  ''\n")
+EXECUTE_PROCESS(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh ${commit})
+
+# =========================================================================
 # Check whether we are on Github or at IAG
 # =========================================================================
 EXECUTE_PROCESS(COMMAND git ls-remote --get-url OUTPUT_VARIABLE GIT_ORIGIN)
@@ -95,24 +104,25 @@ SUBDIRLIST(EQNSYSTEMS ${CMAKE_CURRENT_SOURCE_DIR}/src/equations/)
 OPTION(PICLAS_PARTICLES "Particles" ON)
 SET(PICLAS_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
 SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
-                                                              Leapfrog
-                                                              RK3
-                                                              RK4
-                                                              RK14
-                                                              DSMC
-                                                              RESERVOIR
-                                                              FP-Flow
-                                                              BGK-Flow
-                                                              MACROBODY
-                                                              CN
-                                                              ImplicitO3
-                                                              ImplicitO4
-                                                              Ascher3
-                                                              ROS2
-                                                              ROS3
-                                                              ROS4
-                                                              ROS46
-                                                              ROS6)
+                                                          Leapfrog
+                                                          Boris-Leapfrog
+                                                          RK3
+                                                          RK4
+                                                          RK14
+                                                          DSMC
+                                                          RESERVOIR
+                                                          FP-Flow
+                                                          BGK-Flow
+                                                          MACROBODY
+                                                          CN
+                                                          ImplicitO3
+                                                          ImplicitO4
+                                                          Ascher3
+                                                          ROS2
+                                                          ROS3
+                                                          ROS4
+                                                          ROS46
+                                                          ROS6)
 
 OPTION(PICLAS_QDS_DG "enable QDS method discretized by DGSEM" OFF)
 OPTION(PICLAS_BUILD_POSTI "Build POSTI toolset" ON)
@@ -211,6 +221,12 @@ IF(PICLAS_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
   ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
   ENDIF()
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Boris-Leapfrog")
+  IF(PICLAS_HDG)
+      ADD_DEFINITIONS(-DPP_TimeDiscMethod=508)
+  ELSE()
+      ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
+  ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Leapfrog")
   IF(PICLAS_HDG)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=509)
@@ -287,6 +303,8 @@ IF(PICLAS_HDG)
   ADD_DEFINITIONS(-DUSE_HDG=1)
   IF(PICLAS_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
       MESSAGE(STATUS "use HDG with Euler-Explicit")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Boris-Leapfrog")
+      MESSAGE(STATUS "use HDG with Boris-Leapfrog")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Leapfrog")
       MESSAGE(STATUS "use HDG with Leapfrog")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK3")
@@ -416,7 +434,7 @@ ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
   SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -p -O2 ${PICLAS_INSTRUCTION} -qopt-report0 -qopt-report-phase=vec -no-prec-div")
   SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -fpe0 -traceback -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit -init=snan -init=arrays")
    # add flags only for compiling not linking!
-   SET (PICLAS_COMPILE_FLAGS "-fpp -assume bscc")
+   SET (PICLAS_COMPILE_FLAGS "-fpp -assume bscc -fPIC")
 
 ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Cray")
   # set Flags
@@ -541,6 +559,7 @@ ENDIF()
 MESSAGE(STATUS "Using BLAS/Lapack library")
 IF (PICLAS_MKL)
   SET(BLA_VENDOR "Intel") #search only for Intel BLAS (=MKL)
+  LIST(APPEND linkedlibs "-lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5")
 ENDIF()
 FIND_PACKAGE(LAPACK QUIET)
 IF (LAPACK_FOUND)
@@ -618,13 +637,16 @@ function(add_exec target)
   ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "SUCCESS: ${TARGETUP} BUILD COMPLETE!")
 endfunction()
 
-FUNCTION(add_lib target)
+FUNCTION(add_lib_shared target)
   ADD_LIBRARY(${target} SHARED ${ARGN})
   TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o libpiclasstatic userblocklib stacksizelib ${linkedlibs})
   SET_TARGET_PROPERTIES(${target} PROPERTIES PREFIX ""
                                              COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}
                                              LINKER_LANGUAGE Fortran)
-  INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target} DESTINATION bin)
+  INSTALL(TARGETS ${target} LIBRARY PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                                                GROUP_READ GROUP_EXECUTE
+                                                WORLD_READ WORLD_EXECUTE
+                            DESTINATION lib)
   STRING(TOUPPER ${target} TARGETUP)
   ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "SUCCESS: ${TARGETUP} BUILD COMPLETE!")
 ENDFUNCTION()
@@ -634,6 +656,7 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # collect all F90 files needed for libpiclasstatic
 FILE(GLOB_RECURSE piclasF90 ./src/init/*.f90
+                            ./src/readIMD/*.f90
                                 ./src/analyze/*.f90
                                 ./src/filter/*.f90
                                 ./src/globals/*.f90
@@ -756,7 +779,7 @@ SET_TARGET_PROPERTIES(stacksizelib PROPERTIES LINKER_LANGUAGE C
 
 
 # we link the statically built libs
-add_lib(libpiclasshared ./src/piclaslib.f90)
+add_lib_shared(libpiclasshared ./src/piclaslib.f90)
 SET_TARGET_PROPERTIES(libpiclasshared PROPERTIES OUTPUT_NAME "libpiclas")
 ADD_DEPENDENCIES(libpiclasshared libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
 add_exec(piclas ./src/piclas.f90)
@@ -798,8 +821,12 @@ ENDIF()
 # =========================================================================
 # Userblock
 # =========================================================================
+#MESSAGE(STATUS "Running: generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CACHEFILE_DIR} ${CMAKE_CACHE_MAJOR_VERSION}.${CMAKE_CACHE_MINOR_VERSION}.${CMAKE_CACHE_PATCH_VERSION} ${CMAKE_CURRENT_SOURCE_DIR}/src/globals/globals_vars.f90")
+MESSAGE(STATUS "Running: generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_VERSION} ${CMAKE_CURRENT_SOURCE_DIR}/src/globals/globals_vars.f90")
+#ADD_CUSTOM_COMMAND(TARGET libpiclasstatic PRE_BUILD COMMAND
+  #sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/userblock/generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CACHEFILE_DIR} "${CMAKE_CACHE_MAJOR_VERSION}.${CMAKE_CACHE_MINOR_VERSION}.${CMAKE_CACHE_PATCH_VERSION}" "${CMAKE_CURRENT_SOURCE_DIR}/src/globals/globals_vars.f90")
 ADD_CUSTOM_COMMAND(TARGET libpiclasstatic PRE_BUILD COMMAND
-  sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/userblock/generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CACHEFILE_DIR} "${CMAKE_CACHE_MAJOR_VERSION}.${CMAKE_CACHE_MINOR_VERSION}.${CMAKE_CACHE_PATCH_VERSION}")
+  sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/userblock/generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_VERSION} "${CMAKE_CURRENT_SOURCE_DIR}/src/globals/globals_vars.f90")
 
 # =========================================================================
 # generate .piclas in $HOME
@@ -811,7 +838,6 @@ ADD_CUSTOM_COMMAND(TARGET piclas     POST_BUILD COMMAND echo \"alias piclas='${C
 # Install
 # =========================================================================
 INSTALL(FILES    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt DESTINATION bin)
-
 # =========================================================================
 # Ctags
 # =========================================================================
@@ -822,6 +848,12 @@ IF(PICLAS_CTAGS)
   FOREACH(item ${EQNS_WO_ACTUAL})
      SET(EXLUDES "--exclude=src/equations/${item}/*" ${EXLUDES})
   ENDFOREACH()
+  MESSAGE(STATUS "Ctags excluding: ${EXLUDES}")
+  # ctags options:
+  # -R   Equivalent to --recurse.
+  # -f <name>
+  #    Write tags to specified file. Value of "-" writes tags to stdout
+  #    ["tags"; or "TAGS" when -e supplied].
   ADD_CUSTOM_COMMAND(OUTPUT ctags.txt COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ctags -R -f ctags.txt ${EXLUDES} src)
   ADD_CUSTOM_TARGET(tags DEPENDS ctags.txt)
   FIND_PROGRAM(CTAGS_PATH ctags)

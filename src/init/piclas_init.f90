@@ -97,6 +97,9 @@ USE MOD_Particle_Mesh        ,ONLY: InitParticleMesh, InitElemBoundingBox
 USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
+#ifdef MPI
+USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
+#endif /* MPI */
 #if defined(IMPA) || defined(ROS)
 USE MOD_ParticleSolver       ,ONLY: InitPartSolver
 #endif
@@ -109,6 +112,7 @@ USE MOD_Interfaces           ,ONLY: InitInterfaces
 USE MOD_QDS                  ,ONLY: InitQDS
 #endif /*USE_QDS_DG*/
 USE MOD_ReadInTools          ,ONLY: GETLOGICAL,GETREALARRAY,GETINT
+USE MOD_TimeDisc_Vars        ,ONLY: TEnd
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -124,8 +128,13 @@ TimeStampLength = GETINT('TimeStampLength')
 IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(&
     __STAMP__&
     ,'TimeStampLength cannot be smaller than 4 and not larger than 30')
-WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
+! Check if TEnd overflows the output floating format
+IF(TEnd.GE.1000.)THEN
+  ! Add at least 1 digit
+  TimeStampLength = TimeStampLength + MAX(1,CEILING(LOG10(TEnd))-3)
+END IF
+WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 
 #ifdef PARTICLES
 ! DSMC handling:
@@ -224,13 +233,19 @@ CALL InitHDG()
 #endif
 
 #ifdef PARTICLES
+! Old IMD format
   CALL InitTTM() ! FD grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
 IF(DoImportTTMFile)THEN
   CALL InitIMD_TTM_Coupling() ! use MD and TTM data to distribute the cell averaged charge to the atoms/ions
 END IF
+#ifdef MPI
+! New IMD binary format (not TTM needed as this information is stored on the atoms)
+CALL initReadIMDdata()
+CALL read_IMD_results()
+#endif /* MPI */
 #endif /*PARTICLES*/
 
-CALL InitInterfaces() ! set riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)
+CALL InitInterfaces() ! set Riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)
 
 #if USE_QDS_DG
 CALL InitQDS()
@@ -244,6 +259,7 @@ IF (.NOT.IsLoadBalance) THEN
   CALL prms%WriteUnused()
   CALL prms%RemoveUnnecessary()
 END IF
+
 
 END SUBROUTINE InitPiclas
 
@@ -405,9 +421,9 @@ IF(.NOT.IsLoadBalance)THEN
   !ParticlesInitIsDone=.FALSE.
   CALL FinalizeLoadBalance()
 #endif /*USE_LOADBALANCE*/
-  SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS FINISHED! [',Time-StartTime,' sec ]'
+  CALL DisplaySimulationTime(Time, StartTime, 'FINISHED')
 ELSE
-  SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS RUNNING! [',Time-StartTime,' sec ]'
+  CALL DisplaySimulationTime(Time, StartTime, 'RUNNING')
 END IF ! .NOT.IsLoadBalance
 SWRITE(UNIT_stdOut,'(132("="))')
 

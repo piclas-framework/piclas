@@ -123,7 +123,7 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
                                                            !     400 : Excited molecular ion
   REAL                        :: Tref                      ! collision model: reference temperature     , ini_2
   REAL                        :: dref                      ! collision model: reference diameter        , ini_2
-  REAL                        :: omegaLaux                 ! collision model: temperature exponent      , ini_2
+  REAL                        :: omega                     ! collision model: temperature exponent      , ini_2
   REAL                        :: alphaVSS                  ! collision model: scattering exponent(VSS)  , ini_2
   INTEGER                     :: NumOfPro                  ! Number of Protons, ini_2
   REAL                        :: Eion_eV                   ! Energy of Ionisation in eV, ini_2
@@ -173,57 +173,75 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   INTEGER                           :: PreviousState        ! Species number of the previous state (e.g. N for NIon)
   LOGICAL                           :: FullyIonized         ! Flag if the species is fully ionized (e.g. C^6+)
   INTEGER                           :: NextIonizationSpecies! SpeciesID of the next higher ionization level (required for field
-!                                                           ! ionization)
+                                                            ! ionization)
   ! Collision cross-sections for MCC
   LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species with a background gas should be
                                                             ! treated with read-in collision cross-section (currently only with BGG)
-  REAL,ALLOCATABLE                  :: CollXSec(:,:)        ! Collision cross-section as read-in from the database
+  LOGICAL                           :: UseVibXSec           ! Flag if the vibrational relaxation probability should be treated,
+                                                            ! using read-in cross-sectional data (currently only with BGG)
+END TYPE tSpeciesDSMC
+
+TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
+
+TYPE tXSecVibMode
+  REAL,ALLOCATABLE                  :: XSecData(:,:)        ! Vibrational cross-section as read-in from the database
+                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
+                                                            ! 2: Cross-section at the respective energy level [m^2]
+END TYPE tXSecVibMode
+
+TYPE tSpeciesXSec
+  LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species pair should be treated with
+                                                            ! read-in collision cross-section (currently only with BGG)
+  REAL,ALLOCATABLE                  :: CollXSecData(:,:)    ! Collision cross-section as read-in from the database
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
                                                             ! 2: Cross-section at the respective energy level [m^2]
   REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
                                                             ! null collision method of MCC
-  REAL                              :: MaxCollFreq          ! Maximal collision frequency at certain energy level and cross-section
-END TYPE tSpeciesDSMC
+  LOGICAL                           :: UseVibXSec           ! Flag if cross-section data will be used for the relaxation probability
+  TYPE(tXSecVibMode),ALLOCATABLE    :: VibMode(:)           ! Vibrational cross-sections (nVib: Number of levels found in database)
+  REAL                              :: VibProb(2)           ! 1: Sum of vibrational relaxation probability, 2: Event counter
+END TYPE tSpeciesXSec
 
-TYPE(tSpeciesDSMC), ALLOCATABLE :: SpecDSMC(:)             ! Species DSMC params (nSpec)
+TYPE(tSpeciesXSec), ALLOCATABLE     :: SpecXSec(:)          ! Species cross-section related data (CollCase). First column is used
+                                                            ! for the particle species, second column for the background species
 
 TYPE tDSMC
-  INTEGER                       :: ElectronSpecies         ! Species of the electron
-  REAL                          :: EpsElecBin              ! percentage parameter of electronic energy level merging
-  REAL                          :: GammaQuant              ! GammaQuant for zero point energy in Evib (perhaps also Erot),
-                                                           ! should be 0.5 or 0
-  INTEGER(KIND=8), ALLOCATABLE  :: NumColl(:)              ! Number of collision for each case + entire collision number
-  REAL                          :: TimeFracSamp=0.         ! %-of simulation time for sampling
-  INTEGER                       :: SampNum                 ! number of Samplingsteps
-  INTEGER                       :: NumOutput               ! number of Outputs
-  REAL                          :: DeltaTimeOutput         ! Time intervall for Output
-  LOGICAL                       :: ReservoirSimu           ! Flag for reservoir simulation
-  LOGICAL                       :: ReservoirSimuRate       ! Does not perform the collision.
-                                                           ! Switch to enable to create reaction rates curves
-  LOGICAL                       :: ReservoirSurfaceRate    ! Switch enabling surface rate output without changing surface coverages
-  LOGICAL                       :: ReservoirRateStatistic  ! if false, calculate the reaction coefficient rate by the probability
-                                                           ! Default Value is false
-  INTEGER                       :: VibEnergyModel          ! Model for vibration Energy:
-                                                           !       0: SHO (default value!)  Simple Harmonic Oscillator
-                                                           !       1: TSHO                  Truncated Simple Harmonic Oscillator
-  LOGICAL                       :: DoTEVRRelaxation        ! Flag for T-V-E-R or more simple T-V-R T-E-R relaxation
-  INTEGER                       :: PartNumOctreeNode       ! Max Number of Particles per Octree Node
-  INTEGER                       :: PartNumOctreeNodeMin    ! Min Number of Particles per Octree Node
-  LOGICAL                       :: UseOctree               ! Flag for Octree
-  LOGICAL                       :: UseNearestNeighbour     ! Flag for Nearest Neighbour or classic statistical pairing
-  LOGICAL                       :: CalcSurfaceVal          ! Flag for calculation of surfacevalues like heatflux or force at walls
-  LOGICAL                       :: CalcSurfaceTime         ! Flag for sampling in time-domain or iterations
-  REAL                          :: CalcSurfaceSumTime      ! Flag for sampling in time-domain or iterations
-  REAL                          :: CollProbMean            ! Summation of collision probability
-  REAL                          :: CollProbMax             ! Maximal collision probability per cell
-  REAL, ALLOCATABLE             :: CalcRotProb(:,:)        ! Summation of rotation relaxation probability (nSpecies + 1,3)
-                                                           !     1: Mean Prob
-                                                           !     2: Max Prob
-                                                           !     3: Sample size
-  REAL, ALLOCATABLE             :: CalcVibProb(:,:)        ! Summation of vibration relaxation probability (nSpecies + 1,3)
-                                                           !     1: Mean Prob
-                                                           !     2: Max Prob
-                                                           !     3: Sample size
+  INTEGER                       :: ElectronSpecies          ! Species of the electron
+  REAL                          :: EpsElecBin               ! percentage parameter of electronic energy level merging
+  REAL                          :: GammaQuant               ! GammaQuant for zero point energy in Evib (perhaps also Erot),
+                                                            ! should be 0.5 or 0
+  REAL, ALLOCATABLE             :: NumColl(:)               ! Number of Collision for each case + entire Collision number
+  REAL                          :: TimeFracSamp=0.          ! %-of simulation time for sampling
+  INTEGER                       :: SampNum                  ! number of Samplingsteps
+  INTEGER                       :: NumOutput                ! number of Outputs
+  REAL                          :: DeltaTimeOutput          ! Time intervall for Output
+  LOGICAL                       :: ReservoirSimu            ! Flag for reservoir simulation
+  LOGICAL                       :: ReservoirSimuRate        ! Does not performe the collision.
+                                                            ! Switch to enable to create reaction rates curves
+  LOGICAL                       :: ReservoirSurfaceRate     ! Switch enabling surface rate output without changing surface coverages
+  LOGICAL                       :: ReservoirRateStatistic   ! if false, calculate the reaction coefficient rate by the probability
+                                                            ! Default Value is false
+  INTEGER                       :: VibEnergyModel           ! Model for vibration Energy:
+                                                            !       0: SHO (default value!)
+                                                            !       1: TSHO
+  LOGICAL                       :: DoTEVRRelaxation         ! Flag for T-V-E-R or more simple T-V-R T-E-R relaxation
+  INTEGER                       :: PartNumOctreeNode        ! Max Number of Particles per Octree Node
+  INTEGER                       :: PartNumOctreeNodeMin     ! Min Number of Particles per Octree Node
+  LOGICAL                       :: UseOctree                ! Flag for Octree
+  LOGICAL                       :: UseNearestNeighbour      ! Flag for Nearest Neighbour or classic statistical pairing
+  LOGICAL                       :: CalcSurfaceVal           ! Flag for calculation of surfacevalues like heatflux or force at walls
+  LOGICAL                       :: CalcSurfaceTime          ! Flag for sampling in time-domain or iterations
+  REAL                          :: CalcSurfaceSumTime       ! Flag for sampling in time-domain or iterations
+  REAL                          :: CollProbMean             ! Summation of collision probability
+  REAL                          :: CollProbMax              ! Maximal collision probability per cell
+  REAL, ALLOCATABLE             :: CalcRotProb(:,:)         ! Summation of rotation relaxation probability (nSpecies + 1,3)
+                                                            !     1: Mean Prob
+                                                            !     2: Max Prob
+                                                            !     3: Sample size
+  REAL, ALLOCATABLE             :: CalcVibProb(:,:)         ! Summation of vibration relaxation probability (nSpecies + 1,3)
+                                                            !     1: Mean Prob
+                                                            !     2: Max Prob
+                                                            !     3: Sample size
   REAL                          :: MeanFreePath
   REAL                          :: MCSoverMFP               ! Subcell local mean collision distance over mean free path
   INTEGER                       :: CollProbMeanCount        ! counter of possible collision pairs
@@ -267,7 +285,6 @@ TYPE tDSMC
                                                             ! coefficient with the equilibrium constant by partition functions
   REAL                          :: PartitionMaxTemp         ! Temperature limit for pre-stored partition function (DEF: 20 000K)
   REAL                          :: PartitionInterval        ! Temperature interval for pre-stored partition function (DEF: 10K)
-  REAL, ALLOCATABLE             :: veloMinColl(:)           ! min velo-magn. for spec allowed to perform collision (def.: 0.)
 #if (PP_TimeDiscMethod==42)
   LOGICAL                       :: CompareLandauTeller      ! Keeps the translational temperature at the fixed value of the init
 #endif
@@ -278,19 +295,22 @@ END TYPE tDSMC
 TYPE(tDSMC)                     :: DSMC
 
 TYPE tBGGas
-  INTEGER                       :: BGGasSpecies             ! Number which Species is Background Gas
-  REAL                          :: BGGasDensity             ! Density of Background Gas
-  REAL                          :: BGColl_SpecPartNum       ! PartNum of BGGas per cell
-  INTEGER                       :: BGMeanEVibQua            ! Mean EVib qua number for dissociation probability
+  INTEGER                       :: NumberOfSpecies          ! Number of background gas species
+  LOGICAL, ALLOCATABLE          :: BackgroundSpecies(:)     ! Flag, if a species is a background gas species, [1:nSpecies]
+  INTEGER, ALLOCATABLE          :: MapSpecToBGSpec(:)       ! Input: [1:nSpecies], output is the corresponding background species
+  REAL, ALLOCATABLE             :: SpeciesFraction(:)       ! Fraction of background species (sum is 1), [1:BGGas%NumberOfSpecies]
+  REAL, ALLOCATABLE             :: NumberDensity(:)         ! Number densities of the background gas, [1:BGGas%NumberOfSpecies]
   INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
                                                             ! regular particle
 END TYPE tBGGas
 
 TYPE(tBGGas)                    :: BGGas
 
-LOGICAL                             :: UseMCC
-CHARACTER(LEN=256)                  :: MCC_Database
-INTEGER                             :: MCC_TotalPairNum
+LOGICAL                             :: UseMCC               ! Flag (set automatically) to differentiate between MCC/XSec and regular DSMC
+CHARACTER(LEN=256)                  :: XSec_Database        ! Name of the cross-section database
+LOGICAL                             :: XSec_NullCollision   ! Flag (read-in) whether null collision method (determining number of pairs based on maximum relaxation frequency)
+LOGICAL                             :: XSec_Relaxation      ! Flag (set automatically): usage of XSec data for the total relaxation probability
+INTEGER                             :: MCC_TotalPairNum     ! Total number of collision pairs for the MCC method
 
 TYPE tPairData
   REAL                          :: CRela2                       ! squared relative velo of the particles in a pair
@@ -316,21 +336,21 @@ TYPE tCollInf     ! Collision information
                                                                 !   1: Cab will be calculated via species-specific factor A_j
                                                                 !   2: Cab will be calculated directly see Bird1981 eq (9)
   LOGICAL                       :: averagedCollisionParameters  ! Flags if coll-specific(F) or -averaged(T) collision parameters:
-                                                                ! Tref, dref, omegaLaux, alphaVSS
+                                                                ! Tref, dref, omega, alphaVSS
   INTEGER       , ALLOCATABLE   :: collidingSpecies(:,:)        ! Contains colliding species ini file IDs. e.g. collision #iColl
                                                                 ! are Species1 and Species2: collidingSpecies(iColl,:)=(/1,2/)
   INTEGER       , ALLOCATABLE   :: Coll_Case(:,:)               ! Case of species combination (Spec1, Spec2)
   INTEGER                       :: NumCase                      ! number of possible collision combinations
   INTEGER       , ALLOCATABLE   :: Coll_CaseNum(:)              ! number of simulated species combinations per cell Sab (#of cases)
   REAL          , ALLOCATABLE   :: Coll_SpecPartNum(:)          ! number of simulated particles of species n per cell (nSpec)
-  REAL          , ALLOCATABLE   :: crossSectionConstantCab(:)   ! species factor for cross section (#of case)
+  REAL          , ALLOCATABLE   :: Cab(:)                       ! species factor for cross section (#of case)
   INTEGER       , ALLOCATABLE   :: KronDelta(:)                 ! (number of case)
   REAL          , ALLOCATABLE   :: FracMassCent(:,:)            ! mx/(my+mx) (nSpec, number of cases)
   REAL          , ALLOCATABLE   :: MeanMPF(:)
   REAL          , ALLOCATABLE   :: MassRed(:)                   ! reduced mass (number of cases)
   REAL          , ALLOCATABLE   :: Tref(:,:)                    ! collision model: reference temperature     , ini_2
   REAL          , ALLOCATABLE   :: dref(:,:)                    ! collision model: reference diameter        , ini_2
-  REAL          , ALLOCATABLE   :: omegaLaux(:,:)               ! collision model: temperature exponent      , ini_2
+  REAL          , ALLOCATABLE   :: omega(:,:)               ! collision model: temperature exponent      , ini_2
   REAL          , ALLOCATABLE   :: alphaVSS(:,:)                ! collision model: scattering exponent (VSS) , ini_2
   LOGICAL                       :: ProhibitDoubleColl = .FALSE.
   INTEGER       , ALLOCATABLE   :: OldCollPartner(:)            ! index of old coll partner to prohibit double collisions(maxPartNum)
@@ -362,84 +382,88 @@ END TYPE
 TYPE(tMacroDSMC), ALLOCATABLE    :: MacroDSMC(:,:)         ! DSMC sample array (number of Elements, nSpec)
 
 TYPE tReactInfo
-   REAL,  ALLOCATABLE            :: Xi_Total(:,:)          ! Total DOF of Reaction (quant num part1, quant num part2)
-   REAL,  ALLOCATABLE            :: Beta_Diss_Arrhenius(:,:) ! Beta_d for calculation of the Dissociation probability
-                                                           ! (quant num part1, quant num part2)
-   REAL,  ALLOCATABLE            :: Beta_Exch_Arrhenius(:,:) ! Beta_d for calculation of the Excchange reaction probability
-                                                           ! (quant num part1, quant num part2)
-   REAL,  ALLOCATABLE            :: Beta_Rec_Arrhenius(:,:)  ! Beta_d for calculation of the Recombination reaction probability
-                                                           ! (nSpecies, quant num part3)
-   INTEGER, ALLOCATABLE          :: StoichCoeff(:,:)       ! Stoichiometric coefficient (nSpecies,1:2) (1: reactants, 2: products)
+   REAL,  ALLOCATABLE             :: Xi_Total(:,:)          ! Total DOF of Reaction (quant num part1, quant num part2)
+   REAL,  ALLOCATABLE             :: Beta_Diss_Arrhenius(:,:) ! Beta_d for calculation of the Dissociation probability
+                                                            ! (quant num part1, quant num part2)
+   REAL,  ALLOCATABLE             :: Beta_Exch_Arrhenius(:,:) ! Beta_d for calculation of the Excchange reaction probability
+                                                            ! (quant num part1, quant num part2)
+   REAL,  ALLOCATABLE             :: Beta_Rec_Arrhenius(:,:)  ! Beta_d for calculation of the Recombination reaction probability
+                                                            ! (nSpecies, quant num part3)
+   INTEGER, ALLOCATABLE           :: StoichCoeff(:,:)       ! Stoichiometric coefficient (nSpecies,1:2) (1: reactants, 2: products)
 END TYPE
 
 TYPE tArbDiss
-  INTEGER                        :: NumOfNonReactives      ! Number
-  INTEGER, ALLOCATABLE           :: NonReactiveSpecies(:)  ! Array with the non-reactive collision partners for dissociation
+  INTEGER                         :: NumOfNonReactives      ! Number of non-reactive collisions partners
+  INTEGER, ALLOCATABLE            :: NonReactiveSpecies(:)  ! Array with the non-reactive collision partners for dissociation
 END TYPE
 
 TYPE tChemReactions
-  INTEGER                        :: NumOfReact             ! Number of possible Reactions
-  TYPE(tArbDiss), ALLOCATABLE    :: ArbDiss(:)             !
-  LOGICAL, ALLOCATABLE           :: QKProcedure(:)         ! Defines if QK Procedure is selected
-  INTEGER, ALLOCATABLE           :: QKMethod(:)            ! Recombination method for Q-K model (1 by Bird / 2 by Gallis)
-  REAL,ALLOCATABLE,DIMENSION(:,:):: QKCoeff                ! QKRecombiCoeff for Birds method
-  REAL, ALLOCATABLE              :: NumReac(:)             ! Number of occured reactions for each reaction number
-  INTEGER, ALLOCATABLE           :: ReacCount(:)           ! Counter of chemical reactions for the determination of rate
-                                                           ! coefficient based on the reaction probabilities
-  REAL, ALLOCATABLE              :: ReacCollMean(:)        ! Mean Collision Probability for each reaction number
-  INTEGER, ALLOCATABLE           :: ReacCollMeanCount(:)   ! counter for mean Collision Probability max for each reaction number
-!  INTEGER(KIND=8), ALLOCATABLE   :: NumReac(:)            ! Number of occured reactions for each reaction number
-  CHARACTER(LEN=5),ALLOCATABLE   :: ReactType(:)           ! Type of Reaction (reaction num)
-                                                           !    i (electron impact ionization)
-                                                           !    R (molecular recombination)
-                                                           !    D (molecular dissociation)
-                                                           !    E (molecular exchange reaction)
-                                                           !    x (simple charge exchange reaction)
-  INTEGER, ALLOCATABLE           :: DefinedReact(:,:,:)    ! Defined Reaction
-                                                           !  (reaction num; 1:reactant, 2:product;
-                                                           !  1-3 specieses of reactants and products,
-                                                           !  0: no species -> only 2 reactants or products)
-  INTEGER, ALLOCATABLE           :: ReactCase(:,:)         ! Case of reaction in combination of (spec1, spec2)
-  INTEGER, ALLOCATABLE           :: ReactNum(:,:,:)        ! Number of Reaction of (spec1, spec2,
-                                                           ! Case 1: Recomb: func. of species 3
-                                                           ! Case 2: dissociation, only 1
-                                                           ! Case 3: exchange reaction, only 1
-                                                           ! Case 4: RN of 1. dissociation
-                                                           !               2. exchange
-                                                           ! Case 5: RN of 1. dissociation 1
-                                                           !               2. dissociation 2
-                                                           ! Case 6: associative ionization (N + N -> N2(ion) + e)
-                                                           ! Case 7:  3 dissociations possible (at least 1 poly)
-                                                           ! Case 8:  4 dissociations possible
-                                                           ! Case 9:  3 diss and 1 exchange possible
-                                                           ! Case 10: 2 diss and 1 exchange possible
-                                                           ! Case 11: 2 diss,    1 exchange and 1 recomb possible
-                                                           ! Case 12: 2 diss and 1 recomb possible
-                                                           ! Case 13: 1 diss,    1 exchange and 1 recomb possible
-                                                           ! Case 14: 1 diss and 1 recomb possible
-                                                           ! Case 15: 1 exchange and 1 recomb possible
-                                                           ! Case 16: simple CEX, only 1
-                                                           ! Case 17: associative ionization and recombination possible
-   INTEGER, ALLOCATABLE          :: ReactNumRecomb(:,:,:)      ! Number of Reaction of (spec1, spec2, spec3)
-   REAL,  ALLOCATABLE            :: Arrhenius_Prefactor(:)     ! pre-exponential factor af of Arrhenius ansatz (nReactions)
-   REAL,  ALLOCATABLE            :: Arrhenius_Powerfactor(:)   ! powerfactor bf of temperature in Arrhenius ansatz (nReactions)
-   REAL,  ALLOCATABLE            :: EActiv(:)              ! activation energy (relative to k) (nReactions)
-   REAL,  ALLOCATABLE            :: EForm(:)               ! heat of formation  (relative to k) (nReactions)
-   REAL,  ALLOCATABLE            :: MeanEVib_PerIter(:)    ! MeanEVib per iteration for calculation of
-   INTEGER,  ALLOCATABLE         :: MeanEVibQua_PerIter(:) ! MeanEVib per iteration for calculation of
-                                                           ! xi_vib per cell (nSpecies)
-   REAL,  ALLOCATABLE            :: CEXa(:)                ! CEX log-factor (g-dep. cross section in Angstrom (nReactions)
-   REAL,  ALLOCATABLE            :: CEXb(:)                ! CEX const. factor (g-dep. cross section in Angstrom (nReactions)
-   REAL,  ALLOCATABLE            :: MEXa(:)                ! MEX log-factor (g-dep. cross section in Angstrom (nReactions)
-   REAL,  ALLOCATABLE            :: MEXb(:)                ! MEX const. factor (g-dep. cross section in Angstrom (nReactions)
-   REAL,  ALLOCATABLE            :: ELa(:)                 ! EL log-factor (g&cut-off-angle-dep. cs in Angstrom (nReactions)
-   REAL,  ALLOCATABLE            :: ELb(:)                 ! EL const. factor (g&cut-off-angle-dep. cs in Angstrom (nReactions)
-   LOGICAL, ALLOCATABLE          :: DoScat(:)              ! Do Scattering Calculation by Lookup table
-   CHARACTER(LEN=200),ALLOCATABLE:: TLU_FileName(:)        ! Name of file containing table lookup data for Scattering
-   INTEGER                       :: RecombParticle = 0     ! P. Index for Recombination, if zero -> no recomb particle avaible
-   INTEGER                       :: nPairForRec
-   REAL, ALLOCATABLE             :: Hab(:)                 ! Factor Hab of Arrhenius Ansatz for diatomic/polyatomic molecules
-   TYPE(tReactInfo), ALLOCATABLE :: ReactInfo(:)           ! Informations of Reactions (nReactions)
+  INTEGER                         :: NumOfReact             ! Number of possible reactions
+  TYPE(tArbDiss), ALLOCATABLE     :: ArbDiss(:)             ! Construct to allow the definition of a list of non-reactive educts
+  LOGICAL, ALLOCATABLE            :: QKProcedure(:)         ! Defines if QK Procedure is selected
+  INTEGER, ALLOCATABLE            :: QKMethod(:)            ! Recombination method for Q-K model (1 by Bird / 2 by Gallis)
+  REAL,ALLOCATABLE,DIMENSION(:,:) :: QKCoeff                ! QKRecombiCoeff for Birds method
+  REAL, ALLOCATABLE               :: NumReac(:)             ! Number of occurred reactions for each reaction number
+  INTEGER, ALLOCATABLE            :: ReacCount(:)           ! Counter of chemical reactions for the determination of rate
+                                                            ! coefficient based on the reaction probabilities
+  REAL, ALLOCATABLE               :: ReacCollMean(:)        ! Mean Collision Probability for each reaction number
+  INTEGER, ALLOCATABLE            :: ReacCollMeanCount(:)   ! counter for mean Collision Probability max for each reaction number
+  CHARACTER(LEN=5),ALLOCATABLE    :: ReactType(:)           ! Type of Reaction (reaction num)
+                                                            !    i (electron impact ionization)
+                                                            !    R (molecular recombination
+                                                            !    D (molecular dissociation)
+                                                            !    E (molecular exchange reaction)
+                                                            !    x (simple charge exchange reaction)
+  INTEGER, ALLOCATABLE            :: DefinedReact(:,:,:)    ! Defined Reaction
+                                                            ! (reaction num; 1:reactant, 2:product;
+                                                            !  1-3 species of reactants and products,
+                                                            ! 0: no spezies -> only 2 reactants or products)
+  INTEGER, ALLOCATABLE            :: ReactCase(:,:)             ! Case of reaction in combination of (spec1, spec2)
+  INTEGER, ALLOCATABLE            :: ReactNum(:,:,:)            ! Number of Reaction of (spec1, spec2,
+                                                                ! Case 1: Recomb: func. of species 3
+                                                                ! Case 2: dissociation, only 1
+                                                                ! Case 3: exchange reaction, only 1
+                                                                ! Case 4: RN of 1. dissociation
+                                                                !               2. exchange
+                                                                ! Case 5: RN of 1. dissociation 1
+                                                                !               2. dissociation 2
+                                                                ! Case 6: associative ionization (N + N -> N2(ion) + e)
+                                                                ! Case 7: 3 dissociations possible (at least 1 poly)
+                                                                ! Case 8: 4 dissociations possible
+                                                                ! Case 9: 3 diss and 1 exchange possible
+                                                                ! Case 10: 2 diss and 1 exchange possible
+                                                                ! Case 11: 2 diss, 1 exchange and 1 recomb possible
+                                                                ! Case 12: 2 diss and 1 recomb possible
+                                                                ! Case 13: 1 diss, 1 exchange and 1 recomb possible
+                                                                ! Case 14: 1 diss and 1 recomb possible
+                                                                ! Case 15: 1 exchange and 1 recomb possible
+                                                                ! Case 16: simple CEX, only 1
+                                                                ! Case 17: associative ionization and recombination possible
+  INTEGER, ALLOCATABLE            :: ReactNumRecomb(:,:,:)      ! Number of Reaction of (spec1, spec2, spec3)
+  REAL,  ALLOCATABLE              :: Arrhenius_Prefactor(:)     ! pre-exponential factor af of Arrhenius ansatz (nReactions)
+  REAL,  ALLOCATABLE              :: Arrhenius_Powerfactor(:)   ! powerfactor bf of temperature in Arrhenius ansatz (nReactions)
+  REAL,  ALLOCATABLE              :: EActiv(:)              ! activation energy (relative to k) (nReactions)
+  REAL,  ALLOCATABLE              :: EForm(:)               ! heat of formation  (relative to k) (nReactions)
+  REAL,  ALLOCATABLE              :: MeanEVib_PerIter(:)    ! MeanEVib per iteration for calculation of
+  INTEGER,  ALLOCATABLE           :: MeanEVibQua_PerIter(:) ! MeanEVib per iteration for calculation of
+                                                            ! xi_vib per cell (nSpecies)
+  REAL, ALLOCATABLE               :: MeanXiVib_PerIter(:)   ! Mean vibrational degree of freedom user for chemical reactions of
+                                                            ! diatomic species
+  REAL,  ALLOCATABLE              :: CEXa(:)                ! CEX log-factor (g-dep. cross section in Angstrom (nReactions)
+  REAL,  ALLOCATABLE              :: CEXb(:)                ! CEX const. factor (g-dep. cross section in Angstrom (nReactions)
+  REAL,  ALLOCATABLE              :: MEXa(:)                ! MEX log-factor (g-dep. cross section in Angstrom (nReactions)
+  REAL,  ALLOCATABLE              :: MEXb(:)                ! MEX const. factor (g-dep. cross section in Angstrom (nReactions)
+  REAL,  ALLOCATABLE              :: ELa(:)                 ! EL log-factor (g&cut-off-angle-dep. cs in Angstrom (nReactions)
+  REAL,  ALLOCATABLE              :: ELb(:)                 ! EL const. factor (g&cut-off-angle-dep. cs in Angstrom (nReactions)
+  LOGICAL, ALLOCATABLE            :: DoScat(:)              ! Do Scattering Calculation by Lookup table
+  CHARACTER(LEN=200),ALLOCATABLE  :: TLU_FileName(:)        ! Name of file containing table lookup data for Scattering
+  INTEGER                         :: RecombParticle = 0     ! P. Index for Recombination, if zero -> no recomb particle avaible
+  INTEGER                         :: nPairForRec            !
+  REAL, ALLOCATABLE               :: Hab(:)                 ! Factor Hab of Arrhenius Ansatz for diatomic/polyatomic molecs
+  TYPE(tReactInfo), ALLOCATABLE   :: ReactInfo(:)           ! Information of Reactions (nReactions)
+  INTEGER                         :: NumDeleteProducts      ! Number of species to be considered to deletion after the reaction
+  INTEGER, ALLOCATABLE            :: DeleteProductsList(:)  ! Indices of the species to be deleted [1:NumDeleteProducts]
+  REAL, ALLOCATABLE               :: CrossSection(:)        ! Cross-section of the given photo-ionization reaction
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac
@@ -451,20 +475,16 @@ END TYPE
 
 TYPE(tQKAnalytic), ALLOCATABLE   :: QKAnalytic(:)
 
-REAL                             :: realtime               ! realtime of simulation
-
 TYPE tPolyatomMolDSMC !DSMC Species Param
-  LOGICAL                        :: LinearMolec            ! Is a linear molecule?
-  INTEGER                        :: NumOfAtoms             ! Number of atoms in molecule
-  INTEGER                        :: VibDOF                 ! DOF in Vibration, equals number of independent SHO's
-  REAL, ALLOCATABLE              :: CharaTVibDOF(:)        ! Chara TVib for each DOF
-  INTEGER,ALLOCATABLE            :: LastVibQuantNums(:,:)  ! Last quantum numbers for vibrational inserting (VibDOF,nInits)
-  INTEGER, ALLOCATABLE           :: MaxVibQuantDOF(:)      ! Max Vib Quant for each DOF
-  REAL                           :: Xi_Vib_Mean            ! mean xi vib for chemical reactions
-  REAL                           :: TVib
-  REAL, ALLOCATABLE              :: GammaVib(:)            ! GammaVib: correction factor for Gimelshein Relaxation Procedure
-  REAL, ALLOCATABLE              :: VibRelaxProb(:)
-  REAL, ALLOCATABLE              :: CharaTRotDOF(:)        ! Chara TRot for each DOF
+  LOGICAL                         :: LinearMolec            ! Is a linear Molec?
+  INTEGER                         :: NumOfAtoms             ! Number of Atoms in Molec
+  INTEGER                         :: VibDOF                 ! DOF in Vibration, equals number of independent SHO's
+  REAL, ALLOCATABLE               :: CharaTVibDOF(:)        ! Chara TVib for each DOF
+  INTEGER,ALLOCATABLE             :: LastVibQuantNums(:,:)  ! Last quantum numbers for vibrational inserting (VibDOF,nInits)
+  INTEGER, ALLOCATABLE            :: MaxVibQuantDOF(:)      ! Max Vib Quant for each DOF
+  REAL, ALLOCATABLE               :: GammaVib(:)            ! GammaVib: correction factor for Gimelshein Relaxation Procedure
+  REAL, ALLOCATABLE               :: VibRelaxProb(:)
+  REAL, ALLOCATABLE               :: CharaTRotDOF(:)        ! Chara TRot for each DOF
 END TYPE
 
 TYPE (tPolyatomMolDSMC), ALLOCATABLE    :: PolyatomMolDSMC(:)        ! Infos for Polyatomic Molecule

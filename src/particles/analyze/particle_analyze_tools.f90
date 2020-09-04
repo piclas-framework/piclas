@@ -30,7 +30,12 @@ INTERFACE CalcEkinPart2
   MODULE PROCEDURE CalcEkinPart2
 END INTERFACE
 
+INTERFACE CalcNumPartsOfSpec
+  MODULE PROCEDURE CalcNumPartsOfSpec
+END INTERFACE
+
 PUBLIC :: CalcEkinPart,CalcEkinPart2
+PUBLIC :: CalcNumPartsOfSpec
 !===================================================================================================================================
 
 CONTAINS
@@ -126,6 +131,87 @@ ELSE
   END IF ! ipartV2
 END IF
 END FUNCTION CalcEkinPart2
+
+
+SUBROUTINE CalcNumPartsOfSpec(NumSpec,SimNumSpec,CalcNumSpec_IN,CalcSimNumSpec_IN)
+!===================================================================================================================================
+! Computes the number of simulated particles AND number of real particles within the domain
+! Last section of the routine contains the MPI-communication
+! CAUTION: SimNumSpec equals NumSpec only for constant weighting factor
+! NOTE: Background gas particles are not considered
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_Particle_Vars         ,ONLY: PDM,PartSpecies
+USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
+USE MOD_DSMC_Vars             ,ONLY: BGGas
+USE MOD_Particle_Vars         ,ONLY: nSpecies
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+#if USE_MPI
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+#endif
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                   :: NumSpec(nSpecAnalyze)
+INTEGER(KIND=IK),INTENT(OUT)       :: SimNumSpec(nSpecAnalyze)
+LOGICAL,INTENT(IN)                 :: CalcNumSpec_IN,CalcSimNumSpec_IN ! Flags for performing MPI reduce
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                            :: iPart, iSpec
+!===================================================================================================================================
+
+NumSpec    = 0.
+SimNumSpec = 0
+DO iPart=1,PDM%ParticleVecLength
+  IF (PDM%ParticleInside(iPart)) THEN
+    ! NumSpec = real particle number
+    NumSpec(PartSpecies(iPart))    = NumSpec(PartSpecies(iPart)) + GetParticleWeight(iPart)
+    ! SimNumSpec = simulated particle number
+    SimNumSpec(PartSpecies(iPart)) = SimNumSpec(PartSpecies(iPart)) + 1
+  END IF
+END DO
+IF(BGGas%NumberOfSpecies.GT.0) THEN
+  DO iSpec = 1, nSpecies
+    IF(BGGas%BackgroundSpecies(iSpec)) THEN
+      NumSpec(iSpec) = 0.
+      SimNumSpec(iSpec) = 0
+    END IF
+  END DO
+END IF
+IF(nSpecAnalyze.GT.1)THEN
+  NumSpec(nSpecAnalyze)    = SUM(NumSpec(1:nSpecies))
+  SimNumSpec(nSpecAnalyze) = SUM(SimNumSpec(1:nSpecies))
+END IF
+
+#if USE_MPI
+IF (PartMPI%MPIRoot) THEN
+  IF(CalcNumSpec_IN)    CALL MPI_REDUCE(MPI_IN_PLACE,NumSpec    ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  IF(CalcSimNumSpec_IN) CALL MPI_REDUCE(MPI_IN_PLACE,SimNumSpec ,nSpecAnalyze,MPI_INTEGER_INT_KIND,MPI_SUM,0,PartMPI%COMM,IERROR)
+ELSE
+  IF(CalcNumSpec_IN)    CALL MPI_REDUCE(NumSpec     ,NumSpec    ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  IF(CalcSimNumSpec_IN) CALL MPI_REDUCE(SimNumSpec  ,SimNumSpec ,nSpecAnalyze,MPI_INTEGER_INT_KIND,MPI_SUM,0,PartMPI%COMM,IERROR)
+END IF
+#endif /*USE_MPI*/
+
+! Set global number of particles (info for std out)
+IF(CalcSimNumSpec_IN)THEN
+  GlobalNbrOfParticlesUpdated = .TRUE.
+#if USE_MPI
+  IF(PartMPI%MPIRoot)THEN
+#endif /*USE_MPI*/
+    nGlobalNbrOfParticles = INT(SimNumSpec(nSpecAnalyze),KIND=IK)
+#if USE_MPI
+  END IF ! PartMPI%MPIRoot
+#endif /*USE_MPI*/
+END IF ! CalcSimNumSpec_IN
+
+END SUBROUTINE CalcNumPartsOfSpec
+
+
 #endif /*PARTICLES*/
 
 

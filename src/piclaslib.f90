@@ -11,6 +11,7 @@
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
 #include "piclas.h"
+#include "commit.h"
 
 MODULE MOD_Piclas
 
@@ -31,7 +32,7 @@ CONTAINS
 !===================================================================================================================================
 SUBROUTINE InitializePiclas()
 ! MODULES
-USE MOD_Globals_vars           ,ONLY: InitializationWallTime
+USE MOD_Globals_vars           ,ONLY: InitializationWallTime,MajorVersion,MinorVersion,PatchVersion
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: ParameterFile,ParameterDSMCFile
 USE MOD_Commandline_Arguments
@@ -77,7 +78,9 @@ SWRITE(UNIT_stdOut,'(A)')"                                       | (         | |
 SWRITE(UNIT_stdOut,'(A)')"                                       | )      ___) (___| (____/\| (____/\| )   ( |/\____) |"
 SWRITE(UNIT_stdOut,'(A)')"                                       |/       \_______/(_______/(_______/|/     \|\_______)"
 SWRITE(UNIT_stdOut,'(132(" "))')
-SWRITE(UNIT_stdOut,'(A)')"piclas version 1.5.2"
+SWRITE(UNIT_stdOut,'(A)')"piclas version "&
+    //TRIM(int2strf(MajorVersion))//"."//TRIM(int2strf(MinorVersion))//"."//TRIM(int2strf(PatchVersion))&
+    //" with commit "//TRIM(GIT_CURRENT_COMMIT)
 SWRITE(UNIT_stdOut,'(132("="))')
 
 CALL ParseCommandlineArguments()

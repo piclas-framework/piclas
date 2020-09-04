@@ -94,8 +94,6 @@ CALL prms%CreateRealOption(     'Particles-DSMC-PartitionMaxTemp'&
 CALL prms%CreateRealOption(     'Particles-DSMC-PartitionInterval'&
                                           , 'Define temperature interval for pre-stored partition functions that are used for '//&
                                           'calculation of backwards rates', '10.0')
-CALL prms%CreateRealOption(     'Particles-DSMC-veloMinColl-Spec[$]' , 'min velo magn. for spec allowed to perform collision' , '0.' &
-                                          , numberedmulti=.TRUE.)
 !-----------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcQualityFactors'&
                                           , 'Enables [TRUE] / disables [FALSE] the calculation and output of flow-field variable.\n'//&
@@ -139,10 +137,6 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-UseQCrit'&
 CALL prms%CreateLogicalOption(  'Particles-DSMC-UseSSD'&
                                          , 'Set [TRUE] to enable steady state detection and sampling start using 3SD routines.' &
                                          , '.FALSE.')
-CALL prms%CreateIntOption(      'Particles-DSMCBackgroundGas'&
-                                         , 'Define Species number that is used as background gas species', '0')
-CALL prms%CreateRealOption(     'Particles-DSMCBackgroundGasDensity'&
-                                         , 'Define Species number density for background gas', '0.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-PolyRelaxSingleMode'&
                                          , 'Set [TRUE] for separate relaxation of each vibrational mode of a polyatomic in a '//&
                                            'loop over all vibrational modes.\n'//&
@@ -160,8 +154,7 @@ CALL prms%CreateIntOption(      'Particles-OctreePartNumNodeMin'&
                                          ,'Allow grid division until the minimum number of particles in a subcell is above '//&
                                           'OctreePartNumNodeMin')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-UseNearestNeighbour'&
-                                         ,'Allows to enable/disable the nearest neighbour search algorithm within the ocrtree '//&
-                                          'cell refinement','.TRUE.')
+                                         ,'Enable/disable the nearest neighbour search algorithm','.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-ProhibitDoubleCollisions'&
                                          ,'2D/Axisymmetric only: Prohibit the occurrence of repeated collisions between the '//&
                                           'same particle pairs in order to reduce the statistical dependence')
@@ -176,7 +169,7 @@ CALL prms%CreateIntOption(      'crossSectionConstantMode'  &
                                             ' 0 : single omega for the computational domain\n'//&
                                             '     Part-Species1=omega will be set \n     for all and Cab will be calculated\n'//&
                                             '     via species-specific factor A_j\n'//&
-                                            '     Cab=(A_1+A_2)^2*m_red^-omegaLaux\n     (see Bird 1981 and Laux 1996)\n'//&
+                                            '     Cab=(A_1+A_2)^2*m_red^-omega\n     (see Bird 1981 and Laux 1996)\n'//&
                                             ' 1 : Cab will be calculated\n     via species-specific factor A_j\n'//&
                                             ' 2 : Cab will be calculated directly\n     (see Bird 1981 eq (9):constants)', '0')
 CALL prms%CreateLogicalOption(   'averagedCollisionParameters'  &
@@ -404,14 +397,27 @@ CALL prms%CreateRealOption(     'DSMC-Reaction[$]-MEXb'  &
 CALL prms%CreateStringOption(     'DSMC-Reaction[$]-TLU_FileName'  &
                                 , 'with DoScat=F: No TLU-File needed '//&
                                 '(def.: )', '0' , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Particles-Chemistry-NumDeleteProducts','Number of species, which should be deleted if they are '//&
+                                'a product of chemical reactions', '0')
+CALL prms%CreateIntArrayOption( 'Particles-Chemistry-DeleteProductsList','List of the species indices to be deleted if they are '//&
+                                'a product of chemical reactions')
 
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
                                            ,'Utilize collision cross sections for the determination of collision probabilities' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseVibXSec'  &
+                                           ,'Utilize vibrational cross sections for the determination of relaxation probabilities' &
                                            ,'.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for the collision cross section database. Container '//&
                                                                'should be named with species pair (e.g. "Ar-electron"). The '//&
                                                                'first column shall contain the energy in eV and the second '//&
                                                                'column the cross-section in m^2', 'none')
+CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
+                                  ,'Utilize the null collision method for the determination of the number of pairs '//&
+                                  'based on the maximum collision frequency and time step (only with a background gas)' &
+                                  ,'.TRUE.')
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CrossSection'  &
+                                , 'Photon-ionization cross-section', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersDSMC
 
@@ -421,7 +427,7 @@ SUBROUTINE InitDSMC()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Preproc                ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo, SideToElem
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_ReadInTools
@@ -449,7 +455,6 @@ CHARACTER(32)         :: hilf , hilf2
 INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF
 INTEGER               :: iColl, jColl, pColl, nCollision ! for collision parameter read in
 REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
-REAL                  :: BGGasEVib
 INTEGER               :: currentBC, ElemID, iSide, BCSideID, VarNum
 LOGICAL               :: PostCollPointerSet
 #if ( PP_TimeDiscMethod ==42 )
@@ -497,11 +502,6 @@ END IF
   END IF
 DSMC%ElecRelaxProb = GETREAL('Particles-DSMC-ElecRelaxProb','0.01')
 DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant', '0.5')
-ALLOCATE(DSMC%veloMinColl(nSpecies))
-DO iSpec = 1, nSpecies
-  WRITE(UNIT=hilf,FMT='(I0)') iSpec
-  DSMC%veloMinColl(iSpec) = GETREAL('Particles-DSMC-veloMinColl-Spec'//TRIM(hilf),'0.')
-END DO
 !-----------------------------------------------------------------------------------
 ! Flag for the automatic calculation of the backward reaction rate with the partition functions and equilibrium constant.
 DSMC%BackwardReacRate  = GETLOGICAL('Particles-DSMC-BackwardReacRate','.FALSE.')
@@ -597,7 +597,7 @@ END IF
       IF(CollInf%averagedCollisionParameters) THEN
         SpecDSMC(iSpec)%Tref         = GETREAL('Part-Species'//TRIM(hilf)//'-Tref'     )
         SpecDSMC(iSpec)%dref         = GETREAL('Part-Species'//TRIM(hilf)//'-dref'     )
-        SpecDSMC(iSpec)%omegaLaux    = GETREAL('Part-Species'//TRIM(hilf)//'-omega'    )
+        SpecDSMC(iSpec)%omega    = GETREAL('Part-Species'//TRIM(hilf)//'-omega'    )
         SpecDSMC(iSpec)%alphaVSS     = GETREAL('Part-Species'//TRIM(hilf)//'-alphaVSS' )
         ! check for faulty parameters
         IF((SpecDSMC(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) THEN
@@ -678,7 +678,7 @@ END IF
     ! allocate and initialize collision parameter arrays
     ALLOCATE(CollInf%Tref(nSpecies,nSpecies))
     ALLOCATE(CollInf%dref(nSpecies,nSpecies))
-    ALLOCATE(CollInf%omegaLaux(nSpecies,nSpecies))
+    ALLOCATE(CollInf%omega(nSpecies,nSpecies))
     ALLOCATE(CollInf%alphaVSS(nSpecies,nSpecies))
 
     ! read collision parameters in and check if all are set
@@ -689,18 +689,18 @@ END IF
       IF(CollInf%averagedCollisionParameters) THEN ! collision-averaged parameters
         CollInf%Tref      (iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%Tref      + SpecDSMC(jSpec)%Tref)
         CollInf%dref      (iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%dref      + SpecDSMC(jSpec)%dref)
-        CollInf%omegaLaux (iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%omegaLaux + SpecDSMC(jSpec)%omegaLaux)
+        CollInf%omega (iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%omega + SpecDSMC(jSpec)%omega)
         CollInf%alphaVSS  (iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%alphaVSS  + SpecDSMC(jSpec)%alphaVSS)
       ELSE ! collision-specific parameters
         CollInf%Tref      (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-Tref'     )
         CollInf%dref      (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-dref'     )
-        CollInf%omegaLaux (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-omega'    )
+        CollInf%omega (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-omega'    )
         CollInf%alphaVSS  (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-alphaVSS' )
       END IF ! averagedCollisionParameters
       IF (iSpec.NE.jSpec) THEN ! fill lower triangular matrix
         CollInf%Tref      (jSpec,iSpec) = CollInf%Tref      (iSpec,jSpec)
         CollInf%dref      (jSpec,iSpec) = CollInf%dref      (iSpec,jSpec)
-        CollInf%omegaLaux (jSpec,iSpec) = CollInf%omegaLaux (iSpec,jSpec)
+        CollInf%omega (jSpec,iSpec) = CollInf%omega (iSpec,jSpec)
         CollInf%alphaVSS  (jSpec,iSpec) = CollInf%alphaVSS  (iSpec,jSpec)
       END IF ! filled lower triangular matrix
       IF(CollInf%dref(iSpec,jSpec) * CollInf%Tref(iSpec,jSpec) * CollInf%alphaVSS(iSpec,jSpec) .EQ. 0) THEN
@@ -729,7 +729,7 @@ END IF
     END DO ! iSpec = nSpecies
 
     IF(CollInf%crossSectionConstantMode.EQ.0) THEN ! one omega for all - DEFAULT
-      CollInf%omegaLaux(:,:)=CollInf%omegaLaux(1,1)
+      CollInf%omega(:,:)=CollInf%omega(1,1)
     END IF ! CollInf%crossSectionConstantMode=0
   END IF ! DoFieldIonization.OR.CollisMode.NE.0
 
@@ -761,7 +761,7 @@ IF (CollisMode.EQ.0) THEN
   nCase = iCase
   CollInf%NumCase = nCase
   ALLOCATE(DSMC%NumColl(nCase +1))
-  DSMC%NumColl = 0
+  DSMC%NumColl = 0.
   ALLOCATE(CollInf%Coll_CaseNum(nCase))
   CollInf%Coll_CaseNum = 0
   ALLOCATE(CollInf%Coll_SpecPartNum(nSpecies))
@@ -786,9 +786,9 @@ IF (CollisMode.EQ.0) THEN
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Factor calculation for particle collision
 !-----------------------------------------------------------------------------------------------------------------------------------
-  ALLOCATE(CollInf%crossSectionConstantCab(nCase))
+  ALLOCATE(CollInf%Cab(nCase))
   ALLOCATE(CollInf%KronDelta(nCase))
-  CollInf%crossSectionConstantCab = 0
+  CollInf%Cab = 0
   CollInf%KronDelta = 0
 
   DO iSpec = 1, nSpecies
@@ -799,21 +799,21 @@ IF (CollisMode.EQ.0) THEN
       ELSE !ispec.NE.jspec
         CollInf%KronDelta(iCase) = 0
       END IF !kronecker delta
-      ! Laux (2.37) prefactor crossSectionConstantCab calculation depending on omegaLaux coll-averaged or -specific
-      SELECT CASE (CollInf%crossSectionConstantMode) ! sigma=Cab * cr^(-2 omegaLaux) , see Bird1981 for details
+      ! Laux (2.37) prefactor Cab calculation depending on omega coll-averaged or -specific
+      SELECT CASE (CollInf%crossSectionConstantMode) ! sigma=Cab * cr^(-2 omega) , see Bird1981 for details
       CASE (0,1)
         ! A1,A2 species constants, see laux1996 (2.38),(2.39)
         A1 = 0.5 * SQRT(Pi) * CollInf%dref(iSpec,iSpec) * (2 * BoltzmannConst * CollInf%Tref(iSpec , iSpec)) ** &
-           (CollInf%omegaLaux(iSpec , iSpec) * 0.5) / SQRT (GAMMA(2.0 - CollInf%omegaLaux(iSpec , iSpec)))
+           (CollInf%omega(iSpec , iSpec) * 0.5) / SQRT (GAMMA(2.0 - CollInf%omega(iSpec , iSpec)))
         A2 = 0.5 * SQRT(Pi) * CollInf%dref(jSpec , jSpec)*(2 * BoltzmannConst * CollInf%Tref(jSpec , jSpec)) ** &
-           (CollInf%omegaLaux(jSpec , jSpec)*0.5) / SQRT (GAMMA(2.0 - CollInf%omegaLaux(jSpec , jSpec)))
-        CollInf%crossSectionConstantCab(iCase) = (A1 + A2) ** 2 * CollInf%MassRed(iCase) ** ( - CollInf%omegaLaux(iSpec , jSpec))
+           (CollInf%omega(jSpec , jSpec)*0.5) / SQRT (GAMMA(2.0 - CollInf%omega(jSpec , jSpec)))
+        CollInf%Cab(iCase) = (A1 + A2) ** 2 * CollInf%MassRed(iCase) ** ( - CollInf%omega(iSpec , jSpec))
 
       CASE (2) ! cross section constant Cab without Laux simplification (needed if multiple omegas are used) see bird1981 (9)
-        CollInf%crossSectionConstantCab(iCase) = (SQRT (Pi) * CollInf%dref(iSpec , jSpec) *                                      &
-                                  (2 * BoltzmannConst * CollInf%Tref(iSpec , jSpec)) ** (CollInf%omegaLaux(iSpec , jSpec) * 0.5) &
-                                  / SQRT (GAMMA (2.0 - CollInf%omegaLaux(iSpec , jSpec)))) ** 2                                  &
-                                  * CollInf%MassRed(iCase)** ( - CollInf%omegaLaux(iSpec , jSpec))
+        CollInf%Cab(iCase) = (SQRT (Pi) * CollInf%dref(iSpec , jSpec) *                                      &
+                                  (2 * BoltzmannConst * CollInf%Tref(iSpec , jSpec)) ** (CollInf%omega(iSpec , jSpec) * 0.5) &
+                                  / SQRT (GAMMA (2.0 - CollInf%omega(iSpec , jSpec)))) ** 2                                  &
+                                  * CollInf%MassRed(iCase)** ( - CollInf%omega(iSpec , jSpec))
       END SELECT !crossSectionConstant
     END DO !jspec=nspecies
   END DO ! ispec=nspecies
@@ -823,12 +823,25 @@ IF (CollisMode.EQ.0) THEN
   DO iSpec = 1, nSpecies
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
     SpecDSMC(iSpec)%UseCollXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseCollXSec')
+    SpecDSMC(iSpec)%UseVibXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseVibXSec')
+    IF(SpecDSMC(iSpec)%UseCollXSec.AND.BGGas%BackgroundSpecies(iSpec)) THEN
+      CALL Abort(&
+          __STAMP__&
+          ,'ERROR: Please supply the collision cross-section data for the particle species and NOT the background species!')
+    END IF
+    IF(SpecDSMC(iSpec)%UseVibXSec.AND.(.NOT.SpecDSMC(iSpec)%UseCollXSec)) THEN
+      CALL Abort(&
+          __STAMP__&
+          ,'ERROR: Use of vibrational cross-section data requires to collisional cross-sections, -UseCollXSec = T!')
+    END IF
   END DO
   IF(ANY(SpecDSMC(:)%UseCollXSec)) THEN
     UseMCC = .TRUE.
     CALL MCC_Init()
   ELSE
     UseMCC = .FALSE.
+    XSec_NullCollision =.FALSE.
+    XSec_Relaxation = .FALSE.
   END IF
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! reading/writing molecular stuff
@@ -946,7 +959,7 @@ IF (CollisMode.EQ.0) THEN
                     CALL Abort(&
                         __STAMP__&
                         ,'Error! TVib needs to be defined in Part-SpeciesXX-TempVib for iSpec',iSpec)
-                  ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                  ELSE IF (BGGas%BackgroundSpecies(iSpec)) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
                     CALL Abort(&
                         __STAMP__&
                         ,'Error! TVib needs to be defined in Part-SpeciesXX-TempVib for BGGas')
@@ -967,7 +980,7 @@ IF (CollisMode.EQ.0) THEN
                     CALL Abort(&
                         __STAMP__&
                         ,'Error! TRot needs to be defined in Part-SpeciesXX-TempRot for iSpec',iSpec)
-                  ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                  ELSE IF (BGGas%BackgroundSpecies(iSpec)) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
                     CALL Abort(&
                         __STAMP__&
                         ,'Error! TRot needs to be defined in Part-SpeciesXX-TempRot for BGGas')
@@ -991,7 +1004,7 @@ IF (CollisMode.EQ.0) THEN
                     CALL Abort(&
                         __STAMP__&
                         ,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for Species',iSpec)
-                  ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                  ELSE IF (BGGas%BackgroundSpecies(iSpec)) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
                     CALL Abort(&
                         __STAMP__&
                         ,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for BGGas')
@@ -1347,14 +1360,7 @@ IF (CollisMode.EQ.0) THEN
   ! Journal of Computational Physics 246, 28–36. doi:10.1016/j.jcp.2013.03.018
   !-----------------------------------------------------------------------------------------------------------------------------------
   DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree')
-  IF(DSMC%UseOctree) THEN
-    DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour')
-    IF((.NOT.Symmetry2D).AND.(.NOT.DSMC%UseNearestNeighbour)) THEN
-      CALL abort(&
-          __STAMP__&
-          ,'Statistical Pairing with Octree not yet supported in 3D!')
-    END IF
-  END IF
+  DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour')
   ! If number of particles is greater than OctreePartNumNode, cell is going to be divided for performance of nearest neighbour
   IF(Symmetry2D) THEN
     DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','40')
@@ -1386,45 +1392,30 @@ IF (CollisMode.EQ.0) THEN
       CollInf%OldCollPartner = 0
     END IF
   ELSE
+    CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.FALSE.')
     IF (CollInf%ProhibitDoubleColl) THEN
-      CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.FALSE.')
       CALL abort(__STAMP__,&
           'ERROR: Prohibiting double collisions is only supported within a 2D/axisymmetric simulation!')
     END IF
   END IF
 
   !-----------------------------------------------------------------------------------------------------------------------------------
-  ! Set mean VibQua of BGGas for dissoc reaction
+  ! Background gas: Check compatibility with other features
   !-----------------------------------------------------------------------------------------------------------------------------------
-  IF (BGGas%BGGasSpecies.NE.0) THEN
+  IF (BGGas%NumberOfSpecies.GT.0) THEN
     IF (DSMC%UseOctree) THEN
       CALL abort(__STAMP__,&
-          'ERROR: Utilization of the octree and nearest neighbour scheme not possible with the background gas')
+          'ERROR: Utilization of the octree and nearest neighbour scheme not possible with the background gas!')
     END IF
-    IF(SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.4) THEN
-      CALL abort(__STAMP__,&
-          'ERROR: Electrons as background gas are not yet available!!')
-    END IF
-    IF((SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.2).OR.(SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.20)) THEN
-      IF(SpecDSMC(BGGas%BGGasSpecies)%PolyatomicMol) THEN
-        CALL abort(&
-            __STAMP__&
-            ,'ERROR: Polyatomic species as background gas are not yet available!')
-      ELSE
-        BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib &
-            + BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib  &
-            /  (EXP(SpecDSMC(BGGas%BGGasSpecies)%CharaTVib / SpecDSMC(BGGas%BGGasSpecies)%Init(0)%TVib) - 1) &
-            - BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib * SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant &
-            / (EXP(SpecDSMC(BGGas%BGGasSpecies)%CharaTVib * SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant &
-            / SpecDSMC(BGGas%BGGasSpecies)%Init(0)%TVib) - 1)
-        BGGasEVib = BGGasEVib/(BoltzmannConst*SpecDSMC(BGGas%BGGasSpecies)%CharaTVib) - DSMC%GammaQuant
-        BGGas%BGMeanEVibQua = MIN(INT(BGGasEVib) + 1, SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant)
+    DO iSpec = 1, nSpecies
+      IF(BGGas%BackgroundSpecies(iSpec)) THEN
+        IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
+          CALL abort(__STAMP__,&
+            'ERROR in BGGas: Electrons as background gas are not yet available!')
+        END IF
       END IF
-    ELSE
-      BGGas%BGMeanEVibQua = 0
-    END IF
+    END DO
   END IF
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate vib collision numbers and characteristic velocity, according to Abe
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1451,8 +1442,8 @@ IF (CollisMode.EQ.0) THEN
         SpecDSMC(iSpec)%CollNumVib(jSpec) = (2.* (SpecDSMC(iSpec)%CharaVelo(jSpec)**2) * EXP(SpecDSMC(iSpec)%MW_ConstB(jSpec)) &
                                   / (SQRT(3.) * CollInf%MassRed(iCase)) ) &
                                   * pi/4.*(CollInf%dref(iSpec,jSpec))**2 &
-                                  * ( 2.* (2.-CollInf%omegaLaux(iSpec,iSpec)) * BoltzmannConst * CollInf%Tref(iSpec,iSpec) &
-                                  / CollInf%MassRed(iCase) ) ** CollInf%omegaLaux(iSpec,iSpec)
+                                  * ( 2.* (2.-CollInf%omega(iSpec,iSpec)) * BoltzmannConst * CollInf%Tref(iSpec,iSpec) &
+                                  / CollInf%MassRed(iCase) ) ** CollInf%omega(iSpec,iSpec)
       END DO ! jSpec
       DEALLOCATE(SpecDSMC(iSpec)%MW_ConstA)
       DEALLOCATE(SpecDSMC(iSpec)%MW_ConstB)
@@ -1465,10 +1456,8 @@ IF (CollisMode.EQ.0) THEN
         ALLOCATE(DSMC%QualityFacSampVib(1:nElems,1,1:2))
         ALLOCATE(DSMC%QualityFacSampVibSamp(1:nElems,1,2))
       END IF
-      ALLOCATE(DSMC%CalcVibProb(1:nSpecies,1:3))
       DSMC%QualityFacSampVib = 0.
       DSMC%QualityFacSampVibSamp = 0
-      DSMC%CalcVibProb = 0.
     END IF
     CALL SetVarVibProb2Elems()
     ! CHeck if DSMC%InstantTransTemp is still needed
@@ -1491,8 +1480,16 @@ IF (CollisMode.EQ.0) THEN
     DSMC%QualityFacSampRotSamp = 0
     DSMC%CalcRotProb = 0.
   END IF
-
-END IF ! CollisMode.GT.0
+  IF(DSMC%CalcQualityFactors) THEN
+    ALLOCATE(DSMC%CalcVibProb(1:nSpecies,1:3))
+    DSMC%CalcVibProb = 0.
+    IF(XSec_Relaxation) THEN
+      DO iCase=1,CollInf%NumCase
+        SpecXSec(iCase)%VibProb(1:2) = 0.
+      END DO
+    END IF
+  END IF
+END IF !CollisMode.GT.0
 
 ! If field ionization is used without chemical reactions due to collisions (DSMC chemistry)
 IF(DoFieldIonization.AND.(CollisMode.NE.3))THEN
@@ -1976,7 +1973,6 @@ IF(DSMC%NumPolyatomMolecs.GT.0) THEN
   END DO
   SDEALLOCATE(PolyatomMolDSMC)
 END IF
-SDEALLOCATE(DSMC%veloMinColl)
 SDEALLOCATE(DSMC%NumColl)
 SDEALLOCATE(DSMC%InstantTransTemp)
 IF(DSMC%CalcQualityFactors) THEN
@@ -1987,6 +1983,7 @@ SDEALLOCATE(Coll_pData)
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(MacroDSMC)
 SDEALLOCATE(QKAnalytic)
+
 SDEALLOCATE(ChemReac%QKProcedure)
 SDEALLOCATE(ChemReac%QKMethod)
 SDEALLOCATE(ChemReac%QKCoeff)
@@ -2005,6 +2002,7 @@ SDEALLOCATE(ChemReac%EActiv)
 SDEALLOCATE(ChemReac%EForm)
 SDEALLOCATE(ChemReac%MeanEVib_PerIter)
 SDEALLOCATE(ChemReac%MeanEVibQua_PerIter)
+SDEALLOCATE(ChemReac%MeanXiVib_PerIter)
 SDEALLOCATE(ChemReac%CEXa)
 SDEALLOCATE(ChemReac%CEXb)
 SDEALLOCATE(ChemReac%MEXa)
@@ -2014,19 +2012,22 @@ SDEALLOCATE(ChemReac%ELb)
 SDEALLOCATE(ChemReac%DoScat)
 SDEALLOCATE(ChemReac%ReactInfo)
 SDEALLOCATE(ChemReac%TLU_FileName)
+SDEALLOCATE(ChemReac%CrossSection)
 SDEALLOCATE(ChemReac%ReactNumRecomb)
 SDEALLOCATE(ChemReac%Hab)
 SDEALLOCATE(CollInf%collidingSpecies)
+SDEALLOCATE(ChemReac%DeleteProductsList)
+
 SDEALLOCATE(CollInf%Coll_Case)
 SDEALLOCATE(CollInf%Coll_CaseNum)
 SDEALLOCATE(CollInf%Coll_SpecPartNum)
-SDEALLOCATE(CollInf%crossSectionConstantCab)
+SDEALLOCATE(CollInf%Cab)
 SDEALLOCATE(CollInf%KronDelta)
 SDEALLOCATE(CollInf%FracMassCent)
 SDEALLOCATE(CollInf%MassRed)
 SDEALLOCATE(CollInf%MeanMPF)
 SDEALLOCATE(CollInf%alphaVSS)
-SDEALLOCATE(CollInf%omegaLaux)
+SDEALLOCATE(CollInf%omega)
 SDEALLOCATE(CollInf%dref)
 SDEALLOCATE(CollInf%Tref)
 SDEALLOCATE(HValue)
@@ -2038,9 +2039,14 @@ SDEALLOCATE(DSMC_HOSolution)
 SDEALLOCATE(DSMC_Volumesample)
 CALL DeleteElemNodeVol()
 SDEALLOCATE(BGGas%PairingPartner)
+SDEALLOCATE(BGGas%BackgroundSpecies)
+SDEALLOCATE(BGGas%MapSpecToBGSpec)
+SDEALLOCATE(BGGas%SpeciesFraction)
+SDEALLOCATE(BGGas%NumberDensity)
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(SymmetrySide)
+SDEALLOCATE(SpecXSec)
 END SUBROUTINE FinalizeDSMC
 
 

@@ -705,7 +705,7 @@ SUBROUTINE DSMC_VibRelaxPoly_ARM(iPair, iPart, FakXi)
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData, RadialWeighting
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep, usevMPF
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -724,7 +724,7 @@ INTEGER,ALLOCATABLE           :: iQuant(:), iMaxQuant(:)
 INTEGER                       :: iDOF,iPolyatMole, iSpec
 !===================================================================================================================================
 iSpec = PartSpecies(iPart)
-IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
 ELSE
   Ec = Coll_pData(iPair)%Ec
@@ -770,7 +770,7 @@ SUBROUTINE DSMC_VibRelaxPoly_MH(iPair, iPart,FakXi)
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData, RadialWeighting
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -788,7 +788,7 @@ INTEGER,ALLOCATABLE           :: iQuant(:), iMaxQuant(:)
 INTEGER                       :: iDOF,iPolyatMole, iWalk, iSpec
 !===================================================================================================================================
 iSpec = PartSpecies(iPart)
-IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
 ELSE
   Ec = Coll_pData(iPair)%Ec
@@ -837,7 +837,7 @@ SUBROUTINE DSMC_VibRelaxPoly_GibbsSampling(iPair, iPart, FakXi)
 ! MODULES
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData, RadialWeighting
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -854,7 +854,7 @@ INTEGER,ALLOCATABLE           :: iQuant(:), iMaxQuant(:)
 INTEGER                       :: iDOF, iDOF2, iPolyatMole, iSpec, iLoop
 !===================================================================================================================================
 iSpec = PartSpecies(iPart)
-IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
 ELSE
   Ec = Coll_pData(iPair)%Ec
@@ -1057,12 +1057,12 @@ REAL FUNCTION Calc_Beta_Poly(iReac,Xi_Total)
 !===================================================================================================================================
 
   IF((ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 &
-  + CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1)) + Xi_Total/2.).GT.0.0) THEN
+  + CollInf%omega(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1)) + Xi_Total/2.).GT.0.0) THEN
     Calc_Beta_Poly = ChemReac%Arrhenius_Prefactor(iReac)                                                                        &
       * (BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) &
-      - CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1))))   &
+      - CollInf%omega(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1))))   &
       * GAMMA(Xi_Total/2.) / (ChemReac%Hab(iReac) * GAMMA(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5           &
-      + CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1)) + Xi_Total/2.))
+      + CollInf%omega(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1)) + Xi_Total/2.))
   ELSE
     Calc_Beta_Poly = 0.0
   END IF

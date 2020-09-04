@@ -75,7 +75,7 @@ SUBROUTINE InitFPFlow()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Preproc               ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: NGeo, nElems
 USE MOD_Globals_Vars          ,ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
@@ -103,7 +103,7 @@ DO iSpec = 1, nSpecies
   DO iSpec2=1, nSpecies
     SpecFP(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*(CollInf%dref(iSpec,iSpec) + CollInf%dref(iSpec2,iSpec2))**2.0 &
         * SQRT(2.*PI*BoltzmannConst*CollInf%Tref(iSpec,iSpec)*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
-        /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/CollInf%Tref(iSpec,iSpec)**(-CollInf%omegaLaux(iSpec,iSpec) +0.5)
+        /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/CollInf%Tref(iSpec,iSpec)**(-CollInf%omega(iSpec,iSpec) +0.5)
   END DO
 END DO
 

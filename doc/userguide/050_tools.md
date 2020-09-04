@@ -6,37 +6,34 @@ This section gives an overview over the tools and scripts contained in the **PIC
 
 ## Collision cross-section database \label{sec:tools_mcc}
 
-A tool to create the database containing the cross-sections can be found in the *tools* folder: `piclas/tools/crosssection_database/`. The python script `create_MCC_database.py` can be used to populate the MCC database, using the `numpy` and `h5py` packages.
+A tool to create a database containing cross-section data can be found in the *tools* folder: `piclas/tools/crosssection_database/`. The Python script (python3.7) `create_xsec_db_lxcat.py` can be used to populate a PICLas-compatible cross-section database, using the `numpy`, `h5py` and `lxcat_data_parser` packages.
 
-    import numpy as np
-    import h5py
+    python3.7 create_xsec_db_lxcat.py
 
-A text file can be easily read-in via the `numpy` package and the `genfromtxt` function
+A database (containing multiple species and cross-section types) downloaded directly from the Plasma Data Exchange Project and the [LXCat database](https://fr.lxcat.net/home/) and the name of output database can be supplied to the script with
 
-    datatype = np.dtype(np.float64)
-    data_Ar = np.genfromtxt('Ar-e_effective.txt',delimiter='\t',skip_header=1,dtype=datatype,)
+    database_input = "Database.txt"
+    database_output = "Database.h5"
 
-The format of the input text file with data (sorted by an ascending energy value) from e.g. the Plasma Data Exchange Project and the [LXCat database](https://fr.lxcat.net/home/) is given below
+Currently, PICLas only utilizes effective and vibrational cross-sections, however, all excitation cross-section types are grouped and stored in the output file. An example is given below 
 
-    Energy (eV)  Cross section (m2)
-    0.000000e+0  4.960000e-20
-    1.000000e-3  4.980000e-20
-    2.000000e-3  5.020000e-20
+    CO2-election (group)
+        EFFECTIVE (dataset)
+        ROTATION (group)
+            0.02 (dataset)
+        VIBRATION (group)
+            0.29
+            0.59
 
-The HDF5 database (including an optional "Info" attribute) is then created using the `h5py` package
+Datasets, which cannot be identified as rotational, vibrational or electronic excitation will grouped within an `UNDEFINED` group. By defining a species list, only certain species can be included in the output database
 
-    hdf = h5py.File('MCC_Database.h5', 'w')
-    hdf.attrs['Info'] = 'Collision cross-section database for MCC-based probability calculation with PICLas. First column is the collision energy in [eV], second column is the cross-section in [m^2]'
+    species_list = ["Ar","CO"]
 
-The read-in data is then added as a dataset to the database. Additional attributes such as the type of the cross-section (e.g. effective) and the source of the data should be supplied.
+Finally, the utilized cross-section data should be properly referenced by adding the information to the HDF5 database as an attribute
 
-    dataset1 = hdf.create_dataset('Ar-electron', data=data_Ar)
-    dataset1.attrs['Type'] = 'effective'
-    dataset1.attrs['Source'] = 'Phelps database, www.lxcat.net, retrieved on October 27, 2019. COMMENT: Yamabe, Buckman, and Phelps, Phys. Rev. 27, 1345 (1983). Revised Oct 1997.'
+    reference = 'XXX database, www.lxcat.net, retrieved on MMMM DD, YYYY.'
 
-Finally, the HDF5 file should be closed.
-
-    hdf.close()
+Users of cross-section data are encouraged to download the data directly from the [LXCat project website](https://fr.lxcat.net/home/) and to consider the guidelines regarding referencing and publication.
 
 ## Visualization (NEEDS AN UPDATE)
 
@@ -385,3 +382,45 @@ InitPDF_State.h5. From this file, the PartData is copied to the initial file, ge
 
 Finally, the last entry of PartInt of Coarse_State.h5 has to be set to the number of all particles in InitPDF_State.h5. Note,
 that PICLas is executed on a single core.
+
+## Tools Folder
+
+PICLas comes with a collection of loose tools that perform various tasks, e.g., post-processing. An
+overview of the tools is given in [TOOLS.md](https://github.com/piclas-framework/piclas/blob/master/tools/TOOLS.md).
+
+### Userblock
+
+The `userblock` contains the complete information about a **PICLas** run (git branch of the 
+repository, differences to that branch, `cmake` configuration and parameter file) and is prepended 
+to every `.h5` state file. The parameter file is prepended in ASCII format, the rest is binary and 
+is generated automatically during the build process with the `generateuserblock.sh` script.
+
+### `extract_userblock.py`
+
+It can be extracted and printed using the `extract_userblock.py` script. Its basic usage is
+
+    python2 extract_userblock.py -XXX [statefile.h5]
+
+where `-XXX` can be replaced by
+
+* `-s` to show all available parts of the userblock (such as `CMAKE` or `GIT BRANCH`)
+* `-a` to print the complete userblock
+* `-p [part]` to print one of the parts listed with the `-s` command.
+
+### `rebuild.py`
+
+The second python tool in this folder is `rebuild.py`. It extracts the userblock from a state file 
+and builds a **PICLas** repository and binary identical to the one that the state file was created 
+with. In order to do so, it clones a **PICLas** git repository, checks out the given branch, applies 
+the stored changes to the git `HEAD` and builds **PICLas** with the stored `cmake` options. 
+If run with the parameter file given in the `INIFILE` part of the userblock, this binary should 
+reproduce the same results/behaviour (possible remaining sources of different output are for example 
+differences in restart files, compilers, linked libraries or machines). The basic usage is
+
+    python2 rebuild.py [dir] [statefile.h5]
+
+where `dir` is an empty directory that the repository is cloned into and where the `piclas` 
+executable is built. `statefile.h5` is the state file whose userblock is used to rebuild the `piclas` 
+executable. Help can be shown via `-h` for both userblock scripts.
+
+

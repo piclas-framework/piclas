@@ -45,17 +45,22 @@ SUBROUTINE DomainDecomposition()
 USE MOD_Globals
 USE MOD_Restart_Vars         ,ONLY: DoRestart
 USE MOD_Mesh_Vars            ,ONLY: offsetElem,nElems,nGlobalElems
-#if USE_HDG && USE_LOADBALANCE
+USE MOD_LoadBalance_Vars     ,ONLY: ElemTimeField
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars     ,ONLY: ElemTime 
+#if USE_HDG
 USE MOD_LoadBalance_Vars     ,ONLY: ElemHDGSides,TotalHDGSides
 USE MOD_Analyze_Vars         ,ONLY: CalcMeshInfo
-#endif /*USE_HDG && USE_LOADBALANCE*/
+#endif /*USE_HDG*/
+#endif /*USE_LOADBALANCE*/
 USE MOD_MPI_Vars             ,ONLY: offsetElemMPI
 USE MOD_LoadDistribution     ,ONLY: ApplyWeightDistributionMethod
 #ifdef PARTICLES
 USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_InitDistribution
 USE MOD_Particle_Vars        ,ONLY: VarTimeStep
+USE MOD_LoadBalance_Vars     ,ONLY: ElemTimePart 
 #endif /*PARTICLES*/
-USE MOD_LoadBalance_Vars     ,ONLY: NewImbalance,MaxWeight,MinWeight,ElemGlobalTime,LoadDistri,PartDistri,TargetWeight,ElemTime
+USE MOD_LoadBalance_Vars     ,ONLY: NewImbalance,MaxWeight,MinWeight,ElemGlobalTime,LoadDistri,PartDistri,TargetWeight
 USE MOD_IO_HDF5
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -70,7 +75,8 @@ REAL,ALLOCATABLE               :: WeightSum_proc(:)
 INTEGER                        :: iProc
 INTEGER                        :: iElem
 !===================================================================================================================================
-
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)')' DOMAIN DECOMPOSITION ...'
 !simple partition: nGlobalelems/nprocs, do this on proc 0
 SDEALLOCATE(offsetElemMPI)
 ALLOCATE(offsetElemMPI(0:nProcessors))
@@ -147,9 +153,8 @@ IF(ElemTimeExists)THEN
   ! read ElemTime by all ranks
   CALL ReadElemTime(single=.FALSE.)
 END IF ! ElemTimeExists
-#endif /*USE_LOADBALANCE*/
 
-#if USE_HDG && USE_LOADBALANCE
+#if USE_HDG
 ! Allocate container for number of master sides for the HDG solver for each element
 SDEALLOCATE(ElemHDGSides)
 ALLOCATE(ElemHDGSides(1:nElems))
@@ -158,13 +163,19 @@ IF(CalcMeshInfo)THEN
   CALL AddToElemData(ElementOut,'ElemHDGSides',IntArray=ElemHDGSides(1:nElems))
 END IF ! CalcMeshInfo
 TotalHDGSides=0
-#endif /*USE_HDG && USE_LOADBALANCE*/
+#endif /*USE_HDG*/
 
 ! Set new ElemTime depending on new load distribution
 SDEALLOCATE(ElemTime)
 ALLOCATE(ElemTime(1:nElems))
-ElemTime = 0.
+ElemTime=0.
 CALL AddToElemData(ElementOut,'ElemTime',RealArray=ElemTime(1:nElems))
+#endif /*USE_LOADBALANCE*/
+
+#ifdef PARTICLES
+ElemTimePart    = 0.
+#endif /*PARTICLES*/
+ElemTimeField    = 0.
 
 ! Calculate new (theoretical) imbalance with offsetElemMPI information
 IF(ElemTimeExists.AND.MPIRoot)THEN
@@ -178,17 +189,16 @@ IF(ElemTimeExists.AND.MPIRoot)THEN
   ! WeightSum (Mesh global value) is already set in BalanceMethod scheme
 
   ! new computation of current imbalance
-  TargetWeight=SUM(WeightSum_proc)/nProcessors
-  NewImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
+  TargetWeight = SUM(WeightSum_proc)/nProcessors
+  NewImbalance = (MaxWeight-TargetWeight)/TargetWeight
 
   IF(TargetWeight.LE.0.0) CALL abort(&
       __STAMP__, &
       ' LoadBalance: TargetWeight = ',RealInfoOpt=TargetWeight)
   SWRITE(UNIT_stdOut,'(A)') ' Calculated new (theoretical) imbalance with offsetElemMPI information'
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MaxWeight:        ', MaxWeight
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MinWeight:        ', MinWeight
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' TargetWeight:     ', TargetWeight
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' NewImbalance:     ', NewImbalance
+  SWRITE(UNIT_stdOut,'(A,ES9.3,A,ES9.3,A,ES9.3,A,ES9.3)')&
+      ' MinWeight: ', MinWeight, '    MaxWeight: ', MaxWeight, '    TargetWeight: ', TargetWeight,'    NewImbalance: ',&
+        NewImbalance
   DEALLOCATE(WeightSum_proc)
 ELSE
   SWRITE(UNIT_stdOut,'(A)') ' No ElemTime found in restart file'
@@ -196,8 +206,8 @@ ELSE
   MaxWeight = -1.
   MinWeight = -1.
 END IF
-
-
+SWRITE(UNIT_stdOut,'(A)')' DOMAIN DECOMPOSITION DONE!'
+SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE DomainDecomposition
 
 

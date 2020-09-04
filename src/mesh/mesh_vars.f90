@@ -249,7 +249,7 @@ TYPE tSide
   INTEGER                      :: tmp
   INTEGER                      :: NbProc
   INTEGER                      :: BCindex         !< index in BoundaryType array!
-  INTEGER                      :: flip
+  INTEGER                      :: flip=-999
 #ifdef PARTICLES
   LOGICAL                      :: InnerBCOutput   !< Logical if proc writes InnerBC information
   INTEGER                      :: BC_Alpha        !< inital value for periodic displacement before mapping in pos. bc-index range

@@ -23,6 +23,9 @@ PUBLIC :: InterpolateFieldToParticle
 PUBLIC :: InitializeParticleInterpolation
 PUBLIC :: InterpolateFieldToSingleParticle
 PUBLIC :: InterpolateVariableExternalField
+#ifdef CODE_ANALYZE
+PUBLIC :: InitAnalyticalParticleState
+#endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 INTERFACE InitializeParticleInterpolation
   MODULE PROCEDURE InitializeParticleInterpolation
@@ -49,7 +52,7 @@ SUBROUTINE InitializeParticleInterpolation
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PreProc,                ONLY:PP_nElems
+USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_Particle_Vars,          ONLY : PDM
 USE MOD_PICInterpolation_Vars
@@ -98,16 +101,31 @@ END IF
 DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
 IF(DoInterpolationAnalytic)THEN
   AnalyticInterpolationType = GETINT('PIC-AnalyticInterpolation-Type')
+  AnalyticInterpolationPhase = GETREAL('PIC-AnalyticInterpolationPhase')
   SELECT CASE(AnalyticInterpolationType)
-  CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
+  CASE(0) ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
+    ! no special parameters required
+  CASE(1) ! 1: magnetostatic field: B = B_z = (/ 0 , 0 , B_0 * EXP(x/l) /) = const.
     AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
     AnalyticInterpolationP       = GETREAL('PIC-AnalyticInterpolationP')
+  CASE(2) !2: const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
+          !                                 E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
+    ! no special parameters required
   CASE DEFAULT
     WRITE(TempStr,'(I5)') AnalyticInterpolationType
     CALL abort(&
         __STAMP__ &
         ,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(ADJUSTL(TempStr))//'" in pic_interpolation.f90')
   END SELECT
+
+  ! Calculate the initial velocity of the particle from an analytic expression: must be implemented for the different 
+  ! AnalyticInterpolationType methods
+  ! Note that for time-staggered methods, Leapfrog and Boris, the initial velocity in shifted by -dt/2 into the past
+  IF(DoInterpolationAnalytic.AND.ANY((/0,1/).EQ.AnalyticInterpolationType))THEN
+    DoInitAnalyticalParticleState = .TRUE.
+  ELSE
+    DoInitAnalyticalParticleState = .FALSE.
+  END IF
 END IF
 #endif /*CODE_ANALYZE*/
 
@@ -143,7 +161,7 @@ SUBROUTINE InterpolateFieldToParticle(DoInnerParts)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: PartPosRef,PDM,PartState,PEM,PartPosGauss,DoFieldIonization
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Part_Tools             ,ONLY: isInterpolateParticle
@@ -257,6 +275,10 @@ FieldAtParticle(:,firstPart:lastPart) = 0. ! initialize
 #ifdef CODE_ANALYZE
 IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field interpolation
   SELECT CASE(AnalyticInterpolationType)
+  CASE(0) ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
+    DO iPart = firstPart, LastPart
+      FieldAtParticle(6,iPart) = 1.0
+    END DO
   CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
     ASSOCIATE( B_0 => 1.0     , &
                l   => 1.0  )
@@ -265,12 +287,28 @@ IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field
         FieldAtParticle(6,iPart) = B_0 * EXP(PartState(1,iPart) / l)
       END DO
     END ASSOCIATE
+  ! 2: const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
+  !                                  E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
+  ! Example from Paper by H. Qin: Why is Boris algorithm so good? (2013) 
+  ! http://dx.doi.org/10.1063/1.4818428
+  CASE(2)
+    DO iPart = firstPart, LastPart
+      ASSOCIATE( x => PartState(1,iPart) ,&
+                 y => PartState(2,iPart) )
+        !WRITE (*,*) "x,y,PartState(4,iPart) =", x,y,PartState(4,iPart)
+        ! Ex and Ey
+        FieldAtParticle(1,iPart) = 1.0e-2 * (x**2+y**2)**(-1.5) * x
+        FieldAtParticle(2,iPart) = 1.0e-2 * (x**2+y**2)**(-1.5) * y
+        ! Bz
+        FieldAtParticle(6,iPart) = SQRT(x**2+y**2)
+      END ASSOCIATE
+    END DO
   END SELECT
   ! exit the subroutine after field determination
   RETURN
 ELSE ! use variable or fixed external field
 #endif /*CODE_ANALYZE*/
-  IF(useVariableExternalField) THEN ! used curved external Bz
+  IF(useVariableExternalField) THEN ! used variable external Bz, which is given as 1D function Bz(z)
     FieldAtParticle(1,firstPart:lastPart) = externalField(1)
     FieldAtParticle(2,firstPart:lastPart) = externalField(2)
     FieldAtParticle(3,firstPart:lastPart) = externalField(3)
@@ -312,27 +350,33 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
       HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-      CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,HelperU,field(1:6),iElem)
+      CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,HelperU,6,field(1:6),iElem)
 #else
-      CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
+      CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,U(1:6,:,:,:,iElem),6,field(1:6),iElem)
 #endif /*PP_POIS*/
 !
 #else /*PP_nVar not 8*/
 !
 #ifdef PP_POIS
-      CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+      CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),3,field(1:3),iElem)
 #elif USE_HDG
 #if PP_nVar==1
-      CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+#if (PP_TimeDiscMethod==508)
+      ! Boris: consider B-Field, e.g., from SuperB 
+      CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),6,field(1:6),iElem)
+#else
+      ! Consider only electric fields 
+      CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),3,field(1:3),iElem)
+#endif /*(PP_TimeDiscMethod==508)*/
 #elif PP_nVar==3
-      CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
+      CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,B(1:3,:,:,:,iElem),3,field(4:6),iElem)
 #else
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
       HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
-      CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,HelperU,field(1:6),iElem)
+      CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,HelperU,6,field(1:6),iElem)
 #endif /*PP_nVar==1*/
 #else /*not HDG and not POIS and PP_nVar not 8*/
-      CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
+      CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,U(1:3,:,:,:,iElem),3,field(1:3),iElem)
 #endif /*PP_POIS*/
 !
 #endif /*(PP_nVar==8)*/
@@ -359,25 +403,31 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
             HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
             HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-            CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),iElem)
+            CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,6,field(1:6),iElem)
 #else
-            CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
+            CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,iElem),6,field(1:6),iElem)
 #endif /*PP_POIS*/
 #else
 #ifdef PP_POIS
-            CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+            CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),3,field(1:3),iElem)
 #elif USE_HDG
 #if PP_nVar==1
-            CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+#if (PP_TimeDiscMethod==508)
+            ! Boris: consider B-Field, e.g., from SuperB 
+            CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),6,field(1:6),iElem)
+#else
+            ! Consider only electric fields 
+            CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),3,field(1:3),iElem)
+#endif /*(PP_TimeDiscMethod==508)*/
 #elif PP_nVar==3
-            CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
+            CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,iElem),3,field(4:6),iElem)
 #else
             HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
             HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
-            CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),iElem)
+            CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,6,field(1:6),iElem)
 #endif /*PP_nVar*/
 #else
-            CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
+            CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,iElem),3,field(1:3),iElem)
 #endif /*PP_POIS*/
 #endif /*(PP_nVar==8)*/
             FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
@@ -402,25 +452,31 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
               HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
               HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),6,PP_N,HelperU,field(1:6),iElem)
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),6,PP_N,HelperU,6,field(1:6),iElem)
 #else
-              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),6,PP_N,U(1:6,:,:,:,iElem),6,field(1:6),iElem)
 #endif
 #else
 #ifdef PP_POIS
-              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),3,field(1:3),iElem)
 #elif USE_HDG
 #if PP_nVar==1
-              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+#if (PP_TimeDiscMethod==508)
+              ! Boris: consider B-Field, e.g., from SuperB 
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),6,field(1:6),iElem)
+#else
+              ! Consider only electric fields 
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),3,field(1:3),iElem)
+#endif /*(PP_TimeDiscMethod==508)*/
 #elif PP_nVar==3
-              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,B(1:3,:,:,:,iElem),3,field(4:6),iElem)
 #else
               HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
               HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
-              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),6,PP_N,HelperU,field(1:6),iElem)
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),6,PP_N,HelperU,6,field(1:6),iElem)
 #endif
 #else
-              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,U(1:3,:,:,:,iElem),3,field(1:3),iElem)
 #endif
 #endif
               FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
@@ -445,23 +501,29 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
                 HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
                 CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),iElem,iPart)
 #else
-                CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem,iPart)
+                CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,iElem),6,field(1:6),iElem,iPart)
 #endif
 #else
 #ifdef PP_POIS
-                CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
+                CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),3,field(1:3),iElem,iPart)
 #elif USE_HDG
 #if PP_nVar==1
-                CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
+#if (PP_TimeDiscMethod==508)
+                ! Boris: consider B-Field, e.g., from SuperB 
+                CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),6,field(1:6),iElem,iPart)
+#else
+                ! Consider only electric fields 
+                CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),3,field(1:3),iElem,iPart)
+#endif /*(PP_TimeDiscMethod==508)*/
 #elif PP_nVar==3
-                CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem,iPart)
+                CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,iElem),3,field(4:6),iElem,iPart)
 #else
                 HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
                 HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
-                CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),iElem,iPart)
+                CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,6,field(1:6),iElem,iPart)
 #endif
 #else
-                CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
+                CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,iElem),3,field(1:3),iElem,iPart)
 #endif
 #endif
               ELSE !.NOT.PDM%dtFracPush(iPart): same as in "particles have already been mapped in deposition, other eval routine used"
@@ -473,25 +535,31 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
                 HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
                 HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-                CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),6,PP_N,HelperU,field(1:6),iElem)
+                CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),6,PP_N,HelperU,6,field(1:6),iElem)
 #else
-                CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
+                CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),6,PP_N,U(1:6,:,:,:,iElem),6,field(1:6),iElem)
 #endif
 #else
 #ifdef PP_POIS
-                CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+                CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),3,field(1:3),iElem)
 #elif USE_HDG
 #if PP_nVar==1
-                CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+#if (PP_TimeDiscMethod==508)
+                ! Boris: consider B-Field, e.g., from SuperB 
+                CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),6,field(1:6),iElem)
+#else
+                ! Consider only electric fields 
+                CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),3,field(1:3),iElem)
+#endif /*(PP_TimeDiscMethod==508)*/
 #elif PP_nVar==3
-                CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
+                CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,B(1:3,:,:,:,iElem),3,field(4:6),iElem)
 #else
                 HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
                 HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
-                CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),6,PP_N,HelperU,field(1:6),iElem)
+                CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),6,PP_N,HelperU,6,field(1:6),iElem)
 #endif
 #else
-                CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
+                CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,U(1:3,:,:,:,iElem),3,field(1:3),iElem)
 #endif
 #endif
               END IF !PDM%dtFracPush(iPart)
@@ -513,25 +581,31 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
               HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
               HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-              CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),iElem,iPart)
+              CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,6,field(1:6),iElem,iPart)
 #else
-              CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem,iPart)
+              CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,iElem),6,field(1:6),iElem,iPart)
 #endif
 #else
 #ifdef PP_POIS
-              CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
+              CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),3,field(1:3),iElem,iPart)
 #elif USE_HDG
 #if PP_nVar==1
-              CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
+#if (PP_TimeDiscMethod==508)
+                ! Boris: consider B-Field, e.g., from SuperB 
+                CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),6,field(1:6),iElem,iPart)
+#else
+                ! Consider only electric fields 
+                CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),3,field(1:3),iElem,iPart)
+#endif /*(PP_TimeDiscMethod==508)*/
 #elif PP_nVar==3
-              CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem,iPart)
+              CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,iElem),3,field(4:6),iElem,iPart)
 #else
               HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
               HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
-              CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),iElem,iPart)
+              CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,6,field(1:6),iElem,iPart)
 #endif
 #else
-              CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
+              CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,iElem),3,field(1:3),iElem,iPart)
 #endif
 #endif
               FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
@@ -641,7 +715,7 @@ SUBROUTINE InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Particle_Vars,           ONLY:PartPosRef,PDM,PartState,PEM,PartPosGauss
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 #if !(USE_HDG)
@@ -667,7 +741,7 @@ USE MOD_Equation_Vars,        ONLY:B,E
 USE MOD_Particle_Vars,        ONLY:DoSurfaceFlux
 #endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
 #ifdef CODE_ANALYZE
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic!,AnalyticInterpolationType
 #endif /* CODE_ANALYZE */
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
@@ -697,12 +771,15 @@ NotMappedSurfFluxParts=.FALSE.
 FieldAtParticle=0.
 #ifdef CODE_ANALYZE
 IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field interpolation
-  SELECT CASE(AnalyticInterpolationType)
-  CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
-    FieldAtParticle(6) = EXP(PartState(1,PartID)) ! "B_0" and "l" are dropped here
-  END SELECT
-  ! exit the subroutine after field determination
-  RETURN
+  CALL abort(&
+  __STAMP__&
+  ,'DoInterpolationAnalytic: Do not call subroutine InterpolateFieldToSingleParticle()')
+  !        SELECT CASE(AnalyticInterpolationType)
+  !        CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
+  !          FieldAtParticle(6) = EXP(PartState(1,PartID)) ! "B_0" and "l" are dropped here
+  !        END SELECT
+  !        ! exit the subroutine after field determination
+  !        RETURN
 ELSE ! use variable or fixed external field
 #endif /*CODE_ANALYZE*/
   IF(useVariableExternalField) THEN ! used Variable external Bz
@@ -749,25 +826,31 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
     HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
     HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-    CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,HelperU,field(1:6),ElemID)
+    CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,HelperU,6,field(1:6),ElemID)
 #else
-    CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
+    CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,U(1:6,:,:,:,ElemID),6,field(1:6),ElemID)
 #endif /*PP_POIS*/
 #else
 #ifdef PP_POIS
-    CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+    CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),3,field(1:3),ElemID)
 #elif USE_HDG
 #if PP_nVar==1
-    CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+#if (PP_TimeDiscMethod==508)
+    ! Boris: consider B-Field, e.g., from SuperB 
+    CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),6,field(1:6),ElemID)
+#else
+    ! Consider only electric fields 
+    CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),3,field(1:3),ElemID)
+#endif /*(PP_TimeDiscMethod==508)*/
 #elif PP_nVar==3
-    CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
+    CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,B(1:3,:,:,:,ElemID),3,field(4:6),ElemID)
 #else
     HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
     HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-    CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,HelperU,field(1:6),ElemID)
+    CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,HelperU,6,field(1:6),ElemID)
 #endif /*PP_nVar==1*/
 #else
-    CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
+    CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,U(1:3,:,:,:,ElemID),3,field(1:3),ElemID)
 #endif /*PP_POIS*/
 #endif /*(PP_nVar==8)*/
     FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
@@ -778,25 +861,31 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
     HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
     HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-    CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),ElemID)
+    CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,6,field(1:6),ElemID)
 #else
-    CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
+    CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,ElemID),6,field(1:6),ElemID)
 #endif /*PP_POIS*/
 #else
 #ifdef PP_POIS
-    CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+    CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),3,field(1:3),ElemID)
 #elif USE_HDG
 #if PP_nVar==1
-    CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+#if (PP_TimeDiscMethod==508)
+    ! Boris: consider B-Field, e.g., from SuperB 
+    CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),6,field(1:6),ElemID)
+#else
+    ! Consider only electric fields 
+    CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),3,field(1:3),ElemID)
+#endif /*(PP_TimeDiscMethod==508)*/
 #elif PP_nVar==3
-    CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
+    CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,ElemID),3,field(4:6),ElemID)
 #else
     HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
     HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-    CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),ElemID)
+    CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,6,field(1:6),ElemID)
 #endif /*PP_nVar*/
 #else
-    CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
+    CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,ElemID),3,field(1:3),ElemID)
 #endif /*PP_POIS*/
 #endif /*(PP_nVar==8)*/
     FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
@@ -811,25 +900,31 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
       HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),6,PP_N,HelperU,field(1:6),ElemID)
+      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),6,PP_N,HelperU,6,field(1:6),ElemID)
 #else
-      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
+      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),6,PP_N,U(1:6,:,:,:,ElemID),6,field(1:6),ElemID)
 #endif
 #else
 #ifdef PP_POIS
-      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),3,field(1:3),ElemID)
 #elif USE_HDG
 #if PP_nVar==1
-      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+#if (PP_TimeDiscMethod==508)
+      ! Boris: consider B-Field, e.g., from SuperB 
+      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),6,field(1:6),ElemID)
+#else
+      ! Consider only electric fields 
+      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),3,field(1:3),ElemID)
+#endif /*(PP_TimeDiscMethod==508)*/
 #elif PP_nVar==3
-      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
+      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,B(1:3,:,:,:,ElemID),3,field(4:6),ElemID)
 #else
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
       HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),6,PP_N,HelperU,field(1:6),ElemID)
+      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),6,PP_N,HelperU,6,field(1:6),ElemID)
 #endif
 #else
-      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
+      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,U(1:3,:,:,:,ElemID),3,field(1:3),ElemID)
 #endif
 #endif
       FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
@@ -842,25 +937,31 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
         HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
         HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-        CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),ElemID,PartID)
+        CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,6,field(1:6),ElemID,PartID)
 #else
-        CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID,PartID)
+        CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,ElemID),6,field(1:6),ElemID,PartID)
 #endif
 #else
 #ifdef PP_POIS
-        CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
+        CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),3,field(1:3),ElemID,PartID)
 #elif USE_HDG
 #if PP_nVar==1
-        CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
+#if (PP_TimeDiscMethod==508)
+        ! Boris: consider B-Field, e.g., from SuperB 
+        CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),6,field(1:6),ElemID,PartID)
+#else
+        ! Consider only electric fields 
+        CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),3,field(1:3),ElemID,PartID)
+#endif /*(PP_TimeDiscMethod==508)*/
 #elif PP_nVar==3
-        CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID,PartID)
+        CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,ElemID),3,field(4:6),ElemID,PartID)
 #else
         HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
         HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-        CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),ElemID,PartID)
+        CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,6,field(1:6),ElemID,PartID)
 #endif
 #else
-        CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
+        CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,ElemID),3,field(1:3),ElemID,PartID)
 #endif
 #endif
       ELSE !.NOT.PDM%dtFracPush(PartID): same as in "particles have already been mapped in deposition, other eval routine used"
@@ -872,25 +973,31 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
         HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
         HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),6,PP_N,HelperU,field(1:6),ElemID)
+        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),6,PP_N,HelperU,6,field(1:6),ElemID)
 #else
-        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
+        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),6,PP_N,U(1:6,:,:,:,ElemID),6,field(1:6),ElemID)
 #endif
 #else
 #ifdef PP_POIS
-        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),3,field(1:3),ElemID)
 #elif USE_HDG
 #if PP_nVar==1
-        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+#if (PP_TimeDiscMethod==508)
+        ! Boris: consider B-Field, e.g., from SuperB 
+        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),6,field(1:6),ElemID)
+#else
+        ! Consider only electric fields 
+        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),3,field(1:3),ElemID)
+#endif /*(PP_TimeDiscMethod==508)*/
 #elif PP_nVar==3
-        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
+        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,B(1:3,:,:,:,ElemID),3,field(4:6),ElemID)
 #else
         HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
         HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),6,PP_N,HelperU,field(1:6),ElemID)
+        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),6,PP_N,HelperU,6,field(1:6),ElemID)
 #endif
 #else
-        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
+        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,U(1:3,:,:,:,ElemID),3,field(1:3),ElemID)
 #endif
 #endif
       END IF !PDM%dtFracPush(PartID)
@@ -902,25 +1009,31 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
       HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-      CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),ElemID,PartID)
+      CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,6,field(1:6),ElemID,PartID)
 #else
-      CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID,PartID)
+      CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,ElemID),6,field(1:6),ElemID,PartID)
 #endif
 #else
 #ifdef PP_POIS
-      CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
+      CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),3,field(1:3),ElemID,PartID)
 #elif USE_HDG
 #if PP_nVar==1
-      CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
+#if (PP_TimeDiscMethod==508)
+      ! Boris: consider B-Field, e.g., from SuperB 
+      CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),6,field(1:6),ElemID,PartID)
+#else
+      ! Consider only electric fields 
+      CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),3,field(1:3),ElemID,PartID)
+#endif /*(PP_TimeDiscMethod==508)*/
 #elif PP_nVar==3
-      CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID,PartID)
+      CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,ElemID),3,field(4:6),ElemID,PartID)
 #else
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
       HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-      CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),ElemID,PartID)
+      CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,6,field(1:6),ElemID,PartID)
 #endif
 #else
-      CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
+      CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,ElemID),3,field(1:3),ElemID,PartID)
 #endif
 #endif
       FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
@@ -1118,5 +1231,49 @@ ELSE ! Linear Interpolation between iPos and iPos+1 B point
                              * (Pos - VariableExternalField(1,iPos) ) + VariableExternalField(2,iPos)    ! *(z - z_i) + z_i
 END IF
 END FUNCTION InterpolateVariableExternalField
+
+
+#ifdef CODE_ANALYZE
+SUBROUTINE InitAnalyticalParticleState()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Calculates the initial particle position and velocity depending on an analytical expression
+! The velocity is time-shifted for staggered-in-time methods (Leapfrog and Boris-Leapfrog)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInitAnalyticalParticleState
+USE MOD_Particle_Analyze       ,ONLY: CalcAnalyticalParticleState
+USE MOD_Particle_Vars          ,ONLY: PartState, PDM
+USE MOD_TimeDisc_Vars          ,ONLY: dt
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL    :: PartStateAnalytic(6)
+INTEGER :: iPart
+!===================================================================================================================================
+! Return here, if no analytical function can be used
+IF(.NOT.DoInitAnalyticalParticleState) RETURN
+
+! Calculate the initial velocity of the particle from an analytic expression
+DO iPart=1,PDM%ParticleVecLength
+  !-- set analytic position at x(n) from analytic particle solution
+  CALL CalcAnalyticalParticleState(0.0, PartStateAnalytic)
+  PartState(1:6,iPart) = PartStateAnalytic(1:6)
+
+  !-- Only for time-staggered methods (Leapfrog and Boris-Leapfrog):
+  ! Set analytic velocity at v(n-0.5) from analytic particle solution
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+  CALL CalcAnalyticalParticleState(-dt/2., PartStateAnalytic)
+  PartState(4:6,iPart) = PartStateAnalytic(4:6)
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
+
+  ! Set new part to false to prevent calculation of velocity in timedisc
+  PDM%IsNewPart(iPart) = .FALSE.
+END DO
+END SUBROUTINE InitAnalyticalParticleState
+#endif /*CODE_ANALYZE*/
+
 
 END MODULE MOD_PICInterpolation

@@ -223,9 +223,9 @@ ELSE
 END IF
 
 dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*CollInf%Tref(1,1)/Pi) &
-           / (4.*(4.- 2.*CollInf%omegaLaux(1,1)) * (6. - 2.*CollInf%omegaLaux(1,1))* CollInf%dref(1,1)**2.)
-relaxfreq  = dens*BoltzmannConst*CollInf%Tref(1,1)**(CollInf%omegaLaux(1,1) + 0.5) &
-           / dynamicvis*CellTemp**(-CollInf%omegaLaux(1,1) +0.5)
+           / (4.*(4.- 2.*CollInf%omega(1,1)) * (6. - 2.*CollInf%omega(1,1))* CollInf%dref(1,1)**2.)
+relaxfreq  = dens*BoltzmannConst*CollInf%Tref(1,1)**(CollInf%omega(1,1) + 0.5) &
+           / dynamicvis*CellTemp**(-CollInf%omega(1,1) +0.5)
 IF (FPCollModel.EQ.2) THEN
 !  relaxtime = 2.0*(1.-nu)/relaxfreq
   relaxtime = 3.0/(Prandtl*relaxfreq)
@@ -245,7 +245,7 @@ END IF
 IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
 ! 3.) Treatment of molecules: determination of the rotational and vibrational relaxation frequency using the collision frequency,
 !     which is not the same as the relaxation frequency of distribution function, calculated above.
-  collisionfreq = SpecFP(1)%CollFreqPreFactor(1) * dens *CellTemp**(-CollInf%omegaLaux(1,1) +0.5)
+  collisionfreq = SpecFP(1)%CollFreqPreFactor(1) * dens *CellTemp**(-CollInf%omega(1,1) +0.5)
   rotrelaxfreq = collisionfreq * DSMC%RotRelaxProb
   vibrelaxfreq = collisionfreq * DSMC%VibRelaxProb
   IF(SpecDSMC(1)%PolyatomicMol) THEN

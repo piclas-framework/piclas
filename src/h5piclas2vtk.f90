@@ -55,7 +55,7 @@ USE MOD_MPI_Vars              ,ONLY: NbProc,nMPISides_Proc
 USE MOD_Analyze               ,ONLY: CalcErrorStateFiles, CalcErrorStateFileSigma
 USE MOD_Interpolation_Vars    ,ONLY: NAnalyze
 USE MOD_Mesh_Vars             ,ONLY: sJ,NGeoRef
-USE MOD_PreProc               ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Metrics               ,ONLY: CalcMetricsErrorDiff
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -67,6 +67,7 @@ INTEGER                        :: iArgs,iElem                       ! Loop count
 INTEGER                        :: iExt                              ! Stores position where the filename extension begins
 CHARACTER(LEN=255)             :: InputStateFile,MeshFile
 INTEGER                        :: nVar_State,N_State,nElems_State   ! Properties read from state file
+INTEGER                        :: nVar_Solution
 CHARACTER(LEN=255)             :: NodeType_State                    !     "
 REAL,ALLOCATABLE               :: U(:,:,:,:,:)                      ! Solution from state file
 REAL,ALLOCATABLE               :: U_first(:,:,:,:,:)                ! Solution from state file
@@ -85,7 +86,8 @@ INTEGER                        :: N_State_first                     ! first stat
 CHARACTER(LEN=255)             :: MeshFile_old                      !     "
 CHARACTER(LEN=255)             :: NodeType_State_old                !     "
 CHARACTER(LEN=255)             :: FileString_DG
-CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:), StrVarNamesTemp2(:)
+CHARACTER(LEN=255)             :: StrVarNamesTemp(4)
 REAL                           :: OutputTime
 INTEGER                        :: iDG
 CHARACTER(LEN=255)             :: FileString_multiblock
@@ -98,7 +100,7 @@ LOGICAL                        :: CalcDiffError                     ! Use first 
 LOGICAL                        :: AllowChangedMesh
 LOGICAL                        :: CalcDiffSigma                     ! Use last state file as state for L2 sigma calculation
 LOGICAL                        :: CalcAverage                       ! Calculate and write arithmetic mean of alle StateFile
-LOGICAL                        :: VisuSource, DGSourceExists, skip, DGSolutionExists, ElemDataExists, SurfaceDataExists
+LOGICAL                        :: DGSourceExists, skip, DGSolutionExists, ElemDataExists, SurfaceDataExists
 CHARACTER(LEN=40)              :: DefStr
 INTEGER                        :: iArgsStart
 LOGICAL                        :: MeshInitFinished, ReadMeshFinished
@@ -127,7 +129,7 @@ CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which a
                                                    'Default: 2*N. (needed for CalcDiffError)')
 CALL prms%CreateLogicalOption('VisuParticles',  "Visualize particles (velocity, species, internal energy).", '.FALSE.')
 CALL prms%CreateLogicalOption('writePartitionInfo',  "Write information about MPI partitions into a file.",'.FALSE.')
-CALL prms%CreateIntOption(    'TimeStampLength', 'Length of the floating number time stamp', '14')
+CALL prms%CreateIntOption(    'TimeStampLength', 'Length of the floating number time stamp', '21')
 CALL DefineParametersIO()
 
 NVisuDefault = .FALSE.
@@ -242,7 +244,6 @@ ELSE
   AllowChangedMesh = .FALSE. !dummy(?)
   CalcAverage    = GETLOGICAL('CalcAverage','.FALSE.')
 END IF
-VisuSource    = GETLOGICAL('VisuSource','.FALSE.')
 VisuParticles    = GETLOGICAL('VisuParticles','.FALSE.')
 ! Initialization of I/O routines
 CALL InitIOHDF5()
@@ -301,35 +302,35 @@ DO iArgs = iArgsStart,nArgs
   ! === DG_Solution ================================================================================================================
   ! Read in parameters from the State file
   IF(DGSolutionExists) THEN
-    CALL GetDataProps('DG_Solution',nVar_State,N_State,nElems_State,NodeType_State)
+    CALL GetDataProps('DG_Solution',nVar_Solution,N_State,nElems_State,NodeType_State)
     CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
     CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 
-    IF (VisuSource) THEN
-      CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)
-    ELSE
-      DGSourceExists=.FALSE.
-    END IF
+    ! Check if the DG_Source container exists, and if it does save the variable names and increase the nVar_State variable
+    CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)
     IF (DGSourceExists) THEN
-      nVar_State=4
-      ! Check if we need to reallocate the var names array
-      IF (nVar_State.NE.nVar_State_old) THEN
-        SDEALLOCATE(StrVarNames)
-        ALLOCATE(StrVarNames(nVar_State))
-      END IF
-      CALL ReadAttribute(File_ID,'VarNamesSource',nVar_State,StrArray=StrVarNames)
+      CALL ReadAttribute(File_ID,'VarNamesSource',4,StrArray=StrVarNamesTemp)
+      nVar_State = nVar_Solution + 4
     ELSE
-      VisuSource=.FALSE.
-      ! Check if we need to reallocate the var names array
-      IF (nVar_State.NE.nVar_State_old) THEN
-        SDEALLOCATE(StrVarNames)
-        ALLOCATE(StrVarNames(nVar_State))
-      END IF
-      CALL ReadAttribute(File_ID,'VarNames',nVar_State,StrArray=StrVarNames)
+      nVar_State = nVar_Solution
     END IF
+    ! Save the variable names for the regular DG_Solution in a temporary array
+    SDEALLOCATE(StrVarNamesTemp2)
+    ALLOCATE(StrVarNamesTemp2(nVar_Solution))
+    CALL ReadAttribute(File_ID,'VarNames',nVar_Solution,StrArray=StrVarNamesTemp2)
+
+    ! Allocate the variable names array used for the output and copy the names from the DG_Solution and DG_Source (if it exists)
+    IF (nVar_State.NE.nVar_State_old) THEN
+      SDEALLOCATE(StrVarNames)
+      ALLOCATE(StrVarNames(nVar_State))
+    END IF
+    StrVarNames(1:nVar_Solution) = StrVarNamesTemp2
+    IF (DGSourceExists) THEN
+      StrVarNames(nVar_Solution+1:nVar_State) = StrVarNamesTemp(1:4)
+    END IF
+
     CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
     CALL CloseDataFile()
-
     ! Check if the mesh has changed
     IF(CalcDiffError.AND.(iArgs.GT.2).AND.AllowChangedMesh)THEN
       skip=.TRUE.
@@ -405,13 +406,15 @@ DO iArgs = iArgsStart,nArgs
     ! Associate construct for integer KIND=8 possibility
     ASSOCIATE (&
           nVar_State => INT(nVar_State,IK) ,&
+          nVar_Solution => INT(nVar_Solution,IK) ,&
           offsetElem => INT(offsetElem,IK),&
           N_State    => INT(N_State,IK),&
           nElems     => INT(nElems,IK)    )
-      IF(VisuSource)THEN
-        CALL ReadArray('DG_Source',5,(/nVar_State,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5,RealArray=U)
-      ELSE
-        CALL ReadArray('DG_Solution',5,(/nVar_State,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5,RealArray=U)
+      CALL ReadArray('DG_Solution',5,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+                      RealArray=U(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems))
+      IF(DGSourceExists) THEN
+        CALL ReadArray('DG_Source',5,(/4_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+                        RealArray=U(nVar_Solution+1:nVar_State,0:N_State,0:N_State,0:N_State,1:nElems))
       END IF
     END ASSOCIATE
 
@@ -425,7 +428,7 @@ DO iArgs = iArgsStart,nArgs
         U_first       = U
         N_State_first = N_State
 
-        PP_N=N_State
+        !PP_N=N_State
         NGeoRef=3*NGeo ! build jacobian at higher degree
         ALLOCATE(sJ            (  0:N_State,0:N_State,0:N_State,nElems))
         CALL CalcMetricsErrorDiff()
@@ -567,7 +570,7 @@ INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nElems)      ! Statevecto
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iVal,iElem,Offset,nBytes,nVTKElems,nVTKCells,ivtk=44,iVar,iNode, int_size, ElemType
+INTEGER                       :: iVal,iElem,Offset,nBytes,nVTKPoints,nVTKCells,ivtk=44,iVar,iNode, int_size, ElemType
 INTEGER                       :: Vertex(data_size,nElems), iLen, str_len
 CHARACTER(LEN=35)             :: StrOffset,TempStr1,TempStr2
 CHARACTER(LEN=200)            :: Buffer, tmp, tmp2, VarNameString
@@ -576,10 +579,11 @@ REAL(KIND=4)                  :: float
 INTEGER,ALLOCATABLE           :: VarNameCombine(:), VarNameCombineLen(:)
 !===================================================================================================================================
 
-nVTKElems=nNodes
+nVTKPoints=nNodes
 nVTKCells=nElems
 
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE 3D DATA TO VTX XML BINARY (VTU) FILE..."
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE 3D DATA TO VTX XML BINARY (VTU) FILE "
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '['//TRIM(FileString)//'] ...'
 IF(nElems.LT.1)THEN
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
   RETURN
@@ -623,7 +627,7 @@ Buffer='<?xml version="1.0"?>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">'//lf;WRITE(ivtk) TRIM(Buffer)
 
 Buffer='  <UnstructuredGrid>'//lf;WRITE(ivtk) TRIM(Buffer)
-WRITE(TempStr1,'(I16)')nVTKElems
+WRITE(TempStr1,'(I16)')nVTKPoints
 WRITE(TempStr2,'(I16)')nVTKCells
 Buffer='    <Piece NumberOfPoints="'//TRIM(ADJUSTL(TempStr1))//&
 '" NumberOfCells="'//TRIM(ADJUSTL(TempStr2))//'">'//lf;WRITE(ivtk) TRIM(Buffer)
@@ -657,7 +661,7 @@ Buffer='      </CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='      <Points>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='        <DataArray type="Float32" Name="Coordinates" NumberOfComponents="3" format="appended"'// &
        ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-Offset=Offset+INT(SIZEOF(int_size),4)+3*nVTKElems*INT(SIZEOF(float),4)
+Offset=Offset+INT(SIZEOF(int_size),4)+3*nVTKPoints*INT(SIZEOF(float),4)
 WRITE(StrOffset,'(I16)')Offset
 Buffer='      </Points>'//lf;WRITE(ivtk) TRIM(Buffer)
 ! Specify necessary cell data
@@ -694,9 +698,9 @@ DO iVal=1,nVar
   ENDIF
 END DO
 ! Points
-nBytes = 3*nVTKElems*INT(SIZEOF(FLOAT),4)
+nBytes = 3*nVTKPoints*INT(SIZEOF(FLOAT),4)
 WRITE(ivtk) nBytes
-WRITE(ivtk) REAL(Coords(1:3,1:nVTKElems),4)
+WRITE(ivtk) REAL(Coords(1:3,1:nVTKPoints),4)
 ! Connectivity
 DO iElem=1,nVTKCells
   DO iNode=1,data_size
@@ -743,7 +747,7 @@ SUBROUTINE InitMesh_Connected()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Prepare_Mesh            ,ONLY: setLocalSideIDs,fillMeshInfo
 #if USE_MPI
 USE MOD_Prepare_Mesh            ,ONLY: exchangeFlip
@@ -907,7 +911,7 @@ CALL ReadArray('PartData',2,(/nPartsVar+3_IK,nParts/),0_IK,1,RealArray=PartData)
 END ASSOCIATE
 
 DO iPart=1,nParts
-  ConnectInfo(1,iPart)=iPart-1
+  ConnectInfo(1,iPart)=iPart
 END DO
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuPart',OutputTime))//'.vtu'

@@ -40,7 +40,7 @@ try :
     import h5py
     h5py_module_loaded = True
 except ImportError :
-    print(red('Could not import h5py module. This is required for anaylze functions.'))
+    print(red('Could not import h5py module. This is required for analyse functions.'))
     exit(0)
 
 # Start the timer
@@ -126,10 +126,10 @@ for statefile in files :
     # Save old file
     if n > 1 :
         # Compare shape of the dataset of both files, throw error if they do not conincide
-        if b1.shape[0] != b2.shape[0] : # e.g.: b1.shape = (48, 1, 1, 32)
-            s="\nDatasets are not compatible due to different shapes: Files [%s] and [%s] have shapes %s and %s\nThe dimensions dim1 = %s and dim2 = %s must be equal!\n\nAborted!" % (statefile,statefile_old,b1.shape,b2.shape,b1.shape[0],b2.shape[0])
-            print(s)
-            exit(1)
+        #if b1.shape[0] != b2.shape[0] : # e.g.: b1.shape = (48, 1, 1, 32)
+            #s="\nDatasets are not compatible due to different shapes: Files [%s] and [%s] have shapes %s and %s\nThe dimensions dim1 = %s and dim2 = %s must be equal!\n\nAborted!" % (statefile,statefile_old,b1.shape,b2.shape,b1.shape[0],b2.shape[0])
+            #print(s)
+            #exit(1)
         # Concatenate files depending on the file version (beginning with v1.5 PartData's dimensions are switched)
         if file_version < 1.5 :
             # Concatenate columns
@@ -143,7 +143,7 @@ for statefile in files :
     statefile_old = statefile
     f1.close()
 print(132*"-")
-print("Files have been merged into %s | PartData%s" % (newFile,b1_merged.shape))
+print("Files have been merged into %s | %s%s" % (newFile,data_set,b1_merged.shape))
 
 
 

@@ -45,8 +45,8 @@ INTERFACE CountSurfaceImpact
   MODULE PROCEDURE CountSurfaceImpact
 END INTERFACE
 
-INTERFACE BoundaryParticleOutput
-  MODULE PROCEDURE BoundaryParticleOutput
+INTERFACE StoreBoundaryParticleProperties
+  MODULE PROCEDURE StoreBoundaryParticleProperties
 END INTERFACE
 
 INTERFACE DielectricSurfaceCharge
@@ -58,8 +58,7 @@ PUBLIC :: CalcWallSample
 PUBLIC :: AnalyzeSurfaceCollisions
 PUBLIC :: SurfaceToPartEnergyInternal
 PUBLIC :: CountSurfaceImpact
-PUBLIC :: BoundaryParticleOutput
-PUBLIC :: SortArray
+PUBLIC :: StoreBoundaryParticleProperties
 PUBLIC :: DielectricSurfaceCharge
 PUBLIC :: GetWallTemperature
 !===================================================================================================================================
@@ -406,89 +405,99 @@ SampWall(SurfSideID)%ImpactNumber(SpecID,p,q) = SampWall(SurfSideID)%ImpactNumbe
 END SUBROUTINE CountSurfaceImpact
 
 
-SUBROUTINE BoundaryParticleOutput(iPart,PartPos,PartTrajectory,SurfaceNormal)
+SUBROUTINE StoreBoundaryParticleProperties(iPart,SpecID,PartPos,PartTrajectory,SurfaceNormal,mode,usevMPF_optIN)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Save particle position, velocity and species to PartDataBoundary container for writing to .h5 later
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals                ,ONLY: abort
-USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,PartSpecies,Species,PartState,PDM
-USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,PartStateBoundarySpec
+USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,Species,PartState
+USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength
 USE MOD_TimeDisc_Vars          ,ONLY: time
 USE MOD_Globals_Vars           ,ONLY: PI
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
-INTEGER,INTENT(IN)  :: iPart
-REAL,INTENT(IN)     :: PartPos(1:3)
-REAL,INTENT(IN)     :: PartTrajectory(1:3)
-REAL,INTENT(IN)     :: SurfaceNormal(1:3)
+INTEGER,INTENT(IN) :: iPart
+INTEGER,INTENT(IN) :: SpecID ! The species ID is required as it might not yet be set during emission
+REAL,INTENT(IN)    :: PartPos(1:3)
+REAL,INTENT(IN)    :: PartTrajectory(1:3)
+REAL,INTENT(IN)    :: SurfaceNormal(1:3)
+INTEGER,INTENT(IN) :: mode ! 1: particle impacts on BC (species is stored as positive value)
+                             ! 2: particles is emitted from the BC into the simulation domain (species is stored as negative value)
+LOGICAL,INTENT(IN),OPTIONAL :: usevMPF_optIN ! For setting MPF for cases when PartMPF(iPart) might not yet be set during emission
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL              :: MPF
+REAL                 :: MPF
+INTEGER              :: dims(2)
+! Temporary arrays
+REAL, ALLOCATABLE    :: PartStateBoundary_tmp(:,:) ! (1:10,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle
+!                                                  !                 2nd index: 1 to number of boundary-crossed particles
+INTEGER              :: ALLOCSTAT
 !===================================================================================================================================
-IF (usevMPF) THEN
-  MPF = PartMPF(iPart)
+IF(PRESENT(usevMPF_optIN))THEN
+  IF(usevMPF_optIN)THEN
+    CALL abort(&
+    __STAMP__&
+    ,'StoreBoundaryParticleProperties: usevMPF_optIN cannot be true!')
+  ELSE
+    MPF = Species(SpecID)%MacroParticleFactor
+  END IF ! usevMPF_optIN
 ELSE
-  MPF = Species(PartSpecies(iPart))%MacroParticleFactor
-END IF
+  IF (usevMPF) THEN
+    MPF = PartMPF(iPart)
+  ELSE
+    MPF = Species(SpecID)%MacroParticleFactor
+  END IF
+END IF ! PRESENT(MPF_optIN)
+
+dims = SHAPE(PartStateBoundary)
 
 ASSOCIATE( iMax => PartStateBoundaryVecLength )
+  ! Increase maximum number of boundary-impact particles
   iMax = iMax + 1
-  IF(iMax.GT.PDM%MaxParticleNumber)THEN
-    CALL abort(&
-        __STAMP__&
-        ,'BoundaryParticleOutput: PartStateBoundaryVecLength.GT.PDM%MaxParticleNumber. iMax=', IntInfoOpt=iMax)
+
+  ! Check if array maximum is reached. 
+  ! If this happens, re-allocate the arrays and increase their size (every time this barrier is reached, double the size)
+  IF(iMax.GT.dims(2))THEN
+
+    ! --- PartStateBoundary ---
+    ALLOCATE(PartStateBoundary_tmp(1:10,1:dims(2)), STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+          __STAMP__&
+          ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundary_tmp temporary array!')
+    ! Save old data
+    PartStateBoundary_tmp(1:10,1:dims(2)) = PartStateBoundary(1:10,1:dims(2))
+
+    ! Re-allocate PartStateBoundary to twice the size
+    DEALLOCATE(PartStateBoundary)
+    ALLOCATE(PartStateBoundary(1:10,1:2*dims(2)), STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+          __STAMP__&
+          ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundary array!')
+    PartStateBoundary(1:10,        1:  dims(2)) = PartStateBoundary_tmp(1:10,1:dims(2))
+    PartStateBoundary(1:10,dims(2)+1:2*dims(2)) = 0.
+
   END IF
+
   PartStateBoundary(1:3,iMax) = PartPos
   PartStateBoundary(4:6,iMax) = PartState(4:6,iPart)
-  PartStateBoundary(7,iMax)   = MPF
-  PartStateBoundary(8,iMax)   = time
-  PartStateBoundary(9,iMax)   = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal))))
-  PartStateBoundarySpec(iMax) = PartSpecies(iPart)
+  IF(mode.EQ.1)THEN
+    PartStateBoundary(7  ,iMax) = REAL(SpecID)
+  ELSEIF(mode.EQ.2)THEN
+    PartStateBoundary(7  ,iMax) = -REAL(SpecID)
+  ELSE
+    CALL abort(&
+    __STAMP__&
+    ,'StoreBoundaryParticleProperties: mode must be either 1 or 2! mode=',IntInfoOpt=mode)
+  END IF ! mode.EQ.1
+  PartStateBoundary(8  ,iMax) = MPF
+  PartStateBoundary(9  ,iMax) = time
+  PartStateBoundary(10 ,iMax) = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal))))
 END ASSOCIATE
 
-END SUBROUTINE BoundaryParticleOutput
-
-
-SUBROUTINE SortArray(EndID,ArrayA,ArrayB)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! sort arryA in ascending order of arrayB
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-! insert modules here
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
-INTEGER,INTENT(IN)    :: EndID
-INTEGER,INTENT(INOUT) :: ArrayA(EndID)
-INTEGER,INTENT(IN)    :: ArrayB(EndID)
-! insert IO variables here
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER :: i,idx
-LOGICAL :: unsorted(EndID)
-LOGICAL :: unsorted_tmp(EndID)
-INTEGER :: ArrayA_temp(EndID)
-!===================================================================================================================================
-ArrayA_temp=ArrayA
-unsorted = .TRUE.
-DO i=1, EndID
-  IF(ArrayA(i).EQ.-1) THEN
-    unsorted(i)=.FALSE.
-  END IF
-END DO
-unsorted_tmp=unsorted
-DO i = 1, EndID
-  IF(.NOT.unsorted_tmp(i)) CYCLE
-   idx=MINLOC(ArrayB,1,unsorted)
-   ArrayA(idx) = ArrayA_temp(i)
-   unsorted(idx) = .FALSE.
-END DO
-
-END SUBROUTINE SortArray
+END SUBROUTINE StoreBoundaryParticleProperties
 
 
 SUBROUTINE DielectricSurfaceCharge(iPart,ElemID,PartTrajectory,alpha)

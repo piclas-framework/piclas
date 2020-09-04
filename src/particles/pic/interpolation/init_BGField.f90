@@ -66,7 +66,7 @@ USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
 USE MOD_Basis                 ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
 USE MOD_Basis                 ,ONLY: BarycentricWeights,InitializeVandermonde
 USE MOD_Mesh_Vars             ,ONLY: OffsetElem,nGlobalElems
-USE MOD_Preproc               ,ONLY: PP_nElems,PP_N
+USE MOD_Preproc
 USE MOD_ReadInTools           ,ONLY: GETSTR,GETINT,GETREAL
 USE MOD_HDF5_Input            ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,File_ID,ReadArray,GetDataProps,DatasetExists
 USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType,CalcBField

@@ -96,7 +96,7 @@ SUBROUTINE InitBGK()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_BGK_Vars
-USE MOD_Preproc               ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: nElems, NGeo
 USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, VarTimeStep
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting, CollInf
@@ -120,7 +120,7 @@ DO iSpec=1, nSpecies
   DO iSpec2=1, nSpecies
     SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*(CollInf%dref(iSpec,iSpec) + CollInf%dref(iSpec2,iSpec2))**2.0 &
         * SQRT(2.*Pi*BoltzmannConst*CollInf%Tref(iSpec,iSpec)*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
-        /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/CollInf%Tref(iSpec,iSpec)**(-CollInf%omegaLaux(iSpec,iSpec) +0.5)
+        /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/CollInf%Tref(iSpec,iSpec)**(-CollInf%omega(iSpec,iSpec) +0.5)
   END DO
 END DO
 
@@ -143,7 +143,7 @@ END IF
 ! Unified BGK options
 BGKUnifiedCes = GETREAL('Particles-UnifiedBGK-Ces')
 IF (BGKUnifiedCes.EQ.1000.) THEN
-  BGKUnifiedCes = 1. - (6.-2.*CollInf%omegaLaux(1,1))*(4.- 2.*CollInf%omegaLaux(1,1))/30.
+  BGKUnifiedCes = 1. - (6.-2.*CollInf%omega(1,1))*(4.- 2.*CollInf%omega(1,1))/30.
 ELSE IF((BGKUnifiedCes.LT.-0.5).OR.(BGKUnifiedCes.GE.1.0)) THEN
   CALL abort(&
 __STAMP__&

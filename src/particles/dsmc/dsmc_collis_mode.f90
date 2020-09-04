@@ -25,9 +25,20 @@ INTERFACE DSMC_perform_collision
   MODULE PROCEDURE DSMC_perform_collision
 END INTERFACE
 
-
 INTERFACE DSMC_calc_var_P_vib
   MODULE PROCEDURE DSMC_calc_var_P_vib
+END INTERFACE
+
+INTERFACE InitCalcVibRelaxProb
+  MODULE PROCEDURE InitCalcVibRelaxProb
+END INTERFACE
+
+INTERFACE SumVibRelaxProb
+  MODULE PROCEDURE SumVibRelaxProb
+END INTERFACE
+
+INTERFACE FinalizeCalcVibRelaxProb
+  MODULE PROCEDURE FinalizeCalcVibRelaxProb
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -36,7 +47,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_perform_collision
-PUBLIC :: DSMC_calc_var_P_vib
+PUBLIC :: DSMC_calc_var_P_vib, InitCalcVibRelaxProb, SumVibRelaxProb, FinalizeCalcVibRelaxProb
 !===================================================================================================================================
 
 CONTAINS
@@ -512,7 +523,7 @@ USE MOD_Globals              ,ONLY: unit_stdout,myrank
             + (PartStateIntEn(1,iPart2) + PartStateIntEn(2,iPart2)) * Weight2
   IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(3,iPart1)*Weight1 + PartStateIntEn(3,iPart2) * Weight2
 #endif /* CODE_ANALYZE */
-  Xi_rel = 2*(2. - CollInf%omegaLaux(iSpec1,iSpec2))
+  Xi_rel = 2*(2. - CollInf%omega(iSpec1,iSpec2))
   ! DOF of relative motion in VHS model
 
   Coll_pData(iPair)%Ec = 0.5 * ReducedMass* Coll_pData(iPair)%cRela2
@@ -538,12 +549,8 @@ USE MOD_Globals              ,ONLY: unit_stdout,myrank
     END IF
 
     CALL RANDOM_NUMBER(iRan)
-    CALL DSMC_calc_P_vib(iSpec1, Xi_rel, iElem, ProbVib1)
+    CALL DSMC_calc_P_vib(iPair, iSpec1, iSpec2, Xi_rel, iElem, ProbVib1)
     IF(ProbVib1.GT.iRan) DoVib1 = .TRUE.
-    IF(DSMC%CalcQualityFactors.AND.(DSMC%VibRelaxProb.EQ.2)) THEN
-      DSMC%CalcVibProb(iSpec1,1) = DSMC%CalcVibProb(iSpec1,1) + ProbVib1
-      DSMC%CalcVibProb(iSpec1,3) = DSMC%CalcVibProb(iSpec1,3) + 1
-    END IF
   END IF
   IF ( DSMC%ElectronicModel ) THEN
     IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
@@ -568,12 +575,9 @@ USE MOD_Globals              ,ONLY: unit_stdout,myrank
       DSMC%CalcRotProb(iSpec2,3) = DSMC%CalcRotProb(iSpec2,3) + 1
     END IF
     CALL RANDOM_NUMBER(iRan)
-    CALL DSMC_calc_P_vib(iSpec2, Xi_rel, iElem, ProbVib2)
+    CALL DSMC_calc_P_vib(iPair, iSpec2, iSpec1, Xi_rel, iElem, ProbVib2)
     IF(ProbVib2.GT.iRan) DoVib2 = .TRUE.
-    IF(DSMC%CalcQualityFactors.AND.(DSMC%VibRelaxProb.EQ.2)) THEN
-      DSMC%CalcVibProb(iSpec2,1) = DSMC%CalcVibProb(iSpec2,1) + ProbVib2
-      DSMC%CalcVibProb(iSpec2,3) = DSMC%CalcVibProb(iSpec2,3) + 1
-    END IF
+
   END IF
   IF ( DSMC%ElectronicModel ) THEN
     IF((SpecDSMC(iSpec2)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec2)%FullyIonized)) THEN
@@ -824,7 +828,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
   ProbVib2 = 0.
   ProbRot2 = 0.
 
-  Xi_rel = 2.*(2. - CollInf%omegaLaux(iSpec1,iSpec2)) ! DOF of relative motion in VHS model
+  Xi_rel = 2.*(2. - CollInf%omega(iSpec1,iSpec2)) ! DOF of relative motion in VHS model
   FakXi  = 0.5*Xi_rel - 1.
 
   Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType) * Coll_pData(iPair)%cRela2
@@ -847,15 +851,15 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
 
   ! calculate probability for rotational/vibrational relaxation for both particles
   IF ((SpecDSMC(iSpec1)%InterID.EQ.2).OR.(SpecDSMC(iSpec1)%InterID.EQ.20)) THEN
-    CALL DSMC_calc_P_vib(iSpec1, Xi_rel, iElem, ProbVib1)
+    CALL DSMC_calc_P_vib(iPair, iSpec1, iSpec2, Xi_rel, iElem, ProbVib1)
     CALL DSMC_calc_P_rot(iSpec1, iSpec2, iPair, Coll_pData(iPair)%iPart_p1, Xi_rel, ProbRot1, ProbRotMax1)
   ELSE
     ProbVib1 = 0.
     ProbRot1 = 0.
   END IF
   IF ((SpecDSMC(iSpec2)%InterID.EQ.2).OR.(SpecDSMC(iSpec2)%InterID.EQ.20)) THEN
-    CALL DSMC_calc_P_vib(iSpec2, Xi_rel, iElem, ProbVib2)
-    CALL DSMC_calc_P_rot(iSpec2, iSpec1, iPair, iPart2, Xi_rel, ProbRot2, ProbRotMax2)
+    CALL DSMC_calc_P_vib(iPair, iSpec2, iSpec1, Xi_rel, iElem, ProbVib2)
+    CALL DSMC_calc_P_rot(iSpec2, iSpec1, iPair, Coll_pData(iPair)%iPart_p2, Xi_rel, ProbRot2, ProbRotMax2)
   ELSE
     ProbVib2 = 0.
     ProbRot2 = 0.
@@ -1199,7 +1203,10 @@ INTEGER                       :: iPart1, iPart2                         ! Collid
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
               CALL DSMC_Chemistry(iPair, iReac, iPart3)
-              IF(ChemReac%RecombParticle.EQ. 0) THEN
+              IF(ChemReac%RecombParticle.EQ.0) THEN
+                ! A pair was broken up before to use its first collision partner as a third recombination partner. Now that the
+                ! recombination occurred, the collision will not be performed anymore and the second collision partner is saved as
+                ! a possible third recombination partner
                 Coll_pData(PairForRec)%NeedForRec = .TRUE.
                 ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
                 ChemReac%nPairForRec    = ChemReac%nPairForRec + 1
@@ -1210,6 +1217,16 @@ INTEGER                       :: iPart1, iPart2                         ! Collid
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
               ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
+              ! Reset the recombination particle in the case of a reservoir simulation, where the reaction is not performed
+              IF (DSMC%ReservoirSimuRate) THEN
+                IF(ChemReac%RecombParticle.EQ.0) THEN
+                  Coll_pData(PairForRec)%NeedForRec = .TRUE.
+                  ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+                  ChemReac%nPairForRec = ChemReac%nPairForRec + 1
+                ELSE
+                  ChemReac%RecombParticle = 0
+                END IF
+              END IF
             END IF
 #endif
             RelaxToDo = .FALSE.
@@ -1471,7 +1488,7 @@ INTEGER                       :: iPart1, iPart2                         ! Collid
                              , ChemReac%MeanEVibQua_PerIter(PartSpecies(PartReac2Sec)))                                          &
                              * (Coll_pData(iPair)%Ec - ChemReac%EActiv(iReac2))                                                  &
                              ** (ChemReac%Arrhenius_Powerfactor(iReac2) - 1.5                                                    &
-                             + CollInf%omegaLaux(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,1))            &
+                             + CollInf%omega(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,1))            &
                              + ChemReac%ReactInfo(iReac2)%Xi_Total(ChemReac%MeanEVibQua_PerIter(PartSpecies(PartToExecSec))      &
                              , ChemReac%MeanEVibQua_PerIter(PartSpecies(PartReac2Sec)))/2)                                       &
                              * Coll_pData(iPair)%Ec                                                                              &
@@ -2701,36 +2718,36 @@ __STAMP__&
 ! ############################################################################################################################### !
       iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
       iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
-      IF (ChemReac%QKProcedure(iReac).AND.ChemReac%QKProcedure(iReac2)) THEN ! both Reaction QK
-        ! first pseudo reaction probability
-        IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(iPart1)) THEN
-          PartToExec = iPart1
-          PartReac2  = iPart2
-        ELSE
-          PartToExec = iPart2
-          PartReac2  = iPart1
-        END IF
-        ! Determine the collision energy (only relative translational)
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%cRela2
-        IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,PartToExec)
-        ! ionization level is last known energy level of species
-        iQuaMax          = SpecDSMC(PartSpecies(PartToExec))%MaxElecQuant - 1
-        IonizationEnergy = SpecDSMC(PartSpecies(PartToExec))%ElectronicState(2,iQuaMax)*BoltzmannConst
-        ! if you have electronic levels above the ionization limit, such limits should be used instead of
-        ! the pure energy comparison
-        IF(Coll_pData(iPair)%Ec .GT. IonizationEnergy)THEN
-          CALL CalcReactionProb(iPair,iReac,ReactionProb)
-        ELSE
-          ReactionProb = 0.
-        END IF
-        ! second pseudo reaction probability
-        IF (ChemReac%DefinedReact(iReac2,1,1).EQ.PartSpecies(iPart1)) THEN
-          PartToExec = iPart1
-          PartReac2  = iPart2
-        ELSE
-          PartToExec = iPart2
-          PartReac2  = iPart1
-        END IF
+      ! First pseudo reaction probability (is always ionization, here only with QK)
+      IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(iPart1)) THEN
+        PartToExec = iPart1
+        PartReac2 = iPart2
+      ELSE
+        PartToExec = iPart2
+        PartReac2 = iPart1
+      END IF
+      ! Determine the collision energy (only relative translational)
+      Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
+      IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,PartToExec)
+      ! ionization level is last known energy level of species
+      iQuaMax=SpecDSMC(PartSpecies(PartToExec))%MaxElecQuant - 1
+      IonizationEnergy=SpecDSMC(PartSpecies(PartToExec))%ElectronicState(2,iQuaMax)*BoltzmannConst
+      ! if you have electronic levels above the ionization limit, such limits should be used instead of
+      ! the pure energy comparison
+      IF(Coll_pData(iPair)%Ec .GT. IonizationEnergy)THEN
+        CALL CalcReactionProb(iPair,iReac,ReactionProb)
+      ELSE
+        ReactionProb = 0.
+      END IF
+      ! second pseudo reaction probability
+      IF (ChemReac%DefinedReact(iReac2,1,1).EQ.PartSpecies(iPart1)) THEN
+        PartToExec = iPart1
+        PartReac2 = iPart2
+      ELSE
+        PartToExec = iPart2
+        PartReac2 = iPart1
+      END IF
+      IF (ChemReac%QKProcedure(iReac2)) THEN ! both Reaction QK
         ! Determine the collision energy (relative translational + vibrational energy of dissociating molecule)
         Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%cRela2 &
                              + PartStateIntEn(1,PartToExec)
@@ -2746,43 +2763,65 @@ __STAMP__&
         ELSE
           ReactionProb2 = 0.
         END IF
+      ELSE
+        CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
+      END IF
 #if (PP_TimeDiscMethod==42)
-        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-          ChemReac%NumReac(iReac)    = ChemReac%NumReac(iReac)    + ReactionProb  ! for calculation of reaction rate coefficient
-          ChemReac%ReacCount(iReac)  = ChemReac%ReacCount(iReac)  + 1
-          ChemReac%NumReac(iReac2)   = ChemReac%NumReac(iReac2)   + ReactionProb2  ! for calculation of reaction rate coefficient
-          ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
-        END IF
+      IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+        ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
+        ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
+        ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
+        ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
+      END IF
 #endif
-        ReacToDo = 0
-        IF(ReactionProb*ReactionProb2.LE.0.0) THEN
-          IF(ReactionProb.GT.0.0) THEN
-            ReacToDo = iReac
-          END IF
-          IF(ReactionProb2.GT.0.0) THEN
+      ReacToDo = 0
+      ! Check whether both reaction probabilities are exactly zero (in case of one of the QK reactions without enough energy)
+      IF(ReactionProb*ReactionProb2.LE.0.0) THEN
+        ! Check if the first reaction probability is above zero, for the QK case this means the reaction will occur
+        IF(ReactionProb.GT.0.0) THEN
+          ReacToDo = iReac
+        END IF
+        ! Check if the second reaction probability is above zero: QK = reaction occurs, TCE = comparison with random number
+        IF(ReactionProb2.GT.0.0) THEN
+          IF(ChemReac%QKProcedure(iReac2)) THEN
             ReacToDo = iReac2
-          ENDIF
-        ELSE
-          CALL RANDOM_NUMBER(iRan)
-          IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
-            ReacToDo = iReac
           ELSE
+            CALL RANDOM_NUMBER(iRan)
+            IF(ReactionProb2.GT.iRan) THEN
+              ReacToDo = iReac2
+            END IF
+          END IF
+        ENDIF
+      ELSE
+        ! If both reaction probabilities are above zero, decide for the reaction channel
+        CALL RANDOM_NUMBER(iRan)
+        IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
+          ! First reaction channel: QK, reaction occurs
+          ReacToDo = iReac
+        ELSE
+          ! Second reaction: QK or TCE (test with random number first)
+          IF(ChemReac%QKProcedure(iReac2)) THEN
             ReacToDo = iReac2
+          ELSE
+            CALL RANDOM_NUMBER(iRan)
+            IF(ReactionProb2.GT.iRan) THEN
+              ReacToDo = iReac2
+            END IF
           END IF
         END IF
-        IF(ReacToDo.NE.0) THEN
+      END IF
+      IF(ReacToDo.NE.0) THEN
 #if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirSimuRate) THEN
+        IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
-            CALL DSMC_Chemistry(iPair, ReacToDo)
+          CALL DSMC_Chemistry(iPair, ReacToDo)
 #if (PP_TimeDiscMethod==42)
-          END IF
-          IF (DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(ReacToDo) = ChemReac%NumReac(ReacToDo) + 1  ! for calculation of reaction rate coefficient
-          END IF
-#endif
-          RelaxToDo = .FALSE.
         END IF
+        IF (DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(ReacToDo) = ChemReac%NumReac(ReacToDo) + 1  ! for calculation of reaction rate coefficient
+        END IF
+#endif
+        RelaxToDo = .FALSE.
       END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
     CASE DEFAULT
@@ -2846,10 +2885,10 @@ SUBROUTINE DSMC_calc_P_rot(iSpec1, iSpec2, iPair, iPart, Xi_rel, ProbRot, ProbRo
     RotDOF = RotDOF*0.5 ! Only half of the rotational degree of freedom, because the other half is used in the relaxation
                         ! probability of the collision partner, see Boyd (doi:10.1063/1.858531)
 
-    ProbRot = 1./SpecDSMC(iSpec1)%CollNumRotInf * (1. + GAMMA(RotDOF+2.-CollInf%omegaLaux(iSpec1,iSpec2)) &
-            / GAMMA(RotDOF+1.5-CollInf%omegaLaux(iSpec1,iSpec2)) * (PI**(3./2.)/2.)*(BoltzmannConst*SpecDSMC(iSpec1)%TempRefRot &
-            / (TransEn + RotEn) )**(1./2.) + GAMMA(RotDOF+2.-CollInf%omegaLaux(iSpec1,iSpec2))  &
-            / GAMMA(RotDOF+1.-CollInf%omegaLaux(iSpec1,iSpec2)) * (BoltzmannConst*SpecDSMC(iSpec1)%TempRefRot &
+    ProbRot = 1./SpecDSMC(iSpec1)%CollNumRotInf * (1. + GAMMA(RotDOF+2.-CollInf%omega(iSpec1,iSpec2)) &
+            / GAMMA(RotDOF+1.5-CollInf%omega(iSpec1,iSpec2)) * (PI**(3./2.)/2.)*(BoltzmannConst*SpecDSMC(iSpec1)%TempRefRot &
+            / (TransEn + RotEn) )**(1./2.) + GAMMA(RotDOF+2.-CollInf%omega(iSpec1,iSpec2))  &
+            / GAMMA(RotDOF+1.-CollInf%omega(iSpec1,iSpec2)) * (BoltzmannConst*SpecDSMC(iSpec1)%TempRefRot &
             / (TransEn + RotEn) ) * (PI**2./4. + PI)) &
             * CorrFact
 
@@ -2870,7 +2909,7 @@ __STAMP__&
 END SUBROUTINE DSMC_calc_P_rot
 
 
-SUBROUTINE DSMC_calc_P_vib(iSpec, Xi_rel, iElem, ProbVib)
+SUBROUTINE DSMC_calc_P_vib(iPair, iSpec, jSpec, Xi_rel, iElem, ProbVib)
 !===================================================================================================================================
 ! Calculation of probability for vibrational relaxation. Different Models implemented:
 ! 0 - Constant Probability
@@ -2878,15 +2917,15 @@ SUBROUTINE DSMC_calc_P_vib(iSpec, Xi_rel, iElem, ProbVib)
 ! 2 - Boyd with correction of Abe
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals            ,ONLY : Abort
-  USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, DSMC, VarVibRelaxProb, useRelaxProbCorrFactor
-  USE MOD_DSMC_Vars          ,ONLY : PolyatomMolDSMC
-
+USE MOD_Globals            ,ONLY: Abort
+USE MOD_DSMC_Vars          ,ONLY: SpecDSMC, DSMC, VarVibRelaxProb, useRelaxProbCorrFactor, XSec_Relaxation, CollInf, Coll_pData
+USE MOD_DSMC_Vars          ,ONLY: PolyatomMolDSMC, SpecXSec
+USE MOD_DSMC_SpecXSec      ,ONLY: InterpolateVibRelaxProb
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)       :: iSpec, iElem
+INTEGER, INTENT(IN)       :: iPair, iSpec, jSpec, iElem
 REAL, INTENT(IN)          :: Xi_rel
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -2895,7 +2934,8 @@ REAL, INTENT(OUT)         :: ProbVib
 ! LOCAL VARIABLES
 REAL                      :: CorrFact       ! CorrFact: To correct sample Bias
                                             ! (fewer DSMC particles than natural ones)
-INTEGER                   :: iPolyatMole, iDOF
+INTEGER                   :: iPolyatMole, iDOF, iCase
+REAL                      :: CollisionEnergy
 !===================================================================================================================================
 
   ProbVib = 0.
@@ -2920,6 +2960,13 @@ INTEGER                   :: iPolyatMole, iDOF
     ELSE
       ProbVib = DSMC%VibRelaxProb * CorrFact
     END IF
+    IF(XSec_Relaxation) THEN
+      iCase = CollInf%Coll_Case(iSpec,jSpec)
+      IF(SpecXSec(iCase)%UseVibXSec) THEN
+        CollisionEnergy = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType) * Coll_pData(iPair)%CRela2
+        ProbVib = InterpolateVibRelaxProb(iCase,CollisionEnergy)
+      END IF
+    END IF
   ELSE IF(DSMC%VibRelaxProb.EQ.2.0) THEN
     ! Calculation of Prob Vib in function DSMC_calc_var_P_vib.
     ! This has to average over all collisions according to Boyd (doi:10.1063/1.858495)
@@ -2931,7 +2978,18 @@ INTEGER                   :: iPolyatMole, iDOF
     ,'Error! Model for vibrational relaxation undefined:',RealInfoOpt=DSMC%VibRelaxProb)
   END IF
 
+IF(DSMC%CalcQualityFactors) THEN
+  DSMC%CalcVibProb(iSpec,1) = DSMC%CalcVibProb(iSpec,1) + ProbVib
+  DSMC%CalcVibProb(iSpec,3) = DSMC%CalcVibProb(iSpec,3) + 1
+  IF(XSec_Relaxation) THEN
+    iCase = CollInf%Coll_Case(iSpec,jSpec)
+    SpecXSec(iCase)%VibProb(1) = SpecXSec(iCase)%VibProb(1) + ProbVib
+    SpecXSec(iCase)%VibProb(2) = SpecXSec(iCase)%VibProb(2) + 1.0
+  END IF
+END IF
+
 END SUBROUTINE DSMC_calc_P_vib
+
 
 SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
 !===================================================================================================================================
@@ -2939,20 +2997,20 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
   ! No instantanious variable probability calculateable
 !===================================================================================================================================
 ! MODULES
-    USE MOD_Globals            ,ONLY : Abort
-    USE MOD_Globals_Vars       ,ONLY : Pi, BoltzmannConst
-    USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, Coll_pData, CollInf
+USE MOD_Globals            ,ONLY : Abort
+USE MOD_Globals_Vars       ,ONLY : Pi, BoltzmannConst
+USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, Coll_pData, CollInf
 ! IMPLICIT VARIABLE HANDLING
-    IMPLICIT NONE
+  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)       :: iPair, iSpec, jSpec
+INTEGER, INTENT(IN)       :: iPair, iSpec, jSpec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-  REAL, INTENT(OUT)         :: ProbVib
+REAL, INTENT(OUT)         :: ProbVib
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                      :: TempCorr, cRela
+REAL                      :: TempCorr, cRela
 !===================================================================================================================================
   ! (i) dref changed from   DrefVHS = 0.5 * (SpecDSMC(iSpec)%DrefVHS + SpecDSMC(jSpec)%DrefVHS)
   !                  to   dref(iSpec,jSpec) which is identical to old definition (for averagedCollisionParameters=TRUE (DEFAULT))
@@ -2962,12 +3020,12 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
   ! determine joint omega and Dref factor and rel velo
   cRela=SQRT(Coll_pData(iPair)%cRela2)
   ! calculate non-corrected probabilities
-  ProbVib = 1. /SpecDSMC(iSpec)%CollNumVib(jSpec)* cRela**(3.+2.*CollInf%omegaLaux(iSpec,jSpec)) &
+  ProbVib = 1. /SpecDSMC(iSpec)%CollNumVib(jSpec)* cRela**(3.+2.*CollInf%omega(iSpec,jSpec)) &
           * EXP(-1.*SpecDSMC(iSpec)%CharaVelo(jSpec)/cRela)
   ! calculate high temperature correction
   TempCorr = SpecDSMC(iSpec)%VibCrossSec / (SQRT(2.)*PI*CollInf%dref(iSpec,jSpec)**2.) &
            * (  CollInf%MassRed(Coll_pData(iPair)%PairType)*cRela & !**2
-           / (2.*(2.-CollInf%omegaLaux(iSpec,jSpec))*BoltzmannConst*CollInf%Tref(iSpec,jSpec)))**CollInf%omegaLaux(iSpec,jSpec)
+           / (2.*(2.-CollInf%omega(iSpec,jSpec))*BoltzmannConst*CollInf%Tref(iSpec,jSpec)))**CollInf%omega(iSpec,jSpec)
   ! determine corrected probabilities
   ProbVib = ProbVib * TempCorr / (ProbVib + TempCorr)        ! TauVib = TauVibStd + TauTempCorr
   IF(ProbVib.NE.ProbVib) THEN !If is NAN
@@ -2980,6 +3038,106 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
 
 END SUBROUTINE DSMC_calc_var_P_vib
 
+
+SUBROUTINE InitCalcVibRelaxProb()
+!===================================================================================================================================
+  ! Initialize the calculation of the variable vibrational relaxation probability in the cell for each iteration
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb 
+USE MOD_Particle_Vars      ,ONLY: nSpecies
+
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                   :: iSpec
+!===================================================================================================================================
+
+IF(DSMC%VibRelaxProb.EQ.2.0) THEN ! Set summs for variable vibrational relaxation to zero
+  DO iSpec=1,nSpecies
+    VarVibRelaxProb%ProbVibAvNew(iSpec) = 0
+    VarVibRelaxProb%nCollis(iSpec) = 0
+  END DO
+END IF
+
+END SUBROUTINE InitCalcVibRelaxProb
+
+
+SUBROUTINE SumVibRelaxProb(iPair)
+!===================================================================================================================================
+  ! summes up the variable vibrational realaxation probabilities
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb, Coll_pData, SpecDSMC
+USE MOD_Particle_Vars      ,ONLY: PartSpecies
+
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)       :: iPair
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                      :: VibProb
+INTEGER                   :: cSpec1, cSpec2
+!===================================================================================================================================
+
+  ! variable vibrational relaxation probability has to average of all collisions
+IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+  cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
+  cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
+  IF((SpecDSMC(cSpec1)%InterID.EQ.2).OR.(SpecDSMC(cSpec1)%InterID.EQ.20)) THEN
+    CALL DSMC_calc_var_P_vib(cSpec1,cSpec2,iPair,VibProb)
+    VarVibRelaxProb%ProbVibAvNew(cSpec1) = VarVibRelaxProb%ProbVibAvNew(cSpec1) + VibProb
+    VarVibRelaxProb%nCollis(cSpec1) = VarVibRelaxProb%nCollis(cSpec1) + 1
+    IF(DSMC%CalcQualityFactors) THEN
+      DSMC%CalcVibProb(cSpec1,2) = MAX(DSMC%CalcVibProb(cSpec1,2),VibProb)
+    END IF
+  END IF
+  IF((SpecDSMC(cSpec2)%InterID.EQ.2).OR.(SpecDSMC(cSpec2)%InterID.EQ.20)) THEN
+    CALL DSMC_calc_var_P_vib(cSpec2,cSpec1,iPair,VibProb)
+    VarVibRelaxProb%ProbVibAvNew(cSpec2) = VarVibRelaxProb%ProbVibAvNew(cSpec2) + VibProb
+    VarVibRelaxProb%nCollis(cSpec2) = VarVibRelaxProb%nCollis(cSpec2) + 1
+    IF(DSMC%CalcQualityFactors) THEN
+      DSMC%CalcVibProb(cSpec2,2) = MAX(DSMC%CalcVibProb(cSpec2,2),VibProb)
+    END IF
+  END IF
+END IF
+
+END SUBROUTINE SumVibRelaxProb
+
+
+SUBROUTINE FinalizeCalcVibRelaxProb(iElem)
+!===================================================================================================================================
+  ! Finalize the calculation of the variable vibrational relaxation probability in the cell for each iteration
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb 
+USE MOD_Particle_Vars      ,ONLY: nSpecies
+
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)       :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                   :: iSpec
+!===================================================================================================================================
+
+IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+  DO iSpec=1,nSpecies
+    IF(VarVibRelaxProb%nCollis(iSpec).NE.0) THEN ! Calc new vibrational relaxation probability
+      VarVibRelaxProb%ProbVibAv(iElem,iSpec) = VarVibRelaxProb%ProbVibAv(iElem,iSpec) &
+                                             * VarVibRelaxProb%alpha**(VarVibRelaxProb%nCollis(iSpec)) &
+                                             + (1.-VarVibRelaxProb%alpha**(VarVibRelaxProb%nCollis(iSpec))) &
+                                             / (VarVibRelaxProb%nCollis(iSpec)) * VarVibRelaxProb%ProbVibAvNew(iSpec)
+    END IF
+  END DO
+END IF
+
+END SUBROUTINE FinalizeCalcVibRelaxProb
 
 !--------------------------------------------------------------------------------------------------!
 END MODULE MOD_DSMC_Collis

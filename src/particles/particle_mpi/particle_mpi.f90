@@ -1847,11 +1847,14 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 ::iElem
-INTEGER                 ::iProc,ALLOCSTAT,iMPINeighbor
-LOGICAL                 ::TmpNeigh
-INTEGER,ALLOCATABLE     ::SideIndex(:),ElemIndex(:)
+REAL                    :: StartT,EndT
+INTEGER                 :: iElem
+INTEGER                 :: iProc,ALLOCSTAT,iMPINeighbor
+LOGICAL                 :: TmpNeigh
+INTEGER,ALLOCATABLE     :: SideIndex(:),ElemIndex(:)
 !===================================================================================================================================
+StartT=PICLASTIME()
+SWRITE(UNIT_stdOut,'(A)')' InitHaloMesh ...'
 
 ALLOCATE(SideIndex(1:nPartSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
@@ -1941,6 +1944,10 @@ IF(PartMPI%nMPINeighbors.GT.0)THEN
   IF(MAXVAL(PartHaloElemToProc(NATIVE_PROC_ID,:)).GT.PartMPI%nProcs-1) IPWRITE(UNIT_stdOut,*) ' native proc id too high.'
 END IF
 
+EndT=PICLASTIME()
+IF(PartMPI%MPIROOT)THEN
+   WRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' InitHaloMesh took [',EndT-StartT,'s]'
+END IF
 END SUBROUTINE InitHaloMesh
 
 
@@ -2012,6 +2019,23 @@ DO iSpec=1,nSpecies
       xCoords(1:3,2)=Species(iSpec)%Init(iInit)%BasePointIC+Species(iSpec)%Init(iInit)%BaseVector1IC
       RegionOnProc=BoxInProc(xCoords(1:3,1:2),2)
     CASE('disc')
+      xlen=Species(iSpec)%Init(iInit)%RadiusIC * &
+           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
+      ylen=Species(iSpec)%Init(iInit)%RadiusIC * &
+           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2))
+      zlen=Species(iSpec)%Init(iInit)%RadiusIC * &
+           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
+      ! all 8 edges
+      xCoords(1:3,1) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,-zlen/)
+      xCoords(1:3,2) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,-zlen/)
+      xCoords(1:3,3) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,-zlen/)
+      xCoords(1:3,4) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,-zlen/)
+      xCoords(1:3,5) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,+zlen/)
+      xCoords(1:3,6) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,+zlen/)
+      xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,+zlen/)
+      xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
+      RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
+    CASE('photon_SEE_disc')
       xlen=Species(iSpec)%Init(iInit)%RadiusIC * &
            SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
       ylen=Species(iSpec)%Init(iInit)%RadiusIC * &
@@ -2134,7 +2158,7 @@ DO iSpec=1,nSpecies
         xCoords(1:3,8)=origin + (/ -radius , -radius , radius /)
       END ASSOCIATE
       RegionOnProc=BoxInProc(xCoords,8)
-    CASE('cylinder')
+    CASE('cylinder','photon_cylinder')
       lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
         Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
       lineVector(2) = Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(1) - &
@@ -2310,11 +2334,12 @@ DO iSpec=1,nSpecies
        RegionOnProc=BoxInProc(xCoords,8)
     CASE ('IMD')
        RegionOnProc=.TRUE.
+    CASE ('background')
     CASE DEFAULT
       IPWRITE(*,*) 'ERROR: Species ', iSpec, 'of', iInit, 'is using an unknown SpaceIC!'
       CALL abort(&
       __STAMP__&
-      ,'ERROR: Given SpaceIC is not implemented!')
+      ,'ERROR: Given SpaceIC is not implemented: '//TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
     END SELECT
     ! create new communicator
     color=MPI_UNDEFINED

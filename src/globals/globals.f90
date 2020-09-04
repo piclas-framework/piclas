@@ -35,6 +35,7 @@ INTEGER            :: iError
 REAL               :: StartTime
 INTEGER            :: myRank,myLocalRank,myLeaderRank,myWorkerRank
 INTEGER            :: nProcessors,nLocalProcs,nLeaderProcs,nWorkerProcs
+LOGICAL            :: GlobalNbrOfParticlesUpdated ! When FALSE, then global number of particles needs to be determined
 INTEGER            :: MPI_COMM_NODE    ! local node subgroup
 INTEGER            :: MPI_COMM_LEADERS ! all node masters
 INTEGER            :: MPI_COMM_WORKERS ! all non-master nodes
@@ -53,6 +54,8 @@ INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(18)
 #else
 INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
 #endif
+
+INTEGER(KIND=IK)   :: nGlobalNbrOfParticles
 
 INTERFACE InitGlobals
   MODULE PROCEDURE InitGlobals
@@ -119,6 +122,14 @@ INTERFACE str2int
   MODULE PROCEDURE str2int
 END INTERFACE
 
+INTERFACE int2str
+  MODULE PROCEDURE int2str
+END INTERFACE
+
+INTERFACE int2strf
+  MODULE PROCEDURE int2strf
+END INTERFACE
+
 INTERFACE str2logical
   MODULE PROCEDURE str2logical
 END INTERFACE
@@ -166,6 +177,9 @@ LOGICAL                        :: LogIsOpen
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS ...'
+
+! PiclasVersionStr is stored in each hdf5 file with hdf5 header
+PiclasVersionStr = TRIM(int2strf(MajorVersion))//"."//TRIM(int2strf(MinorVersion))//"."//TRIM(int2strf(PatchVersion))
 
 PI=ACOS(-1.)
 sPI = 1./PI
@@ -356,6 +370,7 @@ REAL                              :: RealInfo        ! Error info (real)
 INTEGER                           :: errOut          ! Output of MPI_ABORT
 INTEGER                           :: signalout       ! Output errorcode
 #endif /*USE_MPI*/
+REAL                              :: Time
 !===================================================================================================================================
 IF(logging) CLOSE(UNIT_logOut)
 #if USE_MPI
@@ -384,6 +399,9 @@ WRITE(UNIT_stdOut,*)
 WRITE(UNIT_stdOut,'(A,A,A)')'See ',TRIM(ErrorFileName),' for more details'
 WRITE(UNIT_stdOut,*)
 !CALL delete()
+! Can't use PICLASTIME() here because it requires MPI_WAIT
+Time=MPI_WTIME()
+CALL DisplaySimulationTime(Time, StartTime, 'ABORTED')
 #if USE_MPI
 signalout=2 ! MPI_ABORT requires an output error-code /=0
 errOut = 1
@@ -514,6 +532,53 @@ INTEGER,INTENT(OUT)         :: stat
 !===================================================================================================================================
 READ(str,*,IOSTAT=stat)  int_number
 END SUBROUTINE str2int
+
+
+!==================================================================================================================================  
+!> Convert a String to an Integer
+!==================================================================================================================================  
+SUBROUTINE int2str(str,int_number,stat)
+!=================================================================================================================================== 
+!=================================================================================================================================== 
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------- 
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------- 
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------- 
+! LOCAL VARIABLES
+CHARACTER(len=255),INTENT(OUT) :: str
+INTEGER,INTENT(IN)             :: int_number
+INTEGER,INTENT(OUT)            :: stat
+!=================================================================================================================================== 
+WRITE(str,'(I0)',IOSTAT=stat)  int_number
+END SUBROUTINE int2str
+
+
+!==================================================================================================================================  
+!> Convert an Integer to a String
+!==================================================================================================================================  
+!SUBROUTINE int2strf(str,int_number,stat)
+FUNCTION int2strf(int_number)
+!=================================================================================================================================== 
+!=================================================================================================================================== 
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------- 
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------- 
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------- 
+! LOCAL VARIABLES
+CHARACTER(len=3) :: int2strf
+INTEGER,INTENT(IN) :: int_number
+!=================================================================================================================================== 
+WRITE(int2strf,'(I0)')  int_number
+int2strf = TRIM(ADJUSTL(int2strf))
+END FUNCTION
 
 
 !==================================================================================================================================
@@ -879,8 +944,12 @@ REAL            :: invL
 ! LOCAL VARIABLES
 !===================================================================================================================================
 invL=SQRT(v1(1)*v1(1)+v1(2)*v1(2)+v1(3)*v1(3))
-invL=1./invL
-UNITVECTOR=v1*invL
+IF(ABS(invL).GT.0.0)THEN
+  invL=1./invL
+  UNITVECTOR=v1*invL
+ELSE
+  UNITVECTOR = (/ 0. , 0. , 0./)
+END IF ! ABS(invL).GT.0.0
 END FUNCTION UNITVECTOR
 
 
@@ -1044,6 +1113,44 @@ X(1:3) = (/SIN(theta)*COS(phi)*XHat(1) + COS(theta)*COS(phi)*XHat(2) - SIN(phi)*
            COS(theta)*         XHat(1) - SIN(theta)*         XHat(2)                   /)
 
 END SUBROUTINE TransformVectorFromSphericalCoordinates
+
+
+SUBROUTINE DisplaySimulationTime(Time, StartTime, Message)
+!===================================================================================================================================
+! Finalizes variables necessary for analyse subroutines
+!===================================================================================================================================
+! MODULES
+!USE MOD_Globals ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: Message         !< Output message
+REAL,INTENT(IN)             :: Time, StartTime !< Current simulation time and beginning of simulation time
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL :: SimulationTime,mins,secs,hours,days
+!===================================================================================================================================
+IF(.NOT.MPIRoot) RETURN
+
+SimulationTime = Time-StartTime
+
+! Get secs, mins, hours and days
+secs = MOD(SimulationTime,60.)
+SimulationTime = SimulationTime / 60
+mins = MOD(SimulationTime,60.)
+SimulationTime = SimulationTime / 60
+hours = MOD(SimulationTime,24.)
+SimulationTime = SimulationTime / 24
+!days = MOD(SimulationTime,365.) ! Use this if years are also to be displayed
+days = SimulationTime
+
+! Output
+WRITE(UNIT_stdOut,'(A,F16.2,A)',ADVANCE='NO')  ' PICLAS '//TRIM(Message)//'! [',Time-StartTime,' sec ]'
+WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),']'
+END SUBROUTINE DisplaySimulationTime
 
 
 END MODULE MOD_Globals
