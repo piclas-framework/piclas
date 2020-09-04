@@ -929,13 +929,13 @@ The name is at the moment only utilized to retrieve the electronic energy levels
 |   10 | Atomic Ion                         |
 |   20 | Molecular Ion                      |
 
-Depending on the utilized collision model, different parameters have to be defined. As an example, the parameters for the Variable Hard Sphere (VHS) collision cross-section model are be defined by the temperature exponent $\omega$, reference temperature $T_{\mathrm{ref}}$ and diameter $d_{\mathrm{ref}}$
+Depending on the utilized collision model, different parameters have to be defined. As an example, the parameters for the Variable Hard Sphere (VHS) collision cross-section model are be defined by the temperature exponent $\omega = [0,0.5]$, reference temperature $T_{\mathrm{ref}}$ [K] and diameter $d_{\mathrm{ref}}$ [m]
 
-    Part-Species1-omegaVHS = 0.24
-    Part-Species1-VHSReferenceTemp = 273
-    Part-Species1-VHSReferenceDiam = 4.63E-10
+    Part-Species1-omega = 0.24
+    Part-Species1-Tref = 273
+    Part-Species1-dref = 4.63E-10
 
-It should be noted that although species-specific $\omega$ values can be read-in, DSMC in PICLas should only be utilized with a single $\omega$ at the moment. Other collisional models and their respective parameters are given in Section \ref{sec:dsmc_collision}.
+More detail on the utilization of species-specific, collision-specific parameters and the utilization of the Variable Soft Sphere (VSS) model are given in Section \ref{sec:dsmc_collision}.
 
 Diatomic molecular species require the definition of the characteristic temperature [K] and their dissociation energy [eV] (which is at the moment only utilized as a first guess for the upper bound of the temperature calculation)
 
@@ -976,6 +976,30 @@ To further reduce numerical diffusion, the nearest neighbour search for the part
 An additional attempt to increase the quality of simulations results is to prohibit repeated collisions between particles [@Shevyrin2005;@Akhlaghi2018]. This options is enabled by default in 2D/axisymmetric simulations, but disabled by default in 3D simulations.
 
     Particles-DSMC-ProhibitDoubleCollision = T
+
+The Variable Hard Sphere (VHS) is utilized by default with collision-averaged parameters, which are given per species
+
+    Part-Species1-omega = 0.24
+    Part-Species1-Tref = 273
+    Part-Species1-dref = 4.63E-10
+
+To enable the Variable Soft Sphere (VSS) model, the additional $\alpha$ parameter is required
+
+    Part-Species1-alphaVSS = 1.2
+
+In order to enable the collision-specific definition of the VHS/VSS parameters, a different input is required
+
+    ! Input in parameter.ini
+    Particles-DSMC-averagedCollisionParameters = F
+    ! Input in DSMC.ini
+    Part-Collision1 - partnerSpecies = (/1,1/)              ! Collision1: Parameters for the collision between equal species
+    Part-Collision1 - Tref           = 273
+    Part-Collision1 - dref           = 4.037e-10
+    Part-Collision1 - omega          = .216
+    Part-Collision1 - alphaVSS       = 1.448
+    Part-Collision2 - partnerSpecies = (/2,1/)              ! Collision2: Parameters for the collision between species 2 and 1
+
+The numbers in the `partnerSpecies` definition correspond to the species numbers and their order is irrelevant. Collision-specific parameters can be obtained from e.g. [@Swaminathan-Gopalan2016].
 
 #### Cross-section based collision probabilities
 

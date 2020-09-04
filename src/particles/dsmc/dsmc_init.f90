@@ -163,7 +163,7 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-MergeSubcells'&
                                           'the minimum particle per subcell requirement', '.FALSE.')
 
 CALL prms%SetSection("DSMC Collision")
-CALL prms%CreateIntOption(      'crossSectionConstantMode'  &
+CALL prms%CreateIntOption(      'Particles-DSMC-crossSectionConstantMode'  &
                                             ,'Flags which cross section (sigma) constant Cab calcuation mode is used.\n'//&
                                             ' sigma=Cab * cr^(-2 omega)\n'//&
                                             ' 0 : single omega for the computational domain\n'//&
@@ -172,7 +172,7 @@ CALL prms%CreateIntOption(      'crossSectionConstantMode'  &
                                             '     Cab=(A_1+A_2)^2*m_red^-omega\n     (see Bird 1981 and Laux 1996)\n'//&
                                             ' 1 : Cab will be calculated\n     via species-specific factor A_j\n'//&
                                             ' 2 : Cab will be calculated directly\n     (see Bird 1981 eq (9):constants)', '0')
-CALL prms%CreateLogicalOption(   'averagedCollisionParameters'  &
+CALL prms%CreateLogicalOption(   'Particles-DSMC-averagedCollisionParameters'  &
                                            ,'Flags if collision parameters are specific to colliding species'//&
                                             ' or species specific and averaged for the collision itself.\n'//&
                                             ' T: Part-Species[$]-omega,-Tref,-dref,-alphaVSS\n'//&
@@ -586,8 +586,8 @@ END IF
   ! Either CollisMode.GT.0 or without chemical reactions due to collisions but with field ionization
   IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
     ! Flags for collision parameters
-    CollInf%averagedCollisionParameters     = GETLOGICAL('averagedCollisionParameters','.TRUE.')
-    CollInf%crossSectionConstantMode        = GETINT('crossSectionConstantMode','0')
+    CollInf%averagedCollisionParameters     = GETLOGICAL('Particles-DSMC-averagedCollisionParameters')
+    CollInf%crossSectionConstantMode        = GETINT('Particles-DSMC-crossSectionConstantMode','0')
     ALLOCATE(SpecDSMC(nSpecies))
     DO iSpec = 1, nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
