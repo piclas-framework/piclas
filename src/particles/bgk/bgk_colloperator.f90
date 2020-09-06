@@ -943,12 +943,12 @@ REAL                            :: eps_prec=1.0E-0
 REAL                            :: correctFac, correctFacRot, maxexp    !, Xi_rel
 LOGICAL                         :: DoVibRelax
 !===================================================================================================================================
-  IF (PRESENT(DoVibRelaxIn)) THEN
-    DoVibRelax = DoVibRelaxIn
-  ELSE
-    DoVibRelax = BGKDoVibRelaxation
-  END IF
-  maxexp = LOG(HUGE(maxexp))
+IF (PRESENT(DoVibRelaxIn)) THEN
+  DoVibRelax = DoVibRelaxIn
+ELSE
+  DoVibRelax = BGKDoVibRelaxation
+END IF
+maxexp = LOG(HUGE(maxexp))
 !  Xi_rel = 2.*(2. - CollInf%omega(1,1))
 !  correctFac = 1. + (2.*SpecDSMC(1)%CharaTVib / (CellTemp*(EXP(SpecDSMC(1)%CharaTVib / CellTemp)-1.)))**2. &
 !        * EXP(SpecDSMC(1)%CharaTVib /CellTemp) / (2.*Xi_rel)

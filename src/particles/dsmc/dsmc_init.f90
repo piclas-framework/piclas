@@ -747,7 +747,7 @@ IF (CollisMode.EQ.0) THEN
       __STAMP__&
       , "Free Molecular Flow (CollisMode=0) is not supported for reservoir!")
 #endif
-  ELSE !CollisMode.GT.0
+ELSE !CollisMode.GT.0
   ! species and case assignment arrays
   ALLOCATE(CollInf%Coll_Case(nSpecies,nSpecies))
   iCase = 0
