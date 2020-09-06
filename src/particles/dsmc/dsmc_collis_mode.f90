@@ -52,113 +52,6 @@ PUBLIC :: DSMC_calc_var_P_vib, InitCalcVibRelaxProb, SumVibRelaxProb, FinalizeCa
 
 CONTAINS
 
-SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
-!===================================================================================================================================
-! Collision mode is selected (1: Elastic, 2: Non-elastic, 3: Non-elastic with chemical reactions)
-!===================================================================================================================================
-! MODULES
-  USE MOD_Globals,            ONLY : Abort
-  USE MOD_DSMC_Vars,          ONLY : CollisMode, Coll_pData, SelectionProc
-  USE MOD_DSMC_Vars,          ONLY : DSMC
-  USE MOD_Particle_Vars,      ONLY : PartState, WriteMacroVolumeValues, Symmetry2D
-  USE MOD_TimeDisc_Vars,      ONLY : TEnd, Time
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPair
-  INTEGER, INTENT(IN)           :: iElem
-  REAL, INTENT(IN), OPTIONAL    :: NodeVolume
-  INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  LOGICAL                       :: RelaxToDo
-  INTEGER                       :: iPart1, iPart2                         ! Colliding particles 1 and 2
-  REAL                          :: Distance
-!===================================================================================================================================
-  iPart1 = Coll_pData(iPair)%iPart_p1
-  iPart2 = Coll_pData(iPair)%iPart_p2
-
-  IF(DSMC%CalcQualityFactors) THEN
-    IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-      IF(Symmetry2D) THEN
-        Distance = SQRT((PartState(1,iPart1) - PartState(1,iPart2))**2 &
-                       +(PartState(2,iPart1) - PartState(2,iPart2))**2)
-      ELSE
-        Distance = SQRT((PartState(1,iPart1) - PartState(1,iPart2))**2 &
-                       +(PartState(2,iPart1) - PartState(2,iPart2))**2 &
-                       +(PartState(3,iPart1) - PartState(3,iPart2))**2)
-      END IF
-      DSMC%CollSepDist = DSMC%CollSepDist + Distance
-      DSMC%CollSepCount = DSMC%CollSepCount + 1
-    END IF
-  END IF
-
-  SELECT CASE(CollisMode)
-    CASE(1) ! elastic collision
-#if (PP_TimeDiscMethod==42)
-      ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-      IF (.NOT.DSMC%ReservoirSimuRate) THEN
-#endif
-        CALL DSMC_Elastic_Col(iPair)
-#if (PP_TimeDiscMethod==42)
-      END IF
-#endif
-    CASE(2) ! collision with relaxation
-#if (PP_TimeDiscMethod==42)
-      ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-      IF (.NOT.DSMC%ReservoirSimuRate) THEN
-#endif
-        SELECT CASE(SelectionProc)
-          CASE(1)
-            CALL DSMC_Relax_Col_LauxTSHO(iPair)
-          CASE(2)
-            CALL DSMC_Relax_Col_Gimelshein(iPair)
-          CASE DEFAULT
-            CALL Abort(&
-__STAMP__&
-,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
-        END SELECT
-#if (PP_TimeDiscMethod==42)
-      END IF
-#endif
-    CASE(3) ! chemical reactions
-      RelaxToDo = .TRUE.
-      IF (PRESENT(NodeVolume).AND.PRESENT(NodePartNum)) THEN
-        CALL ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
-      ELSE
-        CALL ReactionDecision(iPair, RelaxToDo, iElem)
-      END IF
-#if (PP_TimeDiscMethod==42)
-      ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-      IF (.NOT.DSMC%ReservoirSimuRate) THEN
-#endif
-        IF (RelaxToDo) THEN
-          SELECT CASE(SelectionProc)
-            CASE(1)
-              CALL DSMC_Relax_Col_LauxTSHO(iPair)
-            CASE(2)
-              CALL DSMC_Relax_Col_Gimelshein(iPair)
-            CASE DEFAULT
-              CALL Abort(&
-__STAMP__&
-,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
-          END SELECT
-        END IF
-#if (PP_TimeDiscMethod==42)
-      END IF
-#endif
-    CASE DEFAULT
-      CALL Abort(&
-__STAMP__&
-,'ERROR in DSMC_perform_collision: Wrong Collision Mode:',CollisMode)
-  END SELECT
-
-END SUBROUTINE DSMC_perform_collision
-
-
 SUBROUTINE DSMC_Elastic_Col(iPair)
 !===================================================================================================================================
 ! Performs simple elastic collision (CollisMode = 1)
@@ -1100,6 +993,137 @@ __STAMP__&
 #endif /* CODE_ANALYZE */
 
 END SUBROUTINE DSMC_Relax_Col_Gimelshein
+
+
+SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
+!===================================================================================================================================
+! Collision mode is selected (1: Elastic, 2: Non-elastic, 3: Non-elastic with chemical reactions)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,            ONLY : Abort
+USE MOD_DSMC_Vars,          ONLY : CollisMode, Coll_pData, SelectionProc
+USE MOD_DSMC_Vars,          ONLY : DSMC
+USE MOD_Particle_Vars,      ONLY : PartState, WriteMacroVolumeValues, Symmetry2D
+USE MOD_TimeDisc_Vars,      ONLY : TEnd, Time
+#if (PP_TimeDiscMethod==42)
+USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
+USE MOD_Particle_Vars         ,ONLY: usevMPF, Species, PartSpecies
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcCollRates
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iPair
+INTEGER, INTENT(IN)           :: iElem
+REAL, INTENT(IN), OPTIONAL    :: NodeVolume
+INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL                       :: RelaxToDo
+INTEGER                       :: iPart1, iPart2                         ! Colliding particles 1 and 2
+REAL                          :: Distance
+#if (PP_TimeDiscMethod==42)
+REAL                          :: MacroParticleFactor, PairWeight
+#endif
+!===================================================================================================================================
+
+#if (PP_TimeDiscMethod==42)
+IF(CalcCollRates) THEN
+  PairWeight = (GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))/2.
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+    ! Weighting factor already included in the PairWeight
+    MacroParticleFactor = 1.
+  ELSE
+    ! Weighting factor should be the same for all species anyway (BGG: first species is the non-BGG particle species)
+    MacroParticleFactor = Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor
+  END IF
+  DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + PairWeight*MacroParticleFactor
+END IF
+#endif
+
+iPart1 = Coll_pData(iPair)%iPart_p1
+iPart2 = Coll_pData(iPair)%iPart_p2
+
+IF(DSMC%CalcQualityFactors) THEN
+  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+    IF(Symmetry2D) THEN
+      Distance = SQRT((PartState(1,iPart1) - PartState(1,iPart2))**2 &
+                      +(PartState(2,iPart1) - PartState(2,iPart2))**2)
+    ELSE
+      Distance = SQRT((PartState(1,iPart1) - PartState(1,iPart2))**2 &
+                      +(PartState(2,iPart1) - PartState(2,iPart2))**2 &
+                      +(PartState(3,iPart1) - PartState(3,iPart2))**2)
+    END IF
+    DSMC%CollSepDist = DSMC%CollSepDist + Distance
+    DSMC%CollSepCount = DSMC%CollSepCount + 1
+  END IF
+END IF
+
+SELECT CASE(CollisMode)
+  CASE(1) ! elastic collision
+#if (PP_TimeDiscMethod==42)
+    ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+    IF (.NOT.DSMC%ReservoirSimuRate) THEN
+#endif
+      CALL DSMC_Elastic_Col(iPair)
+#if (PP_TimeDiscMethod==42)
+    END IF
+#endif
+  CASE(2) ! collision with relaxation
+#if (PP_TimeDiscMethod==42)
+    ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+    IF (.NOT.DSMC%ReservoirSimuRate) THEN
+#endif
+      SELECT CASE(SelectionProc)
+        CASE(1)
+          CALL DSMC_Relax_Col_LauxTSHO(iPair)
+        CASE(2)
+          CALL DSMC_Relax_Col_Gimelshein(iPair)
+        CASE DEFAULT
+          CALL Abort(&
+__STAMP__&
+,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
+      END SELECT
+#if (PP_TimeDiscMethod==42)
+    END IF
+#endif
+  CASE(3) ! chemical reactions
+    RelaxToDo = .TRUE.
+    IF (PRESENT(NodeVolume).AND.PRESENT(NodePartNum)) THEN
+      CALL ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
+    ELSE
+      CALL ReactionDecision(iPair, RelaxToDo, iElem)
+    END IF
+#if (PP_TimeDiscMethod==42)
+    ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+    IF (.NOT.DSMC%ReservoirSimuRate) THEN
+#endif
+      IF (RelaxToDo) THEN
+        SELECT CASE(SelectionProc)
+          CASE(1)
+            CALL DSMC_Relax_Col_LauxTSHO(iPair)
+          CASE(2)
+            CALL DSMC_Relax_Col_Gimelshein(iPair)
+          CASE DEFAULT
+            CALL Abort(&
+__STAMP__&
+,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
+        END SELECT
+      END IF
+#if (PP_TimeDiscMethod==42)
+    END IF
+#endif
+  CASE DEFAULT
+    CALL Abort(&
+__STAMP__&
+,'ERROR in DSMC_perform_collision: Wrong Collision Mode:',CollisMode)
+END SELECT
+
+END SUBROUTINE DSMC_perform_collision
 
 
 SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
