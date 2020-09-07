@@ -400,7 +400,11 @@ WRITE(UNIT_stdOut,'(A,A,A)')'See ',TRIM(ErrorFileName),' for more details'
 WRITE(UNIT_stdOut,*)
 !CALL delete()
 ! Can't use PICLASTIME() here because it requires MPI_WAIT
+#if USE_MPI
 Time=MPI_WTIME()
+#else
+CALL CPU_TIME(Time)
+#endif
 CALL DisplaySimulationTime(Time, StartTime, 'ABORTED')
 #if USE_MPI
 signalout=2 ! MPI_ABORT requires an output error-code /=0
