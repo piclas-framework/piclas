@@ -666,6 +666,7 @@ TYPE tNodeVolume
     REAL                                    :: MPVolumePortion
     LOGICAL                                 :: MPVolumeDone=.FALSE.
     REAL                                    :: Area
+    REAL                                    :: Length
     REAL,ALLOCATABLE                        :: PartNum(:,:)
 END TYPE
 

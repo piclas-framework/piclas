@@ -146,7 +146,7 @@ USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 #endif /*USE_LOADBALANCE*/
 USE MOD_ReadInTools            ,ONLY: PrintOption
 #ifdef PARTICLES
-USE MOD_Particle_Vars          ,ONLY: usevMPF
+USE MOD_Particle_Vars          ,ONLY: usevMPF, Symmetry
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 #endif
 IMPLICIT NONE
@@ -328,7 +328,7 @@ IF (meshMode.GT.0) THEN
   IF(meshMode.NE.3)THEN
     ! save geometry information for particle tracking
     CALL InitParticleMesh()
-    IF (TriaTracking) THEN
+    IF (TriaTracking.OR.Symmetry%Order.LE.2) THEN
       CALL InitParticleGeometry()
     END IF
   END IF ! meshMode.NE.-1

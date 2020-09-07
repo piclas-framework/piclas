@@ -154,7 +154,7 @@ USE MOD_Particle_MPI_Vars   ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Restart_Vars        ,ONLY: DoRestart
-USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, Symmetry2D
+USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, Symmetry
 USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
 USE MOD_part_tools          ,ONLY: UpdateNextFreePosition
 USE MOD_ReadInTools
@@ -206,7 +206,7 @@ DO i=1,nSpecies
   IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
   DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
     IF (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
-      IF(Symmetry2D) THEN
+      IF(Symmetry%Order.LE.2) THEN
         ! The correct 2D/axisymmetric LocalVolume could only be calculated after the symmetry axis was defined (through the boundary
         ! conditions). However, the initialParticleNumber was already determined before the 2D volume calculation was performed.
         ! This can lead to initialParticleNumbers of 0, thus skipping the insertion entirely.

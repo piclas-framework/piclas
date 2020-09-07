@@ -37,10 +37,10 @@ SUBROUTINE MacroRestart_InsertParticles()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: Pi
-USE MOD_Particle_Vars           ,ONLY: Species, PDM, nSpecies, PartState, Symmetry2DAxisymmetric, Symmetry2D, VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: Species, PDM, nSpecies, PartState, Symmetry, VarTimeStep
 USE MOD_Mesh_Vars               ,ONLY: nElems
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
+USE MOD_DSMC_Symmetry           ,ONLY: CalcRadWeightMPF
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping, TriaTracking
@@ -72,7 +72,7 @@ locnPart = 1
 DO iElem = 1, nElems
   ASSOCIATE( Bounds => GEO%BoundsOfElem(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
 ! #################### 2D ##########################################################################################################
-    IF (Symmetry2DAxisymmetric) THEN
+    IF (Symmetry%Axisymmetric) THEN
       IF (RadialWeighting%DoRadialWeighting) THEN
         DO iSpec = 1, nSpecies
           yPartitions = 6
@@ -144,7 +144,7 @@ DO iElem = 1, nElems
           END DO ! nPart
         END DO ! nSpecies
       END IF ! RadialWeighting: YES/NO
-    ELSE IF(Symmetry2D) THEN
+    ELSE IF(Symmetry%Order.EQ.2) THEN
       Volume = (Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
       DO iSpec = 1, nSpecies
         CALL RANDOM_NUMBER(iRan)
@@ -155,8 +155,40 @@ DO iElem = 1, nElems
         nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * Volume + iRan)
         DO iPart = 1, nPart
           InsideFlag=.FALSE.
-          CALL RANDOM_NUMBER(RandomPos)
+          CALL RANDOM_NUMBER(RandomPos(1:2))
           RandomPos(1:2) = Bounds(1,1:2) + RandomPos(1:2)*(Bounds(2,1:2)-Bounds(1,1:2))
+          RandomPos(3) = 0.0
+          IF (DoRefMapping) THEN
+            CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
+            IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+          ELSE
+            IF (TriaTracking) THEN
+              CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
+            ELSE
+              CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
+            END IF
+          END IF
+          IF (InsideFlag) THEN
+            PartState(1:3,locnPart) = RandomPos(1:3)
+            CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
+            locnPart = locnPart + 1
+          END IF
+        END DO ! nPart
+      END DO ! nSpecies
+    ELSE IF(Symmetry%Order.EQ.1) THEN
+      Volume = (Bounds(2,1) - Bounds(1,1))
+      DO iSpec = 1, nSpecies
+        CALL RANDOM_NUMBER(iRan)
+        TempMPF = Species(iSpec)%MacroParticleFactor
+        IF(VarTimeStep%UseVariableTimeStep) THEN
+          TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (Bounds(2,2)+Bounds(1,2))*0.5, iElem)
+        END IF
+        nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * Volume + iRan)
+        DO iPart = 1, nPart
+          InsideFlag=.FALSE.
+          CALL RANDOM_NUMBER(RandomPos(1))
+          RandomPos(1:2) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
+          RandomPos(2) = 0.0
           RandomPos(3) = 0.0
           IF (DoRefMapping) THEN
             CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
@@ -229,7 +261,7 @@ USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, VarTime
 USE MOD_DSMC_Vars               ,ONLY: DSMC, PartStateIntEn, CollisMode, SpecDSMC, RadialWeighting
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
-USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
+USE MOD_DSMC_Symmetry           ,ONLY: CalcRadWeightMPF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

@@ -25,8 +25,13 @@ SAVE
 REAL                  :: ManualTimeStep                                      ! Manual TimeStep
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
                                                                              ! with IAG programming style
-LOGICAL               :: Symmetry2D                                          ! Enables 2D simulation: symmetry in xy-Plane
-LOGICAL               :: Symmetry2DAxisymmetric                              ! Enables axisymmetric simulation around z-axis
+TYPE tSymmetry
+  INTEGER             :: Order                                               ! 1-3 D
+  LOGICAL             :: Axisymmetric
+END TYPE tSymmetry
+
+TYPE(tSymmetry)       :: Symmetry
+
 LOGICAL               :: DoFieldIonization                                   ! Do Field Ionization by quantum tunneling
 INTEGER               :: FieldIonizationModel                                !'Field Ionization models. Implemented models are:
 !                                                                            ! * Ammosov-Delone-Krainov (ADK) model
@@ -506,6 +511,8 @@ TYPE tVariableTimeStep
   REAL                                 :: TargetMaxRelaxFactor
 END TYPE
 TYPE(tVariableTimeStep)                :: VarTimeStep
+
+REAL                                   :: TriaEps !Machine precision for 1D, 0 for other
 
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

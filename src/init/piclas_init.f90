@@ -86,8 +86,8 @@ USE MOD_Restart_Vars         ,ONLY: N_Restart,InterpolateSolution,RestartNullify
 USE MOD_MPI                  ,ONLY: InitMPIvars
 #endif /*USE_MPI*/
 #ifdef PARTICLES
-USE MOD_DSMC_Vars            ,ONLY: UseDSMC, RadialWeighting
-USE MOD_Particle_Vars        ,ONLY: Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
+USE MOD_DSMC_Vars            ,ONLY: UseDSMC
+USE MOD_Particle_Vars        ,ONLY: VarTimeStep
 USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_Init
 USE MOD_ParticleInit         ,ONLY: InitParticles
 USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
@@ -97,6 +97,7 @@ USE MOD_Particle_Mesh        ,ONLY: InitParticleMesh, InitElemBoundingBox
 USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
+USE MOD_DSMC_Symmetry        ,ONLY: Init_Symmetry
 #ifdef MPI
 USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
 #endif /* MPI */
@@ -140,18 +141,7 @@ WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 ! DSMC handling:
 useDSMC=GETLOGICAL('UseDSMC','.FALSE.')
 
-!--- Flags for planar/axisymmetric simulation (2D)
-Symmetry2D = GETLOGICAL('Particles-Symmetry2D')
-Symmetry2DAxisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
-IF(Symmetry2DAxisymmetric.AND.(.NOT.Symmetry2D)) THEN
-  Symmetry2D = .TRUE.
-END IF
-IF(Symmetry2DAxisymmetric) THEN
-  RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
-ELSE
-  RadialWeighting%DoRadialWeighting = .FALSE.
-  RadialWeighting%PerformCloning = .FALSE.
-END IF
+CALL Init_Symmetry()
 
 #endif /*PARTICLES*/
 
