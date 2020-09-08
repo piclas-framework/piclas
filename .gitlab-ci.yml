@@ -269,7 +269,7 @@ gnu_CHE_FPFlow:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_NIG_Reservoir:
+NIG_Reservoir:
   <<: *defaults_gnu
   stage: reggie_DSMC_nightly
   tags:
@@ -280,7 +280,7 @@ gnu_NIG_Reservoir:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run tracking examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_NIG_tracking_DSMC:
+NIG_Tracking:
   <<: *defaults_gnu
   stage: reggie_DSMC_nightly
   tags:
@@ -291,7 +291,7 @@ gnu_NIG_tracking_DSMC:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run DSMC examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_NIG_DSMC:
+NIG_DSMC:
   <<: *defaults_gnu
   stage: reggie_DSMC_nightly
   tags:
