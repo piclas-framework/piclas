@@ -20,8 +20,7 @@ stages:
   - build
   - reggie_checkin
   - reggie_feature_checkin
-  - reggie_reservoir_nightly
-  - reggie_tracking_nightly
+  - reggie_DSMC_nightly
   - reggie_superB_nightly
   - reggie_nightly
   - reggie_nightly_build_all
@@ -268,26 +267,37 @@ gnu_CHE_FPFlow:
     - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_FPFlow
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_chemistry_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
+# Stage "reggie_DSMC_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 gnu_NIG_Reservoir:
   <<: *defaults_gnu
-  stage: reggie_reservoir_nightly
+  stage: reggie_DSMC_nightly
   tags:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_Reservoir ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_tracking_nightly": Build and run tracking examples on nightly
+# Stage "reggie_DSMC_nightly": Build and run tracking examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 gnu_NIG_tracking_DSMC:
   <<: *defaults_gnu
-  stage: reggie_tracking_nightly
+  stage: reggie_DSMC_nightly
   tags:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_tracking_DSMC ; fi
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "reggie_DSMC_nightly": Build and run DSMC examples on nightly
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+gnu_NIG_DSMC:
+  <<: *defaults_gnu
+  stage: reggie_DSMC_nightly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_DSMC ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_superB_nightly": Build and run superB examples on nightly
