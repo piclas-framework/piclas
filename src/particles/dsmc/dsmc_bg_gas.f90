@@ -53,7 +53,7 @@ SUBROUTINE BGGas_Initialize()
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort
 USE MOD_DSMC_Vars              ,ONLY: BGGas
-USE MOD_Particle_Vars          ,ONLY: PDM, Symmetry2D, Species, nSpecies, VarTimeStep
+USE MOD_Particle_Vars          ,ONLY: PDM, Symmetry, Species, nSpecies, VarTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -67,7 +67,7 @@ REAL              :: SpeciesDensTemp(1:nSpecies)
 !===================================================================================================================================
 
 ! 1.) Check compatibility with other features and whether required parameters have been read-in
-IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+IF((Symmetry%Order.EQ.2).OR.VarTimeStep%UseVariableTimeStep) THEN
   CALL abort(&
   __STAMP__&
   ,'ERROR: 2D/Axisymmetric and variable timestep are not implemented with a background gas yet!')

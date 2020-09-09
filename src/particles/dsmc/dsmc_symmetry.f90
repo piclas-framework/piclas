@@ -12,7 +12,7 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_DSMC_Symmetry2D
+MODULE MOD_DSMC_Symmetry
 !===================================================================================================================================
 !> Routines for 2D (planar/axisymmetric) simulations
 !===================================================================================================================================
@@ -26,8 +26,9 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting, DSMC_2D_RadialWeighting, DSMC_2D_SetInClones, DSMC_2D_CalcSymmetryArea
-PUBLIC :: CalcRadWeightMPF, DSMC_2D_CalcSymmetryAreaSubSides, DefineParametersParticleSymmetry, DSMC_2D_TreatIdenticalParticles
+PUBLIC :: DSMC_1D_InitVolumes, DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting, DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
+PUBLIC :: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea, CalcRadWeightMPF, DSMC_2D_CalcSymmetryAreaSubSides
+PUBLIC :: DefineParametersParticleSymmetry, Init_Symmetry, DSMC_2D_TreatIdenticalParticles
 !===================================================================================================================================
 
 CONTAINS
@@ -41,6 +42,8 @@ USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
 IMPLICIT NONE
 
 CALL prms%SetSection("Particle Symmetry")
+CALL prms%CreateIntOption(    'Particles-Symmetry-Order',  &
+                              'Order of the Simulation 1, 2 or 3 D', '3')
 CALL prms%CreateLogicalOption('Particles-Symmetry2D', 'Activating a 2D simulation on a mesh with one cell in z-direction in the '//&
                               'xy-plane (y ranging from 0 to the domain boundaries)', '.FALSE.')
 CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetric', 'Activating an axisymmetric simulation with the same mesh '//&
@@ -77,7 +80,7 @@ USE MOD_Globals_Vars            ,ONLY: Pi
 USE MOD_Preproc
 USE MOD_Mesh_Vars               ,ONLY: nElems, nBCSides, BC, SideToElem, SurfElem
 USE MOD_Interpolation_Vars      ,ONLY: wGP
-USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric
+USE MOD_Particle_Vars           ,ONLY: Symmetry
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
@@ -139,7 +142,7 @@ DO SideID=1,nBCSides
         GEO%CharLength(ElemID) = SQRT(GEO%Volume(ElemID))
         ! Axisymmetric case: The volume is multiplied by the circumference to get the volume of the ring. The cell face in the
         ! xy-plane is rotated around the x-axis. The radius is the middle point of the cell face.
-        IF (Symmetry2DAxisymmetric) THEN
+        IF (Symmetry%Axisymmetric) THEN
           radius = 0.
           DO iNode = 1, 4
             radius = radius + GEO%NodeCoords(2,GEO%ElemSideNodeID(iNode,iLocSide,ElemID))
@@ -167,6 +170,114 @@ GEO%MeshVolume=GEO%LocalVolume
 #endif /*USE_MPI*/
 
 END SUBROUTINE DSMC_2D_InitVolumes
+
+
+SUBROUTINE DSMC_1D_InitVolumes()
+!===================================================================================================================================
+!> Routine determines a symmetry side and calculates the 1D (area faces at x axis) and axisymmetric volumes (cells are
+!> revolved around the symmetry axis). The symmetry side will be used later on to determine in which two directions the quadtree
+!> shall refine the mesh, skipping the z-dimension to avoid an unnecessary refinement.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars               ,ONLY: nElems, BC, ElemToSide
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iSide, iElem, SideID, iDim
+REAL                            :: X(2)
+LOGICAL                         :: SideInPlane, X1Occupied
+!===================================================================================================================================
+
+ALLOCATE(GEO%XMinMax(2,nElems))
+
+IF(.NOT.ALMOSTEQUALRELATIVE(GEO%ymaxglob,ABS(GEO%yminglob),1e-5)) THEN
+  SWRITE(*,*) 'Maximum dimension in y:', GEO%ymaxglob
+  SWRITE(*,*) 'Minimum dimension in y:', GEO%yminglob
+  SWRITE(*,*) 'Deviation', (ABS(GEO%ymaxglob)-ABS(GEO%yminglob))/ABS(GEO%yminglob), ' > 1e-5'
+  CALL abort(__STAMP__&
+    ,'ERROR: Please orient your mesh with one cell in y-direction around 0, |z_min| = z_max !')
+END IF
+
+IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
+  SWRITE(*,*) 'Maximum dimension in z:', GEO%zmaxglob
+  SWRITE(*,*) 'Minimum dimension in z:', GEO%zminglob
+  SWRITE(*,*) 'Deviation', (ABS(GEO%zmaxglob)-ABS(GEO%zminglob))/ABS(GEO%zminglob), ' > 1e-5'
+  CALL abort(__STAMP__&
+    ,'ERROR: Please orient your mesh with one cell in z-direction around 0, |z_min| = z_max !')
+END IF
+
+DO iElem = 1,nElems
+  ! Check if all sides of the element are parallel to xy-, xz-, or yz-plane and Sides parallel to xy-,and xz-plane are symmetric
+  ! And determine xmin and xmax of the element
+  X = 0
+  X1Occupied = .FALSE.
+  DO iSide = 1,6
+    SideInPlane=.FALSE.
+    DO iDim=1,3
+      IF(ALMOSTALMOSTEQUAL(MAXVAL(GEO%NodeCoords(iDim,GEO%ElemSideNodeID(:,iSide,iElem))),MINVAL(GEO%NodeCoords(iDim,GEO%ElemSideNodeID(:,iSide,iElem)))) &
+      .OR.(ALMOSTZERO(MAXVAL(GEO%NodeCoords(iDim,GEO%ElemSideNodeID(:,iSide,iElem)))).AND.ALMOSTZERO(MINVAL(GEO%NodeCoords(iDim,GEO%ElemSideNodeID(:,iSide,iElem)))))) THEN
+        IF(SideInPlane) CALL abort(__STAMP__&
+          ,'ERROR: Please orient your mesh with all element sides parallel to xy-,xz-,or yz-plane')
+        SideInPlane=.TRUE.
+        SideID = ElemToSide(E2S_SIDE_ID,iSide,iElem)
+        IF(iDim.GE.2)THEN
+          IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))).NE.PartBound%SymmetryBC) CALL abort(&
+            __STAMP__&
+            ,'ERROR: Sides parallel to xy-,and xz-plane has to be the symmetric boundary condition')
+        END IF
+        IF(iDim.EQ.1) THEN
+          IF(X1Occupied) THEN
+            X(2) = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iSide,iElem))
+          ELSE
+            X(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iSide,iElem))
+            X1Occupied = .TRUE.
+          END IF
+        END IF !iDim.EQ.1
+      END IF !
+    END DO !iDim=1,3
+    IF(.NOT.SideInPlane) THEN
+      IPWRITE(*,*) 'ElemID:',iElem,'SideID:',iSide
+      DO iDim=1,4
+        IPWRITE(*,*) 'Node',iDim,'x:',GEO%NodeCoords(1,GEO%ElemSideNodeID(iDim,iSide,iElem)), &
+            'y:',GEO%NodeCoords(2,GEO%ElemSideNodeID(iDim,iSide,iElem)),'z:',GEO%NodeCoords(3,GEO%ElemSideNodeID(iDim,iSide,iElem))
+      END DO
+      CALL abort(__STAMP__&
+    ,'ERROR: Please orient your mesh with all element sides parallel to xy-,xz-,or yz-plane')
+    END IF
+  END DO !iSide = 1,6
+  GEO%XMinMax(1,iElem) = MINVAL(X)
+  GEO%XMinMax(2,iElem) = MAXVAL(X)
+  ! IF((Symmetry%SphericalSymmetric.OR.Symmetry%Axisymmetric).AND.(MINVAL(X).LT.0.)) CALL abort(__STAMP__&
+  ! ,'ERROR: mesh has to start at x=0 and goes along positive x-direction in the axissymmetric and spherical symmetric case, respectively')
+  ! Volume calculation with dimension in y and z direction of 1, respectively
+  GEO%Volume(iElem) = ABS(X(1)-X(2))
+  GEO%CharLength(iElem) = GEO%Volume(iElem)
+  ! IF(Symmetry%Axisymmetric) THEN
+  !   ! Calulate the Volume of the ring
+  !   Radius = ABS(X(1)+X(2))*0.5
+  !   GEO%Volume(iElem) = GEO%Volume(iElem) * 2. * Pi * Radius
+  ! ELSE IF(Symmetry%SphericalSymmetric) THEN
+  !   ! Calculate the volume of the hollow sphere
+  !   GEO%Volume(iElem) = 4./3. * PI * ( MAXVAL(X)**3 - MINVAL(X)**3 )
+  ! END IF
+END DO
+! LocalVolume & MeshVolume: Recalculate the volume of the mesh of a single process and the total mesh volume
+GEO%LocalVolume = SUM(GEO%Volume)
+#if USE_MPI
+CALL MPI_ALLREDUCE(GEO%LocalVolume,GEO%MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
+#else
+GEO%MeshVolume=GEO%LocalVolume
+#endif /*USE_MPI*/
+
+END SUBROUTINE DSMC_1D_InitVolumes
 
 SUBROUTINE DSMC_2D_InitRadialWeighting()
 !===================================================================================================================================
@@ -464,7 +575,7 @@ REAL FUNCTION DSMC_2D_CalcSymmetryArea(iLocSide,iElem, ymin, ymax)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: Pi
-USE MOD_Particle_Vars         ,ONLY: Symmetry2DAxisymmetric
+USE MOD_Particle_Vars         ,ONLY: Symmetry
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -500,7 +611,7 @@ END IF
 Length = SQRT((Pmax(1)-Pmin(1))**2 + (Pmax(2)-Pmin(2))**2)
 
 MidPoint = (Pmax(2)+Pmin(2)) / 2.
-IF(Symmetry2DAxisymmetric) THEN
+IF(Symmetry%Axisymmetric) THEN
   DSMC_2D_CalcSymmetryArea = Length * MidPoint * Pi * 2.
   ! Area of the cells on the rotational symmetry axis is set to one
   IF(.NOT.(DSMC_2D_CalcSymmetryArea.GT.0.0)) DSMC_2D_CalcSymmetryArea = 1.
@@ -510,6 +621,43 @@ END IF
 RETURN
 
 END FUNCTION DSMC_2D_CalcSymmetryArea
+
+
+REAL FUNCTION DSMC_1D_CalcSymmetryArea(iLocSide,iElem)
+!===================================================================================================================================
+!> Calculates the actual area of an element for 1D simulations regardless of the mesh dimension in z and y
+!> Utilized in the particle emission (surface flux) and boundary sampling
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)            :: iElem,iLocSide
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: Pmin, Pmax, Length
+!===================================================================================================================================
+
+Pmax = MAXVAL(GEO%NodeCoords(1,GEO%ElemSideNodeID(:,iLocSide,iElem)))
+Pmin = MINVAL(GEO%NodeCoords(1,GEO%ElemSideNodeID(:,iLocSide,iElem)))
+
+Length = ABS(Pmax-Pmin)
+
+! IF(Symmetry%Axisymmetric) THEN
+!   MidPoint = (Pmax(2)+Pmin(2)) / 2.
+!   DSMC_1D_CalcSymmetryArea = Length * MidPoint * Pi * 2.
+!   ! Area of the cells on the rotational symmetry axis is set to one
+!   IF(.NOT.(DSMC_1D_CalcSymmetryArea.GT.0.0)) DSMC_1D_CalcSymmetryArea = 1.
+! ELSE
+  DSMC_1D_CalcSymmetryArea = Length
+  IF (DSMC_1D_CalcSymmetryArea.EQ.0.) DSMC_1D_CalcSymmetryArea = 1.
+! END IF
+RETURN
+
+END FUNCTION DSMC_1D_CalcSymmetryArea
 
 
 FUNCTION DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,iElem)!,ymin,ymax)
@@ -601,6 +749,55 @@ CalcRadWeightMPF = (1. + yPosIn/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.
 RETURN
 
 END FUNCTION CalcRadWeightMPF
+
+
+SUBROUTINE Init_Symmetry()
+!===================================================================================================================================
+!> Initialize if a 2D/1D Simulation is performed and which type
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars           ,ONLY: Symmetry
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+USE MOD_ReadInTools             ,ONLY: GETLOGICAL,GETINT
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+LOGICAL                 :: Symmetry2D
+!===================================================================================================================================
+Symmetry%Order = GETINT('Particles-Symmetry-Order')
+Symmetry2D = GETLOGICAL('Particles-Symmetry2D')
+IF(Symmetry2D.AND.(Symmetry%Order.EQ.3)) THEN
+  Symmetry%Order = 2
+  SWRITE(*,*) 'WARNING: Particles-Symmetry-Order is set to 2 because of Particles-Symmetry2D=.TRUE. .'
+  SWRITE(*,*) 'Set Particles-Symmetry-Order=2 and remove Particles-Symmetry2D to avoid this warning'
+ELSE IF(Symmetry2D) THEN
+  CALL ABORT(__STAMP__&
+    ,'ERROR: 2D Simulations either with Particles-Symmetry-Order=2 or (but not recommended) with Symmetry2D=.TRUE.')
+END IF
+
+IF((Symmetry%Order.LE.0).OR.(Symmetry%Order.GE.4)) CALL ABORT(__STAMP__&
+,'Particles-Symmetry-Order (space dimension) has to be in the range of 1 to 3')
+
+Symmetry%Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
+IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.3)) CALL ABORT(__STAMP__&
+  ,'ERROR: Axisymmetric simulations only for 1D or 2D')
+IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.1))CALL ABORT(__STAMP__&
+  ,'ERROR: Axisymmetric simulations are only implemented for Particles-Symmetry-Order=2 !')
+IF(Symmetry%Axisymmetric) THEN
+  RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
+ELSE
+  RadialWeighting%DoRadialWeighting = .FALSE.
+  RadialWeighting%PerformCloning = .FALSE.
+END IF
+
+END SUBROUTINE Init_Symmetry
 
 
 SUBROUTINE DSMC_2D_TreatIdenticalParticles(iPair, nPair, nPart, iElem, iPartIndx_Node)
@@ -712,4 +909,4 @@ END IF    ! Coll_pData(iPair)%CRela2.EQ.0.0
 
 END SUBROUTINE DSMC_2D_TreatIdenticalParticles
 
-END MODULE MOD_DSMC_Symmetry2D
+END MODULE MOD_DSMC_Symmetry

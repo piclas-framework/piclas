@@ -256,7 +256,7 @@ USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
 USE MOD_Particle_Boundary_Sampling ,ONLY: ExchangeSurfData,MapInnerSurfData
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfCOMM
 #endif
-USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry2D
+USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
 USE MOD_Mesh_Vars                  ,ONLY: MeshFile, BC
 USE MOD_Restart_Vars               ,ONLY: RestartTime
@@ -367,8 +367,8 @@ DO iSurfSide=1,SurfMesh%nSides
       ! Force per area in x,y,z-direction
       MacroSurfaceVal(1:3,p,q,OutputCounter) = SampWall(iSurfSide)%State(SAMPWALL_DELTA_MOMENTUMX:SAMPWALL_DELTA_MOMENTUMZ,p,q) &
                                            / (SurfMesh%SurfaceArea(p,q,iSurfSide)*TimeSampleTemp)
-      ! Deleting the z-component for 2D/axisymmetric simulations
-      IF(Symmetry2D) MacroSurfaceVal(3,p,q,OutputCounter) = 0.
+      ! Deleting the y/z-component for 1D/2D/axisymmetric simulations
+      IF(Symmetry%Order.LT.3) MacroSurfaceVal(Symmetry%Order+1:3,p,q,OutputCounter) = 0.
       MacroSurfaceVal(4,p,q,OutputCounter) = (SampWall(iSurfSide)%State(SAMPWALL_ETRANSOLD,p,q) &
                                          +SampWall(iSurfSide)%State(SAMPWALL_EROTOLD  ,p,q) &
                                          +SampWall(iSurfSide)%State(SAMPWALL_EVIBOLD  ,p,q) &
@@ -1547,7 +1547,7 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry2D
+USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_TimeDisc_Vars         ,ONLY: time,TEnd,iter,dt
 USE MOD_Restart_Vars          ,ONLY: RestartTime
@@ -1734,7 +1734,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
       END IF
       nVarCount = nVar + 3
       IF(VarTimeStep%UseVariableTimeStep) THEN
-        IF(VarTimeStep%UseLinearScaling.AND.Symmetry2D) THEN
+        IF(VarTimeStep%UseLinearScaling.AND.(Symmetry%Order.EQ.2)) THEN
           ! 2D/Axisymmetric uses a scaling of the time step per particle, no element values are used. For the output simply the cell
           ! midpoint is used to calculate the time step
           VarTimeStep%ElemFac(iElem) = CalcVarTimeStep(GEO%ElemMidPoint(1,iElem), GEO%ElemMidPoint(2,iElem))
@@ -3515,11 +3515,11 @@ INTEGER                       :: iSpec
         PartNum = PartNum + DSMC%CalcVibProb(iSpec,3)
       END IF
     END DO
-    IF(MaxProb.GT.0.) THEN
-      DSMC%QualityFacSampVib(iElem,nSpecies+1,2) = DSMC%QualityFacSampVib(iElem,nSpecies+1,2) + MaxProb
-      DSMC%QualityFacSampVibSamp(iElem,nSpecies+1,2) = DSMC%QualityFacSampVibSamp(iElem,nSpecies+1,2) + 1
-    END IF
     IF((nSpecies.GT.1).AND.(PartNum.GT.0)) THEN
+      IF(MaxProb.GT.0.) THEN
+        DSMC%QualityFacSampVib(iElem,nSpecies+1,2) = DSMC%QualityFacSampVib(iElem,nSpecies+1,2) + MaxProb
+        DSMC%QualityFacSampVibSamp(iElem,nSpecies+1,2) = DSMC%QualityFacSampVibSamp(iElem,nSpecies+1,2) + 1
+      END IF
       DSMC%QualityFacSampVib(iElem,nSpecies+1,1) = DSMC%QualityFacSampVib(iElem,nSpecies+1,1) + MeanProb / PartNum
       DSMC%QualityFacSampVibSamp(iElem,nSpecies+1,1) = DSMC%QualityFacSampVibSamp(iElem,nSpecies+1,1) + 1
     END IF

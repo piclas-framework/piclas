@@ -842,27 +842,29 @@ The second option is to use a linearly increasing time step along a given direct
 
 Besides DSMC, the linear scaling is available for the BGK and FP method. Finally, specific options for 2D/axisymmetric simulations are discussed in Section \ref{sec:2DAxi_vts}.
 
-### 2D/Axisymmetric Simulation \label{sec:2DAxi}
+### Symmetric Simulations \label{sec:Symmetric}
+
+#### 2D/Axisymmetric Simulation \label{sec:2DAxi}
 
 For two-dimensional and axisymmetric cases, the computational effort can be greatly reduced. Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_{\mathrm{min}}|=|z_{\mathrm{max}}|$. The rotational symmetry axis shall be defined as a separate boundary with the `symmetric_axis` boundary condition
 
-Part-Boundary4-SourceName=SYMAXIS
-Part-Boundary4-Condition=symmetric_axis
+    Part-Boundary4-SourceName=SYMAXIS
+    Part-Boundary4-Condition=symmetric_axis
 
 The boundaries (or a single boundary definition for both boundary sides) in the $z$-direction should be defined as symmetry sides with the `symmetric` condition
 
-Part-Boundary5-SourceName=SYM
-Part-Boundary5-Condition=symmetric
+    Part-Boundary5-SourceName=SYM
+    Part-Boundary5-Condition=symmetric
 
 To enable two-dimensional simulations, the following flag is required
 
-    Particles-Symmetry2D=T
+    Particles-Symmetry-Order=2
 
 It should be noted that the two-dimensional mesh assumes a length of $\Delta z = 1$, regardless of the actual dimension in $z$. Therefore, the weighting factor should be adapted accordingly.
 
 To enable axisymmetric simulations, the following flag is required
 
-    Particles-Symmetry2DAxisymmetric=T
+    Particles-SymmetryAxisymmetric=T
 
 To fully exploit rotational symmetry, a radial weighting can be enabled, which will linearly increase the weighting factor $w$ towards $y_{\mathrm{max}}$ (i.e. the domain border in $y$-direction), depending on the current $y$-position of the particle.
 
@@ -898,7 +900,7 @@ However, this method is not preferable if the cell dimensions in $y$-direction a
 
 Besides DSMC, 2D/axisymmetric simulations are also possible the BGK/FP particle method with the same parameters as discussed above (for more informatino about the BGK and FP methods, see Section \ref{sec:continuum}).
 
-#### Variable Time Step: Linear scaling \label{sec:2DAxi_vts}
+##### Variable Time Step: Linear scaling \label{sec:2DAxi_vts}
 
 The linear scaling of the variable time step is implemented slightly different to the 3D case. Here, a particle-based time step is used, where the time step of the particle is determined on its current position. The first scaling is applied in the radial direction, where the time step is increased towards the radial domain border. Thus, $\Delta t (y_{\mathrm{max}}) = f \Delta t$ and $\Delta t (y_{\mathrm{min}} = 0) = \Delta t$.
 
@@ -911,6 +913,17 @@ Additionally, the time step can be varied along the x-direction by defining a "s
     Part-VariableTimeStep-StagnationPoint = 0.0
     Part-VariableTimeStep-ScaleFactor2DFront = 2.0
     Part-VariableTimeStep-ScaleFactor2DBack = 2.0
+
+#### 1D Simulations \label{sec:1D}
+
+To enable one-dimensional simulations, the following flag is required
+
+    Particles-Symmetry-Order=1
+
+The mesh constraints are mostly the same, like in the 2D case, but also in y-direction. The $y$ constraint is like the $z$ constraint and should centered to the $xz$-plane. $|y_{\mathrm{min}}|=|y_{\mathrm{max}}|$. The calculation is performed along the $x$-axis. On 1D simulations unstructed grids are not neccesary, thus a structured grid has to be used. All sides of the hexaeders must be parallel to the $xy$-, $xz$-, and $yz$-plane. Boundarys in $y$ and $z$ direction shall be defined as 'symmetric'.
+
+    Part-Boundary5-SourceName=SYM
+    Part-Boundary5-Condition=symmetric
 
 ### Species Definition \label{sec:dsmc_species}
 
