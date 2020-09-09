@@ -405,7 +405,7 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac, iPart_p3)
 ! MODULES
 USE MOD_Globals                ,ONLY: abort
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
-USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep
 USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange, CalcXiElec
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
@@ -488,6 +488,7 @@ END IF
 IF(CalcPartBalance) THEN
   IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') THEN
     DO iPart = 1, NINT(NumWeightEduct)
+      IF(BGGas%BackgroundSpecies(EductReac(iPart))) CYCLE
       nPartOut(EductReac(iPart))=nPartOut(EductReac(iPart)) + 1
       PartEkinOut(EductReac(iPart))=PartEkinOut(EductReac(iPart))+CalcEkinPart(ReactInx(iPart))
     END DO
