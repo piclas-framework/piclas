@@ -1505,7 +1505,7 @@ nMacroRestartFiles = GETINT('Part-nMacroRestartFiles')
 IF (nMacroRestartFiles.GT.0) THEN
   IF((Symmetry%Order.LE.2).OR.VarTimeStep%UseVariableTimeStep) THEN
     CALL abort(__STAMP__&
-        ,'ERROR: Symmetry2D/Variable Time Step: Restart with a given DSMCHOState (Macroscopic restart) only possible with:\n'//&
+        ,'ERROR: Symmetry/Variable Time Step: Restart with a given DSMCHOState (Macroscopic restart) only possible with:\n'//&
          ' Particles-MacroscopicRestart = T \n Particles-MacroscopicRestart-Filename = Test_DSMCHOState.h5')
   END IF
   ALLOCATE(MacroRestartFileUsed(1:nMacroRestartFiles))
