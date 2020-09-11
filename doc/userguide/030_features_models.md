@@ -844,9 +844,26 @@ Besides DSMC, the linear scaling is available for the BGK and FP method. Finally
 
 ### Symmetric Simulations \label{sec:Symmetric}
 
-#### 2D/Axisymmetric Simulation \label{sec:2DAxi}
+For one-dimensional (e.g. shock-tubes), two-dimensional (e.g. cylinder) and axisymmetric (e.g. re-entry capsules) cases, the computational effort can be greatly reduced.
 
-For two-dimensional and axisymmetric cases, the computational effort can be greatly reduced. Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_{\mathrm{min}}|=|z_{\mathrm{max}}|$. The rotational symmetry axis shall be defined as a separate boundary with the `symmetric_axis` boundary condition
+#### 1D Simulations \label{sec:1D}
+
+To enable one-dimensional simulations, the symmetry order has to be set
+
+    Particles-Symmetry-Order=1
+
+The calculation is performed along the $x$-axis. The $y$ and $z$ dimension should be centered to the $xz$-plane (i.e. $|y_{\mathrm{min}}|=|y_{\mathrm{max}}|$). All sides of the hexahedrons must be parallel to the $xy$-, $xz$-, and $yz$-plane. Boundaries in $y$ and $z$ direction shall be defined as 'symmetric'.
+
+    Part-Boundary5-SourceName=SYM
+    Part-Boundary5-Condition=symmetric
+
+#### 2D/Axisymmetric Simulations \label{sec:2DAxi}
+
+To enable two-dimensional simulations, the symmetry order has to be set
+
+    Particles-Symmetry-Order=2
+
+Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_{\mathrm{min}}|=|z_{\mathrm{max}}|$. The rotational symmetry axis shall be defined as a separate boundary with the `symmetric_axis` boundary condition
 
     Part-Boundary4-SourceName=SYMAXIS
     Part-Boundary4-Condition=symmetric_axis
@@ -855,10 +872,6 @@ The boundaries (or a single boundary definition for both boundary sides) in the 
 
     Part-Boundary5-SourceName=SYM
     Part-Boundary5-Condition=symmetric
-
-To enable two-dimensional simulations, the following flag is required
-
-    Particles-Symmetry-Order=2
 
 It should be noted that the two-dimensional mesh assumes a length of $\Delta z = 1$, regardless of the actual dimension in $z$. Therefore, the weighting factor should be adapted accordingly.
 
@@ -913,17 +926,6 @@ Additionally, the time step can be varied along the x-direction by defining a "s
     Part-VariableTimeStep-StagnationPoint = 0.0
     Part-VariableTimeStep-ScaleFactor2DFront = 2.0
     Part-VariableTimeStep-ScaleFactor2DBack = 2.0
-
-#### 1D Simulations \label{sec:1D}
-
-To enable one-dimensional simulations, the following flag is required
-
-    Particles-Symmetry-Order=1
-
-The mesh constraints are mostly the same, like in the 2D case, but also in y-direction. The $y$ constraint is like the $z$ constraint and should centered to the $xz$-plane. $|y_{\mathrm{min}}|=|y_{\mathrm{max}}|$. The calculation is performed along the $x$-axis. On 1D simulations unstructed grids are not neccesary, thus a structured grid has to be used. All sides of the hexaeders must be parallel to the $xy$-, $xz$-, and $yz$-plane. Boundarys in $y$ and $z$ direction shall be defined as 'symmetric'.
-
-    Part-Boundary5-SourceName=SYM
-    Part-Boundary5-Condition=symmetric
 
 ### Species Definition \label{sec:dsmc_species}
 
