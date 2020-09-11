@@ -55,7 +55,7 @@ USE MOD_DSMC_Analyze        ,ONLY: DSMC_data_sampling
 USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, RadialWeighting
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
 USE MOD_Part_Tools          ,ONLY: GetParticleWeight
-USE MOD_Particle_Vars       ,ONLY: PEM, PartState, Species, WriteMacroVolumeValues, Symmetry2D, usevMPF
+USE MOD_Particle_Vars       ,ONLY: PEM, PartState, Species, WriteMacroVolumeValues, Symmetry, usevMPF
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
@@ -97,7 +97,7 @@ DO iElem = 1, nElems
   IF (nPart.LT.3) CYCLE
 
   IF (DoBGKCellAdaptation) THEN
-    IF(Symmetry2D) THEN
+    IF(Symmetry%Order.EQ.2) THEN
       CALL BGK_quadtree_adapt(iElem)
     ELSE
       CALL BGK_octree_adapt(iElem)
@@ -157,7 +157,7 @@ USE MOD_FPFlow_Vars         ,ONLY: FP_QualityFacSamp, FP_PrandtlNumber
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile, offsetElem
 USE MOD_Part_Tools          ,ONLY: GetParticleWeight
-USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry2D
+USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry
 USE MOD_Restart_Vars        ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
@@ -177,7 +177,7 @@ DSMC_RHS = 0.0
 
 IF (DoBGKCellAdaptation) THEN
   DO iElem = 1, nElems
-    IF(Symmetry2D) THEN
+    IF(Symmetry%Order.EQ.2) THEN
       CALL BGK_quadtree_adapt(iElem)
     ELSE
       CALL BGK_octree_adapt(iElem)

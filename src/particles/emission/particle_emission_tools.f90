@@ -819,7 +819,7 @@ SUBROUTINE SetCellLocalParticlePosition(chunkSize,iSpec,iInit,UseExactPartNum)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry2D        ,ONLY: CalcRadWeightMPF
+USE MOD_DSMC_Symmetry          ,ONLY: CalcRadWeightMPF
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
 USE MOD_MacroBody_Tools        ,ONLY: INSIDEMACROBODY
@@ -831,7 +831,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,Elem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
+USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry, VarTimeStep
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -902,14 +902,15 @@ __STAMP__,&
           InsideFlag=.FALSE.
           DO WHILE(.NOT.InsideFlag)
             CALL RANDOM_NUMBER(RandomPos)
-            IF(Symmetry2DAxisymmetric.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+            IF(Symmetry%Axisymmetric.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
               ! Treatment of axisymmetry without weighting
               RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
               RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
             ELSE
               RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
             END IF
-            IF(Symmetry2D) RandomPos(3) = 0.
+            IF(Symmetry%Order.LE.2) RandomPos(3) = 0.
+            IF(Symmetry%Order.LE.1) RandomPos(2) = 0.
 
             SELECT CASE(TrackingMethod)
               CASE(TRIATRACKING)

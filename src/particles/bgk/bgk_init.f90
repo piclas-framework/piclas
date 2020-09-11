@@ -99,7 +99,7 @@ USE MOD_BGK_Vars
 USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: nElems, NGeo
 USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, VarTimeStep
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
 USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
@@ -118,9 +118,9 @@ ALLOCATE(SpecBGK(nSpecies))
 DO iSpec=1, nSpecies
   ALLOCATE(SpecBGK(iSpec)%CollFreqPreFactor(nSpecies))
   DO iSpec2=1, nSpecies
-    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*(SpecDSMC(iSpec)%DrefVHS + SpecDSMC(iSpec2)%DrefVHS)**2.0 &
-        * SQRT(2.*Pi*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
-        /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/SpecDSMC(iSpec)%TrefVHS**(-SpecDSMC(iSpec)%omegaVHS +0.5)
+    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*(CollInf%dref(iSpec,iSpec) + CollInf%dref(iSpec2,iSpec2))**2.0 &
+        * SQRT(2.*Pi*BoltzmannConst*CollInf%Tref(iSpec,iSpec)*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
+        /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/CollInf%Tref(iSpec,iSpec)**(-CollInf%omega(iSpec,iSpec) +0.5)
   END DO
 END DO
 
@@ -143,7 +143,7 @@ END IF
 ! Unified BGK options
 BGKUnifiedCes = GETREAL('Particles-UnifiedBGK-Ces')
 IF (BGKUnifiedCes.EQ.1000.) THEN
-  BGKUnifiedCes = 1. - (6.-2.*SpecDSMC(1)%omegaVHS)*(4.- 2.*SpecDSMC(1)%omegaVHS)/30.
+  BGKUnifiedCes = 1. - (6.-2.*CollInf%omega(1,1))*(4.- 2.*CollInf%omega(1,1))/30.
 ELSE IF((BGKUnifiedCes.LT.-0.5).OR.(BGKUnifiedCes.GE.1.0)) THEN
   CALL abort(&
 __STAMP__&

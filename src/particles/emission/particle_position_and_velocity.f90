@@ -78,7 +78,7 @@ INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:)
   IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleEmission.EQ.0)) RETURN
   IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) THEN
     DoExactPartNumInsert =  .TRUE.
-    IF(Symmetry2DAxisymmetric) CALL abort(&
+    IF(Symmetry%Axisymmetric) CALL abort(&
 __STAMP__&
 ,'Axisymmetric: Particle insertion only possible with PartDensity!')
   END IF

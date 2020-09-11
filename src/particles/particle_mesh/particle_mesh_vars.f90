@@ -443,6 +443,8 @@ TYPE tGeometry
 !  REAL, ALLOCATABLE                      :: ElemMidPoint(:,:)
 !  REAL, ALLOCATABLE                      :: BoundsOfElem(:,:,:)               ! Bounding box of each element (computed from Bezier
                                                                               ! control points
+  REAL, ALLOCATABLE                      :: XMinMax(:,:)                      ! Minimum (1) and maximum (2) xValue of the Element
+                                                                              ! Used for 1D (2,nELems)
 END TYPE
 
 TYPE (tGeometry)                         :: GEO

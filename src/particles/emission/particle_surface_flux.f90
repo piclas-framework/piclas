@@ -39,7 +39,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, Pi
 USE MOD_Particle_Vars          ,ONLY: AdaptiveWeightFac,nSpecies, Species, VarTimeStep, DoPoissonRounding, DoTimeDepInflow
-USE MOD_Particle_Vars          ,ONLY: Symmetry2D, UseAdaptive, UseCircularInflow
+USE MOD_Particle_Vars          ,ONLY: Symmetry, UseAdaptive, UseCircularInflow
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, TriaSurfaceFlux
@@ -188,7 +188,7 @@ __STAMP__&
         CALL abort(__STAMP__&
             ,'ERROR: Adaptive surface flux boundary conditions are not implemented with DoRefMapping!')
       END IF
-      IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+      IF((Symmetry%Order.LE.2).OR.VarTimeStep%UseVariableTimeStep) THEN
         CALL abort(__STAMP__&
             ,'ERROR: Adaptive surface flux boundary conditions are not implemented with 2D/axisymmetric or variable time step!')
       END IF
@@ -433,11 +433,11 @@ DO iBC=1,countDataBC
       END IF
       SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
       !----- symmetry specific area calculation start
-      IF(Symmetry2D) THEN
+      IF(Symmetry%Order.EQ.2) THEN
         GlobalElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
         CNElemID     = GetCNElemID(GlobalElemID)
         iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
-        IF(Symmetry2DAxisymmetric) THEN
+        IF(Symmetry%Axisymmetric) THEN
           ! Calculate the correct area for the axisymmetric (ring area) and 2D (length) and get ymin and ymax for element
           SurfMeshSubSideData(1,1,BCSideID)%area = DSMC_2D_CalcSymmetryArea(iLocSide,CNElemID, ymin, ymax)
           SurfMeshSubSideData(1,2,BCSideID)%area = 0.0
@@ -468,6 +468,8 @@ DO iBC=1,countDataBC
         ELSE
           SurfMeshSubSideData(1,1:2,BCSideID)%area = DSMC_2D_CalcSymmetryArea(iLocSide,CNElemID) / 2.
         END IF
+      ELSE IF(Symmetry%Order.EQ.1) THEN
+        SurfMeshSubSideData(1,1:2,BCSideID)%area = DSMC_1D_CalcSymmetryArea(iLocSide,ElemID) / 2.
       END IF
       !----- symmetry specific area calculation end
       IF (.NOT.TriaTracking) THEN !check that all sides are planar if TriaSurfaceFlux is used for tracing or refmapping
@@ -1594,7 +1596,7 @@ SUBROUTINE ParticleSurfaceflux()
 ! Modules
 USE MOD_Globals
 USE MOD_Particle_Vars
-USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
+USE MOD_DSMC_Symmetry           ,ONLY: CalcRadWeightMPF
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, RadialWeighting
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_MacroBody_Tools         ,ONLY: INSIDEMACROBODY
@@ -1682,7 +1684,7 @@ __STAMP__&
       IF (TriaSurfaceFlux) xyzNod(1:3) = BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%xyzNod(1:3)
       DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
         ExtraParts = 0 !set here number of additional to-be-inserted particles in current BCSideID/subsides (e.g. desorption)
-        IF(Symmetry2DAxisymmetric.AND.(jSample.EQ.2)) CYCLE
+        IF(Symmetry%Axisymmetric.AND.(jSample.EQ.2)) CYCLE
         IF (TriaSurfaceFlux) THEN
           !-- compute parallelogram of triangle
           Node1 = jSample+1     ! normal = cross product of 1-2 and 1-3 for first triangle
@@ -1695,7 +1697,7 @@ __STAMP__&
 
         IF (PartBound%Reactive(currentBC)) CALL CalcExtraPartsReactiveBC(iSpec,iSF)
         ! REQUIRED LATER FOR THE POSITION START
-        IF(Symmetry2DAxisymmetric) CALL DefineSideDirectVec2D(SideID, xyzNod, minPos, RVec)
+        IF(Symmetry%Axisymmetric) CALL DefineSideDirectVec2D(SideID, xyzNod, minPos, RVec)
 
         !-- compute number of to be inserted particles
         IF (.NOT.RadialWeighting%DoRadialWeighting) THEN
@@ -1735,7 +1737,7 @@ __STAMP__&
         allowedRejections=0
 
         !-- Set Positions
-        IF(Symmetry2DAxisymmetric) THEN
+        IF(Symmetry%Axisymmetric) THEN
           CALL CalcPartPosRadWeight(minPos, RVec, PartInsSubSide, PartInsSideSubSub, particle_positions)
         ELSE
           DO WHILE (iPart+allowedRejections .LE. PartInsSubSide)

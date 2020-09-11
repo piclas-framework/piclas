@@ -98,7 +98,7 @@ USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound
 USE MOD_Particle_Intersection       ,ONLY: IntersectionWithWall
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
 USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry2D             ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
+USE MOD_DSMC_Symmetry               ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -2662,10 +2662,8 @@ REAL                             :: Px, Py, Pz
 REAL                             :: Vx, Vy, Vz
 REAL                             :: xNode(3), yNode(3), zNode(3), Ax(3), Ay(3), Az(3)
 REAL                             :: det(3)
-REAL                             :: eps
 !===================================================================================================================================
 
-eps = 0.
 CNElemID = GetCNElemID(Element)
 
 ThroughSide = .FALSE.
@@ -2732,8 +2730,8 @@ det(3) = ((Ay(3) * Vz - Az(3) * Vy) * Ax(2)  + &
           (Az(3) * Vx - Ax(3) * Vz) * Ay(2)  + &
           (Ax(3) * Vy - Ay(3) * Vx) * Az(2))
 
-! Comparison of the determinants with against machine precision (eps)
-IF ((det(1).ge.-eps).AND.(det(2).ge.-eps).AND.(det(3).ge.-eps)) THEN
+! Comparison of the determinants with eps, where a zero is stored (due to machine precision)
+IF ((det(1).ge.-TriaEps).AND.(det(2).ge.-TriaEps).AND.(det(3).ge.-TriaEps)) THEN
   ThroughSide = .TRUE.
 END IF
 
