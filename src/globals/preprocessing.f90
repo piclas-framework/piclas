@@ -27,7 +27,7 @@ REAL,PARAMETER        :: PP_RealTolerance = 1.E-15
   INTEGER             :: PP_N                       ! polynomial degree
 #endif
 #if PP_nElems == NELEMZ
-  INTEGER             :: PP_nElems = 0
+  INTEGER             :: PP_nElems = 0              ! pp preproc
 #endif
 !===================================================================================================================================
 

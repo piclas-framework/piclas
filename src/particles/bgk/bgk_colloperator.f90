@@ -51,6 +51,7 @@ SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, vBulkAll, Av
 USE MOD_Globals               ,ONLY: DOTPRODUCT
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, VarTimeStep, usevMPF
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: CollInf
 USE MOD_DSMC_Analyze          ,ONLY: CalcTVibPoly
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
@@ -231,19 +232,19 @@ ELSE
 END IF
 
 ! 2.) Calculate the reference dynamic viscosity, Prandtl number and the resulting relaxation frequency of the distribution function
-dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*SpecDSMC(1)%TrefVHS/Pi) &
-        /(4.*(4.- 2.*SpecDSMC(1)%omegaVHS) * (6. - 2.*SpecDSMC(1)%omegaVHS)* SpecDSMC(1)%DrefVHS**2.)
+dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*CollInf%Tref(1,1)/Pi) &
+           / (4.*(4.- 2.*CollInf%omega(1,1)) * (6. - 2.*CollInf%omega(1,1))* CollInf%dref(1,1)**2.)
 Prandtl =2.*(InnerDOF + 5.)/(2.*InnerDOF + 15.)
 CShak= Prandtl*(1.-BGKUnifiedCes)
 IF (BGKCollModel.EQ.1) THEN
-  relaxfreq = Prandtl*dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omegaVHS + 0.5) &
-      /dynamicvis*CellTempRelax**(-SpecDSMC(1)%omegaVHS +0.5)
+  relaxfreq = Prandtl*dens*BoltzmannConst*CollInf%Tref(1,1)**(CollInf%omega(1,1) + 0.5) &
+      /dynamicvis*CellTempRelax**(-CollInf%omega(1,1) +0.5)
 ELSE IF (BGKCollModel.EQ.4) THEN
-  relaxfreq = dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omegaVHS + 0.5) &
-      /(dynamicvis*(1.-BGKUnifiedCes))*CellTempRelax**(-SpecDSMC(1)%omegaVHS +0.5)
+  relaxfreq = dens*BoltzmannConst*CollInf%Tref(1,1)**(CollInf%omega(1,1) + 0.5) &
+      /(dynamicvis*(1.-BGKUnifiedCes))*CellTempRelax**(-CollInf%omega(1,1) +0.5)
 ELSE
-  relaxfreq = dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omegaVHS + 0.5) &
-      /dynamicvis*CellTempRelax**(-SpecDSMC(1)%omegaVHS +0.5)
+  relaxfreq = dens*BoltzmannConst*CollInf%Tref(1,1)**(CollInf%omega(1,1) + 0.5) &
+      /dynamicvis*CellTempRelax**(-CollInf%omega(1,1) +0.5)
 END IF
 
 IF(DSMC%CalcQualityFactors) THEN
@@ -255,7 +256,7 @@ END IF
 ! 3.) Treatment of molecules: determination of the rotational and vibrational relaxation frequency using the collision frequency,
 !     which is not the same as the relaxation frequency of distribution function, calculated above.
 IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
-  collisionfreq = SpecBGK(1)%CollFreqPreFactor(1) * Dens *CellTempRelax**(-SpecDSMC(1)%omegaVHS +0.5)
+  collisionfreq = SpecBGK(1)%CollFreqPreFactor(1) * Dens *CellTempRelax**(-CollInf%omega(1,1) +0.5)
   rotrelaxfreq = collisionfreq * DSMC%RotRelaxProb
   vibrelaxfreq = collisionfreq * DSMC%VibRelaxProb
   IF(SpecDSMC(1)%PolyatomicMol) THEN
@@ -948,7 +949,7 @@ ELSE
   DoVibRelax = BGKDoVibRelaxation
 END IF
 maxexp = LOG(HUGE(maxexp))
-!  Xi_rel = 2.*(2. - SpecDSMC(1)%omegaVHS)
+!  Xi_rel = 2.*(2. - CollInf%omega(1,1))
 !  correctFac = 1. + (2.*SpecDSMC(1)%CharaTVib / (CellTemp*(EXP(SpecDSMC(1)%CharaTVib / CellTemp)-1.)))**2. &
 !        * EXP(SpecDSMC(1)%CharaTVib /CellTemp) / (2.*Xi_rel)
 !  correctFacRot = 1. + 2./Xi_rel
@@ -1058,7 +1059,7 @@ END IF
 maxexp = LOG(HUGE(maxexp))
 Xi_Rot =   SpecDSMC(1)%Xi_Rot
 iPolyatMole = SpecDSMC(1)%SpecToPolyArray
-!  Xi_rel = 2.*(2. - SpecDSMC(1)%omegaVHS)
+!  Xi_rel = 2.*(2. - CollInf%omega(1,1))
 !  correctFac = 0.0
 !  DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
 !    correctFac = correctFac &

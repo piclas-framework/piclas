@@ -1042,7 +1042,7 @@ REAL FUNCTION Calc_Beta_Poly(iReac,Xi_Total)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_DSMC_Vars,            ONLY : ChemReac,  SpecDSMC
+  USE MOD_DSMC_Vars,            ONLY : ChemReac, CollInf
   USE MOD_Globals_Vars,         ONLY : BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -1056,11 +1056,13 @@ REAL FUNCTION Calc_Beta_Poly(iReac,Xi_Total)
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-  IF((ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 + SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS + Xi_Total/2.).GT.0.0) THEN
+  IF((ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 &
+  + CollInf%omega(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1)) + Xi_Total/2.).GT.0.0) THEN
     Calc_Beta_Poly = ChemReac%Arrhenius_Prefactor(iReac)                                                                        &
-      * (BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS))   &
+      * (BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) &
+      - CollInf%omega(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1))))   &
       * GAMMA(Xi_Total/2.) / (ChemReac%Hab(iReac) * GAMMA(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5           &
-        + SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS + Xi_Total/2.))
+      + CollInf%omega(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1)) + Xi_Total/2.))
   ELSE
     Calc_Beta_Poly = 0.0
   END IF

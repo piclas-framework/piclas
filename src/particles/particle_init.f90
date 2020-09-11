@@ -494,7 +494,7 @@ CALL prms%CreateIntOption(      'Part-Species[$]-ElemTElecFileID'  &
                                 , numberedmulti=.TRUE.)
 
 
-CALL prms%SetSection("Particle Species Ninits")
+CALL prms%SetSection("Particle Species nInits")
 ! if Ninit>0 some variables have to be defined twice
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Init[$]-UseForInit' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
@@ -1505,7 +1505,7 @@ nMacroRestartFiles = GETINT('Part-nMacroRestartFiles')
 IF (nMacroRestartFiles.GT.0) THEN
   IF((Symmetry%Order.LE.2).OR.VarTimeStep%UseVariableTimeStep) THEN
     CALL abort(__STAMP__&
-        ,'ERROR: Symmetry2D/Variable Time Step: Restart with a given DSMCHOState (Macroscopic restart) only possible with:\n'//&
+        ,'ERROR: Symmetry/Variable Time Step: Restart with a given DSMCHOState (Macroscopic restart) only possible with:\n'//&
          ' Particles-MacroscopicRestart = T \n Particles-MacroscopicRestart-Filename = Test_DSMCHOState.h5')
   END IF
   ALLOCATE(MacroRestartFileUsed(1:nMacroRestartFiles))
@@ -3539,8 +3539,6 @@ INTEGER :: j
 mat = 0.
 FORALL(j = 1:3) mat(j,j) = 1.
 END SUBROUTINE
-
-
 
 
 SUBROUTINE InitRandomSeed(nRandomSeeds,SeedSize,Seeds)

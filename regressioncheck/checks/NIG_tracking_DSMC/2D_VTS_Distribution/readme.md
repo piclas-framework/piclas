@@ -1,6 +1,6 @@
 # 2D axisymmetric: Variable Time Step - Distribution
 * Testing the calculation of a variable time step distribution, based on a read-in DSMCState file
-* Utilized criteria is the number of particles and the time step is adapted to achieve approximetaly 20 particles per cell
+* Utilized criteria is the number of particles and the time step is adapted to achieve approximately 20 particles per cell
 * Parameters:
   * Macroscopic restart should be performed to immediately insert the appropriate number of particles:
     * Particles-MacroscopicRestart = T

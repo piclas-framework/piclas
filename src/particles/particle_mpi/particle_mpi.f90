@@ -1422,7 +1422,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     jPos=jPos+1
 #endif /*IMPA*/
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(1+jPos),KIND=4)
-    ! Consider special particles that are communicated with negative species ID (ghost partilces that are deposited on surface 
+    ! Consider special particles that are communicated with negative species ID (ghost partilces that are deposited on surface
     ! with their charge and are then removed)
     IF(PartSpecies(PartID).LT.0)THEN
       PartSpecies(PartID) = -PartSpecies(PartID) ! make positive species ID again

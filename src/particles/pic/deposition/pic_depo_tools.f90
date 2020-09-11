@@ -49,7 +49,7 @@ PUBLIC:: DepositParticleOnNodes,CalcCellLocNodeVolumes,ReadTimeAverage,beta,DeBo
 CONTAINS
 
 
-SUBROUTINE DepositParticleOnNodes(iPart,PartPos,ElemID) 
+SUBROUTINE DepositParticleOnNodes(iPart,PartPos,ElemID)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Deposit the charge of a single particle on the nodes corresponding to the deposition method 'cell_volweight_mean', where the
 ! charge is stored in NodeSourceExtTmp, which is added to NodeSource in the standard deposition procedure.
@@ -67,7 +67,7 @@ USE MOD_Particle_Vars      ,ONLY: PartSpecies,Species
 USE MOD_Particle_Vars      ,ONLY: usevMPF,PartMPF
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)  :: iPart
 REAL,INTENT(IN)     :: PartPos(1:3)
 INTEGER,INTENT(IN)  :: ElemID
