@@ -38,7 +38,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_init_octree, DSMC_pairing_quadtree, DSMC_CalcSubNodeVolumes
+PUBLIC :: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_init_octree, DSMC_pairing_quadtree, DSMC_CalcSubNodeVolumes3D
 PUBLIC :: DSMC_CalcSubNodeVolumes2D, GeoCoordToMap2D, DSMC_pairing_dotree
 !===================================================================================================================================
 
@@ -580,7 +580,7 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
 
   IF((.NOT.ASSOCIATED(NodeVol)).OR.(.NOT.ASSOCIATED(NodeVol%SubNode1))) THEN
     localDepth = TreeNode%NodeDepth
-    CALL DSMC_CalcSubNodeVolumes(iElem, localDepth, ElemNodeVol(iElem)%Root)
+    CALL DSMC_CalcSubNodeVolumes3D(iElem, localDepth, ElemNodeVol(iElem)%Root)
   END IF
 
   IF (ConsiderVolumePortions) THEN
@@ -1119,7 +1119,7 @@ SUBROUTINE DSMC_init_octree()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_DSMC_Vars             ,ONLY: DSMC, ElemNodeVol
+USE MOD_DSMC_Vars             ,ONLY: DSMC, ElemNodeVol, ConsiderVolumePortions
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Vars         ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
@@ -1161,8 +1161,8 @@ DO iElem = 1, nElems
   ALLOCATE(ElemNodeVol(iElem)%Root)
   DO NodeDepth = 1, 2
     IF (Symmetry%Order.EQ.3) THEN
-      CALL DSMC_CalcSubNodeVolumes(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
-      CALL CalcSubNodeMPVolumePortions(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
+      CALL DSMC_CalcSubNodeVolumes3D(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
+      IF (ConsiderVolumePortions) CALL CalcSubNodeMPVolumePortions(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
     ELSE IF(Symmetry%Order.EQ.2) THEN
       CALL DSMC_CalcSubNodeVolumes2D(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
     ELSE
@@ -1224,7 +1224,7 @@ INTEGER                                 :: LocalDepth
 END SUBROUTINE DSMC_CalcSubNodeVolumes2D
 
 
-SUBROUTINE DSMC_CalcSubNodeVolumes(iElem, NodeDepth, Node)
+SUBROUTINE DSMC_CalcSubNodeVolumes3D(iElem, NodeDepth, Node)
 !===================================================================================================================================
 ! Pairing subroutine for octree and nearest neighbour, decides whether to create a new octree node or start nearest neighbour search
 !===================================================================================================================================
@@ -1263,7 +1263,7 @@ SUBROUTINE DSMC_CalcSubNodeVolumes(iElem, NodeDepth, Node)
   CALL ChangeBasis3D(1,PP_N, NumOfPoints - 1, LocalVdm, DetLocal(:,:,:,:),DetJac(:,:,:,:))
   CALL AddNodeVolumes(NodeDepth, Node, DetJac, OctreeVdm)
 
-END SUBROUTINE DSMC_CalcSubNodeVolumes
+END SUBROUTINE DSMC_CalcSubNodeVolumes3D
 
 RECURSIVE SUBROUTINE InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdmLoc)
 !===================================================================================================================================
