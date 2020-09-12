@@ -45,7 +45,7 @@ SUBROUTINE SetParticlePositionCellLocal(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species,Symmetry2DAxisymmetric
+USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
 USE MOD_part_Emission_Tools    ,ONLY: IntegerDivide,SetCellLocalParticlePosition
 #if USE_MPI

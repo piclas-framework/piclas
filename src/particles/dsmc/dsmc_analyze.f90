@@ -814,7 +814,7 @@ USE MOD_BGK_Vars              ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_DSMC_Vars             ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting
 USE MOD_FPFlow_Vars           ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry2D
+USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry
 USE MOD_Particle_VarTimeStep  ,ONLY: CalcVarTimeStep
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars         ,ONLY: time,TEnd,iter,dt
@@ -993,7 +993,7 @@ IF (DSMC%CalcQualityFactors) THEN
     END IF
     nVarCount = nVar + 3
     IF(VarTimeStep%UseVariableTimeStep) THEN
-      IF(VarTimeStep%UseLinearScaling.AND.Symmetry2D) THEN
+      IF(VarTimeStep%UseLinearScaling.AND.(Symmetry%Order.EQ.2)) THEN
         ! 2D/Axisymmetric uses a scaling of the time step per particle, no element values are used. For the output simply the cell
         ! midpoint is used to calculate the time step
         VarTimeStep%ElemFac(iElem) = CalcVarTimeStep(ElemMidPoint_Shared(1,GetCNElemID(iElem + offsetElem)), &

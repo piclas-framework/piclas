@@ -271,7 +271,7 @@ SUBROUTINE SetParticleMPF(FractNbr,NbrOfParticle)
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY : PDM, PartMPF, Species, PartState
 USE MOD_DSMC_Vars               ,ONLY : RadialWeighting
-USE MOD_DSMC_Symmetry2D         ,ONLY : CalcRadWeightMPF
+USE MOD_DSMC_Symmetry           ,ONLY : CalcRadWeightMPF
 !===================================================================================================================================
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

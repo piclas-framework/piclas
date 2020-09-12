@@ -621,7 +621,7 @@ SUBROUTINE InitParticleGlobals()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Tracking_Vars,     ONLY: TrackingMethod,TriaTracking,DoRefMapping
-USE MOD_Particle_Vars              ,ONLY: Symmetry2D
+USE MOD_Particle_Vars              ,ONLY: Symmetry
 USE MOD_PICDepo_Method             ,ONLY: InitDepositionMethod
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -648,7 +648,7 @@ CASE(TRIATRACKING)
   DoRefMapping=.FALSE.
   TriaTracking=.TRUE.
 END SELECT
-IF (Symmetry2D) THEN
+IF (Symmetry%Order.LE.2) THEN
   DoRefMapping=.FALSE.
   TriaTracking=.TRUE.
   SWRITE(UNIT_stdOut,'(A)') "TrackingMethod set to TriaTracking due to Symmetry2D."
@@ -2033,7 +2033,7 @@ DO iSpec = 1, nSpecies
     ELSE ! SpaceIC not cell_local
       Species(iSpec)%Init(iInit)%UseForInit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit')
       Species(iSpec)%Init(iInit)%UseForEmission        = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission')
-      IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+      IF((Symmetry%Order.EQ.2).OR.VarTimeStep%UseVariableTimeStep) THEN
         CALL abort(__STAMP__&
             ,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step only possible with'//&
              'cell_local-SpaceIC and/or surface flux!')

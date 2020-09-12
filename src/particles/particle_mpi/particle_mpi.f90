@@ -1137,7 +1137,7 @@ USE MOD_Particle_Vars          ,ONLY: PartDeltaX,PartLambdaAccept
 USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
 #endif /*IMPA*/
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_RadialWeighting
+USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_RadialWeighting
 USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

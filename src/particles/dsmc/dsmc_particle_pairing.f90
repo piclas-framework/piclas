@@ -985,10 +985,10 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     CALL AddDoTreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
     DEALLOCATE(TreeNode%MappedPartStates)
   ELSE
-    CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
+    CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, Volume)
   END IF
 ELSE 
-  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
+  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, Volume)
 END IF
 
 DEALLOCATE(TreeNode%iPartIndx_Node)

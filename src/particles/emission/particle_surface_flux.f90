@@ -317,7 +317,7 @@ END SUBROUTINE BCSurfMeshSideAreasandNormals
 
 SUBROUTINE CreateSideListAndFinalizeAreasSurfFlux(nDataBC, BCdata_auxSFTemp)
 !===================================================================================================================================
-! SideList for SurfaceFlux in BCdata_auxSF is created. Furthermore, the side areas are corrected for Symmetry2D case and finally
+! SideList for SurfaceFlux in BCdata_auxSF is created. Furthermore, the side areas are corrected for the 1D/2D case and finally
 ! communicated.
 !===================================================================================================================================
 ! MODULES
@@ -331,8 +331,8 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_Mesh_Vars              ,ONLY: nBCSides, offsetElem, BC, SideToElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, ElemMidPoint_Shared, SideInfo_Shared
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
-USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, Species, DoSurfaceFlux, nSpecies, Symmetry2D, Symmetry2DAxisymmetric
-USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
+USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, Species, DoSurfaceFlux, nSpecies, Symmetry
+USE MOD_DSMC_Symmetry          ,ONLY: DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
 #if USE_MPI
@@ -538,8 +538,7 @@ END SUBROUTINE CreateSideListAndFinalizeAreasSurfFlux
 
 SUBROUTINE AllocateAdaptiveBCSampling(AdaptiveInitDone)
 !===================================================================================================================================
-! SideList for SurfaceFlux in BCdata_auxSF is created. Furthermore, the side areas are corrected for Symmetry2D case and finally
-! communicated.
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -599,8 +598,7 @@ END SUBROUTINE AllocateAdaptiveBCSampling
 
 SUBROUTINE DefineCircInflowRejectType(iSpec, iSF, iSide)
 !===================================================================================================================================
-! SideList for SurfaceFlux in BCdata_auxSF is created. Furthermore, the side areas are corrected for Symmetry2D case and finally
-! communicated.
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -741,8 +739,7 @@ END SUBROUTINE DefineCircInflowRejectType
 
 SUBROUTINE InitNonAdaptiveSurfFlux(iSpec, iSF, iSide, tmp_SubSideAreas, BCdata_auxSFTemp)
 !===================================================================================================================================
-! SideList for SurfaceFlux in BCdata_auxSF is created. Furthermore, the side areas are corrected for Symmetry2D case and finally
-! communicated.
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -835,8 +832,7 @@ END SUBROUTINE InitNonAdaptiveSurfFlux
 
 SUBROUTINE InitAdaptiveSurfFlux(iSpec, iSF, ElemID, AdaptiveInitDone)
 !===================================================================================================================================
-! SideList for SurfaceFlux in BCdata_auxSF is created. Furthermore, the side areas are corrected for Symmetry2D case and finally
-! communicated.
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -886,8 +882,7 @@ END SUBROUTINE InitAdaptiveSurfFlux
 
 SUBROUTINE InitReduceNoiseSF(iSpec, iSF)
 !===================================================================================================================================
-! SideList for SurfaceFlux in BCdata_auxSF is created. Furthermore, the side areas are corrected for Symmetry2D case and finally
-! communicated.
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1141,8 +1136,7 @@ END SUBROUTINE InitializeParticleSurfaceflux
 
 SUBROUTINE CalcPartInsSubSidesStandardCase(iSpec, iSF, PartInsSubSides)
 !===================================================================================================================================
-! SideList for SurfaceFlux in BCdata_auxSF is created. Furthermore, the side areas are corrected for Symmetry2D case and finally
-! communicated.
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1239,8 +1233,7 @@ END SUBROUTINE CalcPartInsSubSidesStandardCase
 
 SUBROUTINE CalcExtraPartsReactiveBC(iSpec, iSF)
 !===================================================================================================================================
-! SideList for SurfaceFlux in BCdata_auxSF is created. Furthermore, the side areas are corrected for Symmetry2D case and finally
-! communicated.
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1280,8 +1273,7 @@ END SUBROUTINE CalcExtraPartsReactiveBC
 
 SUBROUTINE DefineSideDirectVec2D(SideID, xyzNod, minPos, RVec)
 !===================================================================================================================================
-! SideList for SurfaceFlux in BCdata_auxSF is created. Furthermore, the side areas are corrected for Symmetry2D case and finally
-! communicated.
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1326,8 +1318,7 @@ END SUBROUTINE DefineSideDirectVec2D
 
 SUBROUTINE CreateLinkedListReactiveBC(iSpec, iSF, SideID, iSide, iSample, jSample, ParticleIndexNbr, currentSurfFluxPart)
 !===================================================================================================================================
-! SideList for SurfaceFlux in BCdata_auxSF is created. Furthermore, the side areas are corrected for Symmetry2D case and finally
-! communicated.
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1396,8 +1387,7 @@ END SUBROUTINE CreateLinkedListReactiveBC
 
 SUBROUTINE SamplingForReactiveBC(iSpec, iSF, PartsEmitted, currentSurfFluxPart)
 !===================================================================================================================================
-! SideList for SurfaceFlux in BCdata_auxSF is created. Furthermore, the side areas are corrected for Symmetry2D case and finally
-! communicated.
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1503,8 +1493,7 @@ END SUBROUTINE SamplingForReactiveBC
 #ifdef CODE_ANALYZE
 SUBROUTINE AnalyzePartPos(ParticleIndexNbr)
 !===================================================================================================================================
-! SideList for SurfaceFlux in BCdata_auxSF is created. Furthermore, the side areas are corrected for Symmetry2D case and finally
-! communicated.
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1555,8 +1544,7 @@ END SUBROUTINE AnalyzePartPos
 
 SUBROUTINE SetInnerEnergies(iSpec, iSF, NbrOfParticle)
 !===================================================================================================================================
-! SideList for SurfaceFlux in BCdata_auxSF is created. Furthermore, the side areas are corrected for Symmetry2D case and finally
-! communicated.
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

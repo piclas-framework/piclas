@@ -201,9 +201,18 @@ SUBROUTINE DSMC_1D_InitVolumes()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars               ,ONLY: nElems, BC, ElemToSide
+USE MOD_Mesh_Vars               ,ONLY: nElems, offsetElem
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
+#if USE_MPI
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
+USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -212,10 +221,19 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iSide, iElem, SideID, iDim
-REAL                            :: X(2)
+INTEGER                         :: iLocSide, iElem, SideID, iDim, CNElemID
+REAL                            :: X(2), MaxCoord, MinCoord
 LOGICAL                         :: SideInPlane, X1Occupied
+INTEGER                         :: firstElem,lastElem
 !===================================================================================================================================
+
+#if USE_MPI
+firstElem = offsetElem - offsetComputeNodeElem + 1
+lastElem  = offsetElem - offsetComputeNodeElem + nElems
+#else
+firstElem = 1
+lastElem  = nElems
+#endif  /*USE_MPI*/
 
 ALLOCATE(GEO%XMinMax(2,nElems))
 
@@ -240,63 +258,56 @@ DO iElem = 1,nElems
   ! And determine xmin and xmax of the element
   X = 0
   X1Occupied = .FALSE.
-  DO iSide = 1,6
+  DO iLocSide = 1,6
     SideInPlane=.FALSE.
+    SideID = GetGlobalNonUniqueSideID(offsetElem+iElem,iLocSide)
+    CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
     DO iDim=1,3
-      IF(ALMOSTALMOSTEQUAL(MAXVAL(GEO%NodeCoords(iDim,GEO%ElemSideNodeID(:,iSide,iElem))),MINVAL(GEO%NodeCoords(iDim,GEO%ElemSideNodeID(:,iSide,iElem)))) &
-      .OR.(ALMOSTZERO(MAXVAL(GEO%NodeCoords(iDim,GEO%ElemSideNodeID(:,iSide,iElem)))).AND.ALMOSTZERO(MINVAL(GEO%NodeCoords(iDim,GEO%ElemSideNodeID(:,iSide,iElem)))))) THEN
+      MaxCoord = MAXVAL(NodeCoords_Shared(iDim,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1))
+      MinCoord = MINVAL(NodeCoords_Shared(iDim,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1))
+      IF(ALMOSTALMOSTEQUAL(MaxCoord,MinCoord).OR.(ALMOSTZERO(MaxCoord).AND.ALMOSTZERO(MinCoord))) THEN
         IF(SideInPlane) CALL abort(__STAMP__&
           ,'ERROR: Please orient your mesh with all element sides parallel to xy-,xz-,or yz-plane')
         SideInPlane=.TRUE.
-        SideID = ElemToSide(E2S_SIDE_ID,iSide,iElem)
         IF(iDim.GE.2)THEN
-          IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))).NE.PartBound%SymmetryBC) CALL abort(&
-            __STAMP__&
-            ,'ERROR: Sides parallel to xy-,and xz-plane has to be the symmetric boundary condition')
+          IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).NE.PartBound%SymmetryBC) &
+            CALL abort(__STAMP__,&
+              'ERROR: Sides parallel to xy-,and xz-plane has to be the symmetric boundary condition')
         END IF
         IF(iDim.EQ.1) THEN
           IF(X1Occupied) THEN
-            X(2) = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iSide,iElem))
+            X(2) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
           ELSE
-            X(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iSide,iElem))
+            X(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
             X1Occupied = .TRUE.
           END IF
         END IF !iDim.EQ.1
-      END IF !
+      END IF
     END DO !iDim=1,3
     IF(.NOT.SideInPlane) THEN
-      IPWRITE(*,*) 'ElemID:',iElem,'SideID:',iSide
+      IPWRITE(*,*) 'ElemID:',iElem,'SideID:',iLocSide
       DO iDim=1,4
-        IPWRITE(*,*) 'Node',iDim,'x:',GEO%NodeCoords(1,GEO%ElemSideNodeID(iDim,iSide,iElem)), &
-            'y:',GEO%NodeCoords(2,GEO%ElemSideNodeID(iDim,iSide,iElem)),'z:',GEO%NodeCoords(3,GEO%ElemSideNodeID(iDim,iSide,iElem))
+        IPWRITE(*,*) 'Node',iDim,'x:',NodeCoords_Shared(1,ElemSideNodeID_Shared(iDim,iLocSide,CNElemID)+1), &
+                                 'y:',NodeCoords_Shared(2,ElemSideNodeID_Shared(iDim,iLocSide,CNElemID)+1), &
+                                 'z:',NodeCoords_Shared(3,ElemSideNodeID_Shared(iDim,iLocSide,CNElemID)+1)
       END DO
       CALL abort(__STAMP__&
     ,'ERROR: Please orient your mesh with all element sides parallel to xy-,xz-,or yz-plane')
     END IF
-  END DO !iSide = 1,6
+  END DO ! iLocSide = 1,6
   GEO%XMinMax(1,iElem) = MINVAL(X)
   GEO%XMinMax(2,iElem) = MAXVAL(X)
-  ! IF((Symmetry%SphericalSymmetric.OR.Symmetry%Axisymmetric).AND.(MINVAL(X).LT.0.)) CALL abort(__STAMP__&
-  ! ,'ERROR: mesh has to start at x=0 and goes along positive x-direction in the axissymmetric and spherical symmetric case, respectively')
-  ! Volume calculation with dimension in y and z direction of 1, respectively
-  GEO%Volume(iElem) = ABS(X(1)-X(2))
-  GEO%CharLength(iElem) = GEO%Volume(iElem)
-  ! IF(Symmetry%Axisymmetric) THEN
-  !   ! Calulate the Volume of the ring
-  !   Radius = ABS(X(1)+X(2))*0.5
-  !   GEO%Volume(iElem) = GEO%Volume(iElem) * 2. * Pi * Radius
-  ! ELSE IF(Symmetry%SphericalSymmetric) THEN
-  !   ! Calculate the volume of the hollow sphere
-  !   GEO%Volume(iElem) = 4./3. * PI * ( MAXVAL(X)**3 - MINVAL(X)**3 )
-  ! END IF
+  ElemVolume_Shared(CNElemID) = ABS(X(1)-X(2))
+  ElemCharLength_Shared(CNElemID) = ElemVolume_Shared(CNElemID)
 END DO
 ! LocalVolume & MeshVolume: Recalculate the volume of the mesh of a single process and the total mesh volume
-GEO%LocalVolume = SUM(GEO%Volume)
+LocalVolume = SUM(ElemVolume_Shared(firstElem:lastElem))
 #if USE_MPI
-CALL MPI_ALLREDUCE(GEO%LocalVolume,GEO%MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
-#else
-GEO%MeshVolume=GEO%LocalVolume
+CALL MPI_WIN_SYNC(ElemVolume_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif /*USE_MPI*/
+MeshVolume = SUM(ElemVolume_Shared)
 
 END SUBROUTINE DSMC_1D_InitVolumes
 
@@ -661,8 +672,6 @@ INTEGER,INTENT(IN)            :: iElem,iLocSide
 ! LOCAL VARIABLES
 REAL                          :: Pmin, Pmax, Length
 !===================================================================================================================================
-
-NodeCoords_Shared(1,ElemSideNodeID_Shared(:,iLocSide,iElem)+1)
 
 Pmax = MAXVAL(NodeCoords_Shared(1,ElemSideNodeID_Shared(:,iLocSide,iElem)+1))
 Pmin = MINVAL(NodeCoords_Shared(1,ElemSideNodeID_Shared(:,iLocSide,iElem)+1))

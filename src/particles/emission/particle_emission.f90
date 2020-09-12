@@ -144,7 +144,7 @@ USE MOD_Part_Emission_Tools ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetPa
 USE MOD_Part_Pos_and_Velo   ,ONLY: SetParticlePosition,SetParticleVelocity
 USE MOD_Part_Tools          ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Mesh_Vars  ,ONLY: LocalVolume
-USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, Symmetry2D, VarTimeStep
+USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, Symmetry, VarTimeStep
 USE MOD_ReadInTools
 USE MOD_Restart_Vars        ,ONLY: DoRestart
 ! IMPLICIT VARIABLE HANDLING

@@ -38,7 +38,7 @@ SUBROUTINE MacroRestart_InsertParticles()
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: Pi
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
+USE MOD_DSMC_Symmetry           ,ONLY: CalcRadWeightMPF
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
@@ -60,7 +60,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                             :: iElem,iSpec,iPart,nPart,locnPart,iHeight,yPartitions,GlobalElemID
+INTEGER                             :: iElem,iSpec,iPart,nPart,locnPart,iHeight,yPartitions,CNElemID,GlobalElemID
 REAL                                :: iRan, RandomPos(3), PartDens, TempMPF, MaxPosTemp, MinPosTemp
 REAL                                :: TempVol, Volume, Det(6,2), RefPos(1:3)
 LOGICAL                             :: InsideFlag
@@ -194,7 +194,7 @@ DO iElem = 1, nElems
           RandomPos(3) = 0.0
           IF (DoRefMapping) THEN
             CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-            IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+            IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(iElem)) InsideFlag=.TRUE.
           ELSE
             IF (TriaTracking) THEN
               CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
@@ -240,7 +240,7 @@ DO iElem = 1, nElems
           END IF
         END DO ! nPart
       END DO ! nSpecies
-    END IF ! Symmetry2D/Axisymmetric/3D
+    END IF ! 1D/2D/Axisymmetric/3D
   END ASSOCIATE
 END DO ! nElems
 
