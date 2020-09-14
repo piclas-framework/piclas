@@ -646,8 +646,8 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState,GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod, TrackInfo
-USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,nSpecies,WriteMacroSurfaceValues,Symmetry2D
-USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric, VarTimeStep, usevMPF
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,nSpecies,WriteMacroSurfaceValues,Symmetry
+USE MOD_Particle_Vars           ,ONLY: VarTimeStep, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: dt,tend,time,RKdtFrac
 USE MOD_DSMC_ElectronicModel    ,ONLY: RelaxElectronicShellWall
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
@@ -728,7 +728,7 @@ ELSE
 END IF !IsAuxBC
 CALL OrthoNormVec(n_loc,tang1,tang2)
 
-IF(Symmetry2DAxisymmetric) THEN
+IF(Symmetry%Axisymmetric) THEN
   ! Storing the old and the new particle position (which is outside the domain), at this point the position is only in the xy-plane
   VelX = PartState(1,PartID) - LastPartPos(1,PartID)
   VelY = PartState(2,PartID) - LastPartPos(2,PartID)
@@ -826,7 +826,7 @@ END IF !.NOT.IsAuxBC
 
 !NewVelo = VeloCx*tang1+CROSS(-n_loc,tang1)*VeloCy-VeloCz*n_loc
 !---- Transformation local distribution -> global coordinates
-IF(Symmetry2DAxisymmetric) THEN
+IF(Symmetry%Axisymmetric) THEN
   VecX = Vector1(1) / SQRT( Vector1(1)**2 + Vector1(2)**2)
   VecY = Vector1(2) / SQRT( Vector1(1)**2 + Vector1(2)**2)
   VecZ = 0.
@@ -991,7 +991,7 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
   END IF ! IsAuxBC
   PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3) * adaptTimeStep
 
-  IF(Symmetry2DAxisymmetric) THEN
+  IF(Symmetry%Axisymmetric) THEN
     ! Symmetry considerations --------------------------------------------------------
     rotPosY = SQRT(PartState(2,PartID)**2 + (PartState(3,PartID))**2)
     ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
@@ -1005,13 +1005,13 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
     PartState(3,PartID) = 0.0
     NewVelo(2) = rotVelY
     NewVelo(3) = rotVelZ
-  END IF ! Symmetry2DAxisymmetric
+  END IF ! Symmetry%Axisymmetric
 
-  IF(Symmetry2D) THEN
-    ! z-Variable is set to zero (should be for the axisymmetric case anyway after rotation)
-    lastPartPos(3,PartID) = 0.0
-    PartState(3,PartID)   = 0.0
-  END IF ! Symmetry2D
+  IF(Symmetry%Order.LT.3) THEN
+    ! y/z-variable is set to zero for the different symmetry cases
+    LastPartPos(Symmetry%Order+1:3,PartID) = 0.0
+    PartState(Symmetry%Order+1:3,PartID) = 0.0
+  END IF
 
   IF (DoSample) THEN
     !----  Sampling force at walls
@@ -1042,7 +1042,7 @@ END IF !.NOT.IsAuxBC
 PartState(4:6,PartID)   = NewVelo(1:3) + WallVelo(1:3)
 
 ! recompute trajectory etc
-IF(Symmetry2DAxisymmetric) THEN
+IF(Symmetry%Axisymmetric) THEN
   PartTrajectory(1:2)=PartState(1:2,PartID) - LastPartPos(1:2,PartID)
   PartTrajectory(3) = 0.
   lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &

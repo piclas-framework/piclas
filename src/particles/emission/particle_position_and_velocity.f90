@@ -45,7 +45,7 @@ SUBROUTINE SetParticlePositionCellLocal(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species,Symmetry2DAxisymmetric
+USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
 USE MOD_part_Emission_Tools    ,ONLY: IntegerDivide,SetCellLocalParticlePosition
 #if USE_MPI
@@ -78,7 +78,7 @@ INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:)
   IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleEmission.EQ.0)) RETURN
   IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) THEN
     DoExactPartNumInsert =  .TRUE.
-    IF(Symmetry2DAxisymmetric) CALL abort(&
+    IF(Symmetry%Axisymmetric) CALL abort(&
 __STAMP__&
 ,'Axisymmetric: Particle insertion only possible with PartDensity!')
   END IF

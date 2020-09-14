@@ -25,8 +25,13 @@ SAVE
 REAL                  :: ManualTimeStep                                      ! Manual TimeStep
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
                                                                              ! with IAG programming style
-LOGICAL               :: Symmetry2D                                          ! Enables 2D simulation: symmetry in xy-Plane
-LOGICAL               :: Symmetry2DAxisymmetric                              ! Enables axisymmetric simulation around z-axis
+TYPE tSymmetry
+  INTEGER             :: Order                                               ! 1-3 D
+  LOGICAL             :: Axisymmetric
+END TYPE tSymmetry
+
+TYPE(tSymmetry)       :: Symmetry
+
 LOGICAL               :: DoFieldIonization                                   ! Do Field Ionization by quantum tunneling
 INTEGER               :: FieldIonizationModel                                !'Field Ionization models. Implemented models are:
 !                                                                            ! * Ammosov-Delone-Krainov (ADK) model
@@ -292,8 +297,8 @@ REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! M
                                                                              ! 12:  Static pressure [Pa]
                                                                              ! 13:  Integral pressure difference [Pa]
 INTEGER                                  :: nSpecies                         ! number of species
-INTEGER                                  :: nPointsMCVolumeEstimate          ! numer of points seeded into one element for volume
-                                                                             ! portion (that is occupied) estimtaion 
+INTEGER                                  :: nPointsMCVolumeEstimate          ! number of points seeded into one element for volume
+                                                                             ! portion (that is occupied) estimation
                                                                              ! with a Monte Carlo method
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
@@ -444,6 +449,8 @@ TYPE tVariableTimeStep
   REAL                                 :: TargetMaxRelaxFactor
 END TYPE
 TYPE(tVariableTimeStep)                :: VarTimeStep
+
+REAL                                   :: TriaEps !Machine precision for 1D, 0 for other
 
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

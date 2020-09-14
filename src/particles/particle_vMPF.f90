@@ -101,7 +101,7 @@ USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC, DSMC
 #ifdef CODE_ANALYZE
 USE MOD_Globals               ,ONLY: unit_stdout,myrank,abort
-USE MOD_Particle_Vars         ,ONLY: Symmetry2D
+USE MOD_Particle_Vars         ,ONLY: Symmetry
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -255,11 +255,13 @@ END DO
         ,'CODE_ANALYZE: part merge is not energy conserving!')
   END IF
   ! Check for momentum difference
-  IF(Symmetry2D) THEN
+  IF(Symmetry%Order.EQ.3) THEN
     ! Do not check the momentum in z as it can be very small (close to machine precision), leading to greater relative errors
+    iMomDim = 3
+  ELSE IF(Symmetry%Order.EQ.2) THEN
     iMomDim = 2
   ELSE
-    iMomDim = 3
+    iMomDim = 1
   END IF
   DO iMom=1,iMomDim
     IF (.NOT.ALMOSTEQUALRELATIVE(Momentum_old(iMom),Momentum_new(iMom),1.0e-10)) THEN

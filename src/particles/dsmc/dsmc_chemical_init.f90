@@ -974,7 +974,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: iQuaMax1, iQuaMax2, iQuaMax3, iQua1, iQua2, iQua3, iReac, iSpec, iSpec1, iSpec2
-REAL                    :: omegaVHS, Xi_rot1, Xi_rot2, Xi_vib1, Xi_vib2, Xi_vib3, Xi_rel_rot, Xi_total
+REAL                    :: omega, Xi_rot1, Xi_rot2, Xi_vib1, Xi_vib2, Xi_vib3, Xi_rel_rot, Xi_total
 !===================================================================================================================================
 
 DO iReac = 1, ChemReac%NumOfReact
@@ -984,11 +984,11 @@ DO iReac = 1, ChemReac%NumOfReact
   IF(ChemReac%QKProcedure(iReac)) CYCLE
   iSpec1 = ChemReac%DefinedReact(iReac,1,1)
   iSpec2 = ChemReac%DefinedReact(iReac,1,2)
-  omegaVHS = (SpecDSMC(iSpec1)%omegaVHS + SpecDSMC(iSpec2)%omegaVHS)/2.
+  omega = CollInf%omega(iSpec1,iSpec2)
   ! Compute VHS Factor H_ab necessary for reaction probs, only defined for one omega for all species (laux diss page 24)
-  ChemReac%Hab(iReac) = GAMMA(2.0 - omegaVHS) * 2.0 * CollInf%Cab(CollInf%Coll_Case(iSpec1,iSpec2)) &
+  ChemReac%Hab(iReac) = GAMMA(2.0 - omega) * 2.0 * CollInf%Cab(CollInf%Coll_Case(iSpec1,iSpec2)) &
                         / ((1 + CollInf%KronDelta(CollInf%Coll_Case(iSpec1,iSpec2))) * SQRT(Pi)) &
-                        * (2.0 * BoltzmannConst / CollInf%MassRed(CollInf%Coll_Case(iSpec1, iSpec2))) ** (0.5 - omegaVHS)
+                        * (2.0 * BoltzmannConst / CollInf%MassRed(CollInf%Coll_Case(iSpec1, iSpec2))) ** (0.5 - omega)
   ! Skip reactions with polyatomic educts, currently beta is calculated on the fly
   IF((SpecDSMC(iSpec1)%PolyatomicMol).OR.(SpecDSMC(iSpec2)%PolyatomicMol)) CYCLE
 ! ----------------------------------------------------------------------------------------------------------------------------------
@@ -1014,8 +1014,8 @@ DO iReac = 1, ChemReac%NumOfReact
         END IF
         Xi_total = 3. + SpecDSMC(iSpec)%Xi_Rot + Xi_vib3
         ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(iSpec,iQua3) = ChemReac%Arrhenius_Prefactor(iReac) &
-                                  * BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) - omegaVHS) &
-                                  * GAMMA(Xi_total/2. - omegaVHS + 2.) / (ChemReac%Hab(iReac) * GAMMA(Xi_total/2. &
+                                  * BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) - omega) &
+                                  * GAMMA(Xi_total/2. - omega + 2.) / (ChemReac%Hab(iReac) * GAMMA(Xi_total/2. &
                                   + 1.5 + ChemReac%Arrhenius_Powerfactor(iReac) ))
       END DO
     END DO
@@ -1038,7 +1038,7 @@ DO iReac = 1, ChemReac%NumOfReact
       iQuaMax2 = 1
       Xi_Rot2 = 0.
     END IF
-    Xi_rel_rot = 2.*(2. - (SpecDSMC(iSpec1)%omegaVHS+SpecDSMC(iSpec2)%omegaVHS)/2.) + Xi_Rot1 + Xi_Rot2
+    Xi_rel_rot = 2.*(2. - omega) + Xi_Rot1 + Xi_Rot2
     ALLOCATE(ChemReac%ReactInfo(iReac)%Beta_Arrhenius(0:iQuaMax1-1,0:iQuaMax2-1))
     DO iQua1 = 0 , iQuaMax1 - 1
       IF (iQua1.NE.0) THEN
@@ -1069,9 +1069,7 @@ PURE REAL FUNCTION Calc_Beta_Arrhenius_Diatomic(iReac,Xi_total)
 ! MODULES
 USE MOD_Globals           ,ONLY: Abort
 USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars         ,ONLY: ChemReac, SpecDSMC, CollInf
-USE MOD_PARTICLE_Vars     ,ONLY: nSpecies
-USE MOD_Globals_Vars      ,ONLY: Pi
+USE MOD_DSMC_Vars         ,ONLY: ChemReac, CollInf
 USE MOD_DSMC_Analyze      ,ONLY: CalcTVib
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1084,18 +1082,18 @@ REAL, INTENT(IN)          :: Xi_total
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                   :: iSpec1, iSpec2
-REAL                      :: omegaVHS, A_Arrhenius, b_Arrhenius
+REAL                      :: omega, A_Arrhenius, b_Arrhenius
 !===================================================================================================================================
 
 iSpec1 = ChemReac%DefinedReact(iReac,1,1)
 iSpec2 = ChemReac%DefinedReact(iReac,1,2)
 
-omegaVHS = (SpecDSMC(iSpec1)%omegaVHS + SpecDSMC(iSpec2)%omegaVHS)/2.
+omega = CollInf%omega(iSpec1,iSpec2)
 A_Arrhenius = ChemReac%Arrhenius_Prefactor(iReac)
 b_Arrhenius = ChemReac%Arrhenius_Powerfactor(iReac)
 
-Calc_Beta_Arrhenius_Diatomic = A_Arrhenius * (BoltzmannConst**(0.5 - b_Arrhenius - omegaVHS)) * GAMMA(Xi_total/2.) &
-                                / (ChemReac%Hab(iReac) * GAMMA(b_Arrhenius - 0.5 + omegaVHS + Xi_total/2.))
+Calc_Beta_Arrhenius_Diatomic = A_Arrhenius * (BoltzmannConst**(0.5 - b_Arrhenius - omega)) * GAMMA(Xi_total/2.) &
+                                / (ChemReac%Hab(iReac) * GAMMA(b_Arrhenius - 0.5 + omega + Xi_total/2.))
 
 END FUNCTION Calc_Beta_Arrhenius_Diatomic
 

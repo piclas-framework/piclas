@@ -205,7 +205,7 @@ INTEGER,INTENT(IN)  :: NVar_IN                               !< 6 (Ex, Ey, Ez, B
 INTEGER,INTENT(IN)  :: NVar_OUT                              !< 6 (Ex, Ey, Ez, Bx, By, Bz)
 INTEGER,INTENT(IN)  :: N_In                                  !< usually PP_N
 INTEGER,INTENT(IN)  :: ElemID                                !< Element index
-REAL,INTENT(IN)     :: U_In(1:NVar_IN,0:N_In,0:N_In,0:N_In)  !< State in Element
+REAL,INTENT(IN)     :: U_IN(1:NVar_IN,0:N_In,0:N_In,0:N_In)  !< State in Element
 REAL,INTENT(IN)     :: x_in(3)                               !< position in physical space
 INTEGER,INTENT(IN),OPTIONAL :: PartID                        !< particle ID
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -264,7 +264,7 @@ CALL LagrangeInterpolationPolys(xi(2),N_in,xGP,wBary,L_xi(2,:))
 CALL LagrangeInterpolationPolys(xi(3),N_in,xGP,wBary,L_xi(3,:))
 
 ! "more efficient" - Quote Thomas B.
-U_OUT(:)=0
+U_OUT(:)=0.
 DO k=0,N_in
   DO j=0,N_in
     L_eta_zeta=L_xi(2,j)*L_xi(3,k)
@@ -339,8 +339,8 @@ REAL,INTENT(OUT)    :: U_OUT(1:NVar_OUT)                     !< Interpolated sta
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: i,j,k
-!REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
-!REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
+!REAL                :: X3D_Buf1(1:NVar_IN,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
+!REAL                :: X3D_Buf2(1:NVar_IN,0:N_In) ! second intermediate results from 1D interpolations
 REAL                :: L_xi(3,0:N_in), L_eta_zeta
 !REAL                :: buff,buff2
 ! h5-external e,b field
