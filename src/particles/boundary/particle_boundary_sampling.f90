@@ -610,7 +610,7 @@ DO iSide = firstSide,LastSide
     yNod = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
     zNod = NodeCoords_Shared(3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
     IF(Symmetry2D) THEN
-      SurfSideArea(1,1,iSide) = DSMC_2D_CalcSymmetryArea(LocSideID,ElemID)
+      SurfSideArea(1,1,iSide) = DSMC_2D_CalcSymmetryArea(LocSideID,CNElemID)
     ELSE
       DO TriNum = 1,2
         Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
