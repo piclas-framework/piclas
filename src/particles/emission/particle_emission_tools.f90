@@ -1223,7 +1223,7 @@ SUBROUTINE SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_p
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species
+USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac, dt
 USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
 USE MOD_MacroBody_tools        ,ONLY: INSIDEMACROBODY
@@ -1268,6 +1268,7 @@ LOGICAL                 :: insideExcludeRegion
       ELSE
         Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal(3)
       END IF
+      IF(Symmetry%Order.EQ.1) Particle_pos(2:3) = 0.
     CASE ('cylinder')
       radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1.
       DO WHILE((radius.GT.Species(FractNbr)%Init(iInit)%RadiusIC) .OR.(radius.LT.Species(FractNbr)%Init(iInit)%Radius2IC))
