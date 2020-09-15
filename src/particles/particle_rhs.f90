@@ -97,7 +97,7 @@ CALL prms%CreateIntFromStringOption('Part-LorentzType', "Lorentz force calculati
                                                         "relativistic-new ("//TRIM(int2strf(PRM_PART_RHS_RN))//"), "//&
                                                         "relativistic-EM ("//TRIM(int2strf(PRM_PART_RHS_REM))//"), "//&
                                                         "relativistic-momentum ("//TRIM(int2strf(PRM_PART_RHS_RM))//"), "//&
-                                                        "constant-EM ("//TRIM(int2strf(PRM_PART_RHS_CEM))//")", "relativistic-new")
+                                                        "constant-EM ("//TRIM(int2strf(PRM_PART_RHS_CEM))//")", "non-relativistic")
 CALL addStrListEntry('Part-LorentzType' , 'non-relativistic'      , PRM_PART_RHS_NR)
 CALL addStrListEntry('Part-LorentzType' , 'default'               , PRM_PART_RHS_D)
 CALL addStrListEntry('Part-LorentzType' , 'wrong'                 , PRM_PART_RHS_W)
