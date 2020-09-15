@@ -228,7 +228,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
                              + 0.5 * Species(PartSpecies(iPart_p3))%MassIC * &
                               DOTPRODUCT(PartState(4:6,iPart_p3)) &
                              + PartStateIntEn(1,iPart_p3) + PartStateIntEn(2,iPart_p3)
-        CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
+        CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
       END IF
       IF ( DSMC%ReservoirRateStatistic ) THEN
@@ -279,7 +279,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
                               + 0.5 * Species(PartSpecies(iPart_p3))%MassIC * &
                               DOTPRODUCT(PartState(4:6,iPart_p3)) &
                               + PartStateIntEn(1,iPart_p3) + PartStateIntEn(2,iPart_p3)
-        CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
+        CALL DSMC_Chemistry(iPair, iReac)
         RelaxToDo = .FALSE.
 #if (PP_TimeDiscMethod==42)
       END IF
@@ -752,7 +752,7 @@ IF (ReactionProb.GT.iRan) THEN
 !      CALL IonRecomb_vMPF(iReac, iPair, iPart_p3, iElem)
 !    ELSE
      !CALL IonRecomb(iReac, iPair, iPart_p3, iElem)
-     CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
+     CALL DSMC_Chemistry(iPair, iReac)
 !    END IF
 #if (PP_TimeDiscMethod==42)
   END IF

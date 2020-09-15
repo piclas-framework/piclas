@@ -1192,116 +1192,23 @@ INTEGER                       :: iPart1, iPart2                         ! Collid
   END IF
   SELECT CASE(CaseOfReaction)
 ! ############################################################################################################################### !
-    CASE(1) ! Only recombination is possible
-! ############################################################################################################################### !
-      IF(ChemReac%RecombParticle.EQ.0) THEN
-        IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
-          ChemReac%LastPairForRec = nPair - ChemReac%nPairForRec
-          iPart3 = Coll_pData(ChemReac%LastPairForRec)%iPart_p1
-        ELSE
-          iPart3 = 0
-        END IF
-      ELSE
-        iPart3 = ChemReac%RecombParticle
-      END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-      IF (iPart3.GT.0) THEN
-        iReac = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart3))
-        IF(iReac.EQ.0) THEN
-          iReac = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart3))
-        END IF
-        ! Calculation of reaction probability
-        CALL CalcReactionProb(iPair,iReac,ReactionProb,iPart3,NumDens)
-        CALL RANDOM_NUMBER(iRan)
-        IF (ReactionProb.GT.iRan) THEN
-          CALL DSMC_Chemistry(iPair, iReac, iPart3)
-          RelaxToDo = .FALSE.
-        END IF ! ReactionProb > iRan
-      END IF
-! ############################################################################################################################### !
-    CASE(2) ! Only one dissociation is possible
+    CASE(1,2,3) ! One reaction
 ! ############################################################################################################################### !
       iReac = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      IF (ChemReac%QKProcedure(iReac)) THEN
-        CALL QK_dissociation(iPair,iReac,RelaxToDo)
-      ELSE
-        ! Arrhenius-based reaction probability
-        CALL CalcReactionProb(iPair,iReac,ReactionProb)
-        CALL RANDOM_NUMBER(iRan)
-        IF (ReactionProb.GT.iRan) THEN
-          CALL DSMC_Chemistry(iPair, iReac)
-          RelaxToDo = .FALSE.
-        END IF
-      END IF
+      ! Calculation of reaction probability
+      CALL CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
+      CALL RANDOM_NUMBER(iRan)
+      IF (ReactionProb.GT.iRan) THEN
+        CALL DSMC_Chemistry(iPair, iReac)
+        RelaxToDo = .FALSE.
+      END IF ! ReactionProb > iRan
 ! ############################################################################################################################### !
-    CASE(3) ! Only one exchange reaction is possible
-! ############################################################################################################################### !
-      iReac = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      IF (ChemReac%QKProcedure(iReac)) THEN
-        CALL QK_exchange(iPair,iReac,RelaxToDo)
-      ELSE
-        ! Arrhenius-based reaction probability
-        CALL CalcReactionProb(iPair,iReac,ReactionProb)
-        CALL RANDOM_NUMBER(iRan)
-        IF (ReactionProb.GT.iRan) THEN
-          CALL DSMC_Chemistry(iPair, iReac)
-          RelaxToDo = .FALSE.
-        END IF
-      END IF
-! ############################################################################################################################### !
-    CASE(4) ! One dissociation and one exchange reaction are possible
+    CASE(4,5,14,15) ! Two reactions
 ! ############################################################################################################################### !
       iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
       iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
-      IF (ChemReac%QKProcedure(iReac)) THEN
-        ! first check, if the the molecule dissociate, afterwards, check if an exchange reaction is possible
-        CALL QK_dissociation(iPair,iReac,RelaxToDo)
-        IF (RelaxToDo) THEN
-        ! exchange reactions
-          iReac = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
-          IF (ChemReac%QKProcedure(iReac)) THEN
-            CALL QK_exchange(iPair,iReac,RelaxToDo)
-          ELSE
-            ! Arrhenius based Exchange Reaction
-            Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%cRela2                  &
-                                 + PartStateIntEn(1,iPart1) + PartStateIntEn(1,iPart2) &
-                                 + PartStateIntEn(2,iPart1) + PartStateIntEn(2,iPart2)
-            CALL CalcReactionProb(iPair,iReac,ReactionProb)
-            CALL RANDOM_NUMBER(iRan)
-            IF (ReactionProb.GT.iRan) THEN
-              CALL DSMC_Chemistry(iPair, iReac)
-              RelaxToDo = .FALSE.
-            END IF
-          END IF
-        END IF
-      ELSE
-!-----------------------------------------------------------------------------------------------------------------------------------
-        ! Arrhenius-based reaction probability
-        ! calculation of dissociation probability
-        CALL CalcReactionProb(iPair,iReac,ReactionProb)
-        ! calculation of exchange reaction probability
-        CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
-        CALL RANDOM_NUMBER(iRan)
-        IF ((ReactionProb + ReactionProb2).GT.iRan) THEN
-          CALL RANDOM_NUMBER(iRan)
-          IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
-            CALL DSMC_Chemistry(iPair, iReac)
-          ELSE
-            CALL DSMC_Chemistry(iPair, iReac2)
-          END IF
-          RelaxToDo = .FALSE.
-        END IF
-      END IF
-! ############################################################################################################################### !
-    CASE(5) ! Two dissociation reactions are possible
-! ############################################################################################################################### !
-      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
-!-----------------------------------------------------------------------------------------------------------------------------------
-      ! Arrhenius-based reaction probability
-      CALL CalcReactionProb(iPair,iReac,ReactionProb)
-      ! calculation of dissociation probability
-      CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
+      CALL CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
+      CALL CalcReactionProb(iPair,iReac2,ReactionProb2,nPair,NumDens)
       CALL RANDOM_NUMBER(iRan)
       IF ((ReactionProb + ReactionProb2).GT.iRan) THEN
         CALL RANDOM_NUMBER(iRan)
@@ -1315,421 +1222,65 @@ INTEGER                       :: iPart1, iPart2                         ! Collid
 ! ############################################################################################################################### !
     CASE(6) ! ionization or ion recombination
 ! ############################################################################################################################### !
-      ! searching third collison partner
-      IF(ChemReac%RecombParticle.EQ. 0) THEN
-        IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
-          ChemReac%LastPairForRec = nPair - ChemReac%nPairForRec
-          iPart3 = Coll_pData(ChemReac%LastPairForRec)%iPart_p1
-        ELSE
-          iPart3 = 0
-        END IF
-      ELSE
-        iPart3 = ChemReac%RecombParticle
-      END IF
-!--------------------------------------------------------------------------------------------------!
       iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-!--------------------------------------------------------------------------------------------------!
-      ! calculation of recombination probability
-      IF (iPart3 .GT. 0) THEN
-        iReac2 = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart3))
-        CALL CalcReactionProb(iPair,iReac2,ReactionProb2,iPart3,NumDens)
-      ELSE
-        ReactionProb2 = 0.0
-      END IF
+      iReac2 = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), 1)
+      CALL CalcReactionProb(iPair,iReac2,ReactionProb2,nPair,NumDens)
       CALL RANDOM_NUMBER(iRan)
       IF(ReactionProb2.GT.iRan) THEN
-        CALL DSMC_Chemistry(iPair, iReac2, iPart3)
+        CALL DSMC_Chemistry(iPair, iReac2)
       ELSE
         CALL QK_ImpactIonization(iPair,iReac,RelaxToDo)
       END IF
 ! ############################################################################################################################### !
-    CASE(7) ! three diss reactions possible (at least one molecule is polyatomic)
+    CASE(7,10,12,17) ! Three reactions (at least one molecule is polyatomic)
 ! ############################################################################################################################### !
       iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
       iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
       iReac3 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 3)
-      IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) .OR. ChemReac%QKProcedure(iReac3) ) THEN ! all Q-K
-          CALL Abort(&
-__STAMP__&
-,'ERROR! Reaction case not supported with Q-K reactions!')
 !--------------------------------------------------------------------------------------------------!
-      ELSE ! all reactions Arrhenius
-!--------------------------------------------------------------------------------------------------!
-        ! calculation of first dissociation probability
-        CALL CalcReactionProb(iPair,iReac,ReactionProb)
-        ! calculation of second dissociation probability
-        CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
-        ! calculation of third dissociation probability
-        CALL CalcReactionProb(iPair,iReac3,ReactionProb3)
+      CALL CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
+      CALL CalcReactionProb(iPair,iReac2,ReactionProb2,nPair,NumDens)
+      CALL CalcReactionProb(iPair,iReac3,ReactionProb3,nPair,NumDens)
+      CALL RANDOM_NUMBER(iRan)
+      IF ((ReactionProb + ReactionProb2 + ReactionProb3).GT.iRan) THEN
         CALL RANDOM_NUMBER(iRan)
-        IF ((ReactionProb + ReactionProb2 + ReactionProb3).GT.iRan) THEN
-          CALL RANDOM_NUMBER(iRan)
-          CALL RANDOM_NUMBER(iRan2)
-          IF((ReactionProb/(ReactionProb + ReactionProb2 + ReactionProb3)).GT.iRan) THEN
-            CALL DSMC_Chemistry(iPair, iReac)
-          ELSEIF(ReactionProb2/(ReactionProb2 + ReactionProb3).GT.iRan2) THEN
-            CALL DSMC_Chemistry(iPair, iReac2)
-          ELSE
-            CALL DSMC_Chemistry(iPair, iReac3)
-          END IF
-          RelaxToDo = .FALSE.
+        CALL RANDOM_NUMBER(iRan2)
+        IF((ReactionProb/(ReactionProb + ReactionProb2 + ReactionProb3)).GT.iRan) THEN
+          CALL DSMC_Chemistry(iPair, iReac)
+        ELSEIF(ReactionProb2/(ReactionProb2 + ReactionProb3).GT.iRan2) THEN
+          CALL DSMC_Chemistry(iPair, iReac2)
+        ELSE
+          CALL DSMC_Chemistry(iPair, iReac3)
         END IF
+        RelaxToDo = .FALSE.
       END IF
 ! ############################################################################################################################### !
-    CASE(8) ! four diss reactions possible (at least one polyatomic molecule)
+    CASE(8,9,11,13) ! Four reactions (at least one polyatomic molecule)
 ! ############################################################################################################################### !
       iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
       iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
       iReac3 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 3)
       iReac4 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 4)
-      IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) &
-      .OR. ChemReac%QKProcedure(iReac3) .OR. ChemReac%QKProcedure(iReac4)) THEN ! all Q-K
-          CALL Abort(&
-__STAMP__&
-,'ERROR! Reaction case not supported with Q-K reactions!')
-!--------------------------------------------------------------------------------------------------!
-      ELSE ! all reactions Arrhenius
-!--------------------------------------------------------------------------------------------------!
-        ! calculation of first dissociation probability
-        CALL CalcReactionProb(iPair,iReac,ReactionProb)
-        ! calculation of second dissociation probability
-        CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
-        ! calculation of third dissociation probability
-        CALL CalcReactionProb(iPair,iReac3,ReactionProb3)
-        ! calculation of fourth dissociation probability
-        CALL CalcReactionProb(iPair,iReac4,ReactionProb4)
+      CALL CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
+      CALL CalcReactionProb(iPair,iReac2,ReactionProb2,nPair,NumDens)
+      CALL CalcReactionProb(iPair,iReac3,ReactionProb3,nPair,NumDens)
+      CALL CalcReactionProb(iPair,iReac4,ReactionProb4,nPair,NumDens)
+      CALL RANDOM_NUMBER(iRan)
+      IF ((ReactionProb + ReactionProb2 + ReactionProb3 + ReactionProb4).GT.iRan) THEN
         CALL RANDOM_NUMBER(iRan)
-        IF ((ReactionProb + ReactionProb2 + ReactionProb3 + ReactionProb4).GT.iRan) THEN
-          CALL RANDOM_NUMBER(iRan)
-          CALL RANDOM_NUMBER(iRan2)
-          CALL RANDOM_NUMBER(iRan3)
-          IF((ReactionProb/(ReactionProb + ReactionProb2 + ReactionProb3 + ReactionProb4)).GT.iRan) THEN
-            CALL DSMC_Chemistry(iPair, iReac)
-          ELSEIF(ReactionProb2/(ReactionProb2 + ReactionProb3 + ReactionProb4).GT.iRan2) THEN
-            CALL DSMC_Chemistry(iPair, iReac2)
-          ELSEIF(ReactionProb3/(ReactionProb3 + ReactionProb4).GT.iRan3) THEN
-            CALL DSMC_Chemistry(iPair, iReac3)
-          ELSE
-            CALL DSMC_Chemistry(iPair, iReac4)
-          END IF
-          RelaxToDo = .FALSE.
-        END IF
-      END IF
-! ############################################################################################################################### !
-    CASE(9) ! three diss and one exchange reaction possible (at least one polyatomic molecule)
-! ############################################################################################################################### !
-      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
-      iReac3 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 3)
-      iReac4 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 4)
-      IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) &
-      .OR. ChemReac%QKProcedure(iReac3) .OR. ChemReac%QKProcedure(iReac4)) THEN ! all Q-K
-          CALL Abort(&
-__STAMP__&
-,'ERROR! Reaction case not supported with Q-K reactions!')
-!--------------------------------------------------------------------------------------------------!
-      ELSE ! all reactions Arrhenius
-!--------------------------------------------------------------------------------------------------!
-        ! calculation of first dissociation probability
-        CALL CalcReactionProb(iPair,iReac,ReactionProb)
-        ! calculation of second dissociation probability
-        CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
-        ! calculation of third dissociation probability
-        CALL CalcReactionProb(iPair,iReac3,ReactionProb3)
-        ! calculation of exchange probability
-        CALL CalcReactionProb(iPair,iReac4,ReactionProb4)
-        CALL RANDOM_NUMBER(iRan)
-        IF ((ReactionProb + ReactionProb2 + ReactionProb3 + ReactionProb4).GT.iRan) THEN
-          CALL RANDOM_NUMBER(iRan)
-          CALL RANDOM_NUMBER(iRan2)
-          CALL RANDOM_NUMBER(iRan3)
-          IF((ReactionProb/(ReactionProb + ReactionProb2 + ReactionProb3 + ReactionProb4)).GT.iRan) THEN
-            CALL DSMC_Chemistry(iPair, iReac)
-          ELSEIF(ReactionProb2/(ReactionProb2 + ReactionProb3 + ReactionProb4).GT.iRan2) THEN
-            CALL DSMC_Chemistry(iPair, iReac2)
-          ELSEIF(ReactionProb3/(ReactionProb3 + ReactionProb4).GT.iRan3) THEN
-            CALL DSMC_Chemistry(iPair, iReac3)
-          ELSE
-            CALL DSMC_Chemistry(iPair, iReac4)
-          END IF
-          RelaxToDo = .FALSE.
-        END IF
-      END IF
-! ############################################################################################################################### !
-    CASE(10) ! two diss and one exchange reaction possible
-! ############################################################################################################################### !
-      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
-      iReac3 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 3)
-      IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) .OR. ChemReac%QKProcedure(iReac3) ) THEN ! all Q-K
-          CALL Abort(&
-__STAMP__&
-,'ERROR! Reaction case not supported with Q-K reactions!')
-!--------------------------------------------------------------------------------------------------!
-      ELSE ! all reactions Arrhenius
-!--------------------------------------------------------------------------------------------------!
-        ! calculation of first dissociation probability
-          CALL CalcReactionProb(iPair,iReac,ReactionProb)
-        ! calculation of second dissociation probability
-          CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
-        ! calculation of exchange probability
-        CALL CalcReactionProb(iPair,iReac3,ReactionProb3)
-        CALL RANDOM_NUMBER(iRan)
-        IF ((ReactionProb + ReactionProb2 + ReactionProb3).GT.iRan) THEN
-          CALL RANDOM_NUMBER(iRan)
-          CALL RANDOM_NUMBER(iRan2)
-          IF((ReactionProb/(ReactionProb + ReactionProb2 + ReactionProb3)).GT.iRan) THEN
-            CALL DSMC_Chemistry(iPair, iReac)
-          ELSEIF(ReactionProb2/(ReactionProb2 + ReactionProb3).GT.iRan2) THEN
-            CALL DSMC_Chemistry(iPair, iReac2)
-          ELSE
-            CALL DSMC_Chemistry(iPair, iReac3)
-          END IF
-          RelaxToDo = .FALSE.
-        END IF
-      END IF
-! ############################################################################################################################### !
-    CASE(11) ! two diss, one exchange and one recombination reaction possible
-! ############################################################################################################################### !
-      ! searching third collison partner
-      IF(ChemReac%RecombParticle.EQ. 0) THEN
-        IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
-          ChemReac%LastPairForRec = nPair - ChemReac%nPairForRec
-          iPart3 = Coll_pData(ChemReac%LastPairForRec)%iPart_p1
+        CALL RANDOM_NUMBER(iRan2)
+        CALL RANDOM_NUMBER(iRan3)
+        IF((ReactionProb/(ReactionProb + ReactionProb2 + ReactionProb3 + ReactionProb4)).GT.iRan) THEN
+          CALL DSMC_Chemistry(iPair, iReac)
+        ELSEIF(ReactionProb2/(ReactionProb2 + ReactionProb3 + ReactionProb4).GT.iRan2) THEN
+          CALL DSMC_Chemistry(iPair, iReac2)
+        ELSEIF(ReactionProb3/(ReactionProb3 + ReactionProb4).GT.iRan3) THEN
+          CALL DSMC_Chemistry(iPair, iReac3)
         ELSE
-          iPart3 = 0
+          CALL DSMC_Chemistry(iPair, iReac4)
         END IF
-      ELSE
-        iPart3 = ChemReac%RecombParticle
+        RelaxToDo = .FALSE.
       END IF
-!--------------------------------------------------------------------------------------------------!
-      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
-      iReac3 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 3)
-      IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) &
-      .OR. ChemReac%QKProcedure(iReac3)) THEN ! all Q-K
-        CALL Abort(&
-__STAMP__&
-,'ERROR! Reaction case not supported with Q-K reactions!')
-!--------------------------------------------------------------------------------------------------!
-      ELSE ! all reactions Arrhenius
-!--------------------------------------------------------------------------------------------------!
-        ! calculation of first dissociation probability
-        CALL CalcReactionProb(iPair,iReac,ReactionProb)
-        ! calculation of second dissociation probability
-        CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
-        ! calculation of exchange probability
-        CALL CalcReactionProb(iPair,iReac3,ReactionProb3)
-        ! calculation of recombination probability
-        IF (iPart3 .GT. 0) THEN
-          iReac4 = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart3))
-          CALL CalcReactionProb(iPair,iReac4,ReactionProb4,iPart3,NumDens)
-        ELSE
-          ReactionProb4 = 0.0
-        END IF
-        ! reaction decision
-        CALL RANDOM_NUMBER(iRan)
-        IF ((ReactionProb + ReactionProb2 + ReactionProb3 + ReactionProb4).GT.iRan) THEN
-          CALL RANDOM_NUMBER(iRan)
-          CALL RANDOM_NUMBER(iRan2)
-          CALL RANDOM_NUMBER(iRan3)
-          IF((ReactionProb/(ReactionProb + ReactionProb2 + ReactionProb3 + ReactionProb4)).GT.iRan) THEN
-            CALL DSMC_Chemistry(iPair, iReac)
-          ELSEIF(ReactionProb2/(ReactionProb2 + ReactionProb3 + ReactionProb4).GT.iRan2) THEN
-            CALL DSMC_Chemistry(iPair, iReac2)
-          ELSEIF(ReactionProb3/(ReactionProb3 + ReactionProb4).GT.iRan3) THEN
-            CALL DSMC_Chemistry(iPair, iReac3)
-          ELSEIF(ReactionProb4.GT.0.0) THEN  ! Probability is set to zero if no third collision partner is found
-            CALL DSMC_Chemistry(iPair, iReac4, iPart3)
-          END IF
-          RelaxToDo = .FALSE.
-        END IF
-      END IF
-! ############################################################################################################################### !
-    CASE(12) ! two diss and one recomb reaction possible
-! ############################################################################################################################### !
-      ! searching third collison partner
-      IF(ChemReac%RecombParticle.EQ. 0) THEN
-        IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
-          ChemReac%LastPairForRec = nPair - ChemReac%nPairForRec
-          iPart3 = Coll_pData(ChemReac%LastPairForRec)%iPart_p1
-        ELSE
-          iPart3 = 0
-        END IF
-      ELSE
-        iPart3 = ChemReac%RecombParticle
-      END IF
-!--------------------------------------------------------------------------------------------------!
-      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
-      IF (ChemReac%QKProcedure(iReac).OR.ChemReac%QKProcedure(iReac2)) THEN ! all Q-K
-        CALL Abort(&
-         __STAMP__,&
-        'ERROR! Reaction case not supported with Q-K reactions!')
-!--------------------------------------------------------------------------------------------------!
-      ELSE ! all reactions Arrhenius
-!--------------------------------------------------------------------------------------------------!
-        ! calculation of first dissociation probability
-        CALL CalcReactionProb(iPair,iReac,ReactionProb)
-        ! calculation of second dissociation probability
-        CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
-        ! calculation of recombination probability
-        IF (iPart3 .GT. 0) THEN
-          iReac3 = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart3))
-          CALL CalcReactionProb(iPair,iReac3,ReactionProb3,iPart3,NumDens)
-        ELSE
-          ReactionProb3 = 0.0
-        END IF
-        CALL RANDOM_NUMBER(iRan)
-        IF ((ReactionProb + ReactionProb2 + ReactionProb3).GT.iRan) THEN
-          CALL RANDOM_NUMBER(iRan)
-          CALL RANDOM_NUMBER(iRan2)
-          IF((ReactionProb/(ReactionProb + ReactionProb2 + ReactionProb3)).GT.iRan) THEN
-            CALL DSMC_Chemistry(iPair, iReac)
-          ELSEIF(ReactionProb2/(ReactionProb2 + ReactionProb3).GT.iRan2) THEN
-            CALL DSMC_Chemistry(iPair, iReac2)
-          ELSEIF(ReactionProb3.GT.0.0) THEN ! Probability is set to zero if no third collision partner is found
-            CALL DSMC_Chemistry(iPair, iReac3, iPart3)
-          END IF
-          RelaxToDo = .FALSE.
-        END IF ! Prob > iRan
-      END IF ! Q-K
-! ############################################################################################################################### !
-    CASE(13) ! one diss, one exchange and one recomb reaction possible
-! ############################################################################################################################### !
-      ! searching third collison partner
-      IF(ChemReac%RecombParticle.EQ. 0) THEN
-        IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
-          ChemReac%LastPairForRec = nPair - ChemReac%nPairForRec
-          iPart3 = Coll_pData(ChemReac%LastPairForRec)%iPart_p1
-        ELSE
-          iPart3   = 0
-        END IF
-      ELSE
-        iPart3 = ChemReac%RecombParticle
-      END IF
-!--------------------------------------------------------------------------------------------------!
-      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
-      IF (ChemReac%QKProcedure(iReac).OR.ChemReac%QKProcedure(iReac2)) THEN ! all Q-K
-        CALL Abort(&
-         __STAMP__,&
-        'ERROR! Reaction case not supported with Q-K reactions!')
-!--------------------------------------------------------------------------------------------------!
-      ELSE ! all reactions Arrhenius
-!--------------------------------------------------------------------------------------------------!
-        ! calculation of first dissociation probability
-        CALL CalcReactionProb(iPair,iReac,ReactionProb)
-        ! calculation of exchange probability
-        CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
-        ! calculation of recombination probability
-        IF (iPart3 .GT. 0) THEN
-          iReac3 = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart3))
-          CALL CalcReactionProb(iPair,iReac3,ReactionProb3,iPart3,NumDens)
-        ELSE
-          ReactionProb3 = 0.0
-        END IF
-        CALL RANDOM_NUMBER(iRan)
-        IF ((ReactionProb + ReactionProb2 + ReactionProb3).GT.iRan) THEN
-          CALL RANDOM_NUMBER(iRan)
-          CALL RANDOM_NUMBER(iRan2)
-          IF((ReactionProb/(ReactionProb + ReactionProb2 + ReactionProb3)).GT.iRan) THEN
-            CALL DSMC_Chemistry(iPair, iReac)
-          ELSEIF(ReactionProb2/(ReactionProb2 + ReactionProb3).GT.iRan2) THEN
-            CALL DSMC_Chemistry(iPair, iReac2)
-          ELSEIF(ReactionProb3.GT.0.0) THEN ! Probability is set to zero if no third collision partner is found
-            CALL DSMC_Chemistry(iPair, iReac3, iPart3)
-          END IF
-          RelaxToDo = .FALSE.
-        END IF ! Prob > iRan
-      END IF ! Q-K
-! ############################################################################################################################### !
-    CASE(14) ! one diss and one recomb reaction possible
-! ############################################################################################################################### !
-      ! searching third collison partner
-      IF(ChemReac%RecombParticle.EQ. 0) THEN
-        IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
-          ChemReac%LastPairForRec = nPair - ChemReac%nPairForRec
-          iPart3 = Coll_pData(ChemReac%LastPairForRec)%iPart_p1
-        ELSE
-          iPart3 = 0
-        END IF
-      ELSE
-        iPart3 = ChemReac%RecombParticle
-      END IF
-!--------------------------------------------------------------------------------------------------!
-      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      IF(ChemReac%QKProcedure(iReac)) THEN ! all Q-K
-        CALL Abort(&
-         __STAMP__,&
-        'ERROR! Reaction case not supported with Q-K reactions!')
-!--------------------------------------------------------------------------------------------------!
-      ELSE ! all reactions Arrhenius
-!--------------------------------------------------------------------------------------------------!
-        ! calculation of first dissociation probability
-        CALL CalcReactionProb(iPair,iReac,ReactionProb)
-        ! calculation of recombination probability
-        IF (iPart3 .GT. 0) THEN
-          iReac2 = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart3))
-          CALL CalcReactionProb(iPair,iReac2,ReactionProb2,iPart3,NumDens)
-        ELSE
-          ReactionProb2 = 0.0
-        END IF
-        CALL RANDOM_NUMBER(iRan)
-        IF ((ReactionProb + ReactionProb2).GT.iRan) THEN
-          CALL RANDOM_NUMBER(iRan)
-          IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
-            CALL DSMC_Chemistry(iPair, iReac)
-          ELSEIF(ReactionProb2.GT.0.0) THEN ! Probability is set to zero if no third collision partner is found
-            CALL DSMC_Chemistry(iPair, iReac2, iPart3)
-          END IF
-          RelaxToDo = .FALSE.
-        END IF
-      END IF
-! ############################################################################################################################### !
-    CASE(15) ! one exchange and one recomb reaction possible
-! ############################################################################################################################### !
-      ! searching third collison partner
-      IF(ChemReac%RecombParticle.EQ. 0) THEN
-        IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
-          ChemReac%LastPairForRec = nPair - ChemReac%nPairForRec
-          iPart3 = Coll_pData(ChemReac%LastPairForRec)%iPart_p1
-        ELSE
-          iPart3   = 0
-        END IF
-      ELSE
-        iPart3 = ChemReac%RecombParticle
-      END IF
-!--------------------------------------------------------------------------------------------------!
-      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      IF(ChemReac%QKProcedure(iReac)) THEN ! all Q-K
-        CALL Abort(&
-         __STAMP__,&
-        'ERROR! Reaction case not supported with Q-K reactions!')
-!--------------------------------------------------------------------------------------------------!
-      ELSE ! all reactions Arrhenius
-!--------------------------------------------------------------------------------------------------!
-        ! calculation of exchange probability
-        CALL CalcReactionProb(iPair,iReac,ReactionProb)
-        ! calculation of recombination probability (only if third collision partner is available)
-        IF (iPart3 .GT. 0) THEN
-          iReac2 = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart3))
-          CALL CalcReactionProb(iPair,iReac2,ReactionProb2,iPart3,NumDens)
-        ELSE
-          ReactionProb2 = 0.0
-        END IF
-        CALL RANDOM_NUMBER(iRan)
-        IF ((ReactionProb + ReactionProb2).GT.iRan) THEN
-          CALL RANDOM_NUMBER(iRan)
-          IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
-            CALL DSMC_Chemistry(iPair, iReac)
-          ELSEIF(ReactionProb2.GT.0.0) THEN ! Probability is set to zero if no third collision partner is found
-            CALL DSMC_Chemistry(iPair, iReac2, iPart3)
-          END IF
-          RelaxToDo = .FALSE.
-        END IF
-      END IF
-
 ! ############################################################################################################################### !
     CASE(16) ! simple CEX/MEX
 ! ############################################################################################################################### !
@@ -1774,39 +1325,6 @@ __STAMP__&
         END IF
       END IF !ChemReac%DoScat(iReac)
       RelaxToDo = .FALSE.
-! ############################################################################################################################### !
-    CASE(17) ! one dissociation, two exchange possible
-! ############################################################################################################################### !
-      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
-      iReac3 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 3)
-      IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) .OR. ChemReac%QKProcedure(iReac3) ) THEN ! all Q-K
-          CALL Abort(&
-__STAMP__&
-,'ERROR! Reaction case not supported with Q-K reactions!')
-!--------------------------------------------------------------------------------------------------!
-      ELSE ! all reactions Arrhenius
-!--------------------------------------------------------------------------------------------------!
-        ! calculation of first dissociation probability
-        CALL CalcReactionProb(iPair,iReac,ReactionProb)
-        ! calculation of second dissociation probability
-        CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
-        ! calculation of third dissociation probability
-        CALL CalcReactionProb(iPair,iReac3,ReactionProb3)
-        CALL RANDOM_NUMBER(iRan)
-        IF ((ReactionProb + ReactionProb2 + ReactionProb3).GT.iRan) THEN
-          CALL RANDOM_NUMBER(iRan)
-          CALL RANDOM_NUMBER(iRan2)
-          IF((ReactionProb/(ReactionProb + ReactionProb2 + ReactionProb3)).GT.iRan) THEN
-            CALL DSMC_Chemistry(iPair, iReac)
-          ELSEIF(ReactionProb2/(ReactionProb2 + ReactionProb3).GT.iRan2) THEN
-            CALL DSMC_Chemistry(iPair, iReac2)
-          ELSE
-            CALL DSMC_Chemistry(iPair, iReac3)
-          END IF
-          RelaxToDo = .FALSE.
-        END IF
-      END IF
 !############################################################################################################################### !
     CASE(18) ! only electron impact ionization possible Ar + e -> Ar(+) + e + e
 ! ############################################################################################################################### !
@@ -1828,37 +1346,14 @@ __STAMP__&
 !############################################################################################################################### !
     CASE(19) ! only ion recombination possible Ar(+) + e + e -> Ar + e
 ! ############################################################################################################################### !
-      ! searching third collison partner
-      IF(ChemReac%RecombParticle.EQ. 0) THEN
-        IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
-          ChemReac%LastPairForRec = nPair - ChemReac%nPairForRec
-          iPart3 = Coll_pData(ChemReac%LastPairForRec)%iPart_p1
-        ELSE
-          iPart3   = 0
-        END IF
-      ELSE
-        iPart3 = ChemReac%RecombParticle
-      END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-      IF ( iPart3 .GT. 0 ) THEN
-        iReac = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart3))
-        IF(iReac.EQ.0) THEN
-          iReac = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart3))
-        END IF
-        IF ( ChemReac%QKProcedure(iReac)  ) THEN
-          CALL QK_IonRecombination(iPair,iReac,iPart3,RelaxToDo,NodeVolume,NodePartNum)
-!-----------------------------------------------------------------------------------------------------------------------------------
-        ELSE
-        ! traditional Recombination
-          ! Calculation of reaction probability
-          CALL CalcReactionProb(iPair,iReac,ReactionProb,iPart3,NumDens)
-          CALL RANDOM_NUMBER(iRan)
-          IF (ReactionProb.GT.iRan) THEN
-            CALL DSMC_Chemistry(iPair, iReac, iPart3)
-            RelaxToDo = .FALSE.
-          END IF ! ReactionProb > iRan
-        END IF ! Q-K
-      END IF
+      iReac = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart3))
+      ! Calculation of reaction probability
+      CALL CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
+      CALL RANDOM_NUMBER(iRan)
+      IF (ReactionProb.GT.iRan) THEN
+        CALL DSMC_Chemistry(iPair, iReac)
+        RelaxToDo = .FALSE.
+      END IF ! ReactionProb > iRan
 ! ############################################################################################################################### !
     CASE(20) ! Dissociation and ionization with QK are possible
 ! ############################################################################################################################### !
@@ -1881,7 +1376,7 @@ __STAMP__&
       ! if you have electronic levels above the ionization limit, such limits should be used instead of
       ! the pure energy comparison
       IF(Coll_pData(iPair)%Ec .GT. IonizationEnergy)THEN
-        CALL CalcReactionProb(iPair,iReac,ReactionProb)
+        CALL CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
       ELSE
         ReactionProb = 0.
       END IF
@@ -1905,12 +1400,12 @@ __STAMP__&
         iQuaMax   = INT(Coll_pData(iPair)%Ec / ( BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%CharaTVib ) - DSMC%GammaQuant)
         ! Comparing the collision quantum number with the dissociation quantum number
         IF (iQuaMax.GT.SpecDSMC(PartSpecies(PartToExec))%DissQuant) THEN
-          CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
+          CALL CalcReactionProb(iPair,iReac2,ReactionProb2,nPair,NumDens)
         ELSE
           ReactionProb2 = 0.
         END IF
       ELSE
-        CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
+        CALL CalcReactionProb(iPair,iReac2,ReactionProb2,nPair,NumDens)
       END IF
       ReacToDo = 0
       ! Check whether both reaction probabilities are exactly zero (in case of one of the QK reactions without enough energy)

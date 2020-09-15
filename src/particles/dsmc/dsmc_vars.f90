@@ -379,14 +379,19 @@ TYPE tMacroDSMC           ! DSMC output
   REAL                           :: TElec                  ! Electronic Temp
 END TYPE
 
-TYPE(tMacroDSMC), ALLOCATABLE    :: MacroDSMC(:,:)         ! DSMC sample array (number of Elements, nSpec)
+TYPE(tMacroDSMC), ALLOCATABLE     :: MacroDSMC(:,:)         ! DSMC sample array (number of Elements, nSpec)
+
+TYPE tCollCaseInfo
+  INTEGER                         :: NumOfReactionPaths     ! Number of possible reaction paths for the collision pair
+  INTEGER, ALLOCATABLE            :: ReactionIndex(:)       ! Reaction index as in ChemReac%NumOfReact (1:NumOfReactionPaths)
+END TYPE
 
 TYPE tReactInfo
-   REAL,  ALLOCATABLE             :: Beta_Arrhenius(:,:)    ! Beta for calculation of the reaction probability by TCE
+  REAL,  ALLOCATABLE              :: Beta_Arrhenius(:,:)    ! Beta for calculation of the reaction probability by TCE
                                                             ! (quant number species 1, quant number species 2)
-   REAL,  ALLOCATABLE             :: Beta_Rec_Arrhenius(:,:)  ! Beta_d for calculation of the Recombination reaction probability
+  REAL,  ALLOCATABLE              :: Beta_Rec_Arrhenius(:,:)! Beta_d for calculation of the Recombination reaction probability
                                                             ! (nSpecies, quant num part3)
-   INTEGER, ALLOCATABLE           :: StoichCoeff(:,:)       ! Stoichiometric coefficient (nSpecies,1:2) (1: reactants, 2: products)
+  INTEGER, ALLOCATABLE            :: StoichCoeff(:,:)       ! Stoichiometric coefficient (nSpecies,1:2) (1: reactants, 2: products)
 END TYPE
 
 TYPE tArbDiss
@@ -464,6 +469,7 @@ TYPE tChemReactions
   INTEGER                         :: NumDeleteProducts      ! Number of species to be considered to deletion after the reaction
   INTEGER, ALLOCATABLE            :: DeleteProductsList(:)  ! Indices of the species to be deleted [1:NumDeleteProducts]
   REAL, ALLOCATABLE               :: CrossSection(:)        ! Cross-section of the given photo-ionization reaction
+  TYPE(tCollCaseInfo), ALLOCATABLE:: CollCaseInfo(:)        ! Information of collision cases (nCase)
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac

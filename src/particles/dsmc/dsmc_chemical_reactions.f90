@@ -33,10 +33,6 @@ INTERFACE simpleMEX
   MODULE PROCEDURE simpleMEX
 END INTERFACE
 
-INTERFACE CalcReactionProb
-  MODULE PROCEDURE CalcReactionProb
-END INTERFACE
-
 INTERFACE CalcBackwardRate
   MODULE PROCEDURE CalcBackwardRate
 END INTERFACE
@@ -53,13 +49,13 @@ PUBLIC :: CalcPhotoIonizationNumber
 
 CONTAINS
 
-SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,NumDens)
+SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
 !===================================================================================================================================
 ! Calculates the reaction probability for dissociation, exchange, recombination and associative ionization reactions
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars            ,ONLY: Pi, BoltzmannConst
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: Calc_Beta_Poly
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf, ReactionProbGTUnityCounter
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
@@ -70,21 +66,23 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPair, iReac
-  INTEGER, INTENT(IN), OPTIONAL :: iPart_p3
-  REAL, INTENT(IN), OPTIONAL    :: NumDens
+  INTEGER, INTENT(IN)           :: iPair, nPair
+  REAL, INTENT(IN)              :: NumDens
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
   REAL, INTENT(OUT)             :: ReactionProb
+  !-----------------------------------------------------------------------------------------------------------------------------------
+! IN-OUTPUT VARIABLES
+  INTEGER, INTENT(INOUT)        :: iReac
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: ReactInx(1:2), ProductReac(1:3), EductReac(1:3), iReacForward, iCase
+  INTEGER                       :: ReactInx(1:3), ProductReac(1:3), EductReac(1:3), iReacForward, iCase
   REAL                          :: EZeroPoint_Educt, EZeroPoint_Prod, EReact, ReducedMass, ReducedMassUnweighted, omega, Tref
   REAL                          :: Xi_vib1, Xi_vib2, Xi_vib3, Xi_Total, Xi_elec1, Xi_elec2, Xi_elec3, WeightProd
   REAL                          :: BetaReaction, BackwardRate
   REAL                          :: Rcoll, Tcoll, Telec, TiQK, Weight1, Weight2, Weight3, NumWeightEduct, NumWeightProd
 !===================================================================================================================================
-  Weight1=0.; Weight2=0.; Weight3=0.; WeightProd = 0.
+  Weight1=0.; Weight2=0.; Weight3=0.; WeightProd = 0.; ReactInx = 0
   NumWeightEduct = 2.
   NumWeightProd = 2.
 
@@ -101,24 +99,37 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
 
   iCase = CollInf%Coll_Case(EductReac(1), EductReac(2))
 
-  IF((EductReac(3).NE.0).AND.(.NOT.PRESENT(iPart_p3))) THEN
-    CALL abort(&
-     __STAMP__&
-     ,'Third particle is missing for the recombination reaction. Reaction: ',iReac)
+  IF(EductReac(3).NE.0) THEN
+    IF(ChemReac%RecombParticle.EQ.0) THEN
+      IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
+        ChemReac%LastPairForRec = nPair - ChemReac%nPairForRec
+        ReactInx(3) = Coll_pData(ChemReac%LastPairForRec)%iPart_p1
+        ChemReac%RecombParticle = ReactInx(3)
+      ELSE
+        ReactInx(3) = 0
+      END IF
+    ELSE
+      ReactInx(3) = ChemReac%RecombParticle
+    END IF
   END IF
 
-  IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
-    ! The third-collision partner during a recombination is chosen randomly, but DefinedReact(iReac) might differ
-    ! (This might not be required anymore, the correct DefinedReact based on the third partner are chosen in CollisMode)
-    EductReac(3) = PartSpecies(iPart_p3)
-    ProductReac(2) = PartSpecies(iPart_p3)
-    NumWeightEduct = 3.
-    NumWeightProd = 2.
+  IF(EductReac(3).NE.0) THEN
+    IF(ReactInx(3).GT.0) THEN
+      NumWeightEduct = 3.
+      NumWeightProd = 2.
+      iReac = ChemReac%ReactNumRecomb(EductReac(1), EductReac(2), EductReac(3))
+      EductReac(1:3) = ChemReac%DefinedReact(iReac,1,1:3)
+      ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
+    ELSE
+      CALL abort(&
+     __STAMP__&
+     ,'Third particle is missing for the recombination reaction. Reaction: ',iReac)
+    END IF
   END IF
 
   Weight1 = GetParticleWeight(ReactInx(1))
   Weight2 = GetParticleWeight(ReactInx(2))
-  IF(EductReac(3).NE.0) Weight3 = GetParticleWeight(iPart_p3)
+  IF(EductReac(3).NE.0) Weight3 = GetParticleWeight(ReactInx(3))
 
   IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     ReducedMass = (Species(EductReac(1))%MassIC *Weight1  * Species(EductReac(2))%MassIC * Weight2) &
@@ -138,8 +149,8 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
                + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight2
 
   IF(EductReac(3).NE.0) THEN
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (0.5 * Species(EductReac(3))%MassIC * DOTPRODUCT(PartState(4:6,iPart_p3)) &
-                                                  + PartStateIntEn(1,iPart_p3) + PartStateIntEn(2,iPart_p3)) * Weight3
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (0.5 * Species(EductReac(3))%MassIC * DOTPRODUCT(PartState(4:6,ReactInx(3))) &
+                                                  + PartStateIntEn(1,ReactInx(3)) + PartStateIntEn(2,ReactInx(3))) * Weight3
     NumWeightEduct = 3.
   END IF
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -182,9 +193,9 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
       EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(EductReac(3))%EZeroPoint * Weight3
       IF(SpecDSMC(EductReac(3))%PolyatomicMol) THEN
         ! Calculation of the vibrational degree of freedom for the particle
-        IF (PartStateIntEn(1,iPart_p3).GT.SpecDSMC(EductReac(3))%EZeroPoint) THEN
-          Xi_vib3 = 2.*(PartStateIntEn(1,iPart_p3)-SpecDSMC(EductReac(3))%EZeroPoint)                                  &
-                  / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(1,iPart_p3), EductReac(3)))
+        IF (PartStateIntEn(1,ReactInx(3)).GT.SpecDSMC(EductReac(3))%EZeroPoint) THEN
+          Xi_vib3 = 2.*(PartStateIntEn(1,ReactInx(3))-SpecDSMC(EductReac(3))%EZeroPoint)                                  &
+                  / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(1,ReactInx(3)), EductReac(3)))
         END IF
       ELSE
         Xi_vib3 = ChemReac%MeanXiVib_PerIter(EductReac(3))
@@ -231,11 +242,11 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
     END IF
   !---------------------------------------------------------------------------------------------------------------------------------
     IF(EductReac(3).NE.0) THEN
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,iPart_p3)*Weight3
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,ReactInx(3))*Weight3
       IF((SpecDSMC(EductReac(3))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(3))%FullyIonized)) THEN
-        IF(PartStateIntEn(3,iPart_p3).GT.0.0)THEN
-          Telec=CalcTelec( PartStateIntEn(3,iPart_p3) , EductReac(3))
-          Xi_elec3=2.*PartStateIntEn(3,iPart_p3)/(BoltzmannConst*Telec)
+        IF(PartStateIntEn(3,ReactInx(3)).GT.0.0)THEN
+          Telec=CalcTelec( PartStateIntEn(3,ReactInx(3)) , EductReac(3))
+          Xi_elec3=2.*PartStateIntEn(3,ReactInx(3))/(BoltzmannConst*Telec)
         END IF
       END IF
     END IF
@@ -262,10 +273,8 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
     EReact = NumWeightEduct*(Coll_pData(iPair)%Ec - EZeroPoint_Educt)/(Weight1+Weight2+Weight3)
     ! Determination of the Beta coefficient (array for diatomic molecules, calculation for polyatomic)
     IF(.NOT.ChemReac%QKProcedure(iReac))THEN
-      IF (SpecDSMC(EductReac(1))%PolyatomicMol                &
-          .OR.SpecDSMC(EductReac(2))%PolyatomicMol           &
-          .OR.SpecDSMC(ProductReac(1))%PolyatomicMol  &
-          .OR.SpecDSMC(ProductReac(2))%PolyatomicMol) THEN
+      IF (SpecDSMC(EductReac(1))%PolyatomicMol.OR.SpecDSMC(EductReac(2))%PolyatomicMol           &
+          .OR.SpecDSMC(ProductReac(1))%PolyatomicMol.OR.SpecDSMC(ProductReac(2))%PolyatomicMol) THEN
         BetaReaction = Calc_Beta_Poly(iReac,Xi_Total)
       ELSE
         IF((TRIM(ChemReac%ReactType(iReac)).EQ.'D').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'E')) THEN
@@ -299,10 +308,6 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
     END IF
     ! Actual calculation of the reaction probability, different equation for recombination reaction
     IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
-      IF(.NOT.PRESENT(NumDens)) THEN
-        CALL abort(__STAMP__,&
-          'CalcReactionProb: Number density required for recombination reaction: ',iReac)
-      END IF
       IF(DSMC%BackwardReacRate.AND.((iReac.GT.ChemReac%NumOfReact/2))) THEN
         Tcoll =ReducedMassUnweighted*Coll_pData(iPair)%CRela2 / (BoltzmannConst * 2.*(2.-omega))
         Rcoll = (Tcoll / Tref)**(0.5 - omega) &
@@ -371,7 +376,7 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
 END SUBROUTINE CalcReactionProb
 
 
-SUBROUTINE DSMC_Chemistry(iPair, iReac, iPart_p3)
+SUBROUTINE DSMC_Chemistry(iPair, iReac)
 !===================================================================================================================================
 ! Routine performs an exchange reaction of the type A + B + C -> D + E + F, where A, B, C, D, E, F can be anything
 !===================================================================================================================================
@@ -399,13 +404,12 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: iPair, iReac
-INTEGER, INTENT(IN), OPTIONAL :: iPart_p3
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: ReactInx(1:3), ProductReac(1:3), EductReac(1:3), nProd, nDOFMAX, iProd, iPolyatMole, iSpec
-INTEGER                       :: SpecToDelete, iPart
+INTEGER                       :: SpecToDelete, iPart, iPart_p3
 REAL                          :: FracMassCent1, FracMassCent2, MassRed     ! mx/(mx+my)
 REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
 REAL                          :: FakXi, Xi_rel, iRan, FacEtraDistri
@@ -427,7 +431,8 @@ EductReac(1:3) = ChemReac%DefinedReact(iReac,1,1:3)
 ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
 
 IF(EductReac(3).NE.0) THEN
-  IF(ChemReac%RecombParticle.EQ.0) THEN
+  IF(ChemReac%RecombParticle.NE.0) THEN
+    iPart_p3 = ChemReac%RecombParticle
     ! A pair was broken up before to use its first collision partner as a third recombination partner. Now that the
     ! recombination occurred, the collision will not be performed anymore and the second collision partner is saved as
     ! a possible third recombination partner
@@ -435,7 +440,8 @@ IF(EductReac(3).NE.0) THEN
     ChemReac%RecombParticle = Coll_pData(ChemReac%LastPairForRec)%iPart_p2
     ChemReac%nPairForRec = ChemReac%nPairForRec + 1
   ELSE
-    ChemReac%RecombParticle = 0
+    CALL Abort(__STAMP__,&
+      'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
   END IF
 END IF
 
@@ -468,7 +474,7 @@ ELSE
   ReactInx(1) = Coll_pData(iPair)%iPart_p2
 END IF
 
-IF(PRESENT(iPart_p3)) THEN
+IF(EductReac(3).NE.0) THEN
   ReactInx(3) = iPart_p3
   IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
     EductReac(3) = PartSpecies(ReactInx(3))
@@ -507,7 +513,7 @@ ELSE
   ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
 END IF
 
-IF(.NOT.PRESENT(iPart_p3)) THEN
+IF(EductReac(3).EQ.0) THEN
   IF(ProductReac(3).NE.0) THEN
     !.... Get free particle index for the 3rd particle produced
     DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
@@ -545,7 +551,7 @@ Energy_old=0.5*Species(PartSpecies(ReactInx(1)))%MassIC*DOT_PRODUCT(PartState(4:
           + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight2 &
           + ChemReac%EForm(iReac)/NumWeightProd*(Weight1+Weight2+WeightProd)
 IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(3,ReactInx(1))*Weight1 + PartStateIntEn( 3,ReactInx(2)) * Weight2
-IF (PRESENT(iPart_p3)) THEN
+IF (EductReac(3).NE.0) THEN
   Energy_old=Energy_old+(0.5*Species(PartSpecies(iPart_p3))%MassIC*DOT_PRODUCT(PartState(4:6,iPart_p3) ,PartState(4:6,iPart_p3))&
       + PartStateIntEn(1,iPart_p3)+PartStateIntEn(2,iPart_p3)) * Weight3
   IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(3,iPart_p3) * Weight3
@@ -553,7 +559,7 @@ END IF
 ! Momentum conservation
 Momentum_old(1:3) = Species(PartSpecies(ReactInx(1)))%MassIC * PartState(4:6,ReactInx(1)) * Weight1 &
                   + Species(PartSpecies(ReactInx(2)))%MassIC * PartState(4:6,ReactInx(2)) * Weight2
-IF (PRESENT(iPart_p3)) Momentum_old(1:3) = Momentum_old(1:3) + Species(PartSpecies(iPart_p3))%MassIC &
+IF (EductReac(3).NE.0) Momentum_old(1:3) = Momentum_old(1:3) + Species(PartSpecies(iPart_p3))%MassIC &
                                                                 * PartState(4:6,iPart_p3) * Weight3
 #endif /* CODE_ANALYZE */
 
