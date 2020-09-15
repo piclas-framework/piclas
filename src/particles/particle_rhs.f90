@@ -114,13 +114,13 @@ END SUBROUTINE DefineParametersParticleRHS
 SUBROUTINE InitPartRHS()
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools ,ONLY: GETINTFROMSTR
+USE MOD_ReadInTools   ,ONLY: GETINTFROMSTR
+USE MOD_Particle_Vars ,ONLY: PartLorentzType
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: PartLorentzType
 REAL                    :: dummy(1:3)
 !==================================================================================================================================
 PartLorentzType = GETINTFROMSTR('Part-LorentzType')
