@@ -407,6 +407,7 @@ TYPE tChemReactions
   REAL,ALLOCATABLE,DIMENSION(:,:) :: QKCoeff                ! QKRecombiCoeff for Birds method
   REAL, ALLOCATABLE               :: QKRColl(:)             ! Collision factor in QK model
   REAL, ALLOCATABLE               :: QKTCollCorrFac(:)      ! Correction factor for collision temperature due to averaging over T^b
+  LOGICAL, ALLOCATABLE            :: PerformReaction(:)     ! Flag whether reaction shall be performed (enough energy for reaction)
   REAL, ALLOCATABLE               :: NumReac(:)             ! Number of occurred reactions for each reaction number
   INTEGER, ALLOCATABLE            :: ReacCount(:)           ! Counter of chemical reactions for the determination of rate
                                                             ! coefficient based on the reaction probabilities
@@ -475,11 +476,12 @@ END TYPE
 TYPE(tChemReactions)              :: ChemReac
 
 
-TYPE tQKAnalytic
-  REAL, ALLOCATABLE              :: ForwardRate(:)
+TYPE tQKChemistry
+  LOGICAL                         :: PerformReaction
+  REAL, ALLOCATABLE               :: ForwardRate(:)
 END TYPE
 
-TYPE(tQKAnalytic), ALLOCATABLE   :: QKAnalytic(:)
+TYPE(tQKChemistry), ALLOCATABLE   :: QKChemistry(:)
 
 TYPE tPolyatomMolDSMC !DSMC Species Param
   LOGICAL                         :: LinearMolec            ! Is a linear Molec?

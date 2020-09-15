@@ -1136,10 +1136,9 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 ! MODULES
 USE MOD_Globals,                ONLY : Abort
 USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac, RadialWeighting
+USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac, RadialWeighting, QKChemistry
 USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PEM, VarTimeStep
 USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb
-USE MOD_DSMC_QK_PROCEDURES,     ONLY : QK_dissociation, QK_recombination, QK_exchange, QK_ImpactIonization, QK_IonRecombination
 USE MOD_Particle_Mesh_Vars,     ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
@@ -1192,15 +1191,16 @@ INTEGER                       :: iPart1, iPart2                         ! Collid
   END IF
   SELECT CASE(CaseOfReaction)
 ! ############################################################################################################################### !
-    CASE(1,2,3) ! One reaction
+    CASE(1,2,3,18,19) ! One reaction
 ! ############################################################################################################################### !
       iReac = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
       ! Calculation of reaction probability
       CALL CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
       CALL RANDOM_NUMBER(iRan)
-      IF (ReactionProb.GT.iRan) THEN
+      IF ((ReactionProb.GT.iRan).OR.QKChemistry(iReac)%PerformReaction) THEN
         CALL DSMC_Chemistry(iPair, iReac)
         RelaxToDo = .FALSE.
+        QKChemistry(iReac)%PerformReaction = .FALSE.
       END IF ! ReactionProb > iRan
 ! ############################################################################################################################### !
     CASE(4,5,14,15) ! Two reactions
@@ -1219,25 +1219,24 @@ INTEGER                       :: iPart1, iPart2                         ! Collid
         END IF
         RelaxToDo = .FALSE.
       END IF
-! ############################################################################################################################### !
-    CASE(6) ! ionization or ion recombination
-! ############################################################################################################################### !
-      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      iReac2 = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      CALL CalcReactionProb(iPair,iReac2,ReactionProb2,nPair,NumDens)
-      CALL RANDOM_NUMBER(iRan)
-      IF(ReactionProb2.GT.iRan) THEN
-        CALL DSMC_Chemistry(iPair, iReac2)
-      ELSE
-        CALL QK_ImpactIonization(iPair,iReac,RelaxToDo)
-      END IF
+! ! ############################################################################################################################### !
+!     CASE(6) ! ionization or ion recombination
+! ! ############################################################################################################################### !
+!       iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
+!       iReac2 = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), 1)
+!       CALL CalcReactionProb(iPair,iReac2,ReactionProb2,nPair,NumDens)
+!       CALL RANDOM_NUMBER(iRan)
+!       IF(ReactionProb2.GT.iRan) THEN
+!         CALL DSMC_Chemistry(iPair, iReac2)
+!       ELSE
+!         CALL QK_ImpactIonization(iPair,iReac)
+!       END IF
 ! ############################################################################################################################### !
     CASE(7,10,12,17) ! Three reactions (at least one molecule is polyatomic)
 ! ############################################################################################################################### !
       iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
       iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
       iReac3 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 3)
-!--------------------------------------------------------------------------------------------------!
       CALL CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
       CALL CalcReactionProb(iPair,iReac2,ReactionProb2,nPair,NumDens)
       CALL CalcReactionProb(iPair,iReac3,ReactionProb3,nPair,NumDens)
@@ -1325,35 +1324,6 @@ INTEGER                       :: iPart1, iPart2                         ! Collid
         END IF
       END IF !ChemReac%DoScat(iReac)
       RelaxToDo = .FALSE.
-!############################################################################################################################### !
-    CASE(18) ! only electron impact ionization possible Ar + e -> Ar(+) + e + e
-! ############################################################################################################################### !
-      iReac = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      IF (ChemReac%QKProcedure(iReac)) THEN
-        IF ( .NOT. DSMC%ElectronicModel ) THEN
-          CALL Abort(&
-__STAMP__&
-,'ERROR! Atomic electron shell has to be initalized.')
-        END IF
-        CALL QK_ImpactIonization(iPair,iReac,RelaxToDo)
-      END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-      IF (.NOT.ChemReac%QKProcedure(iReac)) THEN
-         CALL Abort(&
-__STAMP__&
-,'ERROR! Electron impact ionization not implemented without QK')
-      END IF
-!############################################################################################################################### !
-    CASE(19) ! only ion recombination possible Ar(+) + e + e -> Ar + e
-! ############################################################################################################################### !
-      iReac = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart3))
-      ! Calculation of reaction probability
-      CALL CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
-      CALL RANDOM_NUMBER(iRan)
-      IF (ReactionProb.GT.iRan) THEN
-        CALL DSMC_Chemistry(iPair, iReac)
-        RelaxToDo = .FALSE.
-      END IF ! ReactionProb > iRan
 ! ############################################################################################################################### !
     CASE(20) ! Dissociation and ionization with QK are possible
 ! ############################################################################################################################### !

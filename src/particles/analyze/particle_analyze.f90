@@ -2714,7 +2714,7 @@ IF(PartMPI%MPIRoot)THEN
   DO iReac=1, ChemReac%NumOfReact
     IF ((NumSpec(ChemReac%DefinedReact(iReac,1,1)).GT.0).AND.(NumSpec(ChemReac%DefinedReact(iReac,1,2)).GT.0)) THEN
       SELECT CASE(TRIM(ChemReac%ReactType(iReac)))
-      CASE('R','r','rQK')
+      CASE('R','r')
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
           RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
                      * MeshVolume**2 / (dt &

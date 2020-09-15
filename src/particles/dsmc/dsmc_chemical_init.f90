@@ -144,7 +144,7 @@ USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
-USE MOD_DSMC_QK_PROCEDURES      ,ONLY: QK_Init
+USE MOD_DSMC_QK_Chemistry      ,ONLY: QK_Init
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -513,6 +513,38 @@ ALLOCATE(PairCombID(nSpecies, nSpecies))
 PairCombID = 0
 CALL DSMC_BuildChem_IDArray(PairCombID)
 
+! ALLOCATE(ChemReac%CollCaseInfo(CollInf%NumCase))
+
+! DO iReac = 1, ChemReac%NumOfReact
+!   iSpec1 = ChemReac%DefinedReact(iReac,1,1)
+!   iSpec2 = ChemReac%DefinedReact(iReac,1,2)
+!   iCase = CollInf%Coll_Case(iSpec1,iSpec2)
+!   DO iReac2 = 1, ChemReac%NumOfReact
+!     IF(iReac.EQ.iReac2) CYCLE
+!     iCase2 = CollInf%Coll_Case(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))
+!     ! Count the number of possible reactions paths per collision case
+!     IF(iCase.EQ.iCase2) THEN
+!       ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths = ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths + 1
+!     END IF
+!   END DO
+! END DO
+
+! DO iCase = 1, CollInf%NumCase
+!   ! Allocate the case specific type with the number of the possible reaction paths
+!   ALLOCATE(ChemReac%CollCaseInfo(iCase)%ReactionIndex(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
+!   ReacIndexCounter = 0
+!   DO iReac = 1, ChemReac%NumOfReact
+!     iSpec1 = ChemReac%DefinedReact(iReac,1,1)
+!     iSpec2 = ChemReac%DefinedReact(iReac,1,2)
+!     iCase2 = CollInf%Coll_Case(iSpec1,iSpec2)
+!     ! Save the reaction index for the specific collision case
+!     IF(iCase.EQ.iCase2) THEN
+!       ReacIndexCounter = ReacIndexCounter + 1
+!       ChemReac%CollCaseInfo(iCase)%ReactionIndex(ReacIndexCounter) = iReac
+!     END IF
+!   END DO
+! END DO
+
 ! Case: photo-ionization (NOT to be included in regular chemistry)
 DO iReac = 1, ChemReac%NumOfReact
   IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
@@ -526,8 +558,7 @@ END DO
 DO iReac = 1, ChemReac%NumOfReact
   IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'iQK').AND.(.NOT.YetDefined_Help(iReac))) THEN
     DO iReac2 = 1, ChemReac%NumOfReact
-      IF (((TRIM(ChemReac%ReactType(iReac2)).EQ.'r').AND.(.NOT.YetDefined_Help(iReac2))).OR.&
-          ((TRIM(ChemReac%ReactType(iReac2)).EQ.'rQK').AND.(.NOT.YetDefined_Help(iReac2)))) THEN
+      IF (((TRIM(ChemReac%ReactType(iReac2)).EQ.'r').AND.(.NOT.YetDefined_Help(iReac2)))) THEN
         IF (PairCombID(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)).EQ.&
             PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
               Reactant1 = ChemReac%DefinedReact(iReac,1,1)
@@ -546,24 +577,6 @@ END DO
 ! Case 19: only ion recombination
 DO iReac = 1, ChemReac%NumOfReact
   IF(TRIM(ChemReac%ReactType(iReac)).EQ.'r') THEN
-    Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-    Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-    Reactant3 = ChemReac%DefinedReact(iReac,1,3)
-    IF(.NOT.YetDefined_Help(iReac)) THEN
-      ChemReac%ReactCase(Reactant1, Reactant2) = 19
-      ChemReac%ReactCase(Reactant2, Reactant1) = 19
-      ChemReac%ReactNum(Reactant1, Reactant2, Reactant3) = iReac
-      ChemReac%ReactNum(Reactant2, Reactant1, Reactant3) = iReac
-      YetDefined_Help(iReac) = .TRUE.
-    END IF
-    ChemReac%ReactNumRecomb(Reactant1, Reactant2, Reactant3) = iReac
-    ChemReac%ReactNumRecomb(Reactant2, Reactant1, Reactant3) = iReac
-    DummyRecomb(Reactant1,Reactant2) = iReac
-  END IF
-END DO
-! Case 19: only ion recombination
-DO iReac = 1, ChemReac%NumOfReact
-  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'rQK') THEN
     Reactant1 = ChemReac%DefinedReact(iReac,1,1)
     Reactant2 = ChemReac%DefinedReact(iReac,1,2)
     Reactant3 = ChemReac%DefinedReact(iReac,1,3)
@@ -903,8 +916,7 @@ DO iReac = 1, ChemReac%NumOfReact
 END DO
 ! Filling empty values of ReactNumRecomb with the last recombination reaction for that collision pair
 DO iReac = 1, ChemReac%NumOfReact
-  IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'rQK') &
-    .OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
+  IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
     Reactant1 = ChemReac%DefinedReact(iReac,1,1)
     Reactant2 = ChemReac%DefinedReact(iReac,1,2)
     DO iSpec = 1, nSpecies
