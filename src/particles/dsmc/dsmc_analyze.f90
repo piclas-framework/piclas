@@ -722,7 +722,11 @@ DO iSpec=1, nSpecies
     ElecEnergy(iSpec) = ElecEnergy(iSpec) / CollInf%Coll_SpecPartNum(iSpec)
     ! Compute temperatures
     DSMC%InstantTXiElec(1,iSpec) = CalcTelec(ElecEnergy(iSpec), iSpec)
-    DSMC%InstantTXiElec(2,iSpec) = 2.*ElecEnergy(iSpec) /(BoltzmannConst*DSMC%InstantTXiElec(1,iSpec))
+    IF (DSMC%InstantTXiElec(1,iSpec).GT.0.0) THEN
+      DSMC%InstantTXiElec(2,iSpec) = 2.*ElecEnergy(iSpec) /(BoltzmannConst*DSMC%InstantTXiElec(1,iSpec))
+    ELSE
+      DSMC%InstantTXiElec(2,iSpec) = 0.0
+    END IF
   ELSE
     DSMC%InstantTXiElec(1:2,iSpec) = 0.0
   END IF
