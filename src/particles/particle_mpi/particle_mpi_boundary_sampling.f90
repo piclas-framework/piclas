@@ -131,11 +131,13 @@ DO iProc = 0,nLeaderGroupProcs-1
 END DO
 
 !--- Split communicator from MPI_COMM_LEADER_SHARED
-color = MPI_UNDEFINED
-IF (SurfOnNode) color = 1201
+color = MERGE(1201,MPI_UNDEFINED,SurfOnNode)
 
 ! create new SurfMesh communicator for SurfMesh communication. Pass MPI_INFO_NULL as rank to follow the original ordering
 CALL MPI_COMM_SPLIT(MPI_COMM_LEADERS_SHARED, color, MPI_INFO_NULL, MPI_COMM_LEADERS_SURF, IERROR)
+
+! Do not participate in remainder of communication if no surf sides on node
+IF (.NOT.SurfOnNode) RETURN
 
 ! Find my rank on the shared communicator, comm size and proc name
 CALL MPI_COMM_RANK(MPI_COMM_LEADERS_SURF, mySurfRank  , IERROR)
@@ -181,7 +183,7 @@ ALLOCATE(SurfMapping(0:nSurfLeaders-1))
 DO iProc = 0,nLeaderGroupProcs-1
   ! Ignore myself
   IF (MPIRankSurfLeader(iProc).EQ.MPI_UNDEFINED) CYCLE
-  IF (iProc .EQ. mySurfRank) CYCLE
+  IF (iProc .EQ. myLeaderGroupRank) CYCLE
 
   ! Save number of send and recv sides
   SurfMapping(MPIRankSurfLeader(iProc))%nRecvSurfSides = nRecvSurfSidesTmp(iProc)
@@ -195,7 +197,7 @@ DO iProc = 0,nLeaderGroupProcs-1
   CALL MPI_IRECV( SurfMapping(MPIRankSurfLeader(iProc))%RecvSurfGlobalID                         &
                 , nRecvSurfSidesTmp(iProc)                 &
                 , MPI_INTEGER                                                 &
-                , iProc                                                       &
+                , MPIRankSurfLeader(iProc)                                                      &
                 , 1211                                                        &
                 , MPI_COMM_LEADERS_SURF                                       &
                 , RecvRequest(MPIRankSurfLeader(iProc))                                          &
@@ -205,7 +207,7 @@ END DO
 DO iProc = 0,nLeaderGroupProcs-1
   IF (MPIRankSurfLeader(iProc).EQ.MPI_UNDEFINED) CYCLE
   ! Ignore myself
-  IF (iProc .EQ. mySurfRank) CYCLE
+  IF (iProc .EQ. myLeaderGroupRank) CYCLE
 
   ! Only open send buffer if we are expecting sides from this leader node
   IF (nSendSurfSidesTmp(iProc).EQ.0) CYCLE
@@ -217,7 +219,7 @@ DO iProc = 0,nLeaderGroupProcs-1
   CALL MPI_ISEND( SurfMapping(MPIRankSurfLeader(iProc))%SendSurfGlobalID                         &
                 , nSendSurfSidesTmp(iProc)                 &
                 , MPI_INTEGER                                                 &
-                , iProc                                                       &
+                , MPIRankSurfLeader(iProc) &
                 , 1211                                                        &
                 , MPI_COMM_LEADERS_SURF                                       &
                 , SendRequest(MPIRankSurfLeader(iProc))                                          &
@@ -228,7 +230,7 @@ END DO
 DO iProc = 0,nLeaderGroupProcs-1
   IF (MPIRankSurfLeader(iProc).EQ.MPI_UNDEFINED) CYCLE
   ! Ignore myself
-  IF (iProc .EQ. mySurfRank) CYCLE
+  IF (iProc .EQ. myLeaderGroupRank) CYCLE
 
   IF (nSendSurfSidesTmp(iProc).NE.0) THEN
     CALL MPI_WAIT(SendRequest(MPIRankSurfLeader(iProc)),msg_status(:),IERROR)
@@ -266,7 +268,7 @@ END DO ! iProc
 
 
 !--- Save number of total surf sides
-IF (surfOnNode) THEN
+!IF (surfOnNode) THEN
   IF (nSurfLeaders.EQ.1) THEN
     offsetComputeNodeSurfSide = 0
     nSurfTotalSides           = nComputeNodeSurfSides
@@ -280,7 +282,7 @@ IF (surfOnNode) THEN
     CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nSurfLeaders-1,MPI_COMM_LEADERS_SURF,iError)
     nSurfTotalSides = sendbuf
   END IF
-END IF
+!END IF
 
 
 END SUBROUTINE InitSurfCommunication
@@ -327,6 +329,7 @@ INTEGER                         :: MessageSize,iSurfSide,SurfSideID
 INTEGER                         :: nValues,nReactiveValues
 INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !INTEGER                         :: iPos,p,q,iProc,iReact
+    print *, 'here4.8'
 !INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
