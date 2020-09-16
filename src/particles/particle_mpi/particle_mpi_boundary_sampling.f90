@@ -156,7 +156,7 @@ CALL MPI_COMM_GROUP(MPI_COMM_LEADERS_SURF  ,surfGroup   ,IERROR)
 
 ! Finally translate global rank to local rank
 CALL MPI_GROUP_TRANSLATE_RANKS(leadersGroup,nLeaderGroupProcs,MPIRankSharedLeader,surfGroup,MPIRankSurfLeader,IERROR)
-SWRITE(UNIT_stdOUt,'(A,I0,A)') ' Starting surface communication between ', nSurfLeaders, ' compute nodes'
+IF (mySurfRank.EQ.0) WRITE(UNIT_stdOUt,'(A,I0,A)') ' Starting surface communication between ', nSurfLeaders, ' compute nodes...'
 
 !!--- Count all communicated sides and build mapping for other leaders
 !ALLOCATE(nSurfSidesLeader(1:2,0:nSurfLeaders-1))
@@ -278,7 +278,7 @@ END DO ! iProc
     CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_LEADERS_SURF,iError)
     offsetComputeNodeSurfSide = recvbuf
     ! last proc knows CN total number of BC elems
-    sendbuf = offsetComputeNodeSurfSide + nSurfTotalSides
+    sendbuf = offsetComputeNodeSurfSide + nComputeNodeSurfSides
     CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nSurfLeaders-1,MPI_COMM_LEADERS_SURF,iError)
     nSurfTotalSides = sendbuf
   END IF
