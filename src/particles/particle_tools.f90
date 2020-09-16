@@ -29,6 +29,10 @@ INTERFACE VeloFromDistribution
   MODULE PROCEDURE VeloFromDistribution
 END INTERFACE
 
+INTERFACE DiceUnitVector
+  MODULE PROCEDURE DiceUnitVector
+END INTERFACE
+
 INTERFACE LIQUIDEVAP
   MODULE PROCEDURE LIQUIDEVAP
 END INTERFACE
@@ -278,7 +282,7 @@ END SUBROUTINE StoreLostParticleProperties
 
 FUNCTION DiceUnitVector()
 !===================================================================================================================================
-! Calculate random normalized vector in 3D (unit space)
+!> Calculates random unit vector
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -290,20 +294,22 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                     :: DiceUnitVector(3)
-REAL                     :: iRan, bVec, aVec
+  REAL                     :: DiceUnitVector(3)
+  REAL                     :: rRan, cos_scatAngle, sin_scatAngle, rotAngle
 !===================================================================================================================================
-CALL RANDOM_NUMBER(iRan)
-bVec              = 1. - 2.*iRan
-aVec              = SQRT(1. - bVec**2.)
-DiceUnitVector(3) = bVec
-CALL RANDOM_NUMBER(iRan)
-bVec              = Pi *2. * iRan
-DiceUnitVector(1) = aVec * COS(bVec)
-DiceUnitVector(2) = aVec * SIN(bVec)
+  CALL RANDOM_NUMBER(rRan)
+
+  cos_scatAngle     = 2.*rRan-1.
+  sin_scatAngle     = SQRT(1. - cos_scatAngle ** 2.)
+  DiceUnitVector(1) = cos_scatAngle
+
+  CALL RANDOM_NUMBER(rRan)
+  rotAngle          = 2. * Pi * rRan
+
+  DiceUnitVector(2) = sin_scatAngle * COS(rotAngle)
+  DiceUnitVector(3) = sin_scatAngle * SIN(rotAngle)
 
 END FUNCTION DiceUnitVector
-
 
 FUNCTION VeloFromDistribution(distribution,specID,Tempergy)
 !===================================================================================================================================

@@ -133,7 +133,7 @@ END ASSOCIATE
 END SUBROUTINE GetPositionInRefElem
 
 
-SUBROUTINE TensorProductInterpolation(Xi_in,NVar,N_in,xGP_in,wBary_In,U_In,U_Out)
+SUBROUTINE TensorProductInterpolation(Xi_in,NVar,N_in,xGP_in,wBary_In,U_In,U_OUT)
 !===================================================================================================================================
 !> Interpolates a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation points to the position Xi
 !===================================================================================================================================
@@ -151,7 +151,7 @@ REAL,INTENT(IN)     :: xGP_In(0:N_in)
 REAL,INTENT(IN)     :: wBary_In(0:N_in)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)    :: U_Out(1:NVar)                         !< Interpolated state at reference position xi_in
+REAL,INTENT(OUT)    :: U_OUT(1:NVar)                         !< Interpolated state at reference position xi_in
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                   :: i,j,k
@@ -162,23 +162,23 @@ CALL LagrangeInterpolationPolys(xi_in(1),N_in,xGP_in,wBary_In,L_xi(1,:))
 CALL LagrangeInterpolationPolys(xi_in(2),N_in,xGP_in,wBary_In,L_xi(2,:))
 CALL LagrangeInterpolationPolys(xi_in(3),N_in,xGP_in,wBary_In,L_xi(3,:))
 
-U_out(:)=0
+U_OUT(:)=0
 DO k=0,N_in
   DO j=0,N_in
     L_eta_zeta=L_xi(2,j)*L_xi(3,k)
     DO i=0,N_in
-      U_out = U_out + U_IN(:,i,j,k)*L_xi(1,i)*L_eta_zeta
+      U_OUT = U_OUT + U_IN(:,i,j,k)*L_xi(1,i)*L_eta_zeta
     END DO ! i=0,N_In
   END DO ! j=0,N_In
 END DO ! k=0,N_In
 END SUBROUTINE TensorProductInterpolation
 
 
-SUBROUTINE EvaluateFieldAtPhysPos(x_in,NVar,N_in,U_In,U_Out,ElemID,PartID)
+SUBROUTINE EvaluateFieldAtPhysPos(x_in,NVar_IN,N_in,U_In,NVar_OUT,U_OUT,ElemID,PartID)
 !===================================================================================================================================
 !> 1) Get position within reference element (x_in -> xi=[-1,1]) by inverting the mapping
-!> 2) interpolate DG solution to position (U_In -> U_Out(x_in))
-!> 3) interpolate backgroundfield to position ( U_Out -> U_Out(x_in)+BG_field(x_in) )
+!> 2) interpolate DG solution to position (U_In -> U_OUT(x_in))
+!> 3) interpolate backgroundfield to position ( U_OUT -> U_OUT(x_in)+BG_field(x_in) )
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -201,15 +201,16 @@ USE MOD_Mesh_Vars,             ONLY: XCL_NGeo,dXCL_NGeo
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)  :: NVar                                  !< 6 (Ex, Ey, Ez, Bx, By, Bz)
+INTEGER,INTENT(IN)  :: NVar_IN                               !< 6 (Ex, Ey, Ez, Bx, By, Bz)
+INTEGER,INTENT(IN)  :: NVar_OUT                              !< 6 (Ex, Ey, Ez, Bx, By, Bz)
 INTEGER,INTENT(IN)  :: N_In                                  !< usually PP_N
 INTEGER,INTENT(IN)  :: ElemID                                !< Element index
-REAL,INTENT(IN)     :: U_In(1:NVar,0:N_In,0:N_In,0:N_In)     !< State in Element
+REAL,INTENT(IN)     :: U_IN(1:NVar_IN,0:N_In,0:N_In,0:N_In)  !< State in Element
 REAL,INTENT(IN)     :: x_in(3)                               !< position in physical space
 INTEGER,INTENT(IN),OPTIONAL :: PartID                        !< particle ID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)    :: U_Out(1:NVar)                         !< Interpolated state at physical position x_in
+REAL,INTENT(OUT)    :: U_OUT(1:NVar_OUT)                     !< Interpolated state at physical position x_in
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: CNElemID,i,j,k
@@ -263,12 +264,12 @@ CALL LagrangeInterpolationPolys(xi(2),N_in,xGP,wBary,L_xi(2,:))
 CALL LagrangeInterpolationPolys(xi(3),N_in,xGP,wBary,L_xi(3,:))
 
 ! "more efficient" - Quote Thomas B.
-U_out(:)=0
+U_OUT(:)=0.
 DO k=0,N_in
   DO j=0,N_in
     L_eta_zeta=L_xi(2,j)*L_xi(3,k)
     DO i=0,N_in
-      U_out = U_out + U_IN(:,i,j,k)*L_xi(1,i)*L_Eta_Zeta
+      U_OUT(1:NVar_IN) = U_OUT(1:NVar_IN) + U_IN(1:NVar_IN,i,j,k)*L_xi(1,i)*L_Eta_Zeta
     END DO ! i=0,N_In
   END DO ! j=0,N_In
 END DO ! k=0,N_In
@@ -296,11 +297,11 @@ IF(useBGField)THEN
 
   SELECT CASE(BGType)
   CASE(1)
-    U_Out(1:3)=U_Out(1:3)+U_BGField
+    U_OUT(1:3)=U_OUT(1:3)+U_BGField
   CASE(2)
-    U_Out(4:6)=U_Out(4:6)+U_BGField
+    U_OUT(4:6)=U_OUT(4:6)+U_BGField
   CASE(3)
-    U_Out=U_Out+U_BGField
+    U_OUT=U_OUT+U_BGField
   END SELECT
   DEALLOCATE( L_xi_BGField, U_BGField)! X3d_tmp1, x3d_tmp2, x3d_tmp3)
 END IF ! useBGField
@@ -312,10 +313,10 @@ END ASSOCIATE
 END SUBROUTINE EvaluateFieldAtPhysPos
 
 
-PURE SUBROUTINE EvaluateFieldAtRefPos(xi_in,NVar,N_in,U_In,U_Out,ElemID)
+PURE SUBROUTINE EvaluateFieldAtRefPos(xi_in,NVar_IN,N_in,U_In,NVar_OUT,U_OUT,ElemID)
 !===================================================================================================================================
-!> 1) interpolate DG solution to position (U_In -> U_Out(xi_in))
-!> 2) interpolate backgroundfield to position ( U_Out -> U_Out(xi_in)+BG_field(xi_in) )
+!> 1) interpolate DG solution to position (U_In -> U_OUT(xi_in))
+!> 2) interpolate backgroundfield to position ( U_OUT -> U_OUT(xi_in)+BG_field(xi_in) )
 !===================================================================================================================================
 ! MODULES
 USE MOD_Basis                 ,ONLY: LagrangeInterpolationPolys
@@ -326,19 +327,20 @@ USE MOD_Interpolation_Vars    ,ONLY: NBG,BGField,BGDataSize,BGField_wBary, BGFie
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)  :: NVar                                  !< 6 (Ex, Ey, Ez, Bx, By, Bz)
+INTEGER,INTENT(IN)  :: NVar_IN                               !< 6 (Ex, Ey, Ez, Bx, By, Bz)
+INTEGER,INTENT(IN)  :: NVar_OUT                              !< 6 (Ex, Ey, Ez, Bx, By, Bz)
 INTEGER,INTENT(IN)  :: N_In                                  !< usually PP_N
 INTEGER,INTENT(IN)  :: ElemID                                !< Element index
-REAL,INTENT(IN)     :: U_In(1:NVar,0:N_In,0:N_In,0:N_In)     !< State in Element
+REAL,INTENT(IN)     :: U_In(1:NVar_IN,0:N_In,0:N_In,0:N_In)  !< State in Element
 REAL,INTENT(IN)     :: Xi_in(3)                              !< position in reference element
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)    :: U_Out(1:NVar)                         !< Interpolated state at reference position xi_in
+REAL,INTENT(OUT)    :: U_OUT(1:NVar_OUT)                     !< Interpolated state at reference position xi_in
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: i,j,k
-!REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
-!REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
+!REAL                :: X3D_Buf1(1:NVar_IN,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
+!REAL                :: X3D_Buf2(1:NVar_IN,0:N_In) ! second intermediate results from 1D interpolations
 REAL                :: L_xi(3,0:N_in), L_eta_zeta
 !REAL                :: buff,buff2
 ! h5-external e,b field
@@ -351,12 +353,12 @@ CALL LagrangeInterpolationPolys(xi_in(2),N_in,xGP,wBary,L_xi(2,:))
 CALL LagrangeInterpolationPolys(xi_in(3),N_in,xGP,wBary,L_xi(3,:))
 
 ! "more efficient" - Quote Thomas B.
-U_out(:)=0
+U_OUT(:)=0
 DO k=0,N_in
   DO j=0,N_in
     L_eta_zeta=L_xi(2,j)*L_xi(3,k)
     DO i=0,N_in
-      U_out = U_out + U_IN(:,i,j,k)*L_xi(1,i)*L_Eta_Zeta
+      U_OUT(1:NVar_IN) = U_OUT(1:NVar_IN) + U_IN(1:NVar_IN,i,j,k)*L_xi(1,i)*L_Eta_Zeta
     END DO ! i=0,N_In
   END DO ! j=0,N_In
 END DO ! k=0,N_In
@@ -430,11 +432,11 @@ IF(useBGField)THEN
   !END DO
   SELECT CASE(BGType)
   CASE(1)
-    U_Out(1:3)=U_Out(1:3)+U_BGField
+    U_OUT(1:3)=U_OUT(1:3)+U_BGField
   CASE(2)
-    U_Out(4:6)=U_Out(4:6)+U_BGField
+    U_OUT(4:6)=U_OUT(4:6)+U_BGField
   CASE(3)
-    U_Out=U_Out+U_BGField
+    U_OUT=U_OUT+U_BGField
   END SELECT
   DEALLOCATE( L_xi_BGField, U_BGFIeld)! X3d_tmp1, x3d_tmp2, x3d_tmp3)
 END IF ! useBGField

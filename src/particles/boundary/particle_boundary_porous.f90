@@ -114,7 +114,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Mesh_Vars                   ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
-USE MOD_Particle_Vars               ,ONLY: nSpecies, Adaptive_MacroVal, Symmetry2D, Symmetry2DAxisymmetric
+USE MOD_Particle_Vars               ,ONLY: nSpecies, Adaptive_MacroVal, Symmetry
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound, nPorousBC, nPorousSides, PorousBCMacroVal
 USE MOD_Particle_Boundary_Vars      ,ONLY: nComputeNodeSurfTotalSides, SurfSide2GlobalSide
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCSampIter, PorousBC
@@ -151,9 +151,9 @@ IF(DoRefMapping) THEN
       ,'ERROR: Porous boundary conditions are not implemented with DoRefMapping!')
 END IF
 
-IF(Symmetry2D.AND.(.NOT.Symmetry2DAxisymmetric)) THEN
+IF((Symmetry%Order.LE.2).AND.(.NOT.Symmetry%Axisymmetric)) THEN
   CALL abort(__STAMP__&
-      ,'ERROR: Porous boundary conditions are not implemented for 2D simulations!')
+      ,'ERROR: Porous boundary conditions are not implemented for 1D/2D simulations!')
 END IF
 
 ! 1) Read-in of parameters
@@ -239,7 +239,7 @@ DO iPBC = 1, nPorousBC
         WRITE(UNIT=hilf2,FMT='(E16.8)') HUGE(PorousBC(iPBC)%rmax)
         PorousBC(iPBC)%rmax = GETREAL('Part-PorousBC'//TRIM(hilf)//'-rmax',TRIM(hilf2))
         PorousBC(iPBC)%rmin = GETREAL('Part-PorousBC'//TRIM(hilf)//'-rmin','0.')
-        IF(Symmetry2DAxisymmetric) THEN
+        IF(Symmetry%Axisymmetric) THEN
           IF(PorousBC(iPBC)%dir(1).NE.1) THEN
             CALL abort(__STAMP__&
               ,'ERROR in Porous BC: For axisymmetric simulations, only regions perpendicular to the axis are allowed!', iPBC)

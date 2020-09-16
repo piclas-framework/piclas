@@ -49,96 +49,90 @@ CONTAINS
 
 SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
 !===================================================================================================================================
-! init electronic shell
+!> Set the initial electronic energy of a particle depending on its species and temperature input (through init or surface flux)
 !===================================================================================================================================
-  USE MOD_Globals,                ONLY : abort, myRank
-  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn, ElectronicDistriPart, DSMC
-  USE MOD_Particle_Vars,          ONLY : Species, PEM
-  USE MOD_Mesh_Vars               ,ONLY: offSetElem
+USE MOD_Globals         ,ONLY: abort
+USE MOD_Globals_Vars    ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars       ,ONLY: SpecDSMC, PartStateIntEn, ElectronicDistriPart, DSMC
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPart, iSpecies, iInit, init_or_sf
+INTEGER, INTENT(IN)     :: iPart, iSpecies, iInit, init_or_sf
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: iQua
-  REAL                          :: iRan, ElectronicPartition, ElectronicPartitionTemp, iRan2, tmpExp
-  REAL                        :: Telec                      ! electronic temperature
+INTEGER                 :: iQua
+REAL                    :: iRan, ElectronicPartition, ElectronicPartitionTemp, iRan2, tmpExp
+REAL                    :: Telec                      ! electronic temperature
 !===================================================================================================================================
-  SELECT CASE (init_or_sf)
-  CASE(1) !iInit
-    IF (Species(iSpecies)%Init(iInit)%ElemTElecFileID.EQ.0) THEN
-      TElec=SpecDSMC(iSpecies)%Init(iInit)%TElec
-    ELSE
-      TElec=Species(iSpecies)%Init(iInit)%ElemTElec(PEM%LocalElemID(iPart))
-    END IF
-  CASE(2) !SurfaceFlux
-    Telec=SpecDSMC(iSpecies)%Surfaceflux(iInit)%Telec
-  CASE DEFAULT
-    CALL abort(&
-    __STAMP__&
-    ,'neither iInit nor Surfaceflux defined as reference!')
-  END SELECT
+SELECT CASE (init_or_sf)
+CASE(1) !iInit
+  TElec=SpecDSMC(iSpecies)%Init(iInit)%TElec
+CASE(2) !SurfaceFlux
+  Telec=SpecDSMC(iSpecies)%Surfaceflux(iInit)%Telec
+CASE DEFAULT
+  CALL abort(&
+  __STAMP__&
+  ,'neither iInit nor Surfaceflux defined as reference!')
+END SELECT
 
-  ElectronicPartition  = 0.
+ElectronicPartition  = 0.
+ElectronicPartitionTemp = 0.
+! calculate sum over all energy levels == partition function for temperature Telec
+IF (DSMC%ElectronicDistrModel) THEN
+  IF(ALLOCATED(ElectronicDistriPart(iPart)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(iPart)%DistriFunc)
+  ALLOCATE(ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(iSpecies)%MaxElecQuant))
+  PartStateIntEn(3,iPart) = 0.0
+  DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
+    tmpExp = SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec
+    IF (CHECKEXP(tmpExp)) &
+      ElectronicPartition = ElectronicPartition + SpecDSMC(iSpecies)%ElectronicState(1,iQua) * EXP(-tmpExp)
+  END DO
+  DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
+    tmpExp = SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec
+    IF (CHECKEXP(tmpExp)) THEN
+      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = SpecDSMC(iSpecies)%ElectronicState(1,iQua)*EXP(-tmpExp)/ElectronicPartition
+    ELSE
+      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = 0.0
+    END IF
+    PartStateIntEn(3,iPart) = PartStateIntEn(3,iPart) + &
+        ElectronicDistriPart(iPart)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpecies)%ElectronicState(2,iQua)
+  END DO
+ELSE
+  DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
+    tmpExp = SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec
+    IF (CHECKEXP(tmpExp)) THEN
+      ElectronicPartitionTemp = SpecDSMC(iSpecies)%ElectronicState(1,iQua) *EXP(-tmpExp)
+    ELSE
+      ElectronicPartitionTemp = 0.0
+    END IF
+    IF ( ElectronicPartitionTemp .GT. ElectronicPartition ) THEN
+      ElectronicPartition = ElectronicPartitionTemp
+    END IF
+  END DO
   ElectronicPartitionTemp = 0.
-  ! calculate sum over all energy levels == partition function for temperature Telec
-  IF (DSMC%ElectronicDistrModel) THEN
-    IF(ALLOCATED(ElectronicDistriPart(iPart)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(iPart)%DistriFunc)
-    ALLOCATE(ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(iSpecies)%MaxElecQuant))
-    PartStateIntEn(3,iPart) = 0.0
-    DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
-      tmpExp = SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec
-      IF (CHECKEXP(tmpExp)) &
-        ElectronicPartition = ElectronicPartition + SpecDSMC(iSpecies)%ElectronicState(1,iQua) * EXP(-tmpExp)
-    END DO
-    DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
-      tmpExp = SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec
-      IF (CHECKEXP(tmpExp)) THEN
-        ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = SpecDSMC(iSpecies)%ElectronicState(1,iQua)*EXP(-tmpExp)/ElectronicPartition
-      ELSE
-        ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = 0.0
-      END IF
-      PartStateIntEn(3,iPart) = PartStateIntEn(3,iPart) + &
-          ElectronicDistriPart(iPart)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpecies)%ElectronicState(2,iQua)
-    END DO
-  ELSE
-    DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
-      tmpExp = SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec
-      IF (CHECKEXP(tmpExp)) THEN
-        ElectronicPartitionTemp = SpecDSMC(iSpecies)%ElectronicState(1,iQua) *EXP(-tmpExp)
-      ELSE
-        ElectronicPartitionTemp = 0.0
-      END IF
-      IF ( ElectronicPartitionTemp .GT. ElectronicPartition ) THEN
-        ElectronicPartition = ElectronicPartitionTemp
-      END IF
-    END DO
-    ElectronicPartitionTemp = 0.
-    ! select level
+  ! select level
+  CALL RANDOM_NUMBER(iRan2)
+  DO WHILE ( iRan2 .GE. ElectronicPartitionTemp / ElectronicPartition )
+    CALL RANDOM_NUMBER(iRan)
+    iQua = int( ( SpecDSMC(iSpecies)%MaxElecQuant ) * iRan)
+    tmpExp = SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec
+    IF (CHECKEXP(tmpExp)) THEN
+      ElectronicPartitionTemp = SpecDSMC(iSpecies)%ElectronicState(1,iQua) *EXP(-tmpExp)
+    ELSE
+      ElectronicPartitionTemp = 0.0
+    END IF
     CALL RANDOM_NUMBER(iRan2)
-    DO WHILE ( iRan2 .GE. ElectronicPartitionTemp / ElectronicPartition )
-      CALL RANDOM_NUMBER(iRan)
-      iQua = int( ( SpecDSMC(iSpecies)%MaxElecQuant ) * iRan)
-      tmpExp = SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec
-      IF (CHECKEXP(tmpExp)) THEN
-        ElectronicPartitionTemp = SpecDSMC(iSpecies)%ElectronicState(1,iQua) *EXP(-tmpExp)
-      ELSE
-        ElectronicPartitionTemp = 0.0
-      END IF
-      CALL RANDOM_NUMBER(iRan2)
-    END DO
+  END DO
 #if ( PP_TimeDiscMethod == 42 )
 #ifdef CODE_ANALYZE
-    SpecDSMC(iSpecies)%levelcounter(iQua) = SpecDSMC(iSpecies)%levelcounter(iQua) + 1
+  SpecDSMC(iSpecies)%levelcounter(iQua) = SpecDSMC(iSpecies)%levelcounter(iQua) + 1
 #endif
 #endif
-    PartStateIntEn(3,iPart) = BoltzmannConst * SpecDSMC(iSpecies)%ElectronicState(2,iQua)
-  END IF
+  PartStateIntEn(3,iPart) = BoltzmannConst * SpecDSMC(iSpecies)%ElectronicState(2,iQua)
+END IF
 END SUBROUTINE InitElectronShell
 
 

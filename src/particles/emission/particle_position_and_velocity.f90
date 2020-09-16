@@ -45,7 +45,7 @@ SUBROUTINE SetParticlePositionCellLocal(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species,Symmetry2DAxisymmetric
+USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
 USE MOD_part_Emission_Tools    ,ONLY: IntegerDivide,SetCellLocalParticlePosition
 #if USE_MPI
@@ -78,7 +78,7 @@ INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:)
   IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleEmission.EQ.0)) RETURN
   IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) THEN
     DoExactPartNumInsert =  .TRUE.
-    IF(Symmetry2DAxisymmetric) CALL abort(&
+    IF(Symmetry%Axisymmetric) CALL abort(&
 __STAMP__&
 ,'Axisymmetric: Particle insertion only possible with PartDensity!')
   END IF
@@ -90,7 +90,7 @@ __STAMP__&
     NbrofParticle=0
     RETURN
   END IF
-  IF (PartMPI%InitGroup(InitGroup)%nProcs.GT.1 .AND. Species(FractNbr)%Init(iInit)%ElemPartDensityFileID.EQ.0) THEN
+  IF (PartMPI%InitGroup(InitGroup)%nProcs.GT.1) THEN
     IF (DoExactPartNumInsert) THEN !###$ ToDo
       IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
         ALLOCATE(ProcMeshVol(0:PartMPI%InitGroup(InitGroup)%nProcs-1))
@@ -218,7 +218,7 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
   CASE('sphere')
     CALL SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions)
   CASE('sin_deviation')
-    CALL SetParticlePositionSinDeviation(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionSinDeviation(FractNbr,iInit,particle_positions)
   CASE('photon_SEE_disc') ! disc case for surface disribution
     CALL SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize,particle_positions)
   CASE('photon_cylinder') ! cylinder case for photonionization
@@ -324,7 +324,6 @@ INTEGER,INTENT(INOUT)           :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: i, PositionNbr
-LOGICAL                         :: Is_ElemMacro
 CHARACTER(30)                   :: velocityDistribution
 REAL                            :: VeloIC, VeloVecIC(3), maxwellfac, VeloVecNorm
 REAL                            :: iRanPart(3, NbrOfParticle), Vec3D(3)
@@ -336,11 +335,7 @@ IF(NbrOfParticle.GT.PDM%maxParticleNumber)THEN
 __STAMP__&
 ,'NbrOfParticle > PDM%maxParticleNumber!')
 END IF
-Is_ElemMacro = .FALSE.
 
-IF (Species(FractNbr)%Init(iInit)%ElemVelocityICFileID.GT.0 .OR. Species(FractNbr)%Init(iInit)%ElemTemperatureFileID.GT.0) THEN
-  Is_ElemMacro = .TRUE.
-END IF
 velocityDistribution=Species(FractNbr)%Init(iInit)%velocityDistribution
 VeloIC=Species(FractNbr)%Init(iInit)%VeloIC
 VeloVecIC=Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
@@ -354,11 +349,7 @@ CASE('constant')
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr.GT.0) THEN
-      IF ((Is_ElemMacro).AND.(Species(FractNbr)%Init(iInit)%ElemVelocityICFileID.GT.0)) THEN
-        PartState(4:6,PositionNbr) = Species(FractNbr)%Init(iInit)%ElemVelocityIC(1:3,PEM%GlobalElemID(PositionNbr))
-      ELSE
-        PartState(4:6,PositionNbr) = VeloVecIC(1:3) * VeloIC
-      END IF
+      PartState(4:6,PositionNbr) = VeloVecIC(1:3) * VeloIC
     END IF
   END DO
 CASE('gyrotron_circle')
@@ -373,12 +364,8 @@ CASE('maxwell_lpn')
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr.GT.0) THEN
-       IF (Is_ElemMacro) THEN
-         CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit, Element=PEM%GlobalElemID(PositionNbr))
-       ELSE
-         CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
-       END IF
-       PartState(4:6,PositionNbr) = Vec3D(1:3)
+      CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
+      PartState(4:6,PositionNbr) = Vec3D(1:3)
     END IF
   END DO
 CASE('taylorgreenvortex')
@@ -404,11 +391,7 @@ CASE('photon_SEE_energy')
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
-!       IF (Is_ElemMacro) THEN
-         CALL CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit=iInit)
-!       ELSE
-!         CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
-!       END IF
+        CALL CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit=iInit)
         PartState(4:6,PositionNbr) = Vec3D(1:3)
         ! Store the particle information in PartStateBoundary.h5
         IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(PositionNbr,FractNbr,PartState(1:3,PositionNbr),&

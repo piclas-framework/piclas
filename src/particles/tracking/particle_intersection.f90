@@ -580,7 +580,7 @@ BiLinearCoeff(:,4) = 0.25*BaseVectors0(:,SideID)
 
 ! Check if the site can be encountered. Both vectors are already normalized
 scaleFac = DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID))
-IF (ALMOSTZERO(scaleFac)) RETURN
+IF (ABS(scaleFac).LT.epsilontol) RETURN
 
 ! Check if any of the trajectory components are 0. This invalidates eq. (6) in the Ramsay paper and must be handled separately
 IF (ABS(PartTrajectory(1)).LT.epsilontol) THEN

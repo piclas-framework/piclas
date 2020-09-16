@@ -471,31 +471,33 @@ DO kk = kmin,kmax
   END DO ! ll
 END DO ! kk
 
-alpha = (Fac(4)/w_sf) / totalCharge
-DO ppp=1, nUsedElems
-  globElemID = usedElems(ppp)
-  localElem = globElemID-offSetElem
-  CNElemID = GetCNElemID(globElemID)   
-  IF (((localElem).GE.1).AND.(localElem).LE.nElems) THEN
-    IF (SourceSize.EQ.1) THEN
-      PartSource(4,:,:,:, CNElemID) = PartSource(4,:,:,:, CNElemID) + alpha*PartSourceLoc(4,:,:,:, localElem)
-!#if !((USE_HDG) && (PP_nVar==1))
-    ELSE IF (SourceSize.EQ.4) THEN
-      PartSource(1:4,:,:,:, CNElemID) = PartSource(1:4,:,:,:, CNElemID) + alpha*PartSourceLoc(1:4,:,:,:, localElem)
-!#endif
-    END IF          
-  ELSE
-    IF (SourceSize.EQ.1) THEN
-      PartSourceProc(4,:,:,:, SendElemShapeID(CNElemID)) =  &
-          PartSourceProc(4,:,:,:, SendElemShapeID(CNElemID)) + alpha * PartSourceLocHalo(4,:,:,:, SendElemShapeID(CNElemID))
-!#if !((USE_HDG) && (PP_nVar==1))
-    ELSE IF (SourceSize.EQ.4) THEN
-      PartSourceProc(1:4,:,:,:, SendElemShapeID(CNElemID)) = &
-          PartSourceProc(1:4,:,:,:, SendElemShapeID(CNElemID)) + alpha * PartSourceLocHalo(1:4,:,:,:, SendElemShapeID(CNElemID))
-!#endif
-    END IF 
-  END IF
-END DO
+IF (nUsedElems.GT.0) THEN
+  alpha = (Fac(4)/w_sf) / totalCharge
+  DO ppp=1, nUsedElems
+    globElemID = usedElems(ppp)
+    localElem = globElemID-offSetElem
+    CNElemID = GetCNElemID(globElemID)   
+    IF (((localElem).GE.1).AND.(localElem).LE.nElems) THEN
+      IF (SourceSize.EQ.1) THEN
+        PartSource(4,:,:,:, CNElemID) = PartSource(4,:,:,:, CNElemID) + alpha*PartSourceLoc(4,:,:,:, localElem)
+  !#if !((USE_HDG) && (PP_nVar==1))
+      ELSE IF (SourceSize.EQ.4) THEN
+        PartSource(1:4,:,:,:, CNElemID) = PartSource(1:4,:,:,:, CNElemID) + alpha*PartSourceLoc(1:4,:,:,:, localElem)
+  !#endif
+      END IF          
+    ELSE
+      IF (SourceSize.EQ.1) THEN
+        PartSourceProc(4,:,:,:, SendElemShapeID(CNElemID)) =  &
+            PartSourceProc(4,:,:,:, SendElemShapeID(CNElemID)) + alpha * PartSourceLocHalo(4,:,:,:, SendElemShapeID(CNElemID))
+  !#if !((USE_HDG) && (PP_nVar==1))
+      ELSE IF (SourceSize.EQ.4) THEN
+        PartSourceProc(1:4,:,:,:, SendElemShapeID(CNElemID)) = &
+            PartSourceProc(1:4,:,:,:, SendElemShapeID(CNElemID)) + alpha * PartSourceLocHalo(1:4,:,:,:, SendElemShapeID(CNElemID))
+  !#endif
+      END IF 
+    END IF
+  END DO
+END IF
 END SUBROUTINE depoChargeOnDOFs_sfNewChargeCon
 
 

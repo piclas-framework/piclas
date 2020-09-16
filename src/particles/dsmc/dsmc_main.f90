@@ -49,12 +49,11 @@ USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedPar
 USE MOD_DSMC_Vars             ,ONLY: ChemReac, UseMCC, XSec_Relaxation, SpecXSec
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SummarizeQualityFactors, DSMCMacroSampling
 USE MOD_DSMC_Collis           ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
-USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Symmetry2D
-USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_pairing_quadtree
+USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Symmetry
+USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_pairing_quadtree, DSMC_pairing_dotree
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared,ElemMPVolumePortion_Shared
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
@@ -117,10 +116,12 @@ DO iElem = 1, nElems ! element/cell main loop
     ELSE IF (nPart.GT.1) THEN
       IF (DSMC%UseOctree) THEN
         ! On-the-fly cell refinement and pairing within subcells
-        IF(Symmetry2D) THEN
+        IF(Symmetry%Order.EQ.3) THEN
+          CALL DSMC_pairing_octree(iElem)
+        ELSE IF(Symmetry%Order.EQ.2) THEN
           CALL DSMC_pairing_quadtree(iElem)
         ELSE
-          CALL DSMC_pairing_octree(iElem)
+          CALL DSMC_pairing_dotree(iElem)
         END IF
       ELSE ! NOT DSMC%UseOctree
         ! Standard pairing of particles within a cell

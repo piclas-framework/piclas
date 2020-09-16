@@ -1278,7 +1278,7 @@ USE MOD_TimeDisc_Vars            ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals                  ,ONLY: abort
 USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
-USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
+USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry, VarTimeStep
 USE MOD_DSMC_Vars                ,ONLY: DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC                     ,ONLY: DSMC_main
 USE MOD_part_tools               ,ONLY: UpdateNextFreePosition
@@ -1302,8 +1302,8 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                  :: timeEnd, timeStart, dtVar, RandVal, NewYPart, NewYVelo
-INTEGER :: iPart
+REAL                       :: timeEnd, timeStart, dtVar, RandVal, NewYPart, NewYVelo
+INTEGER                    :: iPart
 #if USE_LOADBALANCE
 REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -1346,7 +1346,7 @@ REAL                  :: tLBStart
     END IF
     PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
     ! Axisymmetric treatment of particles: rotation of the position and velocity vector
-    IF(Symmetry2DAxisymmetric) THEN
+    IF(Symmetry%Axisymmetric) THEN
       IF (PartState(2,iPart).LT.0.0) THEN
         NewYPart = -SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
       ELSE
@@ -1368,10 +1368,10 @@ REAL                  :: tLBStart
   CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-  ! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
-  IF(Symmetry2D) THEN
-    LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
-    PartState(3,1:PDM%ParticleVecLength) = 0.0
+  ! Resetting the particle positions in the second/third dimension for the 1D/2D/axisymmetric case
+  IF(Symmetry%Order.LT.3) THEN
+    LastPartPos(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
+    PartState(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
   END IF
 
 #if USE_MPI
@@ -1584,7 +1584,7 @@ USE MOD_TimeDisc_Vars            ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals                  ,ONLY: abort
 USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
-USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
+USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry, VarTimeStep
 USE MOD_MacroBody                ,ONLY: MacroBody_main
 USE MOD_MacroBody_tools          ,ONLY: MarkMacroBodyElems
 USE MOD_DSMC_Vars                ,ONLY: DSMC_RHS, DSMC, CollisMode
@@ -1658,7 +1658,7 @@ REAL                       :: tLBStart
     PartState(2,iPart) = PartState(2,iPart) + PartState(5,iPart) * dtVar
     PartState(3,iPart) = PartState(3,iPart) + PartState(6,iPart) * dtVar
     ! Axisymmetric treatment of particles: rotation of the position and velocity vector
-    IF(Symmetry2DAxisymmetric) THEN
+    IF(Symmetry%Axisymmetric) THEN
       IF (PartState(2,iPart).LT.0.0) THEN
         NewYPart = -SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
       ELSE
@@ -1680,10 +1680,10 @@ REAL                       :: tLBStart
   CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-  ! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
-  IF(Symmetry2D) THEN
-    LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
-    PartState(3,1:PDM%ParticleVecLength) = 0.0
+  ! Resetting the particle positions in the second/third dimension for the 1D/2D/axisymmetric case
+  IF(Symmetry%Order.LT.3) THEN
+    LastPartPos(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
+    PartState(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
   END IF
 
 #if USE_MPI
@@ -3584,7 +3584,7 @@ USE MOD_TimeDisc_Vars             ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 USE MOD_Filter                    ,ONLY: Filter
 USE MOD_Globals                   ,ONLY: abort
 USE MOD_Particle_Vars             ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
-USE MOD_Particle_Vars             ,ONLY: VarTimeStep, Symmetry2D, Symmetry2DAxisymmetric
+USE MOD_Particle_Vars             ,ONLY: VarTimeStep, Symmetry
 USE MOD_DSMC_Vars                 ,ONLY: DSMC_RHS, DSMC, CollisMode
 USE MOD_part_tools                ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission             ,ONLY: ParticleInserting
@@ -3636,7 +3636,7 @@ DO iPart=1,PDM%ParticleVecLength
   PartState(2,iPart) = PartState(2,iPart) + PartState(5,iPart) * dtVar
   PartState(3,iPart) = PartState(3,iPart) + PartState(6,iPart) * dtVar
   ! Axisymmetric treatment of particles: rotation of the position and velocity vector
-  IF(Symmetry2DAxisymmetric) THEN
+  IF(Symmetry%Axisymmetric) THEN
     IF (PartState(2,iPart).LT.0.0) THEN
       NewYPart = -SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
     ELSE
@@ -3655,10 +3655,10 @@ DO iPart=1,PDM%ParticleVecLength
   END IF
 END DO
 
-! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
-IF(Symmetry2D) THEN
-  LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
-  PartState(3,1:PDM%ParticleVecLength) = 0.0
+! Resetting the particle positions in the second/third dimension for the 1D/2D/axisymmetric case
+IF(Symmetry%Order.LT.3) THEN
+  LastPartPos(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
+  PartState(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
 END IF
 
 #if USE_MPI
@@ -3728,7 +3728,7 @@ USE MOD_TimeDisc_Vars             ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 USE MOD_Filter                    ,ONLY: Filter
 USE MOD_Globals                   ,ONLY: abort
 USE MOD_Particle_Vars             ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
-USE MOD_Particle_Vars             ,ONLY: VarTimeStep, Symmetry2D, Symmetry2DAxisymmetric
+USE MOD_Particle_Vars             ,ONLY: VarTimeStep, Symmetry
 USE MOD_DSMC_Vars                 ,ONLY: DSMC_RHS, DSMC, CollisMode
 USE MOD_part_tools                ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission             ,ONLY: ParticleInserting
@@ -3776,7 +3776,7 @@ DO iPart=1,PDM%ParticleVecLength
   END IF
   PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
   ! Axisymmetric treatment of particles: rotation of the position and velocity vector
-  IF(Symmetry2DAxisymmetric) THEN
+  IF(Symmetry%Axisymmetric) THEN
     IF (PartState(2,iPart).LT.0.0) THEN
       NewYPart = -SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
     ELSE
@@ -3795,10 +3795,10 @@ DO iPart=1,PDM%ParticleVecLength
   END IF
 END DO
 
-! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
-IF(Symmetry2D) THEN
-  LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
-  PartState(3,1:PDM%ParticleVecLength) = 0.0
+! Resetting the particle positions in the second/third dimension for the 1D/2D/axisymmetric case
+IF(Symmetry%Order.LT.3) THEN
+  LastPartPos(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
+  PartState(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
 END IF
 
 #if USE_MPI
@@ -4222,34 +4222,7 @@ REAL, DIMENSION(3)         :: v_minus, v_plus, v_prime, t_vec
 #ifdef PARTICLES
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! communicate shape function particles
-#if USE_MPI
-  PartMPIExchange%nMPIParticles=0
-  IF(DoExternalParts)THEN
-    ! as we do not have the shape function here, we have to deallocate something
-    SDEALLOCATE(ExtPartState)
-    SDEALLOCATE(ExtPartSpecies)
-    SDEALLOCATE(ExtPartToFIBGM)
-    SDEALLOCATE(ExtPartMPF)
-    ! open receive buffer for number of particles
-    CALL IRecvNbofParticles()
-    ! send number of particles
-    CALL SendNbOfParticles()
-    ! finish communication of number of particles and send particles
-    CALL MPIParticleSend()
-  END IF
-#endif /*USE_MPI*/
-  CALL Deposition(DoInnerParts=.TRUE.) ! because of emission and UpdateParticlePosition
-#if USE_MPI
-  IF(DoExternalParts)THEN
-    ! finish communication
-    CALL MPIParticleRecv()
-  END IF
-  ! here: finish deposition with delta kernel
-  !       maps source terms in physical space
-  ! ALWAYS require
-  PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
-  CALL Deposition(DoInnerParts=.FALSE.) ! needed for closing communication
+  CALL Deposition(DoInnerParts=.TRUE.) ! needed for closing communication
   IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
     IF(DoVerifyCharge) CALL VerifyDepositedCharge()
   END IF
@@ -4357,7 +4330,6 @@ IF (time.GE.DelayTime) THEN
     PartMPIExchange%nMPIParticles=0
 #endif /*USE_MPI*/
     CALL Deposition(DoInnerParts=.TRUE.) ! because of emission and UpdateParticlePosition
-    CALL Deposition(DoInnerParts=.FALSE.) ! needed for closing communication
     IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
       IF(DoVerifyCharge) CALL VerifyDepositedCharge()
     END IF

@@ -374,8 +374,8 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)TH
   DO iElem = 1, nElems
     ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iElem + offsetElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
       ElemCharLengthX_Shared(iElem + offsetElemCNProc) = ABS(Bounds(2,1)-Bounds(1,1)) ! ABS(max - min)
-      ElemCharLengthX_Shared(iElem + offsetElemCNProc) = ABS(Bounds(2,2)-Bounds(1,2)) ! ABS(max - min)
-      ElemCharLengthX_Shared(iElem + offsetElemCNProc) = ABS(Bounds(2,3)-Bounds(1,3)) ! ABS(max - min)
+      ElemCharLengthY_Shared(iElem + offsetElemCNProc) = ABS(Bounds(2,2)-Bounds(1,2)) ! ABS(max - min)
+      ElemCharLengthZ_Shared(iElem + offsetElemCNProc) = ABS(Bounds(2,3)-Bounds(1,3)) ! ABS(max - min)
     END ASSOCIATE
   END DO ! iElem = 1, nElems
 
@@ -808,7 +808,7 @@ INTEGER             :: dir
           WRITE(unit_index,'(I3.3,A16,A5)',ADVANCE='NO') OutputCounter,'-Charge-relError',' '
           OutputCounter = OutputCounter + 1
         END IF
-        IF (CalcPartBalance) THEN
+        IF (CalcPartBalance) THEN ! calculate particle power balance with input and outflow energy of species
           DO iSpec=1, nSpecAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A14,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPartIn-Spec-',iSpec,' '
@@ -820,7 +820,7 @@ INTEGER             :: dir
             OutputCounter = OutputCounter + 1
           END DO
         END IF
-        IF (CalcEkin) THEN
+        IF (CalcEkin) THEN ! calculate kinetic energy
           DO iSpec=1, nSpecAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-Ekin-',iSpec,' '
@@ -835,26 +835,26 @@ INTEGER             :: dir
           WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-PCoupledMoAv',' '
           OutputCounter = OutputCounter + 1
         END IF
-        IF (CalcLaserInteraction) THEN
+        IF (CalcLaserInteraction) THEN ! computer laser-plasma interaction
           DO iSpec=1, nSpecies
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EkinMax-eV-',iSpec,' '
             OutputCounter = OutputCounter + 1
           END DO
         END IF
-        IF(CalcEkin .AND. CalcEpot .AND. CalcEtot) THEN
+        IF(CalcEkin .AND. CalcEpot .AND. CalcEtot) THEN ! calculate kinetic, potential and total energy
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-E-kin+pot',' '
           OutputCounter = OutputCounter + 1
         END IF
-        IF (CalcTemp) THEN
+        IF (CalcTemp) THEN ! calculate translational temperature
           DO iSpec=1, nSpecAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-TempTra-',iSpec,' '
             OutputCounter = OutputCounter + 1
           END DO
         END IF
-        IF (CalcVelos) THEN
+        IF (CalcVelos) THEN ! calculate flow and thermal velocities
           DO iSpec=1, nSpecies
             IF (VeloDirs(1)) THEN
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -890,7 +890,7 @@ INTEGER             :: dir
             END IF
           END DO
         END IF
-        IF (CalcPartBalance) THEN
+        IF (CalcPartBalance) THEN ! calculate particle power balance with input and outflow energy of all particles
           DO iSpec=1, nSpecAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A8,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EkinIn-',iSpec,' '
@@ -966,7 +966,8 @@ INTEGER             :: dir
             END DO
           END IF
         END IF
-        IF(CalcPorousBCInfo) THEN
+        IF(CalcPorousBCInfo) THEN ! calculate porous boundary condition output (pumping speed, removal probability, pressure
+                                  ! normalized with given pressure. Values are averaged over the whole porous BC
           DO iPBC = 1, nPorousBC
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A,I2.2,A,A5)',ADVANCE='NO') OutputCounter,'-PorousBC-',iPBC,'-PumpSpeed-Measure',' '
@@ -982,7 +983,8 @@ INTEGER             :: dir
             OutputCounter = OutputCounter + 1
           END DO
         END IF
-        IF(DSMC%CalcQualityFactors) THEN
+        IF(DSMC%CalcQualityFactors) THEN ! calculates flow-field variable maximum collision probability, time-averaged mean
+                                         ! collision probability, mean collision separation distance over mean free path
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-Pmean',' '
           OutputCounter = OutputCounter + 1
@@ -1020,7 +1022,7 @@ INTEGER             :: dir
           END IF
         END IF
 #endif
-        IF(FPInitDone) THEN
+        IF(FPInitDone) THEN ! Fokker Planck
           IF(DSMC%CalcQualityFactors) THEN
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-FP-MeanRelaxFactor',' '
@@ -1036,7 +1038,7 @@ INTEGER             :: dir
             OutputCounter = OutputCounter + 1
           END IF
         END IF
-        IF(BGKInitDone) THEN
+        IF(BGKInitDone) THEN ! Bhatnagar Gross Krook
           IF(DSMC%CalcQualityFactors) THEN
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-BGK-MeanRelaxFactor',' '
@@ -1050,7 +1052,7 @@ INTEGER             :: dir
           END IF
         END IF
 #if (PP_TimeDiscMethod==42)
-        IF(CalcCollRates) THEN
+        IF(CalcCollRates) THEN ! calculates collision rates per collision pair
           DO iSpec = 1, nSpecies
             DO jSpec = iSpec, nSpecies
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -1062,7 +1064,7 @@ INTEGER             :: dir
           WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-TotalCollRate',' '
           OutputCounter = OutputCounter + 1
         END IF
-        IF(CalcReacRates) THEN
+        IF(CalcReacRates) THEN ! calculates reaction rate per reaction
           IF(CollisMode.EQ.3) THEN
             DO iCase=1, ChemReac%NumOfReact
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -1155,7 +1157,7 @@ INTEGER             :: dir
       IF(DSMC%CollProbMeanCount.GT.0) MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
       IF (PartMPI%MPIRoot) THEN
         IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpecTmp(1:nSpecies), NumSpecTmp(nSpecAnalyze), &
-                                                              MeshVolume, SpecDSMC(1)%omegaVHS, TempTotal(nSpecAnalyze))
+                                                              MeshVolume, TempTotal(nSpecAnalyze))
       END IF
     END IF
     VibRelaxProbCase = 0.
@@ -2783,7 +2785,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(IN)                :: Time
-REAL,INTENT(IN)               :: NumSpec(:)
+REAL,INTENT(IN)                :: NumSpec(:)
 INTEGER                        :: iSpec, iSpec2, iQua1, iQua2, MaxElecQua
 ! accary of kf
 !===================================================================================================================================

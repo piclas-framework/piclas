@@ -34,17 +34,14 @@ REAL                                     :: MeshVolume         ! total Volume of
 REAL                                     :: LocalVolume        ! volume of proc
 INTEGER            :: nNonUniqueGlobalSides                 !> total nb. of non-unique sides of mesh (hexahedral: 6*nElems)
 INTEGER            :: nNonUniqueGlobalNodes                 !> total nb. of non-unique nodes of mesh (hexahedral: 8**NGeo * nElems)
-INTEGER            :: nNonUniqueGlobalTrees                 !> total nb. of trees
 INTEGER            :: nUniqueMasterMortarSides              !> total nb. of master mortar sides in the mesh
 INTEGER            :: nUniqueBCSides                        !> total nb. of BC sides in the mesh
 INTEGER            :: nComputeNodeElems                     !> Number of elems on current compute-node
 INTEGER            :: nComputeNodeSides                     !> Number of sides on current compute-node
 INTEGER            :: nComputeNodeNodes                     !> Number of nodes on current compute-node
-INTEGER            :: nComputeNodeTrees                     !> Number of trees on current compute-node
 INTEGER            :: offsetComputeNodeElem                 !> elem offset of compute-node root
 INTEGER            :: offsetComputeNodeSide                 !> side offset of compute-node root
 INTEGER            :: offsetComputeNodeNode                 !> node offset of compute-node root
-INTEGER            :: offsetComputeNodeTree                 !> tree offset of compute-node root
 INTEGER            :: nUniqueGlobalNodes                    !> MAXVAL(NodeInfo_Shared)
 
 ! ====================================================================
@@ -90,14 +87,10 @@ INTEGER,ALLOCPOINT,DIMENSION(:,:,:,:)    :: FIBGMToProc
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: FIBGMProcs
 
 ! Shared arrays containing information for complete mesh
-INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemToTree_Shared
 INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: ElemInfo_Shared
 INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: SideInfo_Shared
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: NodeInfo_Shared
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: NodeCoords_Shared
-REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:)     :: TreeCoords_Shared
-
-REAL,ALLOCPOINT    :: xiMinMax_Shared(:,:,:)
 
 INTEGER,ALLOCPOINT :: ElemToBCSides_Shared(:,:)            !> Mapping from elem to BC sides within halo eps
 REAL,ALLOCPOINT    :: SideBCMetrics_Shared(:,:)            !> Metrics for BC sides, see piclas.h
@@ -174,14 +167,10 @@ INTEGER         :: NodeToElemInfo_Shared_Win
 INTEGER         :: ElemToElemMapping_Shared_Win
 INTEGER         :: ElemToElemInfo_Shared_Win
 
-INTEGER         :: ElemToTree_Shared_Win
 INTEGER         :: ElemInfo_Shared_Win
 INTEGER         :: SideInfo_Shared_Win
 INTEGER         :: NodeInfo_Shared_Win
 INTEGER         :: NodeCoords_Shared_Win
-INTEGER         :: TreeCoords_Shared_Win
-
-INTEGER         :: xiMinMax_Shared_Win
 
 INTEGER         :: ElemToBCSides_Shared_Win
 INTEGER         :: SideBCMetrics_Shared_Win
@@ -454,6 +443,8 @@ TYPE tGeometry
 !  REAL, ALLOCATABLE                      :: ElemMidPoint(:,:)
 !  REAL, ALLOCATABLE                      :: BoundsOfElem(:,:,:)               ! Bounding box of each element (computed from Bezier
                                                                               ! control points
+  REAL, ALLOCATABLE                      :: XMinMax(:,:)                      ! Minimum (1) and maximum (2) xValue of the Element
+                                                                              ! Used for 1D (2,nELems)
 END TYPE
 
 TYPE (tGeometry)                         :: GEO
