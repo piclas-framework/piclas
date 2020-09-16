@@ -178,62 +178,65 @@ ALLOCATE(SurfMapping(0:nSurfLeaders-1))
 !SurfMapping(:)%nRecvSurfSides = 0
 !SurfMapping(:)%nSendSurfSides = 0
 
-DO iProc = 0,nSurfLeaders-1
+DO iProc = 0,nLeaderGroupProcs-1
   ! Ignore myself
+  IF (MPIRankSurfLeader(iProc).EQ.MPI_UNDEFINED) CYCLE
   IF (iProc .EQ. mySurfRank) CYCLE
 
   ! Save number of send and recv sides
-  SurfMapping(iProc)%nRecvSurfSides = nRecvSurfSidesTmp(MPIRankSurfLeader(iProc))
-  SurfMapping(iProc)%nSendSurfSides = nSendSurfSidesTmp(MPIRankSurfLeader(iProc))
+  SurfMapping(MPIRankSurfLeader(iProc))%nRecvSurfSides = nRecvSurfSidesTmp(iProc)
+  SurfMapping(MPIRankSurfLeader(iProc))%nSendSurfSides = nSendSurfSidesTmp(iProc)
 
   ! Only open recv buffer if we are expecting sides from this leader node
-  IF (nRecvSurfSidesTmp(MPIRankSurfLeader(iProc)).EQ.0) CYCLE
+  IF (nRecvSurfSidesTmp(iProc).EQ.0) CYCLE
 
-  ALLOCATE(SurfMapping(iProc)%RecvSurfGlobalID(1:nRecvSurfSidesTmp(MPIRankSurfLeader(iProc))))
+  ALLOCATE(SurfMapping(MPIRankSurfLeader(iProc))%RecvSurfGlobalID(1:nRecvSurfSidesTmp(iProc)))
 
-  CALL MPI_IRECV( SurfMapping(iProc)%RecvSurfGlobalID                         &
-                , nRecvSurfSidesTmp(MPIRankSurfLeader(iProc))                 &
+  CALL MPI_IRECV( SurfMapping(MPIRankSurfLeader(iProc))%RecvSurfGlobalID                         &
+                , nRecvSurfSidesTmp(iProc)                 &
                 , MPI_INTEGER                                                 &
                 , iProc                                                       &
                 , 1211                                                        &
                 , MPI_COMM_LEADERS_SURF                                       &
-                , RecvRequest(iProc)                                          &
+                , RecvRequest(MPIRankSurfLeader(iProc))                                          &
                 , IERROR)
 END DO
 
-DO iProc = 0,nSurfLeaders-1
+DO iProc = 0,nLeaderGroupProcs-1
+  IF (MPIRankSurfLeader(iProc).EQ.MPI_UNDEFINED) CYCLE
   ! Ignore myself
   IF (iProc .EQ. mySurfRank) CYCLE
 
   ! Only open send buffer if we are expecting sides from this leader node
-  IF (nSendSurfSidesTmp(MPIRankSurfLeader(iProc)).EQ.0) CYCLE
+  IF (nSendSurfSidesTmp(iProc).EQ.0) CYCLE
 
-  ALLOCATE(SurfMapping(iProc)%SendSurfGlobalID(1:nSendSurfSidesTmp(MPIRankSurfLeader(iProc))))
+  ALLOCATE(SurfMapping(MPIRankSurfLeader(iProc))%SendSurfGlobalID(1:nSendSurfSidesTmp(iProc)))
 
-  SurfMapping(iProc)%SendSurfGlobalID = SendSurfGlobalID(MPIRankSurfLeader(iProc),1:nSendSurfSidesTmp(MPIRankSurfLeader(iProc)))
+  SurfMapping(MPIRankSurfLeader(iProc))%SendSurfGlobalID = SendSurfGlobalID(iProc,1:nSendSurfSidesTmp(iProc))
 
-  CALL MPI_ISEND( SurfMapping(iProc)%SendSurfGlobalID                         &
-                , nSendSurfSidesTmp(MPIRankSurfLeader(iProc))                 &
+  CALL MPI_ISEND( SurfMapping(MPIRankSurfLeader(iProc))%SendSurfGlobalID                         &
+                , nSendSurfSidesTmp(iProc)                 &
                 , MPI_INTEGER                                                 &
                 , iProc                                                       &
                 , 1211                                                        &
                 , MPI_COMM_LEADERS_SURF                                       &
-                , SendRequest(iProc)                                          &
+                , SendRequest(MPIRankSurfLeader(iProc))                                          &
                 , IERROR)
 END DO
 
 !--- Finish communication
-DO iProc = 0,nSurfLeaders-1
+DO iProc = 0,nLeaderGroupProcs-1
+  IF (MPIRankSurfLeader(iProc).EQ.MPI_UNDEFINED) CYCLE
   ! Ignore myself
   IF (iProc .EQ. mySurfRank) CYCLE
 
-  IF (nSendSurfSidesTmp(MPIRankSurfLeader(iProc)).NE.0) THEN
-    CALL MPI_WAIT(SendRequest(iProc),msg_status(:),IERROR)
+  IF (nSendSurfSidesTmp(iProc).NE.0) THEN
+    CALL MPI_WAIT(SendRequest(MPIRankSurfLeader(iProc)),msg_status(:),IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END IF
 
-  IF (nRecvSurfSidesTmp(MPIRankSurfLeader(iProc)).NE.0) THEN
-    CALL MPI_WAIT(RecvRequest(iProc),msg_status(:),IERROR)
+  IF (nRecvSurfSidesTmp(iProc).NE.0) THEN
+    CALL MPI_WAIT(RecvRequest(MPIRankSurfLeader(iProc)),msg_status(:),IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END IF
 END DO
