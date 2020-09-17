@@ -194,7 +194,7 @@ USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: tTreeNode, tNodeVolume, ElemNodeVol
 USE MOD_Particle_Vars         ,ONLY: PartState
 USE MOD_BGK_CollOperator      ,ONLY: BGK_CollisionOperator
-USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_CalcSubNodeVolumes
+USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_CalcSubNodeVolumes3D
 USE MOD_BGK_Vars              ,ONLY: BGKMinPartPerCell,tNodeAverage, BGKMovingAverage, BGKMovingAverageLength
 USE MOD_FP_CollOperator       ,ONLY: FP_CollisionOperator
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -313,7 +313,7 @@ IF(ANY(PartNumChildNode.LT.BGKMinPartPerCell)) CombineChildNodes = .TRUE.
 ! 2.) Calculate the subcell volume (if necessary)
 IF((.NOT.ASSOCIATED(NodeVol)).OR.(.NOT.ASSOCIATED(NodeVol%SubNode1))) THEN
   localDepth = TreeNode%NodeDepth
-  CALL DSMC_CalcSubNodeVolumes(iElem, localDepth, ElemNodeVol(iElem)%Root)
+  CALL DSMC_CalcSubNodeVolumes3D(iElem, localDepth, ElemNodeVol(iElem)%Root)
 END IF
 
 NodeVolumeTemp(1) = NodeVol%SubNode1%Volume

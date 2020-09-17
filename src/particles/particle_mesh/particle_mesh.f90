@@ -196,7 +196,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, WriteTriaDebugMesh,Display
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
-USE MOD_Particle_Vars          ,ONLY: Symmetry2D
+USE MOD_Particle_Vars          ,ONLY: Symmetry
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
 USE MOD_Mesh_Vars              ,ONLY: nSides
@@ -319,7 +319,7 @@ TriaSurfaceFlux = GETLOGICAL('TriaSurfaceFlux',TRIM(tmpStr))
 IF((TrackingMethod.EQ.TRIATRACKING).AND.(.NOT.TriaSurfaceFlux)) THEN
   CALL ABORT(__STAMP__,'TriaSurfaceFlux must be for TriaTracking!')
 END IF
-IF (Symmetry2D) THEN
+IF (Symmetry%Order.LE.2) THEN
   SWRITE(UNIT_stdOut,'(A)') "Surface Flux set to triangle approximation due to Symmetry2D."
   TriaSurfaceFlux = .TRUE.
 END IF

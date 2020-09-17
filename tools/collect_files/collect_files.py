@@ -121,9 +121,9 @@ for (dirpath, dirnames, filenames) in os.walk(args.source, topdown=True):
         path = os.path.abspath(path)
         oldfile = path
         head,tail = os.path.split(path) 
+        relpath = os.path.relpath(path,args.source)
         #if tail == 'ElemTimeStatistics.csv':
         if tail == args.files:
-
             with open(oldfile) as input:
                 #print("load %s" % oldfile)
                 lines = input.readlines()
@@ -131,8 +131,9 @@ for (dirpath, dirnames, filenames) in os.walk(args.source, topdown=True):
                 # The file should have at least two data points
                 if len(lines) > 2:
                     basename = os.path.basename(head)
-                    newfile = "%s/%s_%s" % (home,basename, tail)
-                    #print(newfile)
+                    newfile = relpath.replace(os.path.sep, '_')
+                    newfile = "%s/%s" % (home,newfile)
+                    #newfile = "%s/%s_%s" % (home,basename, tail)
                     print(blue(basename)+'/'+green(tail))
                     #print(tail)
                     shutil.copyfile(oldfile, newfile)

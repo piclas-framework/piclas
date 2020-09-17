@@ -95,7 +95,7 @@ USE MOD_Particle_Boundary_vars     ,ONLY: SampWallImpactVector_Shared,SampWallIm
 USE MOD_Particle_Boundary_vars     ,ONLY: SurfSideArea_Shared
 USE MOD_Particle_Boundary_Vars     ,ONLY: PorousBCInfo_Shared,MapSurfSideToPorousSide_Shared,SampWallPumpCapacity_Shared
 USE MOD_Particle_Mesh_Vars         ,ONLY: SideInfo_Shared
-USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry2D
+USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry
 USE MOD_Restart_Vars               ,ONLY: RestartTime
 USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
@@ -216,8 +216,8 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       ! Force per area in x,y,z-direction
       MacroSurfaceVal(1:3,p,q,OutputCounter) = SampWallState_Shared(SAMPWALL_DELTA_MOMENTUMX:SAMPWALL_DELTA_MOMENTUMZ,p,q,iSurfSide) &
                                              / (SurfSideArea_Shared(p,q,iSurfSide)*TimeSampleTemp)
-      ! Deleting the z-component for 2D/axisymmetric simulations
-      IF(Symmetry2D) MacroSurfaceVal(3,p,q,OutputCounter) = 0.
+      ! Deleting the y/z-component for 1D/2D/axisymmetric simulations
+      IF(Symmetry%Order.LT.3) MacroSurfaceVal(Symmetry%Order+1:3,p,q,OutputCounter) = 0.
       MacroSurfaceVal(4,p,q,OutputCounter) = (SampWallState_Shared(SAMPWALL_ETRANSOLD,p,q,iSurfSide)  &
                                            +  SampWallState_Shared(SAMPWALL_EROTOLD  ,p,q,iSurfSide)  &
                                            +  SampWallState_Shared(SAMPWALL_EVIBOLD  ,p,q,iSurfSide)  &
@@ -536,30 +536,29 @@ RETURN
 END FUNCTION CalcTVibPoly
 
 
-REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
+REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_temp)
 !===================================================================================================================================
-!> Calculation of the mean free path for the hard sphere and variable hard sphere (if omega and temperature are given)
+!> Calculation of the mean free path for the hard sphere and variable hard sphere (if a temperature is given)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: Pi
 USE MOD_Particle_Vars ,ONLY: Species, nSpecies, usevMPF
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, RadialWeighting
+USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, CollInf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL, INTENT(IN)                :: Volume,SpecPartNum(:),nPart
-REAL, OPTIONAL, INTENT(IN)      :: opt_omega, opt_temp
+REAL, OPTIONAL, INTENT(IN)      :: opt_temp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                         :: iSpec, jSpec
-REAL                            :: DrefMixture, omega, Temp, MFP_Tmp, MacroParticleFactor
+REAL                            :: Temp, MFP_Tmp, MacroParticleFactor
 !===================================================================================================================================
-DrefMixture = 0.0
 CalcMeanFreePath = 0.0
 
 IF (nPart.LE.1 .OR. ALL(SpecPartNum.EQ.0.) .OR.Volume.EQ.0) RETURN
@@ -567,17 +566,12 @@ IF (nPart.LE.1 .OR. ALL(SpecPartNum.EQ.0.) .OR.Volume.EQ.0) RETURN
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   MacroParticleFactor = 1.
 ELSE
-  MacroParticleFactor = Species(1)%MacroParticleFactor
+  MacroParticleFactor = Species(1)%MacroParticleFactor ! assumption: weighting factor of all species are identical!!!
 END IF
 
-! Calculation of mixture reference diameter
-DO iSpec = 1, nSpecies
-  DrefMixture = DrefMixture + SpecPartNum(iSpec)*SpecDSMC(iSpec)%DrefVHS / nPart
-END DO
 ! Calculation of mean free path for a gas mixture (Bird 1986, p. 96, Eq. 4.77)
-! (only defined for a single weighting factor, if omega is present calculation of the mean free path with the VHS model)
-IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
-  omega = opt_omega
+! (only defined for a single weighting factor, if a temperature is present calculation of the mean free path with the VHS model)
+IF(PRESENT(opt_temp)) THEN
   Temp = opt_temp
   IF(Temp.LE.0.0) RETURN
     DO iSpec = 1, nSpecies
@@ -585,8 +579,8 @@ IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
       IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
         DO jSpec = 1, nSpecies
           IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-            MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*MacroParticleFactor / Volume &
-                                  * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
+            MFP_Tmp = MFP_Tmp + (Pi*CollInf%dref(iSpec,jSpec)**2.*SpecPartNum(jSpec)*MacroParticleFactor / Volume &
+                                  * (CollInf%Tref(iSpec,jSpec)/Temp)**(CollInf%omega(iSpec,jSpec)) &
                                   * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
           END IF
         END DO
@@ -599,7 +593,7 @@ ELSE
     IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
       DO jSpec = 1, nSpecies
         IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-          MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*MacroParticleFactor / Volume &
+          MFP_Tmp = MFP_Tmp + (Pi*CollInf%dref(iSpec,jSpec)**2.*SpecPartNum(jSpec)*MacroParticleFactor / Volume &
                                 * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
         END IF
       END DO
@@ -607,6 +601,7 @@ ELSE
     END IF
   END DO
 END IF
+
 RETURN
 
 END FUNCTION CalcMeanFreePath
@@ -819,7 +814,7 @@ USE MOD_BGK_Vars              ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_DSMC_Vars             ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting
 USE MOD_FPFlow_Vars           ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry2D
+USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry
 USE MOD_Particle_VarTimeStep  ,ONLY: CalcVarTimeStep
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars         ,ONLY: time,TEnd,iter,dt
@@ -998,7 +993,7 @@ IF (DSMC%CalcQualityFactors) THEN
     END IF
     nVarCount = nVar + 3
     IF(VarTimeStep%UseVariableTimeStep) THEN
-      IF(VarTimeStep%UseLinearScaling.AND.Symmetry2D) THEN
+      IF(VarTimeStep%UseLinearScaling.AND.(Symmetry%Order.EQ.2)) THEN
         ! 2D/Axisymmetric uses a scaling of the time step per particle, no element values are used. For the output simply the cell
         ! midpoint is used to calculate the time step
         VarTimeStep%ElemFac(iElem) = CalcVarTimeStep(ElemMidPoint_Shared(1,GetCNElemID(iElem + offsetElem)), &
@@ -1697,11 +1692,11 @@ INTEGER                       :: iSpec
         PartNum = PartNum + DSMC%CalcVibProb(iSpec,3)
       END IF
     END DO
-    IF(MaxProb.GT.0.) THEN
-      DSMC%QualityFacSampVib(iElem,nSpecies+1,2) = DSMC%QualityFacSampVib(iElem,nSpecies+1,2) + MaxProb
-      DSMC%QualityFacSampVibSamp(iElem,nSpecies+1,2) = DSMC%QualityFacSampVibSamp(iElem,nSpecies+1,2) + 1
-    END IF
     IF((nSpecies.GT.1).AND.(PartNum.GT.0)) THEN
+      IF(MaxProb.GT.0.) THEN
+        DSMC%QualityFacSampVib(iElem,nSpecies+1,2) = DSMC%QualityFacSampVib(iElem,nSpecies+1,2) + MaxProb
+        DSMC%QualityFacSampVibSamp(iElem,nSpecies+1,2) = DSMC%QualityFacSampVibSamp(iElem,nSpecies+1,2) + 1
+      END IF
       DSMC%QualityFacSampVib(iElem,nSpecies+1,1) = DSMC%QualityFacSampVib(iElem,nSpecies+1,1) + MeanProb / PartNum
       DSMC%QualityFacSampVibSamp(iElem,nSpecies+1,1) = DSMC%QualityFacSampVibSamp(iElem,nSpecies+1,1) + 1
     END IF
