@@ -1,6 +1,6 @@
 # Settings
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Export the paths on new reggie2@reggie2 (no module env any more)
+# Load modules on new boltzplatz reggie
 before_script:
   - ulimit -s unlimited
   - module purge
@@ -40,21 +40,7 @@ stages:
     paths:
       - build_gnu
     policy: pull
-
-.template: &defaults_intel
-  tags:
-    - withmodules-concurrent
-  artifacts:
-    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
-    expire_in: 1 day
-    when: on_failure
-    paths:
-      - build_intel
-  cache:
-    key: "${CI_COMMIT_REF_SLUG}-INTEL"
-    paths:
-      - build_intel
-    policy: pull
+  allow_failure: true
 
 .template: &defaults_gnu_maxwell
   tags:
@@ -69,21 +55,6 @@ stages:
     key: "${CI_COMMIT_REF_SLUG}-GNU-MAX"
     paths:
       - build_gnu_maxwell
-    policy: pull
-
-.template: &defaults_intel_maxwell
-  tags:
-    - withmodules-concurrent
-  artifacts:
-    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
-    expire_in: 1 day
-    when: on_failure
-    paths:
-      - build_intel_maxwell
-  cache:
-    key: "${CI_COMMIT_REF_SLUG}-INTEL-MAX"
-    paths:
-      - build_intel_maxwell
     policy: pull
 
 .template: &defaults_gnu_poisson
@@ -103,23 +74,8 @@ stages:
       - build_gnu_poisson_debug
     policy: pull
 
-.template: &defaults_intel_poisson
-  tags:
-    - withmodules-concurrent
-  artifacts:
-    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
-    expire_in: 1 day
-    when: on_failure
-    paths:
-      - build_intel_poisson
-  cache:
-    key: "${CI_COMMIT_REF_SLUG}-INTEL-POI"
-    paths:
-      - build_intel_poisson
-    policy: pull
-
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "build": Build with intel/gnu on check-in
+# Stage "build": Build with gnu on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 build_gnu:
   tags:
