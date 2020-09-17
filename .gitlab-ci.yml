@@ -41,6 +41,8 @@ stages:
       - build_gnu
     policy: pull
   allow_failure: true
+  only:
+    - pushes
 
 .template: &defaults_gnu_nightly
   tags:
@@ -92,6 +94,9 @@ stages:
     paths:
       - build_gnu_maxwell
     policy: pull
+  allow_failure: true
+  only:
+    - pushes
 
 .template: &defaults_gnu_poisson
   tags:
@@ -110,6 +115,8 @@ stages:
       - build_gnu_poisson_debug
     policy: pull
   allow_failure: true
+  only:
+    - pushes
     
 .template: &defaults_gnu_poisson_nightly
   tags:
