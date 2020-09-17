@@ -14,16 +14,13 @@
 
 MODULE MOD_Particle_MPI_Halo
 !===================================================================================================================================
-! Contains global variables provided by the particle surfaces routines
+! Contains routines to build the halo exchange
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! required variables
-!-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES
 
 #if USE_MPI
 INTERFACE IdentifyPartExchangeProcs
@@ -39,7 +36,6 @@ PUBLIC :: FinalizePartExchangeProcs
 !===================================================================================================================================
 
 CONTAINS
-
 
 SUBROUTINE IdentifyPartExchangeProcs
 !===================================================================================================================================
@@ -279,8 +275,8 @@ DO iSide = 1, nExchangeSides
 END DO
 
 !> Check all elements in the CN halo region against local MPI sides. Check is identical to particle_bgm.f90
-!>>> Check the bounding box of each element in compute-nodes' halo domain against the bounding boxes of the
-!>>> of the elements of the MPI-surface (local proc MPI sides)
+!>>> Check the bounding box of each element in compute-nodes' halo domain against the bounding boxes of the elements of the
+!>>> MPI-surface (local proc MPI sides)
 
 ! if running on one node, halo_eps is meaningless. Get a representative MPI_halo_eps for MPI proc identification
 fullMesh = .FALSE.
@@ -1052,10 +1048,10 @@ SELECT CASE(nPeriodicVectors)
                                            + PeriodicVectors(1,3) * DirPeriodicVector(kPeriodicDir)
           xCordsPeri(3:4) = CartNodes(3:4) + PeriodicVectors(2,1) * DirPeriodicVector(iPeriodicDir) &
                                            + PeriodicVectors(2,2) * DirPeriodicVector(jPeriodicDir) &
-                                           + PeriodicVectors(1,3) * DirPeriodicVector(kPeriodicDir)
+                                           + PeriodicVectors(2,3) * DirPeriodicVector(kPeriodicDir)
           xCordsPeri(5:6) = CartNodes(5:6) + PeriodicVectors(3,1) * DirPeriodicVector(iPeriodicDir) &
                                            + PeriodicVectors(3,2) * DirPeriodicVector(jPeriodicDir) &
-                                           + PeriodicVectors(1,3) * DirPeriodicVector(kPeriodicDir)
+                                           + PeriodicVectors(3,3) * DirPeriodicVector(kPeriodicDir)
 
           ! Check whether the bounding boxes intersect
           IF (   ((xCordsPeri(1).LE.CartProc(2)+halo_eps).AND.(xCordsPeri(2).GE.CartProc(1)-halo_eps))  &
