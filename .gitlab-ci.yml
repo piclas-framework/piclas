@@ -42,6 +42,24 @@ stages:
     policy: pull
   allow_failure: true
 
+.template: &defaults_gnu_nightly
+  tags:
+    - withmodules-concurrent
+  artifacts:
+    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - build_gnu
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-GNU"
+    paths:
+      - build_gnu
+    policy: pull
+  allow_failure: true
+  rules:
+    - if: '$DO_NIGHTLY'
+
 .template: &defaults_gnu_maxwell
   tags:
     - withmodules-concurrent
@@ -220,7 +238,7 @@ gnu_CHE_FPFlow:
 # Stage "reggie_DSMC_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 NIG_Reservoir:
-  <<: *defaults_gnu
+  <<: *defaults_gnu_nightly
   stage: reggie_DSMC_nightly
   tags:
     - withmodules-concurrent
@@ -231,7 +249,7 @@ NIG_Reservoir:
 # Stage "reggie_DSMC_nightly": Build and run tracking examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 NIG_Tracking:
-  <<: *defaults_gnu
+  <<: *defaults_gnu_nightly
   stage: reggie_DSMC_nightly
   tags:
     - withmodules-concurrent
@@ -242,7 +260,7 @@ NIG_Tracking:
 # Stage "reggie_DSMC_nightly": Build and run DSMC examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 NIG_DSMC:
-  <<: *defaults_gnu
+  <<: *defaults_gnu_nightly
   stage: reggie_DSMC_nightly
   tags:
     - withmodules-concurrent
