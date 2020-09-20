@@ -891,7 +891,7 @@ END IF
 InnerDOF = 0.
 Xi_rot = 0.
 Xi_vib = 0.
-Xi_VibSpec=0.0; Xi_RotSpec=0.0; Xi_Vib_oldSpec=0.0
+Xi_VibSpec=0.0; Xi_RotSpec=0.0; Xi_Vib_oldSpec=0.0; TVibSpec = 0.0
 ! Calculation of the rotational and vibrational degrees of freedom for molecules
 DO iSpec = 1, nSpecies
   IF (nSpec(iSpec).EQ.0) THEN
