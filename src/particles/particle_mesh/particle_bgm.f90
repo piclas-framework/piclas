@@ -147,16 +147,16 @@ CALL InitPeriodicBC()
 
 #if USE_MPI
 MPISharedSize = INT(6*nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/6,nGlobalElems/),ElemToBGM_Shared_Win,ElemToBGM_Shared)
+CALL Allocate_Shared(MPISharedSize,(/6  ,nGlobalElems/),ElemToBGM_Shared_Win,ElemToBGM_Shared)
 CALL Allocate_Shared(MPISharedSize,(/2,3,nGlobalElems/),BoundsOfElem_Shared_Win,BoundsOfElem_Shared)
-CALL MPI_WIN_LOCK_ALL(0,ElemToBGM_Shared_Win,IERROR)
+CALL MPI_WIN_LOCK_ALL(0,ElemToBGM_Shared_Win  ,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,BoundsOfElem_Shared_Win,IERROR)
-firstElem = INT(REAL(myComputeNodeRank*nGlobalElems)/REAL(nComputeNodeProcessors))+1
+firstElem = INT(REAL(myComputeNodeRank    *nGlobalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
 #else
 ! In order to use only one type of variables VarName_Shared in code structure such as tracking etc. for NON_MPI
 ! the same variables are allocated on the single proc and used from mesh_vars instead of mpi_shared_vars
-ALLOCATE(ElemToBGM_Shared(1:6,1:nElems))
+ALLOCATE(ElemToBGM_Shared(   1:6,    1:nElems))
 ALLOCATE(BoundsOfElem_Shared(1:2,1:3,1:nElems)) ! 1-2: Min, Max value; 1-3: x,y,z
 firstElem = 1
 lastElem  = nElems
