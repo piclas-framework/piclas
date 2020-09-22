@@ -294,7 +294,7 @@ USE MOD_Particle_Vars           ,ONLY: LastPartPos, PEM
 USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: DSMC
 USE MOD_Particle_Boundary_Tools ,ONLY: SurfaceToPartEnergyInternal, CalcWallSample, AnalyzeSurfaceCollisions
-USE MOD_Particle_Boundary_Tools ,ONLY: AddPartInfoToSample
+USE MOD_Particle_Boundary_Tools ,ONLY: AddPartInfoToSample,CalcRotWallVelo
 USE MOD_Part_Tools              ,ONLY: TSURUTACONDENSCOEFF
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, SampWall, CalcSurfaceImpact, GlobalSide2SurfSide
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time, dt, RKdtFrac
@@ -349,7 +349,7 @@ REAL                             :: TransACC!, VibACC, RotACC
 INTEGER                          :: iReact, RecombReactID
 REAL                             :: VeloCrad, Fak_D, NewVelo(3)
 REAL                             :: Phi, Cmr, VeloCx, VeloCy, VeloCz
-REAL                             :: POI_fak, TildTrajectory(3)
+REAL                             :: POI_fak, TildTrajectory(3),POI_vec(3)
 INTEGER                          :: iNewPart ! particle counter for newly created particles
 !===================================================================================================================================
 
@@ -372,6 +372,12 @@ locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 ! get BC values
 WallVelo     = PartBound%WallVelo(1:3,locBCID)
 WallTemp     = PartBound%WallTemp(locBCID)
+
+POI_vec(1:3) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
+
+IF(PartBound%RotVelo(locBCID)) THEN
+  CALL CalcRotWallVelo(locBCID,PartID,POI_vec,WallVelo)
+END IF
 
 ! initialize sampling arrays
 TransArray(:) = 0.0
@@ -588,7 +594,7 @@ CASE(3) ! reactive interaction case
       PartState(4:6,PartID) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
 
       ! intersection point with surface
-      LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
+      LastPartPos(1:3,PartID) = POI_vec(1:3)
       ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
       TildTrajectory=dt*RKdtFrac*oldVelo(1:3)
       POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
@@ -626,7 +632,7 @@ CASE(3) ! reactive interaction case
         NewVelo(1:3) = NewVelo(1:3) * (Species(ProductSpec(1))%MassIC/Species(SpecID)%MassIC)
       END IF
       ! intersection point with surface
-      LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
+      LastPartPos(1:3,PartID) = POI_vec(1:3)
       ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
       TildTrajectory=dt*RKdtFrac*oldVelo(1:3)
       POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))

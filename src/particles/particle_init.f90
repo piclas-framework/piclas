@@ -462,6 +462,22 @@ CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Resample'  &
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Boundary[$]-WallVelo'  &
                                 , 'Velocity (global x,y,z in [m/s]) of reflective particle boundary [$].' &
+                                , '0. , 0. , 0.', numberedmulti=.TRUE.)                                
+CALL prms%CreateLogicalOption(  'Part-Boundary[$]-RotVelo'  &
+                                , 'Flag for rotating walls:'//&
+                                  ' Particles will be accelerated additionaly to the boundary interaction'//&
+                                  ' through the rotating wall depoending on their POI, rotation frequency and rotationaxis.'//&
+                                  ' In that case Part-Boundary[$]-WallVelo will be overwritten.' &
+                                , '.FALSE.'&
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-RotFreq'  &
+                                , 'Rotation frequency of the wall in [Hz].' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Boundary[$]-RotOrg'  &
+                                , 'Origin of rotation axis (global x,y,z).' &
+                                , '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Boundary[$]-RotAxi'  &
+                                , 'Direction of rotation axis (global x,y,z). Note: Rotation direction based on Right-hand rule!' &
                                 , '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp2'  &
                                 , 'Second wall temperature (in [K]) of reflective particle boundary for a temperature gradient.' &
@@ -1732,6 +1748,10 @@ ALLOCATE(PartBound%RotACC(           1:nPartBound))
 ALLOCATE(PartBound%ElecACC(          1:nPartBound))
 ALLOCATE(PartBound%Resample(         1:nPartBound))
 ALLOCATE(PartBound%WallVelo(     1:3,1:nPartBound))
+ALLOCATE(PartBound%RotVelo(          1:nPartBound))
+ALLOCATE(PartBound%RotFreq(          1:nPartBound))
+ALLOCATE(PartBound%RotOrg(       1:3,1:nPartBound))
+ALLOCATE(PartBound%RotAxi(       1:3,1:nPartBound))
 ALLOCATE(PartBound%TempGradStart(1:3,1:nPartBound))
 ALLOCATE(PartBound%TempGradEnd(  1:3,1:nPartBound))
 ALLOCATE(PartBound%TempGradVec(  1:3,1:nPartBound))
@@ -1796,6 +1816,10 @@ DO iPartBound=1,nPartBound
     PartBound%ElecACC(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-ElecACC')
     PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample')
     PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
+    PartBound%RotVelo(iPartBound)         = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-RotVelo')
+    PartBound%RotFreq(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotFreq')
+    PartBound%RotOrg(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotOrg',3)
+    PartBound%RotAxi(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotAxi',3)
     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
     PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
     PartBound%WallTemp2(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp2')
@@ -2932,6 +2956,10 @@ SDEALLOCATE(PartBound%RotACC)
 SDEALLOCATE(PartBound%ElecACC)
 SDEALLOCATE(PartBound%Resample)
 SDEALLOCATE(PartBound%WallVelo)
+SDEALLOCATE(PartBound%RotVelo)
+SDEALLOCATE(PartBound%RotFreq)
+SDEALLOCATE(PartBound%RotOrg)
+SDEALLOCATE(PartBound%RotAxi)
 SDEALLOCATE(Adaptive_MacroVal)
 SDEALLOCATE(PartBound%Voltage)
 SDEALLOCATE(PartBound%UseForQCrit)
