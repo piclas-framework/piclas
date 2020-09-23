@@ -53,7 +53,7 @@ SUBROUTINE BGGas_Initialize()
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort
 USE MOD_DSMC_Vars              ,ONLY: BGGas
-USE MOD_Particle_Vars          ,ONLY: PDM, Symmetry2D, Species, nSpecies, VarTimeStep
+USE MOD_Particle_Vars          ,ONLY: PDM, Symmetry, Species, nSpecies, VarTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -67,7 +67,7 @@ REAL              :: SpeciesDensTemp(1:nSpecies)
 !===================================================================================================================================
 
 ! 1.) Check compatibility with other features and whether required parameters have been read-in
-IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+IF((Symmetry%Order.EQ.2).OR.VarTimeStep%UseVariableTimeStep) THEN
   CALL abort(&
   __STAMP__&
   ,'ERROR: 2D/Axisymmetric and variable timestep are not implemented with a background gas yet!')
@@ -274,7 +274,7 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 ! MODULES
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcMeanFreePath
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC
+USE MOD_DSMC_Vars             ,ONLY: DSMC
 USE MOD_Particle_Vars         ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species, WriteMacroVolumeValues
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision
@@ -382,7 +382,7 @@ IF(DSMC%CalcQualityFactors) THEN
   IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
     ! Calculation of the mean free path
     DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum),GEO%Volume(iElem), &
-                                          SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+                                          DSMC%InstantTransTemp(nSpecies+1))
     ! Determination of the MCS/MFP for the case without octree
     IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
                                                                                     / DSMC%MeanFreePath
@@ -615,7 +615,7 @@ IF(DSMC%CalcQualityFactors) THEN
   IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
     ! Calculation of the mean free path
     DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum),GEO%Volume(iElem), &
-                                            SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+                                          DSMC%InstantTransTemp(nSpecies+1))
     ! Determination of the MCS/MFP for the case without octree
     IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
                                                                                     / DSMC%MeanFreePath
@@ -694,7 +694,7 @@ INTEGER, INTENT(IN)           :: iSpec,iInit,TotalNbrOfReactions
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart, iPair, iNewPart, iReac, ParticleIndex, NewParticleIndex, bgSpec, NbrOfParticle
-INTEGER                       :: iPart_p1, iPart_p2
+INTEGER                       :: iPart_p1, iPart_p2, iPart_p3
 REAL                          :: RandVal,NumTmp,ProbRest
 INTEGER                       :: TotalNbrOfReactionsTmp,iCrossSection,NbrCrossSections
 INTEGER                       :: NumPhotoIonization(ChemReac%NumOfReact)
@@ -839,6 +839,11 @@ DO iReac = 1, ChemReac%NumOfReact
     iPart_p2 = Coll_pData(iPair)%iPart_p2
     PartState(4:6,iPart_p1) = PartState(4:6,iPart_p1) + DSMC_RHS(1:3,iPart_p1)
     PartState(4:6,iPart_p2) = PartState(4:6,iPart_p2) + DSMC_RHS(1:3,iPart_p2)
+    ! Treatment of the third product
+    IF(ChemReac%DefinedReact(iReac,2,3).NE.0) THEN
+      iPart_p3 = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
+      PartState(4:6,iPart_p3) = PartState(4:6,iPart_p3) + DSMC_RHS(1:3,iPart_p3)
+    END IF
     ! If an electron is created, change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
     ASSOCIATE( b1 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC(1:3)) ,&
                b2 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC(1:3)) )
@@ -866,7 +871,22 @@ DO iReac = 1, ChemReac%NumOfReact
                                           UNITVECTOR(PartState(4:6,iPart_p2)),Species(iSpec)%Init(iInit)%NormalIC,mode=2,&
                                           usevMPF_optIN=.FALSE.)
       END IF
-  END ASSOCIATE
+      ! Treatment of the third product
+      IF(ChemReac%DefinedReact(iReac,2,3).NE.0) THEN
+        iPart_p3 = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
+        IF(PARTISELECTRON(iPart_p3)) THEN
+          CALL RANDOM_NUMBER(RandVal)
+          ! Get random vector b3 in b1-b2-plane
+          PartState(4:6,iPart_p3) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart_p3),RandVal)
+          ! Rotate the resulting vector in the b3-NormalIC-plane
+          PartState(4:6,iPart_p3) = GetRotatedVector(PartState(4:6,iPart_p3),Species(iSpec)%Init(iInit)%NormalIC)
+          ! Store the particle information in PartStateBoundary.h5
+          IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(iPart_p3,PartSpecies(iPart_p3),PartState(1:3,iPart_p3),&
+                                            UNITVECTOR(PartState(4:6,iPart_p3)),Species(iSpec)%Init(iInit)%NormalIC,mode=2,&
+                                            usevMPF_optIN=.FALSE.)
+        END IF
+      END IF
+    END ASSOCIATE
   END DO
 END DO
 

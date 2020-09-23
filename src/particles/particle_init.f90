@@ -494,7 +494,7 @@ CALL prms%CreateIntOption(      'Part-Species[$]-ElemTElecFileID'  &
                                 , numberedmulti=.TRUE.)
 
 
-CALL prms%SetSection("Particle Species Ninits")
+CALL prms%SetSection("Particle Species nInits")
 ! if Ninit>0 some variables have to be defined twice
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Init[$]-UseForInit' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
@@ -990,9 +990,11 @@ USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
 #endif
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: InitFPFlow
+USE MOD_Particle_Vars              ,ONLY: Symmetry
 #endif
 #if (PP_TimeDiscMethod==400)
 USE MOD_BGK_Init                   ,ONLY: InitBGK
+USE MOD_Particle_Vars              ,ONLY: Symmetry
 #endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1058,9 +1060,13 @@ IF (useDSMC) THEN
   CALL InitDSMC()
   CALL InitSurfaceModel()
 #if (PP_TimeDiscMethod==300)
+IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__&
+  ,'ERROR: 1D fokker-plank flow is not implemented yet')
   CALL InitFPFlow()
 #endif
 #if (PP_TimeDiscMethod==400)
+IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__&
+  ,'ERROR: 1D BGK is not implemented yet')
   CALL InitBGK()
 #endif
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
@@ -1122,7 +1128,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep
 USE MOD_Particle_VarTimeStep   ,ONLY: VarTimeStep_CalcElemFacs
-USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
+USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting, DSMC_1D_InitVolumes
 USE MOD_part_RHS               ,ONLY: InitPartRHS
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_Initialize
@@ -1497,9 +1503,9 @@ ALLOCATE(SpecReset(1:nSpecies))
 SpecReset=.FALSE.
 nMacroRestartFiles = GETINT('Part-nMacroRestartFiles')
 IF (nMacroRestartFiles.GT.0) THEN
-  IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF((Symmetry%Order.LE.2).OR.VarTimeStep%UseVariableTimeStep) THEN
     CALL abort(__STAMP__&
-        ,'ERROR: Symmetry2D/Variable Time Step: Restart with a given DSMCHOState (Macroscopic restart) only possible with:\n'//&
+        ,'ERROR: Symmetry/Variable Time Step: Restart with a given DSMCHOState (Macroscopic restart) only possible with:\n'//&
          ' Particles-MacroscopicRestart = T \n Particles-MacroscopicRestart-Filename = Test_DSMCHOState.h5')
   END IF
   ALLOCATE(MacroRestartFileUsed(1:nMacroRestartFiles))
@@ -1668,10 +1674,12 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%ElemTVibFileID       = 0
       Species(iSpec)%Init(iInit)%ElemTRotFileID       = 0
       Species(iSpec)%Init(iInit)%ElemTElecFileID      = 0
-      IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
-        CALL abort(__STAMP__&
-            ,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step only possible with'//&
-             'cell_local-SpaceIC and/or surface flux!')
+      IF((Symmetry%Order.LE.2).OR.VarTimeStep%UseVariableTimeStep) THEN
+        IF(.NOT.((Symmetry%Order.EQ.1).AND.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid'))) THEN
+          CALL abort(__STAMP__&
+              ,'ERROR: Particle insertion/emission for 1D/2D/axisymmetric or variable time step only possible with'//&
+              'cell_local-SpaceIC and/or surface flux!, exept 1D and cuboid')
+        END IF
       END IF
     END IF
     IF (Species(iSpec)%Init(iInit)%UseForEmission) THEN
@@ -1717,6 +1725,25 @@ __STAMP__&
     Species(iSpec)%Init(iInit)%CuboidHeightIC        = GETREAL('Part-Species'//TRIM(hilf2)//'-CuboidHeightIC','1.')
     Species(iSpec)%Init(iInit)%CylinderHeightIC      = GETREAL('Part-Species'//TRIM(hilf2)//'-CylinderHeightIC','1.')
     Species(iSpec)%Init(iInit)%CalcHeightFromDt      = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-CalcHeightFromDt','.FALSE.')
+    IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid').AND.Symmetry%Order.EQ.1) THEN
+      IF(Species(iSpec)%Init(iInit)%BasePointIC(2).NE.-0.5 &
+         .AND.Species(iSpec)%Init(iInit)%BasePointIC(3).NE.-0.5 &
+         .AND.Species(iSpec)%Init(iInit)%BaseVector1IC(2).NE.1 &
+         .AND.Species(iSpec)%Init(iInit)%BaseVector1IC(3).NE.0 &
+         .AND.Species(iSpec)%Init(iInit)%BaseVector2IC(1).NE.0 &
+         .AND.Species(iSpec)%Init(iInit)%BaseVector2IC(2).NE.0 &
+         .AND.Species(iSpec)%Init(iInit)%BaseVector1IC(1).NE.0 &
+         .AND.Species(iSpec)%Init(iInit)%BaseVector2IC(3).NE.1 ) THEN
+
+        SWRITE(*,*) 'For 1D Simulation with SpaceIC cuboid, the vectors has to be in the following from:'
+        SWRITE(*,*) 'Part-Species[$]-Init[$]-BasePointIC=(/x,-0.5,-0.5/), with x is the basepoint in x direction'
+        SWRITE(*,*) 'Part-Species[$]-Init[$]-BaseVector1IC=(/0.,1.,0/)'
+        SWRITE(*,*) 'Part-Species[$]-Init[$]-BaseVector2IC=(/0.,0.,1/)'
+        SWRITE(*,*) 'Part-Species[$]-Init[$]-CuboidHeightIC is the extention of the insertion region and has to be positive'
+        CALL abort(__STAMP__&
+        ,'See above')
+      END IF
+    END IF
     IF (Species(iSpec)%Init(iInit)%ElemVelocityICFileID.EQ.0) THEN
       Species(iSpec)%Init(iInit)%VeloIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-VeloIC','0.')
       Species(iSpec)%Init(iInit)%VeloVecIC             = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-VeloVecIC',3,'0. , 0. , 0.')
@@ -2926,10 +2953,16 @@ CALL InitFIBGM()
 CALL InitMacroBody()
 CALL MarkMacroBodyElems()
 
-! === 2D/Axisymmetric initialization
+! === 2D/1D/Axisymmetric initialization
 ! Calculate the volumes for 2D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)
-IF(Symmetry2D) CALL DSMC_2D_InitVolumes()
-IF(Symmetry2DAxisymmetric) THEN
+IF(Symmetry%Order.EQ.1) THEN
+  TriaEps = 2.22e-16
+ELSE
+  TriaEps = 0.0
+END IF
+IF(Symmetry%Order.EQ.2) CALL DSMC_2D_InitVolumes()
+IF(Symmetry%Order.EQ.1) CALL DSMC_1D_InitVolumes()
+IF(Symmetry%Axisymmetric) THEN
   IF(RadialWeighting%DoRadialWeighting) THEN
     ! Initialization of RadialWeighting in 2D axisymmetric simulations
     RadialWeighting%PerformCloning = .TRUE.
@@ -3059,7 +3092,7 @@ IF(VarTimeStep%UseVariableTimeStep) THEN
       ,'ERROR: Variable time step is only supported with TriaTracking = T')
   END IF
   IF(VarTimeStep%UseLinearScaling) THEN
-    IF(Symmetry2D) THEN
+    IF(Symmetry%Order.LE.2) THEN
       ! 2D: particle-wise scaling in the radial direction, ElemFac array only utilized for the output of the time step
       ALLOCATE(VarTimeStep%ElemFac(nElems))
       VarTimeStep%ElemFac = 1.0
@@ -3506,8 +3539,6 @@ INTEGER :: j
 mat = 0.
 FORALL(j = 1:3) mat(j,j) = 1.
 END SUBROUTINE
-
-
 
 
 SUBROUTINE InitRandomSeed(nRandomSeeds,SeedSize,Seeds)

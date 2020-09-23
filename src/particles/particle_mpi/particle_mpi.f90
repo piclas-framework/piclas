@@ -1224,7 +1224,7 @@ USE MOD_Particle_Vars          ,ONLY: F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_Par
 USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
 #endif /*IMPA*/
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_RadialWeighting
+USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_RadialWeighting
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D_MortarMPI
 USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes
@@ -1422,7 +1422,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     jPos=jPos+1
 #endif /*IMPA*/
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(1+jPos),KIND=4)
-    ! Consider special particles that are communicated with negative species ID (ghost partilces that are deposited on surface 
+    ! Consider special particles that are communicated with negative species ID (ghost partilces that are deposited on surface
     ! with their charge and are then removed)
     IF(PartSpecies(PartID).LT.0)THEN
       PartSpecies(PartID) = -PartSpecies(PartID) ! make positive species ID again

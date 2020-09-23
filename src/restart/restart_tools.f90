@@ -31,9 +31,9 @@ CONTAINS
 
 
 #if PARTICLES
-SUBROUTINE ReadNodeSourceExtFromHDF5() 
+SUBROUTINE ReadNodeSourceExtFromHDF5()
 !----------------------------------------------------------------------------------------------------------------------------------!
-! Read NodeSourceExt from h5 file, which is stored as DG solution type field 'DG_SourceExt'. 
+! Read NodeSourceExt from h5 file, which is stored as DG solution type field 'DG_SourceExt'.
 ! Map this solution to equidistant-node polynomial (NodeTypeVISU with N=1) and then map the solution to the global nodes
 ! 'NodeSourceExt'.
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -53,7 +53,7 @@ USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 ! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -96,7 +96,7 @@ IF(DG_SourceExtExists)THEN
       NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * CellLocNodes_Volumes(NodeID(5))
       NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * CellLocNodes_Volumes(NodeID(6))
       NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * CellLocNodes_Volumes(NodeID(7))
-      NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * CellLocNodes_Volumes(NodeID(8)) 
+      NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * CellLocNodes_Volumes(NodeID(8))
     END ASSOCIATE
   END DO
 END IF ! DG_SourceExtExists

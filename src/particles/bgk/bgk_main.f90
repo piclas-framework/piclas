@@ -46,7 +46,7 @@ USE MOD_Mesh_Vars           ,ONLY: nElems
 USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, RadialWeighting
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
-USE MOD_Particle_Vars       ,ONLY: PEM, PartState, Species, WriteMacroVolumeValues, Symmetry2D, usevMPF
+USE MOD_Particle_Vars       ,ONLY: PEM, PartState, Species, WriteMacroVolumeValues, Symmetry, usevMPF
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength,BGKDSMCSwitchDens
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
 USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor
@@ -94,7 +94,7 @@ DO iElem = 1, nElems
   END IF
 
   IF (DoBGKCellAdaptation) THEN
-    IF(Symmetry2D) THEN
+    IF(Symmetry%Order.EQ.2) THEN
       CALL BGK_quadtree_adapt(iElem)
     ELSE
       CALL BGK_octree_adapt(iElem)
@@ -154,7 +154,7 @@ USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile
 USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, SamplingActive
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
-USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry2D
+USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry
 USE MOD_Restart_Vars        ,ONLY: RestartTime
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation, BGKMovingAverage, ElemNodeAveraging, BGKMovingAverageLength
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
@@ -178,7 +178,7 @@ DSMC_RHS = 0.0
 
 IF (DoBGKCellAdaptation) THEN
   DO iElem = 1, nElems
-    IF(Symmetry2D) THEN
+    IF(Symmetry%Order.EQ.2) THEN
       CALL BGK_quadtree_adapt(iElem)
     ELSE
       CALL BGK_octree_adapt(iElem)

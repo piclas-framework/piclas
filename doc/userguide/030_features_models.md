@@ -842,27 +842,42 @@ The second option is to use a linearly increasing time step along a given direct
 
 Besides DSMC, the linear scaling is available for the BGK and FP method. Finally, specific options for 2D/axisymmetric simulations are discussed in Section \ref{sec:2DAxi_vts}.
 
-### 2D/Axisymmetric Simulation \label{sec:2DAxi}
+### Symmetric Simulations \label{sec:Symmetric}
 
-For two-dimensional and axisymmetric cases, the computational effort can be greatly reduced. Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_{\mathrm{min}}|=|z_{\mathrm{max}}|$. The rotational symmetry axis shall be defined as a separate boundary with the `symmetric_axis` boundary condition
+For one-dimensional (e.g. shock-tubes), two-dimensional (e.g. cylinder) and axisymmetric (e.g. re-entry capsules) cases, the computational effort can be greatly reduced.
 
-Part-Boundary4-SourceName=SYMAXIS
-Part-Boundary4-Condition=symmetric_axis
+#### 1D Simulations \label{sec:1D}
+
+To enable one-dimensional simulations, the symmetry order has to be set
+
+    Particles-Symmetry-Order=1
+
+The calculation is performed along the $x$-axis. The $y$ and $z$ dimension should be centered to the $xz$-plane (i.e. $|y_{\mathrm{min}}|=|y_{\mathrm{max}}|$). All sides of the hexahedrons must be parallel to the $xy$-, $xz$-, and $yz$-plane. Boundaries in $y$ and $z$ direction shall be defined as 'symmetric'.
+
+    Part-Boundary5-SourceName=SYM
+    Part-Boundary5-Condition=symmetric
+
+#### 2D/Axisymmetric Simulations \label{sec:2DAxi}
+
+To enable two-dimensional simulations, the symmetry order has to be set
+
+    Particles-Symmetry-Order=2
+
+Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_{\mathrm{min}}|=|z_{\mathrm{max}}|$. The rotational symmetry axis shall be defined as a separate boundary with the `symmetric_axis` boundary condition
+
+    Part-Boundary4-SourceName=SYMAXIS
+    Part-Boundary4-Condition=symmetric_axis
 
 The boundaries (or a single boundary definition for both boundary sides) in the $z$-direction should be defined as symmetry sides with the `symmetric` condition
 
-Part-Boundary5-SourceName=SYM
-Part-Boundary5-Condition=symmetric
-
-To enable two-dimensional simulations, the following flag is required
-
-    Particles-Symmetry2D=T
+    Part-Boundary5-SourceName=SYM
+    Part-Boundary5-Condition=symmetric
 
 It should be noted that the two-dimensional mesh assumes a length of $\Delta z = 1$, regardless of the actual dimension in $z$. Therefore, the weighting factor should be adapted accordingly.
 
 To enable axisymmetric simulations, the following flag is required
 
-    Particles-Symmetry2DAxisymmetric=T
+    Particles-SymmetryAxisymmetric=T
 
 To fully exploit rotational symmetry, a radial weighting can be enabled, which will linearly increase the weighting factor $w$ towards $y_{\mathrm{max}}$ (i.e. the domain border in $y$-direction), depending on the current $y$-position of the particle.
 
@@ -898,7 +913,7 @@ However, this method is not preferable if the cell dimensions in $y$-direction a
 
 Besides DSMC, 2D/axisymmetric simulations are also possible the BGK/FP particle method with the same parameters as discussed above (for more informatino about the BGK and FP methods, see Section \ref{sec:continuum}).
 
-#### Variable Time Step: Linear scaling \label{sec:2DAxi_vts}
+##### Variable Time Step: Linear scaling \label{sec:2DAxi_vts}
 
 The linear scaling of the variable time step is implemented slightly different to the 3D case. Here, a particle-based time step is used, where the time step of the particle is determined on its current position. The first scaling is applied in the radial direction, where the time step is increased towards the radial domain border. Thus, $\Delta t (y_{\mathrm{max}}) = f \Delta t$ and $\Delta t (y_{\mathrm{min}} = 0) = \Delta t$.
 
@@ -929,13 +944,13 @@ The name is at the moment only utilized to retrieve the electronic energy levels
 |   10 | Atomic Ion                         |
 |   20 | Molecular Ion                      |
 
-Depending on the utilized collision model, different parameters have to be defined. As an example, the parameters for the Variable Hard Sphere (VHS) collision cross-section model are be defined by the temperature exponent $\omega$, reference temperature $T_{\mathrm{ref}}$ and diameter $d_{\mathrm{ref}}$
+Depending on the utilized collision model, different parameters have to be defined. As an example, the parameters for the Variable Hard Sphere (VHS) collision cross-section model are be defined by the temperature exponent $\omega = [0,0.5]$, reference temperature $T_{\mathrm{ref}}$ [K] and diameter $d_{\mathrm{ref}}$ [m]
 
-    Part-Species1-omegaVHS = 0.24
-    Part-Species1-VHSReferenceTemp = 273
-    Part-Species1-VHSReferenceDiam = 4.63E-10
+    Part-Species1-omega = 0.24
+    Part-Species1-Tref = 273
+    Part-Species1-dref = 4.63E-10
 
-It should be noted that although species-specific $\omega$ values can be read-in, DSMC in PICLas should only be utilized with a single $\omega$ at the moment. Other collisional models and their respective parameters are given in Section \ref{sec:dsmc_collision}.
+More detail on the utilization of species-specific, collision-specific parameters and the utilization of the Variable Soft Sphere (VSS) model are given in Section \ref{sec:dsmc_collision}.
 
 Diatomic molecular species require the definition of the characteristic temperature [K] and their dissociation energy [eV] (which is at the moment only utilized as a first guess for the upper bound of the temperature calculation)
 
@@ -976,6 +991,30 @@ To further reduce numerical diffusion, the nearest neighbour search for the part
 An additional attempt to increase the quality of simulations results is to prohibit repeated collisions between particles [@Shevyrin2005;@Akhlaghi2018]. This options is enabled by default in 2D/axisymmetric simulations, but disabled by default in 3D simulations.
 
     Particles-DSMC-ProhibitDoubleCollision = T
+
+The Variable Hard Sphere (VHS) is utilized by default with collision-averaged parameters, which are given per species
+
+    Part-Species1-omega = 0.24
+    Part-Species1-Tref = 273
+    Part-Species1-dref = 4.63E-10
+
+To enable the Variable Soft Sphere (VSS) model, the additional $\alpha$ parameter is required
+
+    Part-Species1-alphaVSS = 1.2
+
+In order to enable the collision-specific definition of the VHS/VSS parameters, a different input is required
+
+    ! Input in parameter.ini
+    Particles-DSMC-averagedCollisionParameters = F
+    ! Input in DSMC.ini
+    Part-Collision1 - partnerSpecies = (/1,1/)              ! Collision1: Parameters for the collision between equal species
+    Part-Collision1 - Tref           = 273
+    Part-Collision1 - dref           = 4.037e-10
+    Part-Collision1 - omega          = .216
+    Part-Collision1 - alphaVSS       = 1.448
+    Part-Collision2 - partnerSpecies = (/2,1/)              ! Collision2: Parameters for the collision between species 2 and 1
+
+The numbers in the `partnerSpecies` definition correspond to the species numbers and their order is irrelevant. Collision-specific parameters can be obtained from e.g. [@Swaminathan-Gopalan2016].
 
 #### Cross-section based collision probabilities
 
