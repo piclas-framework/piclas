@@ -177,12 +177,13 @@ IF (mySurfRank.EQ.0) WRITE(UNIT_stdOUt,'(A,I0,A)') ' Starting surface communicat
 !--- Open receive buffer (mapping from message surface ID to global side ID)
 ALLOCATE(SurfMapping(0:nSurfLeaders-1))
 
-!SurfMapping(:)%nRecvSurfSides = 0
-!SurfMapping(:)%nSendSurfSides = 0
+SurfMapping(:)%nRecvSurfSides = 0
+SurfMapping(:)%nSendSurfSides = 0
 
 DO iProc = 0,nLeaderGroupProcs-1
-  ! Ignore myself
+  ! Ignore procs not on surface communicator
   IF (MPIRankSurfLeader(iProc).EQ.MPI_UNDEFINED) CYCLE
+  ! Ignore myself
   IF (iProc .EQ. myLeaderGroupRank) CYCLE
 
   ! Save number of send and recv sides
@@ -205,6 +206,7 @@ DO iProc = 0,nLeaderGroupProcs-1
 END DO
 
 DO iProc = 0,nLeaderGroupProcs-1
+  ! Ignore procs not on surface communicator
   IF (MPIRankSurfLeader(iProc).EQ.MPI_UNDEFINED) CYCLE
   ! Ignore myself
   IF (iProc .EQ. myLeaderGroupRank) CYCLE
@@ -228,6 +230,7 @@ END DO
 
 !--- Finish communication
 DO iProc = 0,nLeaderGroupProcs-1
+  ! Ignore procs not on surface communicator
   IF (MPIRankSurfLeader(iProc).EQ.MPI_UNDEFINED) CYCLE
   ! Ignore myself
   IF (iProc .EQ. myLeaderGroupRank) CYCLE

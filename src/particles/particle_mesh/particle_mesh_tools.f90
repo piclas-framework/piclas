@@ -21,21 +21,10 @@ MODULE MOD_Particle_Mesh_Tools
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES (PUBLIC)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Public Part ----------------------------------------------------------------------------------------------------------------------
-
-!INTERFACE BoundsOfElement
-!  MODULE PROCEDURE BoundsOfElement
-!END INTERFACE
 
 INTERFACE ParticleInsideQuad3D
   MODULE PROCEDURE ParticleInsideQuad3D
 END INTERFACE
-
-!INTERFACE ParticleInsideQuad3D_MortarMPI
-!  MODULE PROCEDURE ParticleInsideQuad3D_MortarMPI
-!END INTERFACE
 
 ! Initialization routines
 INTERFACE InitPEM_LocalElemID
@@ -54,104 +43,13 @@ INTERFACE GetSideBoundingBoxTria
   MODULE PROCEDURE GetSideBoundingBoxTria
 END INTERFACE
 
-PUBLIC::InitPEM_LocalElemID
-PUBLIC::InitPEM_CNElemID
-!PUBLIC::BoundsOfElement
-PUBLIC::ParticleInsideQuad3D
-PUBLIC::GetGlobalNonUniqueSideID
-PUBLIC::GetSideBoundingBoxTria
-!PUBLIC::ParticleInsideQuad3D_MortarMPI
+PUBLIC :: ParticleInsideQuad3D
+PUBLIC :: InitPEM_LocalElemID
+PUBLIC :: InitPEM_CNElemID
+PUBLIC :: GetGlobalNonUniqueSideID
+PUBLIC :: GetSideBoundingBoxTria
 !===================================================================================================================================
 CONTAINS
-
-!SUBROUTINE BoundsOfElement(ElemID,Bounds)
-!!===================================================================================================================================
-!! computes the min/max of element in xyz (Based on BGMIndexOfElement)
-!!===================================================================================================================================
-!! MODULES                                                                                                                          !
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!USE MOD_ChangeBasis            ,ONLY: ChangeBasis2D
-!USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,sVdm_Bezier
-!USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo
-!USE MOD_Mesh_Vars              ,ONLY: NGeo
-!USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
-!USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!! IMPLICIT VARIABLE HANDLING
-!IMPLICIT NONE
-!! INPUT VARIABLES
-!INTEGER,INTENT(IN)        :: ElemID
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!! OUTPUT VARIABLES
-!REAL,INTENT(OUT)          :: Bounds(1:2,1:3)
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-!INTEGER                   :: ilocSide, SideID
-!REAL                      :: xmin,xmax,ymin,ymax,zmin,zmax
-!REAL                      :: BezierControlPoints3D_tmp(1:3,0:NGeo,0:NGeo)
-!!===================================================================================================================================
-!
-!xmin = HUGE(1.0)
-!xmax =-HUGE(1.0)
-!ymin = HUGE(1.0)
-!ymax =-HUGE(1.0)
-!zmin = HUGE(1.0)
-!zmax =-HUGE(1.0)
-!
-!! get min,max of BezierControlPoints of Element
-!DO iLocSide = 1,6
-!  SideID = PartElemToSide(E2S_SIDE_ID, ilocSide, ElemID)
-!  IF(DoRefMapping)THEN
-!    IF(SideID.GT.0)THEN
-!      IF(PartElemToSide(E2S_FLIP,ilocSide,ElemID).EQ.0)THEN
-!        BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-!      ELSE
-!        SELECT CASE(ilocSide)
-!        CASE(XI_MINUS)
-!          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,ElemID),BezierControlPoints3D_tmp)
-!        CASE(XI_PLUS)
-!          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,ElemID),BezierControlPoints3D_tmp)
-!        CASE(ETA_MINUS)
-!          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,ElemID),BezierControlPoints3D_tmp)
-!        CASE(ETA_PLUS)
-!          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,ElemID),BezierControlPoints3D_tmp)
-!        CASE(ZETA_MINUS)
-!          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,ElemID),BezierControlPoints3D_tmp)
-!        CASE(ZETA_PLUS)
-!          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,ElemID),BezierControlPoints3D_tmp)
-!        END SELECT
-!      END IF
-!    ELSE
-!      SELECT CASE(ilocSide)
-!      CASE(XI_MINUS)
-!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,ElemID),BezierControlPoints3D_tmp)
-!      CASE(XI_PLUS)
-!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,ElemID),BezierControlPoints3D_tmp)
-!      CASE(ETA_MINUS)
-!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,ElemID),BezierControlPoints3D_tmp)
-!      CASE(ETA_PLUS)
-!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,ElemID),BezierControlPoints3D_tmp)
-!      CASE(ZETA_MINUS)
-!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,ElemID),BezierControlPoints3D_tmp)
-!      CASE(ZETA_PLUS)
-!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,ElemID),BezierControlPoints3D_tmp)
-!      END SELECT
-!    END IF
-!  ELSE ! pure tracing
-!    BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-!  END IF
-!  xmin=MIN(xmin,MINVAL(BezierControlPoints3D_tmp(1,:,:)))
-!  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D_tmp(1,:,:)))
-!  ymin=MIN(ymin,MINVAL(BezierControlPoints3D_tmp(2,:,:)))
-!  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D_tmp(2,:,:)))
-!  zmin=MIN(zmin,MINVAL(BezierControlPoints3D_tmp(3,:,:)))
-!  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D_tmp(3,:,:)))
-!END DO ! ilocSide
-!Bounds(:,1)=(/xmin,xmax/)
-!Bounds(:,2)=(/ymin,ymax/)
-!Bounds(:,3)=(/zmin,zmax/)
-!
-!END SUBROUTINE BoundsOfElement
 
 
 !PURE SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
@@ -460,94 +358,6 @@ END IF
 END FUNCTION CalcDetOfTrias
 
 
-!SUBROUTINE ParticleInsideQuad3D_MortarMPI(PartStateLoc,ElemID,PartInside)
-!!===================================================================================================================================
-!!> Analogous to the original routine, checks particles which were communicated if they are in the correct element.
-!!> Checks if particle is inside of a linear element with triangulated faces, compatible with mortars
-!!> Regular element: The determinant of a 3x3 matrix, where the three vectors point from the particle to the nodes of a triangle, is
-!!>                  is used to determine whether the particle is inside the element. The geometric equivalent is the triple product
-!!>                  A*(B x C), spanning a signed volume. If the volume/determinant is positive, then the particle is inside.
-!!> Element with neighbouring mortar elements: Additional checks of the smaller sides are required if the particle is in not in the
-!!>                                       concave part of the element but in the convex. Analogous procedure using the determinants.
-!!===================================================================================================================================
-!! MODULES
-!USE MOD_Globals
-!USE MOD_Particle_Mesh_Vars    ,ONLY: GEO,PartElemToSide,PartElemToElemAndSide
-!USE MOD_Mesh_Vars             ,ONLY: MortarType
-!#if USE_MPI
-!USE MOD_MPI_Shared_Vars
-!#endif
-!! IMPLICIT VARIABLE HANDLING
-!IMPLICIT NONE
-!! INPUT VARIABLES
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! INPUT/OUTPUT VARIABLES
-!REAL   ,INTENT(IN)            :: PartStateLoc(3)
-!INTEGER,INTENT(INOUT)         :: ElemID
-!LOGICAL,INTENT(INOUT)         :: PartInside
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-!INTEGER                       :: ilocSide, NodeNum, SideID, SideIDMortar, ind, NbElemID, nNbMortars
-!LOGICAL                       :: PosCheck, NegCheck, InElementCheckMortar, InElementCheckMortarNb
-!REAL                          :: A(1:3,1:4), Det(2)
-!!===================================================================================================================================
-!InElementCheckMortar = .TRUE.
-!!--- Loop over the 6 sides of the element
-!DO iLocSide = 1,6
-!  DO NodeNum = 1,4
-!    !--- A = vector from particle to node coords
-!    A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,ElemID)) - PartStateLoc(1:3)
-!  END DO
-!  SideID =PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
-!  SideIDMortar=MortarType(2,SideID)
-!  IF (SideIDMortar.LE.0) CYCLE
-!  PosCheck = .FALSE.
-!  NegCheck = .FALSE.
-!  !--- Checking the concave part of the side
-!  IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
-!    ! If the element is actually concave, CalcDetOfTrias determines its determinants
-!    Det(1:2) = CalcDetOfTrias(A,1)
-!    IF (Det(1).GE.0) PosCheck = .TRUE.
-!    IF (Det(2).GE.0) PosCheck = .TRUE.
-!    !--- final determination whether particle is in element
-!    IF (.NOT.PosCheck) InElementCheckMortar = .FALSE.
-!  ELSE
-!    ! If its a convex element, CalcDetOfTrias determines the concave determinants
-!    Det(1:2) = CalcDetOfTrias(A,2)
-!    IF (Det(1).GE.0) PosCheck = .TRUE.
-!    IF (Det(2).GE.0) PosCheck = .TRUE.
-!    !--- final determination whether particle is in element
-!    IF (.NOT.PosCheck) InElementCheckMortar= .FALSE.
-!  END IF
-!  IF (InElementCheckMortar) THEN
-!    IF (MortarType(1,SideID).EQ.1) THEN
-!      nNbMortars = 4
-!    ELSE
-!      nNbMortars = 2
-!    END IF
-!    !--- Loop over the number of neighbouring mortar elements, leave the routine if the particle is found within one of the
-!    !    mortar elements
-!    DO ind = 1, nNbMortars
-!      InElementCheckMortarNb = .TRUE.
-!      NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
-!      IF (NbElemID.LT.1) THEN
-!        IPWRITE(*,*) 'PartState:', PartStateLoc(1:3)
-!        IPWRITE(*,*) 'ElemID:', ElemID
-!        IPWRITE(*,*) 'WARNING: Particle deleted! Think about increasing the halo region (HaloEpsVelo)!'
-!        PartInside = .FALSE.
-!      END IF
-!      CALL ParticleInsideNbMortar(PartStateLoc,NbElemID,InElementCheckMortarNb)
-!      IF (InElementCheckMortarNb) THEN
-!        ElemID = NbElemID
-!        RETURN
-!      END IF
-!    END DO
-!  END IF
-!END DO ! iLocSide = 1,6
-!
-!END SUBROUTINE ParticleInsideQuad3D_MortarMPI
-
 !==================================================================================================================================!
 !> Initialize PEM%LocalElemID(iPart) function (mapping of global element ID, which is first obtained from PEM%GlobalElemID(iPart) to
 !> the core local element ID)
@@ -555,8 +365,9 @@ END FUNCTION CalcDetOfTrias
 SUBROUTINE InitPEM_LocalElemID()
 ! MODULES
 USE MOD_Particle_Vars ,ONLY: PEM
-!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -584,6 +395,9 @@ END SUBROUTINE InitPEM_LocalElemID
 PURE FUNCTION GetGlobalID(iPart)
 ! MODULES
 USE MOD_Particle_Vars ,ONLY: PEM
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iPart ! Particle ID
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -604,10 +418,11 @@ PURE FUNCTION GetGlobalID_offset(iPart)
 ! MODULES
 USE MOD_Mesh_Vars     ,ONLY: offSetElem
 USE MOD_Particle_Vars ,ONLY: PEM
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iPart ! Particle ID
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: GetGlobalID_offset
@@ -627,8 +442,9 @@ SUBROUTINE InitPEM_CNElemID()
 USE MOD_MPI_Shared_Vars ,ONLY: nComputeNodeProcessors,nProcessors_Global
 USE MOD_Particle_Vars   ,ONLY: PEM
 #endif /*USE_MPI*/
-!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -662,6 +478,9 @@ PURE FUNCTION GetGlobalElem2CNTotalElem_iPart(iPart)
 ! MODULES
 USE MOD_MPI_Shared_Vars ,ONLY: GlobalElem2CNTotalElem
 USE MOD_Particle_Vars   ,ONLY: PEM
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iPart ! Particle ID
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -683,8 +502,9 @@ FUNCTION GetGlobalNonUniqueSideID(ElemID,localSideID)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared, SideInfo_Shared
-!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN) :: ElemID                              !< global element ID
 INTEGER,INTENT(IN) :: localSideID                         !< local side id of an element (1:6)
@@ -717,8 +537,9 @@ SUBROUTINE GetSideBoundingBoxTria(SideID, BoundingBox)
 ! MODULES
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
-!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 INTEGER, INTENT(IN)           :: SideID
 REAL, INTENT(OUT)             :: BoundingBox(1:3,1:8)

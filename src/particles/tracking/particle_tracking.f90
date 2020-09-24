@@ -87,6 +87,7 @@ SUBROUTINE ParticleTriaTracking()
 USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Mesh_Vars                   ,ONLY: offsetElem
+USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM,PartSpecies
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
@@ -117,7 +118,7 @@ LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 LOGICAL                          :: doParticle
 LOGICAL                          :: doPartInExists
 #endif
-INTEGER                          :: i, NblocSideID, NbElemID, ind, nbSideID, nMortarElems,BCType
+INTEGER                          :: i, NblocSideID, NbElemID, CNElemID, ind, nbSideID, nMortarElems,BCType
 INTEGER                          :: ElemID,flip,OldElemID,nlocSides
 INTEGER                          :: LocalSide
 INTEGER                          :: NrOfThroughSides, ind2
@@ -407,7 +408,9 @@ DO i = 1,PDM%ParticleVecLength
             ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
           END IF
           END IF  ! SideInfo_Shared(SIDE_BCID,SideID).GT./.LE. 0
-        IF (ElemID.LT.1) THEN
+        CNElemID = GetCNElemID(ElemID)
+
+        IF (CNElemID.LT.1) THEN
           IPWRITE(UNIT_stdout,*) 'Particle Velocity: ',SQRT(DOTPRODUCT(PartState(4:6,i)))
           CALL abort(&
            __STAMP__ &

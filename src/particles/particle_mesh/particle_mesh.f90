@@ -181,6 +181,7 @@ USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalElemID,InitGetCNElemID,GetCNE
 USE MOD_Mesh_Vars              ,ONLY: deleteMeshPointer,NodeCoords
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
 USE MOD_Mesh_Vars              ,ONLY: useCurveds
+USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
 USE MOD_Particle_BGM           ,ONLY: BuildBGMAndIdentifyHaloRegion
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Tools    ,ONLY: InitPEM_LocalElemID,InitPEM_CNElemID
@@ -204,6 +205,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 USE MOD_MPI_Vars               ,ONLY: offsetMPISides_YOUR
 #endif /*CODE_ANALYZE*/
 #if USE_MPI
+USE MOD_Particle_BGM           ,ONLY: WriteHaloInfo
 USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars
 #endif /* USE_MPI */
@@ -249,6 +251,13 @@ END IF
 
 ! Build BGM to Element mapping and identify which of the elements, sides and nodes are in the compute-node local and halo region
 CALL BuildBGMAndIdentifyHaloRegion()
+
+#if USE_MPI
+CalcHaloInfo = GETLOGICAL('CalcHaloInfo') 
+IF (CalcHaloInfo) THEN
+  CALL WriteHaloInfo
+END IF
+#endif /*USE_MPI*/
 
 ! Initialize mapping function: GetGlobalElemID(1:nComputeNodeTotalElems)
 CALL InitGetGlobalElemID()
@@ -3399,7 +3408,7 @@ USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,PartSource_Shared_Win
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars            ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 #endif
 ! IMPLICIT VARIABLE HANDLING

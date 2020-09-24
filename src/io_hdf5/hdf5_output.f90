@@ -778,7 +778,7 @@ ASSOCIATE (&
                           nValGlobal      = (/nVar,nGlobalElems/),&
                           nVal            = (/nVar,PP_nElems   /),&
                           offset          = (/0_IK,offsetElem  /),&
-                          collective      = .TRUE.,RealArray        = ElemData)
+                          collective      = .TRUE.,RealArray = ElemData)
 END ASSOCIATE
 DEALLOCATE(ElemData,StrVarNames)
 
