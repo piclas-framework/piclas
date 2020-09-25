@@ -370,7 +370,7 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,maxCellRadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI
 IF (maxCellRadius.LE.halo_eps) THEN
   SWRITE(UNIT_stdOut,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', building halo BGM with halo_eps ...'
 ELSE
-  SWRITE(UNIT_stdOut,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius  ', temporarily increasing radius for building halo BGM ...'
+  SWRITE(UNIT_stdOut,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', temporarily increasing radius for building halo BGM ...'
 END IF
 
 ! enlarge BGM with halo region (all element outside of this region will be cut off)
