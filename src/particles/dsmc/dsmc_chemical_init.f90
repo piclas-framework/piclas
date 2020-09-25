@@ -58,17 +58,6 @@ CALL prms%CreateStringOption(   'DSMC-Reaction[$]-ReactionType'  &
                                             'X: simple charge exchange reaction)', 'none', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'DSMC-Reaction[$]-QKProcedure'  &
                                            ,'Flag to use quantum-kinetic model', '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'DSMC-Reaction[$]-QK-Method'  &
-                                           ,'Recombination Method for Q-K model\n'//&
-                                            '1: by Bird\n'//&
-                                            '2: by Gallis)\n'//&
-                                            'If using bird, define the variables:\n'//&
-                                            'DSMC-Reaction[$]-QK-Coeff1\n'//&
-                                            'DSMC-Reaction[$]-QK-Coeff2 ', '0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-QK-Coeff1'  &
-                                           ,'First Q-K coefficient for Birds method.', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-QK-Coeff2'  &
-                                           ,'Second Q-K coefficient for Birds method.', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Reactants'  &
                                            ,'Reactants of Reaction[$]\n'//&
                                             '(SpecNumOfReactant1,\n'//&
@@ -129,6 +118,9 @@ CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
                                   ,'.TRUE.')
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CrossSection'  &
                                 , 'Photon-ionization cross-section', numberedmulti=.TRUE.)
+! XSec Chemistry
+CALL prms%CreateLogicalOption(  'DSMC-Reaction[$]-XSec-Procedure', &
+                                'Flag to use cross-section based data for the reaction', '.FALSE.', numberedmulti=.TRUE.)
 END SUBROUTINE DefineParametersChemistry
 
 SUBROUTINE DSMC_chemical_init()
@@ -139,7 +131,7 @@ SUBROUTINE DSMC_chemical_init()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas
+USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, CollInf
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
@@ -155,12 +147,13 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(LEN=3)      :: hilf
 INTEGER               :: iReac, iReac2, iReac3, iReac4, iSpec, iChemDir, iReacForward, iReacDiss, PartitionArraySize, iInter
-INTEGER, ALLOCATABLE  :: PairCombID(:,:), DummyRecomb(:,:)
-LOGICAL, ALLOCATABLE  :: YetDefined_Help(:)
+INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
 LOGICAL               :: DoScat
 INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, MaxElecQua, ReadInNumOfReact
 REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec, BGGasEVib, PhotonEnergy
 INTEGER               :: iInit
+INTEGER               :: iCase, iCase2, ReacIndexCounter
+LOGICAL               :: RecombAdded
 !===================================================================================================================================
 
 ChemReac%NumOfReact = GETINT('DSMC-NumOfReactions')
@@ -202,22 +195,16 @@ ChemReac%NumReac = 0
 #if (PP_TimeDiscMethod==42)
 ALLOCATE(ChemReac%ReacCount(ChemReac%NumOfReact))
 ChemReac%ReacCount = 0
-ALLOCATE(ChemReac%ReacCollMean(ChemReac%NumOfReact))
+ALLOCATE(ChemReac%ReacCollMean(CollInf%NumCase))
 ChemReac%ReacCollMean = 0.0
-ALLOCATE(ChemReac%ReacCollMeanCount(ChemReac%NumOfReact))
-ChemReac%ReacCollMeanCount = 0
 #endif
 ALLOCATE(ChemReac%QKProcedure(ChemReac%NumOfReact))
 ChemReac%QKProcedure = .FALSE.
-ALLOCATE(ChemReac%QKMethod(ChemReac%NumOfReact))
-ALLOCATE(ChemReac%QKCoeff(ChemReac%NumOfReact,2))
-ALLOCATE(YetDefined_Help(ChemReac%NumOfReact))
-YetDefined_Help = .FALSE.
 ALLOCATE(ChemReac%ReactType(ChemReac%NumOfReact))
 ChemReac%ReactType = '0'
 ALLOCATE(ChemReac%DefinedReact(ChemReac%NumOfReact,2,3))
 ChemReac%DefinedReact = 0
-ALLOCATE(ChemReac%ReactCase(nSpecies,nSpecies))
+ALLOCATE(ChemReac%ReactCase(ChemReac%NumOfReact))
 ChemReac%ReactCase = 0
 ALLOCATE(ChemReac%ReactNum(nSpecies, nSpecies, nSpecies))
 ChemReac%ReactNum = 0
@@ -248,6 +235,9 @@ ALLOCATE(ChemReac%ReactInfo(ChemReac%NumOfReact))
 ALLOCATE(ChemReac%TLU_FileName(ChemReac%NumOfReact))
 ALLOCATE(ChemReac%CrossSection(ChemReac%NumOfReact))
 ChemReac%CrossSection = 0.
+! XSec Chemistry
+ALLOCATE(ChemReac%XSec_Procedure(ChemReac%NumOfReact))
+ChemReac%XSec_Procedure = .FALSE.
 
 IF (BGGas%NumberOfSpecies.GT.0) THEN
   DO iSpec = 1, nSpecies
@@ -275,9 +265,6 @@ DO iReac = 1, ReadInNumOfReact
   WRITE(UNIT=hilf,FMT='(I0)') iReac
   ChemReac%ReactType(iReac)             = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionType'))
   ChemReac%QKProcedure(iReac)           = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-QKProcedure','.FALSE.')
-  CHemReac%QKMethod(iReac)       = GETINT('DSMC-Reaction'//TRIM(hilf)//'-QK-Method','0')
-  ChemReac%QKCoeff(iReac,1)      = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-QK-Coeff1','0')
-  ChemReac%QKCoeff(iReac,2)      = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-QK-Coeff2','0')
   ChemReac%DefinedReact(iReac,1,:)      = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Reactants',3,'0,0,0')
   ChemReac%DefinedReact(iReac,2,:)      = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Products',3,'0,0,0')
   ChemReac%Arrhenius_Prefactor(iReac)   = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Prefactor','0')
@@ -299,6 +286,8 @@ DO iReac = 1, ReadInNumOfReact
     ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','-27.2')
     ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','175.269')
   END IF
+  ! XSec Chemistry
+  ChemReac%XSec_Procedure(iReac)           = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-XSec-Procedure','.FALSE.')
   IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
     ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
     ! Check if species 3 is an electron and abort (this is not implemented yet)
@@ -509,406 +498,62 @@ DO iReac = 1, ChemReac%NumOfReact
   END IF
 END DO
 
-ALLOCATE(PairCombID(nSpecies, nSpecies))
-PairCombID = 0
-CALL DSMC_BuildChem_IDArray(PairCombID)
+ALLOCATE(ChemReac%CollCaseInfo(CollInf%NumCase))
+ChemReac%CollCaseInfo(:)%NumOfReactionPaths = 0
 
-! ALLOCATE(ChemReac%CollCaseInfo(CollInf%NumCase))
-
-! DO iReac = 1, ChemReac%NumOfReact
-!   iSpec1 = ChemReac%DefinedReact(iReac,1,1)
-!   iSpec2 = ChemReac%DefinedReact(iReac,1,2)
-!   iCase = CollInf%Coll_Case(iSpec1,iSpec2)
-!   DO iReac2 = 1, ChemReac%NumOfReact
-!     IF(iReac.EQ.iReac2) CYCLE
-!     iCase2 = CollInf%Coll_Case(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))
-!     ! Count the number of possible reactions paths per collision case
-!     IF(iCase.EQ.iCase2) THEN
-!       ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths = ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths + 1
-!     END IF
-!   END DO
-! END DO
-
-! DO iCase = 1, CollInf%NumCase
-!   ! Allocate the case specific type with the number of the possible reaction paths
-!   ALLOCATE(ChemReac%CollCaseInfo(iCase)%ReactionIndex(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
-!   ReacIndexCounter = 0
-!   DO iReac = 1, ChemReac%NumOfReact
-!     iSpec1 = ChemReac%DefinedReact(iReac,1,1)
-!     iSpec2 = ChemReac%DefinedReact(iReac,1,2)
-!     iCase2 = CollInf%Coll_Case(iSpec1,iSpec2)
-!     ! Save the reaction index for the specific collision case
-!     IF(iCase.EQ.iCase2) THEN
-!       ReacIndexCounter = ReacIndexCounter + 1
-!       ChemReac%CollCaseInfo(iCase)%ReactionIndex(ReacIndexCounter) = iReac
-!     END IF
-!   END DO
-! END DO
-
-! Case: photo-ionization (NOT to be included in regular chemistry)
-DO iReac = 1, ChemReac%NumOfReact
-  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
-    IF(.NOT.YetDefined_Help(iReac)) THEN
-      YetDefined_Help(iReac) = .TRUE.
-    END IF
-  END IF
-END DO
-
-! Case 6: One ionization and one ion recombination possible
-DO iReac = 1, ChemReac%NumOfReact
-  IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'iQK').AND.(.NOT.YetDefined_Help(iReac))) THEN
-    DO iReac2 = 1, ChemReac%NumOfReact
-      IF (((TRIM(ChemReac%ReactType(iReac2)).EQ.'r').AND.(.NOT.YetDefined_Help(iReac2)))) THEN
-        IF (PairCombID(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)).EQ.&
-            PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
-              Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-              Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-              ChemReac%ReactCase(Reactant1, Reactant2) = 6
-              ChemReac%ReactCase(Reactant2, Reactant1) = 6
-              ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-              ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-              YetDefined_Help(iReac) = .TRUE.
-              YetDefined_Help(iReac2) = .TRUE.
+DO iCase = 1, CollInf%NumCase
+  RecombAdded = .FALSE.
+  DO iReac = 1, ChemReac%NumOfReact
+    iCase2 = CollInf%Coll_Case(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2))
+    ! Count the number of possible reactions paths per collision case
+    IF(iCase.EQ.iCase2) THEN
+      ! Only add recombination reactions once
+      IF((TRIM(ChemReac%ReactType(iReac)).EQ.'r').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'R')) THEN
+        IF(RecombAdded) THEN
+          CYCLE
+        ELSE
+          RecombAdded = .TRUE.
         END IF
       END IF
-    END DO
-  END IF
+      ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths = ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths + 1
+    END IF
+  END DO
 END DO
-! Case 19: only ion recombination
+
+DO iCase = 1, CollInf%NumCase
+  ! Allocate the case specific type with the number of the possible reaction paths
+  ALLOCATE(ChemReac%CollCaseInfo(iCase)%ReactionIndex(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
+  ALLOCATE(ChemReac%CollCaseInfo(iCase)%QK_PerformReaction(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
+  ChemReac%CollCaseInfo(iCase)%QK_PerformReaction = .FALSE.
+  ReacIndexCounter = 0
+  RecombAdded = .FALSE.
+  DO iReac = 1, ChemReac%NumOfReact
+    iCase2 = CollInf%Coll_Case(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2))
+    ! Save the reaction index for the specific collision case
+    IF(iCase.EQ.iCase2) THEN
+      ! Save the case number for the reaction
+      ChemReac%ReactCase(iReac) = iCase
+      ! But only add one recombination reaction to the number of reaction paths (the index of the others is stored in ReactNumRecomb
+      ! and is chosen based on the third collision partner selected during the simulation)
+      IF((TRIM(ChemReac%ReactType(iReac)).EQ.'r').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'R')) THEN
+        IF(RecombAdded) THEN
+          CYCLE
+        ELSE
+          RecombAdded = .TRUE.
+        END IF
+      END IF
+      ReacIndexCounter = ReacIndexCounter + 1
+      ChemReac%CollCaseInfo(iCase)%ReactionIndex(ReacIndexCounter) = iReac
+    END IF
+  END DO
+END DO
+
+! Recombination
 DO iReac = 1, ChemReac%NumOfReact
-  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'r') THEN
+  IF((TRIM(ChemReac%ReactType(iReac)).EQ.'r').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'R')) THEN
     Reactant1 = ChemReac%DefinedReact(iReac,1,1)
     Reactant2 = ChemReac%DefinedReact(iReac,1,2)
     Reactant3 = ChemReac%DefinedReact(iReac,1,3)
-    IF(.NOT.YetDefined_Help(iReac)) THEN
-      ChemReac%ReactCase(Reactant1, Reactant2) = 19
-      ChemReac%ReactCase(Reactant2, Reactant1) = 19
-      ChemReac%ReactNum(Reactant1, Reactant2, Reactant3) = iReac
-      ChemReac%ReactNum(Reactant2, Reactant1, Reactant3) = iReac
-      YetDefined_Help(iReac) = .TRUE.
-    END IF
-    ChemReac%ReactNumRecomb(Reactant1, Reactant2, Reactant3) = iReac
-    ChemReac%ReactNumRecomb(Reactant2, Reactant1, Reactant3) = iReac
-    DummyRecomb(Reactant1,Reactant2) = iReac
-  END IF
-END DO
-! Case 18: only electron impact ionization
-DO iReac = 1, ChemReac%NumOfReact
-  IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'iQK').AND.(.NOT.YetDefined_Help(iReac))) THEN
-    Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-    Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-    ChemReac%ReactCase(Reactant1, Reactant2) = 18
-    ChemReac%ReactCase(Reactant2, Reactant1) = 18
-    ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-    ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-    DO iReac2 = 1, ChemReac%NumOfReact
-      IF ((TRIM(ChemReac%ReactType(iReac2)).EQ.'D').AND.(.NOT.YetDefined_Help(iReac2))) THEN
-        IF (PairCombID(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)).EQ.&
-            PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
-          Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-          Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-          ChemReac%ReactCase(Reactant1, Reactant2) = 20
-          ChemReac%ReactCase(Reactant2, Reactant1) = 20
-          ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-          ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-          ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
-          ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
-          YetDefined_Help(iReac2) = .TRUE.
-        END IF
-      END IF
-    END DO
-    YetDefined_Help(iReac) = .TRUE.
-  END IF
-END DO
-! Case 16: only simple CEX/MEX possible
-DO iReac = 1, ChemReac%NumOfReact
-  IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'x').AND.(.NOT.YetDefined_Help(iReac))) THEN
-      Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-      Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-      ChemReac%ReactCase(Reactant1, Reactant2) = 16
-      ChemReac%ReactCase(Reactant2, Reactant1) = 16
-      ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-      ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-      YetDefined_Help(iReac) = .TRUE.
-  END IF
-END DO
-! Case 5/7/8/9/10/11/12: At least two dissociations possible
-DO iReac = 1, ChemReac%NumOfReact
-  IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'D').AND.(.NOT.YetDefined_Help(iReac))) THEN
-    DO iReac2 = 1, ChemReac%NumOfReact
-      IF (iReac.NE.iReac2) THEN
-        IF ((TRIM(ChemReac%ReactType(iReac2)).EQ.'D').AND.(.NOT.YetDefined_Help(iReac2))) THEN
-          IF (PairCombID(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)).EQ.&
-              PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
-                ! Case 5: Two dissociations only
-                Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-                Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-                ChemReac%ReactCase(Reactant1, Reactant2) = 5
-                ChemReac%ReactCase(Reactant2, Reactant1) = 5
-                ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-                ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-                ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
-                ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
-                DO iReac3 = 1, ChemReac%NumOfReact
-                  IF ((iReac3.NE.iReac2).AND.(iReac3.NE.iReac)) THEN
-                    IF(DSMC%NumPolyatomMolecs.GT.0) THEN ! 3 diss only possible with polyatomic molecules
-                      IF ((TRIM(ChemReac%ReactType(iReac3)).EQ.'D').AND.(.NOT.YetDefined_Help(iReac3))) THEN
-                        IF (PairCombID(ChemReac%DefinedReact(iReac3,1,1),ChemReac%DefinedReact(iReac3,1,2)).EQ.&
-                            PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
-                              ! Case 7: Three dissociations
-                              Reactant1 = ChemReac%DefinedReact(iReac3,1,1)
-                              Reactant2 = ChemReac%DefinedReact(iReac3,1,2)
-                              ChemReac%ReactCase(Reactant1, Reactant2) = 7
-                              ChemReac%ReactCase(Reactant2, Reactant1) = 7
-                              ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-                              ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-                              ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
-                              ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
-                              ChemReac%ReactNum(Reactant1, Reactant2, 3) = iReac3
-                              ChemReac%ReactNum(Reactant2, Reactant1, 3) = iReac3
-                              YetDefined_Help(iReac3) = .TRUE.
-                          DO iReac4 = 1, ChemReac%NumOfReact
-                            IF ((iReac4.NE.iReac3).AND.(iReac4.NE.iReac2).AND.(iReac4.NE.iReac)) THEN
-                              IF ((TRIM(ChemReac%ReactType(iReac4)).EQ.'D').AND.(.NOT.YetDefined_Help(iReac4))) THEN
-                                IF (PairCombID(ChemReac%DefinedReact(iReac4,1,1),ChemReac%DefinedReact(iReac4,1,2)).EQ.&
-                                    PairCombID(ChemReac%DefinedReact(iReac3,1,1),ChemReac%DefinedReact(iReac3,1,2))) THEN
-                                      ! Case 8: Four dissociations
-                                      Reactant1 = ChemReac%DefinedReact(iReac4,1,1)
-                                      Reactant2 = ChemReac%DefinedReact(iReac4,1,2)
-                                      ChemReac%ReactCase(Reactant1, Reactant2) = 8
-                                      ChemReac%ReactCase(Reactant2, Reactant1) = 8
-                                      ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-                                      ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-                                      ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
-                                      ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
-                                      ChemReac%ReactNum(Reactant1, Reactant2, 3) = iReac3
-                                      ChemReac%ReactNum(Reactant2, Reactant1, 3) = iReac3
-                                      ChemReac%ReactNum(Reactant1, Reactant2, 4) = iReac4
-                                      ChemReac%ReactNum(Reactant2, Reactant1, 4) = iReac4
-                                      YetDefined_Help(iReac4) = .TRUE.
-                                END IF
-                              END IF
-                              IF ((TRIM(ChemReac%ReactType(iReac4)).EQ.'E').AND.(.NOT.YetDefined_Help(iReac4))) THEN
-                                IF (PairCombID(ChemReac%DefinedReact(iReac4,1,1),ChemReac%DefinedReact(iReac4,1,2)).EQ.&
-                                    PairCombID(ChemReac%DefinedReact(iReac3,1,1),ChemReac%DefinedReact(iReac3,1,2))) THEN
-                                      ! Case 9: Three dissociations and one exchange
-                                      Reactant1 = ChemReac%DefinedReact(iReac4,1,1)
-                                      Reactant2 = ChemReac%DefinedReact(iReac4,1,2)
-                                      ChemReac%ReactCase(Reactant1, Reactant2) = 9
-                                      ChemReac%ReactCase(Reactant2, Reactant1) = 9
-                                      ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-                                      ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-                                      ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
-                                      ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
-                                      ChemReac%ReactNum(Reactant1, Reactant2, 3) = iReac3
-                                      ChemReac%ReactNum(Reactant2, Reactant1, 3) = iReac3
-                                      ChemReac%ReactNum(Reactant1, Reactant2, 4) = iReac4
-                                      ChemReac%ReactNum(Reactant2, Reactant1, 4) = iReac4
-                                      YetDefined_Help(iReac4) = .TRUE.
-                                END IF
-                              END IF
-                            END IF
-                          END DO
-                        END IF
-                      END IF
-                    END IF
-                    IF ((TRIM(ChemReac%ReactType(iReac3)).EQ.'E').AND.(.NOT.YetDefined_Help(iReac3))) THEN
-                      IF (PairCombID(ChemReac%DefinedReact(iReac3,1,1),ChemReac%DefinedReact(iReac3,1,2)).EQ.&
-                          PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
-                            ! Case 10: Two dissociations and one exchange
-                            Reactant1 = ChemReac%DefinedReact(iReac3,1,1)
-                            Reactant2 = ChemReac%DefinedReact(iReac3,1,2)
-                            ChemReac%ReactCase(Reactant1, Reactant2) = 10
-                            ChemReac%ReactCase(Reactant2, Reactant1) = 10
-                            ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-                            ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-                            ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
-                            ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
-                            ChemReac%ReactNum(Reactant1, Reactant2, 3) = iReac3
-                            ChemReac%ReactNum(Reactant2, Reactant1, 3) = iReac3
-                            YetDefined_Help(iReac3) = .TRUE.
-                            DO iReac4 = 1, ChemReac%NumOfReact
-                              IF ((TRIM(ChemReac%ReactType(iReac4)).EQ.'R').AND.(.NOT.YetDefined_Help(iReac4))) THEN
-                                IF (PairCombID(ChemReac%DefinedReact(iReac4,1,1),ChemReac%DefinedReact(iReac4,1,2)).EQ.&
-                                    PairCombID(ChemReac%DefinedReact(iReac3,1,1),ChemReac%DefinedReact(iReac3,1,2))) THEN
-                                      ! Case 11: Two dissociations, one exchange and recombination
-                                      Reactant1 = ChemReac%DefinedReact(iReac4,1,1)
-                                      Reactant2 = ChemReac%DefinedReact(iReac4,1,2)
-                                      ChemReac%ReactCase(Reactant1, Reactant2) = 11
-                                      ChemReac%ReactCase(Reactant2, Reactant1) = 11
-                                      ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-                                      ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-                                      ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
-                                      ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
-                                      ChemReac%ReactNum(Reactant1, Reactant2, 3) = iReac3
-                                      ChemReac%ReactNum(Reactant2, Reactant1, 3) = iReac3
-                                      ChemReac%ReactNum(Reactant1, Reactant2, 4) = iReac4
-                                      ChemReac%ReactNum(Reactant2, Reactant1, 4) = iReac4
-                                      YetDefined_Help(iReac4) = .TRUE.
-                                END IF
-                              END IF
-                            END DO
-                      END IF
-                    END IF
-                    IF ((TRIM(ChemReac%ReactType(iReac3)).EQ.'R').AND.(.NOT.YetDefined_Help(iReac3))) THEN
-                      IF (PairCombID(ChemReac%DefinedReact(iReac3,1,1),ChemReac%DefinedReact(iReac3,1,2)).EQ.&
-                          PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
-                            ! Case 12: Two dissociations and one recombination
-                            Reactant1 = ChemReac%DefinedReact(iReac3,1,1)
-                            Reactant2 = ChemReac%DefinedReact(iReac3,1,2)
-                            ChemReac%ReactCase(Reactant1, Reactant2) = 12
-                            ChemReac%ReactCase(Reactant2, Reactant1) = 12
-                            ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-                            ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-                            ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
-                            ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
-                            ChemReac%ReactNum(Reactant1, Reactant2, 3) = iReac3
-                            ChemReac%ReactNum(Reactant2, Reactant1, 3) = iReac3
-                            YetDefined_Help(iReac3) = .TRUE.
-                      END IF
-                    END IF
-                  END IF
-                END DO
-                YetDefined_Help(iReac) = .TRUE.
-                YetDefined_Help(iReac2) = .TRUE.
-          END IF
-        END IF
-      END IF
-    END DO
-  END IF
-END DO
-! Cases 4/13/14: Dissociation, recombination and exchange reactions possible
-DO iReac = 1, ChemReac%NumOfReact
-  IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'D').AND.(.NOT.YetDefined_Help(iReac))) THEN
-    DO iReac2 = 1, ChemReac%NumOfReact
-      IF ((TRIM(ChemReac%ReactType(iReac2)).EQ.'E').AND.(.NOT.YetDefined_Help(iReac2))) THEN
-        IF (PairCombID(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)).EQ.&
-            PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
-              ! Case 4: One dissociation and one exchange
-              Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-              Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-              ChemReac%ReactCase(Reactant1, Reactant2) = 4
-              ChemReac%ReactCase(Reactant2, Reactant1) = 4
-              ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-              ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-              ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
-              ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
-              YetDefined_Help(iReac) = .TRUE.
-              YetDefined_Help(iReac2) = .TRUE.
-              DO iReac3 = 1, ChemReac%NumOfReact
-                IF ((TRIM(ChemReac%ReactType(iReac3)).EQ.'R').AND.(.NOT.YetDefined_Help(iReac3))) THEN
-                  IF (PairCombID(ChemReac%DefinedReact(iReac3,1,1),ChemReac%DefinedReact(iReac3,1,2)).EQ.&
-                      PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
-                        ! Case 13: One dissociation, one recombination and one exchange
-                        Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-                        Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-                        ChemReac%ReactCase(Reactant1, Reactant2) = 13
-                        ChemReac%ReactCase(Reactant2, Reactant1) = 13
-                        ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-                        ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-                        ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
-                        ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
-                        ChemReac%ReactNum(Reactant1, Reactant2, 3) = iReac3
-                        ChemReac%ReactNum(Reactant2, Reactant1, 3) = iReac3
-                        YetDefined_Help(iReac3) = .TRUE.
-                  END IF
-                END IF
-              END DO
-              DO iReac3 = 1, ChemReac%NumOfReact
-                IF ((TRIM(ChemReac%ReactType(iReac3)).EQ.'E').AND.(.NOT.YetDefined_Help(iReac3))) THEN
-                  IF (PairCombID(ChemReac%DefinedReact(iReac3,1,1),ChemReac%DefinedReact(iReac3,1,2)).EQ.&
-                      PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
-                        ! Case 17: One dissociation and two exchange reactions
-                        Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-                        Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-                        ChemReac%ReactCase(Reactant1, Reactant2) = 17
-                        ChemReac%ReactCase(Reactant2, Reactant1) = 17
-                        ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-                        ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-                        ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
-                        ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
-                        ChemReac%ReactNum(Reactant1, Reactant2, 3) = iReac3
-                        ChemReac%ReactNum(Reactant2, Reactant1, 3) = iReac3
-                        YetDefined_Help(iReac3) = .TRUE.
-                  END IF
-                END IF
-              END DO
-        END IF
-      END IF
-      IF ((TRIM(ChemReac%ReactType(iReac2)).EQ.'R').AND.(.NOT.YetDefined_Help(iReac2))) THEN
-        IF (PairCombID(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)).EQ.&
-            PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
-              ! Case 14: One dissociation and one recombination
-              Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-              Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-              ChemReac%ReactCase(Reactant1, Reactant2) = 14
-              ChemReac%ReactCase(Reactant2, Reactant1) = 14
-              ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-              ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-              YetDefined_Help(iReac) = .TRUE.
-              YetDefined_Help(iReac2) = .TRUE.
-        END IF
-      END IF
-    END DO
-  END IF
-END DO
-! Case 15: One exchange and one recombination possible
-DO iReac = 1, ChemReac%NumOfReact
-  IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'E').AND.(.NOT.YetDefined_Help(iReac))) THEN
-    DO iReac2 = 1, ChemReac%NumOfReact
-      IF ((TRIM(ChemReac%ReactType(iReac2)).EQ.'R').AND.(.NOT.YetDefined_Help(iReac2))) THEN
-        IF (PairCombID(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)).EQ.&
-            PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
-              Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-              Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-              ChemReac%ReactCase(Reactant1, Reactant2) = 15
-              ChemReac%ReactCase(Reactant2, Reactant1) = 15
-              ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-              ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-              YetDefined_Help(iReac) = .TRUE.
-              YetDefined_Help(iReac2) = .TRUE.
-        END IF
-      END IF
-    END DO
-  END IF
-END DO
-! Case 3: only exchange reaction possible
-DO iReac = 1, ChemReac%NumOfReact
-  IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'E').AND.(.NOT.YetDefined_Help(iReac))) THEN
-      Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-      Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-      ChemReac%ReactCase(Reactant1, Reactant2) = 3
-      ChemReac%ReactCase(Reactant2, Reactant1) = 3
-      ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-      ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-      YetDefined_Help(iReac) = .TRUE.
-  END IF
-END DO
-! Case 2: only dissociation possible
-DO iReac = 1, ChemReac%NumOfReact
-  IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'D').AND.(.NOT.YetDefined_Help(iReac))) THEN
-      Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-      Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-      ChemReac%ReactCase(Reactant1, Reactant2) = 2
-      ChemReac%ReactCase(Reactant2, Reactant1) = 2
-      ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-      ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-      YetDefined_Help(iReac) = .TRUE.
-  END IF
-END DO
-! Case 1: only molecular recombination possible
-DO iReac = 1, ChemReac%NumOfReact
-  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
-    Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-    Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-    Reactant3 = ChemReac%DefinedReact(iReac,1,3)
-    IF(.NOT.YetDefined_Help(iReac)) THEN
-      ChemReac%ReactCase(Reactant1, Reactant2) = 1
-      ChemReac%ReactCase(Reactant2, Reactant1) = 1
-      ChemReac%ReactNum(Reactant1, Reactant2, Reactant3) = iReac
-      ChemReac%ReactNum(Reactant2, Reactant1, Reactant3) = iReac
-      YetDefined_Help(iReac) = .TRUE.
-    END IF
     ChemReac%ReactNumRecomb(Reactant1, Reactant2, Reactant3) = iReac
     ChemReac%ReactNumRecomb(Reactant2, Reactant1, Reactant3) = iReac
     DummyRecomb(Reactant1,Reactant2) = iReac
@@ -928,42 +573,12 @@ DO iReac = 1, ChemReac%NumOfReact
   END IF
 END DO
 
-DEALLOCATE(PairCombID)
 DEALLOCATE(DummyRecomb)
 DEALLOCATE(ChemReac%ArbDiss)
 
 CALL Calc_Arrhenius_Factors()
 
 END SUBROUTINE DSMC_chemical_init
-
-
-SUBROUTINE DSMC_BuildChem_IDArray(PairCombID)
-!===================================================================================================================================
-! Builds array for the identification of different species combinations
-!===================================================================================================================================
-! MODULES
-  USE MOD_PARTICLE_Vars,      ONLY : nSpecies
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  INTEGER, INTENT(INOUT)  :: PairCombID(:,:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  INTEGER                 :: iSpec, jSpec, iComb
-!===================================================================================================================================
-  iComb = 1
-  DO iSpec = 1, nSpecies
-    DO jSpec = iSpec,  nSpecies
-        PairCombID(iSpec, jSpec) = iComb
-        PairCombID(jSpec, iSpec) = iComb
-        iComb = iComb + 1
-    END DO
-  END DO
-
-END SUBROUTINE DSMC_BuildChem_IDArray
 
 
 SUBROUTINE Calc_Arrhenius_Factors()

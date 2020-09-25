@@ -1136,7 +1136,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 ! MODULES
 USE MOD_Globals,                ONLY : Abort
 USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac, RadialWeighting, QKChemistry
+USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac, RadialWeighting
 USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PEM, VarTimeStep
 USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb
 USE MOD_Particle_Mesh_Vars,     ONLY: ElemVolume_Shared
@@ -1162,15 +1162,13 @@ REAL                          :: Volume, sigmaCEX, sigmaMEX, IonizationEnergy, N
 REAL (KIND=8)                 :: ReactionProb, ReactionProb2, ReactionProb3, ReactionProb4
 REAL (KIND=8)                 :: iRan, iRan2, iRan3
 INTEGER                       :: iPart1, iPart2                         ! Colliding particles 1 and 2
+INTEGER                       :: iCase, ReacTest, iPath, ReacCounter
+REAL                          :: RelativeProb, ReactionProbSum
+LOGICAL                       :: QKPerformed
+REAL, ALLOCATABLE             :: ReactionProbArray(:)
 !===================================================================================================================================
  iPart1 = Coll_pData(iPair)%iPart_p1
  iPart2 = Coll_pData(iPair)%iPart_p2
-
- IF(ChemReac%NumOfReact.EQ.0) THEN
-    CaseOfReaction = 0
-  ELSE
-    CaseOfReaction = ChemReac%ReactCase(PartSpecies(iPart1),PartSpecies(iPart2))
-  END IF
   IF (PRESENT(NodeVolume)) THEN
     Volume = NodeVolume
   ELSE
@@ -1189,242 +1187,123 @@ INTEGER                       :: iPart1, iPart2                         ! Collid
   ELSE
     NumDens = nPartNode / Volume * Species(1)%MacroParticleFactor
   END IF
-  SELECT CASE(CaseOfReaction)
-! ############################################################################################################################### !
-    CASE(1,2,3,18,19) ! One reaction
-! ############################################################################################################################### !
-      iReac = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      ! Calculation of reaction probability
-      CALL CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
-      CALL RANDOM_NUMBER(iRan)
-      IF ((ReactionProb.GT.iRan).OR.QKChemistry(iReac)%PerformReaction) THEN
-        CALL DSMC_Chemistry(iPair, iReac)
-        RelaxToDo = .FALSE.
-        QKChemistry(iReac)%PerformReaction = .FALSE.
-      END IF ! ReactionProb > iRan
-! ############################################################################################################################### !
-    CASE(4,5,14,15) ! Two reactions
-! ############################################################################################################################### !
-      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
-      CALL CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
-      CALL CalcReactionProb(iPair,iReac2,ReactionProb2,nPair,NumDens)
-      CALL RANDOM_NUMBER(iRan)
-      IF ((ReactionProb + ReactionProb2).GT.iRan) THEN
-        CALL RANDOM_NUMBER(iRan)
-        IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
-          CALL DSMC_Chemistry(iPair, iReac)
-        ELSE
-          CALL DSMC_Chemistry(iPair, iReac2)
+! 1.) Calculate the reaction probabilities
+  iCase = CollInf%Coll_Case(PartSpecies(iPart1), PartSpecies(iPart2))
+  ALLOCATE(ReactionProbArray(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
+  ReactionProbArray = 0.
+  DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+    ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+    CALL CalcReactionProb(iPair,ReacTest,ReactionProbArray(iPath),nPair,NumDens)
+  END DO
+  ReacCounter = 0; RelativeProb = 0.; QKPerformed = .FALSE.
+! 2.) Decide which reaction to perform
+  ! 2a.) QK-based chemistry
+  IF(ANY(ChemReac%QKProcedure(:))) THEN
+    ReacCounter = COUNT(ChemReac%CollCaseInfo(iCase)%QK_PerformReaction(:))
+    IF(ReacCounter.GT.0) THEN
+      DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+        IF(ChemReac%CollCaseInfo(iCase)%QK_PerformReaction(iPath)) THEN
+          ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+          IF(ReacCounter.GT.1) THEN
+            RelativeProb = RelativeProb + 1./REAL(ReacCounter)
+            CALL RANDOM_NUMBER(iRan)
+            IF(RelativeProb.GT.iRan) THEN
+              CALL DSMC_Chemistry(iPair, ReacTest)
+              ! Flag to skip TCE treatment of this collision pair
+              QKPerformed = .TRUE.
+              ! Reset the complete array (only populated for the specific collision case)
+              ChemReac%CollCaseInfo(iCase)%QK_PerformReaction = .FALSE.
+              ! Exit the loop
+              EXIT
+            END IF
+          ELSE
+            CALL DSMC_Chemistry(iPair, ReacTest)
+            ! Flag to skip TCE treatment of this collision pair
+            QKPerformed = .TRUE.
+            ! Reset the complete array (only populated for the specific collision case)
+            ChemReac%CollCaseInfo(iCase)%QK_PerformReaction = .FALSE.
+            ! Exit the loop
+            EXIT
+          END IF
         END IF
+      END DO
+    END IF
+  END IF
+
+  IF(QKPerformed) RETURN
+
+  ! 2b.) Cross-section based chemistry (XSec)
+
+  ! 2c.) Conventional TCE treatment (Arrhenius-based)
+  ReactionProbSum = 0.
+  DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+    ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+    ! Skip QK-based reactions
+    IF(ChemReac%QKProcedure(ReacTest)) CYCLE
+    ReactionProbSum = ReactionProbSum + ReactionProbArray(iPath)
+  END DO
+
+  ReactionProb = 0.
+  CALL RANDOM_NUMBER(iRan)
+  ! Check if the reaction probability is greater than a random number
+  IF (ReactionProbSum.GT.iRan) THEN
+    ! Decide which reaction should occur
+    CALL RANDOM_NUMBER(iRan)
+    DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+      ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+      IF(ChemReac%QKProcedure(ReacTest)) CYCLE
+      ReactionProb = ReactionProb + ReactionProbArray(iPath)
+      IF((ReactionProb/ReactionProbSum).GT.iRan) THEN
+        CALL DSMC_Chemistry(iPair, ReacTest)
         RelaxToDo = .FALSE.
+        EXIT
       END IF
+    END DO
+  END IF
 ! ! ############################################################################################################################### !
-!     CASE(6) ! ionization or ion recombination
+!     CASE(16) ! simple CEX/MEX
 ! ! ############################################################################################################################### !
-!       iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-!       iReac2 = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-!       CALL CalcReactionProb(iPair,iReac2,ReactionProb2,nPair,NumDens)
-!       CALL RANDOM_NUMBER(iRan)
-!       IF(ReactionProb2.GT.iRan) THEN
-!         CALL DSMC_Chemistry(iPair, iReac2)
+!       iReac    = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
+!       IF (ChemReac%DoScat(iReac)) THEN! MEX
+!         CALL DSMC_Scat_Col(iPair)
 !       ELSE
-!         CALL QK_ImpactIonization(iPair,iReac)
-!       END IF
-! ############################################################################################################################### !
-    CASE(7,10,12,17) ! Three reactions (at least one molecule is polyatomic)
-! ############################################################################################################################### !
-      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
-      iReac3 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 3)
-      CALL CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
-      CALL CalcReactionProb(iPair,iReac2,ReactionProb2,nPair,NumDens)
-      CALL CalcReactionProb(iPair,iReac3,ReactionProb3,nPair,NumDens)
-      CALL RANDOM_NUMBER(iRan)
-      IF ((ReactionProb + ReactionProb2 + ReactionProb3).GT.iRan) THEN
-        CALL RANDOM_NUMBER(iRan)
-        CALL RANDOM_NUMBER(iRan2)
-        IF((ReactionProb/(ReactionProb + ReactionProb2 + ReactionProb3)).GT.iRan) THEN
-          CALL DSMC_Chemistry(iPair, iReac)
-        ELSEIF(ReactionProb2/(ReactionProb2 + ReactionProb3).GT.iRan2) THEN
-          CALL DSMC_Chemistry(iPair, iReac2)
-        ELSE
-          CALL DSMC_Chemistry(iPair, iReac3)
-        END IF
-        RelaxToDo = .FALSE.
-      END IF
-! ############################################################################################################################### !
-    CASE(8,9,11,13) ! Four reactions (at least one polyatomic molecule)
-! ############################################################################################################################### !
-      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
-      iReac3 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 3)
-      iReac4 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 4)
-      CALL CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
-      CALL CalcReactionProb(iPair,iReac2,ReactionProb2,nPair,NumDens)
-      CALL CalcReactionProb(iPair,iReac3,ReactionProb3,nPair,NumDens)
-      CALL CalcReactionProb(iPair,iReac4,ReactionProb4,nPair,NumDens)
-      CALL RANDOM_NUMBER(iRan)
-      IF ((ReactionProb + ReactionProb2 + ReactionProb3 + ReactionProb4).GT.iRan) THEN
-        CALL RANDOM_NUMBER(iRan)
-        CALL RANDOM_NUMBER(iRan2)
-        CALL RANDOM_NUMBER(iRan3)
-        IF((ReactionProb/(ReactionProb + ReactionProb2 + ReactionProb3 + ReactionProb4)).GT.iRan) THEN
-          CALL DSMC_Chemistry(iPair, iReac)
-        ELSEIF(ReactionProb2/(ReactionProb2 + ReactionProb3 + ReactionProb4).GT.iRan2) THEN
-          CALL DSMC_Chemistry(iPair, iReac2)
-        ELSEIF(ReactionProb3/(ReactionProb3 + ReactionProb4).GT.iRan3) THEN
-          CALL DSMC_Chemistry(iPair, iReac3)
-        ELSE
-          CALL DSMC_Chemistry(iPair, iReac4)
-        END IF
-        RelaxToDo = .FALSE.
-      END IF
-! ############################################################################################################################### !
-    CASE(16) ! simple CEX/MEX
-! ############################################################################################################################### !
-      iReac    = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      IF (ChemReac%DoScat(iReac)) THEN! MEX
-        CALL DSMC_Scat_Col(iPair)
-      ELSE
-        sigmaCEX = (ChemReac%CEXa(iReac)*0.5*LOG10(Coll_pData(iPair)%cRela2) + ChemReac%CEXb(iReac))
-        sigmaMEX = (ChemReac%MEXa(iReac)*0.5*LOG10(Coll_pData(iPair)%cRela2) + ChemReac%MEXb(iReac))
-        ReactionProb=0.
-        IF ((sigmaMEX.EQ.0.).AND.(sigmaCEX.GT.0.)) THEN
-          ReactionProb=1.
-        ELSEIF  ((sigmaMEX.GT.0.).AND.(sigmaCEX.GE.0.)) THEN
-          ReactionProb=(sigmaCEX/sigmaMEX)/((sigmaCEX/sigmaMEX)+1)
-        ELSE
-          CALL Abort(&
-            __STAMP__&
-            ,'ERROR! CEX/MEX cross sections are both zero or at least one of them is negative.')
-        END IF
-#if (PP_TimeDiscMethod==42)
-        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-          ChemReac%NumReac(iReac)   = ChemReac%NumReac(iReac)   + ReactionProb  ! for calculation of reaction rate coefficient
-          ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
-        END IF
-#endif
-        CALL RANDOM_NUMBER(iRan)
-        IF (ReactionProb.GT.iRan) THEN !CEX, otherwise MEX
-#if (PP_TimeDiscMethod==42)
-          ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-          IF (.NOT.DSMC%ReservoirSimuRate) THEN
-#endif
-            CALL simpleCEX(iReac, iPair)
-#if (PP_TimeDiscMethod==42)
-          END IF
-          IF (DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
-          END IF
-#endif
-        ELSE
-          CALL DSMC_Elastic_Col(iPair)
-          CALL simpleMEX(iReac, iPair)
-        END IF
-      END IF !ChemReac%DoScat(iReac)
-      RelaxToDo = .FALSE.
-! ############################################################################################################################### !
-    CASE(20) ! Dissociation and ionization with QK are possible
-! ############################################################################################################################### !
-      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
-      ! First pseudo reaction probability (is always ionization, here only with QK)
-      IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(iPart1)) THEN
-        PartToExec = iPart1
-        PartReac2 = iPart2
-      ELSE
-        PartToExec = iPart2
-        PartReac2 = iPart1
-      END IF
-      ! Determine the collision energy (only relative translational)
-      Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
-      IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,PartToExec)
-      ! ionization level is last known energy level of species
-      iQuaMax=SpecDSMC(PartSpecies(PartToExec))%MaxElecQuant - 1
-      IonizationEnergy=SpecDSMC(PartSpecies(PartToExec))%ElectronicState(2,iQuaMax)*BoltzmannConst
-      ! if you have electronic levels above the ionization limit, such limits should be used instead of
-      ! the pure energy comparison
-      IF(Coll_pData(iPair)%Ec .GT. IonizationEnergy)THEN
-        CALL CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
-      ELSE
-        ReactionProb = 0.
-      END IF
-      ! second pseudo reaction probability
-      IF (ChemReac%DefinedReact(iReac2,1,1).EQ.PartSpecies(iPart1)) THEN
-        PartToExec = iPart1
-        PartReac2 = iPart2
-      ELSE
-        PartToExec = iPart2
-        PartReac2 = iPart1
-      END IF
-      IF (ChemReac%QKProcedure(iReac2)) THEN ! both Reaction QK
-        ! Determine the collision energy (relative translational + vibrational energy of dissociating molecule)
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%cRela2 &
-                             + PartStateIntEn(1,PartToExec)
-        ! Correction for second collision partner
-        IF ((SpecDSMC(PartSpecies(PartReac2))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartReac2))%InterID.EQ.20)) THEN
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - SpecDSMC(PartSpecies(PartReac2))%EZeroPoint
-        END IF
-        ! Determination of the quantum number corresponding to the collision energy
-        iQuaMax   = INT(Coll_pData(iPair)%Ec / ( BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%CharaTVib ) - DSMC%GammaQuant)
-        ! Comparing the collision quantum number with the dissociation quantum number
-        IF (iQuaMax.GT.SpecDSMC(PartSpecies(PartToExec))%DissQuant) THEN
-          CALL CalcReactionProb(iPair,iReac2,ReactionProb2,nPair,NumDens)
-        ELSE
-          ReactionProb2 = 0.
-        END IF
-      ELSE
-        CALL CalcReactionProb(iPair,iReac2,ReactionProb2,nPair,NumDens)
-      END IF
-      ReacToDo = 0
-      ! Check whether both reaction probabilities are exactly zero (in case of one of the QK reactions without enough energy)
-      IF(ReactionProb*ReactionProb2.LE.0.0) THEN
-        ! Check if the first reaction probability is above zero, for the QK case this means the reaction will occur
-        IF(ReactionProb.GT.0.0) THEN
-          ReacToDo = iReac
-        END IF
-        ! Check if the second reaction probability is above zero: QK = reaction occurs, TCE = comparison with random number
-        IF(ReactionProb2.GT.0.0) THEN
-          IF(ChemReac%QKProcedure(iReac2)) THEN
-            ReacToDo = iReac2
-          ELSE
-            CALL RANDOM_NUMBER(iRan)
-            IF(ReactionProb2.GT.iRan) THEN
-              ReacToDo = iReac2
-            END IF
-          END IF
-        ENDIF
-      ELSE
-        ! If both reaction probabilities are above zero, decide for the reaction channel
-        CALL RANDOM_NUMBER(iRan)
-        IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
-          ! First reaction channel: QK, reaction occurs
-          ReacToDo = iReac
-        ELSE
-          ! Second reaction: QK or TCE (test with random number first)
-          IF(ChemReac%QKProcedure(iReac2)) THEN
-            ReacToDo = iReac2
-          ELSE
-            CALL RANDOM_NUMBER(iRan)
-            IF(ReactionProb2.GT.iRan) THEN
-              ReacToDo = iReac2
-            END IF
-          END IF
-        END IF
-      END IF
-      IF(ReacToDo.NE.0) THEN
-        CALL DSMC_Chemistry(iPair, ReacToDo)
-        RelaxToDo = .FALSE.
-      END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-    CASE DEFAULT
-      IF(CaseOfReaction.NE.0) THEN
-        CALL Abort(&
-__STAMP__&
-,'Error! Reaction case not defined:',CaseOfReaction)
-      END IF
-  END SELECT
+!         sigmaCEX = (ChemReac%CEXa(iReac)*0.5*LOG10(Coll_pData(iPair)%cRela2) + ChemReac%CEXb(iReac))
+!         sigmaMEX = (ChemReac%MEXa(iReac)*0.5*LOG10(Coll_pData(iPair)%cRela2) + ChemReac%MEXb(iReac))
+!         ReactionProb=0.
+!         IF ((sigmaMEX.EQ.0.).AND.(sigmaCEX.GT.0.)) THEN
+!           ReactionProb=1.
+!         ELSEIF  ((sigmaMEX.GT.0.).AND.(sigmaCEX.GE.0.)) THEN
+!           ReactionProb=(sigmaCEX/sigmaMEX)/((sigmaCEX/sigmaMEX)+1)
+!         ELSE
+!           CALL Abort(&
+!             __STAMP__&
+!             ,'ERROR! CEX/MEX cross sections are both zero or at least one of them is negative.')
+!         END IF
+! #if (PP_TimeDiscMethod==42)
+!         IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+!           ChemReac%NumReac(iReac)   = ChemReac%NumReac(iReac)   + ReactionProb  ! for calculation of reaction rate coefficient
+!           ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
+!         END IF
+! #endif
+!         CALL RANDOM_NUMBER(iRan)
+!         IF (ReactionProb.GT.iRan) THEN !CEX, otherwise MEX
+! #if (PP_TimeDiscMethod==42)
+!           ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+!           IF (.NOT.DSMC%ReservoirSimuRate) THEN
+! #endif
+!             CALL simpleCEX(iReac, iPair)
+! #if (PP_TimeDiscMethod==42)
+!           END IF
+!           IF (DSMC%ReservoirRateStatistic) THEN
+!             ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
+!           END IF
+! #endif
+!         ELSE
+!           CALL DSMC_Elastic_Col(iPair)
+!           CALL simpleMEX(iReac, iPair)
+!         END IF
+!       END IF !ChemReac%DoScat(iReac)
+!       RelaxToDo = .FALSE.
 
 END SUBROUTINE ReactionDecision
 

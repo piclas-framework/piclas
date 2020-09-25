@@ -105,7 +105,6 @@ DO iElem = 1, nElems ! element/cell main loop
     END IF
   END IF
   IF (CollisMode.NE.0) THEN
-    ChemReac%nPairForRec = 0
     CALL InitCalcVibRelaxProb
     IF(BGGas%NumberOfSpecies.GT.0) THEN
       IF(UseMCC) THEN

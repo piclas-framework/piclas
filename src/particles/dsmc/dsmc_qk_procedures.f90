@@ -73,7 +73,6 @@ IF(ANY(ChemReac%QKProcedure)) THEN
       ,'ERROR in Chemistry Init: Partition temperature limit must be multiple of partition interval!')
   END IF
   ALLOCATE(QKChemistry(ChemReac%NumOfReact))
-  QKChemistry(:)%PerformReaction = .FALSE.
   DO iReac = 1, ChemReac%NumOfReact
     IF(ChemReac%QKProcedure(iReac)) THEN
       ! Calculation of the analytical rate, to be able to calculate the backward rate with partition function
@@ -100,7 +99,7 @@ SUBROUTINE QK_Dissociation(iPair,iReac)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, SpecDSMC, PartStateIntEn, ChemReac, DSMC, RadialWeighting, QKChemistry
+USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, SpecDSMC, PartStateIntEn, ChemReac, DSMC, RadialWeighting
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -112,7 +111,7 @@ INTEGER, INTENT(IN)           :: iPair, iReac
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iQuaMax, React1Inx, React2Inx
+INTEGER                       :: iQuaMax, React1Inx, React2Inx, iCase, ReacTest, iPath, PathIndex
 REAL                          :: Weight1, Weight2, ReducedMass
 !===================================================================================================================================
 ! Determining, which collision partner is the dissociating particle (always the first molecule in the DefinedReact array)
@@ -123,6 +122,14 @@ ELSE
   React1Inx = Coll_pData(iPair)%iPart_p2
   React2Inx = Coll_pData(iPair)%iPart_p1
 END IF
+
+iCase = CollInf%Coll_Case(PartSpecies(React1Inx), PartSpecies(React2Inx))
+
+! Determine the number of the reaction path for this collision pair with the help of the reaction index
+DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+  ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+  IF(iReac.EQ.ReacTest) PathIndex = iPath
+END DO
 
 IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   ReducedMass = (Species(PartSpecies(React1Inx))%MassIC*Weight1 * Species(PartSpecies(React2Inx))%MassIC*Weight2) &
@@ -141,7 +148,7 @@ END IF
 iQuaMax   = INT(Coll_pData(iPair)%Ec / ( BoltzmannConst * SpecDSMC(PartSpecies(React1Inx))%CharaTVib ) - DSMC%GammaQuant)
 ! Comparing the collision quantum number with the dissociation quantum number
 IF ( iQuaMax .GT. SpecDSMC(PartSpecies(React1Inx))%DissQuant ) THEN
-  QKChemistry(iReac)%PerformReaction = .TRUE.
+  ChemReac%CollCaseInfo(iCase)%QK_PerformReaction(PathIndex) = .TRUE.
 END IF
 
 END SUBROUTINE QK_Dissociation
@@ -153,7 +160,7 @@ SUBROUTINE QK_ImpactIonization(iPair,iReac)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, SpecDSMC, PartStateIntEn, ChemReac, DSMC, RadialWeighting, QKChemistry
+USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, SpecDSMC, PartStateIntEn, ChemReac, DSMC, RadialWeighting
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -163,7 +170,7 @@ USE MOD_part_tools            ,ONLY: GetParticleWeight
 INTEGER, INTENT(IN)           :: iPair, iReac
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: React1Inx, React2Inx, MaxElecQua
+INTEGER                       :: React1Inx, React2Inx, MaxElecQua, iCase, ReacTest, iPath, PathIndex
 REAL                          :: IonizationEnergy, Weight1, Weight2, ReducedMass
 !===================================================================================================================================
 
@@ -174,6 +181,15 @@ ELSE
   React1Inx = Coll_pData(iPair)%iPart_p2
   React2Inx = Coll_pData(iPair)%iPart_p1
 END IF
+
+iCase = CollInf%Coll_Case(PartSpecies(React1Inx), PartSpecies(React2Inx))
+
+! Determine the number of the reaction path for this collision pair with the help of the reaction index
+DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+  ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+  IF(iReac.EQ.ReacTest) PathIndex = iPath
+END DO
+
 ! this is based on the idea of the QK method but used accordingly to the dissociation
 ! this time it is not possible to use quantizied levels as they are not equally spaced
 ! therefore we use the energy
@@ -199,10 +215,10 @@ IonizationEnergy=SpecDSMC(PartSpecies(React1Inx))%ElectronicState(2,MaxElecQua)*
 ! the pure energy comparison
 
 IF(Coll_pData(iPair)%Ec .GT. IonizationEnergy) THEN
-  QKChemistry(iReac)%PerformReaction = .TRUE.
+  ChemReac%CollCaseInfo(iCase)%QK_PerformReaction(PathIndex) = .TRUE.
 END IF
 
-END SUBROUTINE
+END SUBROUTINE QK_ImpactIonization
 
 
 REAL FUNCTION QK_CalcAnalyticRate(iReac,Temp)

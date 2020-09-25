@@ -81,22 +81,13 @@ USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_dissociation, QK_ImpactIonization, QK_
   REAL                          :: Xi_vib1, Xi_vib2, Xi_vib3, Xi_Total, Xi_elec1, Xi_elec2, Xi_elec3, WeightProd
   REAL                          :: BetaReaction, BackwardRate
   REAL                          :: Rcoll, Tcoll, Telec, TiQK, Weight1, Weight2, Weight3, NumWeightEduct, NumWeightProd
+  INTEGER                       :: iPath, PathIndex
 !===================================================================================================================================
   Weight1=0.; Weight2=0.; Weight3=0.; WeightProd = 0.; ReactInx = 0
   NumWeightEduct = 2.
   NumWeightProd = 2.
 
-  IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
-    ReactInx(1) = Coll_pData(iPair)%iPart_p1
-    ReactInx(2) = Coll_pData(iPair)%iPart_p2
-  ELSE
-    ReactInx(1) = Coll_pData(iPair)%iPart_p2
-    ReactInx(2) = Coll_pData(iPair)%iPart_p1
-  END IF
-
   EductReac(1:3) = ChemReac%DefinedReact(iReac,1,1:3)
-  ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
-
   iCase = CollInf%Coll_Case(EductReac(1), EductReac(2))
 
   IF(EductReac(3).NE.0) THEN
@@ -111,20 +102,46 @@ USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_dissociation, QK_ImpactIonization, QK_
     ELSE
       ReactInx(3) = ChemReac%RecombParticle
     END IF
-  END IF
-
-  IF(EductReac(3).NE.0) THEN
     IF(ReactInx(3).GT.0) THEN
       NumWeightEduct = 3.
       NumWeightProd = 2.
+      EductReac(3) = PartSpecies(ReactInx(3))
+      ! Determine the number of the reaction path for this collision pair with the help of the reaction index
+      DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+        IF(iReac.EQ.ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)) PathIndex = iPath
+      END DO
       iReac = ChemReac%ReactNumRecomb(EductReac(1), EductReac(2), EductReac(3))
-      EductReac(1:3) = ChemReac%DefinedReact(iReac,1,1:3)
-      ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
+      ! Save the new reaction index (depending on the third partner) for the case to be used in DSMC_Chemistry
+      ChemReac%CollCaseInfo(iCase)%ReactionIndex(PathIndex) = iReac
     ELSE
-      CALL abort(&
-     __STAMP__&
-     ,'Third particle is missing for the recombination reaction. Reaction: ',iReac)
+      ! If no third collision partner can be found e.g. last (available) pair, set reaction probability to zero and leave routine
+      ReactionProb = 0.
+      RETURN
     END IF
+  END IF
+
+  IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
+    ReactInx(1) = Coll_pData(iPair)%iPart_p1
+    ReactInx(2) = Coll_pData(iPair)%iPart_p2
+  ELSE
+    ReactInx(1) = Coll_pData(iPair)%iPart_p2
+    ReactInx(2) = Coll_pData(iPair)%iPart_p1
+  END IF
+
+  ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
+
+  IF(ChemReac%QKProcedure(iReac)) THEN
+    SELECT CASE(TRIM(ChemReac%ReactType(iReac)))
+    CASE('iQK')
+      CALL QK_ImpactIonization(iPair,iReac)
+    CASE('D')
+      CALL QK_Dissociation(iPair,iReac)
+    CASE DEFAULT
+      CALL Abort(__STAMP__,&
+        'Given reaction type is not supported with the Quantum-Kinetic (QK) model. Reaction: ',iReac)
+    END SELECT
+    ReactionProb = 0.
+    RETURN
   END IF
 
   Weight1 = GetParticleWeight(ReactInx(1))
@@ -152,20 +169,6 @@ USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_dissociation, QK_ImpactIonization, QK_
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (0.5 * Species(EductReac(3))%MassIC * DOTPRODUCT(PartState(4:6,ReactInx(3))) &
                                                   + PartStateIntEn(1,ReactInx(3)) + PartStateIntEn(2,ReactInx(3))) * Weight3
     NumWeightEduct = 3.
-  END IF
-
-  IF(ChemReac%QKProcedure(iReac)) THEN
-    SELECT CASE(TRIM(ChemReac%ReactType(iReac)))
-    CASE('iQK')
-      CALL QK_ImpactIonization(iPair,iReac)
-    CASE('D')
-      CALL QK_Dissociation(iPair,iReac)
-    CASE DEFAULT
-      CALL Abort(__STAMP__,&
-        'Given reaction type is not supported with the Quantum-Kinetic (QK) model. Reaction: ',iReac)
-    END SELECT
-    ReactionProb = 0.
-    RETURN
   END IF
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -448,12 +451,19 @@ ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
 IF(EductReac(3).NE.0) THEN
   IF(ChemReac%RecombParticle.NE.0) THEN
     iPart_p3 = ChemReac%RecombParticle
-    ! A pair was broken up before to use its first collision partner as a third recombination partner. Now that the
-    ! recombination occurred, the collision will not be performed anymore and the second collision partner is saved as
-    ! a possible third recombination partner
-    Coll_pData(ChemReac%LastPairForRec)%NeedForRec = .TRUE.
-    ChemReac%RecombParticle = Coll_pData(ChemReac%LastPairForRec)%iPart_p2
-    ChemReac%nPairForRec = ChemReac%nPairForRec + 1
+    ! If a pair ahead in the list was broken, check which of the particles is used
+    IF(ChemReac%LastPairForRec.GT.0) THEN
+      IF(ChemReac%RecombParticle.EQ.Coll_pData(ChemReac%LastPairForRec)%iPart_p2) THEN
+        ! Both particles of the pair were already used, set the RecombParticle index to zero and advance the nPairForRec counter
+        ! -> New pair will be broken up (in CalcReactionProb routine)
+        ChemReac%RecombParticle = 0
+        ChemReac%nPairForRec = ChemReac%nPairForRec + 1
+      ELSE
+        ! Utilize the second particle of the pair for the recombination
+        Coll_pData(ChemReac%LastPairForRec)%NeedForRec = .TRUE.
+        ChemReac%RecombParticle = Coll_pData(ChemReac%LastPairForRec)%iPart_p2
+      END IF
+    END IF
   ELSE
     CALL Abort(__STAMP__,&
       'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)

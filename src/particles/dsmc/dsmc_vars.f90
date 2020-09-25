@@ -384,6 +384,7 @@ TYPE(tMacroDSMC), ALLOCATABLE     :: MacroDSMC(:,:)         ! DSMC sample array 
 TYPE tCollCaseInfo
   INTEGER                         :: NumOfReactionPaths     ! Number of possible reaction paths for the collision pair
   INTEGER, ALLOCATABLE            :: ReactionIndex(:)       ! Reaction index as in ChemReac%NumOfReact (1:NumOfReactionPaths)
+  LOGICAL, ALLOCATABLE            :: QK_PerformReaction(:)  ! Flag whether a QK reaction is to be performed (1:NumOfReactionPaths)
 END TYPE
 
 TYPE tReactInfo
@@ -403,16 +404,12 @@ TYPE tChemReactions
   INTEGER                         :: NumOfReact             ! Number of possible reactions
   TYPE(tArbDiss), ALLOCATABLE     :: ArbDiss(:)             ! Construct to allow the definition of a list of non-reactive educts
   LOGICAL, ALLOCATABLE            :: QKProcedure(:)         ! Defines if QK Procedure is selected
-  INTEGER, ALLOCATABLE            :: QKMethod(:)            ! Recombination method for Q-K model (1 by Bird / 2 by Gallis)
-  REAL,ALLOCATABLE,DIMENSION(:,:) :: QKCoeff                ! QKRecombiCoeff for Birds method
   REAL, ALLOCATABLE               :: QKRColl(:)             ! Collision factor in QK model
   REAL, ALLOCATABLE               :: QKTCollCorrFac(:)      ! Correction factor for collision temperature due to averaging over T^b
-  LOGICAL, ALLOCATABLE            :: PerformReaction(:)     ! Flag whether reaction shall be performed (enough energy for reaction)
   REAL, ALLOCATABLE               :: NumReac(:)             ! Number of occurred reactions for each reaction number
   INTEGER, ALLOCATABLE            :: ReacCount(:)           ! Counter of chemical reactions for the determination of rate
                                                             ! coefficient based on the reaction probabilities
-  REAL, ALLOCATABLE               :: ReacCollMean(:)        ! Mean Collision Probability for each reaction number
-  INTEGER, ALLOCATABLE            :: ReacCollMeanCount(:)   ! counter for mean Collision Probability max for each reaction number
+  REAL, ALLOCATABLE               :: ReacCollMean(:)        ! Mean collision probability for each collision pair
   CHARACTER(LEN=5),ALLOCATABLE    :: ReactType(:)           ! Type of Reaction (reaction num)
                                                             !    i (electron impact ionization)
                                                             !    R (molecular recombination
@@ -423,7 +420,7 @@ TYPE tChemReactions
                                                             ! (reaction num; 1:reactant, 2:product;
                                                             !  1-3 species of reactants and products,
                                                             ! 0: no spezies -> only 2 reactants or products)
-  INTEGER, ALLOCATABLE            :: ReactCase(:,:)             ! Case of reaction in combination of (spec1, spec2)
+  INTEGER, ALLOCATABLE            :: ReactCase(:)           ! Case/pair of the reaction (1:NumOfReact)
   INTEGER, ALLOCATABLE            :: ReactNum(:,:,:)            ! Number of Reaction of (spec1, spec2,
                                                                 ! Case 1: Recomb: func. of species 3
                                                                 ! Case 2: dissociation, only 1
@@ -471,13 +468,14 @@ TYPE tChemReactions
   INTEGER, ALLOCATABLE            :: DeleteProductsList(:)  ! Indices of the species to be deleted [1:NumDeleteProducts]
   REAL, ALLOCATABLE               :: CrossSection(:)        ! Cross-section of the given photo-ionization reaction
   TYPE(tCollCaseInfo), ALLOCATABLE:: CollCaseInfo(:)        ! Information of collision cases (nCase)
+  ! XSec Chemistry
+  LOGICAL, ALLOCATABLE            :: XSec_Procedure(:)      ! Defines if reaction is based on cross-section data
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac
 
 
 TYPE tQKChemistry
-  LOGICAL                         :: PerformReaction
   REAL, ALLOCATABLE               :: ForwardRate(:)
 END TYPE
 

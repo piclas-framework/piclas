@@ -2696,7 +2696,7 @@ REAL,INTENT(IN)                 :: NumSpec(:) ! is the global number of real par
 INTEGER(KIND=8),INTENT(IN)      :: iter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iReac
+INTEGER                         :: iReac, iCase
 #if USE_MPI
 REAL                            :: RD(1:ChemReac%NumOfReact)
 #endif /*USE_MPI*/
@@ -2712,6 +2712,7 @@ END IF
 
 IF(PartMPI%MPIRoot)THEN
   DO iReac=1, ChemReac%NumOfReact
+    iCase = ChemReac%ReactCase(iReac)
     IF ((NumSpec(ChemReac%DefinedReact(iReac,1,1)).GT.0).AND.(NumSpec(ChemReac%DefinedReact(iReac,1,2)).GT.0)) THEN
       SELECT CASE(TRIM(ChemReac%ReactType(iReac)))
       CASE('R','r')
@@ -2723,7 +2724,7 @@ IF(PartMPI%MPIRoot)THEN
                      * Species(ChemReac%DefinedReact(iReac,1,3))%MacroParticleFactor * NumSpec(nSpecies+1))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
-          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iReac) * MeshVolume**2 &
+          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iCase) * MeshVolume**2 &
                * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor / (dt * ChemReac%ReacCount(iReac)             &
                * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))     &
                * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2))    &
@@ -2737,7 +2738,7 @@ IF(PartMPI%MPIRoot)THEN
                        * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
-          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iReac) &
+          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iCase) &
                * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor* MeshVolume / (dt * ChemReac%ReacCount(iReac) &
                * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))         &
                * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
@@ -2749,7 +2750,6 @@ END IF
 ChemReac%NumReac = 0.
 ChemReac%ReacCount = 0
 ChemReac%ReacCollMean = 0.0
-ChemReac%ReacCollMeanCount = 0
 ! Consider Part-AnalyzeStep
 IF(PartAnalyzeStep.GT.1)THEN
   IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
