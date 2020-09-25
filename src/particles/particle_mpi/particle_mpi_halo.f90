@@ -266,12 +266,12 @@ ALLOCATE(MPISideBoundsOfElemCenter(1:4,1:nExchangeSides))
 DO iSide = 1, nExchangeSides
   SideID = ExchangeSides(iSide)
   ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
-  MPISideBoundsOfElemCenter(1:3,iSide) = (/ SUM(BoundsOfElem_Shared(1:2,1,ElemID)), &
-                                            SUM(BoundsOfElem_Shared(1:2,2,ElemID)), &
-                                            SUM(BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
-  MPISideBoundsOfElemCenter(4,iSide) = VECNORM ((/BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
-                                                  BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
-                                                  BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+  MPISideBoundsOfElemCenter(1:3,iSide) = (/ SUM(  BoundsOfElem_Shared(1:2,1,ElemID)), &
+                                            SUM(  BoundsOfElem_Shared(1:2,2,ElemID)), &
+                                            SUM(  BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
+  MPISideBoundsOfElemCenter(4,iSide) = VECNORM ((/BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                                  BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
+                                                  BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
 END DO
 
 !> Check all elements in the CN halo region against local MPI sides. Check is identical to particle_bgm.f90
@@ -371,31 +371,31 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
     SELECT CASE(GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc))
       ! Proc not previously encountered, check if possibly in range
       CASE(-1)
-        firstElem = offsetElemMPI(HaloProc)+1
-        lastElem  = offsetElemMPI(HaloProc +1)
+        ! firstElem = offsetElemMPI(HaloProc)+1
+        ! lastElem  = offsetElemMPI(HaloProc +1)
 
-        xCoordsOrigin(1) = MINVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                     :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-        xCoordsOrigin(2) = MAXVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                     :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-        xCoordsOrigin(3) = MINVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                     :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-        xCoordsOrigin(4) = MAXVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                     :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-        xCoordsOrigin(5) = MINVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                     :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-        xCoordsOrigin(6) = MAXVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                     :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+        ! xCoordsOrigin(1) = MINVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+        !                                              :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+        ! xCoordsOrigin(2) = MAXVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+        !                                              :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+        ! xCoordsOrigin(3) = MINVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+        !                                              :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+        ! xCoordsOrigin(4) = MAXVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+        !                                              :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+        ! xCoordsOrigin(5) = MINVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+        !                                              :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+        ! xCoordsOrigin(6) = MAXVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+        !                                              :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
 
-        ! Check if proc is in range
-        IF (.NOT.HaloBoxInProc(xCoordsOrigin,xCoordsProc,MPI_halo_eps,GEO%nPeriodicVectors,GEO%PeriodicVectors)) THEN
-          ! Proc definitely not in range
-          GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = -2
-          CYCLE
-        ELSE
+        ! ! Check if proc is in range
+        ! IF (.NOT.HaloBoxInProc(xCoordsOrigin,xCoordsProc,MPI_halo_eps,GEO%nPeriodicVectors,GEO%PeriodicVectors)) THEN
+        !   ! Proc definitely not in range
+        !   GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = -2
+        !   CYCLE
+        ! ELSE
           ! Proc possible in range
           GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 0
-        END IF
+        ! END IF
 
       ! Proc definitely not in range or already flagged
       CASE(-2,1,2)
@@ -403,12 +403,12 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
     END SELECT
   END IF
 
-  BoundsOfElemCenter(1:3) = (/SUM(BoundsOfElem_Shared(1:2,1,ElemID)), &
-                              SUM(BoundsOfElem_Shared(1:2,2,ElemID)), &
-                              SUM(BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
-  BoundsOfElemCenter(4)   = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
-                                        BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
-                                        BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+  BoundsOfElemCenter(1:3) = (/SUM(      BoundsOfElem_Shared(1:2,1,ElemID)), &
+                              SUM(      BoundsOfElem_Shared(1:2,2,ElemID)), &
+                              SUM(      BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
+  BoundsOfElemCenter(4)   = VECNORM ((/ BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                        BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
+                                        BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
   DO iSide = 1, nExchangeSides
       ! compare distance of centers with sum of element outer radii+halo_eps
       IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter(1:3,iSide)) &
