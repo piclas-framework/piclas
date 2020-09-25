@@ -371,31 +371,31 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
     SELECT CASE(GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc))
       ! Proc not previously encountered, check if possibly in range
       CASE(-1)
-        ! firstElem = offsetElemMPI(HaloProc)+1
-        ! lastElem  = offsetElemMPI(HaloProc +1)
+        firstElem = offsetElemMPI(HaloProc)+1
+        lastElem  = offsetElemMPI(HaloProc +1)
 
-        ! xCoordsOrigin(1) = MINVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-        !                                              :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-        ! xCoordsOrigin(2) = MAXVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-        !                                              :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-        ! xCoordsOrigin(3) = MINVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-        !                                              :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-        ! xCoordsOrigin(4) = MAXVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-        !                                              :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-        ! xCoordsOrigin(5) = MINVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-        !                                              :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-        ! xCoordsOrigin(6) = MAXVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-        !                                              :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+        xCoordsOrigin(1) = MINVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                     :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+        xCoordsOrigin(2) = MAXVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                     :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+        xCoordsOrigin(3) = MINVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                     :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+        xCoordsOrigin(4) = MAXVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                     :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+        xCoordsOrigin(5) = MINVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                     :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+        xCoordsOrigin(6) = MAXVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                     :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
 
-        ! ! Check if proc is in range
-        ! IF (.NOT.HaloBoxInProc(xCoordsOrigin,xCoordsProc,MPI_halo_eps,GEO%nPeriodicVectors,GEO%PeriodicVectors)) THEN
-        !   ! Proc definitely not in range
-        !   GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = -2
-        !   CYCLE
-        ! ELSE
+        ! Check if proc is in range
+        IF (.NOT.HaloBoxInProc(xCoordsOrigin,xCoordsProc,MPI_halo_eps,GEO%nPeriodicVectors,GEO%PeriodicVectors)) THEN
+          ! Proc definitely not in range
+          GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = -2
+          CYCLE
+        ELSE
           ! Proc possible in range
           GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 0
-        ! END IF
+        END IF
 
       ! Proc definitely not in range or already flagged
       CASE(-2,1,2)
