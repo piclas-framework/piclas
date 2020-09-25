@@ -393,8 +393,11 @@ DEALLOCATE(GlobalSide2SurfSideProc)
 DEALLOCATE(SurfSide2GlobalSideProc)
 
 ! flag if there is at least one surf side on the node (sides in halo region do also count)
-SurfOnNode = .FALSE.
-IF (nComputeNodeSurfTotalSides.GT.0) SurfOnNode = .TRUE.
+SurfOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
+
+!> Energy + Force + nSpecies
+SurfSampSize = 9+3+nSpecies
+IF(VarTimeStep%UseVariableTimeStep) SurfSampSize = SurfSampSize + 1
 
 !> Leader communication
 #if USE_MPI
@@ -407,10 +410,6 @@ END IF
 mySurfRank      = 0
 nSurfTotalSides = nComputeNodeSurfTotalSides
 #endif /* USE_MPI */
-
-!> Energy + Force + nSpecies
-SurfSampSize = 9+3+nSpecies
-IF(VarTimeStep%UseVariableTimeStep) SurfSampSize = SurfSampSize + 1
 
 ! Initialize surface collision sampling and analyze
 CalcSurfCollis%OnlySwaps         = GETLOGICAL('Particles-CalcSurfCollis_OnlySwaps' ,'.FALSE.')

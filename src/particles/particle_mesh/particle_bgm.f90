@@ -33,9 +33,23 @@ INTERFACE FinalizeBGM
     MODULE PROCEDURE FinalizeBGM
 END INTERFACE
 
+#if USE_MPI
+INTERFACE WriteHaloInfo
+  MODULE PROCEDURE WriteHaloInfo
+END INTERFACE
+
+INTERFACE FinalizeHaloInfo
+  MODULE PROCEDURE FinalizeHaloInfo
+END INTERFACE
+#endif /*USE_MPI*/
+
 PUBLIC::DefineParametersParticleBGM
 PUBLIC::BuildBGMAndIdentifyHaloRegion
-PUBLIC :: FinalizeBGM
+PUBLIC::FinalizeBGM
+#if USE_MPI
+PUBLIC::WriteHaloInfo
+PUBLIC::FinalizeHaloInfo
+#endif /*USE_MPI*/
 
 CONTAINS
 
@@ -1051,7 +1065,101 @@ ADEALLOCATE(FIBGMToProc_Shared)
 ADEALLOCATE(FIBGMProcs)
 ADEALLOCATE(FIBGMProcs_Shared)
 
+#if USE_MPI
+CALL FinalizeHaloInfo()
+#endif /*USE_MPI*/
+
 END SUBROUTINE FinalizeBGM
+
+
+#if USE_MPI
+!===================================================================================================================================
+! Writes the HaloFlag of each compute-node into an ElemData array 'CNRankX_ElemHaloInfo'
+!===================================================================================================================================
+SUBROUTINE WriteHaloInfo()
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem
+USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,myLeaderGroupRank,nLeaderGroupProcs
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHaloInfo_Array,ElemHaloInfo_Shared,ElemHaloInfo_Shared_Win,ElemInfo_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
+INTEGER                        :: iRank
+CHARACTER(LEN=255)             :: tmpStr
+!===================================================================================================================================
+
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES') " ADDING halo debug information to state file..."
+
+! Allocate array in shared memory for each compute-node rank
+MPISharedSize = INT((nGlobalElems*nLeaderGroupProcs),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nGlobalElems*nLeaderGroupProcs/),ElemHaloInfo_Shared_Win,ElemHaloInfo_Array)
+CALL MPI_WIN_LOCK_ALL(0,ElemHaloInfo_Shared_Win,iERROR)
+ElemHaloInfo_Shared(1:nGlobalElems,0:nLeaderGroupProcs-1) => ElemHaloInfo_Array
+
+ElemHaloInfo_Shared(:,myLeaderGroupRank) = ElemInfo_Shared(ELEM_HALOFLAG,:)
+
+! Communicate halo information between compute-nodes
+IF (myComputeNodeRank.EQ.0) THEN
+  DO iRank = 0,nLeaderGroupProcs-1
+    CALL MPI_BCAST(ElemHaloInfo_Shared(:,iRank),nGlobalElems,MPI_INTEGER,iRank,MPI_COMM_LEADERS_SHARED,iERROR)
+  END DO
+END IF
+
+! Synchronize information on each compute-node
+CALL MPI_WIN_SYNC(ElemHaloInfo_Shared_Win,iERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+
+! Add ElemInfo halo information to ElemData
+DO iRank = 0,nLeaderGroupProcs-1
+  WRITE(UNIT=tmpStr,FMT='(I0)') iRank
+  CALL AddToElemData(ElementOut,'CNRank'//TRIM(tmpStr)//'_ElemHaloInfo',IntArray=ElemHaloInfo_Shared(offsetElem+1:offsetElem+PP_nElems,iRank))
+END DO
+
+END SUBROUTINE WriteHaloInfo
+
+
+!===================================================================================================================================
+! Deallocates variables for the particle halo debug information
+!===================================================================================================================================
+SUBROUTINE FinalizeHaloInfo()
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHaloInfo_Array,ElemHaloInfo_Shared,ElemHaloInfo_Shared_Win
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+IF (.NOT.CalcHaloInfo) RETURN
+
+! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+CALL MPI_WIN_UNLOCK_ALL(ElemHaloInfo_Shared_Win,iError)
+CALL MPI_WIN_FREE(      ElemHaloInfo_Shared_Win,iError)
+
+! Then, free the pointers or arrays
+ADEALLOCATE(ElemHaloInfo_Shared)
+ADEALLOCATE(ElemHaloInfo_Array)
+
+END SUBROUTINE FinalizeHaloInfo
+#endif /*USE_MPI*/
 
 
 #if USE_MPI

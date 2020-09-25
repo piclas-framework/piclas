@@ -54,7 +54,7 @@ USE MOD_MPI_Shared_Vars
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_MPI_Vars       ,ONLY: halo_eps,halo_eps_velo
+USE MOD_Particle_MPI_Vars       ,ONLY: SafetyFactor,halo_eps,halo_eps_velo
 USE MOD_Particle_MPI_Vars       ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc
 USE MOD_Particle_Vars           ,ONLY: ManualTimeStep
 USE MOD_PICDepo_Vars            ,ONLY: DepositionType
@@ -305,9 +305,9 @@ IF (halo_eps.EQ.0) THEN
     MPI_halo_eps = MAX(MPI_halo_eps,RK_c(iStage+1)-RK_c(iStage))
   END DO
   MPI_halo_eps = MAX(MPI_halo_eps,1.-RK_c(nRKStages))
-  MPI_halo_eps = MPI_halo_eps*MPI_halo_eps_velo*deltaT
+  MPI_halo_eps = MPI_halo_eps*MPI_halo_eps_velo*deltaT*SafetyFactor
 #else
-  MPI_halo_eps = MPI_halo_eps_velo*deltaT
+  MPI_halo_eps = MPI_halo_eps_velo*deltaT*SafetyFactor
 #endif
 
   vec(1)   = GEO%xmaxglob-GEO%xminglob
