@@ -188,6 +188,7 @@ offsetSideID = ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0
 nSideIDs     = ElemInfo(ELEM_LASTSIDEIND ,LastElemInd)-ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd)
 
 ALLOCATE(SideInfo_Shared_tmp(offsetSideID+1:offsetSideID+nSideIDs))
+SideInfo_Shared_tmp = 0
 
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) RETURN
@@ -235,16 +236,21 @@ INTEGER,INTENT(IN)             :: SideID
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-#if USE_MPI
-IF (ElemID.LE.offsetComputeNodeElem+1 .OR. ElemID.GT.offsetComputeNodeElem+nComputeNodeElems) THEN
-  ! neighbour element is outside of compute-node
-  SideInfo_Shared_tmp(SideID) = 2
+IF (ElemID.EQ.0) THEN
+  ! no connection
+  SideInfo_Shared_tmp(SideID) = 0
 ELSE
-  SideInfo_Shared_tmp(SideID) = 1
-END IF
-#else
-SideInfo_Shared_tmp(SideID) = 1
+#if USE_MPI
+  IF (ElemID.LE.offsetComputeNodeElem+1 .OR. ElemID.GT.offsetComputeNodeElem+nComputeNodeElems) THEN
+    ! neighbour element is outside of compute-node
+    SideInfo_Shared_tmp(SideID) = 2
+  ELSE
 #endif /*USE_MPI*/
+    SideInfo_Shared_tmp(SideID) = 1
+#if USE_MPI
+  END IF
+#endif /*USE_MPI*/
+END IF
 
 END SUBROUTINE ReadMeshSideNeighbors
 
@@ -523,8 +529,10 @@ nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo(ELEM_FIRST
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) THEN
   ! Update SideInfo with new information
-  SideInfo_Shared(SIDEINFOSIZE+1,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo_Shared_tmp
+  SideInfo_Shared(SIDE_NBELEMTYPE,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo_Shared_tmp
   DEALLOCATE(SideInfo_Shared_tmp)
+  CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
   IF (myComputeNodeRank.EQ.0) THEN
     SWRITE(UNIT_stdOut,'(A)') ' Updating mesh on shared memory...'
@@ -688,9 +696,6 @@ DO iElem = FirstElemInd,LastElemInd
   END DO
 END DO
 
-SideInfo_Shared(SIDEINFOSIZE+1,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo_Shared_tmp
-DEALLOCATE(SideInfo_Shared_tmp)
-
 #if USE_MPI
 ! Perform second communication step to distribute updated SIDE_LOCALID
 CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
@@ -700,6 +705,13 @@ IF (myComputeNodeRank.EQ.0) THEN
   CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared,(SIDEINFOSIZE+1)*recvcountSide  &
       ,(SIDEINFOSIZE+1)*displsSide,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
 END IF
+
+! Write compute-node local SIDE_NBELEMTYPE
+CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+
+SideInfo_Shared(SIDE_NBELEMTYPE,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo_Shared_tmp
+DEALLOCATE(SideInfo_Shared_tmp)
 
 ! final sync of all mesh shared arrays
 CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
