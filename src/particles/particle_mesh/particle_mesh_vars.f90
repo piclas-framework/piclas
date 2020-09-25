@@ -239,10 +239,14 @@ INTEGER         :: ElemCharLengthX_Shared_Win
 INTEGER         :: ElemCharLengthY_Shared_Win
 INTEGER         :: ElemCharLengthZ_Shared_Win
 #endif
+
+! ElemID for WriteHaloInfo
+INTEGER,ALLOCATABLE                      :: ElemHaloID(:)
+
 ! ====================================================================
 !
 ! periodic case
-INTEGER, ALLOCATABLE                     :: casematrix(:,:)   ! matrix to compute periodic cases
+INTEGER,ALLOCATABLE                      :: casematrix(:,:)   ! matrix to compute periodic cases
 INTEGER                                  :: NbrOfCases        ! Number of periodic cases
 ! Still required for PIC depo, should be remove later
 

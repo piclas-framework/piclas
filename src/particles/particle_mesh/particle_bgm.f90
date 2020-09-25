@@ -1085,6 +1085,7 @@ USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem
 USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHaloID
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHaloInfo_Array,ElemHaloInfo_Shared,ElemHaloInfo_Shared_Win,ElemInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1094,11 +1095,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
-INTEGER                        :: iRank
+INTEGER                        :: iRank,iElem
 CHARACTER(LEN=255)             :: tmpStr
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES') " ADDING halo debug information to state file..."
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES') " ADDING halo debug information to State file..."
 
 ! Allocate array in shared memory for each compute-node rank
 MPISharedSize = INT((nGlobalElems*nLeaderGroupProcs),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
@@ -1125,6 +1126,12 @@ DO iRank = 0,nLeaderGroupProcs-1
   CALL AddToElemData(ElementOut,'CNRank'//TRIM(tmpStr)//'_ElemHaloInfo',IntArray=ElemHaloInfo_Shared(offsetElem+1:offsetElem+PP_nElems,iRank))
 END DO
 
+! Add ElemHaloID information to ElemData to ease debugging
+ALLOCATE(ElemHaloID(1:PP_nElems))
+DO iElem = 1,PP_nElems
+  ElemHaloID(iElem) = offsetElem+iElem
+END DO
+CALL AddToElemData(ElementOut,'ElemID',IntArray=ElemHaloID)
 END SUBROUTINE WriteHaloInfo
 
 
