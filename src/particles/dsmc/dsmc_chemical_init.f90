@@ -131,12 +131,13 @@ SUBROUTINE DSMC_chemical_init()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, CollInf
+USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, CollInf, SpecXSec
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
-USE MOD_DSMC_QK_Chemistry      ,ONLY: QK_Init
+USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
+USE MOD_DSMC_SpecXSec           ,ONLY: ReadReacXSec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -146,7 +147,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=3)      :: hilf
-INTEGER               :: iReac, iReac2, iReac3, iReac4, iSpec, iChemDir, iReacForward, iReacDiss, PartitionArraySize, iInter
+INTEGER               :: iReac, iReac2, iSpec, iChemDir, iReacForward, iReacDiss, PartitionArraySize, iInter
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
 LOGICAL               :: DoScat
 INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, MaxElecQua, ReadInNumOfReact
@@ -154,6 +155,7 @@ REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec, BGGasEVib, PhotonEnergy
 INTEGER               :: iInit
 INTEGER               :: iCase, iCase2, ReacIndexCounter
 LOGICAL               :: RecombAdded
+INTEGER               :: iPath, NumPaths
 !===================================================================================================================================
 
 ChemReac%NumOfReact = GETINT('DSMC-NumOfReactions')
@@ -387,6 +389,8 @@ END DO
 
 ! Initialize partition functions required for automatic backward rates
 IF(DSMC%BackwardReacRate) THEN
+  IF(ANY(ChemReac%XSec_Procedure(:))) CALL abort(__STAMP__,&
+      'Automatic calculation of backward reaction rates in combination with cross-section based reactions is NOT supported!')
   IF(MOD(DSMC%PartitionMaxTemp,DSMC%PartitionInterval).EQ.0.0) THEN
     PartitionArraySize = NINT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)
   ELSE
@@ -525,6 +529,7 @@ DO iCase = 1, CollInf%NumCase
   ALLOCATE(ChemReac%CollCaseInfo(iCase)%ReactionIndex(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
   ALLOCATE(ChemReac%CollCaseInfo(iCase)%QK_PerformReaction(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
   ChemReac%CollCaseInfo(iCase)%QK_PerformReaction = .FALSE.
+  ChemReac%CollCaseInfo(iCase)%HasXSecReaction    = .FALSE.
   ReacIndexCounter = 0
   RecombAdded = .FALSE.
   DO iReac = 1, ChemReac%NumOfReact
@@ -544,9 +549,21 @@ DO iCase = 1, CollInf%NumCase
       END IF
       ReacIndexCounter = ReacIndexCounter + 1
       ChemReac%CollCaseInfo(iCase)%ReactionIndex(ReacIndexCounter) = iReac
+      IF(ChemReac%XSec_Procedure(iReac)) ChemReac%CollCaseInfo(iCase)%HasXSecReaction = .TRUE.
     END IF
   END DO
 END DO
+
+IF(ANY(ChemReac%XSec_Procedure(:))) THEN
+  DO iCase = 1, CollInf%NumCase
+    NumPaths = ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+    IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) ALLOCATE(SpecXSec(iCase)%ReactionPath(1:NumPaths))
+    DO iPath = 1, NumPaths
+      iReac = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+      IF(ChemReac%XSec_Procedure(iReac)) CALL ReadReacXSec(iCase,iPath)
+    END DO
+  END DO
+END IF
 
 ! Recombination
 DO iReac = 1, ChemReac%NumOfReact

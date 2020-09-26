@@ -248,105 +248,6 @@ CALL H5CLOSE_F(err)
 END SUBROUTINE ReadCollXSec
 
 
-SUBROUTINE ReadVibXSec(iCase,iSpec,jSpec)
-!===================================================================================================================================
-!> Read-in of vibrational cross-sections from a given database. Using the effective cross-section database to check whether the
-!> group exists. Trying to swap the species indices if dataset not found.
-!===================================================================================================================================
-! use module
-USE MOD_io_hdf5
-USE MOD_Globals
-USE MOD_DSMC_Vars                 ,ONLY: XSec_Database, SpecXSec, SpecDSMC
-USE MOD_HDF5_Input                ,ONLY: DatasetExists
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)                :: iCase, iSpec, jSpec
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(LEN=64)                 :: dsetname, groupname, spec_pair, dsetname2
-INTEGER                           :: err
-INTEGER(HSIZE_T), DIMENSION(2)    :: dims,sizeMax
-INTEGER(HID_T)                    :: file_id_dsmc                       ! File identifier
-INTEGER(HID_T)                    :: group_id                           ! Group identifier
-INTEGER(HID_T)                    :: dset_id_dsmc                       ! Dataset identifier
-INTEGER(HID_T)                    :: filespace                          ! filespace identifier
-INTEGER(SIZE_T)                   :: size                               ! Size of name
-INTEGER(HSIZE_T)                  :: iVib                               ! Index
-INTEGER                           :: storage, nVib, max_corder
-LOGICAL                           :: DataSetFound
-!===================================================================================================================================
-spec_pair = TRIM(SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
-SWRITE(UNIT_StdOut,'(A)') 'Read vibrational excitation cross section for '//TRIM(spec_pair)//' from '//TRIM(XSec_Database)
-
-! Initialize FORTRAN interface.
-CALL H5OPEN_F(err)
-! Open the file.
-CALL H5FOPEN_F (TRIM(XSec_Database), H5F_ACC_RDONLY_F, file_id_dsmc, err)
-
-! Check if the species container is available
-dsetname = TRIM('/'//TRIM(spec_pair)//'/EFFECTIVE')
-CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DataSetFound)
-
-! Check if the dataset exist
-IF(.NOT.DataSetFound) THEN
-  ! Try to swap the species names
-  dsetname = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)//'/EFFECTIVE'
-  CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DataSetFound)
-  IF(DataSetFound) THEN
-    spec_pair = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
-  ELSE
-    dsetname2 = TRIM(spec_pair)//'/EFFECTIVE'
-    CALL abort(&
-    __STAMP__&
-    ,'Dataset not found: ['//TRIM(dsetname2)//'] or ['//TRIM(dsetname)//'] not found in ['//TRIM(XSec_Database)//']')
-  END IF
-END IF
-
-groupname = TRIM('/'//TRIM(spec_pair)//'/VIBRATION/')
-
-CALL H5GOPEN_F(file_id_dsmc,TRIM(groupname), group_id, err)
-call H5Gget_info_f(group_id, storage, nVib,max_corder, err)
-
-IF(nVib.GT.0) THEN
-  SWRITE(UNIT_StdOut,'(A,I3,A)') 'Found ', nVib,' vibrational excitation cross section(s) in database.'
-  SpecXSec(iCase)%UseVibXSec = .TRUE.
-ELSE
-  SWRITE(UNIT_StdOut,'(A)') 'No vibrational excitation cross sections found in database, using constant read-in values.'
-  SpecXSec(iCase)%UseVibXSec = .FALSE.
-  RETURN
-END IF
-
-ALLOCATE(SpecXSec(iCase)%VibMode(1:nVib))
-
-DO iVib = 0, nVib-1
-  ! Get name and size of name
-  CALL H5Lget_name_by_idx_f(group_id, ".", H5_INDEX_NAME_F, H5_ITER_INC_F, iVib, dsetname, err, size)
-  dsetname = TRIM(groupname)//TRIM(dsetname)
-  ! Open the dataset.
-  CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
-  ! Get the file space of the dataset.
-  CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
-  ! get size
-  CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
-  ALLOCATE(SpecXSec(iCase)%VibMode(iVib+1)%XSecData(dims(1),dims(2)))
-  ! read data
-  CALL H5DREAD_F(dset_id_dsmc, H5T_NATIVE_DOUBLE, SpecXSec(iCase)%VibMode(iVib+1)%XSecData, dims, err)
-END DO
-
-! Close the group
-CALL H5GCLOSE_F(group_id,err)
-! Close the file.
-CALL H5FCLOSE_F(file_id_dsmc, err)
-! Close FORTRAN interface.
-CALL H5CLOSE_F(err)
-
-END SUBROUTINE ReadVibXSec
-
-
 SUBROUTINE DetermineNullCollProb(iCase,iSpec,jSpec)
 !===================================================================================================================================
 !> Routine for the MCC method: calculates the maximal collision frequency for a given species and the collision probability
@@ -400,7 +301,7 @@ PURE REAL FUNCTION InterpolateCrossSection(iCase,CollisionEnergy)
 !> Interpolate the collision cross-section [m^2] from the available data at the given collision energy [J]
 !> Collision energies below and above the given data will be set at the first and last level of the data set
 !> Note: Requires the data to be sorted by ascending energy values
-!> Assumption: First species given is the particle species, second species input is the backgroung gas species
+!> Assumption: First species given is the particle species, second species input is the background gas species
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: SpecXSec
@@ -449,7 +350,7 @@ PURE REAL FUNCTION InterpolateCrossSection_Vib(iCase,iVib,CollisionEnergy)
 !===================================================================================================================================
 !> Interpolate the vibrational cross-section data for specific vibrational level at the given collision energy
 !> Note: Requires the data to be sorted by ascending energy values
-!> Assumption: First species given is the particle species, second species input is the backgroung gas species
+!> Assumption: First species given is the particle species, second species input is the background gas species
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: SpecXSec
@@ -499,7 +400,7 @@ PURE REAL FUNCTION InterpolateVibRelaxProb(iCase,CollisionEnergy)
 !===================================================================================================================================
 !> Interpolate the vibrational relaxation probability at the same intervals as the effective collision cross-section
 !> Note: Requires the data to be sorted by ascending energy values
-!> Assumption: First species given is the particle species, second species input is the backgroung gas species
+!> Assumption: First species given is the particle species, second species input is the background gas species
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: SpecXSec
@@ -600,5 +501,187 @@ ELSE
 END IF
 
 END FUNCTION
+
+PURE REAL FUNCTION InterpolateCrossSection_Chem(iCase,iPath,CollisionEnergy)
+!===================================================================================================================================
+!> Interpolate the reaction cross-section data for specific reaction path at the given collision energy
+!> Note: Requires the data to be sorted by ascending energy values
+!> Assumption: First species given is the particle species, second species input is the background gas species
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars             ,ONLY: SpecXSec
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(IN)            :: iCase                            !< Case index
+INTEGER,INTENT(IN)            :: iPath                            !< 
+REAL,INTENT(IN)               :: CollisionEnergy                  !< Collision energy in [J]
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iDOF, MaxDOF
+!===================================================================================================================================
+
+InterpolateCrossSection_Chem = 0.
+MaxDOF = SIZE(SpecXSec(iCase)%ReactionPath(iPath)%XSecData,2)
+
+IF(CollisionEnergy.GT.SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,MaxDOF)) THEN 
+  ! If the collision energy is greater than the maximal value, get the cross-section of the last level and leave routine
+  InterpolateCrossSection_Chem = SpecXSec(iCase)%ReactionPath(iPath)%XSecData(2,MaxDOF)
+  ! Leave routine
+  RETURN
+ELSE IF(CollisionEnergy.LE.SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,1)) THEN
+  ! If collision energy is below the minimal value, get the cross-section of the first level and leave routine
+  InterpolateCrossSection_Chem = SpecXSec(iCase)%ReactionPath(iPath)%XSecData(2,1)
+  ! Leave routine
+  RETURN
+END IF
+
+DO iDOF = 1, MaxDOF
+  ! Check if the stored energy value is above the collision energy
+  IF(SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,iDOF).GT.CollisionEnergy) THEN
+    ! Interpolate the cross-section from the data set using the current and the energy level below
+    InterpolateCrossSection_Chem = SpecXSec(iCase)%ReactionPath(iPath)%XSecData(2,iDOF-1) &
+              + (CollisionEnergy - SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,iDOF-1)) &
+              / (SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,iDOF) - SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,iDOF-1)) &
+              * (SpecXSec(iCase)%ReactionPath(iPath)%XSecData(2,iDOF) - SpecXSec(iCase)%ReactionPath(iPath)%XSecData(2,iDOF-1))
+    ! Leave routine and do not finish DO loop
+    RETURN
+  END IF
+END DO
+
+END FUNCTION InterpolateCrossSection_Chem
+
+
+SUBROUTINE ReadReacXSec(iCase,iPath)
+!===================================================================================================================================
+!> Read-in of reaction cross-sections from a given database. Using the effective cross-section database to check whether the
+!> group exists. Trying to swap the species indices if dataset not found.
+!===================================================================================================================================
+! use module
+USE MOD_io_hdf5
+USE MOD_Globals
+USE MOD_DSMC_Vars                 ,ONLY: XSec_Database, SpecXSec, SpecDSMC, ChemReac
+USE MOD_HDF5_Input                ,ONLY: DatasetExists
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                :: iCase, iPath
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=64)                 :: dsetname, groupname, EductPair, dsetname2, ProductPair
+INTEGER                           :: err
+INTEGER(HSIZE_T), DIMENSION(2)    :: dims,sizeMax
+INTEGER(HID_T)                    :: file_id_dsmc                       ! File identifier
+INTEGER(HID_T)                    :: group_id                           ! Group identifier
+INTEGER(HID_T)                    :: dset_id_dsmc                       ! Dataset identifier
+INTEGER(HID_T)                    :: filespace                          ! filespace identifier
+INTEGER(SIZE_T)                   :: size                               ! Size of name
+INTEGER(HSIZE_T)                  :: iSet                               ! Index
+INTEGER                           :: storage, nSets, max_corder
+LOGICAL                           :: DataSetFound, GroupFound, ReactionFound
+INTEGER                           :: iReac, EductReac(1:3), ProductReac(1:3)
+!===================================================================================================================================
+iReac = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+EductReac(1:3) = ChemReac%DefinedReact(iReac,1,1:3)
+ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
+
+DatasetFound = .FALSE.; GroupFound = .FALSE.
+
+EductPair = TRIM(SpecDSMC(EductReac(1))%Name)//'-'//TRIM(SpecDSMC(EductReac(2))%Name)
+SWRITE(UNIT_StdOut,'(A)') 'Read reaction cross section for '//TRIM(EductPair)//' from '//TRIM(XSec_Database)
+
+! Initialize FORTRAN interface.
+CALL H5OPEN_F(err)
+! Open the file.
+CALL H5FOPEN_F (TRIM(XSec_Database), H5F_ACC_RDONLY_F, file_id_dsmc, err)
+
+! Check if the species container is available
+dsetname = TRIM('/'//TRIM(EductPair)//'/EFFECTIVE')
+CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DataSetFound)
+
+! Check if the dataset exist
+IF(.NOT.DataSetFound) THEN
+  ! Try to swap the species names
+  dsetname = TRIM(SpecDSMC(EductReac(2))%Name)//'-'//TRIM(SpecDSMC(EductReac(1))%Name)//'/EFFECTIVE'
+  CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DataSetFound)
+  IF(DataSetFound) THEN
+    EductPair = TRIM(SpecDSMC(EductReac(2))%Name)//'-'//TRIM(SpecDSMC(EductReac(1))%Name)
+  ELSE
+    dsetname2 = TRIM(EductPair)//'/EFFECTIVE'
+    CALL abort(&
+    __STAMP__&
+    ,'Dataset not found: ['//TRIM(dsetname2)//'] or ['//TRIM(dsetname)//'] not found in ['//TRIM(XSec_Database)//']')
+  END IF
+END IF
+
+! Open the dataset.
+CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
+! Get the file space of the dataset.
+CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
+! get size
+CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
+
+groupname = TRIM('/'//TRIM(EductPair)//'/REACTION/')
+CALL H5LEXISTS_F(file_id_dsmc, groupname, GroupFound, err)
+IF(GroupFound) THEN
+  CALL H5GOPEN_F(file_id_dsmc,TRIM(groupname), group_id, err)
+  CALL H5Gget_info_f(group_id, storage, nSets,max_corder, err)
+  IF(nSets.EQ.0) THEN
+    SWRITE(UNIT_StdOut,'(A)') 'No reaction cross sections found in database.'
+    CALL abort(__STAMP__,&
+      'No reaction cross sections found in database for reaction number:',iReac)
+  END IF
+ELSE
+  CALL abort(__STAMP__,&
+  'No reaction cross sections found in database for reaction number:',iReac)
+END IF
+
+SELECT CASE(COUNT(ProductReac.GT.0))
+CASE(2)
+  ProductPair = TRIM(SpecDSMC(ProductReac(1))%Name)//'-'//TRIM(SpecDSMC(ProductReac(2))%Name)
+CASE(3)
+  ProductPair = TRIM(SpecDSMC(ProductReac(1))%Name)//'-'//TRIM(SpecDSMC(ProductReac(2))%Name)//'-'//TRIM(SpecDSMC(ProductReac(3))%Name)
+CASE DEFAULT
+  CALL abort(__STAMP__,&
+      'Number of products is not supported yet! Reaction number:', iReac)
+END SELECT
+
+ReactionFound = .FALSE.
+
+DO iSet = 0, nSets-1
+  ! Get name and size of name
+  CALL H5Lget_name_by_idx_f(group_id, ".", H5_INDEX_NAME_F, H5_ITER_INC_F, iSet, dsetname, err, size)
+  dsetname2 = TRIM(groupname)//TRIM(dsetname)
+  ! Look for the correct reaction path
+  IF(TRIM(ProductPair).EQ.TRIM(dsetname)) THEN
+    ! Open the dataset.
+    CALL H5DOPEN_F(file_id_dsmc, dsetname2, dset_id_dsmc, err)
+    ! Get the file space of the dataset.
+    CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
+    ! get size
+    CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
+    ALLOCATE(SpecXSec(iCase)%ReactionPath(iPath)%XSecData(dims(1),dims(2)))
+    ! read data
+    CALL H5DREAD_F(dset_id_dsmc, H5T_NATIVE_DOUBLE, SpecXSec(iCase)%ReactionPath(iPath)%XSecData, dims, err)
+    ReactionFound = .TRUE.
+    ! stop looking for other reaction paths
+    EXIT
+  END IF
+END DO
+
+IF(.NOT.ReactionFound) CALL abort(__STAMP__,&
+    'No reaction cross-section data found for reaction number:', iReac)
+
+! Close the group
+CALL H5GCLOSE_F(group_id,err)
+! Close the file.
+CALL H5FCLOSE_F(file_id_dsmc, err)
+! Close FORTRAN interface.
+CALL H5CLOSE_F(err)
+
+END SUBROUTINE ReadReacXSec
 
 END MODULE MOD_DSMC_SpecXSec

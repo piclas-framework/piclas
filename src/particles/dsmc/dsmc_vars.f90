@@ -183,11 +183,11 @@ END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
 
-TYPE tXSecVibMode
+TYPE tXSecData
   REAL,ALLOCATABLE                  :: XSecData(:,:)        ! Vibrational cross-section as read-in from the database
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
                                                             ! 2: Cross-section at the respective energy level [m^2]
-END TYPE tXSecVibMode
+END TYPE tXSecData
 
 TYPE tSpeciesXSec
   LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species pair should be treated with
@@ -198,8 +198,9 @@ TYPE tSpeciesXSec
   REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
                                                             ! null collision method of MCC
   LOGICAL                           :: UseVibXSec           ! Flag if cross-section data will be used for the relaxation probability
-  TYPE(tXSecVibMode),ALLOCATABLE    :: VibMode(:)           ! Vibrational cross-sections (nVib: Number of levels found in database)
+  TYPE(tXSecData),ALLOCATABLE       :: VibMode(:)           ! Vibrational cross-sections (nVib: Number of levels found in database)
   REAL                              :: VibProb(2)           ! 1: Sum of vibrational relaxation probability, 2: Event counter
+  TYPE(tXSecData),ALLOCATABLE       :: ReactionPath(:)      ! Reaction cross-sections (nPaths: Number of reactions for that case)
 END TYPE tSpeciesXSec
 
 TYPE(tSpeciesXSec), ALLOCATABLE     :: SpecXSec(:)          ! Species cross-section related data (CollCase). First column is used
@@ -385,6 +386,7 @@ TYPE tCollCaseInfo
   INTEGER                         :: NumOfReactionPaths     ! Number of possible reaction paths for the collision pair
   INTEGER, ALLOCATABLE            :: ReactionIndex(:)       ! Reaction index as in ChemReac%NumOfReact (1:NumOfReactionPaths)
   LOGICAL, ALLOCATABLE            :: QK_PerformReaction(:)  ! Flag whether a QK reaction is to be performed (1:NumOfReactionPaths)
+  LOGICAL                         :: HasXSecReaction
 END TYPE
 
 TYPE tReactInfo

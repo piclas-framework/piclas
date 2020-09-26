@@ -51,8 +51,6 @@ USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SummarizeQualityFactors, 
 USE MOD_DSMC_Collis           ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
 USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Symmetry
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_pairing_quadtree, DSMC_pairing_dotree
-USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
-USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime

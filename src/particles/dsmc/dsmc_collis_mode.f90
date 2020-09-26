@@ -57,7 +57,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair)
 ! Performs simple elastic collision (CollisMode = 1)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, RadialWeighting
+  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, RadialWeighting, DSMC
   USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, VarTimeStep, Species
   USE MOD_DSMC_CollisVec,         ONLY : PostCollVec
   USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -85,6 +85,12 @@ REAL                          :: Momentum_old(3),Momentum_new(3)
 INTEGER                       :: iMom, iMomDim
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
+
+#if (PP_TimeDiscMethod==42)
+! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+IF (DSMC%ReservoirSimuRate) RETURN
+#endif
+
   iPart1 = Coll_pData(iPair)%iPart_p1
   iPart2 = Coll_pData(iPair)%iPart_p2
 
@@ -384,9 +390,15 @@ INTEGER                       :: iSpec1, iSpec2, iPart1, iPart2, iElem ! Collidi
 LOGICAL                       :: DoElec1, DoElec2
 #ifdef CODE_ANALYZE
 REAL                          :: Energy_old,Energy_new
-REAL                          :: Weight1, Weight2, NumWeightEduct, NumWeightProd
+REAL                          :: Weight1, Weight2
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
+
+#if (PP_TimeDiscMethod==42)
+! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+IF (DSMC%ReservoirSimuRate) RETURN
+#endif
+
   iPart1 = Coll_pData(iPair)%iPart_p1
   iPart2 = Coll_pData(iPair)%iPart_p2
   iSpec1 = PartSpecies(iPart1)
@@ -408,8 +420,6 @@ REAL                          :: Weight1, Weight2, NumWeightEduct, NumWeightProd
   END IF
 
 #ifdef CODE_ANALYZE
-  NumWeightEduct = 2.
-  NumWeightProd = 2.
   Weight1 = GetParticleWeight(iPart1)
   Weight2 = GetParticleWeight(iPart2)
   ! Energy conservation
@@ -528,11 +538,6 @@ REAL                          :: Weight1, Weight2, NumWeightEduct, NumWeightProd
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart2) * GetParticleWeight(iPart2)
   END IF
 
-#if (PP_TimeDiscMethod==42)
-  ! for TimeDisc 42 & only transition counting: prohibit relaxation and energy exchange
-  IF (.NOT.DSMC%ReservoirSimuRate) THEN
-#endif
-
 !--------------------------------------------------------------------------------------------------!
 ! Vibrational Relaxation
 !--------------------------------------------------------------------------------------------------!
@@ -611,10 +616,8 @@ REAL                          :: Weight1, Weight2, NumWeightEduct, NumWeightProd
   VeloMy = FracMassCent1 * PartState(5,iPart1) + FracMassCent2 * PartState(5,iPart2)
   VeloMz = FracMassCent1 * PartState(6,iPart1) + FracMassCent2 * PartState(6,iPart2)
 
-  Coll_pData(iPair)%cRela2 = 2 * Coll_pData(iPair)%Ec/ReducedMass
+  Coll_pData(iPair)%cRela2 = 2. * Coll_pData(iPair)%Ec/ReducedMass
   cRelaNew(1:3) = PostCollVec(iPair)
-
-!  WRITE(*,*) "DiceDeflectedVector in Relax LauxTHSO",cRelaNew/sqrt(Coll_pData(iPair)%cRela2) !to be solved
 
   ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
   DSMC_RHS(1,iPart1) = VeloMx + FracMassCent2*cRelaNew(1) - PartState(4,iPart1)
@@ -624,13 +627,14 @@ REAL                          :: Weight1, Weight2, NumWeightEduct, NumWeightProd
   DSMC_RHS(1,iPart2) = VeloMx - FracMassCent1*cRelaNew(1) - PartState(4,iPart2)
   DSMC_RHS(2,iPart2) = VeloMy - FracMassCent1*cRelaNew(2) - PartState(5,iPart2)
   DSMC_RHS(3,iPart2) = VeloMz - FracMassCent1*cRelaNew(3) - PartState(6,iPart2)
+
 #ifdef CODE_ANALYZE
-  Energy_new= 0.5*Species(PartSpecies(iPart2))%MassIC*((VeloMx - FracMassCent1*cRelaNew(1))**2 &
-                                                     + (VeloMy - FracMassCent1*cRelaNew(2))**2 &
-                                                     + (VeloMz - FracMassCent1*cRelaNew(3))**2) * Weight2 &
-             +0.5*Species(PartSpecies(iPart1))%MassIC*((VeloMx + FracMassCent2*cRelaNew(1))**2 &
-                                                     + (VeloMy + FracMassCent2*cRelaNew(2))**2 &
-                                                     + (VeloMz + FracMassCent2*cRelaNew(3))**2) * Weight1 &
+  Energy_new= 0.5*Species(iSpec2)%MassIC*((VeloMx - FracMassCent1*cRelaNew(1))**2 &
+                                        + (VeloMy - FracMassCent1*cRelaNew(2))**2 &
+                                        + (VeloMz - FracMassCent1*cRelaNew(3))**2) * Weight2 &
+             +0.5*Species(iSpec1)%MassIC*((VeloMx + FracMassCent2*cRelaNew(1))**2 &
+                                        + (VeloMy + FracMassCent2*cRelaNew(2))**2 &
+                                        + (VeloMz + FracMassCent2*cRelaNew(3))**2) * Weight1 &
                         + (PartStateIntEn(1,iPart1) + PartStateIntEn(2,iPart1)) * Weight1 &
                         + (PartStateIntEn(1,iPart2) + PartStateIntEn(2,iPart2)) * Weight2
   IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(3,iPart1) * Weight1 &
@@ -651,14 +655,9 @@ REAL                          :: Weight1, Weight2, NumWeightEduct, NumWeightProd
     IPWRITE(UNIT_StdOut,'(I0,A,I0)')           " Species 2              : ",iSpec2
     CALL abort(&
         __STAMP__&
-        ,'CODE_ANALYZE: laux DSMC_relaxation is not energy conserving')
+        ,'CODE_ANALYZE: DSMC_Relaxation with SelectionProcedure = 1 is not energy conserving!')
   END IF
 #endif /* CODE_ANALYZE */
-
-#if (PP_TimeDiscMethod==42)
-  ! for TimeDisc 42 & only transition counting: prohibit relaxation and energy exchange
-  END IF
-#endif
 
 END SUBROUTINE DSMC_Relax_Col_LauxTSHO
 
@@ -705,9 +704,15 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
   INTEGER                       :: iPart1, iPart2, iSpec1, iSpec2               ! Colliding particles 1 and 2 and their species
 #ifdef CODE_ANALYZE
   REAL                          :: Energy_old,Energy_new
-  REAL                          :: Weight1, Weight2, NumWeightEduct, NumWeightProd
+  REAL                          :: Weight1, Weight2
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
+
+#if (PP_TimeDiscMethod==42)
+! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+IF (DSMC%ReservoirSimuRate) RETURN
+#endif
+
   iPart1 = Coll_pData(iPair)%iPart_p1
   iPart2 = Coll_pData(iPair)%iPart_p2
   iSpec1 = PartSpecies(iPart1)
@@ -730,8 +735,6 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
   Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType) * Coll_pData(iPair)%cRela2
 
 #ifdef CODE_ANALYZE
-  NumWeightEduct = 2.
-  NumWeightProd = 2.
   Weight1 = GetParticleWeight(iPart1)
   Weight2 = GetParticleWeight(iPart2)
   ! Energy conservation
@@ -1068,32 +1071,18 @@ END IF
 
 SELECT CASE(CollisMode)
   CASE(1) ! elastic collision
-#if (PP_TimeDiscMethod==42)
-    ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-    IF (.NOT.DSMC%ReservoirSimuRate) THEN
-#endif
-      CALL DSMC_Elastic_Col(iPair)
-#if (PP_TimeDiscMethod==42)
-    END IF
-#endif
+    CALL DSMC_Elastic_Col(iPair)
   CASE(2) ! collision with relaxation
-#if (PP_TimeDiscMethod==42)
-    ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-    IF (.NOT.DSMC%ReservoirSimuRate) THEN
-#endif
-      SELECT CASE(SelectionProc)
-        CASE(1)
-          CALL DSMC_Relax_Col_LauxTSHO(iPair)
-        CASE(2)
-          CALL DSMC_Relax_Col_Gimelshein(iPair)
-        CASE DEFAULT
-          CALL Abort(&
-__STAMP__&
-,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
-      END SELECT
-#if (PP_TimeDiscMethod==42)
-    END IF
-#endif
+    SELECT CASE(SelectionProc)
+      CASE(1)
+        CALL DSMC_Relax_Col_LauxTSHO(iPair)
+      CASE(2)
+        CALL DSMC_Relax_Col_Gimelshein(iPair)
+      CASE DEFAULT
+        CALL Abort(&
+        __STAMP__&
+        ,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
+    END SELECT
   CASE(3) ! chemical reactions
     RelaxToDo = .TRUE.
     IF (PRESENT(NodeVolume).AND.PRESENT(NodePartNum)) THEN
@@ -1101,29 +1090,22 @@ __STAMP__&
     ELSE
       CALL ReactionDecision(iPair, RelaxToDo, iElem)
     END IF
-#if (PP_TimeDiscMethod==42)
-    ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-    IF (.NOT.DSMC%ReservoirSimuRate) THEN
-#endif
-      IF (RelaxToDo) THEN
-        SELECT CASE(SelectionProc)
-          CASE(1)
-            CALL DSMC_Relax_Col_LauxTSHO(iPair)
-          CASE(2)
-            CALL DSMC_Relax_Col_Gimelshein(iPair)
-          CASE DEFAULT
-            CALL Abort(&
-__STAMP__&
-,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
-        END SELECT
-      END IF
-#if (PP_TimeDiscMethod==42)
+    IF (RelaxToDo) THEN
+      SELECT CASE(SelectionProc)
+        CASE(1)
+          CALL DSMC_Relax_Col_LauxTSHO(iPair)
+        CASE(2)
+          CALL DSMC_Relax_Col_Gimelshein(iPair)
+        CASE DEFAULT
+          CALL Abort(&
+          __STAMP__&
+          ,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
+      END SELECT
     END IF
-#endif
   CASE DEFAULT
     CALL Abort(&
-__STAMP__&
-,'ERROR in DSMC_perform_collision: Wrong Collision Mode:',CollisMode)
+    __STAMP__&
+    ,'ERROR in DSMC_perform_collision: Wrong Collision Mode:',CollisMode)
 END SELECT
 
 END SUBROUTINE DSMC_perform_collision
@@ -1135,7 +1117,6 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,                ONLY : Abort
-USE MOD_Globals_Vars,           ONLY : BoltzmannConst
 USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac, RadialWeighting
 USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PEM, VarTimeStep
 USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb
@@ -1155,7 +1136,7 @@ INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: CaseOfReaction, iReac, PartToExec, PartReac2, iPart3, iQuaMax
+INTEGER                       :: iReac, PartToExec, PartReac2, iPart3, iQuaMax
 INTEGER                       :: iReac2, iReac3, iReac4, ReacToDo
 INTEGER                       :: nPartNode, nPair
 REAL                          :: Volume, sigmaCEX, sigmaMEX, IonizationEnergy, NumDens
@@ -1164,11 +1145,11 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
 INTEGER                       :: iPart1, iPart2                         ! Colliding particles 1 and 2
 INTEGER                       :: iCase, ReacTest, iPath, ReacCounter
 REAL                          :: RelativeProb, ReactionProbSum
-LOGICAL                       :: QKPerformed
+LOGICAL                       :: QKPerformed, XSecPerformed
 REAL, ALLOCATABLE             :: ReactionProbArray(:)
 !===================================================================================================================================
- iPart1 = Coll_pData(iPair)%iPart_p1
- iPart2 = Coll_pData(iPair)%iPart_p2
+iPart1 = Coll_pData(iPair)%iPart_p1
+iPart2 = Coll_pData(iPair)%iPart_p2
   IF (PRESENT(NodeVolume)) THEN
     Volume = NodeVolume
   ELSE
@@ -1195,7 +1176,7 @@ REAL, ALLOCATABLE             :: ReactionProbArray(:)
     ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
     CALL CalcReactionProb(iPair,ReacTest,ReactionProbArray(iPath),nPair,NumDens)
   END DO
-  ReacCounter = 0; RelativeProb = 0.; QKPerformed = .FALSE.
+  ReacCounter = 0; RelativeProb = 0.; QKPerformed = .FALSE.; XSecPerformed = .FALSE.
 ! 2.) Decide which reaction to perform
   ! 2a.) QK-based chemistry
   IF(ANY(ChemReac%QKProcedure(:))) THEN
@@ -1204,24 +1185,23 @@ REAL, ALLOCATABLE             :: ReactionProbArray(:)
       DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
         IF(ChemReac%CollCaseInfo(iCase)%QK_PerformReaction(iPath)) THEN
           ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+          ! Flag to skip TCE treatment of this collision pair
+          QKPerformed = .TRUE.
+          ! Reset the complete array (only populated for the specific collision case)
+          ChemReac%CollCaseInfo(iCase)%QK_PerformReaction = .FALSE.
+          ! Do not perform a relaxation after the chemical reaction
+          RelaxToDo = .FALSE.
           IF(ReacCounter.GT.1) THEN
+            ! Determine which reaction will occur, perform it and leave the loop
             RelativeProb = RelativeProb + 1./REAL(ReacCounter)
             CALL RANDOM_NUMBER(iRan)
             IF(RelativeProb.GT.iRan) THEN
               CALL DSMC_Chemistry(iPair, ReacTest)
-              ! Flag to skip TCE treatment of this collision pair
-              QKPerformed = .TRUE.
-              ! Reset the complete array (only populated for the specific collision case)
-              ChemReac%CollCaseInfo(iCase)%QK_PerformReaction = .FALSE.
               ! Exit the loop
               EXIT
             END IF
           ELSE
             CALL DSMC_Chemistry(iPair, ReacTest)
-            ! Flag to skip TCE treatment of this collision pair
-            QKPerformed = .TRUE.
-            ! Reset the complete array (only populated for the specific collision case)
-            ChemReac%CollCaseInfo(iCase)%QK_PerformReaction = .FALSE.
             ! Exit the loop
             EXIT
           END IF
@@ -1234,12 +1214,46 @@ REAL, ALLOCATABLE             :: ReactionProbArray(:)
 
   ! 2b.) Cross-section based chemistry (XSec)
 
-  ! 2c.) Conventional TCE treatment (Arrhenius-based)
   ReactionProbSum = 0.
   DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-    ! Skip QK-based reactions
-    IF(ChemReac%QKProcedure(ReacTest)) CYCLE
+    IF(ChemReac%XSec_Procedure(ReacTest)) THEN
+      ReactionProbSum = ReactionProbSum + ReactionProbArray(iPath)
+    END IF
+  END DO
+
+  ReactionProb = 0.
+  CALL RANDOM_NUMBER(iRan)
+  ! Check if the reaction probability is greater than a random number
+  IF (ReactionProbSum.GT.iRan) THEN
+    ! Decide which reaction should occur
+    CALL RANDOM_NUMBER(iRan)
+    DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+      ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+      IF(ChemReac%XSec_Procedure(ReacTest)) THEN
+        ReactionProb = ReactionProb + ReactionProbArray(iPath)
+        IF((ReactionProb/ReactionProbSum).GT.iRan) THEN
+          CALL DSMC_Chemistry(iPair, ReacTest)
+          ! Flag to skip TCE treatment of this collision pair
+          XSecPerformed = .TRUE.
+          ! Do not perform a relaxation after the chemical reaction
+          RelaxToDo = .FALSE.
+          ! Exit the loop
+          EXIT
+        END IF
+      END IF
+    END DO
+  END IF
+
+  IF(XSecPerformed) RETURN
+
+  ! 2c.) Conventional TCE treatment (Arrhenius-based)
+
+  ReactionProbSum = 0.
+  DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+    ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+    ! Skip QK-based and XSec-based reactions
+    IF(ChemReac%QKProcedure(ReacTest).OR.ChemReac%XSec_Procedure(ReacTest)) CYCLE
     ReactionProbSum = ReactionProbSum + ReactionProbArray(iPath)
   END DO
 
@@ -1251,7 +1265,7 @@ REAL, ALLOCATABLE             :: ReactionProbArray(:)
     CALL RANDOM_NUMBER(iRan)
     DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-      IF(ChemReac%QKProcedure(ReacTest)) CYCLE
+      IF(ChemReac%QKProcedure(ReacTest).OR.ChemReac%XSec_Procedure(ReacTest)) CYCLE
       ReactionProb = ReactionProb + ReactionProbArray(iPath)
       IF((ReactionProb/ReactionProbSum).GT.iRan) THEN
         CALL DSMC_Chemistry(iPair, ReacTest)

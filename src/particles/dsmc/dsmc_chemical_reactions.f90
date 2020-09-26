@@ -57,11 +57,13 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: Calc_Beta_Poly
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf, ReactionProbGTUnityCounter
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, BGGas
 USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, VarTimeStep
 USE MOD_DSMC_Analyze            ,ONLY: CalcTVibPoly, CalcTelec
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_dissociation, QK_ImpactIonization, QK_GetAnalyticRate
+USE MOD_TimeDisc_Vars           ,ONLY: dt
+USE MOD_DSMC_SpecXSec           ,ONLY: InterpolateCrossSection_Chem
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -82,6 +84,7 @@ USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_dissociation, QK_ImpactIonization, QK_
   REAL                          :: BetaReaction, BackwardRate
   REAL                          :: Rcoll, Tcoll, Telec, TiQK, Weight1, Weight2, Weight3, NumWeightEduct, NumWeightProd
   INTEGER                       :: iPath, PathIndex
+  REAL                          :: dtCell
 !===================================================================================================================================
   Weight1=0.; Weight2=0.; Weight3=0.; WeightProd = 0.; ReactInx = 0
   NumWeightEduct = 2.
@@ -157,6 +160,20 @@ USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_dissociation, QK_ImpactIonization, QK_
     ReducedMassUnweighted = CollInf%MassRed(Coll_pData(iPair)%PairType)
   END IF
 
+  IF(ChemReac%XSec_Procedure(iReac)) THEN
+    IF (VarTimeStep%UseVariableTimeStep) THEN
+      dtCell = dt * (VarTimeStep%ParticleTimeStep(ReactInx(1)) + VarTimeStep%ParticleTimeStep(ReactInx(2)))*0.5
+    ELSE
+      dtCell = dt
+    END IF
+    ! Using the kinetic energy of the particle (as is described in Vahedi1995 and Birdsall1991)
+    Coll_pData(iPair)%Ec = 0.5 * ReducedMass * Coll_pData(iPair)%CRela2
+    ! Calculate the reaction probability
+    ReactionProb = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * InterpolateCrossSection_Chem(iCase,iPath,Coll_pData(iPair)%Ec) &
+        * BGGas%NumberDensity(BGGas%MapSpecToBGSpec(EductReac(1))) * dtCell))
+    ! Leave the routine again
+    RETURN
+  END IF
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Calculation of the collision energy
   !---------------------------------------------------------------------------------------------------------------------------------
