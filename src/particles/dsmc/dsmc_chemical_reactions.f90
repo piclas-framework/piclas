@@ -54,7 +54,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, ElementaryCharge
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: Calc_Beta_Poly
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf, ReactionProbGTUnityCounter
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, BGGas
@@ -83,7 +83,7 @@ USE MOD_DSMC_SpecXSec           ,ONLY: InterpolateCrossSection_Chem
   REAL                          :: Xi_vib1, Xi_vib2, Xi_vib3, Xi_Total, Xi_elec1, Xi_elec2, Xi_elec3, WeightProd
   REAL                          :: BetaReaction, BackwardRate
   REAL                          :: Rcoll, Tcoll, Telec, TiQK, Weight1, Weight2, Weight3, NumWeightEduct, NumWeightProd
-  INTEGER                       :: iPath, PathIndex
+  INTEGER                       :: iPath, PathIndex, bggSpec
   REAL                          :: dtCell
 !===================================================================================================================================
   Weight1=0.; Weight2=0.; Weight3=0.; WeightProd = 0.; ReactInx = 0
@@ -161,6 +161,12 @@ USE MOD_DSMC_SpecXSec           ,ONLY: InterpolateCrossSection_Chem
   END IF
 
   IF(ChemReac%XSec_Procedure(iReac)) THEN
+    ! Select the background species as the target cloud
+    IF(BGGas%BackgroundSpecies(EductReac(1))) THEN
+      bggSpec = BGGas%MapSpecToBGSpec(EductReac(1))
+    ELSE
+      bggSpec = BGGas%MapSpecToBGSpec(EductReac(2))
+    END IF
     IF (VarTimeStep%UseVariableTimeStep) THEN
       dtCell = dt * (VarTimeStep%ParticleTimeStep(ReactInx(1)) + VarTimeStep%ParticleTimeStep(ReactInx(2)))*0.5
     ELSE
@@ -169,8 +175,18 @@ USE MOD_DSMC_SpecXSec           ,ONLY: InterpolateCrossSection_Chem
     ! Using the kinetic energy of the particle (as is described in Vahedi1995 and Birdsall1991)
     Coll_pData(iPair)%Ec = 0.5 * ReducedMass * Coll_pData(iPair)%CRela2
     ! Calculate the reaction probability
-    ReactionProb = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * InterpolateCrossSection_Chem(iCase,iPath,Coll_pData(iPair)%Ec) &
-        * BGGas%NumberDensity(BGGas%MapSpecToBGSpec(EductReac(1))) * dtCell))
+    DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+      IF(iReac.EQ.ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)) PathIndex = iPath
+    END DO
+    ReactionProb = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * InterpolateCrossSection_Chem(iCase,PathIndex,Coll_pData(iPair)%Ec) &
+        * BGGas%NumberDensity(bggSpec) * dtCell))
+    ! Calculation of reaction rate coefficient
+#if (PP_TimeDiscMethod==42)
+    IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+      ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb
+      ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
+    END IF
+#endif
     ! Leave the routine again
     RETURN
   END IF
@@ -399,14 +415,6 @@ USE MOD_DSMC_SpecXSec           ,ONLY: InterpolateCrossSection_Chem
     END IF
 #endif
   END IF
-
-! Calculation of reaction rate coefficient
-#if (PP_TimeDiscMethod==42)
-  IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-    ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb
-    ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
-  END IF
-#endif
 
 END SUBROUTINE CalcReactionProb
 

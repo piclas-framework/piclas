@@ -560,6 +560,7 @@ SUBROUTINE ReadReacXSec(iCase,iPath)
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
+USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
 USE MOD_DSMC_Vars                 ,ONLY: XSec_Database, SpecXSec, SpecDSMC, ChemReac
 USE MOD_HDF5_Input                ,ONLY: DatasetExists
 ! IMPLICIT VARIABLE HANDLING
@@ -598,45 +599,23 @@ CALL H5OPEN_F(err)
 ! Open the file.
 CALL H5FOPEN_F (TRIM(XSec_Database), H5F_ACC_RDONLY_F, file_id_dsmc, err)
 
-! Check if the species container is available
-dsetname = TRIM('/'//TRIM(EductPair)//'/EFFECTIVE')
-CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DataSetFound)
-
-! Check if the dataset exist
-IF(.NOT.DataSetFound) THEN
-  ! Try to swap the species names
-  dsetname = TRIM(SpecDSMC(EductReac(2))%Name)//'-'//TRIM(SpecDSMC(EductReac(1))%Name)//'/EFFECTIVE'
-  CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DataSetFound)
-  IF(DataSetFound) THEN
-    EductPair = TRIM(SpecDSMC(EductReac(2))%Name)//'-'//TRIM(SpecDSMC(EductReac(1))%Name)
-  ELSE
-    dsetname2 = TRIM(EductPair)//'/EFFECTIVE'
-    CALL abort(&
-    __STAMP__&
-    ,'Dataset not found: ['//TRIM(dsetname2)//'] or ['//TRIM(dsetname)//'] not found in ['//TRIM(XSec_Database)//']')
-  END IF
-END IF
-
-! Open the dataset.
-CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
-! Get the file space of the dataset.
-CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
-! get size
-CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
-
 groupname = TRIM('/'//TRIM(EductPair)//'/REACTION/')
 CALL H5LEXISTS_F(file_id_dsmc, groupname, GroupFound, err)
-IF(GroupFound) THEN
-  CALL H5GOPEN_F(file_id_dsmc,TRIM(groupname), group_id, err)
-  CALL H5Gget_info_f(group_id, storage, nSets,max_corder, err)
-  IF(nSets.EQ.0) THEN
-    SWRITE(UNIT_StdOut,'(A)') 'No reaction cross sections found in database.'
+IF(.NOT.GroupFound) THEN
+  ! Try to swap the species names
+  groupname = TRIM(SpecDSMC(EductReac(2))%Name)//'-'//TRIM(SpecDSMC(EductReac(1))%Name)//'/REACTION/'
+  CALL H5LEXISTS_F(file_id_dsmc, TRIM(groupname), GroupFound, err)
+  IF(.NOT.GroupFound) THEN
     CALL abort(__STAMP__,&
       'No reaction cross sections found in database for reaction number:',iReac)
   END IF
-ELSE
+END IF
+
+CALL H5GOPEN_F(file_id_dsmc,TRIM(groupname), group_id, err)
+CALL H5Gget_info_f(group_id, storage, nSets,max_corder, err)
+IF(nSets.EQ.0) THEN
   CALL abort(__STAMP__,&
-  'No reaction cross sections found in database for reaction number:',iReac)
+    'No reaction cross sections found in database for reaction number:',iReac)
 END IF
 
 SELECT CASE(COUNT(ProductReac.GT.0))
@@ -671,6 +650,9 @@ DO iSet = 0, nSets-1
     EXIT
   END IF
 END DO
+
+! Store the energy value in J (read-in was in eV)
+SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,:) = SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,:) * ElementaryCharge
 
 IF(.NOT.ReactionFound) CALL abort(__STAMP__,&
     'No reaction cross-section data found for reaction number:', iReac)

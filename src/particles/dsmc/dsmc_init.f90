@@ -280,7 +280,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-HeatOfFormation_K'  &
                                            ,'Heat of formation of the respective species [Kelvin]'&
                                            , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-PreviousState'  &
-                                           ,'Species number of the previous state (e.g. N for NIon) ', '0', numberedmulti=.TRUE.)
+                                           ,'Species number of the previous state (e.g. N for NIon) ', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-FullyIonized'  &
                                            ,'Flag if the species is fully ionized, e.g., C^6+ ', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-NextIonizationSpecies'  &
@@ -996,13 +996,10 @@ ELSE !CollisMode.GT.0
       END IF
       ! Heat of formation of ionized species is modified with the ionization energy directly from read-in electronic energy levels
       ! of the ground/previous state of the respective species (Input requires a species number (eg species number of N for NIon1))
-      SpecDSMC(iSpec)%PreviousState = GETINT('Part-Species'//TRIM(hilf)//'-PreviousState','0')
       IF((SpecDSMC(iSpec)%InterID.EQ.10).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-        IF(SpecDSMC(iSpec)%PreviousState.EQ.0) THEN
-          CALL abort(&
-              __STAMP__&
-              ,'ERROR: Please specify the previous state of the ion species:', iSpec)
-        END IF
+        SpecDSMC(iSpec)%PreviousState = GETINT('Part-Species'//TRIM(hilf)//'-PreviousState')
+      ELSE
+        SpecDSMC(iSpec)%PreviousState = 0
       END IF
       ! Read-in of species for field ionization (only required if it cannot be determined automatically)
       IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
@@ -1237,13 +1234,10 @@ IF(DoFieldIonization.AND.(CollisMode.NE.3))THEN
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
     ! Heat of formation of ionized species is modified with the ionization energy directly from read-in electronic energy levels
     ! of the ground/previous state of the respective species (Input requires a species number (eg species number of N for NIon1))
-    SpecDSMC(iSpec)%PreviousState = GETINT('Part-Species'//TRIM(hilf)//'-PreviousState','0')
     IF((SpecDSMC(iSpec)%InterID.EQ.10).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-      IF(SpecDSMC(iSpec)%PreviousState.EQ.0) THEN
-        CALL abort(&
-            __STAMP__&
-            ,'ERROR: Please specify the previous state of the ion species:', iSpec)
-      END IF ! SpecDSMC(iSpec)%PreviousState.EQ.0
+      SpecDSMC(iSpec)%PreviousState = GETINT('Part-Species'//TRIM(hilf)//'-PreviousState')
+    ELSE
+      SpecDSMC(iSpec)%PreviousState = 0
     END IF ! (SpecDSMC(iSpec)%InterID.EQ.10).OR.(SpecDSMC(iSpec)%InterID.EQ.20)
 
     ! Read-in of species for field ionization (only required if it cannot be determined automatically)
@@ -1298,6 +1292,7 @@ SUBROUTINE CalcHeatOfFormation()
 ! Requires the completed read-in of species data
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
+USE MOD_ReadInTools
 USE MOD_Globals       ,ONLY: abort,UNIT_stdOut
 #if USE_MPI
 USE MOD_Globals       ,ONLY: mpiroot
@@ -1305,7 +1300,6 @@ USE MOD_Globals       ,ONLY: mpiroot
 USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
-USE MOD_ReadInTools   ,ONLY: PrintOption
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -1319,35 +1313,40 @@ AutoDetect=.TRUE.
 DO iSpec = 1, nSpecies
   counter = 0
   IF((SpecDSMC(iSpec)%InterID.EQ.10).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    IF(SpecDSMC(SpecDSMC(iSpec)%PreviousState)%MaxElecQuant.GT.0) THEN
-      jSpec = SpecDSMC(iSpec)%PreviousState
-      DO
-        MaxElecQua = SpecDSMC(jSpec)%MaxElecQuant - 1
-        SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation &
-            + SpecDSMC(jSpec)%ElectronicState(2,MaxElecQua)*BoltzmannConst
-        IF(SpecDSMC(jSpec)%PreviousState.EQ.0) EXIT
-        jSpec = SpecDSMC(jSpec)%PreviousState
-        ! Fail-safe, abort after 100 iterations
-        counter = counter + 1
-        IF(counter.GT.100) THEN
-          CALL abort(&
-              __STAMP__&
-              ,'ERROR: Nbr. of ionization lvls per spec limited to 100. More likely wrong input in PreviuosState of spec:', iSpec)
-        END IF
-      END DO
-      IF(AutoDetect)THEN
-        SWRITE(UNIT_stdOut,'(A)')' Automatically determined HeatOfFormation:'
-        AutoDetect=.FALSE.
-      END IF
-      ! Add the heat of formation of the ground state
-      SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation + SpecDSMC(jSpec)%HeatOfFormation
+    IF(SpecDSMC(iSpec)%PreviousState.EQ.0) THEN
       WRITE(UNIT=hilf2,FMT='(I0)') iSpec
-      CALL PrintOption('part-species'//TRIM(hilf2)//'-heatofformation_k','CALCUL.',&
-          RealOpt=SpecDSMC(iSpec)%HeatOfFormation/BoltzmannConst)
+      SpecDSMC(iSpec)%HeatOfFormation = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfFormation_K') * BoltzmannConst
     ELSE
-      CALL abort(&
-          __STAMP__&
-          ,'ERROR: Chemical reactions with ionized species require an input of electronic energy level(s)!', iSpec)
+      IF(SpecDSMC(SpecDSMC(iSpec)%PreviousState)%MaxElecQuant.GT.0) THEN
+        jSpec = SpecDSMC(iSpec)%PreviousState
+        DO
+          MaxElecQua = SpecDSMC(jSpec)%MaxElecQuant - 1
+          SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation &
+              + SpecDSMC(jSpec)%ElectronicState(2,MaxElecQua)*BoltzmannConst
+          IF(SpecDSMC(jSpec)%PreviousState.EQ.0) EXIT
+          jSpec = SpecDSMC(jSpec)%PreviousState
+          ! Fail-safe, abort after 100 iterations
+          counter = counter + 1
+          IF(counter.GT.100) THEN
+            CALL abort(&
+                __STAMP__&
+                ,'ERROR: Nbr. of ionization lvls per spec limited to 100. More likely wrong input in PreviuosState of spec:', iSpec)
+          END IF
+        END DO
+        IF(AutoDetect)THEN
+          SWRITE(UNIT_stdOut,'(A)')' Automatically determined HeatOfFormation:'
+          AutoDetect=.FALSE.
+        END IF
+        ! Add the heat of formation of the ground state
+        SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation + SpecDSMC(jSpec)%HeatOfFormation
+        WRITE(UNIT=hilf2,FMT='(I0)') iSpec
+        CALL PrintOption('part-species'//TRIM(hilf2)//'-heatofformation_k','CALCUL.',&
+            RealOpt=SpecDSMC(iSpec)%HeatOfFormation/BoltzmannConst)
+      ELSE
+        CALL abort(&
+            __STAMP__&
+            ,'ERROR: Chemical reactions with ionized species require an input of electronic energy level(s)!', iSpec)
+      END IF
     END IF
   END IF
 END DO
