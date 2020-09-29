@@ -4,19 +4,30 @@
 
 ## Simulating at HLRS \label{sec:cloninghlrs}
 
-Unfortunately, the GitHub and GitLab servers are not available on machines at the HLRS, such as the Hazelhen, due to restricted internet access. The workaround is to use ssh tunneling and remote forwarding to access the repositories.
+Unfortunately, the GitHub and GitLab servers are not available on machines at the HLRS, such as the Hawk, due to 
+restricted internet access. The workaround is to use ssh tunneling and proxy jump or remote forwarding to access 
+the repositories.
 
 ### Cloning with the SSH protocol
 
+Two methods for checking out the code are described in the following.
+
 #### Method 1 (Proxy Jump)
 To clone a repository from, e.g., gitlab.com on a HLRS system, the ssh proxy jump must first be set up. Simply connect to
-the system via ssh and add the following lines to the ssh configuration file under `~/.ssh/config` on the cluster.
+the system via ssh and add the following lines to the ssh configuration file under `~/.ssh/config` on the cluster
 
     Host gitlab.com
        HostName   gitlab.com
        ProxyJump  RemoteHost
 
-where the *RemoteHost* has internet access and can be accessed via ssh from the HLRS system. Then simply clone the repository via
+where the *RemoteHost* has internet access and can be accessed via ssh from the HLRS system. It is also defined
+
+    Host RemoteHost
+       User         username
+       HostName     hostname.something.com
+       ForwardX11   yes
+
+Then simply clone the repository via
 
     git clone git@gitlab.com:mygroup/myproject.git
 
@@ -31,9 +42,9 @@ You can use the SSH protocol to clone the repository. You have to connect to the
 To avoid using the above command every time, you can add the following to your `.ssh/config` file:
 
     host hlrs
-       hostname hazelhen.hww.de
-       user username
-       RemoteForward 7777 gitlab.com:22
+       hostname        hazelhen.hww.de
+       user            username
+       RemoteForward   7777 gitlab.com:22
 
 and login with `ssh hlrs`. Now you can clone the repository when logged onto the cluster by
 
