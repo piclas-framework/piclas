@@ -113,7 +113,7 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
   load_module "hdf5/${HDF5VERSION}/gcc/${GCCVERSION}/openmpi/${OPENMPIVERSION}"
   module list
   echo " "
-  echo "Important: If the compilation step fails, try compiling single, .i.e., remove -j from make -j"
+  echo "Important: If the compilation step fails, run the script again and if it still fails \n1) try compiling single, .i.e., remove -j from make -j or \n2) try make -j 2 (not all available threads)"
   echo " "
   read -p "Have the correct modules been loaded? If yes, press enter to continue!"
 
@@ -142,6 +142,7 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
       # Check if renamed directory exists and create backup of it
       if [ -d "${SOURCEDIR}/paraview-${PARAVIEWVERSION}" ]; then
         # Move directory, e.g., "paraview-5.8.0" to "paraview-5.8.0_bak"
+        #rm -rf ${SOURCEDIR}/paraview-${PARAVIEWVERSION}_bak
         mv ${SOURCEDIR}/paraview-${PARAVIEWVERSION} ${SOURCEDIR}/paraview-${PARAVIEWVERSION}_bak
       fi
       # The extracted directory is named, e.g., "ParaView-v5.8.0", which is renamed to "paraview-5.8.0" with small letters and no "v"
