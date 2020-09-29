@@ -8,6 +8,22 @@ Unfortunately, the GitHub and GitLab servers are not available on machines at th
 
 ### Cloning with the SSH protocol
 
+#### Method 1 (Proxy Jump)
+To clone a repository from, e.g., gitlab.com on a HLRS system, the ssh proxy jump must first be set up. Simply connect to
+the system via ssh and add the following lines to the ssh configuration file under `~/.ssh/config` on the cluster.
+
+    Host gitlab.com
+       HostName   gitlab.com
+       ProxyJump  RemoteHost
+
+where the *RemoteHost* has internet access and can be accessed via ssh from the HLRS system. Then simply clone the repository via
+
+    git clone git@gitlab.com:mygroup/myproject.git
+
+and all the ssh traffic via `gitlab.com` is automatically re-routed over the *RemoteHost*.
+
+#### Method 2 (Remote Forwarding)
+
 You can use the SSH protocol to clone the repository. You have to connect to the cluster with the `RemoteForward` option
 
     ssh -R 7777:github.com:22 username@hazelhen.hww.de
