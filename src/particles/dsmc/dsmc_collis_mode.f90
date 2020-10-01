@@ -1116,11 +1116,11 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 ! Decision of reaction type (recombination, exchange, dissociation, CEX/MEX and multiple combinations of those)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                ONLY : Abort
-USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac, RadialWeighting
-USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PEM, VarTimeStep
-USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb
-USE MOD_Particle_Mesh_Vars,     ONLY: ElemVolume_Shared
+USE MOD_Globals                 ,ONLY: Abort
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, ChemReac, RadialWeighting
+USE MOD_Particle_Vars           ,ONLY: Species, PartSpecies, PEM, VarTimeStep
+USE MOD_DSMC_ChemReact          ,ONLY: CalcReactionProb, DSMC_Chemistry
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
@@ -1136,17 +1136,10 @@ INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iReac, PartToExec, PartReac2, iPart3, iQuaMax
-INTEGER                       :: iReac2, iReac3, iReac4, ReacToDo
-INTEGER                       :: nPartNode, nPair
-REAL                          :: Volume, sigmaCEX, sigmaMEX, IonizationEnergy, NumDens
-REAL (KIND=8)                 :: ReactionProb, ReactionProb2, ReactionProb3, ReactionProb4
-REAL (KIND=8)                 :: iRan, iRan2, iRan3
-INTEGER                       :: iPart1, iPart2                         ! Colliding particles 1 and 2
-INTEGER                       :: iCase, ReacTest, iPath, ReacCounter
-REAL                          :: RelativeProb, ReactionProbSum
-LOGICAL                       :: QKPerformed, XSecPerformed
+INTEGER                       :: iPart1, iPart2, nPartNode, nPair, iCase, ReacTest, iPath, ReacCounter
+REAL                          :: Volume, NumDens, ReactionProb, iRan, RelativeProb, ReactionProbSum
 REAL, ALLOCATABLE             :: ReactionProbArray(:)
+LOGICAL                       :: QKPerformed, XSecPerformed
 !===================================================================================================================================
 iPart1 = Coll_pData(iPair)%iPart_p1
 iPart2 = Coll_pData(iPair)%iPart_p2
@@ -1214,24 +1207,15 @@ iPart2 = Coll_pData(iPair)%iPart_p2
 
   ! 2b.) Cross-section based chemistry (XSec)
 
-  ReactionProbSum = 0.
-  DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
-    ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-    IF(ChemReac%XSec_Procedure(ReacTest)) THEN
-      ReactionProbSum = ReactionProbSum + ReactionProbArray(iPath)
-    END IF
-  END DO
-
-  ReactionProb = 0.
-  CALL RANDOM_NUMBER(iRan)
-  ! Check if the reaction probability is greater than a random number
-  IF (ReactionProbSum.GT.iRan) THEN
+  IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
+    ReactionProbSum = Coll_pData(iPair)%Prob
+    ReactionProb = 0.
     ! Decide which reaction should occur
     CALL RANDOM_NUMBER(iRan)
     DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
       IF(ChemReac%XSec_Procedure(ReacTest)) THEN
-        ReactionProb = ReactionProb + ReactionProbArray(iPath)
+        ReactionProb = ReactionProb + ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath)
         IF((ReactionProb/ReactionProbSum).GT.iRan) THEN
           CALL DSMC_Chemistry(iPair, ReacTest)
           ! Flag to skip TCE treatment of this collision pair

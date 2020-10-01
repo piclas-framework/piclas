@@ -20,7 +20,7 @@ MODULE MOD_DSMC_SpecXSec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 
-PUBLIC :: InterpolateCrossSection, XSec_CalcCollisionProb
+PUBLIC :: InterpolateCrossSection, XSec_CalcCollisionProb, XSec_CalcReactionProb
 !===================================================================================================================================
 
 CONTAINS
@@ -651,11 +651,11 @@ DO iSet = 0, nSets-1
   END IF
 END DO
 
-! Store the energy value in J (read-in was in eV)
-SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,:) = SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,:) * ElementaryCharge
-
 IF(.NOT.ReactionFound) CALL abort(__STAMP__,&
     'No reaction cross-section data found for reaction number:', iReac)
+
+! Store the energy value in J (read-in was in eV)
+SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,:) = SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,:) * ElementaryCharge
 
 ! Close the group
 CALL H5GCLOSE_F(group_id,err)
@@ -665,5 +665,159 @@ CALL H5FCLOSE_F(file_id_dsmc, err)
 CALL H5CLOSE_F(err)
 
 END SUBROUTINE ReadReacXSec
+
+
+SUBROUTINE XSec_CalcReactionProb(iPair,iCase)
+!===================================================================================================================================
+!> Calculate the collision probability if collision cross-section data is used. Can be utilized in combination with the regular
+!> DSMC collision calculation probability.
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, ChemReac, RadialWeighting, DSMC, PartStateIntEn
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep
+USE MOD_TimeDisc_Vars         ,ONLY: dt
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(IN)            :: iPair, iCase
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iPath, ReacTest, EductReac(1:3), ProductReac(1:3), bggSpec, partSpec, ReactInx(1:3), nPair
+INTEGER                       :: NumWeightEduct, NumWeightProd
+REAL                          :: EZeroPoint_Prod, dtCell, Weight1, Weight2, Weight3, ReducedMass, ReducedMassUnweighted, WeightProd
+REAL                          :: EZeroPoint_Educt
+!===================================================================================================================================
+WeightProd = 0.; ReactInx = 0
+nPair = SIZE(Coll_pData)
+NumWeightProd = 2
+
+DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+  ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+  IF(ChemReac%XSec_Procedure(ReacTest)) THEN
+    EductReac(1:3) = ChemReac%DefinedReact(ReacTest,1,1:3)
+    ProductReac(1:3) = ChemReac%DefinedReact(ReacTest,2,1:3)
+    IF (ChemReac%DefinedReact(ReacTest,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
+      ReactInx(1) = Coll_pData(iPair)%iPart_p1
+      ReactInx(2) = Coll_pData(iPair)%iPart_p2
+    ELSE
+      ReactInx(1) = Coll_pData(iPair)%iPart_p2
+      ReactInx(2) = Coll_pData(iPair)%iPart_p1
+    END IF
+
+    IF(EductReac(3).NE.0) THEN
+      IF(ChemReac%RecombParticle.EQ.0) THEN
+        IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
+          ChemReac%LastPairForRec = nPair - ChemReac%nPairForRec
+          ReactInx(3) = Coll_pData(ChemReac%LastPairForRec)%iPart_p1
+          ChemReac%RecombParticle = ReactInx(3)
+        ELSE
+          ReactInx(3) = 0
+        END IF
+      ELSE
+        ReactInx(3) = ChemReac%RecombParticle
+      END IF
+      IF(ReactInx(3).GT.0) THEN
+        NumWeightEduct = 3.
+        NumWeightProd = 2.
+        EductReac(3) = PartSpecies(ReactInx(3))
+        ! Save the new reaction index (depending on the third partner) for the case to be used in DSMC_Chemistry
+        ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath) = ChemReac%ReactNumRecomb(EductReac(1), EductReac(2), EductReac(3))
+      ELSE
+        ! If no third collision partner can be found e.g. last (available) pair, set reaction probability to zero and leave routine
+        ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = 0.
+        RETURN
+      END IF
+    END IF
+
+    Weight1 = GetParticleWeight(ReactInx(1))
+    Weight2 = GetParticleWeight(ReactInx(2))
+    IF(EductReac(3).NE.0) Weight3 = GetParticleWeight(ReactInx(3))
+
+    EZeroPoint_Educt = 0.0; EZeroPoint_Prod = 0.0
+    ! Testing if the first reacting particle is an atom or molecule, if molecule: is it polyatomic?
+    IF((SpecDSMC(EductReac(1))%InterID.EQ.2).OR.(SpecDSMC(EductReac(1))%InterID.EQ.20)) THEN
+      EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(EductReac(1))%EZeroPoint * Weight1
+    END IF
+    !---------------------------------------------------------------------------------------------------------------------------------
+    ! Testing if the second particle is an atom or molecule, if molecule: is it polyatomic?
+    IF((SpecDSMC(EductReac(2))%InterID.EQ.2).OR.(SpecDSMC(EductReac(2))%InterID.EQ.20)) THEN
+      EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(EductReac(2))%EZeroPoint * Weight2
+    END IF
+    !---------------------------------------------------------------------------------------------------------------------------------
+    IF(EductReac(3).NE.0) THEN
+      ! Testing if the third particle is an atom or molecule, if molecule: is it polyatomic?
+      IF((SpecDSMC(EductReac(3))%InterID.EQ.2).OR.(SpecDSMC(EductReac(3))%InterID.EQ.20)) THEN
+        EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(EductReac(3))%EZeroPoint * Weight3
+      END IF
+    END IF
+
+    IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+      ReducedMass = (Species(EductReac(1))%MassIC *Weight1  * Species(EductReac(2))%MassIC * Weight2) &
+        / (Species(EductReac(1))%MassIC * Weight1+ Species(EductReac(2))%MassIC * Weight2)
+      ReducedMassUnweighted = ReducedMass * 2./(Weight1+Weight2)
+    ELSE
+      ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
+      ReducedMassUnweighted = CollInf%MassRed(Coll_pData(iPair)%PairType)
+    END IF
+
+    ! Testing if the first produced particle is an atom or molecule, if molecule: is it polyatomic?
+    IF((SpecDSMC(ProductReac(1))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(1))%InterID.EQ.20)) THEN
+      EZeroPoint_Prod = EZeroPoint_Prod + SpecDSMC(ProductReac(1))%EZeroPoint * Weight1
+    END IF
+    ! Testing if the second produced particle is an atom or molecule, if molecule: is it polyatomic?
+    IF((SpecDSMC(ProductReac(2))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(2))%InterID.EQ.20)) THEN
+      EZeroPoint_Prod = EZeroPoint_Prod + SpecDSMC(ProductReac(2))%EZeroPoint * Weight2
+    END IF
+    IF(ProductReac(3).NE.0) THEN
+      NumWeightProd = 3.
+      IF(EductReac(3).NE.0) THEN
+        WeightProd = Weight3
+      ELSE
+        WeightProd = Weight1
+      END IF
+      IF((SpecDSMC(ProductReac(3))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(3))%InterID.EQ.20)) THEN
+        EZeroPoint_Prod = EZeroPoint_Prod + SpecDSMC(ProductReac(3))%EZeroPoint*WeightProd
+      END IF
+    END IF
+
+    ! Select the background species as the target cloud
+    IF(BGGas%BackgroundSpecies(EductReac(1))) THEN
+      bggSpec = BGGas%MapSpecToBGSpec(EductReac(1))
+      partSpec = EductReac(2)
+    ELSE
+      bggSpec = BGGas%MapSpecToBGSpec(EductReac(2))
+      partSpec = EductReac(1)
+    END IF
+    IF (VarTimeStep%UseVariableTimeStep) THEN
+      dtCell = dt * (VarTimeStep%ParticleTimeStep(ReactInx(1)) + VarTimeStep%ParticleTimeStep(ReactInx(2)))*0.5
+    ELSE
+      dtCell = dt
+    END IF
+    Coll_pData(iPair)%Ec = 0.5 * ReducedMass * Coll_pData(iPair)%CRela2 &
+                + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight1 &
+                + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight2
+    IF (DSMC%ElectronicModel) THEN
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,ReactInx(1))*Weight1 + PartStateIntEn(3,ReactInx(2))*Weight2
+    END IF
+    ! Calculate the reaction probability
+    IF(((Coll_pData(iPair)%Ec-EZeroPoint_Prod).GE.(-1./NumWeightProd*(Weight1+Weight2+WeightProd)*ChemReac%EForm(ReacTest)))) THEN
+      ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * dtCell &
+        * InterpolateCrossSection_Chem(iCase,iPath,Coll_pData(iPair)%Ec-EZeroPoint_Educt) * BGGas%NumberDensity(bggSpec) ))
+      Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob + ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath)
+    ELSE
+      ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = 0.
+    END IF
+    ! Calculation of reaction rate coefficient
+#if (PP_TimeDiscMethod==42)
+    IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+      ChemReac%NumReac(ReacTest) = ChemReac%NumReac(ReacTest) + ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath)
+      ChemReac%ReacCount(ReacTest) = ChemReac%ReacCount(ReacTest) + 1
+    END IF
+#endif
+  END IF
+END DO
+
+END SUBROUTINE XSec_CalcReactionProb
 
 END MODULE MOD_DSMC_SpecXSec

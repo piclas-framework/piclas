@@ -47,13 +47,10 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, VarTimeStep
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_TimeDisc_Vars,          ONLY : dt
-  USE MOD_DSMC_SpecXSec,          ONLY: InterpolateCrossSection, XSec_CalcCollisionProb
+  USE MOD_DSMC_SpecXSec,          ONLY: InterpolateCrossSection, XSec_CalcCollisionProb, XSec_CalcReactionProb
   USE MOD_part_tools,             ONLY : GetParticleWeight
-#if (PP_TimeDiscMethod==42)
-  USE MOD_Particle_Vars,          ONLY : nSpecies
-#endif
-USE MOD_Particle_Mesh_Vars,     ONLY: ElemVolume_Shared
-USE MOD_Mesh_Vars              ,ONLY: offSetElem
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -68,9 +65,6 @@ USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
   INTEGER                             :: iPType, NbrOfReaction, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase, PairType
   REAL                                :: SpecNum1, SpecNum2, Weight1, Weight2, Volume, CollProb
   REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot, MacroParticleFactor, dtCell, CollCaseNum
-#if (PP_TimeDiscMethod==42)
-  INTEGER                             :: iReac, iSpec
-#endif
 !===================================================================================================================================
 
   PairType   = Coll_pData(iPair)%PairType
@@ -132,6 +126,9 @@ USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
     ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron
       IF(UseMCC) THEN
         Coll_pData(iPair)%Prob = XSec_CalcCollisionProb(iPair,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
+        IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
+          CALL XSec_CalcReactionProb(iPair,iCase)
+        END IF
       ELSE
         Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(PairType))  &
                 * CollInf%Cab(PairType)                                               & ! Cab species comb fac
@@ -205,7 +202,7 @@ __STAMP__&
     CollProb = Coll_pData(iPair)%Prob
     DSMC%CollProbMax = MAX(CollProb, DSMC%CollProbMax)
     ! Remove the correction factor for the mean collision probability
-    IF(UseMCC) THEN
+    IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
       IF(BGGas%BackgroundSpecies(iSpec_p2)) THEN
         IF(XSec_NullCollision) THEN
           CollProb = CollProb * SpecXSec(iCase)%ProbNull
