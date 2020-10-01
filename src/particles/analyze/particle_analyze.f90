@@ -217,7 +217,7 @@ USE MOD_Particle_Vars         ,ONLY: ManualTimeStep
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 #endif
 #if USE_MPI
-USE MOD_MPI_Shared            ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!           ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars       ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars    ,ONLY: nComputeNodeElems,offsetComputeNodeElem
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared_Win

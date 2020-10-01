@@ -118,7 +118,7 @@ USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Interpolation_Vars ,ONLY: wGP, xGP, wBary
 #if USE_MPI
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems, nComputeNodeProcessors, myComputeNodeRank, MPI_COMM_SHARED
-USE MOD_MPI_Shared         ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!        ,ONLY: Allocate_Shared
 USE MOD_PICDepo_Vars       ,ONLY: NodeVolume_Shared, NodeVolume_Shared_Win
 #else
 USE MOD_Mesh_Vars          ,ONLY: nElems

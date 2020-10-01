@@ -869,3 +869,11 @@ IF(PICLAS_CTAGS)
       ADD_DEPENDENCIES(piclas tags)
   ENDIF(CTAGS_PATH)
 ENDIF(PICLAS_CTAGS)
+# =========================================================================
+# Shared memory debug flags
+# =========================================================================
+SET(PICLAS_DEBUG_MEMORY OFF CACHE BOOL "Output shared memory window sizes")
+IF(PICLAS_DEBUG_MEMORY)
+  SET (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DDEBUG_MEMORY")
+ENDIF()
+

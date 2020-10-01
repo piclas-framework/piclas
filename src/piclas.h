@@ -27,6 +27,10 @@
 
 #define SIZEOF_F(x) (STORAGE_SIZE(x)/8)
 
+#ifdef DEBUG_MEMORY
+#define Allocate_Shared(a,b,c,d)   Allocate_Shared_DEBUG(a,b,c,d,'c')
+#endif
+
 #ifdef GNU
 #define CHECKSAFEINT(x,k)  IF(x>HUGE(1_  k).OR.x<-HUGE(1_  k))       CALL ABORT(__STAMP__,'Integer conversion failed: out of range!')
 #define CHECKSAFEREAL(x,k) IF(x>HUGE(1._ k).OR.x<-HUGE(1._ k))       CALL ABORT(__STAMP__,'Real conversion failed: out of range!')
@@ -52,9 +56,11 @@
 #if USE_MPI
 #  define SWRITE IF(MPIRoot) WRITE
 #  define IPWRITE(a,b) WRITE(a,b)myRank,
+#  define LWRITE IF(myComputeNodeRank.EQ.0) WRITE
 #else
 #  define SWRITE WRITE
 #  define IPWRITE(a,b) WRITE(a,b)0,
+#  define LWRITE WRITE
 #endif
 #define ERRWRITE(a,b) WRITE(UNIT_errOut,b)
 #define LOGWRITE(a,b)  IF(Logging) WRITE(UNIT_logOut,b)
