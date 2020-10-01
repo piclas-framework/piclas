@@ -386,6 +386,13 @@ USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_dissociation, QK_ImpactIonization, QK_
 #endif
   END IF
 
+#if (PP_TimeDiscMethod==42)
+IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+  ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb
+  ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
+END IF
+#endif
+
 END SUBROUTINE CalcReactionProb
 
 

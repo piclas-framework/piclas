@@ -1143,121 +1143,114 @@ LOGICAL                       :: QKPerformed, XSecPerformed
 !===================================================================================================================================
 iPart1 = Coll_pData(iPair)%iPart_p1
 iPart2 = Coll_pData(iPair)%iPart_p2
-  IF (PRESENT(NodeVolume)) THEN
-    Volume = NodeVolume
-  ELSE
-    Volume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
-  END IF
-  IF (PRESENT(NodePartNum)) THEN
-    nPartNode = NodePartNum
-  ELSE
-    nPartNode = PEM%pNumber(iElem)
-  END IF
-  nPair = INT(nPartNode/2)
-  IF(RadialWeighting%DoRadialWeighting) THEN
-    NumDens = SUM(CollInf%Coll_SpecPartNum(:)) / Volume
-  ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-    NumDens = SUM(CollInf%Coll_SpecPartNum(:)) / Volume * Species(1)%MacroParticleFactor
-  ELSE
-    NumDens = nPartNode / Volume * Species(1)%MacroParticleFactor
-  END IF
+iCase = CollInf%Coll_Case(PartSpecies(iPart1), PartSpecies(iPart2))
+! 0.) Get the correct volume and particle number (in the case of an octree the volume and particle number are given as optionals)
+IF (PRESENT(NodeVolume)) THEN
+  Volume = NodeVolume
+ELSE
+  Volume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+END IF
+IF (PRESENT(NodePartNum)) THEN
+  nPartNode = NodePartNum
+ELSE
+  nPartNode = PEM%pNumber(iElem)
+END IF
+nPair = INT(nPartNode/2)
+IF(RadialWeighting%DoRadialWeighting) THEN
+  NumDens = SUM(CollInf%Coll_SpecPartNum(:)) / Volume
+ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
+  NumDens = SUM(CollInf%Coll_SpecPartNum(:)) / Volume * Species(1)%MacroParticleFactor
+ELSE
+  NumDens = nPartNode / Volume * Species(1)%MacroParticleFactor
+END IF
 ! 1.) Calculate the reaction probabilities
-  iCase = CollInf%Coll_Case(PartSpecies(iPart1), PartSpecies(iPart2))
-  ALLOCATE(ReactionProbArray(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
-  ReactionProbArray = 0.
-  DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
-    ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-    CALL CalcReactionProb(iPair,ReacTest,ReactionProbArray(iPath),nPair,NumDens)
-  END DO
-  ReacCounter = 0; RelativeProb = 0.; QKPerformed = .FALSE.; XSecPerformed = .FALSE.
+ALLOCATE(ReactionProbArray(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
+ReactionProbArray = 0.
+DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+  ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+  CALL CalcReactionProb(iPair,ReacTest,ReactionProbArray(iPath),nPair,NumDens)
+END DO
+ReacCounter = 0; RelativeProb = 0.; QKPerformed = .FALSE.; XSecPerformed = .FALSE.
 ! 2.) Decide which reaction to perform
-  ! 2a.) QK-based chemistry
-  IF(ANY(ChemReac%QKProcedure(:))) THEN
-    ReacCounter = COUNT(ChemReac%CollCaseInfo(iCase)%QK_PerformReaction(:))
-    IF(ReacCounter.GT.0) THEN
-      DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
-        IF(ChemReac%CollCaseInfo(iCase)%QK_PerformReaction(iPath)) THEN
-          ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-          ! Flag to skip TCE treatment of this collision pair
-          QKPerformed = .TRUE.
-          ! Reset the complete array (only populated for the specific collision case)
-          ChemReac%CollCaseInfo(iCase)%QK_PerformReaction = .FALSE.
-          ! Do not perform a relaxation after the chemical reaction
-          RelaxToDo = .FALSE.
-          IF(ReacCounter.GT.1) THEN
-            ! Determine which reaction will occur, perform it and leave the loop
-            RelativeProb = RelativeProb + 1./REAL(ReacCounter)
-            CALL RANDOM_NUMBER(iRan)
-            IF(RelativeProb.GT.iRan) THEN
-              CALL DSMC_Chemistry(iPair, ReacTest)
-              ! Exit the loop
-              EXIT
-            END IF
-          ELSE
-            CALL DSMC_Chemistry(iPair, ReacTest)
-            ! Exit the loop
-            EXIT
-          END IF
-        END IF
-      END DO
-    END IF
-  END IF
-
-  IF(QKPerformed) RETURN
-
-  ! 2b.) Cross-section based chemistry (XSec)
-
-  IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
-    ReactionProbSum = Coll_pData(iPair)%Prob
-    ReactionProb = 0.
-    ! Decide which reaction should occur
-    CALL RANDOM_NUMBER(iRan)
+! 2a.) QK-based chemistry
+IF(ANY(ChemReac%QKProcedure(:))) THEN
+  ReacCounter = COUNT(ChemReac%CollCaseInfo(iCase)%QK_PerformReaction(:))
+  IF(ReacCounter.GT.0) THEN
     DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
-      ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-      IF(ChemReac%XSec_Procedure(ReacTest)) THEN
-        ReactionProb = ReactionProb + ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath)
-        IF((ReactionProb/ReactionProbSum).GT.iRan) THEN
+      IF(ChemReac%CollCaseInfo(iCase)%QK_PerformReaction(iPath)) THEN
+        ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+        ! Reset the complete array (only populated for the specific collision case)
+        ChemReac%CollCaseInfo(iCase)%QK_PerformReaction = .FALSE.
+        ! Do not perform a relaxation after the chemical reaction
+        RelaxToDo = .FALSE.
+        IF(ReacCounter.GT.1) THEN
+          ! Determine which reaction will occur, perform it and leave the loop
+          RelativeProb = RelativeProb + 1./REAL(ReacCounter)
+          CALL RANDOM_NUMBER(iRan)
+          IF(RelativeProb.GT.iRan) THEN
+            CALL DSMC_Chemistry(iPair, ReacTest)
+            ! Exit the routine
+            RETURN
+          END IF
+        ELSE
           CALL DSMC_Chemistry(iPair, ReacTest)
-          ! Flag to skip TCE treatment of this collision pair
-          XSecPerformed = .TRUE.
-          ! Do not perform a relaxation after the chemical reaction
-          RelaxToDo = .FALSE.
-          ! Exit the loop
-          EXIT
+          ! Exit the routine
+          RETURN
         END IF
       END IF
     END DO
   END IF
+END IF
 
-  IF(XSecPerformed) RETURN
+! 2b.) Cross-section based chemistry (XSec)
 
-  ! 2c.) Conventional TCE treatment (Arrhenius-based)
-
-  ReactionProbSum = 0.
+IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
+  ReactionProbSum = Coll_pData(iPair)%Prob
+  ReactionProb = 0.
+  ! Decide which reaction should occur
+  CALL RANDOM_NUMBER(iRan)
   DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-    ! Skip QK-based and XSec-based reactions
-    IF(ChemReac%QKProcedure(ReacTest).OR.ChemReac%XSec_Procedure(ReacTest)) CYCLE
-    ReactionProbSum = ReactionProbSum + ReactionProbArray(iPath)
-  END DO
-
-  ReactionProb = 0.
-  CALL RANDOM_NUMBER(iRan)
-  ! Check if the reaction probability is greater than a random number
-  IF (ReactionProbSum.GT.iRan) THEN
-    ! Decide which reaction should occur
-    CALL RANDOM_NUMBER(iRan)
-    DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
-      ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-      IF(ChemReac%QKProcedure(ReacTest).OR.ChemReac%XSec_Procedure(ReacTest)) CYCLE
-      ReactionProb = ReactionProb + ReactionProbArray(iPath)
+    IF(ChemReac%XSec_Procedure(ReacTest)) THEN
+      ReactionProb = ReactionProb + ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath)
       IF((ReactionProb/ReactionProbSum).GT.iRan) THEN
         CALL DSMC_Chemistry(iPair, ReacTest)
+        ! Do not perform a relaxation after the chemical reaction
         RelaxToDo = .FALSE.
-        EXIT
+        ! Exit the routine
+        RETURN
       END IF
-    END DO
-  END IF
+    END IF
+  END DO
+END IF
+
+! 2c.) Conventional TCE treatment (Arrhenius-based)
+
+ReactionProbSum = 0.
+DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+  ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+  ! Skip QK-based and XSec-based reactions
+  IF(ChemReac%QKProcedure(ReacTest).OR.ChemReac%XSec_Procedure(ReacTest)) CYCLE
+  ReactionProbSum = ReactionProbSum + ReactionProbArray(iPath)
+END DO
+
+ReactionProb = 0.
+CALL RANDOM_NUMBER(iRan)
+! Check if the reaction probability is greater than a random number
+IF (ReactionProbSum.GT.iRan) THEN
+  ! Decide which reaction should occur
+  CALL RANDOM_NUMBER(iRan)
+  DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+    ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+    IF(ChemReac%QKProcedure(ReacTest).OR.ChemReac%XSec_Procedure(ReacTest)) CYCLE
+    ReactionProb = ReactionProb + ReactionProbArray(iPath)
+    IF((ReactionProb/ReactionProbSum).GT.iRan) THEN
+      CALL DSMC_Chemistry(iPair, ReacTest)
+      RelaxToDo = .FALSE.
+      EXIT
+    END IF
+  END DO
+END IF
 ! ! ############################################################################################################################### !
 !     CASE(16) ! simple CEX/MEX
 ! ! ############################################################################################################################### !

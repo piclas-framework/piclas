@@ -289,7 +289,7 @@ DO iReac = 1, ReadInNumOfReact
     ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','175.269')
   END IF
   ! XSec Chemistry
-  ChemReac%XSec_Procedure(iReac)           = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-XSec-Procedure','.FALSE.')
+  ChemReac%XSec_Procedure(iReac)           = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-XSec-Procedure')
   IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
     ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
     ! Check if species 3 is an electron and abort (this is not implemented yet)
