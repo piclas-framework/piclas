@@ -429,7 +429,7 @@ INTEGER, INTENT(IN)           :: iPair, iReac
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: ReactInx(1:3), ProductReac(1:3), EductReac(1:3), nProd, nDOFMAX, iProd, iPolyatMole, iSpec
-INTEGER                       :: SpecToDelete, iPart, iPart_p3
+INTEGER                       :: SpecToDelete, iPart
 REAL                          :: FracMassCent1, FracMassCent2, MassRed     ! mx/(mx+my)
 REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
 REAL                          :: FakXi, Xi_rel, iRan, FacEtraDistri
@@ -452,7 +452,7 @@ ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
 
 IF(EductReac(3).NE.0) THEN
   IF(ChemReac%RecombParticle.NE.0) THEN
-    iPart_p3 = ChemReac%RecombParticle
+    ReactInx(3) = ChemReac%RecombParticle
     ! If a pair ahead in the list was broken, check which of the particles is used
     IF(ChemReac%LastPairForRec.GT.0) THEN
       IF(ChemReac%RecombParticle.EQ.Coll_pData(ChemReac%LastPairForRec)%iPart_p2) THEN
@@ -502,7 +502,6 @@ ELSE
 END IF
 
 IF(EductReac(3).NE.0) THEN
-  ReactInx(3) = iPart_p3
   IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
     EductReac(3) = PartSpecies(ReactInx(3))
     ProductReac(2) = PartSpecies(ReactInx(3))
@@ -512,7 +511,7 @@ IF(EductReac(3).NE.0) THEN
     CALL RemoveParticle(ReactInx(3))
   ELSE
     PartSpecies(ReactInx(3)) = ProductReac(3)
-    WeightProd = GetParticleWeight(iPart_p3)
+    WeightProd = GetParticleWeight(ReactInx(3))
     NumWeightProd = 3.
   END IF
 END IF
@@ -529,7 +528,7 @@ END IF
 
 Weight1 = GetParticleWeight(ReactInx(1))
 Weight2 = GetParticleWeight(ReactInx(2))
-IF(EductReac(3).NE.0) Weight3 = GetParticleWeight(iPart_p3)
+IF(EductReac(3).NE.0) Weight3 = GetParticleWeight(ReactInx(3))
 
 IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   ReducedMass = Species(EductReac(1))%MassIC*Weight1 * Species(EductReac(2))%MassIC*Weight2 &
@@ -572,22 +571,22 @@ END IF
 
 #ifdef CODE_ANALYZE
 ! Energy conservation
-Energy_old=0.5*Species(PartSpecies(ReactInx(1)))%MassIC*DOT_PRODUCT(PartState(4:6,ReactInx(1)),PartState(4:6,ReactInx(1))) * Weight1 &
-          +0.5*Species(PartSpecies(ReactInx(2)))%MassIC*DOT_PRODUCT(PartState(4:6,ReactInx(2)),PartState(4:6,ReactInx(2))) * Weight2 &
+Energy_old=0.5*Species(PartSpecies(ReactInx(1)))%MassIC*DOTPRODUCT(PartState(4:6,ReactInx(1))) * Weight1 &
+          +0.5*Species(PartSpecies(ReactInx(2)))%MassIC*DOTPRODUCT(PartState(4:6,ReactInx(2))) * Weight2 &
           + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight1 &
           + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight2 &
           + ChemReac%EForm(iReac)/NumWeightProd*(Weight1+Weight2+WeightProd)
-IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(3,ReactInx(1))*Weight1 + PartStateIntEn( 3,ReactInx(2)) * Weight2
+IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(3,ReactInx(1))*Weight1 + PartStateIntEn(3,ReactInx(2)) * Weight2
 IF (EductReac(3).NE.0) THEN
-  Energy_old=Energy_old+(0.5*Species(PartSpecies(iPart_p3))%MassIC*DOT_PRODUCT(PartState(4:6,iPart_p3) ,PartState(4:6,iPart_p3))&
-      + PartStateIntEn(1,iPart_p3)+PartStateIntEn(2,iPart_p3)) * Weight3
-  IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(3,iPart_p3) * Weight3
+  Energy_old=Energy_old+(0.5*Species(PartSpecies(ReactInx(3)))%MassIC*DOTPRODUCT(PartState(4:6,ReactInx(3)))&
+      + PartStateIntEn(1,ReactInx(3))+PartStateIntEn(2,ReactInx(3))) * Weight3
+  IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(3,ReactInx(3)) * Weight3
 END IF
 ! Momentum conservation
 Momentum_old(1:3) = Species(PartSpecies(ReactInx(1)))%MassIC * PartState(4:6,ReactInx(1)) * Weight1 &
                   + Species(PartSpecies(ReactInx(2)))%MassIC * PartState(4:6,ReactInx(2)) * Weight2
-IF (EductReac(3).NE.0) Momentum_old(1:3) = Momentum_old(1:3) + Species(PartSpecies(iPart_p3))%MassIC &
-                                                                * PartState(4:6,iPart_p3) * Weight3
+IF (EductReac(3).NE.0) Momentum_old(1:3) = Momentum_old(1:3) + Species(PartSpecies(ReactInx(3)))%MassIC &
+                                                                * PartState(4:6,ReactInx(3)) * Weight3
 #endif /* CODE_ANALYZE */
 
 ! Add heat of formation to collision energy
