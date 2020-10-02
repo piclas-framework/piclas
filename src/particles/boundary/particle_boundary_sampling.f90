@@ -88,7 +88,7 @@ SUBROUTINE InitParticleBoundarySampling()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Basis                   ,ONLY: LegendreGaussNodesAndWeights
-USE MOD_DSMC_Symmetry2D         ,ONLY:DSMC_2D_CalcSymmetryArea
+USE MOD_DSMC_Symmetry           ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea
 USE MOD_Mesh_Vars               ,ONLY: NGeo,nBCs,BoundaryName
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample
@@ -111,7 +111,7 @@ USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D,BezierSampleN
 USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
 USE MOD_Particle_Vars           ,ONLY: nSpecies,VarTimeStep
-USE MOD_Particle_Vars           ,ONLY: Symmetry2D
+USE MOD_Particle_Vars           ,ONLY: Symmetry
 USE MOD_PICDepo_Vars            ,ONLY: LastAnalyzeSurfCollis
 USE MOD_PICDepo_Vars            ,ONLY: SFResampleAnalyzeSurfCollis
 USE MOD_ReadInTools             ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
@@ -393,8 +393,11 @@ DEALLOCATE(GlobalSide2SurfSideProc)
 DEALLOCATE(SurfSide2GlobalSideProc)
 
 ! flag if there is at least one surf side on the node (sides in halo region do also count)
-SurfOnNode = .FALSE.
-IF (nComputeNodeSurfTotalSides.GT.0) SurfOnNode = .TRUE.
+SurfOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
+
+!> Energy + Force + nSpecies
+SurfSampSize = 9+3+nSpecies
+IF(VarTimeStep%UseVariableTimeStep) SurfSampSize = SurfSampSize + 1
 
 !> Leader communication
 #if USE_MPI
@@ -407,10 +410,6 @@ END IF
 mySurfRank      = 0
 nSurfTotalSides = nComputeNodeSurfTotalSides
 #endif /* USE_MPI */
-
-!> Energy + Force + nSpecies
-SurfSampSize = 9+3+nSpecies
-IF(VarTimeStep%UseVariableTimeStep) SurfSampSize = SurfSampSize + 1
 
 ! Initialize surface collision sampling and analyze
 CalcSurfCollis%OnlySwaps         = GETLOGICAL('Particles-CalcSurfCollis_OnlySwaps' ,'.FALSE.')
@@ -609,9 +608,7 @@ DO iSide = firstSide,LastSide
     xNod = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
     yNod = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
     zNod = NodeCoords_Shared(3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
-    IF(Symmetry2D) THEN
-      SurfSideArea(1,1,iSide) = DSMC_2D_CalcSymmetryArea(LocSideID,ElemID)
-    ELSE
+    IF(Symmetry%Order.EQ.3) THEN
       DO TriNum = 1,2
         Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
         Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
@@ -628,6 +625,10 @@ DO iSide = firstSide,LastSide
         area = area + nVal/2.
       END DO
       SurfSideArea(1,1,iSide) = area
+    ELSE IF(Symmetry%Order.EQ.2) THEN
+      SurfSideArea(1,1,iSide) = DSMC_2D_CalcSymmetryArea(LocSideID, CNElemID)
+    ELSE IF(Symmetry%Order.EQ.1) THEN
+      SurfSideArea(1,1,iSide) = DSMC_1D_CalcSymmetryArea(LocSideID, CNElemID)
     END IF
   ! .NOT. TriaTracking
   ELSE
@@ -1190,6 +1191,9 @@ INTEGER :: iProc
 
 ! Return if nothing was allocated
 IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive)).AND..NOT.(nPorousBC.GT.0)) RETURN
+
+! Return if no sampling surfaces on node
+IF (.NOT.SurfOnNode) RETURN
 
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI

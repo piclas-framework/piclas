@@ -100,7 +100,7 @@ SUBROUTINE VarTimeStep_Init()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_ReadInTools             ,ONLY: GETLOGICAL, GETINT, GETREAL, GETREALARRAY
-USE MOD_Particle_Vars           ,ONLY: Symmetry2D, VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: Symmetry, VarTimeStep
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -116,7 +116,7 @@ IF(VarTimeStep%UseLinearScaling) THEN
     'ERROR: Cannot use linear time scaling with a given distribution!')
   ! Timestep is varied according to a linear function
   VarTimeStep%ScaleFac = GETREAL('Part-VariableTimeStep-ScaleFactor')
-  IF(Symmetry2D) THEN
+  IF(Symmetry%Order.EQ.2) THEN
     ! Scaling the time step in x- and r-direction with the defintion of a stagnation point
     VarTimeStep%Use2DTimeFunc = GETLOGICAL('Part-VariableTimeStep-Use2DFunction')
     IF(VarTimeStep%Use2DTimeFunc) THEN
@@ -126,6 +126,9 @@ IF(VarTimeStep%UseLinearScaling) THEN
       VarTimeStep%TimeScaleFac2DFront = GETREAL('Part-VariableTimeStep-ScaleFactor2DFront','1.0')
       VarTimeStep%TimeScaleFac2DBack = GETREAL('Part-VariableTimeStep-ScaleFactor2DBack','1.0')
     END IF
+  ELSE IF(Symmetry%Order.EQ.1) THEN 
+    CALL abort(__STAMP__, &
+    'ERROR: 1D and variable timestep is not implemented yet!')
   ELSE
     VarTimeStep%StartPoint = GETREALARRAY('Part-VariableTimeStep-StartPoint',3)
     VarTimeStep%EndPoint = GETREALARRAY('Part-VariableTimeStep-EndPoint',3)
@@ -170,7 +173,7 @@ USE MOD_PreProc
 USE MOD_io_hdf5
 USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
 USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,DatasetExists,ReadArray,ReadAttribute,GetDataProps
-USE MOD_PARTICLE_Vars,          ONLY: VarTimeStep, Symmetry2D
+USE MOD_PARTICLE_Vars,          ONLY: VarTimeStep, Symmetry
 USE MOD_Restart_Vars,           ONLY: DoRestart, RestartFile, DoMacroscopicRestart, MacroRestartFileName
 USE MOD_StringTools             ,ONLY:STRICMP
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -319,7 +322,7 @@ IF(VarTimeStep%AdaptDistribution) THEN
     END IF
     ! Adapting the time step in order to reduce the mean collision separation
     IF(DSMCQualityFactors(iElem,2).GT.VarTimeStep%TargetMCSoverMFP) THEN
-      IF(Symmetry2D) THEN
+      IF(Symmetry%Order.EQ.2) THEN
         TimeFracTemp = MIN(TimeFracTemp,VarTimeStep%ElemFac(iElem)*(VarTimeStep%TargetMCSoverMFP/DSMCQualityFactors(iElem,2))**2)
       ELSE
         TimeFracTemp = MIN(TimeFracTemp,VarTimeStep%ElemFac(iElem)*(VarTimeStep%TargetMCSoverMFP/DSMCQualityFactors(iElem,2))**3)
@@ -347,7 +350,7 @@ IF(VarTimeStep%AdaptDistribution) THEN
         TimeFracTemp = VarTimeStep%TargetMaxCollProb*VarTimeStep%ElemFac(iElem) / DSMCQualityFactors(iElem,1)
       END IF
       IF(DSMCQualityFactors(iElem,2).GT.0.0) THEN
-        IF(Symmetry2D) THEN
+        IF(Symmetry%Order.EQ.2) THEN
           TimeFracTemp = MIN(TimeFracTemp,VarTimeStep%ElemFac(iElem)*(VarTimeStep%TargetMCSoverMFP/DSMCQualityFactors(iElem,2))**2)
         ELSE
           TimeFracTemp = MIN(TimeFracTemp,VarTimeStep%ElemFac(iElem)*(VarTimeStep%TargetMCSoverMFP/DSMCQualityFactors(iElem,2))**3)
@@ -386,7 +389,7 @@ REAL FUNCTION CalcVarTimeStep(xPos, yPos, iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars           ,ONLY: VarTimeStep, Symmetry2D
+USE MOD_Particle_Vars           ,ONLY: VarTimeStep, Symmetry
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -405,7 +408,7 @@ REAL          :: xFactor
 CalcVarTimeStep = 1.
 
 IF(VarTimeStep%UseLinearScaling) THEN
-  IF(Symmetry2D) THEN
+  IF(Symmetry%Order.EQ.2) THEN
     IF (VarTimeStep%Use2DTimeFunc) THEN
       IF(.NOT.PRESENT(xPos).OR..NOT.PRESENT(yPos)) CALL abort(__STAMP__,&
         'ERROR: Position in x-direction is required in the call of CalcVarTimeStep for linear scaling in 2D!')

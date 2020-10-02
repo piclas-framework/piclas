@@ -86,8 +86,8 @@ USE MOD_Restart_Vars         ,ONLY: N_Restart,InterpolateSolution,RestartNullify
 USE MOD_MPI                  ,ONLY: InitMPIvars
 #endif /*USE_MPI*/
 #ifdef PARTICLES
-USE MOD_DSMC_Vars            ,ONLY: UseDSMC, RadialWeighting
-USE MOD_Particle_Vars        ,ONLY: Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
+USE MOD_DSMC_Vars            ,ONLY: UseDSMC
+USE MOD_Particle_Vars        ,ONLY: VarTimeStep
 USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_Init
 USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles
 USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
@@ -95,6 +95,7 @@ USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
 USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
+USE MOD_DSMC_Symmetry        ,ONLY: Init_Symmetry
 #ifdef MPI
 USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
 #endif /* MPI */
@@ -110,6 +111,7 @@ USE MOD_Interfaces           ,ONLY: InitInterfaces
 USE MOD_QDS                  ,ONLY: InitQDS
 #endif /*USE_QDS_DG*/
 USE MOD_ReadInTools          ,ONLY: GETLOGICAL,GETREALARRAY,GETINT
+USE MOD_TimeDisc_Vars        ,ONLY: TEnd
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -125,25 +127,19 @@ TimeStampLength = GETINT('TimeStampLength')
 IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(&
     __STAMP__&
     ,'TimeStampLength cannot be smaller than 4 and not larger than 30')
-WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
+! Check if TEnd overflows the output floating format
+IF(TEnd.GE.1000.)THEN
+  ! Add at least 1 digit
+  TimeStampLength = TimeStampLength + MAX(1,CEILING(LOG10(TEnd))-3)
+END IF
+WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 
 #ifdef PARTICLES
 ! DSMC handling:
 useDSMC=GETLOGICAL('UseDSMC','.FALSE.')
 
-!--- Flags for planar/axisymmetric simulation (2D)
-Symmetry2D = GETLOGICAL('Particles-Symmetry2D')
-Symmetry2DAxisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
-IF(Symmetry2DAxisymmetric.AND.(.NOT.Symmetry2D)) THEN
-  Symmetry2D = .TRUE.
-END IF
-IF(Symmetry2DAxisymmetric) THEN
-  RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
-ELSE
-  RadialWeighting%DoRadialWeighting = .FALSE.
-  RadialWeighting%PerformCloning = .FALSE.
-END IF
+CALL Init_Symmetry()
 
 #endif /*PARTICLES*/
 
@@ -437,44 +433,6 @@ InitLoadBalanceIsDone = .FALSE.
 
 END SUBROUTINE FinalizeLoadBalance
 #endif /*USE_LOADBALANCE*/
-
-
-SUBROUTINE DisplaySimulationTime(Time, StartTime, Message)
-!===================================================================================================================================
-! Finalizes variables necessary for analyse subroutines
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN) :: Message         !< Output message
-REAL,INTENT(IN)             :: Time, StartTime !< Current simulation time and beginning of simulation time
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL :: SimulationTime,mins,secs,hours,days
-!===================================================================================================================================
-IF(.NOT.MPIRoot) RETURN
-
-SimulationTime = Time-StartTime
-
-! Get secs, mins, hours and days
-secs = MOD(SimulationTime,60.)
-SimulationTime = SimulationTime / 60
-mins = MOD(SimulationTime,60.)
-SimulationTime = SimulationTime / 60
-hours = MOD(SimulationTime,24.)
-SimulationTime = SimulationTime / 24
-!days = MOD(SimulationTime,365.) ! Use this if years are also to be displayed
-days = SimulationTime
-
-! Output
-WRITE(UNIT_stdOut,'(A,F16.2,A)',ADVANCE='NO')  ' PICLAS '//TRIM(Message)//'! [',Time-StartTime,' sec ]'
-WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),']'
-END SUBROUTINE DisplaySimulationTime
 
 
 SUBROUTINE FinalizeTimeDisc()

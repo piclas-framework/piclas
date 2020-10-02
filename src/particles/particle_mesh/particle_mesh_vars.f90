@@ -92,6 +92,10 @@ INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: SideInfo_Shared
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: NodeInfo_Shared
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: NodeCoords_Shared
 
+! Shared arrays for halo debug information
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: ElemHaloInfo_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemHaloInfo_Array
+
 INTEGER,ALLOCPOINT :: ElemToBCSides_Shared(:,:)            !> Mapping from elem to BC sides within halo eps
 REAL,ALLOCPOINT    :: SideBCMetrics_Shared(:,:)            !> Metrics for BC sides, see piclas.h
                                                            !> 1 - Global SideID
@@ -172,17 +176,19 @@ INTEGER         :: SideInfo_Shared_Win
 INTEGER         :: NodeInfo_Shared_Win
 INTEGER         :: NodeCoords_Shared_Win
 
+INTEGER         :: ElemHaloInfo_Shared_Win
+
 INTEGER         :: ElemToBCSides_Shared_Win
 INTEGER         :: SideBCMetrics_Shared_Win
 
 INTEGER         :: ElemToBGM_Shared_Win
-INTEGER           :: FIBGM_nTotalElems_Shared_Win
+INTEGER         :: FIBGM_nTotalElems_Shared_Win
 INTEGER         :: FIBGM_nElems_Shared_Win
 INTEGER         :: FIBGM_Element_Shared_Win
 INTEGER         :: FIBGM_offsetElem_Shared_Win
 
-INTEGER           :: FIBGMToProc_Shared_Win
-INTEGER           :: FIBGMProcs_Shared_Win
+INTEGER         :: FIBGMToProc_Shared_Win
+INTEGER         :: FIBGMProcs_Shared_Win
 
 INTEGER         :: BoundsOfElem_Shared_Win
 
@@ -221,9 +227,9 @@ INTEGER         :: BaseVectors3_Shared_Win
 INTEGER         :: BaseVectorsScale_Shared_Win
 
 ! Boundary sides
-INTEGER           :: BCSide2SideID_Shared_Win
-INTEGER           :: SideID2BCSide_Shared_Win
-INTEGER           :: BCSideMetrics_Shared_Win
+INTEGER         :: BCSide2SideID_Shared_Win
+INTEGER         :: SideID2BCSide_Shared_Win
+INTEGER         :: BCSideMetrics_Shared_Win
 
 ! Shared arrays containing information for mesh on compute node
 INTEGER         :: ElemVolume_Shared_Win
@@ -233,10 +239,14 @@ INTEGER         :: ElemCharLengthX_Shared_Win
 INTEGER         :: ElemCharLengthY_Shared_Win
 INTEGER         :: ElemCharLengthZ_Shared_Win
 #endif
+
+! ElemID for WriteHaloInfo
+INTEGER,ALLOCATABLE                      :: ElemHaloID(:)
+
 ! ====================================================================
 !
 ! periodic case
-INTEGER, ALLOCATABLE                     :: casematrix(:,:)   ! matrix to compute periodic cases
+INTEGER,ALLOCATABLE                      :: casematrix(:,:)   ! matrix to compute periodic cases
 INTEGER                                  :: NbrOfCases        ! Number of periodic cases
 ! Still required for PIC depo, should be remove later
 
@@ -443,6 +453,8 @@ TYPE tGeometry
 !  REAL, ALLOCATABLE                      :: ElemMidPoint(:,:)
 !  REAL, ALLOCATABLE                      :: BoundsOfElem(:,:,:)               ! Bounding box of each element (computed from Bezier
                                                                               ! control points
+  REAL, ALLOCATABLE                      :: XMinMax(:,:)                      ! Minimum (1) and maximum (2) xValue of the Element
+                                                                              ! Used for 1D (2,nELems)
 END TYPE
 
 TYPE (tGeometry)                         :: GEO

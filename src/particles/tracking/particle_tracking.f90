@@ -87,6 +87,7 @@ SUBROUTINE ParticleTriaTracking()
 USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Mesh_Vars                   ,ONLY: offsetElem
+USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM,PartSpecies
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
@@ -98,7 +99,7 @@ USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound
 USE MOD_Particle_Intersection       ,ONLY: IntersectionWithWall
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
 USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry2D             ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
+USE MOD_DSMC_Symmetry               ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -117,7 +118,7 @@ LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 LOGICAL                          :: doParticle
 LOGICAL                          :: doPartInExists
 #endif
-INTEGER                          :: i, NblocSideID, NbElemID, ind, nbSideID, nMortarElems,BCType
+INTEGER                          :: i, NblocSideID, NbElemID, CNElemID, ind, nbSideID, nMortarElems,BCType
 INTEGER                          :: ElemID,flip,OldElemID,nlocSides
 INTEGER                          :: LocalSide
 INTEGER                          :: NrOfThroughSides, ind2
@@ -407,7 +408,9 @@ DO i = 1,PDM%ParticleVecLength
             ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
           END IF
           END IF  ! SideInfo_Shared(SIDE_BCID,SideID).GT./.LE. 0
-        IF (ElemID.LT.1) THEN
+        CNElemID = GetCNElemID(ElemID)
+
+        IF (CNElemID.LT.1) THEN
           IPWRITE(UNIT_stdout,*) 'Particle Velocity: ',SQRT(DOTPRODUCT(PartState(4:6,i)))
           CALL abort(&
            __STAMP__ &
@@ -2662,10 +2665,8 @@ REAL                             :: Px, Py, Pz
 REAL                             :: Vx, Vy, Vz
 REAL                             :: xNode(3), yNode(3), zNode(3), Ax(3), Ay(3), Az(3)
 REAL                             :: det(3)
-REAL                             :: eps
 !===================================================================================================================================
 
-eps = 0.
 CNElemID = GetCNElemID(Element)
 
 ThroughSide = .FALSE.
@@ -2732,8 +2733,8 @@ det(3) = ((Ay(3) * Vz - Az(3) * Vy) * Ax(2)  + &
           (Az(3) * Vx - Ax(3) * Vz) * Ay(2)  + &
           (Ax(3) * Vy - Ay(3) * Vx) * Az(2))
 
-! Comparison of the determinants with against machine precision (eps)
-IF ((det(1).ge.-eps).AND.(det(2).ge.-eps).AND.(det(3).ge.-eps)) THEN
+! Comparison of the determinants with eps, where a zero is stored (due to machine precision)
+IF ((det(1).ge.-TriaEps).AND.(det(2).ge.-TriaEps).AND.(det(3).ge.-TriaEps)) THEN
   ThroughSide = .TRUE.
 END IF
 

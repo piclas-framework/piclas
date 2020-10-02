@@ -33,9 +33,23 @@ INTERFACE FinalizeBGM
     MODULE PROCEDURE FinalizeBGM
 END INTERFACE
 
+#if USE_MPI
+INTERFACE WriteHaloInfo
+  MODULE PROCEDURE WriteHaloInfo
+END INTERFACE
+
+INTERFACE FinalizeHaloInfo
+  MODULE PROCEDURE FinalizeHaloInfo
+END INTERFACE
+#endif /*USE_MPI*/
+
 PUBLIC::DefineParametersParticleBGM
 PUBLIC::BuildBGMAndIdentifyHaloRegion
-PUBLIC :: FinalizeBGM
+PUBLIC::FinalizeBGM
+#if USE_MPI
+PUBLIC::WriteHaloInfo
+PUBLIC::FinalizeHaloInfo
+#endif /*USE_MPI*/
 
 CONTAINS
 
@@ -105,7 +119,8 @@ IMPLICIT NONE
 INTEGER                        :: iElem,iLocSide,SideID
 INTEGER                        :: FirstElem,LastElem
 INTEGER                        :: firstNodeID,lastNodeID
-INTEGER                        :: offsetNodeID,nNodeIDs,currentOffset,moveBGMindex
+INTEGER                        :: offsetNodeID,nNodeIDs,currentOffset
+INTEGER,PARAMETER              :: moveBGMindex=1
 REAL                           :: xmin, xmax, ymin, ymax, zmin, zmax
 INTEGER                        :: iBGM, jBGM, kBGM
 INTEGER                        :: BGMimax, BGMimin, BGMjmax, BGMjmin, BGMkmax, BGMkmin
@@ -115,7 +130,7 @@ INTEGER                        :: BGMCellXmax, BGMCellXmin, BGMCellYmax, BGMCell
 INTEGER                        :: iSide
 INTEGER                        :: ElemID
 REAL                           :: deltaT
-REAL                           :: globalDiag
+REAL                           :: globalDiag,maxCellRadius
 INTEGER,ALLOCATABLE            :: sendbuf(:,:,:), recvbuf(:,:,:)
 INTEGER,ALLOCATABLE            :: offsetElemsInBGMCell(:,:,:)
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
@@ -142,27 +157,43 @@ GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
 GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
 GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
+! Ensure BGM does not protrude beyond mesh when divisible by FIBGMdeltas
+BGMiminglob = 0 + moveBGMindex
+BGMimaxglob = FLOOR((GEO%xmaxglob-GEO%xminglob)/GEO%FIBGMdeltas(1)) + moveBGMindex
+BGMimaxglob = MERGE(BGMimaxglob,BGMimaxglob-1,MODULO(GEO%xmaxglob-GEO%xminglob,GEO%FIBGMdeltas(1)).NE.0)
+BGMjminglob = 0 + moveBGMindex
+BGMjmaxglob = FLOOR((GEO%ymaxglob-GEO%yminglob)/GEO%FIBGMdeltas(2)) + moveBGMindex
+BGMjmaxglob = MERGE(BGMjmaxglob,BGMjmaxglob-1,MODULO(GEO%ymaxglob-GEO%yminglob,GEO%FIBGMdeltas(2)).NE.0)
+BGMkminglob = 0 + moveBGMindex
+BGMkmaxglob = FLOOR((GEO%zmaxglob-GEO%zminglob)/GEO%FIBGMdeltas(3)) + moveBGMindex
+BGMkmaxglob = MERGE(BGMkmaxglob,BGMkmaxglob-1,MODULO(GEO%zmaxglob-GEO%zminglob,GEO%FIBGMdeltas(3)).NE.0)
+
+GEO%FIBGMiminglob = BGMiminglob
+GEO%FIBGMimaxglob = BGMimaxglob
+GEO%FIBGMjminglob = BGMjminglob
+GEO%FIBGMjmaxglob = BGMjmaxglob
+GEO%FIBGMkminglob = BGMkminglob
+GEO%FIBGMkmaxglob = BGMkmaxglob
+
 ! Read periodic vectors from parameter file
 CALL InitPeriodicBC()
 
 #if USE_MPI
 MPISharedSize = INT(6*nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/6,nGlobalElems/),ElemToBGM_Shared_Win,ElemToBGM_Shared)
+CALL Allocate_Shared(MPISharedSize,(/6  ,nGlobalElems/),ElemToBGM_Shared_Win,ElemToBGM_Shared)
 CALL Allocate_Shared(MPISharedSize,(/2,3,nGlobalElems/),BoundsOfElem_Shared_Win,BoundsOfElem_Shared)
-CALL MPI_WIN_LOCK_ALL(0,ElemToBGM_Shared_Win,IERROR)
+CALL MPI_WIN_LOCK_ALL(0,ElemToBGM_Shared_Win  ,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,BoundsOfElem_Shared_Win,IERROR)
-firstElem = INT(REAL(myComputeNodeRank*nGlobalElems)/REAL(nComputeNodeProcessors))+1
+firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
 #else
 ! In order to use only one type of variables VarName_Shared in code structure such as tracking etc. for NON_MPI
 ! the same variables are allocated on the single proc and used from mesh_vars instead of mpi_shared_vars
-ALLOCATE(ElemToBGM_Shared(1:6,1:nElems))
+ALLOCATE(ElemToBGM_Shared(   1:6,    1:nElems))
 ALLOCATE(BoundsOfElem_Shared(1:2,1:3,1:nElems)) ! 1-2: Min, Max value; 1-3: x,y,z
 firstElem = 1
 lastElem  = nElems
 #endif  /*USE_MPI*/
-
-moveBGMindex = 1 ! BGM indices must be >1 --> move by 1
 
 ! Use NodeCoords only for TriaTracking since Tracing and RefMapping have potentially curved elements, only BezierControlPoints form
 ! convec hull
@@ -189,12 +220,12 @@ SELECT CASE(TrackingMethod)
       BoundsOfElem_Shared(2,3,iElem) = zmax
 
       ! BGM indices must be >0 --> move by 1
-      ElemToBGM_Shared(1,iElem) = FLOOR((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)) + moveBGMindex
-      ElemToBGM_Shared(2,iElem) = FLOOR((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1)) + moveBGMindex
-      ElemToBGM_Shared(3,iElem) = FLOOR((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2)) + moveBGMindex
-      ElemToBGM_Shared(4,iElem) = FLOOR((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2)) + moveBGMindex
-      ElemToBGM_Shared(5,iElem) = FLOOR((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)) + moveBGMindex
-      ElemToBGM_Shared(6,iElem) = FLOOR((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3)) + moveBGMindex
+      ElemToBGM_Shared(1,iElem) = MAX(FLOOR((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + moveBGMindex
+      ElemToBGM_Shared(2,iElem) = MIN(FLOOR((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))    + moveBGMindex,GEO%FIBGMimaxglob)
+      ElemToBGM_Shared(3,iElem) = MAX(FLOOR((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2)),0) + moveBGMindex
+      ElemToBGM_Shared(4,iElem) = MIN(FLOOR((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))    + moveBGMindex,GEO%FIBGMjmaxglob)
+      ElemToBGM_Shared(5,iElem) = MAX(FLOOR((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)),0) + moveBGMindex
+      ElemToBGM_Shared(6,iElem) = MIN(FLOOR((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))    + moveBGMindex,GEO%FIBGMkmaxglob)
     END DO ! iElem = firstElem, lastElem
 
   CASE(TRACING,REFMAPPING)
@@ -232,12 +263,12 @@ SELECT CASE(TrackingMethod)
       BoundsOfElem_Shared(2,3,iElem) = zmax
 
       ! BGM indices must be >0 --> move by 1
-      ElemToBGM_Shared(1,iElem) = FLOOR((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)) + moveBGMindex
-      ElemToBGM_Shared(2,iElem) = FLOOR((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1)) + moveBGMindex
-      ElemToBGM_Shared(3,iElem) = FLOOR((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2)) + moveBGMindex
-      ElemToBGM_Shared(4,iElem) = FLOOR((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2)) + moveBGMindex
-      ElemToBGM_Shared(5,iElem) = FLOOR((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)) + moveBGMindex
-      ElemToBGM_Shared(6,iElem) = FLOOR((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3)) + moveBGMindex
+      ElemToBGM_Shared(1,iElem) = MAX(FLOOR((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + moveBGMindex
+      ElemToBGM_Shared(2,iElem) = MIN(FLOOR((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))    + moveBGMindex,GEO%FIBGMimaxglob)
+      ElemToBGM_Shared(3,iElem) = MAX(FLOOR((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2)),0) + moveBGMindex
+      ElemToBGM_Shared(4,iElem) = MIN(FLOOR((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))    + moveBGMindex,GEO%FIBGMjmaxglob)
+      ElemToBGM_Shared(5,iElem) = MAX(FLOOR((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)),0) + moveBGMindex
+      ElemToBGM_Shared(6,iElem) = MIN(FLOOR((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))    + moveBGMindex,GEO%FIBGMkmaxglob)
     END DO ! iElem = firstElem, lastElem
 END SELECT
 
@@ -328,14 +359,28 @@ ELSE
 END IF
 #endif /*USE_MPI*/
 
-moveBGMindex = 1 ! BGM indices must be >0 --> move by 1
+! find radius of largest cell
+maxCellRadius = 0
+DO iElem = firstElem, lastElem
+  maxCellRadius = MAX(maxCellRadius,VECNORM((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
+                                               BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
+                                               BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem)/)/2.))
+END DO
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,maxCellRadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
+IF (maxCellRadius.LE.halo_eps) THEN
+  SWRITE(UNIT_stdOut,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', building halo BGM with halo_eps ...'
+ELSE
+  SWRITE(UNIT_stdOut,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', temporarily increasing radius for building halo BGM ...'
+END IF
+
 ! enlarge BGM with halo region (all element outside of this region will be cut off)
-BGMimin = FLOOR((MAX(GEO%CNxmin-halo_eps,GEO%xminglob)-GEO%xminglob)/GEO%FIBGMdeltas(1)) + moveBGMindex
-BGMimax = FLOOR((MIN(GEO%CNxmax+halo_eps,GEO%xmaxglob)-GEO%xminglob)/GEO%FIBGMdeltas(1)) + moveBGMindex
-BGMjmin = FLOOR((MAX(GEO%CNymin-halo_eps,GEO%yminglob)-GEO%yminglob)/GEO%FIBGMdeltas(2)) + moveBGMindex
-BGMjmax = FLOOR((MIN(GEO%CNymax+halo_eps,GEO%ymaxglob)-GEO%yminglob)/GEO%FIBGMdeltas(2)) + moveBGMindex
-BGMkmin = FLOOR((MAX(GEO%CNzmin-halo_eps,GEO%zminglob)-GEO%zminglob)/GEO%FIBGMdeltas(3)) + moveBGMindex
-BGMkmax = FLOOR((MIN(GEO%CNzmax+halo_eps,GEO%zmaxglob)-GEO%zminglob)/GEO%FIBGMdeltas(3)) + moveBGMindex
+BGMimin = MAX(FLOOR((GEO%CNxmin-MAX(halo_eps,maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + moveBGMindex
+BGMimax = MIN(FLOOR((GEO%CNxmax+MAX(halo_eps,maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1))    + moveBGMindex,GEO%FIBGMimaxglob)
+BGMjmin = MAX(FLOOR((GEO%CNymin-MAX(halo_eps,maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2)),0) + moveBGMindex
+BGMjmax = MIN(FLOOR((GEO%CNymax+MAX(halo_eps,maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2))    + moveBGMindex,GEO%FIBGMjmaxglob)
+BGMkmin = MAX(FLOOR((GEO%CNzmin-MAX(halo_eps,maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3)),0) + moveBGMindex
+BGMkmax = MIN(FLOOR((GEO%CNzmax+MAX(halo_eps,maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3))    + moveBGMindex,GEO%FIBGMkmaxglob)
+
 ! write function-local BGM indices into global variables
 GEO%FIBGMimin=BGMimin
 GEO%FIBGMimax=BGMimax
@@ -343,13 +388,6 @@ GEO%FIBGMjmin=BGMjmin
 GEO%FIBGMjmax=BGMjmax
 GEO%FIBGMkmin=BGMkmin
 GEO%FIBGMkmax=BGMkmax
-! initialize BGM min/max indices using GEO min/max distances
-!GEO%FIBGMimax = INT((GEO%xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))+1  + moveBGMindex
-!GEO%FIBGMimin = INT((GEO%xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))-1  + moveBGMindex
-!GEO%FIBGMjmax = INT((GEO%ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))+1  + moveBGMindex
-!GEO%FIBGMjmin = INT((GEO%ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))-1  + moveBGMindex
-!GEO%FIBGMkmax = INT((GEO%zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))+1  + moveBGMindex
-!GEO%FIBGMkmin = INT((GEO%zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))-1  + moveBGMindex
 
 ALLOCATE(GEO%FIBGM(BGMimin:BGMimax,BGMjmin:BGMjmax,BGMkmin:BGMkmax))
 
@@ -422,7 +460,7 @@ ELSE
   ! sum all MPI-side of compute-node and create correct offset mapping in SideInfo_Shared
   nMPISidesShared = 0
   DO iSide = 1, nNonUniqueGlobalSides
-    IF (SideInfo_Shared(SIDEINFOSIZE+1,iSide).EQ.2) THEN
+    IF (SideInfo_Shared(SIDE_NBELEMTYPE,iSide).EQ.2) THEN
       nMPISidesShared = nMPISidesShared + 1
     END IF
   END DO
@@ -430,7 +468,7 @@ ELSE
 
   nMPISidesShared = 0
   DO iSide = 1, nNonUniqueGlobalSides
-    IF (SideInfo_Shared(SIDEINFOSIZE+1,iSide).EQ.2) THEN
+    IF (SideInfo_Shared(SIDE_NBELEMTYPE,iSide).EQ.2) THEN
       nMPISidesShared = nMPISidesShared + 1
       offsetMPISideShared(nMPISidesShared) = iSide
     END IF
@@ -453,9 +491,9 @@ ELSE
   DO iSide = 1, nMPISidesShared
     SideID = offsetMPISideShared(iSide)
     ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
-    MPISideBoundsOfElemCenter(1:3,iSide) = (/ SUM(BoundsOfElem_Shared(1:2,1,ElemID)), &
-                                              SUM(BoundsOfElem_Shared(1:2,2,ElemID)), &
-                                              SUM(BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
+    MPISideBoundsOfElemCenter(1:3,iSide) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
+                                              SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
+                                              SUM(   BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
     MPISideBoundsOfElemCenter(4,iSide) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
                                                      BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                                      BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
@@ -838,19 +876,6 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*CODE_ANALYZE*/
 
 ! Loop over all elements and build a global FIBGM to processor mapping. This is required to identify potential emission procs
-BGMiminglob = 0 + moveBGMindex
-BGMimaxglob = FLOOR((GEO%xmaxglob-GEO%xminglob)/GEO%FIBGMdeltas(1)) + moveBGMindex
-BGMjminglob = 0 + moveBGMindex
-BGMjmaxglob = FLOOR((GEO%ymaxglob-GEO%yminglob)/GEO%FIBGMdeltas(2)) + moveBGMindex
-BGMkminglob = 0 + moveBGMindex
-BGMkmaxglob = FLOOR((GEO%zmaxglob-GEO%zminglob)/GEO%FIBGMdeltas(3)) + moveBGMindex
-
-GEO%FIBGMiminglob = BGMiminglob
-GEO%FIBGMimaxglob = BGMimaxglob
-GEO%FIBGMjminglob = BGMjminglob
-GEO%FIBGMjmaxglob = BGMjmaxglob
-GEO%FIBGMkminglob = BGMkminglob
-GEO%FIBGMkmaxglob = BGMkmaxglob
 
 firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
@@ -1051,7 +1076,109 @@ ADEALLOCATE(FIBGMToProc_Shared)
 ADEALLOCATE(FIBGMProcs)
 ADEALLOCATE(FIBGMProcs_Shared)
 
+#if USE_MPI
+CALL FinalizeHaloInfo()
+#endif /*USE_MPI*/
+
 END SUBROUTINE FinalizeBGM
+
+
+#if USE_MPI
+!===================================================================================================================================
+! Writes the HaloFlag of each compute-node into an ElemData array 'CNRankX_ElemHaloInfo'
+!===================================================================================================================================
+SUBROUTINE WriteHaloInfo()
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem
+USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,myLeaderGroupRank,nLeaderGroupProcs
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHaloID
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHaloInfo_Array,ElemHaloInfo_Shared,ElemHaloInfo_Shared_Win,ElemInfo_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
+INTEGER                        :: iRank,iElem
+CHARACTER(LEN=255)             :: tmpStr
+!===================================================================================================================================
+
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES') " ADDING halo debug information to State file..."
+
+! Allocate array in shared memory for each compute-node rank
+MPISharedSize = INT((nGlobalElems*nLeaderGroupProcs),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nGlobalElems*nLeaderGroupProcs/),ElemHaloInfo_Shared_Win,ElemHaloInfo_Array)
+CALL MPI_WIN_LOCK_ALL(0,ElemHaloInfo_Shared_Win,iERROR)
+ElemHaloInfo_Shared(1:nGlobalElems,0:nLeaderGroupProcs-1) => ElemHaloInfo_Array
+
+ElemHaloInfo_Shared(:,myLeaderGroupRank) = ElemInfo_Shared(ELEM_HALOFLAG,:)
+
+! Communicate halo information between compute-nodes
+IF (myComputeNodeRank.EQ.0) THEN
+  DO iRank = 0,nLeaderGroupProcs-1
+    CALL MPI_BCAST(ElemHaloInfo_Shared(:,iRank),nGlobalElems,MPI_INTEGER,iRank,MPI_COMM_LEADERS_SHARED,iERROR)
+  END DO
+END IF
+
+! Synchronize information on each compute-node
+CALL MPI_WIN_SYNC(ElemHaloInfo_Shared_Win,iERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+
+! Add ElemInfo halo information to ElemData
+DO iRank = 0,nLeaderGroupProcs-1
+  WRITE(UNIT=tmpStr,FMT='(I0)') iRank
+  CALL AddToElemData(ElementOut,'CNRank'//TRIM(tmpStr)//'_ElemHaloInfo',IntArray=ElemHaloInfo_Shared(offsetElem+1:offsetElem+PP_nElems,iRank))
+END DO
+
+! Add ElemHaloID information to ElemData to ease debugging
+ALLOCATE(ElemHaloID(1:PP_nElems))
+DO iElem = 1,PP_nElems
+  ElemHaloID(iElem) = offsetElem+iElem
+END DO
+CALL AddToElemData(ElementOut,'ElemID',IntArray=ElemHaloID)
+
+END SUBROUTINE WriteHaloInfo
+
+
+!===================================================================================================================================
+! Deallocates variables for the particle halo debug information
+!===================================================================================================================================
+SUBROUTINE FinalizeHaloInfo()
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHaloInfo_Array,ElemHaloInfo_Shared,ElemHaloInfo_Shared_Win
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+IF (.NOT.CalcHaloInfo) RETURN
+
+! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+CALL MPI_WIN_UNLOCK_ALL(ElemHaloInfo_Shared_Win,iError)
+CALL MPI_WIN_FREE(      ElemHaloInfo_Shared_Win,iError)
+
+! Then, free the pointers or arrays
+ADEALLOCATE(ElemHaloInfo_Shared)
+ADEALLOCATE(ElemHaloInfo_Array)
+
+END SUBROUTINE FinalizeHaloInfo
+#endif /*USE_MPI*/
 
 
 #if USE_MPI
