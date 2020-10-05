@@ -1123,6 +1123,7 @@ USE MOD_DSMC_ChemReact          ,ONLY: CalcReactionProb, DSMC_Chemistry
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_TestReaction
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1168,9 +1169,13 @@ ALLOCATE(ReactionProbArray(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
 ReactionProbArray = 0.
 DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
   ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-  CALL CalcReactionProb(iPair,ReacTest,ReactionProbArray(iPath),nPair,NumDens)
+  IF(ChemReac%QKProcedure(ReacTest)) THEN
+    CALL QK_TestReaction(iPair,ReacTest)
+  ELSE
+    CALL CalcReactionProb(iPair,ReacTest,ReactionProbArray(iPath),nPair,NumDens)
+  END IF
 END DO
-ReacCounter = 0; RelativeProb = 0.; QKPerformed = .FALSE.; XSecPerformed = .FALSE.
+ReactionProb = 0.; ReacCounter = 0
 ! 2.) Decide which reaction to perform
 ! 2a.) QK-based chemistry
 IF(ANY(ChemReac%QKProcedure(:))) THEN
@@ -1179,21 +1184,23 @@ IF(ANY(ChemReac%QKProcedure(:))) THEN
     DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       IF(ChemReac%CollCaseInfo(iCase)%QK_PerformReaction(iPath)) THEN
         ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-        ! Reset the complete array (only populated for the specific collision case)
-        ChemReac%CollCaseInfo(iCase)%QK_PerformReaction = .FALSE.
         ! Do not perform a relaxation after the chemical reaction
         RelaxToDo = .FALSE.
         IF(ReacCounter.GT.1) THEN
           ! Determine which reaction will occur, perform it and leave the loop
-          RelativeProb = RelativeProb + 1./REAL(ReacCounter)
+          ReactionProb = ReactionProb + 1./REAL(ReacCounter)
           CALL RANDOM_NUMBER(iRan)
-          IF(RelativeProb.GT.iRan) THEN
+          IF(ReactionProb.GT.iRan) THEN
             CALL DSMC_Chemistry(iPair, ReacTest)
+            ! Reset the complete array (only populated for the specific collision case)
+            ChemReac%CollCaseInfo(iCase)%QK_PerformReaction = .FALSE.
             ! Exit the routine
             RETURN
           END IF
         ELSE
           CALL DSMC_Chemistry(iPair, ReacTest)
+          ! Reset the complete array (only populated for the specific collision case)
+          ChemReac%CollCaseInfo(iCase)%QK_PerformReaction = .FALSE.
           ! Exit the routine
           RETURN
         END IF

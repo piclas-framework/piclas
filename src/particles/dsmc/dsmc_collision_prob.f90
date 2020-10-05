@@ -42,7 +42,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 ! MODULES
   USE MOD_Globals
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting
-  USE MOD_DSMC_Vars,              ONLY : UseMCC, SpecXSec, XSec_NullCollision
+  USE MOD_DSMC_Vars,              ONLY : UseMCC, SpecXSec, XSec_NullCollision, CollisMode
   USE MOD_DSMC_Vars,              ONLY : ConsiderVolumePortions
   USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, VarTimeStep
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
@@ -126,8 +126,8 @@ USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
     ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron
       IF(UseMCC) THEN
         Coll_pData(iPair)%Prob = XSec_CalcCollisionProb(iPair,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
-        IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
-          CALL XSec_CalcReactionProb(iPair,iCase)
+        IF(CollisMode.EQ.3) THEN
+          IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) CALL XSec_CalcReactionProb(iPair,iCase)
         END IF
       ELSE
         Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(PairType))  &
