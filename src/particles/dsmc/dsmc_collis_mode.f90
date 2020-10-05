@@ -1138,9 +1138,8 @@ INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart1, iPart2, nPartNode, nPair, iCase, ReacTest, iPath, ReacCounter
-REAL                          :: Volume, NumDens, ReactionProb, iRan, RelativeProb, ReactionProbSum
+REAL                          :: Volume, NumDens, ReactionProb, iRan, ReactionProbSum
 REAL, ALLOCATABLE             :: ReactionProbArray(:)
-LOGICAL                       :: QKPerformed, XSecPerformed
 !===================================================================================================================================
 iPart1 = Coll_pData(iPair)%iPart_p1
 iPart2 = Coll_pData(iPair)%iPart_p2

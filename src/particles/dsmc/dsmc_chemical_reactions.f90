@@ -338,7 +338,7 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac)
 ! Routine performs an exchange reaction of the type A + B + C -> D + E + F, where A, B, C, D, E, F can be anything
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: abort
+USE MOD_Globals                ,ONLY: abort, DOTPRODUCT
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep
