@@ -98,7 +98,7 @@ DO iElem = 1, nElems ! element/cell main loop
     DSMC%CalcVibProb = 0.
     IF(XSec_Relaxation) THEN
       DO iCase=1,CollInf%NumCase
-        SpecXSec(iCase)%VibProb(1:2) = 0.
+        SpecXSec(iCase)%VibProbOutput(1:2) = 0.
       END DO
     END IF
   END IF

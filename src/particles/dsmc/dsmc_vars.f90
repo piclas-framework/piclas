@@ -187,6 +187,7 @@ TYPE tXSecData
   REAL,ALLOCATABLE                  :: XSecData(:,:)        ! Vibrational cross-section as read-in from the database
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
                                                             ! 2: Cross-section at the respective energy level [m^2]
+  REAL                              :: Prob                 ! Event probability
 END TYPE tXSecData
 
 TYPE tSpeciesXSec
@@ -195,16 +196,19 @@ TYPE tSpeciesXSec
   REAL,ALLOCATABLE                  :: CollXSecData(:,:)    ! Collision cross-section as read-in from the database
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
                                                             ! 2: Cross-section at the respective energy level [m^2]
+  REAL,ALLOCATABLE                  :: VibXSecData(:,:)     ! Vibrational cross-section as read-in from the database
+                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
+                                                            ! 2: Cross-section at the respective energy level [m^2]
   REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
                                                             ! null collision method of MCC
   LOGICAL                           :: UseVibXSec           ! Flag if cross-section data will be used for the relaxation probability
   TYPE(tXSecData),ALLOCATABLE       :: VibMode(:)           ! Vibrational cross-sections (nVib: Number of levels found in database)
-  REAL                              :: VibProb(2)           ! 1: Sum of vibrational relaxation probability, 2: Event counter
+  REAL                              :: VibProb              ! Relaxation probability
+  REAL                              :: VibProbOutput(2)     ! 1: Sum of vibrational relaxation probability, 2: Event counter
   TYPE(tXSecData),ALLOCATABLE       :: ReactionPath(:)      ! Reaction cross-sections (nPaths: Number of reactions for that case)
 END TYPE tSpeciesXSec
 
-TYPE(tSpeciesXSec), ALLOCATABLE     :: SpecXSec(:)          ! Species cross-section related data (CollCase). First column is used
-                                                            ! for the particle species, second column for the background species
+TYPE(tSpeciesXSec), ALLOCATABLE     :: SpecXSec(:)          ! Species cross-section related data (CollCase)
 
 TYPE tDSMC
   INTEGER                       :: ElectronSpecies          ! Species of the electron

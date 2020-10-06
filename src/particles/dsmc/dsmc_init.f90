@@ -730,13 +730,8 @@ ELSE !CollisMode.GT.0
           __STAMP__&
           ,'ERROR: Please supply the collision cross-section data for the particle species and NOT the background species!')
     END IF
-    IF(SpecDSMC(iSpec)%UseVibXSec.AND.(.NOT.SpecDSMC(iSpec)%UseCollXSec)) THEN
-      CALL Abort(&
-          __STAMP__&
-          ,'ERROR: Use of vibrational cross-section data requires to collisional cross-sections, -UseCollXSec = T!')
-    END IF
   END DO
-  IF(ANY(SpecDSMC(:)%UseCollXSec)) THEN
+  IF(ANY(SpecDSMC(:)%UseCollXSec).OR.ANY(SpecDSMC(:)%UseVibXSec)) THEN
     UseMCC = .TRUE.
     CALL MCC_Init()
   ELSE
@@ -1222,7 +1217,7 @@ ELSE !CollisMode.GT.0
     DSMC%CalcVibProb = 0.
     IF(XSec_Relaxation) THEN
       DO iCase=1,CollInf%NumCase
-        SpecXSec(iCase)%VibProb(1:2) = 0.
+        SpecXSec(iCase)%VibProbOutput(1:2) = 0.
       END DO
     END IF
   END IF

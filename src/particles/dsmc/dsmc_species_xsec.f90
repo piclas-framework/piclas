@@ -20,7 +20,7 @@ MODULE MOD_DSMC_SpecXSec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 
-PUBLIC :: InterpolateCrossSection, XSec_CalcCollisionProb, XSec_CalcReactionProb
+PUBLIC :: InterpolateCrossSection, XSec_CalcCollisionProb, XSec_CalcReactionProb, XSec_CalcVibRelaxProb
 !===================================================================================================================================
 
 CONTAINS
@@ -41,7 +41,8 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER       :: iSpec, jSpec, iCase
 REAL          :: TotalProb
-INTEGER       :: iVib, nVib, iStep, nStep
+INTEGER       :: iVib, nVib, iStep, MaxDim
+REAL          :: MinBound, MaxBound
 !===================================================================================================================================
 
 XSec_Database = TRIM(GETSTR('Particles-CollXSec-Database'))
@@ -67,7 +68,8 @@ DO iSpec = 1, nSpecies
   DO jSpec = iSpec, nSpecies
     iCase = CollInf%Coll_Case(iSpec,jSpec)
     ! Skip species, which shall not be treated with collision cross-sections
-    IF(.NOT.SpecDSMC(iSpec)%UseCollXSec.AND..NOT.SpecDSMC(jSpec)%UseCollXSec) CYCLE
+    IF(.NOT.SpecDSMC(iSpec)%UseCollXSec.AND..NOT.SpecDSMC(jSpec)%UseCollXSec.AND. &
+       .NOT.SpecDSMC(iSpec)%UseVibXSec.AND..NOT.SpecDSMC(jSpec)%UseVibXSec) CYCLE
     ! Skip pairing with itself and pairing with other particle species, if background gas is active
     IF(BGGas%NumberOfSpecies.GT.0) THEN
       IF(iSpec.EQ.jSpec) CYCLE
@@ -95,24 +97,33 @@ DO iSpec = 1, nSpecies
         END IF
       END IF
     END IF
+    ! Read-in vibrational cross sections
+    IF(SpecDSMC(iSpec)%UseVibXSec.OR.SpecDSMC(jSpec)%UseVibXSec) CALL ReadVibXSec(iCase, iSpec, jSpec)
     ! Vibrational relaxation probabilities: Interpolate and store the probability at the effective cross-section levels
     IF(SpecXSec(iCase)%UseVibXSec) THEN
       XSec_Relaxation = .TRUE.
       nVib = SIZE(SpecXSec(iCase)%VibMode)
-      nStep = SIZE(SpecXSec(iCase)%CollXSecData,2)
       DO iVib = 1, nVib
         ! Store the energy value in J (read-in was in eV)
         SpecXSec(iCase)%VibMode(iVib)%XSecData(1,:) = SpecXSec(iCase)%VibMode(iVib)%XSecData(1,:) * ElementaryCharge
-        ! Interpolate the vibrational cross section at the energy levels of the effective collision cross section and sum-up the
-        ! vibrational probability (vibrational cross-section divided by the effective)
-        DO iStep = 1, nStep
-          IF(SpecXSec(iCase)%CollXSecData(2,iStep).GT.0.0) THEN
-            SpecXSec(iCase)%CollXSecData(3,iStep) = SpecXSec(iCase)%CollXSecData(3,iStep) + &
-              InterpolateCrossSection_Vib(iCase,iVib,SpecXSec(iCase)%CollXSecData(1,iStep)) &
-                                                          / SpecXSec(iCase)%CollXSecData(2,iStep)
-          END IF
-        END DO
       END DO
+      IF(SpecXSec(iCase)%UseCollXSec) THEN
+        ! Effective collision cross-sections are available, using the same energy intervals
+        MaxDim = SIZE(SpecXSec(iCase)%CollXSecData,2)
+        ALLOCATE(SpecXSec(iCase)%VibXSecData(1:2,MaxDim))
+        SpecXSec(iCase)%VibXSecData = 0.
+        DO iVib = 1, nVib
+          ! Interpolate the vibrational cross section at the energy levels of the effective collision cross section and sum-up the
+          ! vibrational probability (vibrational cross-section divided by the effective)
+          DO iStep = 1, MaxDim
+            IF(SpecXSec(iCase)%CollXSecData(2,iStep).GT.0.0) THEN
+              SpecXSec(iCase)%VibXSecData(2,iStep) = SpecXSec(iCase)%VibXSecData(2,iStep) + &
+                InterpolateCrossSection_Vib(iCase,iVib,SpecXSec(iCase)%CollXSecData(1,iStep)) &
+                                                            / SpecXSec(iCase)%CollXSecData(2,iStep)
+            END IF
+          END DO
+        END DO
+      END IF    ! SpecXSec(iCase)%UseCollXSec
     END IF      ! SpecXSec(iCase)%UseVibXSec
   END DO        ! jSpec = iSpec, nSpecies
 END DO          ! iSpec = 1, nSpecies
@@ -147,16 +158,12 @@ INTEGER(HID_T)                    :: group_id                           ! Group 
 INTEGER(HID_T)                    :: dset_id_dsmc                       ! Dataset identifier
 INTEGER(HID_T)                    :: filespace                          ! filespace identifier
 INTEGER(SIZE_T)                   :: size                               ! Size of name
-INTEGER(HSIZE_T)                  :: iVib                               ! Index
-LOGICAL                           :: DatasetFound, GroupFound
-INTEGER                           :: storage, nVib, max_corder
+LOGICAL                           :: DatasetFound
 !===================================================================================================================================
 spec_pair = TRIM(SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
 SWRITE(UNIT_StdOut,'(A)') 'Read collision cross section for '//TRIM(spec_pair)//' from '//TRIM(XSec_Database)
 
-DatasetFound = .FALSE.; GroupFound = .FALSE.
-SpecXSec(iCase)%UseVibXSec = .FALSE.
-nVar = 2
+DatasetFound = .FALSE.
 
 ! Initialize FORTRAN interface.
 CALL H5OPEN_F(err)
@@ -175,50 +182,124 @@ CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DatasetFound)
 ! Check if the dataset exist
 IF(.NOT.DatasetFound) THEN
   ! Try to swap the species names
-  dsetname = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)//'/EFFECTIVE'
+  dsetname = '/'//TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)//'/EFFECTIVE'
   CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DataSetFound)
   IF(DatasetFound) THEN
     spec_pair = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
+    SpecXSec(iCase)%UseCollXSec = .TRUE.
   ELSE
     dsetname2 = TRIM(spec_pair)//'/EFFECTIVE'
     SWRITE(UNIT_StdOut,'(A)') 'Dataset not found: ['//TRIM(dsetname2)//']. Using standard collision modelling.'
     SpecXSec(iCase)%UseCollXSec = .FALSE.
+  END IF
+ELSE
+  SpecXSec(iCase)%UseCollXSec = .TRUE.
+END IF
+
+IF(SpecXSec(iCase)%UseCollXSec) THEN
+  ! Open the dataset.
+  CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
+  ! Get the file space of the dataset.
+  CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
+  ! get size
+  CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
+  ! Read-in the effective cross-sections
+  ALLOCATE(SpecXSec(iCase)%CollXSecData(1:2,1:dims(2)))
+  SpecXSec(iCase)%CollXSecData = 0.
+  ! read data
+  CALL H5DREAD_F(dset_id_dsmc, H5T_NATIVE_DOUBLE, SpecXSec(iCase)%CollXSecData(1:2,1:dims(2)), dims, err)
+END IF
+
+! Close the file.
+CALL H5FCLOSE_F(file_id_dsmc, err)
+! Close FORTRAN interface.
+CALL H5CLOSE_F(err)
+
+END SUBROUTINE ReadCollXSec
+
+
+SUBROUTINE ReadVibXSec(iCase,iSpec,jSpec)
+!===================================================================================================================================
+!> Read-in of vibrational cross-sections from a given database. Dataset name is composed of SpeciesName-SpeciesName (e.g. Ar-electron)
+!> Trying to swap the species indices if dataset not found.
+!===================================================================================================================================
+! use module
+USE MOD_io_hdf5
+USE MOD_Globals
+USE MOD_DSMC_Vars                 ,ONLY: XSec_Database, SpecXSec, SpecDSMC
+USE MOD_HDF5_Input                ,ONLY: DatasetExists
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                :: iCase, iSpec, jSpec
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=64)                 :: dsetname, spec_pair, groupname
+INTEGER                           :: err, nVar
+INTEGER(HSIZE_T), DIMENSION(2)    :: dims,sizeMax
+INTEGER(HID_T)                    :: file_id_dsmc                       ! File identifier
+INTEGER(HID_T)                    :: group_id                           ! Group identifier
+INTEGER(HID_T)                    :: dset_id_dsmc                       ! Dataset identifier
+INTEGER(HID_T)                    :: filespace                          ! filespace identifier
+INTEGER(SIZE_T)                   :: size                               ! Size of name
+INTEGER(HSIZE_T)                  :: iVib                               ! Index
+LOGICAL                           :: GroupFound
+INTEGER                           :: storage, nVib, max_corder
+!===================================================================================================================================
+spec_pair = TRIM(SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
+SWRITE(UNIT_StdOut,'(A)') 'Read vibrational cross section for '//TRIM(spec_pair)//' from '//TRIM(XSec_Database)
+
+GroupFound = .FALSE.
+SpecXSec(iCase)%UseVibXSec = .FALSE.
+
+! Initialize FORTRAN interface.
+CALL H5OPEN_F(err)
+
+! Check if file exists
+IF(.NOT.FILEEXISTS(XSec_Database)) THEN
+  CALL abort(__STAMP__,'ERROR: Database '//TRIM(XSec_Database)//' does not exist.')
+END IF
+
+! Open the file.
+CALL H5FOPEN_F (TRIM(XSec_Database), H5F_ACC_RDONLY_F, file_id_dsmc, err)
+
+! Check if the species pair group exists
+CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), GroupFound, err)
+IF(.NOT.GroupFound) THEN
+  ! Try to swap the species names
+  spec_pair = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
+  CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), GroupFound, err)
+  IF(.NOT.GroupFound) THEN
+    SWRITE(UNIT_StdOut,'(A)') 'No vibrational excitation cross sections found in database, using constant read-in values.'
     RETURN
   END IF
 END IF
 
-SpecXSec(iCase)%UseCollXSec = .TRUE.
-
-! Open the dataset.
-CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
-! Get the file space of the dataset.
-CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
-! get size
-CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
-
-! Check if cross-section data should be used for vibrational relaxation probabilities
-IF(SpecDSMC(iSpec)%UseVibXSec.OR.SpecDSMC(jSpec)%UseVibXSec) THEN
-  groupname = TRIM('/'//TRIM(spec_pair)//'/VIBRATION/')
-  CALL H5LEXISTS_F(file_id_dsmc, groupname, GroupFound, err)
-  IF(GroupFound) THEN
-    CALL H5GOPEN_F(file_id_dsmc,TRIM(groupname), group_id, err)
-    call H5Gget_info_f(group_id, storage, nVib,max_corder, err)
-    ! If cross-section data is found, set the corresponding flag
-    IF(nVib.GT.0) THEN
-      SWRITE(UNIT_StdOut,'(A,I3,A)') 'Found ', nVib,' vibrational excitation cross section(s) in database.'
-      SpecXSec(iCase)%UseVibXSec = .TRUE.
-      nVar = 3
-    ELSE
-      SWRITE(UNIT_StdOut,'(A)') 'No vibrational excitation cross sections found in database, using constant read-in values.'
-    END IF
-  END IF
+! Check if the vibrational cross-section group exists
+groupname = TRIM(spec_pair)//'/VIBRATION/'
+CALL H5LEXISTS_F(file_id_dsmc, TRIM(groupname), GroupFound, err)
+IF(.NOT.GroupFound) THEN
+  SWRITE(UNIT_StdOut,'(A)') 'No vibrational excitation cross sections found in database, using constant read-in values.'
+  RETURN
 END IF
 
-! Read-in the effective cross-sections
-ALLOCATE(SpecXSec(iCase)%CollXSecData(nVar,dims(2)))
-SpecXSec(iCase)%CollXSecData = 0.
-! read data
-CALL H5DREAD_F(dset_id_dsmc, H5T_NATIVE_DOUBLE, SpecXSec(iCase)%CollXSecData(1:2,1:dims(2)), dims, err)
+IF(GroupFound) THEN
+  CALL H5GOPEN_F(file_id_dsmc,TRIM(groupname), group_id, err)
+  call H5Gget_info_f(group_id, storage, nVib,max_corder, err)
+  ! If cross-section data is found, set the corresponding flag
+  IF(nVib.GT.0) THEN
+    SWRITE(UNIT_StdOut,'(A,I3,A)') 'Found ', nVib,' vibrational excitation cross section(s) in database.'
+    SpecXSec(iCase)%UseVibXSec = .TRUE.
+    nVar = 3
+  ELSE
+    SWRITE(UNIT_StdOut,'(A)') 'No vibrational excitation cross sections found in database, using constant read-in values.'
+  END IF
+ELSE
+  SWRITE(UNIT_StdOut,'(A)') 'No vibrational excitation cross sections found in database, using constant read-in values.'
+END IF
 
 IF(SpecXSec(iCase)%UseVibXSec) THEN
   ALLOCATE(SpecXSec(iCase)%VibMode(1:nVib))
@@ -245,7 +326,7 @@ CALL H5FCLOSE_F(file_id_dsmc, err)
 ! Close FORTRAN interface.
 CALL H5CLOSE_F(err)
 
-END SUBROUTINE ReadCollXSec
+END SUBROUTINE ReadVibXSec
 
 
 SUBROUTINE DetermineNullCollProb(iCase,iSpec,jSpec)
@@ -415,28 +496,28 @@ INTEGER                       :: iDOF, MaxDOF
 !===================================================================================================================================
 
 InterpolateVibRelaxProb = 0.
-MaxDOF = SIZE(SpecXSec(iCase)%CollXSecData,2)
+MaxDOF = SIZE(SpecXSec(iCase)%VibXSecData,2)
 
-IF(CollisionEnergy.GT.SpecXSec(iCase)%CollXSecData(1,MaxDOF)) THEN 
+IF(CollisionEnergy.GT.SpecXSec(iCase)%VibXSecData(1,MaxDOF)) THEN 
   ! If the collision energy is greater than the maximal value, get the cross-section of the last level and leave routine
-  InterpolateVibRelaxProb = SpecXSec(iCase)%CollXSecData(3,MaxDOF)
+  InterpolateVibRelaxProb = SpecXSec(iCase)%VibXSecData(2,MaxDOF)
   ! Leave routine
   RETURN
-ELSE IF(CollisionEnergy.LE.SpecXSec(iCase)%CollXSecData(1,1)) THEN
+ELSE IF(CollisionEnergy.LE.SpecXSec(iCase)%VibXSecData(1,1)) THEN
   ! If collision energy is below the minimal value, get the cross-section of the first level and leave routine
-  InterpolateVibRelaxProb = SpecXSec(iCase)%CollXSecData(3,1)
+  InterpolateVibRelaxProb = SpecXSec(iCase)%VibXSecData(2,1)
   ! Leave routine
   RETURN
 END IF
 
 DO iDOF = 1, MaxDOF
   ! Check if the stored energy value is above the collision energy
-  IF(SpecXSec(iCase)%CollXSecData(1,iDOF).GT.CollisionEnergy) THEN
+  IF(SpecXSec(iCase)%VibXSecData(1,iDOF).GT.CollisionEnergy) THEN
     ! Interpolate the cross-section from the data set using the current and the energy level below
-    InterpolateVibRelaxProb = SpecXSec(iCase)%CollXSecData(3,iDOF-1) &
-              + (CollisionEnergy - SpecXSec(iCase)%CollXSecData(1,iDOF-1)) &
-              / (SpecXSec(iCase)%CollXSecData(1,iDOF) - SpecXSec(iCase)%CollXSecData(1,iDOF-1)) &
-              * (SpecXSec(iCase)%CollXSecData(3,iDOF) - SpecXSec(iCase)%CollXSecData(3,iDOF-1))
+    InterpolateVibRelaxProb = SpecXSec(iCase)%VibXSecData(2,iDOF-1) &
+              + (CollisionEnergy - SpecXSec(iCase)%VibXSecData(1,iDOF-1)) &
+              / (SpecXSec(iCase)%VibXSecData(1,iDOF) - SpecXSec(iCase)%VibXSecData(1,iDOF-1)) &
+              * (SpecXSec(iCase)%VibXSecData(2,iDOF) - SpecXSec(iCase)%VibXSecData(2,iDOF-1))
     ! Leave routine and do not finish DO loop
     RETURN
   END IF
@@ -500,7 +581,61 @@ ELSE
           * dtCell / Volume
 END IF
 
-END FUNCTION
+END FUNCTION XSec_CalcCollisionProb
+
+
+SUBROUTINE XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
+!===================================================================================================================================
+!> Calculate the collision probability if collision cross-section data is used. Can be utilized in combination with the regular
+!> DSMC collision calculation probability.
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars             ,ONLY: SpecXSec, SpecDSMC, Coll_pData, CollInf, BGGas, XSec_NullCollision
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, PartState
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(IN)            :: iPair
+REAL,INTENT(IN)               :: SpecNum1, SpecNum2, CollCaseNum, MacroParticleFactor, Volume, dtCell
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: CollEnergy, VeloSquare, SpecNumTarget, SpecNumSource, Probability
+INTEGER                       :: XSecSpec, XSecPart, targetSpec, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase, iVib, nVib
+!===================================================================================================================================
+
+iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
+iSpec_p1 = PartSpecies(iPart_p1);      iSpec_p2 = PartSpecies(iPart_p2)
+iCase = CollInf%Coll_Case(iSpec_p1,iSpec_p2)
+SpecXSec(iCase)%VibProb = 0.
+
+IF(SpecXSec(iCase)%UseVibXSec) THEN
+  IF(SpecDSMC(iSpec_p1)%UseVibXSec) THEN
+    XSecSpec = iSpec_p1; targetSpec = iSpec_p2; XSecPart = iPart_p1; SpecNumTarget = SpecNum2; SpecNumSource = SpecNum1
+  ELSE
+    XSecSpec = iSpec_p2; targetSpec = iSpec_p1; XSecPart = iPart_p2; SpecNumTarget = SpecNum1; SpecNumSource = SpecNum2
+  END IF
+  ! Using the kinetic energy of the particle (as is described in Vahedi1995 and Birdsall1991)
+  VeloSquare = DOT_PRODUCT(PartState(4:6,XSecPart),PartState(4:6,XSecPart))
+  CollEnergy = 0.5 * Species(XSecSpec)%MassIC * VeloSquare
+  nVib = SIZE(SpecXSec(iCase)%VibMode)
+  DO iVib = 1, nVib
+    ! Calculate the relaxation probability per vibrational mode
+    SpecXSec(iCase)%VibMode(iVib)%Prob = (1. - EXP(-SQRT(VeloSquare) * InterpolateCrossSection_Vib(iCase,iVib,CollEnergy) &
+                                                    * SpecNumTarget * MacroParticleFactor / Volume * dtCell))
+    IF(BGGas%BackgroundSpecies(targetSpec)) THEN
+      ! Correct the collision probability in the case of the second species being a background species as the number of pairs
+      ! is determined based on the species fraction
+      SpecXSec(iCase)%VibMode(iVib)%Prob = SpecXSec(iCase)%VibMode(iVib)%Prob / BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(targetSpec))
+    ELSE
+      SpecXSec(iCase)%VibMode(iVib)%Prob = SpecXSec(iCase)%VibMode(iVib)%Prob * SpecNumSource / CollInf%Coll_CaseNum(iCase)
+    END IF
+    SpecXSec(iCase)%VibProb = SpecXSec(iCase)%VibProb + SpecXSec(iCase)%VibMode(iVib)%Prob
+    Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob + SpecXSec(iCase)%VibMode(iVib)%Prob
+  END DO
+END IF
+
+END SUBROUTINE XSec_CalcVibRelaxProb
+
 
 PURE REAL FUNCTION InterpolateCrossSection_Chem(iCase,iPath,CollisionEnergy)
 !===================================================================================================================================
@@ -599,16 +734,23 @@ CALL H5OPEN_F(err)
 ! Open the file.
 CALL H5FOPEN_F (TRIM(XSec_Database), H5F_ACC_RDONLY_F, file_id_dsmc, err)
 
-groupname = TRIM('/'//TRIM(EductPair)//'/REACTION/')
-CALL H5LEXISTS_F(file_id_dsmc, groupname, GroupFound, err)
+! Check if the species pair group exists
+CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
 IF(.NOT.GroupFound) THEN
   ! Try to swap the species names
-  groupname = TRIM(SpecDSMC(EductReac(2))%Name)//'-'//TRIM(SpecDSMC(EductReac(1))%Name)//'/REACTION/'
-  CALL H5LEXISTS_F(file_id_dsmc, TRIM(groupname), GroupFound, err)
+  EductPair = TRIM(SpecDSMC(EductReac(2))%Name)//'-'//TRIM(SpecDSMC(EductReac(1))%Name)
+  CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
   IF(.NOT.GroupFound) THEN
     CALL abort(__STAMP__,&
       'No reaction cross sections found in database for reaction number:',iReac)
   END IF
+END IF
+
+groupname = TRIM('/'//TRIM(EductPair)//'/REACTION/')
+CALL H5LEXISTS_F(file_id_dsmc, groupname, GroupFound, err)
+IF(.NOT.GroupFound) THEN
+  CALL abort(__STAMP__,&
+    'No reaction cross sections found in database for reaction number:',iReac)
 END IF
 
 CALL H5GOPEN_F(file_id_dsmc,TRIM(groupname), group_id, err)

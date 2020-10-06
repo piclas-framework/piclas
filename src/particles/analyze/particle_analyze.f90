@@ -2231,16 +2231,16 @@ ELSE
     CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%CalcVibProb(1:nSpecies,2),nSpecies,MPI_DOUBLE_PRECISION,MPI_MAX,0,PartMPI%COMM, IERROR)
     CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%CalcVibProb(1:nSpecies,3),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
     IF(XSec_Relaxation) THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE,SpecXSec(:)%VibProb(1),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
-      CALL MPI_REDUCE(MPI_IN_PLACE,SpecXSec(:)%VibProb(2),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,SpecXSec(:)%VibProbOutput(1),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,SpecXSec(:)%VibProbOutput(2),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
     END IF
   ELSE
     CALL MPI_REDUCE(DSMC%CalcVibProb(1:nSpecies,1),DSMC%CalcVibProb(1:nSpecies,1),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
     CALL MPI_REDUCE(DSMC%CalcVibProb(1:nSpecies,2),DSMC%CalcVibProb(1:nSpecies,2),nSpecies,MPI_DOUBLE_PRECISION,MPI_MAX,0,PartMPI%COMM, IERROR)
     CALL MPI_REDUCE(DSMC%CalcVibProb(1:nSpecies,3),DSMC%CalcVibProb(1:nSpecies,3),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
     IF(XSec_Relaxation) THEN
-      CALL MPI_REDUCE(SpecXSec(:)%VibProb(1),SpecXSec(:)%VibProb(1),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
-      CALL MPI_REDUCE(SpecXSec(:)%VibProb(2),SpecXSec(:)%VibProb(2),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+      CALL MPI_REDUCE(SpecXSec(:)%VibProbOutput(1),SpecXSec(:)%VibProbOutput(1),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+      CALL MPI_REDUCE(SpecXSec(:)%VibProbOutput(2),SpecXSec(:)%VibProbOutput(2),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
     END IF
   END IF
 #endif /*USE_MPI*/
@@ -2252,8 +2252,8 @@ ELSE
     VibRelaxProbCase = 0.
     IF(XSec_Relaxation) THEN
       DO iCase=1,CollInf%NumCase
-        IF(SpecXSec(iCase)%VibProb(2).GT.0.0) THEN
-          VibRelaxProbCase(iCase)=SpecXSec(iCase)%VibProb(1)/SpecXSec(iCase)%VibProb(2)
+        IF(SpecXSec(iCase)%VibProbOutput(2).GT.0.0) THEN
+          VibRelaxProbCase(iCase)=SpecXSec(iCase)%VibProbOutput(1)/SpecXSec(iCase)%VibProbOutput(2)
         END IF
       END DO
     END IF

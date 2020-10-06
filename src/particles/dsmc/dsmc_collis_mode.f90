@@ -1228,6 +1228,9 @@ IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
       END IF
     END IF
   END DO
+  ! Reducing the collision probability (might be used for the determination of the relaxation probability) by the reaction
+  ! probability sum if no reaction occurred
+  Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob - ReactionProb
 END IF
 
 ! 2c.) Conventional TCE treatment (Arrhenius-based)
@@ -1434,7 +1437,12 @@ REAL                      :: CollisionEnergy
       iCase = CollInf%Coll_Case(iSpec,jSpec)
       IF(SpecXSec(iCase)%UseVibXSec) THEN
         CollisionEnergy = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType) * Coll_pData(iPair)%CRela2
-        ProbVib = InterpolateVibRelaxProb(iCase,CollisionEnergy)
+        IF(SpecXSec(iCase)%UseCollXSec) THEN
+          ! Relaxation probability is stored and can be directly interpolated
+          ProbVib = InterpolateVibRelaxProb(iCase,CollisionEnergy)
+        ELSE
+          ProbVib = SpecXSec(iCase)%VibProb / Coll_pData(iPair)%Prob
+        END IF
       END IF
     END IF
   ELSE IF(DSMC%VibRelaxProb.EQ.2.0) THEN
@@ -1453,8 +1461,8 @@ IF(DSMC%CalcQualityFactors) THEN
   DSMC%CalcVibProb(iSpec,3) = DSMC%CalcVibProb(iSpec,3) + 1
   IF(XSec_Relaxation) THEN
     iCase = CollInf%Coll_Case(iSpec,jSpec)
-    SpecXSec(iCase)%VibProb(1) = SpecXSec(iCase)%VibProb(1) + ProbVib
-    SpecXSec(iCase)%VibProb(2) = SpecXSec(iCase)%VibProb(2) + 1.0
+    SpecXSec(iCase)%VibProbOutput(1) = SpecXSec(iCase)%VibProbOutput(1) + ProbVib
+    SpecXSec(iCase)%VibProbOutput(2) = SpecXSec(iCase)%VibProbOutput(2) + 1.0
   END IF
 END IF
 
