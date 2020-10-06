@@ -4334,37 +4334,7 @@ RKdtFracTotal=RKdtFrac
 
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! communicate shape function particles
-#if USE_MPI
-  PartMPIExchange%nMPIParticles=0
-  IF(DoExternalParts)THEN
-    ! as we do not have the shape function here, we have to deallocate something
-    SDEALLOCATE(ExtPartState)
-    SDEALLOCATE(ExtPartSpecies)
-    SDEALLOCATE(ExtPartToFIBGM)
-    SDEALLOCATE(ExtPartMPF)
-    ! open receive buffer for number of particles
-    CALL IRecvNbofParticles()
-    ! send number of particles
-    CALL SendNbOfParticles()
-    ! finish communication of number of particles and send particles
-    CALL MPIParticleSend()
-  END IF
-#endif /*USE_MPI*/
-  CALL Deposition(DoInnerParts=.TRUE.) ! because of emission and UpdateParticlePosition
-#if USE_MPI
-  IF(DoExternalParts)THEN
-    ! finish communication
-    CALL MPIParticleRecv()
-  END IF
-  ! here: finish deposition with delta kernel
-  !       maps source terms in physical space
-  ! ALWAYS require
-  PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
-  CALL Deposition(DoInnerParts=.FALSE.) ! needed for closing communication
-  IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
-    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
-  END IF
+  CALL Deposition() ! because of emission and UpdateParticlePosition
 END IF
 #endif /*PARTICLES*/
 
@@ -4397,8 +4367,7 @@ IF (time.GE.DelayTime) THEN
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-  CALL InterpolateFieldToParticle(DoInnerParts=.TRUE.)   ! forces on particles
-  !CALL InterpolateFieldToParticle(DoInnerParts=.FALSE.) ! only needed when MPI communation changes the number of parts
+  CALL InterpolateFieldToParticle()   ! forces on particles
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4522,17 +4491,7 @@ DO iStage=2,nRKStages
 
   ! deposition
   IF (time.GE.DelayTime) THEN
-    CALL Deposition(DoInnerParts=.TRUE.) ! because of emission and UpdateParticlePosition
-#if USE_MPI
-    ! here: finish deposition with delta kernel
-    !       maps source terms in physical space
-    ! ALWAYS require
-    PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
-    CALL Deposition(DoInnerParts=.FALSE.) ! needed for closing communication
-  IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
-    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
-  END IF
+    CALL Deposition() ! because of emission and UpdateParticlePosition
   END IF
 #endif /*PARTICLES*/
 
@@ -4563,8 +4522,7 @@ DO iStage=2,nRKStages
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-    CALL InterpolateFieldToParticle(DoInnerParts=.TRUE.)   ! forces on particles
-    !CALL InterpolateFieldToParticle(DoInnerParts=.FALSE.) ! only needed when MPI communation changes the number of parts
+    CALL InterpolateFieldToParticle()   ! forces on particles
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
