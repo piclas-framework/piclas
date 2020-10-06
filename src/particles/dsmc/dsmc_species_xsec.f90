@@ -42,7 +42,6 @@ IMPLICIT NONE
 INTEGER       :: iSpec, jSpec, iCase
 REAL          :: TotalProb
 INTEGER       :: iVib, nVib, iStep, MaxDim
-REAL          :: MinBound, MaxBound
 !===================================================================================================================================
 
 XSec_Database = TRIM(GETSTR('Particles-CollXSec-Database'))
@@ -108,10 +107,12 @@ DO iSpec = 1, nSpecies
         SpecXSec(iCase)%VibMode(iVib)%XSecData(1,:) = SpecXSec(iCase)%VibMode(iVib)%XSecData(1,:) * ElementaryCharge
       END DO
       IF(SpecXSec(iCase)%UseCollXSec) THEN
-        ! Effective collision cross-sections are available, using the same energy intervals
+        ! Effective collision cross-sections are available
         MaxDim = SIZE(SpecXSec(iCase)%CollXSecData,2)
-        ALLOCATE(SpecXSec(iCase)%VibXSecData(1:2,MaxDim))
-        SpecXSec(iCase)%VibXSecData = 0.
+        ALLOCATE(SpecXSec(iCase)%VibXSecData(1:2,1:MaxDim))
+        ! Using the same energy intervals as for the effective cross-sections
+        SpecXSec(iCase)%VibXSecData(1,:) = SpecXSec(iCase)%CollXSecData(1,:)
+        SpecXSec(iCase)%VibXSecData(2,:) = 0.
         DO iVib = 1, nVib
           ! Interpolate the vibrational cross section at the energy levels of the effective collision cross section and sum-up the
           ! vibrational probability (vibrational cross-section divided by the effective)
@@ -150,14 +151,12 @@ INTEGER,INTENT(IN)                :: iCase, iSpec, jSpec
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=64)                 :: dsetname, dsetname2, spec_pair, groupname
-INTEGER                           :: err, nVar
+CHARACTER(LEN=64)                 :: dsetname, dsetname2, spec_pair
+INTEGER                           :: err
 INTEGER(HSIZE_T), DIMENSION(2)    :: dims,sizeMax
 INTEGER(HID_T)                    :: file_id_dsmc                       ! File identifier
-INTEGER(HID_T)                    :: group_id                           ! Group identifier
 INTEGER(HID_T)                    :: dset_id_dsmc                       ! Dataset identifier
 INTEGER(HID_T)                    :: filespace                          ! filespace identifier
-INTEGER(SIZE_T)                   :: size                               ! Size of name
 LOGICAL                           :: DatasetFound
 !===================================================================================================================================
 spec_pair = TRIM(SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
@@ -584,22 +583,22 @@ END IF
 END FUNCTION XSec_CalcCollisionProb
 
 
-SUBROUTINE XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
+SUBROUTINE XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
 !===================================================================================================================================
 !> Calculate the collision probability if collision cross-section data is used. Can be utilized in combination with the regular
 !> DSMC collision calculation probability.
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecXSec, SpecDSMC, Coll_pData, CollInf, BGGas, XSec_NullCollision
+USE MOD_DSMC_Vars             ,ONLY: SpecXSec, SpecDSMC, Coll_pData, CollInf, BGGas
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, PartState
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,INTENT(IN)            :: iPair
-REAL,INTENT(IN)               :: SpecNum1, SpecNum2, CollCaseNum, MacroParticleFactor, Volume, dtCell
+REAL,INTENT(IN)               :: SpecNum1, SpecNum2, MacroParticleFactor, Volume, dtCell
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                          :: CollEnergy, VeloSquare, SpecNumTarget, SpecNumSource, Probability
+REAL                          :: CollEnergy, VeloSquare, SpecNumTarget, SpecNumSource
 INTEGER                       :: XSecSpec, XSecPart, targetSpec, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase, iVib, nVib
 !===================================================================================================================================
 

@@ -129,7 +129,7 @@ USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
         IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
           ! No effective collision cross-section available, adding the additional probabilities to the collision probability
           IF(SpecXSec(iCase)%UseVibXSec) THEN
-            CALL XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
+            CALL XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
           END IF
           IF(CollisMode.EQ.3) THEN
             ! Chemical reaction with cross-section based probability

@@ -130,7 +130,7 @@ SUBROUTINE DSMC_chemical_init()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, ElementaryCharge
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, CollInf, SpecXSec
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
