@@ -991,12 +991,16 @@ Pt=0.
 PartSpecies        = 0
 PDM%nextFreePosition(1:PDM%maxParticleNumber)=0
 
-ALLOCATE(PEM%GlobalElemID(1:PDM%maxParticleNumber), PEM%LastGlobalElemID(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
- CALL abort(&
+ALLOCATE(PEM%GlobalElemID(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
-  ,' Cannot allocate PEM arrays!')
-END IF
+  ,' Cannot allocate PEM%GlobalElemID(1:PDM%maxParticleNumber) array!')
+
+ALLOCATE(PEM%LastGlobalElemID(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(&
+__STAMP__&
+  ,' Cannot allocate PEM%LastGlobalElemID(1:PDM%maxParticleNumber) array!')
+
 IF (useDSMC) THEN
   ALLOCATE(PEM%pStart(1:nElems)                         , &
            PEM%pNumber(1:nElems)                        , &
@@ -2649,13 +2653,6 @@ __STAMP__&
   ,' Cannot allocate PartDtFrac arrays!')
 END IF
 PartDtFrac=1.
-ALLOCATE(PEM%GlobalElemID(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-   CALL abort(&
- __STAMP__&
-   ,' Cannot allocate the stage position and element arrays!')
-END IF
-PEM%GlobalElemID=0
 ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
@@ -2687,13 +2684,6 @@ __STAMP__&
   ,' Cannot allocate PartDtFrac arrays!')
 END IF
 PartDtFrac=1.
-ALLOCATE(PEM%GlobalElemID(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-   CALL abort(&
- __STAMP__&
-   ,' Cannot allocate the stage position and element arrays!')
-END IF
-PEM%GlobalElemID=0
 ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
