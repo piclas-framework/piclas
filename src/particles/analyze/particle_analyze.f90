@@ -3212,33 +3212,9 @@ DO iSpec=1,nSpecies
 
   ! map particle from gamma v to v
   CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
-
-  ! communicate shape function particles
-#if USE_MPI
-  PartMPIExchange%nMPIParticles=0
-  IF(DoExternalParts)THEN
-    ! as we do not have the shape function here, we have to deallocate something
-    SDEALLOCATE(ExtPartState)
-    SDEALLOCATE(ExtPartSpecies)
-    SDEALLOCATE(ExtPartToFIBGM)
-    SDEALLOCATE(ExtPartMPF)
-    ! open receive buffer for number of particles
-    CALL IRecvNbofParticles()
-    ! send number of particles
-    CALL SendNbOfParticles(doParticle_In=DoParticle)
-    ! finish communication of number of particles and send particles
-    CALL MPIParticleSend()
-    ! finish communication
-    CALL MPIParticleRecv()
-    ! set exchanged number of particles to zero
-    PartMPIExchange%nMPIParticles=0
-  END IF
-#endif /*USE_MPI*/
-
   ! compute source terms
   ! compute particle source terms on field solver of considered species
-  CALL Deposition(DoInnerParts=.TRUE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
-  CALL Deposition(DoInnerParts=.FALSE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
+  CALL Deposition(doParticle_In=DoParticle(1:PDM%ParticleVecLength))
   ! map particle from v to gamma v
   CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
 

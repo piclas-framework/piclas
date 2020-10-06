@@ -1708,25 +1708,8 @@ REAL,INTENT(IN)       :: t
 !===================================================================================================================================
 
 #ifdef PARTICLES
-#if USE_MPI
-IF(DoExternalParts)THEN
-  ! communication of shape-function particles, YEAH.
-  CALL IRecvNbofParticles() ! open receive buffer for number of particles
-  CALL SendNbOfParticles() ! send number of particles
-  CALL MPIParticleSend()  ! finish communication of number of particles and send particles
-  CALL MPIParticleRecv()  ! finish communication
-END IF
-#endif
-
 ! Deposition of particles
-CALL Deposition(DoInnerParts=.TRUE.)
-#if USE_MPI
-! here: finish deposition with delta kernal
-!       maps source terms in physical space
-! ALWAYS require
-PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
-CALL Deposition(DoInnerParts=.FALSE.)
+CALL Deposition()
 #endif /*PARTICLES*/
 
 ! recompute fields

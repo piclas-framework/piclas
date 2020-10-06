@@ -160,7 +160,7 @@ SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE INTERPOLATION DONE!'
 END SUBROUTINE InitializeParticleInterpolation
 
 
-SUBROUTINE InterpolateFieldToParticle(DoInnerParts)
+SUBROUTINE InterpolateFieldToParticle()
 !===================================================================================================================================
 ! Calculates the electromagnetic fields at all the particle's positions
 !===================================================================================================================================
@@ -187,12 +187,11 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL                          :: DoInnerParts
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: firstPart,lastPart,iPart,iElem
+INTEGER                          :: iPart,iElem
 REAL                             :: Pos(1:3),PartPosRef_loc(1:3)
 !===================================================================================================================================
 !0. Return if interpolation is not required
@@ -201,41 +200,20 @@ IF(.NOT.DoInterpolation) RETURN
 !1. Calculate the time step of the discretization of the Current
 IF (CalcBField) CALL GetTimeDependentBGField()
 
-!2. Set firstPart, lastPart
-IF(DoInnerParts)THEN
-  firstPart=1
-  lastPart =PDM%ParticleVecLength
-ELSE
-#if USE_MPI
-  firstPart=PDM%ParticleVecLength-PartMPIExchange%nMPIParticles+1
-  lastPart =PDM%ParticleVecLength
-#else
-  firstPart=2
-  LastPart =1
-#endif /*USE_MPI*/
-END IF
-! thats wrong
-IF(firstPart.GT.lastPart) RETURN
-
 !3. Select element-particle loop (InterpolationElemLoop) or particle-element (.NOT.InterpolationElemLoop)
 IF (InterpolationElemLoop) THEN ! element-particle loop
   ! If PP_nElems.LE.10 (so far arbitrary threshold...) do NOT use InterpolateFieldToSingleParticle routine
-
-  !3.1 Apply any external fields to all particles
-  DO iPart = firstPart, lastPart
-    FieldAtParticle(1:6,iPart) = GetExternalFieldAtParticle(iPart)
-  END DO ! iPart = firstPart, lastPart
-
   !3.2 InterpolationElemLoop (loop elements and then particles)
   SELECT CASE(TRIM(InterpolationType))
   CASE('particle_position')
     ! particles have already been mapped
     DO iElem=1,PP_nElems
-      DO iPart=firstPart,LastPart
+      DO iPart=1,PDM%ParticleVecLength
         IF(.NOT.PDM%ParticleInside(iPart)) CYCLE ! Skip particles outside
         IF(.NOT.(DoFieldIonization.OR.isInterpolateParticle(iPart))) CYCLE ! Skip neutral particles (if field ionization if off)
         IF(PEM%LocalElemID(iPart).NE.iElem) CYCLE ! Skip particles that are not inside the current element
         ! Add the interpolated electro-(magnetic) field
+        FieldAtParticle(1:6,iPart) = GetExternalFieldAtParticle(iPart)
         FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + GetInterpolatedFieldPartPos(iElem,iPart)
       END DO ! iPart
     END DO ! iElem=1,PP_nElems
@@ -246,7 +224,7 @@ IF (InterpolationElemLoop) THEN ! element-particle loop
   END SELECT
 ELSE ! .NOT.InterpolationElemLoop -> particle-element loop
   ! IF PP_nElems.GT.10 (so far arbitrary threshold...) use InterpolateFieldToSingleParticle routine
-  DO iPart = firstPart, LastPart
+  DO iPart = 1, PDM%ParticleVecLength
     IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     ! Don't interpolate the field at neutral particles (only when considering field ionization)
     IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
