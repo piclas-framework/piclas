@@ -1937,47 +1937,11 @@ CALL LBPauseTime(LB_PUSH,tLBStart)
 
 tStage=time
 #ifdef PARTICLES
-IF((time.GE.DelayTime).OR.(iter.EQ.0))THEN
-! communicate shape function particles
-#if USE_MPI
-  IF(DoExternalParts)THEN
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-    ! as we do not have the shape function here, we have to deallocate something
-    SDEALLOCATE(ExtPartState)
-    SDEALLOCATE(ExtPartSpecies)
-    SDEALLOCATE(ExtPartToFIBGM)
-    SDEALLOCATE(ExtPartMPF)
-    ! open receive buffer for number of particles
-    CALL IRecvNbofParticles()
-    ! send number of particles
-    CALL SendNbOfParticles()
-    ! finish communication of number of particles and send particles
-    CALL MPIParticleSend()
-    ! finish communication
-    CALL MPIParticleRecv()
-    ! set exchanged number of particles to zero
-    PartMPIExchange%nMPIParticles=0
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_PARTCOMM,tLBStart)
-#endif /*USE_LOADBALANCE*/
-  END IF
-#endif /*USE_MPI*/
-END IF
-
 ! simulation with delay-time, compute the
 IF(DelayTime.GT.0.)THEN
   IF((iter.EQ.0).AND.(time.LT.DelayTime))THEN
     ! perform normal deposition
-    CALL Deposition(DoInnerParts=.TRUE.)
-#if USE_MPI
-    ! here: finish deposition with delta kernal
-    !       maps source terms in physical space
-    ! ALWAYS require
-    PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
-    CALL Deposition(DoInnerParts=.FALSE.)
+    CALL Deposition()
   END IF
 END IF
 
@@ -1985,20 +1949,12 @@ END IF
 IF (time.GE.DelayTime) THEN
   ! if we call it correctly, we may save here work between different RK-stages
   ! because of emmision and UpdateParticlePosition
-  CALL Deposition(DoInnerParts=.TRUE.)
-#if USE_MPI
-  ! here: finish deposition with delta kernal
-  !       maps source terms in physical space
-  ! ALWAYS require
-  PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
-  CALL Deposition(DoInnerParts=.FALSE.)
+  CALL Deposition()
 END IF
 
 ImplicitSource=0.
-#ifdef PARTICLES
 ExplicitPartSource=0.
-#endif /*PARTICLES*/
+
 #if !(USE_HDG)
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
@@ -2331,8 +2287,7 @@ DO iStage=2,nRKStages
     CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
     ! deposit explicit, local particles
-    CALL Deposition(DoInnerParts=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
-    CALL Deposition(DoInnerParts=.FALSE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength)) ! external particles arg
+    CALL Deposition(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
     !PartMPIExchange%nMPIParticles=0
     IF(DoDeposition) THEN
       DO iElem=1,PP_nElems
@@ -2459,14 +2414,6 @@ DO iStage=2,nRKStages
       CALL MPIParticleSend()
       ! finish communication
       CALL MPIParticleRecv()
-      PartMPIExchange%nMPIParticles=0
-      IF(DoExternalParts)THEN
-        ! as we do not have the shape function here, we have to deallocate something
-        SDEALLOCATE(ExtPartState)
-        SDEALLOCATE(ExtPartSpecies)
-        SDEALLOCATE(ExtPartToFIBGM)
-        SDEALLOCATE(ExtPartMPF)
-      END IF
 #if USE_LOADBALANCE
       CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -2625,14 +2572,6 @@ iStage=0
   ! finish communication
   CALL MPIParticleRecv()
 ! #endif ! old -> new is 9 lines below
-  PartMPIExchange%nMPIParticles=0
-  IF(DoExternalParts)THEN
-    ! as we do not have the shape function here, we have to deallocate something
-    SDEALLOCATE(ExtPartState)
-    SDEALLOCATE(ExtPartSpecies)
-    SDEALLOCATE(ExtPartToFIBGM)
-    SDEALLOCATE(ExtPartMPF)
-  END IF
 #endif
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PARTCOMM,tLBStart)
