@@ -47,9 +47,6 @@ USE MOD_Equation                   ,ONLY: DefineParametersEquation
 #if !(USE_HDG)
 USE MOD_PML                        ,ONLY: DefineParametersPML
 #endif /*USE_HDG*/
-#if USE_QDS_DG
-USE MOD_QDS                        ,ONLY: DefineParametersQDS
-#endif
 #ifdef MPI
 USE mod_readIMD                    ,ONLY: DefineParametersReadIMDdata
 #endif /* MPI */
@@ -110,9 +107,6 @@ CALL DefineParametersEquation()
 #if !(USE_HDG)
 CALL DefineParametersPML()
 #endif /*USE_HDG*/
-#if USE_QDS_DG
-CALL DefineParametersQDS()
-#endif
 #if USE_HDG
 CALL DefineParametersHDG()
 #endif /*USE_HDG*/
