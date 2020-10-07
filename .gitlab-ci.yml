@@ -366,11 +366,11 @@ gnu_NIG_PIC_poisson_Leapfrog:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_Leapfrog/ ; fi
 
-gnu_NIG_PIC_poisson_powerdensity:
-  <<: *defaults_gnu_nightly
-  stage: reggie_nightly
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_powerdensity/ ; fi
+      # gnu_NIG_PIC_poisson_powerdensity:
+      #   <<: *defaults_gnu_nightly
+      #   stage: reggie_nightly
+      #   script:
+      #     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_powerdensity/ ; fi
 
 gnu_NIG_poisson:
   <<: *defaults_gnu_nightly
@@ -384,11 +384,11 @@ gnu_NIG_maxwell_RK4:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_RK4/ ; fi
 
-gnu_NIG_PIC_poisson_plasma_wave:
-  <<: *defaults_gnu_nightly
-  stage: reggie_nightly
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_plasma_wave/ ; fi
+      # gnu_NIG_PIC_poisson_plasma_wave:
+      #   <<: *defaults_gnu_nightly
+      #   stage: reggie_nightly
+      #   script:
+      #     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_plasma_wave/ ; fi
 
 gnu_NIG_maxwell_dipole_dielectric:
   <<: *defaults_gnu_nightly
@@ -430,7 +430,8 @@ gnu_NIG_PIC_Deposition:
   <<: *defaults_gnu_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_cell_volweight_mean -e ./bin/piclas ; fi
+    #- if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_Shape-function -e ./bin/piclas ; fi
 
 #gnu_feature_SurfaceModel:
 #  <<: *defaults_gnu_nightly
