@@ -18,7 +18,7 @@ print("createCylinderHOPR.py, add nice ASCII art here")
 print(132*'=')
 
 cwd               = os.getcwd()
-config_filename   = os.path.join(cwd, '.createCylinderHOPR.config')
+config_filename   = os.path.join(cwd, '.createCylinderHOPR.json')
 config_debug_info = False # Debugging variable
 if os.path.exists(config_filename) :
     config_exists=True
