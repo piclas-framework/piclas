@@ -257,8 +257,11 @@ if Configuration.config.get("hopr", None) is None :
 else:
     newinput = input("Please enter the path to the HOPR executable [%s]: " % Configuration.config["hopr"])
 if newinput != '' :
-  Configuration.config["hopr"] = str(newinput)
-Configuration.config["hopr"] = str(os.path.abspath(Configuration.config["hopr"]).strip())
+    Configuration.config["hopr"] = str(newinput)
+
+Configuration.config["hopr"] = Configuration.config.get("hopr", None)
+if not Configuration.config["hopr"] is None :
+    Configuration.config["hopr"] = str(os.path.abspath(Configuration.config["hopr"]).strip())
 
 
 if Configuration.config.get("r1", None) is None :
@@ -266,13 +269,13 @@ if Configuration.config.get("r1", None) is None :
 else:
     newinput = input("Please enter the radius of the cylinder [%s]: " % Configuration.config["r1"])
 if newinput != '' :
-  Configuration.config["r1"] = float(newinput)
+    Configuration.config["r1"] = float(newinput)
 
 
 if Configuration.config.get("r2", None) is None :
-    newinput = float(input("Please enter the radius of the cylinder: "))
+    newinput = float(input("Please enter the radius of the simulation domain: "))
 else:
-    newinput = input("Please enter the radius of the cylinder [%s]: " % Configuration.config["r2"])
+    newinput = input("Please enter the radius of the simulation domain [%s]: " % Configuration.config["r2"])
 if newinput != '' :
   Configuration.config["r2"] = float(newinput)
 
@@ -284,11 +287,11 @@ if Configuration.config["r1"] >= Configuration.config["r2"] :
 # Get Mesh Mode
 try:
     if Configuration.config.get("mode", None) is None :
-        newinput = int(input("Please enter the of cylinder you want (1: half cylinder 2: quarter cylinder 3: full cylinder): "))
+        newinput = int(input("Please enter the type of cylinder you want (1: half cylinder 2: quarter cylinder 3: full cylinder): "))
     else:
-        newinput = input("Please enter the of cylinder you want (1: quarter cylinder 2: half cylinder 3: full cylinder) [%s]: " % Configuration.config["mode"])
+        newinput = input("Please enter the type of cylinder you want (1: quarter cylinder 2: half cylinder 3: full cylinder) [%s]: " % Configuration.config["mode"])
     if newinput != '' :
-      Configuration.config["mode"] = int(newinput)
+        Configuration.config["mode"] = int(newinput)
 
     # Sanity check mesh number
     if Configuration.config["mode"] not in (1,2,3,4):
@@ -540,12 +543,13 @@ f.close()
 
 
 # Run hopr
-if os.path.exists(Configuration.config["hopr"]):
-    print("yes")
-    # Execute python and corresponding program
-    cmd=[Configuration.config["hopr"], 'hopr.ini']
-    #Executable.execute_cmd(MyWindow.case.cmd, target_directory, environment = MyWindow.my_env) != 0 : # use uncolored string for cmake
-    Executable.execute_cmd(cmd, cwd)
+if not Configuration.config.get("hopr", None) is None :
+    if os.path.exists(Configuration.config["hopr"]):
+        print("yes")
+        # Execute python and corresponding program
+        cmd=[Configuration.config["hopr"], 'hopr.ini']
+        #Executable.execute_cmd(MyWindow.case.cmd, target_directory, environment = MyWindow.my_env) != 0 : # use uncolored string for cmake
+        Executable.execute_cmd(cmd, cwd)
 
 
 
