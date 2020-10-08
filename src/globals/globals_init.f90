@@ -92,9 +92,9 @@ SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS ...'
 
 #if USE_READIN_CONSTANTS
 ! Natural constants
-c      = GETREAL('c0','1.')
-eps0   = GETREAL('eps','1.')
-mu0    = GETREAL('mu','1.')
+c      = GETREAL('c0')
+eps0   = GETREAL('eps')
+mu0    = GETREAL('mu')
 c_inv  = 1./c
 c2     = c*c
 smu0   = 1./mu0

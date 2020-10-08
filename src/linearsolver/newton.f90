@@ -225,7 +225,6 @@ USE MOD_Part_RHS               ,ONLY: PartVeloToImp
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
 USE MOD_Part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
-USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_ParticleSolver         ,ONLY: ParticleNewton
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
@@ -334,8 +333,7 @@ END IF
   CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
   ! compute particle source terms on field solver of implicit particles :)
-  CALL Deposition(DoInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-  CALL Deposition(DoInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+  CALL Deposition(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   ! map particle from v to gamma v
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_DEPOSITION,tLBStart)
@@ -542,9 +540,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 #if USE_LOADBALANCE
       CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
-      CALL Deposition(DoInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-      CALL Deposition(DoInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-      IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+      CALL Deposition(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       ! and map back
 #if USE_LOADBALANCE
       CALL LBSplitTime(LB_DEPOSITION,tLBStart)
@@ -709,9 +705,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
       ! compute particle source terms on field solver of implicit particles :)
-      CALL Deposition(DoInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-      CALL Deposition(DoInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-      IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+      CALL Deposition(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       ! and map back
 #if USE_LOADBALANCE
       CALL LBSplitTime(LB_DEPOSITION,tLBStart)
