@@ -307,16 +307,19 @@ r02 = Configuration.config["r2"] / s0
 
 if Configuration.config["mode"] == 1:
     # 90 degree
-    centerBC = 1
     NbrOfZones = 2
+    symmetryBC = 6
+    symmetryBC2 = 7
 elif Configuration.config["mode"] == 2:
     # 180 degree
-    centerBC = 0
     NbrOfZones = 4
+    symmetryBC = 6
+    symmetryBC2 = 0
 elif Configuration.config["mode"] == 3:
     # 360 degree
-    centerBC = 0
     NbrOfZones = 8
+    symmetryBC = 0
+    symmetryBC2 = 0
 else:
     print(red("\nError: choose mesh 1, 2 or 3! mode=%s" % Configuration.config["mode"]))
     exit(1)
@@ -372,10 +375,15 @@ f.write(r"""!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary
 
 if NbrOfZones > 2:
     f.write(r"""
+! ---------------------------------------------------------------
+! Upper cylinder half
+! ---------------------------------------------------------------
 !left-lower (x-)
 Corner       =(/-r01 , 0.  , 0.   ,,   -r02 , 0.  , 0.   ,,   -r02 , r02 , 0.   ,,   -r01 , r01 , 0.   ,,   -r01 , 0.  , lz   ,,   -r02 , 0.  , lz   ,,   -r02 , r02 , lz   ,,   -r01 , r01 , lz /)
 nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
-BCIndex      =(/1  , 6  , 4  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)
+""")
+f.write(r'BCIndex      =(/1  , %s  , 4  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
+f.write(r"""
 !            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
 elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/f1,1.,1./)                     ! stretching
@@ -389,15 +397,13 @@ elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/1.,f1,1./)                     ! stretching
 """)
 
-
 f.write(r"""
-
-
-
 !right-lower (x+)
 Corner       =(/r01 , 0.  , 0.   ,,   r02 , 0.  , 0.   ,,   r02 , r02 , 0.   ,,   r01 , r01 , 0.   ,,   r01 , 0.  , lz   ,,   r02 , 0.  , lz   ,,   r02 , r02 , lz   ,,   r01 , r01 , lz /)
 nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
-BCIndex      =(/1  , 6  , 5  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)
+""")
+f.write(r'BCIndex      =(/1  , %s  , 5  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
+f.write(r"""
 !            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
 elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/f1,1.,1./)                     ! stretching
@@ -406,10 +412,68 @@ factor       =(/f1,1.,1./)                     ! stretching
 Corner       =(/0.  , r01 , 0.   ,,   r01 , r01 , 0.   ,,   r02 , r02 , 0.   ,,   0.  , r02 , 0.   ,,   0.  , r01 , lz   ,,   r01 , r01 , lz   ,,   r02 , r02 , lz   ,,   0.  , r02 , lz /)
 nElems       =(/i02,ir1,iz/)                   ! number of elements in each direction
 """)
-f.write(r'BCIndex      =(/1  , 3  , 0  , 5  , %s  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % centerBC + '\n')
+f.write(r'BCIndex      =(/1  , 3  , 0  , 5  , %s  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC2 + '\n')
 f.write(r"""!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
 elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/1.,f1,1./)                     ! stretching
+
+
+
+
+
+""")
+
+
+# Bottom part of the full cylinder
+if NbrOfZones > 4:
+    f.write(r"""
+! ---------------------------------------------------------------
+! Bottom cylinder half
+! ---------------------------------------------------------------
+!left-lower (x-)
+Corner       =(/-r01 , 0.  , 0.   ,,   -r02 , 0.  , 0.   ,,   -r02 , -r02 , 0.   ,,   -r01 , -r01 , 0.   ,,   -r01 , 0.  , lz   ,,   -r02 , 0.  , lz   ,,   -r02 , -r02 , lz   ,,   -r01 , -r01 , lz /)
+nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
+""")
+f.write(r'BCIndex      =(/1  , %s  , 4  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
+f.write(r"""
+!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
+elemtype     =108                              ! element type (108: Hexahedral)
+factor       =(/f1,1.,1./)                     ! stretching
+
+!left-upper (y+)
+Corner       =(/0.  , -r01 , 0.   ,,   -r01 , -r01 , 0.   ,,   -r02 , -r02 , 0.   ,,   0.  , -r02 , 0.   ,,   0.  , -r01 , lz   ,,   -r01 , -r01 , lz   ,,   -r02 , -r02 , lz   ,,   0.  , -r02 , lz /)
+nElems       =(/i02,ir1,iz/)                   ! number of elements in each direction
+BCIndex      =(/1  , 3  , 0  , 4  , 0  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)
+!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
+elemtype     =108                              ! element type (108: Hexahedral)
+factor       =(/1.,f1,1./)                     ! stretching
+
+
+
+!right-lower (x+)
+Corner       =(/r01 , 0.  , 0.   ,,   r02 , 0.  , 0.   ,,   r02 , -r02 , 0.   ,,   r01 , -r01 , 0.   ,,   r01 , 0.  , lz   ,,   r02 , 0.  , lz   ,,   r02 , -r02 , lz   ,,   r01 , -r01 , lz /)
+nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
+""")
+f.write(r'BCIndex      =(/1  , %s  , 5  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
+f.write(r"""
+!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
+elemtype     =108                              ! element type (108: Hexahedral)
+factor       =(/f1,1.,1./)                     ! stretching
+
+!right-upper (y+)
+Corner       =(/0.  , -r01 , 0.   ,,   r01 , -r01 , 0.   ,,   r02 , -r02 , 0.   ,,   0.  , -r02 , 0.   ,,   0.  , -r01 , lz   ,,   r01 , -r01 , lz   ,,   r02 , -r02 , lz   ,,   0.  , -r02 , lz /)
+nElems       =(/i02,ir1,iz/)                   ! number of elements in each direction
+BCIndex      =(/1  , 3  , 0  , 5  , 0  , 2/)   ! Indices of Boundary Conditions
+!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
+elemtype     =108                              ! element type (108: Hexahedral)
+factor       =(/1.,f1,1./)                     ! stretching
+
+
+
+
+
+
+
 
 
 
@@ -434,8 +498,6 @@ BoundaryType=(/3,0,0,0/)  ! (/ Type, curveIndex, State, alpha /)
 BoundaryName=BC_front     ! BC index X
 BoundaryType=(/3,0,0,0/)  ! (/ Type, curveIndex, State, alpha /)
 
-
-
 BoundaryName=BC_cylinder     ! BC index X
 BoundaryType=(/3,0,0,0/)
 
@@ -444,9 +506,26 @@ BoundaryType=(/2,0,0,0/)
 
 BoundaryName=BC_right    ! BC index X
 BoundaryType=(/4,0,0,0/)
+""")
 
+
+if NbrOfZones == 4:
+    f.write(r"""
 BoundaryName=BC_symmetry    ! BC index X
 BoundaryType=(/4,0,0,0/)
+""")
+elif NbrOfZones == 2:
+    f.write(r"""
+BoundaryName=BC_symmetry1   ! BC index X
+BoundaryType=(/4,0,0,0/)
+
+BoundaryName=BC_symmetry2   ! BC index X
+BoundaryType=(/4,0,0,0/)
+""")
+
+
+
+f.write(r"""
 
 !================================================================================================================================= !
 ! MESH POST DEFORM
