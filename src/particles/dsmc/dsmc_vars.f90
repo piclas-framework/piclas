@@ -155,13 +155,6 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   REAL                        :: VibCrossSec               ! vibrational cross section, ini_2
   REAL, ALLOCATABLE           :: CharaVelo(:)              ! characteristic velocity according to Boyd & Abe, nec for vib
                                                            ! relaxation
-#if (PP_TimeDiscMethod==42)
-#ifdef CODE_ANALYZE
-  INTEGER,ALLOCATABLE,DIMENSION(:)  :: levelcounter        ! counter for electronic levels; only debug
-  INTEGER,ALLOCATABLE,DIMENSION(:)  :: dtlevelcounter      ! counter for produced electronic levels per timestep; only debug
-  REAL,ALLOCATABLE,DIMENSION(:,:,:) :: ElectronicTransition! counter for electronic transition from state i to j
-#endif
-#endif
   REAL,ALLOCATABLE,DIMENSION(:,:)   :: ElectronicState      ! Array with electronic State for each species
                                                             ! first  index: 1 - degeneracy & 2 - char. Temp,el
                                                             ! second index: energy level
@@ -204,7 +197,7 @@ TYPE tSpeciesXSec
   LOGICAL                           :: UseVibXSec           ! Flag if cross-section data will be used for the relaxation probability
   TYPE(tXSecData),ALLOCATABLE       :: VibMode(:)           ! Vibrational cross-sections (nVib: Number of levels found in database)
   REAL                              :: VibProb              ! Relaxation probability
-  REAL                              :: VibProbOutput(2)     ! 1: Sum of vibrational relaxation probability, 2: Event counter
+  REAL                              :: VibCount             ! Event counter
   TYPE(tXSecData),ALLOCATABLE       :: ReactionPath(:)      ! Reaction cross-sections (nPaths: Number of reactions for that case)
 END TYPE tSpeciesXSec
 
@@ -270,9 +263,6 @@ TYPE tDSMC
   LOGICAL                       :: ElectronicModel          ! Flag for Electronic State of atoms and molecules
   CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file
   INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules
-  LOGICAL                       :: OutputMeshInit           ! Write Outputmesh (for const. pressure BC) at Init.
-  LOGICAL                       :: OutputMeshSamp           ! Write Outputmesh (for const. pressure BC)
-                                                            ! with sampling values at t_analyze
   REAL                          :: RotRelaxProb             ! Model for calculation of rotational relaxation probability, ini_1
                                                             !    0-1: constant probability  (0: no relaxation)
                                                             !    2: Boyd's model

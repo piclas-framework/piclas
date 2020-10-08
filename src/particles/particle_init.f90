@@ -766,8 +766,6 @@ IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__&
 #endif
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
   DSMC%ElectronicModel = .FALSE.
-  DSMC%OutputMeshInit  = .FALSE.
-  DSMC%OutputMeshSamp  = .FALSE.
 END IF
 
 #if USE_MPI

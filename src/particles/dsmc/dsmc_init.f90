@@ -54,14 +54,6 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("DSMC")
 
-CALL prms%CreateLogicalOption(  'Particles-DSMC-OutputMeshInit'      &
-                                        ,  'not working currently | Writeoutput mesh for constant pressure BC at initialization.'&
-                                        , '.FALSE.')
-
-CALL prms%CreateLogicalOption(  'Particles-DSMC-OutputMeshSamp'      &
-                                        , 'not working currently | Write output mesh for constant pressure BC with sampling'//&
-                                          'values at t_analyze.' , '.FALSE.')
-
 CALL prms%CreateIntOption(      'Particles-DSMC-CollisMode'      &
                                         , 'Define mode of collision handling in DSMC.\n'//&
                                             '0: No Collisions (=free molecular flow with DSMC-Sampling-Routines).\n'//&
@@ -358,12 +350,6 @@ INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, 
 INTEGER               :: iColl, jColl, pColl, nCollision ! for collision parameter read in
 REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
 LOGICAL               :: PostCollPointerSet
-#if ( PP_TimeDiscMethod ==42 )
-#ifdef CODE_ANALYZE
-CHARACTER(LEN=64)     :: DebugElectronicStateFilename
-INTEGER               :: ii
-#endif
-#endif
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' DSMC INIT ...'
@@ -371,14 +357,6 @@ SWRITE(UNIT_stdOut,'(A)') ' DSMC INIT ...'
 ! Initialize counter (Count the number of ReactionProb>1)
 ReactionProbGTUnityCounter = 0
 
-! reading/writing OutputMesh stuff
-DSMC%OutputMeshInit = GETLOGICAL('Particles-DSMC-OutputMeshInit','.FALSE.')
-DSMC%OutputMeshSamp = GETLOGICAL('Particles-DSMC-OutputMeshSamp','.FALSE.')
-!  IF (DSMC%OutputMeshInit) THEN
-!    SWRITE(UNIT_stdOut,'(A)')' WRITING OUTPUT-MESH...'
-!    CALL WriteOutputMesh()
-!    SWRITE(UNIT_stdOut,'(A)')' WRITING OUTPUT-MESH DONE!'
-!  END IF
 ! reading and reset general DSMC values
 CollisMode = GETINT('Particles-DSMC-CollisMode','1') !0: no collis, 1:elastic col, 2:elast+rela, 3:chem
 SelectionProc = GETINT('Particles-DSMC-SelectionProcedure','1') !1: Laux, 2:Gimelsheim
@@ -914,26 +892,6 @@ ELSE !CollisMode.GT.0
     END IF
 #endif
     !-----------------------------------------------------------------------------------------------------------------------------------
-#if (PP_TimeDiscMethod==42)
-#ifdef CODE_ANALYZE
-    IF ( DSMC%ElectronicModel ) THEN
-      DO iSpec = 1, nSpecies
-        IF ( (SpecDSMC(iSpec)%InterID .eq. 4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
-          SpecDSMC(iSpec)%MaxElecQuant = 0
-        ELSE
-          ALLOCATE( SpecDSMC(iSpec)%levelcounter         ( 0:size(SpecDSMC(iSpec)%ElectronicState,2)-1) , &
-                    SpecDSMC(iSpec)%dtlevelcounter       ( 0:size(SpecDSMC(ispec)%ElectronicState,2)-1) , &
-                    SpecDSMC(iSpec)%ElectronicTransition ( 1:nSpecies                                   , &
-                                                           0:size(SpecDSMC(ispec)%ElectronicState,2)-1,   &
-                                                           0:size(SpecDSMC(ispec)%ElectronicState,2)-1)   )
-          SpecDSMC(iSpec)%levelcounter         = 0
-          SpecDSMC(iSpec)%dtlevelcounter       = 0
-          SpecDSMC(iSpec)%ElectronicTransition = 0
-        END IF
-      END DO
-    END IF
-#endif
-#endif
     ! Setting the internal energy value of every particle
     DO iPart = 1, PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
@@ -947,33 +905,8 @@ ELSE !CollisMode.GT.0
         END IF
       END IF
     END DO
-
-#if (PP_TimeDiscMethod==42)
-#ifdef CODE_ANALYZE
-    ! Debug Output for initialized electronic state
-    IF ( DSMC%ElectronicModel ) THEN
-      DO iSpec = 1, nSpecies
-        print*,SpecDSMC(iSpec)%InterID
-        IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-          IF (  SpecDSMC(iSpec)%levelcounter(0) .ne. 0) THEN
-            WRITE(DebugElectronicStateFilename,'(I2.2)') iSpec
-            DebugElectronicStateFilename = 'Initial_Electronic_State_Species_'//trim(DebugElectronicStateFilename)//'.dat'
-            open(unit=483,file=DebugElectronicStateFilename,form='formatted',status='unknown')
-            DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
-              WRITE(483,'(I3.1,3x,F12.7)') ii, REAL( SpecDSMC(iSpec)%levelcounter(ii) ) / &
-                  REAL( Species(iSpec)%Init(1)%initialParticleNumber )
-            END DO
-            close(unit=483)
-          END IF
-        END IF
-      END DO
-    END IF
-#endif
-#endif
-
-#if (PP_TimeDiscMethod!=300)
+    ! Array not required anymore after the initialization is completed
     DEALLOCATE(PDM%PartInit)
-#endif
   END IF ! CollisMode .EQ. 2 or 3
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! Define chemical reactions (including ionization and backward reaction rate)
@@ -1215,12 +1148,8 @@ ELSE !CollisMode.GT.0
   IF(DSMC%CalcQualityFactors) THEN
     ALLOCATE(DSMC%CalcVibProb(1:nSpecies,1:3))
     DSMC%CalcVibProb = 0.
-    IF(XSec_Relaxation) THEN
-      DO iCase=1,CollInf%NumCase
-        SpecXSec(iCase)%VibProbOutput(1:2) = 0.
-      END DO
-    END IF
   END IF
+  IF(XSec_Relaxation) SpecXSec(:)%VibCount = 0.
 END IF !CollisMode.GT.0
 
 ! If field ionization is used without chemical reactions due to collisions (DSMC chemistry)
@@ -1242,7 +1171,6 @@ IF(DoFieldIonization.AND.(CollisMode.NE.3))THEN
       SpecDSMC(iSpec)%NextIonizationSpecies = 0
     END IF
   END DO ! iSpec = 1, nSpecies
-
 
   ! Set "NextIonizationSpecies" information for field ionization from "PreviousState" info
   ! NextIonizationSpecies => SpeciesID of the next higher ionization level

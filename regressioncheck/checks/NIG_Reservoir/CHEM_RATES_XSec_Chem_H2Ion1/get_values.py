@@ -7,12 +7,13 @@ def get_numbers_from_filename(filename):
 
 directory = os.getcwd()
 
-varName_01 = '002-Reaction001     '
-varName_02 = '003-Reaction002     '
-varName_03 = '004-Reaction003      '
+varName_01 = '003-Reaction001     '
+varName_02 = '004-Reaction002     '
+varName_03 = '005-Reaction003      '
+varName_04 = '002-VibRelaxRate001+004'
 
 for filename in sorted(os.listdir(directory)):
     if filename.startswith("PartAnalyze"):
         temp = get_numbers_from_filename(filename)
         df = pd.read_csv(filename)
-        print(temp, *df[varName_01].tail(1).values,*df[varName_02].tail(1).values,*df[varName_03].tail(1).values,sep=",")
+        print(temp, *df[varName_01].tail(1).values,*df[varName_02].tail(1).values,*df[varName_03].tail(1).values,*df[varName_04].tail(1).values,sep=",")

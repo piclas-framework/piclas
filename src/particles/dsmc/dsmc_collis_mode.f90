@@ -357,13 +357,15 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair)
 ! Vibrational (of the relaxing molecule), rotational and relative translational energy (of both molecules) is redistributed (V-R-T)
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, DSMC_RHS, DSMC, SpecDSMC, PartStateIntEn, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, DSMC_RHS, DSMC, SpecDSMC, PartStateIntEn, RadialWeighting, SpecXSec
+USE MOD_DSMC_Vars             ,ONLY: XSec_Relaxation
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, VarTimeStep, PEM
 USE MOD_DSMC_ElectronicModel  ,ONLY: ElectronicEnergyExchange, TVEEnergyExchange
 USE MOD_DSMC_PolyAtomicModel  ,ONLY: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
 USE MOD_DSMC_Relaxation       ,ONLY: DSMC_VibRelaxDiatomic
 USE MOD_DSMC_CollisVec        ,ONLY: PostCollVec
 USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcRelaxProb
 #ifdef CODE_ANALYZE
 USE MOD_Globals               ,ONLY: Abort
 USE MOD_Globals               ,ONLY: unit_stdout,myrank
@@ -392,12 +394,8 @@ LOGICAL                       :: DoElec1, DoElec2
 REAL                          :: Energy_old,Energy_new
 REAL                          :: Weight1, Weight2
 #endif /* CODE_ANALYZE */
+INTEGER                       :: iCase
 !===================================================================================================================================
-
-#if (PP_TimeDiscMethod==42)
-! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-IF (DSMC%ReservoirSimuRate) RETURN
-#endif
 
   iPart1 = Coll_pData(iPair)%iPart_p1
   iPart2 = Coll_pData(iPair)%iPart_p2
@@ -467,6 +465,17 @@ IF (DSMC%ReservoirSimuRate) RETURN
     END IF
   END IF
 
+#if (PP_TimeDiscMethod==42)
+IF(CalcRelaxProb) THEN
+  IF(XSec_Relaxation) THEN
+    IF(DoVib1) THEN
+      iCase = CollInf%Coll_Case(iSpec1,iSpec2)
+      SpecXSec(iCase)%VibCount = SpecXSec(iCase)%VibCount + 1.0
+    END IF
+  END IF
+END IF
+#endif
+
   IF((SpecDSMC(iSpec2)%InterID.EQ.2).OR.(SpecDSMC(iSpec2)%InterID.EQ.20)) THEN
     CALL RANDOM_NUMBER(iRan)
     CALL DSMC_calc_P_rot(iSpec2, iSpec1, iPair, Coll_pData(iPair)%iPart_p2, Xi_rel, ProbRot2, ProbRotMax2)
@@ -496,6 +505,18 @@ IF (DSMC%ReservoirSimuRate) RETURN
 
   FakXi = 0.5*Xi  - 1  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
 
+#if (PP_TimeDiscMethod==42)
+IF(CalcRelaxProb) THEN
+  IF(XSec_Relaxation) THEN
+    IF(DoVib2) THEN
+      iCase = CollInf%Coll_Case(iSpec1,iSpec2)
+      SpecXSec(iCase)%VibCount = SpecXSec(iCase)%VibCount + 1.0
+    END IF
+  END IF
+END IF
+! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+IF (DSMC%ReservoirSimuRate) RETURN
+#endif
 
 !--------------------------------------------------------------------------------------------------!
 ! Electronic Relaxation / Transition
@@ -1434,14 +1455,16 @@ REAL                      :: CollisionEnergy
       ProbVib = DSMC%VibRelaxProb * CorrFact
     END IF
     IF(XSec_Relaxation) THEN
-      iCase = CollInf%Coll_Case(iSpec,jSpec)
-      IF(SpecXSec(iCase)%UseVibXSec) THEN
-        CollisionEnergy = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType) * Coll_pData(iPair)%CRela2
-        IF(SpecXSec(iCase)%UseCollXSec) THEN
-          ! Relaxation probability is stored and can be directly interpolated
-          ProbVib = InterpolateVibRelaxProb(iCase,CollisionEnergy)
-        ELSE
-          ProbVib = SpecXSec(iCase)%VibProb / Coll_pData(iPair)%Prob
+      IF(SpecDSMC(iSpec)%UseVibXSec) THEN
+        iCase = CollInf%Coll_Case(iSpec,jSpec)
+        IF(SpecXSec(iCase)%UseVibXSec) THEN
+          IF(SpecXSec(iCase)%UseCollXSec) THEN
+            CollisionEnergy = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType) * Coll_pData(iPair)%CRela2
+            ! Relaxation probability is stored and can be directly interpolated
+            ProbVib = InterpolateVibRelaxProb(iCase,CollisionEnergy)
+          ELSE
+            ProbVib = SpecXSec(iCase)%VibProb / Coll_pData(iPair)%Prob
+          END IF
         END IF
       END IF
     END IF
@@ -1459,11 +1482,6 @@ REAL                      :: CollisionEnergy
 IF(DSMC%CalcQualityFactors) THEN
   DSMC%CalcVibProb(iSpec,1) = DSMC%CalcVibProb(iSpec,1) + ProbVib
   DSMC%CalcVibProb(iSpec,3) = DSMC%CalcVibProb(iSpec,3) + 1
-  IF(XSec_Relaxation) THEN
-    iCase = CollInf%Coll_Case(iSpec,jSpec)
-    SpecXSec(iCase)%VibProbOutput(1) = SpecXSec(iCase)%VibProbOutput(1) + ProbVib
-    SpecXSec(iCase)%VibProbOutput(2) = SpecXSec(iCase)%VibProbOutput(2) + 1.0
-  END IF
 END IF
 
 END SUBROUTINE DSMC_calc_P_vib

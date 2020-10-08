@@ -98,11 +98,7 @@ DO WHILE ( iRan2 .GE. ElectronicPartitionTemp / ElectronicPartition )
             EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec)
   CALL RANDOM_NUMBER(iRan2)
 END DO
-#if ( PP_TimeDiscMethod == 42 )
-#ifdef CODE_ANALYZE
-SpecDSMC(iSpecies)%levelcounter(iQua) = SpecDSMC(iSpecies)%levelcounter(iQua) + 1
-#endif
-#endif
+
 PartStateIntEn(3,iPart) = BoltzmannConst * SpecDSMC(iSpecies)%ElectronicState(2,iQua)
 
 END SUBROUTINE InitElectronShell
@@ -344,19 +340,6 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi)
   END IF
 #endif
 
-!#if (PP_TimeDiscMethod==42)
-!    ! list of number of particles in each energy level
-!  IF (.NOT.DSMC%ReservoirSimuRate) THEN
-!    SpecDSMC(PartSpecies(iPart1))%levelcounter(iQuaold) = SpecDSMC(PartSpecies(iPart1))%levelcounter(iQuaold) - 1
-!    SpecDSMC(PartSpecies(iPart1))%levelcounter(iQua)    = SpecDSMC(PartSpecies(iPart1))%levelcounter(iQua)    + 1
-!    SpecDSMC(PartSpecies(iPart1))%dtlevelcounter(iQua)  = SpecDSMC(PartSpecies(iPart1))%dtlevelcounter(iQua)  + 1
-!  END IF
-!  ! collision with X resulting in a transition from i to j
-!  IF ( present(iPart2) .AND. (.NOT.usevMPF) ) THEN
-!  SpecDSMC(PartSpecies(iPart1))%ElectronicTransition(PartSpecies(iPart2),iQuaold,iQua) = &
-!                                SpecDSMC(PartSpecies(iPart1))%ElectronicTransition(PartSpecies(iPart2),iQuaold,iQua) + 1
-!  END IF
-!#endif
 END SUBROUTINE TVEEnergyExchange
 
 

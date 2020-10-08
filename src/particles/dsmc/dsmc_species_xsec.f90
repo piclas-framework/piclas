@@ -589,8 +589,9 @@ SUBROUTINE XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Vol
 !> DSMC collision calculation probability.
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecXSec, SpecDSMC, Coll_pData, CollInf, BGGas
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, PartState
+USE MOD_DSMC_Vars             ,ONLY: SpecXSec, SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep
+USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -598,7 +599,7 @@ INTEGER,INTENT(IN)            :: iPair
 REAL,INTENT(IN)               :: SpecNum1, SpecNum2, MacroParticleFactor, Volume, dtCell
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                          :: CollEnergy, VeloSquare, SpecNumTarget, SpecNumSource
+REAL                          :: CollEnergy, SpecNumTarget, SpecNumSource, Weight1, Weight2, ReducedMass
 INTEGER                       :: XSecSpec, XSecPart, targetSpec, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase, iVib, nVib
 !===================================================================================================================================
 
@@ -613,14 +614,21 @@ IF(SpecXSec(iCase)%UseVibXSec) THEN
   ELSE
     XSecSpec = iSpec_p2; targetSpec = iSpec_p1; XSecPart = iPart_p2; SpecNumTarget = SpecNum1; SpecNumSource = SpecNum2
   END IF
-  ! Using the kinetic energy of the particle (as is described in Vahedi1995 and Birdsall1991)
-  VeloSquare = DOT_PRODUCT(PartState(4:6,XSecPart),PartState(4:6,XSecPart))
-  CollEnergy = 0.5 * Species(XSecSpec)%MassIC * VeloSquare
+  Weight1 = GetParticleWeight(iPart_p1)
+  Weight2 = GetParticleWeight(iPart_p2)
+  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    ReducedMass = (Species(iSpec_p1)%MassIC *Weight1  * Species(iSpec_p2)%MassIC * Weight2) &
+      / (Species(iSpec_p1)%MassIC * Weight1+ Species(iSpec_p2)%MassIC * Weight2)
+  ELSE
+    ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
+  END IF
+  ! Using the relative translational energy of the pair
+  CollEnergy = 0.5 * ReducedMass * Coll_pData(iPair)%CRela2
   nVib = SIZE(SpecXSec(iCase)%VibMode)
   DO iVib = 1, nVib
     ! Calculate the relaxation probability per vibrational mode
-    SpecXSec(iCase)%VibMode(iVib)%Prob = (1. - EXP(-SQRT(VeloSquare) * InterpolateCrossSection_Vib(iCase,iVib,CollEnergy) &
-                                                    * SpecNumTarget * MacroParticleFactor / Volume * dtCell))
+    SpecXSec(iCase)%VibMode(iVib)%Prob = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * SpecNumTarget * MacroParticleFactor / Volume &
+                                                    * InterpolateCrossSection_Vib(iCase,iVib,CollEnergy) * dtCell))
     IF(BGGas%BackgroundSpecies(targetSpec)) THEN
       ! Correct the collision probability in the case of the second species being a background species as the number of pairs
       ! is determined based on the species fraction
@@ -726,7 +734,6 @@ ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
 DatasetFound = .FALSE.; GroupFound = .FALSE.
 
 EductPair = TRIM(SpecDSMC(EductReac(1))%Name)//'-'//TRIM(SpecDSMC(EductReac(2))%Name)
-SWRITE(UNIT_StdOut,'(A)') 'Read reaction cross section for '//TRIM(EductPair)//' from '//TRIM(XSec_Database)
 
 ! Initialize FORTRAN interface.
 CALL H5OPEN_F(err)
@@ -758,6 +765,8 @@ IF(nSets.EQ.0) THEN
   CALL abort(__STAMP__,&
     'No reaction cross sections found in database for reaction number:',iReac)
 END IF
+
+SWRITE(UNIT_StdOut,'(A,I0)') 'Read cross section for '//TRIM(EductPair)//' from '//TRIM(XSec_Database)//' for reaction # ', iReac
 
 SELECT CASE(COUNT(ProductReac.GT.0))
 CASE(2)
