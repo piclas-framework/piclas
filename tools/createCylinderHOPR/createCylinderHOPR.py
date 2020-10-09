@@ -258,6 +258,8 @@ def convert(mode,x):
 def getInput(Configuration,question,variable,error,typeOfInput,sanityCheck=None):
     """Get input from user"""
 
+    backup = Configuration.config.get(variable, None)
+
     done = False
     while done == False:
         # Get user input
@@ -278,20 +280,24 @@ def getInput(Configuration,question,variable,error,typeOfInput,sanityCheck=None)
                 print(red(error))
                 continue
 
-        if Configuration.config[variable] == '' and variable is not "hopr":
-            print(red(error))
-            continue
-
         # Sanity check
         if sanityCheck is not None:
+            if sanityCheck == 0:
+                if Configuration.config["r1"] <= 0.0:
+                    print(red("r1 cannot be <= 0!"))
+                    continue
             if sanityCheck == 1:
                 if Configuration.config["r1"] >= Configuration.config["r2"] :
-                    print("r1 cannot be larger than r2! r1=%s, r2=%s" % (Configuration.config["r1"],Configuration.config["r2"]))
+                    print(red("r1 cannot be larger than r2! r1=%s, r2=%s" % (Configuration.config["r1"],Configuration.config["r2"])))
+                    Configuration.config["r2"] = backup
                     continue
             if sanityCheck == 2:
-                # Sanity check mesh number
                 if Configuration.config["mode"] not in (1,2,3):
                     print(red("Error: choose mesh 1, 2 or 3!"))
+                    continue
+            if sanityCheck == 3:
+                if Configuration.config["periodic"] not in (0,1):
+                    print(red("Error: Choose 0 (periodic) or  1 (non-periodic)!"))
                     continue
 
         done = True
@@ -304,10 +310,11 @@ Executable = ExternalCommand()
 
 print()
 
-getInput(Configuration , "Please enter the path to the HOPR executable: "                                                                 , "hopr" , "Please supply the path to the HOPR executable" , "str")
-getInput(Configuration , "Please enter the radius of the cylinder: "                                                                      , "r1"   , "Please supply a value for the radius"          , "float")
-getInput(Configuration , "Please enter the radius of the simulation domain: "                                                             , "r2"   , "Please supply a value for the radius"          , "float"  , sanityCheck=1)
-getInput(Configuration , "Please enter the type of cylinder you want \n  1: quarter cylinder \n  2: half cylinder \n  3: full cylinder: " , "mode" , "Please supply a number for the desired mesh"   , "int"    , sanityCheck=2)
+getInput(Configuration , "Please enter the path to the HOPR executable: "                                                                 , "hopr"     , "Please supply the path to the HOPR executable"  , "str")
+getInput(Configuration , "Please enter the radius of the cylinder: "                                                                      , "r1"       , "Please supply a value for the radius"           , "float" , sanityCheck=0)
+getInput(Configuration , "Please enter the radius of the simulation domain: "                                                             , "r2"       , "Please supply a value for the radius"           , "float" , sanityCheck=1)
+getInput(Configuration , "Please enter the type of cylinder you want \n  1: quarter cylinder \n  2: half cylinder \n  3: full cylinder: " , "mode"     , "Please supply a number for the desired mesh"    , "int"   , sanityCheck=2)
+getInput(Configuration , "Please enter the type of boundary conditions in z-direction \n  0: periodic\n  1: non-periodic: "               , "periodic" , "Please supply a number for the boundaries in z" , "int"   , sanityCheck=3)
 
 r01 = 3.5
 s0  = Configuration.config["r1"] / r01
@@ -335,14 +342,11 @@ else:
     print(red("\nError: choose mesh 1, 2 or 3! mode=%s" % Configuration.config["mode"]))
     exit(1)
 
-
-#Configuration.config["hopr"] = input("Please enter the path to the HOPR executable: ")
-#AddBool(Configuration.config , 'Debug Mode' , True)
-
 # Save to file
 Configuration.SaveConfig()
 
-
+# Set length in z direction
+lengthZ = Configuration.config["r2"] / 3.0
 
 # ==================================================================================
 filename = "hopr.ini"
@@ -363,8 +367,10 @@ f.write(r'DEFVAR=(REAL):   s0  = %s ! middle square dim' % s0 + '\n')
 f.write(r"""
 
 DEFVAR=(INT):    iz = 1    !
+""")
 
-DEFVAR=(REAL):   lz = 1.0    ! length of domain in z
+f.write(r'DEFVAR=(REAL):   lz = %s    ! length of domain in z' % lengthZ + '\n')
+f.write(r"""
 DEFVAR=(REAL):   f1 = 1.    ! stretching factor in first ring
 
 !================================================================================================================================= !
@@ -508,6 +514,29 @@ BoundaryOrder = 3  ! = NGeo+1
 !================================================================================================================================= !
 ! BOUNDARY CONDITIONS
 !================================================================================================================================= !
+""")
+
+if Configuration.config["periodic"] == 0:
+    f.write(r"""
+! periodic
+BoundaryName=BC_back    ! BC index X (from  position in parameterfile)
+BoundaryType=(/1,0,0,1/)  ! (/ Type, curveIndex, State, alpha /)
+
+BoundaryName=BC_front     ! BC index X
+BoundaryType=(/1,0,0,-1/)
+vv=(/0.,0.,lz/)
+
+! non-periodic
+!   BoundaryName=BC_back    ! BC index X (from  position in parameterfile)
+!   BoundaryType=(/3,0,0,0/)  ! (/ Type, curveIndex, State, alpha /)
+!   
+!   BoundaryName=BC_front     ! BC index X
+!   BoundaryType=(/3,0,0,0/)  ! (/ Type, curveIndex, State, alpha /)
+""")
+
+
+if Configuration.config["periodic"] == 1:
+    f.write(r"""
 ! periodic
 !   BoundaryName=BC_back    ! BC index X (from  position in parameterfile)
 !   BoundaryType=(/1,0,0,1/)  ! (/ Type, curveIndex, State, alpha /)
@@ -522,13 +551,18 @@ BoundaryType=(/3,0,0,0/)  ! (/ Type, curveIndex, State, alpha /)
 
 BoundaryName=BC_front     ! BC index X
 BoundaryType=(/3,0,0,0/)  ! (/ Type, curveIndex, State, alpha /)
+""")
 
+f.write(r"""
+! Inner cylinder BC
 BoundaryName=BC_cylinder     ! BC index X
 BoundaryType=(/3,0,0,0/)
 
+! left inflow or wall BC
 BoundaryName=BC_left    ! BC index X
 BoundaryType=(/2,0,0,0/)
 
+! right inflow or wall BC
 BoundaryName=BC_right    ! BC index X
 BoundaryType=(/4,0,0,0/)
 """)
@@ -536,14 +570,17 @@ BoundaryType=(/4,0,0,0/)
 
 if NbrOfZones == 4:
     f.write(r"""
+! Symmetry BC (x-z-plane)
 BoundaryName=BC_symmetry    ! BC index X
 BoundaryType=(/4,0,0,0/)
 """)
 elif NbrOfZones == 2:
     f.write(r"""
+! Symmetry BC (y-z-plane)
 BoundaryName=BC_symmetry1   ! BC index X
 BoundaryType=(/4,0,0,0/)
 
+! Symmetry BC (x-z-plane)
 BoundaryName=BC_symmetry2   ! BC index X
 BoundaryType=(/4,0,0,0/)
 """)
@@ -573,14 +610,14 @@ print( )
 # Run hopr
 if Configuration.config.get("hopr", None) is not None :
     if os.path.exists(Configuration.config["hopr"]):
-        input("Hit [enter] to run hopr: ")
-        # Execute python and corresponding program
+        input("Hit [enter] to run hopr (or [Ctrl+c] to abort): ")
         cmd=[Configuration.config["hopr"], 'hopr.ini']
-        #Executable.execute_cmd(MyWindow.case.cmd, target_directory, environment = MyWindow.my_env) != 0 : # use uncolored string for cmake
         Executable.execute_cmd(cmd, cwd)
     else:
         print(red("Error: hopr executable not found under [%s]" % Configuration.config["hopr"]))
         exit(1)
+else:
+    print("Done")
 
 
 
