@@ -300,6 +300,7 @@ USE MOD_HDF5_input             ,ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadA
 USE MOD_HDF5_Output            ,ONLY: FlushHDF5
 #if ! (USE_HDG)
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
+USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
 #endif /*not USE_HDG*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars          ,ONLY: Phi
@@ -339,9 +340,9 @@ USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
 USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
+#if (PARTICLES) || (USE_HDG)
 USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists,nDims,HSize
 #endif
-
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
