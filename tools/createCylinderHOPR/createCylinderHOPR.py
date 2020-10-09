@@ -18,7 +18,7 @@ print("createCylinderHOPR.py, add nice ASCII art here")
 print(132*'=')
 
 cwd               = os.getcwd()
-config_filename   = os.path.join(cwd, '.createCylinderHOPR.config')
+config_filename   = os.path.join(cwd, '.createCylinderHOPR.json')
 config_debug_info = False # Debugging variable
 if os.path.exists(config_filename) :
     config_exists=True
@@ -244,6 +244,64 @@ class SetupConfiguration():
         # --- ONLY FOR DEBUGGING ---
 
 
+def convert(mode,x):
+    """convert the string 'x' to str, float or int"""
+    if mode == "float":
+        y = float(x)
+    if mode == "int":
+        y = int(x)
+    if mode == "str":
+        if x is not '':
+            y = str(x)
+    return y
+
+def getInput(Configuration,question,variable,error,typeOfInput,sanityCheck=None):
+    """Get input from user"""
+
+    backup = Configuration.config.get(variable, None)
+
+    done = False
+    while done == False:
+        # Get user input
+        if Configuration.config.get(variable, None) is None:# or Configuration.config.get(variable, None) == '':
+            userInput = input(question)
+
+            if userInput == '' and variable is not "hopr":
+                print(red(error))
+                continue
+        else:
+            userInput = input(question+green("Auto-select [%s]: " % str(Configuration.config[variable])))
+
+        # Try to convert the new input or changed variable
+        if userInput is not '':
+            try:
+                Configuration.config[variable] = convert(typeOfInput,userInput)
+            except Exception as e:
+                print(red(error))
+                continue
+
+        # Sanity check
+        if sanityCheck is not None:
+            if sanityCheck == 0:
+                if Configuration.config["r1"] <= 0.0:
+                    print(red("r1 cannot be <= 0!"))
+                    continue
+            if sanityCheck == 1:
+                if Configuration.config["r1"] >= Configuration.config["r2"] :
+                    print(red("r1 cannot be larger than r2! r1=%s, r2=%s" % (Configuration.config["r1"],Configuration.config["r2"])))
+                    Configuration.config["r2"] = backup
+                    continue
+            if sanityCheck == 2:
+                if Configuration.config["mode"] not in (1,2,3):
+                    print(red("Error: choose mesh 1, 2 or 3!"))
+                    continue
+            if sanityCheck == 3:
+                if Configuration.config["periodic"] not in (0,1):
+                    print(red("Error: Choose 0 (periodic) or  1 (non-periodic)!"))
+                    continue
+
+        done = True
+    return Configuration
 
 
 # Get config from file if it exists
@@ -251,59 +309,52 @@ Configuration = SetupConfiguration() # Create class object: init calls ReadConfi
 Executable = ExternalCommand()
 
 print()
-#newinput = input("Please enter the path to the HOPR executable [%s]: " % Configuration.config.get("hopr", None))
-if Configuration.config.get("hopr", None) is None :
-    newinput = input("Please enter the path to the HOPR executable: ")
-else:
-    newinput = input("Please enter the path to the HOPR executable [%s]: " % Configuration.config["hopr"])
-if newinput != '' :
-  Configuration.config["hopr"] = str(newinput)
-Configuration.config["hopr"] = str(os.path.abspath(Configuration.config["hopr"]).strip())
 
-
-if Configuration.config.get("r1", None) is None :
-    newinput = float(input("Please enter the radius of the cylinder: "))
-else:
-    newinput = input("Please enter the radius of the cylinder [%s]: " % Configuration.config["r1"])
-if newinput != '' :
-  Configuration.config["r1"] = float(newinput)
-
-
-if Configuration.config.get("r2", None) is None :
-    newinput = float(input("Please enter the radius of the cylinder: "))
-else:
-    newinput = input("Please enter the radius of the cylinder [%s]: " % Configuration.config["r2"])
-if newinput != '' :
-  Configuration.config["r2"] = float(newinput)
-if Configuration.config["r1"] >= Configuration.config["r2"] :
-    print("r1 cannot be larger than r2! r1=%s, r2=%s" % (Configuration.config["r1"],Configuration.config["r2"]))
-    exit(1)
-
-
+getInput(Configuration , "Please enter the path to the HOPR executable: "                                                                 , "hopr"     , "Please supply the path to the HOPR executable"  , "str")
+getInput(Configuration , "Please enter the radius of the cylinder: "                                                                      , "r1"       , "Please supply a value for the radius"           , "float" , sanityCheck=0)
+getInput(Configuration , "Please enter the radius of the simulation domain: "                                                             , "r2"       , "Please supply a value for the radius"           , "float" , sanityCheck=1)
+getInput(Configuration , "Please enter the type of cylinder you want \n  1: quarter cylinder \n  2: half cylinder \n  3: full cylinder: " , "mode"     , "Please supply a number for the desired mesh"    , "int"   , sanityCheck=2)
+getInput(Configuration , "Please enter the type of boundary conditions in z-direction \n  0: periodic\n  1: non-periodic: "               , "periodic" , "Please supply a number for the boundaries in z" , "int"   , sanityCheck=3)
 
 r01 = 3.5
-#r02 = 16.0
-#s0 = 0.5
 s0  = Configuration.config["r1"] / r01
 r02 = Configuration.config["r2"] / s0
 
-
-
-#Configuration.config["hopr"] = input("Please enter the path to the HOPR executable: ")
-#AddBool(Configuration.config , 'Debug Mode' , True)
+if Configuration.config["mode"] == 1:
+    # 90 degree
+    NbrOfZones = 2
+    symmetryBC = 6
+    symmetryBC2 = 7
+    mesh="quarter cylinder (90 degree)"
+elif Configuration.config["mode"] == 2:
+    # 180 degree
+    NbrOfZones = 4
+    symmetryBC = 6
+    symmetryBC2 = 0
+    mesh="half cylinder (180 degree)"
+elif Configuration.config["mode"] == 3:
+    # 360 degree
+    NbrOfZones = 8
+    symmetryBC = 0
+    symmetryBC2 = 0
+    mesh="full cylinder (360 degree)"
+else:
+    print(red("\nError: choose mesh 1, 2 or 3! mode=%s" % Configuration.config["mode"]))
+    exit(1)
 
 # Save to file
 Configuration.SaveConfig()
 
-
+# Set length in z direction
+lengthZ = Configuration.config["r2"] / 3.0
 
 # ==================================================================================
 filename = "hopr.ini"
-print("Creating %s" % filename)
+#print("Creating %s" % filename)
 f = open("%s" % filename, 'w')
 
 f.write(r"""
-DEFVAR=(INT):    i01 = 3   ! no. elems in left and right block
+DEFVAR=(INT):    i01 = 6   ! no. elems in left and right block
 DEFVAR=(INT):    i02 = 6   ! no. elems in upper block (should be twice the value of i01)
 
 DEFVAR=(INT):    ir1 = 5   ! no. elems in r for first ring
@@ -316,8 +367,10 @@ f.write(r'DEFVAR=(REAL):   s0  = %s ! middle square dim' % s0 + '\n')
 f.write(r"""
 
 DEFVAR=(INT):    iz = 1    !
+""")
 
-DEFVAR=(REAL):   lz = 1.0    ! length of domain in z
+f.write(r'DEFVAR=(REAL):   lz = %s    ! length of domain in z' % lengthZ + '\n')
+f.write(r"""
 DEFVAR=(REAL):   f1 = 1.    ! stretching factor in first ring
 
 !================================================================================================================================= !
@@ -331,60 +384,210 @@ checkElemJacobians = T
 ! MESH
 !================================================================================================================================= !
 Mode   = 1                           ! Mode for Cartesian boxes
-nZones = 3                           ! number of boxes
+""")
+f.write(r'nZones = %s                           ! number of boxes' % NbrOfZones + '\n')
+f.write(r"""!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
 
-!--------------------------------------------------------------------------------------------------------------------------------- !
-! Ring 1
-!--------------------------------------------------------------------------------------------------------------------------------- !
-!left
-Corner       =(/-r01,r01,0. ,,  -r02,r02,0.,,-r02,0.,0. ,,-r01,0.,0.  ,,-r01,r01,lz ,,  -r02,r02,lz,, -r02,0.,lz ,,-r01,0.,lz /)
-nElems       =(/ir1,i01,iz/)             ! number of elements in each direction
-BCIndex      =(/1,0,4,3,3,2/)             ! Indices of Boundary Conditions for  six Boundary Faces (z-,y-,x+,y+,x-,z+)
-elemtype     =108                         ! element type (108: Hexahedral)
-factor       =(/f1,1.,1./)                ! stretching
+! ---------------------------------------------------------------
+! Upper cylinder half
+! ---------------------------------------------------------------
+""")
 
-!right
-Corner       =(/r01,0.,0. ,,r02,0.,0. ,,r02,r02,0. ,,  r01,r01,0.,, r01,0.,lz ,,r02,0.,lz,,r02,r02,lz ,,  r01,r01,lz  /)
-nElems       =(/ir1,i01,iz/)             ! number of elements in each direction
-BCIndex      =(/1,3,4,0,3,2/)             ! Indices of Boundary Conditions for  six Boundary Faces (z-,y-,x+,y+,x-,z+)
-elemtype     =108                         ! element type (108: Hexahedral)
-factor       =(/f1,1.,1./)                ! stretching
 
-!upper
-Corner       =(/-r01,r01,0. ,,r01,r01,0. ,,r02,r02,0. ,,  -r02,r02,0.,, -r01,r01,lz ,,r01,r01,lz ,,r02,r02,lz ,,  -r02,r02,lz /)
-nElems       =(/i02,ir1,iz/)             ! number of elements in each direction
-BCIndex      =(/1,3,0,4,0,2/)             ! Indices of Boundary Conditions for  six Boundary Faces (z-,y-,x+,y+,x-,z+)
-elemtype     =108                         ! element type (108: Hexahedral)
-factor       =(/1.,f1,1./)                ! stretching
 
+# left part (180 and 360 degree only)
+if NbrOfZones > 2:
+    f.write(r"""
+!left-lower (x-)
+Corner       =(/-r01 , 0.  , 0.   ,,   -r02 , 0.  , 0.   ,,   -r02 , r02 , 0.   ,,   -r01 , r01 , 0.   ,,   -r01 , 0.  , lz   ,,   -r02 , 0.  , lz   ,,   -r02 , r02 , lz   ,,   -r01 , r01 , lz /)
+nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
+""")
+if NbrOfZones > 2:
+    f.write(r'BCIndex      =(/1  , %s  , 4  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
+    f.write(r"""!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
+elemtype     =108                              ! element type (108: Hexahedral)
+factor       =(/f1,1.,1./)                     ! stretching
+
+!left-upper (y+)
+Corner       =(/0.  , r01 , 0.   ,,   -r01 , r01 , 0.   ,,   -r02 , r02 , 0.   ,,   0.  , r02 , 0.   ,,   0.  , r01 , lz   ,,   -r01 , r01 , lz   ,,   -r02 , r02 , lz   ,,   0.  , r02 , lz /)
+nElems       =(/i02,ir1,iz/)                   ! number of elements in each direction
+""")
+if NbrOfZones > 2:
+    f.write(r'BCIndex      =(/1  , 3  , 0  , 4  , %s  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC2 + '\n')
+    f.write(r"""!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
+elemtype     =108                              ! element type (108: Hexahedral)
+factor       =(/1.,f1,1./)                     ! stretching
+""")
+
+
+
+
+# right part (90 degree)
+f.write(r"""
+!right-lower (x+)
+Corner       =(/r01 , 0.  , 0.   ,,   r02 , 0.  , 0.   ,,   r02 , r02 , 0.   ,,   r01 , r01 , 0.   ,,   r01 , 0.  , lz   ,,   r02 , 0.  , lz   ,,   r02 , r02 , lz   ,,   r01 , r01 , lz /)
+nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
+""")
+f.write(r'BCIndex      =(/1  , %s  , 5  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
+f.write(r"""
+!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
+elemtype     =108                              ! element type (108: Hexahedral)
+factor       =(/f1,1.,1./)                     ! stretching
+
+!right-upper (y+)
+Corner       =(/0.  , r01 , 0.   ,,   r01 , r01 , 0.   ,,   r02 , r02 , 0.   ,,   0.  , r02 , 0.   ,,   0.  , r01 , lz   ,,   r01 , r01 , lz   ,,   r02 , r02 , lz   ,,   0.  , r02 , lz /)
+nElems       =(/i02,ir1,iz/)                   ! number of elements in each direction
+""")
+f.write(r'BCIndex      =(/1  , 3  , 0  , 5  , %s  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC2 + '\n')
+f.write(r"""!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
+elemtype     =108                              ! element type (108: Hexahedral)
+factor       =(/1.,f1,1./)                     ! stretching
+
+
+
+
+
+""")
+
+
+# bottom right and left part (360 degree only)
+# Bottom part of the full cylinder
+if NbrOfZones > 4:
+    f.write(r"""
+! ---------------------------------------------------------------
+! Bottom cylinder half
+! ---------------------------------------------------------------
+!left-lower (x-)
+Corner       =(/-r01 , 0.  , 0.   ,,   -r02 , 0.  , 0.   ,,   -r02 , -r02 , 0.   ,,   -r01 , -r01 , 0.   ,,   -r01 , 0.  , lz   ,,   -r02 , 0.  , lz   ,,   -r02 , -r02 , lz   ,,   -r01 , -r01 , lz /)
+nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
+""")
+if NbrOfZones > 4:
+    f.write(r'BCIndex      =(/1  , %s  , 4  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
+    f.write(r"""
+!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
+elemtype     =108                              ! element type (108: Hexahedral)
+factor       =(/f1,1.,1./)                     ! stretching
+
+!left-upper (y+)
+Corner       =(/0.  , -r01 , 0.   ,,   -r01 , -r01 , 0.   ,,   -r02 , -r02 , 0.   ,,   0.  , -r02 , 0.   ,,   0.  , -r01 , lz   ,,   -r01 , -r01 , lz   ,,   -r02 , -r02 , lz   ,,   0.  , -r02 , lz /)
+nElems       =(/i02,ir1,iz/)                   ! number of elements in each direction
+BCIndex      =(/1  , 3  , 0  , 4  , 0  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)
+!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
+elemtype     =108                              ! element type (108: Hexahedral)
+factor       =(/1.,f1,1./)                     ! stretching
+
+
+
+!right-lower (x+)
+Corner       =(/r01 , 0.  , 0.   ,,   r02 , 0.  , 0.   ,,   r02 , -r02 , 0.   ,,   r01 , -r01 , 0.   ,,   r01 , 0.  , lz   ,,   r02 , 0.  , lz   ,,   r02 , -r02 , lz   ,,   r01 , -r01 , lz /)
+nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
+""")
+if NbrOfZones > 4:
+    f.write(r'BCIndex      =(/1  , %s  , 5  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
+    f.write(r"""
+!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
+elemtype     =108                              ! element type (108: Hexahedral)
+factor       =(/f1,1.,1./)                     ! stretching
+
+!right-upper (y+)
+Corner       =(/0.  , -r01 , 0.   ,,   r01 , -r01 , 0.   ,,   r02 , -r02 , 0.   ,,   0.  , -r02 , 0.   ,,   0.  , -r01 , lz   ,,   r01 , -r01 , lz   ,,   r02 , -r02 , lz   ,,   0.  , -r02 , lz /)
+nElems       =(/i02,ir1,iz/)                   ! number of elements in each direction
+BCIndex      =(/1  , 3  , 0  , 5  , 0  , 2/)   ! Indices of Boundary Conditions
+!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
+elemtype     =108                              ! element type (108: Hexahedral)
+factor       =(/1.,f1,1./)                     ! stretching
+
+
+
+
+""")
+
+
+
+
+
+
+f.write(r"""
 useCurveds    = F
 BoundaryOrder = 3  ! = NGeo+1
 
 !================================================================================================================================= !
 ! BOUNDARY CONDITIONS
 !================================================================================================================================= !
+""")
+
+if Configuration.config["periodic"] == 0:
+    f.write(r"""
 ! periodic
-!   BoundaryName=BC_back    ! BC index X (from  position in parameterfile)
+BoundaryName=BC_back      ! BC index 1 (from  position in parameterfile)
+BoundaryType=(/1,0,0,1/)  ! (/ Type, curveIndex, State, alpha /)
+
+BoundaryName=BC_front     ! BC index 2
+BoundaryType=(/1,0,0,-1/)
+vv=(/0.,0.,lz/)
+
+! non-periodic
+!   BoundaryName=BC_back      ! BC index 1 (from  position in parameterfile)
+!   BoundaryType=(/3,0,0,0/)  ! (/ Type, curveIndex, State, alpha /)
+!   
+!   BoundaryName=BC_front     ! BC index 2
+!   BoundaryType=(/3,0,0,0/)  ! (/ Type, curveIndex, State, alpha /)
+""")
+
+
+if Configuration.config["periodic"] == 1:
+    f.write(r"""
+! periodic
+!   BoundaryName=BC_back      ! BC index 1 (from  position in parameterfile)
 !   BoundaryType=(/1,0,0,1/)  ! (/ Type, curveIndex, State, alpha /)
 !
-!   BoundaryName=BC_front     ! BC index X
+!   BoundaryName=BC_front     ! BC index 2
 !   BoundaryType=(/1,0,0,-1/)
 !   vv=(/0.,0.,lz/)
 
 ! non-periodic
-BoundaryName=BC_back    ! BC index X (from  position in parameterfile)
+BoundaryName=BC_back      ! BC index 1 (from  position in parameterfile)
 BoundaryType=(/3,0,0,0/)  ! (/ Type, curveIndex, State, alpha /)
 
-BoundaryName=BC_front     ! BC index X
+BoundaryName=BC_front     ! BC index 2
 BoundaryType=(/3,0,0,0/)  ! (/ Type, curveIndex, State, alpha /)
+""")
 
-
-
-BoundaryName=BC_inner     ! BC index X
+f.write(r"""
+! Inner cylinder BC
+BoundaryName=BC_cylinder     ! BC index 3
 BoundaryType=(/3,0,0,0/)
 
-BoundaryName=BC_outer    ! BC index X
+! left inflow or wall BC
+BoundaryName=BC_left        ! BC index 4
 BoundaryType=(/2,0,0,0/)
+
+! right inflow or wall BC
+BoundaryName=BC_right       ! BC index 5
+BoundaryType=(/4,0,0,0/)
+""")
+
+
+if NbrOfZones == 4:
+    f.write(r"""
+! Symmetry BC (x-z-plane)
+BoundaryName=BC_symmetry    ! BC index 6
+BoundaryType=(/4,0,0,0/)
+""")
+elif NbrOfZones == 2:
+    f.write(r"""
+! Symmetry BC (y-z-plane)
+BoundaryName=BC_symmetry1   ! BC index 6
+BoundaryType=(/4,0,0,0/)
+
+! Symmetry BC (x-z-plane)
+BoundaryName=BC_symmetry2   ! BC index 7
+BoundaryType=(/4,0,0,0/)
+""")
+
+
+
+f.write(r"""
 
 !================================================================================================================================= !
 ! MESH POST DEFORM
@@ -396,15 +599,25 @@ PostDeform_R0=s0                           ! here domain is [-4,4]^2 mapped to a
 
 f.close()
 
+print( )
+print("Created the following %s file:" % filename)
+print("    cylinder radius: %s" % Configuration.config["r1"])
+print("      domain radius: %s" % Configuration.config["r2"])
+print("          mesh type: %s" % mesh)
+print( )
 
 
 # Run hopr
-if os.path.exists(Configuration.config["hopr"]):
-    print("yes")
-    # Execute python and corresponding program
-    cmd=[Configuration.config["hopr"], 'hopr.ini']
-    #Executable.execute_cmd(MyWindow.case.cmd, target_directory, environment = MyWindow.my_env) != 0 : # use uncolored string for cmake
-    Executable.execute_cmd(cmd, cwd)
+if Configuration.config.get("hopr", None) is not None :
+    if os.path.exists(Configuration.config["hopr"]):
+        input("Hit [enter] to run hopr (or [Ctrl+c] to abort): ")
+        cmd=[Configuration.config["hopr"], 'hopr.ini']
+        Executable.execute_cmd(cmd, cwd)
+    else:
+        print(red("Error: hopr executable not found under [%s]" % Configuration.config["hopr"]))
+        exit(1)
+else:
+    print("Done")
 
 
 
