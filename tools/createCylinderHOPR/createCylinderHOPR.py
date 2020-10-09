@@ -244,6 +244,58 @@ class SetupConfiguration():
         # --- ONLY FOR DEBUGGING ---
 
 
+def convert(mode,x):
+    """convert the string 'x' to str, float or int"""
+    if mode == "float":
+        y = float(x)
+    if mode == "int":
+        y = int(x)
+    if mode == "str":
+        if x is not '':
+            y = str(x)
+    return y
+
+def getInput(Configuration,question,variable,error,typeOfInput,sanityCheck=None):
+    """Get input from user"""
+
+    done = False
+    while done == False:
+        # Get user input
+        if Configuration.config.get(variable, None) is None:# or Configuration.config.get(variable, None) == '':
+            userInput = input(question)
+
+            if userInput == '' and variable is not "hopr":
+                print(red(error))
+                continue
+        else:
+            userInput = input(question+green("Auto-select [%s]: " % str(Configuration.config[variable])))
+
+        # Try to convert the new input or changed variable
+        if userInput is not '':
+            try:
+                Configuration.config[variable] = convert(typeOfInput,userInput)
+            except Exception as e:
+                print(red(error))
+                continue
+
+        if Configuration.config[variable] == '' and variable is not "hopr":
+            print(red(error))
+            continue
+
+        # Sanity check
+        if sanityCheck is not None:
+            if sanityCheck == 1:
+                if Configuration.config["r1"] >= Configuration.config["r2"] :
+                    print("r1 cannot be larger than r2! r1=%s, r2=%s" % (Configuration.config["r1"],Configuration.config["r2"]))
+                    continue
+            if sanityCheck == 2:
+                # Sanity check mesh number
+                if Configuration.config["mode"] not in (1,2,3):
+                    print(red("Error: choose mesh 1, 2 or 3!"))
+                    continue
+
+        done = True
+    return Configuration
 
 
 # Get config from file if it exists
@@ -251,60 +303,13 @@ Configuration = SetupConfiguration() # Create class object: init calls ReadConfi
 Executable = ExternalCommand()
 
 print()
-#newinput = input("Please enter the path to the HOPR executable [%s]: " % Configuration.config.get("hopr", None))
-if Configuration.config.get("hopr", None) is None :
-    newinput = input("Please enter the path to the HOPR executable: ")
-else:
-    newinput = input("Please enter the path to the HOPR executable [%s]: " % Configuration.config["hopr"])
-if newinput != '' :
-    Configuration.config["hopr"] = str(newinput)
 
-Configuration.config["hopr"] = Configuration.config.get("hopr", None)
-if not Configuration.config["hopr"] is None :
-    Configuration.config["hopr"] = str(os.path.abspath(Configuration.config["hopr"]).strip())
-
-
-if Configuration.config.get("r1", None) is None :
-    newinput = float(input("Please enter the radius of the cylinder: "))
-else:
-    newinput = input("Please enter the radius of the cylinder [%s]: " % Configuration.config["r1"])
-if newinput != '' :
-    Configuration.config["r1"] = float(newinput)
-
-
-if Configuration.config.get("r2", None) is None :
-    newinput = float(input("Please enter the radius of the simulation domain: "))
-else:
-    newinput = input("Please enter the radius of the simulation domain [%s]: " % Configuration.config["r2"])
-if newinput != '' :
-  Configuration.config["r2"] = float(newinput)
-
-# Sanity check
-if Configuration.config["r1"] >= Configuration.config["r2"] :
-    print("r1 cannot be larger than r2! r1=%s, r2=%s" % (Configuration.config["r1"],Configuration.config["r2"]))
-    exit(1)
-
-# Get Mesh Mode
-try:
-    if Configuration.config.get("mode", None) is None :
-        newinput = int(input("Please enter the type of cylinder you want (1: half cylinder 2: quarter cylinder 3: full cylinder): "))
-    else:
-        newinput = input("Please enter the type of cylinder you want (1: quarter cylinder 2: half cylinder 3: full cylinder) [%s]: " % Configuration.config["mode"])
-    if newinput != '' :
-        Configuration.config["mode"] = int(newinput)
-
-    # Sanity check mesh number
-    if Configuration.config["mode"] not in (1,2,3,4):
-        print(red("\nError: choose mesh 1, 2 or 3!"))
-        exit(1)
-except Exception as e:
-    print(red("\nFailed to get type of mesh!"))
-    exit(1)
-
+getInput(Configuration , "Please enter the path to the HOPR executable: "                                                                 , "hopr" , "Please supply the path to the HOPR executable" , "str")
+getInput(Configuration , "Please enter the radius of the cylinder: "                                                                      , "r1"   , "Please supply a value for the radius"          , "float")
+getInput(Configuration , "Please enter the radius of the simulation domain: "                                                             , "r2"   , "Please supply a value for the radius"          , "float"  , sanityCheck=1)
+getInput(Configuration , "Please enter the type of cylinder you want \n  1: quarter cylinder \n  2: half cylinder \n  3: full cylinder: " , "mode" , "Please supply a number for the desired mesh"   , "int"    , sanityCheck=2)
 
 r01 = 3.5
-#r02 = 16.0
-#s0 = 0.5
 s0  = Configuration.config["r1"] / r01
 r02 = Configuration.config["r2"] / s0
 
@@ -313,20 +318,22 @@ if Configuration.config["mode"] == 1:
     NbrOfZones = 2
     symmetryBC = 6
     symmetryBC2 = 7
+    mesh="quarter cylinder (90 degree)"
 elif Configuration.config["mode"] == 2:
     # 180 degree
     NbrOfZones = 4
     symmetryBC = 6
     symmetryBC2 = 0
+    mesh="half cylinder (180 degree)"
 elif Configuration.config["mode"] == 3:
     # 360 degree
     NbrOfZones = 8
     symmetryBC = 0
     symmetryBC2 = 0
+    mesh="full cylinder (360 degree)"
 else:
     print(red("\nError: choose mesh 1, 2 or 3! mode=%s" % Configuration.config["mode"]))
     exit(1)
-
 
 
 #Configuration.config["hopr"] = input("Please enter the path to the HOPR executable: ")
@@ -339,7 +346,7 @@ Configuration.SaveConfig()
 
 # ==================================================================================
 filename = "hopr.ini"
-print("Creating %s" % filename)
+#print("Creating %s" % filename)
 f = open("%s" % filename, 'w')
 
 f.write(r"""
@@ -374,32 +381,42 @@ Mode   = 1                           ! Mode for Cartesian boxes
 """)
 f.write(r'nZones = %s                           ! number of boxes' % NbrOfZones + '\n')
 f.write(r"""!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
-""")
 
-if NbrOfZones > 2:
-    f.write(r"""
 ! ---------------------------------------------------------------
 ! Upper cylinder half
 ! ---------------------------------------------------------------
+""")
+
+
+
+# left part (180 and 360 degree only)
+if NbrOfZones > 2:
+    f.write(r"""
 !left-lower (x-)
 Corner       =(/-r01 , 0.  , 0.   ,,   -r02 , 0.  , 0.   ,,   -r02 , r02 , 0.   ,,   -r01 , r01 , 0.   ,,   -r01 , 0.  , lz   ,,   -r02 , 0.  , lz   ,,   -r02 , r02 , lz   ,,   -r01 , r01 , lz /)
 nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
 """)
-f.write(r'BCIndex      =(/1  , %s  , 4  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
-f.write(r"""
-!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
+if NbrOfZones > 2:
+    f.write(r'BCIndex      =(/1  , %s  , 4  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
+    f.write(r"""!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
 elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/f1,1.,1./)                     ! stretching
 
 !left-upper (y+)
 Corner       =(/0.  , r01 , 0.   ,,   -r01 , r01 , 0.   ,,   -r02 , r02 , 0.   ,,   0.  , r02 , 0.   ,,   0.  , r01 , lz   ,,   -r01 , r01 , lz   ,,   -r02 , r02 , lz   ,,   0.  , r02 , lz /)
 nElems       =(/i02,ir1,iz/)                   ! number of elements in each direction
-BCIndex      =(/1  , 3  , 0  , 4  , 0  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)
-!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
+""")
+if NbrOfZones > 2:
+    f.write(r'BCIndex      =(/1  , 3  , 0  , 4  , %s  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC2 + '\n')
+    f.write(r"""!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
 elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/1.,f1,1./)                     ! stretching
 """)
 
+
+
+
+# right part (90 degree)
 f.write(r"""
 !right-lower (x+)
 Corner       =(/r01 , 0.  , 0.   ,,   r02 , 0.  , 0.   ,,   r02 , r02 , 0.   ,,   r01 , r01 , 0.   ,,   r01 , 0.  , lz   ,,   r02 , 0.  , lz   ,,   r02 , r02 , lz   ,,   r01 , r01 , lz /)
@@ -427,6 +444,7 @@ factor       =(/1.,f1,1./)                     ! stretching
 """)
 
 
+# bottom right and left part (360 degree only)
 # Bottom part of the full cylinder
 if NbrOfZones > 4:
     f.write(r"""
@@ -437,8 +455,9 @@ if NbrOfZones > 4:
 Corner       =(/-r01 , 0.  , 0.   ,,   -r02 , 0.  , 0.   ,,   -r02 , -r02 , 0.   ,,   -r01 , -r01 , 0.   ,,   -r01 , 0.  , lz   ,,   -r02 , 0.  , lz   ,,   -r02 , -r02 , lz   ,,   -r01 , -r01 , lz /)
 nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
 """)
-f.write(r'BCIndex      =(/1  , %s  , 4  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
-f.write(r"""
+if NbrOfZones > 4:
+    f.write(r'BCIndex      =(/1  , %s  , 4  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
+    f.write(r"""
 !            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
 elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/f1,1.,1./)                     ! stretching
@@ -457,8 +476,9 @@ factor       =(/1.,f1,1./)                     ! stretching
 Corner       =(/r01 , 0.  , 0.   ,,   r02 , 0.  , 0.   ,,   r02 , -r02 , 0.   ,,   r01 , -r01 , 0.   ,,   r01 , 0.  , lz   ,,   r02 , 0.  , lz   ,,   r02 , -r02 , lz   ,,   r01 , -r01 , lz /)
 nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
 """)
-f.write(r'BCIndex      =(/1  , %s  , 5  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
-f.write(r"""
+if NbrOfZones > 4:
+    f.write(r'BCIndex      =(/1  , %s  , 5  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
+    f.write(r"""
 !            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
 elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/f1,1.,1./)                     ! stretching
@@ -474,12 +494,14 @@ factor       =(/1.,f1,1./)                     ! stretching
 
 
 
+""")
 
 
 
 
 
 
+f.write(r"""
 useCurveds    = F
 BoundaryOrder = 3  ! = NGeo+1
 
@@ -540,16 +562,25 @@ PostDeform_R0=s0                           ! here domain is [-4,4]^2 mapped to a
 
 f.close()
 
+print( )
+print("Created the following %s file:" % filename)
+print("    cylinder radius: %s" % Configuration.config["r1"])
+print("      domain radius: %s" % Configuration.config["r2"])
+print("          mesh type: %s" % mesh)
+print( )
 
 
 # Run hopr
-if not Configuration.config.get("hopr", None) is None :
+if Configuration.config.get("hopr", None) is not None :
     if os.path.exists(Configuration.config["hopr"]):
-        print("yes")
+        input("Hit [enter] to run hopr: ")
         # Execute python and corresponding program
         cmd=[Configuration.config["hopr"], 'hopr.ini']
         #Executable.execute_cmd(MyWindow.case.cmd, target_directory, environment = MyWindow.my_env) != 0 : # use uncolored string for cmake
         Executable.execute_cmd(cmd, cwd)
+    else:
+        print(red("Error: hopr executable not found under [%s]" % Configuration.config["hopr"]))
+        exit(1)
 
 
 
