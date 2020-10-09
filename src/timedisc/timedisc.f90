@@ -305,10 +305,6 @@ USE MOD_LoadBalance_Vars       ,ONLY: ElemTimeField
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_HDF5_Output_Tools      ,ONLY: WriteIMDStateToHDF5
 #endif /*PARTICLES*/
-#if USE_QDS_DG
-USE MOD_HDF5_Output_Tools      ,ONLY: WriteQDSToHDF5
-USE MOD_QDS_DG_Vars            ,ONLY: DoQDS
-#endif /*USE_QDS_DG*/
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_Particle_Vars          ,ONLY: DoImportIMDFile
@@ -442,9 +438,6 @@ IF(DoImportIMDFile) CALL WriteIMDStateToHDF5() ! write IMD particles to state fi
 #endif /*PARTICLES*/
 ! Write initial state to file
 CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
-#if USE_QDS_DG
-IF(DoQDS) CALL WriteQDSToHDF5(time,tPreviousAnalyze)
-#endif /*USE_QDS_DG*/
 
 ! if measurement of particle tracking time (used for analyze, load balancing uses own time measurement for tracking)
 #ifdef PARTICLES
@@ -639,9 +632,6 @@ DO !iter_t=0,MaxIter
       CALL WriteInfoStdOut()
       ! Write state to file
       CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
-#if USE_QDS_DG
-      IF(DoQDS) CALL WriteQDSToHDF5(time,tPreviousAnalyze)
-#endif /*USE_QDS_DG*/
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tPreviousAverageAnalyze)
       ! Write recordpoints data to hdf5
       IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
@@ -716,11 +706,6 @@ USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars                ,ONLY: U,Ut
 USE MOD_PML_Vars               ,ONLY: U2,U2t,nPMLElems,DoPML,PMLnVar
 USE MOD_PML                    ,ONLY: PMLTimeDerivative,CalcPMLSource
-#if USE_QDS_DG
-USE MOD_QDS_DG_Vars            ,ONLY: UQDS,UQDSt,nQDSElems,DoQDS
-USE MOD_QDS_Equation_vars      ,ONLY: QDSnVar
-USE MOD_QDS_DG                 ,ONLY: QDSTimeDerivative,QDSReCalculateDGValues,QDSCalculateMacroValues
-#endif /*USE_QDS_DG*/
 USE MOD_Filter                 ,ONLY: Filter
 USE MOD_Equation               ,ONLY: DivCleaningDamping
 USE MOD_Equation               ,ONLY: CalcSource
@@ -767,9 +752,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                          :: Ut_temp(   1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
 REAL                          :: U2t_temp(  1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems) ! temporal variable for U2t
-#if USE_QDS_DG
-REAL                          :: UQDSt_temp(1:QDSnVar,0:PP_N,0:PP_N,0:PP_N,1:nQDSElems) ! temporal variable for UQDSt
-#endif /*USE_QDS_DG*/
 REAL                          :: tStage,b_dt(1:nRKStages)
 #ifdef PARTICLES
 REAL                          :: timeStart,timeEnd
@@ -792,31 +774,13 @@ iStage=1
 #ifdef PARTICLES
 CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB. Also done for state output of PartsPerElem
 
-IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-  ! communicate shape function particles
-#if USE_MPI
-  PartMPIExchange%nMPIParticles=0
-  IF(DoExternalParts)THEN
-    ! as we do not have the shape function here, we have to deallocate something
-    SDEALLOCATE(ExtPartState)
-    SDEALLOCATE(ExtPartSpecies)
-    SDEALLOCATE(ExtPartToFIBGM)
-    SDEALLOCATE(ExtPartMPF)
-    ! open receive buffer for number of particles
-    CALL IRecvNbofParticles()
-    ! send number of particles
-    CALL SendNbOfParticles()
-  END IF
-#endif /*USE_MPI*/
-END IF
-
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 IF (time.GE.DelayTime) THEN
   ! forces on particle
   ! can be used to hide sending of number of particles
-  CALL InterpolateFieldToParticle(DoInnerParts=.TRUE.)
+  CALL InterpolateFieldToParticle()
   IF(DoFieldIonization) CALL FieldIonization()
   IF(DoInterpolation) CALL CalcPartRHS()
 END IF
@@ -825,30 +789,8 @@ END IF
 #endif /*USE_LOADBALANCE*/
 
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-  ! communicate shape function particles
-#if USE_MPI
-  PartMPIExchange%nMPIParticles=0
-  IF(DoExternalParts)THEN
-    ! finish communication of number of particles and send particles
-    CALL MPIParticleSend()
-  END IF
-#endif /*USE_MPI*/
-  ! because of emission and UpdateParticlePosition
-!  CALL Deposition(DoInnerParts=.TRUE.)
-#if USE_MPI
-  IF(DoExternalParts)THEN
-    ! finish communication
-    CALL MPIParticleRecv()
-  END IF
-  ! here: finish deposition with delta kernel
-  !       maps source terms in physical space
-  ! ALWAYS require
-  PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
-  CALL Deposition(DoInnerParts=.TRUE.)
-  IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+  CALL Deposition()
 END IF
-
 #endif /*PARTICLES*/
 
 ! field solver
@@ -861,12 +803,6 @@ IF(DoPML) THEN
   CALL CalcPMLSource()
   CALL PMLTimeDerivative()
 END IF
-#if USE_QDS_DG
-IF(DoQDS) THEN
-  CALL QDSReCalculateDGValues()
-  CALL QDSTimeDerivative(time,time,0,doSource=.TRUE.,doPrintInfo=.TRUE.)
-END IF
-#endif /*USE_QDS_DG*/
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_PML,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -901,12 +837,6 @@ IF(DoPML) THEN
   U2t_temp = U2t
   U2 = U2 + U2t*b_dt(1)
 END IF
-#if USE_QDS_DG
-IF(DoQDS) THEN
-  UQDSt_temp = UQDSt
-  UQDS = UQDS + UQDSt*b_dt(1)
-END IF
-#endif /*USE_QDS_DG*/
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_PML,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -977,9 +907,6 @@ DO iStage=2,nRKStages
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-#if USE_MPI
-    CALL InterpolateFieldToParticle(DoInnerParts=.TRUE.)
-#endif /*USE_MPI*/
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -990,31 +917,19 @@ DO iStage=2,nRKStages
     CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-    !    ! deposition
-!    CALL Deposition(DoInnerParts=.TRUE.)
 #if USE_MPI
     CALL MPIParticleRecv()
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-    CALL InterpolateFieldToParticle(DoInnerParts=.FALSE.)
+    CALL InterpolateFieldToParticle()
     IF(DoInterpolation) CALL CalcPartRHS()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-    CALL Deposition(DoInnerParts=.TRUE.)
-    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
-#if USE_MPI
-    ! null here, careful
-    PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
-    !    IF (usevMPF) THEN
-    !      CALL !DepositionMPF()
-    !    ELSE
-    !      CALL Deposition()
-    !    END IF
+    CALL Deposition()
   END IF
   CALL CountPartsPerElem(ResetNumberOfParticles=.FALSE.) !for scaling of tParts of LB !why not rigth after "tStage=time+dt*RK_c(iStage)"?!
 #endif /*PARTICLES*/
@@ -1028,12 +943,6 @@ DO iStage=2,nRKStages
     CALL CalcPMLSource()
     CALL PMLTimeDerivative()
   END IF
-#if USE_QDS_DG
-  IF(DoQDS) THEN
-    !CALL QDSReCalculateDGValues()
-    CALL QDSTimeDerivative(time,time,0,doSource=.TRUE.)
-  END IF
-#endif /*USE_QDS_DG*/
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PML,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1067,12 +976,6 @@ DO iStage=2,nRKStages
     U2t_temp = U2t - U2t_temp*RK_a(iStage)
     U2 = U2 + U2t_temp*b_dt(iStage)
   END IF
-#if USE_QDS_DG
-  IF(DoQDS)THEN
-    UQDSt_temp = UQDSt - UQDSt_temp*RK_a(iStage)
-    UQDS = UQDS + UQDSt_temp*b_dt(iStage)
-  END IF
-#endif /*USE_QDS_DG*/
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_PML,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1132,11 +1035,6 @@ DO iStage=2,nRKStages
 #endif /*PARTICLES*/
 
 END DO
-#if USE_QDS_DG
-IF(DoQDS) THEN
-  CALL QDSCalculateMacroValues()
-END IF
-#endif /*USE_QDS_DG*/
 
 #ifdef PARTICLES
 IF (time.GE.DelayTime) THEN
@@ -1206,62 +1104,6 @@ END IF
 #endif /*PARTICLES*/
 
 END SUBROUTINE TimeStepByLSERK
-#endif
-
-#if (PP_TimeDiscMethod==3)
-SUBROUTINE TimeStepByTAYLOR()
-!===================================================================================================================================
-! TAYLOR DG
-! time order = N+1
-! This procedure takes the current time (time), the time step dt and the solution at
-! the current time U(time) and returns the solution at the next time level.
-!===================================================================================================================================
-! MODULES
-USE MOD_DG_Vars,ONLY:U,Ut,nTotalU
-USE MOD_PreProc
-USE MOD_TimeDisc_Vars,ONLY:dt,time
-USE MOD_DG,ONLY:DGTimeDerivative_weakForm
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL             :: U_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
-REAL             :: Factor
-INTEGER          :: tIndex,i
-!===================================================================================================================================
-Factor = dt
-#ifdef OPTIMIZED
-DO i=1,nTotalU
-  U_temp(i,0,0,0,1) = U(i,0,0,0,1)
-END DO
-#else
-U_temp=U
-#endif OPTIMIZED
-
-DO tIndex=0,PP_N
-  CALL DGTimeDerivative_weakForm(time,time,tIndex,doSource=.TRUE.)
-#ifdef OPTIMIZED
-DO i=1,nTotalU
-  U(i,0,0,0,1) = Ut(i,0,0,0,1)
-  U_temp(i,0,0,0,1) = U_temp(i,0,0,0,1) + Factor*Ut(i,0,0,0,1)
-END DO
-#else
- U=Ut
- U_temp = U_temp + Factor*Ut
-#endif
- Factor = Factor*dt/REAL(tIndex+2)
-END DO ! tIndex
-
-#ifdef OPTIMIZED
-DO i=1,nTotalU
-  U(i,0,0,0,1) = U_temp(i,0,0,0,1)
-END DO
-#else
-U=U_temp
-#endif
-END SUBROUTINE TimeStepByTAYLOR
 #endif
 
 #if (PP_TimeDiscMethod==4)
@@ -2048,48 +1890,11 @@ CALL LBPauseTime(LB_PUSH,tLBStart)
 
 tStage=time
 #ifdef PARTICLES
-IF((time.GE.DelayTime).OR.(iter.EQ.0))THEN
-! communicate shape function particles
-#if USE_MPI
-  PartMPIExchange%nMPIParticles=0
-  IF(DoExternalParts)THEN
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-    ! as we do not have the shape function here, we have to deallocate something
-    SDEALLOCATE(ExtPartState)
-    SDEALLOCATE(ExtPartSpecies)
-    SDEALLOCATE(ExtPartToFIBGM)
-    SDEALLOCATE(ExtPartMPF)
-    ! open receive buffer for number of particles
-    CALL IRecvNbofParticles()
-    ! send number of particles
-    CALL SendNbOfParticles()
-    ! finish communication of number of particles and send particles
-    CALL MPIParticleSend()
-    ! finish communication
-    CALL MPIParticleRecv()
-    ! set exchanged number of particles to zero
-    PartMPIExchange%nMPIParticles=0
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_PARTCOMM,tLBStart)
-#endif /*USE_LOADBALANCE*/
-  END IF
-#endif /*USE_MPI*/
-END IF
-
 ! simulation with delay-time, compute the
 IF(DelayTime.GT.0.)THEN
   IF((iter.EQ.0).AND.(time.LT.DelayTime))THEN
     ! perform normal deposition
-    CALL Deposition(DoInnerParts=.TRUE.)
-#if USE_MPI
-    ! here: finish deposition with delta kernal
-    !       maps source terms in physical space
-    ! ALWAYS require
-    PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
-    CALL Deposition(DoInnerParts=.FALSE.)
+    CALL Deposition()
   END IF
 END IF
 
@@ -2097,20 +1902,12 @@ END IF
 IF (time.GE.DelayTime) THEN
   ! if we call it correctly, we may save here work between different RK-stages
   ! because of emmision and UpdateParticlePosition
-  CALL Deposition(DoInnerParts=.TRUE.)
-#if USE_MPI
-  ! here: finish deposition with delta kernal
-  !       maps source terms in physical space
-  ! ALWAYS require
-  PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
-  CALL Deposition(DoInnerParts=.FALSE.)
+  CALL Deposition()
 END IF
 
 ImplicitSource=0.
-#ifdef PARTICLES
 ExplicitPartSource=0.
-#endif /*PARTICLES*/
+
 #if !(USE_HDG)
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
@@ -2443,8 +2240,7 @@ DO iStage=2,nRKStages
     CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
     ! deposit explicit, local particles
-    CALL Deposition(DoInnerParts=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
-    CALL Deposition(DoInnerParts=.FALSE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength)) ! external particles arg
+    CALL Deposition(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
     !PartMPIExchange%nMPIParticles=0
     IF(DoDeposition) THEN
       DO iElem=1,PP_nElems
@@ -2571,14 +2367,6 @@ DO iStage=2,nRKStages
       CALL MPIParticleSend()
       ! finish communication
       CALL MPIParticleRecv()
-      PartMPIExchange%nMPIParticles=0
-      IF(DoExternalParts)THEN
-        ! as we do not have the shape function here, we have to deallocate something
-        SDEALLOCATE(ExtPartState)
-        SDEALLOCATE(ExtPartSpecies)
-        SDEALLOCATE(ExtPartToFIBGM)
-        SDEALLOCATE(ExtPartMPF)
-      END IF
 #if USE_LOADBALANCE
       CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -2737,14 +2525,6 @@ iStage=0
   ! finish communication
   CALL MPIParticleRecv()
 ! #endif ! old -> new is 9 lines below
-  PartMPIExchange%nMPIParticles=0
-  IF(DoExternalParts)THEN
-    ! as we do not have the shape function here, we have to deallocate something
-    SDEALLOCATE(ExtPartState)
-    SDEALLOCATE(ExtPartSpecies)
-    SDEALLOCATE(ExtPartToFIBGM)
-    SDEALLOCATE(ExtPartMPF)
-  END IF
 #endif
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PARTCOMM,tLBStart)
@@ -3888,8 +3668,6 @@ USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
-USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
-USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge,PartAnalyzeStep
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
@@ -3918,37 +3696,7 @@ REAL                       :: tLBStart ! load balance
 #ifdef PARTICLES
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! communicate shape function particles
-#if USE_MPI
-  PartMPIExchange%nMPIParticles=0
-  IF(DoExternalParts)THEN
-    ! as we do not have the shape function here, we have to deallocate something
-    SDEALLOCATE(ExtPartState)
-    SDEALLOCATE(ExtPartSpecies)
-    SDEALLOCATE(ExtPartToFIBGM)
-    SDEALLOCATE(ExtPartMPF)
-    ! open receive buffer for number of particles
-    CALL IRecvNbofParticles()
-    ! send number of particles
-    CALL SendNbOfParticles()
-    ! finish communication of number of particles and send particles
-    CALL MPIParticleSend()
-  END IF
-#endif /*USE_MPI*/
-  CALL Deposition(DoInnerParts=.TRUE.) ! because of emission and UpdateParticlePosition
-#if USE_MPI
-  IF(DoExternalParts)THEN
-    ! finish communication
-    CALL MPIParticleRecv()
-  END IF
-  ! here: finish deposition with delta kernel
-  !       maps source terms in physical space
-  ! ALWAYS require
-  PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
-!  CALL Deposition(DoInnerParts=.FALSE.) ! needed for closing communication
-  IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
-    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
-  END IF
+  CALL Deposition() ! because of emission and UpdateParticlePosition
 END IF
 #endif /*PARTICLES*/
 
@@ -3972,8 +3720,7 @@ IF (time.GE.DelayTime) THEN
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
   !-- get E(x(n))
-  CALL InterpolateFieldToParticle(DoInnerParts=.TRUE.)   ! forces on particles
-  !CALL InterpolateFieldToParticle(DoInnerParts=.FALSE.) ! only needed when MPI communication changes the number of parts
+  CALL InterpolateFieldToParticle()   ! forces on particles
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4073,20 +3820,12 @@ IF (time.GE.DelayTime) THEN
 #endif
 #if (PP_TimeDiscMethod==509)
   IF (velocityOutputAtTime) THEN
-#if USE_MPI
-    PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
-    CALL Deposition(DoInnerParts=.TRUE.) ! because of emission and UpdateParticlePosition
-!    CALL Deposition(DoInnerParts=.FALSE.) ! needed for closing communication
-    IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
-      IF(DoVerifyCharge) CALL VerifyDepositedCharge()
-    END IF
+    CALL Deposition() ! because of emission and UpdateParticlePosition
     CALL HDG(time,U,iter)
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-    CALL InterpolateFieldToParticle(DoInnerParts=.TRUE.)   ! forces on particles
-    !CALL InterpolateFieldToParticle(DoInnerParts=.FALSE.) ! only needed when MPI communication changes the number of parts
+    CALL InterpolateFieldToParticle()   ! forces on particles
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4105,9 +3844,6 @@ IF (time.GE.DelayTime) THEN
   CALL ParticleCollectCharges()
 END IF
 
-#if USE_MPI
-PartMPIExchange%nMPIParticles=0 ! and set number of received particles to zero for deposition
-#endif
 IF (doParticleMerge) THEN
   IF (.NOT.useDSMC) THEN
 #if USE_LOADBALANCE
@@ -4490,37 +4226,7 @@ RKdtFracTotal=RKdtFrac
 
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! communicate shape function particles
-#if USE_MPI
-  PartMPIExchange%nMPIParticles=0
-  IF(DoExternalParts)THEN
-    ! as we do not have the shape function here, we have to deallocate something
-    SDEALLOCATE(ExtPartState)
-    SDEALLOCATE(ExtPartSpecies)
-    SDEALLOCATE(ExtPartToFIBGM)
-    SDEALLOCATE(ExtPartMPF)
-    ! open receive buffer for number of particles
-    CALL IRecvNbofParticles()
-    ! send number of particles
-    CALL SendNbOfParticles()
-    ! finish communication of number of particles and send particles
-    CALL MPIParticleSend()
-  END IF
-#endif /*USE_MPI*/
-  CALL Deposition(DoInnerParts=.TRUE.) ! because of emission and UpdateParticlePosition
-#if USE_MPI
-  IF(DoExternalParts)THEN
-    ! finish communication
-    CALL MPIParticleRecv()
-  END IF
-  ! here: finish deposition with delta kernel
-  !       maps source terms in physical space
-  ! ALWAYS require
-  PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
-  CALL Deposition(DoInnerParts=.FALSE.) ! needed for closing communication
-  IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
-    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
-  END IF
+  CALL Deposition() ! because of emission and UpdateParticlePosition
 END IF
 #endif /*PARTICLES*/
 
@@ -4553,8 +4259,7 @@ IF (time.GE.DelayTime) THEN
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-  CALL InterpolateFieldToParticle(DoInnerParts=.TRUE.)   ! forces on particles
-  !CALL InterpolateFieldToParticle(DoInnerParts=.FALSE.) ! only needed when MPI communation changes the number of parts
+  CALL InterpolateFieldToParticle()   ! forces on particles
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4678,17 +4383,7 @@ DO iStage=2,nRKStages
 
   ! deposition
   IF (time.GE.DelayTime) THEN
-    CALL Deposition(DoInnerParts=.TRUE.) ! because of emission and UpdateParticlePosition
-#if USE_MPI
-    ! here: finish deposition with delta kernel
-    !       maps source terms in physical space
-    ! ALWAYS require
-    PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
-    CALL Deposition(DoInnerParts=.FALSE.) ! needed for closing communication
-  IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
-    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
-  END IF
+    CALL Deposition() ! because of emission and UpdateParticlePosition
   END IF
 #endif /*PARTICLES*/
 
@@ -4719,8 +4414,7 @@ DO iStage=2,nRKStages
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-    CALL InterpolateFieldToParticle(DoInnerParts=.TRUE.)   ! forces on particles
-    !CALL InterpolateFieldToParticle(DoInnerParts=.FALSE.) ! only needed when MPI communation changes the number of parts
+    CALL InterpolateFieldToParticle()   ! forces on particles
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/

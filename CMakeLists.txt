@@ -124,7 +124,6 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           ROS46
                                                           ROS6)
 
-OPTION(PICLAS_QDS_DG "enable QDS method discretized by DGSEM" OFF)
 OPTION(PICLAS_BUILD_POSTI "Build POSTI toolset" ON)
 OPTION(PICLAS_MPI "Compile SINGLE or MPI version" ON)
 CMAKE_DEPENDENT_OPTION(PICLAS_LOADBALANCE "Use load balance time measurement" ON "PICLAS_MPI" OFF)
@@ -610,16 +609,6 @@ ELSE()
 ENDIF()
 
 # =========================================================================
-# QDS with DGSEM
-# =========================================================================
-IF(PICLAS_QDS_DG)
-  MESSAGE(STATUS "Building PICLas with QDS-DGSEM")
-  ADD_DEFINITIONS(-DUSE_QDS_DG=1)
-ELSE()
-  ADD_DEFINITIONS(-DUSE_QDS_DG=0)
-ENDIF()
-
-# =========================================================================
 # Coffee Lib
 # =========================================================================
 OPTION(CMAKE_ANS_COFFEE "Enable coffee lib" OFF)
@@ -740,9 +729,6 @@ FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_vars.f90
                          ./src/particles/boundary/particle_boundary_vars.f90)
 
-FILE(GLOB_RECURSE QDSF90 ./src/qds/*.f90
-                         ./src/interpolation/prolongtoface.f90)
-
 IF(PICLAS_HDG)
   LIST(APPEND piclasF90 ${hdgF90})
   IF(PICLAS_IMPLICIT)
@@ -758,13 +744,10 @@ ENDIF(PICLAS_HDG)
 
 LIST(APPEND piclasF90 ${mainF90})
 IF (PICLAS_PARTICLES)
-   LIST(APPEND piclasF90 ${particlesF90})
- ELSE()
-   LIST(APPEND piclasF90 ${noparticlesF90})
- ENDIF(PICLAS_PARTICLES)
- IF(PICLAS_QDS_DG)
-  LIST(APPEND piclasF90 ${QDSF90})
-ENDIF()
+  LIST(APPEND piclasF90 ${particlesF90})
+ELSE()
+  LIST(APPEND piclasF90 ${noparticlesF90})
+ENDIF(PICLAS_PARTICLES)
 
 # define libs
 ADD_LIBRARY(libpiclasstaticF90 OBJECT ${piclasF90} )

@@ -1115,7 +1115,7 @@ SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE DEPOSITION DONE!'
 END SUBROUTINE InitializeDeposition
 
 
-SUBROUTINE Deposition(DoInnerParts,doParticle_In)
+SUBROUTINE Deposition(doParticle_In)
 !============================================================================================================================
 ! This subroutine performs the deposition of the particle charge and current density to the grid
 ! following list of distribution methods are implemented
@@ -1130,69 +1130,39 @@ USE MOD_Globals
 #if USE_MPI
 USE MOD_Particle_MPI_Vars           ,ONLY: PartMPIExchange
 #endif  /*USE_MPI*/
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBPauseTime
-#endif /*USE_LOADBALANCE*/
 USE MOD_PICDepo_Method              ,ONLY: DepositionMethod
 USE MOD_MPI_Shared_Vars             ,ONLY: myComputeNodeRank, MPI_COMM_SHARED
+USE MOD_PIC_Analyze                 ,ONLY: VerifyDepositedCharge
+USE MOD_Particle_Analyze_Vars       ,ONLY: DoVerifyCharge,PartAnalyzeStep
+USE MOD_TimeDisc_Vars               ,ONLY: iter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT variable declaration
-LOGICAL,INTENT(IN)               :: DoInnerParts                           ! TODO: definition of this variable
 LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT variable declaration
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Local variable declaration
 !-----------------------------------------------------------------------------------------------------------------------------------
-LOGICAL            :: doPartInExists
-#if USE_LOADBALANCE
-REAL               :: tLBStart
-#endif /*USE_LOADBALANCE*/
-INTEGER            :: FirstPart,LastPart
 !============================================================================================================================
 ! Return, if no deposition is required
 IF(.NOT.DoDeposition) RETURN
 
-! Start time measurement for shape function deposition only
-#if USE_LOADBALANCE
-IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
-  CALL LBStartTime(tLBStart) ! Start time measurement
-END IF ! TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function'
-#endif /*USE_LOADBALANCE*/
+IF (myComputeNodeRank.EQ.0) PartSource = 0.0
+CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
 
-doPartInExists=.FALSE.
-IF(PRESENT(doParticle_In)) doPartInExists=.TRUE.
+IF(PRESENT(doParticle_In)) THEN
+  CALL DepositionMethod(doParticle_In)
+ELSE 
+  CALL DepositionMethod()
+END IF
 
-!IF(DoInnerParts)THEN
-  IF (myComputeNodeRank.EQ.0) PartSource = 0.0
-  CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
-  FirstPart  = 1
-  LastPart   = PDM%ParticleVecLength
-  !IF(FirstPart.GT.LastPart) RETURN
-!ELSE
-!#if USE_MPI
-!  FirstPart=PDM%ParticleVecLength-PartMPIExchange%nMPIParticles+1
-!  LastPart =PDM%ParticleVecLength
-!#else
-!  FirstPart=1
-!  LastPart =0
-!#endif /*USE_MPI*/
-!END IF
-
-! Do the actual deposition (cell_volweight, shapefunction, spline etc.)
-CALL DepositionMethod(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
-
-! End time measurement for shape function deposition only
-#if USE_LOADBALANCE
-IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
-  CALL LBPauseTime(LB_DEPOSITION,tLBStart)
-END IF ! TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function'
-#endif /*USE_LOADBALANCE*/
-
+IF(MOD(iter,PartAnalyzeStep).EQ.0) THEN 
+  IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+END IF
 RETURN
 END SUBROUTINE Deposition
 

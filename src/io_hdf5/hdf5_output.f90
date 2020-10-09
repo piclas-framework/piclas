@@ -2979,9 +2979,6 @@ USE MOD_HDF5_Input       ,ONLY: GetHDF5NextFileName
 #if USE_LOADBALANCE
 USE MOD_Loadbalance_Vars ,ONLY: DoLoadBalance,nLoadBalance
 #endif /*USE_LOADBALANCE*/
-#if USE_QDS_DG
-USE MOD_QDS_DG_Vars      ,ONLY: DoQDS
-#endif /*USE_QDS_DG*/
 USE MOD_Mesh_Vars        ,ONLY: DoWriteStateToHDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3031,32 +3028,6 @@ DO
   IF(stat .EQ. 0) CLOSE ( ioUnit,STATUS = 'DELETE' )
   IF(iError.NE.0) EXIT  ! iError is set in GetHDF5NextFileName !
 END DO
-
-#if USE_QDS_DG
-! delete QDS state files
-IF(DoQDS)THEN
-  NextFile=TRIM(TIMESTAMP(TRIM(ProjectName)//'_QDS',FlushTime))//'.h5'
-  DO
-    InputFile=TRIM(NextFile)
-    ! Read calculation time from file
-#if USE_MPI
-    CALL GetHDF5NextFileName(Inputfile,NextFile,.TRUE.)
-#else
-    CALL GetHDF5NextFileName(Inputfile,NextFile)
-#endif
-    ! Delete File - only root
-    stat=0
-    OPEN ( NEWUNIT= ioUnit,         &
-           FILE   = InputFile,      &
-           STATUS = 'OLD',          &
-           ACTION = 'WRITE',        &
-           ACCESS = 'SEQUENTIAL',   &
-           IOSTAT = stat          )
-    IF(stat .EQ. 0) CLOSE ( ioUnit,STATUS = 'DELETE' )
-    IF(iError.NE.0) EXIT  ! iError is set in GetHDF5NextFileName !
-  END DO
-END IF
-#endif /*USE_QDS_DG*/
 
 WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 
