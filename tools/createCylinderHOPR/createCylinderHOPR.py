@@ -519,18 +519,18 @@ BoundaryOrder = 3  ! = NGeo+1
 if Configuration.config["periodic"] == 0:
     f.write(r"""
 ! periodic
-BoundaryName=BC_back    ! BC index X (from  position in parameterfile)
+BoundaryName=BC_back      ! BC index 1 (from  position in parameterfile)
 BoundaryType=(/1,0,0,1/)  ! (/ Type, curveIndex, State, alpha /)
 
-BoundaryName=BC_front     ! BC index X
+BoundaryName=BC_front     ! BC index 2
 BoundaryType=(/1,0,0,-1/)
 vv=(/0.,0.,lz/)
 
 ! non-periodic
-!   BoundaryName=BC_back    ! BC index X (from  position in parameterfile)
+!   BoundaryName=BC_back      ! BC index 1 (from  position in parameterfile)
 !   BoundaryType=(/3,0,0,0/)  ! (/ Type, curveIndex, State, alpha /)
 !   
-!   BoundaryName=BC_front     ! BC index X
+!   BoundaryName=BC_front     ! BC index 2
 !   BoundaryType=(/3,0,0,0/)  ! (/ Type, curveIndex, State, alpha /)
 """)
 
@@ -538,32 +538,32 @@ vv=(/0.,0.,lz/)
 if Configuration.config["periodic"] == 1:
     f.write(r"""
 ! periodic
-!   BoundaryName=BC_back    ! BC index X (from  position in parameterfile)
+!   BoundaryName=BC_back      ! BC index 1 (from  position in parameterfile)
 !   BoundaryType=(/1,0,0,1/)  ! (/ Type, curveIndex, State, alpha /)
 !
-!   BoundaryName=BC_front     ! BC index X
+!   BoundaryName=BC_front     ! BC index 2
 !   BoundaryType=(/1,0,0,-1/)
 !   vv=(/0.,0.,lz/)
 
 ! non-periodic
-BoundaryName=BC_back    ! BC index X (from  position in parameterfile)
+BoundaryName=BC_back      ! BC index 1 (from  position in parameterfile)
 BoundaryType=(/3,0,0,0/)  ! (/ Type, curveIndex, State, alpha /)
 
-BoundaryName=BC_front     ! BC index X
+BoundaryName=BC_front     ! BC index 2
 BoundaryType=(/3,0,0,0/)  ! (/ Type, curveIndex, State, alpha /)
 """)
 
 f.write(r"""
 ! Inner cylinder BC
-BoundaryName=BC_cylinder     ! BC index X
+BoundaryName=BC_cylinder     ! BC index 3
 BoundaryType=(/3,0,0,0/)
 
 ! left inflow or wall BC
-BoundaryName=BC_left    ! BC index X
+BoundaryName=BC_left        ! BC index 4
 BoundaryType=(/2,0,0,0/)
 
 ! right inflow or wall BC
-BoundaryName=BC_right    ! BC index X
+BoundaryName=BC_right       ! BC index 5
 BoundaryType=(/4,0,0,0/)
 """)
 
@@ -571,17 +571,17 @@ BoundaryType=(/4,0,0,0/)
 if NbrOfZones == 4:
     f.write(r"""
 ! Symmetry BC (x-z-plane)
-BoundaryName=BC_symmetry    ! BC index X
+BoundaryName=BC_symmetry    ! BC index 6
 BoundaryType=(/4,0,0,0/)
 """)
 elif NbrOfZones == 2:
     f.write(r"""
 ! Symmetry BC (y-z-plane)
-BoundaryName=BC_symmetry1   ! BC index X
+BoundaryName=BC_symmetry1   ! BC index 6
 BoundaryType=(/4,0,0,0/)
 
 ! Symmetry BC (x-z-plane)
-BoundaryName=BC_symmetry2   ! BC index X
+BoundaryName=BC_symmetry2   ! BC index 7
 BoundaryType=(/4,0,0,0/)
 """)
 
