@@ -855,7 +855,7 @@ ENDIF(PICLAS_CTAGS)
 # =========================================================================
 # Shared memory debug flags
 # =========================================================================
-SET(PICLAS_DEBUG_MEMORY OFF CACHE BOOL "Output shared memory window sizes")
+SET(PICLAS_DEBUG_MEMORY OFF CACHE BOOL "Output shared memory window sizes. 'USE MOD_MPI_Shared' cannot be used together with the 'ONLY:' statement in this case!")
 IF(PICLAS_DEBUG_MEMORY)
   SET (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DDEBUG_MEMORY")
 ENDIF()
