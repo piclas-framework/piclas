@@ -564,8 +564,6 @@ DO iCase = 1, NbrOfCases
   SELECT CASE(TRIM(DepositionType))
   CASE('shape_function')
     CALL depoChargeOnDOFs_sf(ShiftedPart,SourceSize,Fac,const)
-  CASE('shape_function_simple')
-    CALL depoChargeOnDOFs_sf_simple(ShiftedPart,SourceSize,Fac,const)
   END SELECT
 END DO ! iCase (periodicity)
 
@@ -681,94 +679,6 @@ DO kk = kmin,kmax
 END DO ! kk
 
 END SUBROUTINE depoChargeOnDOFs_sf
-
-
-SUBROUTINE depoChargeOnDOFs_sf_simple(Position,SourceSize,Fac,const)
-!============================================================================================================================
-! actual deposition of single charge on DOFs via shapefunction_simple (i.e. loop through all elems instead of part-dependency: efficient for small elem-nbr!)
-!============================================================================================================================
-! use MODULES
-USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
-USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP, ElemRadius2_sf, PartSourceConst
-USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo
-USE MOD_PreProc
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
-#endif  /*USE_LOADBALANCE*/
-!-----------------------------------------------------------------------------------------------------------------------------------
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)                 :: Position(3)
-INTEGER, INTENT(IN)              :: SourceSize
-!#if ((USE_HDG) && (PP_nVar==1))
-!REAL, INTENT(IN)                 :: Fac(4:4)
-!#else
-REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
-!#endif
-LOGICAL, INTENT(IN)              :: const
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                          :: k, l, m
-INTEGER                          :: ElemID
-REAL                             :: radius2, S, S1
-REAL                             :: dx,dy,dz
-INTEGER                          :: expo
-!----------------------------------------------------------------------------------------------------------------------------------
-
-DO ElemID=1,PP_nElems
-  dX = ABS(Position(1) - ElemBaryNgeo(1,ElemID))
-  IF(dX.GT.r_sf+ElemRadiusNGeo(ElemID)) CYCLE
-  dY = ABS(Position(2) - ElemBaryNgeo(2,ElemID))
-  IF(dY.GT.r_sf+ElemRadiusNGeo(ElemID)) CYCLE
-  dZ = ABS(Position(3) - ElemBaryNgeo(3,ElemID))
-  IF(dZ.GT.r_sf+ElemRadiusNGeo(ElemID)) CYCLE
-  radius2 = dX*dX+dY*dY+dZ*dZ
-  IF(radius2.GT.ElemRadius2_sf(ElemID)) CYCLE
-#if USE_LOADBALANCE
-  nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*USE_LOADBALANCE*/
-  DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-    !-- calculate distance between gauss and particle
-    dX = ABS(Position(1) - ElemDepo_xGP(1,k,l,m,ElemID))
-    IF(dX.GT.r_sf) CYCLE
-    dY = ABS(Position(2) - ElemDepo_xGP(2,k,l,m,ElemID))
-    IF(dY.GT.r_sf) CYCLE
-    dZ = ABS(Position(3) - ElemDepo_xGP(3,k,l,m,ElemID))
-    IF(dZ.GT.r_sf) CYCLE
-    radius2 = dX*dX+dY*dY+dZ*dZ
-    !-- calculate charge and current density at ip point using a shape function
-    !-- currently only one shapefunction available, more to follow (including structure change)
-    IF (radius2 .GT. r2_sf) CYCLE
-    S = 1. - r2_sf_inv * radius2
-    S1 = S*S
-    DO expo = 3, alpha_sf
-      S1 = S*S1
-    END DO
-    IF (const) THEN
-      IF (SourceSize.EQ.1) THEN
-        PartSourceConst(4,k,l,m,ElemID) = PartSourceConst(4,k,l,m,ElemID) + Fac(4) * S1
-!#if !((USE_HDG) && (PP_nVar==1))
-      ELSE IF (SourceSize.EQ.4) THEN
-        PartSourceConst(1:4,k,l,m,ElemID) = PartSourceConst(1:4,k,l,m,ElemID) + Fac(1:4) * S1
-!#endif
-      END IF
-    ELSE !.NOT.const
-      IF (SourceSize.EQ.1) THEN
-        PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(4) * S1
-!#if !((USE_HDG) && (PP_nVar==1))
-      ELSE IF (SourceSize.EQ.4) THEN
-        PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
-!#endif
-      END IF
-    END IF !const
-  END DO; END DO; END DO
-END DO !ElemID=1,PP_nElems
-
-END SUBROUTINE depoChargeOnDOFs_sf_simple
 
 
 !==================================================================================================================================

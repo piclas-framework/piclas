@@ -334,8 +334,7 @@ ELSE
   halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
 #endif
 
-  ! Check whether halo_eps is smaller than shape function radius
-  ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical', 'shape_function_simple'
+  ! Check whether halo_eps is smaller than shape function radius e.g. 'shape_function'
   IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
     IF(halo_eps.LT.r_sf)THEN
       SWRITE(UNIT_stdOut,'(A)') ' halo_eps is smaller than shape function radius. Setting halo_eps=r_sf'
