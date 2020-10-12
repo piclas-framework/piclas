@@ -402,12 +402,6 @@ gnu_NIG_PIC_poisson_implicit04:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_implicit04/ ; fi
 
-gnu_NIG_QDS:
-  <<: *defaults_gnu_nightly
-  stage: reggie_nightly
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_QDS/ ; fi
-
 gnu_NIG_LoadBalance:
   <<: *defaults_gnu_nightly
   stage: reggie_nightly
