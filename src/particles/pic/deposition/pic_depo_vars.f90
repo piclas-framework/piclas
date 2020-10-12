@@ -122,15 +122,6 @@ TYPE (tNodeMapping),ALLOCATABLE      :: NodeMapping(:)
 #endif
 
 
-INTEGER                         :: NbrOfSFdepoFixes              ! Number of fixes for shape func depo at planar BCs
-REAL    , ALLOCATABLE           :: SFdepoFixesGeo(:,:,:)         ! 1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
-REAL    , ALLOCATABLE           :: SFdepoFixesBounds(:,:,:)      ! 1:nFixes;1:2(min,max);1:3(x,y,z)
-REAL    , ALLOCATABLE           :: SFdepoFixesChargeMult(:)      ! multiplier for mirrored charges (wall: -1.0, sym: 1.0)
-LOGICAL , ALLOCATABLE           :: SFdepoFixesPartOfLink(:)      ! this fix is part of a link
-REAL                            :: SFdepoFixesEps                ! epsilon for defined planes
-INTEGER                         :: NbrOfSFdepoFixLinks           ! Number of linked SFdepoFixes
-INTEGER , ALLOCATABLE           :: SFdepoFixLinks(:,:)           ! 1:nLinks;1:3 (2 fixes are linked with each other!)
-                                                                 !              (:,3 is fraction of 180 deg)
 INTEGER                         :: NbrOfSFdepoLayers             ! Number of const. source layer for sf-depo at planar BCs
 LOGICAL                         :: PrintSFDepoWarnings           ! flag to print the warnings
 LOGICAL                         :: ConstantSFdepoLayers          ! depo just once

@@ -38,12 +38,10 @@ CONTAINS
 
 SUBROUTINE calcSfSourceNew(SourceSize_in,ChargeMPF,Vec1,Vec2,Vec3,PartPos,PartIdx,PartVelo)
 !============================================================================================================================
-! deposit charges on DOFs via shapefunction including periodic displacements and mirroring with SFdepoFixes
+! deposit charges on DOFs via shapefunction including periodic displacements and mirroring
 !============================================================================================================================
 ! use MODULES
 USE MOD_PICDepo_Vars,           ONLY:r_sf,DepositionType
-USE MOD_PICDepo_Vars,           ONLY:NbrOfSFdepoFixes,SFdepoFixesGeo,SFdepoFixesBounds,SFdepoFixesChargeMult
-USE MOD_PICDepo_Vars,           ONLY:SFdepoFixesPartOfLink,SFdepoFixesEps,NbrOfSFdepoFixLinks,SFdepoFixLinks
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars,     ONLY:casematrix,NbrOfCases
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -71,7 +69,6 @@ REAL                             :: ShiftedPart(1:3), caseShiftedPart(1:3), n_lo
 INTEGER                          :: iSFfix, LinkLoopEnd(2), iSFfixLink, iTwin, iLinkRecursive, SFfixIdx, SFfixIdx2
 LOGICAL                          :: DoCycle, DoNotDeposit
 REAL                             :: SFfixDistance, SFfixDistance2
-LOGICAL , ALLOCATABLE            :: SFdepoFixDone(:)
 LOGICAL                          :: const
 !----------------------------------------------------------------------------------------------------------------------------------
 !#if !((USE_HDG) && (PP_nVar==1))
@@ -503,12 +500,10 @@ END SUBROUTINE depoChargeOnDOFs_sfNewChargeCon
 
 SUBROUTINE calcSfSource(SourceSize_in,ChargeMPF,Vec1,Vec2,Vec3,PartPos,PartIdx,PartVelo,const_opt)
 !============================================================================================================================
-! deposit charges on DOFs via shapefunction including periodic displacements and mirroring with SFdepoFixes
+! deposit charges on DOFs via shapefunction including periodic displacements and mirroring
 !============================================================================================================================
 ! use MODULES
 USE MOD_PICDepo_Vars,           ONLY:r_sf,DepositionType
-USE MOD_PICDepo_Vars,           ONLY:NbrOfSFdepoFixes,SFdepoFixesGeo,SFdepoFixesBounds,SFdepoFixesChargeMult
-USE MOD_PICDepo_Vars,           ONLY:SFdepoFixesPartOfLink,SFdepoFixesEps,NbrOfSFdepoFixLinks,SFdepoFixLinks
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars,     ONLY:casematrix,NbrOfCases
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -537,7 +532,6 @@ REAL                             :: ShiftedPart(1:3), caseShiftedPart(1:3), n_lo
 INTEGER                          :: iSFfix, LinkLoopEnd(2), iSFfixLink, iTwin, iLinkRecursive, SFfixIdx, SFfixIdx2
 LOGICAL                          :: DoCycle, DoNotDeposit
 REAL                             :: SFfixDistance, SFfixDistance2
-LOGICAL , ALLOCATABLE            :: SFdepoFixDone(:)
 LOGICAL                          :: const
 !----------------------------------------------------------------------------------------------------------------------------------
 IF (PRESENT(const_opt)) THEN
@@ -560,134 +554,20 @@ ELSE
 __STAMP__ &
 ,'SourceSize has to be either 1 or 4!',SourceSize)
 END IF
-IF (NbrOfSFdepoFixes.EQ.0) THEN
-  DO iCase = 1, NbrOfCases
-    DO ind = 1,3
-      ShiftedPart(ind) = PartPos(ind) + casematrix(iCase,1)*Vec1(ind) + &
-        casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
-    END DO
-    Fac = Fac2
-    SELECT CASE(TRIM(DepositionType))
-    CASE('shape_function')
-      CALL depoChargeOnDOFs_sf(ShiftedPart,SourceSize,Fac,const)
-    CASE('shape_function_simple')
-      CALL depoChargeOnDOFs_sf_simple(ShiftedPart,SourceSize,Fac,const)
-    END SELECT
-  END DO ! iCase (periodicity)
-ELSE ! NbrOfSFdepoFixes.NE.0
-  ALLOCATE(SFdepoFixDone(0:NbrOfSFdepoFixes))
-  DO iCase = 1, NbrOfCases
-    DO ind = 1,3
-      caseShiftedPart(ind) = PartPos(ind) + casematrix(iCase,1)*Vec1(ind) + &
-        casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
-    END DO
-    SFdepoFixDone=.FALSE.
-    DO iSFfix=0,NbrOfSFdepoFixes
-      IF (SFdepoFixesPartOfLink(iSFfix)) CYCLE !this SFfix will be already covered as part of a FixLink
-      IF (iSFfix.EQ.0) THEN
-        LinkLoopEnd(1)=NbrOfSFdepoFixLinks !non-mirrored position: consider FixLinks
-      ELSE
-        LinkLoopEnd(1)=0
-      END IF
-      DO iSFfixLink=0,LinkLoopEnd(1)
-        DoCycle=.FALSE.
-        !-- strategy for SFdepoFixLink:
-        !-- 1.: create 2 identities by iTwin for iLinkRecursive=0 (non-mirror and mirror at SFdepoFixLinks(*,1))
-        !-- 2.: mirror recursevely further for iLinkRecursive>0 (alternating at SFdepoFixLinks(*,2) and SFdepoFixLinks(*,1))
-        DO iTwin=1,2
-          IF (iSFfixLink.EQ.0 .AND. iTwin.EQ.2) EXIT !no SFdepoFixLink
-          Fac = Fac2
-          ShiftedPart=caseShiftedPart
-          IF (iSFfixLink.EQ.0) THEN
-            LinkLoopEnd(2)=0 !no SFdepoFixLink
-          ELSE
-            LinkLoopEnd(2)=ABS(SFdepoFixLinks(iSFfixLink,3))-1 !might be negative as flag for special case
-          END IF
-          DO iLinkRecursive=0,LinkLoopEnd(2)
-            IF (iLinkRecursive.EQ.0) THEN !(first!)
-              IF (iTwin.EQ.1) THEN
-                SFfixIdx = iSFfix
-              ELSE
-                SFfixIdx =SFdepoFixLinks(iSFfixLink,1)
-              END IF
-            ELSE
-              IF (MOD(iLinkRecursive,2).NE.0) THEN !uneven (second and later: 1, 3, ...)
-                SFfixIdx =SFdepoFixLinks(iSFfixLink,2)
-              ELSE !even (third and later: 2, 4, ...)
-                SFfixIdx =SFdepoFixLinks(iSFfixLink,1)
-              END IF
-            END IF
-            DoNotDeposit=.FALSE.
-            IF (iLinkRecursive.EQ.0 .OR. (iLinkRecursive.EQ.1 .AND. iTwin.EQ.1)) THEN !single or one-time-mirrored identity
-              IF (SFdepoFixDone(SFfixIdx)) DoNotDeposit=.TRUE. !do not deposit this charge (but save position for further mirroring)
-              SFdepoFixDone(SFfixIdx) = .TRUE.
-            ELSE IF (iSFfixLink.GT.0) THEN
-              IF (SFdepoFixLinks(iSFfixLink,3).LT.0) EXIT !skip double mirroring for 120 deg case
-            END IF
-            IF (SFfixIdx.GT.0) THEN
-              IF ( SFdepoFixesBounds(SFfixIdx,1,1).GT.ShiftedPart(1) .OR. ShiftedPart(1).GT.SFdepoFixesBounds(SFfixIdx,2,1) .OR. &
-                SFdepoFixesBounds(SFfixIdx,1,2).GT.ShiftedPart(2) .OR. ShiftedPart(2).GT.SFdepoFixesBounds(SFfixIdx,2,2) .OR. &
-                SFdepoFixesBounds(SFfixIdx,1,3).GT.ShiftedPart(3) .OR. ShiftedPart(3).GT.SFdepoFixesBounds(SFfixIdx,2,3) ) THEN
-                DoCycle=.TRUE.
-                EXIT !do not shift this particle (-> go to next single SFfixIdx -> iSFfixLink-loop)
-              END IF
-              SFfixDistance = SFdepoFixesGeo(SFfixIdx,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(SFfixIdx,1,1)) &
-                + SFdepoFixesGeo(SFfixIdx,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(SFfixIdx,1,2)) &
-                + SFdepoFixesGeo(SFfixIdx,2,3)*(ShiftedPart(3)-SFdepoFixesGeo(SFfixIdx,1,3))
-              SFfixIdx2=0 !init
-              IF (SFfixDistance .GT. SFdepoFixesEps) THEN
-                IPWRITE(*,'(I4,A,3(x,E12.5))')' original case-pos:',caseShiftedPart
-                IPWRITE(*,'(I4,A,3(x,E12.5))')' current pos:',ShiftedPart
-                IPWRITE(*,'(I4,7(A,I0))') &
-                  ' iCase: ',iCase,', iSFfix:',iSFfix,', iSFfixLink:',iSFfixLink,', iTwin:',iTwin,', iLinkRec:',iLinkRecursive,&
-                  ', SFfixIdx:',SFfixIdx,', PartIdx:',PartIdx
-                CALL abort(&
-                  __STAMP__ &
-                  ,'Particle is outside of SF-Fix-Plane! (For Layer-/Resample-Parts: try -UseFixBounds)',SFfixIdx,SFfixDistance)
-              ELSE IF ( (SFfixDistance.LT.-r_sf) ) THEN !.OR. (SFfixDistance.GT.0.) ) THEN !SFfixDistance>0 are particle within eps
-                DoNotDeposit=.TRUE. !too far inside so that mirrored SF would not reach any DOF
-              ELSE IF (iSFfixLink.GT.0) THEN !check which is the other SFfixIdx of current link
-                IF (SFfixIdx.EQ.SFdepoFixLinks(iSFfixLink,1)) THEN
-                  SFfixIdx2=SFdepoFixLinks(iSFfixLink,2)
-                ELSE IF (SFfixIdx.EQ.SFdepoFixLinks(iSFfixLink,2)) THEN
-                  SFfixIdx2=SFdepoFixLinks(iSFfixLink,1)
-                ELSE
-                  CALL abort(&
-                    __STAMP__ &
-                    ,'Something is wrong with iSFfixLink',iSFfixLink)
-                END IF
-              END IF
-              ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(SFfixIdx,2,1:3)
-              Fac = Fac * SFdepoFixesChargeMult(SFfixIdx)
-!#if !((USE_HDG) && (PP_nVar==1))
-              IF (SourceSize.EQ.4) THEN
-                ! change velocity
-                n_loc = SFdepoFixesGeo(SFfixIdx,2,1:3)
-                Fac(1:3) = Fac2(1:3) -2.*DOT_PRODUCT(Fac2(1:3),n_loc)*n_loc
-              END IF
-!#endif
-              IF (SFfixIdx2.NE.0) THEN !check if new position would not reach a dof because of the other plane
-                SFfixDistance2 = SFdepoFixesGeo(SFfixIdx2,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(SFfixIdx2,1,1)) &
-                  + SFdepoFixesGeo(SFfixIdx2,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(SFfixIdx2,1,2)) &
-                  + SFdepoFixesGeo(SFfixIdx2,2,3)*(ShiftedPart(3)-SFdepoFixesGeo(SFfixIdx2,1,3))
-                IF (SFfixDistance2 .GT. r_sf) DoNotDeposit=.TRUE. !too far outside of plane
-              END IF
-            END IF
-            IF (DoNotDeposit) CYCLE !(-> do not deposit but save position for possible further recursive mirroring)
-            !------------- actual deposition:
-            SELECT CASE(TRIM(DepositionType))
-            CASE('shape_function')
-              CALL depoChargeOnDOFs_sf(ShiftedPart,SourceSize,Fac,const)
-            CASE('shape_function_simple')
-              CALL depoChargeOnDOFs_sf_simple(ShiftedPart,SourceSize,Fac,const)
-            END SELECT
-          END DO ! iLinkRecursive
-          IF (DoCycle) EXIT
-        END DO ! iTwin
-      END DO ! iSFfixLink
-    END DO ! iSFfix
-  END DO ! iCase (periodicity)
-END IF !NbrOfSFdepoFixes
+
+DO iCase = 1, NbrOfCases
+  DO ind = 1,3
+    ShiftedPart(ind) = PartPos(ind) + casematrix(iCase,1)*Vec1(ind) + &
+      casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
+  END DO
+  Fac = Fac2
+  SELECT CASE(TRIM(DepositionType))
+  CASE('shape_function')
+    CALL depoChargeOnDOFs_sf(ShiftedPart,SourceSize,Fac,const)
+  CASE('shape_function_simple')
+    CALL depoChargeOnDOFs_sf_simple(ShiftedPart,SourceSize,Fac,const)
+  END SELECT
+END DO ! iCase (periodicity)
 
 END SUBROUTINE calcSfSource
 
