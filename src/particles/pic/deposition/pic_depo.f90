@@ -62,7 +62,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
 #if USE_MPI
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems, nComputeNodeProcessors, myComputeNodeRank, MPI_COMM_LEADERS_SHARED
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED, myLeaderGroupRank, nLeaderGroupProcs
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared, NodeInfo_Shared, ElemInfo_Shared, NodeToElemInfo, NodeToElemMapping
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID

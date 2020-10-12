@@ -793,7 +793,7 @@ USE MOD_ReadInTools
 #if USE_MPI
 USE MPI
 USE MOD_Globals            ,ONLY: IERROR,MPIRoot
-USE MOD_MPI_Shared         ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!        ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED,myComputeNodeRank
 USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems,offsetComputeNodeElem
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
