@@ -755,14 +755,11 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 ! volumes
 CALL MPI_WIN_UNLOCK_ALL(ElemVolume_Shared_Win,iError)
 CALL MPI_WIN_FREE(ElemVolume_Shared_Win,iError)
-CALL MPI_WIN_UNLOCK_ALL(ElemMPVolumePortion_Shared_Win,iError)
-CALL MPI_WIN_FREE(ElemMPVolumePortion_Shared_Win,iError)
 CALL MPI_WIN_UNLOCK_ALL(ElemCharLength_Shared_Win,iError)
 CALL MPI_WIN_FREE(ElemCharLength_Shared_Win,iError)
 
 ! Then, free the pointers or arrays
 ADEALLOCATE(ElemVolume_Shared)
-ADEALLOCATE(ElemMPVolumePortion_Shared)
 ADEALLOCATE(ElemCharLength_Shared)
 
 ! Free communication arrays

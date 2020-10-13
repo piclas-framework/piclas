@@ -435,12 +435,6 @@ NIG_PIC_Deposition:
 #  script:
 #    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SurfaceModel/ ; fi
 
-NIG_MacroBody:
-  <<: *defaults_nightly
-  stage: reggie_nightly
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_MacroBody/ ; fi
-
 NIG_Photoionization:
   <<: *defaults_poisson_nightly
   stage: reggie_nightly

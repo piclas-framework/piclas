@@ -113,7 +113,6 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           RESERVOIR
                                                           FP-Flow
                                                           BGK-Flow
-                                                          MACROBODY
                                                           CN
                                                           ImplicitO3
                                                           ImplicitO4
@@ -200,8 +199,6 @@ ELSE()
     MESSAGE(SEND_ERROR "DSMC cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
     MESSAGE(SEND_ERROR "RESERVOIR cannot be used without particles.")
-  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "MACROBODY")
-    MESSAGE(SEND_ERROR "MACROBODY cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
     MESSAGE(SEND_ERROR "BGK-Flow cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
@@ -261,8 +258,6 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=4)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=42)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "MACROBODY")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=43)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "CN")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=120 -DIMPA)
    SET(PICLAS_IMPLICIT ON)
