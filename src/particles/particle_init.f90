@@ -796,8 +796,6 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_1D_InitVolumes, DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_MacroBody_Init         ,ONLY: InitMacroBody
-USE MOD_MacroBody_tools        ,ONLY: MarkMacroBodyElems
 USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: GetMeshMinMax
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
@@ -875,10 +873,6 @@ CALL InitParticleMesh()
 CALL IdentifyPartExchangeProcs()
 #endif
 CALL InitPIC()
-
-!-- Macroscopic bodies inside domain
-CALL InitMacroBody()
-CALL MarkMacroBodyElems()
 
 ! === 2D/1D/Axisymmetric initialization
 ! Calculate the volumes for 2D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)
