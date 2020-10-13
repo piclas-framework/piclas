@@ -116,7 +116,7 @@ USE MOD_PICDepo_Vars            ,ONLY: LastAnalyzeSurfCollis
 USE MOD_PICDepo_Vars            ,ONLY: SFResampleAnalyzeSurfCollis
 USE MOD_ReadInTools             ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
 #if USE_MPI
-USE MOD_MPI_Shared              ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!             ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPIRankLeader,nLeaderGroupProcs
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF,mySurfRank
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors

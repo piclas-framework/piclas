@@ -206,7 +206,7 @@ USE MOD_MPI_Vars               ,ONLY: offsetMPISides_YOUR
 #endif /*CODE_ANALYZE*/
 #if USE_MPI
 USE MOD_Particle_BGM           ,ONLY: WriteHaloInfo
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars
 #endif /* USE_MPI */
 !USE MOD_DSMC_Vars              ,ONLY: DSMC
@@ -509,7 +509,7 @@ USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars ,ONLY: Vdm_Bezier,sVdm_Bezier,D_Bezier
 #if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars
 #endif
 #if USE_LOADBALANCE
@@ -718,7 +718,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3DElevated,BezierElevat
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: BezierControlPoints3D_Shared,BezierControlPoints3D_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: BezierControlPoints3DElevated_Shared,BezierControlPoints3DElevated_Shared_Win
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 !USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
@@ -874,7 +874,7 @@ USE MOD_Mesh_Vars              ,ONLY: NGeo
 USE MOD_Particle_Mesh_Vars
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 #if USE_MPI
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars
 #else
 USE MOD_Mesh_Vars              ,ONLY: nElems
@@ -1441,7 +1441,7 @@ USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #if USE_MPI
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
@@ -1583,7 +1583,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo,ElemRadius2NGeo, ElemRadiusNG
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #if USE_MPI
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
@@ -1698,7 +1698,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: XCL_NGeo_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemCurved_Shared,ElemCurved_Shared_Win
 USE MOD_Particle_Mesh_Vars      ,ONLY: XiEtaZetaBasis_Shared,XiEtaZetaBasis_Shared_Win
 USE MOD_Particle_Mesh_Vars      ,ONLY: slenXiEtaZetaBasis_Shared,slenXiEtaZetaBasis_Shared_Win
-USE MOD_MPI_Shared              ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!             ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
@@ -1850,7 +1850,7 @@ USE MOD_Mesh_Vars          ,ONLY: NGeo,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemBaryNGeo
 #if USE_MPI
-USE MOD_MPI_Shared         ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!        ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED
@@ -1957,7 +1957,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,SideType,SideNormVec,SideDistance
 #if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
@@ -2368,7 +2368,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: BCSide2SideID,SideID2BCSide,BCSideMetrics
 USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides,nUniqueBCSides
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 #if USE_MPI
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars     ,ONLY: BCSide2SideID_Shared,SideID2BCSide_Shared,BCSideMetrics_Shared
@@ -2528,7 +2528,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Vars          ,ONLY: ManualTimeStep
 USE MOD_Utils                  ,ONLY: InsertionSort
 #if USE_MPI
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
@@ -3063,7 +3063,7 @@ USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod
 #if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoRef
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
@@ -3216,7 +3216,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierControlPoints3DElevated
 USE MOD_Particle_Surfaces_Vars ,ONLY: BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale
 #if USE_MPI
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeCoords_Shared,ElemBaryNGeo_Shared
@@ -3740,7 +3740,7 @@ SUBROUTINE BuildNodeNeighbourhood()
 USE MOD_Globals            ,ONLY: abort, myRank
 #if USE_MPI
 USE MPI
-USE MOD_MPI_Shared         ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!        ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED

@@ -294,15 +294,13 @@ USE MOD_Mesh_Vars              ,ONLY: OffsetElem
 #if USE_HDG
 USE MOD_Mesh_Vars              ,ONLY: nSides
 #endif
-#if (USE_QDS_DG) || ! (USE_HDG)
-USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
-#endif /*USE_HDG*/
 USE MOD_Restart_Vars           ,ONLY: DoRestart,N_Restart,RestartFile,RestartTime,InterpolateSolution,RestartNullifySolution
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_HDF5_input             ,ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize
 USE MOD_HDF5_Output            ,ONLY: FlushHDF5
 #if ! (USE_HDG)
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
+USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
 #endif /*not USE_HDG*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars          ,ONLY: Phi
@@ -342,13 +340,9 @@ USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
 USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
-#if USE_QDS_DG
-USE MOD_QDS_DG_Vars            ,ONLY: DoQDS,QDSMacroValues,nQDSElems,QDSSpeciesMass
-#endif /*USE_QDS_DG*/
-#if (USE_QDS_DG) || (PARTICLES) || (USE_HDG)
+#if (PARTICLES) || (USE_HDG)
 USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists,nDims,HSize
 #endif
-
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -357,7 +351,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if (USE_QDS_DG) || !(USE_HDG)
+#if !(USE_HDG)
 REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
 REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
 INTEGER                            :: iPML
@@ -411,14 +405,6 @@ LOGICAL                            :: SurfCalcDataExists, SurfPartIntExists, Sur
 LOGICAL,ALLOCATABLE                :: readVarFromState(:)
 LOGICAL                            :: WallmodelExists(1:nPartBound), SurfModelTypeExists
 INTEGER,ALLOCATABLE                :: SurfModelType(:)
-#endif /*PARTICLES*/
-#if USE_QDS_DG
-CHARACTER(255)                     :: QDSRestartFile        ! > QDS Data file for restart
-LOGICAL                            :: QDS_DG_SolutionExists
-INTEGER                            :: j,k
-INTEGER                            :: IndNum    ! > auxiliary variable containing the index number of a substring within a string
-#endif /*USE_QDS_DG*/
-#if (USE_QDS_DG) || (PARTICLES)
 INTEGER                            :: i
 #endif
 INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
@@ -454,49 +440,6 @@ IF(DoRestart)THEN
     CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   ELSE ! Use the solution in the restart file
     SWRITE(UNIT_stdOut,*)'Restarting from File: ',TRIM(RestartFile)
-#if USE_QDS_DG
-    IF(DoQDS)THEN ! read QDS data from "XXXXX_QDS_000.0XXXXXXXXXXX.h5"
-      IndNum=INDEX(RestartFile,'State')
-      IF(IndNum.LE.0)CALL abort(&
-          __STAMP__&
-          ,' Restart file does not contain "State" character string?! Supply restart file for reading QDS data')
-      QDSRestartFile=TRIM(RestartFile(1:IndNum-1))//'QDS'//TRIM(RestartFile(IndNum+5:LEN(RestartFile)))
-      CALL OpenDataFile(QDSRestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-      !ALLOCATE( QDSMacroValues(1:6,0:PP_N,0:PP_N,0:PP_N,PP_nElems) )
-      CALL DatasetExists(File_ID,'DG_Solution',QDS_DG_SolutionExists)
-
-      IF(.NOT.QDS_DG_SolutionExists)THEN
-        CALL abort(&
-            __STAMP__&
-            ,' Restart file does not contain "DG_Solution" in restart file for reading QDS data')
-      END IF
-
-      IF(.NOT. InterpolateSolution)THEN! No interpolation needed, read solution directly from file
-        CALL ReadArray('DG_Solution',5,(/6_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,INT(nQDSElems,IK)/),&
-            OffsetElemTmp,5,RealArray=QDSMacroValues)
-        DO iElem =1, nQDSElems
-          DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
-            QDSMacroValues(1  ,i,j,k,iElem) = QDSMacroValues(1  ,i,j,k,iElem)*QDSSpeciesMass!Species(QDS_Species)%MassIC
-            QDSMacroValues(2:4,i,j,k,iElem) = QDSMacroValues(2:4,i,j,k,iElem) * QDSMacroValues(1,i,j,k,iElem)
-          END DO; END DO; END DO
-        END DO
-      ELSE! We need to interpolate the solution to the new computational grid
-        ALLOCATE(U_local(6,0:N_Restart,0:N_Restart,0:N_Restart,nQDSElems))
-        CALL ReadArray('DG_Solution',5,(/6_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,INT(nQDSElems,IK)/),&
-            OffsetElemTmp,5,RealArray=U_local)
-        DO iElem =1, nQDSElems
-          DO k=0, N_Restart; DO j=0, N_Restart; DO i=0, N_Restart
-            U_local(1  ,i,j,k,iElem) = U_local(1  ,i,j,k,iElem)*QDSSpeciesMass!Species(QDS_Species)%MassIC
-            U_local(2:4,i,j,k,iElem) = U_local(2:4,i,j,k,iElem) * U_local(1,i,j,k,iElem)
-          END DO; END DO; END DO
-          CALL ChangeBasis3D(6,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),QDSMacroValues(:,:,:,:,iElem))
-        END DO
-        DEALLOCATE(U_local)
-      END IF
-      CALL CloseDataFile()
-    END IF ! DoQDS
-#endif /*USE_QDS_DG*/
-
     CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 #ifdef PARTICLES
     !-- read PartSource if relaxation is performed (might be needed for RestartHDG)

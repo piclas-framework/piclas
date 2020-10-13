@@ -62,7 +62,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
 #if USE_MPI
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems, nComputeNodeProcessors, myComputeNodeRank, MPI_COMM_LEADERS_SHARED
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED, myLeaderGroupRank, nLeaderGroupProcs
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared, NodeInfo_Shared, ElemInfo_Shared, NodeToElemInfo, NodeToElemMapping
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
@@ -419,114 +419,6 @@ CASE('shape_function')
   BetaFac = beta(1.5, REAL(alpha_sf) + 1.)
   w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) &
                         * (REAL(alpha_sf) + 1.)/(PI*(r_sf**3))
-  !-- fixes for shape func depo at planar BCs
-  NbrOfSFdepoFixes = GETINT('PIC-NbrOfSFdepoFixes','0')
-  PrintSFDepoWarnings=GETLOGICAL('PrintSFDepoWarnings','.FALSE.')
-  IF (NbrOfSFdepoFixes.GT.0) THEN
-    SFdepoFixesEps = GETREAL('PIC-SFdepoFixesEps','0.')
-    SDEALLOCATE(SFdepoFixesGeo)
-    SDEALLOCATE(SFdepoFixesChargeMult)
-    SDEALLOCATE(SFdepoFixesPartOfLink)
-    SDEALLOCATE(SFdepoFixesBounds)
-    ALLOCATE(SFdepoFixesGeo(1:NbrOfSFdepoFixes,1:2,1:3),STAT=ALLOCSTAT)  !1:nFixes;1:2(base,normal);1:3(x,y,z)
-    IF (ALLOCSTAT.NE.0) THEN
-      CALL abort(&
-      __STAMP__&
-      ,'ERROR in pic_depo.f90: Cannot allocate SFdepoFixesGeo!')
-    END IF
-    ALLOCATE(SFdepoFixesChargeMult(1:NbrOfSFdepoFixes),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) THEN
-      CALL abort(&
-      __STAMP__&
-      ,'ERROR in pic_depo.f90: Cannot allocate SFdepoFixesChargeMult!')
-    END IF
-    ALLOCATE(SFdepoFixesPartOfLink(0:NbrOfSFdepoFixes),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) THEN
-      CALL abort(__STAMP__, &
-        'ERROR in pic_depo.f90: Cannot allocate SFdepoFixesPartOfLink!')
-    END IF
-    SFdepoFixesPartOfLink=.FALSE.
-    ALLOCATE(SFdepoFixesBounds(1:NbrOfSFdepoFixes,1:2,1:3),STAT=ALLOCSTAT)  !1:nFixes;1:2(min,max);1:3(x,y,z)
-    IF (ALLOCSTAT.NE.0) THEN
-      CALL abort(&
-      __STAMP__&
-      ,'ERROR in pic_depo.f90: Cannot allocate SFdepoFixesBounds!')
-    END IF
-    DO iSFfix=1,NbrOfSFdepoFixes
-      WRITE(UNIT=hilf,FMT='(I0)') iSFfix
-      SFdepoFixesGeo(iSFfix,1,1:3) = &
-        GETREALARRAY('PIC-SFdepoFixes'//TRIM(hilf)//'-Basepoint',3,'0. , 0. , 0.')
-      SFdepoFixesGeo(iSFfix,2,1:3) = &
-        GETREALARRAY('PIC-SFdepoFixes'//TRIM(hilf)//'-Normal',3,'1. , 0. , 0.') !directed outwards
-      IF (SFdepoFixesGeo(iSFfix,2,1)**2 + SFdepoFixesGeo(iSFfix,2,2)**2 + SFdepoFixesGeo(iSFfix,2,3)**2 .GT. 0.) THEN
-        SFdepoFixesGeo(iSFfix,2,1:3) = SFdepoFixesGeo(iSFfix,2,1:3) &
-          / SQRT(SFdepoFixesGeo(iSFfix,2,1)**2 + SFdepoFixesGeo(iSFfix,2,2)**2 + SFdepoFixesGeo(iSFfix,2,3)**2)
-      ELSE
-        CALL abort(&
-      __STAMP__&
-      ,' SFdepoFixesXX-Normal is zero for Fix ',iSFfix)
-      END IF
-      SFdepoFixesChargeMult(iSFfix) = &
-        GETREAL('PIC-SFdepoFixes'//TRIM(hilf)//'-ChargeMult','1.')
-      WRITE(UNIT=hilf2,FMT='(E16.8)') -HUGE(1.0)
-      SFdepoFixesBounds(iSFfix,1,1)   = GETREAL('PIC-SFdepoFixes'//TRIM(hilf)//'-xmin',TRIM(hilf2))
-      SFdepoFixesBounds(iSFfix,1,2)   = GETREAL('PIC-SFdepoFixes'//TRIM(hilf)//'-ymin',TRIM(hilf2))
-      SFdepoFixesBounds(iSFfix,1,3)   = GETREAL('PIC-SFdepoFixes'//TRIM(hilf)//'-zmin',TRIM(hilf2))
-      WRITE(UNIT=hilf2,FMT='(E16.8)') HUGE(1.0)
-      SFdepoFixesBounds(iSFfix,2,1)   = GETREAL('PIC-SFdepoFixes'//TRIM(hilf)//'-xmax',TRIM(hilf2))
-      SFdepoFixesBounds(iSFfix,2,2)   = GETREAL('PIC-SFdepoFixes'//TRIM(hilf)//'-ymax',TRIM(hilf2))
-      SFdepoFixesBounds(iSFfix,2,3)   = GETREAL('PIC-SFdepoFixes'//TRIM(hilf)//'-zmax',TRIM(hilf2))
-    END DO
-    NbrOfSFdepoFixLinks = GETINT('PIC-NbrOfSFdepoFixLinks','0')
-    IF (NbrOfSFdepoFixLinks.GT.0) THEN
-      SDEALLOCATE(SFdepoFixLinks)
-      ALLOCATE(SFdepoFixLinks(1:NbrOfSFdepoFixLinks,1:3),STAT=ALLOCSTAT)
-      IF (ALLOCSTAT.NE.0) THEN
-        CALL abort(&
-          __STAMP__&
-          ,'ERROR in pic_depo.f90: Cannot allocate SFdepoFixesChargeMult!')
-      END IF
-      DO iSFfix=1,NbrOfSFdepoFixLinks
-        WRITE(UNIT=hilf,FMT='(I0)') iSFfix
-        SFdepoFixLinks(iSFfix,1:2) = &
-          GETINTARRAY('PIC-SFdepoFixLink'//TRIM(hilf),2,'1 , 2')
-        IF (   SFdepoFixLinks(iSFfix,1).GT.NbrOfSFdepoFixes &
-          .OR. SFdepoFixLinks(iSFfix,2).GT.NbrOfSFdepoFixes &
-          .OR. SFdepoFixLinks(iSFfix,1).LE.0 &
-          .OR. SFdepoFixLinks(iSFfix,2).LE.0) THEN
-          CALL abort(&
-            __STAMP__&
-            ,' SFdepoFixes not defined for Link ',iSFfix)
-        ELSE
-          SFdepoFixesPartOfLink(SFdepoFixLinks(iSFfix,1))=.TRUE.
-          n1=SFdepoFixesGeo(SFdepoFixLinks(iSFfix,1),2,1:3)
-          SFdepoFixesPartOfLink(SFdepoFixLinks(iSFfix,2))=.TRUE.
-          n2=SFdepoFixesGeo(SFdepoFixLinks(iSFfix,2),2,1:3)
-          nhalf=ACOS(-(DOT_PRODUCT(n1,n2))) !n already normalized
-          IF (nhalf.EQ.0.) THEN
-            CALL abort(__STAMP__, &
-              'ERROR in pic_depo.f90: angle between vectors of SFdepoFixLinks is zero!')
-          ELSE
-            nhalf=PI/nhalf
-          END IF
-          IF ( ABS(nhalf-1.5).LT.SFdepoFixesEps ) THEN !120 deg
-            SFdepoFixLinks(iSFfix,3)=-2 !negative as flag for special case (120 deg), 2 since abs(-2) is needed for respective loop
-            SWRITE(*,*) 'SFdepoFixLink ',iSFfix,' was determined to have an angle of 120 deg...'
-          ELSE IF ( ABS(nhalf-NINT(nhalf)).GT.SFdepoFixesEps .OR. NINT(nhalf).LT.2 ) THEN !check if integer fraction (>2) of 180 deg
-            CALL abort(__STAMP__, &
-              'ERROR in pic_depo.f90: angle between vectors of SFdepoFixLink is neither 120 deg nor a fraction of 180 deg!', &
-              NINT(nhalf),ABS(nhalf-NINT(nhalf)))
-          ELSE !integer fraction of 180 deg
-            SFdepoFixLinks(iSFfix,3) = NINT(nhalf)
-            SWRITE(*,*) 'SFdepoFixLink ',iSFfix,' was determined to divide 180 deg into ',NINT(nhalf),' parts...'
-          END IF
-        END IF
-      END DO
-    END IF !NbrOfSFdepoFixLinks>0
-    DO iSFfix=0,NbrOfSFdepoFixes
-      SWRITE(*,*) 'SFdepoFix ',iSFfix,' is part of link: ',SFdepoFixesPartOfLink(iSFfix)
-    END DO
-  END IF !NbrOfSFdepoFixes>0
 
   !-- const. PartSource layer for shape func depo at planar BCs
   NbrOfSFdepoLayers = GETINT('PIC-NbrOfSFdepoLayers','0')
@@ -614,11 +506,7 @@ CASE('shape_function')
       SFdepoLayersBounds(iSFfix,2,1)   = MIN(GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-xmax',TRIM(hilf2)),GEO%xmax+r_sf)
       SFdepoLayersBounds(iSFfix,2,2)   = MIN(GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-ymax',TRIM(hilf2)),GEO%ymax+r_sf)
       SFdepoLayersBounds(iSFfix,2,3)   = MIN(GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-zmax',TRIM(hilf2)),GEO%zmax+r_sf)
-      IF (NbrOfSFdepoFixes.EQ.0) THEN
-        SFdepoLayersUseFixBounds(iSFfix) = .FALSE.
-          ELSE
-        SFdepoLayersUseFixBounds(iSFfix) = GETLOGICAL('PIC-SFdepoLayers'//TRIM(hilf)//'-UseFixBounds','.TRUE.')
-      END IF
+      SFdepoLayersUseFixBounds(iSFfix) = .FALSE.
       SFdepoLayersSpace(iSFfix) = &
         GETSTR('PIC-SFdepoLayers'//TRIM(hilf)//'-Space','cuboid')
       LayerOutsideOfBounds = .FALSE.
@@ -820,11 +708,7 @@ CASE('shape_function')
     LastAnalyzeSurfCollis%Bounds(2,1)   = MIN(GETREAL('PIC-SFResample-xmax',TRIM(hilf)),GEO%xmax+r_sf)
     LastAnalyzeSurfCollis%Bounds(2,2)   = MIN(GETREAL('PIC-SFResample-ymax',TRIM(hilf)),GEO%ymax+r_sf)
     LastAnalyzeSurfCollis%Bounds(2,3)   = MIN(GETREAL('PIC-SFResample-zmax',TRIM(hilf)),GEO%zmax+r_sf)
-    IF (NbrOfSFdepoFixes.EQ.0) THEN
-      LastAnalyzeSurfCollis%UseFixBounds = .FALSE.
-    ELSE
-      LastAnalyzeSurfCollis%UseFixBounds = GETLOGICAL('PIC-SFResample-UseFixBounds','.TRUE.')
-    END IF
+    LastAnalyzeSurfCollis%UseFixBounds = GETLOGICAL('PIC-SFResample-UseFixBounds','.TRUE.')
     LastAnalyzeSurfCollis%NormVecOfWall = GETREALARRAY('PIC-NormVecOfWall',3,'1. , 0. , 0.')  !directed outwards
     IF (DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,LastAnalyzeSurfCollis%NormVecOfWall).GT.0.) THEN
       LastAnalyzeSurfCollis%NormVecOfWall = LastAnalyzeSurfCollis%NormVecOfWall &

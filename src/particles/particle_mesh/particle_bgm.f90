@@ -103,7 +103,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: time
 #endif /*USE_HDG*/
 #if USE_MPI
 USE MOD_MPI_Shared_Vars
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType, r_sf
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
 USE MOD_Particle_Vars          ,ONLY: manualtimestep
@@ -334,8 +334,7 @@ ELSE
   halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
 #endif
 
-  ! Check whether halo_eps is smaller than shape function radius
-  ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical', 'shape_function_simple'
+  ! Check whether halo_eps is smaller than shape function radius e.g. 'shape_function'
   IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
     IF(halo_eps.LT.r_sf)THEN
       SWRITE(UNIT_stdOut,'(A)') ' halo_eps is smaller than shape function radius. Setting halo_eps=r_sf'
@@ -1093,7 +1092,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHaloID

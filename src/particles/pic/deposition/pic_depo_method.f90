@@ -544,10 +544,10 @@ USE MOD_Particle_Vars               ,ONLY: Species, PartSpecies,PDM,PartMPF,usev
 USE MOD_Particle_Vars               ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
 USE MOD_PICDepo_Vars                ,ONLY: PartSource,SFdepoLayersGeo,SFdepoLayersBaseVector,LastAnalyzeSurfCollis,PartSourceConst
-USE MOD_PICDepo_Vars                ,ONLY: RelaxFac,sfdepofixesgeo,SFdepoLayersSpace,sfdepolayersbounds,SFdepoLayersUseFixBounds
+USE MOD_PICDepo_Vars                ,ONLY: RelaxFac,SFdepoLayersSpace,sfdepolayersbounds,SFdepoLayersUseFixBounds
 USE MOD_PICDepo_Vars                ,ONLY: sfdepolayersradius,sfdepolayerspartnum,PartSourceOld,w_sf,SFdepoLayersMPF,SFdepoLayersSpec
 USE MOD_PICDepo_Vars                ,ONLY: Vdm_EquiN_GaussN,SFResampleAnalyzeSurfCollis,SFdepoLayersAlreadyDone,RelaxDeposition,r_SF
-USE MOD_PICDepo_Vars                ,ONLY: PartSourceConstExists,NbrOfSFdepoLayers,NbrOfSFdepoFixes,DoSFEqui, PartSourceProc
+USE MOD_PICDepo_Vars                ,ONLY: PartSourceConstExists,NbrOfSFdepoLayers,DoSFEqui, PartSourceProc
 USE MOD_PICDepo_Vars                ,ONLY: ConstantSFdepoLayers
 USE MOD_PICDepo_Shapefunction_Tools ,ONLY: calcSfSource
 USE MOD_Mesh_Tools,             ONLY: GetCNElemID

@@ -305,10 +305,6 @@ USE MOD_LoadBalance_Vars       ,ONLY: ElemTimeField
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_HDF5_Output_Tools      ,ONLY: WriteIMDStateToHDF5
 #endif /*PARTICLES*/
-#if USE_QDS_DG
-USE MOD_HDF5_Output_Tools      ,ONLY: WriteQDSToHDF5
-USE MOD_QDS_DG_Vars            ,ONLY: DoQDS
-#endif /*USE_QDS_DG*/
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_Particle_Vars          ,ONLY: DoImportIMDFile
@@ -373,7 +369,7 @@ IF(DoRestart) CALL EvalGradient()
 ! Write the state at time=0, i.e. the initial condition
 
 #if defined(PARTICLES) && (USE_MPI)
-! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical', 'shape_function_simple'
+! e.g. 'shape_function'
 IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
@@ -442,9 +438,6 @@ IF(DoImportIMDFile) CALL WriteIMDStateToHDF5() ! write IMD particles to state fi
 #endif /*PARTICLES*/
 ! Write initial state to file
 CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
-#if USE_QDS_DG
-IF(DoQDS) CALL WriteQDSToHDF5(time,tPreviousAnalyze)
-#endif /*USE_QDS_DG*/
 
 ! if measurement of particle tracking time (used for analyze, load balancing uses own time measurement for tracking)
 #ifdef PARTICLES
@@ -639,9 +632,6 @@ DO !iter_t=0,MaxIter
       CALL WriteInfoStdOut()
       ! Write state to file
       CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
-#if USE_QDS_DG
-      IF(DoQDS) CALL WriteQDSToHDF5(time,tPreviousAnalyze)
-#endif /*USE_QDS_DG*/
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tPreviousAverageAnalyze)
       ! Write recordpoints data to hdf5
       IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
@@ -716,11 +706,6 @@ USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars                ,ONLY: U,Ut
 USE MOD_PML_Vars               ,ONLY: U2,U2t,nPMLElems,DoPML,PMLnVar
 USE MOD_PML                    ,ONLY: PMLTimeDerivative,CalcPMLSource
-#if USE_QDS_DG
-USE MOD_QDS_DG_Vars            ,ONLY: UQDS,UQDSt,nQDSElems,DoQDS
-USE MOD_QDS_Equation_vars      ,ONLY: QDSnVar
-USE MOD_QDS_DG                 ,ONLY: QDSTimeDerivative,QDSReCalculateDGValues,QDSCalculateMacroValues
-#endif /*USE_QDS_DG*/
 USE MOD_Filter                 ,ONLY: Filter
 USE MOD_Equation               ,ONLY: DivCleaningDamping
 USE MOD_Equation               ,ONLY: CalcSource
@@ -767,9 +752,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                          :: Ut_temp(   1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
 REAL                          :: U2t_temp(  1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems) ! temporal variable for U2t
-#if USE_QDS_DG
-REAL                          :: UQDSt_temp(1:QDSnVar,0:PP_N,0:PP_N,0:PP_N,1:nQDSElems) ! temporal variable for UQDSt
-#endif /*USE_QDS_DG*/
 REAL                          :: tStage,b_dt(1:nRKStages)
 #ifdef PARTICLES
 REAL                          :: timeStart,timeEnd
@@ -821,12 +803,6 @@ IF(DoPML) THEN
   CALL CalcPMLSource()
   CALL PMLTimeDerivative()
 END IF
-#if USE_QDS_DG
-IF(DoQDS) THEN
-  CALL QDSReCalculateDGValues()
-  CALL QDSTimeDerivative(time,time,0,doSource=.TRUE.,doPrintInfo=.TRUE.)
-END IF
-#endif /*USE_QDS_DG*/
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_PML,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -861,12 +837,6 @@ IF(DoPML) THEN
   U2t_temp = U2t
   U2 = U2 + U2t*b_dt(1)
 END IF
-#if USE_QDS_DG
-IF(DoQDS) THEN
-  UQDSt_temp = UQDSt
-  UQDS = UQDS + UQDSt*b_dt(1)
-END IF
-#endif /*USE_QDS_DG*/
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_PML,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -973,12 +943,6 @@ DO iStage=2,nRKStages
     CALL CalcPMLSource()
     CALL PMLTimeDerivative()
   END IF
-#if USE_QDS_DG
-  IF(DoQDS) THEN
-    !CALL QDSReCalculateDGValues()
-    CALL QDSTimeDerivative(time,time,0,doSource=.TRUE.)
-  END IF
-#endif /*USE_QDS_DG*/
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PML,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1012,12 +976,6 @@ DO iStage=2,nRKStages
     U2t_temp = U2t - U2t_temp*RK_a(iStage)
     U2 = U2 + U2t_temp*b_dt(iStage)
   END IF
-#if USE_QDS_DG
-  IF(DoQDS)THEN
-    UQDSt_temp = UQDSt - UQDSt_temp*RK_a(iStage)
-    UQDS = UQDS + UQDSt_temp*b_dt(iStage)
-  END IF
-#endif /*USE_QDS_DG*/
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_PML,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1077,11 +1035,6 @@ DO iStage=2,nRKStages
 #endif /*PARTICLES*/
 
 END DO
-#if USE_QDS_DG
-IF(DoQDS) THEN
-  CALL QDSCalculateMacroValues()
-END IF
-#endif /*USE_QDS_DG*/
 
 #ifdef PARTICLES
 IF (time.GE.DelayTime) THEN

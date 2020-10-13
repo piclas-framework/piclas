@@ -34,12 +34,10 @@ CONTAINS
 
 SUBROUTINE calcSfSource(SourceSize_in,ChargeMPF,Vec1,Vec2,Vec3,PartPos,PartIdx,PartVelo)
 !============================================================================================================================
-! deposit charges on DOFs via shapefunction including periodic displacements and mirroring with SFdepoFixes
+! deposit charges on DOFs via shapefunction including periodic displacements and mirroring
 !============================================================================================================================
 ! use MODULES
 USE MOD_PICDepo_Vars,           ONLY:r_sf,DepositionType
-USE MOD_PICDepo_Vars,           ONLY:NbrOfSFdepoFixes,SFdepoFixesGeo,SFdepoFixesBounds,SFdepoFixesChargeMult
-USE MOD_PICDepo_Vars,           ONLY:SFdepoFixesPartOfLink,SFdepoFixesEps,NbrOfSFdepoFixLinks,SFdepoFixLinks
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars,     ONLY:casematrix,NbrOfCases
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -67,7 +65,6 @@ REAL                             :: ShiftedPart(1:3), caseShiftedPart(1:3), n_lo
 INTEGER                          :: iSFfix, LinkLoopEnd(2), iSFfixLink, iTwin, iLinkRecursive, SFfixIdx, SFfixIdx2
 LOGICAL                          :: DoCycle, DoNotDeposit
 REAL                             :: SFfixDistance, SFfixDistance2
-LOGICAL , ALLOCATABLE            :: SFdepoFixDone(:)
 LOGICAL                          :: const
 !----------------------------------------------------------------------------------------------------------------------------------
 !#if !((USE_HDG) && (PP_nVar==1))
@@ -92,8 +89,16 @@ END IF
 !        casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
 !    END DO
     Fac = Fac2
+  SELECT CASE(TRIM(DepositionType))
+  CASE('shape_function')
     CALL depoChargeOnDOFs_sf(PartPos,SourceSize,Fac,const)
-!    CALL depoChargeOnDOFs_sfChargeCon(PartPos,SourceSize,Fac,const)
+  CASE('shape_function_cc')
+    CALL depoChargeOnDOFs_sfChargeCon(PartPos,SourceSize,Fac,const)
+  CASE DEFAULT
+    CALL CollectiveStop(__STAMP__,&
+        'Unknown ShapeFunction Method!')
+  END SELECT
+  
 !  END DO ! iCase (periodicity)
 
 END SUBROUTINE calcSfSource
