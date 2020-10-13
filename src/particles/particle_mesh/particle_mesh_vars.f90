@@ -301,9 +301,6 @@ INTEGER,ALLOCATABLE :: PartSideToElem(:,:)                    ! extended list: 1
 !INTEGER,ALLOCATABLE :: TracingBCTotalSides(:)                 ! total number of element boundary faces
 !                                                              ! used for tracing (loc faces + other
 !                                                              ! element faces that are possibly reached)
-!
-LOGICAL,ALLOCATABLE :: IsLocalDepositionBCElem(:)             ! is an element where the deposition of a particle via a shape function
-                                                              ! would result in the truncation of the shape function at the boundary.
 !TYPE tElemHaloInfo
 !  INTEGER,ALLOCATABLE            :: ElemHaloInfo(:)           !< Contains information regarding the halo region of each rank
 !                                                              !< ElemHaloInfo = 0                           : element not in list
