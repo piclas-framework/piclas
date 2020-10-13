@@ -2157,7 +2157,7 @@ ELSE
 
       ! BezierControlPoints are now built in cell local system. We are checking mortar sides, so everything is reversed
       ! locFlip = MERGE(0,MOD(SideInfo_Shared(SIDE_FLIP,nbSideID),10),SideInfo_Shared(SIDE_ID,nbSideID).GT.0)
-      ! Small mortar sides are always master side, hence flip = 0
+      ! Small mortar sides are always slave sides, hence check with flip = 0
 
       SELECT CASE(SideType(NbSideID))
         CASE(PLANAR_RECT)
