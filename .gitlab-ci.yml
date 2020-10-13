@@ -26,7 +26,7 @@ stages:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Templates
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-.template: &defaults_gnu
+.template: &defaults
   tags:
     - withmodules-concurrent
   artifacts:
@@ -34,17 +34,17 @@ stages:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_gnu
+      - build
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-GNU"
+    key: "${CI_COMMIT_REF_SLUG}"
     paths:
-      - build_gnu
+      - build
     policy: pull
   allow_failure: true
   only:
     - pushes
 
-.template: &defaults_gnu_nightly
+.template: &defaults_nightly
   tags:
     - withmodules-concurrent
   artifacts:
@@ -52,17 +52,17 @@ stages:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_gnu
+      - build
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-GNU"
+    key: "${CI_COMMIT_REF_SLUG}"
     paths:
-      - build_gnu
+      - build
     policy: pull
   allow_failure: true
   rules:
     - if: '$DO_NIGHTLY'
 
-.template: &defaults_gnu_weekly
+.template: &defaults_weekly
   tags:
     - withmodules-concurrent
   artifacts:
@@ -70,17 +70,17 @@ stages:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_gnu
+      - build
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-GNU"
+    key: "${CI_COMMIT_REF_SLUG}"
     paths:
-      - build_gnu
+      - build
     policy: pull
   allow_failure: true
   rules:
     - if: '$DO_WEEKLY'
 
-.template: &defaults_gnu_maxwell
+.template: &defaults_maxwell
   tags:
     - withmodules-concurrent
   artifacts:
@@ -88,17 +88,17 @@ stages:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_gnu_maxwell
+      - build_maxwell
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-GNU-MAX"
+    key: "${CI_COMMIT_REF_SLUG}-MAX"
     paths:
-      - build_gnu_maxwell
+      - build_maxwell
     policy: pull
   allow_failure: true
   only:
     - pushes
 
-.template: &defaults_gnu_poisson
+.template: &defaults_poisson
   tags:
     - withmodules-concurrent
   artifacts:
@@ -106,19 +106,19 @@ stages:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_gnu_poisson_release
-      - build_gnu_poisson_debug
+      - build_poisson_release
+      - build_poisson_debug
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-GNU-POI"
+    key: "${CI_COMMIT_REF_SLUG}-POI"
     paths:
-      - build_gnu_poisson_release
-      - build_gnu_poisson_debug
+      - build_poisson_release
+      - build_poisson_debug
     policy: pull
   allow_failure: true
   only:
     - pushes
     
-.template: &defaults_gnu_poisson_nightly
+.template: &defaults_poisson_nightly
   tags:
     - withmodules-concurrent
   artifacts:
@@ -126,22 +126,22 @@ stages:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_gnu_poisson_release
-      - build_gnu_poisson_debug
+      - build_poisson_release
+      - build_poisson_debug
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-GNU-POI"
+    key: "${CI_COMMIT_REF_SLUG}-POI"
     paths:
-      - build_gnu_poisson_release
-      - build_gnu_poisson_debug
+      - build_poisson_release
+      - build_poisson_debug
     policy: pull
   allow_failure: true
   rules:
     - if: '$DO_NIGHTLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "build": Build with gnu on check-in
+# Stage "build": Build on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-build_gnu:
+build:
   tags:
     - withmodules-concurrent
   artifacts:
@@ -149,19 +149,19 @@ build_gnu:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_gnu
+      - build
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-GNU"
+    key: "${CI_COMMIT_REF_SLUG}"
     paths:
-      - build_gnu
+      - build
     policy: push
   stage: build
   script:
-    - mkdir -p build_gnu ; cd build_gnu
+    - mkdir -p build ; cd build
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
     - cmake .. -DPICLAS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; make -j all
 
-build_gnu_maxwell:
+build_maxwell:
   tags:
     - withmodules-concurrent
   artifacts:
@@ -169,19 +169,19 @@ build_gnu_maxwell:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_gnu_maxwell
+      - build_maxwell
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-GNU-MAX"
+    key: "${CI_COMMIT_REF_SLUG}-MAX"
     paths:
-      - build_gnu_maxwell
+      - build_maxwell
     policy: push
   stage: build
   script:
-    - mkdir -p build_gnu_maxwell ; cd build_gnu_maxwell
+    - mkdir -p build_maxwell ; cd build_maxwell
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
     - cmake .. -DPICLAS_PARTICLES=OFF -DPICLAS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; make -j all
 
-build_gnu_poisson:
+build_poisson:
   tags:
     - withmodules-concurrent
   artifacts:
@@ -189,122 +189,122 @@ build_gnu_poisson:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_gnu_poisson_release
-      - build_gnu_poisson_debug
+      - build_poisson_release
+      - build_poisson_debug
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-GNU-POI"
+    key: "${CI_COMMIT_REF_SLUG}-POI"
     paths:
-      - build_gnu_poisson_release
-      - build_gnu_poisson_debug
+      - build_poisson_release
+      - build_poisson_debug
     policy: push
   stage: build
   script:
-    - mkdir -p build_gnu_poisson_release ; cd build_gnu_poisson_release
+    - mkdir -p build_poisson_release ; cd build_poisson_release
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
     - cd ..
-    - mkdir -p build_gnu_poisson_debug ; cd build_gnu_poisson_debug
+    - mkdir -p build_poisson_debug ; cd build_poisson_debug
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu:
-  <<: *defaults_gnu
+default:
+  <<: *defaults
   stage: reggie_checkin
   script:
-    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/run_basic/maxwell -e ./bin/piclas
+    - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/run_basic/maxwell -e ./bin/piclas
 
-gnu_maxwell:
-  <<: *defaults_gnu_maxwell
+maxwell:
+  <<: *defaults_maxwell
   stage: reggie_checkin
   script:
-    - cd build_gnu_maxwell ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_maxwell/maxwell -e ./bin/piclas
+    - cd build_maxwell ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_maxwell/maxwell -e ./bin/piclas
 
-gnu_poisson:
-  <<: *defaults_gnu_poisson
+poisson:
+  <<: *defaults_poisson
   stage: reggie_checkin
   script:
-    - cd build_gnu_poisson_release ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
-    - cd ../build_gnu_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
+    - cd build_poisson_release ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
+    - cd ../build_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_feature_checkin": Run most simple reggie features with previous builds on check-in (must be very fast)
 #                               - feature_PIC_gyrotron_variable_Bz: 1 cell layer gyrotron emission with variable B(z) field
 #                               - feature_PIC_single_particle_PML : 4^3 cart box with a particle and 1 cell layer PMLs for all directions
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_CHE_PIC_maxwell_RK4:
-  <<: *defaults_gnu
+CHE_PIC_maxwell_RK4:
+  <<: *defaults
   stage: reggie_feature_checkin
   script:
-    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_RK4 -e ./bin/piclas
+    - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_RK4 -e ./bin/piclas
 
-gnu_CHE_PIC_maxwell_implicitBC:
-  <<: *defaults_gnu
+CHE_PIC_maxwell_implicitBC:
+  <<: *defaults
   stage: reggie_feature_checkin
   script:
-    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_implicitBC
+    - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_implicitBC
 
-gnu_CHE_DSMC:
-  <<: *defaults_gnu
+CHE_DSMC:
+  <<: *defaults
   stage: reggie_feature_checkin
   script:
-    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
+    - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
 
-gnu_CHE_BGK:
-  <<: *defaults_gnu
+CHE_BGK:
+  <<: *defaults
   stage: reggie_feature_checkin
   script:
-    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_BGK
+    - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_BGK
 
-gnu_CHE_FPFlow:
-  <<: *defaults_gnu
+CHE_FPFlow:
+  <<: *defaults
   stage: reggie_feature_checkin
   script:
-    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_FPFlow
+    - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_FPFlow
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 NIG_Reservoir:
-  <<: *defaults_gnu_nightly
+  <<: *defaults_nightly
   stage: reggie_DSMC_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_Reservoir ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_Reservoir ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run tracking examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 NIG_Tracking:
-  <<: *defaults_gnu_nightly
+  <<: *defaults_nightly
   stage: reggie_DSMC_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_tracking_DSMC ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_tracking_DSMC ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run DSMC examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 NIG_DSMC:
-  <<: *defaults_gnu_nightly
+  <<: *defaults_nightly
   stage: reggie_DSMC_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_DSMC ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_DSMC ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_superB_nightly": Build and run superB examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_NIG_SuperB_piclas:
-  <<: *defaults_gnu_nightly
+NIG_SuperB_piclas:
+  <<: *defaults_nightly
   stage: reggie_superB_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB -e ./bin/piclas ; fi
 
-gnu_NIG_SuperB_standalone:
-  <<: *defaults_gnu_nightly
+NIG_SuperB_standalone:
+  <<: *defaults_nightly
   stage: reggie_superB_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB -e ./bin/superB ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB -e ./bin/superB ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly": Build and run
@@ -318,134 +318,134 @@ gnu_NIG_SuperB_standalone:
 #                                                            the entry and exit of the cuboid domain)
 #                      examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_NIG_dielectric:
-  <<: *defaults_gnu_nightly
+NIG_dielectric:
+  <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_dielectric ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_dielectric ; fi
 
-gnu_NIG_PIC_maxwell_RK4:
-  <<: *defaults_gnu_nightly
+NIG_PIC_maxwell_RK4:
+  <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_maxwell_RK4/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_maxwell_RK4/ ; fi
 
-gnu_NIG_convtest_maxwell:
-  <<: *defaults_gnu_nightly
+NIG_convtest_maxwell:
+  <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_maxwell ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_maxwell ; fi
 
-gnu_NIG_convtest_t_maxwell:
-  <<: *defaults_gnu_nightly
+NIG_convtest_t_maxwell:
+  <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t_maxwell ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t_maxwell ; fi
 
-gnu_NIG_convtest_t_poisson:
-  <<: *defaults_gnu_nightly
+NIG_convtest_t_poisson:
+  <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t_poisson ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t_poisson ; fi
 
-gnu_NIG_convtest_poisson:
-  <<: *defaults_gnu_nightly
+NIG_convtest_poisson:
+  <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_poisson ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_poisson ; fi
 
-gnu_NIG_PIC_poisson_RK3:
-  <<: *defaults_gnu_nightly
+NIG_PIC_poisson_RK3:
+  <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_RK3/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_RK3/ ; fi
 
-gnu_NIG_PIC_poisson_Leapfrog:
-  <<: *defaults_gnu_nightly
+NIG_PIC_poisson_Leapfrog:
+  <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_Leapfrog/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_Leapfrog/ ; fi
 
-      # gnu_NIG_PIC_poisson_powerdensity:
-      #   <<: *defaults_gnu_nightly
+      # NIG_PIC_poisson_powerdensity:
+      #   <<: *defaults_nightly
       #   stage: reggie_nightly
       #   script:
-      #     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_powerdensity/ ; fi
+      #     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_powerdensity/ ; fi
 
-gnu_NIG_poisson:
-  <<: *defaults_gnu_nightly
+NIG_poisson:
+  <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_poisson/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_poisson/ ; fi
 
-gnu_NIG_maxwell_RK4:
-  <<: *defaults_gnu_nightly
+NIG_maxwell_RK4:
+  <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_RK4/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_RK4/ ; fi
 
-      # gnu_NIG_PIC_poisson_plasma_wave:
-      #   <<: *defaults_gnu_nightly
+      # NIG_PIC_poisson_plasma_wave:
+      #   <<: *defaults_nightly
       #   stage: reggie_nightly
       #   script:
-      #     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_plasma_wave/ ; fi
+      #     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_plasma_wave/ ; fi
 
-gnu_NIG_maxwell_dipole_dielectric:
-  <<: *defaults_gnu_nightly
+NIG_maxwell_dipole_dielectric:
+  <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_dipole_dielectric/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_dipole_dielectric/ ; fi
 
-gnu_NIG_PIC_poisson_implicit04:
-  <<: *defaults_gnu_nightly
+NIG_PIC_poisson_implicit04:
+  <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_implicit04/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_implicit04/ ; fi
 
-gnu_NIG_LoadBalance:
-  <<: *defaults_gnu_nightly
+NIG_LoadBalance:
+  <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_LoadBalance/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_LoadBalance/ ; fi
 
-gnu_NIG_code_analyze:
-  <<: *defaults_gnu_nightly
+NIG_code_analyze:
+  <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_code_analyze/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_code_analyze/ ; fi
 
-gnu_NIG_IntKind8:
-  <<: *defaults_gnu_nightly
+NIG_IntKind8:
+  <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_IntKind8/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_IntKind8/ ; fi
 
-gnu_NIG_PIC_Deposition:
-  <<: *defaults_gnu_nightly
+NIG_PIC_Deposition:
+  <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_cell_volweight_mean -e ./bin/piclas ; fi
-    #- if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_Shape-function -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_cell_volweight_mean -e ./bin/piclas ; fi
+    #- if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_Shape-function -e ./bin/piclas ; fi
 
-#gnu_feature_SurfaceModel:
-#  <<: *defaults_gnu_nightly
+#feature_SurfaceModel:
+#  <<: *defaults_nightly
 #  stage: reggie_nightly
 #  tags:
 #    - withmodules-concurrent
 #  script:
-#    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SurfaceModel/ ; fi
+#    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SurfaceModel/ ; fi
 
-gnu_NIG_MacroBody:
-  <<: *defaults_gnu_nightly
+NIG_MacroBody:
+  <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_MacroBody/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_MacroBody/ ; fi
 
-gnu_NIG_Photoionization:
-  <<: *defaults_gnu_poisson_nightly
+NIG_Photoionization:
+  <<: *defaults_poisson_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu_poisson_debug ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_poisson_debug ; fi
     - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas ; fi
     - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/surface_emission -e ./bin/piclas ; fi
 
@@ -453,49 +453,49 @@ gnu_NIG_Photoionization:
 # Stage "reggie_nightly_build_all": Build and run
 #                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_build_all:
-  <<: *defaults_gnu_nightly
+build_all:
+  <<: *defaults_nightly
   stage: reggie_nightly_build_all
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly": Build and run examples once a week
 #                         - feature_PIC_maxwell_plasma_wave/ : test a plasma-wave with different time-integration and maxwell's equations
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_WEK_PIC_maxwell:
-  <<: *defaults_gnu_weekly
+WEK_PIC_maxwell:
+  <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build_gnu
+    - cd build
     - python ./reggie/reggie.py ../regressioncheck/checks/WEK_PIC_maxwell
 
-gnu_WEK_DSMC:
-  <<: *defaults_gnu_weekly
+WEK_DSMC:
+  <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build_gnu
+    - cd build
     - python ./reggie/reggie.py ../regressioncheck/checks/WEK_DSMC
 
-gnu_WEK_Reservoir:
-  <<: *defaults_gnu_weekly
+WEK_Reservoir:
+  <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build_gnu
+    - cd build
     - python ./reggie/reggie.py ../regressioncheck/checks/WEK_Reservoir
 
-gnu_WEK_FPFlow:
-  <<: *defaults_gnu_weekly
+WEK_FPFlow:
+  <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build_gnu
+    - cd build
     - python ./reggie/reggie.py ../regressioncheck/checks/WEK_FPFlow
 
-gnu_WEK_BGKFlow:
-  <<: *defaults_gnu_weekly
+WEK_BGKFlow:
+  <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build_gnu
+    - cd build
     - python ./reggie/reggie.py ../regressioncheck/checks/WEK_BGKFlow
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
