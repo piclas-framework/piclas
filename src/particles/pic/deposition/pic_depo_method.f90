@@ -37,6 +37,7 @@ END INTERFACE
 PROCEDURE(DepositionMethodInterface),POINTER :: DepositionMethod    !< pointer defining the standard inner Riemann solver
 
 INTEGER,PARAMETER      :: PRM_DEPO_SF   = 0  ! shape_function
+INTEGER,PARAMETER      :: PRM_DEPO_SF_CC= 1  ! shape_function_cc
 INTEGER,PARAMETER      :: PRM_DEPO_CVW  = 6  ! cell_volweight
 INTEGER,PARAMETER      :: PRM_DEPO_CVWM = 12 ! cell_volweight_mean
 
@@ -69,11 +70,13 @@ CALL prms%CreateLogicalOption('PIC-DoDeposition', 'Switch deposition of charge (
 
 CALL prms%CreateIntFromStringOption('PIC-Deposition-Type', "Type/Method used in the deposition step: \n"           //&
                                     '1.1)  shape_function ('//TRIM(int2strf(PRM_DEPO_SF))//')\n'                   //&
+                                    '1.2)  shape_function_cc ('//TRIM(int2strf(PRM_DEPO_SF_CC))//')\n'             //&
                                     '2.)   cell_volweight ('//TRIM(int2strf(PRM_DEPO_CVW))//')\n'                  //&
                                     '3.)   cell_volweight_mean ('//TRIM(int2strf(PRM_DEPO_CVWM))//')'                &
                                     ,'cell_volweight')
 
 CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function'             , PRM_DEPO_SF)
+CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function_cc'          , PRM_DEPO_SF_CC)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cell_volweight'             , PRM_DEPO_CVW)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cell_volweight_mean'        , PRM_DEPO_CVWM)
 END SUBROUTINE DefineParametersDepositionMethod
@@ -110,6 +113,9 @@ SELECT CASE(DepositionType_loc)
 Case(PRM_DEPO_SF) ! shape_function
   DepositionMethod => DepositionMethod_SF
   DepositionType   = 'shape_function'
+Case(PRM_DEPO_SF_CC) ! shape_function
+  DepositionMethod => DepositionMethod_SF
+  DepositionType   = 'shape_function_cc'
 Case(PRM_DEPO_CVW) ! cell_volweight
   DepositionType   = 'cell_volweight'
   DepositionMethod => DepositionMethod_CVW
@@ -543,7 +549,7 @@ USE MOD_PICDepo_Vars                ,ONLY: sfdepolayersradius,sfdepolayerspartnu
 USE MOD_PICDepo_Vars                ,ONLY: Vdm_EquiN_GaussN,SFResampleAnalyzeSurfCollis,SFdepoLayersAlreadyDone,RelaxDeposition,r_SF
 USE MOD_PICDepo_Vars                ,ONLY: PartSourceConstExists,NbrOfSFdepoLayers,NbrOfSFdepoFixes,DoSFEqui, PartSourceProc
 USE MOD_PICDepo_Vars                ,ONLY: ConstantSFdepoLayers
-USE MOD_PICDepo_Shapefunction_Tools ,ONLY: calcSfSourceNew
+USE MOD_PICDepo_Shapefunction_Tools ,ONLY: calcSfSource
 USE MOD_Mesh_Tools,             ONLY: GetCNElemID
 #if USE_MPI
 USE MOD_PICDepo_Vars                ,ONLY: PartSource_Shared_Win, PartSource_Shared, ShapeMapping, nSendShapeElems, SendShapeElemID
@@ -608,7 +614,7 @@ DO iPart=1,PDM%ParticleVecLength
   ELSE
     Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
   END IF
-  CALL calcSfSourceNew(4,Charge*w_sf ,Vec1,Vec2,Vec3,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
+  CALL calcSfSource(4,Charge*w_sf ,Vec1,Vec2,Vec3,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
 END DO
 #if USE_MPI
 CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
