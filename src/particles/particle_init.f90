@@ -849,9 +849,6 @@ CALL InitializeVariablesPartBoundary()
 
 !-- AuxBCs
 CALL InitializeVariablesAuxBC()
-! calculate cartesian borders of node local and global mesh
-CALL GetMeshMinMax()
-!-- Build BGM and halo region
 
 !-- Get PIC deposition (skip DSMC, FP-Flow and BGS-Flow related timediscs)
 #if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
@@ -867,6 +864,7 @@ DoDeposition    = GETLOGICAL('PIC-DoDeposition')
 ! init DSMC determines whether DSMC%UseOctree is true or false)
 DoInterpolation = GETLOGICAL('PIC-DoInterpolation')
 
+! Build BGM and initialize particle mesh
 CALL InitParticleMesh()
 #if USE_MPI
 !-- Build MPI communication

@@ -249,11 +249,14 @@ IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING) THEN
   CALL CalcBezierControlPoints()
 END IF
 
+! Mesh min/max must be built on BezierControlPoint for possibly curved elements
+CALL GetMeshMinMax()
+
 ! Build BGM to Element mapping and identify which of the elements, sides and nodes are in the compute-node local and halo region
 CALL BuildBGMAndIdentifyHaloRegion()
 
 #if USE_MPI
-CalcHaloInfo = GETLOGICAL('CalcHaloInfo') 
+CalcHaloInfo = GETLOGICAL('CalcHaloInfo')
 IF (CalcHaloInfo) THEN
   CALL WriteHaloInfo
 END IF
@@ -3319,11 +3322,14 @@ SUBROUTINE GetMeshMinMax()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Mesh_Vars          ,ONLY: offsetElem,nElems
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,NodeCoords_Shared
+USE MOD_Mesh_Vars               ,ONLY: offsetElem,nElems
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,NodeCoords_Shared
+USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 #if USE_MPI
-USE MOD_Particle_Mesh_Vars ,ONLY: offsetComputeNodeNode,nComputeNodeNodes
+USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeSide,nComputeNodeSides
+USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeNode,nComputeNodeNodes
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -3333,37 +3339,76 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                        :: offsetLocalSide,nLocalSides
 INTEGER                        :: offsetLocalNode,nLocalNodes
 !===================================================================================================================================
-! calculate all offsets
-offsetLocalNode = ElemInfo_Shared(ELEM_FIRSTNODEIND,offsetElem+1)
-nLocalNodes     = ElemInfo_Shared(ELEM_LASTNODEIND ,offsetElem+nElems)-ElemInfo_Shared(ELEM_FIRSTNODEIND,offsetElem+1)
 
-! proc local
-GEO%xmin     = MINVAL(NodeCoords_Shared(1,offsetLocalNode+1:offsetLocalNode+nLocalNodes))
-GEO%xmax     = MAXVAL(NodeCoords_Shared(1,offsetLocalNode+1:offsetLocalNode+nLocalNodes))
-GEO%ymin     = MINVAL(NodeCoords_Shared(2,offsetLocalNode+1:offsetLocalNode+nLocalNodes))
-GEO%ymax     = MAXVAL(NodeCoords_Shared(2,offsetLocalNode+1:offsetLocalNode+nLocalNodes))
-GEO%zmin     = MINVAL(NodeCoords_Shared(3,offsetLocalNode+1:offsetLocalNode+nLocalNodes))
-GEO%zmax     = MAXVAL(NodeCoords_Shared(3,offsetLocalNode+1:offsetLocalNode+nLocalNodes))
+SELECT CASE(TrackingMethod)
+  ! Build mesh min/max on BezierControlPoints for possibly curved elements
+  CASE(REFMAPPING,TRACING)
+    ! calculate all offsets
+    offsetLocalSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1)
+    nLocalSides     = ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElem+nElems)-ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1)
+
+    ! proc local
+    GEO%xmin     = MINVAL(BezierControlPoints3D(1,:,:,offsetLocalSide+1:offsetLocalSide+nLocalSides))
+    GEO%xmax     = MAXVAL(BezierControlPoints3D(1,:,:,offsetLocalSide+1:offsetLocalSide+nLocalSides))
+    GEO%ymin     = MINVAL(BezierControlPoints3D(2,:,:,offsetLocalSide+1:offsetLocalSide+nLocalSides))
+    GEO%ymax     = MAXVAL(BezierControlPoints3D(2,:,:,offsetLocalSide+1:offsetLocalSide+nLocalSides))
+    GEO%zmin     = MINVAL(BezierControlPoints3D(3,:,:,offsetLocalSide+1:offsetLocalSide+nLocalSides))
+    GEO%zmax     = MAXVAL(BezierControlPoints3D(3,:,:,offsetLocalSide+1:offsetLocalSide+nLocalSides))
 
 #if USE_MPI
-! compute-node local
-GEO%CNxmin   = MINVAL(NodeCoords_Shared(1,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-GEO%CNxmax   = MAXVAL(NodeCoords_Shared(1,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-GEO%CNymin   = MINVAL(NodeCoords_Shared(2,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-GEO%CNymax   = MAXVAL(NodeCoords_Shared(2,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-GEO%CNzmin   = MINVAL(NodeCoords_Shared(3,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-GEO%CNzmax   = MAXVAL(NodeCoords_Shared(3,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+    ! compute-node local
+    GEO%CNxmin   = MINVAL(BezierControlPoints3D(1,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
+    GEO%CNxmax   = MAXVAL(BezierControlPoints3D(1,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
+    GEO%CNymin   = MINVAL(BezierControlPoints3D(2,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
+    GEO%CNymax   = MAXVAL(BezierControlPoints3D(2,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
+    GEO%CNzmin   = MINVAL(BezierControlPoints3D(3,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
+    GEO%CNzmax   = MAXVAL(BezierControlPoints3D(3,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
 
-! global
-GEO%xminglob = MINVAL(NodeCoords_Shared(1,:))
-GEO%xmaxglob = MAXVAL(NodeCoords_Shared(1,:))
-GEO%yminglob = MINVAL(NodeCoords_Shared(2,:))
-GEO%ymaxglob = MAXVAL(NodeCoords_Shared(2,:))
-GEO%zminglob = MINVAL(NodeCoords_Shared(3,:))
-GEO%zmaxglob = MAXVAL(NodeCoords_Shared(3,:))
-#else
+    ! global
+    GEO%xminglob = MINVAL(BezierControlPoints3D(1,:,:,:))
+    GEO%xmaxglob = MAXVAL(BezierControlPoints3D(1,:,:,:))
+    GEO%yminglob = MINVAL(BezierControlPoints3D(2,:,:,:))
+    GEO%ymaxglob = MAXVAL(BezierControlPoints3D(2,:,:,:))
+    GEO%zminglob = MINVAL(BezierControlPoints3D(3,:,:,:))
+    GEO%zmaxglob = MAXVAL(BezierControlPoints3D(3,:,:,:))
+#endif /*USE_MPI*/
+  ! TriaTracking does not have curved elements, nodeCoords are sufficient
+  CASE(TRIATRACKING)
+    ! calculate all offsets
+    offsetLocalNode = ElemInfo_Shared(ELEM_FIRSTNODEIND,offsetElem+1)
+    nLocalNodes     = ElemInfo_Shared(ELEM_LASTNODEIND ,offsetElem+nElems)-ElemInfo_Shared(ELEM_FIRSTNODEIND,offsetElem+1)
+
+    ! proc local
+    GEO%xmin     = MINVAL(NodeCoords_Shared(1,offsetLocalNode+1:offsetLocalNode+nLocalNodes))
+    GEO%xmax     = MAXVAL(NodeCoords_Shared(1,offsetLocalNode+1:offsetLocalNode+nLocalNodes))
+    GEO%ymin     = MINVAL(NodeCoords_Shared(2,offsetLocalNode+1:offsetLocalNode+nLocalNodes))
+    GEO%ymax     = MAXVAL(NodeCoords_Shared(2,offsetLocalNode+1:offsetLocalNode+nLocalNodes))
+    GEO%zmin     = MINVAL(NodeCoords_Shared(3,offsetLocalNode+1:offsetLocalNode+nLocalNodes))
+    GEO%zmax     = MAXVAL(NodeCoords_Shared(3,offsetLocalNode+1:offsetLocalNode+nLocalNodes))
+
+#if USE_MPI
+    ! compute-node local
+    GEO%CNxmin   = MINVAL(NodeCoords_Shared(1,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+    GEO%CNxmax   = MAXVAL(NodeCoords_Shared(1,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+    GEO%CNymin   = MINVAL(NodeCoords_Shared(2,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+    GEO%CNymax   = MAXVAL(NodeCoords_Shared(2,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+    GEO%CNzmin   = MINVAL(NodeCoords_Shared(3,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+    GEO%CNzmax   = MAXVAL(NodeCoords_Shared(3,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+
+    ! global
+    GEO%xminglob = MINVAL(NodeCoords_Shared(1,:))
+    GEO%xmaxglob = MAXVAL(NodeCoords_Shared(1,:))
+    GEO%yminglob = MINVAL(NodeCoords_Shared(2,:))
+    GEO%ymaxglob = MAXVAL(NodeCoords_Shared(2,:))
+    GEO%zminglob = MINVAL(NodeCoords_Shared(3,:))
+    GEO%zmaxglob = MAXVAL(NodeCoords_Shared(3,:))
+#endif /*USE_MPI*/
+END SELECT
+
+#if !USE_MPI
 ! compute-node local (dummy)
 GEO%CNxmin   = GEO%xmin
 GEO%CNxmax   = GEO%xmax
