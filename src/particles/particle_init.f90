@@ -809,6 +809,9 @@ USE MOD_Particle_MPI           ,ONLY: InitEmissionComm
 USE MOD_Particle_MPI_Halo      ,ONLY: IdentifyPartExchangeProcs
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
+#ifdef CODE_ANALYZE
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
+#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -863,6 +866,11 @@ DoDeposition    = GETLOGICAL('PIC-DoDeposition')
 !-- Get PIC interpolation (could be skipped above, but DSMC octree requires some interpolation variables, which are allocated before
 ! init DSMC determines whether DSMC%UseOctree is true or false)
 DoInterpolation = GETLOGICAL('PIC-DoInterpolation')
+#ifdef CODE_ANALYZE
+! Check if an analytic function is to be used for interpolation
+DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
+IF(DoInterpolationAnalytic) DoInterpolation = DoInterpolationAnalytic
+#endif /*CODE_ANALYZE*/
 
 ! Build BGM and initialize particle mesh
 CALL InitParticleMesh()

@@ -73,12 +73,6 @@ CHARACTER(LEN=20)         :: tempStr
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
 
-#ifdef CODE_ANALYZE
-! Check if an analytic function is to be used for interpolation
-DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
-IF(DoInterpolationAnalytic) DoInterpolation = DoInterpolationAnalytic
-#endif /*CODE_ANALYZE*/
-
 IF(.NOT.DoInterpolation) THEN
   ! Fill interpolation type with empty string
   InterpolationType='NONE'
@@ -299,7 +293,7 @@ END SELECT
 END SUBROUTINE InterpolateFieldToSingleParticle
 
 
-FUNCTION GetExternalFieldAtParticle(PartID)
+PURE FUNCTION GetExternalFieldAtParticle(PartID)
 !===================================================================================================================================
 ! Get the external field (analytic, variable, etc.) for the particle at position PartState(1:3,PartID)
 !===================================================================================================================================
