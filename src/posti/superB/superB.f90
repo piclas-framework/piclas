@@ -40,6 +40,7 @@ USE MOD_Mesh                  ,ONLY: InitMesh
 #if USE_MPI
 USE MOD_MPI_Shared
 #endif /*USE_MPI*/
+USE MOD_Globals_Init          ,ONLY: DefineParametersGlobals
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -86,6 +87,7 @@ END IF
 !CALL InitDefineParameters()
 
 CALL DefineParametersIO()
+CALL DefineParametersGlobals()
 CALL DefineParametersInterpolation()
 CALL DefineParametersOutput()
 CALL DefineParametersMesh()
