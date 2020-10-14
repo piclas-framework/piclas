@@ -37,6 +37,9 @@ USE MOD_Mesh                  ,ONLY: DefineParametersMesh,FinalizeMesh
 USE MOD_Equation              ,ONLY: DefineParametersEquation
 USE MOD_Interpolation_Vars    ,ONLY: BGField,BGFieldAnalytic
 USE MOD_Mesh                  ,ONLY: InitMesh
+#if USE_MPI
+USE MOD_MPI_Shared
+#endif /*USE_MPI*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -109,6 +112,9 @@ CALL InitOutput()
 CALL InitIOHDF5()
 
 CALL InitGlobals()
+#if USE_MPI
+CALL InitMPIShared()
+#endif /*USE_MPI*/
 
 ! Initialization
 CALL InitInterpolation()
