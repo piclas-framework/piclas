@@ -451,15 +451,16 @@ SUBROUTINE RefElemNewton(Xi,X_In,wBaryCL_N_In,XiCL_N_In,XCL_N_In,dXCL_N_In,N_In,
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_Globals_Vars
-USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
-USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingEps
-USE MOD_Mesh_Vars,               ONLY:offsetElem
+USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
+USE MOD_Particle_Mesh_Vars ,ONLY: RefMappingEps
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
 #if defined(IMPA)
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+USE MOD_Particle_Vars      ,ONLY: PartIsImplicit
 #endif
 #if defined(IMAP) || defined(ROS)
-USE MOD_Particle_Vars,           ONLY:PEM,LastPartPos
+USE MOD_Particle_Vars      ,ONLY: PEM,LastPartPos
 #endif /*IMPA or ROS*/
+USE MOD_TimeDisc_Vars      ,ONLY: iter
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -592,7 +593,8 @@ __STAMP__&
   ! check xi value for plausibility
   IF(ANY(ABS(Xi).GT.1.5)) THEN
     IF(Mode.EQ.1)THEN
-      IPWRITE(UNIT_stdOut,*) ' Particle not inside of element, force!!!'
+      IPWRITE(UNIT_stdOut,*) ' Particle not inside of element, STOP!'
+      IPWRITE(UNIT_stdOut,*) ' Timestep-Iter    ', iter
       IPWRITE(UNIT_stdOut,*) ' Newton-Iter      ', NewtonIter
       IPWRITE(UNIT_stdOut,*) ' xi               ', xi(1:3)
       IPWRITE(UNIT_stdOut,*) ' PartPos          ', X_in
