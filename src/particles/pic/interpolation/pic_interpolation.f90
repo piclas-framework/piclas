@@ -73,6 +73,12 @@ CHARACTER(LEN=20)         :: tempStr
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
 
+#ifdef CODE_ANALYZE
+! Check if an analytic function is to be used for interpolation
+DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
+IF(DoInterpolationAnalytic) DoInterpolation = DoInterpolationAnalytic
+#endif /*CODE_ANALYZE*/
+
 IF(.NOT.DoInterpolation) THEN
   ! Fill interpolation type with empty string
   InterpolationType='NONE'
@@ -125,7 +131,6 @@ END SELECT
 
 #ifdef CODE_ANALYZE
 ! Initialize analytic solutions for particle time integration (checking the order of convergence for time discretizations)
-DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
 IF(DoInterpolationAnalytic)THEN
   AnalyticInterpolationType = GETINT('PIC-AnalyticInterpolation-Type')
   AnalyticInterpolationPhase = GETREAL('PIC-AnalyticInterpolationPhase')
@@ -294,7 +299,7 @@ END SELECT
 END SUBROUTINE InterpolateFieldToSingleParticle
 
 
-PURE FUNCTION GetExternalFieldAtParticle(PartID)
+FUNCTION GetExternalFieldAtParticle(PartID)
 !===================================================================================================================================
 ! Get the external field (analytic, variable, etc.) for the particle at position PartState(1:3,PartID)
 !===================================================================================================================================
