@@ -56,7 +56,6 @@ USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
 #if USE_MPI

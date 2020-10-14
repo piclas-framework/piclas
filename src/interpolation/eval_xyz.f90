@@ -457,7 +457,7 @@ USE MOD_Mesh_Vars          ,ONLY: offsetElem
 #if defined(IMPA)
 USE MOD_Particle_Vars      ,ONLY: PartIsImplicit
 #endif
-#if defined(IMAP) || defined(ROS)
+#if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Vars      ,ONLY: PEM,LastPartPos
 #endif /*IMPA or ROS*/
 USE MOD_TimeDisc_Vars      ,ONLY: iter
@@ -604,7 +604,7 @@ __STAMP__&
 #if defined(IMPA)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartisImplicit(PartID)
 #endif
-#if defined(IMAP) || defined(ROS)
+#if defined(IMPA) || defined(ROS)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' last?', LastPartPos(1:3,PartID)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' ElemID-N', PEM%GlobalElemID(PartID)+offSetElem
 #endif /*IMPA or ROS*/
@@ -617,7 +617,6 @@ __STAMP__&
   END IF
 
 END DO !newton
-
 
 END SUBROUTINE RefElemNewton
 
@@ -695,7 +694,7 @@ USE MOD_Mesh_Vars,               ONLY:ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)            :: ElemID
+INTEGER,INTENT(IN)            :: ElemID   !< Global element index
 REAL,INTENT(IN)               :: X_in(1:3)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
