@@ -58,11 +58,11 @@ SUBROUTINE GetPositionInRefElem(x_in,xi,ElemID,DoReUseMap,ForceMode)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
+USE MOD_Mesh_Tools,              ONLY:GetCNElemID
 USE MOD_Mesh_Vars,               ONLY:NGeo,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Mesh_Vars,               ONLY:wBaryCL_NGeo1,XiCL_NGeo1
 USE MOD_Particle_Mesh_Vars,      ONLY:ElemCurved
 #if USE_MPI
-USE MOD_Mesh_Tools,              ONLY:GetCNElemID
 USE MOD_Particle_Mesh_Vars,      ONLY:XCL_NGeo_Shared,dXCL_NGeo_Shared
 #else
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,XCL_NGeo
@@ -186,13 +186,12 @@ USE MOD_Preproc
 USE MOD_Basis                 ,ONLY: LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary
 USE MOD_Interpolation_Vars    ,ONLY: NBG,BGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
-!USE MOD_Mesh_Vars             ,ONLY: dXCL_NGeo,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars             ,ONLY: NGeo,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Mesh_Vars             ,ONLY: wBaryCL_NGeo1,XiCL_NGeo1
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCurved
 USE MOD_PICInterpolation_Vars ,ONLY: useBGField
 #if USE_MPI
-USE MOD_Mesh_Tools         ,   ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars,    ONLY: XCL_NGeo_Shared,dXCL_NGeo_Shared
 #else
 USE MOD_Mesh_Vars,             ONLY: XCL_NGeo,dXCL_NGeo
@@ -684,16 +683,21 @@ USE MOD_Mesh_Tools,              ONLY:GetCNElemID
 USE MOD_Interpolation_Vars,      ONLY:xGP
 USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingGuess,RefMappingEps
 USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,slenXiEtaZetaBasis
-USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo_Shared,XCL_NGeo_Shared,Elem_xGP_Shared
+USE MOD_Particle_Mesh_Vars,      ONLY:XCL_NGeo_Shared,Elem_xGP_Shared
+#if USE_MPI
+USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo_Shared
+#else
+USE MOD_Mesh_Vars,               ONLY:ElemBaryNGeo
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)             :: ElemID
-REAL,INTENT(IN)                :: X_in(1:3)
+INTEGER,INTENT(IN)            :: ElemID
+REAL,INTENT(IN)               :: X_in(1:3)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)             :: Xi(1:3)
+REAL,INTENT(INOUT)            :: Xi(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                          :: Ptild(1:3),XiLinear(1:6)
@@ -713,6 +717,7 @@ RefMappingGuessLoc = RefMappingGuess
 SELECT CASE(RefMappingGuessLoc)
 
 CASE(1)
+
   CNElemID = GetCNElemID(ElemID)
   Ptild    = X_in - ElemBaryNGeo(:,CNElemID)
   ! plus coord system (1-3) and minus coord system (4-6)
@@ -728,7 +733,7 @@ CASE(1)
 
 CASE(2)
   ! compute distance on Gauss Points
-    Winner_Dist = SQRT(DOT_PRODUCT((x_in(:)-Elem_xGP_Shared(:,0,0,0,ElemID)),(x_in(:)-Elem_xGP_Shared(:,0,0,0,ElemID))))
+  Winner_Dist = SQRT(DOT_PRODUCT((x_in(:)-Elem_xGP_Shared(:,0,0,0,ElemID)),(x_in(:)-Elem_xGP_Shared(:,0,0,0,ElemID))))
   Xi(:)=(/xGP(0),xGP(0),xGP(0)/) ! start value
   DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
       dX = ABS(X_in(1) - Elem_xGP_Shared(1,i,j,k,ElemID))
