@@ -160,7 +160,6 @@ INTEGER(HID_T)                    :: filespace                          ! filesp
 LOGICAL                           :: DatasetFound
 !===================================================================================================================================
 spec_pair = TRIM(SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
-SWRITE(UNIT_StdOut,'(A)') 'Read collision cross section for '//TRIM(spec_pair)//' from '//TRIM(XSec_Database)
 
 DatasetFound = .FALSE.
 
@@ -196,6 +195,7 @@ ELSE
 END IF
 
 IF(SpecXSec(iCase)%UseCollXSec) THEN
+  SWRITE(UNIT_StdOut,'(A)') 'Read collision cross section for '//TRIM(spec_pair)//' from '//TRIM(XSec_Database)
   ! Open the dataset.
   CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
   ! Get the file space of the dataset.
@@ -249,7 +249,6 @@ LOGICAL                           :: GroupFound
 INTEGER                           :: storage, nVib, max_corder
 !===================================================================================================================================
 spec_pair = TRIM(SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
-SWRITE(UNIT_StdOut,'(A)') 'Read vibrational cross section for '//TRIM(spec_pair)//' from '//TRIM(XSec_Database)
 
 GroupFound = .FALSE.
 SpecXSec(iCase)%UseVibXSec = .FALSE.
