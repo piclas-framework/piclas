@@ -3445,11 +3445,11 @@ USE MOD_PICDepo_Vars           ,ONLY: PartSource,PartSource_Shared
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 #if USE_MPI
 USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
-USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,PartSource_Shared_Win
+USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
-#endif
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3689,9 +3689,6 @@ SELECT CASE (TrackingMethod)
       ! BuildEpsOneCell
       CALL MPI_WIN_UNLOCK_ALL(ElemsJ_Shared_Win     , iError)
       CALL MPI_WIN_FREE(      ElemsJ_Shared_Win     , iError)
-      ! Deposition
-      CALL MPI_WIN_UNLOCK_ALL(PartSource_Shared_Win , iError)
-      CALL MPI_WIN_FREE(      PartSource_Shared_Win , iError)
     END IF !DoDeposition
 
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
@@ -3740,11 +3737,6 @@ SELECT CASE (TrackingMethod)
     ! BuildEpsOneCell
     ADEALLOCATE(ElemsJ)
     ADEALLOCATE(ElemsJ_Shared)
-
-    ! Deposition
-    ADEALLOCATE(PartSource)
-    ADEALLOCATE(PartSource_Shared)
-
 END SELECT
 
 SDEALLOCATE(GEO%PeriodicVectors)

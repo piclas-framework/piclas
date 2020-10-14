@@ -129,8 +129,8 @@ MPISharedSize = INT(4*(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems,MPI_ADDR
 CALL Allocate_Shared(MPISharedSize,(/4*(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems/),PartSource_Shared_Win,PartSource_Shared)
 CALL MPI_WIN_LOCK_ALL(0,PartSource_Shared_Win,IERROR)
 PartSource(1:4,0:PP_N,0:PP_N,0:PP_N,1:nComputeNodeTotalElems) => PartSource_Shared(1:4*(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems)
-ALLOCATE(PartSourceProc(1:4,0:PP_N,0:PP_N,0:PP_N,1:nSendShapeElems))
-ALLOCATE(PartSourceLoc(1:4,0:PP_N,0:PP_N,0:PP_N,1:nElems))
+ALLOCATE(PartSourceProc(   1:4,0:PP_N,0:PP_N,0:PP_N,1:nSendShapeElems))
+ALLOCATE(PartSourceLoc(    1:4,0:PP_N,0:PP_N,0:PP_N,1:nElems))
 ALLOCATE(PartSourceLocHalo(1:4,0:PP_N,0:PP_N,0:PP_N,1:nSendShapeElems))
 #else
 ALLOCATE(PartSource(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
@@ -326,7 +326,7 @@ CASE('cell_volweight_mean')
                   , RecvRequest(iProc)                                          &
                   , IERROR)
       DO iNode = 1, nUniqueGlobalNodes
-        IF (NodeDepoMapping(iProc,iNode)) NodeMapping(iProc)%nSendUniqueNodes = NodeMapping(iProc)%nSendUniqueNodes + 1 
+        IF (NodeDepoMapping(iProc,iNode)) NodeMapping(iProc)%nSendUniqueNodes = NodeMapping(iProc)%nSendUniqueNodes + 1
       END DO
       CALL MPI_ISEND( NodeMapping(iProc)%nSendUniqueNodes                         &
                     , 1                                                           &
@@ -337,7 +337,7 @@ CASE('cell_volweight_mean')
                     , SendRequest(iProc)                                          &
                     , IERROR)
     END DO
-    
+
     DO iProc = 0,nLeaderGroupProcs-1
       IF (iProc.EQ.myLeaderGroupRank) CYCLE
       CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
@@ -383,11 +383,11 @@ CASE('cell_volweight_mean')
 
     DO iProc = 0,nLeaderGroupProcs-1
       IF (iProc.EQ.myLeaderGroupRank) CYCLE
-      IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN 
+      IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
         CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
         IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
       END IF
-      IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN 
+      IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
         CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
         IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
       END IF
@@ -1040,11 +1040,11 @@ CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
 
 IF(PRESENT(doParticle_In)) THEN
   CALL DepositionMethod(doParticle_In)
-ELSE 
+ELSE
   CALL DepositionMethod()
 END IF
 
-IF(MOD(iter,PartAnalyzeStep).EQ.0) THEN 
+IF(MOD(iter,PartAnalyzeStep).EQ.0) THEN
   IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 END IF
 RETURN
@@ -1060,6 +1060,9 @@ SUBROUTINE FinalizeDeposition()
 USE MOD_Globals
 USE MOD_PICDepo_Vars
 USE MOD_Particle_Mesh_Vars,   ONLY:Geo
+#if USE_MPI
+USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1092,6 +1095,42 @@ SDEALLOCATE(CellVolWeightFac)
 SDEALLOCATE(CellVolWeight_Volumes)
 SDEALLOCATE(NodeSourceExt)
 SDEALLOCATE(NodeSourceExtTmp)
+
+#if USE_MPI
+SDEALLOCATE(PartSourceProc)
+SDEALLOCATE(PartSourceLoc)
+SDEALLOCATE(PartSourceLocHalo)
+
+! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+
+CALL MPI_WIN_UNLOCK_ALL(PartSource_Shared_Win, iError)
+CALL MPI_WIN_FREE(      PartSource_Shared_Win, iError)
+
+! Deposition-dependent arrays
+SELECT CASE(TRIM(DepositionType))
+  CASE('cell_volweight_mean')
+    CALL MPI_WIN_UNLOCK_ALL(NodeSource_Shared_Win, iError)
+    CALL MPI_WIN_FREE(      NodeSource_Shared_Win, iError)
+
+END SELECT
+
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+
+! Then, free the pointers or arrays
+ADEALLOCATE(PartSource)
+ADEALLOCATE(PartSource_Shared)
+
+! Deposition-dependent arrays
+SELECT CASE(TRIM(DepositionType))
+  CASE('cell_volweight_mean')
+    ADEALLOCATE(NodeSource)
+    ADEALLOCATE(NodeSource_Shared)
+
+END SELECT
+#endif /*USE_MPI*/
+
+
 END SUBROUTINE FinalizeDeposition
 
 END MODULE MOD_PICDepo
