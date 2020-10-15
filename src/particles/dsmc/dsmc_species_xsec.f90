@@ -727,8 +727,8 @@ LOGICAL                           :: DataSetFound, GroupFound, ReactionFound
 INTEGER                           :: iReac, EductReac(1:3), ProductReac(1:3)
 !===================================================================================================================================
 iReac = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-EductReac(1:3) = ChemReac%DefinedReact(iReac,1,1:3)
-ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
+EductReac(1:3) = ChemReac%Reactants(iReac,1:3)
+ProductReac(1:3) = ChemReac%Products(iReac,1:3)
 
 DatasetFound = .FALSE.; GroupFound = .FALSE.
 
@@ -844,9 +844,9 @@ NumWeightProd = 2
 DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
   ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
   IF(ChemReac%XSec_Procedure(ReacTest)) THEN
-    EductReac(1:3) = ChemReac%DefinedReact(ReacTest,1,1:3)
-    ProductReac(1:3) = ChemReac%DefinedReact(ReacTest,2,1:3)
-    IF (ChemReac%DefinedReact(ReacTest,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
+    EductReac(1:3) = ChemReac%Reactants(ReacTest,1:3)
+    ProductReac(1:3) = ChemReac%Products(ReacTest,1:3)
+    IF (EductReac(1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
       ReactInx(1) = Coll_pData(iPair)%iPart_p1
       ReactInx(2) = Coll_pData(iPair)%iPart_p2
     ELSE

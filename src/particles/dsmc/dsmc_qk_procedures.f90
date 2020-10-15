@@ -51,8 +51,8 @@ ChemReac%QKRColl = 0.
 ChemReac%QKTCollCorrFac = 0.
 
 DO iReac = 1, ChemReac%NumOfReact
-  iSpec1 = ChemReac%DefinedReact(iReac,1,1)
-  iSpec2 = ChemReac%DefinedReact(iReac,1,2)
+  iSpec1 = ChemReac%Reactants(iReac,1)
+  iSpec2 = ChemReac%Reactants(iReac,2)
   iCase = CollInf%Coll_Case(iSpec1, iSpec2)
   Tref = CollInf%Tref(iSpec1,iSpec2)
   omega = CollInf%omega(iSpec1,iSpec2)
@@ -116,7 +116,7 @@ INTEGER                       :: MaxQua, React1Inx, React2Inx, iCase, iPath, Pat
 REAL                          :: Weight1, Weight2, ReducedMass, IonizationEnergy
 !===================================================================================================================================
 ! Determining, which collision partner is the dissociating particle (always the first molecule in the DefinedReact array)
-IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
+IF (ChemReac%Reactants(iReac,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
   React1Inx = Coll_pData(iPair)%iPart_p1
   React2Inx = Coll_pData(iPair)%iPart_p2
 ELSE
@@ -197,8 +197,8 @@ REAL                          :: Tref, TempRatio, omega
 !===================================================================================================================================
 QK_CalcAnalyticRate = 0.0
 z = 0.0
-iSpec1 = ChemReac%DefinedReact(iReac,1,1)
-iSpec2 = ChemReac%DefinedReact(iReac,1,2)
+iSpec1 = ChemReac%Reactants(iReac,1)
+iSpec2 = ChemReac%Reactants(iReac,2)
 iCase = CollInf%Coll_Case(iSpec1, iSpec2)
 Tref = CollInf%Tref(iSpec1,iSpec2)
 omega = CollInf%omega(iSpec1,iSpec2)

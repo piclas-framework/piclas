@@ -219,7 +219,7 @@ REAL                            :: Weight(1:3)
 REAL,PARAMETER                  :: eps_prec=1E-3
 !===================================================================================================================================
 
-ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
+ProductReac(1:3) = ChemReac%Products(iReac,1:3)
 
 IF(ProductReac(3).EQ.0) THEN
   Xi_Total = Xi_rel + SpecDSMC(ProductReac(1))%Xi_Rot + SpecDSMC(ProductReac(2))%Xi_Rot

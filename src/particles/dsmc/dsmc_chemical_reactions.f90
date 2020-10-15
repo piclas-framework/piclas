@@ -91,7 +91,7 @@ Weight = 0.; ReactInx = 0
 NumWeightEduct = 2.; NumWeightProd = 2.
 SumWeightEduct = 0.; SumWeightProd = 0.
 
-EductReac(1:3) = ChemReac%DefinedReact(iReac,1,1:3)
+EductReac(1:3) = ChemReac%Reactants(iReac,1:3)
 iCase = CollInf%Coll_Case(EductReac(1), EductReac(2))
 
 IF(EductReac(3).NE.0) THEN
@@ -125,9 +125,9 @@ END IF
 
 ! Saving the product species, might be different for the recombination case as reaction index could have changed depending on the
 ! third reaction partner
-ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
+ProductReac(1:3) = ChemReac%Products(iReac,1:3)
 
-IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
+IF (ChemReac%Reactants(iReac,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
   ReactInx(1) = Coll_pData(iPair)%iPart_p1
   ReactInx(2) = Coll_pData(iPair)%iPart_p2
 ELSE
@@ -384,8 +384,8 @@ INTEGER                       :: iMom, iMomDim
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
 
-EductReac(1:3) = ChemReac%DefinedReact(iReac,1,1:3)
-ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
+EductReac(1:3) = ChemReac%Reactants(iReac,1:3)
+ProductReac(1:3) = ChemReac%Products(iReac,1:3)
 
 IF(EductReac(3).NE.0) THEN
   IF(ChemReac%RecombParticle.NE.0) THEN
@@ -430,7 +430,7 @@ NumWeightEduct = 2.
 NumWeightProd = 2.
 
 !..Get the index of react1 and the react2
-IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%DefinedReact(iReac,1,1)) THEN
+IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%Reactants(iReac,1)) THEN
   ReactInx(1) = Coll_pData(iPair)%iPart_p1
   ReactInx(2) = Coll_pData(iPair)%iPart_p2
 ELSE
@@ -1113,7 +1113,7 @@ SUBROUTINE simpleCEX(iReac, iPair, resetRHS_opt)
     resetRHS=.TRUE.
   END IF
 
-  IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%DefinedReact(iReac,1,1)) THEN
+  IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%Reactants(iReac,1)) THEN
     ReactInx(1) = Coll_pData(iPair)%iPart_p1
     ReactInx(2) = Coll_pData(iPair)%iPart_p2
   ELSE
@@ -1121,8 +1121,8 @@ SUBROUTINE simpleCEX(iReac, iPair, resetRHS_opt)
     ReactInx(1) = Coll_pData(iPair)%iPart_p2
   END IF
   ! change species
-  PartSpecies(ReactInx(1)) = ChemReac%DefinedReact(iReac,2,1)
-  PartSpecies(ReactInx(2)) = ChemReac%DefinedReact(iReac,2,2)
+  PartSpecies(ReactInx(1)) = ChemReac%Products(iReac,1)
+  PartSpecies(ReactInx(2)) = ChemReac%Products(iReac,2)
 
   IF (resetRHS) THEN
     ! deltaV particle 1
@@ -1160,7 +1160,7 @@ SUBROUTINE simpleMEX(iReac, iPair)
   INTEGER                       :: ReactInx(1:2)
 !===================================================================================================================================
 
-  IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%DefinedReact(iReac,1,1)) THEN
+  IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%Reactants(iReac,1)) THEN
     ReactInx(1) = Coll_pData(iPair)%iPart_p1
     ReactInx(2) = Coll_pData(iPair)%iPart_p2
   ELSE
@@ -1169,9 +1169,9 @@ SUBROUTINE simpleMEX(iReac, iPair)
   END IF
   ! change species of educt-ion to product-ion
   IF (Species(PartSpecies(ReactInx(1)))%ChargeIC.NE.0. .AND. Species(PartSpecies(ReactInx(2)))%ChargeIC.EQ.0.) THEN
-    PartSpecies(ReactInx(1)) = ChemReac%DefinedReact(iReac,2,2)
+    PartSpecies(ReactInx(1)) = ChemReac%Products(iReac,2)
   ELSE IF (Species(PartSpecies(ReactInx(2)))%ChargeIC.NE.0. .AND. Species(PartSpecies(ReactInx(1)))%ChargeIC.EQ.0.) THEN
-    PartSpecies(ReactInx(2)) = ChemReac%DefinedReact(iReac,2,1)
+    PartSpecies(ReactInx(2)) = ChemReac%Products(iReac,1)
   ELSE
     CALL abort(&
      __STAMP__&
@@ -1282,10 +1282,10 @@ REAL                            :: Qtra, Qrot, Qvib, Qelec
   iReac = iReacTmp - ChemReac%NumOfReact/2
   IF (ChemReac%QKProcedure(iReac)) THEN
     IF (TRIM(ChemReac%ReactType(iReac)).EQ.'iQK') THEN
-      MaxElecQua=SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%MaxElecQuant - 1
-      ActivationEnergy_K = SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%ElectronicState(2,MaxElecQua)
+      MaxElecQua=SpecDSMC(ChemReac%Reactants(iReac,1))%MaxElecQuant - 1
+      ActivationEnergy_K = SpecDSMC(ChemReac%Reactants(iReac,1))%ElectronicState(2,MaxElecQua)
     ELSEIF(TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
-      ActivationEnergy_K = SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%Ediss_eV * 11604.52500617 ! eV -> K
+      ActivationEnergy_K = SpecDSMC(ChemReac%Reactants(iReac,1))%Ediss_eV * 11604.52500617 ! eV -> K
     END IF
   END IF
 
@@ -1429,11 +1429,11 @@ DO iReac = 1, ChemReac%NumOfReact
   ! Only treat photoionization reactions
   IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
   ! First reactant of the reaction is the actual heavy particle species
-  bgSpec = BGGas%MapSpecToBGSpec(ChemReac%DefinedReact(iReac,1,1))
+  bgSpec = BGGas%MapSpecToBGSpec(ChemReac%Reactants(iReac,1))
   ! Collision number: Z = n_gas * n_ph * sigma_reac * v (in the case of photons its speed of light)
   ! Number of reactions: N = Z * dt * V (number of photons cancels out the volume)
   NbrOfReactions = NbrOfReactions + BGGas%NumberDensity(bgSpec) * NbrOfPhotons * ChemReac%CrossSection(iReac) * c &
-                                     *dt / Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor
+                                     *dt / Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor
 END DO
 
 END SUBROUTINE CalcPhotoIonizationNumber

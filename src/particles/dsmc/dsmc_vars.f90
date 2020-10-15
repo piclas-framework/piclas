@@ -413,31 +413,11 @@ TYPE tChemReactions
                                                             !    D (molecular dissociation)
                                                             !    E (molecular exchange reaction)
                                                             !    x (simple charge exchange reaction)
-  INTEGER, ALLOCATABLE            :: DefinedReact(:,:,:)    ! Defined Reaction
-                                                            ! (reaction num; 1:reactant, 2:product;
-                                                            !  1-3 species of reactants and products,
-                                                            ! 0: no spezies -> only 2 reactants or products)
+  INTEGER, ALLOCATABLE            :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
+  INTEGER, ALLOCATABLE            :: Products(:,:)          ! Products: indices of the species resulting from the reaction [NumOfReact,4]
   INTEGER, ALLOCATABLE            :: ReactCase(:)           ! Case/pair of the reaction (1:NumOfReact)
   INTEGER, ALLOCATABLE            :: ReactNum(:,:,:)            ! Number of Reaction of (spec1, spec2,
-                                                                ! Case 1: Recomb: func. of species 3
-                                                                ! Case 2: dissociation, only 1
-                                                                ! Case 3: exchange reaction, only 1
-                                                                ! Case 4: RN of 1. dissociation
-                                                                !               2. exchange
-                                                                ! Case 5: RN of 1. dissociation 1
-                                                                !               2. dissociation 2
-                                                                ! Case 6: associative ionization (N + N -> N2(ion) + e)
-                                                                ! Case 7: 3 dissociations possible (at least 1 poly)
-                                                                ! Case 8: 4 dissociations possible
-                                                                ! Case 9: 3 diss and 1 exchange possible
-                                                                ! Case 10: 2 diss and 1 exchange possible
-                                                                ! Case 11: 2 diss, 1 exchange and 1 recomb possible
-                                                                ! Case 12: 2 diss and 1 recomb possible
-                                                                ! Case 13: 1 diss, 1 exchange and 1 recomb possible
-                                                                ! Case 14: 1 diss and 1 recomb possible
-                                                                ! Case 15: 1 exchange and 1 recomb possible
                                                                 ! Case 16: simple CEX, only 1
-                                                                ! Case 17: associative ionization and recombination possible
   INTEGER, ALLOCATABLE            :: ReactNumRecomb(:,:,:)      ! Number of Reaction of (spec1, spec2, spec3)
   REAL,  ALLOCATABLE              :: Arrhenius_Prefactor(:)     ! pre-exponential factor af of Arrhenius ansatz (nReactions)
   REAL,  ALLOCATABLE              :: Arrhenius_Powerfactor(:)   ! powerfactor bf of temperature in Arrhenius ansatz (nReactions)

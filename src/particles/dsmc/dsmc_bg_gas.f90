@@ -809,7 +809,7 @@ DO iReac = 1, ChemReac%NumOfReact
     PartState(4:6,iPart_p1) = PartState(4:6,iPart_p1) + DSMC_RHS(1:3,iPart_p1)
     PartState(4:6,iPart_p2) = PartState(4:6,iPart_p2) + DSMC_RHS(1:3,iPart_p2)
     ! Treatment of the third product
-    IF(ChemReac%DefinedReact(iReac,2,3).NE.0) THEN
+    IF(ChemReac%Products(iReac,3).NE.0) THEN
       iPart_p3 = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
       PartState(4:6,iPart_p3) = PartState(4:6,iPart_p3) + DSMC_RHS(1:3,iPart_p3)
     END IF
@@ -841,7 +841,7 @@ DO iReac = 1, ChemReac%NumOfReact
                                           usevMPF_optIN=.FALSE.)
       END IF
       ! Treatment of the third product
-      IF(ChemReac%DefinedReact(iReac,2,3).NE.0) THEN
+      IF(ChemReac%Products(iReac,3).NE.0) THEN
         iPart_p3 = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
         IF(PARTISELECTRON(iPart_p3)) THEN
           CALL RANDOM_NUMBER(RandVal)

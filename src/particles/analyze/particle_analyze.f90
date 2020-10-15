@@ -2741,35 +2741,35 @@ END IF
 IF(PartMPI%MPIRoot)THEN
   DO iReac=1, ChemReac%NumOfReact
     iCase = ChemReac%ReactCase(iReac)
-    IF ((NumSpec(ChemReac%DefinedReact(iReac,1,1)).GT.0).AND.(NumSpec(ChemReac%DefinedReact(iReac,1,2)).GT.0)) THEN
+    IF ((NumSpec(ChemReac%Reactants(iReac,1)).GT.0).AND.(NumSpec(ChemReac%Reactants(iReac,2)).GT.0)) THEN
       SELECT CASE(TRIM(ChemReac%ReactType(iReac)))
       CASE('R','r')
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
-          RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
+          RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%Products(iReac,1))%MacroParticleFactor &
                      * MeshVolume**2 / (dt &
-                     * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
-                     * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,2)) &
-                     * Species(ChemReac%DefinedReact(iReac,1,3))%MacroParticleFactor * NumSpec(nSpecies+1))
+                     * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor * NumSpec(ChemReac%Reactants(iReac,1)) &
+                     * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor * NumSpec(ChemReac%Reactants(iReac,2)) &
+                     * Species(ChemReac%Reactants(iReac,3))%MacroParticleFactor * NumSpec(nSpecies+1))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
           RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iCase) * MeshVolume**2 &
-               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor / (dt * ChemReac%ReacCount(iReac)             &
-               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))     &
-               * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2))    &
-               * Species(ChemReac%DefinedReact(iReac,1,3))%MacroParticleFactor*NumSpec(nSpecies+1))
+               * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor / (dt * ChemReac%ReacCount(iReac)             &
+               * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,1))     &
+               * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,2))    &
+               * Species(ChemReac%Reactants(iReac,3))%MacroParticleFactor*NumSpec(nSpecies+1))
         END IF
       CASE('D','E','i','iQK','x')
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
-          RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
+          RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%Products(iReac,1))%MacroParticleFactor &
                        * MeshVolume / (dt &
-                       * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
-                       * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
+                       * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,1)) &
+                       * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,2)))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
           RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iCase) &
-               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor* MeshVolume / (dt * ChemReac%ReacCount(iReac) &
-               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))         &
-               * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
+               * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor* MeshVolume / (dt * ChemReac%ReacCount(iReac) &
+               * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,1))         &
+               * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,2)))
         END IF
       END SELECT
     END IF

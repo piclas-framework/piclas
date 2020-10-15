@@ -64,7 +64,7 @@ CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Reactants'  &
                                             'SpecNumOfReactant2,\n'//&
                                             'SpecNumOfReactant3)', '0 , 0 , 0' , numberedmulti=.TRUE.)
 CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Products'  &
-                                           ,'Products of Reaction[j] (Product1, Product2, Product3)', '0 , 0 , 0' &
+                                           ,'Products of Reaction[j] (Product1, Product2, Product3, Product 4)', '0 , 0 , 0 , 0' &
                                            , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-Arrhenius-Prefactor'  &
                                            , 'TODO-DEFINE-PARAMETER ', '0.' , numberedmulti=.TRUE.)
@@ -147,7 +147,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=3)      :: hilf
-INTEGER               :: iReac, iReac2, iSpec, iChemDir, iReacForward, iReacDiss, PartitionArraySize, iInter
+INTEGER               :: iReac, iReac2, iSpec, iPart, iReacForward, iReacDiss, PartitionArraySize, iInter
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
 LOGICAL               :: DoScat
 INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, MaxElecQua, ReadInNumOfReact
@@ -204,8 +204,10 @@ ALLOCATE(ChemReac%QKProcedure(ChemReac%NumOfReact))
 ChemReac%QKProcedure = .FALSE.
 ALLOCATE(ChemReac%ReactType(ChemReac%NumOfReact))
 ChemReac%ReactType = '0'
-ALLOCATE(ChemReac%DefinedReact(ChemReac%NumOfReact,2,3))
-ChemReac%DefinedReact = 0
+ALLOCATE(ChemReac%Reactants(ChemReac%NumOfReact,3))
+ChemReac%Reactants = 0
+ALLOCATE(ChemReac%Products(ChemReac%NumOfReact,4))
+ChemReac%Products = 0
 ALLOCATE(ChemReac%ReactCase(ChemReac%NumOfReact))
 ChemReac%ReactCase = 0
 ALLOCATE(ChemReac%ReactNum(nSpecies, nSpecies, nSpecies))
@@ -267,8 +269,8 @@ DO iReac = 1, ReadInNumOfReact
   WRITE(UNIT=hilf,FMT='(I0)') iReac
   ChemReac%ReactType(iReac)             = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionType'))
   ChemReac%QKProcedure(iReac)           = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-QKProcedure','.FALSE.')
-  ChemReac%DefinedReact(iReac,1,:)      = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Reactants',3,'0,0,0')
-  ChemReac%DefinedReact(iReac,2,:)      = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Products',3,'0,0,0')
+  ChemReac%Reactants(iReac,:)      = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Reactants',3,'0,0,0')
+  ChemReac%Products(iReac,:)      = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Products',4,'0,0,0,0')
   ChemReac%Arrhenius_Prefactor(iReac)   = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Prefactor','0')
   ChemReac%Arrhenius_Powerfactor(iReac) = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Powerfactor','0')
   ChemReac%EActiv(iReac)                = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Activation-Energy_K','0')*BoltzmannConst
@@ -293,16 +295,16 @@ DO iReac = 1, ReadInNumOfReact
   IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
     ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
     ! Check if species 3 is an electron and abort (this is not implemented yet)
-    IF(ChemReac%DefinedReact(iReac,2,3).GT.0)THEN
-      IF(SpecDSMC(ChemReac%DefinedReact(iReac,2,3))%InterID.EQ.4) CALL abort(&
+    IF(ChemReac%Products(iReac,3).GT.0)THEN
+      IF(SpecDSMC(ChemReac%Products(iReac,3))%InterID.EQ.4) CALL abort(&
         __STAMP__&
         ,'Chemical reaction with electron as 3rd product species. This is not implemented yet for photoionization! iReac=',&
         IntInfoOpt=iReac)
-    END IF ! ChemReac%DefinedReact(iReac,2,3).GT.0
+    END IF ! ChemReac%Products(iReac,3).GT.0
   END IF
   ! Filling up ChemReac-Array for the given non-reactive dissociation/electron-impact ionization partners
   IF((TRIM(ChemReac%ReactType(iReac)).EQ.'D').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'iQK')) THEN
-    IF((ChemReac%DefinedReact(iReac,1,2).EQ.0).AND.(ChemReac%DefinedReact(iReac,2,2).EQ.0)) THEN
+    IF((ChemReac%Reactants(iReac,2).EQ.0).AND.(ChemReac%Products(iReac,2).EQ.0)) THEN
       IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.EQ.0) THEN
         CALL abort(__STAMP__,&
         'Error in Definition: Non-reacting partner(s) has to be defined!',iReac)
@@ -310,16 +312,16 @@ DO iReac = 1, ReadInNumOfReact
       DO iReac2 = 1, ChemReac%ArbDiss(iReac)%NumOfNonReactives
         IF(iReac2.EQ.1) THEN
           ! The first non-reacting partner is written into the reaction, which was read-in.
-          ChemReac%DefinedReact(iReac,1,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
-          ChemReac%DefinedReact(iReac,2,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
+          ChemReac%Reactants(iReac,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
+          ChemReac%Products(iReac,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
         ELSE
           ! The following reaction are added after the number of originally read-in reactions (counter: iReacDiss)
           ChemReac%ReactType(iReacDiss+iReac2-1)             = ChemReac%ReactType(iReac)
           ChemReac%QKProcedure(iReacDiss+iReac2-1)           = ChemReac%QKProcedure(iReac)
-          ChemReac%DefinedReact(iReacDiss+iReac2-1,1,:)      = ChemReac%DefinedReact(iReac,1,:)
-          ChemReac%DefinedReact(iReacDiss+iReac2-1,1,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
-          ChemReac%DefinedReact(iReacDiss+iReac2-1,2,:)      = ChemReac%DefinedReact(iReac,2,:)
-          ChemReac%DefinedReact(iReacDiss+iReac2-1,2,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
+          ChemReac%Reactants(iReacDiss+iReac2-1,:)      = ChemReac%Reactants(iReac,:)
+          ChemReac%Reactants(iReacDiss+iReac2-1,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
+          ChemReac%Products(iReacDiss+iReac2-1,:)      = ChemReac%Products(iReac,:)
+          ChemReac%Products(iReacDiss+iReac2-1,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
           ChemReac%Arrhenius_Prefactor(iReacDiss+iReac2-1)   = ChemReac%Arrhenius_Prefactor(iReac)
           ChemReac%Arrhenius_Powerfactor(iReacDiss+iReac2-1) = ChemReac%Arrhenius_Powerfactor(iReac)
           ChemReac%EActiv(iReacDiss+iReac2-1)                = ChemReac%EActiv(iReac)
@@ -341,15 +343,16 @@ DO iReac = 1, ChemReac%NumOfReact
   ChemReac%ReactInfo(iReac)%StoichCoeff(1:nSpecies,1:2) = 0
   ChemReac%EForm(iReac) = 0.0
   DO iSpec=1, nSpecies
-    DO iChemDir=1,2
-      IF(ChemReac%DefinedReact(iReac,iChemDir,1).EQ.iSpec) THEN
-        ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,iChemDir) = ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,iChemDir) + 1
+    ! Reactants
+    DO iPart = 1,3
+      IF(ChemReac%Reactants(iReac,iPart).EQ.iSpec) THEN
+          ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,1) = ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,1) + 1
       END IF
-      IF(ChemReac%DefinedReact(iReac,iChemDir,2).EQ.iSpec) THEN
-        ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,iChemDir) = ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,iChemDir) + 1
-      END IF
-      IF(ChemReac%DefinedReact(iReac,iChemDir,3).EQ.iSpec) THEN
-        ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,iChemDir) = ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,iChemDir) + 1
+    END DO
+    ! Products
+    DO iPart = 1,4
+      IF(ChemReac%Products(iReac,iPart).EQ.iSpec) THEN
+          ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,2) = ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,2) + 1
       END IF
     END DO
     ! Calculation of the enthalpy of reaction by the summation of the enthalpies of formation of the respective species
@@ -359,13 +362,13 @@ DO iReac = 1, ChemReac%NumOfReact
                           + ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,1)*SpecDSMC(iSpec)%HeatOfFormation
     ! For the impact-ionization, the heat of reaction is equal to the ionization energy
     IF(TRIM(ChemReac%ReactType(iReac)).EQ.'iQK') THEN
-      IF(.NOT.ALLOCATED(SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%ElectronicState)) THEN
+      IF(.NOT.ALLOCATED(SpecDSMC(ChemReac%Reactants(iReac,1))%ElectronicState)) THEN
         CALL abort(&
         __STAMP__&
         ,'ERROR: QK reactions require the definition of at least the ionization energy as electronic level!',iReac)
       END IF
-      MaxElecQua=SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%MaxElecQuant - 1
-      ChemReac%EForm(iReac) = - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%ElectronicState(2,MaxElecQua)*BoltzmannConst
+      MaxElecQua=SpecDSMC(ChemReac%Reactants(iReac,1))%MaxElecQuant - 1
+      ChemReac%EForm(iReac) = - SpecDSMC(ChemReac%Reactants(iReac,1))%ElectronicState(2,MaxElecQua)*BoltzmannConst
     END IF
   END DO
   IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
@@ -417,13 +420,13 @@ IF(DSMC%BackwardReacRate) THEN
           (TRIM(ChemReac%ReactType(iReacForward)).EQ.'D'  )) THEN
         ChemReac%ReactType(iReac) = 'r'
         IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'D') ChemReac%ReactType(iReac) = 'R'
-        ChemReac%DefinedReact(iReac,1,1)      = ChemReac%DefinedReact(iReacForward,2,1)
-        ! Products of the dissociation (which are the educts of the recombination) have to be swapped in order to comply with
+        ChemReac%Reactants(iReac,1)      = ChemReac%Products(iReacForward,1)
+        ! Products of the dissociation (which are the reactants of the recombination) have to be swapped in order to comply with
         ! definition of the recombination reaction (e.g. CH3 + H + M -> CH4 + M but CH4 + M -> CH3 + M + H)
-        ChemReac%DefinedReact(iReac,1,2)      = ChemReac%DefinedReact(iReacForward,2,3)
-        ChemReac%DefinedReact(iReac,1,3)      = ChemReac%DefinedReact(iReacForward,2,2)
-        ChemReac%DefinedReact(iReac,2,:)      = ChemReac%DefinedReact(iReacForward,1,:)
-        ChemReac%EForm(iReac)                 = -ChemReac%EForm(iReacForward)
+        ChemReac%Reactants(iReac,2)      = ChemReac%Products(iReacForward,3)
+        ChemReac%Reactants(iReac,3)      = ChemReac%Products(iReacForward,2)
+        ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
+        ChemReac%EForm(iReac)            = -ChemReac%EForm(iReacForward)
         ChemReac%EActiv(iReac) = 0.0
       ELSE
         CALL abort(__STAMP__,&
@@ -433,15 +436,15 @@ IF(DSMC%BackwardReacRate) THEN
       IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'D') THEN
         ! Analogous to the iQK case
         ChemReac%ReactType(iReac) = 'R'
-        ChemReac%DefinedReact(iReac,1,1)      = ChemReac%DefinedReact(iReacForward,2,1)
-        ChemReac%DefinedReact(iReac,1,2)      = ChemReac%DefinedReact(iReacForward,2,3)
-        ChemReac%DefinedReact(iReac,1,3)      = ChemReac%DefinedReact(iReacForward,2,2)
-        ChemReac%DefinedReact(iReac,2,:)      = ChemReac%DefinedReact(iReacForward,1,:)
+        ChemReac%Reactants(iReac,1)      = ChemReac%Products(iReacForward,1)
+        ChemReac%Reactants(iReac,2)      = ChemReac%Products(iReacForward,3)
+        ChemReac%Reactants(iReac,3)      = ChemReac%Products(iReacForward,2)
+        ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
         ChemReac%EActiv(iReac) = 0.0
       ELSEIF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'E') THEN
         ChemReac%ReactType(iReac) = 'E'
-        ChemReac%DefinedReact(iReac,1,:)      = ChemReac%DefinedReact(iReacForward,2,:)
-        ChemReac%DefinedReact(iReac,2,:)      = ChemReac%DefinedReact(iReacForward,1,:)
+        ChemReac%Reactants(iReac,1:3)      = ChemReac%Products(iReacForward,1:3)
+        ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
         ChemReac%EActiv(iReac)                = ChemReac%EForm(iReacForward) + ChemReac%EActiv(iReacForward)
         IF(ChemReac%EActiv(iReac).LT.0.0) THEN
           ! The absolute value of the heat of formation cannot be larger than the activation energy but Arrhenius fits require
@@ -469,33 +472,33 @@ END IF
 DO iReac = 1, ChemReac%NumOfReact
   ! Proof of reactant definition
   IF (TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
-    IF ((ChemReac%DefinedReact(iReac,1,1)*ChemReac%DefinedReact(iReac,1,2)*ChemReac%DefinedReact(iReac,1,3)).EQ.0) THEN
+    IF ((ChemReac%Reactants(iReac,1)*ChemReac%Reactants(iReac,2)*ChemReac%Reactants(iReac,3)).EQ.0) THEN
       CALL abort(__STAMP__,&
       'Recombination - Error in Definition: Not all reactant species are defined! ReacNbr: ',iReac)
     END IF
   ELSE IF (TRIM(ChemReac%ReactType(iReac)).NE.'phIon') THEN
-    IF ((ChemReac%DefinedReact(iReac,1,1)*ChemReac%DefinedReact(iReac,1,2)).EQ.0) THEN
+    IF ((ChemReac%Reactants(iReac,1)*ChemReac%Reactants(iReac,2)).EQ.0) THEN
       CALL abort(__STAMP__,&
       'Chemistry - Error in Definition: Reactant species not properly defined. ReacNbr:',iReac)
     END IF
   END IF
   ! Proof of product definition
   IF (TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
-    IF ((ChemReac%DefinedReact(iReac,2,1)*ChemReac%DefinedReact(iReac,2,2)*ChemReac%DefinedReact(iReac,2,3)).EQ.0) THEN
+    IF ((ChemReac%Products(iReac,1)*ChemReac%Products(iReac,2)*ChemReac%Products(iReac,3)).EQ.0) THEN
       CALL abort(__STAMP__,&
       'Dissociation - Error in Definition: Not all product species are defined!  ReacNbr: ',iReac)
     END IF
-    IF(ChemReac%DefinedReact(iReac,1,2).NE.ChemReac%DefinedReact(iReac,2,2)) THEN
+    IF(ChemReac%Reactants(iReac,2).NE.ChemReac%Products(iReac,2)) THEN
       CALL abort(__STAMP__,&
       'Dissociation - Error in Definition: Non-reacting partner has to remain second product (/1,2,3/)  ReacNbr: ',iReac)
     END IF
   ELSE
-    IF ((ChemReac%DefinedReact(iReac,2,1)*ChemReac%DefinedReact(iReac,2,2)).EQ.0) THEN
+    IF ((ChemReac%Products(iReac,1)*ChemReac%Products(iReac,2)).EQ.0) THEN
       CALL abort(__STAMP__,&
       'Chemistry - Error in Definition: Product species not properly defined. ReacNbr:',iReac)
     END IF
   END IF
-  MaxSpecies = MAXVAL(ChemReac%DefinedReact(iReac,1:2,1:3))
+  MaxSpecies = MAXVAL(ChemReac%Reactants(iReac:2,1:3))
   IF(MaxSpecies.GT.nSpecies) THEN
     CALL abort(__STAMP__,&
       'Chemistry - Error in Definition: Defined species does not exist, check number of species. ReacNbr:',iReac)
@@ -508,7 +511,7 @@ ChemReac%CollCaseInfo(:)%NumOfReactionPaths = 0
 DO iCase = 1, CollInf%NumCase
   RecombAdded = .FALSE.
   DO iReac = 1, ChemReac%NumOfReact
-    iCase2 = CollInf%Coll_Case(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2))
+    iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
     ! Count the number of possible reactions paths per collision case
     IF(iCase.EQ.iCase2) THEN
       ! Only add recombination reactions once
@@ -536,7 +539,7 @@ DO iCase = 1, CollInf%NumCase
   ReacIndexCounter = 0
   RecombAdded = .FALSE.
   DO iReac = 1, ChemReac%NumOfReact
-    iCase2 = CollInf%Coll_Case(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2))
+    iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
     ! Save the reaction index for the specific collision case
     IF(iCase.EQ.iCase2) THEN
       ! Save the case number for the reaction
@@ -571,9 +574,9 @@ END IF
 ! Recombination
 DO iReac = 1, ChemReac%NumOfReact
   IF((TRIM(ChemReac%ReactType(iReac)).EQ.'r').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'R')) THEN
-    Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-    Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-    Reactant3 = ChemReac%DefinedReact(iReac,1,3)
+    Reactant1 = ChemReac%Reactants(iReac,1)
+    Reactant2 = ChemReac%Reactants(iReac,2)
+    Reactant3 = ChemReac%Reactants(iReac,3)
     ChemReac%ReactNumRecomb(Reactant1, Reactant2, Reactant3) = iReac
     ChemReac%ReactNumRecomb(Reactant2, Reactant1, Reactant3) = iReac
     DummyRecomb(Reactant1,Reactant2) = iReac
@@ -582,8 +585,8 @@ END DO
 ! Filling empty values of ReactNumRecomb with the last recombination reaction for that collision pair
 DO iReac = 1, ChemReac%NumOfReact
   IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
-    Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-    Reactant2 = ChemReac%DefinedReact(iReac,1,2)
+    Reactant1 = ChemReac%Reactants(iReac,1)
+    Reactant2 = ChemReac%Reactants(iReac,2)
     DO iSpec = 1, nSpecies
       IF(ChemReac%ReactNumRecomb(Reactant1, Reactant2, iSpec).EQ.0) THEN
         ChemReac%ReactNumRecomb(Reactant1, Reactant2, iSpec) = DummyRecomb(Reactant1,Reactant2)
@@ -629,8 +632,8 @@ DO iReac = 1, ChemReac%NumOfReact
   IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') CYCLE
   ! Skip reactions modelled with QK
   IF(ChemReac%QKProcedure(iReac)) CYCLE
-  iSpec1 = ChemReac%DefinedReact(iReac,1,1)
-  iSpec2 = ChemReac%DefinedReact(iReac,1,2)
+  iSpec1 = ChemReac%Reactants(iReac,1)
+  iSpec2 = ChemReac%Reactants(iReac,2)
   omega = CollInf%omega(iSpec1,iSpec2)
   ! Compute VHS Factor H_ab necessary for reaction probs, only defined for one omega for all species (laux diss page 24)
   ChemReac%Hab(iReac) = GAMMA(2.0 - omega) * 2.0 * CollInf%Cab(CollInf%Coll_Case(iSpec1,iSpec2)) &
@@ -642,8 +645,8 @@ DO iReac = 1, ChemReac%NumOfReact
 ! Recombination
 ! ----------------------------------------------------------------------------------------------------------------------------------
   IF (TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
-    IF(SpecDSMC(ChemReac%DefinedReact(iReac,1,3))%PolyatomicMol &
-      .OR.SpecDSMC(ChemReac%DefinedReact(iReac,2,1))%PolyatomicMol) CYCLE
+    IF(SpecDSMC(ChemReac%Reactants(iReac,3))%PolyatomicMol &
+      .OR.SpecDSMC(ChemReac%Products(iReac,1))%PolyatomicMol) CYCLE
     iQuaMax3 = MAXVAL(SpecDSMC(:)%MaxVibQuant)
     ALLOCATE(ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(nSpecies,0:iQuaMax3-1))
     ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(:,:) = 0.0
@@ -732,8 +735,8 @@ INTEGER                   :: iSpec1, iSpec2
 REAL                      :: omega, A_Arrhenius, b_Arrhenius
 !===================================================================================================================================
 
-iSpec1 = ChemReac%DefinedReact(iReac,1,1)
-iSpec2 = ChemReac%DefinedReact(iReac,1,2)
+iSpec1 = ChemReac%Reactants(iReac,1)
+iSpec2 = ChemReac%Reactants(iReac,2)
 
 omega = CollInf%omega(iSpec1,iSpec2)
 A_Arrhenius = ChemReac%Arrhenius_Prefactor(iReac)
