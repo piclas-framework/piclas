@@ -1116,7 +1116,7 @@ IF(DoDeposition)THEN
   END SELECT
 
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-  
+
 END IF ! DoDeposition
 
 ! Then, free the pointers or arrays

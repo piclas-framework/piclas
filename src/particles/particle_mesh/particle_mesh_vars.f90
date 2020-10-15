@@ -28,6 +28,7 @@ SAVE
 
 LOGICAL            :: ParticleMeshInitIsDone
 REAL               :: meshScale
+LOGICAL            :: MeshWasCurved      =.FALSE.
 ! ====================================================================
 ! Mesh info
 REAL                                     :: MeshVolume         ! total Volume of mesh

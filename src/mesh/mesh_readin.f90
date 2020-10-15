@@ -210,13 +210,13 @@ USE MOD_IO_HDF5
 #if USE_MPI
 USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc!,offsetElemMPI
 USE MOD_LoadBalance_Tools    ,ONLY: DomainDecomposition
-USE MOD_Particle_Mesh_Vars
 USE MOD_MPI_Shared_Vars      ,ONLY: MPI_COMM_SHARED
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshBasics
 USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshElems,ReadMeshSides,ReadMeshSideNeighbors
 USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshNodes,CommunicateMeshReadin
+USE MOD_Particle_Mesh_Vars   ,ONLY: nComputeNodeElems,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
 USE MOD_Particle_Vars        ,ONLY: VarTimeStep
 USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem
 #if USE_LOADBALANCE

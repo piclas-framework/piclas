@@ -799,8 +799,10 @@ ADEALLOCATE(NodeInfo_Shared)
 ADEALLOCATE(NodeCoords_Shared)
 
 ! Free communication arrays
+#if USE_MPI
 SDEALLOCATE(displsNode)
 SDEALLOCATE(recvcountNode)
+#endif /*USE_MPI*/
 
 END SUBROUTINE FinalizeMeshReadin
 
