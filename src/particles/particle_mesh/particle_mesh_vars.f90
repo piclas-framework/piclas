@@ -69,7 +69,7 @@ LOGICAL,ALLOCPOINT,DIMENSION(:)          :: ElemCurved         !> flag if an ele
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemToBCSides(:,:) !> Mapping from elem to BC sides within halo eps
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: SideBCMetrics(:,:) !> Metrics for BC sides, see piclas.h
 
-REAL,ALLOCPOINT,DIMENSION(:,:,:,:)       :: ElemsJ             !> 1/DetJac for each Gauss Point
+REAL,POINTER   ,DIMENSION(:,:,:,:)       :: ElemsJ             !> 1/DetJac for each Gauss Point
 REAL,ALLOCPOINT,DIMENSION(:)             :: ElemEpsOneCell     !> tolerance for particle in inside ref element 1+epsinCell
 
 ! Boundary sides

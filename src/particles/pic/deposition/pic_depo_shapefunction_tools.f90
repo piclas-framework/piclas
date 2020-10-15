@@ -325,7 +325,9 @@ DO kk = kmin,kmax
               S1 = S*S1
             END DO
 
+#if USE_MPI
             IF (((globElemID-offSetElem).GE.1).AND.(globElemID-offSetElem).LE.nElems) THEN
+#endif /*USE_MPI*/
               IF (SourceSize.EQ.1) THEN
                 PartSource(4,k,l,m, CNElemID) = PartSource(4,k,l,m, CNElemID) + Fac(4) * S1
   !#if !((USE_HDG) && (PP_nVar==1))
@@ -333,6 +335,7 @@ DO kk = kmin,kmax
                 PartSource(1:4,k,l,m, CNElemID) = PartSource(1:4,k,l,m, CNElemID) + Fac(1:4) * S1
   !#endif
               END IF
+#if USE_MPI
             ELSE
               IF (SourceSize.EQ.1) THEN
                 PartSourceProc(4,k,l,m, SendElemShapeID(CNElemID)) =  &
@@ -344,6 +347,7 @@ DO kk = kmin,kmax
   !#endif
               END IF
             END IF
+#endif /*USE_MPI*/
           END IF
         END DO; END DO; END DO
         chargedone(CNElemID) = .TRUE.
@@ -361,17 +365,17 @@ SUBROUTINE depoChargeOnDOFs_sfChargeCon(Position,SourceSize,Fac,const)
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:r_sf, r2_sf, r2_sf_inv, alpha_sf, PartSourceProc, PartSource, w_sf
-USE MOD_PICDepo_Vars,           ONLY:PartSourceLoc, PartSourceLocHalo
+USE MOD_PICDepo_Vars,           ONLY:r_sf, r2_sf, r2_sf_inv,alpha_sf,PartSource,w_sf
 USE MOD_Mesh_Vars,              ONLY:nElems, offSetElem
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo, ElemsJ
 USE MOD_Preproc
-USE MOD_Mesh_Tools,             ONLY: GetCNElemID
-USE MOD_MPI_Shared_Vars,        ONLY: nComputeNodeTotalElems
+USE MOD_Mesh_Tools,             ONLY:GetCNElemID
 USE MOD_Interpolation_Vars,     ONLY:wGP
 #if USE_MPI
-USE MOD_PICDepo_Vars,           ONLY:SendElemShapeID
+USE MOD_MPI_Shared_Vars,        ONLY:nComputeNodeTotalElems
+USE MOD_PICDepo_Vars,           ONLY:PartSourceLoc,PartSourceLocHalo
+USE MOD_PICDepo_Vars,           ONLY:SendElemShapeID,PartSourceProc
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
@@ -393,16 +397,20 @@ LOGICAL, INTENT(IN)              :: const
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+LOGICAL                          :: firstElem,elemDone
 INTEGER                          :: k, l, m
-LOGICAL                          :: chargedone(1:nComputeNodeTotalElems), elemDone
 INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
 INTEGER                          :: kk, ll, mm, ppp
 INTEGER                          :: globElemID, CNElemID
+INTEGER                          :: expo, nUsedElems, localElem
 REAL                             :: radius2, S, S1
 REAL                             :: dx,dy,dz, totalCharge, alpha
-INTEGER                          :: expo, nUsedElems, localElem
-LOGICAL                          :: firstElem
 REAL                             :: PartSourcetmp(1:4,0:PP_N,0:PP_N,0:PP_N)
+#if USE_MPI
+LOGICAL                          :: chargedone(1:nComputeNodeTotalElems)
+#else
+LOGICAL                          :: chargedone(1:nElems)
+#endif /*USE_MPI*/
 TYPE SPElem
   REAL, ALLOCATABLE     :: PartSourceLoc(:,:,:,:)
   INTEGER               :: globElemID
@@ -499,12 +507,15 @@ IF (nUsedElems.GT.0) THEN
     globElemID = element%globElemID
     localElem = globElemID-offSetElem
     CNElemID = GetCNElemID(globElemID)
+#if USE_MPI
     IF (((localElem).GE.1).AND.(localElem).LE.nElems) THEN
+#endif /*USE_MPI*/
       IF (SourceSize.EQ.1) THEN
         PartSource(4,:,:,:, CNElemID) = PartSource(4,:,:,:, CNElemID) + alpha*element%PartSourceLoc(4,:,:,:)
       ELSE IF (SourceSize.EQ.4) THEN
         PartSource(1:4,:,:,:, CNElemID) = PartSource(1:4,:,:,:, CNElemID) + alpha*element%PartSourceLoc(1:4,:,:,:)
       END IF
+#if USE_MPI
     ELSE
       IF (SourceSize.EQ.1) THEN
         PartSourceProc(4,:,:,:, SendElemShapeID(CNElemID)) =  &
@@ -514,6 +525,7 @@ IF (nUsedElems.GT.0) THEN
             PartSourceProc(1:4,:,:,:, SendElemShapeID(CNElemID)) + alpha * element%PartSourceLoc(1:4,:,:,:)
       END IF
     END IF
+#endif /*USE_MPI*/
     first => first%next
     DEALLOCATE(element%PartSourceLoc)
     DEALLOCATE(element)

@@ -124,8 +124,8 @@ INTEGER,PARAMETER              :: moveBGMindex=1
 REAL                           :: xmin, xmax, ymin, ymax, zmin, zmax
 INTEGER                        :: iBGM, jBGM, kBGM
 INTEGER                        :: BGMimax, BGMimin, BGMjmax, BGMjmin, BGMkmax, BGMkmin
-INTEGER                        :: BGMiDelta,BGMjDelta,BGMkDelta
 INTEGER                        :: BGMCellXmax, BGMCellXmin, BGMCellYmax, BGMCellYmin, BGMCellZmax, BGMCellZmin
+INTEGER                        :: BGMiminglob,BGMimaxglob,BGMjminglob,BGMjmaxglob,BGMkminglob,BGMkmaxglob
 #if USE_MPI
 INTEGER                        :: iSide
 INTEGER                        :: ElemID
@@ -141,7 +141,7 @@ LOGICAL                        :: ElemInsideHalo
 INTEGER                        :: firstHaloElem,lastHaloElem
 ! FIBGMToProc
 INTEGER                        :: iProc,ProcRank,nFIBGMToProc,MessageSize
-INTEGER                        :: BGMiminglob,BGMimaxglob,BGMjminglob,BGMjmaxglob,BGMkminglob,BGMkmaxglob
+INTEGER                        :: BGMiDelta,BGMjDelta,BGMkDelta
 LOGICAL,ALLOCATABLE            :: FIBGMToProcTmp(:,:,:,:)
 INTEGER,ALLOCATABLE            :: FIBGM_nTotalElemsTmp(:,:,:)
 #else
@@ -356,7 +356,6 @@ ELSE
   halo_eps2=halo_eps*halo_eps
   CALL PrintOption('halo distance','CALCUL.',RealOpt=halo_eps)
 END IF
-#endif /*USE_MPI*/
 
 ! find radius of largest cell
 maxCellRadius = 0
@@ -387,6 +386,22 @@ GEO%FIBGMjmin=BGMjmin
 GEO%FIBGMjmax=BGMjmax
 GEO%FIBGMkmin=BGMkmin
 GEO%FIBGMkmax=BGMkmax
+#else
+BGMimin = BGMiminglob
+BGMimax = BGMimaxglob
+BGMjmin = BGMjminglob
+BGMjmax = BGMjmaxglob
+BGMkmin = BGMkminglob
+BGMkmax = BGMkmaxglob
+
+GEO%FIBGMimin = BGMimin
+GEO%FIBGMimax = BGMimax
+GEO%FIBGMjmin = BGMjmin
+GEO%FIBGMjmax = BGMjmax
+GEO%FIBGMkmin = BGMkmin
+GEO%FIBGMkmax = BGMkmax
+#endif /*USE_MPI*/
+
 
 ALLOCATE(GEO%FIBGM(BGMimin:BGMimax,BGMjmin:BGMjmax,BGMkmin:BGMkmax))
 
@@ -677,9 +692,9 @@ IF (myComputeNodeRank.EQ.0) THEN
   FIBGM_Element = -1
 #if USE_MPI
 END IF
-#endif /*USE_MPI*/
 CALL MPI_WIN_SYNC(FIBGM_Element_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#endif /*USE_MPI*/
 
 DO iBGM = BGMimin,BGMimax
   DO jBGM = BGMjmin,BGMjmax

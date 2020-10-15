@@ -1005,19 +1005,19 @@ SUBROUTINE Deposition(doParticle_In)
 ! - shape function       (only one type implemented)
 ! useVMPF added, therefore, this routine contains automatically the use of variable mpfs
 !============================================================================================================================
-! use MODULES
-USE MOD_PICDepo_Vars
-USE MOD_Particle_Vars
-USE MOD_PreProc
+! USE MODULES
 USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Particle_Analyze_Vars       ,ONLY: DoVerifyCharge,PartAnalyzeStep
+USE MOD_Particle_Vars
+USE MOD_PICDepo_Vars
+USE MOD_PICDepo_Method              ,ONLY: DepositionMethod
+USE MOD_PIC_Analyze                 ,ONLY: VerifyDepositedCharge
+USE MOD_TimeDisc_Vars               ,ONLY: iter
 #if USE_MPI
+USE MOD_MPI_Shared_Vars             ,ONLY: myComputeNodeRank,MPI_COMM_SHARED
 USE MOD_Particle_MPI_Vars           ,ONLY: PartMPIExchange
 #endif  /*USE_MPI*/
-USE MOD_PICDepo_Method              ,ONLY: DepositionMethod
-USE MOD_MPI_Shared_Vars             ,ONLY: myComputeNodeRank, MPI_COMM_SHARED
-USE MOD_PIC_Analyze                 ,ONLY: VerifyDepositedCharge
-USE MOD_Particle_Analyze_Vars       ,ONLY: DoVerifyCharge,PartAnalyzeStep
-USE MOD_TimeDisc_Vars               ,ONLY: iter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1033,9 +1033,15 @@ LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength) ! TOD
 ! Return, if no deposition is required
 IF(.NOT.DoDeposition) RETURN
 
-IF (myComputeNodeRank.EQ.0) PartSource = 0.0
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif  /*USE_MPI*/
+  PartSource = 0.0
+#if USE_MPI
+END IF
 CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
+#endif  /*USE_MPI*/
 
 IF(PRESENT(doParticle_In)) THEN
   CALL DepositionMethod(doParticle_In)
