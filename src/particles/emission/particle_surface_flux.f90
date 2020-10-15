@@ -1497,11 +1497,14 @@ SUBROUTINE AnalyzePartPos(ParticleIndexNbr)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars                 ,ONLY: LastPartPos, PDM
-USE MOD_Particle_Mesh_Vars            ,ONLY: GEO
+USE MOD_Particle_Vars      ,ONLY: LastPartPos, PDM
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 #ifdef IMPA
-USE MOD_Particle_Vars                 ,ONLY: PartDtFrac,PartIsImplicit
+USE MOD_Particle_Vars      ,ONLY: PartDtFrac,PartIsImplicit
 #endif /*IMPA*/
+#if  defined(IMPA) || defined(ROS)
+USE MOD_Timedisc_Vars      ,ONLY: iStage
+#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1587,8 +1590,6 @@ USE MOD_Particle_Vars
 USE MOD_DSMC_Symmetry           ,ONLY: CalcRadWeightMPF
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, RadialWeighting
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
-USE MOD_MacroBody_Tools         ,ONLY: INSIDEMACROBODY
-USE MOD_MacroBody_Vars          ,ONLY: UseMacroBody
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
 USE MOD_Part_Tools              ,ONLY: GetParticleWeight
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass, SetParticleMPF
@@ -1739,9 +1740,6 @@ __STAMP__&
             IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN !check rmax-rejection
               IF (.NOT.InSideCircularInflow(iSpec, iSF, iSide, Particle_pos)) AcceptPos=.FALSE.
             END IF ! CircularInflow
-            IF (UseMacroBody) THEN
-              IF (INSIDEMACROBODY(Particle_pos)) AcceptPos=.FALSE.
-            END IF
             !-- save position if accepted:
             IF (AcceptPos) THEN
               particle_positions(iPart*3-2) = Particle_pos(1)
@@ -1754,7 +1752,7 @@ __STAMP__&
               iPart=iPart+1
             ELSE
               nReject=nReject+1
-              IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow .OR. UseMacroBody) THEN !check rmax-rejection
+              IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN !check rmax-rejection
                 allowedRejections=allowedRejections+1
               END IF
             END IF
