@@ -209,9 +209,9 @@ DO kk = kmin,kmax
         chargedone(CNElemID) = .TRUE.
 #if USE_MPI
 !        CALL MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE,0,MPI_INFO_NULL,PartSource_Shared_Win, IERROR)
-        CALL MPI_RGet_accumulate(PartSourceLoc(4-SourceSize+1:4,:,:,:),PartSourceSize,MPI_DOUBLE_PRECISION, &
-            PartSource(4-SourceSize+1,0,0,0,globElemID), PartSourceSizeTarget, MPI_DOUBLE_PRECISION, 0, &
-            INT(4*(PP_N+1)**3*(globElemID-1),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND, &
+        CALL MPI_RGet_accumulate(PartSourceLoc(4-SourceSize+1:4,:,:,:),            PartSourceSize       ,MPI_DOUBLE_PRECISION, &
+                                 PartSource(   4-SourceSize+1  ,0,0,0,globElemID), PartSourceSizeTarget, MPI_DOUBLE_PRECISION, 0, &
+            INT((4-SourceSize+1)*(PP_N+1)**3*(globElemID-1),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND, &
             PartSourceSize, MPI_DOUBLE_PRECISION, MPI_SUM, PartSource_Shared_Win,Request, IERROR)
 !        CALL MPI_WAIT(Request, MPI_STATUS_IGNORE, IERROR)
 !         CALL MPI_WIN_UNLOCK(0,PartSource_Shared_Win, IERROR)
