@@ -144,7 +144,6 @@ END IF
 ! broadcast elem offset of compute-node root
 offsetComputeNodeElem=offsetElem
 CALL MPI_BCAST(offsetComputeNodeElem,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
-
 #else
 ! allocate local array for ElemInfo
 ALLOCATE(ElemInfo_Shared(1:ELEMINFOSIZE,1:nElems))
@@ -206,9 +205,9 @@ CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #else
 nComputeNodeSides = nSideIDs
-ALLOCATE(SideInfo_Shared(1:SIDEINFOSIZE+1,1:nSideIDs))
-SideInfo_Shared(1                :SIDEINFOSIZE_H5,1:nSideIDs) = SideInfo(:,:)
-SideInfo_Shared(SIDEINFOSIZE_H5+1:SIDEINFOSIZE+1 ,1:nSideIDs) = 0
+ALLOCATE(SideInfo_Shared(1:SIDEINFOSIZE+1         , 1:nSideIDs))
+SideInfo_Shared(1                :SIDEINFOSIZE    , 1:nSideIDs) = SideInfo(:,:)
+SideInfo_Shared(SIDEINFOSIZE_H5+1:SIDEINFOSIZE+1  , 1:nSideIDs) = 0
 #endif /*USE_MPI*/
 
 END SUBROUTINE ReadMeshSides

@@ -264,7 +264,7 @@ END DO      ! nPorousBC
 ! 2) Mapping of the porous BC sides to the respective surface side
 #if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
-#endif USE_MPI
+#endif /*USE_MPI*/
   nPorousSides = 0
   iSurfSideTmp = 0
   DO iSurfSide=1,nComputeNodeSurfTotalSides

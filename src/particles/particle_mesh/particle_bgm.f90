@@ -548,7 +548,7 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 IF (GEO%nPeriodicVectors.GT.0) CALL CheckPeriodicSides()
 #else
-ElemInfo_Shared(ELEM_HALOFLAG,:) = 1
+!ElemInfo_Shared(ELEM_HALOFLAG,:) = 1
 #endif  /*USE_MPI*/
 
 !--- compute number of elements in each background cell
