@@ -46,8 +46,8 @@ USE MOD_PICDepo_Vars
 USE MOD_PICDepo_Tools          ,ONLY: CalcCellLocNodeVolumes,ReadTimeAverage,beta
 USE MOD_Particle_Vars
 USE MOD_Globals_Vars           ,ONLY: PI
-USE MOD_Mesh_Vars              ,ONLY: nElems,Elem_xGP,sJ,nGlobalElems,nNodes
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,MeshVOlume,FindNeighbourElems
+USE MOD_Mesh_Vars              ,ONLY: nElems,Elem_xGP,sJ,nGlobalElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,MeshVolume
 USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary
 USE MOD_Basis                  ,ONLY: BarycentricWeights,InitializeVandermonde
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
@@ -55,7 +55,6 @@ USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
 #if USE_MPI
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems, nComputeNodeProcessors, myComputeNodeRank, MPI_COMM_LEADERS_SHARED
@@ -69,9 +68,6 @@ USE MOD_ReadInTools            ,ONLY: PrintOption
 #if USE_MPI
 USE MOD_PICDepo_MPI            ,ONLY: MPIBackgroundMeshInit
 #endif /*USE_MPI*/
-USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
-USE MOD_Interpolation          ,ONLY: GetVandermonde
-USE MOD_Mesh_Vars              ,ONLY: Vdm_EQ_N
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
 ! IMPLICIT VARIABLE HANDLING
@@ -82,17 +78,14 @@ USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE          :: wBary_tmp(:),Vdm_GaussN_EquiN(:,:), Vdm_GaussN_NDepo(:,:)
-REAL,ALLOCATABLE          :: dummy(:,:,:,:),dummy2(:,:,:,:),xGP_tmp(:),wGP_tmp(:)
-INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, iSFfix, iPoint, iVec, iBC, kk, ll, mm
-REAL                      :: MappedGauss(1:PP_N+1)
-REAL                      :: auxiliary(0:3),weight(1:3,0:3), VolumeShapeFunction, r_sf_average
+REAL,ALLOCATABLE          :: wBary_tmp(:),Vdm_GaussN_EquiN(:,:)
+REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
+INTEGER                   :: ALLOCSTAT, iElem, i, j, k, iBC, kk, ll, mm
+REAL                      :: VolumeShapeFunction,r_sf_average
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
-REAL                      :: NormVecCheck(3),eps,diff,BoundPoints(3,8),BVlengths(2),DistVec(3),Dist(3)
 CHARACTER(32)             :: hilf, hilf2
 CHARACTER(255)            :: TimeAverageFile
-LOGICAL                   :: LayerOutsideOfBounds, ChangeOccured
 REAL                      :: dimFactorSF
 INTEGER                   :: nTotalDOF
 #if USE_MPI
