@@ -371,7 +371,6 @@ USE MOD_Mesh_Tools,             ONLY:GetCNElemID
 USE MOD_Interpolation_Vars,     ONLY:wGP
 #if USE_MPI
 USE MOD_MPI_Shared_Vars,        ONLY:nComputeNodeTotalElems
-USE MOD_PICDepo_Vars,           ONLY:PartSourceLoc,PartSourceLocHalo
 USE MOD_PICDepo_Vars,           ONLY:SendElemShapeID,PartSourceProc
 #endif
 #if USE_LOADBALANCE

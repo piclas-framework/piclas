@@ -571,8 +571,6 @@ INTEGER            :: RecvRequestCN(0:nLeaderGroupProcs-1), SendRequestCN(0:nLea
 !===================================================================================================================================
 #if USE_MPI
 PartSourceProc = 0.
-#else
-ASSOCIATE(PartSourceLoc => PartSource)
 #endif
 !Vec1(1:3) = 0.
 !Vec2(1:3) = 0.
@@ -711,8 +709,6 @@ IF (myComputeNodeRank.EQ.0) THEN
 END IF
 CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
-#else
-END ASSOCIATE
 #endif
 END SUBROUTINE DepositionMethod_SF
 

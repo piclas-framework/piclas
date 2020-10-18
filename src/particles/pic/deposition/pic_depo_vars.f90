@@ -33,8 +33,6 @@ REAL,ALLOCPOINT                 :: PartSource(:,:,:,:,:)     ! PartSource(1:4,PP
 !                                                            !                            = GetCNElemID(iElem+offSetElem)
 #if USE_MPI
 REAL, ALLOCATABLE               :: PartSourceProc(:,:,:,:,:)
-REAL, ALLOCATABLE               :: PartSourceLoc(:,:,:,:,:)
-REAL, ALLOCATABLE               :: PartSourceLocHalo(:,:,:,:,:)
 INTEGER                         :: PartSource_Shared_Win
 REAL,ALLOCPOINT                 :: PartSource_Shared(:)
 #endif

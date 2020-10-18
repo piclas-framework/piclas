@@ -46,10 +46,9 @@ USE MOD_PICDepo_Vars
 USE MOD_PICDepo_Tools          ,ONLY: CalcCellLocNodeVolumes,ReadTimeAverage,beta
 USE MOD_Particle_Vars
 USE MOD_Globals_Vars           ,ONLY: PI
-USE MOD_Mesh_Vars              ,ONLY: nElems,XCL_NGeo,Elem_xGP,sJ,nGlobalElems,nNodes
+USE MOD_Mesh_Vars              ,ONLY: nElems,Elem_xGP,sJ,nGlobalElems,nNodes
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,MeshVOlume,FindNeighbourElems
-USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,wGP
-USE MOD_Basis                  ,ONLY: ComputeBernsteinCoeff
+USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary
 USE MOD_Basis                  ,ONLY: BarycentricWeights,InitializeVandermonde
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
@@ -85,12 +84,12 @@ USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE          :: wBary_tmp(:),Vdm_GaussN_EquiN(:,:), Vdm_GaussN_NDepo(:,:)
 REAL,ALLOCATABLE          :: dummy(:,:,:,:),dummy2(:,:,:,:),xGP_tmp(:),wGP_tmp(:)
-INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, weightrun, r, s, t, iSFfix, iPoint, iVec, iBC, kk, ll, mm
-REAL                      :: MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax, zmax, x0
+INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, iSFfix, iPoint, iVec, iBC, kk, ll, mm
+REAL                      :: MappedGauss(1:PP_N+1)
 REAL                      :: auxiliary(0:3),weight(1:3,0:3), VolumeShapeFunction, r_sf_average
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
-REAL                      :: SFdepoLayersCross(3),BaseVector(3),BaseVector2(3),SFdepoLayersChargedens,n1(3),n2(3),nhalf
+REAL                      :: SFdepoLayersCross(3),BaseVector(3),BaseVector2(3),SFdepoLayersChargedens
 REAL                      :: NormVecCheck(3),eps,diff,BoundPoints(3,8),BVlengths(2),DistVec(3),Dist(3)
 CHARACTER(32)             :: hilf, hilf2
 CHARACTER(255)            :: TimeAverageFile
@@ -129,8 +128,6 @@ CALL Allocate_Shared(MPISharedSize,(/4*(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTo
 CALL MPI_WIN_LOCK_ALL(0,PartSource_Shared_Win,IERROR)
 PartSource(1:4,0:PP_N,0:PP_N,0:PP_N,1:nComputeNodeTotalElems) => PartSource_Shared(1:4*(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems)
 ALLOCATE(PartSourceProc(   1:4,0:PP_N,0:PP_N,0:PP_N,1:nSendShapeElems))
-ALLOCATE(PartSourceLoc(    1:4,0:PP_N,0:PP_N,0:PP_N,1:nElems))
-ALLOCATE(PartSourceLocHalo(1:4,0:PP_N,0:PP_N,0:PP_N,1:nSendShapeElems))
 #else
 ALLOCATE(PartSource(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
 #endif
@@ -1016,7 +1013,6 @@ USE MOD_PIC_Analyze                 ,ONLY: VerifyDepositedCharge
 USE MOD_TimeDisc_Vars               ,ONLY: iter
 #if USE_MPI
 USE MOD_MPI_Shared_Vars             ,ONLY: myComputeNodeRank,MPI_COMM_SHARED
-USE MOD_Particle_MPI_Vars           ,ONLY: PartMPIExchange
 #endif  /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -1103,8 +1099,6 @@ SDEALLOCATE(NodeSourceExtTmp)
 
 #if USE_MPI
 SDEALLOCATE(PartSourceProc)
-SDEALLOCATE(PartSourceLoc)
-SDEALLOCATE(PartSourceLocHalo)
 
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
