@@ -123,45 +123,6 @@ CALL prms%CreateLogicalOption(  'PIC-shapefunction-3D-deposition' ,'Deposite the
 CALL prms%CreateRealOption(     'PIC-shapefunction-radius0', 'Minimum shape function radius (for cylindrical and spherical)', '1.')
 CALL prms%CreateRealOption(     'PIC-shapefunction-scale'  , 'Scaling factor of shape function radius '//&
                                                              '(for cylindrical and spherical)', '0.')
-! Shape Function Deposition Fixes
-CALL prms%CreateLogicalOption(  'PrintSFDepoWarnings'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                             'Print the shapefunction warnings', '.FALSE.')
-
-CALL prms%CreateIntOption(      'PIC-NbrOfSFdepoLayers'  ,    'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Number of const. source layer for sf-depo'//&
-                                                              ' at planar BCs', '0')
-CALL prms%CreateLogicalOption(  'PIC-ConstantSFdepoLayers'      , 'Do deposition of SFdepoLayers just once', '.FALSE.')
-CALL prms%CreateRealArrayOption('PIC-SFdepoLayers[$]-Basepoint'  , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('PIC-SFdepoLayers[$]-Normal', 'TODO-DEFINE-PARAMETER', '1. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'PIC-SFdepoLayers[$]-xmin'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                     '-> SFdepoLayersBounds(:,:,:)\n'//&
-                                                              '1:nFixes;1:2(min,max);1:3(x,y,z)?', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'PIC-SFdepoLayers[$]-ymin'  , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'PIC-SFdepoLayers[$]-zmin'  , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'PIC-SFdepoLayers[$]-xmax'  , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'PIC-SFdepoLayers[$]-ymax'  , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'PIC-SFdepoLayers[$]-zmax'  , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'PIC-SFdepoLayers[$]-UseFixBounds'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                     'Use alls planes of SFdepoFixes as'//&
-                                                              ' additional bounds', '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'PIC-SFdepoLayers[$]-Space' ,          'TODO-DEFINE-PARAMETER\n'//&
-                                                                                   'Name of space (cuboid or cylinder)'&
-                                                            ,          'cuboid', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('PIC-SFdepoLayers[$]-BaseVector1'  ,   'TODO-DEFINE-PARAMETER\n'//&
-                                                                                   'Base Vector 1'&
-                                                            ,          '0. , 1. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('PIC-SFdepoLayers[$]-BaseVector2'  ,   'TODO-DEFINE-PARAMETER\n'//&
-                                                                                   'Base Vector 2', '0. , 0. , 1.'&
-                                                                       ,    numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'PIC-SFdepoLayers[$]-SFdepoLayersRadius', 'TODO-DEFINE-PARAMETER\n'//&
-                                                                                      'Radius for cylinder-space'&
-                                                                        , '1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'PIC-SFdepoLayers[$]-Chargedens'        , 'TODO-DEFINE-PARAMETER','1.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'PIC-SFdepoLayers[$]-Spec'        ,    'TODO-DEFINE-PARAMETER\n'//&
-                                                                                   'Particle species for respective'//&
-                                                                       ' layer','1', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'PIC-SFdepoLayers[$]-MPF'        ,    'MPF for respective'//&
-                                                                       ' layer (def.: MPF of resp. species)', numberedmulti=.TRUE.)
 
 CALL prms%CreateLogicalOption(  'PIC-SFResampleAnalyzeSurfCollis'  , 'TODO-DEFINE-PARAMETER', '.FALSE.')
 CALL prms%CreateIntArrayOption( 'PIC-SFResampleSurfCollisBC',        'TODO-DEFINE-PARAMETER\n'//&

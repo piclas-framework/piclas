@@ -122,20 +122,6 @@ END TYPE
 TYPE (tNodeMapping),ALLOCATABLE      :: NodeMapping(:)
 #endif
 
-
-INTEGER                         :: NbrOfSFdepoLayers             ! Number of const. source layer for sf-depo at planar BCs
-LOGICAL                         :: PrintSFDepoWarnings           ! flag to print the warnings
-LOGICAL                         :: ConstantSFdepoLayers          ! depo just once
-LOGICAL                         :: SFdepoLayersAlreadyDone       ! flag for skipping the depo (i.e., when layers are const.)
-REAL    , ALLOCATABLE           :: SFdepoLayersGeo(:,:,:)        ! 1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
-REAL    , ALLOCATABLE           :: SFdepoLayersBounds(:,:,:)     ! 1:nFixes;1:2(min,max);1:3(x,y,z)
-LOGICAL , ALLOCATABLE           :: SFdepoLayersUseFixBounds(:)   ! use alls planes of SFdepoFixes as additional bounds?
-CHARACTER(LEN=256),ALLOCATABLE  :: SFdepoLayersSpace(:)          ! name of space (cuboid or cylinder)
-REAL    , ALLOCATABLE           :: SFdepoLayersBaseVector(:,:,:) ! 1:nFixes;1:2;1:3(x,y,z)
-INTEGER , ALLOCATABLE           :: SFdepoLayersSpec(:)           ! species of particles for respective layer
-REAL    , ALLOCATABLE           :: SFdepoLayersMPF(:)            ! MPF for layerParts
-REAL    , ALLOCATABLE           :: SFdepoLayersPartNum(:)        ! number of particles in volume
-REAL    , ALLOCATABLE           :: SFdepoLayersRadius(:)         ! radius for cylinder-space
 LOGICAL                         :: SFResampleAnalyzeSurfCollis
 TYPE tLastAnalyzeSurfCollis
   INTEGER                       :: PartNumberSamp                ! number of parts from last sampling
