@@ -28,7 +28,7 @@ PUBLIC:: calcSfSource
 
 CONTAINS
 
-SUBROUTINE calcSfSource(SourceSize_in,ChargeMPF,Vec1,Vec2,Vec3,PartPos,PartIdx,PartVelo)
+SUBROUTINE calcSfSource(SourceSize_in,ChargeMPF,PartPos,PartIdx,PartVelo)
 !============================================================================================================================
 ! deposit charges on DOFs via shapefunction including periodic displacements and mirroring
 !============================================================================================================================
@@ -42,7 +42,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)              :: SourceSize_in,PartIdx
-REAL, INTENT(IN)                 :: ChargeMPF,PartPos(3),Vec1(3),Vec2(3),Vec3(3)
+REAL, INTENT(IN)                 :: ChargeMPF,PartPos(3)
 REAL, INTENT(IN), OPTIONAL       :: PartVelo(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -61,7 +61,6 @@ REAL                             :: ShiftedPart(1:3), caseShiftedPart(1:3), n_lo
 INTEGER                          :: iSFfix, LinkLoopEnd(2), iSFfixLink, iTwin, iLinkRecursive, SFfixIdx, SFfixIdx2
 LOGICAL                          :: DoCycle, DoNotDeposit
 REAL                             :: SFfixDistance, SFfixDistance2
-LOGICAL                          :: const
 !----------------------------------------------------------------------------------------------------------------------------------
 !#if !((USE_HDG) && (PP_nVar==1))
 SourceSize=SourceSize_in
@@ -87,9 +86,9 @@ END IF
     Fac = Fac2
   SELECT CASE(TRIM(DepositionType))
   CASE('shape_function')
-    CALL depoChargeOnDOFs_sf(PartPos,SourceSize,Fac,const)
+    CALL depoChargeOnDOFs_sf(PartPos,SourceSize,Fac)
   CASE('shape_function_cc')
-    CALL depoChargeOnDOFs_sfChargeCon(PartPos,SourceSize,Fac,const)
+    CALL depoChargeOnDOFs_sfChargeCon(PartPos,SourceSize,Fac)
   CASE DEFAULT
     CALL CollectiveStop(__STAMP__,&
         'Unknown ShapeFunction Method!')
@@ -100,7 +99,7 @@ END IF
 END SUBROUTINE calcSfSource
 
 
-SUBROUTINE depoChargeOnDOFs_sfNew(Position,SourceSize,Fac,const)
+SUBROUTINE depoChargeOnDOFs_sfNew(Position,SourceSize,Fac)
 !============================================================================================================================
 ! actual deposition of single charge on DOFs via shapefunction
 !============================================================================================================================
@@ -131,7 +130,6 @@ INTEGER, INTENT(IN)              :: SourceSize
 !#else
 REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
 !#endif
-LOGICAL, INTENT(IN)              :: const
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -230,7 +228,7 @@ END DO ! kk
 END SUBROUTINE depoChargeOnDOFs_sfNew
 
 
-SUBROUTINE depoChargeOnDOFs_sf(Position,SourceSize,Fac,const)
+SUBROUTINE depoChargeOnDOFs_sf(Position,SourceSize,Fac)
 !============================================================================================================================
 ! actual deposition of single charge on DOFs via shapefunction
 !============================================================================================================================
@@ -262,7 +260,6 @@ INTEGER, INTENT(IN)              :: SourceSize
 !#else
 REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
 !#endif
-LOGICAL, INTENT(IN)              :: const
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -358,7 +355,7 @@ END DO ! kk
 END SUBROUTINE depoChargeOnDOFs_sf
 
 
-SUBROUTINE depoChargeOnDOFs_sfChargeCon(Position,SourceSize,Fac,const)
+SUBROUTINE depoChargeOnDOFs_sfChargeCon(Position,SourceSize,Fac)
 !============================================================================================================================
 ! actual deposition of single charge on DOFs via shapefunction
 !============================================================================================================================
@@ -392,7 +389,6 @@ INTEGER, INTENT(IN)              :: SourceSize
 !#else
 REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
 !#endif
-LOGICAL, INTENT(IN)              :: const
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -404,7 +400,7 @@ INTEGER                          :: kk, ll, mm, ppp
 INTEGER                          :: globElemID, CNElemID
 INTEGER                          :: expo, nUsedElems, localElem
 REAL                             :: radius2, S, S1
-REAL                             :: dx,dy,dz, totalCharge, alpha
+REAL                             :: totalCharge, alpha
 REAL                             :: PartSourcetmp(1:4,0:PP_N,0:PP_N,0:PP_N)
 #if USE_MPI
 LOGICAL                          :: chargedone(1:nComputeNodeTotalElems)

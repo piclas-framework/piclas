@@ -292,11 +292,11 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
-USE MOD_Mesh_Vars          ,ONLY: nElems,nNodes, OffsetElem
+USE MOD_Mesh_Vars          ,ONLY: nElems,OffsetElem
 USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared
-USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExtTmp,NodeSourceExt,NodeVolume,DepositionType,NodeSource
+USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExtTmp,NodeSourceExt,NodeVolume,NodeSource
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Part_Tools         ,ONLY: isDepositParticle
 #if USE_MPI
@@ -539,30 +539,20 @@ SUBROUTINE DepositionMethod_SF(doParticle_In)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
-USE MOD_globals                    ! ,ONLY: abort, IERROR
+USE MOD_globals
 USE MOD_Particle_Vars               ,ONLY: Species, PartSpecies,PDM,PartMPF,usevMPF
 USE MOD_Particle_Vars               ,ONLY: PartState
-USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
-USE MOD_PICDepo_Vars                ,ONLY: PartSource,SFdepoLayersGeo,SFdepoLayersBaseVector,LastAnalyzeSurfCollis,PartSourceConst
-USE MOD_PICDepo_Vars                ,ONLY: RelaxFac,SFdepoLayersSpace,sfdepolayersbounds,SFdepoLayersUseFixBounds
-USE MOD_PICDepo_Vars                ,ONLY: sfdepolayersradius,sfdepolayerspartnum,PartSourceOld,w_sf,SFdepoLayersMPF,SFdepoLayersSpec
-USE MOD_PICDepo_Vars                ,ONLY: Vdm_EquiN_GaussN,SFResampleAnalyzeSurfCollis,SFdepoLayersAlreadyDone,RelaxDeposition,r_SF
-USE MOD_PICDepo_Vars                ,ONLY: PartSourceConstExists,NbrOfSFdepoLayers,DoSFEqui
-USE MOD_PICDepo_Vars                ,ONLY: ConstantSFdepoLayers
+USE MOD_PICDepo_Vars                ,ONLY: PartSource,w_sf
 USE MOD_PICDepo_Shapefunction_Tools ,ONLY: calcSfSource
-USE MOD_Mesh_Tools,             ONLY: GetCNElemID
+USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 #if USE_MPI
 USE MOD_PICDepo_Vars                ,ONLY: PartSourceProc
-USE MOD_PICDepo_Vars                ,ONLY: PartSource_Shared_Win, PartSource_Shared, ShapeMapping, nSendShapeElems, SendShapeElemID
+USE MOD_PICDepo_Vars                ,ONLY: PartSource_Shared_Win, ShapeMapping, nSendShapeElems, SendShapeElemID
 USE MOD_PICDepo_Vars                ,ONLY: CNShapeMapping
-USE MOD_Particle_MPI_Vars           ,ONLY: ExtPartState,ExtPartSpecies,ExtPartToFIBGM,ExtPartMPF,NbrOfextParticles
-USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_SHARED, nComputeNodeTotalElems, myComputeNodeRank, nComputeNodeProcessors
+USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_SHARED, myComputeNodeRank, nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_LEADERS_SHARED, myLeaderGroupRank, nLeaderGroupProcs
 #endif /*USE_MPI*/
-USE MOD_TimeDisc_Vars               ,ONLY: dtWeight
 USE MOD_Part_Tools                  ,ONLY: isDepositParticle
-USE MOD_Mesh_Vars                   ,ONLY: nElems
-USE MOD_ChangeBasis                 ,ONLY: ChangeBasis3D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -572,12 +562,8 @@ LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: de
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL               :: Vec1(1:3), Vec2(1:3), Vec3(1:3), Charge
-REAL               :: RandVal, RandVal2(2), layerPartPos(3), PartRadius, FractPush(3), SFfixDistance
-INTEGER            :: iElem, iPart, iPart2, iSFfix
-INTEGER            :: iLayer, layerParts
-INTEGER            :: kk, ll, mm, MessageSize
-LOGICAL            :: DoCycle
+REAL               :: Charge
+INTEGER            :: iElem, iPart
 #if USE_MPI
 INTEGER            :: SendRequest, RecvRequest(nComputeNodeProcessors-1), iProc, CNElemID
 INTEGER            :: RecvRequestCN(0:nLeaderGroupProcs-1), SendRequestCN(0:nLeaderGroupProcs-1)
@@ -616,7 +602,7 @@ DO iPart=1,PDM%ParticleVecLength
   ELSE
     Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
   END IF
-  CALL calcSfSource(4,Charge*w_sf ,Vec1,Vec2,Vec3,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
+  CALL calcSfSource(4,Charge*w_sf,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
 END DO
 #if USE_MPI
 CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
