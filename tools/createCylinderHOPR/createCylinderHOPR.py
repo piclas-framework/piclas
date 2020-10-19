@@ -399,7 +399,7 @@ f.write(r"""!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary
 if NbrOfZones > 2:
     f.write(r"""
 !left-lower (x-)
-Corner       =(/-r01 , 0.  , 0.   ,,   -r02 , 0.  , 0.   ,,   -r02 , r02 , 0.   ,,   -r01 , r01 , 0.   ,,   -r01 , 0.  , lz   ,,   -r02 , 0.  , lz   ,,   -r02 , r02 , lz   ,,   -r01 , r01 , lz /)
+Corner       =(/-r01 , 0.  ,-lz    ,,   -r02 , 0.  ,-lz   ,,   -r02 , r02 , -lz   ,,   -r01 , r01 , -lz   ,,   -r01 , 0.  , lz   ,,   -r02 , 0.  , lz   ,,   -r02 , r02 , lz   ,,   -r01 , r01 , lz /)
 nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
 """)
 if NbrOfZones > 2:
@@ -409,7 +409,7 @@ elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/f1,1.,1./)                     ! stretching
 
 !left-upper (y+)
-Corner       =(/0.  , r01 , 0.   ,,   -r01 , r01 , 0.   ,,   -r02 , r02 , 0.   ,,   0.  , r02 , 0.   ,,   0.  , r01 , lz   ,,   -r01 , r01 , lz   ,,   -r02 , r02 , lz   ,,   0.  , r02 , lz /)
+Corner       =(/0.  , r01 , -lz,,   -r01 , r01 , -lz   ,,   -r02 , r02 , -lz   ,,   0.  , r02 , -lz   ,,   0.  , r01 , lz   ,,   -r01 , r01 , lz   ,,   -r02 , r02 , lz   ,,   0.  , r02 , lz /)
 nElems       =(/i02,ir1,iz/)                   ! number of elements in each direction
 """)
 if NbrOfZones > 2:
@@ -425,7 +425,7 @@ factor       =(/1.,f1,1./)                     ! stretching
 # right part (90 degree)
 f.write(r"""
 !right-lower (x+)
-Corner       =(/r01 , 0.  , 0.   ,,   r02 , 0.  , 0.   ,,   r02 , r02 , 0.   ,,   r01 , r01 , 0.   ,,   r01 , 0.  , lz   ,,   r02 , 0.  , lz   ,,   r02 , r02 , lz   ,,   r01 , r01 , lz /)
+Corner       =(/r01 , 0.  , -lz   ,,   r02 , 0.  , -lz   ,,   r02 , r02 , -lz   ,,   r01 , r01 , -lz  ,,   r01 , 0.  , lz   ,,   r02 , 0.  , lz   ,,   r02 , r02 , lz   ,,   r01 , r01 , lz /)
 nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
 """)
 f.write(r'BCIndex      =(/1  , %s  , 5  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
@@ -435,7 +435,7 @@ elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/f1,1.,1./)                     ! stretching
 
 !right-upper (y+)
-Corner       =(/0.  , r01 , 0.   ,,   r01 , r01 , 0.   ,,   r02 , r02 , 0.   ,,   0.  , r02 , 0.   ,,   0.  , r01 , lz   ,,   r01 , r01 , lz   ,,   r02 , r02 , lz   ,,   0.  , r02 , lz /)
+Corner       =(/0.  , r01 , -lz   ,,   r01 , r01 , -lz   ,,   r02 , r02 , -lz   ,,   0.  , r02 , -lz   ,,   0.  , r01 , lz   ,,   r01 , r01 , lz   ,,   r02 , r02 , lz   ,,   0.  , r02 , lz /)
 nElems       =(/i02,ir1,iz/)                   ! number of elements in each direction
 """)
 f.write(r'BCIndex      =(/1  , 3  , 0  , 5  , %s  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC2 + '\n')
@@ -458,7 +458,7 @@ if NbrOfZones > 4:
 ! Bottom cylinder half
 ! ---------------------------------------------------------------
 !left-lower (x-)
-Corner       =(/-r01 , 0.  , 0.   ,,   -r02 , 0.  , 0.   ,,   -r02 , -r02 , 0.   ,,   -r01 , -r01 , 0.   ,,   -r01 , 0.  , lz   ,,   -r02 , 0.  , lz   ,,   -r02 , -r02 , lz   ,,   -r01 , -r01 , lz /)
+Corner       =(/-r01 , 0.  , -lz   ,,   -r02 , 0.  , -lz  ,,   -r02 , -r02 , -lz   ,,   -r01 , -r01 , -lz   ,,   -r01 , 0.  , lz   ,,   -r02 , 0.  , lz   ,,   -r02 , -r02 , lz   ,,   -r01 , -r01 , lz /)
 nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
 """)
 if NbrOfZones > 4:
@@ -469,7 +469,7 @@ elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/f1,1.,1./)                     ! stretching
 
 !left-upper (y+)
-Corner       =(/0.  , -r01 , 0.   ,,   -r01 , -r01 , 0.   ,,   -r02 , -r02 , 0.   ,,   0.  , -r02 , 0.   ,,   0.  , -r01 , lz   ,,   -r01 , -r01 , lz   ,,   -r02 , -r02 , lz   ,,   0.  , -r02 , lz /)
+Corner       =(/0.  , -r01 , -lz   ,,   -r01 , -r01 , -lz   ,,   -r02 , -r02 , -lz   ,,   0.  , -r02 , -lz   ,,   0.  , -r01 , lz   ,,   -r01 , -r01 , lz   ,,   -r02 , -r02 , lz   ,,   0.  , -r02 , lz /)
 nElems       =(/i02,ir1,iz/)                   ! number of elements in each direction
 BCIndex      =(/1  , 3  , 0  , 4  , 0  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)
 !            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
@@ -479,7 +479,7 @@ factor       =(/1.,f1,1./)                     ! stretching
 
 
 !right-lower (x+)
-Corner       =(/r01 , 0.  , 0.   ,,   r02 , 0.  , 0.   ,,   r02 , -r02 , 0.   ,,   r01 , -r01 , 0.   ,,   r01 , 0.  , lz   ,,   r02 , 0.  , lz   ,,   r02 , -r02 , lz   ,,   r01 , -r01 , lz /)
+Corner       =(/r01 , 0.  , -lz ,,   r02 , 0.  , -lz   ,,   r02 , -r02 , -lz   ,,   r01 , -r01 , -lz   ,,   r01 , 0.  , lz   ,,   r02 , 0.  , lz   ,,   r02 , -r02 , lz   ,,   r01 , -r01 , lz /)
 nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
 """)
 if NbrOfZones > 4:
@@ -490,7 +490,7 @@ elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/f1,1.,1./)                     ! stretching
 
 !right-upper (y+)
-Corner       =(/0.  , -r01 , 0.   ,,   r01 , -r01 , 0.   ,,   r02 , -r02 , 0.   ,,   0.  , -r02 , 0.   ,,   0.  , -r01 , lz   ,,   r01 , -r01 , lz   ,,   r02 , -r02 , lz   ,,   0.  , -r02 , lz /)
+Corner       =(/0.  , -r01 , -lz   ,,   r01 , -r01 ,-lz  ,,   r02 , -r02 , -lz  ,,   0.  , -r02 , -lz   ,,   0.  , -r01 , lz   ,,   r01 , -r01 , lz   ,,   r02 , -r02 , lz   ,,   0.  , -r02 , lz /)
 nElems       =(/i02,ir1,iz/)                   ! number of elements in each direction
 BCIndex      =(/1  , 3  , 0  , 5  , 0  , 2/)   ! Indices of Boundary Conditions
 !            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
