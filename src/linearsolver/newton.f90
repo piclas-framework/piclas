@@ -224,7 +224,6 @@ USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, DelayTime, PEM, PD
 USE MOD_Part_RHS               ,ONLY: PartVeloToImp
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
 USE MOD_Part_MPFtools          ,ONLY: StartParticleMerge
-USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_ParticleSolver         ,ONLY: ParticleNewton
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition

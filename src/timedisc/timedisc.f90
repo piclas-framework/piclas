@@ -386,11 +386,11 @@ END IF
 !  CALL IRecvNbofParticles()
 !  CALL MPIParticleSend()
 !#endif /*USE_MPI*/
-!  CALL Deposition(DoInnerParts=.TRUE.)
+!  CALL Deposition()
 !#if USE_MPI
 !  CALL MPIParticleRecv()
 !  ! second buffer
-!  CALL Deposition(DoInnerParts=.FALSE.)
+!  CALL Deposition()
 !#endif /*USE_MPI*/
 !#endif
 
@@ -727,16 +727,12 @@ USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
-USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
-USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_TimeDisc_Vars          ,ONLY: iter
 #if USE_MPI
-USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
-USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
@@ -1437,7 +1433,6 @@ USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolation
 USE MOD_part_emission         ,ONLY: ParticleInserting
 USE MOD_DSMC                  ,ONLY: DSMC_main
 USE MOD_DSMC_Vars             ,ONLY: useDSMC, DSMC_RHS, DSMC
-USE MOD_PIC_Analyze           ,ONLY: VerifyDepositedCharge
 USE MOD_part_tools            ,ONLY: UpdateNextFreePosition
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -1464,14 +1459,7 @@ END IF
 
 IF (time.GE.DelayTime) CALL ParticleInserting()
 
-IF ((time.GE.DelayTime).OR.(time.EQ.0)) THEN
-!  IF (usevMPF) THEN
-!    CALL DepositionMPF()
-!  ELSE
-    CALL Deposition()
-!  END IF
-  !CALL VerifyDepositedCharge()
-END IF
+IF ((time.GE.DelayTime).OR.(time.EQ.0)) CALL Deposition()
 
 IF (time.GE.DelayTime) THEN
   CALL InterpolateFieldToParticle()
@@ -1577,8 +1565,6 @@ USE MOD_Predictor              ,ONLY: PartPredictor,PredictorType
 USE MOD_Particle_Vars          ,ONLY: PartIsImplicit,PartLorentzType,doParticleMerge,PartDtFrac &
                                       ,DoForceFreeSurfaceFlux,PartStateN,PartStage,PartQ,DoSurfaceFlux,PEM,PDM  &
                                       , Pt,LastPartPos,DelayTime,PartState,PartMeshHasReflectiveBCs,PartDeltaX
-USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
-USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_part_RHS               ,ONLY: PartVeloToImp
@@ -1596,8 +1582,7 @@ USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
-USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts,PartMPI
-USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
@@ -1727,7 +1712,6 @@ CALL LBPauseTime(LB_DG,tLBStart)
 ! HDG time measured in HDG
 CALL HDG(time,U,iter)
 #endif
-IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 
 
 IF(time.GE.DelayTime)THEN
@@ -2428,8 +2412,6 @@ USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK,DoFieldUpdate
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_Particle_Vars          ,ONLY: PartLorentzType,doParticleMerge,PartDtFrac,PartStateN,PartStage,PartQ &
     ,DoSurfaceFlux,PEM,PDM,Pt,LastPartPos,DelayTime,PartState,PartMeshHasReflectiveBCs
-USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
-USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_part_RHS               ,ONLY: PartVeloToImp
@@ -2446,8 +2428,7 @@ USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
-USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts,PartMPI
-USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
@@ -2610,63 +2591,24 @@ IF(time.GE.DelayTime)THEN
   END IF
 END IF
 
-IF((time.GE.DelayTime).OR.(iter.EQ.0))THEN
-! communicate shape function particles for deposition
-#if USE_MPI
-  PartMPIExchange%nMPIParticles=0
-  IF(DoExternalParts)THEN
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-    ! as we do not have the shape function here, we have to deallocate something
-    SDEALLOCATE(ExtPartState)
-    SDEALLOCATE(ExtPartSpecies)
-    SDEALLOCATE(ExtPartToFIBGM)
-    SDEALLOCATE(ExtPartMPF)
-    ! open receive buffer for number of particles
-    CALL IRecvNbofParticles()
-    ! send number of particles
-    CALL SendNbOfParticles()
-    ! finish communication of number of particles and send particles
-    CALL MPIParticleSend()
-    ! finish communication
-    CALL MPIParticleRecv()
-    ! set exchanged number of particles to zero
-    PartMPIExchange%nMPIParticles=0
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_PARTCOMM,tLBStart)
-#endif /*USE_LOADBALANCE*/
-  END IF
-#endif /*USE_MPI*/
-END IF
-
 ! simulation with delay-time, compute the
 IF(DelayTime.GT.0.)THEN
   IF((iter.EQ.0).AND.(time.LT.DelayTime))THEN
     ! perform normal deposition
-    CALL Deposition(DoInnerParts=.TRUE.)
+    CALL Deposition()
 #if USE_MPI
     ! here: finish deposition with delta kernal
     !       maps source terms in physical space
     ! ALWAYS require
     PartMPIExchange%nMPIParticles=0
 #endif /*USE_MPI*/
-    CALL Deposition(DoInnerParts=.FALSE.)
+    CALL Deposition()
   END IF
 END IF
 
 ! compute source of first stage for Maxwell solver
 IF (time.GE.DelayTime) THEN
-  ! if we call it correctly, we may save here work between different RK-stages
-  ! because of emmision and UpdateParticlePosition
-  CALL Deposition(DoInnerParts=.TRUE.)
-#if USE_MPI
-  ! here: finish deposition with delta kernal
-  !       maps source terms in physical space
-  ! ALWAYS require
-  PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
-  CALL Deposition(DoInnerParts=.FALSE.)
+  CALL Deposition()
 END IF
 
 #if USE_HDG
@@ -2674,7 +2616,6 @@ END IF
 ! LB measurement is performed within HDG
 IF(DoFieldUpdate) CALL HDG(time,U,iter)
 #endif
-IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 
 IF(time.GE.DelayTime)THEN
 #if USE_LOADBALANCE
@@ -2904,8 +2845,7 @@ DO iStage=2,nRKStages
     CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
     ! compute particle source terms on field solver of implicit particles :)
-    CALL Deposition(DoInnerParts=.TRUE.)
-    CALL Deposition(DoInnerParts=.FALSE.)
+    CALL Deposition()
     ! map particle from v to gamma v
 #if USE_HDG
     ! update the fields due to changed particle position and velocity/momentum
@@ -3094,13 +3034,6 @@ IF (time.GE.DelayTime) THEN
   ! finish communication
   CALL MPIParticleRecv()
   PartMPIExchange%nMPIParticles=0
-  IF(DoExternalParts)THEN
-    ! as we do not have the shape function here, we have to deallocate something
-    SDEALLOCATE(ExtPartState)
-    SDEALLOCATE(ExtPartSpecies)
-    SDEALLOCATE(ExtPartToFIBGM)
-    SDEALLOCATE(ExtPartMPF)
-  END IF
 #endif
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PARTCOMM,tLBStart)
@@ -3477,8 +3410,6 @@ USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
-USE MOD_Particle_MPI_Vars      ,ONLY:  DoExternalParts
-USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
@@ -3729,13 +3660,10 @@ USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
-USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
-USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge,PartAnalyzeStep
+USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
-USE MOD_Particle_MPI_Vars      ,ONLY:  DoExternalParts
-USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
@@ -3762,13 +3690,7 @@ REAL, DIMENSION(3)         :: v_minus, v_plus, v_prime, t_vec
 #endif /*PARTICLES*/
 !===================================================================================================================================
 #ifdef PARTICLES
-IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-  ! communicate shape function particles
-  CALL Deposition(DoInnerParts=.TRUE.) ! needed for closing communication
-  IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
-    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
-  END IF
-END IF
+IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition()
 #endif /*PARTICLES*/
 
 CALL HDG(time,U,iter)
@@ -3791,8 +3713,8 @@ IF (time.GE.DelayTime) THEN
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
   !-- get E(x(n)) and B(x(n))
-  CALL InterpolateFieldToParticle(DoInnerParts=.TRUE.)   ! forces on particles
-  !CALL InterpolateFieldToParticle(DoInnerParts=.FALSE.) ! only needed when MPI communication changes the number of parts
+  CALL InterpolateFieldToParticle()   ! forces on particles
+  !CALL InterpolateFieldToParticle() ! only needed when MPI communication changes the number of parts
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -3871,16 +3793,13 @@ IF (time.GE.DelayTime) THEN
 #if USE_MPI
     PartMPIExchange%nMPIParticles=0
 #endif /*USE_MPI*/
-    CALL Deposition(DoInnerParts=.TRUE.) ! because of emission and UpdateParticlePosition
-    IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
-      IF(DoVerifyCharge) CALL VerifyDepositedCharge()
-    END IF
+    CALL Deposition() ! because of emission and UpdateParticlePosition
     CALL HDG(time,U,iter)
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-    CALL InterpolateFieldToParticle(DoInnerParts=.TRUE.)   ! forces on particles
-    !CALL InterpolateFieldToParticle(DoInnerParts=.FALSE.) ! only needed when MPI communication changes the number of parts
+    CALL InterpolateFieldToParticle()   ! forces on particles
+    !CALL InterpolateFieldToParticle() ! only needed when MPI communication changes the number of parts
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -3974,16 +3893,11 @@ USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
-USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
-USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
-USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
 USE MOD_Particle_Analyze       ,ONLY: CalcCoupledPowerPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
-USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts
-USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking

@@ -438,9 +438,9 @@ END FUNCTION GetGlobalID_offset
 !==================================================================================================================================!
 SUBROUTINE InitPEM_CNElemID()
 ! MODULES
+USE MOD_Particle_Vars   ,ONLY: PEM
 #if USE_MPI
 USE MOD_MPI_Shared_Vars ,ONLY: nComputeNodeProcessors,nProcessors_Global
-USE MOD_Particle_Vars   ,ONLY: PEM
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

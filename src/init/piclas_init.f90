@@ -96,6 +96,7 @@ USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
 USE MOD_DSMC_Symmetry        ,ONLY: Init_Symmetry
+USE MOD_PICDepo_Method       ,ONLY: InitDepositionMethod
 #ifdef MPI
 USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
 #endif /* MPI */
@@ -168,6 +169,7 @@ ELSE
   VarTimeStep%UseVariableTimeStep = .FALSE.
 END IF
 CALL InitParticleGlobals()
+CALL InitDepositionMethod()
 #endif
 
 CALL InitMesh(2)

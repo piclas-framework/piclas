@@ -654,10 +654,10 @@ IF(DoRestart)THEN
     END IF ! IF(.NOT. InterpolateSolution)
   END IF ! IF(.NOT. RestartNullifySolution)
 
+#ifdef PARTICLES
   ! ------------------------------------------------
   ! NodeSourceExt (external/additional charge source terms)
   ! ------------------------------------------------
-#if PARTICLES
   IF(DoDielectricSurfaceCharge) CALL ReadNodeSourceExtFromHDF5()
 #endif /*PARTICLES*/
 
@@ -1638,7 +1638,7 @@ USE MOD_TimeDisc_Vars,           ONLY: iter
 USE MOD_PICDepo,                 ONLY: Deposition
 #if USE_MPI
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange,DoExternalParts
+USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING

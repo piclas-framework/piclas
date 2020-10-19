@@ -163,7 +163,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !LOGICAL                :: directions(1:3)
 INTEGER                :: iPV
-REAL                   :: eps(1:3),dummy
+REAL                   :: eps(1:3)
 !===================================================================================================================================
 
 LOGWRITE(*,*) 'nPeriodicVectors = ',GEO%nPeriodicVectors

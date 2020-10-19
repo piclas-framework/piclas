@@ -39,9 +39,13 @@ INTERFACE PorousBoundaryRemovalProb_Pressure
 END INTERFACE
 
 PUBLIC::DefineParametersPorousBC
-PUBLIC::InitPorousBoundaryCondition, InitPorousCommunication
-PUBLIC::PorousBoundaryTreatment, PorousBoundaryRemovalProb_Pressure
+PUBLIC::InitPorousBoundaryCondition
+PUBLIC::PorousBoundaryTreatment
+PUBLIC::PorousBoundaryRemovalProb_Pressure
 PUBLIC::FinalizePorousBoundaryCondition
+#if USE_MPI
+PUBLIC::InitPorousCommunication
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 CONTAINS
@@ -118,14 +122,15 @@ USE MOD_Particle_Vars               ,ONLY: nSpecies, Adaptive_MacroVal, Symmetry
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound, nPorousBC, nPorousSides, PorousBCMacroVal
 USE MOD_Particle_Boundary_Vars      ,ONLY: nComputeNodeSurfTotalSides, SurfSide2GlobalSide
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCSampIter, PorousBC
-USE MOD_Particle_Boundary_Vars      ,ONLY: MapSurfSideToPorousSide_Shared, MapSurfSideToPorousSide_Shared_Win
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCSampWall, PorousBCOutput
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCInfo_Shared,PorousBCProperties_Shared,PorousBCSampWall_Shared
-USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCInfo_Shared_Win,PorousBCProperties_Shared_Win,PorousBCSampWall_Shared_Win
+USE MOD_Particle_Boundary_Vars      ,ONLY: MapSurfSideToPorousSide_Shared
 USE MOD_Particle_Tracking_Vars      ,ONLY: DoRefMapping
 #if USE_MPI
-USE MOD_MPI_Shared!             ,ONLY: Allocate_Shared
-USE MOD_MPI_Shared_Vars              ,ONLY: MPI_COMM_SHARED, myComputeNodeRank
+USE MOD_MPI_Shared                  ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_SHARED, myComputeNodeRank
+USE MOD_Particle_Boundary_Vars      ,ONLY: MapSurfSideToPorousSide_Shared_Win
+USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCInfo_Shared_Win,PorousBCProperties_Shared_Win,PorousBCSampWall_Shared_Win
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -257,7 +262,9 @@ DO iPBC = 1, nPorousBC
 END DO      ! nPorousBC
 
 ! 2) Mapping of the porous BC sides to the respective surface side
+#if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
   nPorousSides = 0
   iSurfSideTmp = 0
   DO iSurfSide=1,nComputeNodeSurfTotalSides
@@ -286,9 +293,9 @@ IF (myComputeNodeRank.EQ.0) THEN
       END IF
     END DO
   END DO
+#if USE_MPI
 END IF
 
-#if USE_MPI
 CALL MPI_BCAST(nPorousSides,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
 
 MPISharedSize = INT((3*nPorousSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
@@ -328,7 +335,9 @@ ALLOCATE(PorousBCSampWall(1:2,1:nPorousSides))
 PorousBCSampWall = 0.
 ALLOCATE(PorousBCOutput(1:5,1:nPorousBC))
 PorousBCOutput = 0.
+#if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
   ! 4) Mapping the porous BC ID and the porous BC side ID to a surface side
   DO iPorousSide=1,nPorousSides
     iPBC = PorousBCInfo_Shared(1,iPorousSide)
@@ -356,9 +365,9 @@ IF (myComputeNodeRank.EQ.0) THEN
       END IF
     END IF
   END DO
+#if USE_MPI
 END IF
 
-#if USE_MPI
 CALL MPI_WIN_SYNC(PorousBCInfo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(PorousBCProperties_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
@@ -504,15 +513,19 @@ SumPartImpinged = 0
 CALL ExchangeImpingedPartPorousBC()
 #else
 PorousBCSampWall_Shared(1:2,1:nPorousSides) = PorousBCSampWall(1:2,1:nPorousSides)
-#endif
+#endif /*USE_MPI*/
 
 ! 2) Compute the total number of impinged particles per porous BC on each surface comm leader (=compute node leader)
+#if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
   DO iPorousSide = 1, nPorousSides
     iPBC = PorousBCInfo_Shared(1,iPorousSide)
     SumPartImpinged(iPBC) = SumPartImpinged(iPBC) + PorousBCSampWall_Shared(1,iPorousSide)
   END DO
+#if USE_MPI
 END IF
+#endif /*USE_MPI*/
 
 ! 3) Sum-up the number of impinged particles across whole simulation domain by communication of surface comm leaders and distribute
 !     the information to the processors on the node
@@ -521,7 +534,7 @@ IF (myComputeNodeRank.EQ.0) THEN
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,SumPartImpinged(1:nPorousBC),nPorousBC,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SURF,iError)
 END IF
 CALL MPI_BCAST(SumPartImpinged(1:nPorousBC),nPorousBC,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
-#endif
+#endif /*USE_MPI*/
 
 ! Zero the output variable
 IF(CalcPorousBCInfo) PorousBCOutput = 0.

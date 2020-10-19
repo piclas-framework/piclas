@@ -126,7 +126,7 @@ IF(VarTimeStep%UseLinearScaling) THEN
       VarTimeStep%TimeScaleFac2DFront = GETREAL('Part-VariableTimeStep-ScaleFactor2DFront','1.0')
       VarTimeStep%TimeScaleFac2DBack = GETREAL('Part-VariableTimeStep-ScaleFactor2DBack','1.0')
     END IF
-  ELSE IF(Symmetry%Order.EQ.1) THEN 
+  ELSE IF(Symmetry%Order.EQ.1) THEN
     CALL abort(__STAMP__, &
     'ERROR: 1D and variable timestep is not implemented yet!')
   ELSE
@@ -454,10 +454,8 @@ USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-#if USE_MPI
-USE MOD_Particle_Mesh_Vars
-#endif
-USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES

@@ -622,7 +622,6 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Tracking_Vars,     ONLY: TrackingMethod,TriaTracking,DoRefMapping
 USE MOD_Particle_Vars              ,ONLY: Symmetry
-USE MOD_PICDepo_Method             ,ONLY: InitDepositionMethod
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -653,8 +652,6 @@ IF (Symmetry%Order.LE.2) THEN
   TriaTracking=.TRUE.
   SWRITE(UNIT_stdOut,'(A)') "TrackingMethod set to TriaTracking due to Symmetry2D."
 END IF
-
-CALL InitDepositionMethod()
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS DONE'
 
@@ -809,6 +806,9 @@ USE MOD_Particle_MPI           ,ONLY: InitEmissionComm
 USE MOD_Particle_MPI_Halo      ,ONLY: IdentifyPartExchangeProcs
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
+#ifdef CODE_ANALYZE
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
+#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -849,9 +849,6 @@ CALL InitializeVariablesPartBoundary()
 
 !-- AuxBCs
 CALL InitializeVariablesAuxBC()
-! calculate cartesian borders of node local and global mesh
-CALL GetMeshMinMax()
-!-- Build BGM and halo region
 
 !-- Get PIC deposition (skip DSMC, FP-Flow and BGS-Flow related timediscs)
 #if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
@@ -866,7 +863,13 @@ DoDeposition    = GETLOGICAL('PIC-DoDeposition')
 !-- Get PIC interpolation (could be skipped above, but DSMC octree requires some interpolation variables, which are allocated before
 ! init DSMC determines whether DSMC%UseOctree is true or false)
 DoInterpolation = GETLOGICAL('PIC-DoInterpolation')
+#ifdef CODE_ANALYZE
+! Check if an analytic function is to be used for interpolation
+DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
+IF(DoInterpolationAnalytic) DoInterpolation = DoInterpolationAnalytic
+#endif /*CODE_ANALYZE*/
 
+! Build BGM and initialize particle mesh
 CALL InitParticleMesh()
 #if USE_MPI
 !-- Build MPI communication

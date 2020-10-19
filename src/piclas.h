@@ -66,6 +66,7 @@
 #define LOGWRITE(a,b)  IF(Logging) WRITE(UNIT_logOut,b)
 #define LOGWRITE_BARRIER  IF(Logging) CALL ReOpenLogFile()
 #define SDEALLOCATE(A) IF(ALLOCATED(A)) DEALLOCATE(A)
+#define SNULLIFY(A)    IF(ASSOCIATED(A)) NULLIFY(A)
 
 #if USE_MPI
 #define ALLOCPOINT POINTER

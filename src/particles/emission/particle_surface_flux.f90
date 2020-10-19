@@ -1497,11 +1497,14 @@ SUBROUTINE AnalyzePartPos(ParticleIndexNbr)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars                 ,ONLY: LastPartPos, PDM
-USE MOD_Particle_Mesh_Vars            ,ONLY: GEO
+USE MOD_Particle_Vars      ,ONLY: LastPartPos, PDM
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 #ifdef IMPA
-USE MOD_Particle_Vars                 ,ONLY: PartDtFrac,PartIsImplicit
+USE MOD_Particle_Vars      ,ONLY: PartDtFrac,PartIsImplicit
 #endif /*IMPA*/
+#if  defined(IMPA) || defined(ROS)
+USE MOD_Timedisc_Vars      ,ONLY: iStage
+#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
