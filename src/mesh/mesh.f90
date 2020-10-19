@@ -230,7 +230,7 @@ ELSE
   END IF
 END IF
 
-#if PARTICLES
+#ifdef PARTICLES
 meshScale    = GETREAL('meshScale'   ,'1.0')
 #endif /*USE_PARTICLES*/
 CALL ReadMesh(MeshFile) !set nElems

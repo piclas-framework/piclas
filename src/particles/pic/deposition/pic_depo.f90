@@ -60,7 +60,6 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems, nComputeNodeProcessors, myComputeNodeRank, MPI_COMM_LEADERS_SHARED
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED, myLeaderGroupRank, nLeaderGroupProcs
 USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
-USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared, NodeInfo_Shared, ElemInfo_Shared, NodeToElemInfo, NodeToElemMapping
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 #endif
@@ -98,9 +97,6 @@ INTEGER                   :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nL
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
-#if USE_MPI
-  DoExternalParts=.FALSE. ! Initialize
-#endif /*USE_MPI*/
 
 IF(.NOT.DoDeposition) THEN
   ! fill deposition type with empty string
@@ -393,9 +389,6 @@ CASE('cell_volweight_mean')
 !    NodeSourceExtTmp = 0.0
 !  END IF ! DoDielectricSurfaceCharge
 CASE('shape_function')
-#if USE_MPI
-!  DoExternalParts=.TRUE.
-#endif /*USE_MPI*/
   !ALLOCATE(PartToFIBGM(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
   !IF (ALLOCSTAT.NE.0) CALL abort(&
   !    __STAMP__&
@@ -516,9 +509,6 @@ CASE('shape_function')
   END IF
 
 CASE('shape_function_1d','shape_function_2d')
-#if USE_MPI
-!  DoExternalParts=.TRUE.
-#endif /*USE_MPI*/
   ! Get deposition direction for 1D or perpendicular direction for 2D
   sf1d_dir = GETINT ('PIC-shapefunction1d-direction')
   ! Distribute the charge over the volume (3D) or line (1D)/area (2D): default is TRUE
@@ -634,9 +624,6 @@ CASE('shape_function_1d','shape_function_2d')
   END IF
 
 CASE('shape_function_cylindrical','shape_function_spherical')
-#if USE_MPI
-!  DoExternalParts=.TRUE.
-#endif /*USE_MPI*/
   !IF(.NOT.DoRefMapping) CALL abort(&
   !  __STAMP__&
   !  ,' Shape function has to be used with ref element tracking.')

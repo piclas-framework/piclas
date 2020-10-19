@@ -22,7 +22,7 @@ IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-#if PARTICLES
+#ifdef PARTICLES
 PUBLIC :: ReadNodeSourceExtFromHDF5
 #endif /*PARTICLES*/
 !===================================================================================================================================
@@ -30,7 +30,7 @@ PUBLIC :: ReadNodeSourceExtFromHDF5
 CONTAINS
 
 
-#if PARTICLES
+#ifdef PARTICLES
 SUBROUTINE ReadNodeSourceExtFromHDF5()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Read NodeSourceExt from h5 file, which is stored as DG solution type field 'DG_SourceExt'.

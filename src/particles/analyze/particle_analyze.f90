@@ -3176,8 +3176,6 @@ USE MOD_Equation_Vars     ,ONLY: E
 #if USE_MPI
 USE MOD_Particle_MPI      ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars ,ONLY: PartMPIExchange
-USE MOD_Particle_MPI_Vars ,ONLY: DoExternalParts
-USE MOD_Particle_MPI_Vars ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
