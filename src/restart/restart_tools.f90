@@ -50,6 +50,12 @@ USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt,NodeVolume
 USE MOD_Restart_Vars           ,ONLY: N_Restart
+USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
+#if USE_MPI
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
+USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt_Shared_Win
+USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -62,7 +68,8 @@ REAL                               :: U_local(1,0:N_Restart,0:N_Restart,0:N_Rest
 LOGICAL                            :: DG_SourceExtExists
 REAL                               :: NodeSourceExtEqui(1,0:1,0:1,0:1)
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp,N_RestartTmp
-INTEGER                            :: iElem,CNElemID
+INTEGER                            :: iElem!,CNElemID
+INTEGER                            :: NodeID(1:8),firstNode,lastNode
 !===================================================================================================================================
 IF(.NOT.DoDielectric) RETURN
 
@@ -83,26 +90,35 @@ IF(DG_SourceExtExists)THEN
   ALLOCATE(Vdm_N_EQ(0:1,0:N_Restart))
   CALL GetVandermonde(N_Restart, NodeType, 1, NodeTypeVISU, Vdm_N_EQ, modal=.FALSE.)
 
+
+#if USE_MPI
+  firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
+  lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
+#else
+  firstNode = 1
+  lastNode = nUniqueGlobalNodes
+#endif
   DO iElem =1, PP_nElems
     ! Map G/GL (current node type) to equidistant distribution
     CALL ChangeBasis3D(1, N_Restart, 1, Vdm_N_EQ, U_local(:,:,:,:,iElem),NodeSourceExtEqui(:,:,:,:))
 
     ! Map the solution to the global nodes 'NodeSourceExt' and apply the volumes (charge density -> charge)
-!    ASSOCIATE( NodeID => GEO%ElemToNodeID(:,iElem) )
-    CNElemID = GetCNElemID(iElem+offsetElem)
-    ASSOCIATE(NodeID => ElemNodeID_Shared(:,CNElemID))
-
-      ! Copy values from equidistant distribution to Nodees
-      NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeInfo_Shared(NodeID(1)))
-      NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVolume(NodeInfo_Shared(NodeID(2)))
-      NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVolume(NodeInfo_Shared(NodeID(3)))
-      NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVolume(NodeInfo_Shared(NodeID(4)))
-      NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVolume(NodeInfo_Shared(NodeID(5)))
-      NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVolume(NodeInfo_Shared(NodeID(6)))
-      NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVolume(NodeInfo_Shared(NodeID(7)))
-      NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeInfo_Shared(NodeID(8)))
-    END ASSOCIATE
+    ! Only change the nodes which are assigned to the proc
+    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+    IF(firstNode.LE.NodeID(1).AND.NodeID(1).LE.lastNode) NodeSourceExt(1,NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeID(1))
+    IF(firstNode.LE.NodeID(2).AND.NodeID(2).LE.lastNode) NodeSourceExt(1,NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVolume(NodeID(2))
+    IF(firstNode.LE.NodeID(3).AND.NodeID(3).LE.lastNode) NodeSourceExt(1,NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVolume(NodeID(3))
+    IF(firstNode.LE.NodeID(4).AND.NodeID(4).LE.lastNode) NodeSourceExt(1,NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVolume(NodeID(4))
+    IF(firstNode.LE.NodeID(5).AND.NodeID(5).LE.lastNode) NodeSourceExt(1,NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVolume(NodeID(5))
+    IF(firstNode.LE.NodeID(6).AND.NodeID(6).LE.lastNode) NodeSourceExt(1,NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVolume(NodeID(6))
+    IF(firstNode.LE.NodeID(7).AND.NodeID(7).LE.lastNode) NodeSourceExt(1,NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVolume(NodeID(7))
+    IF(firstNode.LE.NodeID(8).AND.NodeID(8).LE.lastNode) NodeSourceExt(1,NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeID(8))
   END DO
+
+#if USE_MPI
+  CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif /*USE_MPI*/
 END IF ! DG_SourceExtExists
 
 END SUBROUTINE ReadNodeSourceExtFromHDF5

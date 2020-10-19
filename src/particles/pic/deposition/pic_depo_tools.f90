@@ -59,6 +59,10 @@ USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared
+#if USE_MPI
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmpLoc
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -71,6 +75,7 @@ REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3), Ch
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
+INTEGER                          :: NodeID(1:8)
 !===================================================================================================================================
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
@@ -87,17 +92,22 @@ alpha1=0.5*(TempPartPos(1)+1.0)
 alpha2=0.5*(TempPartPos(2)+1.0)
 alpha3=0.5*(TempPartPos(3)+1.0)
 
-! Apply charge to nodes (note that the volumes are not accounted for yet here!)
-ASSOCIATE(NodeID => ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
-  NodeSourceExtTmp(NodeID(1)) = NodeSourceExtTmp(NodeID(1))+(Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
-  NodeSourceExtTmp(NodeID(2)) = NodeSourceExtTmp(NodeID(2))+(Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
-  NodeSourceExtTmp(NodeID(3)) = NodeSourceExtTmp(NodeID(3))+(Charge*  (alpha1)*  (alpha2)*(1-alpha3))
-  NodeSourceExtTmp(NodeID(4)) = NodeSourceExtTmp(NodeID(4))+(Charge*(1-alpha1)*  (alpha2)*(1-alpha3))
-  NodeSourceExtTmp(NodeID(5)) = NodeSourceExtTmp(NodeID(5))+(Charge*(1-alpha1)*(1-alpha2)*  (alpha3))
-  NodeSourceExtTmp(NodeID(6)) = NodeSourceExtTmp(NodeID(6))+(Charge*  (alpha1)*(1-alpha2)*  (alpha3))
-  NodeSourceExtTmp(NodeID(7)) = NodeSourceExtTmp(NodeID(7))+(Charge*  (alpha1)*  (alpha2)*  (alpha3))
-  NodeSourceExtTmp(NodeID(8)) = NodeSourceExtTmp(NodeID(8))+(Charge*(1-alpha1)*  (alpha2)*  (alpha3))
+#if USE_MPI
+ASSOCIATE( NodeSourceExtTmp => NodeSourceExtTmpLoc )
+#endif
+  ! Apply charge to nodes (note that the volumes are not accounted for yet here!)
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
+  NodeSourceExtTmp(1,NodeID(1)) = NodeSourceExtTmp(1,NodeID(1)) + (Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
+  NodeSourceExtTmp(1,NodeID(2)) = NodeSourceExtTmp(1,NodeID(2)) + (Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
+  NodeSourceExtTmp(1,NodeID(3)) = NodeSourceExtTmp(1,NodeID(3)) + (Charge*  (alpha1)*  (alpha2)*(1-alpha3))
+  NodeSourceExtTmp(1,NodeID(4)) = NodeSourceExtTmp(1,NodeID(4)) + (Charge*(1-alpha1)*  (alpha2)*(1-alpha3))
+  NodeSourceExtTmp(1,NodeID(5)) = NodeSourceExtTmp(1,NodeID(5)) + (Charge*(1-alpha1)*(1-alpha2)*  (alpha3))
+  NodeSourceExtTmp(1,NodeID(6)) = NodeSourceExtTmp(1,NodeID(6)) + (Charge*  (alpha1)*(1-alpha2)*  (alpha3))
+  NodeSourceExtTmp(1,NodeID(7)) = NodeSourceExtTmp(1,NodeID(7)) + (Charge*  (alpha1)*  (alpha2)*  (alpha3))
+  NodeSourceExtTmp(1,NodeID(8)) = NodeSourceExtTmp(1,NodeID(8)) + (Charge*(1-alpha1)*  (alpha2)*  (alpha3))
+#if USE_MPI
 END ASSOCIATE
+#endif
 
 #if USE_LOADBALANCE
 CALL LBElemPauseTime(GlobalElemID-offsetElem,tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to ElemID

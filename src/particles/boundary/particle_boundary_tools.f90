@@ -541,8 +541,8 @@ END IF ! PartSpecies(iPart)
 
 IF(isChargedParticle(iPart))THEN
   IF(ElemID.GT.nComputeNodeElems)THEN
-    ! Particle is now located in halo element: Create phantom particle, which is sent to new host Processor and removed there (set
-    ! negative SpeciesID in order to remove particle in host Processor)
+    ! Particle is now located in halo element: Create phantom/ghost particle, which is sent to new host Processor and removed there
+    ! (set negative SpeciesID in order to remove particle in host Processor)
     CALL CreateParticle(-PartSpecies(iPart),LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,ElemID,(/0.,0.,0./),0.,0.,0.,NewPartID)
     ! Set inside to F (it is set to T in SendNbOfParticles if species ID is negative)
     PDM%ParticleInside(NewPartID)=.FALSE.

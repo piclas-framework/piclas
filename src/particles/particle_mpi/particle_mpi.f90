@@ -67,10 +67,6 @@ END INTERFACE
 !  MODULE PROCEDURE ExchangeBezierControlPoints3D
 !END INTERFACE
 
-INTERFACE AddHaloNodeData
-  MODULE PROCEDURE AddHaloNodeData
-END INTERFACE
-
 PUBLIC :: InitParticleMPI
 PUBLIC :: InitEmissionComm
 PUBLIC :: InitParticleCommSize
@@ -81,7 +77,6 @@ PUBLIC :: MPIParticleRecv
 PUBLIC :: FinalizeParticleMPI
 !PUBLIC :: InitHaloMesh
 !PUBLIC :: ExchangeBezierControlPoints3D
-PUBLIC :: AddHaloNodeData
 #else
 PUBLIC :: InitParticleMPI
 #endif /*USE_MPI*/
@@ -1030,8 +1025,8 @@ DO iProc=0,nExchangeProcessors-1
     !>> particle element
     PEM%GlobalElemID(PartID)     = INT(PartRecvBuf(iProc)%content(1+jPos),KIND=4)
 
-    ! Consider special particles that are communicated with negative species ID (ghost partilces that are deposited on surface
-    ! with their charge and are then removed)
+    ! Consider special particles that are communicated with negative species ID (phantom/ghost particles that are deposited on a
+    ! surface with their charge and are then removed here after deposition)
     IF(PartSpecies(PartID).LT.0)THEN
       PartSpecies(PartID) = -PartSpecies(PartID) ! make positive species ID again
       CALL DepositParticleOnNodes(PartID,PartState(1:3,PartID),PEM%GlobalElemID(PartID))
@@ -1702,102 +1697,102 @@ IF(    ((xmin.LE.GEO%FIBGMimax).AND.(xmax.GE.GEO%FIBGMimin)) &
 END FUNCTION PointInProc
 
 
-SUBROUTINE AddHaloNodeData(DataInReal)
-!===================================================================================================================================
-!> Add the cell node data of halo nodes to local nodes at same position and send local node data to halo procs
-!> Input Array of proc local nodes (REAL)
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Mesh_Vars         ,ONLY: nNodes
-USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
-USE MOD_Particle_MPI_Vars ,ONLY: NodeSendBuf, NodeRecvBuf, NodeExchange
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-REAL,INTENT(INOUT) :: DataInReal(1:nNodes)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER :: iProc, iPos, iSendNode, iRecvNode
-INTEGER :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINodeNeighbors)
-!===================================================================================================================================
-
-! open receive buffer
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesRecv(iProc).EQ.0) CYCLE
-  CALL MPI_IRECV( NodeRecvBuf(iProc)%content                &
-                , NodeExchange%nNodesRecv(iProc)            &
-                , MPI_DOUBLE_PRECISION                      &
-                , PartMPI%MPINodeNeighbor(iProc)%COMMProcID &
-                , 1415                                      &
-                , PartMPI%COMM                              &
-                , NodeExchange%RecvRequest(iProc)           &
-                , IERROR )
-END DO ! iProc
-
-! build message
-! after this message, the receiving process knows to which of his nodes it receives and the sending process will know which nodes to
-! send
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesSend(iProc).EQ.0) CYCLE
-  iPos=1
-  ! zero send content buffers
-  NodeSendBuf(iProc)%content(:)= 0.
-  ! fill send content buffers
-  DO iSendNode=1,NodeExchange%nNodesSend(iProc)
-    NodeSendBuf(iProc)%content(iPos)=DataInReal(PartMPI%MPINodeNeighbor(iProc)%SendList(iSendNode))
-    iPos=iPos+1
-  END DO ! iSendNode=1,NodeExchange%nNodesSend(iProc)
-END DO
-
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesSend(iProc).EQ.0) CYCLE
-  CALL MPI_ISEND( NodeSendBuf(iProc)%content                &
-                , NodeExchange%nNodesSend(iProc)            &
-                , MPI_DOUBLE_PRECISION                      &
-                , PartMPI%MPINodeNeighbor(iProc)%COMMProcID &
-                , 1415                                      &
-                , PartMPI%COMM                              &
-                , NodeExchange%SendRequest(iProc)           &
-                , IERROR )
-END DO ! iProc
-
-! 4) Finish Received indexing of received nodes
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesSend(iProc).NE.0) THEN
-    CALL MPI_WAIT(NodeExchange%SendRequest(iProc),MPIStatus,IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(&
-__STAMP__&
-          ,' MPI Communication error (Node data)', IERROR)
-  END IF
-  IF(NodeExchange%nNodesRecv(iProc).NE.0) THEN
-    CALL MPI_WAIT(NodeExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(&
-__STAMP__&
-          ,' MPI Communication error (Node data)', IERROR)
-  END IF
-END DO ! iProc
-
-! fill list with received Node-IDs
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesRecv(iProc).EQ.0) CYCLE
-  iPos=1
-  ! fill data-array with data from recv content buffers
-  DO iRecvNode=1,NodeExchange%nNodesRecv(iProc)
-    DataInReal(PartMPI%MPINodeNeighbor(iProc)%RecvList(iRecvNode))=DataInReal(PartMPI%MPINodeNeighbor(iProc)%RecvList(iRecvNode)) &
-        + NodeRecvBuf(iProc)%content(iPos)
-    iPos=iPos+1
-  END DO ! RecvNode=1,NodeExchange%nNodesRecv(iProc)
-  ! zero recv content buffers
-  NodeRecvBuf(iProc)%content(:)= 0.
-END DO ! iProc
-
-END SUBROUTINE AddHaloNodeData
+!SUBROUTINE AddHaloNodeData(DataInReal)
+!!===================================================================================================================================
+!!> Add the cell node data of halo nodes to local nodes at same position and send local node data to halo procs
+!!> Input Array of proc local nodes (REAL)
+!!===================================================================================================================================
+!! MODULES                                                                                                                          !
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!USE MOD_Globals
+!USE MOD_Preproc
+!USE MOD_Mesh_Vars         ,ONLY: nNodes
+!USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
+!USE MOD_Particle_MPI_Vars ,ONLY: NodeSendBuf, NodeRecvBuf, NodeExchange
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! IMPLICIT VARIABLE HANDLING
+!IMPLICIT NONE
+!! INPUT VARIABLES
+!REAL,INTENT(INOUT) :: DataInReal(1:nNodes)
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! OUTPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!INTEGER :: iProc, iPos, iSendNode, iRecvNode
+!INTEGER :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINodeNeighbors)
+!!===================================================================================================================================
+!
+!! open receive buffer
+!DO iProc=1,PartMPI%nMPINodeNeighbors
+!  IF(NodeExchange%nNodesRecv(iProc).EQ.0) CYCLE
+!  CALL MPI_IRECV( NodeRecvBuf(iProc)%content                &
+!                , NodeExchange%nNodesRecv(iProc)            &
+!                , MPI_DOUBLE_PRECISION                      &
+!                , PartMPI%MPINodeNeighbor(iProc)%COMMProcID &
+!                , 1415                                      &
+!                , PartMPI%COMM                              &
+!                , NodeExchange%RecvRequest(iProc)           &
+!                , IERROR )
+!END DO ! iProc
+!
+!! build message
+!! after this message, the receiving process knows to which of his nodes it receives and the sending process will know which nodes to
+!! send
+!DO iProc=1,PartMPI%nMPINodeNeighbors
+!  IF(NodeExchange%nNodesSend(iProc).EQ.0) CYCLE
+!  iPos=1
+!  ! zero send content buffers
+!  NodeSendBuf(iProc)%content(:)= 0.
+!  ! fill send content buffers
+!  DO iSendNode=1,NodeExchange%nNodesSend(iProc)
+!    NodeSendBuf(iProc)%content(iPos)=DataInReal(PartMPI%MPINodeNeighbor(iProc)%SendList(iSendNode))
+!    iPos=iPos+1
+!  END DO ! iSendNode=1,NodeExchange%nNodesSend(iProc)
+!END DO
+!
+!DO iProc=1,PartMPI%nMPINodeNeighbors
+!  IF(NodeExchange%nNodesSend(iProc).EQ.0) CYCLE
+!  CALL MPI_ISEND( NodeSendBuf(iProc)%content                &
+!                , NodeExchange%nNodesSend(iProc)            &
+!                , MPI_DOUBLE_PRECISION                      &
+!                , PartMPI%MPINodeNeighbor(iProc)%COMMProcID &
+!                , 1415                                      &
+!                , PartMPI%COMM                              &
+!                , NodeExchange%SendRequest(iProc)           &
+!                , IERROR )
+!END DO ! iProc
+!
+!! 4) Finish Received indexing of received nodes
+!DO iProc=1,PartMPI%nMPINodeNeighbors
+!  IF(NodeExchange%nNodesSend(iProc).NE.0) THEN
+!    CALL MPI_WAIT(NodeExchange%SendRequest(iProc),MPIStatus,IERROR)
+!    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(&
+!__STAMP__&
+!          ,' MPI Communication error (Node data)', IERROR)
+!  END IF
+!  IF(NodeExchange%nNodesRecv(iProc).NE.0) THEN
+!    CALL MPI_WAIT(NodeExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
+!    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(&
+!__STAMP__&
+!          ,' MPI Communication error (Node data)', IERROR)
+!  END IF
+!END DO ! iProc
+!
+!! fill list with received Node-IDs
+!DO iProc=1,PartMPI%nMPINodeNeighbors
+!  IF(NodeExchange%nNodesRecv(iProc).EQ.0) CYCLE
+!  iPos=1
+!  ! fill data-array with data from recv content buffers
+!  DO iRecvNode=1,NodeExchange%nNodesRecv(iProc)
+!    DataInReal(PartMPI%MPINodeNeighbor(iProc)%RecvList(iRecvNode))=DataInReal(PartMPI%MPINodeNeighbor(iProc)%RecvList(iRecvNode)) &
+!        + NodeRecvBuf(iProc)%content(iPos)
+!    iPos=iPos+1
+!  END DO ! RecvNode=1,NodeExchange%nNodesRecv(iProc)
+!  ! zero recv content buffers
+!  NodeRecvBuf(iProc)%content(:)= 0.
+!END DO ! iProc
+!
+!END SUBROUTINE AddHaloNodeData
 
 
 !SUBROUTINE ExchangeBezierControlPoints3D()

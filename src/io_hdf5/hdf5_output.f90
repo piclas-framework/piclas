@@ -2380,7 +2380,6 @@ SUBROUTINE WriteClonesToHDF5(FileName)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars     ,ONLY: offsetElem
 USE MOD_DSMC_Vars     ,ONLY: UseDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
 USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, ClonedParticles
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies, usevMPF
@@ -3363,14 +3362,17 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars    ,ONLY: NodeSourceExtGlobal
 USE MOD_Mesh_Vars          ,ONLY: MeshFile,nGlobalElems,offsetElem,Vdm_EQ_N
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Globals_Vars       ,ONLY: ProjectName
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,NodeVolume,NodeSourceExtTmp
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: nUniqueGlobalNodes
 #if USE_MPI
-USE MOD_Particle_MPI       ,ONLY: AddHaloNodeData
-#endif /*USE_MPI*/
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmpLoc, NodeMapping, NodeSourceExtTmp_Shared_Win,NodeSourceExt_Shared_Win
+USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myLeaderGroupRank
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors, nLeaderGroupProcs
+#endif  /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3380,11 +3382,18 @@ REAL,INTENT(IN)     :: OutputTime
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER,PARAMETER   :: N_variables=1
-CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
-CHARACTER(LEN=255)  :: FileName,DataSetName
-INTEGER             :: iElem,i,iMax
-REAL                :: NodeSourceExtEqui(1:N_variables,0:1,0:1,0:1)
+INTEGER,PARAMETER              :: N_variables=1
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+CHARACTER(LEN=255)             :: FileName,DataSetName
+INTEGER                        :: iElem,i,iMax
+REAL                           :: NodeSourceExtEqui(1:N_variables,0:1,0:1,0:1)
+INTEGER                        :: NodeID(1:8),CNElemID
+#if USE_MPI
+INTEGER                        :: iProc
+INTEGER                        :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
+INTEGER                        :: MessageSize
+#endif /*USE_MPI*/
+INTEGER                        :: firstNode, lastNode, iNode
 !===================================================================================================================================
 ! create global Eps field for parallel output of Eps distribution
 ALLOCATE(NodeSourceExtGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
@@ -3392,30 +3401,117 @@ ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='NodeSourceExt'
 NodeSourceExtGlobal=0.
 
+
+
+
 ! Communicate the NodeSourceExtTmp values of the last boundary interaction before the state is written to .h5
 #if USE_MPI
-CALL AddHaloNodeData(NodeSourceExtTmp)
-#endif /*USE_MPI*/
+MessageSize = nUniqueGlobalNodes
+CALL MPI_REDUCE(NodeSourceExtTmpLoc(1:1,:) ,NodeSourceExtTmp(1:1,:), &
+        MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+CALL MPI_WIN_SYNC(NodeSourceExtTmp_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
+  DO iProc = 0, nLeaderGroupProcs - 1
+    IF (iProc.EQ.myLeaderGroupRank) CYCLE
+    IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
+      CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSource(1:1,:)        &
+                , NodeMapping(iProc)%nRecvUniqueNodes           &
+                , MPI_DOUBLE_PRECISION                                        &
+                , iProc                                                       &
+                , 666                                                         &
+                , MPI_COMM_LEADERS_SHARED                                       &
+                , RecvRequest(iProc)                                          &
+                , IERROR)
+    END IF
+    IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
+      DO iNode = 1, NodeMapping(iProc)%nSendUniqueNodes
+        NodeMapping(iProc)%SendNodeSource(1:1,iNode) = &
+              NodeSourceExtTmp(1:1,NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
+      END DO
+      CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSource(1:1,:)            &
+                    , NodeMapping(iProc)%nSendUniqueNodes           &
+                    , MPI_DOUBLE_PRECISION                                        &
+                    , iProc                                                       &
+                    , 666                                                         &
+                    , MPI_COMM_LEADERS_SHARED                                     &
+                    , SendRequest(iProc)                                          &
+                    , IERROR)
+    END IF
+  END DO
 
-! Add NodeSourceExtTmp values of the last boundary interaction
-NodeSourceExt    = NodeSourceExt + NodeSourceExtTmp
-NodeSourceExtTmp = 0.
+  DO iProc = 0,nLeaderGroupProcs-1
+    IF (iProc.EQ.myLeaderGroupRank) CYCLE
+    IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
+      CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+      IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    END IF
+    IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
+      CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+      IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    END IF
+  END DO
+
+  DO iProc = 0, nLeaderGroupProcs - 1
+    IF (iProc.EQ.myLeaderGroupRank) CYCLE
+    IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
+      DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
+        NodeSourceExtTmp(1:1,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)) = &
+          NodeSourceExtTmp(1:1,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)) + &
+          NodeMapping(iProc)%RecvNodeSource(1:1,iNode)
+      END DO
+    END IF
+  END DO
+END IF
+CALL MPI_WIN_SYNC(NodeSourceExtTmp_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
+lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
+#else
+firstNode = 1
+lastNode = nUniqueGlobalNodes
+#endif
+
+
+
+
+
+#if USE_MPI
+ASSOCIATE( NodeSourceExtTmp => NodeSourceExtTmpLoc )
+#endif
+  ! Add NodeSourceExtTmp values of the last boundary interaction
+  DO iNode=firstNode, lastNode
+    NodeSourceExt(   1,iNode) = NodeSourceExt(1,iNode) + NodeSourceExtTmp(1,iNode)
+    NodeSourceExtTmp(1,iNode) = 0.
+  END DO
+#if USE_MPI
+END ASSOCIATE
+CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif
+
+
+
+
+
+
+
 
 ! Loop over all elements and store charge density values in equidistantly distributed nodes of PP_N=1
 DO iElem=1,PP_nElems
-  ASSOCIATE( NodeID => GEO%ElemToNodeID(:,iElem) )
-    ! Copy values to equidistant distribution
-    NodeSourceExtEqui(1,0,0,0) = NodeSourceExt(NodeID(1))/NodeVolume(NodeInfo_Shared(NodeID(1)))
-    NodeSourceExtEqui(1,1,0,0) = NodeSourceExt(NodeID(2))/NodeVolume(NodeInfo_Shared(NodeID(2)))
-    NodeSourceExtEqui(1,1,1,0) = NodeSourceExt(NodeID(3))/NodeVolume(NodeInfo_Shared(NodeID(3)))
-    NodeSourceExtEqui(1,0,1,0) = NodeSourceExt(NodeID(4))/NodeVolume(NodeInfo_Shared(NodeID(4)))
-    NodeSourceExtEqui(1,0,0,1) = NodeSourceExt(NodeID(5))/NodeVolume(NodeInfo_Shared(NodeID(5)))
-    NodeSourceExtEqui(1,1,0,1) = NodeSourceExt(NodeID(6))/NodeVolume(NodeInfo_Shared(NodeID(6)))
-    NodeSourceExtEqui(1,1,1,1) = NodeSourceExt(NodeID(7))/NodeVolume(NodeInfo_Shared(NodeID(7)))
-    NodeSourceExtEqui(1,0,1,1) = NodeSourceExt(NodeID(8))/NodeVolume(NodeInfo_Shared(NodeID(8)))
-    ! Map equidistant distribution to G/GL (current node type)
-    CALL ChangeBasis3D(1, 1, PP_N, Vdm_EQ_N, NodeSourceExtEqui(:,:,:,:),NodeSourceExtGlobal(:,:,:,:,iElem))
-  END ASSOCIATE
+  ! Copy values to equidistant distribution
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+  NodeSourceExtEqui(1,0,0,0) = NodeSourceExt(1,NodeID(1))/NodeVolume(NodeID(1))
+  NodeSourceExtEqui(1,1,0,0) = NodeSourceExt(1,NodeID(2))/NodeVolume(NodeID(2))
+  NodeSourceExtEqui(1,1,1,0) = NodeSourceExt(1,NodeID(3))/NodeVolume(NodeID(3))
+  NodeSourceExtEqui(1,0,1,0) = NodeSourceExt(1,NodeID(4))/NodeVolume(NodeID(4))
+  NodeSourceExtEqui(1,0,0,1) = NodeSourceExt(1,NodeID(5))/NodeVolume(NodeID(5))
+  NodeSourceExtEqui(1,1,0,1) = NodeSourceExt(1,NodeID(6))/NodeVolume(NodeID(6))
+  NodeSourceExtEqui(1,1,1,1) = NodeSourceExt(1,NodeID(7))/NodeVolume(NodeID(7))
+  NodeSourceExtEqui(1,0,1,1) = NodeSourceExt(1,NodeID(8))/NodeVolume(NodeID(8))
+
+  ! Map equidistant distribution to G/GL (current node type)
+  CALL ChangeBasis3D(1, 1, PP_N, Vdm_EQ_N, NodeSourceExtEqui(:,:,:,:),NodeSourceExtGlobal(:,:,:,:,iElem))
 END DO!iElem
 
 ! Write data twice to .h5 file
