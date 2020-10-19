@@ -193,7 +193,7 @@ RETURN
 END SUBROUTINE CalcXiVib
 
 
-SUBROUTINE CalcXiTotalEqui(iReac, iPair, Xi_rel, Weight1, Weight2, WeightProd, XiVibPart, XiElecPart)
+SUBROUTINE CalcXiTotalEqui(iReac, iPair, nProd, Xi_Total, Weight, XiVibPart, XiElecPart)
 !===================================================================================================================================
 ! Calculation of the vibrational degrees of freedom for each characteristic vibrational temperature, used for chemical reactions
 !===================================================================================================================================
@@ -205,31 +205,20 @@ USE MOD_DSMC_ElectronicModel      ,ONLY: CalcXiElec
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)             :: iReac, iPair      ! Reaction Number, Grow a pair number
-REAL, INTENT(IN)                :: Xi_rel, Weight1, Weight2, WeightProd
+INTEGER, INTENT(IN)             :: iReac, iPair, nProd
+REAL, INTENT(IN)                :: Xi_Total, Weight(1:4)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT), OPTIONAL     :: XiVibPart(:,:), XiElecPart(1:3)
+REAL, INTENT(OUT), OPTIONAL     :: XiVibPart(:,:), XiElecPart(1:4)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                         :: nProd, iProd, iSpec, ProductReac(1:3)
-REAL                            :: ETotal, EZeroPoint, EGuess, Xi_Total, LowerTemp, UpperTemp, MiddleTemp, Xi_TotalTemp, XiVibTotal
-REAL                            :: Weight(1:3)
+INTEGER                         :: iProd, iSpec, ProductReac(1:4)
+REAL                            :: ETotal, EZeroPoint, EGuess, LowerTemp, UpperTemp, MiddleTemp, Xi_TotalTemp, XiVibTotal
 REAL,PARAMETER                  :: eps_prec=1E-3
 !===================================================================================================================================
 
-ProductReac(1:3) = ChemReac%Products(iReac,1:3)
-
-IF(ProductReac(3).EQ.0) THEN
-  Xi_Total = Xi_rel + SpecDSMC(ProductReac(1))%Xi_Rot + SpecDSMC(ProductReac(2))%Xi_Rot
-  nProd = 2
-ELSE
-  Xi_Total = Xi_rel + SpecDSMC(ProductReac(1))%Xi_Rot + SpecDSMC(ProductReac(2))%Xi_Rot + SpecDSMC(ProductReac(3))%Xi_Rot
-  nProd = 3
-END IF
-
-Weight(1) = Weight1; Weight(2) = Weight2; Weight(3) = WeightProd
+ProductReac(1:4) = ChemReac%Products(iReac,1:4)
 
 ! Weighted total collision energy
 ETotal = Coll_pData(iPair)%Ec

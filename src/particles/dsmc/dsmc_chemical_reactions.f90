@@ -365,16 +365,16 @@ INTEGER, INTENT(IN)           :: iPair, iReac
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: ReactInx(1:3), ProductReac(1:3), EductReac(1:3), nProd, nDOFMAX, iProd, iPolyatMole, iSpec
+INTEGER                       :: ReactInx(1:4), EductReac(1:3), ProductReac(1:4), nProd, nDOFMAX, iProd, iPolyatMole, iSpec
 INTEGER                       :: SpecToDelete, iPart
-REAL                          :: FracMassCent1, FracMassCent2, MassRed     ! mx/(mx+my)
-REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
-REAL                          :: FakXi, Xi_rel, iRan, FacEtraDistri
+REAL                          :: FracMassCent1, FracMassCent2, MassRed      ! mx/(mx+my)
+REAL                          :: VeloCOM(1:3)                               !> Centre of mass velocity
+REAL                          :: VeloPseuMolec(1:3), VeloPseuMolec2(1:3)    !> Velocity of pseudo molecule
+REAL                          :: FakXi, Xi_total, iRan, FacEtraDistri
 REAL                          :: ERel_React1_React2, ERel_React1_React3
-REAL                          :: Xi_elec(1:3), Telec(1:3), EZeroTempToExec(1:3)
-REAL, ALLOCATABLE             :: Xi_Vib1(:), Xi_Vib2(:), Xi_Vib3(:), XiVibPart(:,:)
-REAL                          :: VxPseuMolec, VyPseuMolec, VzPseuMolec
-REAL                          :: Weight1, Weight2, Weight3, WeightProd, NumWeightEduct, NumWeightProd, ReducedMass
+REAL                          :: Xi_elec(1:4), EZeroTempToExec(1:4)
+REAL, ALLOCATABLE             :: XiVibPart(:,:)
+REAL                          :: Weight(1:4), NumWeightEduct, NumWeightProd, SumWeightProd
 REAL                          :: cRelaNew(3) ! relative velocity
 #ifdef CODE_ANALYZE
 REAL,PARAMETER                :: RelMomTol=2e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
@@ -385,7 +385,7 @@ INTEGER                       :: iMom, iMomDim
 !===================================================================================================================================
 
 EductReac(1:3) = ChemReac%Reactants(iReac,1:3)
-ProductReac(1:3) = ChemReac%Products(iReac,1:3)
+ProductReac(1:4) = ChemReac%Products(iReac,1:4)
 
 IF(EductReac(3).NE.0) THEN
   IF(ChemReac%RecombParticle.NE.0) THEN
@@ -422,12 +422,10 @@ END IF
 #endif
 
 Xi_elec = 0.
-Telec = 0.
 EZeroTempToExec = 0.
 
-Weight1=0.; Weight2=0.; Weight3=0.; WeightProd = 0.
-NumWeightEduct = 2.
-NumWeightProd = 2.
+Weight = 0.
+NumWeightEduct = 2.; NumWeightProd = 2.; SumWeightProd = 0.
 
 !..Get the index of react1 and the react2
 IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%Reactants(iReac,1)) THEN
@@ -448,10 +446,14 @@ IF(EductReac(3).NE.0) THEN
     CALL RemoveParticle(ReactInx(3))
   ELSE
     PartSpecies(ReactInx(3)) = ProductReac(3)
-    WeightProd = GetParticleWeight(ReactInx(3))
     NumWeightProd = 3.
   END IF
 END IF
+
+! Set the particle weights of the reactants
+DO iPart = 1, NINT(NumWeightEduct)
+  Weight(iPart) = GetParticleWeight(ReactInx(iPart))
+END DO
 
 IF(CalcPartBalance) THEN
   IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') THEN
@@ -463,135 +465,174 @@ IF(CalcPartBalance) THEN
   END IF
 END IF
 
-Weight1 = GetParticleWeight(ReactInx(1))
-Weight2 = GetParticleWeight(ReactInx(2))
-IF(EductReac(3).NE.0) Weight3 = GetParticleWeight(ReactInx(3))
-
 IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-  ReducedMass = Species(EductReac(1))%MassIC*Weight1 * Species(EductReac(2))%MassIC*Weight2 &
-              / (Species(EductReac(1))%MassIC*Weight1 + Species(EductReac(2))%MassIC*Weight2)
-ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
-  ReducedMass = 0.
+  MassRed = Species(EductReac(1))%MassIC*Weight(1) * Species(EductReac(2))%MassIC*Weight(2) &
+              / (Species(EductReac(1))%MassIC*Weight(1) + Species(EductReac(2))%MassIC*Weight(2))
 ELSE
-  ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
+  MassRed = CollInf%MassRed(Coll_pData(iPair)%PairType)
 END IF
+
+IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+  MassRed = 0.
+END IF
+
+! Calculate the sum of the weights of the products (at least 2 products in any reaction)
+SumWeightProd = Weight(1) + Weight(2)
 
 IF(EductReac(3).EQ.0) THEN
   IF(ProductReac(3).NE.0) THEN
-    !.... Get free particle index for the 3rd particle produced
+    ! === Get free particle index for the 3rd product
     DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
     ReactInx(3) = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
     IF (ReactInx(3).EQ.0) THEN
       CALL abort(__STAMP__,&
       'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
     END IF
-    !Set new Species of new particle
     PDM%ParticleInside(ReactInx(3)) = .true.
     PDM%IsNewPart(ReactInx(3)) = .true.
     PDM%dtFracPush(ReactInx(3)) = .FALSE.
+    ! Set species index of new particle
     PartSpecies(ReactInx(3)) = ProductReac(3)
     PartState(1:3,ReactInx(3)) = PartState(1:3,ReactInx(1))
-    IF(DoRefMapping)THEN ! here Nearst-GP is missing
+    IF(DoRefMapping) THEN
       PartPosRef(1:3,ReactInx(3))=PartPosRef(1:3,ReactInx(1))
     END IF
-    PartStateIntEn( 1,ReactInx(3)) = 0.
-    PartStateIntEn( 2,ReactInx(3)) = 0.
-    IF ( DSMC%ElectronicModel )  PartStateIntEn( 3,ReactInx(3)) = 0.
+    PartStateIntEn(1,ReactInx(3)) = 0.
+    PartStateIntEn(2,ReactInx(3)) = 0.
+    IF(DSMC%ElectronicModel) PartStateIntEn(3,ReactInx(3)) = 0.
     PEM%GlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(1))
     PEM%LastGlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(3))
     IF(RadialWeighting%DoRadialWeighting) PartMPF(ReactInx(3)) = PartMPF(ReactInx(1))
     IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(ReactInx(3)) = VarTimeStep%ParticleTimeStep(ReactInx(1))
-    WeightProd = Weight1
+    Weight(3) = Weight(1)
     NumWeightProd = 3.
+    SumWeightProd = SumWeightProd + Weight(3)
   END IF
+END IF
+
+IF(ProductReac(4).NE.0) THEN
+  ! === Get free particle index for the 4th product
+  DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
+  ReactInx(4) = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
+  IF (ReactInx(4).EQ.0) THEN
+    CALL abort(__STAMP__,&
+    'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
+  END IF
+  PDM%ParticleInside(ReactInx(4)) = .true.
+  PDM%IsNewPart(ReactInx(4)) = .true.
+  PDM%dtFracPush(ReactInx(4)) = .FALSE.
+  ! Set species index of new particle
+  PartSpecies(ReactInx(4)) = ProductReac(4)
+  PartState(1:3,ReactInx(4)) = PartState(1:3,ReactInx(1))
+  IF(DoRefMapping) THEN ! here Nearst-GP is missing
+    PartPosRef(1:3,ReactInx(4))=PartPosRef(1:3,ReactInx(1))
+  END IF
+  PartStateIntEn(1,ReactInx(4)) = 0.
+  PartStateIntEn(2,ReactInx(4)) = 0.
+  IF(DSMC%ElectronicModel) PartStateIntEn(3,ReactInx(4)) = 0.
+  PEM%GlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(1))
+  PEM%LastGlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(4))
+  IF(RadialWeighting%DoRadialWeighting) PartMPF(ReactInx(4)) = PartMPF(ReactInx(1))
+  IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(ReactInx(4)) = VarTimeStep%ParticleTimeStep(ReactInx(1))
+  Weight(4) = Weight(1)
+  NumWeightProd = 4.
+  SumWeightProd = SumWeightProd + Weight(4)
 END IF
 
 #ifdef CODE_ANALYZE
 ! Energy conservation
-Energy_old=0.5*Species(PartSpecies(ReactInx(1)))%MassIC*DOTPRODUCT(PartState(4:6,ReactInx(1))) * Weight1 &
-          +0.5*Species(PartSpecies(ReactInx(2)))%MassIC*DOTPRODUCT(PartState(4:6,ReactInx(2))) * Weight2 &
-          + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight1 &
-          + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight2 &
-          + ChemReac%EForm(iReac)/NumWeightProd*(Weight1+Weight2+WeightProd)
-IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(3,ReactInx(1))*Weight1 + PartStateIntEn(3,ReactInx(2)) * Weight2
+Energy_old=0.5*Species(PartSpecies(ReactInx(1)))%MassIC*DOTPRODUCT(PartState(4:6,ReactInx(1))) * Weight(1) &
+          +0.5*Species(PartSpecies(ReactInx(2)))%MassIC*DOTPRODUCT(PartState(4:6,ReactInx(2))) * Weight(2) &
+          + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight(1) &
+          + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2) &
+          + ChemReac%EForm(iReac)*SumWeightProd/NumWeightProd
+IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(3,ReactInx(1))*Weight(1) + PartStateIntEn(3,ReactInx(2)) * Weight(2)
 IF (EductReac(3).NE.0) THEN
   Energy_old=Energy_old+(0.5*Species(PartSpecies(ReactInx(3)))%MassIC*DOTPRODUCT(PartState(4:6,ReactInx(3)))&
-      + PartStateIntEn(1,ReactInx(3))+PartStateIntEn(2,ReactInx(3))) * Weight3
-  IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(3,ReactInx(3)) * Weight3
+      + PartStateIntEn(1,ReactInx(3))+PartStateIntEn(2,ReactInx(3))) * Weight(3)
+  IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(3,ReactInx(3)) * Weight(3)
 END IF
 ! Momentum conservation
-Momentum_old(1:3) = Species(PartSpecies(ReactInx(1)))%MassIC * PartState(4:6,ReactInx(1)) * Weight1 &
-                  + Species(PartSpecies(ReactInx(2)))%MassIC * PartState(4:6,ReactInx(2)) * Weight2
+Momentum_old(1:3) = Species(PartSpecies(ReactInx(1)))%MassIC * PartState(4:6,ReactInx(1)) * Weight(1) &
+                  + Species(PartSpecies(ReactInx(2)))%MassIC * PartState(4:6,ReactInx(2)) * Weight(2)
 IF (EductReac(3).NE.0) Momentum_old(1:3) = Momentum_old(1:3) + Species(PartSpecies(ReactInx(3)))%MassIC &
-                                                                * PartState(4:6,ReactInx(3)) * Weight3
+                                                                * PartState(4:6,ReactInx(3)) * Weight(3)
 #endif /* CODE_ANALYZE */
 
 ! Add heat of formation to collision energy
-Coll_pData(iPair)%Ec = 0.5 * ReducedMass *Coll_pData(iPair)%CRela2 &
-        + ChemReac%EForm(iReac)/NumWeightProd*(Weight1+Weight2+WeightProd)
+Coll_pData(iPair)%Ec = 0.5 * MassRed *Coll_pData(iPair)%CRela2 &
+        + ChemReac%EForm(iReac)*SumWeightProd/NumWeightProd
 
 IF(RadialWeighting%DoRadialWeighting) THEN
   ! Weighting factor already included in the weights
-  ChemEnergySum = ChemEnergySum + ChemReac%EForm(iReac)/NumWeightProd*(Weight1+Weight2+WeightProd)
+  ChemEnergySum = ChemEnergySum + ChemReac%EForm(iReac)*SumWeightProd/NumWeightProd
 ELSE
   ChemEnergySum = ChemEnergySum + ChemReac%EForm(iReac)*Species(EductReac(1))%MacroParticleFactor &
-                                  /NumWeightProd*(Weight1+Weight2+WeightProd)
+                                  *SumWeightProd/NumWeightProd
+END IF
+
+!-------------------------------------------------------------------------------------------------------------------------------
+! Relative translational degrees of freedom
+!-------------------------------------------------------------------------------------------------------------------------------
+IF(ProductReac(4).NE.0) THEN
+  ! 4 Products
+  Xi_total = 6.*(2. - CollInf%omega(ProductReac(1),ProductReac(2)))
+  nProd = 4
+ELSE IF(ProductReac(3).NE.0) THEN
+  ! 3 Products
+  Xi_total = 4.*(2. - CollInf%omega(ProductReac(1),ProductReac(2)))
+  nProd = 3
+ELSE
+  ! 2 Products
+  Xi_total = 2.*(2. - CollInf%omega(ProductReac(1),ProductReac(2)))
+  nProd = 2
 END IF
 !-------------------------------------------------------------------------------------------------------------------------------
 ! Rotational degrees of freedom
 !-------------------------------------------------------------------------------------------------------------------------------
-IF(ProductReac(3).EQ.0) THEN
-  Xi_rel = 2.*(2. - CollInf%omega(ProductReac(1),ProductReac(2)))
-  FakXi = 0.5*(Xi_rel + SpecDSMC(ProductReac(1))%Xi_Rot &
-        + SpecDSMC(ProductReac(2))%Xi_Rot) - 1.0
-  nProd = 2
-ELSE
-  Xi_rel = 4.*(2. - CollInf%omega(ProductReac(1),ProductReac(2)))
-  FakXi = 0.5*(Xi_rel + SpecDSMC(ProductReac(1))%Xi_Rot &
-        + SpecDSMC(ProductReac(2))%Xi_Rot + SpecDSMC(ProductReac(3))%Xi_Rot) - 1.0
-  nProd = 3
-END IF
-
+DO iProd = 1, nProd
+  Xi_total = Xi_total + SpecDSMC(ProductReac(iProd))%Xi_Rot
+END DO
+FakXi = 0.5*Xi_total - 1.0
+!-------------------------------------------------------------------------------------------------------------------------------
 ! Adding the vibrational and rotational energy to the collision energy
-Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (PartStateIntEn(2,ReactInx(1)) + PartStateIntEn(1,ReactInx(1)))*Weight1 &
-                      + (PartStateIntEn(2,ReactInx(2)) + PartStateIntEn(1,ReactInx(2)))*Weight2
+!-------------------------------------------------------------------------------------------------------------------------------
+Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (PartStateIntEn(2,ReactInx(1)) + PartStateIntEn(1,ReactInx(1)))*Weight(1) &
+                      + (PartStateIntEn(2,ReactInx(2)) + PartStateIntEn(1,ReactInx(2)))*Weight(2)
+!-------------------------------------------------------------------------------------------------------------------------------
 ! Addition of the electronic energy to the collision energy)
+!-------------------------------------------------------------------------------------------------------------------------------
 IF (DSMC%ElectronicModel) THEN
-  Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,ReactInx(1))*Weight1 + PartStateIntEn(3,ReactInx(2))*Weight2
+  Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,ReactInx(1))*Weight(1) + PartStateIntEn(3,ReactInx(2))*Weight(2)
 END IF
 
 IF(EductReac(3).NE.0) THEN
   ! If a third collision partner exists (recombination/exchange reactions with defined third educt, A + B+ C), calculation of
   ! the centre of mass of a pseudo-molecule consisting of the first two educts -> (AB) + C
   IF (RadialWeighting%DoRadialWeighting) THEN
-    FracMassCent1 = Species(EductReac(1))%MassIC *Weight1 &
-        /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
-    FracMassCent2 = Species(EductReac(2))%MassIC *Weight2 &
-        /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
+    FracMassCent1 = Species(EductReac(1))%MassIC *Weight(1) &
+        /(Species(EductReac(1))%MassIC* Weight(1) + Species(EductReac(2))%MassIC * Weight(2))
+    FracMassCent2 = Species(EductReac(2))%MassIC *Weight(2) &
+        /(Species(EductReac(1))%MassIC* Weight(1) + Species(EductReac(2))%MassIC * Weight(2))
   ELSE
     FracMassCent1 = CollInf%FracMassCent(EductReac(1), Coll_pData(iPair)%PairType)
     FracMassCent2 = CollInf%FracMassCent(EductReac(2), Coll_pData(iPair)%PairType)
   END IF
 
-  VeloMx = FracMassCent1 * PartState(4,ReactInx(1)) &
-          + FracMassCent2 * PartState(4,ReactInx(2))
-  VeloMy = FracMassCent1 * PartState(5,ReactInx(1)) &
-          + FracMassCent2 * PartState(5,ReactInx(2))
-  VeloMz = FracMassCent1 * PartState(6,ReactInx(1)) &
-          + FracMassCent2 * PartState(6,ReactInx(2))
+  ! Centre of mass velocity between the first two products
+  VeloCOM(1:3) = FracMassCent1 * PartState(4:6,ReactInx(1)) + FracMassCent2 * PartState(4:6,ReactInx(2))
 
   ! Overwriting the PartState of the first particle with the new PartState of the pseudo-molecule (AB)
-  PartState(4,ReactInx(1)) = VeloMx
-  PartState(5,ReactInx(1)) = VeloMy
-  PartState(6,ReactInx(1)) = VeloMz
+  PartState(4:6,ReactInx(1)) = VeloCOM(1:3)
 
   ! Calculation of the reduced mass of the pseudo-molecule and third collision partner
-  CALL CalcPseudoScatterVars(EductReac(1),EductReac(2),EductReac(3),FracMassCent1,FracMassCent2,MassRed, &
-        (/Weight1,Weight2,Weight3/))
+  CALL CalcPseudoScatterVars(EductReac(1),EductReac(2),EductReac(3),FracMassCent1,FracMassCent2,MassRed,Weight(1:3))
   ! Addition of the relative translation energy between (AB) and C, rotational and vibrational energy of the third
-  Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (PartStateIntEn(1,ReactInx(3)) + PartStateIntEn(2,ReactInx(3))) * Weight3 &
-    + 0.5 * MassRed * ((VeloMx-PartState(4,ReactInx(3)))**2+(VeloMy-PartState(5,ReactInx(3)))**2+(VeloMz-PartState(6,ReactInx(3)))**2)
-  IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,ReactInx(3))*Weight3
+  Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (PartStateIntEn(1,ReactInx(3)) + PartStateIntEn(2,ReactInx(3))) * Weight(3) &
+                                              + 0.5 * MassRed * ((VeloCOM(1)-PartState(4,ReactInx(3)))**2 &
+                                                               + (VeloCOM(2)-PartState(5,ReactInx(3)))**2 &
+                                                               + (VeloCOM(3)-PartState(6,ReactInx(3)))**2)
+  IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,ReactInx(3))*Weight(3)
 END IF
 
 !-------------------------------------------------------------------------------------------------------------------------------
@@ -609,67 +650,40 @@ DO iProd = 1, nProd
     END IF
   END IF
 END DO
-
+!-------------------------------------------------------------------------------------------------------------------------------
 ! Root-finding algorithm to determine the vibrational and electronic degrees of freedom
 IF((nDOFMAX.GT.0).AND.(DSMC%ElectronicModel)) THEN
+  ! Electronic and vibrational energy is considered
   ALLOCATE(XiVibPart(nProd,nDOFMAX))
   XiVibPart = 0.
-  CALL CalcXiTotalEqui(iReac,iPair,Xi_rel,Weight1,Weight2,WeightProd,XiVibPart=XiVibPart,XiElecPart=Xi_elec)
+  CALL CalcXiTotalEqui(iReac,iPair,nProd,Xi_total,Weight,XiVibPart=XiVibPart,XiElecPart=Xi_elec)
 ELSEIF(DSMC%ElectronicModel) THEN
-  CALL CalcXiTotalEqui(iReac,iPair,Xi_rel,Weight1,Weight2,WeightProd,XiElecPart=Xi_elec)
+  ! Only electronic energy is considered
+  CALL CalcXiTotalEqui(iReac,iPair,nProd,Xi_total,Weight,XiElecPart=Xi_elec)
 ELSEIF(nDOFMAX.GT.0) THEN
+  ! Only vibrational energy is considered
   ALLOCATE(XiVibPart(nProd,nDOFMAX))
   XiVibPart = 0.
-  CALL CalcXiTotalEqui(iReac,iPair,Xi_rel,Weight1,Weight2,WeightProd,XiVibPart=XiVibPart)
+  CALL CalcXiTotalEqui(iReac,iPair,nProd,Xi_total,Weight,XiVibPart=XiVibPart)
 END IF
-
+!-------------------------------------------------------------------------------------------------------------------------------
+! Addition of the vibrational to the Xi_total factor (FakXi)
 IF(nDOFMAX.GT.0) THEN
-  IF((SpecDSMC(ProductReac(1))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(1))%InterID.EQ.20)) THEN
-    IF(SpecDSMC(ProductReac(1))%PolyatomicMol) THEN
-      iPolyatMole = SpecDSMC(ProductReac(1))%SpecToPolyArray
-      ALLOCATE(Xi_vib1(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-      Xi_vib1(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)=XiVibPart(1,1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
-    ELSE
-      ALLOCATE(Xi_vib1(1))
-      Xi_vib1(1) = XiVibPart(1,1)
+  DO iProd = 1, nProd
+    IF((SpecDSMC(ProductReac(iProd))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(iProd))%InterID.EQ.20)) THEN
+      FakXi = FakXi + 0.5*SUM(XiVibPart(iProd,:))
+      EZeroTempToExec(iProd) = SpecDSMC(ProductReac(iProd))%EZeroPoint*Weight(iProd)
     END IF
-    FakXi = FakXi + 0.5*SUM(Xi_vib1)
-    EZeroTempToExec(1) = SpecDSMC(ProductReac(1))%EZeroPoint*Weight1
-  END IF
-  IF((SpecDSMC(ProductReac(2))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(2))%InterID.EQ.20)) THEN
-    IF(SpecDSMC(ProductReac(2))%PolyatomicMol) THEN
-      iPolyatMole = SpecDSMC(ProductReac(2))%SpecToPolyArray
-      ALLOCATE(Xi_vib2(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-      Xi_vib2(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)=XiVibPart(2,1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
-    ELSE
-      ALLOCATE(Xi_vib2(1))
-      Xi_vib2(1) = XiVibPart(2,1)
-    END IF
-    FakXi = FakXi + 0.5*SUM(Xi_vib2)
-    EZeroTempToExec(2) = SpecDSMC(ProductReac(2))%EZeroPoint*Weight2
-  END IF
-  IF(ProductReac(3).NE.0) THEN
-    IF((SpecDSMC(ProductReac(3))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(3))%InterID.EQ.20)) THEN
-      IF(SpecDSMC(ProductReac(3))%PolyatomicMol) THEN
-        iPolyatMole = SpecDSMC(ProductReac(3))%SpecToPolyArray
-        ALLOCATE(Xi_vib3(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-        Xi_vib3(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)= XiVibPart(3,1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
-      ELSE
-        ALLOCATE(Xi_vib3(1))
-        Xi_vib3(1) = XiVibPart(3,1)
-      END IF
-      FakXi = FakXi + 0.5*SUM(Xi_vib3)
-      EZeroTempToExec(3) = SpecDSMC(ProductReac(3))%EZeroPoint*WeightProd
-    END IF
-  END IF
+  END DO
 END IF
-
+!-------------------------------------------------------------------------------------------------------------------------------
 ! Substracting the zero-point energy of the products (is added back later)
 Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - SUM(EZeroTempToExec(:))
-! Set new Species of molec and atom
-PartSpecies(ReactInx(1)) = ProductReac(1)
-PartSpecies(ReactInx(2)) = ProductReac(2)
-
+!-------------------------------------------------------------------------------------------------------------------------------
+! Set the new species of the products
+DO iProd = 1, nProd
+  PartSpecies(ReactInx(iProd)) = ProductReac(iProd)
+END DO
 !--------------------------------------------------------------------------------------------------
 ! Electronic energy exchange
 !--------------------------------------------------------------------------------------------------
@@ -680,7 +694,7 @@ IF (DSMC%ElectronicModel) THEN
       PartStateIntEn(3,ReactInx(3)) = 0.0
     ELSE
       CALL ElectronicEnergyExchange(iPair,ReactInx(3),FakXi)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(3))*WeightProd
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(3))*Weight(3)
     END IF
   END IF
   FakXi = FakXi - 0.5*Xi_elec(2)
@@ -688,14 +702,14 @@ IF (DSMC%ElectronicModel) THEN
     PartStateIntEn(3,ReactInx(2)) = 0.0
   ELSE
     CALL ElectronicEnergyExchange(iPair,ReactInx(2),FakXi)
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(2))*Weight2
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(2))*Weight(2)
   END IF
   FakXi = FakXi - 0.5*Xi_elec(1)
   IF((SpecDSMC(ProductReac(1))%InterID.EQ.4).OR.SpecDSMC(ProductReac(1))%FullyIonized) THEN
     PartStateIntEn(3,ReactInx(1)) = 0.0
   ELSE
     CALL ElectronicEnergyExchange(iPair,ReactInx(1),FakXi)
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(1))*Weight1
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(1))*Weight(1)
   END IF
 END IF ! DSMC%ElectronicModel
 !--------------------------------------------------------------------------------------------------
@@ -704,48 +718,48 @@ END IF ! DSMC%ElectronicModel
 IF(ProductReac(3).NE.0) THEN
   ! Relaxation of third collision partner
   IF((SpecDSMC(ProductReac(3))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(3))%InterID.EQ.20)) THEN
-    FakXi = FakXi - 0.5*Xi_vib3(1)
+    FakXi = FakXi - 0.5*XiVibPart(3,1)
     IF(SpecDSMC(ProductReac(3))%PolyatomicMol) THEN
       ! Zero-point energy is added (for every vibrational dof separately) and new vibrational state is substracted
       ! from the collision energy within the routine
-      CALL DSMC_RelaxVibPolyProduct(iPair, ReactInx(3), FakXi, Xi_Vib3, WeightProd)
+      CALL DSMC_RelaxVibPolyProduct(iPair, ReactInx(3), FakXi, XiVibPart(3,:), Weight(3))
     ELSE
       IF(EductReac(3).NE.0) THEN
         IF(SpecDSMC(EductReac(3))%PolyatomicMol) DEALLOCATE(VibQuantsPar(ReactInx(3))%Quants)
       END IF
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + EZeroTempToExec(3)
       CALL DSMC_VibRelaxDiatomic(iPair,ReactInx(3),FakXi)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(1,ReactInx(3))*WeightProd
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(1,ReactInx(3))*Weight(3)
     END IF
   END IF
 END IF
 
 ! Relaxation of first product
 IF((SpecDSMC(ProductReac(1))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(1))%InterID.EQ.20)) THEN
-  FakXi = FakXi - 0.5*Xi_vib1(1)
+  FakXi = FakXi - 0.5*XiVibPart(1,1)
   IF(SpecDSMC(ProductReac(1))%PolyatomicMol) THEN
     ! Zero-point energy is added (for every vibrational dof separately) and new vibrational state is substracted
     ! from the collision energy within the routine
-    CALL DSMC_RelaxVibPolyProduct(iPair, ReactInx(1), FakXi, Xi_Vib1, Weight1)
+    CALL DSMC_RelaxVibPolyProduct(iPair, ReactInx(1), FakXi, XiVibPart(1,:), Weight(1))
   ELSE
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + EZeroTempToExec(1)
     IF(SpecDSMC(EductReac(1))%PolyatomicMol) DEALLOCATE(VibQuantsPar(ReactInx(1))%Quants)
     CALL DSMC_VibRelaxDiatomic(iPair,ReactInx(1),FakXi)
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(1,ReactInx(1))*Weight1
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(1,ReactInx(1))*Weight(1)
   END IF
 END IF
 
 ! Relaxation of second product
 IF((SpecDSMC(ProductReac(2))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(2))%InterID.EQ.20)) THEN
-  FakXi = FakXi - 0.5*Xi_vib2(1)
+  FakXi = FakXi - 0.5*XiVibPart(2,1)
   IF(SpecDSMC(ProductReac(2))%PolyatomicMol) THEN
     ! Zero-point energy is added (for every vibrational dof separately) and new vibrational state is substracted
     ! from the collision energy within the routine
-    CALL DSMC_RelaxVibPolyProduct(iPair, ReactInx(2), FakXi, Xi_Vib2, Weight2)
+    CALL DSMC_RelaxVibPolyProduct(iPair, ReactInx(2), FakXi, XiVibPart(2,:), Weight(2))
   ELSE
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + EZeroTempToExec(2)
     CALL DSMC_VibRelaxDiatomic(iPair,ReactInx(2),FakXi)
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(1,ReactInx(2))*Weight2
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(1,ReactInx(2))*Weight(2)
   END IF
 END IF
 
@@ -764,7 +778,7 @@ IF(ProductReac(3).NE.0) THEN
       FakXi = FakXi - 0.5*SpecDSMC(ProductReac(3))%Xi_Rot
     END IF
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,ReactInx(3))
-    PartStateIntEn(2,ReactInx(3)) = PartStateIntEn(2,ReactInx(3))/WeightProd
+    PartStateIntEn(2,ReactInx(3)) = PartStateIntEn(2,ReactInx(3))/Weight(3)
   ELSE
     PartStateIntEn(1,ReactInx(3)) = 0.0
     PartStateIntEn(2,ReactInx(3)) = 0.0
@@ -781,7 +795,7 @@ IF((SpecDSMC(ProductReac(1))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(1))%InterID.
     FakXi = FakXi - 0.5*SpecDSMC(ProductReac(1))%Xi_Rot
   END IF
   Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,ReactInx(1))
-  PartStateIntEn(2,ReactInx(1)) = PartStateIntEn(2,ReactInx(1)) / Weight1
+  PartStateIntEn(2,ReactInx(1)) = PartStateIntEn(2,ReactInx(1)) / Weight(1)
 ELSE
   PartStateIntEn(1,ReactInx(1)) = 0.0
   PartStateIntEn(2,ReactInx(1)) = 0.0
@@ -797,7 +811,7 @@ IF((SpecDSMC(ProductReac(2))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(2))%InterID.
     FakXi = FakXi - 0.5*SpecDSMC(ProductReac(2))%Xi_Rot
   END IF
   Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,ReactInx(2))
-  PartStateIntEn(2,ReactInx(2)) = PartStateIntEn(2,ReactInx(2)) / Weight2
+  PartStateIntEn(2,ReactInx(2)) = PartStateIntEn(2,ReactInx(2)) / Weight(2)
 ELSE
   PartStateIntEn(1,ReactInx(2)) = 0.0
   PartStateIntEn(2,ReactInx(2)) = 0.0
@@ -807,26 +821,12 @@ END IF
 ! Calculation of new particle velocities
 !--------------------------------------------------------------------------------------------------!
 IF(ProductReac(3).NE.0) THEN
-  ! If a third product exists, the remaining collision energy has to distributed onto three particles
-  CALL RANDOM_NUMBER(iRan)
-  FacEtraDistri = iRan
-  CALL RANDOM_NUMBER(iRan)
-  DO WHILE ((4 *FacEtraDistri*(1-FacEtraDistri))**(1-CollInf%omega(ProductReac(1),ProductReac(2))).LT.iRan)
-    CALL RANDOM_NUMBER(iRan)
-    FacEtraDistri = iRan
-    CALL RANDOM_NUMBER(iRan)
-  END DO
-  ERel_React1_React2 = Coll_pData(iPair)%Ec * FacEtraDistri
-  ERel_React1_React3 = Coll_pData(iPair)%Ec - ERel_React1_React2
+! === 3/4 Products =================================================================================================================
+  ! Determine the centre of mass velocity of the reactants
   IF(EductReac(3).NE.0) THEN
     ! Scattering 3 -> 3: Utilizing the FracMassCent's from above, calculated for the pseudo-molecule and the third educt,
     ! PartState(ReactInx(1)) is the centre of mass of the pseudo-molecule
-    VeloMx = FracMassCent1 * PartState(4,ReactInx(1)) &
-            + FracMassCent2 * PartState(4,ReactInx(3))
-    VeloMy = FracMassCent1 * PartState(5,ReactInx(1)) &
-            + FracMassCent2 * PartState(5,ReactInx(3))
-    VeloMz = FracMassCent1 * PartState(6,ReactInx(1)) &
-            + FracMassCent2 * PartState(6,ReactInx(3))
+    VeloCOM(1:3) = FracMassCent1 * PartState(4:6,ReactInx(1)) + FracMassCent2 * PartState(4:6,ReactInx(3))
   ELSE
     ! Scattering 2 -> 3
     IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
@@ -835,112 +835,156 @@ IF(ProductReac(3).NE.0) THEN
       FracMassCent2 = 0.
     ELSE
       IF (RadialWeighting%DoRadialWeighting) THEN
-        FracMassCent1 = Species(EductReac(1))%MassIC *Weight1 &
-            /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
-        FracMassCent2 = Species(EductReac(2))%MassIC *Weight2 &
-            /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
+        FracMassCent1 = Species(EductReac(1))%MassIC *Weight(1) &
+            /(Species(EductReac(1))%MassIC* Weight(1) + Species(EductReac(2))%MassIC * Weight(2))
+        FracMassCent2 = Species(EductReac(2))%MassIC *Weight(2) &
+            /(Species(EductReac(1))%MassIC* Weight(1) + Species(EductReac(2))%MassIC * Weight(2))
       ELSE
         FracMassCent1 = CollInf%FracMassCent(EductReac(1),Coll_pData(iPair)%PairType)
         FracMassCent2 = CollInf%FracMassCent(EductReac(2),Coll_pData(iPair)%PairType)
       END IF
     END IF
-
-    !Calculation of velo from center of mass
-    VeloMx = FracMassCent1 * PartState(4,ReactInx(1)) &
-            + FracMassCent2 * PartState(4,ReactInx(2))
-    VeloMy = FracMassCent1 * PartState(5,ReactInx(1)) &
-            + FracMassCent2 * PartState(5,ReactInx(2))
-    VeloMz = FracMassCent1 * PartState(6,ReactInx(1)) &
-            + FracMassCent2 * PartState(6,ReactInx(2))
+    ! Calculation of velocity from center of mass
+    VeloCOM(1:3) = FracMassCent1 * PartState(4:6,ReactInx(1)) + FracMassCent2 * PartState(4:6,ReactInx(2))
   END IF
 
-  ! FracMassCent's and reduced mass are calculated for the pseudo-molecule 1-3 and the second product, in the case of dissociation
-  ! this is the non-reacting collision partner
-  CALL CalcPseudoScatterVars(ProductReac(1),ProductReac(3),ProductReac(2),FracMassCent1,FracMassCent2,MassRed &
-        , (/Weight1,WeightProd,Weight2/))
+  IF(ProductReac(4).NE.0) THEN
+! === 4 Products ===================================================================================================================
+    ! FracMassCent's and reduced mass are calculated for the pseudo-molecule (1-3) and the pseudo-molecule (2-4)
+    CALL CalcPseudoScatterVars_4Prod(ProductReac(1),ProductReac(3),ProductReac(2),ProductReac(4),FracMassCent1,FracMassCent2, &
+          MassRed, Weight)
+    ! Distribute the remaining collision energy onto the pseudo molecules
+    Coll_pData(iPair)%CRela2 = 2. * Coll_pData(iPair)%Ec / MassRed
+    cRelaNew(1:3) = PostCollVec(iPair)
+    ! Set velocity of the pseudo molecule (1-3)
+    VeloPseuMolec(1:3) = (VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3))
+    ! Set velocity of the pseudo molecule (2-4)
+    VeloPseuMolec2(1:3) = (VeloCOM(1:3) + FracMassCent1*cRelaNew(1:3))
+    ! Determine the collision energy available
+    Coll_pData(iPair)%CRela2 = DOTPRODUCT(FracMassCent1*cRelaNew(1:3))
+    ERel_React1_React3 = 0.5 * MassRed * DOTPRODUCT(FracMassCent2*cRelaNew(1:3))
+    ! Distribute the energy onto the components of the pseudo molecule (2-4)
+    IF (RadialWeighting%DoRadialWeighting) THEN
+      FracMassCent1 = Species(ProductReac(2))%MassIC *Weight(1) &
+          /(Species(ProductReac(2))%MassIC* Weight(1) + Species(ProductReac(4))%MassIC * Weight(4))
+      FracMassCent2 = Species(ProductReac(4))%MassIC *Weight(4) &
+          /(Species(ProductReac(2))%MassIC* Weight(1) + Species(ProductReac(4))%MassIC * Weight(4))
+    ELSE
+      FracMassCent1 = CollInf%FracMassCent(ProductReac(2),CollInf%Coll_Case(ProductReac(2),ProductReac(4)))
+      FracMassCent2 = CollInf%FracMassCent(ProductReac(4),CollInf%Coll_Case(ProductReac(2),ProductReac(4)))
+    END IF
+    cRelaNew(1:3) = PostCollVec(iPair)
+    ! deltaV particle 2
+    DSMC_RHS(1:3,ReactInx(2)) = VeloPseuMolec2(1:3) + FracMassCent2*cRelaNew(1:3) - PartState(4:6,ReactInx(2))
+    ! deltaV particle 4
+    PartState(4:6,ReactInx(4)) = 0.
+    DSMC_RHS(1:3,ReactInx(4)) = VeloPseuMolec2(1:3) - FracMassCent1*cRelaNew(1:3)
+#ifdef CODE_ANALYZE
+    Energy_new=0.5*Species(ProductReac(2))%MassIC*((VeloPseuMolec2(1) - FracMassCent2*cRelaNew(1))**2 &
+                                                +  (VeloPseuMolec2(2) - FracMassCent2*cRelaNew(2))**2 &
+                                                +  (VeloPseuMolec2(3) - FracMassCent2*cRelaNew(3))**2) * Weight(2)
+    Momentum_new(1:3) = Species(ProductReac(2))%MassIC* (/VeloPseuMolec2(1) - FracMassCent2*cRelaNew(1),&
+                                                          VeloPseuMolec2(2) - FracMassCent2*cRelaNew(2),&
+                                                          VeloPseuMolec2(3) - FracMassCent2*cRelaNew(3)/) * Weight(2)
+    Energy_new = Energy_new + 0.5*Species(ProductReac(4))%MassIC*((VeloPseuMolec2(1) - FracMassCent1*cRelaNew(1))**2 &
+                                                                + (VeloPseuMolec2(2) - FracMassCent1*cRelaNew(2))**2 &
+                                                                + (VeloPseuMolec2(3) - FracMassCent1*cRelaNew(3))**2) * Weight(4)
+    Momentum_new(1:3) = Momentum_new(1:3) + Species(ProductReac(4))%MassIC*(/VeloPseuMolec2(1) - FracMassCent1*cRelaNew(1),&
+                                                                    VeloPseuMolec2(2) - FracMassCent1*cRelaNew(2),&
+                                                                    VeloPseuMolec2(3) - FracMassCent1*cRelaNew(3)/) * Weight(4)
 
-  Coll_pData(iPair)%CRela2 = 2 * ERel_React1_React2 / MassRed
+#endif /* CODE_ANALYZE */
+  ELSE
+! === 3 Products ===================================================================================================================
+    ! The remaining collision energy has to distributed onto three particles
+    CALL RANDOM_NUMBER(iRan)
+    FacEtraDistri = iRan
+    CALL RANDOM_NUMBER(iRan)
+    DO WHILE ((4 *FacEtraDistri*(1-FacEtraDistri))**(1-CollInf%omega(ProductReac(1),ProductReac(2))).LT.iRan)
+      CALL RANDOM_NUMBER(iRan)
+      FacEtraDistri = iRan
+      CALL RANDOM_NUMBER(iRan)
+    END DO
+    ERel_React1_React2 = Coll_pData(iPair)%Ec * FacEtraDistri
+    ERel_React1_React3 = Coll_pData(iPair)%Ec - ERel_React1_React2
+    ! FracMassCent's and reduced mass are calculated for the pseudo-molecule 1-3 and the second product, in the case of dissociation
+    ! this is the non-reacting collision partner
+    CALL CalcPseudoScatterVars(ProductReac(1),ProductReac(3),ProductReac(2),FracMassCent1,FracMassCent2,MassRed &
+          , (/Weight(1),Weight(3),Weight(2)/))
 
-  cRelaNew(1:3) = PostCollVec(iPair)
+    Coll_pData(iPair)%CRela2 = 2 * ERel_React1_React2 / MassRed
 
-  DSMC_RHS(1,ReactInx(2)) = VeloMx - FracMassCent1*cRelaNew(1) - PartState(4,ReactInx(2))
-  DSMC_RHS(2,ReactInx(2)) = VeloMy - FracMassCent1*cRelaNew(2) - PartState(5,ReactInx(2))
-  DSMC_RHS(3,ReactInx(2)) = VeloMz - FracMassCent1*cRelaNew(3) - PartState(6,ReactInx(2))
+    cRelaNew(1:3) = PostCollVec(iPair)
+
+    DSMC_RHS(1:3,ReactInx(2)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3) - PartState(4:6,ReactInx(2))
 
 #ifdef CODE_ANALYZE
-  Energy_new=0.5*Species(PartSpecies(ReactInx(2)))%MassIC*((VeloMx - FracMassCent1*cRelaNew(1))**2 &
-                                                        + (VeloMy - FracMassCent1*cRelaNew(2))**2 &
-                                                        + (VeloMz - FracMassCent1*cRelaNew(3))**2) * Weight2
-  Momentum_new(1:3) = Species(PartSpecies(ReactInx(2)))%MassIC* (/VeloMx - FracMassCent1*cRelaNew(1),&
-                                                                VeloMy - FracMassCent1*cRelaNew(2),&
-                                                                VeloMz - FracMassCent1*cRelaNew(3)/) * Weight2
+    Energy_new=0.5*Species(ProductReac(2))%MassIC*((VeloCOM(1) - FracMassCent1*cRelaNew(1))**2 &
+                                                 + (VeloCOM(2) - FracMassCent1*cRelaNew(2))**2 &
+                                                 + (VeloCOM(3) - FracMassCent1*cRelaNew(3))**2) * Weight(2)
+    Momentum_new(1:3) = Species(ProductReac(2))%MassIC* (/VeloCOM(1) - FracMassCent1*cRelaNew(1),&
+                                                          VeloCOM(2) - FracMassCent1*cRelaNew(2),&
+                                                          VeloCOM(3) - FracMassCent1*cRelaNew(3)/) * Weight(2)
 #endif /* CODE_ANALYZE */
-
-  ! Set velocity of pseudo molec (AB) and calculate the centre of mass frame velocity: m_pseu / (m_3 + m_4) * v_pseu
-  ! (Velocity of pseudo molecule is NOT equal to the COM frame velocity)
-  VxPseuMolec = (VeloMx + FracMassCent2*cRelaNew(1))
-  VyPseuMolec = (VeloMy + FracMassCent2*cRelaNew(2))
-  VzPseuMolec = (VeloMz + FracMassCent2*cRelaNew(3))
-
-  ! Scattering of (AB)
+    ! Set velocity of pseudo molec (AB) and calculate the centre of mass frame velocity: m_pseu / (m_3 + m_4) * v_pseu
+    ! (Velocity of pseudo molecule is NOT equal to the COM frame velocity)
+    VeloPseuMolec(1:3) = (VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3))
+  END IF
+! === 3/4 Products =================================================================================================================
+  ! Treatment of the components of the pseudo-molecule (1-3)
   IF (RadialWeighting%DoRadialWeighting) THEN
-    FracMassCent1 = Species(ProductReac(1))%MassIC *Weight1 &
-        /(Species(ProductReac(1))%MassIC* Weight1 + Species(ProductReac(3))%MassIC * WeightProd)
-    FracMassCent2 = Species(ProductReac(3))%MassIC *WeightProd &
-        /(Species(ProductReac(1))%MassIC* Weight1 + Species(ProductReac(3))%MassIC * WeightProd)
-    ReducedMass = Species(ProductReac(1))%MassIC *Weight1* Species(ProductReac(3))%MassIC *WeightProd &
-        / (Species(ProductReac(1))%MassIC*Weight1 + Species(ProductReac(3))%MassIC *WeightProd)
+    FracMassCent1 = Species(ProductReac(1))%MassIC *Weight(1) &
+        /(Species(ProductReac(1))%MassIC* Weight(1) + Species(ProductReac(3))%MassIC * Weight(3))
+    FracMassCent2 = Species(ProductReac(3))%MassIC *Weight(3) &
+        /(Species(ProductReac(1))%MassIC* Weight(1) + Species(ProductReac(3))%MassIC * Weight(3))
+    MassRed = Species(ProductReac(1))%MassIC *Weight(1)* Species(ProductReac(3))%MassIC *Weight(3) &
+        / (Species(ProductReac(1))%MassIC*Weight(1) + Species(ProductReac(3))%MassIC *Weight(3))
   ELSE
     FracMassCent1 = CollInf%FracMassCent(ProductReac(1),CollInf%Coll_Case(ProductReac(1),ProductReac(3)))
     FracMassCent2 = CollInf%FracMassCent(ProductReac(3),CollInf%Coll_Case(ProductReac(1),ProductReac(3)))
-    ReducedMass = CollInf%MassRed(CollInf%Coll_Case(ProductReac(1),ProductReac(3)))
+    MassRed = CollInf%MassRed(CollInf%Coll_Case(ProductReac(1),ProductReac(3)))
   END IF
 
-  Coll_pData(iPair)%cRela2 = 2 * ERel_React1_React3 / ReducedMass
+  Coll_pData(iPair)%cRela2 = 2 * ERel_React1_React3 / MassRed
 
   cRelaNew(1:3) = PostCollVec(iPair)
 
   !deltaV particle 1
-  DSMC_RHS(1,ReactInx(1)) = VxPseuMolec + FracMassCent2*cRelaNew(1) - PartState(4,ReactInx(1))
-  DSMC_RHS(2,ReactInx(1)) = VyPseuMolec + FracMassCent2*cRelaNew(2) - PartState(5,ReactInx(1))
-  DSMC_RHS(3,ReactInx(1)) = VzPseuMolec + FracMassCent2*cRelaNew(3) - PartState(6,ReactInx(1))
+  DSMC_RHS(1:3,ReactInx(1)) = VeloPseuMolec(1:3) + FracMassCent2*cRelaNew(1:3) - PartState(4:6,ReactInx(1))
 
   !deltaV particle 3
   PartState(4:6,ReactInx(3)) = 0.
-  DSMC_RHS(1,ReactInx(3)) = VxPseuMolec - FracMassCent1*cRelaNew(1)
-  DSMC_RHS(2,ReactInx(3)) = VyPseuMolec - FracMassCent1*cRelaNew(2)
-  DSMC_RHS(3,ReactInx(3)) = VzPseuMolec - FracMassCent1*cRelaNew(3)
+  DSMC_RHS(1:3,ReactInx(3)) = VeloPseuMolec(1:3) - FracMassCent1*cRelaNew(1:3)
 
 #ifdef CODE_ANALYZE
   ! New total energy
-  Energy_new=Energy_new + 0.5*Species(PartSpecies(ReactInx(1)))%MassIC*((VxPseuMolec + FracMassCent2*cRelaNew(1))**2    &
-                                                                      +(VyPseuMolec + FracMassCent2*cRelaNew(2))**2    &
-                                                                      +(VzPseuMolec + FracMassCent2*cRelaNew(3))**2) * Weight1 &
-                        + 0.5*Species(PartSpecies(ReactInx(3)))%MassIC*((VxPseuMolec - FracMassCent1*cRelaNew(1))**2    &
-                                                                      +(VyPseuMolec - FracMassCent1*cRelaNew(2))**2    &
-                                                                      +(VzPseuMolec - FracMassCent1*cRelaNew(3))**2) * WeightProd &
-                        + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight1 &
-                        + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight2 &
-                        + (PartStateIntEn(1,ReactInx(3)) + PartStateIntEn(2,ReactInx(3))) * WeightProd
-  IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(3,ReactInx(1)) * Weight1 &
-                                                    + PartStateIntEn(3,ReactInx(2)) * Weight2 &
-                                                    + PartStateIntEn(3,ReactInx(3)) * WeightProd
+  Energy_new=Energy_new + 0.5*Species(ProductReac(1))%MassIC*((VeloPseuMolec(1) + FracMassCent2*cRelaNew(1))**2    &
+                                                            + (VeloPseuMolec(2) + FracMassCent2*cRelaNew(2))**2    &
+                                                            + (VeloPseuMolec(3) + FracMassCent2*cRelaNew(3))**2) * Weight(1) &
+                        + 0.5*Species(ProductReac(3))%MassIC*((VeloPseuMolec(1) - FracMassCent1*cRelaNew(1))**2    &
+                                                            + (VeloPseuMolec(2) - FracMassCent1*cRelaNew(2))**2    &
+                                                            + (VeloPseuMolec(3) - FracMassCent1*cRelaNew(3))**2) * Weight(3) &
+                        + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight(1) &
+                        + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2) &
+                        + (PartStateIntEn(1,ReactInx(3)) + PartStateIntEn(2,ReactInx(3))) * Weight(3)
+  IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(3,ReactInx(1)) * Weight(1) &
+                                                   + PartStateIntEn(3,ReactInx(2)) * Weight(2) &
+                                                   + PartStateIntEn(3,ReactInx(3)) * Weight(3)
   ! New total momentum
   Momentum_new(1:3) = Momentum_new(1:3) &
-                    + Species(PartSpecies(ReactInx(1)))%MassIC * (/VxPseuMolec + FracMassCent2*cRelaNew(1),  &
-                                                                  VyPseuMolec + FracMassCent2*cRelaNew(2),  &
-                                                                  VzPseuMolec + FracMassCent2*cRelaNew(3)/) * Weight1 &
-                    + Species(PartSpecies(ReactInx(3)))%MassIC * (/VxPseuMolec - FracMassCent1*cRelaNew(1),  &
-                                                                  VyPseuMolec - FracMassCent1*cRelaNew(2),  &
-                                                                  VzPseuMolec - FracMassCent1*cRelaNew(3)/) * WeightProd
+                    + Species(ProductReac(1))%MassIC * (/VeloPseuMolec(1) + FracMassCent2*cRelaNew(1),  &
+                                                         VeloPseuMolec(2) + FracMassCent2*cRelaNew(2),  &
+                                                         VeloPseuMolec(3) + FracMassCent2*cRelaNew(3)/) * Weight(1) &
+                    + Species(ProductReac(3))%MassIC * (/VeloPseuMolec(1) - FracMassCent1*cRelaNew(1),  &
+                                                         VeloPseuMolec(2) - FracMassCent1*cRelaNew(2),  &
+                                                         VeloPseuMolec(3) - FracMassCent1*cRelaNew(3)/) * Weight(3)
 #endif /* CODE_ANALYZE */
 
 ELSEIF(ProductReac(3).EQ.0) THEN
+! === 2 Products ===================================================================================================================
   IF(EductReac(3).NE.0) THEN
     ! Scattering 3 -> 2
-    VxPseuMolec = FracMassCent1 * PartState(4,ReactInx(1)) + FracMassCent2 * PartState(4,ReactInx(3))
-    VyPseuMolec = FracMassCent1 * PartState(5,ReactInx(1)) + FracMassCent2 * PartState(5,ReactInx(3))
-    VzPseuMolec = FracMassCent1 * PartState(6,ReactInx(1)) + FracMassCent2 * PartState(6,ReactInx(3))
+    VeloPseuMolec(1:3) = FracMassCent1 * PartState(4:6,ReactInx(1)) + FracMassCent2 * PartState(4:6,ReactInx(3))
     ! When RHS is set, ReactInx(2) is utilized, not an error as the old state cancels out after the particle push in the time disc,
     ! therefore, there is no need to set change the index as the proper species, ProductReac(2), was utilized for the relaxation
   ELSE
@@ -951,66 +995,60 @@ ELSEIF(ProductReac(3).EQ.0) THEN
       FracMassCent2 = 0.
     ELSE
       IF (RadialWeighting%DoRadialWeighting) THEN
-        FracMassCent1 = Species(EductReac(1))%MassIC *Weight1 &
-            /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
-        FracMassCent2 = Species(EductReac(2))%MassIC *Weight2 &
-            /(Species(EductReac(1))%MassIC* Weight1 + Species(EductReac(2))%MassIC * Weight2)
+        FracMassCent1 = Species(EductReac(1))%MassIC *Weight(1) &
+            /(Species(EductReac(1))%MassIC* Weight(1) + Species(EductReac(2))%MassIC * Weight(2))
+        FracMassCent2 = Species(EductReac(2))%MassIC *Weight(2) &
+            /(Species(EductReac(1))%MassIC* Weight(1) + Species(EductReac(2))%MassIC * Weight(2))
       ELSE
         FracMassCent1 = CollInf%FracMassCent(EductReac(1),CollInf%Coll_Case(EductReac(1),EductReac(2)))
         FracMassCent2 = CollInf%FracMassCent(EductReac(2),CollInf%Coll_Case(EductReac(1),EductReac(2)))
       END IF
     END IF
-
-    VxPseuMolec = FracMassCent1 * PartState(4,ReactInx(1)) + FracMassCent2 * PartState(4,ReactInx(2))
-    VyPseuMolec = FracMassCent1 * PartState(5,ReactInx(1)) + FracMassCent2 * PartState(5,ReactInx(2))
-    VzPseuMolec = FracMassCent1 * PartState(6,ReactInx(1)) + FracMassCent2 * PartState(6,ReactInx(2))
+    ! Centre of mass velocity
+    VeloPseuMolec(1:3) = FracMassCent1 * PartState(4:6,ReactInx(1)) + FracMassCent2 * PartState(4:6,ReactInx(2))
   END IF
   ERel_React1_React3 = Coll_pData(iPair)%Ec
 
   IF (RadialWeighting%DoRadialWeighting) THEN
-    FracMassCent1 = Species(ProductReac(1))%MassIC *Weight1 &
-        /(Species(ProductReac(1))%MassIC* Weight1 + Species(ProductReac(2))%MassIC * Weight2)
-    FracMassCent2 = Species(ProductReac(2))%MassIC *Weight2 &
-        /(Species(ProductReac(1))%MassIC* Weight1 + Species(ProductReac(2))%MassIC * Weight2)
-    ReducedMass = Species(ProductReac(1))%MassIC *Weight1* Species(ProductReac(2))%MassIC *Weight2 &
-        / (Species(ProductReac(1))%MassIC*Weight1 + Species(ProductReac(2))%MassIC *Weight2)
+    FracMassCent1 = Species(ProductReac(1))%MassIC *Weight(1) &
+        /(Species(ProductReac(1))%MassIC* Weight(1) + Species(ProductReac(2))%MassIC * Weight(2))
+    FracMassCent2 = Species(ProductReac(2))%MassIC *Weight(2) &
+        /(Species(ProductReac(1))%MassIC* Weight(1) + Species(ProductReac(2))%MassIC * Weight(2))
+    MassRed = Species(ProductReac(1))%MassIC *Weight(1)* Species(ProductReac(2))%MassIC *Weight(2) &
+        / (Species(ProductReac(1))%MassIC*Weight(1) + Species(ProductReac(2))%MassIC *Weight(2))
   ELSE
     ! Scattering of (AB)
     FracMassCent1 = CollInf%FracMassCent(ProductReac(1),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
     FracMassCent2 = CollInf%FracMassCent(ProductReac(2),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
-    ReducedMass = CollInf%MassRed(CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
+    MassRed = CollInf%MassRed(CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
   END IF
 
-  Coll_pData(iPair)%cRela2 = 2 * ERel_React1_React3 / ReducedMass
+  Coll_pData(iPair)%cRela2 = 2 * ERel_React1_React3 / MassRed
   cRelaNew(1:3) = PostCollVec(iPair)
 
   !deltaV particle 1
-  DSMC_RHS(1,ReactInx(1)) = VxPseuMolec + FracMassCent2*cRelaNew(1) - PartState(4,ReactInx(1))
-  DSMC_RHS(2,ReactInx(1)) = VyPseuMolec + FracMassCent2*cRelaNew(2) - PartState(5,ReactInx(1))
-  DSMC_RHS(3,ReactInx(1)) = VzPseuMolec + FracMassCent2*cRelaNew(3) - PartState(6,ReactInx(1))
+  DSMC_RHS(1:3,ReactInx(1)) = VeloPseuMolec(1:3) + FracMassCent2*cRelaNew(1:3) - PartState(4:6,ReactInx(1))
   !deltaV particle 2
-  DSMC_RHS(1,ReactInx(2)) = VxPseuMolec - FracMassCent1*cRelaNew(1) - PartState(4,ReactInx(2))
-  DSMC_RHS(2,ReactInx(2)) = VyPseuMolec - FracMassCent1*cRelaNew(2) - PartState(5,ReactInx(2))
-  DSMC_RHS(3,ReactInx(2)) = VzPseuMolec - FracMassCent1*cRelaNew(3) - PartState(6,ReactInx(2))
+  DSMC_RHS(1:3,ReactInx(2)) = VeloPseuMolec(1:3) - FracMassCent1*cRelaNew(1:3) - PartState(4:6,ReactInx(2))
 
 #ifdef CODE_ANALYZE
   ! New total energy of remaining products (here, recombination: 2 products)
-  Energy_new = 0.5*Species(PartSpecies(ReactInx(1)))%MassIC*((VxPseuMolec + FracMassCent2*cRelaNew(1))**2  &
-                                                          +(VyPseuMolec + FracMassCent2*cRelaNew(2))**2  &
-                                                          +(VzPseuMolec + FracMassCent2*cRelaNew(3))**2) * Weight1 &
-              +0.5*Species(PartSpecies(ReactInx(2)))%MassIC*((VxPseuMolec - FracMassCent1*cRelaNew(1))**2  &
-                                                          +(VyPseuMolec - FracMassCent1*cRelaNew(2))**2  &
-                                                          +(VzPseuMolec - FracMassCent1*cRelaNew(3))**2) * Weight2 &
-              + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight1 &
-              + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight2
-  IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(3,ReactInx(1)) * Weight1 + PartStateIntEn(3,ReactInx(2)) * Weight2
+  Energy_new = 0.5*Species(ProductReac(1))%MassIC*((VeloPseuMolec(1) + FracMassCent2*cRelaNew(1))**2  &
+                                                          +(  VeloPseuMolec(2) + FracMassCent2*cRelaNew(2))**2  &
+                                                          +(  VeloPseuMolec(3) + FracMassCent2*cRelaNew(3))**2) * Weight(1) &
+              +0.5*Species(ProductReac(2))%MassIC*((VeloPseuMolec(1) - FracMassCent1*cRelaNew(1))**2  &
+                                                          +(  VeloPseuMolec(2) - FracMassCent1*cRelaNew(2))**2  &
+                                                          +(  VeloPseuMolec(3) - FracMassCent1*cRelaNew(3))**2) * Weight(2) &
+              + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight(1) &
+              + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2)
+  IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(3,ReactInx(1)) * Weight(1) + PartStateIntEn(3,ReactInx(2)) * Weight(2)
   ! New total momentum
-    Momentum_new(1:3) = Species(PartSpecies(ReactInx(1)))%MassIC * (/VxPseuMolec + FracMassCent2*cRelaNew(1),  &
-                                                                    VyPseuMolec + FracMassCent2*cRelaNew(2),  &
-                                                                    VzPseuMolec + FracMassCent2*cRelaNew(3)/) * Weight1 &
-                      + Species(PartSpecies(ReactInx(2)))%MassIC * (/VxPseuMolec - FracMassCent1*cRelaNew(1),  &
-                                                                    VyPseuMolec - FracMassCent1*cRelaNew(2),  &
-                                                                    VzPseuMolec - FracMassCent1*cRelaNew(3)/) * Weight2
+    Momentum_new(1:3) = Species(ProductReac(1))%MassIC * (/VeloPseuMolec(1) + FracMassCent2*cRelaNew(1),  &
+                                                           VeloPseuMolec(2) + FracMassCent2*cRelaNew(2),  &
+                                                           VeloPseuMolec(3) + FracMassCent2*cRelaNew(3)/) * Weight(1) &
+                      + Species(ProductReac(2))%MassIC * (/VeloPseuMolec(1) - FracMassCent1*cRelaNew(1),  &
+                                                           VeloPseuMolec(2) - FracMassCent1*cRelaNew(2),  &
+                                                           VeloPseuMolec(3) - FracMassCent1*cRelaNew(3)/) * Weight(2)
 #endif /* CODE_ANALYZE */
 END IF
 
@@ -1369,35 +1407,70 @@ SUBROUTINE CalcPseudoScatterVars(PseuSpec1, PseuSpec2, ScatterSpec3, FracMassCen
 ! Routine determines the reduced mass and the mass fraction between a pseudo-molecule and third species
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
-  USE MOD_Particle_Vars,         ONLY : Species
+USE MOD_Globals
+USE MOD_Particle_Vars         ,ONLY: Species
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: PseuSpec1, PseuSpec2, ScatterSpec3
+INTEGER, INTENT(IN)           :: PseuSpec1, PseuSpec2, ScatterSpec3
+REAL, INTENT(IN), OPTIONAL    :: Weight(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-  REAL, INTENT(OUT)             :: FracMassCent1, FracMassCent2, MassRed
-  REAL, INTENT(IN), OPTIONAL    :: Weight(3)
+REAL, INTENT(OUT)             :: FracMassCent1, FracMassCent2, MassRed
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                            :: Mass
+REAL                          :: Mass
 !===================================================================================================================================
-  IF (PRESENT(Weight)) THEN
-    Mass = Species(PseuSpec1)%MassIC*Weight(1) + Species(PseuSpec2)%MassIC*Weight(2)
-    FracMassCent1 = Mass / (Mass + Species(ScatterSpec3)%MassIC*Weight(3))
-    FracMassCent2 = Species(ScatterSpec3)%MassIC*Weight(3) / (Mass + Species(ScatterSpec3)%MassIC*Weight(3))
-    MassRed = (Mass*Species(ScatterSpec3)%MassIC*Weight(3)) &
-                           / (Mass+Species(ScatterSpec3)%MassIC*Weight(3))
-  ELSE
+IF (PRESENT(Weight)) THEN
+  Mass = Species(PseuSpec1)%MassIC*Weight(1) + Species(PseuSpec2)%MassIC*Weight(2)
+  FracMassCent1 = Mass / (Mass + Species(ScatterSpec3)%MassIC*Weight(3))
+  FracMassCent2 = Species(ScatterSpec3)%MassIC*Weight(3) / (Mass + Species(ScatterSpec3)%MassIC*Weight(3))
+  MassRed = (Mass*Species(ScatterSpec3)%MassIC*Weight(3)) &
+                          / (Mass+Species(ScatterSpec3)%MassIC*Weight(3))
+ELSE
   Mass = Species(PseuSpec1)%MassIC + Species(PseuSpec2)%MassIC
   FracMassCent1 = Mass / (Mass + Species(ScatterSpec3)%MassIC)
   FracMassCent2 = Species(ScatterSpec3)%MassIC / (Mass + Species(ScatterSpec3)%MassIC)
   MassRed = (Mass*Species(ScatterSpec3)%MassIC) &
-                         / (Mass+Species(ScatterSpec3)%MassIC)
-  END IF
+                        / (Mass+Species(ScatterSpec3)%MassIC)
+END IF
 END SUBROUTINE CalcPseudoScatterVars
+
+SUBROUTINE CalcPseudoScatterVars_4Prod(Spec1, Spec2, Spec3, Spec4, FracMassCent1, FracMassCent2, MassRed, Weight)
+!===================================================================================================================================
+! Routine determines the reduced mass and the mass fraction between a pseudo-molecule and third species
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars         ,ONLY: Species
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: Spec1, Spec2, Spec3, Spec4
+REAL, INTENT(IN), OPTIONAL    :: Weight(4)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)             :: FracMassCent1, FracMassCent2, MassRed
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: MassPseu1, MassPseu2
+!===================================================================================================================================
+IF (PRESENT(Weight)) THEN
+  MassPseu1 = Species(Spec1)%MassIC*Weight(1) + Species(Spec2)%MassIC*Weight(2)
+  MassPseu2 = Species(Spec3)%MassIC*Weight(3) + Species(Spec4)%MassIC*Weight(4)
+  FracMassCent1 = MassPseu1 / (MassPseu1 + MassPseu2)
+  FracMassCent2 = MassPseu2 / (MassPseu1 + MassPseu2)
+  MassRed = (MassPseu1*MassPseu2) / (MassPseu1+MassPseu2)
+ELSE
+  MassPseu1 = Species(Spec1)%MassIC + Species(Spec2)%MassIC
+  MassPseu2 = Species(Spec3)%MassIC + Species(Spec4)%MassIC
+  FracMassCent1 = MassPseu1 / (MassPseu1 + MassPseu2)
+  FracMassCent2 = MassPseu2 / (MassPseu1 + MassPseu2)
+  MassRed = (MassPseu1*MassPseu2) / (MassPseu1+MassPseu2)
+END IF
+END SUBROUTINE CalcPseudoScatterVars_4Prod
 
 
 SUBROUTINE CalcPhotoIonizationNumber(NbrOfPhotons,NbrOfReactions)
