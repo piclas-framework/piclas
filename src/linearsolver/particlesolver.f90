@@ -700,7 +700,6 @@ USE MOD_LinearSolver_Vars      ,ONLY: DoFullNewton!,PartNewtonRelaxation
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
@@ -829,12 +828,6 @@ CALL SendNbOfParticles(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLeng
 CALL MPIParticleSend() ! input value: which list:PartLambdaAccept or PDM%ParticleInisde?
 ! finish communication
 CALL MPIParticleRecv() ! input value: which list:PartLambdaAccept or PDM%ParticleInisde?
-! as we do not have the shape function here, we have to deallocate something
-SDEALLOCATE(ExtPartState)
-SDEALLOCATE(ExtPartSpecies)
-SDEALLOCATE(ExtPartToFIBGM)
-SDEALLOCATE(ExtPartMPF)
-NbrOfExtParticles=0
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1028,12 +1021,6 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
   CALL MPIParticleSend() ! input value: which list:PartLambdaAccept or PDM%ParticleInisde?
   ! finish communication
   CALL MPIParticleRecv() ! input value: which list:PartLambdaAccept or PDM%ParticleInisde?
-  ! as we do not have the shape function here, we have to deallocate something
-  SDEALLOCATE(ExtPartState)
-  SDEALLOCATE(ExtPartSpecies)
-  SDEALLOCATE(ExtPartToFIBGM)
-  SDEALLOCATE(ExtPartMPF)
-  NbrOfExtParticles=0
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/

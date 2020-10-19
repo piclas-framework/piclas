@@ -53,7 +53,7 @@ REAL,ALLOCATABLE :: DCL_N(:,:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! will be used in the future
 REAL,ALLOCATABLE,TARGET :: NodeCoords(:,:,:,:,:) !< XYZ positions (equidistant,NGeo) of element interpolation points from meshfile
-REAL,ALLOCATABLE :: Elem_xGP(:,:,:,:,:)          !< XYZ positions (first index 1:3) of the volume Gauss Point
+REAL,ALLOCATABLE,TARGET :: Elem_xGP(:,:,:,:,:)          !< XYZ positions (first index 1:3) of the volume Gauss Point
 REAL,ALLOCATABLE :: Face_xGP(:,:,:,:)            !< XYZ positions (first index 1:3) of the Boundary Face Gauss Point
 REAL,DIMENSION(6):: xyzMinMax                    !< from Face_xGP points determined maximum domain extension (min/max of domain)
 LOGICAL          :: GetMeshMinMaxBoundariesIsDone =.FALSE. !< don't call twice the calculation of xyzMinMax
@@ -64,7 +64,7 @@ REAL,ALLOCATABLE,DIMENSION(:,:):: ElemBaryNGeo   !< element local basis: origin
 REAL,ALLOCATABLE :: Metrics_fTilde(:,:,:,:,:) !< Metric Terms (first indices 3) on each GaussPoint
 REAL,ALLOCATABLE :: Metrics_gTilde(:,:,:,:,:)
 REAL,ALLOCATABLE :: Metrics_hTilde(:,:,:,:,:)
-REAL,ALLOCATABLE :: sJ(:,:,:,:)               !< 1/DetJac for each Gauss Point
+REAL,ALLOCATABLE,TARGET :: sJ(:,:,:,:)               !< 1/DetJac for each Gauss Point
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! PIC - for Newton localisation of particles in curved Elements
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -74,11 +74,11 @@ REAL,ALLOCATABLE    :: wBaryCL_NGeo1(:)
 REAL,ALLOCATABLE    :: XiCL_NGeo1(:)
 REAL,ALLOCATABLE    :: Vdm_CLNGeo1_CLNGeo(:,:)
 !< #endif /*PARTICLES*/
-REAL,ALLOCATABLE    :: XiCL_NGeo(:)
-REAL,ALLOCATABLE    :: XCL_NGeo(:,:,:,:,:)
-REAL,ALLOCATABLE    :: dXCL_NGeo(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
-REAL,ALLOCATABLE    :: dXCL_N(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
-REAL,ALLOCATABLE    :: detJac_Ref(:,:,:,:,:)      !< determinant of the mesh Jacobian for each Gauss point at degree 3*NGeo
+REAL,ALLOCATABLE        :: XiCL_NGeo(:)
+REAL,ALLOCATABLE,TARGET :: XCL_NGeo(:,:,:,:,:)
+REAL,ALLOCATABLE,TARGET :: dXCL_NGeo(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
+REAL,ALLOCATABLE        :: dXCL_N(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
+REAL,ALLOCATABLE        :: detJac_Ref(:,:,:,:,:)      !< determinant of the mesh Jacobian for each Gauss point at degree 3*NGeo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! surface vectors
 !-----------------------------------------------------------------------------------------------------------------------------------

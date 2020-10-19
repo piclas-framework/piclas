@@ -2209,7 +2209,7 @@ ELSE
     CALL MPI_REDUCE(DSMC%CalcVibProb(1:nSpecies,3),DSMC%CalcVibProb(1:nSpecies,3),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
   END IF
 #endif /*USE_MPI*/
-  IF(PartMPI%MPIRoot)THEN
+  IF(MPIRoot)THEN
     VibRelaxProb(1) = MAXVAL(DSMC%CalcVibProb(1:nSpecies,2))
     IF(SUM(DSMC%CalcVibProb(1:nSpecies,3)).GT.0) THEN
       VibRelaxProb(2) = SUM(DSMC%CalcVibProb(1:nSpecies,1))/SUM(DSMC%CalcVibProb(1:nSpecies,3))
@@ -3064,8 +3064,6 @@ USE MOD_Equation_Vars     ,ONLY: E
 #if USE_MPI
 USE MOD_Particle_MPI      ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars ,ONLY: PartMPIExchange
-USE MOD_Particle_MPI_Vars ,ONLY: DoExternalParts
-USE MOD_Particle_MPI_Vars ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
@@ -3823,10 +3821,10 @@ ASSOCIATE( iPart => 1 )
       ASSOCIATE( omega_c => ABS(q)*B_0/m )
         ASSOCIATE( r_c => v_perp/omega_c )
           PartStateAnalytic(1) = COS(omega_c*t + phi)*r_c
-          PartStateAnalytic(2) = SIN(omega_c*t + phi)*r_c 
+          PartStateAnalytic(2) = SIN(omega_c*t + phi)*r_c
           PartStateAnalytic(3) = 0.
           PartStateAnalytic(4) = -SIN(omega_c*t + phi)*v_perp
-          PartStateAnalytic(5) =  COS(omega_c*t + phi)*v_perp 
+          PartStateAnalytic(5) =  COS(omega_c*t + phi)*v_perp
           PartStateAnalytic(6) = 0.
         END ASSOCIATE
       END ASSOCIATE

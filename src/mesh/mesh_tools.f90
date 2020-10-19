@@ -156,12 +156,12 @@ INTEGER  :: dummy
 !==================================================================================================================================
 #if USE_MPI
 IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
-  GetCNElemID => GetCNElemID_iElem
+  GetCNElemID => CNElemID_is_iElem
 ELSE
   GetCNElemID => GetGlobalElem2CNTotalElem
 END IF
 #else
-GetCNElemID => GetCNElemID_iElem
+GetCNElemID => CNElemID_is_iElem
 #endif
 
 ! Suppress compiler warning
@@ -169,14 +169,14 @@ RETURN
 #if USE_MPI
 dummy=GetGlobalElem2CNTotalElem(1)
 #endif
-dummy=GetCNElemID_iElem(1)
+dummy=CNElemID_is_iElem(1)
 END SUBROUTINE InitGetCNElemID
 
 
 !==================================================================================================================================!
 !> Get the CN element ID in case of MPI=OFF or single compute node (CN)
 !==================================================================================================================================!
-PURE FUNCTION GetCNElemID_iElem(iElem)
+PURE FUNCTION CNElemID_is_iElem(iElem)
 ! MODULES
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iElem ! Global and local element ID are the same
@@ -184,10 +184,10 @@ INTEGER,INTENT(IN)              :: iElem ! Global and local element ID are the s
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: GetCNElemID_iElem
+INTEGER :: CNElemID_is_iElem
 !===================================================================================================================================
-GetCNElemID_iElem = iElem
-END FUNCTION GetCNElemID_iElem
+CNElemID_is_iElem = iElem
+END FUNCTION CNElemID_is_iElem
 
 
 #if USE_MPI

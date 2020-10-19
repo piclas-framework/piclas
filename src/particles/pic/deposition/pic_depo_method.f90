@@ -292,11 +292,11 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
-USE MOD_Mesh_Vars          ,ONLY: nElems,nNodes, OffsetElem
+USE MOD_Mesh_Vars          ,ONLY: nElems,OffsetElem
 USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared
-USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExtTmp,NodeSourceExt,NodeVolume,DepositionType,NodeSource
+USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExtTmp,NodeSourceExt,NodeVolume,NodeSource
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Part_Tools         ,ONLY: isDepositParticle
 #if USE_MPI
@@ -384,7 +384,7 @@ DO iPart=1,PDM%ParticleVecLength
     NodeID = ElemNodeID_Shared(:,PEM%CNElemID(iPart))
     NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(1))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(1))) &
         +(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
-    NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(2))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(2))) & 
+    NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(2))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(2))) &
         +(TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*(1-alpha3))
     NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(3))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(3))) &
         +(TSource(SourceDim:4)*  (alpha1)*  (alpha2)*(1-alpha3))
@@ -427,7 +427,7 @@ IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
       DO iNode = 1, NodeMapping(iProc)%nSendUniqueNodes
         NodeMapping(iProc)%SendNodeSource(SourceDim:4,iNode) = &
               NodeSource(SourceDim:4,NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
-      END DO 
+      END DO
       CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSource(SourceDim:4,:)            &
                     , (5-SourceDim)*NodeMapping(iProc)%nSendUniqueNodes           &
                     , MPI_DOUBLE_PRECISION                                        &
@@ -441,11 +441,11 @@ IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
 
   DO iProc = 0,nLeaderGroupProcs-1
     IF (iProc.EQ.myLeaderGroupRank) CYCLE
-    IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN 
+    IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
       CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     END IF
-    IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN 
+    IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
       CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     END IF
@@ -457,8 +457,8 @@ IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
       DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
         NodeSource(SourceDim:4,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)) = &
           NodeSource(SourceDim:4,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)) + &
-          NodeMapping(iProc)%RecvNodeSource(SourceDim:4,iNode)              
-      END DO 
+          NodeMapping(iProc)%RecvNodeSource(SourceDim:4,iNode)
+      END DO
     END IF
   END DO
 END IF
@@ -539,29 +539,20 @@ SUBROUTINE DepositionMethod_SF(doParticle_In)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
-USE MOD_globals                    ! ,ONLY: abort, IERROR
+USE MOD_globals
 USE MOD_Particle_Vars               ,ONLY: Species, PartSpecies,PDM,PartMPF,usevMPF
 USE MOD_Particle_Vars               ,ONLY: PartState
-USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
-USE MOD_PICDepo_Vars                ,ONLY: PartSource,SFdepoLayersGeo,SFdepoLayersBaseVector,LastAnalyzeSurfCollis,PartSourceConst
-USE MOD_PICDepo_Vars                ,ONLY: RelaxFac,SFdepoLayersSpace,sfdepolayersbounds,SFdepoLayersUseFixBounds
-USE MOD_PICDepo_Vars                ,ONLY: sfdepolayersradius,sfdepolayerspartnum,PartSourceOld,w_sf,SFdepoLayersMPF,SFdepoLayersSpec
-USE MOD_PICDepo_Vars                ,ONLY: Vdm_EquiN_GaussN,SFResampleAnalyzeSurfCollis,SFdepoLayersAlreadyDone,RelaxDeposition,r_SF
-USE MOD_PICDepo_Vars                ,ONLY: PartSourceConstExists,NbrOfSFdepoLayers,DoSFEqui, PartSourceProc
-USE MOD_PICDepo_Vars                ,ONLY: ConstantSFdepoLayers
+USE MOD_PICDepo_Vars                ,ONLY: PartSource,w_sf
 USE MOD_PICDepo_Shapefunction_Tools ,ONLY: calcSfSource
-USE MOD_Mesh_Tools,             ONLY: GetCNElemID
+USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 #if USE_MPI
-USE MOD_PICDepo_Vars                ,ONLY: PartSource_Shared_Win, PartSource_Shared, ShapeMapping, nSendShapeElems, SendShapeElemID
+USE MOD_PICDepo_Vars                ,ONLY: PartSourceProc
+USE MOD_PICDepo_Vars                ,ONLY: PartSource_Shared_Win, ShapeMapping, nSendShapeElems, SendShapeElemID
 USE MOD_PICDepo_Vars                ,ONLY: CNShapeMapping
-USE MOD_Particle_MPI_Vars           ,ONLY: ExtPartState,ExtPartSpecies,ExtPartToFIBGM,ExtPartMPF,NbrOfextParticles
-USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_SHARED, nComputeNodeTotalElems, myComputeNodeRank, nComputeNodeProcessors
+USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_SHARED, myComputeNodeRank, nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_LEADERS_SHARED, myLeaderGroupRank, nLeaderGroupProcs
 #endif /*USE_MPI*/
-USE MOD_TimeDisc_Vars               ,ONLY: dtWeight
 USE MOD_Part_Tools                  ,ONLY: isDepositParticle
-USE MOD_Mesh_Vars                   ,ONLY: nElems
-USE MOD_ChangeBasis                 ,ONLY: ChangeBasis3D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -571,19 +562,15 @@ LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: de
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL               :: Vec1(1:3), Vec2(1:3), Vec3(1:3), Charge
-REAL               :: RandVal, RandVal2(2), layerPartPos(3), PartRadius, FractPush(3), SFfixDistance
-INTEGER            :: iElem, iPart, iPart2, iSFfix
-INTEGER            :: iLayer, layerParts
-INTEGER            :: kk, ll, mm, MessageSize
-LOGICAL            :: DoCycle
+REAL               :: Charge
+INTEGER            :: iElem, iPart
 #if USE_MPI
 INTEGER            :: SendRequest, RecvRequest(nComputeNodeProcessors-1), iProc, CNElemID
 INTEGER            :: RecvRequestCN(0:nLeaderGroupProcs-1), SendRequestCN(0:nLeaderGroupProcs-1)
 #endif
 !===================================================================================================================================
-#if !USE_MPI
-ASSOCIATE(PartSourceLoc => PartSource)
+#if USE_MPI
+PartSourceProc = 0.
 #endif
 !Vec1(1:3) = 0.
 !Vec2(1:3) = 0.
@@ -600,7 +587,6 @@ ASSOCIATE(PartSourceLoc => PartSource)
 !  Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
 !  Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
 !END IF
-PartSourceProc = 0.
 !CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
 DO iPart=1,PDM%ParticleVecLength
   IF(PRESENT(doParticle_In))THEN
@@ -614,7 +600,7 @@ DO iPart=1,PDM%ParticleVecLength
   ELSE
     Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
   END IF
-  CALL calcSfSource(4,Charge*w_sf ,Vec1,Vec2,Vec3,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
+  CALL calcSfSource(4,Charge*w_sf,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
 END DO
 #if USE_MPI
 CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
@@ -640,12 +626,12 @@ IF (myComputeNodeRank.EQ.0) THEN
       PartSource(:,:,:,:,ShapeMapping(iProc)%RecvShapeElemID(iElem)) = PartSource(:,:,:,:,ShapeMapping(iProc)%RecvShapeElemID(iElem))&
           + ShapeMapping(iProc)%RecvBuffer(:,:,:,:,iElem)
     END DO
-  END DO 
+  END DO
 
   DO iElem = 1, nSendShapeElems
     PartSource(:,:,:,:,SendShapeElemID(iElem)) = PartSource(:,:,:,:,SendShapeElemID(iElem))&
               + PartSourceProc(:,:,:,:,iElem)
-  END DO 
+  END DO
 ELSE
   IF (nSendShapeElems.GT.1) THEN
     CALL MPI_ISEND( PartSourceProc                         &
@@ -686,7 +672,7 @@ IF (myComputeNodeRank.EQ.0) THEN
     DO iElem=1, CNShapeMapping(iProc)%nSendShapeElems
       CNElemID = GetCNElemID(CNShapeMapping(iProc)%SendShapeElemID(iElem))
       CNShapeMapping(iProc)%SendBuffer(:,:,:,:,iElem) = PartSource(:,:,:,:,CNElemID)
-    END DO 
+    END DO
 
     CALL MPI_ISEND( CNShapeMapping(iProc)%SendBuffer   &
                   , CNShapeMapping(iProc)%nSendShapeElems*4*(PP_N+1)**3   &
@@ -718,13 +704,11 @@ IF (myComputeNodeRank.EQ.0) THEN
     DO iElem=1, CNShapeMapping(iProc)%nRecvShapeElems
       CNElemID = GetCNElemID(CNShapeMapping(iProc)%RecvShapeElemID(iElem))
       PartSource(:,:,:,:,CNElemID) = PartSource(:,:,:,:,CNElemID) + CNShapeMapping(iProc)%RecvBuffer(:,:,:,:,iElem)
-    END DO 
+    END DO
   END DO
 END IF
 CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
-#else
-END ASSOCIATE
 #endif
 END SUBROUTINE DepositionMethod_SF
 

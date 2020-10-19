@@ -135,7 +135,8 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactAngle_Shared,SampWallImpact
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber_Shared,SampWallImpactNumber_Shared_Win
 USE MOD_Particle_MPI_Boundary_Sampling,ONLY: InitSurfCommunication
 #else
-!
+USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
+USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -305,10 +306,14 @@ DO iSide = firstSide,lastSide
     GlobalSide2SurfSideProc(SURF_LEADER,iSide) = GlobalSide2SurfSideProc(SURF_RANK,iSide)
 #endif /*USE_MPI*/
 
+#if USE_MPI
     ! check if element for this side is on the current compute-node. Alternative version to the check above
     IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) THEN
+#endif /*USE_MPI*/
       nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
+#if USE_MPI
     END IF
+#endif /*USE_MPI*/
   END IF ! reflective side
 END DO
 

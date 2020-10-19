@@ -30,7 +30,6 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL            :: MPISharedInitIsDone=.FALSE.
-LOGICAL            :: MeshWasCurved      =.FALSE.
 
 ! Communication
 INTEGER            :: ComputeNodeRootRank                   !> Rank of compute-node root in global comm
