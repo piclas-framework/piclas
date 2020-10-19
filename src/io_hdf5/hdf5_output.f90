@@ -563,12 +563,16 @@ ASSOCIATE (&
       CALL WriteAttributeToHDF5(File_ID,'VarNamesSource',INT(nVar,4),StrArray=LocalStrVarnames)
       CALL CloseDataFile()
     END IF
-    CALL GatheredWriteArray(FileName,create=.FALSE.,&
-        DataSetName='DG_Source', rank=5,  &
-        nValGlobal=(/nVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-        nVal=      (/nVar , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-        offset=    (/0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
-        collective=.TRUE.,RealArray=PartSource(:,:,:,:,GetCNElemID(offsetElem + 1):GetCNElemID(offSetElem+PP_nElems)))
+    ASSOCIATE(&
+        CNElemIDStart  => INT(GetCNElemID(INT(offsetElem          ,4)+1),IK) ,&
+        CNElemIDEnd    => INT(GetCNElemID(INT(offsetElem+PP_nElems,4)  ),IK) )
+      CALL GatheredWriteArray(FileName,create=.FALSE.,&
+          DataSetName='DG_Source', rank=5,  &
+          nValGlobal=(/nVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+          nVal=      (/nVar , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
+          offset=    (/0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
+          collective=.TRUE.,RealArray=PartSource(:,:,:,:,CNElemIDStart:CNElemIDEnd))
+    END ASSOCIATE
 
     DEALLOCATE(LocalStrVarNames)
   END IF

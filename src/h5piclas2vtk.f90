@@ -813,13 +813,19 @@ IF(.NOT.ElemMeshInit) THEN
   LastElemInd = nGlobalElems
   nElems = nGlobalElems
 
-  ALLOCATE(ElemInfo_Shared(ELEMINFOSIZE_H5,FirstElemInd:LastElemInd))
-  CALL ReadArray('ElemInfo',2,(/ELEMINFOSIZE_H5,nElems/),0,2,IntegerArray_i4=ElemInfo_Shared(1:ELEMINFOSIZE_H5,:))
+  ASSOCIATE(ELEMINFOSIZE_H5_IK => INT(ELEMINFOSIZE_H5,IK) ,&
+            SIDEINFOSIZE_H5_IK => INT(SIDEINFOSIZE_H5,IK) ,&
+            nElems             => INT(nElems,IK))
+    ALLOCATE(ElemInfo_Shared(ELEMINFOSIZE_H5,FirstElemInd:LastElemInd))
+    CALL ReadArray('ElemInfo',2,(/ELEMINFOSIZE_H5_IK,nElems/),0_IK,2,IntegerArray_i4=ElemInfo_Shared(1:ELEMINFOSIZE_H5,:))
 
-  nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd)
-  ALLOCATE(SideInfo_Shared(SIDEINFOSIZE,1:nSideIDs))
-  SideInfo_Shared = 0
-  CALL ReadArray('SideInfo',2,(/SIDEINFOSIZE_H5,nSideIDs/),0,2,IntegerArray_i4=SideInfo_Shared(1:SIDEINFOSIZE_H5,:))
+    nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd)
+    ALLOCATE(SideInfo_Shared(SIDEINFOSIZE,1:nSideIDs))
+    ASSOCIATE(nSideIDs           => INT(nSideIDs,IK))
+      SideInfo_Shared = 0
+      CALL ReadArray('SideInfo',2,(/SIDEINFOSIZE_H5_IK,nSideIDs/),0_IK,2,IntegerArray_i4=SideInfo_Shared(1:SIDEINFOSIZE_H5,:))
+    END ASSOCIATE
+  END ASSOCIATE
 
   ! Filling SIDE_ELEMID, SIDE_LOCALID, SIDE_NBSIDEID of the SideInfo_Shared-array
   DO iElem = FirstElemInd,LastElemInd
@@ -856,10 +862,12 @@ IF(.NOT.ElemMeshInit) THEN
     END DO
   END DO
 
-  ALLOCATE(NodeInfo_Shared(1:nNonUniqueGlobalNodes))
-  CALL ReadArray('GlobalNodeIDs',1,(/nNonUniqueGlobalNodes/),0,1,IntegerArray_i4=NodeInfo_Shared)
-  ALLOCATE(NodeCoords_Shared(3,nNonUniqueGlobalNodes))
-  CALL ReadArray('NodeCoords',2,(/3,nNonUniqueGlobalNodes/),0,2,RealArray=NodeCoords_Shared)
+  ASSOCIATE( nNonUniqueGlobalNodes => INT(nNonUniqueGlobalNodes,IK))
+    ALLOCATE(NodeInfo_Shared(1:nNonUniqueGlobalNodes))
+    CALL ReadArray('GlobalNodeIDs',1,(/nNonUniqueGlobalNodes/),0_IK,1,IntegerArray_i4=NodeInfo_Shared)
+    ALLOCATE(NodeCoords_Shared(3,nNonUniqueGlobalNodes))
+    CALL ReadArray('NodeCoords',2,(/3_IK,nNonUniqueGlobalNodes/),0_IK,2,RealArray=NodeCoords_Shared)
+  END ASSOCIATE
 
     ! CGNS Mapping
   CornerNodeIDswitch(1)=1
@@ -1207,7 +1215,9 @@ CHECKSAFEINT(HSize(1),4)
 nBCs=INT(HSize(1),4)
 ALLOCATE(BoundaryName(nBCs))
 
-CALL ReadArray('BCNames',1,(/nBCs/),0,1,StrArray=BoundaryName)
+ASSOCIATE(nBCs => INT(nBCs,IK))
+  CALL ReadArray('BCNames',1,(/nBCs/),0_IK,1,StrArray=BoundaryName)
+END ASSOCIATE
 CALL CloseDataFile()
 
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
