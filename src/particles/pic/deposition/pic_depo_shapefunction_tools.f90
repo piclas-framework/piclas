@@ -537,9 +537,9 @@ SUBROUTINE depoChargeOnDOFs_sfAdaptive(Position,SourceSize,Fac,PartIdx)
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:r_sf, r2_sf, r2_sf_inv,alpha_sf,PartSource,w_sf,SFElemr2_Shared
+USE MOD_PICDepo_Vars,           ONLY:alpha_sf,PartSource,w_sf,SFElemr2_Shared
 USE MOD_Mesh_Vars,              ONLY:nElems, offSetElem
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
+USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNgeo, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo, ElemsJ, ElemToElemMapping,ElemToElemInfo
 USE MOD_Preproc
 USE MOD_Mesh_Tools,             ONLY:GetCNElemID, GetGlobalElemID
@@ -571,8 +571,7 @@ REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
 ! LOCAL VARIABLES
 LOGICAL                          :: firstElem,elemDone
 INTEGER                          :: k, l, m
-INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
-INTEGER                          :: kk, ll, mm, ppp
+INTEGER                          :: ppp
 INTEGER                          :: globElemID, CNElemID, OrigCNElemID, OrigElem
 INTEGER                          :: expo, nUsedElems, localElem
 REAL                             :: radius2, S, S1

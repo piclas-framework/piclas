@@ -3387,7 +3387,7 @@ CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255)             :: FileName,DataSetName
 INTEGER                        :: iElem,i,iMax
 REAL                           :: NodeSourceExtEqui(1:N_variables,0:1,0:1,0:1)
-INTEGER                        :: NodeID(1:8),CNElemID
+INTEGER                        :: NodeID(1:8)
 #if USE_MPI
 INTEGER                        :: iProc
 INTEGER                        :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)

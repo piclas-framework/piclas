@@ -319,14 +319,12 @@ SUBROUTINE SendNbOfParticles(doParticle_In)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIExchange,PartTargetProc!,PartHaloElemToProc
 USE MOD_Particle_MPI_Vars,      ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc
-USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
-USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,PEM,PDM,Species,PartPosRef
+USE MOD_Particle_Vars          ,ONLY: PEM,PDM
+!USE MOD_Particle_Vars          ,ONLY: PartSpecies
 ! variables for parallel deposition
-USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -339,12 +337,6 @@ LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
 LOGICAL                       :: doPartInExists
 INTEGER                       :: iPart,ElemID
 INTEGER                       :: iProc,ProcID
-! shape function
-INTEGER                       :: CellX,CellY,CellZ!, iPartShape
-INTEGER                       :: PartDepoProcs(1:PartMPI%nProcs+1),nDepoProcs,LocalProcID
-INTEGER                       :: nPartShape
-REAL                          :: ShiftedPart(1:3)
-LOGICAL                       :: PartInBGM
 !===================================================================================================================================
 doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
@@ -426,15 +418,13 @@ SUBROUTINE MPIParticleSend()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DSMC_Vars,               ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
-USE MOD_Particle_Mesh_Vars,      ONLY:GEO
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI,PartMPIExchange,PartCommSize,PartSendBuf,PartRecvBuf,PartTargetProc!,PartHaloElemToProc
-USE MOD_Particle_MPI_Vars,       ONLY:nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc
+USE MOD_Particle_MPI_Vars,       ONLY:nExchangeProcessors,ExchangeProcToGlobalProc
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
-USE MOD_Particle_Vars,           ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Species,PartPosRef
+USE MOD_Particle_Vars,           ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM,PartPosRef
 #if defined(LSERK)
 USE MOD_Particle_Vars,           ONLY:Pt_temp
 #endif
-USE MOD_Particle_MPI_Vars,       ONLY:PartShiftVector
 #if defined(ROS) || defined(IMPA)
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Mesh_Vars,      ONLY:ElemToGlobalElemID
@@ -460,11 +450,6 @@ INTEGER                       :: iPart,iPos,iProc,jPos
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,0:nExchangeProcessors-1)
 INTEGER                       :: MessageSize, nRecvParticles, nSendParticles
 INTEGER                       :: ALLOCSTAT
-! shape function
-INTEGER                       :: CellX,CellY,CellZ!, iPartShape
-INTEGER                       :: PartDepoProcs(1:PartMPI%nProcs+1), nDepoProcs, ProcID, jProc, LocalProcID
-REAL                          :: ShiftedPart(1:3)
-LOGICAL                       :: PartInBGM
 #if defined(ROS) || defined(IMPA)
 INTEGER                       :: iCounter
 #endif /*ROS or IMPA*/

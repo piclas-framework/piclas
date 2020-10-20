@@ -118,7 +118,8 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Mesh_Vars                   ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
-USE MOD_Particle_Vars               ,ONLY: nSpecies, Adaptive_MacroVal, Symmetry
+USE MOD_Particle_Vars               ,ONLY: nSpecies,Symmetry
+!USE MOD_Particle_Vars               ,ONLY: Adaptive_MacroVal
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound, nPorousBC, nPorousSides, PorousBCMacroVal
 USE MOD_Particle_Boundary_Vars      ,ONLY: nComputeNodeSurfTotalSides, SurfSide2GlobalSide
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCSampIter, PorousBC

@@ -513,7 +513,7 @@ USE MOD_part_operations    ,ONLY: CreateParticle
 USE MOD_part_tools         ,ONLY: isChargedParticle
 USE MOD_Particle_Vars      ,ONLY: PDM,PartSpecies,LastPartPos
 USE MOD_PICDepo_Tools      ,ONLY: DepositParticleOnNodes
-USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems
+!USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
