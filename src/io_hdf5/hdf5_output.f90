@@ -3403,12 +3403,13 @@ NodeSourceExtGlobal=0.
 
 
 
-
 ! Communicate the NodeSourceExtTmp values of the last boundary interaction before the state is written to .h5
 #if USE_MPI
 MessageSize = nUniqueGlobalNodes
 CALL MPI_REDUCE(NodeSourceExtTmpLoc(1:1,:) ,NodeSourceExtTmp(1:1,:), &
         MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+! Reset local surface charge
+NodeSourceExtTmpLoc = 0.
 CALL MPI_WIN_SYNC(NodeSourceExtTmp_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
@@ -3476,22 +3477,15 @@ lastNode = nUniqueGlobalNodes
 
 
 
+! Add NodeSourceExtTmp values of the last boundary interaction
+DO iNode=firstNode, lastNode
+  NodeSourceExt(   1,iNode) = NodeSourceExt(1,iNode) + NodeSourceExtTmp(1,iNode)
+END DO
 #if USE_MPI
-!ASSOCIATE( NodeSourceExtTmp => NodeSourceExtTmpLoc )
-#endif
-  ! Add NodeSourceExtTmp values of the last boundary interaction
-  DO iNode=firstNode, lastNode
-    NodeSourceExt(   1,iNode) = NodeSourceExt(1,iNode) + NodeSourceExtTmp(1,iNode)
-    !NodeSourceExtTmp(1,iNode) = 0.
-  END DO
-#if USE_MPI
-!END ASSOCIATE
 CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif
 
-! Reset local surface charge
-NodeSourceExtTmpLoc = 0.
 
 
 

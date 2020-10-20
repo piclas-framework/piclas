@@ -375,6 +375,7 @@ DO iPart=1,PDM%ParticleVecLength
 #if USE_DEBUG
   ! Sanity check
   IF(GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID).LT.0)THEN
+    IPWRITE (*,*) "GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) =", GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)
     CALL abort(&
     __STAMP__&
     ,'Error: Tried to access GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) for ProcID = ',IntInfoOpt=ProcID)

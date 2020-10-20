@@ -70,6 +70,7 @@ USE MOD_PICDepo_MPI            ,ONLY: MPIBackgroundMeshInit
 #endif /*USE_MPI*/
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
+USE MOD_Restart_Vars           ,ONLY: DoRestart
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -154,6 +155,9 @@ END IF
 !--- check if chargedensity is computed from TimeAverageFile
 TimeAverageFile = GETSTR('PIC-TimeAverageFile','none')
 IF (TRIM(TimeAverageFile).NE.'none') THEN
+  CALL abort(&
+  __STAMP__&
+  ,'This feature is currently not working! PartSource must be correctly handled in shared memory context.')
   CALL ReadTimeAverage(TimeAverageFile)
   IF (.NOT.RelaxDeposition) THEN
   !-- switch off deposition: use only the read PartSource
@@ -285,11 +289,13 @@ CASE('cell_volweight_mean')
     CALL MPI_WIN_LOCK_ALL(0,NodeSourceExt_Shared_Win,IERROR)
     NodeSourceExt => NodeSourceExt_Shared
     !ALLOCATE(NodeSourceExtLoc(1:1,1:nUniqueGlobalNodes))
-    DO iNode=firstNode, lastNode
-      NodeSourceExt(1,iNode) = 0.
-    END DO
-    CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
-    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+    IF(.NOT.DoRestart)THEN
+      DO iNode=firstNode, lastNode
+        NodeSourceExt(1,iNode) = 0.
+      END DO
+      CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
+      CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+    END IF ! .NOT.DoRestart
 
    ! Local, non-synchronized surface charge contribution (is added to NodeSource BEFORE MPI synchronization)
     MPISharedSize = INT(nUniqueGlobalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
@@ -299,11 +305,12 @@ CASE('cell_volweight_mean')
     ALLOCATE(NodeSourceExtTmpLoc(1:1,1:nUniqueGlobalNodes))
     NodeSourceExtTmpLoc = 0.
 
-    DO iNode=firstNode, lastNode
-      NodeSourceExtTmp(1,iNode) = 0.
-    END DO
-    CALL MPI_WIN_SYNC(NodeSourceExtTmp_Shared_Win,IERROR)
-    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+    ! DO iNode=firstNode, lastNode
+    !   NodeSourceExtTmp(1,iNode) = 0.
+    ! END DO
+    !CALL MPI_WIN_SYNC(NodeSourceExtTmp_Shared_Win,IERROR)
+    !CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+
     
   END IF ! DoDielectricSurfaceCharge
 

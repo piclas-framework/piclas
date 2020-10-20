@@ -296,7 +296,7 @@ USE MOD_Mesh_Vars          ,ONLY: nElems,OffsetElem
 USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared
-USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExtTmp,NodeSourceExt,NodeVolume,NodeSource
+USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExt,NodeVolume,NodeSource
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Part_Tools         ,ONLY: isDepositParticle
 #if USE_MPI
@@ -304,6 +304,8 @@ USE MOD_PICDepo_Vars       ,ONLY: NodeSourceLoc, NodeMapping, NodeSource_Shared_
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myLeaderGroupRank
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors, nLeaderGroupProcs
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmpLoc
+#else
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
 #endif  /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
@@ -413,9 +415,6 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 ! NodeSourceExtTmp. This contribution accumulates over time, but remains locally to each processor as it is communicated via the 
 ! normal NodeSource container. The synchronized part is added after communication.
 IF(DoDielectricSurfaceCharge)THEN
-  !DO iNode=firstNode, lastNode
-    !NodeSource(4,iNode) = NodeSource(4,iNode) + NodeSourceExtTmp(1,iNode)
-  !END DO
     NodeSource(4,:) = NodeSource(4,:) + NodeSourceExtTmp(1,:)
 END IF ! DoDielectricSurfaceCharge
 #if USE_LOADBALANCE
@@ -629,7 +628,7 @@ DO iPart=1,PDM%ParticleVecLength
   ELSE
     Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
   END IF
-  CALL calcSfSource(4,Charge*w_sf,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
+  CALL calcSfSource(4,Charge*w_sf,PartState(1:3,iPart),PartVelo=PartState(4:6,iPart))
 END DO
 #if USE_MPI
 CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
