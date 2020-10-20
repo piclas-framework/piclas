@@ -461,7 +461,7 @@ CASE(TRACING,REFMAPPING)
 END SELECT
 
 ! Build mappings UniqueNodeID->CN Element IDs and CN Element ID -> CN Element IDs
-FindNeighbourElems = .TRUE.
+FindNeighbourElems = .FALSE.
 IF(FindNeighbourElems) CALL BuildNodeNeighbourhood()
 
 ! BezierAreaSample stuff:
