@@ -52,7 +52,6 @@ SUBROUTINE DepositParticleOnNodes(iPart,PartPos,GlobalElemID)
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Vars      ,ONLY: PartSpecies,Species
 USE MOD_Particle_Vars      ,ONLY: usevMPF,PartMPF
-USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 #if USE_LOADBALANCE
@@ -62,6 +61,8 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared
 #if USE_MPI
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmpLoc
+#else
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -151,6 +152,8 @@ INTEGER(KIND=MPI_ADDRESS_KIND)   :: MPISharedSize
 INTEGER                          :: MessageSize
 REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
 #endif
+INTEGER                          :: I
+INTEGER                          :: NodeID(1:8)
 !===================================================================================================================================
 #if USE_MPI
 MPISharedSize = INT((nUniqueGlobalNodes),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
@@ -165,7 +168,15 @@ ALLOCATE(NodeVolume(1:nUniqueGlobalNodes))
 firstElem = 1
 lastElem  = nElems
 #endif /*USE_MPI*/
-NodeVolume = 0.0
+
+! only CN root nullifies
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif /* USE_MPI*/
+  NodeVolume = 0.0
+#if USE_MPI
+END IF
+#endif /* USE_MPI*/
 
 IF (PP_N.NE.1) THEN
   xGP_loc(0) = -0.5
@@ -186,20 +197,22 @@ DO iElem = firstElem, lastElem
     END DO; END DO; END DO
     CALL ChangeBasis3D(1,PP_N, 1, Vdm_loc, DetLocal(:,:,:,:),DetJac(:,:,:,:))
   END IF
-  ASSOCIATE(   &
 #if USE_MPI
-             NodeVolume => NodeVolumeLoc, &
-#endif
-             NodeID     => ElemNodeID_Shared(1:8,iElem))
-    NodeVolume(NodeInfo_Shared(NodeID(1))) = NodeVolume(NodeInfo_Shared(NodeID(1))) + DetJac(1,0,0,0)
-    NodeVolume(NodeInfo_Shared(NodeID(2))) = NodeVolume(NodeInfo_Shared(NodeID(2))) + DetJac(1,1,0,0)
-    NodeVolume(NodeInfo_Shared(NodeID(3))) = NodeVolume(NodeInfo_Shared(NodeID(3))) + DetJac(1,1,1,0)
-    NodeVolume(NodeInfo_Shared(NodeID(4))) = NodeVolume(NodeInfo_Shared(NodeID(4))) + DetJac(1,0,1,0)
-    NodeVolume(NodeInfo_Shared(NodeID(5))) = NodeVolume(NodeInfo_Shared(NodeID(5))) + DetJac(1,0,0,1)
-    NodeVolume(NodeInfo_Shared(NodeID(6))) = NodeVolume(NodeInfo_Shared(NodeID(6))) + DetJac(1,1,0,1)
-    NodeVolume(NodeInfo_Shared(NodeID(7))) = NodeVolume(NodeInfo_Shared(NodeID(7))) + DetJac(1,1,1,1)
-    NodeVolume(NodeInfo_Shared(NodeID(8))) = NodeVolume(NodeInfo_Shared(NodeID(8))) + DetJac(1,0,1,1)
+  ASSOCIATE( NodeVolume => NodeVolumeLoc )
+#endif /*USE_MPI*/
+    NodeID = NodeInfo_Shared(ElemNodeID_Shared(1:8,iElem))
+    NodeVolume(NodeID(1)) = NodeVolume(NodeID(1)) + DetJac(1,0,0,0)
+    NodeVolume(NodeID(2)) = NodeVolume(NodeID(2)) + DetJac(1,1,0,0)
+    NodeVolume(NodeID(3)) = NodeVolume(NodeID(3)) + DetJac(1,1,1,0)
+    NodeVolume(NodeID(4)) = NodeVolume(NodeID(4)) + DetJac(1,0,1,0)
+    NodeVolume(NodeID(5)) = NodeVolume(NodeID(5)) + DetJac(1,0,0,1)
+    NodeVolume(NodeID(6)) = NodeVolume(NodeID(6)) + DetJac(1,1,0,1)
+    NodeVolume(NodeID(7)) = NodeVolume(NodeID(7)) + DetJac(1,1,1,1)
+    NodeVolume(NodeID(8)) = NodeVolume(NodeID(8)) + DetJac(1,0,1,1)
+
+#if USE_MPI
   END ASSOCIATE
+#endif /*USE_MPI*/
 END DO
 
 #if USE_MPI
@@ -208,7 +221,19 @@ MessageSize =  nUniqueGlobalNodes
 CALL MPI_REDUCE(NodeVolumeLoc,NodeVolume,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
 CALL MPI_WIN_SYNC(NodeVolume_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
-#endif
+
+#if USE_DEBUG
+! Sanity Check
+DO I = 1, nUniqueGlobalNodes
+  IF(NodeVolume(I).LE.0.0)THEN
+    IPWRITE(UNIT_StdOut,*) "NodeVolume(",I,") =", NodeVolume(I)
+    CALL abort(&
+        __STAMP__&
+        ,'NodeVolume(I) <= 0.0 for I = ',IntInfoOpt=I)
+  END IF ! NodeVolume(NodeID(1)).LE.0.0
+END DO ! I = 1, nUniqueGlobalNodes
+#endif /*USE_DEBUG*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE CalcCellLocNodeVolumes
 
