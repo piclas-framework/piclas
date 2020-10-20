@@ -230,11 +230,9 @@ ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
       __STAMP__&
       ,' ERROR: PartBound not associated!. (PartBound%SimpleCathodeBC)')
   !-----------------------------------------------------------------------------------------------------------------------------------
-  CASE(6) !PartBound%MPINeighborhoodBC)
+  CASE(6) !PartBound%rot_periodic)
   !-----------------------------------------------------------------------------------------------------------------------------------
-    CALL abort(&
-      __STAMP__&
-      ,' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)')
+    CALL RotPeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(10,11) !PartBound%SymmetryBC
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1298,7 +1296,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
 REAL,INTENT(IN)                   :: xi, eta
-INTEGER,INTENT(IN)                :: PartID, SideID!,ElemID
+INTEGER,INTENT(IN)                :: PartID, SideID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
@@ -1364,6 +1362,131 @@ ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
 !END IF
 
 END SUBROUTINE PeriodicBC
+
+
+SUBROUTINE RotPeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,ElemID)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Execution of the rotation periodic boundary condition:
+! (1) rotate POI and velocity vector
+! (2) calc particle position after rotating according new velo and remaining time after POI
+! (3) move particle from old element to new element
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_TImeDisc_Vars          ,ONLY: dt,RKdtFrac
+USE MOD_Particle_Vars          ,ONLY: VarTimeStep
+USE MOD_Particle_Boundary_Vars ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide, GlobalSide2SurfSide
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
+#endif /*CODE_ANALYZE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
+REAL,INTENT(IN)                   :: xi, eta
+INTEGER,INTENT(IN)                :: PartID, SideID
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                              :: locSideID, SideID2, ElemID2, iNeigh, RotSideID
+REAL                                 :: adaptTimeStep
+LOGICAL                              :: FoundInElem
+REAL                                 :: det(6,2)
+REAL                                 :: LastPartPos_old(1:3),Velo_old(1:3)
+!===================================================================================================================================
+
+#ifdef CODE_ANALYZE
+IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+  IF(PartID.EQ.PARTOUT)THEN
+    IPWRITE(UNIT_stdout,'(I0,A)') '     RotPeriodicBC: '
+    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' ParticlePosition: ',PartState(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' LastPartPos:      ',LastPartPos(1:3,PartID)
+  END IF
+END IF
+#endif /*CODE_ANALYZE*/
+
+IF (VarTimeStep%UseVariableTimeStep) THEN
+  adaptTimeStep = VarTimeStep%ParticleTimeStep(PartID)
+ELSE
+  adaptTimeStep = 1.0
+END IF
+
+! set last particle position on face (POI)
+LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
+LastPartPos_old(1:3) = LastPartPos(1:3,PartID)
+Velo_old(1:3) = PartState(4:6,PartID)
+! (1) perform the rotational periodic movement and adjust velocity vector
+ASSOCIATE( alpha => PartBound%RotPeriodicAngle(SideInfo_Shared(SIDE_BCID,SideID)) )
+  SELECT CASE(GEO%RotPeriodicAxi)
+    CASE(1) ! x-rotation axis: LastPartPos(1,PartID) = LastPartPos_old(1,PartID)
+      LastPartPos(2,PartID) = COS(alpha)*LastPartPos_old(2) - SIN(alpha)*LastPartPos_old(3)
+      LastPartPos(3,PartID) = SIN(alpha)*LastPartPos_old(2) + COS(alpha)*LastPartPos_old(3)
+      PartState(5,PartID) = COS(alpha)*Velo_old(2) - SIN(alpha)*Velo_old(3)
+      PartState(6,PartID) = SIN(alpha)*Velo_old(2) + COS(alpha)*Velo_old(3)
+    CASE(2) ! x-rotation axis: LastPartPos(2,PartID) = LastPartPos_old(2,PartID)
+      LastPartPos(1,PartID) = COS(alpha)*LastPartPos_old(1) + SIN(alpha)*LastPartPos_old(3)
+      LastPartPos(3,PartID) =-SIN(alpha)*LastPartPos_old(1) + COS(alpha)*LastPartPos_old(3)
+      PartState(4,PartID) = COS(alpha)*Velo_old(1) + SIN(alpha)*Velo_old(3)
+      PartState(6,PartID) =-SIN(alpha)*Velo_old(1) + COS(alpha)*Velo_old(3)
+    CASE(3) ! x-rotation axis: LastPartPos(3,PartID) = LastPartPos_old(3,PartID)
+      LastPartPos(1,PartID) = COS(alpha)*LastPartPos_old(1) - SIN(alpha)*LastPartPos_old(2)
+      LastPartPos(2,PartID) = SIN(alpha)*LastPartPos_old(1) + COS(alpha)*LastPartPos_old(2)
+      PartState(4,PartID) = COS(alpha)*Velo_old(1) - SIN(alpha)*Velo_old(2)
+      PartState(5,PartID) = SIN(alpha)*Velo_old(1) + COS(alpha)*Velo_old(2)
+  END SELECT
+END ASSOCIATE
+! (2) update particle positon after periodic BC
+PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac &
+                        * PartState(4:6,PartID) * adaptTimeStep
+! #if !defined(IMPA) &&  !defined(ROS)
+! compute moved particle || rest of movement
+PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
+IF(ALMOSTZERO(VECNORM(PartTrajectory)))THEN
+  lengthPartTrajectory= 0.0
+ELSE
+  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                           +PartTrajectory(2)*PartTrajectory(2) &
+                           +PartTrajectory(3)*PartTrajectory(3) )
+  PartTrajectory=PartTrajectory/lengthPartTrajectory
+END IF
+#ifdef CODE_ANALYZE
+IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+  IF(PartID.EQ.PARTOUT)THEN
+    IPWRITE(UNIT_stdout,'(I0,A)') '     RotPeriodicBC: '
+    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' ParticlePosition-pp: ',PartState(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' LastPartPo-pp:       ',LastPartPos(1:3,PartID)
+  END IF
+END IF
+#endif /*CODE_ANALYZE*/
+! (3) move particle from old element to new element
+ASSOCIATE( RotSideID =>  SurfSide2RotPeriodicSide((GlobalSide2SurfSide(SURF_SIDEID,SideID))) )
+  DO iNeigh=1,NumRotPeriodicNeigh(RotSideID)
+    SideID2 = RotPeriodicSideMapping(RotSideID,iNeigh)
+    ElemID2 = SideInfo_Shared(SIDE_ELEMID,SideID2)    
+    ! find rotational periodic SideID2 through localization in all potentional rotational periodic sides
+    CALL ParticleInsideQuad3D(LastPartPos(1:3,PartID),ElemID2,FoundInElem,Det)
+    IF(FoundInElem) THEN
+      ElemID = ElemID2
+      EXIT
+    END IF
+  END DO
+  IF(.NOT.FoundInElem) THEN
+    CALL abort(&
+      __STAMP__&
+      ,' ERROR: Particle not found after rotational periodic BC!.')
+  END IF
+END ASSOCIATE
+
+END SUBROUTINE RotPeriodicBC
 
 
 SUBROUTINE SideAnalysis(PartTrajectory,alpha,xi,eta,PartID,SideID,locSideID,ElemID,IsSpeciesSwap)
