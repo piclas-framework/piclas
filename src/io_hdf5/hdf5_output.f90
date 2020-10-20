@@ -3477,20 +3477,21 @@ lastNode = nUniqueGlobalNodes
 
 
 #if USE_MPI
-ASSOCIATE( NodeSourceExtTmp => NodeSourceExtTmpLoc )
+!ASSOCIATE( NodeSourceExtTmp => NodeSourceExtTmpLoc )
 #endif
   ! Add NodeSourceExtTmp values of the last boundary interaction
   DO iNode=firstNode, lastNode
     NodeSourceExt(   1,iNode) = NodeSourceExt(1,iNode) + NodeSourceExtTmp(1,iNode)
-    NodeSourceExtTmp(1,iNode) = 0.
+    !NodeSourceExtTmp(1,iNode) = 0.
   END DO
 #if USE_MPI
-END ASSOCIATE
+!END ASSOCIATE
 CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif
 
-
+! Reset local surface charge
+NodeSourceExtTmpLoc = 0.
 
 
 

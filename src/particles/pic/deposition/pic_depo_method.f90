@@ -413,9 +413,10 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 ! NodeSourceExtTmp. This contribution accumulates over time, but remains locally to each processor as it is communicated via the 
 ! normal NodeSource container. The synchronized part is added after communication.
 IF(DoDielectricSurfaceCharge)THEN
-  DO iNode=firstNode, lastNode
-    NodeSource(4,iNode) = NodeSource(4,iNode) + NodeSourceExtTmp(1,iNode)
-  END DO
+  !DO iNode=firstNode, lastNode
+    !NodeSource(4,iNode) = NodeSource(4,iNode) + NodeSourceExtTmp(1,iNode)
+  !END DO
+    NodeSource(4,:) = NodeSource(4,:) + NodeSourceExtTmp(1,:)
 END IF ! DoDielectricSurfaceCharge
 #if USE_LOADBALANCE
 CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems

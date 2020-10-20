@@ -90,7 +90,6 @@ IF(DG_SourceExtExists)THEN
   ALLOCATE(Vdm_N_EQ(0:1,0:N_Restart))
   CALL GetVandermonde(N_Restart, NodeType, 1, NodeTypeVISU, Vdm_N_EQ, modal=.FALSE.)
 
-
 #if USE_MPI
   firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
   lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
