@@ -461,6 +461,7 @@ CASE(TRACING,REFMAPPING)
 END SELECT
 
 ! Build mappings UniqueNodeID->CN Element IDs and CN Element ID -> CN Element IDs
+FindNeighbourElems = .TRUE.
 IF(FindNeighbourElems) CALL BuildNodeNeighbourhood()
 
 ! BezierAreaSample stuff:
@@ -3900,7 +3901,6 @@ CALL MPI_WIN_SYNC(NodeToElemMapping_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #endif /*USE_MPI*/
 
-
 ! 4. Allocate shared array for mapping
 !    CN element ID -> all CN element IDs to which it is connected : ElemToElemMapping = [offset, Nbr of CN elements]
 #if USE_MPI
@@ -3923,7 +3923,7 @@ firstElem = 1
 lastElem  = nElems
 #endif /*USE_MPI*/
 
-OffsetCounter = -1
+OffsetCounter = 0
 ALLOCATE(CheckedElemIDs(500))
 
 ! Loop all CN elements (iElem is CNElemID)
@@ -3937,33 +3937,30 @@ DO iElem = firstElem,lastElem
 
     ! Loop 1D array [offset + 1 : offset + NbrOfElems]
     ! (all CN elements that are connected to the local nodes)
-    DO jElem = NodeToElemMapping(1,UniqueNodeID) + 1, NodeToElemMapping(1,UniqueNodeID) + NodeToElemMapping(2,UniqueNodeID)
+    Elemloop: DO jElem = NodeToElemMapping(1,UniqueNodeID) + 1, NodeToElemMapping(1,UniqueNodeID) + NodeToElemMapping(2,UniqueNodeID)
       TestElemID = NodeToElemInfo(jElem)
 
-      IF(jElem.EQ.TestElemID) CYCLE
+      IF(iElem.EQ.TestElemID) CYCLE Elemloop
 
       ! Check previously stored element IDs and cycle if an already stored ID is encountered
       DO kElem = 1, CountElems
-        IF(CheckedElemIDs(kElem).EQ.TestElemID) CYCLE
+        IF(CheckedElemIDs(kElem).EQ.TestElemID) CYCLE Elemloop
       END DO ! kElem = 1, CountElems
 
       CountElems = CountElems + 1
-      OffsetCounter = OffsetCounter + 1
 
       IF(CountElems.GT.500) CALL abort(&
       __STAMP__&
       ,'CountElems > 500. Inrease the number and try again!')
 
       CheckedElemIDs(CountElems) = TestElemID
-      ElemToElemMapping(1,iElem) = OffsetCounter
       ! Note that the number of elements stored in ElemToElemMapping(2,iElem) must be shifted after communication with other procs
       ElemToElemMapping(2,iElem) = CountElems
-
-    END DO
+    END DO Elemloop
   END DO ! iNode = 1, 8
-
+  ElemToElemMapping(1,iElem) = OffsetCounter
+  OffsetCounter = OffsetCounter + CountElems
 END DO ! iElem = firstElem, lastElem
-
 
 ! 6. Find CN global number of connected CN elements (=nElemToElemMapping) and write into shared array
 #if USE_MPI
@@ -3977,7 +3974,7 @@ CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iE
 nElemToElemMapping = sendbuf
 
 !ElemToElemMapping(1,firstElem:lastElem) = ElemToElemMapping(1,firstElem:lastElem)
-ElemToElemMapping(2,firstElem:lastElem) = ElemToElemMapping(2,firstElem:lastElem) + OffsetElemToElemMapping
+ElemToElemMapping(1,firstElem:lastElem) = ElemToElemMapping(1,firstElem:lastElem) + OffsetElemToElemMapping
 #else
 OffsetElemToElemMapping = 0
 nElemToElemMapping = OffsetCounter
@@ -4013,13 +4010,13 @@ DO iElem = firstElem, lastElem
     UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
 
     ! Loop all CN elements that are connected to the local nodes
-    DO jElem = NodeToElemMapping(1,UniqueNodeID) + 1, NodeToElemMapping(1,UniqueNodeID) + NodeToElemMapping(2,UniqueNodeID)
+    Elemloop2: DO jElem = NodeToElemMapping(1,UniqueNodeID) + 1, NodeToElemMapping(1,UniqueNodeID) + NodeToElemMapping(2,UniqueNodeID)
       TestElemID = NodeToElemInfo(jElem)
 
-      IF(jElem.EQ.TestElemID) CYCLE
+      IF(iElem.EQ.TestElemID) CYCLE Elemloop2
 
       DO kElem = 1, CountElems
-        IF(CheckedElemIDs(kElem).EQ.TestElemID) CYCLE
+        IF(CheckedElemIDs(kElem).EQ.TestElemID) CYCLE Elemloop2
       END DO ! kElem = 1, CountElems
 
       CountElems = CountElems + 1
@@ -4032,7 +4029,7 @@ DO iElem = firstElem, lastElem
       CheckedElemIDs(CountElems) = TestElemID
       ElemToElemInfo(OffsetElemToElemCounter) = TestElemID
 
-    END DO
+    END DO ElemLoop2
   END DO ! iNode = 1, 8
 
 END DO ! iElem = firstElem, lastElem

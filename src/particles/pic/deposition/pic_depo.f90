@@ -80,7 +80,7 @@ USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
 REAL,ALLOCATABLE          :: wBary_tmp(:),Vdm_GaussN_EquiN(:,:)
 REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, iBC, kk, ll, mm, firstElem, lastElem, jNode, NbElemID, NeighNonUniqueNodeID
-INTEGER                   :: jElem, NonUniqueNodeID, iNode
+INTEGER                   :: jElem, NonUniqueNodeID, iNode, NeighUniqueNodeID
 REAL                      :: VolumeShapeFunction,r_sf_average, r_sf_tmp
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
@@ -221,6 +221,8 @@ IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_
           NbElemID = NodeToElemInfo(NodeToElemMapping(1,UniqueNodeID)+jElem)
           DO jNode = 1, 8
             NeighNonUniqueNodeID = ElemNodeID_Shared(jNode,NbElemID) 
+            NeighUniqueNodeID = NodeInfo_Shared(NeighNonUniqueNodeID)
+            IF (UniqueNodeID.EQ.NeighUniqueNodeID) CYCLE
             r_sf_tmp = VECNORM(NodeCoords_Shared(1:3,NonUniqueNodeID)-NodeCoords_Shared(1:3,NeighNonUniqueNodeID)) 
             IF (r_sf_tmp.LT.SFElemr2_Shared(1,iElem)) SFElemr2_Shared(1,iElem) = r_sf_tmp
           END DO 
@@ -430,7 +432,7 @@ CASE('cell_volweight_mean')
 !    ALLOCATE(NodeSourceExtTmp(1:nNodes))
 !    NodeSourceExtTmp = 0.0
 !  END IF ! DoDielectricSurfaceCharge
-CASE('shape_function')
+CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   !ALLOCATE(PartToFIBGM(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
   !IF (ALLOCSTAT.NE.0) CALL abort(&
   !    __STAMP__&

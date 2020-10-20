@@ -604,12 +604,12 @@ totalCharge = 0.0
 !--- go through all mapped elements not done yet
 OrigElem = PEM%GlobalElemID(PartIdx)
 OrigCNElemID = GetCNElemID(OrigElem)
-DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
+DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)  
   IF (ppp.EQ.0) THEN
     globElemID = OrigElem
   ELSE    
     globElemID = GetGlobalElemID(ElemToElemInfo(ElemToElemMapping(1,OrigCNElemID)+ppp))
-  END IF
+  END IF 
   elemDone = .FALSE.
   CNElemID = GetCNElemID(globElemID)
   localElem = globElemID-offSetElem
