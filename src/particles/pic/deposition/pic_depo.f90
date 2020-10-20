@@ -276,12 +276,20 @@ CASE('cell_volweight_mean')
 
   IF(DoDielectricSurfaceCharge)THEN
 
+    firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
+    lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
+
    ! Global, synchronized surface charge contribution (is added to NodeSource AFTER MPI synchronization)
     MPISharedSize = INT(nUniqueGlobalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
     CALL Allocate_Shared(MPISharedSize,(/1,nUniqueGlobalNodes/),NodeSourceExt_Shared_Win,NodeSourceExt_Shared)
     CALL MPI_WIN_LOCK_ALL(0,NodeSourceExt_Shared_Win,IERROR)
     NodeSourceExt => NodeSourceExt_Shared
     !ALLOCATE(NodeSourceExtLoc(1:1,1:nUniqueGlobalNodes))
+    DO iNode=firstNode, lastNode
+      NodeSourceExt(1,iNode) = 0.
+    END DO
+    CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
+    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
    ! Local, non-synchronized surface charge contribution (is added to NodeSource BEFORE MPI synchronization)
     MPISharedSize = INT(nUniqueGlobalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
@@ -291,14 +299,9 @@ CASE('cell_volweight_mean')
     ALLOCATE(NodeSourceExtTmpLoc(1:1,1:nUniqueGlobalNodes))
     NodeSourceExtTmpLoc = 0.
 
-    firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
-    lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
-
     DO iNode=firstNode, lastNode
-      NodeSourceExt(   1,iNode) = 0.
       NodeSourceExtTmp(1,iNode) = 0.
     END DO
-    CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
     CALL MPI_WIN_SYNC(NodeSourceExtTmp_Shared_Win,IERROR)
     CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
     

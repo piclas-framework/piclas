@@ -28,20 +28,20 @@ PUBLIC:: calcSfSource
 
 CONTAINS
 
-SUBROUTINE calcSfSource(SourceSize_in,ChargeMPF,PartPos,PartIdx,PartVelo)
+SUBROUTINE calcSfSource(SourceSize_in,ChargeMPF,PartPos,PartVelo)
 !============================================================================================================================
 ! deposit charges on DOFs via shapefunction including periodic displacements and mirroring
 !============================================================================================================================
 ! use MODULES
-USE MOD_PICDepo_Vars,           ONLY:r_sf,DepositionType
+USE MOD_PICDepo_Vars,           ONLY:DepositionType
 USE MOD_Globals
-USE MOD_Particle_Mesh_Vars,     ONLY:casematrix,NbrOfCases
+!USE MOD_Particle_Mesh_Vars,     ONLY:casematrix,NbrOfCases
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)              :: SourceSize_in,PartIdx
+INTEGER, INTENT(IN)              :: SourceSize_in
 REAL, INTENT(IN)                 :: ChargeMPF,PartPos(3)
 REAL, INTENT(IN), OPTIONAL       :: PartVelo(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -56,11 +56,8 @@ REAL, INTENT(IN), OPTIONAL       :: PartVelo(3)
 INTEGER                          :: SourceSize
 REAL                             :: Fac(4-SourceSize_in+1:4), Fac2(4-SourceSize_in+1:4)
 !#endif
-INTEGER                          :: iCase, ind
-REAL                             :: ShiftedPart(1:3), caseShiftedPart(1:3), n_loc(1:3)
-INTEGER                          :: iSFfix, LinkLoopEnd(2), iSFfixLink, iTwin, iLinkRecursive, SFfixIdx, SFfixIdx2
-LOGICAL                          :: DoCycle, DoNotDeposit
-REAL                             :: SFfixDistance, SFfixDistance2
+!INTEGER                          :: iCase, ind
+!REAL                             :: ShiftedPart(1:3), caseShiftedPart(1:3), n_loc(1:3)
 !----------------------------------------------------------------------------------------------------------------------------------
 !#if !((USE_HDG) && (PP_nVar==1))
 SourceSize=SourceSize_in
@@ -139,7 +136,7 @@ INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
 INTEGER                          :: kk, ll, mm, ppp
 INTEGER                          :: globElemID, CNElemID
 REAL                             :: radius2, S, S1
-REAL                             :: dx,dy,dz, PartSourceLoc(4-SourceSize+1:4,0:PP_N,0:PP_N,0:PP_N)
+REAL                             :: PartSourceLoc(4-SourceSize+1:4,0:PP_N,0:PP_N,0:PP_N)
 INTEGER                          :: PartSourceSize, PartSourceSizeTarget, Request
 INTEGER                          :: expo
 #if USE_MPI
@@ -269,14 +266,13 @@ INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
 INTEGER                          :: kk, ll, mm, ppp
 INTEGER                          :: globElemID, CNElemID
 REAL                             :: radius2, S, S1
-REAL                             :: dx,dy,dz
 INTEGER                          :: expo, nUsedElems
 #if USE_MPI
 LOGICAL                          :: chargedone(1:nComputeNodeTotalElems)
-INTEGER                          :: usedElems(   nComputeNodeTotalElems)
+!INTEGER                          :: usedElems(   nComputeNodeTotalElems)
 #else
 LOGICAL                          :: chargedone(1:nElems)
-INTEGER                          :: usedElems(   nElems)
+!INTEGER                          :: usedElems(   nElems)
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------
 chargedone(:) = .FALSE.

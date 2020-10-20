@@ -100,9 +100,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !REAL                             :: myRealTestValue
-#if USE_MPI
-INTEGER                         :: color
-#endif /*USE_MPI*/
+!#if USE_MPI
+!INTEGER                         :: color
+!#endif /*USE_MPI*/
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -355,8 +355,8 @@ PartMPIExchange%nPartsSend=0
 
 PartTargetProc=-1
 DO iPart=1,PDM%ParticleVecLength
-  ! Activate phantom particles
-  IF(PartSpecies(iPart).LT.0) PDM%ParticleInside(iPart) = .TRUE.
+  !         ! Activate phantom/ghost particles
+  !         IF(PartSpecies(iPart).LT.0) PDM%ParticleInside(iPart) = .TRUE.
 
   ! TODO: Info why and under which conditions the following 'CYCLE' is called
   IF(doPartInExists)THEN
@@ -372,10 +372,18 @@ DO iPart=1,PDM%ParticleVecLength
   ! Particle on local proc, do nothing
   IF (ProcID.EQ.myRank) CYCLE
 
+#if USE_DEBUG
+  ! Sanity check
+  IF(GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID).LT.0)THEN
+    CALL abort(&
+    __STAMP__&
+    ,'Error: Tried to access GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) for ProcID = ',IntInfoOpt=ProcID)
+  END IF ! GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) for ProcID = ',IntInfoOpt=ProcID)
+#endif /*USE_DEBUG*/
   ! Add particle to target proc count
-    PartMPIExchange%nPartsSend(1,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
-      PartMPIExchange%nPartsSend(1,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + 1
-    PartTargetProc(iPart) = GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)
+  PartMPIExchange%nPartsSend(1,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
+  PartMPIExchange%nPartsSend(1,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + 1
+  PartTargetProc(iPart) = GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)
 END DO ! iPart
 
 ! 2) send number of send particles
@@ -822,7 +830,7 @@ USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
 #endif /*IMPA*/
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_RadialWeighting
-USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes
+!USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1025,19 +1033,19 @@ DO iProc=0,nExchangeProcessors-1
     !>> particle element
     PEM%GlobalElemID(PartID)     = INT(PartRecvBuf(iProc)%content(1+jPos),KIND=4)
 
-    ! Consider special particles that are communicated with negative species ID (phantom/ghost particles that are deposited on a
-    ! surface with their charge and are then removed here after deposition)
-    IF(PartSpecies(PartID).LT.0)THEN
-      PartSpecies(PartID) = -PartSpecies(PartID) ! make positive species ID again
-      CALL DepositParticleOnNodes(PartID,PartState(1:3,PartID),PEM%GlobalElemID(PartID))
-      PartSpecies(PartID) = 0 ! For safety: nullify the speciesID
-      PDM%ParticleInside(PartID) = .FALSE.
-#ifdef IMPA
-      PartIsImplicit(PartID) = .FALSE.
-      DoPartInNewton(PartID) = .FALSE.
-#endif /*IMPA*/
-      CYCLE ! Continue the loop with the next particle
-    END IF ! PartSpecies(PartID).LT.0
+!           ! Consider special particles that are communicated with negative species ID (phantom/ghost particles that are deposited on a
+!           ! surface with their charge and are then removed here after deposition)
+!           IF(PartSpecies(PartID).LT.0)THEN
+!             PartSpecies(PartID) = -PartSpecies(PartID) ! make positive species ID again
+!             CALL DepositParticleOnNodes(PartID,PartState(1:3,PartID),PEM%GlobalElemID(PartID))
+!             PartSpecies(PartID) = 0 ! For safety: nullify the speciesID
+!             PDM%ParticleInside(PartID) = .FALSE.
+!       #ifdef IMPA
+!             PartIsImplicit(PartID) = .FALSE.
+!             DoPartInNewton(PartID) = .FALSE.
+!       #endif /*IMPA*/
+!             CYCLE ! Continue the loop with the next particle
+!           END IF ! PartSpecies(PartID).LT.0
     jPos=jPos+1
 
     IF (useDSMC.AND.(CollisMode.GT.1)) THEN

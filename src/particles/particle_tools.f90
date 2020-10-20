@@ -95,9 +95,6 @@ USE MOD_Particle_Vars        ,ONLY: PDM,PEM, PartSpecies, doParticleMerge, vMPF_
 USE MOD_Particle_Vars        ,ONLY: PartState, VarTimeStep, usevMPF
 USE MOD_DSMC_Vars            ,ONLY: useDSMC, CollInf
 USE MOD_Particle_VarTimeStep ,ONLY: CalcVarTimeStep
-#if USE_MPI
-USE MOD_Mesh_Vars            ,ONLY: offsetElem
-#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers   ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/

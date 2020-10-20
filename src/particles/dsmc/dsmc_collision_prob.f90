@@ -44,7 +44,6 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting
   USE MOD_DSMC_Vars,              ONLY : UseMCC, SpecXSec, XSec_NullCollision
   USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, VarTimeStep
-  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_TimeDisc_Vars,          ONLY : dt
   USE MOD_DSMC_SpecXSec,          ONLY: InterpolateCrossSection, XSec_CalcCollisionProb
   USE MOD_part_tools,             ONLY : GetParticleWeight
