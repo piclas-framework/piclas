@@ -2006,6 +2006,7 @@ ALLOCATE(SpecReset(1:nSpecies))
 SpecReset=.FALSE.
 
 DO iSpec = 1, nSpecies
+  SWRITE (UNIT_stdOut,'(66(". "))')
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%NumberOfInits         = GETINT('Part-Species'//TRIM(hilf)//'-nInits','0')
 #if USE_MPI
@@ -2520,6 +2521,9 @@ __STAMP__, &
     END IF
   END DO ! iInit
 END DO ! iSpec
+IF(nSpecies.GT.0)THEN
+  SWRITE (UNIT_stdOut,'(66(". "))')
+END IF ! nSpecies.GT.0
 
 !-- reading BG Gas stuff
 !   (moved here from dsmc_init for switching off the initial emission)

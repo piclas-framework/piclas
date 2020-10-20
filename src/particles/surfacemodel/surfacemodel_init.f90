@@ -224,10 +224,10 @@ SUBROUTINE InitSurfaceModel()
 ! MODULES
 USE MOD_Globals_Vars               ,ONLY: BoltzmannConst, PI
 USE MOD_Globals
-USE MOD_Mesh_Vars                  ,ONLY: nElems, BC
-USE MOD_DSMC_Vars                  ,ONLY: DSMC, CollisMode, SpecDSMC
-USE MOD_Particle_Vars              ,ONLY: nSpecies, PDM, WriteMacroSurfaceValues
-USE MOD_Particle_Vars              ,ONLY: PEM, Species
+USE MOD_DSMC_Vars                  ,ONLY: DSMC,SpecDSMC
+!USE MOD_DSMC_Vars                  ,ONLY: CollisMode
+USE MOD_Particle_Vars              ,ONLY: nSpecies,WriteMacroSurfaceValues
+USE MOD_Particle_Vars              ,ONLY: Species
 USE MOD_ReadInTools                ,ONLY: GETINT,GETREAL,GETLOGICAL,GETREALARRAY
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample, SurfMesh, nPartBound, PartBound
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling

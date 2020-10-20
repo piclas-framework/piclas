@@ -508,12 +508,12 @@ SUBROUTINE DielectricSurfaceCharge(iPart,ElemID,PartTrajectory,alpha)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 USE MOD_Globals            ,ONLY: abort,myrank
-USE MOD_Mesh_Vars          ,ONLY: nElems
+!USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_part_operations    ,ONLY: CreateParticle
 USE MOD_part_tools         ,ONLY: isChargedParticle
 USE MOD_Particle_Vars      ,ONLY: PDM,PartSpecies,LastPartPos
 USE MOD_PICDepo_Tools      ,ONLY: DepositParticleOnNodes
-USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems
+!USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -522,7 +522,7 @@ INTEGER,INTENT(IN)    :: ElemID
 REAL,INTENT(IN)       :: PartTrajectory(1:3), alpha
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: NewPartID
+!INTEGER               :: NewPartID
 !===================================================================================================================================
 ! Sanity checks
 IF(.NOT.PDM%ParticleInside(iPart))THEN
@@ -540,15 +540,15 @@ ELSEIF(PartSpecies(iPart).LT.0)THEN
 END IF ! PartSpecies(iPart)
 
 IF(isChargedParticle(iPart))THEN
-  IF(ElemID.GT.nComputeNodeElems)THEN
-    ! Particle is now located in halo element: Create phantom particle, which is sent to new host Processor and removed there (set
-    ! negative SpeciesID in order to remove particle in host Processor)
-    CALL CreateParticle(-PartSpecies(iPart),LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,ElemID,(/0.,0.,0./),0.,0.,0.,NewPartID)
-    ! Set inside to F (it is set to T in SendNbOfParticles if species ID is negative)
-    PDM%ParticleInside(NewPartID)=.FALSE.
-  ELSE ! Deposit single particle charge on surface here and
+!  IF(ElemID.GT.nComputeNodeElems)THEN
+!    ! Particle is now located in halo element: Create phantom/ghost particle, which is sent to new host Processor and removed there
+!    ! (set negative SpeciesID in order to remove particle in host Processor)
+!    CALL CreateParticle(-PartSpecies(iPart),LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,ElemID,(/0.,0.,0./),0.,0.,0.,NewPartID)
+!    ! Set inside to F (it is set to T in SendNbOfParticles if species ID is negative)
+!    PDM%ParticleInside(NewPartID)=.FALSE.
+!  ELSE ! Deposit single particle charge on surface here and
     CALL DepositParticleOnNodes(iPart,LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,ElemID)
-  END IF ! ElemID.GT.nElems
+!  END IF ! ElemID.GT.nElems
 END IF ! isChargedParticle(iPart)
 
 END SUBROUTINE DielectricSurfaceCharge

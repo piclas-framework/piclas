@@ -165,7 +165,6 @@ SUBROUTINE InitPIC()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PICInterpolation_Vars,  ONLY: externalField
 USE MOD_PICInterpolation       ,ONLY: InitializeParticleInterpolation
 USE MOD_PICDepo                ,ONLY: InitializeDeposition
 USE MOD_PIC_Vars ,              ONLY: PICInitIsDone

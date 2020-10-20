@@ -60,7 +60,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                             :: iElem,iSpec,iPart,nPart,locnPart,iHeight,yPartitions,CNElemID,GlobalElemID
+INTEGER                             :: iElem,iSpec,iPart,nPart,locnPart,iHeight,yPartitions,GlobalElemID
 REAL                                :: iRan, RandomPos(3), PartDens, TempMPF, MaxPosTemp, MinPosTemp
 REAL                                :: TempVol, Volume, Det(6,2), RefPos(1:3)
 LOGICAL                             :: InsideFlag

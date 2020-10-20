@@ -28,21 +28,22 @@ PUBLIC:: calcSfSource
 
 CONTAINS
 
-SUBROUTINE calcSfSource(SourceSize_in,ChargeMPF,PartPos,PartIdx,PartVelo)
+SUBROUTINE calcSfSource(SourceSize_in,ChargeMPF,PartPos,PartID,PartVelo)
 !============================================================================================================================
 ! deposit charges on DOFs via shapefunction including periodic displacements and mirroring
 !============================================================================================================================
 ! use MODULES
-USE MOD_PICDepo_Vars,           ONLY:r_sf,DepositionType
+USE MOD_PICDepo_Vars,           ONLY:DepositionType
 USE MOD_Globals
-USE MOD_Particle_Mesh_Vars,     ONLY:casematrix,NbrOfCases
+!USE MOD_Particle_Mesh_Vars,     ONLY:casematrix,NbrOfCases
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)              :: SourceSize_in,PartIdx
+INTEGER, INTENT(IN)              :: SourceSize_in
 REAL, INTENT(IN)                 :: ChargeMPF,PartPos(3)
+INTEGER, INTENT(IN)              :: PartID
 REAL, INTENT(IN), OPTIONAL       :: PartVelo(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -56,11 +57,8 @@ REAL, INTENT(IN), OPTIONAL       :: PartVelo(3)
 INTEGER                          :: SourceSize
 REAL                             :: Fac(4-SourceSize_in+1:4), Fac2(4-SourceSize_in+1:4)
 !#endif
-INTEGER                          :: iCase, ind
-REAL                             :: ShiftedPart(1:3), caseShiftedPart(1:3), n_loc(1:3)
-INTEGER                          :: iSFfix, LinkLoopEnd(2), iSFfixLink, iTwin, iLinkRecursive, SFfixIdx, SFfixIdx2
-LOGICAL                          :: DoCycle, DoNotDeposit
-REAL                             :: SFfixDistance, SFfixDistance2
+!INTEGER                          :: iCase, ind
+!REAL                             :: ShiftedPart(1:3), caseShiftedPart(1:3), n_loc(1:3)
 !----------------------------------------------------------------------------------------------------------------------------------
 !#if !((USE_HDG) && (PP_nVar==1))
 SourceSize=SourceSize_in
@@ -90,7 +88,7 @@ END IF
   CASE('shape_function_cc')
     CALL depoChargeOnDOFs_sfChargeCon(PartPos,SourceSize,Fac)
   CASE('shape_function_adaptive')
-    CALL depoChargeOnDOFs_sfAdaptive(PartPos,SourceSize,Fac,PartIdx)
+    CALL depoChargeOnDOFs_sfAdaptive(PartPos,SourceSize,Fac,PartID)
   CASE DEFAULT
     CALL CollectiveStop(__STAMP__,&
         'Unknown ShapeFunction Method!')
@@ -141,7 +139,7 @@ INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
 INTEGER                          :: kk, ll, mm, ppp
 INTEGER                          :: globElemID, CNElemID
 REAL                             :: radius2, S, S1
-REAL                             :: dx,dy,dz, PartSourceLoc(4-SourceSize+1:4,0:PP_N,0:PP_N,0:PP_N)
+REAL                             :: PartSourceLoc(4-SourceSize+1:4,0:PP_N,0:PP_N,0:PP_N)
 INTEGER                          :: PartSourceSize, PartSourceSizeTarget, Request
 INTEGER                          :: expo
 #if USE_MPI
@@ -271,14 +269,13 @@ INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
 INTEGER                          :: kk, ll, mm, ppp
 INTEGER                          :: globElemID, CNElemID
 REAL                             :: radius2, S, S1
-REAL                             :: dx,dy,dz
 INTEGER                          :: expo, nUsedElems
 #if USE_MPI
 LOGICAL                          :: chargedone(1:nComputeNodeTotalElems)
-INTEGER                          :: usedElems(   nComputeNodeTotalElems)
+!INTEGER                          :: usedElems(   nComputeNodeTotalElems)
 #else
 LOGICAL                          :: chargedone(1:nElems)
-INTEGER                          :: usedElems(   nElems)
+!INTEGER                          :: usedElems(   nElems)
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------
 chargedone(:) = .FALSE.
@@ -532,6 +529,7 @@ END IF
 
 END SUBROUTINE depoChargeOnDOFs_sfChargeCon
 
+
 SUBROUTINE depoChargeOnDOFs_sfAdaptive(Position,SourceSize,Fac,PartIdx)
 !============================================================================================================================
 ! actual deposition of single charge on DOFs via shapefunction
@@ -539,9 +537,9 @@ SUBROUTINE depoChargeOnDOFs_sfAdaptive(Position,SourceSize,Fac,PartIdx)
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:r_sf, r2_sf, r2_sf_inv,alpha_sf,PartSource,w_sf,SFElemr2_Shared
+USE MOD_PICDepo_Vars,           ONLY:alpha_sf,PartSource,w_sf,SFElemr2_Shared
 USE MOD_Mesh_Vars,              ONLY:nElems, offSetElem
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
+USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNgeo, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo, ElemsJ, ElemToElemMapping,ElemToElemInfo
 USE MOD_Preproc
 USE MOD_Mesh_Tools,             ONLY:GetCNElemID, GetGlobalElemID
@@ -573,8 +571,7 @@ REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
 ! LOCAL VARIABLES
 LOGICAL                          :: firstElem,elemDone
 INTEGER                          :: k, l, m
-INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
-INTEGER                          :: kk, ll, mm, ppp
+INTEGER                          :: ppp
 INTEGER                          :: globElemID, CNElemID, OrigCNElemID, OrigElem
 INTEGER                          :: expo, nUsedElems, localElem
 REAL                             :: radius2, S, S1

@@ -117,12 +117,11 @@ USE MOD_PICDepo_Vars            ,ONLY: SFResampleAnalyzeSurfCollis
 USE MOD_ReadInTools             ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
 #if USE_MPI
 USE MOD_MPI_Shared!             ,ONLY: Allocate_Shared
-USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPIRankLeader,nLeaderGroupProcs
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF,mySurfRank
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
-USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeTotalSides
 USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides
-USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,nComputeNodeElems
+!USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,nComputeNodeElems
 USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide_Shared,GlobalSide2SurfSide_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide_Shared,SurfSide2GlobalSide_Shared_Win
@@ -1189,10 +1188,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iSurfSide
-#if USE_MPI
-INTEGER :: iProc
-#endif /*USE_MPI*/
+!INTEGER :: iSurfSide
+!#if USE_MPI
+!INTEGER :: iProc
+!#endif /*USE_MPI*/
 !===================================================================================================================================
 
 ! Return if nothing was allocated

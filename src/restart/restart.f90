@@ -315,7 +315,10 @@ USE MOD_Eval_XYZ               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,NbrOfLostParticles, CountNbrOfLostParts, NbrOfLostParticlesTotal
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,NbrOfLostParticles, NbrOfLostParticlesTotal
+#if !(USE_MPI)
+USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts
+#endif /*!(USE_MPI)*/
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfBC
@@ -1638,7 +1641,6 @@ USE MOD_TimeDisc_Vars,           ONLY: iter
 USE MOD_PICDepo,                 ONLY: Deposition
 #if USE_MPI
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
