@@ -38,6 +38,7 @@ PROCEDURE(DepositionMethodInterface),POINTER :: DepositionMethod    !< pointer d
 
 INTEGER,PARAMETER      :: PRM_DEPO_SF   = 0  ! shape_function
 INTEGER,PARAMETER      :: PRM_DEPO_SF_CC= 1  ! shape_function_cc
+INTEGER,PARAMETER      :: PRM_DEPO_SF_ADAPTIVE= 2  ! shape_function_adaptive
 INTEGER,PARAMETER      :: PRM_DEPO_CVW  = 6  ! cell_volweight
 INTEGER,PARAMETER      :: PRM_DEPO_CVWM = 12 ! cell_volweight_mean
 
@@ -71,12 +72,14 @@ CALL prms%CreateLogicalOption('PIC-DoDeposition', 'Switch deposition of charge (
 CALL prms%CreateIntFromStringOption('PIC-Deposition-Type', "Type/Method used in the deposition step: \n"           //&
                                     '1.1)  shape_function ('//TRIM(int2strf(PRM_DEPO_SF))//')\n'                   //&
                                     '1.2)  shape_function_cc ('//TRIM(int2strf(PRM_DEPO_SF_CC))//')\n'             //&
+                                    '1.3)  shape_function_adaptive ('//TRIM(int2strf(PRM_DEPO_SF_ADAPTIVE))//')\n' //&
                                     '2.)   cell_volweight ('//TRIM(int2strf(PRM_DEPO_CVW))//')\n'                  //&
                                     '3.)   cell_volweight_mean ('//TRIM(int2strf(PRM_DEPO_CVWM))//')'                &
                                     ,'cell_volweight')
 
 CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function'             , PRM_DEPO_SF)
 CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function_cc'          , PRM_DEPO_SF_CC)
+CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function_adaptive'    , PRM_DEPO_SF_ADAPTIVE)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cell_volweight'             , PRM_DEPO_CVW)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cell_volweight_mean'        , PRM_DEPO_CVWM)
 END SUBROUTINE DefineParametersDepositionMethod
@@ -116,6 +119,9 @@ Case(PRM_DEPO_SF) ! shape_function
 Case(PRM_DEPO_SF_CC) ! shape_function
   DepositionMethod => DepositionMethod_SF
   DepositionType   = 'shape_function_cc'
+Case(PRM_DEPO_SF_ADAPTIVE) ! shape_function
+  DepositionMethod => DepositionMethod_SF
+  DepositionType   = 'shape_function_adaptive'
 Case(PRM_DEPO_CVW) ! cell_volweight
   DepositionType   = 'cell_volweight'
   DepositionMethod => DepositionMethod_CVW

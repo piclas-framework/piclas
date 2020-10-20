@@ -105,8 +105,11 @@ INTEGER                         :: NodeVolume_Shared_Win
 REAL,ALLOCPOINT                 :: NodeVolume_Shared(:)
 #endif
 
+REAL,ALLOCPOINT                 :: SFElemr2_Shared(:,:)
+
 REAL,ALLOCPOINT                 :: NodeSource(:,:)
 #if USE_MPI
+INTEGER                         :: SFElemr2_Shared_Win  
 REAL, ALLOCATABLE               :: NodeSourceLoc(:,:)
 INTEGER                         :: NodeSource_Shared_Win
 REAL,ALLOCPOINT                 :: NodeSource_Shared(:,:)
