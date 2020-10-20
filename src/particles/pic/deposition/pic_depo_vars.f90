@@ -101,6 +101,8 @@ INTEGER                         :: NodeVolume_Shared_Win
 REAL,ALLOCPOINT                 :: NodeVolume_Shared(:)
 #endif
 
+REAL,ALLOCPOINT                 :: SFElemr2_Shared(:,:)
+
 REAL,ALLOCPOINT                 :: NodeSource(:,:)
 REAL,ALLOCPOINT                 :: NodeSourceExt(:,:) ! Additional source for cell_volweight_mean (external or surface charge) 
 !                                                     ! that accumulates over time in elements adjacent to dielectric interfaces.
@@ -114,11 +116,12 @@ REAL,ALLOCPOINT                 :: NodeSourceExtTmp(:,:) ! Additional source for
 !                                                        ! as it is communicated via the normal NodeSource container NodeSourceExt.
 
 #if USE_MPI
+INTEGER                         :: SFElemr2_Shared_Win  
 REAL, ALLOCATABLE               :: NodeSourceLoc(:,:)           ! global, synchronized charge/current density on corner nodes
 INTEGER                         :: NodeSource_Shared_Win
 REAL,ALLOCPOINT                 :: NodeSource_Shared(:,:)
 
-!REAL, ALLOCATABLE               :: NodeSourceExtLoc(:,:)        ! global, synchronized surface charge contribution
+!REAL, ALLOCATABLE               :: NodeSourceExtLoc(:,:)       ! global, synchronized surface charge contribution
 INTEGER                         :: NodeSourceExt_Shared_Win
 REAL,ALLOCPOINT                 :: NodeSourceExt_Shared(:,:)
 

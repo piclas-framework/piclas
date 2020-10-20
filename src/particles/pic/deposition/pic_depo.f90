@@ -48,7 +48,7 @@ USE MOD_Particle_Vars
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_Mesh_Vars              ,ONLY: nElems,Elem_xGP,sJ,nGlobalElems,Vdm_EQ_N
 USE MOD_Interpolation          ,ONLY: GetVandermonde
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,MeshVolume
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,MeshVolume, NodeCoords_Shared
 USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,NodeType,NodeTypeVISU
 USE MOD_Basis                  ,ONLY: BarycentricWeights,InitializeVandermonde
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
@@ -81,8 +81,9 @@ USE MOD_Restart_Vars           ,ONLY: DoRestart
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE          :: wBary_tmp(:),Vdm_GaussN_EquiN(:,:)
 REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
-INTEGER                   :: ALLOCSTAT, iElem, i, j, k, iBC, kk, ll, mm
-REAL                      :: VolumeShapeFunction,r_sf_average
+INTEGER                   :: ALLOCSTAT, iElem, i, j, k, iBC, kk, ll, mm, firstElem, lastElem, jNode, NbElemID, NeighNonUniqueNodeID
+INTEGER                   :: jElem, NonUniqueNodeID, iNode, NeighUniqueNodeID
+REAL                      :: VolumeShapeFunction,r_sf_average, r_sf_tmp
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
 CHARACTER(32)             :: hilf, hilf2
@@ -91,7 +92,7 @@ REAL                      :: dimFactorSF
 INTEGER                   :: nTotalDOF
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND)   :: MPISharedSize
-INTEGER                   :: SendNodeCount, GlobalElemNode, GlobalElemRank, iNode, iProc, jElem, NonUniqueNodeID
+INTEGER                   :: SendNodeCount, GlobalElemNode, GlobalElemRank, iProc
 INTEGER                   :: UniqueNodeID, TestElemID
 LOGICAL,ALLOCATABLE       :: NodeDepoMapping(:,:)
 INTEGER                   :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1),firstNode,lastNode
@@ -192,10 +193,53 @@ IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_
   alpha_sf              = GETINT('PIC-shapefunction-alpha')
   DoSFEqui              = GETLOGICAL('PIC-shapefunction-equi')
   DoSFLocalDepoAtBounds = GETLOGICAL('PIC-shapefunction-local-depo-BC')
-  DoSFChargeCons        = GETLOGICAL('PIC-shapefunction-charge-conservation')
   r2_sf = r_sf * r_sf  ! Radius squared
   r2_sf_inv = 1./r2_sf ! Inverse of radius squared
 
+  IF(TRIM(DepositionType).EQ.'shape_function_adaptive') THEN
+#if USE_MPI
+    firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+    lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+
+    MPISharedSize = INT(2*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+    CALL Allocate_Shared(MPISharedSize,(/2,nComputeNodeTotalElems/),SFElemr2_Shared_Win,SFElemr2_Shared)
+    CALL MPI_WIN_LOCK_ALL(0,SFElemr2_Shared_Win,IERROR)
+#else
+    ALLOCATE(SFElemr2_Shared(1:2,1:nElems))
+    firstElem = 1
+    lastElem  = nElems
+#endif  /*USE_MPI*/
+#if USE_MPI
+    IF (myComputeNodeRank.EQ.0) THEN
+#endif
+    SFElemr2_Shared   = HUGE(1.)
+#if USE_MPI
+    END IF
+    CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
+    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif
+    DO iElem = firstElem,lastElem
+      DO iNode = 1, 8
+        NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)      
+        UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
+        DO jElem = 1, NodeToElemMapping(2,UniqueNodeID)
+          NbElemID = NodeToElemInfo(NodeToElemMapping(1,UniqueNodeID)+jElem)
+          DO jNode = 1, 8
+            NeighNonUniqueNodeID = ElemNodeID_Shared(jNode,NbElemID) 
+            NeighUniqueNodeID = NodeInfo_Shared(NeighNonUniqueNodeID)
+            IF (UniqueNodeID.EQ.NeighUniqueNodeID) CYCLE
+            r_sf_tmp = VECNORM(NodeCoords_Shared(1:3,NonUniqueNodeID)-NodeCoords_Shared(1:3,NeighNonUniqueNodeID)) 
+            IF (r_sf_tmp.LT.SFElemr2_Shared(1,iElem)) SFElemr2_Shared(1,iElem) = r_sf_tmp
+          END DO 
+        END DO
+      END DO
+      SFElemr2_Shared(2,iElem) = SFElemr2_Shared(1,iElem)*SFElemr2_Shared(1,iElem)
+    END DO
+#if USE_MPI
+    CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
+    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif
+  END IF
 
   IF(DoSFLocalDepoAtBounds)THEN ! init cell vol weight
     IF(.NOT.TRIM(DepositionType).EQ.'shape_function_2d') CALL abort(&
@@ -444,7 +488,7 @@ CASE('cell_volweight_mean')
 !    ALLOCATE(NodeSourceExtTmp(1:nNodes))
 !    NodeSourceExtTmp = 0.0
 !  END IF ! DoDielectricSurfaceCharge
-CASE('shape_function')
+CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   !ALLOCATE(PartToFIBGM(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
   !IF (ALLOCSTAT.NE.0) CALL abort(&
   !    __STAMP__&
@@ -884,6 +928,9 @@ IF(DoDeposition)THEN
       CALL MPI_WIN_FREE(      NodeSourceExt_Shared_Win, iError)
       ADEALLOCATE(NodeSourceExt_Shared)
     END IF ! DoDielectricSurfaceCharge
+  CASE('shape_function_adaptive')
+    CALL MPI_WIN_UNLOCK_ALL(SFElemr2_Shared_Win, iError)
+    CALL MPI_WIN_FREE(      SFElemr2_Shared_Win, iError)
   END SELECT
 
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
@@ -898,12 +945,15 @@ ADEALLOCATE(PartSource)
 
 ! Deposition-dependent pointers/arrays
 SELECT CASE(TRIM(DepositionType))
-  CASE('cell_volweight_mean')
-    ADEALLOCATE(NodeSource)
+CASE('cell_volweight_mean')
+  ADEALLOCATE(NodeSource)
   ! Surface charging pointers/arrays
   IF(DoDielectricSurfaceCharge)THEN
-      ADEALLOCATE(NodeSourceExt)
+    ADEALLOCATE(NodeSourceExt)
   END IF ! DoDielectricSurfaceCharge
+  ADEALLOCATE(NodeSource_Shared)
+CASE('shape_function_adaptive')
+  ADEALLOCATE(SFElemr2_Shared)
 END SELECT
 
 
