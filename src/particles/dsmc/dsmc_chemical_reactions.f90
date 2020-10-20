@@ -465,15 +465,15 @@ IF(CalcPartBalance) THEN
   END IF
 END IF
 
-IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-  MassRed = Species(EductReac(1))%MassIC*Weight(1) * Species(EductReac(2))%MassIC*Weight(2) &
-              / (Species(EductReac(1))%MassIC*Weight(1) + Species(EductReac(2))%MassIC*Weight(2))
-ELSE
-  MassRed = CollInf%MassRed(Coll_pData(iPair)%PairType)
-END IF
-
 IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
   MassRed = 0.
+ELSE
+  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    MassRed = Species(EductReac(1))%MassIC*Weight(1) * Species(EductReac(2))%MassIC*Weight(2) &
+                / (Species(EductReac(1))%MassIC*Weight(1) + Species(EductReac(2))%MassIC*Weight(2))
+  ELSE
+    MassRed = CollInf%MassRed(Coll_pData(iPair)%PairType)
+  END IF
 END IF
 
 ! Calculate the sum of the weights of the products (at least 2 products in any reaction)
@@ -859,7 +859,7 @@ IF(ProductReac(3).NE.0) THEN
     ! Set velocity of the pseudo molecule (1-3)
     VeloPseuMolec(1:3) = (VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3))
     ! Set velocity of the pseudo molecule (2-4)
-    VeloPseuMolec2(1:3) = (VeloCOM(1:3) + FracMassCent1*cRelaNew(1:3))
+    VeloPseuMolec2(1:3) = (VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3))
     ! Determine the collision energy available
     Coll_pData(iPair)%CRela2 = DOTPRODUCT(FracMassCent1*cRelaNew(1:3))
     ERel_React1_React3 = 0.5 * MassRed * DOTPRODUCT(FracMassCent2*cRelaNew(1:3))
@@ -880,12 +880,12 @@ IF(ProductReac(3).NE.0) THEN
     PartState(4:6,ReactInx(4)) = 0.
     DSMC_RHS(1:3,ReactInx(4)) = VeloPseuMolec2(1:3) - FracMassCent1*cRelaNew(1:3)
 #ifdef CODE_ANALYZE
-    Energy_new=0.5*Species(ProductReac(2))%MassIC*((VeloPseuMolec2(1) - FracMassCent2*cRelaNew(1))**2 &
-                                                +  (VeloPseuMolec2(2) - FracMassCent2*cRelaNew(2))**2 &
-                                                +  (VeloPseuMolec2(3) - FracMassCent2*cRelaNew(3))**2) * Weight(2)
-    Momentum_new(1:3) = Species(ProductReac(2))%MassIC* (/VeloPseuMolec2(1) - FracMassCent2*cRelaNew(1),&
-                                                          VeloPseuMolec2(2) - FracMassCent2*cRelaNew(2),&
-                                                          VeloPseuMolec2(3) - FracMassCent2*cRelaNew(3)/) * Weight(2)
+    Energy_new=0.5*Species(ProductReac(2))%MassIC*((VeloPseuMolec2(1) + FracMassCent2*cRelaNew(1))**2 &
+                                                +  (VeloPseuMolec2(2) + FracMassCent2*cRelaNew(2))**2 &
+                                                +  (VeloPseuMolec2(3) + FracMassCent2*cRelaNew(3))**2) * Weight(2)
+    Momentum_new(1:3) = Species(ProductReac(2))%MassIC* (/VeloPseuMolec2(1) + FracMassCent2*cRelaNew(1),&
+                                                          VeloPseuMolec2(2) + FracMassCent2*cRelaNew(2),&
+                                                          VeloPseuMolec2(3) + FracMassCent2*cRelaNew(3)/) * Weight(2)
     Energy_new = Energy_new + 0.5*Species(ProductReac(4))%MassIC*((VeloPseuMolec2(1) - FracMassCent1*cRelaNew(1))**2 &
                                                                 + (VeloPseuMolec2(2) - FracMassCent1*cRelaNew(2))**2 &
                                                                 + (VeloPseuMolec2(3) - FracMassCent1*cRelaNew(3))**2) * Weight(4)

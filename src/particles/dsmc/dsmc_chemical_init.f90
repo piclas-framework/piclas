@@ -498,7 +498,7 @@ DO iReac = 1, ChemReac%NumOfReact
       'Chemistry - Error in Definition: Product species not properly defined. ReacNbr:',iReac)
     END IF
   END IF
-  MaxSpecies = MAXVAL(ChemReac%Reactants(iReac:2,1:3))
+  MaxSpecies = MAXVAL(ChemReac%Reactants(iReac,1:3))
   IF(MaxSpecies.GT.nSpecies) THEN
     CALL abort(__STAMP__,&
       'Chemistry - Error in Definition: Defined species does not exist, check number of species. ReacNbr:',iReac)
@@ -511,6 +511,8 @@ ChemReac%CollCaseInfo(:)%NumOfReactionPaths = 0
 DO iCase = 1, CollInf%NumCase
   RecombAdded = .FALSE.
   DO iReac = 1, ChemReac%NumOfReact
+    ! Skip the special case of photo ionization
+    IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') CYCLE
     iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
     ! Count the number of possible reactions paths per collision case
     IF(iCase.EQ.iCase2) THEN
@@ -539,6 +541,8 @@ DO iCase = 1, CollInf%NumCase
   ReacIndexCounter = 0
   RecombAdded = .FALSE.
   DO iReac = 1, ChemReac%NumOfReact
+    ! Skip the special case of photo ionization
+    IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') CYCLE
     iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
     ! Save the reaction index for the specific collision case
     IF(iCase.EQ.iCase2) THEN
