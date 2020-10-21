@@ -217,7 +217,7 @@ USE MOD_Particle_Vars         ,ONLY: ManualTimeStep
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 #endif
 #if USE_MPI
-USE MOD_MPI_Shared            ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!           ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars       ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars    ,ONLY: nComputeNodeElems,offsetComputeNodeElem
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared_Win
@@ -699,7 +699,7 @@ USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
 USE MOD_Restart_Vars           ,ONLY: RestartTime,DoRestart
 USE MOD_TimeDisc_Vars          ,ONLY: iter, dt, IterDisplayStep
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, BGGas, XSec_Relaxation
 #endif
@@ -721,13 +721,13 @@ REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
 REAL                :: EkinMax(nSpecies)
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
 REAL                :: ETotal, MacroParticleFactor
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
 REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2),VibRelaxProbCase(CollInf%NumCase)
 INTEGER             :: jSpec, iCase
 #endif
 #if USE_MPI
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 REAL                :: sumMeanCollProb
 #endif
 REAL                :: RECBR(nSpecies),RECBR1
@@ -902,7 +902,7 @@ INTEGER             :: dir
             OutputCounter = OutputCounter + 1
           END DO
         END IF
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
         IF (CollisMode.GT.1) THEN
           IF(CalcEint) THEN
             DO iSpec=1, nSpecAnalyze
@@ -1132,7 +1132,7 @@ INTEGER             :: dir
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell)
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
   MaxCollProb = 0.0
   MeanCollProb = 0.0
   MeanFreePath = 0.0
@@ -1190,7 +1190,7 @@ INTEGER             :: dir
       CALL MPI_REDUCE(MPI_IN_PLACE,PCoupl,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PCouplAverage,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
       ! Determining the maximal (MPI_MAX) and mean (MPI_SUM) collision probabilities
       CALL MPI_REDUCE(MPI_IN_PLACE,MaxCollProb,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
@@ -1235,7 +1235,7 @@ INTEGER             :: dir
       CALL MPI_REDUCE(PCoupl,PCoupl,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(PCouplAverage,PCouplAverage,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
       CALL MPI_REDUCE(MaxCollProb,RECBR1,1,MPI_DOUBLE_PRECISION,MPI_MAX,0, PartMPI%COMM, IERROR)
       CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, PartMPI%COMM, IERROR)
@@ -1420,7 +1420,7 @@ IF (PartMPI%MPIROOT) THEN
       END DO
     END IF
 
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
     IF (CollisMode.GT.1) THEN
       IF(CalcEint) THEN
         DO iSpec=1, nSpecAnalyze
@@ -2145,7 +2145,7 @@ END IF
 END SUBROUTINE CalcTemperature
 
 
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 SUBROUTINE CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb,VibRelaxProbCase)
 !===================================================================================================================================
 ! Calculates global rotational and vibrational relaxation probability for PartAnalyse.csv
@@ -2244,7 +2244,7 @@ ELSE
     END IF
   END IF
 #endif /*USE_MPI*/
-  IF(PartMPI%MPIRoot)THEN
+  IF(MPIRoot)THEN
     VibRelaxProb(1) = MAXVAL(DSMC%CalcVibProb(1:nSpecies,2))
     IF(SUM(DSMC%CalcVibProb(1:nSpecies,3)).GT.0) THEN
       VibRelaxProb(2) = SUM(DSMC%CalcVibProb(1:nSpecies,1))/SUM(DSMC%CalcVibProb(1:nSpecies,3))
@@ -3175,9 +3175,6 @@ USE MOD_Equation_Vars     ,ONLY: E
 #endif
 #if USE_MPI
 USE MOD_Particle_MPI      ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars ,ONLY: PartMPIExchange
-USE MOD_Particle_MPI_Vars ,ONLY: DoExternalParts
-USE MOD_Particle_MPI_Vars ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
@@ -3212,33 +3209,9 @@ DO iSpec=1,nSpecies
 
   ! map particle from gamma v to v
   CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
-
-  ! communicate shape function particles
-#if USE_MPI
-  PartMPIExchange%nMPIParticles=0
-  IF(DoExternalParts)THEN
-    ! as we do not have the shape function here, we have to deallocate something
-    SDEALLOCATE(ExtPartState)
-    SDEALLOCATE(ExtPartSpecies)
-    SDEALLOCATE(ExtPartToFIBGM)
-    SDEALLOCATE(ExtPartMPF)
-    ! open receive buffer for number of particles
-    CALL IRecvNbofParticles()
-    ! send number of particles
-    CALL SendNbOfParticles(doParticle_In=DoParticle)
-    ! finish communication of number of particles and send particles
-    CALL MPIParticleSend()
-    ! finish communication
-    CALL MPIParticleRecv()
-    ! set exchanged number of particles to zero
-    PartMPIExchange%nMPIParticles=0
-  END IF
-#endif /*USE_MPI*/
-
   ! compute source terms
   ! compute particle source terms on field solver of considered species
-  CALL Deposition(DoInnerParts=.TRUE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
-  CALL Deposition(DoInnerParts=.FALSE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
+  CALL Deposition(doParticle_In=DoParticle(1:PDM%ParticleVecLength))
   ! map particle from v to gamma v
   CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
 
@@ -3959,10 +3932,10 @@ ASSOCIATE( iPart => 1 )
       ASSOCIATE( omega_c => ABS(q)*B_0/m )
         ASSOCIATE( r_c => v_perp/omega_c )
           PartStateAnalytic(1) = COS(omega_c*t + phi)*r_c
-          PartStateAnalytic(2) = SIN(omega_c*t + phi)*r_c 
+          PartStateAnalytic(2) = SIN(omega_c*t + phi)*r_c
           PartStateAnalytic(3) = 0.
           PartStateAnalytic(4) = -SIN(omega_c*t + phi)*v_perp
-          PartStateAnalytic(5) =  COS(omega_c*t + phi)*v_perp 
+          PartStateAnalytic(5) =  COS(omega_c*t + phi)*v_perp
           PartStateAnalytic(6) = 0.
         END ASSOCIATE
       END ASSOCIATE

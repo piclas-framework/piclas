@@ -950,7 +950,7 @@ CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
 CASE(41) ! pulsed Dipole
   resu = 0.0
   RETURN
-CASE(100) ! QDS
+CASE(100) ! 
   resu = 0.0
   RETURN
 CASE DEFAULT

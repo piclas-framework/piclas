@@ -125,7 +125,6 @@ END SELECT
 
 #ifdef CODE_ANALYZE
 ! Initialize analytic solutions for particle time integration (checking the order of convergence for time discretizations)
-DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
 IF(DoInterpolationAnalytic)THEN
   AnalyticInterpolationType = GETINT('PIC-AnalyticInterpolation-Type')
   AnalyticInterpolationPhase = GETREAL('PIC-AnalyticInterpolationPhase')
@@ -160,23 +159,18 @@ SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE INTERPOLATION DONE!'
 END SUBROUTINE InitializeParticleInterpolation
 
 
-SUBROUTINE InterpolateFieldToParticle(DoInnerParts)
+SUBROUTINE InterpolateFieldToParticle()
 !===================================================================================================================================
 ! Calculates the electromagnetic fields at all the particle's positions
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Particle_Vars          ,ONLY: PartPosRef,PDM,PartState,PEM,DoFieldIonization
+USE MOD_Particle_Vars          ,ONLY: PDM,PEM,DoFieldIonization
 USE MOD_Part_Tools             ,ONLY: isInterpolateParticle
 USE MOD_PIC_Vars
-USE MOD_PICInterpolation_Vars  ,ONLY: useVariableExternalField,FieldAtParticle,externalField,DoInterpolation,InterpolationType
+USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle,DoInterpolation,InterpolationType
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationElemLoop
-USE MOD_PICDepo_Vars           ,ONLY: GaussBorder
-#if USE_MPI
-! only required for shape function??  only required for shape function??
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
-#endif
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
 #endif /* CODE_ANALYZE */
@@ -187,13 +181,11 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL                          :: DoInnerParts
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: firstPart,lastPart,iPart,iElem
-REAL                             :: Pos(1:3),PartPosRef_loc(1:3)
+INTEGER                          :: iPart,iElem
 !===================================================================================================================================
 !0. Return if interpolation is not required
 IF(.NOT.DoInterpolation) RETURN
@@ -201,42 +193,21 @@ IF(.NOT.DoInterpolation) RETURN
 !1. Calculate the time step of the discretization of the Current
 IF (CalcBField) CALL GetTimeDependentBGField()
 
-!2. Set firstPart, lastPart
-IF(DoInnerParts)THEN
-  firstPart=1
-  lastPart =PDM%ParticleVecLength
-ELSE
-#if USE_MPI
-  firstPart=PDM%ParticleVecLength-PartMPIExchange%nMPIParticles+1
-  lastPart =PDM%ParticleVecLength
-#else
-  firstPart=2
-  LastPart =1
-#endif /*USE_MPI*/
-END IF
-! thats wrong
-IF(firstPart.GT.lastPart) RETURN
-
 !3. Select element-particle loop (InterpolationElemLoop) or particle-element (.NOT.InterpolationElemLoop)
 IF (InterpolationElemLoop) THEN ! element-particle loop
   ! If PP_nElems.LE.10 (so far arbitrary threshold...) do NOT use InterpolateFieldToSingleParticle routine
-
-  !3.1 Apply any external fields to all particles
-  DO iPart = firstPart, lastPart
-    FieldAtParticle(1:6,iPart) = GetExternalFieldAtParticle(iPart)
-  END DO ! iPart = firstPart, lastPart
-
   !3.2 InterpolationElemLoop (loop elements and then particles)
   SELECT CASE(TRIM(InterpolationType))
   CASE('particle_position')
     ! particles have already been mapped
     DO iElem=1,PP_nElems
-      DO iPart=firstPart,LastPart
+      DO iPart=1,PDM%ParticleVecLength
         IF(.NOT.PDM%ParticleInside(iPart)) CYCLE ! Skip particles outside
         IF(.NOT.(DoFieldIonization.OR.isInterpolateParticle(iPart))) CYCLE ! Skip neutral particles (if field ionization if off)
         IF(PEM%LocalElemID(iPart).NE.iElem) CYCLE ! Skip particles that are not inside the current element
         ! Add the interpolated electro-(magnetic) field
-        FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + GetInterpolatedFieldPartPos(iElem,iPart)
+        FieldAtParticle(1:6,iPart) = GetExternalFieldAtParticle(iPart)
+        FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + GetInterpolatedFieldPartPos(PEM%GlobalElemID(iPart),iPart)
       END DO ! iPart
     END DO ! iElem=1,PP_nElems
   CASE DEFAULT
@@ -246,7 +217,7 @@ IF (InterpolationElemLoop) THEN ! element-particle loop
   END SELECT
 ELSE ! .NOT.InterpolationElemLoop -> particle-element loop
   ! IF PP_nElems.GT.10 (so far arbitrary threshold...) use InterpolateFieldToSingleParticle routine
-  DO iPart = firstPart, LastPart
+  DO iPart = 1, PDM%ParticleVecLength
     IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     ! Don't interpolate the field at neutral particles (only when considering field ionization)
     IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
@@ -266,15 +237,9 @@ SUBROUTINE InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Particle_Vars          ,ONLY: PartPosRef,PDM,PartState,PEM
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_PIC_Vars
-USE MOD_PICInterpolation_Vars  ,ONLY: useVariableExternalField,externalField,DoInterpolation,InterpolationType
-USE MOD_PICDepo_Vars           ,ONLY: GaussBorder
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem,EvaluateFieldAtRefPos
-#if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
-USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
-#endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
+USE MOD_Particle_Vars         ,ONLY: PEM
+USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolation,InterpolationType
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -286,7 +251,6 @@ INTEGER,INTENT(IN)            :: PartID
 REAL,INTENT(OUT)             :: FieldAtParticle(1:6)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                      :: ElemID
 !===================================================================================================================================
 !0. Return if interpolation is not required
 IF(.NOT.DoInterpolation) RETURN
@@ -295,18 +259,17 @@ IF(.NOT.DoInterpolation) RETURN
 FieldAtParticle(1:6) = GetExternalFieldAtParticle(PartID)
 
 !2. Calculate fields at particle
-ElemID=PEM%LocalElemID(PartID)
 #if USE_MPI
-IF(ElemID.GT.PP_nElems)THEN! RETURN
+IF(PEM%LocalElemID(PartID).GT.PP_nElems)THEN! RETURN
   CALL abort(&
   __STAMP__&
-  ,'ERROR: This check used to perform "RETURN" here but is now set to "ABORT". ElemID.GT.PP_nElems should not happen here.')
+  ,'ERROR: This check used to "RETURN" here but is now set to "ABORT". PEM%LocalElemID(PartID).GT.PP_nElems should not happen here.')
 END IF
 #endif
 SELECT CASE(TRIM(InterpolationType))
 CASE('particle_position')
   ! Add the interpolated electro-(magnetic) field
-  FieldAtParticle(:) = FieldAtParticle(:) + GetInterpolatedFieldPartPos(ElemID,PartID)
+  FieldAtParticle(:) = FieldAtParticle(:) + GetInterpolatedFieldPartPos(PEM%GlobalElemID(PartID),PartID)
 CASE DEFAULT
   CALL abort(&
   __STAMP__&
@@ -407,7 +370,7 @@ FUNCTION GetInterpolatedFieldPartPos(ElemID,PartID)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
-USE MOD_Particle_Vars          ,ONLY: PartPosRef,PDM,PartState
+USE MOD_Particle_Vars          ,ONLY: PartPosRef,PDM,PartState,PEM
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
@@ -416,7 +379,7 @@ USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES 
-INTEGER,INTENT(IN) :: ElemID
+INTEGER,INTENT(IN) :: ElemID !< Global element ID
 INTEGER,INTENT(IN) :: PartID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -446,7 +409,7 @@ ELSE
 END IF
 
 ! Interpolate the field and return the vector
-GetInterpolatedFieldPartPos(1:6) =  GetField(ElemID,PartPosRef_loc(1:3))
+GetInterpolatedFieldPartPos(1:6) =  GetField(PEM%LocalElemID(PartID),PartPosRef_loc(1:3))
 END FUNCTION GetInterpolatedFieldPartPos
 
 
@@ -476,7 +439,7 @@ USE MOD_Equation_Vars ,ONLY: B,E
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES 
-INTEGER,INTENT(IN) :: ElemID
+INTEGER,INTENT(IN) :: ElemID !< Local element ID
 REAL,INTENT(IN)    :: PartPosRef_loc(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES

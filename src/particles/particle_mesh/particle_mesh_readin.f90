@@ -144,7 +144,6 @@ END IF
 ! broadcast elem offset of compute-node root
 offsetComputeNodeElem=offsetElem
 CALL MPI_BCAST(offsetComputeNodeElem,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
-
 #else
 ! allocate local array for ElemInfo
 ALLOCATE(ElemInfo_Shared(1:ELEMINFOSIZE,1:nElems))
@@ -206,9 +205,9 @@ CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #else
 nComputeNodeSides = nSideIDs
-ALLOCATE(SideInfo_Shared(1:SIDEINFOSIZE+1,1:nSideIDs))
-SideInfo_Shared(1                :SIDEINFOSIZE_H5,1:nSideIDs) = SideInfo(:,:)
-SideInfo_Shared(SIDEINFOSIZE_H5+1:SIDEINFOSIZE+1 ,1:nSideIDs) = 0
+ALLOCATE(SideInfo_Shared(1:SIDEINFOSIZE+1         , 1:nSideIDs))
+SideInfo_Shared(1                :SIDEINFOSIZE    , 1:nSideIDs) = SideInfo(:,:)
+SideInfo_Shared(SIDEINFOSIZE_H5+1:SIDEINFOSIZE+1  , 1:nSideIDs) = 0
 #endif /*USE_MPI*/
 
 END SUBROUTINE ReadMeshSides
@@ -354,11 +353,11 @@ IF (useCurveds.OR.NGeo.EQ.1) THEN
 
 ! Reduce NodeCoords if no curved elements are to be used
 ELSE
-  ! root reads NodeInfo for new mapping
-#if USE_MPI
   ! every proc needs to allocate the array
   ALLOCATE(NodeInfo(1:nNonUniqueGlobalNodes))
 
+#if USE_MPI
+  ! root reads NodeInfo for new mapping
   IF (myComputeNodeRank.EQ.0) THEN
 #endif /*USE_MPI*/
     ! Associate construct for integer KIND=8 possibility
@@ -465,11 +464,11 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 nUniqueGlobalNodes = MAXVAL(NodeInfo_Shared)
 
 #if USE_MPI
-  IF (myComputeNodeRank.EQ.0) THEN
+IF (myComputeNodeRank.EQ.0) THEN
 #endif /*USE_MPI*/
-DEALLOCATE(NodeInfo)
+  DEALLOCATE(NodeInfo)
 #if USE_MPI
-  END IF
+END IF
 #endif /*USE_MPI*/
 DEALLOCATE(NodeCoords_indx)
 
@@ -755,14 +754,11 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 ! volumes
 CALL MPI_WIN_UNLOCK_ALL(ElemVolume_Shared_Win,iError)
 CALL MPI_WIN_FREE(ElemVolume_Shared_Win,iError)
-CALL MPI_WIN_UNLOCK_ALL(ElemMPVolumePortion_Shared_Win,iError)
-CALL MPI_WIN_FREE(ElemMPVolumePortion_Shared_Win,iError)
 CALL MPI_WIN_UNLOCK_ALL(ElemCharLength_Shared_Win,iError)
 CALL MPI_WIN_FREE(ElemCharLength_Shared_Win,iError)
 
 ! Then, free the pointers or arrays
 ADEALLOCATE(ElemVolume_Shared)
-ADEALLOCATE(ElemMPVolumePortion_Shared)
 ADEALLOCATE(ElemCharLength_Shared)
 
 ! Free communication arrays
@@ -802,8 +798,10 @@ ADEALLOCATE(NodeInfo_Shared)
 ADEALLOCATE(NodeCoords_Shared)
 
 ! Free communication arrays
+#if USE_MPI
 SDEALLOCATE(displsNode)
 SDEALLOCATE(recvcountNode)
+#endif /*USE_MPI*/
 
 END SUBROUTINE FinalizeMeshReadin
 

@@ -821,8 +821,6 @@ USE MOD_Globals
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry          ,ONLY: CalcRadWeightMPF
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
-USE MOD_MacroBody_Tools        ,ONLY: INSIDEMACROBODY
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Localization  ,ONLY: PartInElemCheck
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
@@ -924,11 +922,6 @@ __STAMP__,&
                 IF (MAXVAL(ABS(RefPos)).LE.ElemEpsOneCell(iElem)) InsideFlag=.TRUE.
             END SELECT
           END DO
-          IF (UseMacroBody) THEN
-            IF (INSIDEMACROBODY(RandomPos)) THEN
-              CYCLE !particle is inside MacroParticle
-            END IF
-          END IF
           PartState(1:3,ParticleIndexNbr) = RandomPos(1:3)
           PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
           PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
@@ -1225,8 +1218,6 @@ SUBROUTINE SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_p
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac, dt
-USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
-USE MOD_MacroBody_tools        ,ONLY: INSIDEMACROBODY
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1286,12 +1277,6 @@ LOGICAL                 :: insideExcludeRegion
         Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CylinderHeightIC * RandVal(3)
       END IF
     END SELECT
-    IF (UseMacroBody) THEN
-      IF (INSIDEMACROBODY(Particle_pos)) THEN
-        i=i+1
-        CYCLE !particle is inside MacroParticle
-      END IF
-    END IF
     IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
       CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
       IF (insideExcludeRegion) THEN
@@ -1315,8 +1300,6 @@ SUBROUTINE SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions
 !===================================================================================================================================
 ! modules
 USE MOD_Particle_Vars          ,ONLY: Species
-USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
-USE MOD_MacroBody_tools        ,ONLY: INSIDEMACROBODY
 USE MOD_Part_tools             ,ONLY: DICEUNITVECTOR
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -1340,12 +1323,6 @@ LOGICAL                 :: insideExcludeRegion
     CALL RANDOM_NUMBER(iRan)
     radius = Species(FractNbr)%Init(iInit)%RadiusIC*iRan**(1./3.)
     Particle_pos = DICEUNITVECTOR()*radius + Species(FractNbr)%Init(iInit)%BasePointIC
-    IF (UseMacroBody) THEN
-      IF (INSIDEMACROBODY(Particle_pos)) THEN
-        i=i+1
-        CYCLE !particle is inside MacroParticle
-      END IF
-    END IF
     IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
       CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
       IF (insideExcludeRegion) THEN

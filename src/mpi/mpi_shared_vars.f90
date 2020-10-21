@@ -16,18 +16,20 @@
 !===================================================================================================================================
 MODULE MOD_MPI_Shared_Vars
 ! MODULES
+#if USE_MPI
 USE mpi
+#endif /*USE_MPI*/
 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
 SAVE
+
 #if USE_MPI
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL            :: MPISharedInitIsDone=.FALSE.
-LOGICAL            :: MeshWasCurved      =.FALSE.
 
 ! Communication
 INTEGER            :: ComputeNodeRootRank                   !> Rank of compute-node root in global comm
@@ -61,12 +63,14 @@ INTEGER            :: nComputeNodeTotalNodes                !> Number of nodes o
 INTEGER,ALLOCATABLE:: displsElem(:),recvcountElem(:)
 INTEGER,ALLOCATABLE:: displsSide(:),recvcountSide(:)
 INTEGER,ALLOCATABLE:: displsNode(:),recvcountNode(:)
+#endif /*USE_MPI*/
 
 ! Surface sampling
+INTEGER            :: mySurfRank           =-888            !> rank on MPI_COMM_LEADERS_SURF
+#if USE_MPI
 INTEGER,ALLOCATABLE:: MPIRankSharedLeader(:)                !> Array of size nLeaderGroupProcs holding the leader rank of each proc
 INTEGER,ALLOCATABLE:: MPIRankSurfLeader(:)                  !> Array of size nLeaderGroupProcs holding the surf rank of each proc
 INTEGER            :: MPI_COMM_LEADERS_SURF=MPI_COMM_NULL   !> Communicator compute-node roots on surface communicator (my_rank_shared=0)
-INTEGER            :: mySurfRank           =-888            !> rank on MPI_COMM_LEADERS_SURF
 INTEGER            :: nSurfLeaders                          !> compute-node leaders on MPI_COMM_LEADERS_SURF
 !INTEGER            :: nSurfCommProc                         !> compute-nodes which send or receive sides from us
 
@@ -81,5 +85,5 @@ INTEGER            :: MPI_INFO_SHARED_LOOSE                 !> MPI_INFO object a
 !INTEGER            :: MPI_INFO_SHARED_STRICT                !> MPI_INFO object not allowing for re-ordering of same origin atomic RMA operations
 
 !> Other variables in particle_mesh_vars.f90
-#endif /* USE_MPI */
+#endif /*USE_MPI*/
 END MODULE

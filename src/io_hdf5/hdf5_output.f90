@@ -563,12 +563,16 @@ ASSOCIATE (&
       CALL WriteAttributeToHDF5(File_ID,'VarNamesSource',INT(nVar,4),StrArray=LocalStrVarnames)
       CALL CloseDataFile()
     END IF
-    CALL GatheredWriteArray(FileName,create=.FALSE.,&
-        DataSetName='DG_Source', rank=5,  &
-        nValGlobal=(/nVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-        nVal=      (/nVar , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-        offset=    (/0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
-        collective=.TRUE.,RealArray=PartSource(:,:,:,:,GetCNElemID(offsetElem + 1):GetCNElemID(offSetElem+PP_nElems)))
+    ASSOCIATE(&
+        CNElemIDStart  => INT(GetCNElemID(INT(offsetElem          ,4)+1),IK) ,&
+        CNElemIDEnd    => INT(GetCNElemID(INT(offsetElem+PP_nElems,4)  ),IK) )
+      CALL GatheredWriteArray(FileName,create=.FALSE.,&
+          DataSetName='DG_Source', rank=5,  &
+          nValGlobal=(/nVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+          nVal=      (/nVar , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
+          offset=    (/0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
+          collective=.TRUE.,RealArray=PartSource(:,:,:,:,CNElemIDStart:CNElemIDEnd))
+    END ASSOCIATE
 
     DEALLOCATE(LocalStrVarNames)
   END IF
@@ -585,7 +589,6 @@ IF(DoBoundaryParticleOutput) THEN
     CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc)
   END IF
 END IF
-CALL WriteMacroParticleToHDF5(FileName)
 IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteVibProbInfoToHDF5(FileName)
 CALL WriteSurfStateToHDF5(FileName)
@@ -614,7 +617,7 @@ CALL ModifyElemData(mode=2)
 CALL WritePMLDataToHDF5(FileName)
 #endif
 
-#if PARTICLES
+#ifdef PARTICLES
 ! Write NodeSourceExt (external charge density) field to HDF5 file
 IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
 #endif /*PARTICLES*/
@@ -1856,163 +1859,6 @@ PartStateLost=0.
 END SUBROUTINE WriteLostParticlesToHDF5
 
 
-SUBROUTINE WriteMacroParticleToHDF5(FileName)
-!===================================================================================================================================
-!> Subroutine that generates the output file on a single processor and writes all the necessary attributes of macroparticles
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_Globals
-USE MOD_MacroBody_Vars    ,ONLY: UseMacroBody, nMacroBody, MacroSphere
-#if USE_MPI
-USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
-#endif /*USE_MPI*/
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!===================================================================================================================================
-! INPUT VARIABLES
-CHARACTER(LEN=255),INTENT(IN)  :: FileName
-!===================================================================================================================================
-! OUTPUT VARIABLES
-!===================================================================================================================================
-! LOCAL VARIABLES
-CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-#if USE_MPI
-!INTEGER(KIND=IK)               :: sendbuf(2),recvbuf(2)
-!INTEGER(KIND=IK)               :: nParticles(0:nProcessors-1)
-#endif /*USE_MPI*/
-LOGICAL                        :: reSwitch
-INTEGER                        :: pcount
-INTEGER(KIND=IK)               :: locnPart,offsetnPart
-INTEGER(KIND=IK)               :: iPart,nPart_glob
-REAL,ALLOCATABLE               :: PartData(:,:)
-INTEGER                        :: PartDataSize       !number of entries in each line of PartData
-INTEGER(KIND=IK)               :: locnPart_max
-!===================================================================================================================================
-locnPart =   0_IK
-#if USE_MPI
-IF (PartMPI%MPIRoot) THEN
-#endif /*USE_MPI*/
-  IF (UseMacroBody .AND. nMacroBody.GT.0) THEN
-    DO pcount = 1,nMacroBody
-      !IF(MacroParticle(pcount)%particleLocal) THEN
-        locnPart = locnPart + 1_IK
-      !END IF
-    END DO
-  END IF
-#if USE_MPI
-END IF
-#endif /*USE_MPI*/
-!#if USE_MPI
-!sendbuf(1)=locnPart
-!recvbuf=0_IK
-!CALL MPI_EXSCAN(sendbuf(1),recvbuf(1),1,MPI_INTEGER_INT_KIND,MPI_SUM,MPI_COMM_WORLD,iError)
-!offsetnPart=recvbuf(1)
-!sendbuf(1)=recvbuf(1)+locnPart
-!CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER_INT_KIND,nProcessors-1,MPI_COMM_WORLD,iError) !last proc knows global number
-!!global numbers
-!nPart_glob=sendbuf(1)
-!CALL MPI_GATHER(locnPart,1,MPI_INTEGER_INT_KIND,nParticles,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_WORLD,iError)
-!LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
-!CALL MPI_REDUCE(locnPart, locnPart_max, 1, MPI_INTEGER_INT_KIND, MPI_MAX, 0, MPI_COMM_WORLD, IERROR)
-!#else
-!offsetnPart=0_IK
-!nPart_glob=locnPart
-!locnPart_max=locnPart
-!#endif /*USE_MPI*/
-offsetnPart=0_IK
-nPart_glob=locnPart
-locnPart_max=locnPart
-PartDataSize=13
-ALLOCATE(PartData(INT(PartDataSize,IK),offsetnPart+1_IK:offsetnPart+locnPart))
-
-DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
-  PartData(1:3,iPart)=MacroSphere(iPart)%center(1:3)
-  PartData(4:9,iPart)=MacroSphere(iPart)%velocity(1:6)
-  PartData(10,iPart)=MacroSphere(iPart)%radius
-  PartData(11,iPart)=MacroSphere(iPart)%temp
-  PartData(12,iPart)=MacroSphere(iPart)%density
-  PartData(13,iPart)=MacroSphere(iPart)%mass
-END DO
-
-reSwitch=.FALSE.
-IF(gatheredWrite)THEN
-  ! gatheredwrite not working with distributed particles
-  ! particles require own routine for which the communicator has to be build each time
-  reSwitch=.TRUE.
-  gatheredWrite=.FALSE.
-END IF
-
-! Associate construct for integer KIND=8 possibility
-ASSOCIATE (PartDataSize => INT(PartDataSize,IK))
-
-  ALLOCATE(StrVarNames(PartDataSize))
-  StrVarNames(1)='ParticlePositionX'
-  StrVarNames(2)='ParticlePositionY'
-  StrVarNames(3)='ParticlePositionZ'
-  StrVarNames(4)='VelocityX'
-  StrVarNames(5)='VelocityY'
-  StrVarNames(6)='VelocityZ'
-  StrVarNames(7)='RotVelocityX'
-  StrVarNames(8)='RotVelocityY'
-  StrVarNames(9)='RotVelocityZ'
-  StrVarNames(10)='Radius'
-  StrVarNames(11)='Temperature'
-  StrVarNames(12)='Density'
-  StrVarNames(13)='Mass'
-
-#if USE_MPI
-  IF(PartMPI%MPIRoot)THEN
-#endif /*USE_MPI*/
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    CALL WriteAttributeToHDF5(File_ID,'VarNamesMacroParticles',INT(PartDataSize,4),StrArray=StrVarNames)
-    CALL CloseDataFile()
-#if USE_MPI
-  END IF
-#endif /*USE_MPI*/
-
-  IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
-#if USE_MPI
-    IF(PartMPI%MPIRoot)THEN ! only root writes the container
-#endif /*USE_MPI*/
-      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-      CALL WriteArrayToHDF5(DataSetName='MacroPartData'        , rank=2           , &
-                            nValGlobal=(/ INT(PartDataSize,IK) , nPart_glob     /), &
-                            nVal=      (/ INT(PartDataSize,IK) , locnPart       /), &
-                            offset=    (/ 0_IK                 , offsetnPart    /), &
-                            collective=.FALSE.                 , RealArray=PartData)
-      CALL CloseDataFile()
-#if USE_MPI
-    END IF !MPIRoot
-#endif /*USE_MPI*/
-  END IF !locnPart_max.EQ.0
-#if USE_MPI
-  CALL DistributedWriteArray(FileName                     , &
-                             DataSetName  = 'MacroPartData'         , rank = 2       , &
-                             nValGlobal   = (/ INT(PartDataSize,IK) , nPart_glob  /) , &
-                             nVal         = (/ INT(PartDataSize,IK) , locnPart    /) , &
-                             offset       = (/ 0_IK                 , offsetnPart /) , &
-                             collective   = .FALSE.                 , offSetDim = 2  , &
-                             communicator = PartMPI%COMM            , RealArray = PartData)
-#else
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.     , readOnly=.FALSE.)
-  CALL WriteArrayToHDF5(DataSetName = 'MacroPartData'         , rank = 2       , &
-                        nValGlobal  = (/ INT(PartDataSize,IK) , nPart_glob  /) , &
-                        nVal        = (/ INT(PartDataSize,IK) , locnPart    /) , &
-                        offset      = (/ 0_IK                 , offsetnPart /) , &
-                        collective  = .TRUE.                  , RealArray = PartData)
-  CALL CloseDataFile()
-#endif /*USE_MPI*/
-END ASSOCIATE
-! reswitch
-IF(reSwitch) gatheredWrite=.TRUE.
-
-DEALLOCATE(StrVarNames)
-DEALLOCATE(PartData)
-
-END SUBROUTINE WriteMacroParticleToHDF5
-
-
 SUBROUTINE WriteSurfStateToHDF5(FileName)
 !===================================================================================================================================
 !> Subroutine that generates the state attributes and data of surface chemistry state and writes it out into State-File
@@ -2534,7 +2380,6 @@ SUBROUTINE WriteClonesToHDF5(FileName)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars     ,ONLY: offsetElem
 USE MOD_DSMC_Vars     ,ONLY: UseDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
 USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, ClonedParticles
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies, usevMPF
@@ -2979,9 +2824,6 @@ USE MOD_HDF5_Input       ,ONLY: GetHDF5NextFileName
 #if USE_LOADBALANCE
 USE MOD_Loadbalance_Vars ,ONLY: DoLoadBalance,nLoadBalance
 #endif /*USE_LOADBALANCE*/
-#if USE_QDS_DG
-USE MOD_QDS_DG_Vars      ,ONLY: DoQDS
-#endif /*USE_QDS_DG*/
 USE MOD_Mesh_Vars        ,ONLY: DoWriteStateToHDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3031,32 +2873,6 @@ DO
   IF(stat .EQ. 0) CLOSE ( ioUnit,STATUS = 'DELETE' )
   IF(iError.NE.0) EXIT  ! iError is set in GetHDF5NextFileName !
 END DO
-
-#if USE_QDS_DG
-! delete QDS state files
-IF(DoQDS)THEN
-  NextFile=TRIM(TIMESTAMP(TRIM(ProjectName)//'_QDS',FlushTime))//'.h5'
-  DO
-    InputFile=TRIM(NextFile)
-    ! Read calculation time from file
-#if USE_MPI
-    CALL GetHDF5NextFileName(Inputfile,NextFile,.TRUE.)
-#else
-    CALL GetHDF5NextFileName(Inputfile,NextFile)
-#endif
-    ! Delete File - only root
-    stat=0
-    OPEN ( NEWUNIT= ioUnit,         &
-           FILE   = InputFile,      &
-           STATUS = 'OLD',          &
-           ACTION = 'WRITE',        &
-           ACCESS = 'SEQUENTIAL',   &
-           IOSTAT = stat          )
-    IF(stat .EQ. 0) CLOSE ( ioUnit,STATUS = 'DELETE' )
-    IF(iError.NE.0) EXIT  ! iError is set in GetHDF5NextFileName !
-  END DO
-END IF
-#endif /*USE_QDS_DG*/
 
 WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 
@@ -3546,14 +3362,17 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars    ,ONLY: NodeSourceExtGlobal
 USE MOD_Mesh_Vars          ,ONLY: MeshFile,nGlobalElems,offsetElem,Vdm_EQ_N
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Globals_Vars       ,ONLY: ProjectName
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,NodeVolume,NodeSourceExtTmp
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: nUniqueGlobalNodes
 #if USE_MPI
-USE MOD_Particle_MPI       ,ONLY: AddHaloNodeData
-#endif /*USE_MPI*/
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmpLoc, NodeMapping, NodeSourceExtTmp_Shared_Win,NodeSourceExt_Shared_Win
+USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myLeaderGroupRank
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors, nLeaderGroupProcs
+#endif  /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3563,11 +3382,18 @@ REAL,INTENT(IN)     :: OutputTime
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER,PARAMETER   :: N_variables=1
-CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
-CHARACTER(LEN=255)  :: FileName,DataSetName
-INTEGER             :: iElem,i,iMax
-REAL                :: NodeSourceExtEqui(1:N_variables,0:1,0:1,0:1)
+INTEGER,PARAMETER              :: N_variables=1
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+CHARACTER(LEN=255)             :: FileName,DataSetName
+INTEGER                        :: iElem,i,iMax
+REAL                           :: NodeSourceExtEqui(1:N_variables,0:1,0:1,0:1)
+INTEGER                        :: NodeID(1:8)
+#if USE_MPI
+INTEGER                        :: iProc
+INTEGER                        :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
+INTEGER                        :: MessageSize
+#endif /*USE_MPI*/
+INTEGER                        :: firstNode, lastNode, iNode
 !===================================================================================================================================
 ! create global Eps field for parallel output of Eps distribution
 ALLOCATE(NodeSourceExtGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
@@ -3575,30 +3401,112 @@ ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='NodeSourceExt'
 NodeSourceExtGlobal=0.
 
+
+
 ! Communicate the NodeSourceExtTmp values of the last boundary interaction before the state is written to .h5
 #if USE_MPI
-CALL AddHaloNodeData(NodeSourceExtTmp)
-#endif /*USE_MPI*/
+MessageSize = nUniqueGlobalNodes
+CALL MPI_REDUCE(NodeSourceExtTmpLoc(1:1,:) ,NodeSourceExtTmp(1:1,:), &
+        MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+! Reset local surface charge
+NodeSourceExtTmpLoc = 0.
+CALL MPI_WIN_SYNC(NodeSourceExtTmp_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
+  DO iProc = 0, nLeaderGroupProcs - 1
+    IF (iProc.EQ.myLeaderGroupRank) CYCLE
+    IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
+      CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSource(1:1,:)        &
+                , NodeMapping(iProc)%nRecvUniqueNodes           &
+                , MPI_DOUBLE_PRECISION                                        &
+                , iProc                                                       &
+                , 666                                                         &
+                , MPI_COMM_LEADERS_SHARED                                       &
+                , RecvRequest(iProc)                                          &
+                , IERROR)
+    END IF
+    IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
+      DO iNode = 1, NodeMapping(iProc)%nSendUniqueNodes
+        NodeMapping(iProc)%SendNodeSource(1:1,iNode) = &
+              NodeSourceExtTmp(1:1,NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
+      END DO
+      CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSource(1:1,:)            &
+                    , NodeMapping(iProc)%nSendUniqueNodes           &
+                    , MPI_DOUBLE_PRECISION                                        &
+                    , iProc                                                       &
+                    , 666                                                         &
+                    , MPI_COMM_LEADERS_SHARED                                     &
+                    , SendRequest(iProc)                                          &
+                    , IERROR)
+    END IF
+  END DO
+
+  DO iProc = 0,nLeaderGroupProcs-1
+    IF (iProc.EQ.myLeaderGroupRank) CYCLE
+    IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
+      CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+      IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    END IF
+    IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
+      CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+      IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    END IF
+  END DO
+
+  DO iProc = 0, nLeaderGroupProcs - 1
+    IF (iProc.EQ.myLeaderGroupRank) CYCLE
+    IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
+      DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
+        NodeSourceExtTmp(1:1,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)) = &
+          NodeSourceExtTmp(1:1,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)) + &
+          NodeMapping(iProc)%RecvNodeSource(1:1,iNode)
+      END DO
+    END IF
+  END DO
+END IF
+CALL MPI_WIN_SYNC(NodeSourceExtTmp_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
+lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
+#else
+firstNode = 1
+lastNode = nUniqueGlobalNodes
+#endif
+
+
+
+
 
 ! Add NodeSourceExtTmp values of the last boundary interaction
-NodeSourceExt    = NodeSourceExt + NodeSourceExtTmp
-NodeSourceExtTmp = 0.
+DO iNode=firstNode, lastNode
+  NodeSourceExt(   1,iNode) = NodeSourceExt(1,iNode) + NodeSourceExtTmp(1,iNode)
+END DO
+#if USE_MPI
+CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif
+
+
+
+
+
+
 
 ! Loop over all elements and store charge density values in equidistantly distributed nodes of PP_N=1
 DO iElem=1,PP_nElems
-  ASSOCIATE( NodeID => GEO%ElemToNodeID(:,iElem) )
-    ! Copy values to equidistant distribution
-    NodeSourceExtEqui(1,0,0,0) = NodeSourceExt(NodeID(1))/NodeVolume(NodeInfo_Shared(NodeID(1)))
-    NodeSourceExtEqui(1,1,0,0) = NodeSourceExt(NodeID(2))/NodeVolume(NodeInfo_Shared(NodeID(2)))
-    NodeSourceExtEqui(1,1,1,0) = NodeSourceExt(NodeID(3))/NodeVolume(NodeInfo_Shared(NodeID(3)))
-    NodeSourceExtEqui(1,0,1,0) = NodeSourceExt(NodeID(4))/NodeVolume(NodeInfo_Shared(NodeID(4)))
-    NodeSourceExtEqui(1,0,0,1) = NodeSourceExt(NodeID(5))/NodeVolume(NodeInfo_Shared(NodeID(5)))
-    NodeSourceExtEqui(1,1,0,1) = NodeSourceExt(NodeID(6))/NodeVolume(NodeInfo_Shared(NodeID(6)))
-    NodeSourceExtEqui(1,1,1,1) = NodeSourceExt(NodeID(7))/NodeVolume(NodeInfo_Shared(NodeID(7)))
-    NodeSourceExtEqui(1,0,1,1) = NodeSourceExt(NodeID(8))/NodeVolume(NodeInfo_Shared(NodeID(8)))
-    ! Map equidistant distribution to G/GL (current node type)
-    CALL ChangeBasis3D(1, 1, PP_N, Vdm_EQ_N, NodeSourceExtEqui(:,:,:,:),NodeSourceExtGlobal(:,:,:,:,iElem))
-  END ASSOCIATE
+  ! Copy values to equidistant distribution
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+  NodeSourceExtEqui(1,0,0,0) = NodeSourceExt(1,NodeID(1))/NodeVolume(NodeID(1))
+  NodeSourceExtEqui(1,1,0,0) = NodeSourceExt(1,NodeID(2))/NodeVolume(NodeID(2))
+  NodeSourceExtEqui(1,1,1,0) = NodeSourceExt(1,NodeID(3))/NodeVolume(NodeID(3))
+  NodeSourceExtEqui(1,0,1,0) = NodeSourceExt(1,NodeID(4))/NodeVolume(NodeID(4))
+  NodeSourceExtEqui(1,0,0,1) = NodeSourceExt(1,NodeID(5))/NodeVolume(NodeID(5))
+  NodeSourceExtEqui(1,1,0,1) = NodeSourceExt(1,NodeID(6))/NodeVolume(NodeID(6))
+  NodeSourceExtEqui(1,1,1,1) = NodeSourceExt(1,NodeID(7))/NodeVolume(NodeID(7))
+  NodeSourceExtEqui(1,0,1,1) = NodeSourceExt(1,NodeID(8))/NodeVolume(NodeID(8))
+
+  ! Map equidistant distribution to G/GL (current node type)
+  CALL ChangeBasis3D(1, 1, PP_N, Vdm_EQ_N, NodeSourceExtEqui(:,:,:,:),NodeSourceExtGlobal(:,:,:,:,iElem))
 END DO!iElem
 
 ! Write data twice to .h5 file

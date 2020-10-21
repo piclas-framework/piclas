@@ -51,7 +51,7 @@ USE MOD_MPI                    ,ONLY: InitMPI
 USE MOD_Mesh_Vars              ,ONLY: DoSwapMesh
 USE MOD_Mesh                   ,ONLY: SwapMesh
 #if USE_MPI
-USE MOD_MPI_Shared             ,ONLY: InitMPIShared
+USE MOD_MPI_Shared!            ,ONLY: InitMPIShared
 USE MOD_LoadBalance            ,ONLY: InitLoadBalance
 USE MOD_MPI                    ,ONLY: FinalizeMPI
 #endif /*USE_MPI*/
