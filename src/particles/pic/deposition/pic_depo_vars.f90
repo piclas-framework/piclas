@@ -68,12 +68,10 @@ REAL,ALLOCATABLE                :: XiNDepo(:)                ! gauss position of
 REAL,ALLOCATABLE                :: Vdm_NDepo_GaussN(:,:)     ! VdM between different polynomial degrees
 REAL,ALLOCATABLE                :: DDMassinv(:,:,:,:)        ! inverse mass-matrix for deposition
 !LOGICAL                         :: DeltaDistriChangeBasis    ! Change polynomial degree
-LOGICAL                         :: DoSFEqui                  ! use equidistant points for SF
 LOGICAL                         :: DoSFLocalDepoAtBounds     ! Do not use shape function deposition in elements where a boundary
 !                                                            ! would truncate the shape function. Use a local deposition in these
 !                                                            ! elements instead of the shape function
 INTEGER                         :: SfRadiusInt               ! radius integer for cylindrical and spherical shape function
-REAL,ALLOCATABLE                :: ElemDepo_xGP(:,:,:,:,:)   ! element xGPs for deposition
 REAL,ALLOCATABLE                :: Vdm_EquiN_GaussN(:,:)     ! Vdm from equidistant points to Gauss Points
 INTEGER                         :: alpha_sf                  ! shapefuntion exponent
 REAL                            :: BGMdeltas(3)              ! Backgroundmesh size in x,y,z
