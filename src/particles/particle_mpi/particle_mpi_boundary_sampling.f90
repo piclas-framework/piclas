@@ -50,7 +50,7 @@ SUBROUTINE InitSurfCommunication()
 USE MOD_Globals
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_SURF
 !USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors
-USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,myComputeNoderank,nLeaderGroupProcs
+USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_MPI_Shared_Vars         ,ONLY: MPIRankSharedLeader,MPIRankSurfLeader
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank,nSurfLeaders!,nSurfCommProc
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,offsetComputeNodeSurfSide

@@ -103,7 +103,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: time
 #endif /*USE_HDG*/
 #if USE_MPI
 USE MOD_MPI_Shared_Vars
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType, r_sf
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
 USE MOD_Particle_Vars          ,ONLY: manualtimestep
@@ -124,8 +124,8 @@ INTEGER,PARAMETER              :: moveBGMindex=1
 REAL                           :: xmin, xmax, ymin, ymax, zmin, zmax
 INTEGER                        :: iBGM, jBGM, kBGM
 INTEGER                        :: BGMimax, BGMimin, BGMjmax, BGMjmin, BGMkmax, BGMkmin
-INTEGER                        :: BGMiDelta,BGMjDelta,BGMkDelta
 INTEGER                        :: BGMCellXmax, BGMCellXmin, BGMCellYmax, BGMCellYmin, BGMCellZmax, BGMCellZmin
+INTEGER                        :: BGMiminglob,BGMimaxglob,BGMjminglob,BGMjmaxglob,BGMkminglob,BGMkmaxglob
 #if USE_MPI
 INTEGER                        :: iSide
 INTEGER                        :: ElemID
@@ -141,7 +141,7 @@ LOGICAL                        :: ElemInsideHalo
 INTEGER                        :: firstHaloElem,lastHaloElem
 ! FIBGMToProc
 INTEGER                        :: iProc,ProcRank,nFIBGMToProc,MessageSize
-INTEGER                        :: BGMiminglob,BGMimaxglob,BGMjminglob,BGMjmaxglob,BGMkminglob,BGMkmaxglob
+INTEGER                        :: BGMiDelta,BGMjDelta,BGMkDelta
 LOGICAL,ALLOCATABLE            :: FIBGMToProcTmp(:,:,:,:)
 INTEGER,ALLOCATABLE            :: FIBGM_nTotalElemsTmp(:,:,:)
 #else
@@ -315,7 +315,7 @@ ELSE
     deltaT=ManualTimeStep
   END IF
   IF (halo_eps_velo.EQ.0) halo_eps_velo = c
-#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43)
+#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42)
   IF (halo_eps_velo.EQ.c) THEN
      CALL abort(&
   __STAMP__&
@@ -334,8 +334,7 @@ ELSE
   halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
 #endif
 
-  ! Check whether halo_eps is smaller than shape function radius
-  ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical', 'shape_function_simple'
+  ! Check whether halo_eps is smaller than shape function radius e.g. 'shape_function'
   IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
     IF(halo_eps.LT.r_sf)THEN
       SWRITE(UNIT_stdOut,'(A)') ' halo_eps is smaller than shape function radius. Setting halo_eps=r_sf'
@@ -357,7 +356,6 @@ ELSE
   halo_eps2=halo_eps*halo_eps
   CALL PrintOption('halo distance','CALCUL.',RealOpt=halo_eps)
 END IF
-#endif /*USE_MPI*/
 
 ! find radius of largest cell
 maxCellRadius = 0
@@ -388,6 +386,22 @@ GEO%FIBGMjmin=BGMjmin
 GEO%FIBGMjmax=BGMjmax
 GEO%FIBGMkmin=BGMkmin
 GEO%FIBGMkmax=BGMkmax
+#else
+BGMimin = BGMiminglob
+BGMimax = BGMimaxglob
+BGMjmin = BGMjminglob
+BGMjmax = BGMjmaxglob
+BGMkmin = BGMkminglob
+BGMkmax = BGMkmaxglob
+
+GEO%FIBGMimin = BGMimin
+GEO%FIBGMimax = BGMimax
+GEO%FIBGMjmin = BGMjmin
+GEO%FIBGMjmax = BGMjmax
+GEO%FIBGMkmin = BGMkmin
+GEO%FIBGMkmax = BGMkmax
+#endif /*USE_MPI*/
+
 
 ALLOCATE(GEO%FIBGM(BGMimin:BGMimax,BGMjmin:BGMjmax,BGMkmin:BGMkmax))
 
@@ -534,7 +548,7 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 IF (GEO%nPeriodicVectors.GT.0) CALL CheckPeriodicSides()
 #else
-ElemInfo_Shared(ELEM_HALOFLAG,:) = 1
+!ElemInfo_Shared(ELEM_HALOFLAG,:) = 1
 #endif  /*USE_MPI*/
 
 !--- compute number of elements in each background cell
@@ -678,9 +692,9 @@ IF (myComputeNodeRank.EQ.0) THEN
   FIBGM_Element = -1
 #if USE_MPI
 END IF
-#endif /*USE_MPI*/
 CALL MPI_WIN_SYNC(FIBGM_Element_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#endif /*USE_MPI*/
 
 DO iBGM = BGMimin,BGMimax
   DO jBGM = BGMjmin,BGMjmax
@@ -1093,7 +1107,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHaloID

@@ -191,13 +191,16 @@ Within the parameter file it is possible to define different particle boundary c
 The `Part-Boundary1-SourceName=` corresponds to the name given during the preprocessing step with HOPR. The available conditions (`Part-Boundary1-Condition=`) are described in the table below.
 
 |  Condition   | Description                                                                                                                                                                                 |
-| :----------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| :----------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 |    `open`    | Every particle crossing the boundary will be deleted.                                                                                                                                       |
 | `reflective` | Allows the definition of specular and diffuse reflection. A perfect specular reflection is performed, if no other parameters are given (discussed in more detail in the following section). |
 | `symmetric`  | A perfect specular reflection, without sampling of particle impacts.                                                                                                                        |
+| `rot_periodic`  | Allows the definition of rotational periodicity.                                                                                                                        |
 
 For `reflective` boundaries, an additional option `Part-Boundary2-SurfaceModel` is available, that
 is used for heterogeneous reactions (reactions have reactants in two or more phases) or secondary electron emission models. These models are described in \ref{sec:chem_reac}.
+
+For `rot_periodic` exactly two corresponding boundaries must be defined. Every particle crossing the boundary will be inserted at the coressponding boundary that is rotational shifted.
 
 ### Diffuse Wall
 
@@ -220,6 +223,13 @@ Additionally, a wall velocity [m/s] and voltage [V] can be given
 
     Part-Boundary2-WallVelo=(/0,0,100/)
     Part-Boundary2-Voltage=100
+    
+In the case of rotating walls the `-RotVelo` flag, a rotation freqency [Hz], a origin of rotation axis (x, y, z coordinates) and the rotation axis vector must be set. Note that the definition of rotation direction is given by the rotation axis and the right-hand rule.
+
+    Part-Boundary2-RotVelo = T
+    Part-Boundary2-RotFreq = 100
+    Part-Boundary2-RotOrg = (/0.,0.,0./)
+    Part-Boundary2-RotAxi = (/0.,0.,1./)
 
 A linear temperature gradient across a boundary can be defined by supplying a second wall temperature and the start and end vector
 
@@ -228,6 +238,10 @@ A linear temperature gradient across a boundary can be defined by supplying a se
     Part-Boundary2-TemperatureGradientEnd=(/0.,0.,1./)
 
 Between these two points the temperature will be interpolated, where the start vector corresponds to the first wall temperature, while the end vector to the second wall temperature. Beyond these position values, the first and second temperature will be used as the constant wall temperature, respectively.
+
+### Rotational Periodicity
+
+The rotational periodic boundary condition can be used in order to reduce the computational effort in case of an existing rotational periodicity. In contrast to symmetric boundary condition macroscopic flow velocity in azimuthal direction can be simulated (e.g. circular flow around a rotating cylinder).
 
 ### Porous Wall / Pump
 
@@ -1366,68 +1380,4 @@ The purpose is to increase the sample size for steady gas flows. An extension of
     Particles-BGK-MovingAverageLength = 100
 
 Although this feature was tested with a hypersonic flow around a $70^\circ$ blunted cone and a nozzle expansion, a clear advantage could not be observed, however, it might reduce the statistical noise for other application cases.
-
-## Macroscopic Bodies
-
-In order to enable macroscopic bodies inside of computational domain, an appropriate time step
-method has to be compiled first. A standalone executable is created by enabling the following parameter with cmake
-
-    PICLAS_TIMEDISCMETHOD = MACROBODY
-
-This time step method combines the DSMC method timestep with additionally simulating Macroscopic
-Bodies. Here, the octree used for DSMC and sampling of macroscopic values considers macroscopic bodies that
-may occupy some elements and the appropriate volume portions are calculated.
-
-### Starting simulations with macroscopic bodies
-
-In order to start a smulation, the number of macroscopic bodies is enabled by defining
-
-    MacroBody-nMacroBody=1
-
-and setting it greater than 0. For each defined macroscopic body properties are assigned with (Spheres)
-
-    MacroBody1-center=(/ 10.0 , 0.1 , 0.5 /)
-    MacroBody1-radius=0.5e-5
-
-For surface interactions of DSMC particles with the bodies the appropriate accomodation coefficients and temperature can be defined
-
-    MacroBody1-momentumAcc=1.
-    MacroBody1-transAcc=1.
-    MacroBody1-temp=300
-
-If the the mesh cell sizes are by more than one order of magnitude bigger than the smallest
-macroscopic body then the volume estimation must be controlled and adapted.
-The volume portions are calculated with a Monte Carlo approach with nPointsMCVolumeEstimate number
-of point per octree-subcell.
-with:
-
-    Particles-nPointsMCVolumeEstimate=1000.
-
-
-| octree level | Total MC points per Element |
-| -----------: | :-------------------------- |
-|        lvl=0 | 1000                        |
-|        lvl=1 | 8000                        |
-|        lvl=2 | 56000                       |
-
-### Macroscopic bodies, which move trough domain
-Note: Currently, restart and nProcs>1 only works for non-moving and non-size-changing Macro bodies.
-To let the macroscopic bodies move (MacroBody1-velocity $> 0$) inside the computational domain, enable
-
-    MacroBody1-velocity=(/-1165.,0.,0./)
-
-In order to enable influences of particle collisions on macroscopic bodies velocity (acceleration, brownian motion), the following parameter needs to be enabled
-
-    MacroBody-AccelerationEnabled=T
-
-For influences of fluxes onto the macroscopic bodies' temperature, size or mass activate:
-
-    MacroBody-FluxesEnabled=T
-
-### Output of MacroBodies
-
-Information of macroscopic bodies is written into the state file (VarNamesmacroParticles,MacroPartData) at every analyzedt.
-In order to add additional elemdata output (for debug/analyze purposes) of ElemHasMacroBody of the first defined macroscopic body, activate
-
-    MacroBody-WriteElemData=T
 
