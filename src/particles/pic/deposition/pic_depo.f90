@@ -191,7 +191,6 @@ END IF
 IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
   r_sf                  = GETREAL('PIC-shapefunction-radius')
   alpha_sf              = GETINT('PIC-shapefunction-alpha')
-  DoSFLocalDepoAtBounds = GETLOGICAL('PIC-shapefunction-local-depo-BC')
   r2_sf = r_sf * r_sf  ! Radius squared
   r2_sf_inv = 1./r2_sf ! Inverse of radius squared
 
@@ -239,40 +238,6 @@ IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_
     CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif
   END IF
-
-  IF(DoSFLocalDepoAtBounds)THEN ! init cell vol weight
-    IF(.NOT.TRIM(DepositionType).EQ.'shape_function_2d') CALL abort(&
-        __STAMP__&
-        ,' PIC-shapefunction-local-depo-BC=T is currently only implemented for shape_function_2d!')
-    ALLOCATE(CellVolWeightFac(0:PP_N),wGP_tmp(0:PP_N) , xGP_tmp(0:PP_N))
-    ALLOCATE(CellVolWeight_Volumes(0:1,0:1,0:1,nElems))
-    CellVolWeightFac(0:PP_N) = xGP(0:PP_N)
-    CellVolWeightFac(0:PP_N) = (CellVolWeightFac(0:PP_N)+1.0)/2.0
-    CALL LegendreGaussNodesAndWeights(1,xGP_tmp,wGP_tmp)
-    ALLOCATE( Vdm_tmp(0:1,0:PP_N))
-    CALL InitializeVandermonde(PP_N,1,wBary,xGP,xGP_tmp,Vdm_tmp)
-    DO iElem=1, nElems
-      DO k=0,PP_N
-        DO j=0,PP_N
-          DO i=0,PP_N
-            DetLocal(1,i,j,k)=1./sJ(i,j,k,iElem)
-          END DO ! i=0,PP_N
-        END DO ! j=0,PP_N
-      END DO ! k=0,PP_N
-      CALL ChangeBasis3D(1,PP_N, 1,Vdm_tmp, DetLocal(:,:,:,:),DetJac(:,:,:,:))
-      DO k=0,1
-        DO j=0,1
-          DO i=0,1
-            CellVolWeight_Volumes(i,j,k,iElem) = DetJac(1,i,j,k)*wGP_tmp(i)*wGP_tmp(j)*wGP_tmp(k)
-          END DO ! i=0,PP_N
-        END DO ! j=0,PP_N
-      END DO ! k=0,PP_N
-    END DO
-    DEALLOCATE(Vdm_tmp)
-    DEALLOCATE(wGP_tmp, xGP_tmp)
-  END IF
-
-
 
 END IF
 
