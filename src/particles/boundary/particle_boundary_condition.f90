@@ -441,25 +441,22 @@ REAL                                 :: EtraOld,EvibOld,ErotOld
 REAL                                 :: POI_vec(1:3)
 REAL                                 :: adaptTimeStep
 !===================================================================================================================================
+! Initialize
+adaptTimeStep = 1.0
+IsAuxBC=.FALSE.
+Symmetry = .FALSE.
 
-IF (PRESENT(AuxBCIdx)) THEN
-  IsAuxBC=.TRUE.
-ELSE
-  IsAuxBC=.FALSE.
-END IF
+IF (PRESENT(AuxBCIdx)) IsAuxBC=.TRUE.
+
 IF (IsAuxBC) THEN
   WallVelo = PartAuxBC%WallVelo(1:3,AuxBCIdx)
 ELSE
   WallVelo = PartBound%WallVelo(1:3,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
   locBCID  = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
-
-  IF(PRESENT(opt_Symmetry)) THEN
-    Symmetry = opt_Symmetry
-  ELSE
-    Symmetry = .FALSE.
-  END IF
+  IF(PRESENT(opt_Symmetry)) Symmetry = opt_Symmetry
 END IF !IsAuxBC
 
+! Get Point Of Intersection
 POI_vec(1:3) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
 
 IF(PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
@@ -508,10 +505,6 @@ END IF
 
 DoSample = (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)
 
-
-IF (.NOT.VarTimeStep%UseVariableTimeStep) THEN
-  adaptTimeStep = 1.0
-END IF
 
 IF (.NOT.IsAuxBC) THEN
   ! Wall sampling Macrovalues
@@ -585,8 +578,15 @@ END IF !.NOT.IsAuxBC
 LastPartPos(1:3,PartID) = POI_vec(1:3)
 
 PartTrajectory(1:3)     = PartTrajectory(1:3)-2.*DOT_PRODUCT(PartTrajectory(1:3),n_loc)*n_loc
-PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac &
-                        * PartState(4:6,PartID) * adaptTimeStep
+
+! Check if rotated velo is used, otherwise mirror the LastPartPos
+IF(PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))))THEN
+  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac &
+                          * PartState(4:6,PartID) * adaptTimeStep
+ELSE
+  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*(lengthPartTrajectory - alpha)
+END IF ! PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+
 ! #if !defined(IMPA) &&  !defined(ROS)
 ! compute moved particle || rest of movement
 PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
