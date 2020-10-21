@@ -643,7 +643,6 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Tracking_Vars,     ONLY: TrackingMethod,TriaTracking,DoRefMapping
 USE MOD_Particle_Vars              ,ONLY: Symmetry
-USE MOD_PICDepo_Method             ,ONLY: InitDepositionMethod
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -674,8 +673,6 @@ IF (Symmetry%Order.LE.2) THEN
   TriaTracking=.TRUE.
   SWRITE(UNIT_stdOut,'(A)') "TrackingMethod set to TriaTracking due to Symmetry2D."
 END IF
-
-CALL InitDepositionMethod()
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS DONE'
 
@@ -819,8 +816,6 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_1D_InitVolumes, DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_MacroBody_Init         ,ONLY: InitMacroBody
-USE MOD_MacroBody_tools        ,ONLY: MarkMacroBodyElems
 USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: GetMeshMinMax
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
@@ -834,6 +829,9 @@ USE MOD_Particle_MPI           ,ONLY: InitEmissionComm
 USE MOD_Particle_MPI_Halo      ,ONLY: IdentifyPartExchangeProcs
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
+#ifdef CODE_ANALYZE
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
+#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -875,9 +873,6 @@ CALL InitializeVariablesPartBoundary()
 
 !-- AuxBCs
 CALL InitializeVariablesAuxBC()
-! calculate cartesian borders of node local and global mesh
-CALL GetMeshMinMax()
-!-- Build BGM and halo region
 
 !-- Get PIC deposition (skip DSMC, FP-Flow and BGS-Flow related timediscs)
 #if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
@@ -892,17 +887,19 @@ DoDeposition    = GETLOGICAL('PIC-DoDeposition')
 !-- Get PIC interpolation (could be skipped above, but DSMC octree requires some interpolation variables, which are allocated before
 ! init DSMC determines whether DSMC%UseOctree is true or false)
 DoInterpolation = GETLOGICAL('PIC-DoInterpolation')
+#ifdef CODE_ANALYZE
+! Check if an analytic function is to be used for interpolation
+DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
+IF(DoInterpolationAnalytic) DoInterpolation = DoInterpolationAnalytic
+#endif /*CODE_ANALYZE*/
 
+! Build BGM and initialize particle mesh
 CALL InitParticleMesh()
 #if USE_MPI
 !-- Build MPI communication
 CALL IdentifyPartExchangeProcs()
 #endif
 CALL InitPIC()
-
-!-- Macroscopic bodies inside domain
-CALL InitMacroBody()
-CALL MarkMacroBodyElems()
 
 ! === 2D/1D/Axisymmetric initialization
 ! Calculate the volumes for 2D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)
@@ -1015,12 +1012,16 @@ Pt=0.
 PartSpecies        = 0
 PDM%nextFreePosition(1:PDM%maxParticleNumber)=0
 
-ALLOCATE(PEM%GlobalElemID(1:PDM%maxParticleNumber), PEM%LastGlobalElemID(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
- CALL abort(&
+ALLOCATE(PEM%GlobalElemID(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
-  ,' Cannot allocate PEM arrays!')
-END IF
+  ,' Cannot allocate PEM%GlobalElemID(1:PDM%maxParticleNumber) array!')
+
+ALLOCATE(PEM%LastGlobalElemID(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(&
+__STAMP__&
+  ,' Cannot allocate PEM%LastGlobalElemID(1:PDM%maxParticleNumber) array!')
+
 IF (useDSMC) THEN
   ALLOCATE(PEM%pStart(1:nElems)                         , &
            PEM%pNumber(1:nElems)                        , &
@@ -2053,6 +2054,7 @@ ALLOCATE(SpecReset(1:nSpecies))
 SpecReset=.FALSE.
 
 DO iSpec = 1, nSpecies
+  SWRITE (UNIT_stdOut,'(66(". "))')
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%NumberOfInits         = GETINT('Part-Species'//TRIM(hilf)//'-nInits','0')
 #if USE_MPI
@@ -2567,6 +2569,9 @@ __STAMP__, &
     END IF
   END DO ! iInit
 END DO ! iSpec
+IF(nSpecies.GT.0)THEN
+  SWRITE (UNIT_stdOut,'(66(". "))')
+END IF ! nSpecies.GT.0
 
 !-- reading BG Gas stuff
 !   (moved here from dsmc_init for switching off the initial emission)
@@ -2697,13 +2702,6 @@ __STAMP__&
   ,' Cannot allocate PartDtFrac arrays!')
 END IF
 PartDtFrac=1.
-ALLOCATE(PEM%GlobalElemID(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-   CALL abort(&
- __STAMP__&
-   ,' Cannot allocate the stage position and element arrays!')
-END IF
-PEM%GlobalElemID=0
 ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
@@ -2735,13 +2733,6 @@ __STAMP__&
   ,' Cannot allocate PartDtFrac arrays!')
 END IF
 PartDtFrac=1.
-ALLOCATE(PEM%GlobalElemID(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-   CALL abort(&
- __STAMP__&
-   ,' Cannot allocate the stage position and element arrays!')
-END IF
-PEM%GlobalElemID=0
 ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&

@@ -11,13 +11,26 @@
 #               commands
 #==============================================================================
 
-# Function for checken modules
+# Function for checking modules
 check_module () {
                  if [ -z "${2}" ]; then
                    echo "module for ${1} not found. Exit"
                    exit
                  else
                    echo "${1}: ["${2}"]"
+                 fi
+                }
+
+# Function for loading modules and checking if they exist in a specific combination
+load_module () {
+                 ERROR=$(module load "$1" 2>&1 | grep -in "ERROR")
+                 if [ ! -z "$ERROR" ]; then
+                   echo " "
+                   echo $ERROR
+                   echo "Failed: [module load $1]. Exit"
+                   exit
+                 else
+                   module load "$1"
                  fi
                 }
 
@@ -37,8 +50,8 @@ do
     # Set desired versions
     #CMAKEVERSION=3.15.3-d
     CMAKEVERSION=3.17.0-d
-    #GCCVERSION=9.2.0
-    GCCVERSION=10.1.0
+    GCCVERSION=9.2.0
+    #GCCVERSION=10.2.0
     #OPENMPIVERSION=3.1.4
     #OPENMPIVERSION=4.0.1
     OPENMPIVERSION=4.0.2
@@ -69,15 +82,17 @@ if [ ! -d "${SOURCEDIR}" ]; then
 fi
 
 # take the first gcc compiler installed with first compatible openmpi and hdf5
+echo " "
 if [[ $LOADMODULES -eq 1 ]]; then
   CMAKEVERSION=$(ls ${MODULESDIR}/utilities/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   GCCVERSION=$(ls ${MODULESDIR}/compilers/gcc/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   OPENMPIVERSION=$(ls ${MODULESDIR}/MPI/openmpi/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   HDF5VERSION=$(ls ${MODULESDIR}/libraries/hdf5/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
+  echo "Modules found automatically (the combination might not be possible!):"
+else
+  echo "Modules defined by user (check if the combination is possible!):"
 fi
 
-echo " "
-echo "Modules found:"
 check_module "cmake" ${CMAKEVERSION}
 check_module "gcc  " ${GCCVERSION}
 check_module "mpi  " ${OPENMPIVERSION}
@@ -91,16 +106,16 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
   echo "creating Paraview-${PARAVIEWVERSION} for GCC-${GCCVERSION} under"
   echo "$PARAVIEWMODULEFILE"
   echo " "
-  echo "Important: If the compilation step fails, try compiling single, .i.e., remove -j from make -j"
-  echo " "
-  read -p "Press enter to continue"
   module purge
-  module load cmake/${CMAKEVERSION}
-  module load gcc/${GCCVERSION}
-  module load openmpi/${OPENMPIVERSION}/gcc/${GCCVERSION}
-  module load hdf5/${HDF5VERSION}/gcc/${GCCVERSION}/openmpi/${OPENMPIVERSION}
+  load_module "cmake/${CMAKEVERSION}"
+  load_module "gcc/${GCCVERSION}"
+  load_module "openmpi/${OPENMPIVERSION}/gcc/${GCCVERSION}"
+  load_module "hdf5/${HDF5VERSION}/gcc/${GCCVERSION}/openmpi/${OPENMPIVERSION}"
   module list
   echo " "
+  echo "Important: If the compilation step fails, run the script again and if it still fails \n1) try compiling single, .i.e., remove -j from make -j or \n2) try make -j 2 (not all available threads)"
+  echo " "
+  read -p "Have the correct modules been loaded? If yes, press enter to continue!"
 
   # Install destination
   PARAVIEWINSTALLDIR=/opt/paraview/${PARAVIEWVERSION}/gcc-${GCCVERSION}/openmpi-${OPENMPIVERSION}/hdf5-${HDF5VERSION}
@@ -127,6 +142,7 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
       # Check if renamed directory exists and create backup of it
       if [ -d "${SOURCEDIR}/paraview-${PARAVIEWVERSION}" ]; then
         # Move directory, e.g., "paraview-5.8.0" to "paraview-5.8.0_bak"
+        #rm -rf ${SOURCEDIR}/paraview-${PARAVIEWVERSION}_bak
         mv ${SOURCEDIR}/paraview-${PARAVIEWVERSION} ${SOURCEDIR}/paraview-${PARAVIEWVERSION}_bak
       fi
       # The extracted directory is named, e.g., "ParaView-v5.8.0", which is renamed to "paraview-5.8.0" with small letters and no "v"

@@ -47,9 +47,6 @@ USE MOD_Equation                   ,ONLY: DefineParametersEquation
 #if !(USE_HDG)
 USE MOD_PML                        ,ONLY: DefineParametersPML
 #endif /*USE_HDG*/
-#if USE_QDS_DG
-USE MOD_QDS                        ,ONLY: DefineParametersQDS
-#endif
 #ifdef MPI
 USE mod_readIMD                    ,ONLY: DefineParametersReadIMDdata
 #endif /* MPI */
@@ -61,7 +58,6 @@ USE MOD_Filter                     ,ONLY: DefineParametersFilter
 USE MOD_Piclas_Init                ,ONLY: DefineParametersPiclas
 #ifdef PARTICLES
 USE MOD_ParticleInit               ,ONLY: DefineParametersParticles
-USE MOD_MacroBody_Init             ,ONLY: DefineParametersMacroBody
 USE MOD_Particle_Boundary_Sampling ,ONLY: DefineParametersParticleBoundarySampling
 USE MOD_Particle_BGM               ,ONLY: DefineparametersParticleBGM
 USE MOD_Particle_Mesh              ,ONLY: DefineparametersParticleMesh
@@ -110,9 +106,6 @@ CALL DefineParametersEquation()
 #if !(USE_HDG)
 CALL DefineParametersPML()
 #endif /*USE_HDG*/
-#if USE_QDS_DG
-CALL DefineParametersQDS()
-#endif
 #if USE_HDG
 CALL DefineParametersHDG()
 #endif /*USE_HDG*/
@@ -123,7 +116,6 @@ CALL DefineParametersRecordPoints()
 #ifdef PARTICLES
 CALL DefineParametersSuperB()
 CALL DefineParametersParticles()
-CALL DefineParametersMacroBody()
 CALL DefineParametersParticleBoundarySampling()
 CALL DefineParametersParticleSymmetry()
 CALL DefineParametersVaribleTimeStep()

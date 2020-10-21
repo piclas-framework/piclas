@@ -116,13 +116,12 @@ USE MOD_PICDepo_Vars            ,ONLY: LastAnalyzeSurfCollis
 USE MOD_PICDepo_Vars            ,ONLY: SFResampleAnalyzeSurfCollis
 USE MOD_ReadInTools             ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
 #if USE_MPI
-USE MOD_MPI_Shared              ,ONLY: Allocate_Shared
-USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPIRankLeader,nLeaderGroupProcs
+USE MOD_MPI_Shared!             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF,mySurfRank
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
-USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeTotalSides
 USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides
-USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,nComputeNodeElems
+!USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,nComputeNodeElems
 USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide_Shared,GlobalSide2SurfSide_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide_Shared,SurfSide2GlobalSide_Shared_Win
@@ -135,7 +134,8 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactAngle_Shared,SampWallImpact
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber_Shared,SampWallImpactNumber_Shared_Win
 USE MOD_Particle_MPI_Boundary_Sampling,ONLY: InitSurfCommunication
 #else
-!
+USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
+USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -307,10 +307,14 @@ DO iSide = firstSide,lastSide
     GlobalSide2SurfSideProc(SURF_LEADER,iSide) = GlobalSide2SurfSideProc(SURF_RANK,iSide)
 #endif /*USE_MPI*/
 
+#if USE_MPI
     ! check if element for this side is on the current compute-node. Alternative version to the check above
     IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) THEN
+#endif /*USE_MPI*/
       nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
+#if USE_MPI
     END IF
+#endif /*USE_MPI*/
   END IF ! reflective side
 END DO
 
@@ -511,16 +515,16 @@ END IF
 MPISharedSize = INT((SurfSampSize*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/SurfSampSize,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallState_Shared_Win,SampWallState_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SampWallState_Shared_Win,IERROR)
-#else
-ALLOCATE(SampWallState_Shared(1:SurfSampSize,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
-SampWallState_Shared = 0.
-#endif /*USE_MPI*/
+! #else
+! ALLOCATE(SampWallState_Shared(1:SurfSampSize,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+! SampWallState_Shared = 0.
+! #endif /*USE_MPI*/
 
-#if USE_MPI
+! #if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
-#endif /*USE_MPI*/
+! #endif /*USE_MPI*/
   SampWallState_Shared = 0.
-#if USE_MPI
+! #if USE_MPI
 END IF
 CALL MPI_WIN_SYNC(SampWallState_Shared_Win,IERROR)
 !
@@ -715,14 +719,15 @@ USE MOD_Globals_Vars            ,ONLY: ProjectName
 USE MOD_DSMC_Vars               ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal, CollisMode
 USE MOD_HDF5_Output             ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
 USE MOD_IO_HDF5
+USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,nPorousBC,CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
 USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfSides,offsetComputeNodeSurfSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName, PartBound
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 USE MOD_SurfaceModel_Vars       ,ONLY: Adsorption
 #if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF,mySurfRank
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -1185,10 +1190,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iSurfSide
-#if USE_MPI
-INTEGER :: iProc
-#endif /*USE_MPI*/
+!INTEGER :: iSurfSide
+!#if USE_MPI
+!INTEGER :: iProc
+!#endif /*USE_MPI*/
 !===================================================================================================================================
 
 ! Return if nothing was allocated

@@ -385,7 +385,7 @@ SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SampWall,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState,GlobalSide2SurfSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
@@ -658,11 +658,11 @@ USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
 USE MOD_Part_Tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact, GetWallTemperature,CalcRotWallVelo
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SampWall,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState,GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod, TrackInfo
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,nSpecies,WriteMacroSurfaceValues,Symmetry
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: dt,tend,time,RKdtFrac
@@ -1097,12 +1097,11 @@ SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,n_Loc,PartID,SideID,IsSpecies
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals                 ,ONLY: abort,VECNORM
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SampWall,dXiEQ_SurfSample,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,dXiEQ_SurfSample,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState,GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,usevMPF
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
-!USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: DSMC, RadialWeighting
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd,Time
 USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
@@ -1110,7 +1109,6 @@ USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact
 USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_part_operations         ,ONLY: RemoveParticle
-USE MOD_Mesh_Vars               ,ONLY: BC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1276,9 +1274,12 @@ SUBROUTINE PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,Si
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: BoundaryType
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+!USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO!,SidePeriodicType
-USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos,PEM
+USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos
+#if defined(ROS) || defined(IMPA)
+USE MOD_Particle_Vars          ,ONLY: PEM
+#endif
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 !USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
 #if defined(IMPA)
@@ -1302,7 +1303,8 @@ INTEGER,INTENT(IN)                :: PartID, SideID
 INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: PVID,moved(2),locSideID
+INTEGER                              :: PVID
+!INTEGER                              :: moved(2),locSideID
 !===================================================================================================================================
 
 !PVID = SidePeriodicType(SideID)
@@ -1516,7 +1518,7 @@ INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 ! LOCAL VARIABLES
 REAL                                 :: WallVelo(3)
 INTEGER                              :: locBCID
-INTEGER                              :: moved(2)
+!INTEGER                              :: moved(2)
 !===================================================================================================================================
 
 WallVelo=PartBound%WallVelo(1:3,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))

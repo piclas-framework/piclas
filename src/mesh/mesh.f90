@@ -230,7 +230,7 @@ ELSE
   END IF
 END IF
 
-#if PARTICLES
+#ifdef PARTICLES
 meshScale    = GETREAL('meshScale'   ,'1.0')
 #endif /*USE_PARTICLES*/
 CALL ReadMesh(MeshFile) !set nElems
@@ -781,23 +781,22 @@ SUBROUTINE InitElemVolumes()
 !===================================================================================================================================
 ! Calculate Element volumes for later use in particle routines
 !===================================================================================================================================
-! MODULES                                               ! MODULES
-USE MOD_Globals            ,ONLY: UNIT_StdOut,MPI_COMM_WORLD,ABORT
+! MODULES
+USE MOD_Globals            ,ONLY: UNIT_StdOut
+!USE MOD_Globals            ,ONLY: ,MPI_COMM_WORLD,ABORT
 USE MOD_PreProc
 USE MOD_Interpolation_Vars ,ONLY: wGP
-USE MOD_Mesh_Vars          ,ONLY: nElems,nGlobalElems,offsetElem,sJ
+USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem,sJ
 USE MOD_Particle_Mesh_Vars ,ONLY: LocalVolume,MeshVolume
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemMPVolumePortion_Shared
 USE MOD_ReadInTools
 #if USE_MPI
 USE MPI
 USE MOD_Globals            ,ONLY: IERROR,MPIRoot
-USE MOD_MPI_Shared         ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared!        ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED,myComputeNodeRank
 USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems,offsetComputeNodeElem
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemMPVolumePortion_Shared_Win
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -809,7 +808,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemMPVolumePortion_Shared_Win
 ! LOCAL VARIABLES
 INTEGER           :: iElem
 INTEGER           :: i,j,k
-INTEGER           :: ALLOCSTAT
+!INTEGER           :: ALLOCSTAT
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 INTEGER           :: offsetElemCNProc
 #if USE_MPI
@@ -830,19 +829,15 @@ offsetElemCNProc = 0
 MPISharedSize = INT(nComputeNodeElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemVolume_Shared_Win,ElemVolume_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemVolume_Shared_Win,IERROR)
-CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemMPVolumePortion_Shared_Win,ElemMPVolumePortion_Shared)
-CALL MPI_WIN_LOCK_ALL(0,ElemMPVolumePortion_Shared_Win,IERROR)
 CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemCharLength_Shared_Win,ElemCharLength_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemCharLength_Shared_Win,IERROR)
 
 ! Only root nullifies
 IF (myComputeNodeRank.EQ.0) THEN
   ElemVolume_Shared(:)          = 0.
-  ElemMPVolumePortion_Shared(:) = 0.
   ElemCharLength_Shared(:)      = 0.
 END IF
 CALL MPI_WIN_SYNC(ElemVolume_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(ElemMPVolumePortion_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #else
@@ -872,14 +867,6 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 LocalVolume = SUM(ElemVolume_Shared(offsetElemCNProc+1:offsetElemCNProc+nElems))
 MeshVolume  = SUM(ElemVolume_Shared(:))
 
-!ALLOCATE(GEO%Volume(nElems),&
-!         GEO%MPVolumePortion(nElems),STAT=ALLOCSTAT)
-!IF (ALLOCSTAT.NE.0) THEN
-!  CALL abort(&
-!      __STAMP__&
-!      ,'ERROR in InitElemGeometry: Cannot allocate GEO%Volume!')
-!END IF
-!GEO%MPVolumePortion(:)=0.
 !ALLOCATE(GEO%CharLength(nElems),STAT=ALLOCSTAT)
 !IF (ALLOCSTAT.NE.0) THEN
 !  CALL abort(&
