@@ -193,6 +193,7 @@ SUBROUTINE ReadMesh(FileString)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_IO_HDF5
 USE MOD_Mesh_Vars            ,ONLY: tElem,tSide
 USE MOD_Mesh_Vars            ,ONLY: NGeo
 USE MOD_Mesh_Vars            ,ONLY: NodeCoords
@@ -206,11 +207,10 @@ USE MOD_Mesh_Vars            ,ONLY: MeshInitIsDone
 USE MOD_Mesh_Vars            ,ONLY: Elems!,Nodes
 USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE!,createSides
 USE MOD_Mesh_Vars            ,ONLY: ElemInfo,SideInfo
-USE MOD_IO_HDF5
+USE MOD_Particle_Mesh_Vars   ,ONLY: nComputeNodeElems,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
 #if USE_MPI
 USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc!,offsetElemMPI
 USE MOD_LoadBalance_Tools    ,ONLY: DomainDecomposition
-USE MOD_Particle_Mesh_Vars
 USE MOD_MPI_Shared_Vars      ,ONLY: MPI_COMM_SHARED
 #endif /*USE_MPI*/
 #ifdef PARTICLES

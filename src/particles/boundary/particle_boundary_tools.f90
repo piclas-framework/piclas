@@ -530,15 +530,13 @@ IF(.NOT.PDM%ParticleInside(iPart))THEN
   IPWRITE (*,*) "global ElemID :", ElemID
   CALL abort(&
       __STAMP__&
-      ,'Dielectric particle-surface interaction: Particle not inside element.')
+      ,'DielectricSurfaceCharge(): Particle not inside element.')
 ELSEIF(PartSpecies(iPart).LT.0)THEN
-  IF(myrank.eq.1)THEN
-    IPWRITE (*,*) "iPart =", iPart
-    IPWRITE (*,*) "PDM%ParticleVecLength =", PDM%ParticleVecLength
-  END IF ! myrank.eq.1
+  IPWRITE (*,*) "iPart         :", iPart
+  IPWRITE (*,*) "global ElemID :", ElemID
   CALL abort(&
       __STAMP__&
-      ,'Negative speciesID')
+      ,'DielectricSurfaceCharge(): Negative speciesID')
 END IF ! PartSpecies(iPart)
 
 IF(isChargedParticle(iPart))THEN

@@ -170,7 +170,9 @@ IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far 
   MaxIterFixPoint       = GETINT('MaxIterFixPoint')
   NormNonlinearDevLimit = GETREAL('NormNonlinearDevLimit')
   IF (NormNonlinearDevLimit .LT. 1.) THEN
-    STOP 'NormNonlinearDevLimit should be .GE. 1'
+    CALL abort(&
+    __STAMP__&
+    ,'NormNonlinearDevLimit should be .GE. 1 but NormNonlinearDevLimit=',RealInfoOpt=NormNonlinearDevLimit)
   END IF
   EpsNonLinear=GETREAL('EpsNonLinear')
 ELSE
@@ -808,10 +810,10 @@ CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
 IF (converged) THEN
 #if defined(IMPA) || defined(ROS)
   IF(DoPrintConvInfo)THEN
-    SWRITE(*,*) 'Newton Iteration has converged in 0 steps...'
+    SWRITE(*,*) 'HDGNewton: Newton Iteration has converged in 0 steps...'
   END IF
 #else
-  SWRITE(*,*) 'Newton Iteration has converged in 0 steps...'
+  SWRITE(*,*) 'HDGNewton: Newton Iteration has converged in 0 steps...'
 #endif
 ELSE
   CALL CG_solver(RHS_face(PP_nVar,:,:),lambda(PP_nVar,:,:))
@@ -903,7 +905,7 @@ ELSE
       RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(PP_nVar,:,iElem)
     END DO !iElem
     IF (warning_linear) THEN
-      SWRITE(*,*) 'WARNING: during iteration at least one DOF resulted in a phi > phi_max.\n'//&
+      SWRITE(*,*) 'HDGNewton WARNING: during iteration at least one DOF resulted in a phi > phi_max.\n'//&
         '=> Increase Part-RegionElectronRef#-PhiMax if already steady!'
     END IF
 
@@ -941,19 +943,20 @@ ELSE
     IF (converged) THEN
 #if defined(IMPA) || defined(ROS)
       IF(DoPrintConvInfo)THEN
-        SWRITE(*,*) 'Newton Iteration has converged in ',iter,' steps...'
+        SWRITE(*,*) 'HDGNewton: Newton Iteration has converged in ',iter,' steps...'
       END IF
 #else
       IF(DoDisplayIter)THEN
         IF(HDGDisplayConvergence.AND.(MOD(td_iter,IterDisplayStep).EQ.0)) THEN
-          SWRITE(*,*) 'Newton Iteration has converged in ',iter,' steps...'
+          SWRITE(*,*) 'HDGNewton: Newton Iteration has converged in ',iter,' steps...'
         END IF
       END IF
 #endif
       EXIT
     ELSE IF (iter.EQ.MaxIterFixPoint) THEN
-      STOP 'Newton Iteration has NOT converged!'
-    !    SWRITE(*,*)'Norm_r2: ',Norm_r2
+      CALL abort(&
+        __STAMP__&
+        ,'HDGNewton: Newton Iteration has NOT converged!')
     END IF
 
     CALL CG_solver(RHS_face(PP_nVar,:,:),lambda(PP_nVar,:,:))

@@ -96,6 +96,7 @@ USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
 USE MOD_DSMC_Symmetry        ,ONLY: Init_Symmetry
+USE MOD_PICDepo_Method       ,ONLY: InitDepositionMethod
 #ifdef MPI
 USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
 #endif /* MPI */
@@ -107,9 +108,6 @@ USE MOD_ParticleSolver       ,ONLY: InitPartSolver
 USE MOD_HDG                  ,ONLY: InitHDG
 #endif
 USE MOD_Interfaces           ,ONLY: InitInterfaces
-#if USE_QDS_DG
-USE MOD_QDS                  ,ONLY: InitQDS
-#endif /*USE_QDS_DG*/
 USE MOD_ReadInTools          ,ONLY: GETLOGICAL,GETREALARRAY,GETINT
 USE MOD_TimeDisc_Vars        ,ONLY: TEnd
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -171,6 +169,7 @@ ELSE
   VarTimeStep%UseVariableTimeStep = .FALSE.
 END IF
 CALL InitParticleGlobals()
+CALL InitDepositionMethod()
 #endif
 
 CALL InitMesh(2)
@@ -229,10 +228,6 @@ CALL read_IMD_results()
 
 CALL InitInterfaces() ! set Riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)
 
-#if USE_QDS_DG
-CALL InitQDS()
-#endif /*USE_QDS_DG*/
-
 ! do this last!
 !CALL IgnoredStrings()
 ! write out parameters that are not used and remove multiple and unused, that are not needed to do restart if no parameter.ini is
@@ -260,9 +255,6 @@ USE MOD_Interpolation              ,ONLY: FinalizeInterpolation
 USE MOD_Mesh                       ,ONLY: FinalizeMesh
 USE MOD_Equation                   ,ONLY: FinalizeEquation
 USE MOD_Interfaces                 ,ONLY: FinalizeInterfaces
-#if USE_QDS_DG
-USE MOD_QDS                        ,ONLY: FinalizeQDS
-#endif /*USE_QDS_DG*/
 USE MOD_GetBoundaryFlux            ,ONLY: FinalizeBC
 USE MOD_DG                         ,ONLY: FinalizeDG
 USE MOD_Mortar                     ,ONLY: FinalizeMortar
@@ -292,7 +284,6 @@ USE MOD_PICDepo                    ,ONLY: FinalizeDeposition
 USE MOD_ParticleInit               ,ONLY: FinalizeParticles
 USE MOD_TTMInit                    ,ONLY: FinalizeTTM
 USE MOD_DSMC_Init                  ,ONLY: FinalizeDSMC
-USE MOD_MacroBody_Init             ,ONLY:FinalizeMacroBody
 USE MOD_Particle_Boundary_Porous   ,ONLY:FinalizePorousBoundaryCondition
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: FinalizeFPFlow
@@ -362,7 +353,6 @@ CALL FinalizeFPFlow()
 CALL FinalizeBGK()
 #endif
 CALL FinalizeParticles()
-CALL FinalizeMacroBody()
 CALL FinalizeBackGroundField()
 CALL FinalizeSuperB()
 #endif /*PARTICLES*/
@@ -381,9 +371,6 @@ CALL FinalizeTTM() ! FD grid based data from a Two-Temperature Model (TTM) from 
 #endif /*PARTICLES*/
 
 CALL FinalizeInterfaces()
-#if USE_QDS_DG
-CALL FinalizeQDS()
-#endif /*USE_QDS_DG*/
 CALL prms%finalize(IsLoadBalance) ! is the same as CALL FinalizeParameters(), but considers load balancing
 CALL FinalizeCommandlineArguments()
 

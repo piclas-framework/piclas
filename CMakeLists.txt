@@ -113,7 +113,6 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           RESERVOIR
                                                           FP-Flow
                                                           BGK-Flow
-                                                          MACROBODY
                                                           CN
                                                           ImplicitO3
                                                           ImplicitO4
@@ -124,7 +123,6 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           ROS46
                                                           ROS6)
 
-OPTION(PICLAS_QDS_DG "enable QDS method discretized by DGSEM" OFF)
 OPTION(PICLAS_BUILD_POSTI "Build POSTI toolset" ON)
 OPTION(PICLAS_MPI "Compile SINGLE or MPI version" ON)
 CMAKE_DEPENDENT_OPTION(PICLAS_LOADBALANCE "Use load balance time measurement" ON "PICLAS_MPI" OFF)
@@ -201,8 +199,6 @@ ELSE()
     MESSAGE(SEND_ERROR "DSMC cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
     MESSAGE(SEND_ERROR "RESERVOIR cannot be used without particles.")
-  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "MACROBODY")
-    MESSAGE(SEND_ERROR "MACROBODY cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
     MESSAGE(SEND_ERROR "BGK-Flow cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
@@ -262,8 +258,6 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=4)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=42)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "MACROBODY")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=43)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "CN")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=120 -DIMPA)
    SET(PICLAS_IMPLICIT ON)
@@ -610,16 +604,6 @@ ELSE()
 ENDIF()
 
 # =========================================================================
-# QDS with DGSEM
-# =========================================================================
-IF(PICLAS_QDS_DG)
-  MESSAGE(STATUS "Building PICLas with QDS-DGSEM")
-  ADD_DEFINITIONS(-DUSE_QDS_DG=1)
-ELSE()
-  ADD_DEFINITIONS(-DUSE_QDS_DG=0)
-ENDIF()
-
-# =========================================================================
 # Coffee Lib
 # =========================================================================
 OPTION(CMAKE_ANS_COFFEE "Enable coffee lib" OFF)
@@ -740,9 +724,6 @@ FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_vars.f90
                          ./src/particles/boundary/particle_boundary_vars.f90)
 
-FILE(GLOB_RECURSE QDSF90 ./src/qds/*.f90
-                         ./src/interpolation/prolongtoface.f90)
-
 IF(PICLAS_HDG)
   LIST(APPEND piclasF90 ${hdgF90})
   IF(PICLAS_IMPLICIT)
@@ -758,13 +739,10 @@ ENDIF(PICLAS_HDG)
 
 LIST(APPEND piclasF90 ${mainF90})
 IF (PICLAS_PARTICLES)
-   LIST(APPEND piclasF90 ${particlesF90})
- ELSE()
-   LIST(APPEND piclasF90 ${noparticlesF90})
- ENDIF(PICLAS_PARTICLES)
- IF(PICLAS_QDS_DG)
-  LIST(APPEND piclasF90 ${QDSF90})
-ENDIF()
+  LIST(APPEND piclasF90 ${particlesF90})
+ELSE()
+  LIST(APPEND piclasF90 ${noparticlesF90})
+ENDIF(PICLAS_PARTICLES)
 
 # define libs
 ADD_LIBRARY(libpiclasstaticF90 OBJECT ${piclasF90} )
@@ -869,3 +847,11 @@ IF(PICLAS_CTAGS)
       ADD_DEPENDENCIES(piclas tags)
   ENDIF(CTAGS_PATH)
 ENDIF(PICLAS_CTAGS)
+# =========================================================================
+# Shared memory debug flags
+# =========================================================================
+SET(PICLAS_DEBUG_MEMORY OFF CACHE BOOL "Output shared memory window sizes. 'USE MOD_MPI_Shared' cannot be used together with the 'ONLY:' statement in this case!")
+IF(PICLAS_DEBUG_MEMORY)
+  SET (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DDEBUG_MEMORY")
+ENDIF()
+

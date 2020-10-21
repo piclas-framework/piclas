@@ -28,6 +28,7 @@ SAVE
 
 LOGICAL            :: ParticleMeshInitIsDone
 REAL               :: meshScale
+LOGICAL            :: MeshWasCurved      =.FALSE.
 ! ====================================================================
 ! Mesh info
 REAL                                     :: MeshVolume         ! total Volume of mesh
@@ -68,7 +69,7 @@ LOGICAL,ALLOCPOINT,DIMENSION(:)          :: ElemCurved         !> flag if an ele
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemToBCSides(:,:) !> Mapping from elem to BC sides within halo eps
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: SideBCMetrics(:,:) !> Metrics for BC sides, see piclas.h
 
-REAL,ALLOCPOINT,DIMENSION(:,:,:,:)       :: ElemsJ             !> 1/DetJac for each Gauss Point
+REAL,POINTER   ,DIMENSION(:,:,:,:)       :: ElemsJ             !> 1/DetJac for each Gauss Point
 REAL,ALLOCPOINT,DIMENSION(:)             :: ElemEpsOneCell     !> tolerance for particle in inside ref element 1+epsinCell
 
 ! Boundary sides
@@ -158,7 +159,6 @@ REAL,ALLOCPOINT    :: BCSideMetrics_Shared(:,:)
 
 ! Shared arrays containing information for mesh on compute node
 REAL,ALLOCPOINT    :: ElemVolume_Shared(:)
-REAL,ALLOCPOINT    :: ElemMPVolumePortion_Shared(:)
 REAL,ALLOCPOINT    :: ElemCharLength_Shared(:)
 REAL,ALLOCPOINT    :: ElemCharLengthX_Shared(:)
 REAL,ALLOCPOINT    :: ElemCharLengthY_Shared(:)
@@ -233,7 +233,6 @@ INTEGER         :: BCSideMetrics_Shared_Win
 
 ! Shared arrays containing information for mesh on compute node
 INTEGER         :: ElemVolume_Shared_Win
-INTEGER         :: ElemMPVolumePortion_Shared_Win
 INTEGER         :: ElemCharLength_Shared_Win
 INTEGER         :: ElemCharLengthX_Shared_Win
 INTEGER         :: ElemCharLengthY_Shared_Win
@@ -301,9 +300,6 @@ INTEGER,ALLOCATABLE :: PartSideToElem(:,:)                    ! extended list: 1
 !INTEGER,ALLOCATABLE :: TracingBCTotalSides(:)                 ! total number of element boundary faces
 !                                                              ! used for tracing (loc faces + other
 !                                                              ! element faces that are possibly reached)
-!
-LOGICAL,ALLOCATABLE :: IsLocalDepositionBCElem(:)             ! is an element where the deposition of a particle via a shape function
-                                                              ! would result in the truncation of the shape function at the boundary.
 !TYPE tElemHaloInfo
 !  INTEGER,ALLOCATABLE            :: ElemHaloInfo(:)           !< Contains information regarding the halo region of each rank
 !                                                              !< ElemHaloInfo = 0                           : element not in list
@@ -426,7 +422,6 @@ TYPE tGeometry
   INTEGER,ALLOCATABLE                    :: ElemToFIBGM(:,:)                  ! range of FIGMB cells per element
                                                                               ! 1:6,1:nTotalElems, xmin,max,yminmax,...
 !  REAL, ALLOCATABLE                      :: Volume(:)                         ! Volume(nElems) for nearest_blurrycenter
-  REAL, ALLOCATABLE                      :: MPVolumePortion(:)                ! portion of Volume(nElems) filled by macroPart
 !  REAL, ALLOCATABLE                      :: CharLength(:)                     ! Characteristic length for each cell: L=V^(1/3)
   REAL, ALLOCATABLE                      :: CharLengthX(:)                    ! Characteristic length in X for each cell
   REAL, ALLOCATABLE                      :: CharLengthY(:)                    ! Characteristic length in Y for each cell

@@ -31,7 +31,7 @@ LOGICAL                       :: CalcAdsProb                         ! Calculate
 LOGICAL                       :: CalcDesProb                         ! Calculate the probability of desorption per species
 LOGICAL                       :: CalcSurfNumSpec                     ! Calculate the number of simulated particles per species
                                                                      ! on surfaces
-#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || PP_TimeDiscMethod==43
+#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42)
 LOGICAL                       :: CalcSurfCoverage                    ! Calculate the surface coverages for each species
 LOGICAL                       :: CalcAccomodation                    ! Calculate the surface accommodation coefficient
 #if (PP_TimeDiscMethod==42)

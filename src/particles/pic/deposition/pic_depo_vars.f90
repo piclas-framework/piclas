@@ -27,11 +27,12 @@ LOGICAL                         :: DoDeposition              ! flag to switch de
 LOGICAL                         :: RelaxDeposition           ! relaxation of current PartSource with RelaxFac into PartSourceOld
 REAL                            :: RelaxFac
 
-REAL,ALLOCPOINT                 :: PartSource(:,:,:,:,:)      ! PartSource(1:4,PP_N,PP_N,PP_N,nElems) current and charge density
+REAL,ALLOCPOINT                 :: PartSource(:,:,:,:,:)     ! PartSource(1:4,PP_N,PP_N,PP_N,nComputeNodeTotalElems) containing 
+!                                                            ! current and charge density source terms for Maxwell/Poisson systems
+!                                                            ! Access array with CNElemID = GetCNElemID(GlobalElemID)
+!                                                            !                            = GetCNElemID(iElem+offSetElem)
 #if USE_MPI
 REAL, ALLOCATABLE               :: PartSourceProc(:,:,:,:,:)
-REAL, ALLOCATABLE               :: PartSourceLoc(:,:,:,:,:)
-REAL, ALLOCATABLE               :: PartSourceLocHalo(:,:,:,:,:)
 INTEGER                         :: PartSource_Shared_Win
 REAL,ALLOCPOINT                 :: PartSource_Shared(:)
 #endif
@@ -104,8 +105,11 @@ INTEGER                         :: NodeVolume_Shared_Win
 REAL,ALLOCPOINT                 :: NodeVolume_Shared(:)
 #endif
 
+REAL,ALLOCPOINT                 :: SFElemr2_Shared(:,:)
+
 REAL,ALLOCPOINT                 :: NodeSource(:,:)
 #if USE_MPI
+INTEGER                         :: SFElemr2_Shared_Win  
 REAL, ALLOCATABLE               :: NodeSourceLoc(:,:)
 INTEGER                         :: NodeSource_Shared_Win
 REAL,ALLOCPOINT                 :: NodeSource_Shared(:,:)
@@ -121,29 +125,6 @@ END TYPE
 TYPE (tNodeMapping),ALLOCATABLE      :: NodeMapping(:)
 #endif
 
-
-INTEGER                         :: NbrOfSFdepoFixes              ! Number of fixes for shape func depo at planar BCs
-REAL    , ALLOCATABLE           :: SFdepoFixesGeo(:,:,:)         ! 1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
-REAL    , ALLOCATABLE           :: SFdepoFixesBounds(:,:,:)      ! 1:nFixes;1:2(min,max);1:3(x,y,z)
-REAL    , ALLOCATABLE           :: SFdepoFixesChargeMult(:)      ! multiplier for mirrored charges (wall: -1.0, sym: 1.0)
-LOGICAL , ALLOCATABLE           :: SFdepoFixesPartOfLink(:)      ! this fix is part of a link
-REAL                            :: SFdepoFixesEps                ! epsilon for defined planes
-INTEGER                         :: NbrOfSFdepoFixLinks           ! Number of linked SFdepoFixes
-INTEGER , ALLOCATABLE           :: SFdepoFixLinks(:,:)           ! 1:nLinks;1:3 (2 fixes are linked with each other!)
-                                                                 !              (:,3 is fraction of 180 deg)
-INTEGER                         :: NbrOfSFdepoLayers             ! Number of const. source layer for sf-depo at planar BCs
-LOGICAL                         :: PrintSFDepoWarnings           ! flag to print the warnings
-LOGICAL                         :: ConstantSFdepoLayers          ! depo just once
-LOGICAL                         :: SFdepoLayersAlreadyDone       ! flag for skipping the depo (i.e., when layers are const.)
-REAL    , ALLOCATABLE           :: SFdepoLayersGeo(:,:,:)        ! 1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
-REAL    , ALLOCATABLE           :: SFdepoLayersBounds(:,:,:)     ! 1:nFixes;1:2(min,max);1:3(x,y,z)
-LOGICAL , ALLOCATABLE           :: SFdepoLayersUseFixBounds(:)   ! use alls planes of SFdepoFixes as additional bounds?
-CHARACTER(LEN=256),ALLOCATABLE  :: SFdepoLayersSpace(:)          ! name of space (cuboid or cylinder)
-REAL    , ALLOCATABLE           :: SFdepoLayersBaseVector(:,:,:) ! 1:nFixes;1:2;1:3(x,y,z)
-INTEGER , ALLOCATABLE           :: SFdepoLayersSpec(:)           ! species of particles for respective layer
-REAL    , ALLOCATABLE           :: SFdepoLayersMPF(:)            ! MPF for layerParts
-REAL    , ALLOCATABLE           :: SFdepoLayersPartNum(:)        ! number of particles in volume
-REAL    , ALLOCATABLE           :: SFdepoLayersRadius(:)         ! radius for cylinder-space
 LOGICAL                         :: SFResampleAnalyzeSurfCollis
 TYPE tLastAnalyzeSurfCollis
   INTEGER                       :: PartNumberSamp                ! number of parts from last sampling

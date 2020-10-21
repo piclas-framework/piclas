@@ -100,7 +100,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
-USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, ConsiderVolumePortions
+USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
 USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies,PartPosRef
 USE MOD_Particle_Tracking_vars  ,ONLY: DoRefMapping
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
@@ -144,11 +144,7 @@ DO iLoop = 1, nPart
             SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + GetParticleWeight(TreeNode%iPartIndx_Node(iLoop))
 END DO
 
-IF (ConsiderVolumePortions) THEN
-  elemVolume=ElemVolume_Shared(GetCNElemID(iElem+offSetElem))*(1.-GEO%MPVolumePortion(iElem))
-ELSE
-  elemVolume=ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
-END IF
+elemVolume=ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
 
 ! 2.) Octree cell refinement algorithm
 DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), elemVolume)
@@ -389,8 +385,29 @@ INTEGER, INTENT(INOUT)        :: iPartIndx_Node(:)
 ! LOCAL VARIABLES
 INTEGER                       :: nPair, iPair, iPart, nPart
 INTEGER                       :: cSpec1, cSpec2, iCase
-REAL                          :: iRan
+REAL                          :: iRan, vBulk(3)
 !===================================================================================================================================
+
+IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
+.OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1)).OR.(DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)) THEN
+  ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
+  !           relaxation probability (CalcGammaVib)
+  ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
+  ! 3. Case: Temperature required for the mean free path with the VHS model
+  ! 4. Case: Needed to calculate the correction factor
+  CALL CalcInstantTransTemp(iPartIndx_Node,PartNum, vBulk)
+  IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) CALL CalcInstantElecTempXi(iPartIndx_Node,PartNum)
+  IF((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)) CALL CalcGammaVib()
+END IF
+
+! 0). Ambipolar Diffusion
+IF (Ambipolar) THEN
+  nPart = PartNum
+  CALL AD_InsertParticles(iPartIndx_Node,nPart, vBulk)
+ELSE
+  nPart = PartNum
+END IF
+
 
 ! 1). Reset collision and pair specific variables
 nPart = PartNum
@@ -418,18 +435,6 @@ IF (CollisMode.EQ.3) THEN
       + PartStateIntEn(1,iPartIndx_Node(iPart)) * GetParticleWeight(iPartIndx_Node(iPart))
   END DO
   CALL CalcMeanVibQuaDiatomic()
-END IF
-
-IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
-.OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1)).OR.(DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)) THEN
-  ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
-  !           relaxation probability (CalcGammaVib)
-  ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
-  ! 3. Case: Temperature required for the mean free path with the VHS model
-  ! 4. Case: Needed to calculate the correction factor
-  CALL CalcInstantTransTemp(iPartIndx_Node,PartNum)
-  IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) CALL CalcInstantElecTempXi(iPartIndx_Node,PartNum)
-  IF((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)) CALL CalcGammaVib()
 END IF
 
 IF (CollInf%ProhibitDoubleColl.AND.(nPair.EQ.1)) THEN
@@ -529,7 +534,7 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
 ! MODULES
   USE MOD_Globals
   USE MOD_DSMC_Analyze,           ONLY : CalcMeanFreePath
-  USE MOD_DSMC_Vars,              ONLY : tTreeNode, DSMC, tNodeVolume, ConsiderVolumePortions
+  USE MOD_DSMC_Vars,              ONLY : tTreeNode, DSMC, tNodeVolume
   USE MOD_Particle_Vars,          ONLY : nSpecies, PartSpecies
   USE MOD_DSMC_Vars,              ONLY : ElemNodeVol
 ! IMPLICIT VARIABLE HANDLING
@@ -584,28 +589,14 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
     CALL DSMC_CalcSubNodeVolumes3D(iElem, localDepth, ElemNodeVol(iElem)%Root)
   END IF
 
-  IF (ConsiderVolumePortions) THEN
-    ! calculate volume portion only when enabled
-    CALL CalcSubNodeMPVolumePortions(iElem, TreeNode%NodeDepth, ElemNodeVol(iElem)%Root)
-
-    NodeVolumeTemp(1) = NodeVol%SubNode1%Volume *(1.-NodeVol%SubNode1%MPVolumePortion)
-    NodeVolumeTemp(2) = NodeVol%SubNode2%Volume *(1.-NodeVol%SubNode2%MPVolumePortion)
-    NodeVolumeTemp(3) = NodeVol%SubNode3%Volume *(1.-NodeVol%SubNode3%MPVolumePortion)
-    NodeVolumeTemp(4) = NodeVol%SubNode4%Volume *(1.-NodeVol%SubNode4%MPVolumePortion)
-    NodeVolumeTemp(5) = NodeVol%SubNode5%Volume *(1.-NodeVol%SubNode5%MPVolumePortion)
-    NodeVolumeTemp(6) = NodeVol%SubNode6%Volume *(1.-NodeVol%SubNode6%MPVolumePortion)
-    NodeVolumeTemp(7) = NodeVol%SubNode7%Volume *(1.-NodeVol%SubNode7%MPVolumePortion)
-    NodeVolumeTemp(8) = NodeVol%SubNode8%Volume *(1.-NodeVol%SubNode8%MPVolumePortion)
-  ELSE
-    NodeVolumeTemp(1) = NodeVol%SubNode1%Volume
-    NodeVolumeTemp(2) = NodeVol%SubNode2%Volume
-    NodeVolumeTemp(3) = NodeVol%SubNode3%Volume
-    NodeVolumeTemp(4) = NodeVol%SubNode4%Volume
-    NodeVolumeTemp(5) = NodeVol%SubNode5%Volume
-    NodeVolumeTemp(6) = NodeVol%SubNode6%Volume
-    NodeVolumeTemp(7) = NodeVol%SubNode7%Volume
-    NodeVolumeTemp(8) = NodeVol%SubNode8%Volume
-  END IF
+  NodeVolumeTemp(1) = NodeVol%SubNode1%Volume
+  NodeVolumeTemp(2) = NodeVol%SubNode2%Volume
+  NodeVolumeTemp(3) = NodeVol%SubNode3%Volume
+  NodeVolumeTemp(4) = NodeVol%SubNode4%Volume
+  NodeVolumeTemp(5) = NodeVol%SubNode5%Volume
+  NodeVolumeTemp(6) = NodeVol%SubNode6%Volume
+  NodeVolumeTemp(7) = NodeVol%SubNode7%Volume
+  NodeVolumeTemp(8) = NodeVol%SubNode8%Volume
 
   DO iLoop = 1, 8
     IF (PartNumChildNode(iLoop).GT.1) THEN
@@ -1120,7 +1111,7 @@ SUBROUTINE DSMC_init_octree()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_DSMC_Vars             ,ONLY: DSMC, ElemNodeVol, ConsiderVolumePortions
+USE MOD_DSMC_Vars             ,ONLY: DSMC, ElemNodeVol
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Vars         ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
@@ -1163,7 +1154,6 @@ DO iElem = 1, nElems
   DO NodeDepth = 1, 2
     IF (Symmetry%Order.EQ.3) THEN
       CALL DSMC_CalcSubNodeVolumes3D(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
-      IF (ConsiderVolumePortions) CALL CalcSubNodeMPVolumePortions(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
     ELSE IF(Symmetry%Order.EQ.2) THEN
       CALL DSMC_CalcSubNodeVolumes2D(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
     ELSE
@@ -1415,279 +1405,6 @@ END IF
 END SUBROUTINE AddNodeVolumes
 
 
-!===================================================================================================================================
-!> Main routine for calculating the volume portions that are occupied by macroscopic bodies
-!===================================================================================================================================
-SUBROUTINE CalcSubNodeMPVolumePortions(iElem, NodeDepth, Node)
-!===================================================================================================================================
-!> 1. reset occupied volume portion for all nodelevels if necessary (macrobody as well as motion or size change enabled)
-!> 2. check the state of volume portion calculation
-!>    if it was reset voldone are all false else only the highest level (maxlevel+1) is false
-!> 3.1 If only a part of the total element is occupied by the macroscopic body then check all subnodes of octree
-!>     a. allocate and initialize container for treenode of current node level
-!>     b. insert (nPointsMCVolumeEstimate*(8**(NodeDepth))) number of points into element and match which are inside of macrobody
-!>     c. find volume portions of each node by matching the inserted points to each subnode
-!> 3.2 If macroscopic body occupies the total element or element has no macroscopic body then set all subnodes to 1 or 0
-!>     (MPVolumePortion of total element)
-!===================================================================================================================================
-! MODULES
-USE MOD_DSMC_Vars          ,ONLY: tNodeVolume, tTreeNode
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO,BoundsOfElem_Shared
-USE MOD_Particle_Vars      ,ONLY: nPointsMCVolumeEstimate
-USE MOD_MacroBody_Vars     ,ONLY: UseMacroBody, MacroSphere
-USE MOD_MacroBody_tools    ,ONLY: INSIDEMACROBODY
-USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)                        :: iElem
-INTEGER, INTENT(IN)                        :: NodeDepth
-TYPE (tNodeVolume), INTENT(INOUT), POINTER :: Node
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                  :: iPart, LocalNodeDepth
-REAL                     :: refPos(1:3),physPos(1:3)
-TYPE(tTreeNode), POINTER :: TreeNode
-!===================================================================================================================================
-!-- 1.
-IF (UseMacroBody .AND. NodeDepth.EQ.1) THEN
-  IF (MAXVAL(ABS(MacroSphere(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroSphere(:)%velocity(2))).GT.0. &
-      .OR. MAXVAL(ABS(MacroSphere(:)%velocity(3))).GT.0.) THEN
-      CALL ResetMPVolDone(Node)
-  END IF
-END IF
-!-- 2.
-IF (GETMPVOLDONE(NodeDepth,1,Node)) RETURN
-!-- 3.1
-IF (UseMacroBody .AND. GEO%MPVolumePortion(iElem).LT.1.0 .AND. GEO%MPVolumePortion(iElem).GT.0.) THEN
-  !-- a.
-  NULLIFY(TreeNode)
-  ALLOCATE(TreeNode)
-  TreeNode%PNum_Node = nPointsMCVolumeEstimate*(8**(NodeDepth))
-  ALLOCATE(TreeNode%iPartIndx_Node(1:TreeNode%PNum_Node)) ! List of particles in the cell neccessary for stat pairing
-  ALLOCATE(TreeNode%MappedPartStates(1:3,1:TreeNode%PNum_Node))
-  ALLOCATE(TreeNode%MatchedPart(1:TreeNode%PNum_Node))
-  TreeNode%iPartIndx_Node(1:TreeNode%PNum_Node) = 0
-  TreeNode%MatchedPart(1:TreeNode%PNum_Node) = .FALSE.
-  TreeNode%NodeDepth = 1
-  TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
-
-  !-- b.
-  DO iPart=1,TreeNode%PNum_Node
-    DO
-      CALL RANDOM_NUMBER(physPos)
-      physPos = BoundsOfElem_Shared(1,:,iElem) + physPos*(BoundsOfElem_Shared(2,:,iElem)-BoundsOfElem_Shared(1,:,iElem))
-      CALL GetPositionInRefElem(physPos,refPos,iElem)
-      IF (MAXVAL(ABS(refPos)).LE.1.0) EXIT ! particle inside of element
-    END DO
-    TreeNode%iPartIndx_Node(iPart) = iPart
-    TreeNode%MappedPartStates(1:3,iPart)= refPos(1:3)
-    IF (INSIDEMACROBODY(physPos)) THEN
-      TreeNode%MatchedPart(iPart) = .TRUE.
-    END IF
-  END DO
-  !-- c.
-  CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node, TreeNode=TreeNode)
-  DEALLOCATE(TreeNode%MatchedPart)
-  DEALLOCATE(TreeNode%MappedPartStates)
-  DEALLOCATE(TreeNode%iPartIndx_Node)
-  DEALLOCATE(TreeNode)
-ELSE
-!-- 3.2
-  LocalNodeDepth=1
-  CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node, LocalNodeDepth=LocalNodeDepth)
-END IF
-
-END SUBROUTINE CalcSubNodeMPVolumePortions
-
-
-!===================================================================================================================================
-!> suboutine, which adds the volume portion that is occupied by macro particles to node-leaves of the octree
-!===================================================================================================================================
-RECURSIVE SUBROUTINE AddNodeMPVolumePortions(iElem, NodeDepth, Node, TreeNode, LocalNodeDepth)
-!===================================================================================================================================
-!> 1. TreeNode Mode:
-!>   Select whether deepest octree level is reached
-!>     1-A. not deepest level:
-!>       1-A.1. find the correct childnode ID for each point in the current treenode and assign to childnode arrays
-!>       1-A.2. move to deeper level
-!>     1-B. deepest level:
-!>       assign correct volumeportion to octree subnode
-!> 2. LocalNodeDepth:
-!>   Select whether deepest octree level is reached
-!>     2-A. not deepest level:
-!>       move to deeper level
-!>     2-B. deepest level:
-!>       assign correct volumeportion to octree subnode
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_DSMC_Vars          ,ONLY: tNodeVolume, tTreeNode
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN) :: iELem
-INTEGER, INTENT(IN) :: NodeDepth
-INTEGER, INTENT(IN),OPTIONAL :: LocalNodeDepth
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-TYPE (tNodeVolume), INTENT(INOUT), POINTER         :: Node
-TYPE (tTreeNode), INTENT(INOUT), OPTIONAL, POINTER :: TreeNode
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER              :: iOctant, childNodeID, iPart, iPartIndx, CurrentDepth
-INTEGER              :: nMatchedPart
-INTEGER              :: PartNumChildNode(8)
-INTEGER, ALLOCATABLE :: iPartIndx_ChildNode(:,:)
-REAL, ALLOCATABLE    :: MappedPart_ChildNode(:,:,:)
-LOGICAL, ALLOCATABLE :: MatchedPart_ChildNode(:,:)
-!===================================================================================================================================
-IF (PRESENT(TreeNode).AND.PRESENT(LocalNodeDepth)) CALL abort(&
-    __STAMP__&
-    ,'ERROR in AddNodeMPVolumePortions: only TreeNode pointer or localNodeDepth parameter allowed. NOT BOTH')
-IF (PRESENT(TreeNode)) THEN
-!-- 1.
-  IF (TreeNode%NodeDepth.LE.NodeDepth) THEN
-    !-- 1-A.1.
-    PartNumChildNode(:) = 0
-    ALLOCATE(iPartIndx_ChildNode(8,TreeNode%PNum_Node))
-    ALLOCATE(MappedPart_ChildNode(1:3,TreeNode%PNum_Node,1:8))
-    ALLOCATE(MatchedPart_ChildNode(8,TreeNode%PNum_Node))
-    MatchedPart_ChildNode(1:8,1:TreeNode%PNum_Node)=.FALSE.
-    DO iPart=1,TreeNode%PNum_Node
-      ChildNodeID = OCTANTCUBEID(TreeNode%MidPoint(:),TreeNode%MappedPartStates(1:3,iPart))
-      iPartIndx = TreeNode%iPartIndx_Node(iPart)
-      PartNumChildNode(ChildNodeID) = PartNumChildNode(ChildNodeID) + 1
-      iPartIndx_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID)) = iPartIndx
-      MappedPart_ChildNode(1:3,PartNumChildNode(ChildNodeID),ChildNodeID) = TreeNode%MappedPartStates(1:3,iPart)
-      IF (TreeNode%MatchedPart(iPart)) THEN
-        MatchedPart_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID)) = .TRUE.
-      END IF
-    END DO
-
-    !-- 1-A.2.
-    DO iOctant=1,8
-      NULLIFY(TreeNode%ChildNode)
-      ALLOCATE(TreeNode%ChildNode)
-      ALLOCATE(TreeNode%ChildNode%iPartIndx_Node(PartNumChildNode(iOctant)))
-      ALLOCATE(TreeNode%ChildNode%MappedPartStates(1:3,PartNumChildNode(iOctant)))
-      ALLOCATE(TreeNode%ChildNode%MatchedPart(PartNumChildNode(iOctant)))
-      TreeNode%ChildNode%iPartIndx_Node(1:PartNumChildNode(iOctant)) = iPartIndx_ChildNode(iOctant, 1:PartNumChildNode(iOctant))
-      TreeNode%ChildNode%PNum_Node = PartNumChildNode(iOctant)
-      TreeNode%ChildNode%MappedPartStates(1:3,1:PartNumChildNode(iOctant))= &
-                     MappedPart_ChildNode(1:3,1:PartNumChildNode(iOctant),iOctant)
-      TreeNode%ChildNode%MatchedPart(1:PartNumChildNode(iOctant)) =  MatchedPart_ChildNode(iOctant,1:PartNumChildNode(iOctant))
-      TreeNode%childNode%MidPoint(1:3) = OCTANTCUBEMIDPOINT(iOctant,TreeNode%NodeDepth,TreeNode%MidPoint(1:3))
-      TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
-      ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
-      SELECT CASE (iOctant)
-      CASE(1)
-        IF(.NOT.ASSOCIATED(Node%SubNode1)) ALLOCATE(Node%SubNode1)
-        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode1, TreeNode=TreeNode%ChildNode)
-      CASE(2)
-        IF(.NOT.ASSOCIATED(Node%SubNode2)) ALLOCATE(Node%SubNode2)
-        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode2, TreeNode=TreeNode%ChildNode)
-      CASE(3)
-        IF(.NOT.ASSOCIATED(Node%SubNode3)) ALLOCATE(Node%SubNode3)
-        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode3, TreeNode=TreeNode%ChildNode)
-      CASE(4)
-        IF(.NOT.ASSOCIATED(Node%SubNode4)) ALLOCATE(Node%SubNode4)
-        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode4, TreeNode=TreeNode%ChildNode)
-      CASE(5)
-        IF(.NOT.ASSOCIATED(Node%SubNode5)) ALLOCATE(Node%SubNode5)
-        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode5, TreeNode=TreeNode%ChildNode)
-      CASE(6)
-        IF(.NOT.ASSOCIATED(Node%SubNode6)) ALLOCATE(Node%SubNode6)
-        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode6, TreeNode=TreeNode%ChildNode)
-      CASE(7)
-        IF(.NOT.ASSOCIATED(Node%SubNode7)) ALLOCATE(Node%SubNode7)
-        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode7, TreeNode=TreeNode%ChildNode)
-      CASE(8)
-        IF(.NOT.ASSOCIATED(Node%SubNode8)) ALLOCATE(Node%SubNode8)
-        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode8, TreeNode=TreeNode%ChildNode)
-      END SELECT
-      DEALLOCATE(TreeNode%ChildNode%MatchedPart)
-      DEALLOCATE(TreeNode%ChildNode%MappedPartStates)
-      DEALLOCATE(TreeNode%ChildNode%iPartIndx_Node)
-      DEALLOCATE(TreeNode%ChildNode)
-    END DO
-    DEALLOCATE(iPartIndx_ChildNode)
-    DEALLOCATE(MappedPart_ChildNode)
-    DEALLOCATE(MatchedPart_ChildNode)
-  ELSE
-    !-- 1-B.
-    IF (GEO%MPVolumePortion(iElem).EQ.0. .OR. TreeNode%PNum_Node.EQ.0) THEN
-      Node%MPVolumePortion = 0.
-    ELSE IF (GEO%MPVolumePortion(iElem).EQ.1.) THEN
-      Node%MPVolumePortion = 1.
-    ELSE
-      nMatchedPart = 0
-      DO iPart=1,TreeNode%PNum_Node
-        IF (TreeNode%MatchedPart(iPart)) THEN
-          nMatchedPart = nMatchedPart + 1
-        END IF
-      END DO
-      Node%MPVolumePortion = REAL(nMatchedPart)/REAL(TreeNode%PNum_Node)
-    END IF
-    Node%MPVolumeDone = .TRUE.
-  END IF
-ELSE IF (PRESENT(LocalNodeDepth)) THEN
-!-- 2.
-  IF (LocalNodeDepth.LE.NodeDepth) THEN
-    !-- 2-A.
-    DO iOctant=1,8
-      CurrentDepth = LocalNodeDepth + 1
-      ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
-      SELECT CASE (iOctant)
-      CASE(1)
-        IF(.NOT.ASSOCIATED(Node%SubNode1)) ALLOCATE(Node%SubNode1)
-        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode1, LocalNodeDepth=CurrentDepth)
-      CASE(2)
-        IF(.NOT.ASSOCIATED(Node%SubNode2)) ALLOCATE(Node%SubNode2)
-        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode2, LocalNodeDepth=CurrentDepth)
-      CASE(3)
-        IF(.NOT.ASSOCIATED(Node%SubNode3)) ALLOCATE(Node%SubNode3)
-        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode3, LocalNodeDepth=CurrentDepth)
-      CASE(4)
-        IF(.NOT.ASSOCIATED(Node%SubNode4)) ALLOCATE(Node%SubNode4)
-        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode4, LocalNodeDepth=CurrentDepth)
-      CASE(5)
-        IF(.NOT.ASSOCIATED(Node%SubNode5)) ALLOCATE(Node%SubNode5)
-        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode5, LocalNodeDepth=CurrentDepth)
-      CASE(6)
-        IF(.NOT.ASSOCIATED(Node%SubNode6)) ALLOCATE(Node%SubNode6)
-        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode6, LocalNodeDepth=CurrentDepth)
-      CASE(7)
-        IF(.NOT.ASSOCIATED(Node%SubNode7)) ALLOCATE(Node%SubNode7)
-        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode7, LocalNodeDepth=CurrentDepth)
-      CASE(8)
-        IF(.NOT.ASSOCIATED(Node%SubNode8)) ALLOCATE(Node%SubNode8)
-        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode8, LocalNodeDepth=CurrentDepth)
-      END SELECT
-    END DO
-  ELSE
-    !-- 2-B.
-    IF (GEO%MPVolumePortion(iElem).EQ.1.) THEN
-      Node%MPVolumePortion = 1.
-    ELSE
-      Node%MPVolumePortion = 0.
-    END IF
-    Node%MPVolumeDone = .TRUE.
-  END IF
-ELSE
-  CALL abort(&
-__STAMP__&
-,'ERROR in AddNodeMPVolumePortions: function call needs TreeNode pointer or localNodeDepth parameter')
-END IF
-
-END SUBROUTINE AddNodeMPVolumePortions
-
-
 RECURSIVE SUBROUTINE AddNodeVolumes2D(NodeDepth, Node, DetJac, VdmLocal, iElem, FacexGP, SubNodesIn)
 !===================================================================================================================================
 !> description
@@ -1928,79 +1645,6 @@ END IF
 OCTANTCUBEMIDPOINT(1:3) = octantCenter(1:3) + OCTANTCUBEMIDPOINT(1:3)*2.0/REAL(2.0**(octantDepth+1))
 END FUNCTION OCTANTCUBEMIDPOINT
 
-
-RECURSIVE SUBROUTINE ResetMPVolDone(Node)
-!===================================================================================================================================
-!> suboutine, which recursively resets MPVolumePortionDone Flag
-!===================================================================================================================================
-! MODULES
-USE MOD_DSMC_Vars          ,ONLY: tNodeVolume
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-TYPE (tNodeVolume), INTENT(INOUT), POINTER :: Node
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER              :: iOctant
-!===================================================================================================================================
-IF (ASSOCIATED(Node%SubNode1)) THEN
-  DO iOctant=1,8
-    SELECT CASE (iOctant)
-    CASE(1)
-      CALL ResetMPVolDone(Node%SubNode1)
-    CASE(2)
-      CALL ResetMPVolDone(Node%SubNode2)
-    CASE(3)
-      CALL ResetMPVolDone(Node%SubNode3)
-    CASE(4)
-      CALL ResetMPVolDone(Node%SubNode4)
-    CASE(5)
-      CALL ResetMPVolDone(Node%SubNode5)
-    CASE(6)
-      CALL ResetMPVolDone(Node%SubNode6)
-    CASE(7)
-      CALL ResetMPVolDone(Node%SubNode7)
-    CASE(8)
-      CALL ResetMPVolDone(Node%SubNode8)
-    END SELECT
-  END DO
-END IF
-Node%MPVolumeDone=.FALSE.
-END SUBROUTINE ResetMPVolDone
-
-
-LOGICAL RECURSIVE FUNCTION GETMPVOLDONE(maxDepth,currentDepth,Node) RESULT(doneFlag)
-!===================================================================================================================================
-!> Returns true if MPVolumePorion was already estimated after reset
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-USE MOD_DSMC_Vars ,ONLY: tNodeVolume
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT VARIABLES
-INTEGER,INTENT(IN)                      :: maxDepth
-INTEGER,INTENT(IN)                      :: currentDepth
-TYPE (tNodeVolume), INTENT(IN), POINTER :: Node
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! LOCAL VARIABLES
-INTEGER :: nextDepth
-!===================================================================================================================================
-IF (currentDepth.LT.maxDepth) THEN
-  nextDepth=currentDepth+1
-  doneFlag=GETMPVOLDONE(maxDepth,nextDepth,Node%subNode1)
-ELSE
-  IF (ASSOCIATED(Node%subNode1)) THEN
-    doneFlag=Node%subNode1%MPVolumeDone
-  ELSE
-    doneFlag=.FALSE.
-  END IF
-END IF
-END FUNCTION GETMPVOLDONE
 
 FUNCTION Calc_F2D(xi,x,P)
 !===================================================================================================================================
