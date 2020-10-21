@@ -187,7 +187,7 @@ IF (TRIM(TimeAverageFile).NE.'none') THEN
 END IF
 
 
-! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical'
+! Deposition 'shape_function'
 IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
   r_sf                  = GETREAL('PIC-shapefunction-radius')
   alpha_sf              = GETINT('PIC-shapefunction-alpha')

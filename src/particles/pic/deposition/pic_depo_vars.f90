@@ -67,7 +67,6 @@ REAL,ALLOCATABLE                :: swGPNDepo(:)              ! integration weigh
 REAL,ALLOCATABLE                :: XiNDepo(:)                ! gauss position of barycenters
 REAL,ALLOCATABLE                :: Vdm_NDepo_GaussN(:,:)     ! VdM between different polynomial degrees
 REAL,ALLOCATABLE                :: DDMassinv(:,:,:,:)        ! inverse mass-matrix for deposition
-INTEGER                         :: SfRadiusInt               ! radius integer for cylindrical and spherical shape function
 REAL,ALLOCATABLE                :: Vdm_EquiN_GaussN(:,:)     ! Vdm from equidistant points to Gauss Points
 INTEGER                         :: alpha_sf                  ! shapefuntion exponent
 REAL                            :: BGMdeltas(3)              ! Backgroundmesh size in x,y,z
