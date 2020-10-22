@@ -1138,9 +1138,8 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                 ,ONLY: Abort
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, ChemReac, RadialWeighting, SpecXSec, SpecDSMC
-USE MOD_DSMC_SpecXSec           ,ONLY: InterpolateCrossSection, InterpolateCrossSection_Chem
-USE MOD_Particle_Vars           ,ONLY: Species, PartSpecies, PEM, VarTimeStep, PartState
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, ChemReac, RadialWeighting
+USE MOD_Particle_Vars           ,ONLY: Species, PartSpecies, PEM, VarTimeStep
 USE MOD_DSMC_ChemReact          ,ONLY: CalcReactionProb, DSMC_Chemistry
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
@@ -1159,8 +1158,8 @@ INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart1, iPart2, nPartNode, nPair, iCase, ReacTest, iPath, ReacCounter, XSecPart
-REAL                          :: Volume, NumDens, ReactionProb, iRan, ReactionProbSum, CollEnergy
+INTEGER                       :: iPart1, iPart2, nPartNode, nPair, iCase, ReacTest, iPath, ReacCounter
+REAL                          :: Volume, NumDens, ReactionProb, iRan, ReactionProbSum
 REAL, ALLOCATABLE             :: ReactionProbArray(:)
 !===================================================================================================================================
 iPart1 = Coll_pData(iPair)%iPart_p1

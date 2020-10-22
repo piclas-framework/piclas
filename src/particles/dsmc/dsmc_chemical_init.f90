@@ -559,12 +559,22 @@ DO iCase = 1, CollInf%NumCase
       END IF
       ReacIndexCounter = ReacIndexCounter + 1
       ChemReac%CollCaseInfo(iCase)%ReactionIndex(ReacIndexCounter) = iReac
-      IF(ChemReac%XSec_Procedure(iReac)) ChemReac%CollCaseInfo(iCase)%HasXSecReaction = .TRUE.
+      IF(ChemReac%XSec_Procedure(iReac)) THEN
+        ChemReac%CollCaseInfo(iCase)%HasXSecReaction = .TRUE.
+        IF(ChemReac%Reactants(iReac,3).NE.0) THEN
+          CALL abort(__STAMP__,&
+            'Chemistry - Error: Cross-section based chemistry for reactions with three reactants is not supported yet!')
+        END IF
+      END IF
     END IF
   END DO
 END DO
 
 IF(ANY(ChemReac%XSec_Procedure(:))) THEN
+  IF(BGGas%NumberOfSpecies.LE.0) THEN
+    CALL abort(__STAMP__,&
+      'Chemistry - Error: Cross-section based chemistry without background gas has not been tested yet!')
+  END IF
   DO iCase = 1, CollInf%NumCase
     NumPaths = ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) ALLOCATE(SpecXSec(iCase)%ReactionPath(1:NumPaths))

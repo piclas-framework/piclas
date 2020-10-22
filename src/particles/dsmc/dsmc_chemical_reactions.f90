@@ -76,13 +76,13 @@ REAL, INTENT(OUT)             :: ReactionProb
 INTEGER, INTENT(INOUT)        :: iReac
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: ReactInx(1:3), ProductReac(1:3), EductReac(1:3), iReacForward, iCase, iPart
+INTEGER                       :: ReactInx(1:3), ProductReac(1:4), EductReac(1:3), iReacForward, iCase, iPart
 REAL                          :: EZeroPoint_Educt, EZeroPoint_Prod, EReact, ReducedMass, ReducedMassUnweighted, omega, Tref
 REAL                          :: Xi_vib(1:3), Xi_elec(1:3), Xi_Total
 REAL                          :: BetaReaction, BackwardRate
 REAL                          :: Rcoll, Tcoll, Telec, TiQK, NumWeightEduct, NumWeightProd
 INTEGER                       :: iPath, PathIndex
-REAL                          :: Weight(1:3), SumWeightEduct, SumWeightProd
+REAL                          :: Weight(1:4), SumWeightEduct, SumWeightProd
 !===================================================================================================================================
 
 IF(ChemReac%XSec_Procedure(iReac)) RETURN
@@ -125,7 +125,7 @@ END IF
 
 ! Saving the product species, might be different for the recombination case as reaction index could have changed depending on the
 ! third reaction partner
-ProductReac(1:3) = ChemReac%Products(iReac,1:3)
+ProductReac(1:4) = ChemReac%Products(iReac,1:4)
 
 IF (ChemReac%Reactants(iReac,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
   ReactInx(1) = Coll_pData(iPair)%iPart_p1
@@ -145,6 +145,11 @@ IF(ProductReac(3).NE.0) THEN
   NumWeightProd = 3.
   IF(EductReac(3).EQ.0) Weight(3) = Weight(1)
   SumWeightProd = SumWeightProd + Weight(3)
+END IF
+IF(ProductReac(4).NE.0) THEN
+  NumWeightProd = 4.
+  Weight(4) = Weight(1)
+  SumWeightProd = SumWeightProd + Weight(4)
 END IF
 
 IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
