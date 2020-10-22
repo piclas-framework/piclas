@@ -584,8 +584,7 @@ END FUNCTION XSec_CalcCollisionProb
 
 SUBROUTINE XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
 !===================================================================================================================================
-!> Calculate the collision probability if collision cross-section data is used. Can be utilized in combination with the regular
-!> DSMC collision calculation probability.
+!> Calculate the relaxation probability using cross-section data.
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: SpecXSec, SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
@@ -636,7 +635,6 @@ IF(SpecXSec(iCase)%UseVibXSec) THEN
       SpecXSec(iCase)%VibMode(iVib)%Prob = SpecXSec(iCase)%VibMode(iVib)%Prob * SpecNumSource / CollInf%Coll_CaseNum(iCase)
     END IF
     SpecXSec(iCase)%VibProb = SpecXSec(iCase)%VibProb + SpecXSec(iCase)%VibMode(iVib)%Prob
-    Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob + SpecXSec(iCase)%VibMode(iVib)%Prob
   END DO
 END IF
 
@@ -713,7 +711,7 @@ INTEGER,INTENT(IN)                :: iCase, iPath
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=64)                 :: dsetname, groupname, EductPair, dsetname2, ProductPair
+CHARACTER(LEN=128)                 :: dsetname, groupname, EductPair, dsetname2, ProductPair
 INTEGER                           :: err
 INTEGER(HSIZE_T), DIMENSION(2)    :: dims,sizeMax
 INTEGER(HID_T)                    :: file_id_dsmc                       ! File identifier
@@ -724,11 +722,11 @@ INTEGER(SIZE_T)                   :: size                               ! Size o
 INTEGER(HSIZE_T)                  :: iSet                               ! Index
 INTEGER                           :: storage, nSets, max_corder
 LOGICAL                           :: DataSetFound, GroupFound, ReactionFound
-INTEGER                           :: iReac, EductReac(1:3), ProductReac(1:3)
+INTEGER                           :: iReac, EductReac(1:3), ProductReac(1:4)
 !===================================================================================================================================
 iReac = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
 EductReac(1:3) = ChemReac%Reactants(iReac,1:3)
-ProductReac(1:3) = ChemReac%Products(iReac,1:3)
+ProductReac(1:4) = ChemReac%Products(iReac,1:4)
 
 DatasetFound = .FALSE.; GroupFound = .FALSE.
 
@@ -771,7 +769,11 @@ SELECT CASE(COUNT(ProductReac.GT.0))
 CASE(2)
   ProductPair = TRIM(SpecDSMC(ProductReac(1))%Name)//'-'//TRIM(SpecDSMC(ProductReac(2))%Name)
 CASE(3)
-  ProductPair = TRIM(SpecDSMC(ProductReac(1))%Name)//'-'//TRIM(SpecDSMC(ProductReac(2))%Name)//'-'//TRIM(SpecDSMC(ProductReac(3))%Name)
+  ProductPair = TRIM(SpecDSMC(ProductReac(1))%Name)//'-'//TRIM(SpecDSMC(ProductReac(2))%Name)//&
+                &'-'//TRIM(SpecDSMC(ProductReac(3))%Name)
+CASE(4)
+  ProductPair = TRIM(SpecDSMC(ProductReac(1))%Name)//'-'//TRIM(SpecDSMC(ProductReac(2))%Name)//&
+                &'-'//TRIM(SpecDSMC(ProductReac(3))%Name)//'-'//TRIM(SpecDSMC(ProductReac(4))%Name)
 CASE DEFAULT
   CALL abort(__STAMP__,&
       'Number of products is not supported yet! Reaction number:', iReac)
@@ -816,13 +818,14 @@ CALL H5CLOSE_F(err)
 END SUBROUTINE ReadReacXSec
 
 
-SUBROUTINE XSec_CalcReactionProb(iPair,iCase)
+SUBROUTINE XSec_CalcReactionProb(iPair,iCase,SpecNum1,SpecNum2,MacroParticleFactor,Volume)
 !===================================================================================================================================
 !> Calculate the collision probability if collision cross-section data is used. Can be utilized in combination with the regular
 !> DSMC collision calculation probability.
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, ChemReac, RadialWeighting, DSMC, PartStateIntEn
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, ChemReac, RadialWeighting, DSMC, PartStateIntEn, SpecXSec
+USE MOD_DSMC_Vars             ,ONLY: XSec_NullCollision
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -830,12 +833,13 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,INTENT(IN)            :: iPair, iCase
+REAL,INTENT(IN)               :: SpecNum1, SpecNum2, MacroParticleFactor, Volume
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPath, ReacTest, EductReac(1:3), ProductReac(1:3), bggSpec, partSpec, ReactInx(1:3), nPair
-INTEGER                       :: NumWeightEduct, NumWeightProd
+INTEGER                       :: NumWeightEduct, NumWeightProd, targetSpec
 REAL                          :: EZeroPoint_Prod, dtCell, Weight1, Weight2, Weight3, ReducedMass, ReducedMassUnweighted, WeightProd
-REAL                          :: EZeroPoint_Educt
+REAL                          :: EZeroPoint_Educt, SpecNumTarget, SpecNumSource
 !===================================================================================================================================
 WeightProd = 0.; ReactInx = 0
 nPair = SIZE(Coll_pData)
@@ -932,11 +936,11 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
 
     ! Select the background species as the target cloud
     IF(BGGas%BackgroundSpecies(EductReac(1))) THEN
-      bggSpec = BGGas%MapSpecToBGSpec(EductReac(1))
-      partSpec = EductReac(2)
+      targetSpec = EductReac(1); partSpec = EductReac(2)
+      SpecNumTarget = SpecNum1; SpecNumSource = SpecNum2
     ELSE
-      bggSpec = BGGas%MapSpecToBGSpec(EductReac(2))
-      partSpec = EductReac(1)
+      targetSpec = EductReac(2); partSpec = EductReac(1)
+      SpecNumTarget = SpecNum2; SpecNumSource = SpecNum1
     END IF
     IF (VarTimeStep%UseVariableTimeStep) THEN
       dtCell = dt * (VarTimeStep%ParticleTimeStep(ReactInx(1)) + VarTimeStep%ParticleTimeStep(ReactInx(2)))*0.5
@@ -952,8 +956,16 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     ! Calculate the reaction probability
     IF(((Coll_pData(iPair)%Ec-EZeroPoint_Prod).GE.(-1./NumWeightProd*(Weight1+Weight2+WeightProd)*ChemReac%EForm(ReacTest)))) THEN
       ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * dtCell &
-        * InterpolateCrossSection_Chem(iCase,iPath,Coll_pData(iPair)%Ec-EZeroPoint_Educt) * BGGas%NumberDensity(bggSpec) ))
-      Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob + ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath)
+        * InterpolateCrossSection_Chem(iCase,iPath,Coll_pData(iPair)%Ec-EZeroPoint_Educt) * SpecNumTarget * MacroParticleFactor / Volume ))
+      IF(BGGas%BackgroundSpecies(targetSpec)) THEN
+      ! Correct the reaction probability in the case of the second species being a background species as the number of pairs
+      ! is either determined based on the null collision probability or in the case of mixture on the species fraction
+        IF(XSec_NullCollision) THEN
+          ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) / SpecXSec(iCase)%ProbNull
+        ELSE
+          ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) / BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(targetSpec))
+        END IF
+      END IF
     ELSE
       ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = 0.
     END IF

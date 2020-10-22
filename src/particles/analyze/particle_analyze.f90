@@ -2742,8 +2742,8 @@ IF(PartMPI%MPIRoot)THEN
   DO iReac=1, ChemReac%NumOfReact
     iCase = ChemReac%ReactCase(iReac)
     IF ((NumSpec(ChemReac%Reactants(iReac,1)).GT.0).AND.(NumSpec(ChemReac%Reactants(iReac,2)).GT.0)) THEN
-      SELECT CASE(TRIM(ChemReac%ReactType(iReac)))
-      CASE('R','r')
+      IF(ChemReac%Reactants(iReac,3).NE.0) THEN
+        ! Recombination reactions with 3 reactants
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
           RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%Products(iReac,1))%MacroParticleFactor &
                      * MeshVolume**2 / (dt &
@@ -2758,7 +2758,8 @@ IF(PartMPI%MPIRoot)THEN
                * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,2))    &
                * Species(ChemReac%Reactants(iReac,3))%MacroParticleFactor*NumSpec(nSpecies+1))
         END IF
-      CASE('D','E','i','iQK','x')
+      ELSE
+        ! Regular reactions with 2 reactants (dissociation, ionization, exchange)
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
           RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%Products(iReac,1))%MacroParticleFactor &
                        * MeshVolume / (dt &
@@ -2771,7 +2772,7 @@ IF(PartMPI%MPIRoot)THEN
                * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,1))         &
                * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,2)))
         END IF
-      END SELECT
+      END IF
     END IF
   END DO
 END IF

@@ -44,9 +44,8 @@ USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: UseMCC, SpecXSec, XSec_NullCollision, CollisMode
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, Species, VarTimeStep
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_TimeDisc_Vars           ,ONLY: dt
-USE MOD_DSMC_SpecXSec           ,ONLY: InterpolateCrossSection, XSec_CalcCollisionProb, XSec_CalcReactionProb, XSec_CalcVibRelaxProb
+USE MOD_DSMC_SpecXSec           ,ONLY: XSec_CalcCollisionProb, XSec_CalcReactionProb, XSec_CalcVibRelaxProb
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
@@ -121,14 +120,18 @@ SELECT CASE(iPType)
   ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron
     IF(UseMCC) THEN
       Coll_pData(iPair)%Prob = XSec_CalcCollisionProb(iPair,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
+      IF(CollisMode.EQ.3) THEN
+        ! Chemical reaction with cross-section based probability
+        IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
+          CALL XSec_CalcReactionProb(iPair,iCase,SpecNum1,SpecNum2,MacroParticleFactor,Volume)
+          Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob + SUM(ChemReac%CollCaseInfo(iCase)%ReactionProb(:))
+        END IF
+      END IF
       IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
         ! No effective collision cross-section available, adding the additional probabilities to the collision probability
         IF(SpecXSec(iCase)%UseVibXSec) THEN
           CALL XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
-        END IF
-        IF(CollisMode.EQ.3) THEN
-          ! Chemical reaction with cross-section based probability
-          IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) CALL XSec_CalcReactionProb(iPair,iCase)
+          Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob + SpecXSec(iCase)%VibProb
         END IF
       END IF
     ELSE
