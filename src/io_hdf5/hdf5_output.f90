@@ -2455,7 +2455,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars     ,ONLY: offsetElem
 USE MOD_DSMC_Vars     ,ONLY: UseDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
 USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, ClonedParticles
-USE MOD_PARTICLE_Vars ,ONLY: nSpecies, usevMPF
+USE MOD_PARTICLE_Vars ,ONLY: nSpecies, usevMPF, Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2477,7 +2477,7 @@ INTEGER(KIND=IK)               :: locnPart,offsetnPart
 INTEGER(KIND=IK)               :: iPart,nPart_glob
 REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER, ALLOCATABLE           :: VibQuantData(:,:)
-REAL, ALLOCATABLE              :: ElecDistriData(:,:)
+REAL, ALLOCATABLE              :: ElecDistriData(:,:), AD_Data(:,:)
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
 INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec, tempDelay, MaxElecQuant
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2562,6 +2562,11 @@ IF (withDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)  THEN
   ElecDistriData = 0
   !+1 is real number of necessary vib quants for the particle
 END IF
+IF (withDSMC.AND.DSMC%DoAmbipolarDiff)  THEN
+  ALLOCATE(AD_Data(3,offsetnPart+1_IK:offsetnPart+locnPart))
+  AD_Data = 0
+  !+1 is real number of necessary vib quants for the particle
+END IF
 iPart=offsetnPart
 DO iDelay=0,tempDelay
   DO pcount = 1, RadialWeighting%ClonePartNum(iDelay)
@@ -2613,6 +2618,11 @@ DO iDelay=0,tempDelay
           .OR.SpecDSMC(ClonedParticles(pcount,iDelay)%Species)%FullyIonized)) THEN      
           ElecDistriData(1:SpecDSMC(ClonedParticles(pcount,iDelay)%Species)%MaxElecQuant,iPart) = &
             ClonedParticles(pcount,iDelay)%DistriFunc(1:SpecDSMC(ClonedParticles(pcount,iDelay)%Species)%MaxElecQuant)
+      END IF
+    END IF
+    IF (withDSMC.AND.DSMC%DoAmbipolarDiff)  THEN
+      IF (Species(ClonedParticles(pcount,iDelay)%Species)%ChargeIC.GT.0.0) THEN     
+        AD_Data(1:3,iPart) = ClonedParticles(pcount,iDelay)%AmbiPolVelo(1:3)
       END IF
     END IF
   END DO
@@ -2682,6 +2692,14 @@ IF (withDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
                         nVal=      (/MaxElecQuant        , locnPart       /)   , &
                         offset=    (/0_IK               , offsetnPart    /)   , &
                         collective=.FALSE.              , RealArray=ElecDistriData)
+  DEALLOCATE(ElecDistriData)
+END IF
+IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
+  CALL WriteArrayToHDF5(DataSetName='CloneADVeloData' , rank=2              , &
+                        nValGlobal=(/3       , nPart_glob     /)   , &
+                        nVal=      (/3        , locnPart       /)   , &
+                        offset=    (/0_IK               , offsetnPart    /)   , &
+                        collective=.FALSE.              , RealArray=AD_Data)
   DEALLOCATE(ElecDistriData)
 END IF
 END ASSOCIATE

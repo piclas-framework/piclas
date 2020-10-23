@@ -95,6 +95,7 @@ TYPE tClonedParticles
   REAL                        :: WeightingFactor
   INTEGER, ALLOCATABLE        :: VibQuants(:)
   REAL, ALLOCATABLE           :: DistriFunc(:) 
+  REAL, ALLOCATABLE           :: AmbiPolVelo(:) 
 END TYPE
 
 TYPE(tClonedParticles),ALLOCATABLE :: ClonedParticles(:,:)

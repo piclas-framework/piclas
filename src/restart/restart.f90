@@ -1588,7 +1588,7 @@ USE MOD_io_hdf5
 USE MOD_Mesh_Vars,                ONLY : offsetElem, nElems
 USE MOD_DSMC_Vars,                ONLY : UseDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
 USE MOD_DSMC_Vars,                ONLY : RadialWeighting, ClonedParticles
-USE MOD_Particle_Vars,            ONLY : nSpecies, usevMPF
+USE MOD_Particle_Vars,            ONLY : nSpecies, usevMPF, Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1602,7 +1602,7 @@ IMPLICIT NONE
   REAL,ALLOCATABLE                  :: CloneData(:,:)
   INTEGER                           :: iPolyatmole, MaxQuantNum, iSpec, compareDelay, MaxElecQuant
   INTEGER,ALLOCATABLE               :: pcount(:), VibQuantData(:,:)
-  REAL, ALLOCATABLE                 :: ElecDistriData(:,:)
+  REAL, ALLOCATABLE                 :: ElecDistriData(:,:), AD_Data(:,:)
 !===================================================================================================================================
 
   CALL GetDataSize(File_ID,'CloneData',nDimsClone,SizeClone)
@@ -1669,6 +1669,12 @@ IMPLICIT NONE
         CALL ReadArray('CloneElecDistriData',2,(/MaxElecQuant,ClonePartNum/),0_IK,2,RealArray=ElecDistriData)
       END ASSOCIATE
     END IF
+    IF (UseDSMC.AND.DSMC%DoAmbipolarDiff) THEN
+      ALLOCATE(AD_Data(1:3,1:ClonePartNum))
+      ASSOCIATE(ClonePartNum => INT(ClonePartNum,IK))
+        CALL ReadArray('CloneADVeloData',2,(/INT(3,IK),ClonePartNum/),0_IK,2,RealArray=AD_Data)
+      END ASSOCIATE
+    END IF
     ! Copying particles into ClonedParticles array
     DO iPart = 1, ClonePartNum
       iDelay = INT(CloneData(9,iPart))
@@ -1724,6 +1730,12 @@ IMPLICIT NONE
                       1:SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%MaxElecQuant))
               ClonedParticles(pcount(iDelay),iDelay)%DistriFunc(1:SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%MaxElecQuant) &
                 = ElecDistriData(1:SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%MaxElecQuant,iPart)
+            END IF
+          END IF
+          IF (UseDSMC.AND.DSMC%DoAmbipolarDiff)  THEN
+            IF (Species(ClonedParticles(pcount(iDelay),iDelay)%Species)%ChargeIC.GT.0.0) THEN      
+              ALLOCATE(ClonedParticles(pcount(iDelay),iDelay)%AmbiPolVelo(1:3))
+              ClonedParticles(pcount(iDelay),iDelay)%AmbiPolVelo(1:3) = AD_Data(1:3,iPart)
             END IF
           END IF
         END IF
