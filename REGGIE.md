@@ -101,6 +101,18 @@ Overview of the test cases performed during the nightly regression testing.
 |   12    |           NIG_PIC_Deposition/Plasma_Ball_cell_volweight_mean            |                   maxwell,RK3                   |               Maxwell-PIC,shape function (different dimensions)                |                nProcs=1,5,10                |                                 Particle_ref.csv                                 |           [Link](regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_cell_volweight_mean/readme.md)            |
 |   13    |              NIG_PIC_Deposition/Plasma_Ball_Shape-function              |                   maxwell,RK3                   |                   Maxwell-PIC,deposition cell_volweight_mean                   |                nProcs=1,5,10                |                                 Xd_X-dir_ref.csv                                 |              [Link](regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_Shape-function/readme.md)              |
 
+### NIG_code_analyze
+
+Compilation of the code the CODE_ANALYZE option, which includes many different tests and outputs. For example, the energy and momentum conservation is tested for every reaction with this option for DSMC. Build: [Link CMAKE-CONFIG](regressioncheck/checks/NIG_code_analyze/builds.ini)
+
+| **No.** |          **Case**          | **CMAKE-CONFIG** |                                      **Feature**                                      | **Execution** |          **Comparing**           |                                      **Readme**                                      |
+| :-----: | :------------------------: | :--------------: | :-----------------------------------------------------------------------------------: | :-----------: | :------------------------------: | :----------------------------------------------------------------------------------: |
+|    1    | CHEM_CONS_QK_ion_recomb_H  |                  |    Chemistry routine with three reactants (recomb) and three products (ionization)    |   nProcs=1    | Energy and momentum conservation | [Link](regressioncheck/checks/NIG_code_analyze/CHEM_CONS_QK_ion_recomb_H/readme.md)  |
+|    2    | CHEM_CONS_XSec_diss_ion_H2 |                  | Chemistry routine with three (ionization) and four (dissociative ionization) products |   nProcs=1    | Energy and momentum conservation | [Link](regressioncheck/checks/NIG_code_analyze/CHEM_CONS_XSec_diss_ion_H2/readme.md) |
+|    3    |      FieldIonization       |                  |                                                                                       |    nProcs=    |                                  |      [Link](regressioncheck/checks/NIG_code_analyze/FieldIonization/readme.md)       |
+|    4    |          periodic          |                  |                                                                                       |    nProcs=    |                                  |          [Link](regressioncheck/checks/NIG_code_analyze/periodic/readme.md)          |
+|    5    |         Semicircle         |                  |                                                                                       |    nProcs=    |                                  |         [Link](regressioncheck/checks/NIG_code_analyze/Semicircle/readme.md)         |
+
 
 ### NIG Convergence Tests
 
@@ -156,7 +168,7 @@ Convergence tests (temporally by varying the time step) for integrating the path
 |    6    |   PIC_magnetostatic_Bz_exp_III_Euler-Explicit   |                  | spiral particle drift, Euler-explicit method |   nProcs=1    | L2 error of position |   [Link](/regressioncheck/checks/NIG_convtest_t_poisson/PIC_magnetostatic_Bz_exp_III_Euler-Explicit)   |
 |    7    |      PIC_magnetostatic_Bz_exp_III_Leapfrog      |                  |        spiral drift, Leapfrog method         |   nProcs=1    | L2 error of position |      [Link](/regressioncheck/checks/NIG_convtest_t_poisson/PIC_magnetostatic_Bz_exp_III_Leapfrog)      |
 
-#### NIG_DSMC
+### NIG_DSMC
 
 Testing more complex DSMC routines: [Link CMAKE-CONFIG](regressioncheck/checks/NIG_DSMC/builds.ini).
 
@@ -165,7 +177,7 @@ Testing more complex DSMC routines: [Link CMAKE-CONFIG](regressioncheck/checks/N
 |    1    | VSS_VHS_SelfDiffusion |                  | Testing the VHS/VSS collision model |   nProcs=6    | Number Density | [Link](regressioncheck/checks/NIG_Reservoir/VSS_VHS_SelfDiffusion/readme.md) |
 
 
-#### NIG_Dielectric
+### NIG_Dielectric
 
 Different dielectric regions in combination with the HDG solver (Poisson's equation)
 
@@ -178,7 +190,7 @@ Different dielectric regions in combination with the HDG solver (Poisson's equat
 |    5    |   HDG_sphere_in_box_potential_BC   |                  | single charged particle and dielectric region |   nProcs=1    | analytic reference solution and p-convergence rate |                                                                       |
 |    6    | HDG_sphere_in_sphere_analytical_BC |                  | single charged particle and dielectric region |   nProcs=1    | analytic reference solution and p-convergence rate |                                                                       |
 
-#### NIG_Reservoir
+### NIG_Reservoir
 
 Testing more complex DSMC routines with reservoir (heat bath) simulations: [Link CMAKE-CONFIG](regressioncheck/checks/NIG_Reservoir/builds.ini).
 
@@ -212,7 +224,7 @@ Testing more complex DSMC routines with reservoir (heat bath) simulations: [Link
 |   26    |          VarRelaxProb_hot          |                  | Relaxation of a hot reservoir of N2 and O2 with variable relaxation probabilities              |  nProcs=2,3   |               |          [Link](regressioncheck/checks/NIG_Reservoir/VarRelaxProb_hot/readme.md)          |
 |   27    |        VarRelaxProb_Restart        |                  | Initial Autorestart with variable relaxation probabilities                                     |  nProcs=1,2   |               |        [Link](regressioncheck/checks/NIG_Reservoir/VarRelaxProb_Restart/readme.md)        |
 
-#### NIG_tracking_DSMC
+### NIG_tracking_DSMC
 
 Testing of different tracking routines with DSMC: [Link to build](regressioncheck/checks/NIG_tracking_DSMC/builds.ini).
 
@@ -229,7 +241,7 @@ Testing of different tracking routines with DSMC: [Link to build](regressionchec
 |   11    | 2D_VTS_Distribution |                  | Restart with a DSMCState to calculate the variable time step |                                                |            PartState             | [Link](regressioncheck/checks/NIG_tracking_DSMC/2D_VTS_Distribution/readme.md) |
 |   12    | Macroscopic_Restart |                  | Restart with a DSMCState with an increased weighting factor  |                                                |      Total particle number       | [Link](regressioncheck/checks/NIG_tracking_DSMC/Macroscopic_Restart/readme.md) |
 
-#### NIG_SuperB
+### NIG_SuperB
 
 Testing of different SuperB examples (via piclas or standalone superB binary), which generate a 3D magnetic field distribution to be used in piclas: [Link to build](regressioncheck/checks/NIG_SuperB/builds.ini).
 
@@ -244,7 +256,7 @@ Testing of different SuperB examples (via piclas or standalone superB binary), w
 |    7    |    HollowCylinderMagnet    | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON |             hollow cylinder hard magnet, placed outside of simulation domain             | piclas, superB binaries (single-core) |             magnetic field reference solution h5diff             |    [Link](regressioncheck/checks/NIG_SuperB/HollowCylinderMagnet/readme.md)    |
 |    8    | HollowCylinderMagnetCurved | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON | hollow cylinder hard magnet (analytic solution along z-axis available), curvilinear grid | piclas, superB binaries (single-core) |             magnetic field reference solution h5diff             | [Link](regressioncheck/checks/NIG_SuperB/HollowCylinderMagnetCurved/readme.md) |
 
-#### NIG_PIC_poisson_Leapfrog
+### NIG_PIC_poisson_Leapfrog
 
 Testing PIC compiled with Leapfrog integration, solving Poisson's equation: [Link to build](regressioncheck/checks/NIG_PIC_poisson_Leapfrog/builds.ini).
 
@@ -258,7 +270,7 @@ Testing PIC compiled with Leapfrog integration, solving Poisson's equation: [Lin
 |    6    |   Dielectric_sphere_surface_charging_mortar    | poisson,Leapfrog |                     Poisson-PIC,Dielectric surface charging,mortars                      | nProcs=1,2,3,7,12 |                 DG_Source,DG_SourceExt,ElemData,DielectricGlobal                 |   [Link](regressioncheck/checks/NIG_PIC_poisson_Leapfrog/Dielectric_sphere_surface_charging_mortar/readme.md)    |
 |    7    | Dielectric_sphere_surface_charging_PStateBound | poisson,Leapfrog |                Poisson-PIC,Dielectric surface charging,PartStateBoundary                 |    nProcs=1,2     | PartStateBoundary,DSMCSurfState,DG_Source,DG_SourceExt,ElemData,DielectricGlobal | [Link](regressioncheck/checks/NIG_PIC_poisson_Leapfrog/Dielectric_sphere_surface_charging_PStateBound/readme.md) |
 
-#### NIG_PIC_poisson_RK3
+### NIG_PIC_poisson_RK3
 
 Testing PIC compiled with Runge-Kutta 3 integration, solving Poisson's equation: [Link to build](regressioncheck/checks/NIG_PIC_poisson_RK3/builds.ini).
 
@@ -270,7 +282,7 @@ Testing PIC compiled with Runge-Kutta 3 integration, solving Poisson's equation:
 |    4    |    parallel_plates_AC     |                  | CalcCoupledPower  |    nProcs=1     |      PartAnalyzeRK3_ref.csv      |    [Link](regressioncheck/checks/NIG_PIC_poisson_RK3/parallel_plates_AC/readme.md)     |
 |    5    |          turner           |                  |                   |    nProcs=4     |    L2 error, PartAnalyze.csv     |                                                                                        |
 
-#### NIG_PIC_maxwell_RK4
+### NIG_PIC_maxwell_RK4
 
 Testing PIC compiled with Runge-Kutta 4 integration, solving Maxwell's equations: [Link to build](regressioncheck/checks/NIG_PIC_maxwell_RK4/builds.ini).
 
@@ -281,7 +293,7 @@ Testing PIC compiled with Runge-Kutta 4 integration, solving Maxwell's equations
 |    3    |  single_particle  |                  |                              |              nProcs=1,2,3,4,5               |    L2 error, DG_Source     |            |
 |    4    | TWT_recordpoints  |                  |        RPs, ExactFlux        |     nProcs=1,4, RPs, interior TE-Inflow     |     RP_State, RP_Data      |            |
 
-#### NIG_maxwell_RK4
+### NIG_maxwell_RK4
 
 Testing the field solver (without compiling particle related routines) with Runge-Kutta 4 integration, solving Maxwell's equations: [Link to build](regressioncheck/checks/NIG_maxwell_RK4/builds.ini).
 
@@ -291,7 +303,7 @@ Testing the field solver (without compiling particle related routines) with Rung
 |    2    |    ExactFlux_PML    |                  |             |   nProcs=1,4,8    |  L2 error, FieldAnalyze  |                                                                          |
 |    3    |   MortarPlaneWave   |                  |   Mortars   | nProcs=1,2,5,7,12 | DG_Solution,FieldAnalyze | [Link](regressioncheck/checks/NIG_maxwell_RK4/MortarPlaneWave/readme.md) |
 
-#### NIG_SurfaceModel
+### NIG_SurfaceModel
 
 Testing the surface models with RESERVOIR timedisc: [Link to build](regressioncheck/checks/NIG_SurfaceModel/builds.ini).
 
@@ -300,7 +312,7 @@ Testing the surface models with RESERVOIR timedisc: [Link to build](regressionch
 |    1    | AdsorbHeat |                  | surfacemodel=3 | nProcs=1, LateralInactive=T,F | SurfaceAnalyze | [Link](regressioncheck/checks/NIG_SurfaceModel/AdsorbHeat/readme.md)  |
 |    2    | TPD_reggie |                  | surfacemodel=3 |           nProcs=1            | SurfaceAnalyze | [Link](regressioncheck/checks/NIG_SurfaceModel/TPD_reggies/readme.md) |
 
-#### NIG_LoadBalance
+### NIG_LoadBalance
 
 Testing the LoadBalance feature with different timediscs: [Link to build](regressioncheck/checks/NIG_LoadBalance/builds.ini).
 
@@ -311,7 +323,7 @@ Testing the LoadBalance feature with different timediscs: [Link to build](regres
 |    1    | sphere_soft_RK4_without_DSMC |                  |                                                     |                                                                                                                               |               |                                                                       |
 |    1    |         SurfaceModel         |                  | LoadBalance with surfacemodels 0, 2 and 3 with DSMC | nProcs=4, DoLoadBalance=T,F ,PartWeightLoadBalance=F,T ,DoInitialAutRestart=T,T ,InitialAutoRestart-PartWeightLoadBalance=F,F |               | [Link](regressioncheck/checks/NIG_LoadBalance/SurfaceModel/readme.md) |
 
-#### NIG_poisson
+### NIG_poisson
 
 Pure Poisson solver without particles: [Link to build](regressioncheck/checks/NIG_poisson/builds.ini).
 
@@ -319,7 +331,7 @@ Pure Poisson solver without particles: [Link to build](regressioncheck/checks/NI
 | :-----: | :-------------------: | :--------------: | :------------------------: | :-----------: | :--------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------: |
 |    1    | poisson_box_Dirichlet |                  | restart of lambda solution |  nProcs=1-13  | number of HDG iterations, which should be 0 on restart as the already correct solution is used | [Link](regressioncheck/checks/NIG_poisson/poisson_box_Dirichlet/readme.md) |
 
-#### NIG_Photoionization
+### NIG_Photoionization
 
 Test all features of photoionization within the HDG solver (without interpolation and deposition): [Link to build](regressioncheck/checks/NIG_Photoionization/builds.ini).
 

@@ -374,7 +374,6 @@ INTEGER                       :: ReactInx(1:4), EductReac(1:3), ProductReac(1:4)
 INTEGER                       :: SpecToDelete, iPart
 REAL                          :: FracMassCent1, FracMassCent2, MassRed      ! mx/(mx+my)
 REAL                          :: VeloCOM(1:3)                               !> Centre of mass velocity
-REAL                          :: VeloPseuMolec(1:3), VeloPseuMolec2(1:3)    !> Velocity of pseudo molecule
 REAL                          :: FakXi, Xi_total, iRan, FacEtraDistri
 REAL                          :: ERel_React1_React2, ERel_React1_React3, ERel_React2_React4
 REAL                          :: Xi_elec(1:4), EZeroTempToExec(1:4)
