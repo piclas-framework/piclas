@@ -48,10 +48,6 @@ CHARACTER(LEN=256)              :: DepositionType            ! Type of Depositio
 INTEGER,ALLOCATABLE             :: PartToFIBGM(:,:)          ! Mapping form Particle to FIBGM
 REAL,ALLOCATABLE                :: ElemRadius2_sf(:)         ! elem radius plus radius_sf
 REAL, ALLOCATABLE               :: BGMSource(:,:,:,:)
-REAL, ALLOCATABLE               :: NodeSourceExt(:)          ! Additional source for cell_volweight_mean (external or surface charge)
-!                                                            ! accumulates over time
-REAL, ALLOCATABLE               :: NodeSourceExtTmp(:)       ! Additional source for cell_volweight_mean (external or surface charge)
-!                                                            ! temporary variable, which is nullified repeatedly
 REAL                            :: r_sf                      ! cutoff radius of shape function
 REAL                            :: r2_sf                     ! cutoff radius of shape function * cutoff radius of shape function
 REAL                            :: r2_sf_inv                 ! 1/cutoff radius of shape function * cutoff radius of shape function
@@ -71,13 +67,6 @@ REAL,ALLOCATABLE                :: swGPNDepo(:)              ! integration weigh
 REAL,ALLOCATABLE                :: XiNDepo(:)                ! gauss position of barycenters
 REAL,ALLOCATABLE                :: Vdm_NDepo_GaussN(:,:)     ! VdM between different polynomial degrees
 REAL,ALLOCATABLE                :: DDMassinv(:,:,:,:)        ! inverse mass-matrix for deposition
-!LOGICAL                         :: DeltaDistriChangeBasis    ! Change polynomial degree
-LOGICAL                         :: DoSFEqui                  ! use equidistant points for SF
-LOGICAL                         :: DoSFLocalDepoAtBounds     ! Do not use shape function deposition in elements where a boundary
-!                                                            ! would truncate the shape function. Use a local deposition in these
-!                                                            ! elements instead of the shape function
-INTEGER                         :: SfRadiusInt               ! radius integer for cylindrical and spherical shape function
-REAL,ALLOCATABLE                :: ElemDepo_xGP(:,:,:,:,:)   ! element xGPs for deposition
 REAL,ALLOCATABLE                :: Vdm_EquiN_GaussN(:,:)     ! Vdm from equidistant points to Gauss Points
 INTEGER                         :: alpha_sf                  ! shapefuntion exponent
 REAL                            :: BGMdeltas(3)              ! Backgroundmesh size in x,y,z
@@ -90,7 +79,6 @@ INTEGER                         :: BGMmaxX                   ! Local maximum BGM
 INTEGER                         :: BGMmaxY                   ! Local maximum BGM Index in y
 INTEGER                         :: BGMmaxZ                   ! Local maximum BGM Index in z
 LOGICAL                         :: Periodic_Depo             ! Flag for periodic treatment for deposition
-!INTEGER                         :: DeltaType                 ! Flag
 INTEGER                         :: NKnots
 REAL,ALLOCATABLE                :: Knots(:)
 LOGICAL                         :: OutputSource              ! write the source to hdf5
@@ -105,11 +93,33 @@ INTEGER                         :: NodeVolume_Shared_Win
 REAL,ALLOCPOINT                 :: NodeVolume_Shared(:)
 #endif
 
+REAL,ALLOCPOINT                 :: SFElemr2_Shared(:,:)
+
 REAL,ALLOCPOINT                 :: NodeSource(:,:)
+REAL,ALLOCPOINT                 :: NodeSourceExt(:,:) ! Additional source for cell_volweight_mean (external or surface charge) 
+!                                                     ! that accumulates over time in elements adjacent to dielectric interfaces.
+!                                                     ! It contains the global, synchronized surface charge contribution that is
+!                                                     ! read and written to .h5
+REAL,ALLOCPOINT                 :: NodeSourceExtTmp(:,:) ! Additional source for cell_volweight_mean (external or surface charge) 
+!                                                        ! that accumulates over time in elements adjacent to dielectric interfaces.
+!                                                        ! It contains the local non-synchronized surface charge contribution (does
+!                                                        ! not consider the charge contribution from restart files). This
+!                                                        ! contribution accumulates over time, but remains locally to each processor
+!                                                        ! as it is communicated via the normal NodeSource container NodeSourceExt.
+
 #if USE_MPI
-REAL, ALLOCATABLE               :: NodeSourceLoc(:,:)
+INTEGER                         :: SFElemr2_Shared_Win  
+REAL, ALLOCATABLE               :: NodeSourceLoc(:,:)           ! global, synchronized charge/current density on corner nodes
 INTEGER                         :: NodeSource_Shared_Win
 REAL,ALLOCPOINT                 :: NodeSource_Shared(:,:)
+
+!REAL, ALLOCATABLE               :: NodeSourceExtLoc(:,:)       ! global, synchronized surface charge contribution
+INTEGER                         :: NodeSourceExt_Shared_Win
+REAL,ALLOCPOINT                 :: NodeSourceExt_Shared(:,:)
+
+REAL, ALLOCATABLE               :: NodeSourceExtTmpLoc(:,:)     ! local, non-synchronized surface charge contribution
+INTEGER                         :: NodeSourceExtTmp_Shared_Win
+REAL,ALLOCPOINT                 :: NodeSourceExtTmp_Shared(:,:)
 
 TYPE tNodeMapping
   INTEGER,ALLOCATABLE                   :: RecvNodeUniqueGlobalID(:)

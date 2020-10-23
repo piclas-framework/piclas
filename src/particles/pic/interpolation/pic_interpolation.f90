@@ -166,15 +166,11 @@ SUBROUTINE InterpolateFieldToParticle()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Particle_Vars          ,ONLY: PartPosRef,PDM,PartState,PEM,DoFieldIonization
+USE MOD_Particle_Vars          ,ONLY: PDM,PEM,DoFieldIonization
 USE MOD_Part_Tools             ,ONLY: isInterpolateParticle
 USE MOD_PIC_Vars
-USE MOD_PICInterpolation_Vars  ,ONLY: useVariableExternalField,FieldAtParticle,externalField,DoInterpolation,InterpolationType
+USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle,DoInterpolation,InterpolationType
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationElemLoop
-#if USE_MPI
-! only required for shape function??  only required for shape function??
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
-#endif
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
 #endif /* CODE_ANALYZE */
@@ -190,7 +186,6 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                          :: iPart,iElem
-REAL                             :: Pos(1:3),PartPosRef_loc(1:3)
 !===================================================================================================================================
 !0. Return if interpolation is not required
 IF(.NOT.DoInterpolation) RETURN

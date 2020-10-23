@@ -191,13 +191,16 @@ Within the parameter file it is possible to define different particle boundary c
 The `Part-Boundary1-SourceName=` corresponds to the name given during the preprocessing step with HOPR. The available conditions (`Part-Boundary1-Condition=`) are described in the table below.
 
 |  Condition   | Description                                                                                                                                                                                 |
-| :----------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| :----------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 |    `open`    | Every particle crossing the boundary will be deleted.                                                                                                                                       |
 | `reflective` | Allows the definition of specular and diffuse reflection. A perfect specular reflection is performed, if no other parameters are given (discussed in more detail in the following section). |
 | `symmetric`  | A perfect specular reflection, without sampling of particle impacts.                                                                                                                        |
+| `rot_periodic`  | Allows the definition of rotational periodicity.                                                                                                                        |
 
 For `reflective` boundaries, an additional option `Part-Boundary2-SurfaceModel` is available, that
 is used for heterogeneous reactions (reactions have reactants in two or more phases) or secondary electron emission models. These models are described in \ref{sec:chem_reac}.
+
+For `rot_periodic` exactly two corresponding boundaries must be defined. Every particle crossing the boundary will be inserted at the coressponding boundary that is rotational shifted.
 
 ### Diffuse Wall
 
@@ -220,6 +223,13 @@ Additionally, a wall velocity [m/s] and voltage [V] can be given
 
     Part-Boundary2-WallVelo=(/0,0,100/)
     Part-Boundary2-Voltage=100
+    
+In the case of rotating walls the `-RotVelo` flag, a rotation freqency [Hz], a origin of rotation axis (x, y, z coordinates) and the rotation axis vector must be set. Note that the definition of rotation direction is given by the rotation axis and the right-hand rule.
+
+    Part-Boundary2-RotVelo = T
+    Part-Boundary2-RotFreq = 100
+    Part-Boundary2-RotOrg = (/0.,0.,0./)
+    Part-Boundary2-RotAxi = (/0.,0.,1./)
 
 A linear temperature gradient across a boundary can be defined by supplying a second wall temperature and the start and end vector
 
@@ -228,6 +238,10 @@ A linear temperature gradient across a boundary can be defined by supplying a se
     Part-Boundary2-TemperatureGradientEnd=(/0.,0.,1./)
 
 Between these two points the temperature will be interpolated, where the start vector corresponds to the first wall temperature, while the end vector to the second wall temperature. Beyond these position values, the first and second temperature will be used as the constant wall temperature, respectively.
+
+### Rotational Periodicity
+
+The rotational periodic boundary condition can be used in order to reduce the computational effort in case of an existing rotational periodicity. In contrast to symmetric boundary condition macroscopic flow velocity in azimuthal direction can be simulated (e.g. circular flow around a rotating cylinder).
 
 ### Porous Wall / Pump
 

@@ -3064,7 +3064,6 @@ USE MOD_Equation_Vars     ,ONLY: E
 #endif
 #if USE_MPI
 USE MOD_Particle_MPI      ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars ,ONLY: PartMPIExchange
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here

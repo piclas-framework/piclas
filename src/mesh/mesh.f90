@@ -781,11 +781,12 @@ SUBROUTINE InitElemVolumes()
 !===================================================================================================================================
 ! Calculate Element volumes for later use in particle routines
 !===================================================================================================================================
-! MODULES                                               ! MODULES
-USE MOD_Globals            ,ONLY: UNIT_StdOut,MPI_COMM_WORLD,ABORT
+! MODULES
+USE MOD_Globals            ,ONLY: UNIT_StdOut
+!USE MOD_Globals            ,ONLY: ,MPI_COMM_WORLD,ABORT
 USE MOD_PreProc
 USE MOD_Interpolation_Vars ,ONLY: wGP
-USE MOD_Mesh_Vars          ,ONLY: nElems,nGlobalElems,offsetElem,sJ
+USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem,sJ
 USE MOD_Particle_Mesh_Vars ,ONLY: LocalVolume,MeshVolume
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_ReadInTools
@@ -807,7 +808,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Wi
 ! LOCAL VARIABLES
 INTEGER           :: iElem
 INTEGER           :: i,j,k
-INTEGER           :: ALLOCSTAT
+!INTEGER           :: ALLOCSTAT
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 INTEGER           :: offsetElemCNProc
 #if USE_MPI

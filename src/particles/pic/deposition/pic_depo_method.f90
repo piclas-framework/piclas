@@ -38,6 +38,7 @@ PROCEDURE(DepositionMethodInterface),POINTER :: DepositionMethod    !< pointer d
 
 INTEGER,PARAMETER      :: PRM_DEPO_SF   = 0  ! shape_function
 INTEGER,PARAMETER      :: PRM_DEPO_SF_CC= 1  ! shape_function_cc
+INTEGER,PARAMETER      :: PRM_DEPO_SF_ADAPTIVE= 2  ! shape_function_adaptive
 INTEGER,PARAMETER      :: PRM_DEPO_CVW  = 6  ! cell_volweight
 INTEGER,PARAMETER      :: PRM_DEPO_CVWM = 12 ! cell_volweight_mean
 
@@ -71,12 +72,14 @@ CALL prms%CreateLogicalOption('PIC-DoDeposition', 'Switch deposition of charge (
 CALL prms%CreateIntFromStringOption('PIC-Deposition-Type', "Type/Method used in the deposition step: \n"           //&
                                     '1.1)  shape_function ('//TRIM(int2strf(PRM_DEPO_SF))//')\n'                   //&
                                     '1.2)  shape_function_cc ('//TRIM(int2strf(PRM_DEPO_SF_CC))//')\n'             //&
+                                    '1.3)  shape_function_adaptive ('//TRIM(int2strf(PRM_DEPO_SF_ADAPTIVE))//')\n' //&
                                     '2.)   cell_volweight ('//TRIM(int2strf(PRM_DEPO_CVW))//')\n'                  //&
                                     '3.)   cell_volweight_mean ('//TRIM(int2strf(PRM_DEPO_CVWM))//')'                &
                                     ,'cell_volweight')
 
 CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function'             , PRM_DEPO_SF)
 CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function_cc'          , PRM_DEPO_SF_CC)
+CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function_adaptive'    , PRM_DEPO_SF_ADAPTIVE)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cell_volweight'             , PRM_DEPO_CVW)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cell_volweight_mean'        , PRM_DEPO_CVWM)
 END SUBROUTINE DefineParametersDepositionMethod
@@ -116,6 +119,9 @@ Case(PRM_DEPO_SF) ! shape_function
 Case(PRM_DEPO_SF_CC) ! shape_function
   DepositionMethod => DepositionMethod_SF
   DepositionType   = 'shape_function_cc'
+Case(PRM_DEPO_SF_ADAPTIVE) ! shape_function
+  DepositionMethod => DepositionMethod_SF
+  DepositionType   = 'shape_function_adaptive'
 Case(PRM_DEPO_CVW) ! cell_volweight
   DepositionType   = 'cell_volweight'
   DepositionMethod => DepositionMethod_CVW
@@ -296,14 +302,16 @@ USE MOD_Mesh_Vars          ,ONLY: nElems,OffsetElem
 USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared
-USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExtTmp,NodeSourceExt,NodeVolume,NodeSource
+USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExt,NodeVolume,NodeSource
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Part_Tools         ,ONLY: isDepositParticle
 #if USE_MPI
-USE MOD_Particle_MPI       ,ONLY: AddHaloNodeData
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceLoc, NodeMapping, NodeSource_Shared_Win
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myLeaderGroupRank
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors, nLeaderGroupProcs
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmpLoc
+#else
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
 #endif  /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
@@ -344,6 +352,7 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 
 ! Check whether charge and current density have to be computed or just the charge density
+! For HDG the current density is only required for output to HDF5, i.e., analysis reasons
 #if ((USE_HDG) && (PP_nVar==1))
 IF(ALMOSTEQUAL(dt,tAnalyzeDiff).OR.ALMOSTEQUAL(dt,tEndDiff))THEN
   doCalculateCurrentDensity=.TRUE.
@@ -355,8 +364,15 @@ END IF
 #endif
 
 #if USE_MPI
-ASSOCIATE(NodeSource => NodeSourceLoc)
+ASSOCIATE(NodeSource       => NodeSourceLoc       ,&
+          NodeSourceExtTmp => NodeSourceExtTmpLoc )
+firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
+lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
+#else
+firstNode = 1
+lastNode = nUniqueGlobalNodes
 #endif
+
 NodeSource=0.0
 DO iPart=1,PDM%ParticleVecLength
   IF(PRESENT(doParticle_In))THEN
@@ -381,28 +397,39 @@ DO iPart=1,PDM%ParticleVecLength
     alpha2=0.5*(TempPartPos(2)+1.0)
     alpha3=0.5*(TempPartPos(3)+1.0)
 
-    NodeID = ElemNodeID_Shared(:,PEM%CNElemID(iPart))
-    NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(1))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(1))) &
-        +(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
-    NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(2))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(2))) &
-        +(TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*(1-alpha3))
-    NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(3))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(3))) &
-        +(TSource(SourceDim:4)*  (alpha1)*  (alpha2)*(1-alpha3))
-    NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(4))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(4))) &
-        +(TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*(1-alpha3))
-    NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(5))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(5))) &
-        +(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*  (alpha3))
-    NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(6))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(6))) &
-        +(TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*  (alpha3))
-    NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(7))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(7))) &
-        +(TSource(SourceDim:4)*  (alpha1)*  (alpha2)*  (alpha3))
-    NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(8))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(8))) &
-        +(TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*  (alpha3))
+    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,PEM%CNElemID(iPart)))
+    NodeSource(SourceDim:4,NodeID(1)) = NodeSource(SourceDim:4,NodeID(1)) + (TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
+    NodeSource(SourceDim:4,NodeID(2)) = NodeSource(SourceDim:4,NodeID(2)) + (TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*(1-alpha3))
+    NodeSource(SourceDim:4,NodeID(3)) = NodeSource(SourceDim:4,NodeID(3)) + (TSource(SourceDim:4)*  (alpha1)*  (alpha2)*(1-alpha3))
+    NodeSource(SourceDim:4,NodeID(4)) = NodeSource(SourceDim:4,NodeID(4)) + (TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*(1-alpha3))
+    NodeSource(SourceDim:4,NodeID(5)) = NodeSource(SourceDim:4,NodeID(5)) + (TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*  (alpha3))
+    NodeSource(SourceDim:4,NodeID(6)) = NodeSource(SourceDim:4,NodeID(6)) + (TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*  (alpha3))
+    NodeSource(SourceDim:4,NodeID(7)) = NodeSource(SourceDim:4,NodeID(7)) + (TSource(SourceDim:4)*  (alpha1)*  (alpha2)*  (alpha3))
+    NodeSource(SourceDim:4,NodeID(8)) = NodeSource(SourceDim:4,NodeID(8)) + (TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*  (alpha3))
 #if USE_LOADBALANCE
-   CALL LBElemSplitTime(PEM%LocalElemID(iPart),tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
+  CALL LBElemSplitTime(PEM%LocalElemID(iPart),tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
 #endif /*USE_LOADBALANCE*/
   END IF
 END DO
+
+
+
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
+! 1/2 Add the local non-synchronized surface charge contribution (does not consider the charge contribution from restart files) from
+! NodeSourceExtTmp. This contribution accumulates over time, but remains locally to each processor as it is communicated via the 
+! normal NodeSource container. The synchronized part is added after communication.
+IF(DoDielectricSurfaceCharge)THEN
+    NodeSource(4,:) = NodeSource(4,:) + NodeSourceExtTmp(1,:)
+END IF ! DoDielectricSurfaceCharge
+#if USE_LOADBALANCE
+CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
+#endif /*USE_LOADBALANCE*/
+
+
+
+
 #if USE_MPI
 END ASSOCIATE
 MessageSize = (5-SourceDim)*nUniqueGlobalNodes
@@ -464,37 +491,38 @@ IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
 END IF
 CALL MPI_WIN_SYNC(NodeSource_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
-firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
-lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
-#else
-firstNode = 1
-lastNode = nUniqueGlobalNodes
 #endif
 
-! Node MPI communication
-#if USE_MPI
-!! Communicate dielectric surface charges stored in NodeSourceExtTmp
-!IF(DoDielectricSurfaceCharge)THEN
-!  CALL AddHaloNodeData(NodeSourceExtTmp)
-!END IF ! DoDielectricSurfaceCharge
-#endif /*USE_MPI*/
 
-!IF(DoDielectricSurfaceCharge)THEN
-!  ! Update external node source containing dielectric surface charges and nullify
-!  NodeSourceExt    = NodeSourceExt + NodeSourceExtTmp
-!  NodeSourceExtTmp = 0.
 
-!  ! Add external node source (e.g. surface charging)
-!  NodeSource(4,:) = NodeSource(4,:) + NodeSourceExt
-!END IF ! DoDielectricSurfaceCharge
 
-! Currently also "Nodes" are included in time measurement that is averaged across all elements. Can this be improved?
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
+
+! 2/2 Add the global, synchronized surface charge contribution (considers the charge contribution from restart files) from 
+! NodeSourceExt. The container NodeSourceExt is updated when it is written to .h5, where, additionally, the container
+! NodeSourceExtTmp is nulled
+IF(DoDielectricSurfaceCharge)THEN
+  DO iNode=firstNode, lastNode
+    NodeSource(4,iNode) = NodeSource(4,iNode) + NodeSourceExt(1,iNode)
+  END DO
+END IF ! DoDielectricSurfaceCharge
+
+
+
+
+! Currently also "Nodes" are included in time measurement that is averaged across all elements. Can this be improved?
 DO iNode=firstNode, lastNode
   NodeSource(SourceDim:4,iNode) = NodeSource(SourceDim:4,iNode)/NodeVolume(iNode)
 END DO
+#if USE_LOADBALANCE
+CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
+#endif /*USE_LOADBALANCE*/
+
+
+
+
 #if USE_MPI
 CALL MPI_WIN_SYNC(NodeSource_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
@@ -504,6 +532,12 @@ lastElem  = offSetElem+nElems
 firstElem = 1
 lastElem = nElems
 #endif
+
+
+
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
 ! Interpolate node source values to volume polynomial
 DO iElem = firstElem, lastElem
   DO kk = 0, PP_N
@@ -512,16 +546,16 @@ DO iElem = firstElem, lastElem
         alpha1 = CellVolWeightFac(kk)
         alpha2 = CellVolWeightFac(ll)
         alpha3 = CellVolWeightFac(mm)
-        NodeID=ElemNodeID_Shared(:,GetCNElemID(iElem))
+        NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem)))
         Partsource(SourceDim:4,kk,ll,mm,GetCNElemID(iElem)) = &
-             NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(1))) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
-             NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(2))) * (alpha1) * (1-alpha2) * (1-alpha3) + &
-             NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(3))) * (alpha1) * (alpha2) * (1-alpha3) + &
-             NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(4))) * (1-alpha1) * (alpha2) * (1-alpha3) + &
-             NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(5))) * (1-alpha1) * (1-alpha2) * (alpha3) + &
-             NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(6))) * (alpha1) * (1-alpha2) * (alpha3) + &
-             NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(7))) * (alpha1) * (alpha2) * (alpha3) + &
-             NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(8))) * (1-alpha1) * (alpha2) * (alpha3)
+             NodeSource(SourceDim:4,NodeID(1)) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
+             NodeSource(SourceDim:4,NodeID(2)) * (alpha1)   * (1-alpha2) * (1-alpha3) + &
+             NodeSource(SourceDim:4,NodeID(3)) * (alpha1)   * (alpha2)   * (1-alpha3) + &
+             NodeSource(SourceDim:4,NodeID(4)) * (1-alpha1) * (alpha2)   * (1-alpha3) + &
+             NodeSource(SourceDim:4,NodeID(5)) * (1-alpha1) * (1-alpha2) * (alpha3)   + &
+             NodeSource(SourceDim:4,NodeID(6)) * (alpha1)   * (1-alpha2) * (alpha3)   + &
+             NodeSource(SourceDim:4,NodeID(7)) * (alpha1)   * (alpha2)   * (alpha3)   + &
+             NodeSource(SourceDim:4,NodeID(8)) * (1-alpha1) * (alpha2)   * (alpha3)
       END DO !mm
     END DO !ll
   END DO !kk
