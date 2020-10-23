@@ -29,16 +29,12 @@ INTERFACE FinalizeDSMC
   MODULE PROCEDURE FinalizeDSMC
 END INTERFACE
 
-INTERFACE DSMC_SetInternalEnr_LauxVFD
-  MODULE PROCEDURE DSMC_SetInternalEnr_LauxVFD
-END INTERFACE
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: InitDSMC, DSMC_SetInternalEnr_LauxVFD, FinalizeDSMC
+PUBLIC :: InitDSMC, FinalizeDSMC
 !===================================================================================================================================
 PUBLIC::DefineParametersDSMC
 CONTAINS
@@ -94,6 +90,8 @@ CALL prms%CreateRealOption(     'Particles-DSMC-PartitionMaxTemp'&
 CALL prms%CreateRealOption(     'Particles-DSMC-PartitionInterval'&
                                           , 'Define temperature interval for pre-stored partition functions that are used for '//&
                                           'calculation of backwards rates', '10.0')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-AmbipolarDiffusion'&
+                                          , 'FOOBAR' , '.FALSE.')
 !-----------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcQualityFactors'&
                                           , 'Enables [TRUE] / disables [FALSE] the calculation and output of flow-field variable.\n'//&
@@ -436,6 +434,7 @@ USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_DSMC_SpecXSec          ,ONLY: MCC_Init
 USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelocityVector4Coll, PostCollVec
+USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -479,6 +478,20 @@ IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
         ,'ERROR: Radial weighting or variable time step is not implemented with the chosen SelectionProcedure: ' &
         ,IntInfoOpt=SelectionProc)
   END IF
+END IF
+DSMC%DoAmbipolarDiff = GETLOGICAL('Particles-DSMC-AmbipolarDiffusion')
+IF (DSMC%DoAmbipolarDiff) THEN
+  DSMC%AmbiDiffElecSpec = 0
+  DO iSpec = 1, nSpecies
+    IF (Species(iSpec)%ChargeIC.GT.0.0) CYCLE
+    IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1) DSMC%AmbiDiffElecSpec=iSpec
+  END DO
+  IF(DSMC%AmbiDiffElecSpec.EQ.0) THEN
+    CALL abort(__STAMP__&
+        ,'ERROR: No electron species found for ambipolar diffusion: ' &
+        ,IntInfoOpt=DSMC%AmbiDiffElecSpec)
+  END IF
+  IF(.NOT.ALLOCATED(AmbipolElecVelo)) ALLOCATE(AmbipolElecVelo(PDM%maxParticleNumber))
 END IF
 DSMC%MergeSubcells = GETLOGICAL('Particles-DSMC-MergeSubcells','.FALSE.')
 IF(DSMC%MergeSubcells.AND.(Symmetry%Order.LE.2)) THEN
@@ -1496,94 +1509,6 @@ IF(AutoDetect)THEN
   END DO
 END IF
 END SUBROUTINE SetNextIonizationSpecies
-
-
-SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
-!===================================================================================================================================
-!> Energy distribution according to dissertation of Laux (diatomic)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals                 ,ONLY: abort
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn, SpecDSMC, DSMC
-USE MOD_Particle_Vars           ,ONLY: Species, PEM, Adaptive_MacroVal
-USE MOD_DSMC_ElectronicModel    ,ONLY: InitElectronShell
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)             :: iSpecies, iInit, iPart, init_or_sf
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                            :: iRan
-INTEGER                         :: iQuant
-REAL                            :: TVib                       ! vibrational temperature
-REAL                            :: TRot                       ! rotational temperature
-INTEGER                         :: ElemID
-!===================================================================================================================================
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Set internal energies (vibrational and rotational)
-!-----------------------------------------------------------------------------------------------------------------------------------
-ElemID = PEM%LocalElemID(iPart)
-IF ((SpecDSMC(iSpecies)%InterID.EQ.2).OR.(SpecDSMC(iSpecies)%InterID.EQ.20)) THEN
-  SELECT CASE (init_or_sf)
-  CASE(1) !iInit
-    TVib=SpecDSMC(iSpecies)%Init(iInit)%TVib
-    TRot=SpecDSMC(iSpecies)%Init(iInit)%TRot
-  CASE(2) !SurfaceFlux
-    IF(Species(iSpecies)%Surfaceflux(iInit)%Adaptive) THEN
-      SELECT CASE(Species(iSpecies)%Surfaceflux(iInit)%AdaptiveType)
-        CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
-          TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
-          TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
-        CASE(2) ! adaptive Outlet/freestream
-          TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
-                  / (BoltzmannConst * Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpecies))
-          TRot = TVib
-        CASE DEFAULT
-          CALL abort(&
-          __STAMP__&
-          ,'Wrong adaptive type for Surfaceflux in int_energy -> lauxVDF!')
-      END SELECT
-    ELSE
-      TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
-      TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
-    END IF
-  CASE DEFAULT
-    CALL abort(&
-    __STAMP__&
-    ,'neither iInit nor Surfaceflux defined as reference!')
-  END SELECT
-  ! Set vibrational energy
-  CALL RANDOM_NUMBER(iRan)
-  iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpecies)%CharaTVib)
-  DO WHILE (iQuant.GE.SpecDSMC(iSpecies)%MaxVibQuant)
-    CALL RANDOM_NUMBER(iRan)
-    iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpecies)%CharaTVib)
-  END DO
-  PartStateIntEn( 1,iPart) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpecies)%CharaTVib*BoltzmannConst
-  ! Set rotational energy
-  CALL RANDOM_NUMBER(iRan)
-  PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan)
-ELSE
-  ! Nullify energy for atomic species
-  PartStateIntEn( 1,iPart) = 0
-  PartStateIntEn( 2,iPart) = 0
-END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Set electronic energy
-!-----------------------------------------------------------------------------------------------------------------------------------
-IF (DSMC%ElectronicModel) THEN
-  IF((SpecDSMC(iSpecies)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpecies)%FullyIonized)) THEN
-    CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
-  ELSE
-    PartStateIntEn( 3,iPart) = 0.
-  END IF
-ENDIF
-
-END SUBROUTINE DSMC_SetInternalEnr_LauxVFD
 
 
 SUBROUTINE SetVarVibProb2Elems()

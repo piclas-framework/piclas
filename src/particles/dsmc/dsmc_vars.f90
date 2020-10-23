@@ -293,6 +293,8 @@ TYPE tDSMC
 #endif
   LOGICAL                       :: MergeSubcells            ! Merge subcells after quadtree division if number of particles within
                                                             ! subcell is less than 7
+  LOGICAL                       :: DoAmbipolarDiff
+  INTEGER                       :: AmbiDiffElecSpec
 END TYPE tDSMC
 
 TYPE(tDSMC)                     :: DSMC
@@ -497,6 +499,13 @@ TYPE tPolyatomMolVibQuant !DSMC Species Param
 END TYPE
 
 TYPE (tPolyatomMolVibQuant), ALLOCATABLE    :: VibQuantsPar(:)
+
+TYPE tAmbipolElecVelo !DSMC Species Param
+  REAL, ALLOCATABLE            :: ElecVelo(:)            ! Vib quants of each DOF for each particle
+  LOGICAL                      :: IsCoupled
+END TYPE
+
+TYPE (tAmbipolElecVelo), ALLOCATABLE    :: AmbipolElecVelo(:)
 
 TYPE tElectronicDistriPart !DSMC Species Param
   REAL, ALLOCATABLE               :: DistriFunc(:)            ! Vib quants of each DOF for each particle

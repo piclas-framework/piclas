@@ -26,30 +26,30 @@ INTERFACE AD_InsertParticles
   MODULE PROCEDURE AD_InsertParticles
 END INTERFACE
 
-!INTERFACE BGGas_DeleteParticles
-!  MODULE PROCEDURE BGGas_DeleteParticles
-!END INTERFACE
+INTERFACE AD_DeleteParticles
+  MODULE PROCEDURE AD_DeleteParticles
+END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: AD_InsertParticles,
+PUBLIC :: AD_InsertParticles, AD_DeleteParticles
 !===================================================================================================================================
 
 CONTAINS
 
-SUBROUTINE AD_InsertParticles(iPartIndx_Node,nPart, vBulk)
+SUBROUTINE AD_InsertParticles(iPartIndx_Node, nPart, iPartIndx_NodeTotalAmbi, TotalPartNum)
 !===================================================================================================================================
 !> Creating electrons for each actual ion simulation particle
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort
-USE MOD_DSMC_Init              ,ONLY: DSMC_SetInternalEnr_LauxVFD
-USE MOD_DSMC_Vars              ,ONLY: BGGas, SpecDSMC, CollisMode
+USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_DSMC_Vars              ,ONLY: BGGas, SpecDSMC, CollisMode, DSMC, PartStateIntEn,AmbipolElecVelo,RadialWeighting
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
-USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef
+USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef, Species, nSpecies,VarTimeStep, PartMPF
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
 #if USE_LOADBALANCE
@@ -59,11 +59,15 @@ USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime,LBPauseTime
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(INOUT)             :: iPartIndx_Node(1:nPart)
+INTEGER,INTENT(INOUT)             :: nPart, TotalPartNum
+INTEGER,INTENT(INOUT),ALLOCATABLE :: iPartIndx_NodeTotalAmbi(:)             
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iNewPart, iPart, PositionNbr, iSpec, LocalElemID, iPartIndx_Nodetmp(nPart)
+INTEGER           :: iNewPart, iPart, PositionNbr, LocalElemID, iPartIndx_Nodetmp(1:nPart), iLoop, nNewElectrons, IonIndX(nPart)
+REAL              :: MaxPos(3), MinPos(3), Vec3D(3)
 #if USE_LOADBALANCE
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -71,91 +75,113 @@ REAL              :: tLBStart
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-
+MaxPos = -HUGE(MaxPos)
+MinPos = HUGE(MinPos)
 iNewPart=0
 PositionNbr = 0
 nNewElectrons = 0
 DO iLoop = 1, nPart
   iPart = iPartIndx_Node(iLoop)
-  IF(Species(PartSpecies(iPart))%ChargeIC.GT.0.0) nNewElectrons = nNewElectrons + 1
+  MaxPos(1) = MAX(MaxPos(1),PartState(1,iPart))
+  MaxPos(2) = MAX(MaxPos(2),PartState(2,iPart))
+  MaxPos(3) = MAX(MaxPos(3),PartState(3,iPart))
+  MinPos(1) = MIN(MinPos(1),PartState(1,iPart))
+  MinPos(2) = MIN(MinPos(2),PartState(2,iPart))
+  MinPos(3) = MIN(MinPos(3),PartState(3,iPart))
+  IF(Species(PartSpecies(iPart))%ChargeIC.GT.0.0) THEN
+    AmbipolElecVelo(iPart)%IsCoupled = .FALSE.
+    nNewElectrons = nNewElectrons + 1
+    IonIndX(nNewElectrons) = iPart
+  END IF
 END DO
 IF (nNewElectrons.EQ.0) RETURN
-iPartIndx_Nodetmp = iPartIndx_Node
-DEALLOCATE(iPartIndx_Node)
-ALLOCATE(iPartIndx_Node(nPart + nNewElectrons))
+iPartIndx_Nodetmp(1:nPart) = iPartIndx_Node(1:nPart)
+ALLOCATE(iPartIndx_NodeTotalAmbi(nPart + nNewElectrons))
 iPartIndx_Node(1:nPart) = iPartIndx_Nodetmp(1:nPart)
 
-!DO iPart = 1, PDM%ParticleVecLength
-!  IF (PDM%ParticleInside(iPart)) THEN
-!    ! Skip background particles that have been created within this loop
-!    IF(BGGas%BackgroundSpecies(PartSpecies(iPart))) CYCLE
-!    iNewPart = iNewPart + 1
-!    PositionNbr = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition)
-!    IF (PositionNbr.EQ.0) THEN
-!      CALL Abort(&
-!__STAMP__&
-!,'ERROR in BGGas: MaxParticleNumber should be twice the expected number of particles, to account for the BGG particles!')
-!    END IF
-!    PartState(1:3,PositionNbr) = PartState(1:3,iPart)
-!    IF(DoRefMapping)THEN ! here Nearst-GP is missing
-!      PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,iPart)
-!    END IF
-!    iSpec = BGGas_GetSpecies()
-!    PartSpecies(PositionNbr) = iSpec
-!    IF(CollisMode.GT.1) THEN
-!      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-!        CALL DSMC_SetInternalEnr_Poly(iSpec,1,PositionNbr,1)
-!      ELSE
-!        CALL DSMC_SetInternalEnr_LauxVFD(iSpec,1,PositionNbr,1)
-!      END IF
-!    END IF
-!    PEM%GlobalElemID(PositionNbr) = PEM%GlobalElemID(iPart)
-!    LocalElemID = PEM%LocalElemID(PositionNbr)
-!    PDM%ParticleInside(PositionNbr) = .true.
-!    PEM%pNext(PEM%pEnd(LocalElemID)) = PositionNbr     ! Next Particle of same Elem (Linked List)
-!    PEM%pEnd(LocalElemID) = PositionNbr
-!    PEM%pNumber(LocalElemID) = PEM%pNumber(LocalElemID) + 1
-!    BGGas%PairingPartner(iPart) = PositionNbr
-!    CALL CalcVelocity_maxwell_lpn(FractNbr=iSpec, Vec3D=PartState(4:6,PositionNbr), iInit=1)
-!  END IF
-!END DO
-!PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,PositionNbr)
-!PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + iNewPart
+DO iLoop = 1, nNewElectrons
+  PositionNbr = PDM%nextFreePosition(iLoop+PDM%CurrentNextFreePosition)
+  IF (PositionNbr.EQ.0) THEN
+    CALL Abort(&
+__STAMP__&
+,'ERROR in Ambipolar Diffusion: MaxParticleNumber too small!')
+  END IF
+  CALL RANDOM_NUMBER(Vec3D(1:3))
+  PartState(1:3,PositionNbr) = MinPos(1:3)+Vec3D(1:3)*(MaxPos(1:3)-MinPos(1:3))
+  PartSpecies(PositionNbr) = DSMC%AmbiDiffElecSpec
+  PEM%GlobalElemID(PositionNbr) = PEM%GlobalElemID(iPartIndx_Node(1))
+  PDM%ParticleInside(PositionNbr) = .true.
+  PartState(4:6,PositionNbr) = AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(1:3)
+  IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
+    PartStateIntEn( 1,PositionNbr) = 0.
+    PartStateIntEn( 2,PositionNbr) = 0.
+    IF (DSMC%ElectronicModel)   PartStateIntEn( 3,PositionNbr) = 0.
+  END IF
+  IF(RadialWeighting%DoRadialWeighting) PartMPF(PositionNbr) = PartMPF(IonIndX(iLoop))
+  IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(PositionNbr) = VarTimeStep%ParticleTimeStep(IonIndX(iLoop))
+  iPartIndx_Node(nPart+iLoop) = PositionNbr
+END DO
+PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,PositionNbr)
+PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + nNewElectrons
+TotalPartNum = nPart + nNewElectrons
 
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DSMC,tLBStart)
 #endif /*USE_LOADBALANCE*/
 END SUBROUTINE AD_InsertParticles
 
+SUBROUTINE AD_DeleteParticles(iPartIndx_Node, nPart)
+!===================================================================================================================================
+! Deletes all background gas particles and updates the particle index list
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PARTICLE_Vars,      ONLY : PDM, PartSpecies, Species, PartState
+USE MOD_Particle_Analyze,   ONLY : PARTISELECTRON
+USE MOD_DSMC_Vars,          ONLY : AmbipolElecVelo
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(INOUT)       :: iPartIndx_Node(:), nPart
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                     :: iPart, iLoop, nElectron, nIon
+INTEGER                     :: ElecIndx(nPart), IonIndX(nPart)
+!===================================================================================================================================
+nElectron =0; nIon = 0
+DO iLoop = 1, nPart
+  iPart = iPartIndx_Node(iLoop)
+  IF (PDM%ParticleInside(iPart)) THEN
+    IF(PARTISELECTRON(iPart)) THEN
+      nElectron = nElectron + 1
+      ElecIndx(nElectron) = iPart
+    END IF
+    IF(Species(PartSpecies(iPart))%ChargeIC.GT.0.0) THEN
+      IF (.NOT.AmbipolElecVelo(iPart)%IsCoupled) THEN
+        nIon = nIon + 1
+        IonIndX(nIon) = iPart
+      END IF
+    END IF
+  END IF
+END DO
 
+IF(nIon.EQ.nElectron) THEN
+  CALL abort(__STAMP__&
+      ,'ERROR: Number of electrons and ions is not equal for ambipolar diffusion: ' &
+      ,IntInfoOpt=nIon-nElectron)
+END IF
 
-!SUBROUTINE BGGas_DeleteParticles()
-!!===================================================================================================================================
-!! Deletes all background gas particles and updates the particle index list
-!!===================================================================================================================================
-!! MODULES
-!USE MOD_DSMC_Vars,          ONLY : BGGas
-!USE MOD_PARTICLE_Vars,      ONLY : PDM, PartSpecies
-!USE MOD_part_tools,         ONLY : UpdateNextFreePosition
-!! IMPLICIT VARIABLE HANDLING
-!  IMPLICIT NONE
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! INPUT VARIABLES
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! OUTPUT VARIABLES
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-!INTEGER                     :: iPart
-!!===================================================================================================================================
+DO iLoop = 1, nElectron
+  IF (ALLOCATED(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo)
+  ALLOCATE(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(3))
+  AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(1:3) = PartState(4:6,ElecIndx(iLoop))
+  AmbipolElecVelo(IonIndX(iLoop))%IsCoupled = .TRUE.
+  PDM%ParticleInside(ElecIndx(iLoop)) = .FALSE.
+END DO
 
-!DO iPart = 1, PDM%ParticleVecLength
-!  IF (PDM%ParticleInside(iPart)) THEN
-!    IF(BGGas%BackgroundSpecies(PartSpecies(iPart))) PDM%ParticleInside(iPart) = .FALSE.
-!  END IF
-!END DO
-!BGGas%PairingPartner = 0
-!CALL UpdateNextFreePosition()
-
-!END SUBROUTINE BGGas_DeleteParticles
+END SUBROUTINE AD_DeleteParticles
 
 END MODULE MOD_DSMC_AmbipolarDiffusion

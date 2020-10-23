@@ -1020,10 +1020,10 @@ SUBROUTINE WriteParticleToHDF5(FileName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
-USE MOD_Particle_Vars          ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF, nSpecies, VarTimeStep
+USE MOD_Particle_Vars          ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF, nSpecies, VarTimeStep, Species
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
-USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart
+USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
@@ -1051,7 +1051,7 @@ LOGICAL                        :: withDSMC=.FALSE.
 INTEGER                        :: iElem_glob, iElem_loc
 REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER, ALLOCATABLE           :: VibQuantData(:,:)
-REAL, ALLOCATABLE              :: ElecDistriData(:,:)
+REAL, ALLOCATABLE              :: ElecDistriData(:,:), AD_Data(:,:)
 INTEGER,PARAMETER              :: PartIntSize=2        !number of entries in each line of PartInt
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
 INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec, MaxElecQuant
@@ -1161,7 +1161,10 @@ IF (withDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)  THEN
   ElecDistriData = 0
   !+1 is real number of necessary vib quants for the particle
 END IF
-
+IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
+  ALLOCATE(AD_Data(3,offsetnPart+1_IK:offsetnPart+locnPart))
+  AD_Data = 0.0
+END IF
 !!! Kleiner Hack von JN (Teil 1/2):
 
 IF (.NOT.(useDSMC.OR.usevMPF)) THEN
@@ -1250,6 +1253,14 @@ DO iElem_loc=1,PP_nElems
             ElectronicDistriPart(pcount)%DistriFunc(1:SpecDSMC(PartSpecies(pcount))%MaxElecQuant)
         ELSE
            ElecDistriData(:,iPart) = 0
+        END IF
+      END IF
+
+      IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
+        IF (Species(PartSpecies(pcount))%ChargeIC.GT.0.0) THEN
+          AD_Data(1:3,iPart) = AmbipolElecVelo(pcount)%ElecVelo(1:3)
+        ELSE
+          AD_Data(1:3,iPart) = 0
         END IF
       END IF
 
@@ -1388,6 +1399,16 @@ ASSOCIATE (&
                               communicator=PartMPI%COMM  , RealArray=ElecDistriData)
     DEALLOCATE(ElecDistriData)
   END IF
+  IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
+    CALL DistributedWriteArray(FileName , &
+                              DataSetName ='ADVeloData', rank=2           , &
+                              nValGlobal  =(/3 , nGlobalNbrOfParticles  /)   , &
+                              nVal        =(/3 , locnPart    /)   , &
+                              offset      =(/0_IK        , offsetnPart /)   , &
+                              collective  =.FALSE.       , offSetDim=2      , &
+                              communicator=PartMPI%COMM  , RealArray=AD_Data)
+    DEALLOCATE(AD_Data)
+  END IF
   ! Output of the element-wise time step as a separate container in state file
   IF(VarTimeStep%UseDistribution) THEN
     CALL DistributedWriteArray(FileName , &
@@ -1420,6 +1441,14 @@ ASSOCIATE (&
                           offset      = (/ 0_IK        , offsetnPart  /)      , &
                           collective  = .TRUE.         , RealArray = ElecDistriData)
     DEALLOCATE(ElecDistriData)
+  END IF
+  IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
+    CALL WriteArrayToHDF5(DataSetName = 'ADVeloData' , rank = 2             , &
+                          nValGlobal  = (/ 3 , nGlobalNbrOfParticles   /)      , &
+                          nVal        = (/ 3 , locnPart     /)      , &
+                          offset      = (/ 0_IK        , offsetnPart  /)      , &
+                          collective  = .TRUE.         , RealArray = AD_Data)
+    DEALLOCATE(AD_Data)
   END IF
     ! Output of the element-wise time step as a separate container in state file
   IF(VarTimeStep%UseDistribution) THEN

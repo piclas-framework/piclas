@@ -362,56 +362,48 @@ SUBROUTINE PerformPairingAndCollision(iPartIndx_Node, PartNum, iElem, NodeVolume
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
-USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision, SumVibRelaxProb
-USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
-USE MOD_DSMC_Vars             ,ONLY: SelectionProc, useRelaxProbCorrFactor
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep, Symmetry
-USE MOD_TimeDisc_Vars         ,ONLY: TEnd, time
-USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath, CalcInstantElecTempXi
-USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_DSMC_Relaxation       ,ONLY: CalcMeanVibQuaDiatomic
-USE MOD_DSMC_Symmetry         ,ONLY: DSMC_2D_TreatIdenticalParticles
+USE MOD_DSMC_CollisionProb      ,ONLY: DSMC_prob_calc
+USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision, SumVibRelaxProb
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: SelectionProc, useRelaxProbCorrFactor
+USE MOD_Particle_Vars           ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep, Symmetry
+USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
+USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath, CalcInstantElecTempXi
+USE MOD_part_tools              ,ONLY: GetParticleWeight
+USE MOD_DSMC_Relaxation         ,ONLY: CalcMeanVibQuaDiatomic
+USE MOD_DSMC_Symmetry           ,ONLY: DSMC_2D_TreatIdenticalParticles
+USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_InsertParticles, AD_DeleteParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL, INTENT(IN)              :: NodeVolume
 INTEGER, INTENT(IN)           :: PartNum, iElem
-INTEGER, INTENT(INOUT)        :: iPartIndx_Node(:)
+INTEGER, INTENT(INOUT), TARGET:: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: nPair, iPair, iPart, nPart
+INTEGER                       :: nPair, iPair, iPart, nPart, TotalPartNum
 INTEGER                       :: cSpec1, cSpec2, iCase
-REAL                          :: iRan, vBulk(3)
+REAL                          :: iRan
+INTEGER, ALLOCATABLE, TARGET  :: iPartIndx_NodeTotalAmbi(:)
+INTEGER, POINTER              :: iPartIndx_NodeTotal(:)
 !===================================================================================================================================
 
-IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
-.OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1)).OR.(DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)) THEN
-  ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
-  !           relaxation probability (CalcGammaVib)
-  ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
-  ! 3. Case: Temperature required for the mean free path with the VHS model
-  ! 4. Case: Needed to calculate the correction factor
-  CALL CalcInstantTransTemp(iPartIndx_Node,PartNum, vBulk)
-  IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) CALL CalcInstantElecTempXi(iPartIndx_Node,PartNum)
-  IF((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)) CALL CalcGammaVib()
-END IF
-
 ! 0). Ambipolar Diffusion
-IF (Ambipolar) THEN
+IF (DSMC%DoAmbipolarDiff) THEN
   nPart = PartNum
-  CALL AD_InsertParticles(iPartIndx_Node,nPart, vBulk)
+  CALL AD_InsertParticles(iPartIndx_Node,nPart, iPartIndx_NodeTotalAmbi, TotalPartNum)
+  nPart = TotalPartNum
+  iPartIndx_NodeTotal => iPartIndx_NodeTotalAmbi
 ELSE
   nPart = PartNum
+  TotalPartNum = PartNum
+  iPartIndx_NodeTotal => iPartIndx_Node
 END IF
-
-
 ! 1). Reset collision and pair specific variables
-nPart = PartNum
-nPair = INT(nPart/2)
+nPair = INT(TotalPartNum/2)
 CollInf%Coll_SpecPartNum = 0
 CollInf%Coll_CaseNum = 0
 ALLOCATE(Coll_pData(nPair))
@@ -420,9 +412,9 @@ Coll_pData%Ec=0
 IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
 
 ! 2.) Calculate cell/subcell local variables and count the number of particles per species
-DO iPart = 1, PartNum
-  CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) &
-                                                                  + GetParticleWeight(iPartIndx_Node(iPart))
+DO iPart = 1, TotalPartNum
+  CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_NodeTotal(iPart))) = CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_NodeTotal(iPart))) &
+                                                                  + GetParticleWeight(iPartIndx_NodeTotal(iPart))
 END DO
 
 IF (CollisMode.EQ.3) THEN
@@ -430,31 +422,43 @@ IF (CollisMode.EQ.3) THEN
   ChemReac%nPairForRec = 0
 ! Determination of the mean vibrational energy for the cell
   ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
-  DO iPart = 1, PartNum
-    ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart)))=ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) &
-      + PartStateIntEn(1,iPartIndx_Node(iPart)) * GetParticleWeight(iPartIndx_Node(iPart))
+  DO iPart = 1, TotalPartNum
+    ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_NodeTotal(iPart)))=ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_NodeTotal(iPart))) &
+      + PartStateIntEn(1,iPartIndx_NodeTotal(iPart)) * GetParticleWeight(iPartIndx_NodeTotal(iPart))
   END DO
   CALL CalcMeanVibQuaDiatomic()
 END IF
 
+IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
+.OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1)).OR.(DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)) THEN
+  ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
+  !           relaxation probability (CalcGammaVib)
+  ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
+  ! 3. Case: Temperature required for the mean free path with the VHS model
+  ! 4. Case: Needed to calculate the correction factor
+  CALL CalcInstantTransTemp(iPartIndx_NodeTotal,TotalPartNum)
+  IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) CALL CalcInstantElecTempXi(iPartIndx_NodeTotal,TotalPartNum)
+  IF((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)) CALL CalcGammaVib()
+END IF
+
 IF (CollInf%ProhibitDoubleColl.AND.(nPair.EQ.1)) THEN
 ! Do not get stuck in an endless loop if only two particles/one pair are present in the cell
-  CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
-  CollInf%OldCollPartner(iPartIndx_Node(2)) = 0
+  CollInf%OldCollPartner(iPartIndx_NodeTotal(1)) = 0
+  CollInf%OldCollPartner(iPartIndx_NodeTotal(2)) = 0
 END IF
 
 ! 3.) Perform the particle pairing (statistical or nearest neighbour) and determine the relative velocity
 DO iPair = 1, nPair
   IF(DSMC%UseNearestNeighbour) THEN
     IF(Symmetry%Order.EQ.3) THEN
-      CALL FindNearestNeigh3D(iPartIndx_Node, nPart, iPair)
+      CALL FindNearestNeigh3D(iPartIndx_NodeTotal, nPart, iPair)
     ELSE IF (Symmetry%Order.EQ.2) THEN
-      CALL FindNearestNeigh2D(iPartIndx_Node, nPart, iPair)
+      CALL FindNearestNeigh2D(iPartIndx_NodeTotal, nPart, iPair)
     ELSE
-      CALL FindNearestNeigh1D(iPartIndx_Node, nPart, iPair)
+      CALL FindNearestNeigh1D(iPartIndx_NodeTotal, nPart, iPair)
     END IF
   ELSE
-    CALL FindRandomPartner(iPartIndx_Node, nPart, iPair, nPair)
+    CALL FindRandomPartner(iPartIndx_NodeTotal, nPart, iPair, nPair)
   END IF
 
   cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
@@ -481,22 +485,22 @@ END DO
 ! 4.) Perform additional operations for chemistry (AFTER pairing)
 ! If a third particle is required of a recombination, the last particle due to uneven nPart is used
 IF(CollisMode.EQ.3) THEN
-  IF(nPart.EQ.1) ChemReac%RecombParticle = iPartIndx_Node(1)
+  IF(nPart.EQ.1) ChemReac%RecombParticle = iPartIndx_NodeTotal(1)
 END IF
 ! Resetting the previous collision partner of the remaining particle due to uneven nPart
-IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
+IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(iPartIndx_NodeTotal(1)) = 0
 
 ! 5). Calculate the collision probability and perform the collision (if required)
 DO iPair = 1, nPair
   IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
     CALL SumVibRelaxProb(iPair)
     ! 2D axisymmetric with radial weighting: split up pairs of identical particles
-    IF(RadialWeighting%DoRadialWeighting) CALL DSMC_2D_TreatIdenticalParticles(iPair, nPair, nPart, iElem, iPartIndx_Node)
+    IF(RadialWeighting%DoRadialWeighting) CALL DSMC_2D_TreatIdenticalParticles(iPair, nPair, nPart, iElem, iPartIndx_NodeTotal)
     ! Calculate the collision probability and test it against a random number
     CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
     CALL RANDOM_NUMBER(iRan)
     IF (Coll_pData(iPair)%Prob.GE.iRan) THEN
-      CALL DSMC_perform_collision(iPair,iElem, NodeVolume, PartNum)
+      CALL DSMC_perform_collision(iPair,iElem, NodeVolume, TotalPartNum)
       IF (CollInf%ProhibitDoubleColl) THEN
         CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1) = Coll_pData(iPair)%iPart_p2
         CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p2) = Coll_pData(iPair)%iPart_p1
@@ -523,6 +527,9 @@ IF(DSMC%CalcQualityFactors) THEN
 END IF
 
 DEALLOCATE(Coll_pData)
+IF (DSMC%DoAmbipolarDiff) THEN
+  CALL AD_DeleteParticles(iPartIndx_NodeTotalAmbi,TotalPartNum)
+END IF
 
 END SUBROUTINE PerformPairingAndCollision
 

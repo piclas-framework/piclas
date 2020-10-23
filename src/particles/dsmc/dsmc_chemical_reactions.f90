@@ -406,6 +406,7 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac, iPart_p3)
 USE MOD_Globals                ,ONLY: abort
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles, ElectronicDistriPart
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas
+USE MOD_DSMC_Vars              ,ONLY: AmbipolElecVelo
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep
 USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange, CalcXiElec
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
@@ -442,6 +443,8 @@ REAL, ALLOCATABLE             :: Xi_Vib1(:), Xi_Vib2(:), Xi_Vib3(:), XiVibPart(:
 REAL                          :: VxPseuMolec, VyPseuMolec, VzPseuMolec
 REAL                          :: Weight1, Weight2, Weight3, WeightProd, NumWeightEduct, NumWeightProd, ReducedMass
 REAL                          :: cRelaNew(3) ! relative velocity
+REAL                          :: SumProductCharge, SumEductCharge
+LOGICAL                       :: IsAmbipolarReaction
 #ifdef CODE_ANALYZE
 REAL,PARAMETER                :: RelMomTol=2e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
 REAL,PARAMETER                :: RelEneTol=1e-12 ! Relative tolerance applied to conservation of energy before/after reaction
@@ -468,6 +471,16 @@ END IF
 
 EductReac(1:3) = ChemReac%DefinedReact(iReac,1,1:3)
 ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
+
+IsAmbipolarReaction = .FALSE.
+IF (DSMC%DoAmbipolarDiff) THEN
+  SumEductCharge = 0.0; SumProductCharge = 0.0
+  DO iSpec = 1, 3
+    IF (EductReac(iSpec).NE.0) SumEductCharge = SumEductCharge + ABS(Species(EductReac(iSpec))%ChargeIC)
+    IF (ProductReac(iSpec).NE.0) SumProductCharge = SumProductCharge + ABS(Species(ProductReac(iSpec))%ChargeIC)
+  END DO
+  IF (ALMOSTEQUAL(SumEductCharge, SumProductCharge)) IsAmbipolarReaction = .TRUE.
+END IF
 
 IF(PRESENT(iPart_p3)) THEN
   ReactInx(3) = iPart_p3
@@ -975,6 +988,23 @@ IF(ProductReac(3).NE.0) THEN
   DSMC_RHS(1,ReactInx(3)) = VxPseuMolec - FracMassCent1*cRelaNew(1)
   DSMC_RHS(2,ReactInx(3)) = VyPseuMolec - FracMassCent1*cRelaNew(2)
   DSMC_RHS(3,ReactInx(3)) = VzPseuMolec - FracMassCent1*cRelaNew(3)
+
+  IF (IsAmbipolarReaction) THEN
+    IF(.NOT.PRESENT(iPart_p3)) THEN
+      IF(ProductReac(3).NE.0) THEN
+        IF (ALLOCATED(AmbipolElecVelo(ReactInx(1))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(ReactInx(1))%ElecVelo)
+        ALLOCATE(AmbipolElecVelo(ReactInx(1))%ElecVelo(3))
+        AmbipolElecVelo(ReactInx(1))%ElecVelo(1:3) = DSMC_RHS(1:3,ReactInx(3))
+        AmbipolElecVelo(ReactInx(1))%IsCoupled = .TRUE.
+        PDM%ParticleInside(ReactInx(3)) = .FALSE.
+      END IF
+    END IF
+    IF(PRESENT(iPart_p3)) THEN
+      IF(ProductReac(3).EQ.0) THEN
+        IF (ALLOCATED(AmbipolElecVelo(ReactInx(1))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(ReactInx(1))%ElecVelo)
+      END IF
+    END IF
+  END IF
 
 #ifdef CODE_ANALYZE
   ! New total energy
