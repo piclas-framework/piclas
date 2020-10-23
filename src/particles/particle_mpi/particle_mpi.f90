@@ -422,7 +422,7 @@ SUBROUTINE MPIParticleSend()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DSMC_Vars,               ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
-USE MOD_DSMC_Vars,               ONLY:ElectronicDistriPart
+USE MOD_DSMC_Vars,               ONLY:ElectronicDistriPart, AmbipolElecVelo
 USE MOD_Particle_Mesh_Vars,      ONLY:GEO
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI,PartMPIExchange,PartCommSize,PartSendBuf,PartRecvBuf,PartTargetProc!,PartHaloElemToProc
 USE MOD_Particle_MPI_Vars,       ONLY:nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc
@@ -466,9 +466,10 @@ LOGICAL                       :: PartInBGM
 INTEGER                       :: iCounter
 #endif /*ROS or IMPA*/
 ! Polyatomic Molecules
-INTEGER                       :: iPolyatMole, MsgRecvLengthPoly
+INTEGER                       :: iPolyatMole, MsgRecvLengthPoly, MsgRecvLengthElec, MsgRecvLengthAmbi
 INTEGER                       :: MsgLengthPoly(0:nExchangeProcessors-1), pos_poly(0:nExchangeProcessors-1)
 INTEGER                       :: MsgLengthElec(0:nExchangeProcessors-1), pos_elec(0:nExchangeProcessors-1)
+INTEGER                       :: MsgLengthAmbi(0:nExchangeProcessors-1), pos_ambi(0:nExchangeProcessors-1)
 !===================================================================================================================================
 
 #if defined(ROS)
@@ -481,22 +482,21 @@ PartCommSize=PartCommSize0+iStage*6
 !--- Determining the number of additional variables due to VibQuantsPar of polyatomic particles
 !--- (size varies depending on the species of particle)
 MsgLengthPoly(:) = 0
-IF(DSMC%NumPolyatomMolecs.GT.0) THEN
+MsgLengthElec(:) = 0
+MsgLengthAmbi(:) = 0
+IF ((DSMC%NumPolyatomMolecs.GT.0).OR.(DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel).OR.DSMC%DoAmbipolarDiff) THEN
   DO iPart=1,PDM%ParticleVecLength
     IF(PartTargetProc(iPart).EQ.-1) CYCLE
-    IF(SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
+    IF((DSMC%NumPolyatomMolecs.GT.0).AND.(SpecDSMC(PartSpecies(iPart))%PolyatomicMol)) THEN
       iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
       MsgLengthPoly(PartTargetProc(iPart)) = MsgLengthPoly(PartTargetProc(iPart)) + PolyatomMolDSMC(iPolyatMole)%VibDOF
     END IF
-  END DO
-END IF
-
-MsgLengthElec(:) = 0
-IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
-  DO iPart=1,PDM%ParticleVecLength
-    IF(PartTargetProc(iPart).EQ.-1) CYCLE
-    IF(.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized)) THEN
+    IF ((DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel).AND. & 
+        (.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized))) THEN
       MsgLengthElec(PartTargetProc(iPart)) = MsgLengthElec(PartTargetProc(iPart)) + SpecDSMC(PartSpecies(iPart))%MaxElecQuant
+    END IF
+    IF(DSMC%DoAmbipolarDiff.AND.(Species(PartSpecies(iPart))%ChargeIC.GT.0.0)) THEN
+      MsgLengthAmbi(PartTargetProc(iPart)) = MsgLengthAmbi(PartTargetProc(iPart)) + 3
     END IF
   END DO
 END IF
@@ -522,6 +522,11 @@ DO iProc=0,nExchangeProcessors-1
   IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
     pos_elec(iProc) = MessageSize
     MessageSize = MessageSize + MsgLengthElec(iProc)
+  END IF
+
+  IF (DSMC%DoAmbipolarDiff) THEN
+    pos_ambi(iProc) = MessageSize
+    MessageSize = MessageSize + MsgLengthAmbi(iProc)
   END IF
 
   ! Still no message length, proc can be skipped
@@ -699,6 +704,13 @@ DO iProc=0,nExchangeProcessors-1
         END IF
       END IF
 
+      IF (DSMC%DoAmbipolarDiff) THEN
+        IF(Species(PartSpecies(iPart))%ChargeIC.GT.0.0)  THEN
+          PartSendBuf(iProc)%content(pos_ambi(iProc)+1:pos_ambi(iProc)+ 3) = AmbipolElecVelo(iPart)%ElecVelo(1:3)
+          pos_ambi(iProc) = pos_ambi(iProc) + 3
+        END IF
+      END IF
+
       ! sanity check the message length
       IF(MOD(jPos,PartCommSize).NE.0) THEN
 #if defined(ROS) || defined(IMPA)
@@ -770,8 +782,13 @@ DO iProc=0,nExchangeProcessors-1
   END IF
 
   IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
-    MsgRecvLengthPoly = MAXVAL(SpecDSMC(:)%MaxElecQuant)*nRecvParticles
-    MessageSize       = MessageSize + MsgRecvLengthPoly
+    MsgRecvLengthElec = MAXVAL(SpecDSMC(:)%MaxElecQuant)*nRecvParticles
+    MessageSize       = MessageSize + MsgRecvLengthElec
+  END IF
+
+  IF (DSMC%DoAmbipolarDiff) THEN
+    MsgRecvLengthAmbi = 3*nRecvParticles
+    MessageSize       = MessageSize + MsgRecvLengthAmbi
   END IF
 
   ALLOCATE(PartRecvBuf(iProc)%content(MessageSize),STAT=ALLOCSTAT)
@@ -806,6 +823,9 @@ DO iProc=0,nExchangeProcessors-1
   IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
     MessageSize = MessageSize + MsgLengthElec(iProc)
   END IF
+  IF (DSMC%DoAmbipolarDiff) THEN
+    MessageSize = MessageSize + MsgLengthAmbi(iProc)
+  END IF
 
   CALL MPI_ISEND( PartSendBuf(iProc)%content                                 &
                 , MessageSize                                                &
@@ -835,11 +855,11 @@ SUBROUTINE MPIParticleRecv()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
-USE MOD_DSMC_Vars              ,ONLY:ElectronicDistriPart
+USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf!,PartMPI
 USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping!,TriaTracking
-USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef
+USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species
 #if defined(LSERK)
 USE MOD_Particle_Vars          ,ONLY: Pt_temp
 #endif
@@ -880,7 +900,7 @@ INTEGER                       :: MessageSize, nRecvParticles
 INTEGER                       :: iCounter, LocElemID,iElem
 #endif /*ROS or IMPA*/
 ! Polyatomic Molecules
-INTEGER                       :: iPolyatMole, pos_poly, MsgLengthPoly, MsgLengthElec, pos_elec
+INTEGER                       :: iPolyatMole, pos_poly, MsgLengthPoly, MsgLengthElec, pos_elec, pos_ambi, MsgLengthAmbi
 !===================================================================================================================================
 
 #if defined(ROS)
@@ -919,11 +939,19 @@ DO iProc=0,nExchangeProcessors-1
     MsgLengthElec = 0
   END IF
 
+  IF (DSMC%DoAmbipolarDiff) THEN
+    MsgLengthAmbi = 3*nRecvParticles
+  ELSE
+    MsgLengthAmbi = 0
+  END IF
+
   MessageSize = nRecvParticles*PartCommSize
   pos_poly    = MessageSize
   IF (DSMC%NumPolyatomMolecs.GT.0) MessageSize = MessageSize + MsgLengthPoly
   pos_elec    = MessageSize
   IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) MessageSize = MessageSize + MsgLengthElec
+  pos_ambi    = MessageSize
+  IF (DSMC%DoAmbipolarDiff) MessageSize = MessageSize + MsgLengthAmbi
   ! finish communication with iproc
   CALL MPI_WAIT(PartMPIExchange%RecvRequest(2,iProc),recv_status_list(:,iProc),IERROR)
 
@@ -1145,6 +1173,16 @@ DO iProc=0,nExchangeProcessors-1
         ElectronicDistriPart(PartID)%DistriFunc(1:SpecDSMC(PartSpecies(PartID))%MaxElecQuant) &
                             = PartRecvBuf(iProc)%content(pos_elec+1:pos_elec+SpecDSMC(PartSpecies(PartID))%MaxElecQuant)
         pos_elec = pos_elec + SpecDSMC(PartSpecies(PartID))%MaxElecQuant
+      END IF
+    END IF
+
+    IF (DSMC%DoAmbipolarDiff) THEN
+      IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
+        IF(ALLOCATED(AmbipolElecVelo(PartID)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PartID)%ElecVelo)
+        ALLOCATE(AmbipolElecVelo(PartID)%ElecVelo(1:3))
+        AmbipolElecVelo(PartID)%ElecVelo(1:3) = PartRecvBuf(iProc)%content(pos_ambi+1:pos_ambi+3)
+        AmbipolElecVelo(PartID)%IsCoupled = .TRUE.
+        pos_ambi = pos_ambi + 3
       END IF
     END IF
 
