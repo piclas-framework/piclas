@@ -168,7 +168,7 @@ DO iLoop = 1, nPart
   END IF
 END DO
 
-IF(nIon.EQ.nElectron) THEN
+IF(nIon.NE.nElectron) THEN
   CALL abort(__STAMP__&
       ,'ERROR: Number of electrons and ions is not equal for ambipolar diffusion: ' &
       ,IntInfoOpt=nIon-nElectron)

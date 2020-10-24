@@ -960,7 +960,7 @@ DO iProc=0,nExchangeProcessors-1
   !>> DO iPart=1,nRecvParticles
   !>> nParts 1 Pos=1..17
   !>> nPart2 2 Pos=1..17,18..34
-  DO iPos=0,MessageSize-1-MsgLengthPoly - MsgLengthElec,PartCommSize
+  DO iPos=0,MessageSize-1-MsgLengthPoly - MsgLengthElec - MsgLengthAmbi,PartCommSize
     ! find free position in particle array
     nRecv  = nRecv+1
     PartID = PDM%nextFreePosition(nRecv+PDM%CurrentNextFreePosition)
