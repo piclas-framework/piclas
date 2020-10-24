@@ -186,6 +186,10 @@ END TYPE tXSecData
 TYPE tSpeciesXSec
   LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species pair should be treated with
                                                             ! read-in collision cross-section (currently only with BGG)
+  LOGICAL                           :: CollXSec_Effective   ! Flag whether the given cross-section data is "effective" (complete set
+                                                            ! including other processes such as e.g.excitation and ionization) or
+                                                            ! "elastic", including only the elastic collision cross-section.
+  REAL                              :: CrossSection         ! Current collision cross-section
   REAL,ALLOCATABLE                  :: CollXSecData(:,:)    ! Collision cross-section as read-in from the database
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
                                                             ! 2: Cross-section at the respective energy level [m^2]

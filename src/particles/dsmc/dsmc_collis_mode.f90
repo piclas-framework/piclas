@@ -1138,7 +1138,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                 ,ONLY: Abort
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, ChemReac, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, ChemReac, RadialWeighting, SpecXSec
 USE MOD_Particle_Vars           ,ONLY: Species, PartSpecies, PEM, VarTimeStep
 USE MOD_DSMC_ChemReact          ,ONLY: CalcReactionProb, DSMC_Chemistry
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
@@ -1189,6 +1189,7 @@ ALLOCATE(ReactionProbArray(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
 ReactionProbArray = 0.
 DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
   ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+  IF(ChemReac%XSec_Procedure(ReacTest)) CYCLE
   IF(ChemReac%QKProcedure(ReacTest)) THEN
     CALL QK_TestReaction(iPair,ReacTest)
   ELSE
@@ -1232,7 +1233,11 @@ END IF
 ! 2b.) Cross-section based chemistry (XSec)
 
 IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
-  ReactionProbSum = Coll_pData(iPair)%Prob
+  IF(SpecXSec(iCase)%CollXSec_Effective) THEN
+    ReactionProbSum = SpecXSec(iCase)%CrossSection
+  ELSE
+    ReactionProbSum = Coll_pData(iPair)%Prob
+  END IF
   ReactionProb = 0.
   ! Decide which reaction should occur
   CALL RANDOM_NUMBER(iRan)

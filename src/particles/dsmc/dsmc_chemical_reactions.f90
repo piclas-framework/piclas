@@ -85,8 +85,6 @@ INTEGER                       :: iPath, PathIndex
 REAL                          :: Weight(1:4), SumWeightEduct, SumWeightProd
 !===================================================================================================================================
 
-IF(ChemReac%XSec_Procedure(iReac)) RETURN
-
 Weight = 0.; ReactInx = 0
 NumWeightEduct = 2.; NumWeightProd = 2.
 SumWeightEduct = 0.; SumWeightProd = 0.

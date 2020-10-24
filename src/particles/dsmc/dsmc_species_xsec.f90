@@ -40,7 +40,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER       :: iSpec, jSpec, iCase
-REAL          :: TotalProb
+REAL          :: TotalProb, VibCrossSection, TotalCrossSection
 INTEGER       :: iVib, nVib, iStep, MaxDim
 !===================================================================================================================================
 
@@ -61,6 +61,7 @@ END IF
 ALLOCATE(SpecXSec(CollInf%NumCase))
 SpecXSec(:)%UseCollXSec = .FALSE.
 SpecXSec(:)%UseVibXSec = .FALSE.
+SpecXSec(:)%CollXSec_Effective = .FALSE.
 
 DO iSpec = 1, nSpecies
   TotalProb = 0.
@@ -98,7 +99,7 @@ DO iSpec = 1, nSpecies
     END IF
     ! Read-in vibrational cross sections
     IF(SpecDSMC(iSpec)%UseVibXSec.OR.SpecDSMC(jSpec)%UseVibXSec) CALL ReadVibXSec(iCase, iSpec, jSpec)
-    ! Vibrational relaxation probabilities: Interpolate and store the probability at the effective cross-section levels
+    ! Vibrational relaxation probabilities: Interpolate and store the probability at the collision cross-section levels
     IF(SpecXSec(iCase)%UseVibXSec) THEN
       XSec_Relaxation = .TRUE.
       nVib = SIZE(SpecXSec(iCase)%VibMode)
@@ -107,20 +108,25 @@ DO iSpec = 1, nSpecies
         SpecXSec(iCase)%VibMode(iVib)%XSecData(1,:) = SpecXSec(iCase)%VibMode(iVib)%XSecData(1,:) * ElementaryCharge
       END DO
       IF(SpecXSec(iCase)%UseCollXSec) THEN
-        ! Effective collision cross-sections are available
+        ! Collision cross-sections are available
         MaxDim = SIZE(SpecXSec(iCase)%CollXSecData,2)
         ALLOCATE(SpecXSec(iCase)%VibXSecData(1:2,1:MaxDim))
-        ! Using the same energy intervals as for the effective cross-sections
+        ! Using the same energy intervals as for the collision cross-sections
         SpecXSec(iCase)%VibXSecData(1,:) = SpecXSec(iCase)%CollXSecData(1,:)
         SpecXSec(iCase)%VibXSecData(2,:) = 0.
         DO iVib = 1, nVib
-          ! Interpolate the vibrational cross section at the energy levels of the effective collision cross section and sum-up the
+          ! Interpolate the vibrational cross section at the energy levels of the collision collision cross section and sum-up the
           ! vibrational probability (vibrational cross-section divided by the effective)
           DO iStep = 1, MaxDim
             IF(SpecXSec(iCase)%CollXSecData(2,iStep).GT.0.0) THEN
-              SpecXSec(iCase)%VibXSecData(2,iStep) = SpecXSec(iCase)%VibXSecData(2,iStep) + &
-                InterpolateCrossSection_Vib(iCase,iVib,SpecXSec(iCase)%CollXSecData(1,iStep)) &
-                                                            / SpecXSec(iCase)%CollXSecData(2,iStep)
+              VibCrossSection = InterpolateCrossSection_Vib(iCase,iVib,SpecXSec(iCase)%CollXSecData(1,iStep))
+              ! Add the vibrational cross-section to the collision cross section when not the effective cross-section is utilized
+              IF(SpecXSec(iCase)%CollXSec_Effective) THEN
+                TotalCrossSection = SpecXSec(iCase)%CollXSecData(2,iStep)
+              ELSE
+                TotalCrossSection = SpecXSec(iCase)%CollXSecData(2,iStep) + VibCrossSection
+              END IF
+              SpecXSec(iCase)%VibXSecData(2,iStep) = SpecXSec(iCase)%VibXSecData(2,iStep) + VibCrossSection / TotalCrossSection
             END IF
           END DO
         END DO
@@ -174,28 +180,42 @@ END IF
 ! Open the file.
 CALL H5FOPEN_F (TRIM(XSec_Database), H5F_ACC_RDONLY_F, file_id_dsmc, err)
 
+! Check if the species pair group exists
+CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), DatasetFound, err)
+IF(.NOT.DatasetFound) THEN
+  ! Try to swap the species names
+  spec_pair = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
+  CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), DatasetFound, err)
+  IF(.NOT.DatasetFound) THEN
+    SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No data set found. Using standard collision modelling.'
+    RETURN
+  END IF
+END IF
+
 dsetname = TRIM('/'//TRIM(spec_pair)//'/EFFECTIVE')
 CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DatasetFound)
 
-! Check if the dataset exist
-IF(.NOT.DatasetFound) THEN
-  ! Try to swap the species names
-  dsetname = '/'//TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)//'/EFFECTIVE'
-  CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DataSetFound)
-  IF(DatasetFound) THEN
-    spec_pair = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
-    SpecXSec(iCase)%UseCollXSec = .TRUE.
-  ELSE
-    dsetname2 = TRIM(spec_pair)//'/EFFECTIVE'
-    SWRITE(UNIT_StdOut,'(A)') 'Dataset not found: ['//TRIM(dsetname2)//']. Using standard collision modelling.'
-    SpecXSec(iCase)%UseCollXSec = .FALSE.
-  END IF
-ELSE
+IF(DatasetFound) THEN
   SpecXSec(iCase)%UseCollXSec = .TRUE.
+  SpecXSec(iCase)%CollXSec_Effective = .TRUE.
+  CALL DatasetExists(File_ID_DSMC,TRIM('/'//TRIM(spec_pair)//'/ELASTIC'),DatasetFound)
+  IF(DatasetFound) CALL abort(__STAMP__,'ERROR: Please provide either elastic or effective collision cross-section data '//&
+                                             & 'for '//TRIM(spec_pair)//'.')
+  SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': Read EFFECTIVE collision cross section.'
+ELSE
+  dsetname = TRIM('/'//TRIM(spec_pair)//'/ELASTIC')
+  CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DatasetFound)
+  IF(DatasetFound) THEN
+    SpecXSec(iCase)%UseCollXSec = .TRUE.
+    SpecXSec(iCase)%CollXSec_Effective = .FALSE.
+  SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': Read ELASTIC collision cross section.'
+  ELSE
+    SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No data set found. Using standard collision modelling.'
+    RETURN
+  END IF
 END IF
 
 IF(SpecXSec(iCase)%UseCollXSec) THEN
-  SWRITE(UNIT_StdOut,'(A)') 'Read collision cross section for '//TRIM(spec_pair)//' from '//TRIM(XSec_Database)
   ! Open the dataset.
   CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
   ! Get the file space of the dataset.
@@ -219,7 +239,7 @@ END SUBROUTINE ReadCollXSec
 
 SUBROUTINE ReadVibXSec(iCase,iSpec,jSpec)
 !===================================================================================================================================
-!> Read-in of vibrational cross-sections from a given database. Dataset name is composed of SpeciesName-SpeciesName (e.g. Ar-electron)
+!> Read-in of vibrational cross-sections from a database. Dataset name is composed of SpeciesName-SpeciesName (e.g. Ar-electron)
 !> Trying to swap the species indices if dataset not found.
 !===================================================================================================================================
 ! use module
@@ -271,7 +291,7 @@ IF(.NOT.GroupFound) THEN
   spec_pair = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), GroupFound, err)
   IF(.NOT.GroupFound) THEN
-    SWRITE(UNIT_StdOut,'(A)') 'No vibrational excitation cross sections found in database, using constant read-in values.'
+    SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
     RETURN
   END IF
 END IF
@@ -280,7 +300,7 @@ END IF
 groupname = TRIM(spec_pair)//'/VIBRATION/'
 CALL H5LEXISTS_F(file_id_dsmc, TRIM(groupname), GroupFound, err)
 IF(.NOT.GroupFound) THEN
-  SWRITE(UNIT_StdOut,'(A)') 'No vibrational excitation cross sections found in database, using constant read-in values.'
+  SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
   RETURN
 END IF
 
@@ -289,14 +309,14 @@ IF(GroupFound) THEN
   call H5Gget_info_f(group_id, storage, nVib,max_corder, err)
   ! If cross-section data is found, set the corresponding flag
   IF(nVib.GT.0) THEN
-    SWRITE(UNIT_StdOut,'(A,I3,A)') 'Found ', nVib,' vibrational excitation cross section(s) in database.'
+    SWRITE(UNIT_StdOut,'(A,I3,A)') TRIM(spec_pair)//': Found ', nVib,' vibrational excitation cross section(s).'
     SpecXSec(iCase)%UseVibXSec = .TRUE.
     nVar = 3
   ELSE
-    SWRITE(UNIT_StdOut,'(A)') 'No vibrational excitation cross sections found in database, using constant read-in values.'
+    SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
   END IF
 ELSE
-  SWRITE(UNIT_StdOut,'(A)') 'No vibrational excitation cross sections found in database, using constant read-in values.'
+  SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
 END IF
 
 IF(SpecXSec(iCase)%UseVibXSec) THEN
@@ -524,7 +544,7 @@ END DO
 END FUNCTION InterpolateVibRelaxProb
 
 
-PURE REAL FUNCTION XSec_CalcCollisionProb(iPair,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
+SUBROUTINE XSec_CalcCollisionProb(iPair,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
 !===================================================================================================================================
 !> Calculate the collision probability if collision cross-section data is used. Can be utilized in combination with the regular
 !> DSMC collision calculation probability.
@@ -560,26 +580,26 @@ IF(SpecXSec(iCase)%UseCollXSec) THEN
   IF(BGGas%BackgroundSpecies(targetSpec)) THEN
     ! Correct the collision probability in the case of the second species being a background species as the number of pairs
     ! is either determined based on the null collision probability or in the case of mixture on the species fraction
+    SpecXSec(iCase)%CrossSection = InterpolateCrossSection(iCase,CollEnergy)
+    Coll_pData(iPair)%Prob = (1. - EXP(-SQRT(VeloSquare) * SpecXSec(iCase)%CrossSection * SpecNumTarget * MacroParticleFactor &
+                                          / Volume * dtCell))
     IF(XSec_NullCollision) THEN
-      XSec_CalcCollisionProb = (1. - EXP(-SQRT(VeloSquare) * InterpolateCrossSection(iCase,CollEnergy) &
-            * SpecNumTarget * MacroParticleFactor / Volume * dtCell)) / SpecXSec(iCase)%ProbNull
+      Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob / SpecXSec(iCase)%ProbNull
     ELSE
-      XSec_CalcCollisionProb = (1. - EXP(-SQRT(VeloSquare) * InterpolateCrossSection(iCase,CollEnergy) &
-            * SpecNumTarget * MacroParticleFactor / Volume * dtCell)) / BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(targetSpec))
+      Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob / BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(targetSpec))
     END IF
   ELSE
-    XSec_CalcCollisionProb = (1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iCase,CollEnergy) &
-            * SpecNumTarget * MacroParticleFactor/Volume*dtCell)) * SpecNumSource / CollInf%Coll_CaseNum(iCase)
+    Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob * SpecNumSource / CollInf%Coll_CaseNum(iCase)
   END IF
 ELSE
-  XSec_CalcCollisionProb = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
+  Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
           * CollInf%Cab(Coll_pData(iPair)%PairType)                           & ! Cab species comb fac
           * MacroParticleFactor / CollCaseNum                                                     &
           * Coll_pData(iPair)%CRela2 ** (0.5-CollInf%omega(iSpec_p1,iSpec_p2)) &
           * dtCell / Volume
 END IF
 
-END FUNCTION XSec_CalcCollisionProb
+END SUBROUTINE XSec_CalcCollisionProb
 
 
 SUBROUTINE XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
@@ -913,17 +933,22 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     END IF
     ! Calculate the reaction probability (check first if sufficient energy is available for the products after the reaction)
     IF(((Coll_pData(iPair)%Ec-EZeroPoint_Prod).GE.(-ChemReac%EForm(ReacTest)*SUM(Weight)/NumWeightProd))) THEN
-      ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * dtCell * SpecNumTarget &
-        * MacroParticleFactor / Volume * InterpolateCrossSection_Chem(iCase,iPath,Coll_pData(iPair)%Ec-EZeroPoint_Educt)))
-      IF(BGGas%BackgroundSpecies(targetSpec)) THEN
-      ! Correct the reaction probability in the case of the second species being a background species as the number of pairs
-      ! is either determined based on the null collision probability or in the case of mixture on the species fraction
-        IF(SpecXSec(iCase)%UseCollXSec) THEN
-          IF(XSec_NullCollision) ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) &
-                                    = ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) / SpecXSec(iCase)%ProbNull
-        ELSE
-          ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) &
-                                                              / BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(targetSpec))
+      IF(SpecXSec(iCase)%CollXSec_Effective) THEN
+        ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = InterpolateCrossSection_Chem(iCase,iPath,Coll_pData(iPair)%Ec&
+                                                                                        -EZeroPoint_Educt)
+      ELSE
+        ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * dtCell * SpecNumTarget &
+          * MacroParticleFactor / Volume * InterpolateCrossSection_Chem(iCase,iPath,Coll_pData(iPair)%Ec-EZeroPoint_Educt)))
+        IF(BGGas%BackgroundSpecies(targetSpec)) THEN
+        ! Correct the reaction probability in the case of the second species being a background species as the number of pairs
+        ! is either determined based on the null collision probability or in the case of mixture on the species fraction
+          IF(SpecXSec(iCase)%UseCollXSec) THEN
+            IF(XSec_NullCollision) ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) &
+                                      = ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) / SpecXSec(iCase)%ProbNull
+          ELSE
+            ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) &
+                                                                / BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(targetSpec))
+          END IF
         END IF
       END IF
     ELSE
