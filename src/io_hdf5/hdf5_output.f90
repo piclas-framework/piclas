@@ -2700,7 +2700,7 @@ IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
                         nVal=      (/3        , locnPart       /)   , &
                         offset=    (/0_IK               , offsetnPart    /)   , &
                         collective=.FALSE.              , RealArray=AD_Data)
-  DEALLOCATE(ElecDistriData)
+  DEALLOCATE(AD_Data)
 END IF
 END ASSOCIATE
 
