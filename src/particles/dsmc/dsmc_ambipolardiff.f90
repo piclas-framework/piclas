@@ -66,7 +66,7 @@ INTEGER,INTENT(INOUT),ALLOCATABLE :: iPartIndx_NodeTotalAmbi(:)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iNewPart, iPart, PositionNbr, LocalElemID, iPartIndx_Nodetmp(1:nPart), iLoop, nNewElectrons, IonIndX(nPart)
+INTEGER           :: iNewPart, iPart, PositionNbr, LocalElemID, iLoop, nNewElectrons, IonIndX(nPart)
 REAL              :: MaxPos(3), MinPos(3), Vec3D(3)
 #if USE_LOADBALANCE
 REAL              :: tLBStart
@@ -94,10 +94,10 @@ DO iLoop = 1, nPart
     IonIndX(nNewElectrons) = iPart
   END IF
 END DO
-IF (nNewElectrons.EQ.0) RETURN
-iPartIndx_Nodetmp(1:nPart) = iPartIndx_Node(1:nPart)
 ALLOCATE(iPartIndx_NodeTotalAmbi(nPart + nNewElectrons))
-iPartIndx_Node(1:nPart) = iPartIndx_Nodetmp(1:nPart)
+iPartIndx_NodeTotalAmbi(1:nPart) = iPartIndx_Node(1:nPart)
+TotalPartNum = nPart
+IF (nNewElectrons.EQ.0) RETURN
 
 DO iLoop = 1, nNewElectrons
   PositionNbr = PDM%nextFreePosition(iLoop+PDM%CurrentNextFreePosition)
@@ -119,7 +119,7 @@ __STAMP__&
   END IF
   IF(RadialWeighting%DoRadialWeighting) PartMPF(PositionNbr) = PartMPF(IonIndX(iLoop))
   IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(PositionNbr) = VarTimeStep%ParticleTimeStep(IonIndX(iLoop))
-  iPartIndx_Node(nPart+iLoop) = PositionNbr
+  iPartIndx_NodeTotalAmbi(nPart+iLoop) = PositionNbr
 END DO
 PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,PositionNbr)
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + nNewElectrons
