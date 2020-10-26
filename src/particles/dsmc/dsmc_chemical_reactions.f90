@@ -488,7 +488,6 @@ IF (DSMC%DoAmbipolarDiff) THEN
     IF (ProductReac(iSpec).NE.0) SumProductCharge = SumProductCharge + ABS(Species(ProductReac(iSpec))%ChargeIC)
   END DO
   IF (.NOT.ALMOSTEQUAL(SumEductCharge, SumProductCharge)) IsAmbipolarReaction = .TRUE.
-  IF (IsAmbipolarReaction) print*, iReac, EductReac(1:3) ,ProductReac(1:3)
   IF (.NOT.IsAmbipolarReaction) THEN ! Charge Exchange
     IF (.NOT.ALMOSTEQUAL(Species(EductReac(1))%ChargeIC, Species(ProductReac(1))%ChargeIC)) AmbiChargeFlip = .TRUE. 
   END IF 
