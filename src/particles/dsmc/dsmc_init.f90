@@ -494,7 +494,7 @@ IF (DSMC%DoAmbipolarDiff) THEN
   IF(.NOT.ALLOCATED(AmbipolElecVelo)) ALLOCATE(AmbipolElecVelo(PDM%maxParticleNumber))
 END IF
 DSMC%MergeSubcells = GETLOGICAL('Particles-DSMC-MergeSubcells','.FALSE.')
-IF(DSMC%MergeSubcells.AND.(Symmetry%Order.LE.2)) THEN
+IF(DSMC%MergeSubcells.AND.(Symmetry%Order.NE.2)) THEN
   CALL abort(__STAMP__&
       ,'ERROR: Merging of subcells only supported within a 2D/axisymmetric simulation!')
 END IF

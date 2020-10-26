@@ -45,9 +45,10 @@ SUBROUTINE AD_InsertParticles(iPartIndx_Node, nPart, iPartIndx_NodeTotalAmbi, To
 !> Creating electrons for each actual ion simulation particle
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: Abort
+USE MOD_Globals                
 USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_Vars              ,ONLY: BGGas, SpecDSMC, CollisMode, DSMC, PartStateIntEn,AmbipolElecVelo,RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: DSMCSumOfFormedParticles
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef, Species, nSpecies,VarTimeStep, PartMPF
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn
@@ -100,7 +101,8 @@ TotalPartNum = nPart
 IF (nNewElectrons.EQ.0) RETURN
 
 DO iLoop = 1, nNewElectrons
-  PositionNbr = PDM%nextFreePosition(iLoop+PDM%CurrentNextFreePosition)
+  DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
+  PositionNbr = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
   IF (PositionNbr.EQ.0) THEN
     CALL Abort(&
 __STAMP__&
@@ -121,8 +123,6 @@ __STAMP__&
   IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(PositionNbr) = VarTimeStep%ParticleTimeStep(IonIndX(iLoop))
   iPartIndx_NodeTotalAmbi(nPart+iLoop) = PositionNbr
 END DO
-PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,PositionNbr)
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + nNewElectrons
 TotalPartNum = nPart + nNewElectrons
 
 #if USE_LOADBALANCE

@@ -366,7 +366,7 @@ USE MOD_DSMC_CollisionProb      ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision, SumVibRelaxProb
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: SelectionProc, useRelaxProbCorrFactor
-USE MOD_Particle_Vars           ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep, Symmetry
+USE MOD_Particle_Vars           ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep, Symmetry, PEM
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
 USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath, CalcInstantElecTempXi
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -389,12 +389,21 @@ INTEGER                       :: cSpec1, cSpec2, iCase
 REAL                          :: iRan
 INTEGER, ALLOCATABLE, TARGET  :: iPartIndx_NodeTotalAmbi(:)
 INTEGER, POINTER              :: iPartIndx_NodeTotal(:)
+INTEGER, ALLOCATABLE          :: iPartIndx_NodeTotalAmbiDel(:)
+LOGICAL                       :: DoAmbiDel
 !===================================================================================================================================
 
 ! 0). Ambipolar Diffusion
 IF (DSMC%DoAmbipolarDiff) THEN
   nPart = PartNum
   CALL AD_InsertParticles(iPartIndx_Node,nPart, iPartIndx_NodeTotalAmbi, TotalPartNum)
+  IF (nPart.EQ.TotalPartNum) THEN
+    DoAmbiDel = .FALSE.
+  ELSE
+    DoAmbiDel = .TRUE.
+    ALLOCATE(iPartIndx_NodeTotalAmbiDel(1:TotalPartNum))
+    iPartIndx_NodeTotalAmbiDel(1:TotalPartNum) = iPartIndx_NodeTotalAmbi(1:TotalPartNum)
+  END IF
   nPart = TotalPartNum
   iPartIndx_NodeTotal => iPartIndx_NodeTotalAmbi
 ELSE
@@ -527,8 +536,8 @@ IF(DSMC%CalcQualityFactors) THEN
 END IF
 
 DEALLOCATE(Coll_pData)
-IF (DSMC%DoAmbipolarDiff) THEN
-  CALL AD_DeleteParticles(iPartIndx_NodeTotalAmbi,TotalPartNum)
+IF (DSMC%DoAmbipolarDiff.AND.DoAmbiDel) THEN
+  CALL AD_DeleteParticles(iPartIndx_NodeTotalAmbiDel,TotalPartNum)
 END IF
 
 END SUBROUTINE PerformPairingAndCollision
@@ -821,27 +830,45 @@ Volume(1:4) = NodeVolumeTemp(1:4)
 IF(DSMC%MergeSubcells) THEN
   IF (ALL(PartNumChildNode.LT.DSMC%PartNumOctreeNodeMin)) THEN
     ForceNearestNeigh =.TRUE.
-    DO iLoop = 1, 3
-      IF (PartNumChildNode(iLoop).LT.7) THEN
-        DO iPart=1, PartNumChildNode(iLoop)
-          iPartIndx_ChildNode(iLoop+1,PartNumChildNode(iLoop+1)+iPart) = iPartIndx_ChildNode(iLoop,iPart)
-          MappedPart_ChildNode(1:2,PartNumChildNode(iLoop+1)+iPart,iLoop+1) = MappedPart_ChildNode(1:2,iPart,iLoop)
-        END DO
-        PartNumChildNode(iLoop+1) = PartNumChildNode(iLoop+1) + PartNumChildNode(iLoop)
-        PartNumChildNode(iLoop) = 0
-        NodeVolumeTemp(iLoop+1) = NodeVolumeTemp(iLoop+1) + NodeVolumeTemp(iLoop)
-        NodeVolumeTemp(iLoop) = 0.0
-      END IF
-    END DO
-    IF (PartNumChildNode(4).LT.7) THEN
-      DO iPart=1, PartNumChildNode(4)
-        iPartIndx_ChildNode(1,PartNumChildNode(1)+iPart) = iPartIndx_ChildNode(4,iPart)
-        MappedPart_ChildNode(1:2,PartNumChildNode(1)+iPart,1) = MappedPart_ChildNode(1:2,iPart,4)
+!    DO iLoop = 1, 3
+!      IF (PartNumChildNode(iLoop).LT.7) THEN
+!        DO iPart=1, PartNumChildNode(iLoop)
+!          iPartIndx_ChildNode(iLoop+1,PartNumChildNode(iLoop+1)+iPart) = iPartIndx_ChildNode(iLoop,iPart)
+!          MappedPart_ChildNode(1:2,PartNumChildNode(iLoop+1)+iPart,iLoop+1) = MappedPart_ChildNode(1:2,iPart,iLoop)
+!        END DO
+!        PartNumChildNode(iLoop+1) = PartNumChildNode(iLoop+1) + PartNumChildNode(iLoop)
+!        PartNumChildNode(iLoop) = 0
+!        NodeVolumeTemp(iLoop+1) = NodeVolumeTemp(iLoop+1) + NodeVolumeTemp(iLoop)
+!        NodeVolumeTemp(iLoop) = 0.0
+!      END IF
+!    END DO
+!    IF (PartNumChildNode(4).LT.7) THEN
+!      DO iPart=1, PartNumChildNode(4)
+!        iPartIndx_ChildNode(1,PartNumChildNode(1)+iPart) = iPartIndx_ChildNode(4,iPart)
+!        MappedPart_ChildNode(1:2,PartNumChildNode(1)+iPart,1) = MappedPart_ChildNode(1:2,iPart,4)
+!      END DO
+!      PartNumChildNode(1) = PartNumChildNode(1) + PartNumChildNode(4)
+!      PartNumChildNode(4) = 0
+!      NodeVolumeTemp(1) = NodeVolumeTemp(1) + NodeVolumeTemp(4)
+!      NodeVolumeTemp(4) = 0.0
+!    END IF
+    IF (ANY(PartNumChildNode.LT.5)) THEN
+      DO iPart=1, PartNumChildNode(1)
+        iPartIndx_ChildNode(2,PartNumChildNode(2)+iPart) = iPartIndx_ChildNode(1,iPart)
+        MappedPart_ChildNode(1:2,PartNumChildNode(2)+iPart,2) = MappedPart_ChildNode(1:2,iPart,1)
       END DO
-      PartNumChildNode(1) = PartNumChildNode(1) + PartNumChildNode(4)
-      PartNumChildNode(4) = 0
-      NodeVolumeTemp(1) = NodeVolumeTemp(1) + NodeVolumeTemp(4)
-      NodeVolumeTemp(4) = 0.0
+      PartNumChildNode(2) = PartNumChildNode(2) + PartNumChildNode(1)
+      PartNumChildNode(1) = 0
+      NodeVolumeTemp(2) = NodeVolumeTemp(2) + NodeVolumeTemp(1)
+      NodeVolumeTemp(1) = 0.0
+      DO iPart=1, PartNumChildNode(3)
+        iPartIndx_ChildNode(4,PartNumChildNode(4)+iPart) = iPartIndx_ChildNode(3,iPart)
+        MappedPart_ChildNode(1:2,PartNumChildNode(4)+iPart,4) = MappedPart_ChildNode(1:2,iPart,3)
+      END DO
+      PartNumChildNode(4) = PartNumChildNode(4) + PartNumChildNode(3)
+      PartNumChildNode(3) = 0
+      NodeVolumeTemp(4) = NodeVolumeTemp(4) + NodeVolumeTemp(3)
+      NodeVolumeTemp(3) = 0.0
     END IF
   END IF
 END IF

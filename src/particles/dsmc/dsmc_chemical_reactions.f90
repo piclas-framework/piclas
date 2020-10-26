@@ -89,12 +89,13 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   INTEGER                       :: ReactInx(1:2), ProductReac(1:3), EductReac(1:3), iReacForward
   REAL                          :: EZeroPoint_Educt, EZeroPoint_Prod, EReact, ReducedMass, ReducedMassUnweighted
   REAL                          :: Xi_vib1, Xi_vib2, Xi_vib3, Xi_Total, Xi_elec1, Xi_elec2, Xi_elec3, WeightProd
-  REAL                          :: BetaReaction, BackwardRate
+  REAL                          :: BetaReaction, BackwardRate, maxexp, betaEXP
   REAL                          :: Rcoll, Tcoll, Telec, b, TiQK, Weight1, Weight2, Weight3, NumWeightEduct, NumWeightProd
 !===================================================================================================================================
   Weight1=0.; Weight2=0.; Weight3=0.; WeightProd = 0.
   NumWeightEduct = 2.
   NumWeightProd = 2.
+  maxexp = LOG(HUGE(maxexp))
 
   IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
     ReactInx(1) = Coll_pData(iPair)%iPart_p1
@@ -301,9 +302,14 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
       IF(DSMC%InstantTransTemp(nSpecies+1).GT.0.0) THEN
         CALL CalcBackwardRate(iReac,DSMC%InstantTransTemp(nSpecies+1),BackwardRate)
         IF(TRIM(ChemReac%ReactType(iReac)).EQ.'E') THEN
-          BetaReaction = BetaReaction * BackwardRate &
-            / EXP(-(ChemReac%EActiv(iReacForward)-ChemReac%EActiv(iReac))/(BoltzmannConst*DSMC%InstantTransTemp(nSpecies+1))) &
-            / (ChemReac%Arrhenius_Prefactor(iReac) * DSMC%InstantTransTemp(nSpecies+1)**ChemReac%Arrhenius_Powerfactor(iReac))
+          betaEXP = (ChemReac%EActiv(iReacForward)-ChemReac%EActiv(iReac))/(BoltzmannConst*DSMC%InstantTransTemp(nSpecies+1))
+          IF (betaEXP.LT.maxexp) THEN
+            BetaReaction = BetaReaction * BackwardRate &
+              / EXP(-betaEXP) &
+              / (ChemReac%Arrhenius_Prefactor(iReac) * DSMC%InstantTransTemp(nSpecies+1)**ChemReac%Arrhenius_Powerfactor(iReac))
+          ELSE
+            BetaReaction = 0.0
+          END IF
         END IF
       ELSE
         BackwardRate = 0.0
@@ -416,6 +422,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 USE MOD_part_tools             ,ONLY: GetParticleWeight
 USE MOD_part_operations        ,ONLY: RemoveParticle
+USE MOD_Particle_Analyze       ,ONLY: PARTISELECTRON
 #ifdef CODE_ANALYZE
 USE MOD_Globals                ,ONLY: unit_stdout,myrank
 USE MOD_Particle_Vars          ,ONLY: Symmetry
@@ -444,7 +451,7 @@ REAL                          :: VxPseuMolec, VyPseuMolec, VzPseuMolec
 REAL                          :: Weight1, Weight2, Weight3, WeightProd, NumWeightEduct, NumWeightProd, ReducedMass
 REAL                          :: cRelaNew(3) ! relative velocity
 REAL                          :: SumProductCharge, SumEductCharge
-LOGICAL                       :: IsAmbipolarReaction
+LOGICAL                       :: IsAmbipolarReaction, AmbiChargeFlip
 #ifdef CODE_ANALYZE
 REAL,PARAMETER                :: RelMomTol=2e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
 REAL,PARAMETER                :: RelEneTol=1e-12 ! Relative tolerance applied to conservation of energy before/after reaction
@@ -473,13 +480,18 @@ EductReac(1:3) = ChemReac%DefinedReact(iReac,1,1:3)
 ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
 
 IsAmbipolarReaction = .FALSE.
+AmbiChargeFlip = .FALSE.
 IF (DSMC%DoAmbipolarDiff) THEN
   SumEductCharge = 0.0; SumProductCharge = 0.0
   DO iSpec = 1, 3
     IF (EductReac(iSpec).NE.0) SumEductCharge = SumEductCharge + ABS(Species(EductReac(iSpec))%ChargeIC)
     IF (ProductReac(iSpec).NE.0) SumProductCharge = SumProductCharge + ABS(Species(ProductReac(iSpec))%ChargeIC)
   END DO
-  IF (ALMOSTEQUAL(SumEductCharge, SumProductCharge)) IsAmbipolarReaction = .TRUE.
+  IF (.NOT.ALMOSTEQUAL(SumEductCharge, SumProductCharge)) IsAmbipolarReaction = .TRUE.
+  IF (IsAmbipolarReaction) print*, iReac, EductReac(1:3) ,ProductReac(1:3)
+  IF (.NOT.IsAmbipolarReaction) THEN ! Charge Exchange
+    IF (.NOT.ALMOSTEQUAL(Species(EductReac(1))%ChargeIC, Species(ProductReac(1))%ChargeIC)) AmbiChargeFlip = .TRUE. 
+  END IF 
 END IF
 
 IF(PRESENT(iPart_p3)) THEN
@@ -989,23 +1001,6 @@ IF(ProductReac(3).NE.0) THEN
   DSMC_RHS(2,ReactInx(3)) = VyPseuMolec - FracMassCent1*cRelaNew(2)
   DSMC_RHS(3,ReactInx(3)) = VzPseuMolec - FracMassCent1*cRelaNew(3)
 
-  IF (IsAmbipolarReaction) THEN
-    IF(.NOT.PRESENT(iPart_p3)) THEN
-      IF(ProductReac(3).NE.0) THEN
-        IF (ALLOCATED(AmbipolElecVelo(ReactInx(1))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(ReactInx(1))%ElecVelo)
-        ALLOCATE(AmbipolElecVelo(ReactInx(1))%ElecVelo(3))
-        AmbipolElecVelo(ReactInx(1))%ElecVelo(1:3) = DSMC_RHS(1:3,ReactInx(3))
-        AmbipolElecVelo(ReactInx(1))%IsCoupled = .TRUE.
-        PDM%ParticleInside(ReactInx(3)) = .FALSE.
-      END IF
-    END IF
-    IF(PRESENT(iPart_p3)) THEN
-      IF(ProductReac(3).EQ.0) THEN
-        IF (ALLOCATED(AmbipolElecVelo(ReactInx(1))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(ReactInx(1))%ElecVelo)
-      END IF
-    END IF
-  END IF
-
 #ifdef CODE_ANALYZE
   ! New total energy
   Energy_new=Energy_new + 0.5*Species(PartSpecies(ReactInx(1)))%MassIC*((VxPseuMolec + FracMassCent2*cRelaNew(1))**2    &
@@ -1130,6 +1125,52 @@ IF(CalcPartBalance) THEN
   END DO
 END IF
 
+IF (IsAmbipolarReaction) THEN
+  IF(.NOT.PRESENT(iPart_p3)) THEN
+    IF(ProductReac(3).NE.0) THEN
+      IF (ALLOCATED(AmbipolElecVelo(ReactInx(1))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(ReactInx(1))%ElecVelo)
+      ALLOCATE(AmbipolElecVelo(ReactInx(1))%ElecVelo(3))
+      AmbipolElecVelo(ReactInx(1))%ElecVelo(1:3) = DSMC_RHS(1:3,ReactInx(3))
+      AmbipolElecVelo(ReactInx(1))%IsCoupled = .TRUE.
+      PDM%ParticleInside(ReactInx(3)) = .FALSE.
+    ELSE
+      IF (PARTISELECTRON(ReactInx(1))) THEN
+        IF (ALLOCATED(AmbipolElecVelo(ReactInx(2))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(ReactInx(2))%ElecVelo)
+        ALLOCATE(AmbipolElecVelo(ReactInx(2))%ElecVelo(3))
+        AmbipolElecVelo(ReactInx(2))%ElecVelo(1:3) = DSMC_RHS(1:3,ReactInx(1)) + PartState(4:6,ReactInx(1))
+        AmbipolElecVelo(ReactInx(2))%IsCoupled = .TRUE.
+        PDM%ParticleInside(ReactInx(1)) = .FALSE.
+      ELSE IF (PARTISELECTRON(ReactInx(2))) THEN
+        IF (ALLOCATED(AmbipolElecVelo(ReactInx(1))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(ReactInx(1))%ElecVelo)
+        ALLOCATE(AmbipolElecVelo(ReactInx(1))%ElecVelo(3))
+        AmbipolElecVelo(ReactInx(1))%ElecVelo(1:3) = DSMC_RHS(1:3,ReactInx(2)) + PartState(4:6,ReactInx(2))
+        AmbipolElecVelo(ReactInx(1))%IsCoupled = .TRUE.
+        PDM%ParticleInside(ReactInx(2)) = .FALSE.
+      ELSE
+        IF (ALLOCATED(AmbipolElecVelo(ReactInx(1))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(ReactInx(1))%ElecVelo)
+        IF (ALLOCATED(AmbipolElecVelo(ReactInx(2))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(ReactInx(2))%ElecVelo)
+      END IF
+    END IF
+  END IF
+  IF(PRESENT(iPart_p3)) THEN
+    IF(ProductReac(3).EQ.0) THEN
+      IF (ALLOCATED(AmbipolElecVelo(ReactInx(1))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(ReactInx(1))%ElecVelo)
+    END IF
+  END IF
+END IF
+IF (AmbiChargeFlip) THEN
+  IF (Species(PartSpecies(ReactInx(1)))%ChargeIC.GT.0.0) THEN
+    IF (ALLOCATED(AmbipolElecVelo(ReactInx(1))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(ReactInx(1))%ElecVelo)
+    ALLOCATE(AmbipolElecVelo(ReactInx(1))%ElecVelo(3))
+    AmbipolElecVelo(ReactInx(1))%ElecVelo(3) = AmbipolElecVelo(ReactInx(2))%ElecVelo(3)
+    DEALLOCATE(AmbipolElecVelo(ReactInx(2))%ElecVelo)
+  ELSE IF (Species(PartSpecies(ReactInx(2)))%ChargeIC.GT.0.0) THEN
+    IF (ALLOCATED(AmbipolElecVelo(ReactInx(2))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(ReactInx(2))%ElecVelo)
+    ALLOCATE(AmbipolElecVelo(ReactInx(2))%ElecVelo(3))
+    AmbipolElecVelo(ReactInx(2))%ElecVelo(3) = AmbipolElecVelo(ReactInx(1))%ElecVelo(3)
+    DEALLOCATE(AmbipolElecVelo(ReactInx(1))%ElecVelo)
+  END IF
+END IF
 #ifdef CODE_ANALYZE
 ! Check for energy difference
 IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,RelEneTol)) THEN
