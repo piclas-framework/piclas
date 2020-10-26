@@ -921,9 +921,9 @@ SUBROUTINE DSMC_data_sampling()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, PartStateIntEn, DSMC, CollisMode, SpecDSMC, DSMC_Solution
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, PartStateIntEn, DSMC, CollisMode, SpecDSMC, DSMC_Solution, AmbipolElecVelo
 USE MOD_Part_tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM
+USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM, Species
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -965,7 +965,17 @@ DO iPart=1,PDM%ParticleVecLength
             DSMC_Solution(10,iElem,iSpec)=DSMC_Solution(10,iElem,iSpec)+PartStateIntEn(3,iPart)*partWeight
           END IF
         END IF
-      END IF
+        IF (DSMC%DoAmbipolarDiff) THEN
+          IF(Species(PartSpecies(iPart))%ChargeIC.GT.0.0) THEN
+            DSMC_Solution(1:3,iElem,DSMC%AmbiDiffElecSpec) = DSMC_Solution(1:3,iElem,DSMC%AmbiDiffElecSpec) &
+              + AmbipolElecVelo(iPart)%ElecVelo(1:3)*partWeight
+            DSMC_Solution(4:6,iElem,DSMC%AmbiDiffElecSpec) = DSMC_Solution(4:6,iElem,DSMC%AmbiDiffElecSpec) &
+              + AmbipolElecVelo(iPart)%ElecVelo(1:3)**2*partWeight
+            DSMC_Solution(7,iElem,DSMC%AmbiDiffElecSpec) = DSMC_Solution(7,iElem, DSMC%AmbiDiffElecSpec) + partWeight
+            DSMC_Solution(11,iElem, DSMC%AmbiDiffElecSpec) = DSMC_Solution(11,iElem, DSMC%AmbiDiffElecSpec) + 1.0
+          END IF
+        END IF
+      END IF     
     END IF
     DSMC_Solution(11,iElem, iSpec) = DSMC_Solution(11,iElem, iSpec) + 1.0 !simpartnum
   END IF
