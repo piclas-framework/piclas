@@ -443,28 +443,10 @@ Configuration = SetupConfiguration() # Create class object: init calls ReadConfi
 Executable = ExternalCommand()
 
 print()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+print("Note: You can enter numbers in different formats, e.g., 0.1 or 1e-1 but not 1/10.")
 
 getInput(Configuration , "Please enter the path to the HOPR executable: "                                                                                                    , "hopr"     , "Please supply the path to the HOPR executable"  , "str")
-getInput(Configuration , "Please enter the radius of the (inner) cylinder: "                                                                                                 , "r1"       , "Please supply a value for the radius"           , "float" , sanityCheck=0)
+getInput(Configuration , "Please enter the radius of the (inner) cylinder1: "                                                                                                 , "r1"       , "Please supply a value for the radius"           , "float" , sanityCheck=0)
 getInput(Configuration , "Please enter the radius of the simulation domain (outer cylinder): "                                                                               , "r2"       , "Please supply a value for the radius"           , "float" , sanityCheck=1)
 getInput(Configuration , "Please enter the type of cylinder you want\n  1: quarter cylinder\n  2: half cylinder\n  3: full cylinder: "                                       , "mode"     , "Please supply a number for the desired mesh"    , "int"   , sanityCheck=2)
 getInput(Configuration , "Please enter the type of boundary conditions in z-direction\n  0: periodic\n  1: non-periodic: "                                                   , "periodic" , "Please supply a number for the boundaries in z" , "int"   , sanityCheck=3)
