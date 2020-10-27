@@ -241,21 +241,23 @@ Between these two points the temperature will be interpolated, where the start v
 
 ### Rotational Periodicity
 
-The rotational periodic boundary condition can be used in order to reduce the computational effort in case of an existing rotational periodicity. In contrast to symmetric boundary conditions, a macroscopic flow velocity in azimuthal direction can be simulated (e.g. circular flow around a rotating cylinder). Exactly two corresponding boundaries must be defined by setting `rot_periodic` as BC condition and the angle [°] between both BCs.
+The rotational periodic boundary condition can be used in order to reduce the computational effort in case of an existing rotational periodicity. In contrast to symmetric boundary conditions, a macroscopic flow velocity in azimuthal direction can be simulated (e.g. circular flow around a rotating cylinder). Exactly two corresponding boundaries must be defined by setting `rot_periodic` as BC condition and the rotation direction for each BCs.
 
     Part-Boundary1-SourceName=BC_Rot_Peri_plus
     Part-Boundary1-Condition=rot_periodic
-    Part-Boundary1-RotPeriodicAngle=90.
+    Part-Boundary1-RotPeriodicDir=1
     
     Part-Boundary2-SourceName=BC_Rot_Peri_minus
     Part-Boundary2-Condition=rot_periodic
-    Part-Boundary2-RotPeriodicAngle=-90.
+    Part-Boundary2-RotPeriodicDir=-1
 
-CAUTION! The correct sign for the angle must be determined. Here, the rotation direction is defined by the rotation axis `Part-RotPeriodicAxi` that must be defined separately, and the right-hand rule.
+CAUTION! The correct sign for the direction must be determined. Here, the rotation direction is defined by the rotation axis `Part-RotPeriodicAxi` that must be defined separately, and the right-hand rule.
 
     Part-RotPeriodicAxi=1    ! (x=1, y=2, z=3)
 
-The usage of rotational periodic boundary conditions is limited to cases, where the rotational periodic axis is one of the three Cartesian coordinate axis (x, y, z) with its origin at (0, 0, 0).
+The usage of rotational periodic boundary conditions is limited to cases, where the rotational periodic axis is one of the three Cartesian coordinate axis (x, y, z) with its origin at (0, 0, 0). Finally the rotation angle `Part-RotPeriodicAngle` [°] must be defined.
+
+    Part-RotPeriodicAngle=90
 
 ### Porous Wall / Pump
 
