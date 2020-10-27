@@ -115,9 +115,10 @@ USE MOD_Utils                   ,ONLY: Qsort1DoubleInt1PInt
 USE MOD_MPI_Vars                ,ONLY: OffsetMPISides_rec,nNbProcs,nMPISides_rec,nbProc,RecRequest_U,SendRequest_U
 USE MOD_MPI                     ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
+USE MOD_Mesh_Vars               ,ONLY: GlobalUniqueSideID
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars            ,ONLY: OutputTimeFixed
-USE MOD_Mesh_Vars               ,ONLY: DoWriteStateToHDF5,GlobalUniqueSideID
+USE MOD_Mesh_Vars               ,ONLY: DoWriteStateToHDF5
 USE MOD_StringTools             ,ONLY: set_formatting,clear_formatting
 USE MOD_HDF5_Input              ,ONLY: ReadArray
 ! IMPLICIT VARIABLE HANDLING

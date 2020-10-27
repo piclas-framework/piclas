@@ -1247,6 +1247,7 @@ INTEGER, INTENT(IN)                 :: iSpec, iSF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+IPWRITE(UNIT_StdOut,*) "iSpec,iSF =", iSpec,iSF
       CALL abort(&
 __STAMP__&
 ,'Reactive Boundaries not implemented in this PICLas Version!')

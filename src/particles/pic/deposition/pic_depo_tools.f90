@@ -152,7 +152,9 @@ INTEGER(KIND=MPI_ADDRESS_KIND)   :: MPISharedSize
 INTEGER                          :: MessageSize
 REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
 #endif
+#if USE_DEBUG
 INTEGER                          :: I
+#endif /*USE_DEBUG*/
 INTEGER                          :: NodeID(1:8)
 !===================================================================================================================================
 #if USE_MPI

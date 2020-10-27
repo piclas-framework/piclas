@@ -46,7 +46,7 @@ USE MOD_PICDepo_Vars
 USE MOD_PICDepo_Tools          ,ONLY: CalcCellLocNodeVolumes,ReadTimeAverage,beta
 USE MOD_Particle_Vars
 USE MOD_Globals_Vars           ,ONLY: PI
-USE MOD_Mesh_Vars              ,ONLY: nElems,Elem_xGP,sJ,nGlobalElems,Vdm_EQ_N
+USE MOD_Mesh_Vars              ,ONLY: nElems,sJ,nGlobalElems,Vdm_EQ_N
 USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,MeshVolume, NodeCoords_Shared
 USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,NodeType,NodeTypeVISU
@@ -79,16 +79,14 @@ USE MOD_Restart_Vars           ,ONLY: DoRestart
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE          :: wBary_tmp(:),Vdm_GaussN_EquiN(:,:)
 REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, iBC, kk, ll, mm, firstElem, lastElem, jNode, NbElemID, NeighNonUniqueNodeID
 INTEGER                   :: jElem, NonUniqueNodeID, iNode, NeighUniqueNodeID
-REAL                      :: VolumeShapeFunction,r_sf_average, r_sf_tmp
+REAL                      :: VolumeShapeFunction,r_sf_tmp
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
 CHARACTER(32)             :: hilf, hilf2
 CHARACTER(255)            :: TimeAverageFile
-REAL                      :: dimFactorSF
 INTEGER                   :: nTotalDOF
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND)   :: MPISharedSize
