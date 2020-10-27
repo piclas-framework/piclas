@@ -364,7 +364,6 @@ DO iPart=1,PDM%ParticleVecLength
   ! Particle on local proc, do nothing
   IF (ProcID.EQ.myRank) CYCLE
 
-#if USE_DEBUG
   ! Sanity check
   IF(GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID).LT.0)THEN
     IPWRITE (*,*) "GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) =", GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)
@@ -372,7 +371,6 @@ DO iPart=1,PDM%ParticleVecLength
     __STAMP__&
     ,'Error: Tried to access GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) for ProcID = ',IntInfoOpt=ProcID)
   END IF ! GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) for ProcID = ',IntInfoOpt=ProcID)
-#endif /*USE_DEBUG*/
   ! Add particle to target proc count
   PartMPIExchange%nPartsSend(1,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
   PartMPIExchange%nPartsSend(1,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + 1
