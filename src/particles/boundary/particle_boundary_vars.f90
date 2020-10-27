@@ -324,7 +324,7 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: RotFreq(:)                    ! Rotation frequency of the wall
   REAL    , ALLOCATABLE                  :: RotAxi(:,:)                   ! Direction of rotation axis
   REAL    , ALLOCATABLE                  :: RotOrg(:,:)                   ! Origin of rotation axis
-  REAL    , ALLOCATABLE                  :: RotPeriodicAngle(:)           ! Direction of rotation axis
+  INTEGER , ALLOCATABLE                  :: RotPeriodicDir(:)             ! Direction of rotation
   INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          !Number of Species to be changed at wall
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete

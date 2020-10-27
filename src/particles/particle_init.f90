@@ -128,6 +128,9 @@ CALL prms%CreateLogicalOption(  'Particles-DoTimeDepInflow'   , 'TODO-DEFINE-PAR
                                                                 ' PoissonRounding or DoTimeDepInflow', '.FALSE.')
 CALL prms%CreateIntOption(      'Part-RotPeriodicAxi'         , 'Axis of rotational periodicity:'//&
                                                                    'x=1, y=2, z=3', '1')
+CALL prms%CreateRealOption(     'Part-RotPeriodicAngle'       , 'TODO-DEFINE-PARAMETER\n'//&
+                                                                'Angle for rotational periodicity [Grad]'&
+                                                              , '1.0')
 CALL prms%CreateIntOption(      'Part-nPeriodicVectors'       , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Number of the periodic vectors j=1,...,n.'//&
                                                                    ' Value has to be the same as defined in preprog.ini', '0')
@@ -481,9 +484,9 @@ CALL prms%CreateRealArrayOption('Part-Boundary[$]-RotOrg'  &
 CALL prms%CreateRealArrayOption('Part-Boundary[$]-RotAxi'  &
                                 , 'Direction of rotation axis (global x,y,z). Note: Rotation direction based on Right-hand rule!' &
                                 , '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-RotPeriodicAngle'  &
+CALL prms%CreateIntOption(      'Part-Boundary[$]-RotPeriodicDir'  &
                                 , 'Angular degree of rotation periodicity in [deg].' &
-                                , '0.', numberedmulti=.TRUE.)
+                                , '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp2'  &
                                 , 'Second wall temperature (in [K]) of reflective particle boundary for a temperature gradient.' &
                                 , '0.', numberedmulti=.TRUE.)
@@ -1775,7 +1778,7 @@ ALLOCATE(PartBound%RotVelo(          1:nPartBound))
 ALLOCATE(PartBound%RotFreq(          1:nPartBound))
 ALLOCATE(PartBound%RotOrg(       1:3,1:nPartBound))
 ALLOCATE(PartBound%RotAxi(       1:3,1:nPartBound))
-ALLOCATE(PartBound%RotPeriodicAngle( 1:nPartBound))
+ALLOCATE(PartBound%RotPeriodicDir(  1:nPartBound))
 ALLOCATE(PartBound%TempGradStart(1:3,1:nPartBound))
 ALLOCATE(PartBound%TempGradEnd(  1:3,1:nPartBound))
 ALLOCATE(PartBound%TempGradVec(  1:3,1:nPartBound))
@@ -1934,13 +1937,12 @@ DO iPartBound=1,nPartBound
   CASE('rot_periodic')
     GEO%RotPeriodicBC = .TRUE.
     PartBound%TargetBoundCond(iPartBound)  = PartBound%RotPeriodicBC
-    PartBound%RotPeriodicAngle(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotPeriodicAngle','0.')
-    IF(ALMOSTZERO(PartBound%RotPeriodicAngle(iPartBound))) THEN
+    PartBound%RotPeriodicDir(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-RotPeriodicDir','0.')
+    IF(ABS(PartBound%RotPeriodicDir(iPartBound)).NE.1) THEN
       CALL abort(&
           __STAMP__&
           ,'Angle for for rotational periodicity must not be zero!')
     END IF
-    PartBound%RotPeriodicAngle(iPartBound) = PartBound%RotPeriodicAngle(iPartBound) / 180. * PI
   CASE DEFAULT
     SWRITE(*,*) ' Boundary does not exists: ', TRIM(tmpString)
     CALL abort(&
@@ -1960,7 +1962,16 @@ DO iPartBound=1,nPartBound
   END IF ! PartBound%BoundaryParticleOutput(iPartBound)
 END DO
 
-IF(GEO%RotPeriodicBC) GEO%RotPeriodicAxi = GETINT('Part-RotPeriodicAxi')
+IF(GEO%RotPeriodicBC) THEN
+  GEO%RotPeriodicAxi   = GETINT('Part-RotPeriodicAxi')
+  GEO%RotPeriodicAngle = GETREAL('Part-RotPeriodicAngle')
+  IF(ALMOSTZERO(GEO%RotPeriodicAngle)) THEN
+    CALL abort(&
+        __STAMP__&
+        ,'Angle for for rotational periodicity must not be zero!')
+  END IF
+  GEO%RotPeriodicAngle = GEO%RotPeriodicAngle / 180. * PI
+END IF
 
 ! Surface particle output to .h5
 IF(DoBoundaryParticleOutput)THEN
@@ -2936,7 +2947,7 @@ INTEGER              :: iSide, jSide, nRotPeriodicSides, SideID,SideID2, MaxNumR
 INTEGER              :: NodeID, CNElemID, CNElemID2, LocSideID, k, l, m, NodeID2, ElemID2, LocSideID2
 INTEGER,ALLOCATABLE  :: Rot2Glob_temp(:)
 INTEGER,ALLOCATABLE  :: RotPeriodicSideMapping_temp(:,:)
-LOGICAL              :: isMapped
+LOGICAL              :: isMapped,SideIsMapped
 REAL                 :: iNodeVec(1:3), jNodeVec(1:3)
 REAL                 :: iNodeR, iNodeH, jNodeR, jNodeH, Node2Rmin, Node2Rmax, Node2Hmin, Node2Hmax
 !===================================================================================================================================
@@ -2990,6 +3001,7 @@ DO iSide=1, nRotPeriodicSides
   SideID    = RotPeriodicSide2GlobalSide(iSide)
   CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
   LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+  SideIsMapped = .FALSE.
   ! check if at least one node of iSide is inside bounding box of a Side on corresponding BC
   DO iNode=1, 4
     NodeID = ElemSideNodeID_Shared(iNode,LocSideID,CNElemID) + 1
@@ -2999,14 +3011,15 @@ DO iSide=1, nRotPeriodicSides
     DO jSide=1, nRotPeriodicSides
       SideID2 = RotPeriodicSide2GlobalSide(jSide)
       ! is on same RotPeriodicBC?
-      IF(PartBound%RotPeriodicAngle(SideInfo_Shared(SIDE_BCID,SideID)).EQ. &
-        PartBound%RotPeriodicAngle(SideInfo_Shared(SIDE_BCID,SideID2))) CYCLE
-        isMapped = .FALSE.
+      IF(PartBound%RotPeriodicDir(SideInfo_Shared(SIDE_BCID,SideID)).EQ. &
+        PartBound%RotPeriodicDir(SideInfo_Shared(SIDE_BCID,SideID2))) CYCLE
+      isMapped = .FALSE.
       ! check wether RotPeriodicSides is already mapped
       IF(NumRotPeriodicNeigh(jSide).GT. 0) THEN
         DO iNeigh=1, NumRotPeriodicNeigh(jSide)
           IF(RotPeriodicSideMapping_temp(jSide,iNeigh).EQ.SideID) THEN
             isMapped = .TRUE.
+            SideIsMapped = .TRUE.
             EXIT
           END IF
         END DO
@@ -3053,9 +3066,15 @@ DO iSide=1, nRotPeriodicSides
               ,' ERROR: Number of rotational periodic side exceed fixed number of 1000!.')
         END IF
         RotPeriodicSideMapping_temp(jSide,NumRotPeriodicNeigh(jSide)) = SideID
+        SideIsMapped = .TRUE.
       END IF
     END DO
   END DO
+  IF(.NOT.SideIsMapped) THEN
+    CALL abort(&
+        __STAMP__&
+        ,' ERROR: One rot periodic side did not find a corresponding side.')
+  END IF
 END DO
 ! (3) reallocate array due to number of potentional rotational periodic sides
 MaxNumRotPeriodicNeigh = MAXVAL(NumRotPeriodicNeigh)
@@ -3166,7 +3185,7 @@ SDEALLOCATE(PartBound%RotVelo)
 SDEALLOCATE(PartBound%RotFreq)
 SDEALLOCATE(PartBound%RotOrg)
 SDEALLOCATE(PartBound%RotAxi)
-SDEALLOCATE(PartBound%RotPeriodicAngle)
+SDEALLOCATE(PartBound%RotPeriodicDir)
 SDEALLOCATE(Adaptive_MacroVal)
 SDEALLOCATE(PartBound%Voltage)
 SDEALLOCATE(PartBound%UseForQCrit)

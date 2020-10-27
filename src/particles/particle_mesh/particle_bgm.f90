@@ -1523,7 +1523,7 @@ DO iElem = 1,nGlobalElems
           nPeriodicElems = nPeriodicElems + 1
           hasPeriodic    = .TRUE.
         END IF
-        PeriodicSideAngle(nPeriodicElems) = PartBound%RotPeriodicAngle(SideInfo_Shared(SIDE_BCID,iSide))
+        PeriodicSideAngle(nPeriodicElems) = REAL(PartBound%RotPeriodicDir(SideInfo_Shared(SIDE_BCID,iSide)))*GEO%RotPeriodicAngle
       END IF
     END IF
   END DO
