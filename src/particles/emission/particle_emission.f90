@@ -248,7 +248,7 @@ IF(DoDielectric)THEN
   IF(DielectricNoParticles)THEN
     DO i = 1,PDM%ParticleVecLength
       ! Remove particles in dielectric elements
-      IF(isDielectricElem(PEM%GlobalElemID(i)))THEN
+      IF(isDielectricElem(PEM%LocalElemID(i)))THEN
         PDM%ParticleInside(i) = .FALSE.
       END IF
     END DO
