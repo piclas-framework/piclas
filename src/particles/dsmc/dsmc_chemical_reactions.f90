@@ -1154,6 +1154,7 @@ IF (IsAmbipolarReaction) THEN
   IF(PRESENT(iPart_p3)) THEN
     IF(ProductReac(3).EQ.0) THEN
       IF (ALLOCATED(AmbipolElecVelo(ReactInx(1))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(ReactInx(1))%ElecVelo)
+      AmbipolElecVelo(ReactInx(2))%IsCoupled = .FALSE.
     END IF
   END IF
 END IF
@@ -1163,11 +1164,15 @@ IF (AmbiChargeFlip) THEN
     ALLOCATE(AmbipolElecVelo(ReactInx(1))%ElecVelo(3))
     AmbipolElecVelo(ReactInx(1))%ElecVelo(3) = AmbipolElecVelo(ReactInx(2))%ElecVelo(3)
     DEALLOCATE(AmbipolElecVelo(ReactInx(2))%ElecVelo)
+    AmbipolElecVelo(ReactInx(1))%IsCoupled = .FALSE.
+    AmbipolElecVelo(ReactInx(2))%IsCoupled = .FALSE.
   ELSE IF (Species(PartSpecies(ReactInx(2)))%ChargeIC.GT.0.0) THEN
     IF (ALLOCATED(AmbipolElecVelo(ReactInx(2))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(ReactInx(2))%ElecVelo)
     ALLOCATE(AmbipolElecVelo(ReactInx(2))%ElecVelo(3))
     AmbipolElecVelo(ReactInx(2))%ElecVelo(3) = AmbipolElecVelo(ReactInx(1))%ElecVelo(3)
     DEALLOCATE(AmbipolElecVelo(ReactInx(1))%ElecVelo)
+    AmbipolElecVelo(ReactInx(1))%IsCoupled = .FALSE.
+    AmbipolElecVelo(ReactInx(2))%IsCoupled = .FALSE.
   END IF
 END IF
 #ifdef CODE_ANALYZE
@@ -1405,9 +1410,10 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
 ! LOCAL VARIABLES
   INTEGER                         :: iReac, iSpec, LowerLevel, UpperLevel, iChemDir, MaxElecQua
   REAL                            :: PartFuncProduct(2), k_b_lower, k_b_upper, ActivationEnergy_K, PartitionFunction
-  REAL                            :: Qtra, Qrot, Qvib, Qelec
+  REAL                            :: Qtra, Qrot, Qvib, Qelec, maxexp, expVal
 !===================================================================================================================================
   ! Determination of the lower and upper value of the temperature interval
+  maxexp = LOG(HUGE(maxexp))
   LowerLevel = INT(LocalTemp/DSMC%PartitionInterval)
   UpperLevel = LowerLevel + 1
 
@@ -1437,7 +1443,8 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
       END DO
     END DO
     IF (ChemReac%QKProcedure(iReac)) THEN
-      BackwardRate = CalcQKAnalyticRate(iReac,LocalTemp)*(PartFuncProduct(1)/PartFuncProduct(2))*EXP(ActivationEnergy_K/LocalTemp)
+      expVal = MAX(maxexp,ActivationEnergy_K/LocalTemp)
+      BackwardRate = CalcQKAnalyticRate(iReac,LocalTemp)*(PartFuncProduct(1)/PartFuncProduct(2))*EXP(expVal)
     ELSE
       BackwardRate = ChemReac%Arrhenius_Prefactor(iReac)  &
               * (LocalTemp)**ChemReac%Arrhenius_Powerfactor(iReac) &
@@ -1456,8 +1463,8 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
     END DO
     IF((PartFuncProduct(1).NE.0.).AND.(PartFuncProduct(2).NE.0.)) THEN
       IF (ChemReac%QKProcedure(iReac)) THEN
-        k_b_lower = QKAnalytic(iReac)%ForwardRate(LowerLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) &
-            * EXP(ActivationEnergy_K/(LowerLevel * DSMC%PartitionInterval))
+        expVal = MAX(maxexp,ActivationEnergy_K/(LowerLevel * DSMC%PartitionInterval))
+        k_b_lower = QKAnalytic(iReac)%ForwardRate(LowerLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) * EXP(expVal)
       ELSE
         k_b_lower = ChemReac%Arrhenius_Prefactor(iReac)  &
                 * (LowerLevel * DSMC%PartitionInterval)**ChemReac%Arrhenius_Powerfactor(iReac) &
@@ -1478,8 +1485,8 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
     END DO
     IF((PartFuncProduct(1).NE.0.).AND.(PartFuncProduct(2).NE.0.)) THEN
       IF (ChemReac%QKProcedure(iReac)) THEN
-        k_b_upper = QKAnalytic(iReac)%ForwardRate(UpperLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) &
-            * EXP(ActivationEnergy_K/(UpperLevel * DSMC%PartitionInterval))
+        expVal = MAX(maxexp,ActivationEnergy_K/(UpperLevel * DSMC%PartitionInterval))
+        k_b_upper = QKAnalytic(iReac)%ForwardRate(UpperLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) * EXP(expVal)
       ELSE
         k_b_upper = ChemReac%Arrhenius_Prefactor(iReac) &
               * (UpperLevel * DSMC%PartitionInterval)**ChemReac%Arrhenius_Powerfactor(iReac) &
