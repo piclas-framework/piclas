@@ -608,7 +608,7 @@ CALL prms%CreateRealOption('Part-Species[$]-Init[$]-WorkFunctionSEE','Photoelect
 !CALL prms%CreateRealOption('Part-Species[$]-Init[$]-AngularBetaSEE',&
                            !'Orbital configuration of the solid from which the photoelectrons emerge','0.0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption('Part-Species[$]-Init[$]-EffectiveIntensityFactor', 'Scaling factor that increases I0 [-]',&
-                            numberedmulti=.TRUE.)
+                            '1.', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticles
 
