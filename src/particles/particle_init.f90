@@ -1762,43 +1762,72 @@ IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) THEN
 __STAMP__&
   ,'ERROR: nPartBound .LE. 0:', nPartBound)
 END IF
-ALLOCATE(PartBound%SourceBoundName(  1:nPartBound))
-ALLOCATE(PartBound%TargetBoundCond(  1:nPartBound))
-ALLOCATE(PartBound%MomentumACC(      1:nPartBound))
-ALLOCATE(PartBound%WallTemp(         1:nPartBound))
-ALLOCATE(PartBound%WallTemp2(        1:nPartBound))
-ALLOCATE(PartBound%WallTempDelta(    1:nPartBound))
-ALLOCATE(PartBound%TransACC(         1:nPartBound))
-ALLOCATE(PartBound%VibACC(           1:nPartBound))
-ALLOCATE(PartBound%RotACC(           1:nPartBound))
-ALLOCATE(PartBound%ElecACC(          1:nPartBound))
-ALLOCATE(PartBound%Resample(         1:nPartBound))
-ALLOCATE(PartBound%WallVelo(     1:3,1:nPartBound))
-ALLOCATE(PartBound%RotVelo(          1:nPartBound))
-ALLOCATE(PartBound%RotFreq(          1:nPartBound))
-ALLOCATE(PartBound%RotOrg(       1:3,1:nPartBound))
-ALLOCATE(PartBound%RotAxi(       1:3,1:nPartBound))
-ALLOCATE(PartBound%RotPeriodicDir(  1:nPartBound))
-ALLOCATE(PartBound%TempGradStart(1:3,1:nPartBound))
-ALLOCATE(PartBound%TempGradEnd(  1:3,1:nPartBound))
-ALLOCATE(PartBound%TempGradVec(  1:3,1:nPartBound))
-ALLOCATE(PartBound%SurfaceModel(     1:nPartBound))
-ALLOCATE(PartBound%Reactive(         1:nPartBound))
-ALLOCATE(PartBound%SolidState(       1:nPartBound))
-ALLOCATE(PartBound%SolidPartDens(    1:nPartBound))
-ALLOCATE(PartBound%SolidMassIC(      1:nPartBound))
-ALLOCATE(PartBound%SolidAreaIncrease(1:nPartBound))
-ALLOCATE(PartBound%SolidStructure(   1:nPartBound))
-ALLOCATE(PartBound%SolidCrystalIndx( 1:nPartBound))
-PartBound%SolidState(  1:nPartBound) = .FALSE.
-PartBound%Reactive(    1:nPartBound) = .FALSE.
-PartBound%SurfaceModel(1:nPartBound) = 0
 
+ALLOCATE(PartBound%SourceBoundName(  1:nPartBound))
+PartBound%SourceBoundName = ''
+ALLOCATE(PartBound%TargetBoundCond(  1:nPartBound))
+PartBound%TargetBoundCond = -1
+ALLOCATE(PartBound%MomentumACC(      1:nPartBound))
+PartBound%MomentumACC = -1
+ALLOCATE(PartBound%WallTemp(         1:nPartBound))
+PartBound%WallTemp = -1.
+ALLOCATE(PartBound%WallTemp2(        1:nPartBound))
+PartBound%WallTemp2 = -1.
+ALLOCATE(PartBound%WallTempDelta(    1:nPartBound))
+PartBound%WallTempDelta = 0.
+ALLOCATE(PartBound%TransACC(         1:nPartBound))
+PartBound%TransACC = -1.
+ALLOCATE(PartBound%VibACC(           1:nPartBound))
+PartBound%VibACC = -1.
+ALLOCATE(PartBound%RotACC(           1:nPartBound))
+PartBound%RotACC = -1.
+ALLOCATE(PartBound%ElecACC(          1:nPartBound))
+PartBound%ElecACC = -1.
+ALLOCATE(PartBound%Resample(         1:nPartBound))
+PartBound%Resample = .FALSE.
+ALLOCATE(PartBound%WallVelo(     1:3,1:nPartBound))
+PartBound%WallVelo = 0.
+ALLOCATE(PartBound%RotVelo(          1:nPartBound))
+PartBound%RotVelo = .FALSE.
+ALLOCATE(PartBound%RotFreq(          1:nPartBound))
+PartBound%RotFreq = -1.
+ALLOCATE(PartBound%RotOrg(       1:3,1:nPartBound))
+PartBound%RotOrg = 0.
+ALLOCATE(PartBound%RotAxi(       1:3,1:nPartBound))
+PartBound%RotAxi = 0.
+ALLOCATE(PartBound%RotPeriodicDir(  1:nPartBound))
+PartBound%RotPeriodicDir = 0
+ALLOCATE(PartBound%TempGradStart(1:3,1:nPartBound))
+PartBound%TempGradStart = 0.
+ALLOCATE(PartBound%TempGradEnd(  1:3,1:nPartBound))
+PartBound%TempGradEnd = 0.
+ALLOCATE(PartBound%TempGradVec(  1:3,1:nPartBound))
+PartBound%TempGradVec = 0.
+ALLOCATE(PartBound%SurfaceModel(     1:nPartBound))
+PartBound%SurfaceModel = 0
+ALLOCATE(PartBound%Reactive(         1:nPartBound))
+PartBound%Reactive = .FALSE.
+ALLOCATE(PartBound%SolidState(       1:nPartBound))
+PartBound%SolidState = .FALSE.
+ALLOCATE(PartBound%SolidPartDens(    1:nPartBound))
+PartBound%SolidPartDens = 0.
+ALLOCATE(PartBound%SolidMassIC(      1:nPartBound))
+PartBound%SolidMassIC = 0.
+ALLOCATE(PartBound%SolidAreaIncrease(1:nPartBound))
+PartBound%SolidAreaIncrease = 0.
+ALLOCATE(PartBound%SolidStructure(   1:nPartBound))
+PartBound%SolidStructure = 0.
+ALLOCATE(PartBound%SolidCrystalIndx( 1:nPartBound))
+PartBound%SolidCrystalIndx = 0
 ALLOCATE(PartBound%Voltage(1:nPartBound))
+PartBound%Voltage = 0.
 ALLOCATE(PartBound%UseForQCrit(1:nPartBound))
+PartBound%UseForQCrit = .FALSE.
 ALLOCATE(PartBound%Voltage_CollectCharges(1:nPartBound))
 PartBound%Voltage_CollectCharges(:)=0.
 ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
+PartBound%NbrOfSpeciesSwaps = 0
+
 !--determine MaxNbrOfSpeciesSwaps for correct allocation
 MaxNbrOfSpeciesSwaps=0
 DO iPartBound=1,nPartBound
@@ -1808,7 +1837,9 @@ DO iPartBound=1,nPartBound
 END DO
 IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
   ALLOCATE(PartBound%ProbOfSpeciesSwaps(1:nPartBound))
+  PartBound%ProbOfSpeciesSwaps = -1
   ALLOCATE(PartBound%SpeciesSwaps(1:2,1:MaxNbrOfSpeciesSwaps,1:nPartBound))
+  PartBound%SpeciesSwaps = -1
 END IF
 ! Dielectric Surfaces
 ALLOCATE(PartBound%Dielectric(1:nPartBound))
@@ -1827,6 +1858,7 @@ PartMeshHasReflectiveBCs=.FALSE.
 DO iPartBound=1,nPartBound
   WRITE(UNIT=hilf,FMT='(I0)') iPartBound
   tmpString = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-Condition','open'))
+
   SELECT CASE (TRIM(tmpString))
   CASE('open')
     PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic
