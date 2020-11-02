@@ -53,6 +53,10 @@ INTERFACE DielectricSurfaceCharge
   MODULE PROCEDURE DielectricSurfaceCharge
 END INTERFACE
 
+INTERFACE CalcRotWallVelo
+  MODULE PROCEDURE CalcRotWallVelo
+END INTERFACE
+
 PUBLIC :: AddPartInfoToSample
 PUBLIC :: CalcWallSample
 PUBLIC :: AnalyzeSurfaceCollisions
@@ -61,6 +65,7 @@ PUBLIC :: CountSurfaceImpact
 PUBLIC :: StoreBoundaryParticleProperties
 PUBLIC :: DielectricSurfaceCharge
 PUBLIC :: GetWallTemperature
+PUBLIC :: CalcRotWallVelo
 !===================================================================================================================================
 
 CONTAINS
@@ -590,5 +595,46 @@ ELSE
 END IF
 
 END FUNCTION GetWallTemperature
+
+SUBROUTINE CalcRotWallVelo(locBCID,PartID,POI,WallVelo)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Calculation of additional velocity through the rotating wall. The velocity is equal to circumferential speed at 
+! the point of intersection (POI):
+! The direction is perpendicular to the rotational axis (vec_axi) AND the distance vector (vec_axi -> POI).
+! Rotation direction based on Right-hand rule.
+! The magnitude of the velocity depends on radius and rotation frequency.
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+USE MOD_Globals                 ,ONLY: CROSSNORM,VECNORM
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Globals_Vars            ,ONLY: PI
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)    :: locBCID
+INTEGER,INTENT(IN)    :: PartID
+REAL,INTENT(IN)       :: POI(3)
+REAL,INTENT(INOUT)    :: WallVelo(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: NewPartID
+REAL                  :: vec_r(1:3),vec_a(1:3), vec_t(1:3), vec_OrgPOI(1:3),vec_axi_norm(1:3)
+REAL                  :: radius, circ_speed
+!===================================================================================================================================
+
+ASSOCIATE ( vec_org  => PartBound%RotOrg(1:3,locBCID) ,&
+            RotFreq  => PartBound%RotFreq(locBCID)    ,&
+            vec_axi  => PartBound%RotAxi(1:3,locBCID)   )         
+  vec_OrgPOI(1:3) = POI(1:3) - vec_org(1:3)
+  vec_axi_norm = vec_axi / VECNORM(vec_axi)
+  vec_a(1:3) = DOT_PRODUCT(vec_axi_norm,vec_OrgPOI) * vec_axi_norm(1:3)
+  vec_r(1:3) = vec_OrgPOI(1:3) - vec_a(1:3)
+  radius = SQRT( vec_r(1)*vec_r(1) + vec_r(2)*vec_r(2) + vec_r(3)*vec_r(3) )
+  circ_speed = 2.0 * PI * radius * RotFreq
+  vec_t = CROSSNORM(vec_axi_norm,vec_r)
+  WallVelo(1:3) = circ_speed * vec_t(1:3)
+END ASSOCIATE
+
+END SUBROUTINE CalcRotWallVelo
 
 END MODULE MOD_Particle_Boundary_Tools

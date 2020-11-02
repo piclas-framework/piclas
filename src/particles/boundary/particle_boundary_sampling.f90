@@ -232,7 +232,8 @@ DO iBC=1,nBCs
   IF (PartBound%MapToPartBC(iBC).EQ.-1) CYCLE
 
   ! count number of reflective BCs
-  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%ReflectiveBC) THEN
+  IF ( (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%ReflectiveBC).OR. &
+       (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%RotPeriodicBC)    ) THEN
     nSurfBC         = nSurfBC + 1
     BCName(nSurfBC) = BoundaryName(iBC)
   END IF
@@ -274,7 +275,8 @@ DO iSide = firstSide,lastSide
   IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
 
   ! count number of reflective and inner BC sides
-  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%ReflectiveBC) THEN
+  IF ( (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%ReflectiveBC) .OR. &
+       (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%RotPeriodicBC) ) THEN
     nSurfSidesProc = nSurfSidesProc + 1
     ! check if element for this side is on the current compute-node
     ! IF ((SideInfo_Shared(SIDE_ID,iSide).GT.ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1))                  .AND. &
@@ -1329,6 +1331,10 @@ SDEALLOCATE(AnalyzeSurfCollis%BCs)
 !  END DO
 !  SDEALLOCATE(SurfMapping)
 !END IF
+SDEALLOCATE(RotPeriodicSide2GlobalSide)
+SDEALLOCATE(NumRotPeriodicNeigh)
+SDEALLOCATE(RotPeriodicSideMapping)
+SDEALLOCATE(SurfSide2RotPeriodicSide)
 
 END SUBROUTINE FinalizeParticleBoundarySampling
 
