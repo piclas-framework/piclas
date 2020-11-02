@@ -314,6 +314,10 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: ElecACC(:)
   REAL    , ALLOCATABLE                  :: WallVelo(:,:)
   REAL    , ALLOCATABLE                  :: Voltage(:), Voltage_CollectCharges(:)
+  LOGICAL , ALLOCATABLE                  :: RotVelo(:)                    ! Flag for rotating walls
+  REAL    , ALLOCATABLE                  :: RotFreq(:)                    ! Rotation frequency of the wall
+  REAL    , ALLOCATABLE                  :: RotAxi(:,:)                   ! Origin of rotation axis
+  REAL    , ALLOCATABLE                  :: RotOrg(:,:)                   ! Direction of rotation axis
   INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          !Number of Species to be changed at wall
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete

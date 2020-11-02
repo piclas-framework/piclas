@@ -395,7 +395,7 @@ USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,nSpecies,PartSpecie
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep
 USE MOD_DSMC_Vars               ,ONLY: DSMC,RadialWeighting,PartStateIntEn
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,usevMPF
-USE MOD_TImeDisc_Vars           ,ONLY: tend,time
+USE MOD_TImeDisc_Vars           ,ONLY: dt,tend,time,RKdtFrac
 USE MOD_Globals_Vars            ,ONLY: c2_inv
 #if defined(LSERK)
 USE MOD_Particle_Vars           ,ONLY: Pt_temp,PDM
@@ -406,7 +406,7 @@ USE MOD_Particle_Vars           ,ONLY: PDM
 USE MOD_Particle_Vars           ,ONLY: PEM
 #endif
 USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
-USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact
+USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact,CalcRotWallVelo
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
@@ -438,25 +438,30 @@ LOGICAL                              :: Symmetry, IsAuxBC
 REAL                                 :: MacroParticleFactor
 LOGICAL                              :: DoSample
 REAL                                 :: EtraOld,EvibOld,ErotOld
+REAL                                 :: POI_vec(1:3)
+REAL                                 :: adaptTimeStep
 !===================================================================================================================================
+! Initialize
+adaptTimeStep = 1.0
+IsAuxBC=.FALSE.
+Symmetry = .FALSE.
 
-IF (PRESENT(AuxBCIdx)) THEN
-  IsAuxBC=.TRUE.
-ELSE
-  IsAuxBC=.FALSE.
-END IF
+IF (PRESENT(AuxBCIdx)) IsAuxBC=.TRUE.
+
 IF (IsAuxBC) THEN
   WallVelo = PartAuxBC%WallVelo(1:3,AuxBCIdx)
 ELSE
   WallVelo = PartBound%WallVelo(1:3,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
   locBCID  = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
-
-  IF(PRESENT(opt_Symmetry)) THEN
-    Symmetry = opt_Symmetry
-  ELSE
-    Symmetry = .FALSE.
-  END IF
+  IF(PRESENT(opt_Symmetry)) Symmetry = opt_Symmetry
 END IF !IsAuxBC
+
+! Get Point Of Intersection
+POI_vec(1:3) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
+
+IF(PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
+  CALL CalcRotWallVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)),PartID,POI_vec,WallVelo)
+END IF
 
 IF(SUM(ABS(WallVelo)).GT.0.)THEN
   SELECT CASE(PartLorentzType)
@@ -500,6 +505,7 @@ END IF
 
 DoSample = (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)
 
+
 IF (.NOT.IsAuxBC) THEN
   ! Wall sampling Macrovalues
   IF(.NOT.Symmetry) THEN !surface mesh is not built for the symmetry BC!?!
@@ -517,9 +523,10 @@ IF (.NOT.IsAuxBC) THEN
       END IF
 
       IF (VarTimeStep%UseVariableTimeStep) THEN
+        adaptTimeStep = VarTimeStep%ParticleTimeStep(PartID)
         ! Sampling of the time step at the wall to get the correct time sample duration for the force per area calculation
         SampWallState(12+nSpecies+1,p,q,SurfSideID) = SampWallState(12+nSpecies+1,p,q,SurfSideID) &
-            + VarTimeStep%ParticleTimeStep(PartID)
+            + adaptTimeStep
       END IF
       IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
         MacroParticleFactor = GetParticleWeight(PartID)
@@ -568,18 +575,30 @@ END IF !.NOT.IsAuxBC
 
 
 ! set particle position on face
-LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
+LastPartPos(1:3,PartID) = POI_vec(1:3)
 
 PartTrajectory(1:3)     = PartTrajectory(1:3)-2.*DOT_PRODUCT(PartTrajectory(1:3),n_loc)*n_loc
-PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*(lengthPartTrajectory - alpha)
+
+! Check if rotated velo is used, otherwise mirror the LastPartPos
+IF(PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))))THEN
+  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac &
+                          * PartState(4:6,PartID) * adaptTimeStep
+ELSE
+  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*(lengthPartTrajectory - alpha)
+END IF ! PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
 
 ! #if !defined(IMPA) &&  !defined(ROS)
 ! compute moved particle || rest of movement
 PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
-lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                         +PartTrajectory(2)*PartTrajectory(2) &
-                         +PartTrajectory(3)*PartTrajectory(3) )
-PartTrajectory=PartTrajectory/lengthPartTrajectory
+
+IF(ALMOSTZERO(VECNORM(PartTrajectory)))THEN
+  lengthPartTrajectory= 0.0
+ELSE
+  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                           +PartTrajectory(2)*PartTrajectory(2) &
+                           +PartTrajectory(3)*PartTrajectory(3) )
+  PartTrajectory=PartTrajectory/lengthPartTrajectory
+END IF
 ! #endif
 
 #if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
@@ -640,7 +659,7 @@ USE MOD_DSMC_Vars               ,ONLY: PolyatomMolDSMC, VibQuantsPar
 USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
 USE MOD_Part_Tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample,CalcSurfaceImpact
-USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact, GetWallTemperature
+USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact, GetWallTemperature,CalcRotWallVelo
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState,GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars
@@ -679,7 +698,7 @@ REAL                                 :: VibQuantNewR                            
 REAL                                 :: VeloReal, RanNum, EtraOld, VeloCrad, Fak_D
 REAL                                 :: EtraWall, EtraNew
 REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC, ElecACC
-REAL                                 :: tang1(1:3),tang2(1:3), NewVelo(3)
+REAL                                 :: tang1(1:3),tang2(1:3), NewVelo(3), POI_vec(1:3)
 REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, VeloCx, VeloCy, VeloCz
 REAL                                 :: Xitild,EtaTild
 !REAL                                 :: WallTransACC
@@ -726,6 +745,14 @@ ELSE
   RotACC     = PartBound%RotACC(locBCID)
   ElecACC    = PartBound%ElecACC(locBCID)
 END IF !IsAuxBC
+
+POI_vec(1:3) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
+
+IF(PartBound%RotVelo(locBCID)) THEN
+  CALL CalcRotWallVelo(locBCID,PartID,POI_vec,WallVelo)
+END IF
+
+
 CALL OrthoNormVec(n_loc,tang1,tang2)
 
 IF(Symmetry%Axisymmetric) THEN
@@ -836,6 +863,8 @@ IF(Symmetry%Axisymmetric) THEN
 ELSE
   NewVelo(1:3) = VeloCx*tang1(1:3)-tang2(1:3)*VeloCy-VeloCz*n_loc(1:3)
 END IF
+! add wall velocity
+NewVelo(1:3) = NewVelo(1:3) + WallVelo(1:3)
 
 IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
   !---- Internal energy accommodation
@@ -976,7 +1005,7 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
   END IF ! VarTimeStep%UseVariableTimeStep
 
   ! intersection point with surface
-  LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
+  LastPartPos(1:3,PartID) = POI_vec(1:3)
 
   ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
   !TildPos       =PartState(1:3,PartID)-dt*RKdtFrac*PartState(4:6,PartID)
@@ -1039,7 +1068,7 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
 END IF !.NOT.IsAuxBC
 
 !----  saving new particle velocity
-PartState(4:6,PartID)   = NewVelo(1:3) + WallVelo(1:3)
+PartState(4:6,PartID)   = NewVelo(1:3)
 
 ! recompute trajectory etc
 IF(Symmetry%Axisymmetric) THEN
