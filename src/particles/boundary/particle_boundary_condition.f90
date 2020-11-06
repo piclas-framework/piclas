@@ -1384,6 +1384,9 @@ USE MOD_TImeDisc_Vars          ,ONLY: dt,RKdtFrac
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep
 USE MOD_Particle_Boundary_Vars ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide, GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
+USE MOD_part_operations        ,ONLY: RemoveParticle
+USE MOD_part_tools             ,ONLY: StoreLostParticleProperties
+USE MOD_Particle_Tracking_vars ,ONLY: NbrOfLostParticles
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
@@ -1482,9 +1485,12 @@ ASSOCIATE( RotSideID =>  SurfSide2RotPeriodicSide((GlobalSide2SurfSide(SURF_SIDE
     END IF
   END DO
   IF(.NOT.FoundInElem) THEN
-    CALL abort(&
-      __STAMP__&
-      ,' ERROR: Particle not found after rotational periodic BC!.')
+!    CALL abort(&
+!      __STAMP__&
+!      ,' ERROR: Particle not found after rotational periodic BC!.')
+    CALL StoreLostParticleProperties(PartID,ElemID)
+    NbrOfLostParticles=NbrOfLostParticles+1
+    CALL RemoveParticle(PartID,BCID=SideInfo_Shared(SIDE_BCID,SideID),alpha=alpha)
   END IF
 END ASSOCIATE
 
