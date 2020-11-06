@@ -71,11 +71,6 @@ INTEGER,ALLOCATABLE,DIMENSION(:,:)      :: SurfHaloSide2GlobalSide       ! Inver
 INTEGER                                 :: GlobalSide2SurfSide_Shared_Win
 INTEGER                                 :: SurfSide2GlobalSide_Shared_Win
 
-INTEGER,ALLOCATABLE                     :: RotPeriodicSide2GlobalSide(:) ! Mapping BC-side with PartBoundCond=6 to Global Side ID
-INTEGER,ALLOCATABLE                     :: NumRotPeriodicNeigh(:)        ! Number of adjacent Neigbours sites in rotational periodic BC
-INTEGER,ALLOCATABLE                     :: RotPeriodicSideMapping(:,:)   ! Mapping between rotational periodic sides.
-INTEGER,ALLOCATABLE                     :: SurfSide2RotPeriodicSide(:)   ! Mapping between surf side and periodic sides.
-
 TYPE tSurfaceMapping
   INTEGER,ALLOCATABLE                   :: RecvSurfGlobalID(:)
   INTEGER,ALLOCATABLE                   :: SendSurfGlobalID(:)
@@ -105,6 +100,12 @@ INTEGER                                 :: SampWallImpactAngle_Shared_Win
 INTEGER                                 :: SampWallImpactNumber_Shared_Win
 #endif /* USE_MPI */
 
+! ====================================================================
+! Rotational periodic sides
+INTEGER,ALLOCATABLE                     :: RotPeriodicSide2GlobalSide(:) ! Mapping BC-side with PartBoundCond=6 to Global Side ID
+INTEGER,ALLOCATABLE                     :: NumRotPeriodicNeigh(:)        ! Number of adjacent Neigbours sites in rotational periodic BC
+INTEGER,ALLOCATABLE                     :: RotPeriodicSideMapping(:,:)   ! Mapping between rotational periodic sides.
+INTEGER,ALLOCATABLE                     :: SurfSide2RotPeriodicSide(:)   ! Mapping between surf side and periodic sides.
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! required variables
