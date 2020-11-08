@@ -664,6 +664,7 @@ SDEALLOCATE(NDepochooseK)
 SDEALLOCATE(tempcharge)
 SDEALLOCATE(CellVolWeightFac)
 SDEALLOCATE(CellVolWeight_Volumes)
+SDEALLOCATE(NodeSourceLoc)
 
 #if USE_MPI
 SDEALLOCATE(PartSourceProc)
@@ -681,6 +682,11 @@ IF(DoDeposition)THEN
     CALL MPI_WIN_UNLOCK_ALL(NodeSource_Shared_Win, iError)
     CALL MPI_WIN_FREE(      NodeSource_Shared_Win, iError)
     ADEALLOCATE(NodeSource_Shared)
+
+    CALL MPI_WIN_UNLOCK_ALL(NodeVolume_Shared_Win, iError)
+    CALL MPI_WIN_FREE(      NodeVolume_Shared_Win, iError)
+    ADEALLOCATE(NodeVolume_Shared)
+
     ! Surface charging arrays
     IF(DoDielectricSurfaceCharge)THEN
       CALL MPI_WIN_UNLOCK_ALL(NodeSourceExt_Shared_Win, iError)
