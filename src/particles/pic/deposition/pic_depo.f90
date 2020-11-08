@@ -65,7 +65,7 @@ USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank,MPI_COMM_LEADERS_SHARED
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,myLeaderGroupRank,nLeaderGroupProcs
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 USE MOD_PICDepo_MPI            ,ONLY: MPIBackgroundMeshInit
 USE MOD_Restart_Vars           ,ONLY: DoRestart
