@@ -215,6 +215,10 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+#ifdef DEBUG_MEMORY
+LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+#endif /*DEBUG_MEMORY*/
+
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
 ,'ERROR: Datapointer (Logical1) already associated')
@@ -229,10 +233,6 @@ DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
-
-#ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
-#endif /*DEBUG_MEMORY*/
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -273,6 +273,10 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+#ifdef DEBUG_MEMORY
+LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+#endif /*DEBUG_MEMORY*/
+
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
 ,'ERROR: Datapointer (Logical1) already associated')
@@ -287,10 +291,6 @@ DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
-
-#ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
-#endif /*DEBUG_MEMORY*/
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -331,6 +331,10 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+#ifdef DEBUG_MEMORY
+LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+#endif /*DEBUG_MEMORY*/
+
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
 ,'ERROR: Datapointer (Int1) already associated')
@@ -345,10 +349,6 @@ DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
-
-#ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
-#endif /*DEBUG_MEMORY*/
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -390,6 +390,10 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+#ifdef DEBUG_MEMORY
+LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+#endif /*DEBUG_MEMORY*/
+
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
 ,'ERROR: Datapointer (Int2) already associated')
@@ -404,10 +408,6 @@ DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
-
-#ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
-#endif /*DEBUG_MEMORY*/
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -449,6 +449,10 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+#ifdef DEBUG_MEMORY
+LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+#endif /*DEBUG_MEMORY*/
+
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
 ,'ERROR: Datapointer (Int3) already associated')
@@ -463,10 +467,6 @@ DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
-
-#ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
-#endif /*DEBUG_MEMORY*/
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -508,6 +508,10 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+#ifdef DEBUG_MEMORY
+LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+#endif /*DEBUG_MEMORY*/
+
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
 ,'ERROR: Datapointer (Int3) already associated')
@@ -522,10 +526,6 @@ DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
-
-#ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
-#endif /*DEBUG_MEMORY*/
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -567,6 +567,10 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+#ifdef DEBUG_MEMORY
+LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+#endif /*DEBUG_MEMORY*/
+
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
 ,'ERROR: Datapointer (Real1) already associated')
@@ -582,9 +586,6 @@ DISP_UNIT = 1
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
-#ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
-#endif /*DEBUG_MEMORY*/
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -626,6 +627,10 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+#ifdef DEBUG_MEMORY
+LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+#endif /*DEBUG_MEMORY*/
+
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
 ,'ERROR: Datapointer (Real2) already associated')
@@ -640,10 +645,6 @@ DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
-
-#ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
-#endif /*DEBUG_MEMORY*/
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -685,6 +686,10 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+#ifdef DEBUG_MEMORY
+LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+#endif /*DEBUG_MEMORY*/
+
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
 ,'ERROR: Datapointer (Real3) already associated')
@@ -699,10 +704,6 @@ DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
-
-#ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
-#endif /*DEBUG_MEMORY*/
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -744,6 +745,10 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+#ifdef DEBUG_MEMORY
+LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+#endif /*DEBUG_MEMORY*/
+
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
 ,'ERROR: Datapointer (Real4) already associated')
@@ -758,10 +763,6 @@ DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
-
-#ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
-#endif /*DEBUG_MEMORY*/
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -803,6 +804,10 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+#ifdef DEBUG_MEMORY
+LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+#endif /*DEBUG_MEMORY*/
+
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
 ,'ERROR: Datapointer (Real5) already associated')
@@ -817,10 +822,6 @@ DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
-
-#ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
-#endif /*DEBUG_MEMORY*/
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
@@ -862,6 +863,10 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+#ifdef DEBUG_MEMORY
+LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+#endif /*DEBUG_MEMORY*/
+
 IF (ASSOCIATED(DataPointer)) CALL abort(&
 __STAMP__&
 ,'ERROR: Datapointer (Real6) already associated')
@@ -876,10 +881,6 @@ DISP_UNIT = 1
 
 ! Allocate MPI-3 remote memory access (RMA) type memory window
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
-
-#ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
-#endif /*DEBUG_MEMORY*/
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
 IF (myComputeNodeRank.NE.0) THEN
