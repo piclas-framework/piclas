@@ -1513,13 +1513,13 @@ REAL FUNCTION GetQKAnalyticRate(iReac,LocalTemp)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: LowerLevel, UpperLevel
+  INTEGER(KIND=8)                       :: LowerLevel, UpperLevel
 !===================================================================================================================================
 ! Determination of the lower and upper value of the temperature interval
-LowerLevel = INT(LocalTemp/DSMC%PartitionInterval)
+LowerLevel = INT(LocalTemp/DSMC%PartitionInterval,8)
 UpperLevel = LowerLevel + 1
 
-IF((UpperLevel.GT.INT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)).OR.(LowerLevel.EQ.0)) THEN
+IF((UpperLevel.GT.INT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval,8)).OR.(LowerLevel.EQ.0)) THEN
 ! Instantaneous calculation of the reaction rate
   GetQKAnalyticRate = CalcQKAnalyticRate(iReac,LocalTemp)
 ELSE
