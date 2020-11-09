@@ -224,7 +224,7 @@ END IF
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
@@ -282,7 +282,7 @@ END IF
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
@@ -340,7 +340,7 @@ END IF
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
@@ -399,7 +399,7 @@ END IF
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
@@ -458,7 +458,7 @@ END IF
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
@@ -517,7 +517,7 @@ END IF
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
@@ -576,7 +576,7 @@ END IF
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
@@ -636,7 +636,7 @@ END IF
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
@@ -695,7 +695,7 @@ END IF
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
@@ -754,7 +754,7 @@ END IF
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
@@ -813,7 +813,7 @@ END IF
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
@@ -872,7 +872,7 @@ END IF
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
-LWRITE(UNIT_stdOut,'(A,I7,A50,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
 #endif /*DEBUG_MEMORY*/
 
 IF (ASSOCIATED(DataPointer)) CALL abort(&
