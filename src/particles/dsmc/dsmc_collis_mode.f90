@@ -1468,12 +1468,14 @@ REAL                      :: CollisionEnergy
     IF(XSec_Relaxation) THEN
       iCase = CollInf%Coll_Case(iSpec,jSpec)
       IF(SpecXSec(iCase)%UseVibXSec) THEN
-        IF(SpecXSec(iCase)%UseCollXSec) THEN
-          CALL XSec_CalcVibRelaxProb(iPair)
-          ! Cross-section is stored in the VibProb variable
-          ProbVib = SpecXSec(iCase)%VibProb / SpecXSec(iCase)%CrossSection
-        ELSE
-          ProbVib = SpecXSec(iCase)%VibProb / Coll_pData(iPair)%Prob
+        IF(SpecXSec(iCase)%SpeciesToRelax.EQ.iSpec) THEN
+          IF(SpecXSec(iCase)%UseCollXSec) THEN
+            CALL XSec_CalcVibRelaxProb(iPair)
+            ! Cross-section is stored in the VibProb variable
+            ProbVib = SpecXSec(iCase)%VibProb / SpecXSec(iCase)%CrossSection
+          ELSE
+            ProbVib = SpecXSec(iCase)%VibProb / Coll_pData(iPair)%Prob
+          END IF
         END IF
       END IF
     END IF

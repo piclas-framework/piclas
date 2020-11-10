@@ -62,6 +62,7 @@ ALLOCATE(SpecXSec(CollInf%NumCase))
 SpecXSec(:)%UseCollXSec = .FALSE.
 SpecXSec(:)%UseVibXSec = .FALSE.
 SpecXSec(:)%CollXSec_Effective = .FALSE.
+SpecXSec(:)%SpeciesToRelax = 0
 
 DO iSpec = 1, nSpecies
   TotalProb = 0.
@@ -95,6 +96,22 @@ DO iSpec = 1, nSpecies
         CALL abort(&
           __STAMP__&
           ,'ERROR: Both species defined to use vib. cross-section, define only the source species with UseVibXSec!')
+      END IF
+      ! Save which species shall use the vibrational cross-section data for relaxation probabilities
+      ! If the species which was given the UseVibXSec flag is diatomic/polyatomic, use the cross-section for that species
+      ! If the species is an atom/electron, use the cross-section for the other collision partner (the background species)
+      IF(SpecDSMC(iSpec)%UseVibXSec) THEN
+        IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+          SpecXSec(iCase)%SpeciesToRelax = iSpec
+        ELSE
+          SpecXSec(iCase)%SpeciesToRelax = jSpec
+        END IF
+      ELSE
+        IF((SpecDSMC(jSpec)%InterID.EQ.2).OR.(SpecDSMC(jSpec)%InterID.EQ.20)) THEN
+          SpecXSec(iCase)%SpeciesToRelax = jSpec
+        ELSE
+          SpecXSec(iCase)%SpeciesToRelax = iSpec
+        END IF
       END IF
       XSec_Relaxation = .TRUE.
       nVib = SIZE(SpecXSec(iCase)%VibMode)

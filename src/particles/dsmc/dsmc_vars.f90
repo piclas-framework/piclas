@@ -202,6 +202,7 @@ TYPE tSpeciesXSec
   TYPE(tXSecData),ALLOCATABLE       :: VibMode(:)           ! Vibrational cross-sections (nVib: Number of levels found in database)
   REAL                              :: VibProb              ! Relaxation probability
   REAL                              :: VibCount             ! Event counter
+  INTEGER                           :: SpeciesToRelax       ! Save which species shall use the vibrational cross-sections
   TYPE(tXSecData),ALLOCATABLE       :: ReactionPath(:)      ! Reaction cross-sections (nPaths: Number of reactions for that case)
 END TYPE tSpeciesXSec
 

@@ -131,8 +131,8 @@ SELECT CASE(iPType)
           END IF
         END IF
       END IF
-      IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
-        IF(SpecXSec(iCase)%UseVibXSec) THEN
+      IF(SpecXSec(iCase)%UseVibXSec) THEN
+        IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
           CALL XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
           Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob + SpecXSec(iCase)%VibProb
         END IF
