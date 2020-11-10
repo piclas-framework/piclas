@@ -721,9 +721,10 @@ DO iCase = 1, CollInf%NumCase
     ! When no effective cross-section is available, the total cross-section has to be determined
     IF(.NOT.SpecXSec(iCase)%CollXSec_Effective) THEN
       MaxDim = SIZE(SpecXSec(iCase)%CollXSecData,2)
+      NumPaths = ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       ! Interpolate the reaction cross section at the energy levels of the collision collision cross section
-      DO iStep = 1, MaxDim
-        DO iPath = 1, NumPaths
+      DO iPath = 1, NumPaths
+        DO iStep = 1, MaxDim
           ReactionCrossSection = InterpolateCrossSection_Chem(iCase,iPath,SpecXSec(iCase)%CollXSecData(1,iStep))
           SpecXSec(iCase)%CollXSecData(2,iStep) = SpecXSec(iCase)%CollXSecData(2,iStep) + ReactionCrossSection
         END DO
@@ -826,7 +827,7 @@ INTEGER,INTENT(IN)                :: iCase, iPath
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=128)                 :: dsetname, groupname, EductPair, dsetname2, ProductPair
+CHARACTER(LEN=128)                :: dsetname, groupname, EductPair, dsetname2, ProductPair
 INTEGER                           :: err
 INTEGER(HSIZE_T), DIMENSION(2)    :: dims,sizeMax
 INTEGER(HID_T)                    :: file_id_dsmc                       ! File identifier
