@@ -56,15 +56,14 @@ SET (HDF5TAG "hdf5-1_10_5" CACHE STRING "HDF5 version tag")
 # Detect machine environements
 # =========================================================================
 SITE_NAME(CMAKE_HOSTNAME)
-STRING(FIND "${CMAKE_HOSTNAME}" "eslogin" ONHORNET)
+STRING(FIND "${CMAKE_HOSTNAME}" "hawk" ONHAWK)
 # Set options that need to be enabled BEFORE ANY PROJECT OR LANGUAGE COMMAND
-IF (ONHORNET GREATER -1)
-  SET(CMAKE_C_COMPILER       cc)
-  SET(CMAKE_CXX_COMPILER     CC)
-  SET(CMAKE_Fortran_COMPILER ftn)
-  SET(HDF5_USE_STATIC_LIBRARIES TRUE)
+IF (ONHAWK GREATER -1)
+  SET(CMAKE_C_COMPILER       mpicc)
+  SET(CMAKE_CXX_COMPILER     mpicxx)
+  SET(CMAKE_Fortran_COMPILER mpif90) # mpif08 wrapper seems to have issues
   MARK_AS_ADVANCED(C_PATH CXX_PATH Fortran_PATH)
-  MESSAGE(STATUS "Compiling on Hazelhen")
+  MESSAGE(STATUS "Compiling on " ${CMAKE_HOSTNAME} " (ONHAWK=True)")
   ADD_DEFINITIONS(-DLUSTRE)
 ENDIF()
 
@@ -408,8 +407,9 @@ GET_FILENAME_COMPONENT (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
 
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   #environment specific variables
-  IF(ONHORNET GREATER -1)
-    SET(PICLAS_INSTRUCTION "-march=core-avx2")
+  IF(ONHAWK GREATER -1)
+    #SET(PICLAS_INSTRUCTION "-march=core-avx2") # hornet
+    SET(PICLAS_INSTRUCTION "-march=znver2")     # hawk
   ELSE()
     SET(PICLAS_INSTRUCTION "-march=native")
   ENDIF()
@@ -424,8 +424,9 @@ IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
 
 ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
    #environment specific variables
-   IF(ONHORNET GREATER -1)
-     SET(PICLAS_INSTRUCTION "-xCORE-AVX2")
+   IF(ONHAWK GREATER -1)
+     #SET(PICLAS_INSTRUCTION "-xCORE-AVX2")     # hornet
+     SET(PICLAS_INSTRUCTION "-march=core-avx2") # hawk
    ELSE()
      SET(PICLAS_INSTRUCTION "-xHost")
    ENDIF()
@@ -546,6 +547,7 @@ MESSAGE (STATUS "h5diff: ${HDF5_DIFF_EXECUTABLE}")
 
 IF(PICLAS_HDF5_CMAKE)
   INCLUDE_DIRECTORIES(${HDF5_INCLUDE_DIR} ${HDF5_INCLUDE_DIR_FORTRAN})
+  MESSAGE(STATUS "Found HDF5 Libs: " ${HDF5_C_${LIB_TYPE}_LIBRARY} ${HDF5_FORTRAN_${LIB_TYPE}_LIBRARY} )
   LIST(APPEND linkedlibs ${HDF5_C_${LIB_TYPE}_LIBRARY} ${HDF5_FORTRAN_${LIB_TYPE}_LIBRARY} )
 ELSE()
   INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR_FORTRAN} ${HDF5_INCLUDE_DIR})

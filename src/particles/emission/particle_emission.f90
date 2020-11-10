@@ -248,7 +248,7 @@ IF(DoDielectric)THEN
   IF(DielectricNoParticles)THEN
     DO i = 1,PDM%ParticleVecLength
       ! Remove particles in dielectric elements
-      IF(isDielectricElem(PEM%GlobalElemID(i)))THEN
+      IF(isDielectricElem(PEM%LocalElemID(i)))THEN
         PDM%ParticleInside(i) = .FALSE.
       END IF
     END DO
@@ -293,7 +293,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 ! Local variable declaration
 INTEGER                          :: i , iPart, PositionNbr, iInit, IntSample
-INTEGER                , SAVE    :: NbrOfParticle=0
+INTEGER                          :: NbrOfParticle
 INTEGER(KIND=8)                  :: inserted_Particle_iter,inserted_Particle_time
 INTEGER(KIND=8)                  :: inserted_Particle_diff
 REAL                             :: PartIns, RandVal1
@@ -307,190 +307,185 @@ REAL                             :: NbrOfReactions
 !---  Emission at time step (initial emission see particle_init.f90: InitializeParticleEmission)
 DO i=1,nSpecies
   DO iInit = 1, Species(i)%NumberOfInits
+    ! Reset the number of particles per species AND init region
+    NbrOfParticle = 0
+    ! Cycle background species (particles are inserted during the pairing step)
+    IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'background') CYCLE
+    ! Only use inits defined for emission (every time step)
     IF (Species(i)%Init(iInit)%UseForEmission) THEN ! no constant density in cell type, + to be used for init
-        SELECT CASE(Species(i)%Init(iInit)%ParticleEmissionType)
-        CASE(1) ! Emission Type: Particles per !!!!!SECOND!!!!!!!! (not per ns)
-          IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
-            PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac  ! emitted particles during time-slab
-            inserted_Particle_iter = INT(PartIns,8)                                     ! number of particles to be inserted
-            PartIns=Species(i)%Init(iInit)%ParticleEmission * (Time + dt*RKdtFracTotal) ! total number of emitted particle over
-                                                                                        ! simulation
-            !-- random-round the inserted_Particle_time for preventing periodicity
-            ! PO & SC: why, sometimes we do not want this add, TB is bad!
-            IF (inserted_Particle_iter.GE.1) THEN
-              CALL RANDOM_NUMBER(RandVal1)
-              inserted_Particle_time = INT(PartIns + RandVal1,8) ! adds up to ONE
-            ELSE IF((inserted_Particle_iter.GE.0).AND.(inserted_Particle_iter.LT.1)) THEN
-                                                       !needed, since InsertedParticleSurplus can increase
-                                                       !and _iter>1 needs to be possible for preventing periodicity
-              IF (ALMOSTEQUAL(PartIns,0.)) THEN !dummy
-                inserted_Particle_time = INT(PartIns,8)
-              ELSE !poisson-distri of PartIns-INT(PartIns)
-                CALL SamplePoissonDistri( PartIns-INT(PartIns) , IntSample )
-                inserted_Particle_time = INT(INT(PartIns)+IntSample,8) !INT(PartIns) + POISDISTRI( PartIns-INT(PartIns) )
-              END IF
-            ELSE !dummy
+      SELECT CASE(Species(i)%Init(iInit)%ParticleEmissionType)
+      CASE(1) ! Emission Type: Particles per !!!!!SECOND!!!!!!!! (not per ns)
+        IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
+          PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac  ! emitted particles during time-slab
+          inserted_Particle_iter = INT(PartIns,8)                                     ! number of particles to be inserted
+          PartIns=Species(i)%Init(iInit)%ParticleEmission * (Time + dt*RKdtFracTotal) ! total number of emitted particle over
+                                                                                      ! simulation
+          !-- random-round the inserted_Particle_time for preventing periodicity
+          ! PO & SC: why, sometimes we do not want this add, TB is bad!
+          IF (inserted_Particle_iter.GE.1) THEN
+            CALL RANDOM_NUMBER(RandVal1)
+            inserted_Particle_time = INT(PartIns + RandVal1,8) ! adds up to ONE
+          ELSE IF((inserted_Particle_iter.GE.0).AND.(inserted_Particle_iter.LT.1)) THEN
+                                                      !needed, since InsertedParticleSurplus can increase
+                                                      !and _iter>1 needs to be possible for preventing periodicity
+            IF (ALMOSTEQUAL(PartIns,0.)) THEN !dummy
               inserted_Particle_time = INT(PartIns,8)
+            ELSE !poisson-distri of PartIns-INT(PartIns)
+              CALL SamplePoissonDistri( PartIns-INT(PartIns) , IntSample )
+              inserted_Particle_time = INT(INT(PartIns)+IntSample,8) !INT(PartIns) + POISDISTRI( PartIns-INT(PartIns) )
             END IF
-            !-- evaluate inserted_Particle_time and inserted_Particle_iter
-            inserted_Particle_diff = inserted_Particle_time - Species(i)%Init(iInit)%InsertedParticle &
-              - inserted_Particle_iter - Species(i)%Init(iInit)%InsertedParticleSurplus &
-              + Species(i)%Init(iInit)%InsertedParticleMisMatch
-            Species(i)%Init(iInit)%InsertedParticleSurplus = ABS(MIN(inserted_Particle_iter + inserted_Particle_diff,0))
-            NbrOfParticle = MAX(INT(inserted_Particle_iter + inserted_Particle_diff,4),0)
-            !-- if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
-            IF (TRIM(Species(i)%Init(iInit)%velocityDistribution).EQ.'maxwell') THEN
-              IF (NbrOfParticle.LT.5) NbrOfParticle=0
-            END IF
-          ELSE IF (DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
-            ! linear rise of inflow
-            RiseTime=Species(i)%Init(iInit)%InflowRiseTime
-            IF(RiseTime.GT.0.)THEN
-              IF(Time-DelayTime.LT.RiseTime)THEN
-                RiseFactor=(time-DelayTime)/RiseTime
-              ELSE
-                RiseFactor=1.
-              END IF
+          ELSE !dummy
+            inserted_Particle_time = INT(PartIns,8)
+          END IF
+          !-- evaluate inserted_Particle_time and inserted_Particle_iter
+          inserted_Particle_diff = inserted_Particle_time - Species(i)%Init(iInit)%InsertedParticle &
+            - inserted_Particle_iter - Species(i)%Init(iInit)%InsertedParticleSurplus &
+            + Species(i)%Init(iInit)%InsertedParticleMisMatch
+          Species(i)%Init(iInit)%InsertedParticleSurplus = ABS(MIN(inserted_Particle_iter + inserted_Particle_diff,0))
+          NbrOfParticle = MAX(INT(inserted_Particle_iter + inserted_Particle_diff,4),0)
+          !-- if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
+          IF (TRIM(Species(i)%Init(iInit)%velocityDistribution).EQ.'maxwell') THEN
+            IF (NbrOfParticle.LT.5) NbrOfParticle=0
+          END IF
+        ELSE IF (DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
+          ! linear rise of inflow
+          RiseTime=Species(i)%Init(iInit)%InflowRiseTime
+          IF(RiseTime.GT.0.)THEN
+            IF(Time-DelayTime.LT.RiseTime)THEN
+              RiseFactor=(time-DelayTime)/RiseTime
             ELSE
               RiseFactor=1.
-            EnD IF
-            PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac * RiseFactor  ! emitted particles during time-slab
-            CALL RANDOM_NUMBER(RandVal1)
-            IF (EXP(-PartIns).LE.TINY(PartIns)) THEN
-              IPWRITE(*,*)'WARNING: target is too large for poisson sampling: switching now to Random rounding...'
-              NbrOfParticle = INT(PartIns + RandVal1)
-              DoPoissonRounding = .FALSE.
-            ELSE !poisson-sampling instead of random rounding (reduces numerical non-equlibrium effects [Tysanner and Garcia 2004]
-              CALL SamplePoissonDistri( PartIns , NbrOfParticle , DoPoissonRounding)
             END IF
-          ELSE ! DoTimeDepInflow
-            ! linear rise of inflow
-            RiseTime=Species(i)%Init(iInit)%InflowRiseTime
-            IF(RiseTime.GT.0.)THEN
-              IF(Time-DelayTime.LT.RiseTime)THEN
-                RiseFactor=(time-DelayTime)/RiseTime
-              ELSE
-                RiseFactor=1.
-              END IF
-            ELSE
-              RiseFactor=1.
-            EnD IF
-            ! emitted particles during time-slab
-            PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac * RiseFactor &
-                   + Species(i)%Init(iInit)%InsertedParticleMisMatch
-            CALL RANDOM_NUMBER(RandVal1)
+          ELSE
+            RiseFactor=1.
+          EnD IF
+          PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac * RiseFactor  ! emitted particles during time-slab
+          CALL RANDOM_NUMBER(RandVal1)
+          IF (EXP(-PartIns).LE.TINY(PartIns)) THEN
+            IPWRITE(*,*)'WARNING: target is too large for poisson sampling: switching now to Random rounding...'
             NbrOfParticle = INT(PartIns + RandVal1)
+            DoPoissonRounding = .FALSE.
+          ELSE !poisson-sampling instead of random rounding (reduces numerical non-equlibrium effects [Tysanner and Garcia 2004]
+            CALL SamplePoissonDistri( PartIns , NbrOfParticle , DoPoissonRounding)
           END IF
+        ELSE ! DoTimeDepInflow
+          ! linear rise of inflow
+          RiseTime=Species(i)%Init(iInit)%InflowRiseTime
+          IF(RiseTime.GT.0.)THEN
+            IF(Time-DelayTime.LT.RiseTime)THEN
+              RiseFactor=(time-DelayTime)/RiseTime
+            ELSE
+              RiseFactor=1.
+            END IF
+          ELSE
+            RiseFactor=1.
+          EnD IF
+          ! emitted particles during time-slab
+          PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac * RiseFactor &
+                  + Species(i)%Init(iInit)%InsertedParticleMisMatch
+          CALL RANDOM_NUMBER(RandVal1)
+          NbrOfParticle = INT(PartIns + RandVal1)
+        END IF
 #if USE_MPI
-          InitGroup=Species(i)%Init(iInit)%InitCOMM
-          IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
-            ! only procs which are part of group take part in the communication
-             !NbrOfParticle based on RandVals!
-            CALL MPI_BCAST(NbrOfParticle, 1, MPI_INTEGER,0,PartMPI%InitGroup(InitGroup)%COMM,IERROR)
-          ELSE
-            NbrOfParticle=0
-          END IF
-          !CALL MPI_BCAST(NbrOfParticle, 1, MPI_INTEGER,0,PartMPI%COMM,IERROR) !NbrOfParticle based on RandVals!
+        InitGroup=Species(i)%Init(iInit)%InitCOMM
+        IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
+          ! only procs which are part of group take part in the communication
+            !NbrOfParticle based on RandVals!
+          CALL MPI_BCAST(NbrOfParticle, 1, MPI_INTEGER,0,PartMPI%InitGroup(InitGroup)%COMM,IERROR)
+        ELSE
+          NbrOfParticle=0
+        END IF
+        !CALL MPI_BCAST(NbrOfParticle, 1, MPI_INTEGER,0,PartMPI%COMM,IERROR) !NbrOfParticle based on RandVals!
 #endif
-          Species(i)%Init(iInit)%InsertedParticle = Species(i)%Init(iInit)%InsertedParticle + INT(NbrOfParticle,8)
-        CASE(2)    ! Emission Type: Particles per Iteration
-          IF (RKdtFracTotal .EQ. 1.) THEN !insert in last stage only, so that no reconstruction is nec. and number/iter matches
-            NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission)
-          ELSE
-            NbrOfParticle = 0
-          END IF
-        CASE(7) ! SEE based on photon impact and photo-ionization in the volume
-          ASSOCIATE( tShift => Species(i)%Init(iInit)%tShift )
-            ! Check if all pulses have terminated
-            IF(Time.LE.Species(i)%Init(iInit)%tActive)THEN
-              ! Check if pulse is currently active of in between two pulses (in the latter case, do nothing)
-              IF(MOD(MERGE(Time-tShift, Time, Time.GE.tShift), Species(i)%Init(iInit)%Period).LE.2.0*tShift)THEN
-                ! Calculate the number of currently active photons (both surface SEE and volumetric emission)
-                CALL CalcNbrOfPhotons(i, iInit, NbrOfPhotons)
+        Species(i)%Init(iInit)%InsertedParticle = Species(i)%Init(iInit)%InsertedParticle + INT(NbrOfParticle,8)
+      CASE(2)    ! Emission Type: Particles per Iteration
+        IF (RKdtFracTotal .EQ. 1.) THEN !insert in last stage only, so that no reconstruction is nec. and number/iter matches
+          NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission)
+        ELSE
+          NbrOfParticle = 0
+        END IF
+      CASE(7) ! SEE based on photon impact and photo-ionization in the volume
+        ASSOCIATE( tShift => Species(i)%Init(iInit)%tShift )
+          ! Check if all pulses have terminated
+          IF(Time.LE.Species(i)%Init(iInit)%tActive)THEN
+            ! Check if pulse is currently active of in between two pulses (in the latter case, do nothing)
+            IF(MOD(MERGE(Time-tShift, Time, Time.GE.tShift), Species(i)%Init(iInit)%Period).LE.2.0*tShift)THEN
+              ! Calculate the number of currently active photons (both surface SEE and volumetric emission)
+              CALL CalcNbrOfPhotons(i, iInit, NbrOfPhotons)
 
-                ! Check if only particles in the first quadrant are to be inserted that is spanned by the vectors 
-                ! x=BaseVector1IC and y=BaseVector2IC in the interval x,y in [0,R] and reduce the number of photon accordingly
-                IF(Species(i)%Init(iInit)%FirstQuadrantOnly) NbrOfPhotons = NbrOfPhotons / 4.0
+              ! Check if only particles in the first quadrant are to be inserted that is spanned by the vectors 
+              ! x=BaseVector1IC and y=BaseVector2IC in the interval x,y in [0,R] and reduce the number of photon accordingly
+              IF(Species(i)%Init(iInit)%FirstQuadrantOnly) NbrOfPhotons = NbrOfPhotons / 4.0
 
-                ! Select surface SEE or volumetric emission
-                IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_SEE_disc')THEN
-                  ! SEE based on photon impact
-                  NbrOfPhotons = Species(i)%Init(iInit)%YieldSEE * NbrOfPhotons / Species(i)%MacroParticleFactor &
-                               + Species(i)%Init(iInit)%NINT_Correction 
-                  NbrOfParticle = NINT(NbrOfPhotons)
-                  Species(i)%Init(iInit)%NINT_Correction = NbrOfPhotons - REAL(NbrOfParticle)
-                ELSE
-                  ! Photo-ionization in the volume
-                  ! Calculation of the number of photons (using actual number and applying the weighting factor on the number of reactions)
-                  NbrOfPhotons = Species(i)%Init(iInit)%EffectiveIntensityFactor * NbrOfPhotons
-                  ! Calculation of the number of photons depending on the cylinder height (ratio of actual to virtual cylinder height, which
-                  ! is spanned by the disk and the length given by c*dt)
-                  NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CylinderHeightIC / (c*dt)
-                  ! Calculation of the number of electron resulting from the chemical reactions in the photoionization region
-                  CALL CalcPhotoIonizationNumber(NbrOfPhotons,NbrOfReactions)
-                  NbrOfReactions = NbrOfReactions + Species(i)%Init(iInit)%NINT_Correction
-                  NbrOfParticle = NINT(NbrOfReactions)
-                  Species(i)%Init(iInit)%NINT_Correction = NbrOfReactions - REAL(NbrOfParticle)
-                END IF
+              ! Select surface SEE or volumetric emission
+              IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_SEE_disc')THEN
+                ! SEE based on photon impact
+                NbrOfPhotons = Species(i)%Init(iInit)%YieldSEE * NbrOfPhotons / Species(i)%MacroParticleFactor &
+                              + Species(i)%Init(iInit)%NINT_Correction 
+                NbrOfParticle = NINT(NbrOfPhotons)
+                Species(i)%Init(iInit)%NINT_Correction = NbrOfPhotons - REAL(NbrOfParticle)
               ELSE
-                NbrOfParticle = 0
-              END IF ! MOD(MERGE(Time-T0/2., Time, Time.GE.T0/2.), Period).GT.T0
+                ! Photo-ionization in the volume
+                ! Calculation of the number of photons (using actual number and applying the weighting factor on the number of reactions)
+                NbrOfPhotons = Species(i)%Init(iInit)%EffectiveIntensityFactor * NbrOfPhotons
+                ! Calculation of the number of photons depending on the cylinder height (ratio of actual to virtual cylinder height, which
+                ! is spanned by the disk and the length given by c*dt)
+                NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CylinderHeightIC / (c*dt)
+                ! Calculation of the number of electron resulting from the chemical reactions in the photoionization region
+                CALL CalcPhotoIonizationNumber(NbrOfPhotons,NbrOfReactions)
+                NbrOfReactions = NbrOfReactions + Species(i)%Init(iInit)%NINT_Correction
+                NbrOfParticle = NINT(NbrOfReactions)
+                Species(i)%Init(iInit)%NINT_Correction = NbrOfReactions - REAL(NbrOfParticle)
+              END IF
             ELSE
               NbrOfParticle = 0
-            END IF ! Time.LE.Species(i)%Init(iInit)%tActive
-          END ASSOCIATE
-        CASE DEFAULT
-          NbrOfParticle = 0
-        END SELECT
+            END IF ! MOD(MERGE(Time-T0/2., Time, Time.GE.T0/2.), Period).GT.T0
+          ELSE
+            NbrOfParticle = 0
+          END IF ! Time.LE.Species(i)%Init(iInit)%tActive
+        END ASSOCIATE
+      CASE DEFAULT
+        NbrOfParticle = 0
+      END SELECT
 
-       CALL SetParticlePosition(i,iInit,NbrOfParticle)
-        ! Pairing of "electrons" with the background species and performing the reaction
-        IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_cylinder') THEN
-          CALL BGGas_PhotoIonization(i,iInit,NbrOfParticle)
-          CYCLE
-        END IF
-
-       CALL SetParticleVelocity(i,iInit,NbrOfParticle)
-       CALL SetParticleChargeAndMass(i,NbrOfParticle)
-       IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
-       IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
-       ! define molecule stuff
-       IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-         iPart = 1
-         DO WHILE (iPart .le. NbrOfParticle)
-           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-           IF (PositionNbr .ne. 0) THEN
-             IF (SpecDSMC(i)%PolyatomicMol) THEN
-               CALL DSMC_SetInternalEnr_Poly(i,iInit,PositionNbr,1)
-             ELSE
-               CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
-             END IF
-           END IF
-           iPart = iPart + 1
-         END DO
-       END IF
-       ! instead of UpdateNextfreePosition we update the
-       ! particleVecLength only.
-       ! and doing it later, after calcpartbalance
-       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
-       PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-       !CALL UpdateNextFreePosition()
-    END IF
-    ! compute number of input particles and energy
-    IF(CalcPartBalance) THEN
-      ! alter history, dirty hack for balance calculation
-      PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition - NbrOfParticle
-      IF(NbrOfParticle.GT.0)THEN
-        nPartIn(i)=nPartIn(i) + NBrofParticle
-        DO iPart=1,NbrOfparticle
-          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-          IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr)) = &
-                                  PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
-        END DO ! iPart
+      CALL SetParticlePosition(i,iInit,NbrOfParticle)
+      ! Pairing of "electrons" with the background species and performing the reaction
+      IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_cylinder') THEN
+        CALL BGGas_PhotoIonization(i,iInit,NbrOfParticle)
+        CYCLE
       END IF
-      ! alter history, dirty hack for balance calculation
+
+      CALL SetParticleVelocity(i,iInit,NbrOfParticle)
+      CALL SetParticleChargeAndMass(i,NbrOfParticle)
+      IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+      IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
+      ! define molecule stuff
+      IF (useDSMC.AND.(CollisMode.GT.1)) THEN
+        iPart = 1
+        DO WHILE (iPart.LE.NbrOfParticle)
+          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+          IF (PositionNbr.NE.0) THEN
+            IF (SpecDSMC(i)%PolyatomicMol) THEN
+              CALL DSMC_SetInternalEnr_Poly(i,iInit,PositionNbr,1)
+            ELSE
+              CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
+            END IF
+          END IF
+          iPart = iPart + 1
+        END DO
+      END IF
+      ! Compute number of input particles and energy
+      IF(CalcPartBalance.AND.(NbrOfParticle.GT.0)) THEN
+        nPartIn(i)=nPartIn(i) + NbrOfparticle
+        DO iPart=1,NbrOfParticle
+          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+          IF (PositionNbr .NE. 0) PartEkinIn(i) = PartEkinIn(i) + CalcEkinPart(PositionNbr)
+        END DO ! iPart
+      END IF ! CalcPartBalance
+      ! Update the current next free position and increase the particle vector length
       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
-    END IF ! CalcPartBalance
+      PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+    END IF
   END DO  ! iInit 
 END DO  ! i=1,nSpecies
 

@@ -318,12 +318,13 @@ SUBROUTINE SendNbOfParticles(doParticle_In)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Part_Tools             ,ONLY: isDepositParticle
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIExchange,PartTargetProc!,PartHaloElemToProc
-USE MOD_Particle_MPI_Vars,      ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc
-USE MOD_Particle_Vars          ,ONLY: PEM,PDM
-!USE MOD_Particle_Vars          ,ONLY: PartSpecies
+USE MOD_Part_Tools         ,ONLY: isDepositParticle
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
+USE MOD_Particle_MPI_Vars  ,ONLY: PartMPI,PartMPIExchange,PartTargetProc
+USE MOD_Particle_MPI_Vars  ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc
+USE MOD_Particle_Vars      ,ONLY: PEM,PDM
+USE MOD_Particle_Vars      ,ONLY: PartState
+USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps_velo
 ! variables for parallel deposition
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -364,15 +365,19 @@ DO iPart=1,PDM%ParticleVecLength
   ! Particle on local proc, do nothing
   IF (ProcID.EQ.myRank) CYCLE
 
-#if USE_DEBUG
-  ! Sanity check
+  ! Sanity check (fails here if halo region is too small)
   IF(GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID).LT.0)THEN
     IPWRITE (*,*) "GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) =", GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)
+    IPWRITE (*,*) "ProcID                                              =", ProcID
+    IPWRITE(UNIT_StdOut,'(I12,A,3(ES25.14E3))') " PartState(4:6,iPart)          =", PartState(4:6,iPart)
+    IPWRITE(UNIT_StdOut,'(I12,A,ES25.14E3)')    " VECNORM(PartState(4:6,iPart)) =", VECNORM(PartState(4:6,iPart))
+    IPWRITE(UNIT_StdOut,'(I12,A,ES25.14E3)')    " halo_eps_velo                 =", halo_eps_velo
     CALL abort(&
     __STAMP__&
-    ,'Error: Tried to access GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) for ProcID = ',IntInfoOpt=ProcID)
-  END IF ! GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) for ProcID = ',IntInfoOpt=ProcID)
-#endif /*USE_DEBUG*/
+    ,'Error: GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) is negative. '//&
+     'The halo region might be too small. Try increasing Particles-HaloEpsVelo!')
+  END IF ! GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID).LT.0
+
   ! Add particle to target proc count
   PartMPIExchange%nPartsSend(1,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
   PartMPIExchange%nPartsSend(1,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + 1

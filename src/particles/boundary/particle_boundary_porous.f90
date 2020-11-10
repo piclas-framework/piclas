@@ -128,7 +128,7 @@ USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCInfo_Shared,PorousBCPropertie
 USE MOD_Particle_Boundary_Vars      ,ONLY: MapSurfSideToPorousSide_Shared
 USE MOD_Particle_Tracking_Vars      ,ONLY: DoRefMapping
 #if USE_MPI
-USE MOD_MPI_Shared                  ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_SHARED, myComputeNodeRank
 USE MOD_Particle_Boundary_Vars      ,ONLY: MapSurfSideToPorousSide_Shared_Win
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCInfo_Shared_Win,PorousBCProperties_Shared_Win,PorousBCSampWall_Shared_Win

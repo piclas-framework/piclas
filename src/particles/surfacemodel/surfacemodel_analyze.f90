@@ -943,7 +943,7 @@ SUBROUTINE GetWallNumSpec(WallNumSpec,WallCoverage,WallNumSpec_SurfDist)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars                 ,ONLY: BC
-USE MOD_Particle_Vars             ,ONLY: Species, PartSpecies, PDM, nSpecies
+USE MOD_Particle_Vars             ,ONLY: Species,nSpecies
 USE MOD_SurfaceModel_Analyze_Vars
 USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfDistInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, SurfMesh, PartBound
@@ -960,12 +960,12 @@ INTEGER(KIND=8), INTENT(OUT)    :: WallNumSpec(nSpecies),WallNumSpec_SurfDist(nS
 REAL           , INTENT(OUT)    :: WallCoverage(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i, iSpec, iSurfSide, p, q, SideID, PartBoundID
+INTEGER                         :: iSpec, iSurfSide, p, q, SideID, PartBoundID
 REAL                            :: SurfPart
 REAL                            :: Coverage(nSpecies)
 #if USE_MPI
 REAL                            :: RD(nSpecies)
-INTEGER(KIND=8)                 :: IDR(nSpecies), ID1(nSpecies), ID2(nSpecies), ID3(nSpecies*2)
+INTEGER(KIND=8)                 :: ID1(nSpecies), ID2(nSpecies), ID3(nSpecies*2)
 #endif /*USE_MPI*/
 INTEGER                         :: Coord, AdsorbID, Surfpos, SpecID
 INTEGER                         :: adsorbates(nSpecies)

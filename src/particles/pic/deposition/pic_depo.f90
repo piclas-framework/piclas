@@ -42,58 +42,56 @@ SUBROUTINE InitializeDeposition
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PICDepo_Vars
-USE MOD_PICDepo_Tools          ,ONLY: CalcCellLocNodeVolumes,ReadTimeAverage,beta
-USE MOD_Particle_Vars
 USE MOD_Globals_Vars           ,ONLY: PI
-USE MOD_Mesh_Vars              ,ONLY: nElems,Elem_xGP,sJ,nGlobalElems,Vdm_EQ_N
-USE MOD_Interpolation          ,ONLY: GetVandermonde
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,MeshVolume, NodeCoords_Shared
-USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,NodeType,NodeTypeVISU
 USE MOD_Basis                  ,ONLY: BarycentricWeights,InitializeVandermonde
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
+USE MOD_Interpolation          ,ONLY: GetVandermonde
+USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,NodeType,NodeTypeVISU
+USE MOD_Mesh_Vars              ,ONLY: nElems,sJ,nGlobalElems,Vdm_EQ_N
+USE MOD_Particle_Vars
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,MeshVolume
+USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes,NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,NodeToElemInfo,NodeToElemMapping
+USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
+USE MOD_PICDepo_Vars
+USE MOD_PICDepo_Tools          ,ONLY: CalcCellLocNodeVolumes,ReadTimeAverage,beta
+USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
-USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
-USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
-#if USE_MPI
-USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems, nComputeNodeProcessors, myComputeNodeRank, MPI_COMM_LEADERS_SHARED
-USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED, myLeaderGroupRank, nLeaderGroupProcs
-USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared, NodeInfo_Shared, ElemInfo_Shared, NodeToElemInfo, NodeToElemMapping
-USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
-#endif
 USE MOD_ReadInTools            ,ONLY: PrintOption
 #if USE_MPI
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
+USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank,MPI_COMM_LEADERS_SHARED
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,myLeaderGroupRank,nLeaderGroupProcs
+USE MOD_MPI_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 USE MOD_PICDepo_MPI            ,ONLY: MPIBackgroundMeshInit
-#endif /*USE_MPI*/
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
 USE MOD_Restart_Vars           ,ONLY: DoRestart
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE          :: wBary_tmp(:),Vdm_GaussN_EquiN(:,:)
 REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, iBC, kk, ll, mm, firstElem, lastElem, jNode, NbElemID, NeighNonUniqueNodeID
 INTEGER                   :: jElem, NonUniqueNodeID, iNode, NeighUniqueNodeID
-REAL                      :: VolumeShapeFunction,r_sf_average, r_sf_tmp
+REAL                      :: VolumeShapeFunction,r_sf_tmp
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
 CHARACTER(32)             :: hilf, hilf2
 CHARACTER(255)            :: TimeAverageFile
-REAL                      :: dimFactorSF
 INTEGER                   :: nTotalDOF
+INTEGER                   :: UniqueNodeID
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND)   :: MPISharedSize
 INTEGER                   :: SendNodeCount, GlobalElemNode, GlobalElemRank, iProc
-INTEGER                   :: UniqueNodeID, TestElemID
+INTEGER                   :: TestElemID
 LOGICAL,ALLOCATABLE       :: NodeDepoMapping(:,:)
 INTEGER                   :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1),firstNode,lastNode
 #endif
@@ -218,17 +216,17 @@ IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_
 #endif
     DO iElem = firstElem,lastElem
       DO iNode = 1, 8
-        NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)      
+        NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
         UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
         DO jElem = 1, NodeToElemMapping(2,UniqueNodeID)
           NbElemID = NodeToElemInfo(NodeToElemMapping(1,UniqueNodeID)+jElem)
           DO jNode = 1, 8
-            NeighNonUniqueNodeID = ElemNodeID_Shared(jNode,NbElemID) 
+            NeighNonUniqueNodeID = ElemNodeID_Shared(jNode,NbElemID)
             NeighUniqueNodeID = NodeInfo_Shared(NeighNonUniqueNodeID)
             IF (UniqueNodeID.EQ.NeighUniqueNodeID) CYCLE
-            r_sf_tmp = VECNORM(NodeCoords_Shared(1:3,NonUniqueNodeID)-NodeCoords_Shared(1:3,NeighNonUniqueNodeID)) 
+            r_sf_tmp = VECNORM(NodeCoords_Shared(1:3,NonUniqueNodeID)-NodeCoords_Shared(1:3,NeighNonUniqueNodeID))
             IF (r_sf_tmp.LT.SFElemr2_Shared(1,iElem)) SFElemr2_Shared(1,iElem) = r_sf_tmp
-          END DO 
+          END DO
         END DO
       END DO
       SFElemr2_Shared(2,iElem) = SFElemr2_Shared(1,iElem)*SFElemr2_Shared(1,iElem)
@@ -277,7 +275,7 @@ CASE('cell_volweight_mean')
     CellVolWeightFac(0:PP_N) = (CellVolWeightFac(0:PP_N)+1.0)/2.0
   END IF
 
-  ! Initialize sub-cell volumes around nodes 
+  ! Initialize sub-cell volumes around nodes
   CALL CalcCellLocNodeVolumes()
 #if USE_MPI
   MPISharedSize = INT(4*nUniqueGlobalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
@@ -319,7 +317,7 @@ CASE('cell_volweight_mean')
     !CALL MPI_WIN_SYNC(NodeSourceExtTmp_Shared_Win,IERROR)
     !CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
-    
+
   END IF ! DoDielectricSurfaceCharge
 
 
@@ -439,9 +437,9 @@ CASE('cell_volweight_mean')
 #endif /*USE_MPI*/
 
   IF(DoDielectricSurfaceCharge)THEN
-    ! Allocate and determine Vandermonde mapping from equidistant (visu) to NodeType node set                                          
-    ALLOCATE(Vdm_EQ_N(0:PP_N,0:1))                                                                                                     
-    CALL GetVandermonde(1, NodeTypeVISU, PP_N, NodeType, Vdm_EQ_N, modal=.FALSE.) 
+    ! Allocate and determine Vandermonde mapping from equidistant (visu) to NodeType node set
+    ALLOCATE(Vdm_EQ_N(0:PP_N,0:1))
+    CALL GetVandermonde(1, NodeTypeVISU, PP_N, NodeType, Vdm_EQ_N, modal=.FALSE.)
   END IF ! DoDielectricSurfaceCharge
 
 
@@ -631,9 +629,9 @@ SUBROUTINE FinalizeDeposition()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_PICDepo_Vars
-USE MOD_Particle_Mesh_Vars ,ONLY: Geo
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
+USE MOD_Particle_Mesh_Vars ,ONLY: Geo
+USE MOD_PICDepo_Vars
 #if USE_MPI
 USE MOD_MPI_Shared_vars    ,ONLY: MPI_COMM_SHARED
 #endif
@@ -666,6 +664,7 @@ SDEALLOCATE(NDepochooseK)
 SDEALLOCATE(tempcharge)
 SDEALLOCATE(CellVolWeightFac)
 SDEALLOCATE(CellVolWeight_Volumes)
+SDEALLOCATE(NodeSourceLoc)
 
 #if USE_MPI
 SDEALLOCATE(PartSourceProc)
@@ -683,6 +682,11 @@ IF(DoDeposition)THEN
     CALL MPI_WIN_UNLOCK_ALL(NodeSource_Shared_Win, iError)
     CALL MPI_WIN_FREE(      NodeSource_Shared_Win, iError)
     ADEALLOCATE(NodeSource_Shared)
+
+    CALL MPI_WIN_UNLOCK_ALL(NodeVolume_Shared_Win, iError)
+    CALL MPI_WIN_FREE(      NodeVolume_Shared_Win, iError)
+    ADEALLOCATE(NodeVolume_Shared)
+
     ! Surface charging arrays
     IF(DoDielectricSurfaceCharge)THEN
       CALL MPI_WIN_UNLOCK_ALL(NodeSourceExt_Shared_Win, iError)
@@ -706,15 +710,17 @@ ADEALLOCATE(PartSource)
 
 ! Deposition-dependent pointers/arrays
 SELECT CASE(TRIM(DepositionType))
-CASE('cell_volweight_mean')
-  ADEALLOCATE(NodeSource)
-  ! Surface charging pointers/arrays
-  IF(DoDielectricSurfaceCharge)THEN
-    ADEALLOCATE(NodeSourceExt)
-  END IF ! DoDielectricSurfaceCharge
-  ADEALLOCATE(NodeSource_Shared)
-CASE('shape_function_adaptive')
-  ADEALLOCATE(SFElemr2_Shared)
+  CASE('cell_volweight_mean')
+    ADEALLOCATE(NodeSource)
+    ! Surface charging pointers/arrays
+    IF(DoDielectricSurfaceCharge)THEN
+      ADEALLOCATE(NodeSourceExt)
+    END IF ! DoDielectricSurfaceCharge
+#if USE_MPI
+    ADEALLOCATE(NodeSource_Shared)
+#endif /*USE_MPI*/
+  CASE('shape_function_adaptive')
+    ADEALLOCATE(SFElemr2_Shared)
 END SELECT
 
 
