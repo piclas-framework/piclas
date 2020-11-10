@@ -124,15 +124,14 @@ SELECT CASE(iPType)
       IF(CollisMode.EQ.3) THEN
         ! Chemical reaction with cross-section based probability
         IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
-          CALL XSec_CalcReactionProb(iPair,iCase,SpecNum1,SpecNum2,MacroParticleFactor,Volume)
-          ! If the collision cross-section is elastic OR standard collision modelling is used, the reaction probability is added
-          ! to the collision probability
-          IF(.NOT.SpecXSec(iCase)%CollXSec_Effective) Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob &
-                                                        + SUM(ChemReac%CollCaseInfo(iCase)%ReactionProb(:))
+          IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
+          ! If standard collision modelling is used, the reaction probability is added to the collision probability
+            CALL XSec_CalcReactionProb(iPair,iCase,SpecNum1,SpecNum2,MacroParticleFactor,Volume)
+            Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob + SUM(ChemReac%CollCaseInfo(iCase)%ReactionProb(:))
+          END IF
         END IF
       END IF
       IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
-        ! No collision cross-section available, adding the additional probabilities to the collision probability
         IF(SpecXSec(iCase)%UseVibXSec) THEN
           CALL XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
           Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob + SpecXSec(iCase)%VibProb

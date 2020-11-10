@@ -177,7 +177,7 @@ END TYPE tSpeciesDSMC
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
 
 TYPE tXSecData
-  REAL,ALLOCATABLE                  :: XSecData(:,:)        ! Vibrational cross-section as read-in from the database
+  REAL,ALLOCATABLE                  :: XSecData(:,:)        ! Cross-section as read-in from the database
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
                                                             ! 2: Cross-section at the respective energy level [m^2]
   REAL                              :: Prob                 ! Event probability

@@ -137,7 +137,7 @@ USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
-USE MOD_DSMC_SpecXSec           ,ONLY: ReadReacXSec
+USE MOD_DSMC_SpecXSec           ,ONLY: MCC_Chemistry_Init
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -155,7 +155,6 @@ REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec, BGGasEVib, PhotonEnergy
 INTEGER               :: iInit
 INTEGER               :: iCase, iCase2, ReacIndexCounter
 LOGICAL               :: RecombAdded
-INTEGER               :: iPath, NumPaths
 !===================================================================================================================================
 
 ChemReac%NumOfReact = GETINT('DSMC-NumOfReactions')
@@ -571,18 +570,7 @@ DO iCase = 1, CollInf%NumCase
 END DO
 
 IF(ANY(ChemReac%XSec_Procedure(:))) THEN
-  IF(BGGas%NumberOfSpecies.LE.0) THEN
-    CALL abort(__STAMP__,&
-      'Chemistry - Error: Cross-section based chemistry without background gas has not been tested yet!')
-  END IF
-  DO iCase = 1, CollInf%NumCase
-    NumPaths = ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
-    IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) ALLOCATE(SpecXSec(iCase)%ReactionPath(1:NumPaths))
-    DO iPath = 1, NumPaths
-      iReac = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-      IF(ChemReac%XSec_Procedure(iReac)) CALL ReadReacXSec(iCase,iPath)
-    END DO
-  END DO
+  CALL MCC_Chemistry_Init()
 END IF
 
 ! Recombination

@@ -1145,6 +1145,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_TestReaction
+USE MOD_DSMC_SpecXSec           ,ONLY: XSec_CalcReactionProb
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1233,9 +1234,12 @@ END IF
 ! 2b.) Cross-section based chemistry (XSec)
 
 IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
-  IF(SpecXSec(iCase)%CollXSec_Effective) THEN
+  IF(SpecXSec(iCase)%UseCollXSec) THEN
+    ! Interpolate the reaction cross-section at the current collision energy
+    CALL XSec_CalcReactionProb(iPair,iCase)
     ReactionProbSum = SpecXSec(iCase)%CrossSection
   ELSE
+    ! Reaction probabilities were saved and added to the total collision probability
     ReactionProbSum = Coll_pData(iPair)%Prob
   END IF
   ReactionProb = 0.
@@ -1256,7 +1260,9 @@ IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
   END DO
   ! Reducing the collision probability (might be used for the determination of the relaxation probability) by the reaction
   ! probability sum if no reaction occurred
-  Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob - ReactionProb
+  IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
+    Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob - SUM(ChemReac%CollCaseInfo(iCase)%ReactionProb(:))
+  END IF
 END IF
 
 ! 2c.) Conventional TCE treatment (Arrhenius-based)
@@ -1419,7 +1425,7 @@ SUBROUTINE DSMC_calc_P_vib(iPair, iSpec, jSpec, Xi_rel, iElem, ProbVib)
 USE MOD_Globals            ,ONLY: Abort
 USE MOD_DSMC_Vars          ,ONLY: SpecDSMC, DSMC, VarVibRelaxProb, useRelaxProbCorrFactor, XSec_Relaxation, CollInf, Coll_pData
 USE MOD_DSMC_Vars          ,ONLY: PolyatomMolDSMC, SpecXSec
-USE MOD_DSMC_SpecXSec      ,ONLY: InterpolateVibRelaxProb
+USE MOD_DSMC_SpecXSec      ,ONLY: XSec_CalcVibRelaxProb
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1460,16 +1466,14 @@ REAL                      :: CollisionEnergy
       ProbVib = DSMC%VibRelaxProb * CorrFact
     END IF
     IF(XSec_Relaxation) THEN
-      IF(SpecDSMC(iSpec)%UseVibXSec) THEN
-        iCase = CollInf%Coll_Case(iSpec,jSpec)
-        IF(SpecXSec(iCase)%UseVibXSec) THEN
-          IF(SpecXSec(iCase)%UseCollXSec) THEN
-            CollisionEnergy = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType) * Coll_pData(iPair)%CRela2
-            ! Relaxation probability is stored and can be directly interpolated
-            ProbVib = InterpolateVibRelaxProb(iCase,CollisionEnergy)
-          ELSE
-            ProbVib = SpecXSec(iCase)%VibProb / Coll_pData(iPair)%Prob
-          END IF
+      iCase = CollInf%Coll_Case(iSpec,jSpec)
+      IF(SpecXSec(iCase)%UseVibXSec) THEN
+        IF(SpecXSec(iCase)%UseCollXSec) THEN
+          CALL XSec_CalcVibRelaxProb(iPair)
+          ! Cross-section is stored in the VibProb variable
+          ProbVib = SpecXSec(iCase)%VibProb / SpecXSec(iCase)%CrossSection
+        ELSE
+          ProbVib = SpecXSec(iCase)%VibProb / Coll_pData(iPair)%Prob
         END IF
       END IF
     END IF

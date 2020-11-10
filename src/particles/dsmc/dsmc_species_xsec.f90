@@ -76,7 +76,8 @@ DO iSpec = 1, nSpecies
       IF(.NOT.BGGas%BackgroundSpecies(iSpec).AND..NOT.BGGas%BackgroundSpecies(jSpec)) CYCLE
     END IF
     ! Read-in cross-section data for collisions of particles, allocating CollXSecData within the following routine
-    CALL ReadCollXSec(iCase, iSpec, jSpec)
+    IF(SpecDSMC(iSpec)%UseCollXSec.OR.SpecDSMC(jSpec)%UseCollXSec) CALL ReadCollXSec(iCase, iSpec, jSpec)
+    ! Check if both species were given the UseCollXSec flag and store the energy value in Joule
     IF(SpecXSec(iCase)%UseCollXSec) THEN
       IF(SpecDSMC(iSpec)%UseCollXSec.AND.SpecDSMC(jSpec)%UseCollXSec) THEN
         CALL abort(&
@@ -85,22 +86,16 @@ DO iSpec = 1, nSpecies
       END IF
       ! Store the energy value in J (read-in was in eV)
       SpecXSec(iCase)%CollXSecData(1,:) = SpecXSec(iCase)%CollXSecData(1,:) * ElementaryCharge
-      IF(XSec_NullCollision) THEN
-        ! Determine the maximum collision frequency for the null collision method
-        CALL DetermineNullCollProb(iCase,iSpec,jSpec)
-        TotalProb = TotalProb + SpecXSec(iCase)%ProbNull
-        IF(TotalProb.GT.1.0) THEN
-          CALL abort(&
-          __STAMP__&
-          ,'ERROR: Total null collision probability is above unity. Please reduce the time step! Probability is: '&
-          ,RealInfoOpt=TotalProb)
-        END IF
-      END IF
     END IF
     ! Read-in vibrational cross sections
     IF(SpecDSMC(iSpec)%UseVibXSec.OR.SpecDSMC(jSpec)%UseVibXSec) CALL ReadVibXSec(iCase, iSpec, jSpec)
     ! Vibrational relaxation probabilities: Interpolate and store the probability at the collision cross-section levels
     IF(SpecXSec(iCase)%UseVibXSec) THEN
+      IF(SpecDSMC(iSpec)%UseVibXSec.AND.SpecDSMC(jSpec)%UseVibXSec) THEN
+        CALL abort(&
+          __STAMP__&
+          ,'ERROR: Both species defined to use vib. cross-section, define only the source species with UseVibXSec!')
+      END IF
       XSec_Relaxation = .TRUE.
       nVib = SIZE(SpecXSec(iCase)%VibMode)
       DO iVib = 1, nVib
@@ -114,24 +109,32 @@ DO iSpec = 1, nSpecies
         ! Using the same energy intervals as for the collision cross-sections
         SpecXSec(iCase)%VibXSecData(1,:) = SpecXSec(iCase)%CollXSecData(1,:)
         SpecXSec(iCase)%VibXSecData(2,:) = 0.
-        DO iVib = 1, nVib
-          ! Interpolate the vibrational cross section at the energy levels of the collision collision cross section and sum-up the
-          ! vibrational probability (vibrational cross-section divided by the effective)
-          DO iStep = 1, MaxDim
-            IF(SpecXSec(iCase)%CollXSecData(2,iStep).GT.0.0) THEN
-              VibCrossSection = InterpolateCrossSection_Vib(iCase,iVib,SpecXSec(iCase)%CollXSecData(1,iStep))
-              ! Add the vibrational cross-section to the collision cross section when not the effective cross-section is utilized
-              IF(SpecXSec(iCase)%CollXSec_Effective) THEN
-                TotalCrossSection = SpecXSec(iCase)%CollXSecData(2,iStep)
-              ELSE
-                TotalCrossSection = SpecXSec(iCase)%CollXSecData(2,iStep) + VibCrossSection
-              END IF
-              SpecXSec(iCase)%VibXSecData(2,iStep) = SpecXSec(iCase)%VibXSecData(2,iStep) + VibCrossSection / TotalCrossSection
-            END IF
+        ! Interpolate the vibrational cross section at the energy levels of the collision collision cross section and sum-up the
+        ! vibrational probability (vibrational cross-section divided by the effective)
+        DO iStep = 1, MaxDim
+          DO iVib = 1, nVib
+            VibCrossSection = InterpolateCrossSection_Vib(iCase,iVib,SpecXSec(iCase)%CollXSecData(1,iStep))
+            SpecXSec(iCase)%VibXSecData(2,iStep) = SpecXSec(iCase)%VibXSecData(2,iStep) + VibCrossSection
+            ! When no effective cross-section is available, the vibrational cross-section has to be added to the collisional
+            IF(.NOT.SpecXSec(iCase)%CollXSec_Effective) SpecXSec(iCase)%CollXSecData(2,iStep) &
+                                                        = SpecXSec(iCase)%CollXSecData(2,iStep) + VibCrossSection
           END DO
         END DO
       END IF    ! SpecXSec(iCase)%UseCollXSec
     END IF      ! SpecXSec(iCase)%UseVibXSec
+    IF(SpecXSec(iCase)%UseCollXSec) THEN
+      IF(XSec_NullCollision) THEN
+        ! Determine the maximum collision frequency for the null collision method
+        CALL DetermineNullCollProb(iCase,iSpec,jSpec)
+        TotalProb = TotalProb + SpecXSec(iCase)%ProbNull
+        IF(TotalProb.GT.1.0) THEN
+          CALL abort(&
+          __STAMP__&
+          ,'ERROR: Total null collision probability is above unity. Please reduce the time step! Probability is: '&
+          ,RealInfoOpt=TotalProb)
+        END IF
+      END IF
+    END IF
   END DO        ! jSpec = iSpec, nSpecies
 END DO          ! iSpec = 1, nSpecies
 
@@ -157,7 +160,7 @@ INTEGER,INTENT(IN)                :: iCase, iSpec, jSpec
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=64)                 :: dsetname, dsetname2, spec_pair
+CHARACTER(LEN=64)                 :: dsetname, spec_pair
 INTEGER                           :: err
 INTEGER(HSIZE_T), DIMENSION(2)    :: dims,sizeMax
 INTEGER(HID_T)                    :: file_id_dsmc                       ! File identifier
@@ -201,14 +204,14 @@ IF(DatasetFound) THEN
   CALL DatasetExists(File_ID_DSMC,TRIM('/'//TRIM(spec_pair)//'/ELASTIC'),DatasetFound)
   IF(DatasetFound) CALL abort(__STAMP__,'ERROR: Please provide either elastic or effective collision cross-section data '//&
                                              & 'for '//TRIM(spec_pair)//'.')
-  SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': Read EFFECTIVE collision cross section.'
+  SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': Found EFFECTIVE collision cross section.'
 ELSE
   dsetname = TRIM('/'//TRIM(spec_pair)//'/ELASTIC')
   CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DatasetFound)
   IF(DatasetFound) THEN
     SpecXSec(iCase)%UseCollXSec = .TRUE.
     SpecXSec(iCase)%CollXSec_Effective = .FALSE.
-  SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': Read ELASTIC collision cross section.'
+  SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': Found ELASTIC collision cross section.'
   ELSE
     SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No data set found. Using standard collision modelling.'
     RETURN
@@ -481,7 +484,7 @@ END IF
 
 DO iDOF = 1, MaxDOF
   ! Check if the stored energy value is above the collision energy
-  IF(SpecXSec(iCase)%VibMode(iVib)%XSecData(1,iDOF).GT.CollisionEnergy) THEN
+  IF(SpecXSec(iCase)%VibMode(iVib)%XSecData(1,iDOF).GE.CollisionEnergy) THEN
     ! Interpolate the cross-section from the data set using the current and the energy level below
     InterpolateCrossSection_Vib = SpecXSec(iCase)%VibMode(iVib)%XSecData(2,iDOF-1) &
               + (CollisionEnergy - SpecXSec(iCase)%VibMode(iVib)%XSecData(1,iDOF-1)) &
@@ -550,8 +553,9 @@ SUBROUTINE XSec_CalcCollisionProb(iPair,SpecNum1,SpecNum2,CollCaseNum,MacroParti
 !> DSMC collision calculation probability.
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecXSec, SpecDSMC, Coll_pData, CollInf, BGGas, XSec_NullCollision
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, PartState
+USE MOD_DSMC_Vars             ,ONLY: SpecXSec, SpecDSMC, Coll_pData, CollInf, BGGas, XSec_NullCollision, RadialWeighting
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep
+USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -559,8 +563,8 @@ INTEGER,INTENT(IN)            :: iPair
 REAL,INTENT(IN)               :: SpecNum1, SpecNum2, CollCaseNum, MacroParticleFactor, Volume, dtCell
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                          :: CollEnergy, VeloSquare, SpecNumTarget, SpecNumSource
-INTEGER                       :: XSecSpec, XSecPart, targetSpec, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase
+REAL                          :: CollEnergy, SpecNumTarget, SpecNumSource, Weight1, Weight2, ReducedMass
+INTEGER                       :: targetSpec, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase
 !===================================================================================================================================
 
 iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
@@ -569,20 +573,27 @@ iCase = CollInf%Coll_Case(iSpec_p1,iSpec_p2)
 
 IF(SpecXSec(iCase)%UseCollXSec) THEN
   IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
-    XSecSpec = iSpec_p1; targetSpec = iSpec_p2; XSecPart = iPart_p1; SpecNumTarget = SpecNum2; SpecNumSource = SpecNum1
+    targetSpec = iSpec_p2; SpecNumTarget = SpecNum2; SpecNumSource = SpecNum1
   ELSE
-    XSecSpec = iSpec_p2; targetSpec = iSpec_p1; XSecPart = iPart_p2; SpecNumTarget = SpecNum1; SpecNumSource = SpecNum2
+    targetSpec = iSpec_p1; SpecNumTarget = SpecNum1; SpecNumSource = SpecNum2
   END IF
-  ! Using the kinetic energy of the particle (as is described in Vahedi1995 and Birdsall1991)
-  VeloSquare = DOT_PRODUCT(PartState(4:6,XSecPart),PartState(4:6,XSecPart))
-  CollEnergy = 0.5 * Species(XSecSpec)%MassIC * VeloSquare
+  Weight1 = GetParticleWeight(iPart_p1)
+  Weight2 = GetParticleWeight(iPart_p2)
+  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    ReducedMass = (Species(iSpec_p1)%MassIC *Weight1  * Species(iSpec_p2)%MassIC * Weight2) &
+      / (Species(iSpec_p1)%MassIC * Weight1+ Species(iSpec_p2)%MassIC * Weight2)
+  ELSE
+    ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
+  END IF
+  ! Using the relative kinetic energy of the particle
+  CollEnergy = 0.5 * ReducedMass * Coll_pData(iPair)%CRela2
   ! Calculate the collision probability
+  SpecXSec(iCase)%CrossSection = InterpolateCrossSection(iCase,CollEnergy)
+  Coll_pData(iPair)%Prob = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * SpecXSec(iCase)%CrossSection * SpecNumTarget * MacroParticleFactor &
+                                        / Volume * dtCell))
   IF(BGGas%BackgroundSpecies(targetSpec)) THEN
     ! Correct the collision probability in the case of the second species being a background species as the number of pairs
     ! is either determined based on the null collision probability or in the case of mixture on the species fraction
-    SpecXSec(iCase)%CrossSection = InterpolateCrossSection(iCase,CollEnergy)
-    Coll_pData(iPair)%Prob = (1. - EXP(-SQRT(VeloSquare) * SpecXSec(iCase)%CrossSection * SpecNumTarget * MacroParticleFactor &
-                                          / Volume * dtCell))
     IF(XSec_NullCollision) THEN
       Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob / SpecXSec(iCase)%ProbNull
     ELSE
@@ -607,58 +618,142 @@ SUBROUTINE XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Vol
 !> Calculate the relaxation probability using cross-section data.
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecXSec, SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: SpecXSec, SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting, XSec_NullCollision
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,INTENT(IN)            :: iPair
-REAL,INTENT(IN)               :: SpecNum1, SpecNum2, MacroParticleFactor, Volume, dtCell
+REAL,INTENT(IN),OPTIONAL      :: SpecNum1, SpecNum2, MacroParticleFactor, Volume, dtCell
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                          :: CollEnergy, SpecNumTarget, SpecNumSource, Weight1, Weight2, ReducedMass
-INTEGER                       :: XSecSpec, XSecPart, targetSpec, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase, iVib, nVib
+REAL                          :: CollEnergy, SpecNumTarget, SpecNumSource, Weight1, Weight2, ReducedMass, SumVibCrossSection
+INTEGER                       :: targetSpec, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase, iVib, nVib
 !===================================================================================================================================
 
 iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
 iSpec_p1 = PartSpecies(iPart_p1);      iSpec_p2 = PartSpecies(iPart_p2)
 iCase = CollInf%Coll_Case(iSpec_p1,iSpec_p2)
+Weight1 = GetParticleWeight(iPart_p1)
+Weight2 = GetParticleWeight(iPart_p2)
 SpecXSec(iCase)%VibProb = 0.
+SumVibCrossSection = 0.
 
-IF(SpecXSec(iCase)%UseVibXSec) THEN
+IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  ReducedMass = (Species(iSpec_p1)%MassIC *Weight1  * Species(iSpec_p2)%MassIC * Weight2) &
+    / (Species(iSpec_p1)%MassIC * Weight1+ Species(iSpec_p2)%MassIC * Weight2)
+ELSE
+  ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
+END IF
+! Using the relative translational energy of the pair
+CollEnergy = 0.5 * ReducedMass * Coll_pData(iPair)%CRela2
+! Calculate the total vibrational cross-section
+nVib = SIZE(SpecXSec(iCase)%VibMode)
+DO iVib = 1, nVib
+  SumVibCrossSection = SumVibCrossSection + InterpolateCrossSection_Vib(iCase,iVib,CollEnergy)
+END DO
+
+IF(SpecXSec(iCase)%UseCollXSec) THEN
+  SpecXSec(iCase)%VibProb = SumVibCrossSection
+ELSE
   IF(SpecDSMC(iSpec_p1)%UseVibXSec) THEN
-    XSecSpec = iSpec_p1; targetSpec = iSpec_p2; XSecPart = iPart_p1; SpecNumTarget = SpecNum2; SpecNumSource = SpecNum1
+    targetSpec = iSpec_p2; SpecNumTarget = SpecNum2; SpecNumSource = SpecNum1
   ELSE
-    XSecSpec = iSpec_p2; targetSpec = iSpec_p1; XSecPart = iPart_p2; SpecNumTarget = SpecNum1; SpecNumSource = SpecNum2
+    targetSpec = iSpec_p1; SpecNumTarget = SpecNum1; SpecNumSource = SpecNum2
   END IF
-  Weight1 = GetParticleWeight(iPart_p1)
-  Weight2 = GetParticleWeight(iPart_p2)
-  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-    ReducedMass = (Species(iSpec_p1)%MassIC *Weight1  * Species(iSpec_p2)%MassIC * Weight2) &
-      / (Species(iSpec_p1)%MassIC * Weight1+ Species(iSpec_p2)%MassIC * Weight2)
+  ! Calculate the total vibrational relaxation probability
+  SpecXSec(iCase)%VibProb = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * SpecNumTarget * MacroParticleFactor / Volume &
+                                                  * SumVibCrossSection * dtCell))
+  IF(BGGas%BackgroundSpecies(targetSpec)) THEN
+    ! Correct the collision probability in the case of the second species being a background species as the number of pairs
+    ! is determined based on the species fraction
+    SpecXSec(iCase)%VibProb = SpecXSec(iCase)%VibProb / BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(targetSpec))
   ELSE
-    ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
+    SpecXSec(iCase)%VibProb = SpecXSec(iCase)%VibProb * SpecNumSource / CollInf%Coll_CaseNum(iCase)
   END IF
-  ! Using the relative translational energy of the pair
-  CollEnergy = 0.5 * ReducedMass * Coll_pData(iPair)%CRela2
-  nVib = SIZE(SpecXSec(iCase)%VibMode)
-  DO iVib = 1, nVib
-    ! Calculate the relaxation probability per vibrational mode
-    SpecXSec(iCase)%VibMode(iVib)%Prob = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * SpecNumTarget * MacroParticleFactor / Volume &
-                                                    * InterpolateCrossSection_Vib(iCase,iVib,CollEnergy) * dtCell))
-    IF(BGGas%BackgroundSpecies(targetSpec)) THEN
-      ! Correct the collision probability in the case of the second species being a background species as the number of pairs
-      ! is determined based on the species fraction
-      SpecXSec(iCase)%VibMode(iVib)%Prob = SpecXSec(iCase)%VibMode(iVib)%Prob / BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(targetSpec))
-    ELSE
-      SpecXSec(iCase)%VibMode(iVib)%Prob = SpecXSec(iCase)%VibMode(iVib)%Prob * SpecNumSource / CollInf%Coll_CaseNum(iCase)
-    END IF
-    SpecXSec(iCase)%VibProb = SpecXSec(iCase)%VibProb + SpecXSec(iCase)%VibMode(iVib)%Prob
-  END DO
 END IF
 
 END SUBROUTINE XSec_CalcVibRelaxProb
+
+
+SUBROUTINE MCC_Chemistry_Init()
+!===================================================================================================================================
+!> Read-in of the reaction cross-section database and re-calculation of the null collision probability
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
+USE MOD_PARTICLE_Vars ,ONLY: nSpecies
+USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation, CollInf, ChemReac
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: iSpec, jSpec, iCase, iReac
+REAL                  :: TotalProb, ReactionCrossSection, TotalCrossSection
+INTEGER               :: iVib, nVib, iStep, MaxDim
+INTEGER               :: iPath, NumPaths
+!===================================================================================================================================
+
+IF(BGGas%NumberOfSpecies.LE.0) THEN
+  CALL abort(__STAMP__,&
+    'Chemistry - Error: Cross-section based chemistry without background gas has not been tested yet!')
+END IF
+
+! 1.) Read-in of cross-section data for chemical reactions
+DO iCase = 1, CollInf%NumCase
+  NumPaths = ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+  IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) ALLOCATE(SpecXSec(iCase)%ReactionPath(1:NumPaths))
+  DO iPath = 1, NumPaths
+    iReac = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+    IF(ChemReac%XSec_Procedure(iReac)) THEN
+      CALL ReadReacXSec(iCase,iPath)
+    END IF
+  END DO
+END DO
+
+! 2.) Add the chemical reaction cross-section to the total collision cross-section
+DO iCase = 1, CollInf%NumCase
+  ! Collision cross-sections are available
+  IF(SpecXSec(iCase)%UseCollXSec) THEN
+    ! When no effective cross-section is available, the total cross-section has to be determined
+    IF(.NOT.SpecXSec(iCase)%CollXSec_Effective) THEN
+      MaxDim = SIZE(SpecXSec(iCase)%CollXSecData,2)
+      ! Interpolate the reaction cross section at the energy levels of the collision collision cross section
+      DO iStep = 1, MaxDim
+        DO iPath = 1, NumPaths
+          ReactionCrossSection = InterpolateCrossSection_Chem(iCase,iPath,SpecXSec(iCase)%CollXSecData(1,iStep))
+          SpecXSec(iCase)%CollXSecData(2,iStep) = SpecXSec(iCase)%CollXSecData(2,iStep) + ReactionCrossSection
+        END DO
+      END DO
+    END IF  ! SpecXSec(iCase)%CollXSec_Effective
+  END IF    ! SpecXSec(iCase)%UseCollXSec
+END DO
+
+! 3.) Recalculate the null collision probability with the new total cross-section
+IF(XSec_NullCollision) THEN
+  DO iSpec = 1, nSpecies
+    TotalProb = 0.
+    DO jSpec = iSpec, nSpecies
+      iCase = CollInf%Coll_Case(iSpec,jSpec)
+      IF(SpecXSec(iCase)%UseCollXSec) THEN
+        CALL DetermineNullCollProb(iCase,iSpec,jSpec)
+        TotalProb = TotalProb + SpecXSec(iCase)%ProbNull
+        IF(TotalProb.GT.1.0) THEN
+          CALL abort(&
+          __STAMP__&
+          ,'ERROR: Total null collision probability is above unity. Please reduce the time step! Probability is: '&
+          ,RealInfoOpt=TotalProb)
+        END IF
+      END IF
+    END DO
+  END DO
+END IF
+
+
+END SUBROUTINE MCC_Chemistry_Init
 
 
 PURE REAL FUNCTION InterpolateCrossSection_Chem(iCase,iPath,CollisionEnergy)
@@ -853,13 +948,13 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,INTENT(IN)            :: iPair, iCase
-REAL,INTENT(IN)               :: SpecNum1, SpecNum2, MacroParticleFactor, Volume
+REAL,INTENT(IN),OPTIONAL      :: SpecNum1, SpecNum2, MacroParticleFactor, Volume
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPath, ReacTest, EductReac(1:3), ProductReac(1:4), ReactInx(1:2), nPair, iProd
 INTEGER                       :: NumWeightEduct, NumWeightProd, targetSpec
 REAL                          :: EZeroPoint_Prod, dtCell, Weight(1:4), ReducedMass, ReducedMassUnweighted
-REAL                          :: EZeroPoint_Educt, SpecNumTarget
+REAL                          :: EZeroPoint_Educt, SpecNumTarget, SpecNumSource, CrossSection
 !===================================================================================================================================
 Weight = 0.; ReactInx = 0
 nPair = SIZE(Coll_pData)
@@ -873,12 +968,6 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       ReactInx(1) = Coll_pData(iPair)%iPart_p1; ReactInx(2) = Coll_pData(iPair)%iPart_p2
     ELSE
       ReactInx(1) = Coll_pData(iPair)%iPart_p2; ReactInx(2) = Coll_pData(iPair)%iPart_p1
-    END IF
-    ! Select the background species as the target cloud
-    IF(BGGas%BackgroundSpecies(PartSpecies(Coll_pData(iPair)%iPart_p1))) THEN
-      targetSpec = PartSpecies(Coll_pData(iPair)%iPart_p1); SpecNumTarget = SpecNum1
-    ELSE
-      targetSpec = PartSpecies(Coll_pData(iPair)%iPart_p2); SpecNumTarget = SpecNum2
     END IF
 
     Weight(1) = GetParticleWeight(ReactInx(1)); Weight(2) = GetParticleWeight(ReactInx(2))
@@ -931,24 +1020,30 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,ReactInx(1))*Weight(1) &
                                                   + PartStateIntEn(3,ReactInx(2))*Weight(2)
     END IF
-    ! Calculate the reaction probability (check first if sufficient energy is available for the products after the reaction)
+    ! Check first if sufficient energy is available for the products after the reaction
     IF(((Coll_pData(iPair)%Ec-EZeroPoint_Prod).GE.(-ChemReac%EForm(ReacTest)*SUM(Weight)/NumWeightProd))) THEN
-      IF(SpecXSec(iCase)%CollXSec_Effective) THEN
-        ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = InterpolateCrossSection_Chem(iCase,iPath,Coll_pData(iPair)%Ec&
-                                                                                        -EZeroPoint_Educt)
+      CrossSection = InterpolateCrossSection_Chem(iCase,iPath,Coll_pData(iPair)%Ec-EZeroPoint_Educt)
+      IF(SpecXSec(iCase)%UseCollXSec) THEN
+        ! Interpolate the reaction cross-section
+        ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = CrossSection
       ELSE
+        ! Select the background species as the target cloud
+        IF(BGGas%BackgroundSpecies(PartSpecies(Coll_pData(iPair)%iPart_p1))) THEN
+          targetSpec = PartSpecies(Coll_pData(iPair)%iPart_p1); SpecNumTarget = SpecNum1; SpecNumSource = SpecNum2
+        ELSE
+          targetSpec = PartSpecies(Coll_pData(iPair)%iPart_p2); SpecNumTarget = SpecNum2; SpecNumSource = SpecNum1
+        END IF
+        ! Calculate the reaction probability
         ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * dtCell * SpecNumTarget &
-          * MacroParticleFactor / Volume * InterpolateCrossSection_Chem(iCase,iPath,Coll_pData(iPair)%Ec-EZeroPoint_Educt)))
+                                                                      * MacroParticleFactor / Volume * CrossSection))
         IF(BGGas%BackgroundSpecies(targetSpec)) THEN
         ! Correct the reaction probability in the case of the second species being a background species as the number of pairs
-        ! is either determined based on the null collision probability or in the case of mixture on the species fraction
-          IF(SpecXSec(iCase)%UseCollXSec) THEN
-            IF(XSec_NullCollision) ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) &
-                                      = ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) / SpecXSec(iCase)%ProbNull
-          ELSE
-            ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) &
-                                                                / BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(targetSpec))
-          END IF
+        ! is based on the species fraction
+          ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) &
+                                                              / BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(targetSpec))
+        ELSE
+          ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) &
+                                                              * SpecNumSource / CollInf%Coll_CaseNum(iCase)
         END IF
       END IF
     ELSE
