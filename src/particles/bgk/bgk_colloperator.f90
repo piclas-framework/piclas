@@ -708,7 +708,7 @@ SUBROUTINE BGK_CollisionOperatorMultiSpecBrull(iPartIndx_Node, nPart, NodeVolume
 !> 9.) Scaling of the rotational energy of molecules
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF
+USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, VarTimeStep
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
 USE MOD_DSMC_Analyze          ,ONLY: CalcTVibPoly
 USE MOD_TimeDisc_Vars         ,ONLY: dt
@@ -735,7 +735,7 @@ INTEGER, INTENT(INOUT), OPTIONAL        :: CorrectStep
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                  :: KronDelta, tempVelo(3), vBulk(3), u0ij(3,3), SMat(3,3), u2, V_rel(3), vmag2
+REAL                  :: KronDelta, tempVelo(3), vBulk(3), u0ij(3,3), SMat(3,3), u2, V_rel(3), vmag2, dtCell
 REAL                  :: alpha, CellTemp, dens, InnerDOF, dynamicvis, iRan, NewEn, OldEn, Prandtl, relaxfreq
 REAL                  :: rotrelaxfreq, vibrelaxfreq, collisionfreq, ProbAddPart, Evib, Tvib, Xi_vib, TEqui, Xi_Vib_old, Xi_rot, ERot
 REAL                  :: MaxColQua
@@ -796,6 +796,7 @@ OldEnRot = 0.; NewEnRot = 0.; NewEnVib = 0.
 Evib = 0.0; ERot = 0.0
 totalWeight = 0.0; totalWeight2 = 0.0
 EVibSpec = 0.0; ERotSpec = 0.0
+dtCell = 0.
 
 DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
@@ -806,6 +807,9 @@ DO iLoop = 1, nPart
   TotalMass = TotalMass + Species(iSpec)%MassIC*partWeight
   vBulkSpec(1:3,iSpec) = vBulkSpec(1:3,iSpec) + PartState(4:6,iPartIndx_Node(iLoop))*partWeight
   nSpec(iSpec) = nSpec(iSpec) + 1
+  IF(VarTimeStep%UseVariableTimeStep) THEN
+    dtCell = dtCell + VarTimeStep%ParticleTimeStep(iPartIndx_Node(iLoop))
+  END IF
 END DO
 IF (MAXVAL(nSpec(:)).EQ.1) RETURN
 vBulkAll(1:3) = vBulkAll(1:3) / TotalMass
@@ -813,6 +817,12 @@ totalWeight = SUM(totalWeightSpec)
 totalWeight2 = SUM(totalWeightSpec2)
 
 IF(totalWeight.LE.0.0) RETURN
+
+IF(VarTimeStep%UseVariableTimeStep) THEN
+  dtCell = dt * dtCell / nPart
+ELSE
+  dtCell = dt
+END IF
 
 MolarFraction(1:nSpecies) = totalWeightSpec(1:nSpecies) / totalWeight
 MassIC_Mixture = TotalMass / totalWeight
@@ -1017,9 +1027,9 @@ Prandtl = 1./(1.-nu)
 relaxfreq = Prandtl*dens*BoltzmannConst*CellTemp/dynamicvis
 
 IF(DSMC%CalcQualityFactors) THEN
-  BGK_MeanRelaxFactor         = BGK_MeanRelaxFactor + relaxfreq * dt
+  BGK_MeanRelaxFactor         = BGK_MeanRelaxFactor + relaxfreq * dtCell
   BGK_MeanRelaxFactorCounter  = BGK_MeanRelaxFactorCounter + 1
-  BGK_MaxRelaxFactor          = MAX(BGK_MaxRelaxFactor,relaxfreq*dt)
+  BGK_MaxRelaxFactor          = MAX(BGK_MaxRelaxFactor,relaxfreq*dtCell)
   BGK_PrandtlNumber           = BGK_PrandtlNumber + Prandtl
 END IF
 
@@ -1057,12 +1067,12 @@ IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
 !    Xi_vib = SUM(Xi_vib_DOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
 !  ELSE
     CALL CalcTEquiMulti(nPart, nSpec, CellTemp, TRotSpec, TVibSpec, Xi_VibSpec, Xi_Vib_oldSpec, RotExpSpec, VibExpSpec,  &
-      TEqui, rotrelaxfreqSpec, vibrelaxfreqSpec, dt)
+      TEqui, rotrelaxfreqSpec, vibrelaxfreqSpec, dtCell)
 !    CALL CalcTEquiMulti2(nPart, nSpec, CellTemp, TRotSpec, TVibSpec, Xi_VibSpec, Xi_Vib_oldSpec, RotExpSpec, VibExpSpec,  &
 !      TEqui, collisfreqMat, vibrelaxfreqSpec, dt)
 !  END IF
   IF(DSMC%CalcQualityFactors) THEN
-    BGK_MaxRotRelaxFactor          = MAX(BGK_MaxRotRelaxFactor,MAXVAL(rotrelaxfreqSpec(:))*dt)
+    BGK_MaxRotRelaxFactor          = MAX(BGK_MaxRotRelaxFactor,MAXVAL(rotrelaxfreqSpec(:))*dtCell)
   END IF
 END IF
 
@@ -1073,7 +1083,7 @@ ALLOCATE(iPartIndx_NodeRelaxRot(nPart),iPartIndx_NodeRelaxVib(nPart))
 iPartIndx_NodeRelaxRot = 0; iPartIndx_NodeRelaxVib = 0
 
 nVibRelaxSpec =0; nRotRelaxSpec =0
-ProbAddPartTrans = 1.-EXP(-relaxfreq*dt)
+ProbAddPartTrans = 1.-EXP(-relaxfreq*dtCell)
 !IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
 !  ProbAddPartRot = (1.-RotExp)
 !  ProbAddPartVib = (1.-VibExp)
