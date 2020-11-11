@@ -57,9 +57,9 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking, DoRefMapping
 USE MOD_IO_HDF5
 USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,ReadAttribute,ReadArray,GetDataSize
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
-USE MOD_Particle_Vars          ,ONLY: Symmetry2D, Symmetry2DAxisymmetric
+USE MOD_Particle_Vars          ,ONLY: Symmetry
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
+USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -442,7 +442,7 @@ __STAMP__&
         CALL abort(__STAMP__&
             ,'ERROR: Adaptive surface flux boundary conditions are not implemented with DoRefMapping!')
       END IF
-      IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+      IF((Symmetry%Order.LE.2).OR.VarTimeStep%UseVariableTimeStep) THEN
         CALL abort(__STAMP__&
             ,'ERROR: Adaptive surface flux boundary conditions are not implemented with 2D/axisymmetric or variable time step!')
       END IF
@@ -595,8 +595,8 @@ DO iBC=1,nDataBC
       END IF
       SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
       !----- symmetry specific area calculation start
-      IF(Symmetry2D) THEN
-        IF(Symmetry2DAxisymmetric) THEN
+      IF(Symmetry%Order.EQ.2) THEN
+        IF(Symmetry%Axisymmetric) THEN
           ! Calculate the correct area for the axisymmetric (ring area) and 2D (length) and get ymin and ymax for element
           SurfMeshSubSideData(1,1,BCSideID)%area = DSMC_2D_CalcSymmetryArea(iLocSide,ElemID, ymin, ymax)
           SurfMeshSubSideData(1,2,BCSideID)%area = 0.0
@@ -627,6 +627,8 @@ DO iBC=1,nDataBC
         ELSE
           SurfMeshSubSideData(1,1:2,BCSideID)%area = DSMC_2D_CalcSymmetryArea(iLocSide,ElemID) / 2.
         END IF
+      ELSE IF(Symmetry%Order.EQ.1) THEN
+        SurfMeshSubSideData(1,1:2,BCSideID)%area = DSMC_1D_CalcSymmetryArea(iLocSide,ElemID) / 2.
       END IF
       !----- symmetry specific area calculation end
       IF (.NOT.TriaTracking) THEN !check that all sides are planar if TriaSurfaceFlux is used for tracing or refmapping
@@ -1170,7 +1172,7 @@ USE MOD_SurfaceModel_Vars       ,ONLY: SurfModel
 USE MOD_Particle_Boundary_Tools ,ONLY: CalcWallSample
 USE MOD_DSMC_Init               ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
-USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
+USE MOD_DSMC_Symmetry           ,ONLY: CalcRadWeightMPF
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMesh, PartBound, nAdaptiveBC, nSurfSample
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
@@ -1383,7 +1385,7 @@ __STAMP__&
       END IF
       DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
         ExtraParts = 0 !set here number of additional to-be-inserted particles in current BCSideID/subsides (e.g. desorption)
-        IF(Symmetry2DAxisymmetric.AND.(jSample.EQ.2)) CYCLE
+        IF(Symmetry%Axisymmetric.AND.(jSample.EQ.2)) CYCLE
         IF (TriaSurfaceFlux) THEN
           !-- compute parallelogram of triangle
           Node1 = jSample+1     ! normal = cross product of 1-2 and 1-3 for first triangle
@@ -1418,7 +1420,7 @@ __STAMP__&
         END IF !noAdaptive
 
         ! REQUIRED LATER FOR THE POSITION START
-        IF(Symmetry2DAxisymmetric) THEN
+        IF(Symmetry%Axisymmetric) THEN
           !-- compute parallelogram of triangle (only simple 2 value adds/subs, other from init)
           Node1 = 2     ! normal = cross product of 1-2 and 1-3 for first triangle
           Node2 = 4     !          and 1-3 and 1-4 for second triangle
@@ -1626,7 +1628,7 @@ __STAMP__&
               END DO
             END IF
           END IF
-        END IF ! noAdaptive.AND.(.NOT.Symmetry2DAxisymmetric)
+        END IF ! noAdaptive.AND.(.NOT.Symmetry%Axisymmetric)
         !-- proceed with calculated to be inserted particles
         IF (PartInsSubSide.LT.0) THEN
           CALL abort(&
@@ -1656,7 +1658,7 @@ __STAMP__&
         nReject=0
         allowedRejections=0
 
-        IF(Symmetry2DAxisymmetric) THEN
+        IF(Symmetry%Axisymmetric) THEN
           IF (RadialWeighting%DoRadialWeighting.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))))) THEN
             IF(RadialWeighting%CellLocalWeighting) THEN
               DO WHILE (iPart .LE. PartInsSubSide)

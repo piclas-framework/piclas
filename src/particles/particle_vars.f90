@@ -25,8 +25,13 @@ SAVE
 REAL                  :: ManualTimeStep                                      ! Manual TimeStep
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
                                                                              ! with IAG programming style
-LOGICAL               :: Symmetry2D                                          ! Enables 2D simulation: symmetry in xy-Plane
-LOGICAL               :: Symmetry2DAxisymmetric                              ! Enables axisymmetric simulation around z-axis
+TYPE tSymmetry
+  INTEGER             :: Order                                               ! 1-3 D
+  LOGICAL             :: Axisymmetric
+END TYPE tSymmetry
+
+TYPE(tSymmetry)       :: Symmetry
+
 LOGICAL               :: DoFieldIonization                                   ! Do Field Ionization by quantum tunneling
 INTEGER               :: FieldIonizationModel                                !'Field Ionization models. Implemented models are:
 !                                                                            ! * Ammosov-Delone-Krainov (ADK) model
@@ -229,6 +234,30 @@ TYPE tInit                                                                   ! P
 #if USE_MPI
   INTEGER                                :: InitComm                          ! number of init-communicator
 #endif /*USE_MPI*/
+!====================================photo ionization =======================================================
+  LOGICAL                            :: FirstQuadrantOnly  ! Only insert particles in the first quadrant that is spanned by the
+                                                           ! vectors x=BaseVector1IC and y=BaseVector2IC in the interval x,y in [0,R]
+  REAL                               :: PulseDuration      ! Pulse duration tau for a Gaussian-type pulse with 
+                                                           ! I~exp(-(t/tau)^2) [s]
+  REAL                               :: WaistRadius        ! Beam waist radius (in focal spot) w_b for Gaussian-type pulse with
+                                                           ! I~exp(-(r/w_b)^2) [m]
+  REAL                               :: IntensityAmplitude ! Beam intensity maximum I0 Gaussian-type pulse with 
+                                                           ! I=I0*exp(-(t/tau)^2)exp(-(r/w_b)^2) [W/m^2]
+  REAL                               :: WaveLength         ! Beam wavelength [m]
+  REAL                               :: YieldSEE           ! Secondary photoelectron yield [-]
+  REAL                               :: RepetitionRate     ! Pulse repetition rate [Hz]
+  REAL                               :: Power              ! Average pulse power (energy of a single pulse times repetition rate) [J]
+  REAL                               :: Energy             ! Single pulse energy (used when RepetitionRate and Power are not supplied [J]
+  REAL                               :: Period             ! Time between the maximum intensity of two pulses [s]
+  REAL                               :: tActive            ! Pulse will end at tActive (pulse time) [s]
+  REAL                               :: tShift             ! Time shift for pulse corresponding to half of the Pulse width (pulse time) [s]
+  INTEGER                            :: NbrOfPulses        ! Number of pulses [-]
+  REAL                               :: NINT_Correction    ! nearest integer correction factor due to cut-off when converting
+                                                           ! the number of particles calculated as real to integer for the 
+                                                           ! actual emission
+  REAL                               :: WorkFunctionSEE    ! Photoelectron work function [eV]
+  !REAL                               :: AngularBetaSEE
+  REAL                               :: EffectiveIntensityFactor ! Scaling factor that increases I0 [-]
 END TYPE tInit
 
 TYPE tSurfFluxSubSideData
@@ -337,8 +366,8 @@ REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! M
 REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)    ! Array of macrovalues read from macrorestartfile
 
 INTEGER                                  :: nSpecies                         ! number of species
-INTEGER                                  :: nPointsMCVolumeEstimate          ! numer of points seeded into one element for volume
-                                                                             ! portion (that is occupied) estimtaion 
+INTEGER                                  :: nPointsMCVolumeEstimate          ! number of points seeded into one element for volume
+                                                                             ! portion (that is occupied) estimation
                                                                              ! with a Monte Carlo method
 INTEGER                                  :: nMacroRestartFiles                ! number of macroscopic restart files used for particles
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
@@ -482,6 +511,8 @@ TYPE tVariableTimeStep
   REAL                                 :: TargetMaxRelaxFactor
 END TYPE
 TYPE(tVariableTimeStep)                :: VarTimeStep
+
+REAL                                   :: TriaEps !Machine precision for 1D, 0 for other
 
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

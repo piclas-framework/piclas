@@ -103,7 +103,7 @@ USE MOD_BGK_Vars
 USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: nElems, NGeo
 USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, VarTimeStep
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
 USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
@@ -116,7 +116,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iSpec2
-REAL                  :: delta_ij, omega_mix, Tref_mix
+REAL                  :: delta_ij
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)') ' INIT BGK Solver...'
 ALLOCATE(SpecBGK(nSpecies))
@@ -128,14 +128,9 @@ DO iSpec=1, nSpecies
     ELSE
       delta_ij = 0.0
     END IF
-    omega_mix = (SpecDSMC(iSpec)%omegaVHS+SpecDSMC(iSpec2)%omegaVHS)/2.
-    Tref_mix = SQRT(SpecDSMC(iSpec)%TrefVHS*SpecDSMC(iSpec2)%TrefVHS)
-!    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*delta_ij*(SpecDSMC(iSpec)%DrefVHS + SpecDSMC(iSpec2)%DrefVHS)**2.0 &
-!        * SQRT(2.*Pi*BoltzmannConst*Tref_mix*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
-!        /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/Tref_mix**(-omega_mix +0.5)
-    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= (2.-delta_ij)*(SpecDSMC(iSpec)%DrefVHS + SpecDSMC(iSpec2)%DrefVHS)**2.0 &
-        * SQRT(Pi*BoltzmannConst*Tref_mix*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
-        /(2.*(Species(iSpec)%MassIC * Species(iSpec2)%MassIC)))/Tref_mix**(-omega_mix +0.5)
+    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 4.*(2.-delta_ij)*CollInf%dref(iSpec,iSpec2)**2.0 &
+        * SQRT(Pi*BoltzmannConst*CollInf%Tref(iSpec,iSpec2)*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
+        /(2.*(Species(iSpec)%MassIC * Species(iSpec2)%MassIC)))/CollInf%Tref(iSpec,iSpec2)**(-CollInf%omega(iSpec,iSpec2) +0.5)
   END DO
 END DO
 
@@ -159,7 +154,7 @@ END IF
 ! Unified BGK options
 BGKUnifiedCes = GETREAL('Particles-UnifiedBGK-Ces')
 IF (BGKUnifiedCes.EQ.1000.) THEN
-  BGKUnifiedCes = 1. - (6.-2.*SpecDSMC(1)%omegaVHS)*(4.- 2.*SpecDSMC(1)%omegaVHS)/30.
+  BGKUnifiedCes = 1. - (6.-2.*CollInf%omega(1,1))*(4.- 2.*CollInf%omega(1,1))/30.
 ELSE IF((BGKUnifiedCes.LT.-0.5).OR.(BGKUnifiedCes.GE.1.0)) THEN
   CALL abort(&
 __STAMP__&

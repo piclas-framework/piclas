@@ -48,6 +48,7 @@ USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, 
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, VarTimeStep, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: dt
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, DSMC_RHS, VibQuantsPar, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: CollInf, RadialWeighting
 USE Ziggurat
 USE MOD_FPFlow_Init             ,ONLY: FP_BuildTransGaussNums
 USE MOD_DSMC_Analyze            ,ONLY: CalcTVibPoly
@@ -221,10 +222,10 @@ ELSE
   dens = totalWeight * Species(1)%MacroParticleFactor / NodeVolume
 END IF
 
-dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*SpecDSMC(1)%TrefVHS/Pi) &
-        /(4.*(4.- 2.*SpecDSMC(1)%omegaVHS) * (6. - 2.*SpecDSMC(1)%omegaVHS)* SpecDSMC(1)%DrefVHS**2.)
-relaxfreq = dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omegaVHS + 0.5) &
-      /dynamicvis*CellTemp**(-SpecDSMC(1)%omegaVHS +0.5)
+dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*CollInf%Tref(1,1)/Pi) &
+           / (4.*(4.- 2.*CollInf%omega(1,1)) * (6. - 2.*CollInf%omega(1,1))* CollInf%dref(1,1)**2.)
+relaxfreq  = dens*BoltzmannConst*CollInf%Tref(1,1)**(CollInf%omega(1,1) + 0.5) &
+           / dynamicvis*CellTemp**(-CollInf%omega(1,1) +0.5)
 IF (FPCollModel.EQ.2) THEN
 !  relaxtime = 2.0*(1.-nu)/relaxfreq
   relaxtime = 3.0/(Prandtl*relaxfreq)
@@ -244,7 +245,7 @@ END IF
 IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
 ! 3.) Treatment of molecules: determination of the rotational and vibrational relaxation frequency using the collision frequency,
 !     which is not the same as the relaxation frequency of distribution function, calculated above.
-  collisionfreq = SpecFP(1)%CollFreqPreFactor(1) * dens *CellTemp**(-SpecDSMC(1)%omegaVHS +0.5)
+  collisionfreq = SpecFP(1)%CollFreqPreFactor(1) * dens *CellTemp**(-CollInf%omega(1,1) +0.5)
   rotrelaxfreq = collisionfreq * DSMC%RotRelaxProb
   vibrelaxfreq = collisionfreq * DSMC%VibRelaxProb
   IF(SpecDSMC(1)%PolyatomicMol) THEN

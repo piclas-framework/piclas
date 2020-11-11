@@ -154,7 +154,7 @@ USE MOD_Particle_MPI_Vars   ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Restart_Vars        ,ONLY: DoRestart
-USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, Symmetry2D
+USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, Symmetry
 USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
 USE MOD_part_tools          ,ONLY: UpdateNextFreePosition
 USE MOD_ReadInTools
@@ -206,7 +206,7 @@ DO i=1,nSpecies
   IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
   DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
     IF (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
-      IF(Symmetry2D) THEN
+      IF(Symmetry%Order.LE.2) THEN
         ! The correct 2D/axisymmetric LocalVolume could only be calculated after the symmetry axis was defined (through the boundary
         ! conditions). However, the initialParticleNumber was already determined before the 2D volume calculation was performed.
         ! This can lead to initialParticleNumbers of 0, thus skipping the insertion entirely.
@@ -387,8 +387,11 @@ USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 USE MOD_part_pressure          ,ONLY: ParticlePressure, ParticlePressureRem
-USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri
+USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri,CalcNbrOfPhotons
 USE MOD_part_pos_and_velo      ,ONLY: SetParticlePosition,SetParticleVelocity
+USE MOD_DSMC_BGGas             ,ONLY: BGGas_PhotoIonization
+USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
+USE MOD_Equation_Vars          ,ONLY: c
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -406,11 +409,12 @@ INTEGER                , SAVE    :: NbrOfParticle=0
 INTEGER(KIND=8)                  :: inserted_Particle_iter,inserted_Particle_time
 INTEGER(KIND=8)                  :: inserted_Particle_diff
 REAL                             :: PartIns, RandVal1
-REAL                             :: RiseFactor, RiseTime
+REAL                             :: RiseFactor, RiseTime,NbrOfPhotons
 #if USE_MPI
 INTEGER                          :: mode
 INTEGER                          :: InitGroup
 #endif
+REAL                             :: NbrOfReactions
 !===================================================================================================================================
 #if USE_MPI
 IF (PRESENT(mode_opt)) THEN
@@ -422,6 +426,7 @@ END IF
 !---  Emission at time step (initial emission see particle_init.f90: InitializeParticleEmission)
 DO i=1,nSpecies
   DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+    NbrOfParticle = 0
     IF (((Species(i)%Init(iInit)%ParticleEmissionType .NE. 4).AND.(Species(i)%Init(iInit)%ParticleEmissionType .NE. 6)) .AND. &
          (Species(i)%Init(iInit)%UseForEmission)) THEN ! no constant density in cell type, + to be used for init
 #if USE_MPI
@@ -536,6 +541,46 @@ __STAMP__&
 __STAMP__&
 ,' particle pressure not moved in picasso!')
           CALL ParticlePressureRem (i, iInit, NbrOfParticle)
+        CASE(7) ! SEE based on photon impact and photo-ionization in the volume
+          ASSOCIATE( tShift => Species(i)%Init(iInit)%tShift )
+            ! Check if all pulses have terminated
+            IF(Time.LE.Species(i)%Init(iInit)%tActive)THEN
+              ! Check if pulse is currently active of in between two pulses (in the latter case, do nothing)
+              IF(MOD(MERGE(Time-tShift, Time, Time.GE.tShift), Species(i)%Init(iInit)%Period).LE.2.0*tShift)THEN
+                ! Calculate the number of currently active photons (both surface SEE and volumetric emission)
+                CALL CalcNbrOfPhotons(i, iInit, NbrOfPhotons)
+
+                ! Check if only particles in the first quadrant are to be inserted that is spanned by the vectors 
+                ! x=BaseVector1IC and y=BaseVector2IC in the interval x,y in [0,R] and reduce the number of photon accordingly
+                IF(Species(i)%Init(iInit)%FirstQuadrantOnly) NbrOfPhotons = NbrOfPhotons / 4.0
+
+                ! Select surface SEE or volumetric emission
+                IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_SEE_disc')THEN
+                  ! SEE based on photon impact
+                  NbrOfPhotons = Species(i)%Init(iInit)%YieldSEE * NbrOfPhotons / Species(i)%MacroParticleFactor &
+                               + Species(i)%Init(iInit)%NINT_Correction 
+                  NbrOfParticle = NINT(NbrOfPhotons)
+                  Species(i)%Init(iInit)%NINT_Correction = NbrOfPhotons - REAL(NbrOfParticle)
+                ELSE
+                  ! Photo-ionization in the volume
+                  ! Calculation of the number of photons (using actual number and applying the weighting factor on the number of reactions)
+                  NbrOfPhotons = Species(i)%Init(iInit)%EffectiveIntensityFactor * NbrOfPhotons
+                  ! Calculation of the number of photons depending on the cylinder height (ratio of actual to virtual cylinder height, which
+                  ! is spanned by the disk and the length given by c*dt)
+                  NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CylinderHeightIC / (c*dt)
+                  ! Calculation of the number of electron resulting from the chemical reactions in the photoionization region
+                  CALL CalcPhotoIonizationNumber(NbrOfPhotons,NbrOfReactions)
+                  NbrOfReactions = NbrOfReactions + Species(i)%Init(iInit)%NINT_Correction
+                  NbrOfParticle = NINT(NbrOfReactions)
+                  Species(i)%Init(iInit)%NINT_Correction = NbrOfReactions - REAL(NbrOfParticle)
+                END IF
+              ELSE
+                NbrOfParticle = 0
+              END IF ! MOD(MERGE(Time-T0/2., Time, Time.GE.T0/2.), Period).GT.T0
+            ELSE
+              NbrOfParticle = 0
+            END IF ! Time.LE.Species(i)%Init(iInit)%tActive
+          END ASSOCIATE
         CASE DEFAULT
           NbrOfParticle = 0
         END SELECT
@@ -547,6 +592,11 @@ __STAMP__&
 #else
         CALL SetParticlePosition(i,iInit,NbrOfParticle)
 #endif
+        ! Pairing of "electrons" with the background species and performing the reaction
+        IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_cylinder') THEN
+          CALL BGGas_PhotoIonization(i,iInit,NbrOfParticle)
+          CYCLE
+        END IF
        CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
        CALL SetParticleChargeAndMass(i,NbrOfParticle)
        IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(i,NbrOfParticle)

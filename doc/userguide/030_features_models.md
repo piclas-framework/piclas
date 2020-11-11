@@ -27,13 +27,13 @@ For conventional computations on (bi-, tri-) linear meshes, the following tracki
 
 Following options are available to get more information about the tracking, e.g. number of lost particles:
 
-| Option                            | Values   | Notes                                                                                                                    |
-|:----------------------------------| :------: | :----------------------------------------------------------------------------------------------------------------------- |
-| DisplayLostParticles              |  F/T     | Display position, velocity, species and host element of                                                                  |
-|                                   |          | particles lost during particle tracking (TrackingMethod = triatracking, tracing) in the std.out                          |
-| CountNbrOfLostParts               |  T/F     | Count number of lost particles due to tolerance issues.                                                                  |
-|                                   |          | This number is a global number, summed over the full simulation duration and includes particles lost during the restart. |
-|                                   |          | The lost particles are output in a separate `*_PartStateLost*.h5` file.                                                  |
+| Option               | Values | Notes                                                                                                                    |
+| :------------------- | :----: | :----------------------------------------------------------------------------------------------------------------------- |
+| DisplayLostParticles |  F/T   | Display position, velocity, species and host element of                                                                  |
+|                      |        | particles lost during particle tracking (TrackingMethod = triatracking, tracing) in the std.out                          |
+| CountNbrOfLostParts  |  T/F   | Count number of lost particles due to tolerance issues.                                                                  |
+|                      |        | This number is a global number, summed over the full simulation duration and includes particles lost during the restart. |
+|                      |        | The lost particles are output in a separate `*_PartStateLost*.h5` file.                                                  |
 
 The two alternative tracking routines and their options are described in the following.
 
@@ -286,15 +286,15 @@ Modelling of reactive surfaces is enabled by setting `Part-BoundaryX-Condition=r
 appropriate particle boundary surface model `Part-BoundaryX-SurfaceModel`.
 The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the table below.
 
-| Model | Description                                                                                                                                                                         |
-| :----------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0 (default)  | Standard extended Maxwellian scattering                                                                                                                                             |
-|      2       | Simple recombination on surface collision, where an impinging particle as given by Ref. [@Reschke2019].                                                                             |
-|      3       | Kinetic Monte Carlo surface: Replicates surfaces with a specified lattice structure, either fcc(100) or fcc(111) and models complete catalysis as given by Ref. [@Reschke2019].     |
-|      5       | Secondary electron emission as given by Ref. [@Levko2015].                                                                                                                          |
-|      7       | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on different metals) as used in Ref. [@Pflug2014] and given by Ref. [@Depla2009] with a constant yield of 13 \%. |
-|     101      | Evaporation from surfaces according to a Maxwellian velocity distribution.                                                                                                          |
-|     102      | Evaporation according to MD-fitted velocity distributions.                                                                                                                          |
+|    Model    | Description                                                                                                                                                                         |
+| :---------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 (default) | Standard extended Maxwellian scattering                                                                                                                                             |
+|      2      | Simple recombination on surface collision, where an impinging particle as given by Ref. [@Reschke2019].                                                                             |
+|      3      | Kinetic Monte Carlo surface: Replicates surfaces with a specified lattice structure, either fcc(100) or fcc(111) and models complete catalysis as given by Ref. [@Reschke2019].     |
+|      5      | Secondary electron emission as given by Ref. [@Levko2015].                                                                                                                          |
+|      7      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on different metals) as used in Ref. [@Pflug2014] and given by Ref. [@Depla2009] with a constant yield of 13 \%. |
+|     101     | Evaporation from surfaces according to a Maxwellian velocity distribution.                                                                                                          |
+|     102     | Evaporation according to MD-fitted velocity distributions.                                                                                                                          |
 
 For surface sampling output, where the surface is split into, e.g., $3\times3$ sub-surfaces, the following parameters mus be set
 
@@ -367,14 +367,17 @@ The type of the region is defined by the following parameter
 
     Part-Species1-Init1-SpaceIC = cell_local
 
-Different `SpaceIC` are available and described in the table below.
+Different `SpaceIC` are available and an overview is given in the table below.
 
-| Distribution | Description                                                       |
-| ------------ | ----------------------------------------------------------------- |
-| cell_local   | Particles are inserted in every cell at a constant number density |
-| WIP          | **WORK IN PROGRESS**                                              |
+| Distribution    | Description                                                                      | Reference                                  |
+| --------------- | -------------------------------------------------------------------------------- | ------------------------------------------ |
+| cell_local      | Particles are inserted in every cell at a constant number density                |                                            |
+| disc            | Particles are inserted on a circular disc                                        | Section \ref{sec:particle_disc_init}       |
+| cylinder        | Particles are inserted in the given cylinder volume at a constant number density | Section \ref{sec:particle_cylinder_init}   |
+| photon_cylinder | Ionization of a background gas through photon impact                             | Section \ref{sec:particle_photoionization} |
+| WIP             | **WORK IN PROGRESS**                                                             |                                            |
 
-The parameters required for the `cell_local`-SpaceIC insertion are given below. The drift velocity is defined by the direction vector `VeloVecIC`, which is a unit vector, and a velocity magnitude [m/s]. The thermal velocity of particle is determined based on the defined velocity distribution and the given translation temperature `MWTemperatureIC` [K]. Finally, the 'real' number density is defined by `PartDensity` [1/m$^3$], from which the actual number of simulation particles will be determined (depending on the chosen weighting factor).
+Common parameters required for most of the insertion routines are given below. The drift velocity is defined by the direction vector `VeloVecIC`, which is a unit vector, and a velocity magnitude [m/s]. The thermal velocity of particle is determined based on the defined velocity distribution and the given translation temperature `MWTemperatureIC` [K]. Finally, the 'real' number density is defined by `PartDensity` [1/m$^3$], from which the actual number of simulation particles will be determined (depending on the chosen weighting factor).
 
     Part-Species1-Init1-VeloIC=1500
     Part-Species1-Init1-VeloVecIC=(/-1.0,0.0,0.0/)
@@ -387,6 +390,80 @@ In the case of molecules, the rotational and vibrational temperature [K] have to
     Part-Species1-Init1-TempRot=300.
     Part-Species1-Init1-TempVib=300.
     Part-Species1-Init1-TempElec=300.
+
+The parameters given so far are sufficient to define an initialization region for a molecular species using the `cell_local` option. Additional options required for other insertion regions are described in the following.
+
+#### Circular Disc \label{sec:particle_disc_init}
+
+To define the circular disc the following parameters are required:
+
+    Part-Species1-Init1-SpaceIC               = disc
+    Part-Species1-Init1-RadiusIC              = 1
+    Part-Species1-Init1-BasePointIC           = (/ 0.0, 0.0, 0.0 /)
+    Part-Species1-Init1-BaseVector1IC         = (/ 1.0, 0.0, 0.0 /)
+    Part-Species1-Init1-BaseVector2IC         = (/ 0.0, 1.0, 0.0 /)
+    Part-Species1-Init1-NormalIC              = (/ 0.0, 0.0, 1.0 /)
+
+The first and second base vector span a plane, where a circle with the given radius will be defined at the base point.
+
+#### Cylinder \label{sec:particle_cylinder_init}
+
+To define the cylinder the following parameters are required:
+
+    Part-Species1-Init1-SpaceIC               = cylinder
+    Part-Species1-Init1-RadiusIC              = 1
+    Part-Species1-Init1-CylinderHeightIC      = 1
+    Part-Species1-Init1-BasePointIC           = (/ 0.0, 0.0, 0.0 /)
+    Part-Species1-Init1-BaseVector1IC         = (/ 1.0, 0.0, 0.0 /)
+    Part-Species1-Init1-BaseVector2IC         = (/ 0.0, 1.0, 0.0 /)
+    Part-Species1-Init1-NormalIC              = (/ 0.0, 0.0, 1.0 /)
+
+The first and second base vector span a plane, where a circle with the given radius will be defined at the base point and then extruded in the normal direction up to the cylinder height.
+
+#### Photo-ionization \label{sec:particle_photoionization}
+
+A special case is the ionization of a background gas through photon impact, modelling a light pulse. The volume affected by the light pulse is approximated by a cylinder, which is defined as described in Section \ref{sec:particle_cylinder_init}. Additionally, the SpaceIC has to be adapted and additional parameters are required:
+
+    Part-Species1-Init1-SpaceIC                 = photon_cylinder
+    Part-Species1-Init1-PulseDuration           = 1         ! [s]
+    Part-Species1-Init1-WaistRadius             = 1E-6      ! [m]
+    Part-Species1-Init1-WaveLength              = 1E-9      ! [m]
+    Part-Species1-Init1-NbrOfPulses             = 1         ! [-], default = 1
+
+The pulse duration and waist radius are utilized to define the spatial and temporal Gaussian profile of the intensity. The number of pulses allows to consider multiple light pulses within a single simulation. To define the intensity of the light pulse, either the average pulse power (energy of a single pulse times repetition rate), the pulse energy or the intensity amplitude have to be provided. 
+
+    Part-Species1-Init1-Power                   = 1         ! [W]
+    Part-Species1-Init1-RepetitionRate          = 1         ! [Hz]
+    ! or
+    Part-Species1-Init1-Energy                  = 1         ! [J]
+    ! or
+    Part-Species1-Init1-IntensityAmplitude      = 1         ! [W/m^2]
+
+The intensity can be scaled with an additional factor to account for example for reflection or other effects:
+
+    Part-Species1-Init1-EffectiveIntensityFactor    = 1         ! [-]
+
+It should be noted that this initialization should be done with a particle spiecies (i.e. not the background gas species) that is also a product of the ionization reaction. The ionization reactions are defined as described in Section \ref{sec:dsmc_chemistry} by
+
+    DSMC-NumOfReactions = 1
+    DSMC-Reaction1-ReactionType         = phIon
+    DSMC-Reaction1-Reactants            = (/3,0,0/)
+    DSMC-Reaction1-Products             = (/1,2,0/)
+    DSMC-Reaction1-CrossSection         = 4.84E-24      ! [m^2]
+
+The probability that an ionization event occurs is determined based on the given cross-section, which is usually given for a certain wave length/photon energy. It should be noted that the background gas species should be given as the sole reactant and electrons should be defined as the first and/or second product. Electrons will be emitted perpendicular to the light path defined by the cylinder axis according to a cosine squared distribution.
+
+Finally, the secondary electron emission through the impinging light pulse on a surface can also be modelled by an additional insertion region (e.g. as an extra initialization for the same species). Additionally to the definition of the light pulse as described above (pulse duration, waist radius, wave length, number of pulses, and power/energy/intensity), the following parameters have to be set
+
+    Part-Species1-Init2-SpaceIC               = photon_SEE_disc
+    Part-Species1-Init2-velocityDistribution  = photon_SEE_energy
+    Part-Species1-Init2-YieldSEE              = 0.1                 ! [-]
+    Part-Species1-Init2-WorkFunctionSEE       = 2                   ! [eV]
+
+The emission area is defined as a disc by the parameters introduced in Section \ref{sec:particle_disc_init}. The yield controls how many electrons are emitted per photon impact and their velocity distribution is defined by the work function. The scaling factor defined by `EffectiveIntensityFactor` is not applied to this surface emission. Both emission regions can be sped-up if the actual computational domain corresponds only to a quarter of the cylinder:
+
+    Part-Species1-Init1-FirstQuadrantOnly       = T
+    Part-Species1-Init2-FirstQuadrantOnly       = T
 
 ### Surface Flux \label{sec:particle_surface_flux}
 
@@ -765,27 +842,42 @@ The second option is to use a linearly increasing time step along a given direct
 
 Besides DSMC, the linear scaling is available for the BGK and FP method. Finally, specific options for 2D/axisymmetric simulations are discussed in Section \ref{sec:2DAxi_vts}.
 
-### 2D/Axisymmetric Simulation \label{sec:2DAxi}
+### Symmetric Simulations \label{sec:Symmetric}
 
-For two-dimensional and axisymmetric cases, the computational effort can be greatly reduced. Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_{\mathrm{min}}|=|z_{\mathrm{max}}|$. The rotational symmetry axis shall be defined as a separate boundary with the `symmetric_axis` boundary condition
+For one-dimensional (e.g. shock-tubes), two-dimensional (e.g. cylinder) and axisymmetric (e.g. re-entry capsules) cases, the computational effort can be greatly reduced.
 
-Part-Boundary4-SourceName=SYMAXIS
-Part-Boundary4-Condition=symmetric_axis
+#### 1D Simulations \label{sec:1D}
+
+To enable one-dimensional simulations, the symmetry order has to be set
+
+    Particles-Symmetry-Order=1
+
+The calculation is performed along the $x$-axis. The $y$ and $z$ dimension should be centered to the $xz$-plane (i.e. $|y_{\mathrm{min}}|=|y_{\mathrm{max}}|$). All sides of the hexahedrons must be parallel to the $xy$-, $xz$-, and $yz$-plane. Boundaries in $y$ and $z$ direction shall be defined as 'symmetric'.
+
+    Part-Boundary5-SourceName=SYM
+    Part-Boundary5-Condition=symmetric
+
+#### 2D/Axisymmetric Simulations \label{sec:2DAxi}
+
+To enable two-dimensional simulations, the symmetry order has to be set
+
+    Particles-Symmetry-Order=2
+
+Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_{\mathrm{min}}|=|z_{\mathrm{max}}|$. The rotational symmetry axis shall be defined as a separate boundary with the `symmetric_axis` boundary condition
+
+    Part-Boundary4-SourceName=SYMAXIS
+    Part-Boundary4-Condition=symmetric_axis
 
 The boundaries (or a single boundary definition for both boundary sides) in the $z$-direction should be defined as symmetry sides with the `symmetric` condition
 
-Part-Boundary5-SourceName=SYM
-Part-Boundary5-Condition=symmetric
-
-To enable two-dimensional simulations, the following flag is required
-
-    Particles-Symmetry2D=T
+    Part-Boundary5-SourceName=SYM
+    Part-Boundary5-Condition=symmetric
 
 It should be noted that the two-dimensional mesh assumes a length of $\Delta z = 1$, regardless of the actual dimension in $z$. Therefore, the weighting factor should be adapted accordingly.
 
 To enable axisymmetric simulations, the following flag is required
 
-    Particles-Symmetry2DAxisymmetric=T
+    Particles-SymmetryAxisymmetric=T
 
 To fully exploit rotational symmetry, a radial weighting can be enabled, which will linearly increase the weighting factor $w$ towards $y_{\mathrm{max}}$ (i.e. the domain border in $y$-direction), depending on the current $y$-position of the particle.
 
@@ -821,7 +913,7 @@ However, this method is not preferable if the cell dimensions in $y$-direction a
 
 Besides DSMC, 2D/axisymmetric simulations are also possible the BGK/FP particle method with the same parameters as discussed above (for more informatino about the BGK and FP methods, see Section \ref{sec:continuum}).
 
-#### Variable Time Step: Linear scaling \label{sec:2DAxi_vts}
+##### Variable Time Step: Linear scaling \label{sec:2DAxi_vts}
 
 The linear scaling of the variable time step is implemented slightly different to the 3D case. Here, a particle-based time step is used, where the time step of the particle is determined on its current position. The first scaling is applied in the radial direction, where the time step is increased towards the radial domain border. Thus, $\Delta t (y_{\mathrm{max}}) = f \Delta t$ and $\Delta t (y_{\mathrm{min}} = 0) = \Delta t$.
 
@@ -852,13 +944,13 @@ The name is at the moment only utilized to retrieve the electronic energy levels
 |   10 | Atomic Ion                         |
 |   20 | Molecular Ion                      |
 
-Depending on the utilized collision model, different parameters have to be defined. As an example, the parameters for the Variable Hard Sphere (VHS) collision cross-section model are be defined by the temperature exponent $\omega$, reference temperature $T_{\mathrm{ref}}$ and diameter $d_{\mathrm{ref}}$
+Depending on the utilized collision model, different parameters have to be defined. As an example, the parameters for the Variable Hard Sphere (VHS) collision cross-section model are be defined by the temperature exponent $\omega = [0,0.5]$, reference temperature $T_{\mathrm{ref}}$ [K] and diameter $d_{\mathrm{ref}}$ [m]
 
-    Part-Species1-omegaVHS = 0.24
-    Part-Species1-VHSReferenceTemp = 273
-    Part-Species1-VHSReferenceDiam = 4.63E-10
+    Part-Species1-omega = 0.24
+    Part-Species1-Tref = 273
+    Part-Species1-dref = 4.63E-10
 
-It should be noted that although species-specific $\omega$ values can be read-in, DSMC in PICLas should only be utilized with a single $\omega$ at the moment. Other collisional models and their respective parameters are given in Section \ref{sec:dsmc_collision}.
+More detail on the utilization of species-specific, collision-specific parameters and the utilization of the Variable Soft Sphere (VSS) model are given in Section \ref{sec:dsmc_collision}.
 
 Diatomic molecular species require the definition of the characteristic temperature [K] and their dissociation energy [eV] (which is at the moment only utilized as a first guess for the upper bound of the temperature calculation)
 
@@ -899,6 +991,30 @@ To further reduce numerical diffusion, the nearest neighbour search for the part
 An additional attempt to increase the quality of simulations results is to prohibit repeated collisions between particles [@Shevyrin2005;@Akhlaghi2018]. This options is enabled by default in 2D/axisymmetric simulations, but disabled by default in 3D simulations.
 
     Particles-DSMC-ProhibitDoubleCollision = T
+
+The Variable Hard Sphere (VHS) is utilized by default with collision-averaged parameters, which are given per species
+
+    Part-Species1-omega = 0.24
+    Part-Species1-Tref = 273
+    Part-Species1-dref = 4.63E-10
+
+To enable the Variable Soft Sphere (VSS) model, the additional $\alpha$ parameter is required
+
+    Part-Species1-alphaVSS = 1.2
+
+In order to enable the collision-specific definition of the VHS/VSS parameters, a different input is required
+
+    ! Input in parameter.ini
+    Particles-DSMC-averagedCollisionParameters = F
+    ! Input in DSMC.ini
+    Part-Collision1 - partnerSpecies = (/1,1/)              ! Collision1: Parameters for the collision between equal species
+    Part-Collision1 - Tref           = 273
+    Part-Collision1 - dref           = 4.037e-10
+    Part-Collision1 - omega          = .216
+    Part-Collision1 - alphaVSS       = 1.448
+    Part-Collision2 - partnerSpecies = (/2,1/)              ! Collision2: Parameters for the collision between species 2 and 1
+
+The numbers in the `partnerSpecies` definition correspond to the species numbers and their order is irrelevant. Collision-specific parameters can be obtained from e.g. [@Swaminathan-Gopalan2016].
 
 #### Cross-section based collision probabilities
 
@@ -1002,14 +1118,15 @@ A reaction is then defined by
 
 where the reaction type can be defined as follows
 
-| Type | Description                                |
-| ---: | ------------------------------------------ |
-|    D | Dissociation (e.g. N$_2$ + M -> N + N + M) |
-|    E | Exchange (e.g. N$_2$ + O -> NO + N)        |
-|    R | Recombination (e.g. N + O + M -> NO + M)   |
-|  iQK | Ionization (e.g. N + e -> N$^+$ + e + e)   |
+|  Type | Description                                 |
+| ----: | ------------------------------------------- |
+|     D | Dissociation (e.g. N$_2$ + M -> N + N + M)  |
+|     E | Exchange (e.g. N$_2$ + O -> NO + N)         |
+|     R | Recombination (e.g. N + O + M -> NO + M)    |
+|   iQK | Ionization (e.g. N + e -> N$^+$ + e + e)    |
+| phIon | Photo-ionization (e.g. N + ph -> N$^+$ + e) |
 
-The reactants (left-hand side) and products (right-hand side) are defined by their respective species index. It should be noted that for the dissociation reaction, the first given species is the molecule to be dissociated. The second given species is the non-reacting partner, which can either be defined specifically or set to zero to define multiple possible collision partners. In the latter case, the number of non-reactive partners and their species have to be given by
+The reactants (left-hand side) and products (right-hand side) are defined by their respective species index. The photo-ionization reaction is a special case to model the ionization process within a defined volume by photon impact (see Section \ref{sec:particle_photoionization}). It should be noted that for the dissociation reaction, the first given species is the molecule to be dissociated. The second given species is the non-reacting partner, which can either be defined specifically or set to zero to define multiple possible collision partners. In the latter case, the number of non-reactive partners and their species have to be given by
 
     DSMC-Reaction1-Reactants=(/1,0,0/)
     DSMC-Reaction1-Products=(/2,0,2/)

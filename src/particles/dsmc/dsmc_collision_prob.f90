@@ -62,7 +62,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                             :: iPType, NbrOfReaction, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase
+  INTEGER                             :: iPType, NbrOfReaction, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase, PairType
   REAL                                :: SpecNum1, SpecNum2, Weight1, Weight2, Volume, CollProb
   REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot, MacroParticleFactor, dtCell, CollCaseNum
 #if (PP_TimeDiscMethod==42)
@@ -70,6 +70,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 #endif
 !===================================================================================================================================
 
+  PairType   = Coll_pData(iPair)%PairType
   iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
   iSpec_p1 = PartSpecies(iPart_p1);      iSpec_p2 = PartSpecies(iPart_p2)
   iCase = CollInf%Coll_Case(iSpec_p1,iSpec_p2)
@@ -95,23 +96,23 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   IF (RadialWeighting%DoRadialWeighting) THEN
     ! Correction factor: Collision pairs above the mean MPF within the cell will get a higher collision probability
     ! Not the actual weighting factor, since the weighting factor is included in SpecNum
-      MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) &
-                            / CollInf%MeanMPF(Coll_pData(iPair)%PairType)
+      MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) &
+                            / CollInf%MeanMPF(PairType)
     ! Sum over the mean weighting factor of all collision pairs, is equal to the number of collision pairs
     ! (incl. weighting factor)
-    CollCaseNum = CollInf%MeanMPF(Coll_pData(iPair)%PairType)
+    CollCaseNum = CollInf%MeanMPF(PairType)
   ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
     ! Not the actual weighting factor, since the weighting factor is included in SpecNum
-    MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) &
-                          / CollInf%MeanMPF(Coll_pData(iPair)%PairType)
+    MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) &
+                        / CollInf%MeanMPF(PairType)
     ! Sum over the mean variable time step factors (NO particle weighting factor included during MeanMPF summation)
-    CollCaseNum = CollInf%MeanMPF(Coll_pData(iPair)%PairType) * Species(1)%MacroParticleFactor
+    CollCaseNum = CollInf%MeanMPF(PairType) * Species(1)%MacroParticleFactor
     ! Weighting factor has to be included
     SpecNum1 = SpecNum1 * Species(1)%MacroParticleFactor
     SpecNum2 = SpecNum2 * Species(1)%MacroParticleFactor
   ELSE
     MacroParticleFactor = Species(1)%MacroParticleFactor
-    CollCaseNum = REAL(CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType))
+    CollCaseNum = REAL(CollInf%Coll_CaseNum(PairType))
   END IF
 
   IF (VarTimeStep%UseVariableTimeStep) THEN
@@ -129,16 +130,16 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
       IF(UseMCC) THEN
         Coll_pData(iPair)%Prob = XSec_CalcCollisionProb(iPair,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
       ELSE
-        Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
-                * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
+        Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(PairType))  &
+                * CollInf%Cab(PairType)                                               & ! Cab species comb fac
                 * MacroParticleFactor / CollCaseNum                                                     &
-                * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(iSpec_p1)%omegaVHS) &
+                * Coll_pData(iPair)%CRela2 ** (0.5-CollInf%omega(iSpec_p1,iSpec_p2)) &
                 * dtCell / Volume
       END IF
     CASE(8) !Electron - Electron
       Coll_pData(iPair)%Prob = 0
     CASE(16) !Atom-Atomic CEX/MEX Ion
-      NbrOfReaction = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p2),1)
+      NbrOfReaction = ChemReac%ReactNum(iSpec_p1,iSpec_p2,1)
       aCEX = ChemReac%CEXa(NbrOfReaction)
       bCEX = ChemReac%CEXb(NbrOfReaction)
       aMEX = ChemReac%MEXa(NbrOfReaction)
@@ -149,7 +150,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
         IF (Coll_pData(iPair)%CRela2.EQ.0) THEN
           sigma_tot = 0
         ELSE
-          !Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
+          !Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(PairType)*Coll_pData(iPair)%CRela2
           sigma_tot = ((aCEX+0.5*aEL)*0.5*LOG10(Coll_pData(iPair)%CRela2)+bCEX+0.5*bEL)
           !write (*,*) "CRela2=", Coll_pData(iPair)%CRela2
           !write (*,*) "CASE(16) !Atom-Atomic CEX/MEX Ion", sigma_tot , ((aCEX+aMEX)*0.5*LOG10(Coll_pData(iPair)%CRela2) + bCEX+bMEX)
@@ -168,16 +169,16 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
           sigma_tot = ((aCEX+aMEX)*0.5*LOG10(Coll_pData(iPair)%CRela2) + bCEX+bMEX)
         END IF
       END IF
-      SpecNum1 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)),8) !number of particles of spec 1
-      SpecNum2 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)),8) !number of particles of spec 2
+      SpecNum1 = NINT(CollInf%Coll_SpecPartNum(iSpec_p1),8) !number of particles of spec 1
+      SpecNum2 = NINT(CollInf%Coll_SpecPartNum(iSpec_p2),8) !number of particles of spec 2
       IF (Coll_pData(iPair)%CRela2.eq.0.) THEN !avoid log(0)
         Coll_pData(iPair)%Prob=0.
       ELSE
-        Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
-          !* CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
+        Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(PairType))  &
+          !* CollInf%Cab(PairType)                                               & ! Cab species comb fac
           * Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor                  &
             ! weighting Fact, here only one MPF is used!!!
-          / CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType)                                      & ! sum of coll cases Sab
+          / CollInf%Coll_CaseNum(PairType)                                      & ! sum of coll cases Sab
           * 1.0E-20 * SQRT(Coll_pData(iPair)%CRela2) * sigma_tot  &
             ! CEX/MEX-relation to relative velo
           * dt / Volume                   ! timestep (should be sclaed in time disc)  divided by cell volume

@@ -689,14 +689,14 @@ USE MOD_Particle_Vars          ,ONLY: PartState,F_PartXK,Norm_F_PartXK,PartQ,Par
                                      ,PartDeltaX,PEM,PDM,LastPartPos,Pt,Norm_F_PartX0,PartDtFrac,PartStateN &
                                      ,PartMeshHasReflectiveBCs
 USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK,DoPrintConvInfo
-USE MOD_LinearSolver_Vars      ,ONLY: Part_alpha, Part_sigma
+USE MOD_LinearSolver_Vars      ,ONLY: Part_alpha
 USE MOD_Part_RHS               ,ONLY: PartRHS
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 USE MOD_Equation_Vars          ,ONLY: c2_inv
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_LinearSolver_Vars      ,ONLY: DoFullNewton,PartNewtonRelaxation
+USE MOD_LinearSolver_Vars      ,ONLY: DoFullNewton!,PartNewtonRelaxation
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI

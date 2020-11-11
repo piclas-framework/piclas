@@ -99,29 +99,30 @@ SUBROUTINE InitParticleBoundarySampling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Mesh_Vars               ,ONLY:NGeo,BC,nSides,nBCSides,nBCs,BoundaryName,GlobalUniqueSideID
-USE MOD_ReadInTools             ,ONLY:GETINT,GETLOGICAL,GETINTARRAY
-USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
-USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis,nPorousBC,CalcSurfaceImpact
-USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides,PartSideToElem,GEO
-USE MOD_Particle_Vars           ,ONLY:nSpecies, VarTimeStep, Symmetry2D
-USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
-USE MOD_Particle_Surfaces       ,ONLY:EvaluateBezierPolynomialAndGradient
-USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D,BezierSampleN
-USE MOD_Particle_Mesh_Vars      ,ONLY:PartBCSideList
-USE MOD_Particle_Tracking_Vars  ,ONLY:DoRefMapping,TriaTracking
-USE MOD_DSMC_Symmetry2D         ,ONLY:DSMC_2D_CalcSymmetryArea
-USE MOD_Mesh_Vars               ,ONLY:MortarType
+USE MOD_Mesh_Vars              ,ONLY:NGeo,BC,nSides,nBCSides,nBCs,BoundaryName,GlobalUniqueSideID
+USE MOD_ReadInTools            ,ONLY:GETINT,GETLOGICAL,GETINTARRAY
+USE MOD_Particle_Boundary_Vars ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
+USE MOD_Particle_Boundary_Vars ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis,nPorousBC,CalcSurfaceImpact
+USE MOD_Particle_Mesh_Vars     ,ONLY:nTotalSides,PartSideToElem,GEO
+USE MOD_Particle_Vars          ,ONLY:nSpecies, VarTimeStep, Symmetry
+USE MOD_Basis                  ,ONLY:LegendreGaussNodesAndWeights
+USE MOD_Particle_Surfaces      ,ONLY:EvaluateBezierPolynomialAndGradient
+USE MOD_Particle_Surfaces_Vars ,ONLY:BezierControlPoints3D,BezierSampleN
+USE MOD_Particle_Mesh_Vars     ,ONLY:PartBCSideList
+USE MOD_Particle_Tracking_Vars ,ONLY:DoRefMapping,TriaTracking
+USE MOD_DSMC_Symmetry          ,ONLY:DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea
+USE MOD_Mesh_Vars              ,ONLY:MortarType
 #if USE_MPI
-USE MOD_Particle_Mesh_Vars      ,ONLY:PartElemToElemAndSide
-USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
-USE MOD_Particle_MPI_Vars       ,ONLY:PartHaloElemToProc
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToElemAndSide
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc
 #else
-USE MOD_Particle_Boundary_Vars  ,ONLY:offSetSurfSide
+USE MOD_Particle_Boundary_Vars ,ONLY: offSetSurfSide
 #endif /*USE_MPI*/
-USE MOD_PICDepo_Vars            ,ONLY:SFResampleAnalyzeSurfCollis
-USE MOD_PICDepo_Vars            ,ONLY:LastAnalyzeSurfCollis
-USE MOD_Particle_Boundary_Tools ,ONLY:SortArray
+USE MOD_PICDepo_Vars           ,ONLY: SFResampleAnalyzeSurfCollis
+USE MOD_PICDepo_Vars           ,ONLY: LastAnalyzeSurfCollis
+USE MOD_Utils                  ,ONLY: SortArray
+USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -255,8 +256,8 @@ __STAMP__&
 #if USE_MPI
     IF((PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1) &
    .OR.(PartSideToElem(S2E_NB_ELEM_ID,iSide).EQ.-1)) THEN ! innerBCSide is between two procs
-      iLocSide   = MERGE(S2E_NB_LOC_SIDE_ID,S2E_LOC_SIDE_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
-      iElem      = MERGE(S2E_NB_ELEM_ID,S2E_ELEM_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
+      iLocSide   = MERGE(S2E_NB_LOC_SIDE_ID , S2E_LOC_SIDE_ID , PartSideToElem(S2E_ELEM_ID , iSide).EQ.-1)
+      iElem      = MERGE(S2E_NB_ELEM_ID     , S2E_ELEM_ID     , PartSideToElem(S2E_ELEM_ID , iSide).EQ.-1)
       HaloElemID = PartElemToElemAndSide(1,PartSideToElem(iLocSide,iSide),PartSideToElem(iElem,iSide))
       IF(myrank.GT.PartHaloElemToProc(NATIVE_PROC_ID,HaloElemID)) THEN ! innerBCSide is between two procs and NOT on output side
         IsSlaveSide(iSide) = .TRUE.   !(1)
@@ -284,7 +285,7 @@ END DO
 ASSOCIATE( StartID => nBCSides+1            ,&
            EndID   => nSides  & !nSides &
           )
-CALL SortArray(EndID-StartID+1,SurfMesh%SideIDToSurfID(StartID:EndID),GlobalUniqueSideID(StartID:EndID))
+  CALL SortArray(EndID-StartID+1,SurfMesh%SideIDToSurfID(StartID:EndID),GlobalUniqueSideID(StartID:EndID))
 END ASSOCIATE
 
 ! --------------------------------------------------
@@ -501,9 +502,7 @@ DO iSide=1,nTotalSides
     yNod = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,LocSideID,ElemID))
     zNod = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,LocSideID,ElemID))
 
-    IF(Symmetry2D) THEN
-      SurfMesh%SurfaceArea(1,1,SurfSideID) = DSMC_2D_CalcSymmetryArea(LocSideID, ElemID)
-    ELSE
+    IF(Symmetry%Order.EQ.3) THEN
       DO TriNum = 1,2
         Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
         Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
@@ -520,6 +519,10 @@ DO iSide=1,nTotalSides
         SurfaceVal = SurfaceVal + nVal/2.
       END DO
       SurfMesh%SurfaceArea(1,1,SurfSideID) = SurfaceVal
+    ELSE IF(Symmetry%Order.EQ.2) THEN
+      SurfMesh%SurfaceArea(1,1,SurfSideID) = DSMC_2D_CalcSymmetryArea(LocSideID, ElemID)
+    ELSE IF(Symmetry%Order.EQ.1) THEN
+      SurfMesh%SurfaceArea(1,1,SurfSideID) = DSMC_1D_CalcSymmetryArea(LocSideID, ElemID)
     END IF
   ELSE
     ! call here stephens algorithm to compute area
@@ -564,7 +567,7 @@ SWRITE(UNIT_stdOut,'(A,ES25.14E3)') ' Surface-Area: ', Area
 
 DEALLOCATE(Xi_NGeo,wGP_NGeo)
 
-SWRITE(UNIT_stdOut,'(A)') ' ... DONE.'
+SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING DONE.'
 
 END SUBROUTINE InitParticleBoundarySampling
 

@@ -51,6 +51,7 @@ SUBROUTINE BGK_CollisionOperator_SingleSpecies(iPartIndx_Node, nPart, NodeVolume
 USE MOD_Globals               ,ONLY: DOTPRODUCT
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, VarTimeStep, usevMPF
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: CollInf
 USE MOD_DSMC_Analyze          ,ONLY: CalcTVibPoly
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
@@ -231,19 +232,19 @@ ELSE
 END IF
 
 ! 2.) Calculate the reference dynamic viscosity, Prandtl number and the resulting relaxation frequency of the distribution function
-dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*SpecDSMC(1)%TrefVHS/Pi) &
-        /(4.*(4.- 2.*SpecDSMC(1)%omegaVHS) * (6. - 2.*SpecDSMC(1)%omegaVHS)* SpecDSMC(1)%DrefVHS**(2.))
+dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*CollInf%Tref(1,1)/Pi) &
+           / (4.*(4.- 2.*CollInf%omega(1,1)) * (6. - 2.*CollInf%omega(1,1))* CollInf%dref(1,1)**2.)
 Prandtl =2.*(InnerDOF + 5.)/(2.*InnerDOF + 15.)
 CShak= Prandtl*(1.-BGKUnifiedCes)
 IF (BGKCollModel.EQ.1) THEN
-  relaxfreq = Prandtl*dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omegaVHS + 0.5) &
-      /dynamicvis*CellTempRelax**(-SpecDSMC(1)%omegaVHS +0.5)
+  relaxfreq = Prandtl*dens*BoltzmannConst*CollInf%Tref(1,1)**(CollInf%omega(1,1) + 0.5) &
+      /dynamicvis*CellTempRelax**(-CollInf%omega(1,1) +0.5)
 ELSE IF (BGKCollModel.EQ.4) THEN
-  relaxfreq = dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omegaVHS + 0.5) &
-      /(dynamicvis*(1.-BGKUnifiedCes))*CellTempRelax**(-SpecDSMC(1)%omegaVHS +0.5)
+  relaxfreq = dens*BoltzmannConst*CollInf%Tref(1,1)**(CollInf%omega(1,1) + 0.5) &
+      /(dynamicvis*(1.-BGKUnifiedCes))*CellTempRelax**(-CollInf%omega(1,1) +0.5)
 ELSE
-  relaxfreq = dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omegaVHS + 0.5) &
-      /dynamicvis*CellTempRelax**(-SpecDSMC(1)%omegaVHS +0.5)
+  relaxfreq = dens*BoltzmannConst*CollInf%Tref(1,1)**(CollInf%omega(1,1) + 0.5) &
+      /dynamicvis*CellTempRelax**(-CollInf%omega(1,1) +0.5)
 END IF
 
 IF(DSMC%CalcQualityFactors) THEN
@@ -255,7 +256,7 @@ END IF
 ! 3.) Treatment of molecules: determination of the rotational and vibrational relaxation frequency using the collision frequency,
 !     which is not the same as the relaxation frequency of distribution function, calculated above.
 IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
-  collisionfreq = SpecBGK(1)%CollFreqPreFactor(1) * Dens *CellTempRelax**(-SpecDSMC(1)%omegaVHS +0.5)
+  collisionfreq = SpecBGK(1)%CollFreqPreFactor(1) * Dens *CellTempRelax**(-CollInf%omega(1,1) +0.5)
   rotrelaxfreq = collisionfreq * DSMC%RotRelaxProb
   vibrelaxfreq = collisionfreq * DSMC%VibRelaxProb
   IF(SpecDSMC(1)%PolyatomicMol) THEN
@@ -710,6 +711,7 @@ SUBROUTINE BGK_CollisionOperatorMultiSpecBrull(iPartIndx_Node, nPart, NodeVolume
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, VarTimeStep
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: CollInf
 USE MOD_DSMC_Analyze          ,ONLY: CalcTVibPoly
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
@@ -949,14 +951,14 @@ IF (BGKMixtureModel.EQ.1) THEN
   DO iSpec = 1, nSpecies
     IF ((nSpec(iSpec).GE.2).AND.(.NOT.ALMOSTZERO(u2Spec(iSpec)))) THEN
       ! Species temperature
-      dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*SpecDSMC(iSpec)%TrefVHS/Pi) &
-            /(4.*(4.- 2.*SpecDSMC(iSpec)%omegaVHS) * (6. - 2.*SpecDSMC(iSpec)%omegaVHS)* SpecDSMC(iSpec)%DrefVHS**(2.) &
-            *SpecDSMC(iSpec)%TrefVHS**(SpecDSMC(iSpec)%omegaVHS + 0.5)*SpecTemp(iSpec)**(-SpecDSMC(iSpec)%omegaVHS - 0.5))
+      dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*CollInf%Tref(iSpec,iSpec)/Pi) &
+            /(4.*(4.- 2.*CollInf%omega(iSpec,iSpec)) * (6. - 2.*CollInf%omega(iSpec,iSpec))* CollInf%dref(iSpec,iSpec)**(2.) &
+            *CollInf%Tref(iSpec,iSpec)**(CollInf%omega(iSpec,iSpec) + 0.5)*SpecTemp(iSpec)**(-CollInf%omega(iSpec,iSpec) - 0.5))
     ELSE
       ! Cell temperature
-      dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*SpecDSMC(iSpec)%TrefVHS/Pi) &
-            /(4.*(4.- 2.*SpecDSMC(iSpec)%omegaVHS) * (6. - 2.*SpecDSMC(iSpec)%omegaVHS)* SpecDSMC(iSpec)%DrefVHS**(2.) &
-            *SpecDSMC(iSpec)%TrefVHS**(SpecDSMC(iSpec)%omegaVHS + 0.5)*CellTemp**(-SpecDSMC(iSpec)%omegaVHS - 0.5))
+      dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*CollInf%Tref(iSpec,iSpec)/Pi) &
+            /(4.*(4.- 2.*CollInf%omega(iSpec,iSpec)) * (6. - 2.*CollInf%omega(iSpec,iSpec))* CollInf%dref(iSpec,iSpec)**(2.) &
+            *CollInf%Tref(iSpec,iSpec)**(CollInf%omega(iSpec,iSpec) + 0.5)*CellTemp**(-CollInf%omega(iSpec,iSpec) - 0.5))
     END IF
     ! innerdof pro spec !
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
@@ -1046,11 +1048,10 @@ DO iSpec = 1, nSpecies
     ELSE
       CellTemptmp = CellTemp
     END IF
-    omega_mix = (SpecDSMC(iSpec)%omegaVHS+SpecDSMC(jSpec)%omegaVHS)/2.
 !    collisionfreqSpec(iSpec) = collisionfreqSpec(iSpec) + SpecBGK(iSpec)%CollFreqPreFactor(jSpec)  * totalWeightSpec(jSpec) &
 !            *Dens *CellTemptmp**(-omega_mix +0.5) /(totalWeight)
     collisionfreqSpec(iSpec) = collisionfreqSpec(iSpec) + SpecBGK(iSpec)%CollFreqPreFactor(jSpec) * totalWeightSpec(iSpec)*totalWeightSpec(jSpec) &
-            *Dens *CellTemptmp**(-omega_mix +0.5) /(totalWeight*totalWeight)
+            *Dens *CellTemptmp**(-CollInf%omega(iSpec,jSpec) +0.5) /(totalWeight*totalWeight)
 !    collisfreqMat(iSpec, jSpec) = SpecBGK(iSpec)%CollFreqPreFactor(jSpec) * totalWeightSpec(iSpec)*totalWeightSpec(jSpec) &
 !            *Dens *CellTemptmp**(-omega_mix +0.5) /(totalWeight*totalWeight)
   END DO
@@ -1393,6 +1394,7 @@ SUBROUTINE BGK_CollisionOperatorMultiSpecTodorova(iPartIndx_Node, nPart, NodeVol
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: CollInf
 USE MOD_DSMC_Analyze          ,ONLY: CalcTVibPoly
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
@@ -1551,13 +1553,13 @@ CellTempRelax = CellTemp
 ! 2.) Calculate the reference dynamic viscosity, Prandtl number and the resulting relaxation frequency of the distribution function
 DO iSpec = 1, nSpecies
   IF ((nSpec(iSpec).GE.2).AND.(.NOT.ALMOSTZERO(u2Spec(iSpec)))) THEN
-    dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*SpecDSMC(iSpec)%TrefVHS/Pi) &
-          /(4.*(4.- 2.*SpecDSMC(iSpec)%omegaVHS) * (6. - 2.*SpecDSMC(iSpec)%omegaVHS)* SpecDSMC(iSpec)%DrefVHS**(2.) &
-          *SpecDSMC(iSpec)%TrefVHS**(SpecDSMC(iSpec)%omegaVHS + 0.5)*SpecTemp(iSpec)**(-SpecDSMC(iSpec)%omegaVHS - 0.5))
+    dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*CollInf%Tref(iSpec,iSpec)/Pi) &
+          /(4.*(4.- 2.*CollInf%omega(iSpec,iSpec)) * (6. - 2.*CollInf%omega(iSpec,iSpec))* CollInf%dref(iSpec,iSpec)**(2.) &
+          *CollInf%Tref(iSpec,iSpec)**(CollInf%omega(iSpec,iSpec) + 0.5)*SpecTemp(iSpec)**(-CollInf%omega(iSpec,iSpec) - 0.5))
   ELSE
-    dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*SpecDSMC(iSpec)%TrefVHS/Pi) &
-          /(4.*(4.- 2.*SpecDSMC(iSpec)%omegaVHS) * (6. - 2.*SpecDSMC(iSpec)%omegaVHS)* SpecDSMC(iSpec)%DrefVHS**(2.) &
-          *SpecDSMC(iSpec)%TrefVHS**(SpecDSMC(iSpec)%omegaVHS + 0.5)*CellTemp**(-SpecDSMC(iSpec)%omegaVHS - 0.5))
+    dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*CollInf%Tref(iSpec,iSpec)/Pi) &
+          /(4.*(4.- 2.*CollInf%omega(iSpec,iSpec)) * (6. - 2.*CollInf%omega(iSpec,iSpec))* CollInf%dref(iSpec,iSpec)**(2.) &
+          *CollInf%Tref(iSpec,iSpec)**(CollInf%omega(iSpec,iSpec) + 0.5)*CellTemp**(-CollInf%omega(iSpec,iSpec) - 0.5))
   END IF
   ! innerdof pro spec !
   thermalcondspec(iSpec) = 0.25 * (15. + 2. * InnerDOF) &
@@ -1817,6 +1819,7 @@ SUBROUTINE BGK_CollisionOperatorMultiSpecTodorovaOrig(iPartIndx_Node, nPart, Nod
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: CollInf
 USE MOD_DSMC_Analyze          ,ONLY: CalcTVibPoly
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
@@ -1913,9 +1916,9 @@ DO iSpec = 1, nSpecies
   MassDens(iSpec) = Species(iSpec)%MassIC*totalWeightSpec(iSpec)
   vBulk(1:3) = vBulk(1:3) + MassDens(iSpec)*vBulkSpec(1:3,iSpec)
   MassCoef=MassCoef + REAL(totalWeightSpec(iSpec))/REAL(totalWeight)*Species(iSpec)%MassIC
-  TrefVHS = TrefVHS + SpecDSMC(iSpec)%TrefVHS*totalWeightSpec(iSpec)/totalWeight
-  omegaVHS = omegaVHS + SpecDSMC(iSpec)%omegaVHS*totalWeightSpec(iSpec)/totalWeight
-  DrefVHS = DrefVHS + SpecDSMC(iSpec)%DrefVHS*totalWeightSpec(iSpec)/totalWeight 
+  TrefVHS = TrefVHS + CollInf%Tref(iSpec,iSpec)*totalWeightSpec(iSpec)/totalWeight
+  omegaVHS = omegaVHS + CollInf%omega(iSpec,iSpec)*totalWeightSpec(iSpec)/totalWeight
+  DrefVHS = DrefVHS + CollInf%dref(iSpec,iSpec)*totalWeightSpec(iSpec)/totalWeight 
 END DO
 TotalMassDens = SUM(MassDens)
 vBulk(1:3) = vBulk(1:3)  / TotalMassDens
@@ -2563,7 +2566,7 @@ ELSE
   DoVibRelax = BGKDoVibRelaxation
 END IF
 maxexp = LOG(HUGE(maxexp))
-!  Xi_rel = 2.*(2. - SpecDSMC(1)%omegaVHS)
+!  Xi_rel = 2.*(2. - CollInf%omega(1,1))
 !  correctFac = 1. + (2.*SpecDSMC(1)%CharaTVib / (CellTemp*(EXP(SpecDSMC(1)%CharaTVib / CellTemp)-1.)))**(2.) &
 !        * EXP(SpecDSMC(1)%CharaTVib /CellTemp) / (2.*Xi_rel)
 !  correctFacRot = 1. + 2./Xi_rel
@@ -2670,7 +2673,7 @@ ELSE
   DoVibRelax = BGKDoVibRelaxation
 END IF
 maxexp = LOG(HUGE(maxexp))
-!  Xi_rel = 2.*(2. - SpecDSMC(1)%omegaVHS)
+!  Xi_rel = 2.*(2. - CollInf%omega(1,1))
 !  correctFac = 1. + (2.*SpecDSMC(1)%CharaTVib / (CellTemp*(EXP(SpecDSMC(1)%CharaTVib / CellTemp)-1.)))**(2.) &
 !        * EXP(SpecDSMC(1)%CharaTVib /CellTemp) / (2.*Xi_rel)
 !  correctFacRot = 1. + 2./Xi_rel
@@ -2819,8 +2822,8 @@ ELSE
   DoVibRelax = BGKDoVibRelaxation
 END IF
 maxexp = LOG(HUGE(maxexp))
-!  Xi_rel = 2.*(2. - SpecDSMC(1)%omegaVHS)
-!  correctFac = 1. + (2.*SpecDSMC(1)%CharaTVib / (CellTemp*(EXP(SpecDSMC(1)%CharaTVib / CellTemp)-1.)))**(2.) &
+!  Xi_rel = 2.*(2. - CollInf%omega(1,1))
+!  correctFac = 1. + (2.*SpecDSMC(1)%CharaTVib / (CellTemp*(EXP(SpecDSMC(1)%CharaTVib / CellTemp)-1.)))**2. &
 !        * EXP(SpecDSMC(1)%CharaTVib /CellTemp) / (2.*Xi_rel)
 !  correctFacRot = 1. + 2./Xi_rel
 
@@ -2969,7 +2972,7 @@ END IF
 maxexp = LOG(HUGE(maxexp))
 Xi_Rot =   SpecDSMC(1)%Xi_Rot
 iPolyatMole = SpecDSMC(1)%SpecToPolyArray
-!  Xi_rel = 2.*(2. - SpecDSMC(1)%omegaVHS)
+!  Xi_rel = 2.*(2. - CollInf%omega(1,1))
 !  correctFac = 0.0
 !  DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
 !    correctFac = correctFac &
@@ -3145,7 +3148,7 @@ SUBROUTINE CalcViscosityThermalCondColIntVHS(CellTemp, Xi,totalWeight, Visc, The
 ! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,              ONLY : SpecDSMC
+USE MOD_DSMC_Vars,              ONLY : SpecDSMC, CollInf
 USE MOD_Globals_Vars,           ONLY : BoltzmannConst, Pi
 USE MOD_Particle_Vars,          ONLY : Species, nSpecies
 IMPLICIT NONE
@@ -3166,10 +3169,10 @@ INTEGER     :: iSpec, jSpec, kSpec, IPIV(nSpecies), info_dgesv
 ViscSpec = 0.; ThermalCondSpec = 0.; DiffCoef =0.; A_12 = 0.; B_12 = 0.
 DO iSpec = 1, nSpecies
   DO jSpec = iSpec, nSpecies
-    InteractDiam = (SpecDSMC(iSpec)%DrefVHS + SpecDSMC(jSpec)%DrefVHS)/2.
+    InteractDiam = CollInf%dref(iSpec,jSpec)
     Mass = Species(iSpec)%MassIC*Species(jSpec)%MassIC/(Species(iSpec)%MassIC + Species(jSpec)%MassIC)
-    TVHS = SQRT(SpecDSMC(iSpec)%TrefVHS*SpecDSMC(jSpec)%TrefVHS)
-    omegaVHS = (SpecDSMC(iSpec)%omegaVHS + SpecDSMC(jSpec)%omegaVHS)/2.
+    TVHS = CollInf%Tref(iSpec,jSpec)
+    omegaVHS = CollInf%omega(iSpec,jSpec)
     IF (iSpec.EQ.jSpec) THEN
       CellTemptmp = CellTemp(iSpec)
     ELSE

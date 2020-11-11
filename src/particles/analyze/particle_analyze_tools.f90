@@ -157,7 +157,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                   :: NumSpec(nSpecAnalyze)
-INTEGER(KIND=8),INTENT(OUT)        :: SimNumSpec(nSpecAnalyze)
+INTEGER(KIND=IK),INTENT(OUT)       :: SimNumSpec(nSpecAnalyze)
 LOGICAL,INTENT(IN)                 :: CalcNumSpec_IN,CalcSimNumSpec_IN ! Flags for performing MPI reduce
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -190,10 +190,10 @@ END IF
 #if USE_MPI
 IF (PartMPI%MPIRoot) THEN
   IF(CalcNumSpec_IN)    CALL MPI_REDUCE(MPI_IN_PLACE,NumSpec    ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  IF(CalcSimNumSpec_IN) CALL MPI_REDUCE(MPI_IN_PLACE,SimNumSpec ,nSpecAnalyze,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
+  IF(CalcSimNumSpec_IN) CALL MPI_REDUCE(MPI_IN_PLACE,SimNumSpec ,nSpecAnalyze,MPI_INTEGER_INT_KIND,MPI_SUM,0,PartMPI%COMM,IERROR)
 ELSE
   IF(CalcNumSpec_IN)    CALL MPI_REDUCE(NumSpec     ,NumSpec    ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  IF(CalcSimNumSpec_IN) CALL MPI_REDUCE(SimNumSpec  ,SimNumSpec ,nSpecAnalyze,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
+  IF(CalcSimNumSpec_IN) CALL MPI_REDUCE(SimNumSpec  ,SimNumSpec ,nSpecAnalyze,MPI_INTEGER_INT_KIND,MPI_SUM,0,PartMPI%COMM,IERROR)
 END IF
 #endif /*USE_MPI*/
 
@@ -203,7 +203,7 @@ IF(CalcSimNumSpec_IN)THEN
 #if USE_MPI
   IF(PartMPI%MPIRoot)THEN
 #endif /*USE_MPI*/
-    nGlobalNbrOfParticles = SimNumSpec(nSpecAnalyze)
+    nGlobalNbrOfParticles = INT(SimNumSpec(nSpecAnalyze),KIND=IK)
 #if USE_MPI
   END IF ! PartMPI%MPIRoot
 #endif /*USE_MPI*/

@@ -56,7 +56,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: IMDTimeScale,IMDLengthScale,IMDNumber,IMDCutOff,IMDCutOffxValue,IMDAtomFile
 USE MOD_PIC_Vars
-USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,OutputVpiWarnings, Symmetry2DAxisymmetric
+USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,OutputVpiWarnings, Symmetry
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Globals_Vars           ,ONLY: PI, TwoepsMach
 USE MOD_Timedisc_Vars          ,ONLY: dt
@@ -73,6 +73,7 @@ USE MOD_Equation_vars          ,ONLY: c_inv
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_part_emission_tools    ,ONLY: IntegerDivide,CalcVelocity_maxwell_lpn,SamplePoissonDistri,SetCellLocalParticlePosition
 USE MOD_part_emission_tools    ,ONLY: InsideExcludeRegionCheck
+USE MOD_part_emission_tools    ,ONLY: CalcIntensity_Gaussian
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -115,12 +116,15 @@ REAL                                     :: intersecPoint(3), orifice_delta, lPe
 INTEGER                                  :: DimSend, orificePeriodic
 LOGICAL                                  :: orificePeriodicLog(2), insideExcludeRegion
 LOGICAL                                  :: DoExactPartNumInsert
+LOGICAL                                  :: ARM_Gauss
 #if USE_MPI
 INTEGER                                  :: InitGroup,nChunksTemp,mySumOfRemovedParticles
 INTEGER,ALLOCATABLE                      :: PartFoundInProc(:,:) ! 1 proc id, 2 local part id
 REAL,ALLOCATABLE                         :: ProcMeshVol(:)
 INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:)
 #endif
+REAL                                     :: percent
+CHARACTER(LEN=255)                       :: helpstr
 !===================================================================================================================================
 ! emission group communicator
 #if USE_MPI
@@ -139,7 +143,7 @@ IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
   IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleEmission.EQ.0)) RETURN
   IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) THEN
     DoExactPartNumInsert = .TRUE.
-    IF(Symmetry2DAxisymmetric) THEN
+    IF(Symmetry%Axisymmetric) THEN
       CALL abort(&
 __STAMP__&
 ,'Axisymmetric: Particle insertion only possible with PartDensity!')
@@ -186,7 +190,6 @@ __STAMP__&
   NbrOfParticle = chunksize
   RETURN
 END IF
-
 
 PartIns=0.
 lineVector = 0.0
@@ -495,6 +498,73 @@ __STAMP__&
          particle_positions(i*3-1) = Particle_pos(2)
          particle_positions(i*3  ) = Particle_pos(3)
       END DO
+    !------------------SpaceIC-case: special disc case for surface disribution------------------------------------------------------
+    CASE('photon_SEE_disc')
+
+      ! Use the base vectors BaseVector1IC and BaseVector2IC as coordinate system (they must be perpendicular)
+      lineVector = UNITVECTOR(Species(FractNbr)%Init(iInit)%BaseVector1IC(1:3))
+      lineVector2 = UNITVECTOR(Species(FractNbr)%Init(iInit)%BaseVector2IC(1:3))
+
+      DO i=1,chunkSize
+         radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1
+         ARM_Gauss = .TRUE.
+         DO WHILE((radius.GT.Species(FractNbr)%Init(iInit)%RadiusIC).OR.(ARM_Gauss))
+            CALL RANDOM_NUMBER(RandVal)
+            ! Check if particles are to be inserted in the first quadrant only, otherwise map R [0,1] -> R [-1,1]
+            IF(.NOT.Species(FractNbr)%Init(iInit)%FirstQuadrantOnly) RandVal = RandVal * 2. - 1.
+            Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + Species(FractNbr)%Init(iInit)%RadiusIC * &
+                     (RandVal(1) * lineVector + RandVal(2) *lineVector2)
+
+            radius = SQRT( (Particle_pos(1)-Species(FractNbr)%Init(iInit)%BasePointIC(1)) * &
+                           (Particle_pos(1)-Species(FractNbr)%Init(iInit)%BasePointIC(1)) + &
+                           (Particle_pos(2)-Species(FractNbr)%Init(iInit)%BasePointIC(2)) * &
+                           (Particle_pos(2)-Species(FractNbr)%Init(iInit)%BasePointIC(2)) + &
+                           (Particle_pos(3)-Species(FractNbr)%Init(iInit)%BasePointIC(3)) * &
+                           (Particle_pos(3)-Species(FractNbr)%Init(iInit)%BasePointIC(3)) )
+            ! Start ARM for Gauss distribution
+            CALL RANDOM_NUMBER(RandVal1)
+            IF(CalcIntensity_Gaussian(radius,Species(FractNbr)%Init(iInit)%WaistRadius).GT.RandVal1) ARM_Gauss = .FALSE.
+            ! End ARM for Gauss distribution
+         END DO
+         particle_positions(i*3-2) = Particle_pos(1)
+         particle_positions(i*3-1) = Particle_pos(2)
+         particle_positions(i*3  ) = Particle_pos(3)
+      END DO
+    !------------------SpaceIC-case: special cylinder case for photonionization----------------------------------------------------
+    CASE('photon_cylinder')
+
+      ! Use the base vectors BaseVector1IC and BaseVector2IC as coordinate system (they must be perpendicular)
+      lineVector = UNITVECTOR(Species(FractNbr)%Init(iInit)%BaseVector1IC(1:3))
+      lineVector2 = UNITVECTOR(Species(FractNbr)%Init(iInit)%BaseVector2IC(1:3))
+
+      DO i=1,chunkSize
+         radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1
+         ARM_Gauss = .TRUE.
+         DO WHILE((radius.GT.Species(FractNbr)%Init(iInit)%RadiusIC).OR.(ARM_Gauss))
+            CALL RANDOM_NUMBER(RandVal)
+            ! Check if particles are to be inserted in the first quadrant only, otherwise map R [0,1] -> R [-1,1]
+            IF(.NOT.Species(FractNbr)%Init(iInit)%FirstQuadrantOnly) RandVal = RandVal * 2. - 1.
+            Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + Species(FractNbr)%Init(iInit)%RadiusIC * &
+                     (RandVal(1) * lineVector + RandVal(2) *lineVector2)
+
+            radius = SQRT( (Particle_pos(1)-Species(FractNbr)%Init(iInit)%BasePointIC(1)) * &
+                           (Particle_pos(1)-Species(FractNbr)%Init(iInit)%BasePointIC(1)) + &
+                           (Particle_pos(2)-Species(FractNbr)%Init(iInit)%BasePointIC(2)) * &
+                           (Particle_pos(2)-Species(FractNbr)%Init(iInit)%BasePointIC(2)) + &
+                           (Particle_pos(3)-Species(FractNbr)%Init(iInit)%BasePointIC(3)) * &
+                           (Particle_pos(3)-Species(FractNbr)%Init(iInit)%BasePointIC(3)) )
+            ! Start ARM for Gauss distribution
+            CALL RANDOM_NUMBER(RandVal1)
+            IF(CalcIntensity_Gaussian(radius,Species(FractNbr)%Init(iInit)%WaistRadius).GT.RandVal1) ARM_Gauss = .FALSE.
+            ! End ARM for Gauss distribution
+         END DO
+         CALL RANDOM_NUMBER(RandVal1)
+         Particle_pos = Particle_pos &
+                      + Species(FractNbr)%Init(iInit)%NormalIC * Species(FractNbr)%Init(iInit)%CylinderHeightIC * RandVal1
+         particle_positions(i*3-2) = Particle_pos(1)
+         particle_positions(i*3-1) = Particle_pos(2)
+         particle_positions(i*3  ) = Particle_pos(3)
+      END DO
     CASE('circle')
       IF (Species(FractNbr)%Init(iInit)%NormalIC(3).NE.0) THEN
          lineVector(1) = 1.0
@@ -724,6 +794,7 @@ __STAMP__&
           ELSE
             Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal(3)
           END IF
+          IF(Symmetry%Order.EQ.1) Particle_pos(2:3) = 0.
         CASE ('cylinder')
           radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1.
           DO WHILE((radius.GT.Species(FractNbr)%Init(iInit)%RadiusIC) .OR.(radius.LT.Species(FractNbr)%Init(iInit)%Radius2IC))
@@ -1523,29 +1594,23 @@ __STAMP__&
 #endif
     IF( Species(FractNbr)%Init(iInit)%VirtPreInsert .AND. (Species(FractNbr)%Init(iInit)%PartDensity .GT. 0.) ) THEN
       IF ((nbrOfParticle .NE. sumOfMatchedParticles).AND.OutputVpiWarnings) THEN
-        SWRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
-        SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-        SWRITE(UNIT_StdOut,'(I0,A)') sumOfMatchedParticles, ' particles reached the domain when'
+        SWRITE(UNIT_StdOut,'(A)',ADVANCE='NO')'WARNING in ParticleEmission_parallel: '
+        SWRITE(UNIT_StdOut,'(A,I0,A)',ADVANCE='NO')'Fraction Nbr: ', FractNbr,' '
+        SWRITE(UNIT_StdOut,'(I0,A)',ADVANCE='NO') sumOfMatchedParticles, ' particles reached the domain when '
         SWRITE(UNIT_StdOut,'(I0,A)') NbrOfParticle, '(+1) velocities were calculated with vpi+PartDens'
       END IF
     ELSE
       ! add number of matching error to particle emission to fit
       ! number of added particles
       Species(FractNbr)%Init(iInit)%InsertedParticleMisMatch = nbrOfParticle  - sumOfMatchedParticles
-      IF (nbrOfParticle .GT. sumOfMatchedParticles) THEN
-        SWRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
-        SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-        SWRITE(UNIT_StdOut,'(A,I0,A)')'matched only ', sumOfMatchedParticles, ' particles'
-        SWRITE(UNIT_StdOut,'(A,I0,A)')'when ', NbrOfParticle, ' particles were required!'
-      ELSE IF (nbrOfParticle .LT. sumOfMatchedParticles) THEN
-            SWRITE(UNIT_StdOut,'(A)')'ERROR in ParticleEmission_parallel:'
-            SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-            SWRITE(UNIT_StdOut,'(A,I0,A)')'matched ', sumOfMatchedParticles, ' particles'
-            SWRITE(UNIT_StdOut,'(A,I0,A)')'when ', NbrOfParticle, ' particles were required!'
-      ELSE IF (nbrOfParticle .EQ. sumOfMatchedParticles) THEN
-      !  WRITE(UNIT_stdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-      !  WRITE(UNIT_stdOut,'(A,I0,A)')'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
-      END IF
+      percent = MERGE(REAL(sumOfMatchedParticles)/REAL(NbrOfParticle)*100.0, 0.0, ABS(NbrOfParticle).GT.0)
+
+      helpstr=''
+      IF(nbrOfParticle.GT.sumOfMatchedParticles)helpstr=' only'
+
+      IF(nbrOfParticle.NE.sumOfMatchedParticles.AND.MPIRoot)WRITE(UNIT_StdOut,'(A,I0,A,I0,A,I0,A,F6.2,A)')&
+          'WARNING in ParticleEmission_parallel: Fraction Nbr ',FractNbr,' matched'//TRIM(helpstr)//' ',sumOfMatchedParticles,&
+          ' particles, when ',NbrOfParticle, ' particles were required! [',percent,'%]'
     END IF
 #if USE_MPI
   END IF ! PartMPI%iProc.EQ.0
@@ -1580,12 +1645,14 @@ SUBROUTINE SetParticleVelocity(FractNbr,iInit,NbrOfParticle,init_or_sf)
 USE MOD_Globals
 USE MOD_PIC_Vars
 USE MOD_Particle_Vars
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_Timedisc_Vars         ,ONLY: dt
-USE MOD_Equation_Vars         ,ONLY: c,c2
-USE MOD_PICInterpolation_vars ,ONLY: externalField
-USE MOD_part_emission_tools   ,ONLY: CalcVelocity_maxwell_lpn,BessK,DEVI,SYNGE,QUASIREL,CalcVelocity_taylorgreenvortex
-USE MOD_part_emission_tools   ,ONLY: CalcVelocity_emmert
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_Timedisc_Vars           ,ONLY: dt
+USE MOD_Equation_Vars           ,ONLY: c,c2
+USE MOD_PICInterpolation_vars   ,ONLY: externalField
+USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn,BessK,DEVI,SYNGE,QUASIREL,CalcVelocity_taylorgreenvortex
+USE MOD_part_emission_tools     ,ONLY: CalcVelocity_emmert,CalcVelocity_FromWorkFuncSEE
+USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutput
+USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)               :: FractNbr,iInit,init_or_sf
@@ -2267,6 +2334,22 @@ CASE('OneD-twostreaminstabilty')
 
 CASE('IMD') ! read IMD particle velocity from *.chkpt file -> velocity space has already been read when particles position was done
   ! do nothing
+CASE('photon_SEE_energy')
+  DO i = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr .NE. 0) THEN
+!       IF (Is_ElemMacro) THEN
+         CALL CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit=iInit)
+!       ELSE
+!         CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
+!       END IF
+        PartState(4:6,PositionNbr) = Vec3D(1:3)
+        ! Store the particle information in PartStateBoundary.h5
+        IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(PositionNbr,FractNbr,PartState(1:3,PositionNbr),&
+                                          UNITVECTOR(PartState(4:6,PositionNbr)),Species(FractNbr)%Init(iInit)%NormalIC,mode=2,&
+                                          usevMPF_optIN=.FALSE.)
+    END IF
+  END DO
 CASE DEFAULT
   CALL abort(&
 __STAMP__&

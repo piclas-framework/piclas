@@ -154,11 +154,18 @@ INTEGER                           :: storage, nVib, max_corder
 spec_pair = TRIM(SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
 SWRITE(UNIT_StdOut,'(A)') 'Read collision cross section for '//TRIM(spec_pair)//' from '//TRIM(XSec_Database)
 
+DatasetFound = .FALSE.; GroupFound = .FALSE.
 SpecXSec(iCase)%UseVibXSec = .FALSE.
 nVar = 2
 
 ! Initialize FORTRAN interface.
 CALL H5OPEN_F(err)
+
+! Check if file exists
+IF(.NOT.FILEEXISTS(XSec_Database)) THEN
+  CALL abort(__STAMP__,'ERROR: Database '//TRIM(XSec_Database)//' does not exist.')
+END IF
+
 ! Open the file.
 CALL H5FOPEN_F (TRIM(XSec_Database), H5F_ACC_RDONLY_F, file_id_dsmc, err)
 
@@ -586,9 +593,9 @@ IF(SpecXSec(iCase)%UseCollXSec) THEN
   END IF
 ELSE
   XSec_CalcCollisionProb = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
-          * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
+          * CollInf%Cab(Coll_pData(iPair)%PairType)                           & ! Cab species comb fac
           * MacroParticleFactor / CollCaseNum                                                     &
-          * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(iSpec_p1)%omegaVHS) &
+          * Coll_pData(iPair)%CRela2 ** (0.5-CollInf%omega(iSpec_p1,iSpec_p2)) &
           * dtCell / Volume
 END IF
 

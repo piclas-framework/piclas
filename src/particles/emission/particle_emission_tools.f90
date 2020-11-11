@@ -78,6 +78,18 @@ INTERFACE InsideExcludeRegionCheck
   MODULE PROCEDURE InsideExcludeRegionCheck
 END INTERFACE
 
+INTERFACE CalcNbrOfPhotons
+  MODULE PROCEDURE CalcNbrOfPhotons
+END INTERFACE
+
+INTERFACE CalcIntensity_Gaussian
+  MODULE PROCEDURE CalcIntensity_Gaussian
+END INTERFACE
+
+INTERFACE CalcVelocity_FromWorkFuncSEE
+  MODULE PROCEDURE CalcVelocity_FromWorkFuncSEE
+END INTERFACE
+
 #if CODE_ANALYZE
 INTERFACE CalcVectorAdditionCoeffs
   MODULE PROCEDURE CalcVectorAdditionCoeffs
@@ -89,6 +101,9 @@ PUBLIC :: CalcVelocity_taylorgreenvortex, CalcVelocity_emmert
 PUBLIC :: IntegerDivide,SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn,SamplePoissonDistri
 PUBLIC :: BessK,DEVI,SYNGE,QUASIREL
 PUBLIC :: SetCellLocalParticlePosition,InsideExcludeRegionCheck
+PUBLIC :: CalcNbrOfPhotons, CalcPhotonEnergy
+PUBLIC :: CalcIntensity_Gaussian
+PUBLIC :: CalcVelocity_FromWorkFuncSEE
 #if CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
@@ -785,7 +800,7 @@ SUBROUTINE SetCellLocalParticlePosition(chunkSize,iSpec,iInit,UseExactPartNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, PartMPF
+USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry, VarTimeStep, PartMPF
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh          ,ONLY: PartInElemCheck
@@ -793,7 +808,7 @@ USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, epsOneCell
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry2D        ,ONLY: CalcRadWeightMPF
+USE MOD_DSMC_Symmetry          ,ONLY: CalcRadWeightMPF
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
 USE MOD_MacroBody_tools        ,ONLY: INSIDEMACROBODY
@@ -869,14 +884,15 @@ __STAMP__,&
           InsideFlag=.FALSE.
           DO WHILE(.NOT.InsideFlag)
             CALL RANDOM_NUMBER(RandomPos)
-            IF(Symmetry2DAxisymmetric.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+            IF(Symmetry%Axisymmetric.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
               ! Treatment of axisymmetry without weighting
               RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
               RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
             ELSE
               RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
             END IF
-            IF(Symmetry2D) RandomPos(3) = 0.
+            IF(Symmetry%Order.LE.2) RandomPos(3) = 0.
+            IF(Symmetry%Order.LE.1) RandomPos(2) = 0.
             IF (DoRefMapping) THEN
               CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
               IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
@@ -1052,6 +1068,217 @@ END IF
 
 END FUNCTION CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
+
+PURE FUNCTION CalcIntensity_Gaussian(x,x_norm)
+!===================================================================================================================================
+!> Calculates an exponential function of the Gaussian form for a given input variable (e.g. time) and a normalization variable
+!> (e.g. pulse duration)
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)         :: x, x_norm
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                     :: CalcIntensity_Gaussian
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+CalcIntensity_Gaussian = EXP(-(x/x_norm)**2)
+
+END FUNCTION CalcIntensity_Gaussian
+
+
+SUBROUTINE CalcNbrOfPhotons(i,iInit,NbrOfPhotons)
+!===================================================================================================================================
+!> Calculation of number of photons based on an intensity function integral of timestep and radius
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars  ,ONLY: PI
+USE MOD_Particle_Vars ,ONLY: Species
+USE MOD_Timedisc_Vars ,ONLY: dt,time
+#ifdef LSERK
+USE MOD_Timedisc_Vars ,ONLY: iStage, RK_c, nRKStages
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)   :: i
+INTEGER, INTENT(IN)   :: iInit
+! INOUTPUT VARIABLES
+REAL, INTENT(OUT)     :: NbrOfPhotons
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                  :: t_1, t_2
+REAL                  :: E_Intensity
+INTEGER               :: NbrOfRepetitions
+!===================================================================================================================================
+
+ASSOCIATE( tau         => Species(i)%Init(iInit)%PulseDuration      ,&
+           tShift      => Species(i)%Init(iInit)%tShift             ,&
+           w_b         => Species(i)%Init(iInit)%WaistRadius        ,&
+           Radius      => Species(i)%Init(iInit)%RadiusIC           ,&
+           I_0         => Species(i)%Init(iInit)%IntensityAmplitude ,&
+           lambda      => Species(i)%Init(iInit)%WaveLength         ,&
+           NbrOfPulses => Species(i)%Init(iInit)%NbrOfPulses        ,&
+           Period      => Species(i)%Init(iInit)%Period              &
+          )
+
+! Calculate the current pulse
+NbrOfRepetitions = INT(Time/Period)
+
+! Temporal bound of integration
+#ifdef LSERK
+IF (iStage.EQ.1) THEN
+t_1 = Time
+t_2 = Time + RK_c(2) * dt
+ELSE
+  IF (iStage.NE.nRKStages) THEN
+    t_1 = Time + RK_c(iStage) * dt
+    t_2 = Time + RK_c(iStage+1) * dt
+  ELSE
+    t_1 = Time + RK_c(iStage) * dt
+    t_2 = Time + dt
+  END IF
+END IF
+#else
+t_1 = Time
+t_2 = Time + dt
+#endif
+! Add arbitrary time shift (-4 sigma_t) so that I_max is not at t=0s
+! Note that sigma_t = tau / sqrt(2)
+
+t_1 = t_1 - tShift - NbrOfRepetitions * Period
+t_2 = t_2 - tShift - NbrOfRepetitions * Period
+! check if t_2 is outside of the pulse
+IF(t_2.GT.2.0*tShift) t_2 = 2.0*tShift
+
+! Integral of I(r,t) = I_0 exp(-(t/tau)**2)exp(-(r/w_b)**2)
+! Integrate I(r,t)*r dr dt dphi and don't forget the Jacobian
+!   dr : from 0 to R
+!   dt : from t1 to t2
+! dphi : from 0 to 2*PI
+E_Intensity = 0.5 * I_0 * PI**(3.0/2.0) * w_b**2 * tau &
+            * (1.0-EXP(-Radius**2/w_b**2)) &
+            * (ERF(t_2/tau)-ERF(t_1/tau))
+NbrOfPhotons = E_Intensity / CalcPhotonEnergy(lambda)
+
+END ASSOCIATE
+
+END SUBROUTINE CalcNbrOfPhotons
+
+
+PURE FUNCTION CalcPhotonEnergy(lambda)
+!===================================================================================================================================
+!> Calculation of photon energy based on wavelength
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars          ,ONLY: PlanckConst
+USE MOD_Equation_Vars         ,ONLY: c
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)         :: lambda
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                     :: CalcPhotonEnergy
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+CalcPhotonEnergy = PlanckConst * c / lambda
+
+END FUNCTION CalcPhotonEnergy
+
+
+SUBROUTINE CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit)
+!===================================================================================================================================
+!> Subroutine to sample photon SEE electrons velocities from given energy distribution based on a work function.
+!> Perform ARM for the energy distribution and a second ARM for the emission angle (between the impacting photon and the emitting
+!> electron)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: PI, ElementaryCharge
+USE MOD_Particle_Vars           ,ONLY: Species
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: FractNbr
+INTEGER,INTENT(IN), OPTIONAL     :: iInit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                 :: Vec3D(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: RandVal
+REAL               :: E_temp, E_max, VeloABS
+REAL               :: Theta, Chi!, Psi_temp
+REAL               :: PDF_temp, PDF_max
+REAL, PARAMETER    :: PDF_max2=4./ACOS(-1.)
+REAL               :: VeloVec_norm(3), RotationAxi(3)
+LOGICAL            :: ARM_SEE_PDF
+REAL               :: Theta_temp
+!===================================================================================================================================
+
+ASSOCIATE( W     => Species(FractNbr)%Init(iInit)%WorkFunctionSEE    ,&
+           m     => Species(FractNbr)%MassIC                         ,&
+           !beta  => Species(FractNbr)%Init(iInit)%AngularBetaSEE     ,&
+           t_vec => Species(FractNbr)%Init(iInit)%BaseVector1IC      ,&
+           n_vec => Species(FractNbr)%Init(iInit)%NormalIC            )
+
+! ARM for energy distribution
+E_max = 50.0 ! in eV (arbitrary)
+PDF_max = 81.0 / (128.0 * W)  ! PDF_max at E = W/3 (derivation of 6W^2E/(E+W)^4 == 0)
+ARM_SEE_PDF=.TRUE.
+DO WHILE(ARM_SEE_PDF)
+  CALL RANDOM_NUMBER(RandVal)
+  E_temp = RandVal * E_max
+  PDF_temp = 6 * W**2 * E_temp / (E_temp + W)**4
+  CALL RANDOM_NUMBER(RandVal)
+  IF ((PDF_temp/PDF_max).GT.RandVal) ARM_SEE_PDF = .FALSE.
+END DO
+VeloABS = SQRT(2.0 * E_temp * ElementaryCharge / m)
+
+! ARM for angular distribution
+CALL RANDOM_NUMBER(RandVal)
+Chi = RandVal * 2.0 * PI
+!PDF_max = -(2.0*(beta+4.0)) / (PI * (beta-8.0)) ! Henke 1977
+!PDF_max2 = 4. / PI
+ARM_SEE_PDF=.TRUE.
+DO WHILE(ARM_SEE_PDF)
+  CALL RANDOM_NUMBER(RandVal)
+  !Psi_temp =0.5 * PI * (1.0 + RandVal)
+  !Psi_temp = 0.5 * PI * RandVal
+  !PDF_temp = ( (1.0 - beta / 2.0) + 3.0/4.0*beta*SIN(Psi_temp)**2 ) / (PI-PI*beta/8.0) ! Henke 1977
+  Theta_temp = RandVal * 0.5 * PI
+  PDF_temp = 4.0 / PI * COS(Theta_temp)**2
+  CALL RANDOM_NUMBER(RandVal)
+  IF ((PDF_temp/PDF_max2).GT.RandVal) ARM_SEE_PDF = .FALSE.
+END DO
+!Theta = PI - Psi_temp ! Henke 1977
+Theta = Theta_temp
+
+! Construct norm. VeloVec based on n_vec, t_vec, Theta and Chi
+! first:  rotation of t_vec about n_vec with Chi (anzimuthal)
+RotationAxi = n_vec
+VeloVec_norm = t_vec * COS(Chi) + CROSS(RotationAxi,t_vec) * SIN(Chi)
+! second: rotation of VeloVec_norm about RotationAxi with Theta (pi/2-theta)
+RotationAxi = CROSS(VeloVec_norm,n_vec)
+VeloVec_norm = VeloVec_norm * SIN(Theta) + CROSS(RotationAxi,VeloVec_norm) * COS(Theta)
+
+! Calc VeloVec
+Vec3D = VeloVec_norm * VeloABS
+
+END ASSOCIATE
+
+END SUBROUTINE CalcVelocity_FromWorkFuncSEE
 
 
 END MODULE MOD_part_emission_tools

@@ -24,10 +24,6 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTERFACE BubbleSortID
-  MODULE PROCEDURE BubbleSortID
-END INTERFACE
-
 INTERFACE InsertionSort
   MODULE PROCEDURE InsertionSort
 END INTERFACE
@@ -44,11 +40,11 @@ INTERFACE QuadraticSolver
   MODULE PROCEDURE QuadraticSolver
 END INTERFACE
 
-PUBLIC:: BubbleSortID
 PUBLIC:: InsertionSort
 PUBLIC:: QSort1Doubleint1Pint
 PUBLIC:: RootsOfBesselFunctions
 PUBLIC:: QuadraticSolver
+PUBLIC:: SortArray,QuickSortTwoArrays
 !===================================================================================================================================
 
 CONTAINS
@@ -105,63 +101,6 @@ END IF
 END SUBROUTINE InsertionSort
 
 
-SUBROUTINE BubbleSortID(a,id,len)
-!===================================================================================================================================
-! bubble sort, taken from rosetta-wiki and modified for own use
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)                :: len
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(INOUT)                :: a(len)
-INTEGER,INTENT(INOUT),OPTIONAL    :: id(len)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                              :: temp
-INTEGER                           :: iloop,jloop, temp2
-LOGICAL                           :: swapped = .TRUE.
-!===================================================================================================================================
-
-IF(PRESENT(id))THEN
-  DO jloop=len-1,1,-1
-    swapped = .FALSE.
-    DO iloop=1,jloop
-      IF (a(iloop).GT.a(iloop+1))THEN
-        ! switch entries
-        temp=a(iloop)
-        a(iloop) = a(iloop+1)
-        a(iloop+1) = temp
-        ! switch ids
-        temp2=id(iloop)
-        id(iloop) = id(iloop+1)
-        id(iloop+1) = temp2
-        swapped = .TRUE.
-      END IF
-    END DO ! iloop
-    IF (.NOT. swapped) EXIT
-  END DO ! jloop
-ELSE
-  DO jloop=len-1,1,-1
-    swapped = .FALSE.
-    DO iloop=1,jloop
-      IF (a(iloop).GT.a(iloop+1))THEN
-        ! switch entries
-        temp=a(iloop)
-        a(iloop) = a(iloop+1)
-        a(iloop+1) = temp
-        swapped = .TRUE.
-      END IF
-    END DO ! iloop
-    IF (.NOT. swapped) EXIT
-  END DO ! jloop
-END IF
-END SUBROUTINE BubbleSortID
-
-
 RECURSIVE SUBROUTINE Qsort1DoubleInt1PInt(A,P)
 !===================================================================================================================================
 ! QSort1int: (c) by Mark Haas
@@ -182,7 +121,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 
    IF(SIZE(A) .GT. 1) THEN
-      CALL Partition1DoubleInt1Pint(A,P,marker)
+      CALL Partition1DoubleInt1PInt(A,P,marker)
       CALL Qsort1DoubleInt1Pint(A(:marker-1),P(:marker-1))
       CALL Qsort1DoubleInt1Pint(A(marker:),P(marker:))
    END IF
@@ -457,7 +396,7 @@ END SUBROUTINE RootsOfBesselFunctions
 
 
 !================================================================================================================================
-!> Stable algorithm to compute the number of (nRoot) non-complex solutions R1 and R2 for the quadratic equation A*x^2 + B*x + C 
+!> Stable algorithm to compute the number of (nRoot) non-complex solutions R1 and R2 for the quadratic equation A*x^2 + B*x + C
 !================================================================================================================================
 SUBROUTINE QuadraticSolver(A,B,C,nRoot,r1,r2)
 #ifdef CODE_ANALYZE
@@ -522,5 +461,143 @@ END IF
 
 END SUBROUTINE QuadraticSolver
 
+
+PURE SUBROUTINE SortArray(EndID,ArrayA,ArrayB)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! sort ArrayA (e.g. SideIDToSurfID) in ascending order of ArrayB (e.g. GlobalUniqueSideID)
+! based on running MINLOC for each element .NE. -1
+!
+! In the following example sorting from iSide = nBCSides+1 to nSides is performed
+!
+! BEFORE:
+!  
+!      iSide         SideIDToSurfID(iSide)      GlobalUniqueSideID(iSide)
+!        10                   -1                           3
+!        11               --- 10 <--                      10
+!        12               |   -1   |                      16
+!        13               |   -1   |                      11
+!        14               |   -1   |                      15
+!        15               --> 11 ---                       4
+!        16                   -1                           6
+!    
+! AFTER:
+!    
+!      iSide         SideIDToSurfID(iSide)      GlobalUniqueSideID(iSide)
+!        10                   -1                           3
+!        11                   11                          10
+!        12                   -1                          16
+!        13                   -1                          11
+!        14                   -1                          15
+!        15                   10                           4
+!        16                   -1                           6
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)    :: EndID
+INTEGER,INTENT(INOUT) :: ArrayA(EndID)
+INTEGER,INTENT(IN)    :: ArrayB(EndID)
+! insert IO variables here
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: i,idx
+LOGICAL :: Mask(EndID) ! only the elements for which Mask is .TRUE. are considered
+LOGICAL :: Mask_tmp(EndID)
+INTEGER :: ArrayA_temp(EndID)
+!===================================================================================================================================
+ArrayA_temp = ArrayA
+Mask = .TRUE.
+DO i = 1, EndID
+  IF(ArrayA(i).EQ.-1) THEN
+    Mask(i) = .FALSE.
+  END IF
+END DO
+Mask_tmp = Mask
+DO i = 1, EndID
+  IF(.NOT.Mask_tmp(i)) CYCLE
+   idx         = MINLOC(ArrayB,1,Mask)
+   ArrayA(idx) = ArrayA_temp(i)
+   Mask(idx)   = .FALSE.
+END DO
+
+END SUBROUTINE SortArray
+
+
+PURE RECURSIVE SUBROUTINE QuickSortTwoArrays(StartID,EndID,ArrayA,ArrayB)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! sort ArrayA (e.g. SideIDToSurfID) in ascending order of ArrayB (e.g. GlobalUniqueSideID)
+! based on QuickSort
+!
+! In the following example sorting from iSide = nBCSides+1 to nSides is performed
+!
+! BEFORE:
+!  
+!      iSide         GlobalUniqueSideID(iSide)      SortedUniqueSides(iSide)
+!        11                   10                          11
+!        12                    5                          12
+!        13                    6                          13
+!        14                    1                          14
+!        15                   11                          15
+!        16                    2                          16
+!    
+! AFTER:
+!    
+!      iSide         SideIDToSurfID(iSide)      GlobalUniqueSideID(iSide)
+!        14                    1                          14
+!        16                    2                          16
+!        12                    5                          12
+!        13                    6                          13
+!        11                   10                          11
+!        15                   11                          15
+!
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)    :: StartID,EndID
+INTEGER,INTENT(INOUT) :: ArrayA(*)
+INTEGER,INTENT(INOUT) :: ArrayB(*)
+! insert IO variables here
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: i,j
+INTEGER :: Center,temp
+!===================================================================================================================================
+
+Center = ArrayA((StartID+EndID)/2)
+i      = StartID
+j      = EndID
+
+DO
+  DO WHILE (ArrayA(i).LT.Center)
+    i=i+1
+  END DO
+  DO WHILE (Center.LT.ArrayA(j))
+    j=j-1
+  END DO
+  IF(i.GE.j) EXIT
+  ! Sort actual array: ArrayA
+  temp      = ArrayA(i)
+  ArrayA(i) = ArrayA(j)
+  ArrayA(j) = temp
+  ! Sort corresponding array: ArrayB
+  temp      = ArrayB(i)
+  ArrayB(i) = ArrayB(j)
+  ArrayB(j) = temp
+
+  i=i+1
+  j=j-1
+END DO
+
+IF(StartID.LT.i-1  ) CALL QuickSortTwoArrays(StartID , i-1   , ArrayA , ArrayB)
+IF(j+1    .LT.EndID) CALL QuickSortTwoArrays(j+1     , EndID , ArrayA , ArrayB)
+
+END SUBROUTINE QuickSortTwoArrays
 
 END MODULE MOD_Utils
