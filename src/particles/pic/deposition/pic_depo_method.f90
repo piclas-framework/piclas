@@ -433,8 +433,11 @@ CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 #if USE_MPI
 END ASSOCIATE
 MessageSize = (5-SourceDim)*nUniqueGlobalNodes
-CALL MPI_REDUCE(NodeSourceLoc(SourceDim:4,:) ,NodeSource(SourceDim:4,:), &
-        MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+IF(myComputeNodeRank.EQ.0)THEN
+  CALL MPI_REDUCE(NodeSourceLoc(SourceDim:4,:),NodeSource(SourceDim:4,:),MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+ELSE
+  CALL MPI_REDUCE(NodeSourceLoc(SourceDim:4,:),0                        ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+END IF ! myrank.eq.0
 CALL MPI_WIN_SYNC(NodeSource_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
@@ -446,7 +449,7 @@ IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
                 , MPI_DOUBLE_PRECISION                                        &
                 , iProc                                                       &
                 , 666                                                         &
-                , MPI_COMM_LEADERS_SHARED                                       &
+                , MPI_COMM_LEADERS_SHARED                                     &
                 , RecvRequest(iProc)                                          &
                 , IERROR)
     END IF
