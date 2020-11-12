@@ -1260,7 +1260,9 @@ IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
   END DO
   ! Reducing the collision probability (might be used for the determination of the relaxation probability) by the reaction
   ! probability sum if no reaction occurred
-  IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
+  IF(SpecXSec(iCase)%UseCollXSec) THEN
+    SpecXSec(iCase)%CrossSection = SpecXSec(iCase)%CrossSection - SUM(ChemReac%CollCaseInfo(iCase)%ReactionProb(:))
+  ELSE
     Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob - SUM(ChemReac%CollCaseInfo(iCase)%ReactionProb(:))
   END IF
 END IF
