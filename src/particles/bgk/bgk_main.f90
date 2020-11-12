@@ -65,7 +65,7 @@ IMPLICIT NONE
 INTEGER               :: iElem, nPart, iLoop, iPart
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
 LOGICAL               :: DoElement(nElems)
-REAL                  :: vBulk(3), dens, partWeight, totalWeight
+REAL                  :: dens, partWeight, totalWeight
 !===================================================================================================================================
 DSMC_RHS = 0.0
 DoElement = .FALSE.
@@ -101,28 +101,22 @@ DO iElem = 1, nElems
     END IF
   ELSE
     ALLOCATE(iPartIndx_Node(nPart))
-    totalWeight = 0.0
-    vBulk(1:3) = 0.0
     iPart = PEM%pStart(iElem)
     DO iLoop = 1, nPart
       iPartIndx_Node(iLoop) = iPart
-      partWeight = GetParticleWeight(iPart)
-      vBulk(1:3)  =  vBulk(1:3) + PartState(4:6,iPart) * partWeight
-      totalWeight = totalWeight + partWeight
       iPart = PEM%pNext(iPart)
     END DO
-    vBulk = vBulk / totalWeight
 
     IF(DSMC%CalcQualityFactors) THEN
       BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.
       BGK_PrandtlNumber=0.; BGK_ExpectedPrandtlNumber=0.
     END IF
     IF (BGKMovingAverage) THEN
-      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk, &
+      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), &
           ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
                CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
     ELSE
-      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
+      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem))
     END IF
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
@@ -164,7 +158,6 @@ USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounte
 USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
 USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_Analyze        ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues,WriteDSMCHOToHDF5
-USE MOD_part_tools          ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -173,9 +166,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iElem, nPart, iLoop, iPart, nOutput, iSpec
+INTEGER               :: iElem, nPart, iLoop, iPart, nOutput
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
-REAL                  :: vBulk(3), partWeight, totalWeight, TotalMass
+REAL                  :: partWeight
 !===================================================================================================================================
 DSMC_RHS = 0.0
 
@@ -192,20 +185,11 @@ ELSE ! No octree cell refinement
     nPart = PEM%pNumber(iElem)
     IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
     ALLOCATE(iPartIndx_Node(nPart))
-    vBulk(1:3) = 0.0
-    TotalMass = 0.0
-    totalWeight = 0.0
     iPart = PEM%pStart(iElem)
     DO iLoop = 1, nPart
-      partWeight = GetParticleWeight(iPart)
       iPartIndx_Node(iLoop) = iPart
-      iSpec = PartSpecies(iPart)
-      vBulk(1:3)  =  vBulk(1:3) + PartState(4:6,iPart) * partWeight * Species(iSpec)%MassIC
-      TotalMass = TotalMass + Species(iSpec)%MassIC * partWeight 
-      totalWeight = totalWeight + partWeight
       iPart = PEM%pNext(iPart)
     END DO
-    vBulk = vBulk / TotalMass
 
     IF(DSMC%CalcQualityFactors) THEN
       BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.
@@ -213,11 +197,11 @@ ELSE ! No octree cell refinement
     END IF
 
     IF (BGKMovingAverage) THEN
-      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk, &
+      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), &
           ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
                CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
     ELSE
-      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
+      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem))
     END IF
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
