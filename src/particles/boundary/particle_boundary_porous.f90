@@ -674,7 +674,11 @@ IF (.NOT.SurfOnNode) RETURN
 nValues = 2
 ! collect the information from the proc-local shadow arrays in the compute-node shared array
 MessageSize = nValues*nPorousSides
-CALL MPI_REDUCE(PorousBCSampWall,PorousBCSampWall_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+IF (myComputeNodeRank.EQ.0) THEN
+  CALL MPI_REDUCE(PorousBCSampWall,PorousBCSampWall_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+ELSE
+  CALL MPI_REDUCE(PorousBCSampWall,0                      ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+END IF
 CALL MPI_WIN_SYNC(PorousBCSampWall_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 

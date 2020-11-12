@@ -12,12 +12,24 @@
 #               commands
 #==============================================================================
 
+# --------------------------------------------------------------------------------------------------
+# Colors
+# --------------------------------------------------------------------------------------------------
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+CYAN='\e[37;44m'
+NC='\033[0m' # No Color
+
+# --------------------------------------------------------------------------------------------------
 # Check command line arguments
+# --------------------------------------------------------------------------------------------------
 LOADMODULES=1
 for arg in "$@"
 do
   if [ "$arg" == "--help" ] || [ "$arg" == "-h" ]
   then
+    echo ""
     echo "Input arguments:"
     echo "--help/-h            print this help information"
     echo "--rerun/-r           remove existing module files and re-install HDF5"
@@ -31,8 +43,10 @@ do
     LOADMODULES=0
     # Set desired versions
     USECOMPILERVERSION=9.2.0
-    USEMPIVERSION=4.0.1
+    USEMPIVERSION=4.0.5
     # Force --rerun via 'set'
+    echo ""
+    echo "Running '-m' with GCC $USECOMPILERVERSION and  OpenMPI $USEMPIVERSION"
     set -- -rerun
     break
   fi
@@ -55,7 +69,7 @@ HDF5DIR=${INSTALLDIR}'/hdf5/'${HDF5VERSION}
 
 COMPILERNAMES='gcc intel'
 for WHICHCOMPILER in ${COMPILERNAMES}; do
-  echo "$WHICHCOMPILER ------------------------------------------------------------------------------"
+  echo -e "$GREEN$WHICHCOMPILER ------------------------------------------------------------------------------$NC"
   if [ ! -d "${INSTALLDIR}/modules/modulefiles/compilers/${WHICHCOMPILER}" ]; then
     break
   fi
@@ -68,36 +82,39 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
     if [[ $LOADMODULES -eq 0 ]]; then
       COMPILERVERSION=$USECOMPILERVERSION
     fi
-    echo "  $COMPILERVERSION ------------------------------------------------------------------------------"
+    echo -e "$GREEN  $COMPILERVERSION ------------------------------------------------------------------------------$NC"
     if [ ! -e "${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}" ]; then
       mkdir -p ${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}
     fi
 
     #--- build hdf5 in single
     MODULEFILE=${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}/single
-    echo "      Creating: ${MODULEFILE}"
+    echo -e "$GREEN      Installing under: ${MODULEFILE}$NC"
     if [[ -n ${1} ]]; then
       if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
         rm ${MODULEFILE}
       fi
     fi
     if [ ! -e "${MODULEFILE}" ]; then
-      echo "    creating HDF5-${HDF5VERSION} library for ${WHICHCOMPILER}-${COMPILERVERSION} single"
+      echo -e "$GREEN    creating HDF5-${HDF5VERSION} library for ${WHICHCOMPILER}-${COMPILERVERSION} single$NC"
       module purge
       if [[ -n $(module load ${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
-        echo "      module ${WHICHCOMPILER}/${COMPILERVERSION} not found "
+        echo -e "$RED      module ${WHICHCOMPILER}/${COMPILERVERSION} not found $NC"
         break
       fi
       module load ${WHICHCOMPILER}/${COMPILERVERSION}
       module list
+
+      echo ""
+      read -p "Have the correct modules been loaded? If yes, press enter to continue!"
 
       cd ${SOURCESDIR}
       if [ ! -e "${SOURCESDIR}/hdf5-${HDF5VERSION}.tar.gz" ]; then
         wget "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz"
       fi
       if [ ! -e "${SOURCESDIR}/hdf5-${HDF5VERSION}.tar.gz" ]; then
-        echo "no hdf5 install-file downloaded for HDF5-${HDF5VERSION}"
-        echo "check if https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz exists"
+        echo -e "$RED no hdf5 install-file downloaded for HDF5-${HDF5VERSION}$NC"
+        echo -e "$RED check if https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz exists$NC"
         break
       fi
       tar -xzf hdf5-${HDF5VERSION}.tar.gz hdf5-${HDF5VERSION}
@@ -116,7 +133,7 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
       make -j 2>&1 | tee make.out
       if [ ${PIPESTATUS[0]} -ne 0 ]; then
         echo " "
-        echo "Failed: [make -j 2>&1 | tee make.out]"
+        echo -e "$RED Failed: [make -j 2>&1 | tee make.out]$NC"
         exit
       else
         make install 2>&1 | tee install.out
@@ -127,13 +144,13 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
       sed -i 's/compilerversion/'${COMPILERVERSION}'/gI' ${MODULEFILE}
       sed -i 's/hdf5version/'${HDF5VERSION}'/gI' ${MODULEFILE} 
     else
-      echo "      HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} already created (module file exists)"
+      echo -e "$YELLOW""      HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} already created (module file exists)$NC"
     fi
 
     #--- build hdf5 with mpi
     MPINAMES='openmpi mpich'
     for WHICHMPI in ${MPINAMES}; do
-      echo "    $WHICHMPI ------------------------------------------------------------------------------"
+      echo -e "$GREEN    $WHICHMPI ------------------------------------------------------------------------------$NC"
       if [ ! -d "${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}" ]; then
         mkdir -p ${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}
       fi
@@ -149,9 +166,9 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
         if [[ $LOADMODULES -eq 0 ]]; then
           MPIVERSION=$USEMPIVERSION
         fi
-        echo "    $MPIVERSION ------------------------------------------------------------------------------"
+        echo -e "$GREEN    $MPIVERSION ------------------------------------------------------------------------------$NC"
         MODULEFILE=${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION}
-        echo "      Creating: ${MODULEFILE}"
+        echo -e "$GREEN      Installing under: ${MODULEFILE}$NC"
         if [[ -n ${1} ]]; then
           if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
             rm ${MODULEFILE}
@@ -160,12 +177,12 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
         if [ ! -e "${MODULEFILE}" ]; then
           module purge
           if [[ -n $(module load ${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
-            echo "      module ${WHICHCOMPILER}/${COMPILERVERSION} not found "
+            echo -e "$RED      module ${WHICHCOMPILER}/${COMPILERVERSION} not found $NC"
             break
           fi
           module load ${WHICHCOMPILER}/${COMPILERVERSION}
           if [[ -n $(module load ${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
-            echo "      module ${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}/${COMPILERVERSION} not found "
+            echo -e "$RED      module ${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}/${COMPILERVERSION} not found $NC"
             break
           fi
           module load ${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}/${COMPILERVERSION}
@@ -181,7 +198,7 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
           make -j 2>&1 | tee make.out
           if [ ${PIPESTATUS[0]} -ne 0 ]; then
             echo " "
-            echo "Failed: [make -j 2>&1 | tee make.out]"
+            echo -e "$RED""Failed: [make -j 2>&1 | tee make.out]$NC"
             exit
           else
             make install 2>&1 | tee install.out
@@ -193,7 +210,7 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
           sed -i 's/whichmpi/'${WHICHMPI}'/gI' ${MODULEFILE}
           sed -i 's/mpiversion/'${MPIVERSION}'/gI' ${MODULEFILE}
         else
-          echo "      HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} and ${WHICHMPI}-${MPIVERSION} already created (module file exists)"
+          echo -e "$YELLOW""      HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} and ${WHICHMPI}-${MPIVERSION} already created (module file exists)$NC"
           continue
         fi
       done
