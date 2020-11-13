@@ -51,6 +51,8 @@ ChemReac%QKRColl = 0.
 ChemReac%QKTCollCorrFac = 0.
 
 DO iReac = 1, ChemReac%NumOfReact
+  ! Skip the special case of photo ionization
+  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') CYCLE
   iSpec1 = ChemReac%Reactants(iReac,1)
   iSpec2 = ChemReac%Reactants(iReac,2)
   iCase = CollInf%Coll_Case(iSpec1, iSpec2)

@@ -1615,6 +1615,8 @@ SDEALLOCATE(MacroDSMC)
 SDEALLOCATE(QKChemistry)
 
 SDEALLOCATE(ChemReac%QKProcedure)
+SDEALLOCATE(ChemReac%QKRColl)
+SDEALLOCATE(ChemReac%QKTCollCorrFac)
 SDEALLOCATE(ChemReac%NumReac)
 SDEALLOCATE(ChemReac%ReacCount)
 SDEALLOCATE(ChemReac%ReacCollMean)
