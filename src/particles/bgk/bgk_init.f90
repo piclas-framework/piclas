@@ -52,8 +52,7 @@ CALL prms%SetSection("BGK")
 CALL prms%CreateIntOption(    'Particles-BGK-CollModel',            'Select the BGK method:\n'//&
                                                                     '1: Ellipsoidal statistical (ESBGK)\n'//&
                                                                     '2: Shakov (SBGK)\n'//&
-                                                                    '3: Standard BGK\n'//&
-                                                                    '4: Unified \n')
+                                                                    '3: Standard BGK')
 CALL prms%CreateIntOption(    'Particles-ESBGK-Model',              'Select sampling method for the ESBGK target distribution '//&
                                                                     'function:\n'//&
                                                                     '1: Approximative\n'//&
@@ -109,13 +108,13 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iSpec2
 REAL                  :: delta_ij
-LOGICAL               :: PolyMols
+LOGICAL               :: MoleculePresent
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)') ' INIT BGK Solver...'
-PolyMols = .FALSE.
+MoleculePresent = .FALSE.
 ALLOCATE(SpecBGK(nSpecies))
 DO iSpec=1, nSpecies
-  IF (SpecDSMC(iSpec)%PolyatomicMol) PolyMols = .TRUE.
+  IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) MoleculePresent = .TRUE.
   ALLOCATE(SpecBGK(iSpec)%CollFreqPreFactor(nSpecies))
   DO iSpec2=1, nSpecies
     IF (iSpec.EQ.iSpec2) THEN
@@ -128,8 +127,8 @@ DO iSpec=1, nSpecies
         /(2.*(Species(iSpec)%MassIC * Species(iSpec2)%MassIC)))/CollInf%Tref(iSpec,iSpec2)**(-CollInf%omega(iSpec,iSpec2) +0.5)
   END DO
 END DO
-IF ((nSpecies.GT.1).AND.(PolyMols)) THEN
-      CALL abort(&
+IF ((nSpecies.GT.1).AND.(ANY(SpecDSMC(:)%PolyatomicMol))) THEN
+  CALL abort(&
 __STAMP__&
 ,' ERROR Multispec not implemented with polyatomic molecules!')
 END IF
@@ -174,13 +173,15 @@ __STAMP__&
 ,' ERROR BGK Init: Moving average is neither implemented with radial weighting nor variable time step!')
   END IF
 END IF
-! Vibrational modelling
-BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation')
-BGKUseQuantVibEn = GETLOGICAL('Particles-BGK-UseQuantVibEn')
-IF ((nSpecies.GT.1).AND.(BGKUseQuantVibEn)) THEN
-      CALL abort(&
-__STAMP__&
-,' ERROR Multispec not implemented for quantized vibrational energy!')
+IF(MoleculePresent) THEN
+  ! Vibrational modelling
+  BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation')
+  BGKUseQuantVibEn = GETLOGICAL('Particles-BGK-UseQuantVibEn')
+  IF ((nSpecies.GT.1).AND.(BGKUseQuantVibEn)) THEN
+    CALL abort(&
+      __STAMP__&
+      ,' ERROR Multispec not implemented for quantized vibrational energy!')
+  END IF
 END IF
 
 IF(DSMC%CalcQualityFactors) THEN

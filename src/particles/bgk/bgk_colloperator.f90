@@ -356,10 +356,10 @@ DO iLoop = 1, nPart
     dtCell = dtCell + VarTimeStep%ParticleTimeStep(iPartIndx_Node(iLoop))*partWeight
   END IF
 END DO
-IF ((MAXVAL(nSpec(:)).EQ.1).OR.(totalWeight.LE.0.0)) RETURN
-vBulkAll(1:3) = vBulkAll(1:3) / TotalMass
 totalWeight = SUM(totalWeightSpec)
 totalWeight2 = SUM(totalWeightSpec2)
+IF ((MAXVAL(nSpec(:)).EQ.1).OR.(totalWeight.LE.0.0)) RETURN
+vBulkAll(1:3) = vBulkAll(1:3) / TotalMass
 DO iSpec = 1, nSpecies
   IF (nSpec(iSpec).GT.0) vBulkSpec(:,iSpec) = vBulkSpec(:,iSpec) /totalWeightSpec(iSpec)
 END DO
@@ -701,7 +701,7 @@ USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: nVibRelax, nRotRelax, iPartIndx_NodeRelaxVib(nSpecies), iPartIndx_NodeRelaxRot(nSpecies)
+INTEGER, INTENT(IN)           :: nVibRelax, nRotRelax, iPartIndx_NodeRelaxVib(nVibRelax), iPartIndx_NodeRelaxRot(nRotRelax)
 REAL, INTENT(IN)              :: Xi_vib_DOF(:), TEqui, Xi_VibSpec(nSpecies), Xi_RotSpec(nSpecies)
 REAL, INTENT(INOUT)           :: NewEnVib, NewEnRot
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -715,7 +715,7 @@ REAL                          :: partWeight, iRan
 !! VIB RElaxation
 IF(BGKDoVibRelaxation) THEN
   DO iLoop = 1, nVibRelax
-    iSpec = PartSpecies(iPartIndx_NodeRelaxVib(iLoop)) 
+    iSpec = PartSpecies(iPartIndx_NodeRelaxVib(iLoop))
     partWeight = GetParticleWeight(iPartIndx_NodeRelaxVib(iLoop))
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
