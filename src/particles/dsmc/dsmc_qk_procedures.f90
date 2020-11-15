@@ -648,7 +648,6 @@ ReactionProb = nPartNode/Volume * Species(PartSpecies(iPart_p3))%MacroParticleFa
 !print*,'Tpower',Tcoll**ChemReac%QKCoeff(iReac,2)
 !print*,'Volume',Volume
 !print*,'ReactionProb',ReactionProb
-!read*
 
 ! IF((ReactionProb.GE.1).OR.(ReactionProb.LT.0))THEN
 !  IPWRITE(UNIT_stdOut,*) ' ERROR: 1<Recombination probability <0'
@@ -723,7 +722,6 @@ IF (ReactionProb.GT.iRan) THEN
 ! +(PartState(5,iPart_p3)+DSMC_RHS(2,iPart_p3))**2+(PartState(6,iPart_p3)+DSMC_RHS(3,iPart_p3))**2) &
 !  + PartStateIntEn(3,PartReac1)
 !print*, evor, enach, evor-enach
-!read*
 END IF
 END SUBROUTINE QK_IonRecombination
 

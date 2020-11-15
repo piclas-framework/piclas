@@ -1646,7 +1646,6 @@ DO WHILE(iClipIter.LE.BezierClipMaxIter)
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(PartID.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(A,I0,X,I0)') ' iClipIter,ClipMode ', iClipIter, ClipMode
-      !read*
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
@@ -2108,7 +2107,6 @@ IF(ABS(doPro).GT.0.6)THEN
 !  print*,'Leta-new',LineNormVec(:,2)
   doPro=DOT_PRODUCT(LineNormVec(:,1),LineNormVec(:,2))
 !  print*,'doprofixed',doPro, ACOS(doPro)*180/pi
-!  read*
 ELSE
   ! do not change the line vectors
   LineNormVec(:,1)=Lxi
