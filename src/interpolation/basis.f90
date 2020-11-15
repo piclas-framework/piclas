@@ -403,7 +403,6 @@ __STAMP__ &
 !check (Vdm_Bezier)^(-1)*Vdm_Bezier := I
 dummy=SUM(ABS(MATMUL(sVdm_Bezier,Vdm_Bezier)))-REAL(N_In+1)
 !print*,dummy,PP_RealTolerance
-!read*
 IF(ABS(dummy).GT.1.E-13) CALL abort(&
 __STAMP__&
 ,'problems in Bezier Vandermonde: check (Vdm_Bezier)^(-1)*Vdm_Bezier := I has a value of',999,dummy)

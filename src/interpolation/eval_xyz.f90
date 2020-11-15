@@ -708,7 +708,6 @@ END SUBROUTINE RefElemNewton
 !  END DO !j=0,N_In
 !  print*,'a , b, c',XiA,XiB,XiOut
 !  print*,'fa,fb,fc',F(1),F(2),F(3)
-!  read*
 !
 !  IF(F(1)*F(2).GT.0.)THEN
 !    dummy=XiB

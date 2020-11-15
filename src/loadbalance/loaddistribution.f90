@@ -1047,7 +1047,6 @@ END DO
 SWRITE(*,*)'current:',offSetElemMPI
 SWRITE(*,*)'identical:',identical
 #endif /*CODE_ANALYZE*/
-!read*
 IF(.NOT.identical) THEN
   ALLOCATE(newData)
   ALLOCATE(newData%offSetElemMPI(0:nProcessors))

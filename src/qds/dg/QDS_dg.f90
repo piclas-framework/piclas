@@ -142,7 +142,6 @@ IF(DoQDS)THEN
 
 
   !print*,"QDS_dg.f90: ini QDS, do restart?"
-  !read*
 
   IF(.NOT.DoRestart)THEN
     CALL FillIniQDS()
@@ -399,7 +398,6 @@ DO iElem = 1, nQDSElems
     END DO ! j
   END DO
 END DO
-!read*
 END SUBROUTINE QDSReCalculateDGValues
 
 

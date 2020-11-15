@@ -438,8 +438,6 @@ CALL ProlongToFace_Pois(Phi,Phi_master,Phi_slave,doMPISides=.FALSE.)
 
 Phit=0.
 CALL VolInt_Pois(Phit)
-!print*,'Phi',Phit(:,1,1,1,4)
-!read*
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
