@@ -641,12 +641,12 @@ REAL                          :: ProbAddPartTrans, iRan, partWeight
 nVibRelaxSpec =0; nRotRelaxSpec =0; nRelax=0; nNotRelax=0; vBulk=0.0; nRotRelax=0; nVibRelax=0; OldEnRot=0.0
 ProbAddPartTrans = 1.-EXP(-relaxfreq*dtCell)
 DO iLoop = 1, nPart  
+  partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
   CALL RANDOM_NUMBER(iRan)  
   IF (ProbAddPartTrans.GT.iRan) THEN
     nRelax = nRelax + 1
     iPartIndx_NodeRelax(nRelax) = iPartIndx_Node(iLoop)
   ELSE
-    partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
     iSpec = PartSpecies(iPartIndx_Node(iLoop))  
     nNotRelax = nNotRelax + 1
     iPartIndx_NodeRelaxTemp(nNotRelax) = iPartIndx_Node(iLoop)
