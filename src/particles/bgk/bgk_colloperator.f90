@@ -109,12 +109,6 @@ END DO
 
 IF(nPart.LE.2) RETURN
 
-NewEn = 0.; OldEn = 0.; OldEnRot = 0.; NewEnRot = 0.; NewEnVib = 0.; EVibSpec = 0.0; ERotSpec = 0.0
-u2 = 0.0; u0ij = 0.0; u2Spec=0.0
-totalWeightSpec = 0.0; totalWeightSpec2 = 0.0; TotalMass = 0.0
-vBulkSpec = 0.0; vBulkAll = 0.0
-nSpec = 0; dtCell = 0.
-
 CALL CalcMoments(nPart, iPartIndx_Node, nSpec, vBulkSpec, vBulkAll, totalWeight, totalWeightSpec, & 
     totalWeightSpec2, TotalMass,  u2, u2Spec, u0ij, u2i, OldEn, EVibSpec, ERotSpec, CellTemp, SpecTemp, dtCell)
 IF((CellTemp.LE.0).OR.(MAXVAL(nSpec(:)).EQ.1).OR.(totalWeight.LE.0.0)) RETURN
@@ -142,8 +136,7 @@ IF (nSpecies.EQ.1) THEN
     END IF
   END IF
 END IF
-InnerDOF = 0.
-Xi_VibSpec=0.0; Xi_RotSpec=0.0; Xi_Vib_oldSpec=0.0
+
 CALL CalcInnerDOFs(nSpec, EVibSpec, ERotSpec, totalWeightSpec, TVibSpec, TRotSpec, InnerDOF, Xi_VibSpec, Xi_Vib_oldSpec & 
     ,Xi_RotSpec)
 
@@ -212,6 +205,7 @@ CALL RelaxInnerEnergy(nVibRelax, nRotRelax, iPartIndx_NodeRelaxVib, iPartIndx_No
 ! 5.) Sample new particle velocities from the target distribution function, depending on the chosen model
 CALL SampleFromTargetDistr(nRelax, ipartindx_noderelax, Prandtl, u2, u0ij, u2i, vBulkAll, CellTemp, vBulk)
 
+NewEn = 0.
 vBulk = vBulk/TotalMass
 DO iLoop = 1, nRelax 
   iSpec = PartSpecies(iPartIndx_NodeRelax(iLoop))
@@ -343,6 +337,7 @@ INTEGER                       :: iLoop, iSpec, fillMa1, fillMa2
 REAL                          :: V_rel(1:3), vmag2, partWeight, EnerTotal
 REAL                          :: tempweight, tempweight2, tempmass, vBulkTemp(3), totalWeight2, totalWeight3
 !===================================================================================================================================
+totalWeightSpec = 0.0; totalWeightSpec2=0.0; vBulkAll=0.0; TotalMass=0.0; vBulkSpec=0.0; nSpec=0; dtCell=0.0
 DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
   iSpec = PartSpecies(iPartIndx_Node(iLoop))
@@ -364,7 +359,7 @@ DO iSpec = 1, nSpecies
   IF (nSpec(iSpec).GT.0) vBulkSpec(:,iSpec) = vBulkSpec(:,iSpec) /totalWeightSpec(iSpec)
 END DO
 
-totalWeight3 = 0.
+totalWeight3 = 0.; u2Spec=0.0; u0ij=0.0; u2i=0.0; OldEn=0.0; EVibSpec=0.0; ERotSpec=0.0
 DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
   iSpec = PartSpecies(iPartIndx_Node(iLoop))  
@@ -455,15 +450,12 @@ REAL, INTENT(OUT)             :: Xi_RotSpec(nSpecies)
 ! LOCAL VARIABLES
 INTEGER                       :: iPolyatMole, iSpec, iDOF
 !===================================================================================================================================
+Xi_VibSpec=0.; InnerDOF=0.; Xi_RotSpec=0.; Xi_Vib_oldSpec=0.; TVibSpec=0.; TRotSpec=0.
 DO iSpec = 1, nSpecies
-  IF (nSpec(iSpec).EQ.0) THEN
-    TVibSpec(iSpec) = 0.0 
-    TRotSpec(iSpec) = 0.0
-    CYCLE
-  END IF
+  IF (nSpec(iSpec).EQ.0) CYCLE
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     IF(BGKDoVibRelaxation) THEN
-      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN        
         iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
         TVibSpec(iSpec) = CalcTVibPoly(EVibSpec(iSpec)/totalWeightSpec(iSpec), 1)
         IF (TVibSpec(iSpec).GT.0.0) THEN
@@ -520,7 +512,6 @@ IF (nSpecies.GT.1) THEN
   MolarFraction(1:nSpecies) = totalWeightSpec(1:nSpecies) / totalWeight
   MassIC_Mixture = TotalMass / totalWeight
   MassCoef = 0.0
-  MassFraction = 0.
   DO iSpec = 1, nSpecies
     MassCoef=MassCoef + REAL(totalWeightSpec(iSpec))/REAL(totalWeight)*Species(iSpec)%MassIC
     MassFraction(iSpec) = MolarFraction(iSpec) * Species(iSpec)%MassIC / MassIC_Mixture
@@ -647,7 +638,7 @@ REAL, INTENT(INOUT)           :: vBulk(3), OldEnRot, OldEn
 INTEGER                       :: nNotRelax, iSpec, iLoop
 REAL                          :: ProbAddPartTrans, iRan, partWeight
 !===================================================================================================================================
-nVibRelaxSpec =0; nRotRelaxSpec =0
+nVibRelaxSpec =0; nRotRelaxSpec =0; nRelax=0; nNotRelax=0; vBulk=0.0; nRotRelax=0; nVibRelax=0; OldEnRot=0.0
 ProbAddPartTrans = 1.-EXP(-relaxfreq*dtCell)
 DO iLoop = 1, nPart  
   CALL RANDOM_NUMBER(iRan)  
@@ -713,6 +704,7 @@ INTEGER                       :: iLoop, iDOF, iPolyatMole, iSpec
 REAL                          :: partWeight, iRan
 !===================================================================================================================================
 !! VIB RElaxation
+NewEnVib = 0.0; NewEnRot=0.0
 IF(BGKDoVibRelaxation) THEN
   DO iLoop = 1, nVibRelax
     iSpec = PartSpecies(iPartIndx_NodeRelaxVib(iLoop))
