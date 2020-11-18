@@ -3426,6 +3426,7 @@ USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3660,6 +3661,12 @@ SELECT CASE (TrackingMethod)
     CALL MPI_WIN_UNLOCK_ALL(ElemRadius2NGeo_Shared_Win,iError)
     CALL MPI_WIN_FREE(ElemRadius2NGeo_Shared_Win,iError)
 
+
+    IF (TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+      CALL MPI_WIN_UNLOCK_ALL(ElemRadiusNGeo_Shared_Win       ,iError)
+      CALL MPI_WIN_FREE(      ElemRadiusNGeo_Shared_Win       ,iError)
+    END IF
+
     IF (DoDeposition) THEN
       ! BuildEpsOneCell
       CALL MPI_WIN_UNLOCK_ALL(ElemsJ_Shared_Win     , iError)
@@ -3702,6 +3709,9 @@ SELECT CASE (TrackingMethod)
     ! BuildElementRadiusTria
     ADEALLOCATE(ElemBaryNGeo_Shared)
     ADEALLOCATE(ElemRadius2NGEO_Shared)
+    IF (TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+      ADEALLOCATE(ElemRadiusNGeo_Shared)
+    END IF
 
     ! BuildElemTypeAndBasisTria()
     ADEALLOCATE(XiEtaZetaBasis_Shared)

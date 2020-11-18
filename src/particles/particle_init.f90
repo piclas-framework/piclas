@@ -3134,7 +3134,8 @@ USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars
 #if USE_MPI
-USE MOD_Particle_MPI_Halo,          ONLY: FinalizePartExchangeProcs
+USE MOD_Particle_MPI_Halo      ,ONLY: FinalizePartExchangeProcs
+USE MOD_PICDepo_Vars           ,ONLY: SendShapeElemID,SendElemShapeID,ShapeMapping,CNShapeMapping
 #endif /*USE_MPI*/
 !#if USE_MPI
 !USE MOD_Particle_MPI_Emission      ,ONLY: FinalizeEmissionParticlesToProcs
@@ -3249,8 +3250,11 @@ SDEALLOCATE(PEM%pNext)
 SDEALLOCATE(seeds)
 SDEALLOCATE(RegionBounds)
 SDEALLOCATE(RegionElectronRef)
-
 #if USE_MPI
+SDEALLOCATE(SendShapeElemID)
+SDEALLOCATE(SendElemShapeID)
+SDEALLOCATE(ShapeMapping)
+SDEALLOCATE(CNShapeMapping)
 ! particle MPI halo exchange
 CALL FinalizePartExchangeProcs()
 #endif

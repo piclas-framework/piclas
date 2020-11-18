@@ -803,7 +803,7 @@ IF(DoRestart)THEN
         CALL ReadArray('PartData',2,(/INT(PartDataSize_HDF5,IK),locnPart/),offsetnPart,2,RealArray=PartData)!,&
         !xfer_mode_independent=.TRUE.)
 
-        IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+        IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0).AND.locnPart.GT.0) THEN
           CALL DatasetExists(File_ID,'VibQuantData',VibQuantDataExists)
           IF (.NOT.VibQuantDataExists) CALL abort(&
               __STAMP__&
@@ -887,7 +887,7 @@ IF(DoRestart)THEN
         END DO ! iElem=FirstElemInd,LastElemInd
         DEALLOCATE(PartData)
         IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-          DEALLOCATE(VibQuantData)
+          SDEALLOCATE(VibQuantData)
         END IF
       ELSE ! not PartDataExists
         SWRITE(UNIT_stdOut,*)'PartData does not exists in restart file'
