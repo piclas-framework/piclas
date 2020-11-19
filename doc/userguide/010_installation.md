@@ -5,33 +5,61 @@
 The following chapter describes the installation procedure on a Linux machine requiring root access. This includes the installation of required prerequisites, setting up MPI and HDF5. Please note that high-performance clusters usually have a module environment, where you have to load the appropriate modules instead of compiling them yourself. The module configuration for some of the clusters used by the research group are given in Chapter \ref{chap:cluster_guide}. In that case, you can jump directly to the description of the download und installation procedure of PICLas in Section {sec:download_source}.
 
 ## Prerequisites
-**PICLas** has been tested for various Linux distributions. This includes Ubuntu 14.04 LTS, 16.04 LTS and 18.04 LTS, OpenSUSE 42.1 and CentOS 7. For **tested combinations** of prerequisities (HDF5, OpenMPI, CMake etc.) and known problems that may occur, visit Chapter \ref{chap:appendix}.
+**PICLas** has been tested on various Linux distributions. This includes Ubuntu 14.04 LTS, 16.04 LTS and 18.04 LTS, 20.04 LTS and 20.10, OpenSUSE 42.1 and CentOS 7.
+For **tested combinations** of prerequisites (HDF5, OpenMPI, CMake etc.) and known problems that may occur, visit Chapter \ref{chap:appendix}.
 
-The suggested packages in this section can be replaced by self compiled versions. The required packages for the Ubuntu Linux distributions are listed in Table \ref{tab:installation_prereqs_ubuntu}. Under Ubuntu, they can be obtained using the apt environment:
+The suggested packages in this section can be replaced by self compiled versions. The required packages for the Ubuntu Linux distributions are listed in Table \ref{tab:installation_prereqs_ubuntu}.
+Under Ubuntu, they can be obtained using the apt environment:
 
     sudo apt-get install git
 
-|     Package      | Ubuntu 14.04 | Ubuntu 16.04 | Ubuntu 18.04 |
-| :--------------: | :----------: | :----------: | :----------: |
-|       git        |      x       |      x       |      x       |
-|      cmake       |      x       |      x       |      x       |
-| cmake-curses-gui |      o       |      o       |      o       |
-|    liblapack3    |      x       |      x       |      x       |
-|  liblapack-dev   |      x       |      x       |      x       |
-|     gfortran     |      x       |      x       |      x       |
-|       g++        |      x       |      x       |      x       |
-| mpi-default-dev  |      x       |      x       |      x       |
-|    zlib1g-dev    |      -       |      x       |      x       |
-| exuberant-ctags  |      o       |      o       |      o       |
+|      Package     | Ubuntu 14.04 | Ubuntu 16.04 | Ubuntu 18.04 | Ubuntu 20.04 |
+| :--------------: | :----------: | :----------: | :----------: | :----------: |
+|        git       |       x      |       x      |       x      |       x      |
+|       cmake      |       x      |       x      |       x      |       x      |
+| cmake-curses-gui |       o      |       o      |       o      |       o      |
+|    liblapack3    |       x      |       x      |       x      |       x      |
+|   liblapack-dev  |       x      |       x      |       x      |       x      |
+|     gfortran     |       x      |       x      |       x      |       x      |
+|        g++       |       x      |       x      |       x      |       x      |
+|  mpi-default-dev |       x      |       x      |       x      |       x      |
+|    zlib1g-dev    |       -      |       x      |       x      |       x      |
+|  exuberant-ctags |       o      |       o      |       o      |       o      |
+
+Table: Debian/Ubuntu packages.\label{tab:installation_prereqs_ubuntu}
+x: required, o: optional, -: not available
+
+and under CentOS via
+
+    sudo yum install git
+
+For extra packages install EPEL and SCL
+
+    sudo yum install epel-release centos-release-scl
+
+|      Package     |   CentOS 7   |
+| :--------------: | :----------: |
+|        git       |       x      |
+|       cmake      |       x      |
+|      cmake3      |       x      |
+|      libtool     |       x      |
+|   ncurses-devel  |       x      |
+|   lapack-devel   |       x      |
+|  openblas-devel  |       x      |
+|   devtoolset-9   |       x      |
+|        gcc       |       x      |
+|      gcc-c++     |       x      |
+|      zlib1g      |       x      |
+|  exuberant-ctags |       o      |
+|  numactl-devel   |       x      |
+|  rdma-core-devel |       o      |
 
 Table: Debian/Ubuntu packages.\label{tab:installation_prereqs_ubuntu}
 x: required, o: optional, -: not available
 
 On some systems it may be necessary to increase the size of the stack (part of the memory used to store information about active subroutines) in order to execute **PICLas** correctly. This is done using the command
 
-~~~~~~~
-ulimit -s unlimited
-~~~~~~~
+    ulimit -s unlimited
 
 from the command line. For convenience, you can add this line to your `.bashrc`.
 
