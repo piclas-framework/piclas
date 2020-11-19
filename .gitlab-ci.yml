@@ -320,15 +320,15 @@ gnu_NIG_SuperB_standalone:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB -e ./bin/superB ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_bgk_nightly": Build and run BGK-Flow examples on nightly (CURRENTLY IN CHE_BGK)
+# Stage "reggie_bgk_nightly": Build and run BGK-Flow examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# gnu_NIG_BGK-Flow:
-#   <<: *defaults_gnu
-#   stage: reggie_bgk_nightly
-#   tags:
-#     - withmodules-concurrent
-#   script:
-#     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_BGK-Flow ; fi
+gnu_NIG_BGK-Flow:
+  <<: *defaults_gnu
+  stage: reggie_bgk_nightly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_BGK-Flow ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly": Build and run

@@ -1312,7 +1312,8 @@ where $f^t$ is the target distribution function and $\nu$ the relaxation frequen
 The current implementation supports:
 
 - 4 different methods (i.e. different target distribution functions): Ellipsoidal Statistical, Shakov, standard BGK, and Unified
-- Single species, monoatomic and polyatomic gases
+- Single species, monatomic and polyatomic gases
+- Multi species, monatomic and diatomic gas mixtures
 - Thermal non-equilibrium with rotational and vibrational excitation (continuous or quantized treatment)
 - 2D/Axisymmetric simulations
 - Variable time step (adaption of the distribution according to the maximal relaxation factor and linear scaling)
@@ -1323,6 +1324,7 @@ Relevant publications of the developers:
 - Extension of the modelling to diatomic species including quantized vibrational energy treatment, validation of ESBGK with the Mach 20 hypersonic flow measurements of the heat flux on a $70^\circ$ cone [@Pfeiffer2018b]
 - Simulation of a nozzle expansion (including the pressure chamber) with ESBGK, SBGK and coupled ESBGK-DSMC, comparison to experimental measurements [@Pfeiffer2019a],[@Pfeiffer2019b]
 - Extension to polyatomic molecules, simulation of the carbon dioxide hypersonic flow around a flat-faced cylinder, comparison of ESBGK, SBGK and DSMC regarding the shock structure and heat flux [@Pfeiffer2019c]
+- Implemention of Brull's multi-species modelling using Wilke's mixture rules and collision integrals for the calculation of transport coefficients (under review)
 
 To enable the simulation with the BGK module, the respective compiler setting has to be activated:
 
@@ -1336,6 +1338,10 @@ The **recommended method is ESBGK**. The vibrational excitation can be controlle
 
     Particles-BGK-DoVibRelaxation = T
     Particles-BGK-UseQuantVibEn   = T
+
+If the simulation contains a gas mixture, a choice for the determination of the transport coefficients is available. The first model uses Wilke's mixture tules to calculate the gas mixture viscosity and thermal conductivity. The second model utilizes collision integrals (derived for the VHS model) to calculate these mixture properties. While both allow mixtures with three or more components, only Wilke's mixing rules allow diatomic molecules.
+
+    Particles-BGK-MixtureModel    = 1
 
 An octree cell refinement until the given number of particles is reached can be utilized, which corresponds to an equal refinement in all three directions (x,y,z):
 
