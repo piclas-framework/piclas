@@ -48,7 +48,7 @@ USE MOD_Globals
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
 USE MOD_Mesh_Vars           ,ONLY: nElems
-USE MOD_Particle_Vars       ,ONLY: PEM, PartState, Species, WriteMacroVolumeValues, Symmetry, usevMPF
+USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, Symmetry, usevMPF
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
 USE MOD_FPFlow_Vars         ,ONLY: FPDSMCSwitchDens, FP_QualityFacSamp, FP_PrandtlNumber
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
@@ -69,7 +69,7 @@ USE MOD_part_tools          ,ONLY: GetParticleWeight
 INTEGER               :: iElem, nPart, iLoop, iPart
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
 LOGICAL               :: DoElement(nElems)
-REAL                  :: vBulk(3), dens, partWeight, totalWeight
+REAL                  :: dens, partWeight, totalWeight
 !===================================================================================================================================
 DSMC_RHS = 0.0
 DoElement = .FALSE.
@@ -103,23 +103,17 @@ DO iElem = 1, nElems
     END IF
   ELSE
     ALLOCATE(iPartIndx_Node(nPart))
-    totalWeight = 0.0
-    vBulk(1:3) = 0.0
     iPart = PEM%pStart(iElem)
     DO iLoop = 1, nPart
       iPartIndx_Node(iLoop) = iPart
-      partWeight  = GetParticleWeight(iPart)
-      vBulk(1:3)  = vBulk(1:3) + PartState(4:6,iPart) * partWeight
-      totalWeight = totalWeight + partWeight
       iPart = PEM%pNext(iPart)
     END DO
-    vBulk = vBulk / totalWeight
 
     IF(DSMC%CalcQualityFactors) THEN
       FP_MeanRelaxFactorCounter=0; FP_MeanRelaxFactor=0.; FP_MaxRelaxFactor=0.; FP_MaxRotRelaxFactor=0.; FP_PrandtlNumber=0.
     END IF
 
-    CALL FP_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
+    CALL FP_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem))
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
@@ -150,7 +144,7 @@ USE MOD_Globals
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile
 USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
-USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry
+USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
 USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, SamplingActive
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
@@ -159,7 +153,6 @@ USE MOD_DSMC_Analyze        ,ONLY: DSMCHO_data_sampling,WriteDSMCHOToHDF5,CalcSu
 USE MOD_Restart_Vars        ,ONLY: RestartTime
 USE MOD_FPFlow_Vars         ,ONLY: FP_QualityFacSamp, FP_PrandtlNumber
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_part_tools          ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -169,7 +162,6 @@ USE MOD_part_tools          ,ONLY: GetParticleWeight
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                     :: iElem, nPart, iPart, iLoop, nOutput
-REAL                        :: vBulk(1:3), partWeight, totalWeight
 INTEGER, ALLOCATABLE        :: iPartIndx_Node(:)
 !===================================================================================================================================
 DSMC_RHS = 0.0
@@ -187,23 +179,17 @@ ELSE
     nPart = PEM%pNumber(iElem)
     IF (nPart.LT.3) CYCLE
     ALLOCATE(iPartIndx_Node(nPart))
-    vBulk(1:3) = 0.0
-    totalWeight = 0.0
     iPart = PEM%pStart(iElem)
     DO iLoop = 1, nPart
-      partWeight = GetParticleWeight(iPart)
       iPartIndx_Node(iLoop) = iPart
-      vBulk(1:3)  = vBulk(1:3) + PartState(4:6,iPart) * partWeight
-      totalWeight = totalWeight + partWeight
       iPart = PEM%pNext(iPart)
     END DO
-    vBulk = vBulk / totalWeight
 
     IF(DSMC%CalcQualityFactors) THEN
       FP_MeanRelaxFactorCounter=0; FP_MeanRelaxFactor=0.; FP_MaxRelaxFactor=0.; FP_MaxRotRelaxFactor=0.; FP_PrandtlNumber=0.
     END IF
 
-    CALL FP_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
+    CALL FP_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem))
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
