@@ -41,10 +41,11 @@ SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, AveragingPar
 !> 2.) Calculation of the relaxation frequency of the distribution function towards the target distribution function
 !> 3.) Treatment of molecules: determination of the rotational and vibrational relaxation frequency
 !> 4.) Determine the number of particles undergoing a relaxation (including vibration and rotation)
-!> 5.) Sample new particle velocities from the target distribution function, depending on the chosen model
-!> 6.) Determine the new bulk velocity and the new relative velocity of the particles
-!> 7.) Treatment of the vibrational energy of molecules
-!> 8.) Determine the new DSMC_RHS (for molecules, including rotational energy)
+!> 5.) Determine the new rotational and vibrational state of molecules undergoing a relaxation
+!> 6.) Sample new particle velocities from the target distribution function, depending on the chosen model
+!> 7.) Determine the new bulk velocity and the new relative velocity of the particles
+!> 8.) Treatment of the vibrational energy of molecules
+!> 9.) Determine the new DSMC_RHS (for molecules, including rotational energy)
 !> 9.) Scaling of the rotational energy of molecules
 !===================================================================================================================================
 ! MODULES
@@ -53,7 +54,7 @@ USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, SpecDSMC, DSMC, PartStateIntEn, P
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_BGK_Vars              ,ONLY: SpecBGK, BGKMovingAverageLength, BGKDoVibRelaxation
 USE MOD_BGK_Vars              ,ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor
-USE MOD_BGK_Vars              ,ONLY: BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber, BGKMixtureModel
+USE MOD_BGK_Vars              ,ONLY: BGK_PrandtlNumber
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 #ifdef CODE_ANALYZE
 USE MOD_Globals               ,ONLY: abort,unit_stdout,myrank
@@ -72,11 +73,11 @@ INTEGER, INTENT(INOUT), OPTIONAL        :: CorrectStep
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: vBulk(3), u0ij(3,3), u2, V_rel(3), dtCell
-REAL                  :: alpha, CellTemp, dens, InnerDOF, iRan, NewEn, OldEn, Prandtl, relaxfreq, TEqui
+REAL                  :: alpha, CellTemp, dens, InnerDOF, NewEn, OldEn, Prandtl, relaxfreq, TEqui
 INTEGER, ALLOCATABLE  :: iPartIndx_NodeRelax(:),iPartIndx_NodeRelaxTemp(:),iPartIndx_NodeRelaxRot(:),iPartIndx_NodeRelaxVib(:)
 INTEGER               :: iLoop, nRelax, iPolyatMole
 REAL, ALLOCATABLE     :: Xi_vib_DOF(:), VibEnergyDOF(:,:)
-INTEGER               :: nNotRelax, iSpec, nSpec(nSpecies), jSpec, nRotRelax, nVibRelax
+INTEGER               :: iSpec, nSpec(nSpecies), jSpec, nRotRelax, nVibRelax
 REAL                  :: OldEnRot, NewEnRot, NewEnVib
 REAL                  :: vBulkSpec(1:3, nSpecies), TotalMass, u2Spec(nSpecies), u2i(3), vBulkAll(3)
 REAL                  :: SpecTemp(nSpecies)
@@ -109,6 +110,7 @@ END DO
 
 IF(nPart.LE.2) RETURN
 
+! 1.) Moment calculation: Summing up the relative velocities and their squares
 CALL CalcMoments(nPart, iPartIndx_Node, nSpec, vBulkSpec, vBulkAll, totalWeight, totalWeightSpec, & 
     totalWeightSpec2, TotalMass,  u2, u2Spec, u0ij, u2i, OldEn, EVibSpec, ERotSpec, CellTemp, SpecTemp, dtCell)
 IF((CellTemp.LE.0).OR.(MAXVAL(nSpec(:)).EQ.1).OR.(totalWeight.LE.0.0)) RETURN
@@ -140,6 +142,7 @@ END IF
 CALL CalcInnerDOFs(nSpec, EVibSpec, ERotSpec, totalWeightSpec, TVibSpec, TRotSpec, InnerDOF, Xi_VibSpec, Xi_Vib_oldSpec & 
     ,Xi_RotSpec)
 
+! 2.) Calculation of the relaxation frequency of the distribution function towards the target distribution function
 CALL CalcGasProperties(nSpec, dens, InnerDOF, totalWeightSpec, totalWeight, TotalMass, u2Spec, u0ij, u2, SpecTemp, CellTemp, &
     Xi_VibSpec, Xi_RotSpec, Prandtl, relaxfreq)
 
@@ -152,7 +155,6 @@ END IF
 
 ! 3.) Treatment of molecules: determination of the rotational and vibrational relaxation frequency using the collision frequency,
 !     which is not the same as the relaxation frequency of distribution function, calculated above.
-! should be changed again, atom-atom doesnt count
 IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
   collisionfreqSpec = 0.0
   DO iSpec = 1, nSpecies
@@ -183,7 +185,7 @@ IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
   END IF
 END IF
 
-vBulk(1:3) = 0.0; nRelax = 0; nNotRelax = 0; nRotRelax = 0; nVibRelax = 0
+! 4.) Determine the number of particles undergoing a relaxation (including vibration and rotation)
 ALLOCATE(iPartIndx_NodeRelax(nPart), iPartIndx_NodeRelaxTemp(nPart))
 iPartIndx_NodeRelax = 0; iPartIndx_NodeRelaxTemp = 0
 ALLOCATE(iPartIndx_NodeRelaxRot(nPart),iPartIndx_NodeRelaxVib(nPart))
@@ -199,10 +201,11 @@ IF(BGKDoVibRelaxation) THEN
      ALLOCATE(VibEnergyDOF(nVibRelax,PolyatomMolDSMC(iPolyatMole)%VibDOF))
    END IF
 END IF
+! 5.) Determine the new rotational and vibrational state of molecules undergoing a relaxation
 CALL RelaxInnerEnergy(nVibRelax, nRotRelax, iPartIndx_NodeRelaxVib, iPartIndx_NodeRelaxRot, Xi_vib_DOF, Xi_VibSpec, &
     Xi_RotSpec , TEqui, VibEnergyDOF, NewEnVib, NewEnRot)
 
-! 5.) Sample new particle velocities from the target distribution function, depending on the chosen model
+! 6.) Sample new particle velocities from the target distribution function, depending on the chosen model
 CALL SampleFromTargetDistr(nRelax, ipartindx_noderelax, Prandtl, u2, u0ij, u2i, vBulkAll, CellTemp, vBulk)
 
 NewEn = 0.
@@ -220,16 +223,14 @@ DO iLoop = 1, nPart-nRelax
   NewEn = NewEn + (V_rel(1)**(2.) + V_rel(2)**(2.) + V_rel(3)**(2.))*0.5*Species(iSpec)%MassIC*partWeight
 END DO
 
-! 7.) Vibrational energy of the molecules: Determine the new state (either quantized or continuous) and ensure energy conservation
-!     by scaling the new vibrational states with the factor alpha
+! 7.) Vibrational energy of the molecules: Ensure energy conservation by scaling the new vibrational states with the factor alpha
 IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
   CALL EnergyConsVib(nPart, nVibRelax, nVibRelaxSpec, iPartIndx_NodeRelaxVib, NewEnVib, OldEn, Xi_VibSpec, VibEnergyDOF, TEqui)
 END IF
 
 OldEn = OldEn + OldEnRot
-! 8.) Determine the new particle state (for molecules including rotational energy) and ensure energy conservation by scaling the new
-!     velocities with the factor alpha. The actual update of particle velocity happens in the TimeDisc through the change in the
-!     velocity (DSMC_RHS), to enable an easier coupling with existing routines and DSMC)
+! 8.) Determine the new particle state and ensure energy conservation by scaling the new velocities with the factor alpha.
+!     The actual update of particle velocity happens in the TimeDisc through the change in the velocity (DSMC_RHS)
 Xi_RotTotal = 0.0
 DO iSpec = 1, nSpecies
   Xi_RotTotal = Xi_RotTotal + Xi_RotSpec(iSpec)*nRotRelaxSpec(iSpec)
@@ -312,7 +313,7 @@ END SUBROUTINE BGK_CollisionOperator
 SUBROUTINE CalcMoments(nPart, iPartIndx_Node, nSpec, vBulkSpec, vBulkAll, totalWeight, totalWeightSpec, & 
     totalWeightSpec2, TotalMass,  u2, u2Spec, u0ij, u2i, OldEn, EVibSpec, ERotSpec, CellTemp, SpecTemp, dtCell)
 !===================================================================================================================================
-!> description
+!> Moment calculation: Summing up the relative velocities and their squares
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, VarTimeStep
@@ -428,7 +429,7 @@ END SUBROUTINE CalcMoments
 SUBROUTINE CalcInnerDOFs(nSpec, EVibSpec, ERotSpec, totalWeightSpec, TVibSpec, TRotSpec, InnerDOF, Xi_VibSpec, Xi_Vib_oldSpec & 
     ,Xi_RotSpec)
 !===================================================================================================================================
-!> description
+!> Determine the internal degrees of freedom and the respective temperature (rotation/vibration) for diatomic/polyatomic species
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: nSpecies
@@ -484,7 +485,7 @@ END SUBROUTINE CalcInnerDOFs
 SUBROUTINE CalcGasProperties(nSpec, dens, InnerDOF, totalWeightSpec, totalWeight, TotalMass, u2Spec, u0ij, u2, SpecTemp, CellTemp, &
     Xi_VibSpec, Xi_RotSpec, Prandtl, relaxfreq)
 !===================================================================================================================================
-!> description
+!> Calculate the reference dynamic viscosity, Prandtl number and the resulting relaxation frequency of the distribution function
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies
@@ -523,16 +524,14 @@ IF (nSpecies.GT.1) THEN
   END DO
 
   IF (BGKMixtureModel.EQ.1) THEN
-    !temp bei sehr wenig partikeln!!!!
-    ! 2.) Calculate the reference dynamic viscosity, Prandtl number and the resulting relaxation frequency of the distribution function
     DO iSpec = 1, nSpecies
       IF ((nSpec(iSpec).GE.2).AND.(.NOT.ALMOSTZERO(u2Spec(iSpec)))) THEN
-        ! Species temperature
+        ! Species temperature: Sufficient number of particles per species
         dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*CollInf%Tref(iSpec,iSpec)/Pi) &
               /(4.*(4.- 2.*CollInf%omega(iSpec,iSpec)) * (6. - 2.*CollInf%omega(iSpec,iSpec))* CollInf%dref(iSpec,iSpec)**(2.) &
               *CollInf%Tref(iSpec,iSpec)**(CollInf%omega(iSpec,iSpec) + 0.5)*SpecTemp(iSpec)**(-CollInf%omega(iSpec,iSpec) - 0.5))
       ELSE
-        ! Cell temperature
+        ! Cell temperature: Low particle number case
         dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*CollInf%Tref(iSpec,iSpec)/Pi) &
               /(4.*(4.- 2.*CollInf%omega(iSpec,iSpec)) * (6. - 2.*CollInf%omega(iSpec,iSpec))* CollInf%dref(iSpec,iSpec)**(2.) &
               *CollInf%Tref(iSpec,iSpec)**(CollInf%omega(iSpec,iSpec) + 0.5)*CellTemp**(-CollInf%omega(iSpec,iSpec) - 0.5))
@@ -614,7 +613,7 @@ SUBROUTINE DetermineRelaxPart(nPart, iPartIndx_Node, relaxfreq, dtCell, RotExpSp
     nRotRelaxSpec, nVibRelaxSpec, iPartIndx_NodeRelax, iPartIndx_NodeRelaxTemp, iPartIndx_NodeRelaxRot, &
     iPartIndx_NodeRelaxVib, vBulk, OldEnRot, OldEn)
 !===================================================================================================================================
-!> description
+!> Determine the number of particles undergoing a relaxation (including vibration and rotation)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: Species, PartSpecies, PartState, nSpecies
@@ -632,7 +631,10 @@ REAL, INTENT(IN)              :: relaxfreq, dtCell, RotExpSpec(nSpecies), VibExp
 INTEGER, INTENT(OUT)          :: nRelax, iPartIndx_NodeRelax(nPart), iPartIndx_NodeRelaxTemp(nPart)
 INTEGER, INTENT(OUT)          :: iPartIndx_NodeRelaxRot(nPart), iPartIndx_NodeRelaxVib(nPart)
 INTEGER, INTENT(OUT)          :: nRotRelax, nVibRelax, nRotRelaxSpec(nSpecies), nVibRelaxSpec(nSpecies)
-REAL, INTENT(INOUT)           :: vBulk(3), OldEnRot, OldEn
+REAL, INTENT(OUT)             :: vBulk(3), OldEnRot
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT-OUTPUT VARIABLES
+REAL, INTENT(INOUT)           :: OldEn
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: nNotRelax, iSpec, iLoop
@@ -680,7 +682,7 @@ END SUBROUTINE DetermineRelaxPart
 SUBROUTINE RelaxInnerEnergy(nVibRelax, nRotRelax, iPartIndx_NodeRelaxVib, iPartIndx_NodeRelaxRot, Xi_vib_DOF, Xi_VibSpec, &
     Xi_RotSpec , TEqui, VibEnergyDOF, NewEnVib, NewEnRot)
 !===================================================================================================================================
-!> description
+!> Determine the new rotational and vibrational energy of relaxing particles
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies
@@ -703,7 +705,7 @@ REAL, INTENT(OUT)             :: VibEnergyDOF(:,:)
 INTEGER                       :: iLoop, iDOF, iPolyatMole, iSpec
 REAL                          :: partWeight, iRan
 !===================================================================================================================================
-!! VIB RElaxation
+! VIB Relaxation
 NewEnVib = 0.0; NewEnRot=0.0
 IF(BGKDoVibRelaxation) THEN
   DO iLoop = 1, nVibRelax
@@ -724,7 +726,7 @@ IF(BGKDoVibRelaxation) THEN
     NewEnVib = NewEnVib + PartStateIntEn(1,iPartIndx_NodeRelaxVib(iLoop)) * partWeight
   END DO
 END IF
-!! ROT Relaxation
+! ROT Relaxation
 DO iLoop = 1, nRotRelax
   iSpec = PartSpecies(iPartIndx_NodeRelaxRot(iLoop)) 
   partWeight = GetParticleWeight(iPartIndx_NodeRelaxRot(iLoop))
@@ -737,7 +739,7 @@ END SUBROUTINE RelaxInnerEnergy
 
 SUBROUTINE SampleFromTargetDistr(nRelax, ipartindx_noderelax, Prandtl, u2, u0ij, u2i, vBulkAll, CellTemp, vBulk)
 !===================================================================================================================================
-!> description
+!> Sample new particle velocities from the target distribution function, depending on the chosen model
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species
@@ -854,7 +856,7 @@ END SUBROUTINE SampleFromTargetDistr
 
 SUBROUTINE EnergyConsVib(nPart, nVibRelax, nVibRelaxSpec, iPartIndx_NodeRelaxVib, NewEnVib, OldEn, Xi_VibSpec, VibEnergyDOF, TEqui)
 !===================================================================================================================================
-!> description
+!> Routine to ensure energy conservation when including vibrational degrees of freedom (continuous and quantized)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies
@@ -966,9 +968,8 @@ SUBROUTINE ARGrads13(nPart, iRanPart, Vtherm, HeatVec, PressTens)
 !===================================================================================================================================
 ! MODULES
 USE Ziggurat
-USE MOD_Globals_Vars,           ONLY : BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: nPart
@@ -1040,9 +1041,8 @@ SUBROUTINE ARChapEnsk(nPart, iRanPart, Vtherm, HeatVec, PressTens)
 !===================================================================================================================================
 ! MODULES
 USE Ziggurat
-USE MOD_Globals_Vars,           ONLY : BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: nPart
@@ -1053,7 +1053,7 @@ REAL, INTENT(OUT)             :: iRanPart(:,:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                           :: Vheat, V2, iRan, OldProb, Envelope, Envelope2, cMat, cPress
-INTEGER                        :: iPart, fillMa1, fillMa2
+INTEGER                        :: iPart
 !===================================================================================================================================
 Envelope = MAX(ABS(HeatVec(1)),ABS(HeatVec(2)),ABS(HeatVec(3)))/Vtherm**(3./2.)
 Envelope2 = MAX(ABS(PressTens(1,2)),ABS(PressTens(1,3)),ABS(PressTens(2,3)))/Vtherm
@@ -1612,11 +1612,12 @@ END SUBROUTINE CalcTEquiPoly
 
 SUBROUTINE CalcViscosityThermalCondColIntVHS(CellTemp, Xi, dens, Visc, ThermalCond)
 !===================================================================================================================================
-! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
+!> Determination of the mixture viscosity and thermal conductivity using collision integrals (derived for the Variable Hard
+!> Sphere model). Solving an equation system depending on the number of species.
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,              ONLY : SpecDSMC, CollInf
-USE MOD_Globals_Vars,           ONLY : BoltzmannConst, Pi
+USE MOD_DSMC_Vars,              ONLY : CollInf
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst
 USE MOD_Particle_Vars,          ONLY : Species, nSpecies
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1715,7 +1716,7 @@ END SUBROUTINE CalcViscosityThermalCondColIntVHS
 
 SUBROUTINE CalcSigma_11VHS(CellTemp,Dref,Mass,Tref, omegaVHS, Sigma_11)
 !===================================================================================================================================
-!> Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
+!> 
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
@@ -1738,7 +1739,7 @@ END SUBROUTINE CalcSigma_11VHS
 
 REAL FUNCTION CalcSigma_22VHS(CellTemp,Dref,Mass,Tref, omegaVHS)
 !===================================================================================================================================
-!> Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
+!> 
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
