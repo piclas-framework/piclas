@@ -50,11 +50,12 @@ For extra packages install EPEL and SCL
 |        gcc       |       x      |
 |      gcc-c++     |       x      |
 |      zlib1g      |       x      |
+|   zlib1g-devel   |       o      |
 |  exuberant-ctags |       o      |
-|  numactl-devel   |       x      |
+|   numactl-devel  |       x      |
 |  rdma-core-devel |       o      |
 
-Table: Debian/Ubuntu packages.\label{tab:installation_prereqs_ubuntu}
+Table: Centos packages.\label{tab:installation_prereqs_ubuntu}
 x: required, o: optional, -: not available
 
 On some systems it may be necessary to increase the size of the stack (part of the memory used to store information about active subroutines) in order to execute **PICLas** correctly. This is done using the command
@@ -63,9 +64,19 @@ On some systems it may be necessary to increase the size of the stack (part of t
 
 from the command line. For convenience, you can add this line to your `.bashrc`.
 
+### Installing/setting up GCC \label{sec:install_gcc}
+
+Additional packages are required starting at specific versions of the GCC compiler suite.
+
+|    GCC Version   | Ubuntu 20.04 (and older) |
+| :--------------: |       :----------:       |
+|       9.3.0      |        libmpfr-dev       |
+|                  |        libmpc-dev        |
+
+
 ### Installing/setting up OpenMPI \label{sec:install_mpi}
 
-PICLas requires an installtion of MPI with properly setup environment variables for parallel computations. The recommended MPI version to use with PICLas is *OpenMPI 2.1.5*. An example of properly set environment variable are given below
+PICLas requires the installation of MPI with properly setup environment variables for parallel computations. The recommended MPI version to use with PICLas is *OpenMPI 2.1.5*. An example of properly set environment variable are given below
 
     export MPI_DIR=/opt/openmpi/2.1.5
     export PATH="/opt/openmpi/2.1.5/bin:$PATH"
