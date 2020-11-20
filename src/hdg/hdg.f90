@@ -462,13 +462,11 @@ DO iVar = 1, PP_nVar
       END DO; END DO !p,q
     CASE(5) ! exact BC = Dirichlet BC !!
 !print*,"BCType=",BCType,"    BCsideID=",BCsideID,"     IniExactFunc",IniExactFunc
-!read*
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
         CALL ExactFunc(BCState,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t)
 !print*,"t=",t,"r=",r,"BCState=",BCState,"Face_xGP(:,p,q,SideID)=",Face_xGP(:,p,q,SideID)
 !print*,lambda(iVar,r:r,SideID)
-!read*
        !lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
       END DO; END DO !p,q
     END SELECT ! BCType
@@ -1019,7 +1017,6 @@ INTEGER                         :: VecSize
 
   CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V
 !  print*, Norm_R2
-!  read*
 #if USE_MPI
   IF(MPIroot) converged=(Norm_R2.LT.EpsNonLinear**2)
   CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)

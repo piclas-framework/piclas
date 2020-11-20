@@ -1311,8 +1311,9 @@ where $f^t$ is the target distribution function and $\nu$ the relaxation frequen
 
 The current implementation supports:
 
-- 4 different methods (i.e. different target distribution functions): Ellipsoidal Statistical, Shakov, standard BGK, and Unified
-- Single species, monoatomic and polyatomic gases
+- 3 different methods (i.e. different target distribution functions): Ellipsoidal Statistical, Shakov, and standard BGK
+- Single species, monatomic and polyatomic gases
+- Multi species, monatomic and diatomic gas mixtures
 - Thermal non-equilibrium with rotational and vibrational excitation (continuous or quantized treatment)
 - 2D/Axisymmetric simulations
 - Variable time step (adaption of the distribution according to the maximal relaxation factor and linear scaling)
@@ -1323,16 +1324,21 @@ Relevant publications of the developers:
 - Extension of the modelling to diatomic species including quantized vibrational energy treatment, validation of ESBGK with the Mach 20 hypersonic flow measurements of the heat flux on a $70^\circ$ cone [@Pfeiffer2018b]
 - Simulation of a nozzle expansion (including the pressure chamber) with ESBGK, SBGK and coupled ESBGK-DSMC, comparison to experimental measurements [@Pfeiffer2019a],[@Pfeiffer2019b]
 - Extension to polyatomic molecules, simulation of the carbon dioxide hypersonic flow around a flat-faced cylinder, comparison of ESBGK, SBGK and DSMC regarding the shock structure and heat flux [@Pfeiffer2019c]
+- Implemention of Brull's multi-species modelling using Wilke's mixture rules and collision integrals for the calculation of transport coefficients (under review)
 
 To enable the simulation with the BGK module, the respective compiler setting has to be activated:
 
     PICLAS_TIMEDISCMETHOD = BGK-Flow
 
-A parameter file and species initialization file is required, analogous to the DSMC setup. To enable the simulation with the BGK methods, select the BGK method, ES (`=1`), Shakov (`=2`), Standard BGK (`=3`), and Unified (`=4`):
+A parameter file and species initialization file is required, analogous to the DSMC setup. To enable the simulation with the BGK methods, select the BGK method, ES (`= 1`), Shakov (`= 2`), and standard BGK (`= 3`):
 
     Particles-BGK-CollModel = 1
 
-The **recommended method is ESBGK**. The vibrational excitation can be controlled with the following flags, including the choice between continuous and quantized vibrational energy:
+The **recommended method is ESBGK**. If the simulation contains a gas mixture, a choice for the determination of the transport coefficients is available. The first model uses Wilke's mixture rules (`= 1`) to calculate the gas mixture viscosity and thermal conductivity. The second model utilizes collision integrals (derived for the VHS model, `= 2`) to calculate these mixture properties. While both allow mixtures with three or more components, only the implementation of Wilke's mixing rules allows diatomic molecules.
+
+    Particles-BGK-MixtureModel    = 1
+
+The vibrational excitation can be controlled with the following flags, including the choice between continuous and quantized vibrational energy. Quantized vibrational energy levels are currently only available for the single-species implementation.
 
     Particles-BGK-DoVibRelaxation = T
     Particles-BGK-UseQuantVibEn   = T
@@ -1342,7 +1348,7 @@ An octree cell refinement until the given number of particles is reached can be 
     Particles-BGK-DoCellAdaptation = T
     Particles-BGK-MinPartsPerCell  = 10
 
-It is recommended to utilize at least between 7 and 10 particles per (sub)cell. To enable the cell refinement above certain number density, the following option can be utilized
+It is recommended to utilize at least between 7 and 10 particles per (sub)cell. To enable the cell refinement above a certain number density, the following option can be utilized
 
     Particles-BGK-SplittingDens = 1E23
 
@@ -1357,7 +1363,7 @@ $$ \frac{\Delta t}{\tau} < 1,$$
 
 where $\Delta t$ is the chosen time step and $1/\tau$ the relaxation frequency. The time step should be chosen as such that the relaxation factors are below unity. The `BGK_DSMC_Ratio` gives the percentage of the sampled time during which the BGK model was utilized. In a couple BGK-DSMC simulation this variable indicates the boundary between BGK and DSMC. However, a value below 1 can occur for pure BGK simulations due to low particle numbers, when an element is skipped.
 
-An option is available to utilize a moving average for the variables used in the calculation of the relaxation frequency:
+<!-- An option is available to utilize a moving average for the variables used in the calculation of the relaxation frequency:
 
     Particles-BGK-MovingAverage = T
 
@@ -1365,7 +1371,7 @@ The purpose is to increase the sample size for steady gas flows. An extension of
 
     Particles-BGK-MovingAverageLength = 100
 
-Although this feature was tested with a hypersonic flow around a $70^\circ$ blunted cone and a nozzle expansion, a clear advantage could not be observed, however, it might reduce the statistical noise for other application cases.
+Although this feature was tested with a hypersonic flow around a $70^\circ$ blunted cone and a nozzle expansion, a clear advantage could not be observed, however, it might reduce the statistical noise for other application cases. -->
 
 ## Macroscopic Bodies
 

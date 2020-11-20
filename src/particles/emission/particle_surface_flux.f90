@@ -2014,7 +2014,7 @@ __STAMP__&
                 = CalcVarTimeStep(PartState(1,ParticleIndexNbr),PartState(2,ParticleIndexNbr),PEM%Element(ParticleIndexNbr))
             END IF
             IF (RadialWeighting%DoRadialWeighting) THEN
-              PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), 1,ParticleIndexNbr)
+              PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), iSpec,ParticleIndexNbr)
             END IF
             IF(CalcMassflowRate) THEN
               Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow &

@@ -3038,10 +3038,6 @@ REAL, INTENT(OUT)         :: ProbVib
 ! LOCAL VARIABLES
 REAL                      :: TempCorr, cRela
 !===================================================================================================================================
-  ! (i) dref changed from   DrefVHS = 0.5 * (SpecDSMC(iSpec)%DrefVHS + SpecDSMC(jSpec)%DrefVHS)
-  !                  to   dref(iSpec,jSpec) which is identical to old definition (for averagedCollisionParameters=TRUE (DEFAULT))
-  ! in case of averagedCollisionParameter=FALSE dref(iSpec,jSpec) contains collision specific dref see --help for details
-
   ! P_vib according to Boyd, corrected by Abe, only V-T transfer
   ! determine joint omega and Dref factor and rel velo
   cRela=SQRT(Coll_pData(iPair)%cRela2)

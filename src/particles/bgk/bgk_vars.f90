@@ -30,14 +30,13 @@ END TYPE tSpeciesBGK
 
 TYPE(tSpeciesBGK), ALLOCATABLE                 :: SpecBGK(:)                  ! Species DSMC params (nSpec)
 LOGICAL                                        :: DoBGKCellAdaptation
-INTEGER                                        :: BGKCollModel                  ! 1 ES-BGK; 2 S-BGK; 3 BGK; 4 Unified
-INTEGER                                        :: ESBGKModel                    ! 1 Approx Levin; 2 Exact Solution A; 3 Metropolis
-REAL                                           :: BGKUnifiedCes
+INTEGER                                        :: BGKCollModel                  ! 1 ES-BGK; 2 S-BGK; 3 BGK
+INTEGER                                        :: ESBGKModel                    ! 1 Approx; 2 Exact Solution A; 3 Metropolis
+INTEGER                                        :: BGKMixtureModel                    ! 1 Approx; 2 Exact Solution A; 3 Metropolis
 INTEGER                                        :: BGKMinPartPerCell
 LOGICAL                                        :: BGKMovingAverage
 INTEGER                                        :: BGKMovingAverageLength
 LOGICAL                                        :: BGKUseQuantVibEn
-INTEGER                                        :: SBGKEnergyConsMethod
 LOGICAL                                        :: BGKDoVibRelaxation
 REAL                                           :: BGKSplittingDens
 REAL                                           :: BGKDSMCSwitchDens
@@ -47,6 +46,8 @@ INTEGER                                        :: BGK_MeanRelaxFactorCounter
 REAL                                           :: BGK_MeanRelaxFactor
 REAL                                           :: BGK_MaxRelaxFactor
 REAL                                           :: BGK_MaxRotRelaxFactor
+REAL                                           :: BGK_PrandtlNumber
+REAL                                           :: BGK_ExpectedPrandtlNumber
 
 TYPE tElemNodeAveraging
     TYPE (tNodeAverage), POINTER               :: Root => null()
