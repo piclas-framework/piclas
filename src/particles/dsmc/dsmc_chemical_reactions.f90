@@ -409,7 +409,7 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac, iPart_p3)
 ! Routine performs an exchange reaction of the type A + B + C -> D + E + F, where A, B, C, D, E, F can be anything
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: abort
+USE MOD_Globals          
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles, ElectronicDistriPart
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas
 USE MOD_DSMC_Vars              ,ONLY: AmbipolElecVelo
@@ -1443,7 +1443,7 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
       END DO
     END DO
     IF (ChemReac%QKProcedure(iReac)) THEN
-      expVal = MAX(maxexp,ActivationEnergy_K/LocalTemp)
+      expVal = MIN(maxexp,ActivationEnergy_K/LocalTemp)
       BackwardRate = CalcQKAnalyticRate(iReac,LocalTemp)*(PartFuncProduct(1)/PartFuncProduct(2))*EXP(expVal)
     ELSE
       BackwardRate = ChemReac%Arrhenius_Prefactor(iReac)  &
@@ -1463,7 +1463,7 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
     END DO
     IF((PartFuncProduct(1).NE.0.).AND.(PartFuncProduct(2).NE.0.)) THEN
       IF (ChemReac%QKProcedure(iReac)) THEN
-        expVal = MAX(maxexp,ActivationEnergy_K/(LowerLevel * DSMC%PartitionInterval))
+        expVal = MIN(maxexp,ActivationEnergy_K/(LowerLevel * DSMC%PartitionInterval))
         k_b_lower = QKAnalytic(iReac)%ForwardRate(LowerLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) * EXP(expVal)
       ELSE
         k_b_lower = ChemReac%Arrhenius_Prefactor(iReac)  &
@@ -1485,7 +1485,7 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
     END DO
     IF((PartFuncProduct(1).NE.0.).AND.(PartFuncProduct(2).NE.0.)) THEN
       IF (ChemReac%QKProcedure(iReac)) THEN
-        expVal = MAX(maxexp,ActivationEnergy_K/(UpperLevel * DSMC%PartitionInterval))
+        expVal = MIN(maxexp,ActivationEnergy_K/(UpperLevel * DSMC%PartitionInterval))
         k_b_upper = QKAnalytic(iReac)%ForwardRate(UpperLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) * EXP(expVal)
       ELSE
         k_b_upper = ChemReac%Arrhenius_Prefactor(iReac) &

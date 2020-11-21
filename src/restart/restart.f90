@@ -1119,7 +1119,7 @@ IF(DoRestart)THEN
         END IF
         IF(useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
           ALLOCATE(SendBuffElec(1:CounterElec))
-          ALLOCATE(RecBuffPoly(1:SUM(LostPartsElec)))
+          ALLOCATE(RecBuffElec(1:SUM(LostPartsElec)))
         END IF
         IF(useDSMC.AND.DSMC%DoAmbipolarDiff) THEN
           ALLOCATE(SendBuffAmbi(1:CounterAmbi))

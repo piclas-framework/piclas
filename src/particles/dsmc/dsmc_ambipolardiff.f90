@@ -81,6 +81,7 @@ MinPos = HUGE(MinPos)
 iNewPart=0
 PositionNbr = 0
 nNewElectrons = 0
+!IF ( PEM%GlobalElemID(iPartIndx_Node(1)).EQ.1882) IPWRITE(*,*) 'ne tree!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
 DO iLoop = 1, nPart
   iPart = iPartIndx_Node(iLoop)
   MaxPos(1) = MAX(MaxPos(1),PartState(1,iPart))
@@ -89,8 +90,9 @@ DO iLoop = 1, nPart
   MinPos(1) = MIN(MinPos(1),PartState(1,iPart))
   MinPos(2) = MIN(MinPos(2),PartState(2,iPart))
   MinPos(3) = MIN(MinPos(3),PartState(3,iPart))
+  AmbipolElecVelo(iPart)%IsCoupled = .FALSE.
+!  IF ( PEM%GlobalElemID(iPart).EQ.1882) IPWRITE(*,*) 'set in', iPart, PartSpecies(iPart), Species(PartSpecies(iPart))%ChargeIC, AmbipolElecVelo(iPart)%IsCoupled
   IF(Species(PartSpecies(iPart))%ChargeIC.GT.0.0) THEN
-    AmbipolElecVelo(iPart)%IsCoupled = .FALSE.
     nNewElectrons = nNewElectrons + 1
     IonIndX(nNewElectrons) = iPart
   END IF
@@ -114,6 +116,7 @@ __STAMP__&
   PEM%GlobalElemID(PositionNbr) = PEM%GlobalElemID(iPartIndx_Node(1))
   PDM%ParticleInside(PositionNbr) = .true.
   PartState(4:6,PositionNbr) = AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(1:3)
+!  IF ( PEM%GlobalElemID(iPart).EQ.1882) IPWRITE(*,*) 'set in Electrons', IonIndX(iLoop), PositionNbr,AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(1:3), PartState(4:6,IonIndX(iLoop)) 
   IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
     PartStateIntEn( 1,PositionNbr) = 0.
     PartStateIntEn( 2,PositionNbr) = 0.
@@ -136,7 +139,7 @@ SUBROUTINE AD_DeleteParticles(iPartIndx_Node, nPart)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PARTICLE_Vars,      ONLY : PDM, PartSpecies, Species, PartState
+USE MOD_PARTICLE_Vars,      ONLY : PDM, PartSpecies, Species, PartState, PEM
 USE MOD_Particle_Analyze,   ONLY : PARTISELECTRON
 USE MOD_DSMC_Vars,          ONLY : AmbipolElecVelo
 ! IMPLICIT VARIABLE HANDLING
@@ -169,6 +172,11 @@ DO iLoop = 1, nPart
 END DO
 
 IF(nIon.NE.nElectron) THEN
+  IPWRITE(*,*) 'nPart', nPart
+  DO iLoop = 1, nPart
+    iPart = iPartIndx_Node(iLoop)
+    IPWRITE(*,*) 'inside', iPart, PDM%ParticleInside(iPart), PartSpecies(iPart), Species(PartSpecies(iPart))%ChargeIC, AmbipolElecVelo(iPart)%IsCoupled, PEM%GlobalElemID(iPart)
+  END DO
   CALL abort(__STAMP__&
       ,'ERROR: Number of electrons and ions is not equal for ambipolar diffusion: ' &
       ,IntInfoOpt=nIon-nElectron)
