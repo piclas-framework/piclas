@@ -357,6 +357,7 @@ USE MOD_DSMC_PolyAtomicModel  ,ONLY: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
 USE MOD_DSMC_Relaxation       ,ONLY: DSMC_VibRelaxDiatomic
 USE MOD_DSMC_CollisVec        ,ONLY: PostCollVec
 USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_Particle_Analyze      ,ONLY: PARTISELECTRON
 #ifdef CODE_ANALYZE
 USE MOD_Globals               ,ONLY: Abort
 USE MOD_Globals               ,ONLY: unit_stdout,myrank
@@ -636,6 +637,19 @@ REAL                          :: Weight1, Weight2, NumWeightEduct, NumWeightProd
   DSMC_RHS(1,iPart2) = VeloMx - FracMassCent1*cRelaNew(1) - PartState(4,iPart2)
   DSMC_RHS(2,iPart2) = VeloMy - FracMassCent1*cRelaNew(2) - PartState(5,iPart2)
   DSMC_RHS(3,iPart2) = VeloMz - FracMassCent1*cRelaNew(3) - PartState(6,iPart2)
+
+  IF (DSMC%DoAmbipolarDiff) THEN
+    IF (PARTISELECTRON(iPart1)) THEN
+      PartState(4,iPart1) = VeloMx + FracMassCent2*cRelaNew(1)
+      PartState(5,iPart1) = VeloMy + FracMassCent2*cRelaNew(2)
+      PartState(6,iPart1) = VeloMz + FracMassCent2*cRelaNew(3)
+    END IF
+    IF (PARTISELECTRON(iPart2)) THEN
+      PartState(4,iPart2) = VeloMx - FracMassCent1*cRelaNew(1)
+      PartState(5,iPart2) = VeloMy - FracMassCent1*cRelaNew(2)
+      PartState(6,iPart2) = VeloMz - FracMassCent1*cRelaNew(3)
+    END IF
+  END IF
 #ifdef CODE_ANALYZE
   Energy_new= 0.5*Species(PartSpecies(iPart2))%MassIC*((VeloMx - FracMassCent1*cRelaNew(1))**2 &
                                                      + (VeloMy - FracMassCent1*cRelaNew(2))**2 &
@@ -689,6 +703,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly, DSMC_VibRelaxPolySingle
   USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
   USE MOD_DSMC_CollisVec,         ONLY : PostCollVec
+  USE MOD_Particle_Analyze       ,ONLY: PARTISELECTRON
 #ifdef CODE_ANALYZE
   USE MOD_Globals                ,ONLY : unit_stdout,myrank
   USE MOD_Particle_Vars          ,ONLY : Species
@@ -976,6 +991,19 @@ __STAMP__&
   DSMC_RHS(1,iPart2) = VeloMx - FracMassCent1*cRelaNew(1) - PartState(4,iPart2)
   DSMC_RHS(2,iPart2) = VeloMy - FracMassCent1*cRelaNew(2) - PartState(5,iPart2)
   DSMC_RHS(3,iPart2) = VeloMz - FracMassCent1*cRelaNew(3) - PartState(6,iPart2)
+
+  IF (DSMC%DoAmbipolarDiff) THEN
+    IF (PARTISELECTRON(iPart1)) THEN
+      PartState(4,iPart1) = VeloMx + FracMassCent2*cRelaNew(1)
+      PartState(5,iPart1) = VeloMy + FracMassCent2*cRelaNew(2)
+      PartState(6,iPart1) = VeloMz + FracMassCent2*cRelaNew(3)
+    END IF
+    IF (PARTISELECTRON(iPart2)) THEN
+      PartState(4,iPart2) = VeloMx - FracMassCent1*cRelaNew(1)
+      PartState(5,iPart2) = VeloMy - FracMassCent1*cRelaNew(2)
+      PartState(6,iPart2) = VeloMz - FracMassCent1*cRelaNew(3)
+    END IF
+  END IF
 #ifdef CODE_ANALYZE
   Energy_new= 0.5*Species(PartSpecies(iPart2))%MassIC*((VeloMx - FracMassCent1*cRelaNew(1))**2 &
                                                      + (VeloMy - FracMassCent1*cRelaNew(2))**2 &

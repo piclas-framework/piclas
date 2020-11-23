@@ -479,20 +479,7 @@ IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
         ,IntInfoOpt=SelectionProc)
   END IF
 END IF
-DSMC%DoAmbipolarDiff = GETLOGICAL('Particles-DSMC-AmbipolarDiffusion')
-IF (DSMC%DoAmbipolarDiff) THEN
-  DSMC%AmbiDiffElecSpec = 0
-  DO iSpec = 1, nSpecies
-    IF (Species(iSpec)%ChargeIC.GT.0.0) CYCLE
-    IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1) DSMC%AmbiDiffElecSpec=iSpec
-  END DO
-  IF(DSMC%AmbiDiffElecSpec.EQ.0) THEN
-    CALL abort(__STAMP__&
-        ,'ERROR: No electron species found for ambipolar diffusion: ' &
-        ,IntInfoOpt=DSMC%AmbiDiffElecSpec)
-  END IF
-  IF(.NOT.ALLOCATED(AmbipolElecVelo)) ALLOCATE(AmbipolElecVelo(PDM%maxParticleNumber))
-END IF
+
 DSMC%MergeSubcells = GETLOGICAL('Particles-DSMC-MergeSubcells','.FALSE.')
 IF(DSMC%MergeSubcells.AND.(Symmetry%Order.NE.2)) THEN
   CALL abort(__STAMP__&

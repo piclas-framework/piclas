@@ -302,62 +302,6 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi, NewPart)
       ,'Negative collision energy after electronic excitation relaxation!')
       END IF
     END IF
-
-
-
-!    IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-!      CollisionEnergy = Coll_pData(iPair)%Ec / GetParticleWeight(iPart1)
-!    ELSE
-!      CollisionEnergy = Coll_pData(iPair)%Ec
-!    END IF
-!    iSpecies = PartSpecies(iPart1)
-!    CALL RANDOM_NUMBER(iRan)  
-!    PartStateIntEn(3,iPart1) = CollisionEnergy * (1.0 - iRan**(1.0/(FakXi+0.5*DSMC%InstantTXiElec(2,iSpecies))))
-
-
-
-    
-!    iSpecies = PartSpecies(iPart1)
-
-!    TransElec = DSMC%InstantTransTemp(nSpecies + 1) 
-!    Erel = (2. - SpecDSMC(iSpecies)%omegaVHS)*BoltzmannConst*TransElec
-!    CollisionEnergy = Erel + PartStateIntEn(3,iPart1)
-
-!!    ETraRel = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart1) * GetParticleWeight(iPart1)
-!!    IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-!!      ETraRel = ETraRel / GetParticleWeight(iPart1)
-!!    END IF
-!!    print*, ETraRel, Erel
-!    CollisionEnergy = Erel + DSMC%InstantTXiElec(2,iSpecies)/2.*BoltzmannConst*DSMC%InstantTXiElec(1,iSpecies)
-
-!    iQuaMax  = 0
-!    ! Determine max electronic quant
-!    MaxElecQuant = SpecDSMC(PartSpecies(iPart1))%MaxElecQuant - 1
-!    PartStateTemp = CollisionEnergy / BoltzmannConst
-!    DO iQua = 0, MaxElecQuant
-!      IF (PartStateTemp - SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua).GT.0.) THEN
-!        gmax = gmax + SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQua) * &
-!                ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua))**FakXi 
-!        ! maximal possible Quant before term goes negative
-!      ELSE
-!        EXIT
-!      END IF
-!    END DO
-!    IF(gmax.LE.0.0) THEN
-!      PartStateIntEn(3,iPart1) = 0.0
-!      RETURN
-!    END IF
-!    PartStateIntEn(3,iPart1) = 0.0
-!    DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
-!      IF (PartStateTemp - SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua).GT.0.) THEN
-!        ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQua) * &
-!                ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua))**FakXi/gmax 
-!        PartStateIntEn(3,iPart1) = PartStateIntEn(3,iPart1) + &
-!            ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpecies)%ElectronicState(2,iQua)
-!      ELSE
-!        ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) = 0.0
-!      END IF
-!    END DO
   ELSE
     IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
       CollisionEnergy = Coll_pData(iPair)%Ec / GetParticleWeight(iPart1)

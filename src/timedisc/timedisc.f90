@@ -1114,8 +1114,8 @@ USE MOD_TimeDisc_Vars            ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals                  ,ONLY: abort
 USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
-USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry, VarTimeStep
-USE MOD_DSMC_Vars                ,ONLY: DSMC_RHS, DSMC, CollisMode
+USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry, VarTimeStep, Species, PartSpecies
+USE MOD_DSMC_Vars                ,ONLY: DSMC_RHS, DSMC, CollisMode, AmbipolElecVelo
 USE MOD_DSMC                     ,ONLY: DSMC_main
 USE MOD_part_tools               ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission            ,ONLY: ParticleInserting
@@ -1192,6 +1192,14 @@ REAL                  :: tLBStart
       !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
       ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
       ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
+      IF (DSMC%DoAmbipolarDiff) THEN
+        IF(Species(PartSpecies(iPart))%ChargeIC.GT.0.0) THEN
+          NewYVelo = (AmbipolElecVelo(iPart)%ElecVelo(2)*(PartState(2,iPart))+AmbipolElecVelo(iPart)%ElecVelo(3)*PartState(3,iPart))/NewYPart
+          AmbipolElecVelo(iPart)%ElecVelo(3)= (-AmbipolElecVelo(iPart)%ElecVelo(2)*PartState(3,iPart) &
+            + AmbipolElecVelo(iPart)%ElecVelo(3)*(PartState(2,iPart)))/NewYPart         
+          AmbipolElecVelo(iPart)%ElecVelo(2) = NewYVelo
+        END IF
+      END IF
       NewYVelo = (PartState(5,iPart)*(PartState(2,iPart))+PartState(6,iPart)*PartState(3,iPart))/NewYPart
       PartState(6,iPart) = (-PartState(5,iPart)*PartState(3,iPart)+PartState(6,iPart)*(PartState(2,iPart)))/NewYPart
       PartState(2,iPart) = NewYPart

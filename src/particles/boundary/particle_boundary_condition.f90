@@ -393,7 +393,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,nSpecies,PartSpecies,Species,WriteMacroSurfaceValues,PartLorentzType
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep
-USE MOD_DSMC_Vars               ,ONLY: DSMC,RadialWeighting,PartStateIntEn
+USE MOD_DSMC_Vars               ,ONLY: DSMC,RadialWeighting,PartStateIntEn, AmbipolElecVelo
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,usevMPF
 USE MOD_TImeDisc_Vars           ,ONLY: tend,time
 USE MOD_Globals_Vars            ,ONLY: c2_inv
@@ -424,7 +424,7 @@ INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: v_old(1:3),WallVelo(3)
+REAL                                 :: v_old(1:3),WallVelo(3), v_old_Ambi(1:3)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 !#if defined(LSERK)
 !REAL                                 :: absPt_temp
@@ -496,6 +496,13 @@ ELSE
   v_old = PartState(4:6,PartID)
   PartState(4:6,PartID) = PartState(4:6,PartID) &
                         - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc
+  IF (DSMC%DoAmbipolarDiff) THEN
+    IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
+      v_old_Ambi = AmbipolElecVelo(PartID)%ElecVelo(1:3)
+      AmbipolElecVelo(PartID)%ElecVelo(1:3) = AmbipolElecVelo(PartID)%ElecVelo(1:3) &
+                     - 2.*DOT_PRODUCT(AmbipolElecVelo(PartID)%ElecVelo(1:3),n_loc)*n_loc
+    END IF
+  END IF
 END IF
 
 DoSample = (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)
@@ -635,7 +642,7 @@ SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals                 ,ONLY: ABORT, OrthoNormVec,VECNORM
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC,CollisMode
-USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn,DSMC, useDSMC, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn,DSMC, useDSMC, RadialWeighting, AmbipolElecVelo
 USE MOD_DSMC_Vars               ,ONLY: PolyatomMolDSMC, VibQuantsPar
 USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
 USE MOD_Part_Tools              ,ONLY: GetParticleWeight
@@ -702,6 +709,7 @@ REAL                                :: nx, ny, nz, nVal
 INTEGER                             :: LocSideID, CNElemID
 LOGICAL                             :: DoSample
 REAL                                :: EvibOld,ErotOld
+REAL                                :: EtraOldAmbi, EtraNewAmbi, EtraWallAmbi, NewVeloAmbi(3), VeloCxAmbi, VeloCyAmbi, VeloCzAmbi
 !===================================================================================================================================
 IF (PRESENT(AuxBCIdx)) THEN
   IsAuxBC=.TRUE.
@@ -779,6 +787,26 @@ VeloCx  = Cmr * VeloCrad * COS(Phi) ! tang1
 VeloCy  = Cmr * VeloCrad * SIN(Phi) ! tang2
 VeloCz  = Cmr * VeloCz
 
+IF (DSMC%DoAmbipolarDiff) THEN
+  IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
+    VeloReal = VECNORM(AmbipolElecVelo(PartID)%ElecVelo(1:3))
+    EtraOldAmbi = 0.5 * Species(DSMC%AmbiDiffElecSpec)%MassIC * VeloReal**2
+    CALL RANDOM_NUMBER(RanNum)
+    VeloCrad    = SQRT(-LOG(RanNum))
+    CALL RANDOM_NUMBER(RanNum)
+    VeloCzAmbi      = SQRT(-LOG(RanNum))
+    Fak_D       = VeloCrad**2 + VeloCzAmbi**2
+    EtraWallAmbi= BoltzmannConst * WallTemp * Fak_D
+    EtraNewAmbi = EtraOldAmbi + TransACC * (EtraWallAmbi - EtraOldAmbi)
+    Cmr         = SQRT(2.0 * EtraNewAmbi / (Species(DSMC%AmbiDiffElecSpec)%MassIC * Fak_D))
+    CALL RANDOM_NUMBER(RanNum)
+    Phi     = 2.0 * PI * RanNum
+    VeloCxAmbi  = Cmr * VeloCrad * COS(Phi) ! tang1
+    VeloCyAmbi  = Cmr * VeloCrad * SIN(Phi) ! tang2
+    VeloCzAmbi  = Cmr * VeloCzAmbi
+  END IF
+END IF
+
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   MacroParticleFactor = GetParticleWeight(PartID)
 ELSE
@@ -806,6 +834,13 @@ IF (.NOT.IsAuxBC) THEN
     SampWallState(1,p,q,SurfSideID) = SampWallState(1,p,q,SurfSideID) + EtraOld  * MacroParticleFactor
     SampWallState(2,p,q,SurfSideID) = SampWallState(2,p,q,SurfSideID) + EtraWall * MacroParticleFactor
     SampWallState(3,p,q,SurfSideID) = SampWallState(3,p,q,SurfSideID) + EtraNew  * MacroParticleFactor
+    IF (DSMC%DoAmbipolarDiff) THEN
+      IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
+        SampWallState(1,p,q,SurfSideID) = SampWallState(1,p,q,SurfSideID) + EtraOldAmbi  * MacroParticleFactor
+        SampWallState(2,p,q,SurfSideID) = SampWallState(2,p,q,SurfSideID) + EtraWallAmbi * MacroParticleFactor
+        SampWallState(3,p,q,SurfSideID) = SampWallState(3,p,q,SurfSideID) + EtraNewAmbi  * MacroParticleFactor
+      END IF
+    END IF
 
     ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
     IF(ALLOCATED(PartStateIntEn))THEN
@@ -835,6 +870,18 @@ IF(Symmetry%Axisymmetric) THEN
   NewVelo(3) = VeloCy
 ELSE
   NewVelo(1:3) = VeloCx*tang1(1:3)-tang2(1:3)*VeloCy-VeloCz*n_loc(1:3)
+END IF
+
+IF (DSMC%DoAmbipolarDiff) THEN
+  IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
+    IF(Symmetry%Axisymmetric) THEN
+      NewVeloAmbi(1) = VecX*VeloCxAmbi + nx*VeloCzAmbi
+      NewVeloAmbi(2) = VecY*VeloCxAmbi + ny*VeloCzAmbi
+      NewVeloAmbi(3) = VeloCyAmbi
+    ELSE
+      NewVeloAmbi(1:3) = VeloCxAmbi*tang1(1:3)-tang2(1:3)*VeloCyAmbi-VeloCzAmbi*n_loc(1:3)
+    END IF
+  END IF
 END IF
 
 IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
@@ -998,6 +1045,15 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
     !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
     ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
     ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
+    IF (DSMC%DoAmbipolarDiff) THEN
+      IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
+        rotVelY = (NewVeloAmbi(2)*(PartState(2,PartID))+NewVeloAmbi(3)*PartState(3,PartID))/rotPosY
+        rotVelZ = (-NewVeloAmbi(2)*PartState(3,PartID)+NewVeloAmbi(3)*(PartState(2,PartID)))/rotPosY
+
+        NewVeloAmbi(2) = rotVelY
+        NewVeloAmbi(3) = rotVelZ
+      END IF
+    END IF
     rotVelY = (NewVelo(2)*(PartState(2,PartID))+NewVelo(3)*PartState(3,PartID))/rotPosY
     rotVelZ = (-NewVelo(2)*PartState(3,PartID)+NewVelo(3)*(PartState(2,PartID)))/rotPosY
 
@@ -1017,9 +1073,17 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
     !----  Sampling force at walls
     SampWallState(10:12,p,q,SurfSideID)= SampWallState(10:12,p,q,SurfSideID) &
         + Species(PartSpecies(PartID))%MassIC * (PartState(4:6,PartID) - NewVelo(1:3)) * MacroParticleFactor
+    IF (DSMC%DoAmbipolarDiff) THEN
+      IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0)  SampWallState(10:12,p,q,SurfSideID)= SampWallState(10:12,p,q,SurfSideID) &
+        + Species(DSMC%AmbiDiffElecSpec)%MassIC * (AmbipolElecVelo(PartID)%ElecVelo(1:3) - NewVeloAmbi(1:3)) * MacroParticleFactor
+    END IF
     !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
     IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
       SampWallState(12+PartSpecies(PartID),p,q,SurfSideID)= SampWallState(12+PartSpecies(PartID),p,q,SurfSideID) +1
+      IF (DSMC%DoAmbipolarDiff) THEN
+        IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0)  SampWallState(12+DSMC%AmbiDiffElecSpec,p,q,SurfSideID)= &
+          SampWallState(12+DSMC%AmbiDiffElecSpec,p,q,SurfSideID) +1
+      END IF
       IF (CalcSurfCollis%AnalyzeSurfCollis .AND. (ANY(AnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(AnalyzeSurfCollis%BCs.EQ.locBCID))) THEN
         AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
         AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
@@ -1040,6 +1104,9 @@ END IF !.NOT.IsAuxBC
 
 !----  saving new particle velocity
 PartState(4:6,PartID)   = NewVelo(1:3) + WallVelo(1:3)
+IF (DSMC%DoAmbipolarDiff) THEN
+  IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) AmbipolElecVelo(PartID)%ElecVelo(1:3) = NewVeloAmbi(1:3) + WallVelo(1:3)
+END IF
 
 ! recompute trajectory etc
 IF(Symmetry%Axisymmetric) THEN

@@ -139,9 +139,9 @@ USE MOD_Particle_MPI_Vars   ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Dielectric_Vars     ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
-USE MOD_DSMC_Vars           ,ONLY: useDSMC, RadialWeighting
+USE MOD_DSMC_Vars           ,ONLY: useDSMC, RadialWeighting, DSMC
 USE MOD_Part_Emission_Tools ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
-USE MOD_Part_Pos_and_Velo   ,ONLY: SetParticlePosition,SetParticleVelocity
+USE MOD_Part_Pos_and_Velo   ,ONLY: SetParticlePosition,SetParticleVelocity, AD_SetInitElectronVelo
 USE MOD_Part_Tools          ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Mesh_Vars  ,ONLY: LocalVolume
 USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, Symmetry, VarTimeStep
@@ -166,6 +166,9 @@ CALL UpdateNextFreePosition()
 ! Do sanity check of max. particle number compared to the number that is to be inserted for certain insertion types
 insertParticles = 0
 DO i=1,nSpecies
+  IF (DSMC%DoAmbipolarDiff) THEN
+    IF (i.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+  END IF
   IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
   DO iInit = 1, Species(i)%NumberOfInits
     IF (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
@@ -202,6 +205,9 @@ __STAMP__&
 ,'Number of to be inserted particles per init-proc exceeds max. particle number! ')
 END IF
 DO i = 1,nSpecies
+  IF (DSMC%DoAmbipolarDiff) THEN
+    IF (i.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+  END IF
   IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
   DO iInit = 1, Species(i)%NumberOfInits
     IF (Species(i)%Init(iInit)%UseForInit) THEN ! no special emissiontype to be used
@@ -218,6 +224,7 @@ __STAMP__&
       IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
       IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
       IF (useDSMC) THEN
+        IF (DSMC%DoAmbipolarDiff) CALL AD_SetInitElectronVelo(i,iInit,NbrOfParticle)
         iPart = 1
         DO WHILE (iPart .le. NbrOfParticle)
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)

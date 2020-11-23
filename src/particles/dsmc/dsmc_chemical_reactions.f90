@@ -303,13 +303,10 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
         CALL CalcBackwardRate(iReac,DSMC%InstantTransTemp(nSpecies+1),BackwardRate)
         IF(TRIM(ChemReac%ReactType(iReac)).EQ.'E') THEN
           betaEXP = (ChemReac%EActiv(iReacForward)-ChemReac%EActiv(iReac))/(BoltzmannConst*DSMC%InstantTransTemp(nSpecies+1))
-          IF (betaEXP.LT.maxexp) THEN
-            BetaReaction = BetaReaction * BackwardRate &
-              / EXP(-betaEXP) &
-              / (ChemReac%Arrhenius_Prefactor(iReac) * DSMC%InstantTransTemp(nSpecies+1)**ChemReac%Arrhenius_Powerfactor(iReac))
-          ELSE
-            BetaReaction = 0.0
-          END IF
+          betaEXP = MIN(maxexp,betaEXP)
+          BetaReaction = BetaReaction * BackwardRate &
+            / EXP(-betaEXP) &
+            / (ChemReac%Arrhenius_Prefactor(iReac) * DSMC%InstantTransTemp(nSpecies+1)**ChemReac%Arrhenius_Powerfactor(iReac))
         END IF
       ELSE
         BackwardRate = 0.0

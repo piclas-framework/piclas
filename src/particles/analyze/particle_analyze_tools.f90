@@ -144,8 +144,8 @@ SUBROUTINE CalcNumPartsOfSpec(NumSpec,SimNumSpec,CalcNumSpec_IN,CalcSimNumSpec_I
 USE MOD_Globals
 USE MOD_Particle_Vars         ,ONLY: PDM,PartSpecies
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
-USE MOD_DSMC_Vars             ,ONLY: BGGas
-USE MOD_Particle_Vars         ,ONLY: nSpecies
+USE MOD_DSMC_Vars             ,ONLY: BGGas, DSMC
+USE MOD_Particle_Vars         ,ONLY: nSpecies, Species
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 #if USE_MPI
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
@@ -182,6 +182,18 @@ IF(BGGas%NumberOfSpecies.GT.0) THEN
     END IF
   END DO
 END IF
+IF (DSMC%DoAmbipolarDiff) THEN
+  NumSpec(DSMC%AmbiDiffElecSpec) = 0.0
+  SimNumSpec(DSMC%AmbiDiffElecSpec) = 0.0
+  DO iSpec = 1, nSpecies
+    IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+    IF(Species(iSpec)%ChargeIC.GT.0.0) THEN
+      NumSpec(DSMC%AmbiDiffElecSpec) = NumSpec(DSMC%AmbiDiffElecSpec) + NumSpec(iSpec)
+      SimNumSpec(DSMC%AmbiDiffElecSpec) = SimNumSpec(DSMC%AmbiDiffElecSpec) + SimNumSpec(iSpec)
+    END IF
+  END DO
+END IF
+
 IF(nSpecAnalyze.GT.1)THEN
   NumSpec(nSpecAnalyze)    = SUM(NumSpec(1:nSpecies))
   SimNumSpec(nSpecAnalyze) = SUM(SimNumSpec(1:nSpecies))
