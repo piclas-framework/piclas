@@ -1632,7 +1632,7 @@ END DO
 
 IF(CalcPartBalance) THEN
   DO iProd = 1, NumProd
-    iSpec = ProductReac(iPart)
+    iSpec = ProductReac(iProd)
     nPartIn(iSpec) = nPartIn(iSpec) + 1
     PartEkinIn(iSpec) = PartEkinIn(iSpec) + CalcEkinPart(ReactInx(iProd))
   END DO
