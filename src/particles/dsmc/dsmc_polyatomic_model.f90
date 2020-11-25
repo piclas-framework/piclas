@@ -34,7 +34,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly_ARM, DSMC_SetInternalEnr_Poly_MH, DSMC_SetInternalEnr_Poly_MH_FirstPick
-PUBLIC :: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly_ARM, DSMC_VibRelaxPoly_MH, Calc_Beta_Poly, DSMC_VibRelaxPoly_ARM_MH
+PUBLIC :: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly_ARM, DSMC_VibRelaxPoly_MH, DSMC_VibRelaxPoly_ARM_MH
 PUBLIC :: DSMC_FindFirstVibPick, DSMC_RelaxVibPolyProduct
 !===================================================================================================================================
 
@@ -981,38 +981,5 @@ SUBROUTINE DSMC_RotRelaxPoly(iPair, iPart,FakXi)
 
 END SUBROUTINE DSMC_RotRelaxPoly
 
-
-REAL FUNCTION Calc_Beta_Poly(iReac,Xi_Total)
-!===================================================================================================================================
-! Calculates the Beta coefficient for polyatomic reactions
-!===================================================================================================================================
-! MODULES
-  USE MOD_Globals
-  USE MOD_DSMC_Vars,            ONLY : ChemReac, CollInf
-  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  INTEGER, INTENT(IN)            ::      iReac
-  REAL, INTENT(IN)                ::     Xi_Total
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-
-  IF((ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 &
-  + CollInf%omega(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,1)) + Xi_Total/2.).GT.0.0) THEN
-    Calc_Beta_Poly = ChemReac%Arrhenius_Prefactor(iReac)                                                                        &
-      * (BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) &
-      - CollInf%omega(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,1))))   &
-      * GAMMA(Xi_Total/2.) / (ChemReac%Hab(iReac) * GAMMA(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5           &
-      + CollInf%omega(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,1)) + Xi_Total/2.))
-  ELSE
-    Calc_Beta_Poly = 0.0
-  END IF
-
-END FUNCTION Calc_Beta_Poly
 
 END MODULE MOD_DSMC_PolyAtomicModel

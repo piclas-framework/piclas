@@ -108,10 +108,6 @@ CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSurfaceRate'&
                                           , 'Only TD=Reservoir (42).\n'//&
                                           'Set [TRUE] to disable particle adsorption and desorption and keep surface coverage '//&
                                             'constant. Only probabilities (rates) are calculated.' , '.FALSE.')
-CALL prms%CreateIntOption(      'Particles-ModelForVibrationEnergy'&
-                                          , 'Define model used for vibrational degrees of freedom.\n'//&
-                                          ' 0: SHO  simple harmonic oscillator \n'//&
-                                          ' 1: TSHO truncated simple harmonic oscillator .', '0')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-TEVR-Relaxation'&
                                           , 'Flag for Translational-Vibrational-Electric-Rotational relaxation (T-V-E-R)\n'//&
                                           '[TRUE] or more simple T-V-R T-E-R\n'//&
@@ -399,7 +395,6 @@ END IF ! DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)
 DSMC%ReservoirSimuRate       = GETLOGICAL('Particles-DSMCReservoirSimRate','.FALSE.')
 DSMC%ReservoirSurfaceRate    = GETLOGICAL('Particles-DSMCReservoirSurfaceRate','.FALSE.')
 DSMC%ReservoirRateStatistic  = GETLOGICAL('Particles-DSMCReservoirStatistic','.FALSE.')
-DSMC%VibEnergyModel          = GETINT('Particles-ModelForVibrationEnergy','0')
 DSMC%DoTEVRRelaxation        = GETLOGICAL('Particles-DSMC-TEVR-Relaxation','.FALSE.')
 IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   IF(DSMC%DoTEVRRelaxation) THEN
@@ -416,15 +411,6 @@ ELSEIF(DSMC%ElectronicModel) THEN
   CALL Abort(&
       __STAMP__,&
       'ERROR: Electronic model requires a electronic levels database and CollisMode > 1!')
-END IF
-IF ((DSMC%VibEnergyModel.EQ.1).AND.(CollisMode.EQ.3)) THEN
-  CALL Abort(&
-      __STAMP__&
-      ,'TSHO Model is not working with Chemical Reactions !!!')
-ELSE IF ((DSMC%VibEnergyModel.GT.1).OR.(DSMC%VibEnergyModel.LT.0)) THEN
-  CALL Abort(&
-      __STAMP__&
-      ,'ERROR in ModelForVibrationEnergy Flag!')
 END IF
 DSMC%NumPolyatomMolecs = 0
 ! Steady - State Detection: Use Q-Criterion or SSD-Alogrithm?
@@ -757,12 +743,7 @@ ELSE !CollisMode.GT.0
           SpecDSMC(iSpec)%CharaTVib  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib')
           SpecDSMC(iSpec)%CharaTRot  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','0')
           SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV')
-          IF (DSMC%VibEnergyModel.EQ.0) THEN
-            SpecDSMC(iSpec)%MaxVibQuant = 200
-          ELSE
-            SpecDSMC(iSpec)%MaxVibQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/&
-                (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)) + 1
-          END IF
+          SpecDSMC(iSpec)%MaxVibQuant = 200
           ! Calculation of the zero-point energy
           SpecDSMC(iSpec)%EZeroPoint = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
           ! Calculation of the dissociation quantum number (used for QK chemistry)
@@ -1424,7 +1405,7 @@ USE MOD_DSMC_Vars              ,ONLY: VarVibRelaxProb, CollInf, SpecDSMC, Coll_p
 USE MOD_Mesh_Vars              ,ONLY: nElems, offsetElem
 USE MOD_DSMC_Analyze           ,ONLY: CalcInstantTransTemp
 USE MOD_Particle_Vars          ,ONLY: PEM
-USE MOD_DSMC_Collis            ,ONLY: DSMC_calc_var_P_vib
+USE MOD_DSMC_Relaxation        ,ONLY: DSMC_calc_var_P_vib
 USE MOD_part_emission_tools    ,ONLY: CalcVelocity_maxwell_lpn
 #if USE_MPI
 USE MOD_Globals                ,ONLY: MPIRoot

@@ -138,8 +138,6 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   INTEGER                     :: MaxVibQuant               ! Max vib quantum number + 1
   INTEGER                     :: MaxElecQuant              ! Max elec quantum number + 1
   INTEGER                     :: DissQuant                 ! Vibrational quantum number corresponding to the dissociation energy
-                                                           ! (used for QK chemistry, not using MaxVibQuant to avoid confusion with
-                                                           !   the truncated simple harmonic oscillator(TSHO) model)
   REAL                        :: RotRelaxProb              ! rotational relaxation probability
   REAL                        :: VibRelaxProb              ! vibrational relaxation probability
   REAL                        :: ElecRelaxProb             ! electronic relaxation probability
@@ -224,9 +222,6 @@ TYPE tDSMC
   LOGICAL                       :: ReservoirSurfaceRate     ! Switch enabling surface rate output without changing surface coverages
   LOGICAL                       :: ReservoirRateStatistic   ! if false, calculate the reaction coefficient rate by the probability
                                                             ! Default Value is false
-  INTEGER                       :: VibEnergyModel           ! Model for vibration Energy:
-                                                            !       0: SHO (default value!)
-                                                            !       1: TSHO
   LOGICAL                       :: DoTEVRRelaxation         ! Flag for T-V-E-R or more simple T-V-R T-E-R relaxation
   INTEGER                       :: PartNumOctreeNode        ! Max Number of Particles per Octree Node
   INTEGER                       :: PartNumOctreeNodeMin     ! Min Number of Particles per Octree Node
@@ -390,10 +385,6 @@ TYPE tCollCaseInfo
 END TYPE
 
 TYPE tReactInfo
-  REAL,  ALLOCATABLE              :: Beta_Arrhenius(:,:)    ! Beta for calculation of the reaction probability by TCE
-                                                            ! (quant number species 1, quant number species 2)
-  REAL,  ALLOCATABLE              :: Beta_Rec_Arrhenius(:,:)! Beta_d for calculation of the Recombination reaction probability
-                                                            ! (nSpecies, quant num part3)
   INTEGER, ALLOCATABLE            :: StoichCoeff(:,:)       ! Stoichiometric coefficient (nSpecies,1:2) (1: reactants, 2: products)
 END TYPE
 

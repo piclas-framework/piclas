@@ -61,7 +61,7 @@ REAL, INTENT(IN), OPTIONAL          :: NodeVolume
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                             :: iPType, NbrOfReaction, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase, PairType
-REAL                                :: SpecNum1, SpecNum2, Weight1, Weight2, Volume, CollProb, CrossSection
+REAL                                :: SpecNum1, SpecNum2, Weight1, Weight2, Volume, CollProb
 REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot, MacroParticleFactor, dtCell, CollCaseNum
 !===================================================================================================================================
 
@@ -233,7 +233,7 @@ IF(ChemReac%NumOfReact.GT.0) THEN
       IF(BGGas%BackgroundSpecies(iSpec_p2)) THEN
         IF(XSec_NullCollision) THEN
           CollProb = CollProb * SpecXSec(iCase)%ProbNull
-      ELSE
+        ELSE
           CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
         END IF
       END IF

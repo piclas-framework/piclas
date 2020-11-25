@@ -40,7 +40,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER       :: iSpec, jSpec, iCase
-REAL          :: TotalProb, VibCrossSection, TotalCrossSection
+REAL          :: TotalProb, VibCrossSection
 INTEGER       :: iVib, nVib, iStep, MaxDim
 !===================================================================================================================================
 
@@ -635,7 +635,7 @@ SUBROUTINE XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Vol
 !> Calculate the relaxation probability using cross-section data.
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecXSec, SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting, XSec_NullCollision
+USE MOD_DSMC_Vars             ,ONLY: SpecXSec, SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
@@ -701,16 +701,15 @@ SUBROUTINE MCC_Chemistry_Init()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
-USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation, CollInf, ChemReac
+USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecXSec, XSec_NullCollision, CollInf, ChemReac
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, jSpec, iCase, iReac
-REAL                  :: TotalProb, ReactionCrossSection, TotalCrossSection
-INTEGER               :: iVib, nVib, iStep, MaxDim
+REAL                  :: TotalProb, ReactionCrossSection
+INTEGER               :: iStep, MaxDim
 INTEGER               :: iPath, NumPaths
 !===================================================================================================================================
 
@@ -958,7 +957,6 @@ SUBROUTINE XSec_CalcReactionProb(iPair,iCase,SpecNum1,SpecNum2,MacroParticleFact
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, ChemReac, RadialWeighting, DSMC, PartStateIntEn, SpecXSec
-USE MOD_DSMC_Vars             ,ONLY: XSec_NullCollision
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -970,7 +968,7 @@ REAL,INTENT(IN),OPTIONAL      :: SpecNum1, SpecNum2, MacroParticleFactor, Volume
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPath, ReacTest, EductReac(1:3), ProductReac(1:4), ReactInx(1:2), nPair, iProd
-INTEGER                       :: NumWeightEduct, NumWeightProd, targetSpec
+INTEGER                       :: NumWeightProd, targetSpec
 REAL                          :: EZeroPoint_Prod, dtCell, Weight(1:4), ReducedMass, ReducedMassUnweighted
 REAL                          :: EZeroPoint_Educt, SpecNumTarget, SpecNumSource, CrossSection
 !===================================================================================================================================

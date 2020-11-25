@@ -41,20 +41,21 @@ USE MOD_Globals
 USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !===================================================================================================================================
-CALL prms%SetSection("DSMC Chemistry")
-CALL prms%CreateIntOption(      'DSMC-NumOfReactions'  &
-                                           ,'Number of reactions.')
-CALL prms%CreateIntOption(      'DSMC-Reaction[$]-NumberOfNonReactives'  &
-                                           ,'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
+CALL prms%SetSection("Chemistry")
+CALL prms%CreateIntOption(      'DSMC-NumOfReactions','Number of chemical reactions')
+CALL prms%CreateIntOption(      'DSMC-Reaction[$]-NumberOfNonReactives', &
+                                          'Number of non-reactive collision partners (Length of the read-in vector)', &
+                                          '0', numberedmulti=.TRUE.)
 CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-NonReactiveSpecies'  &
-                                           ,'Array with the non-reactive collision partners for dissociation'&
+                                           ,'Array with the non-reactive collision partners for dissociation' &
                                            ,numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'DSMC-Reaction[$]-ReactionType'  &
-                                           ,'Used reaction type\n'//&
-                                            'I: electron impact ionization\n'//&
+                                           ,'Used reaction types\n'//&
+                                            'iQK: electron impact ionization\n'//&
                                             'R: molecular recombination\n'//&
                                             'D: molecular dissociation\n'//&
                                             'E: molecular exchange reaction\n'//&
+                                            'phIon: photon-ionization\n'//&
                                             'X: simple charge exchange reaction)', 'none', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'DSMC-Reaction[$]-QKProcedure'  &
                                            ,'Flag to use quantum-kinetic model', '.FALSE.', numberedmulti=.TRUE.)
@@ -66,13 +67,15 @@ CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Reactants'  &
 CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Products'  &
                                            ,'Products of Reaction[j] (Product1, Product2, Product3, Product 4)', '0 , 0 , 0 , 0' &
                                            , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-Arrhenius-Prefactor'  &
-                                           , 'TODO-DEFINE-PARAMETER ', '0.' , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-Arrhenius-Powerfactor'  &
-                                           , 'TODO-DEFINE-PARAMETER', '0.' , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-Activation-Energy_K'  &
-                                           , 'Activation energy (relativ to k_Boltzmann) for Reaction[$].', '0.' &
-                                           , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-Arrhenius-Prefactor', &
+                                    'Prefactor A of the extended Arrhenius equation, k = A * T^b * EXP(-E_a/T), '//&
+                                    'Units: 1/s, m3/s, m6/s (depending on the type of the reaction)', '0.' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-Arrhenius-Powerfactor', &
+                                    'Temperature exponent b of the extended Arrhenius equation, k = A * T^b * EXP(-E_a/T), '//&
+                                    'Units: -', '0.' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-Activation-Energy_K', &
+                                    'Activation energy E_a of the extended Arrhenius equation, k = A * T^b * EXP(-E_a/T), '//&
+                                    'Units: Kelvin', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CEXa'  &
                                 , 'CEX log-factor '//&
                                 '(g-dep. cross section in Angstrom, def.: value for Xe+)', '-27.2' , numberedmulti=.TRUE.)
@@ -117,7 +120,7 @@ CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
                                   'based on the maximum collision frequency and time step (only with a background gas)' &
                                   ,'.TRUE.')
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CrossSection'  &
-                                , 'Photon-ionization cross-section', numberedmulti=.TRUE.)
+                                , 'Photon-ionization cross-section for the reaction type phIon', numberedmulti=.TRUE.)
 ! XSec Chemistry
 CALL prms%CreateLogicalOption(  'DSMC-Reaction[$]-XSec-Procedure', &
                                 'Flag to use cross-section based data for the reaction', '.FALSE.', numberedmulti=.TRUE.)
@@ -130,7 +133,7 @@ SUBROUTINE DSMC_chemical_init()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, CollInf
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
@@ -147,11 +150,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=3)      :: hilf
-INTEGER               :: iReac, iReac2, iSpec, iPart, iReacForward, iReacDiss, PartitionArraySize, iInter
+INTEGER               :: iReac, iReac2, iSpec, iPart, iReacForward, iReacDiss, PartitionArraySize, iInter, iSpec2
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
 LOGICAL               :: DoScat
 INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, MaxElecQua, ReadInNumOfReact
-REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec, BGGasEVib, PhotonEnergy
+REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec, BGGasEVib, PhotonEnergy, omega
 INTEGER               :: iInit
 INTEGER               :: iCase, iCase2, ReacIndexCounter
 LOGICAL               :: RecombAdded
@@ -213,11 +216,8 @@ ALLOCATE(ChemReac%ReactNum(nSpecies, nSpecies, nSpecies))
 ChemReac%ReactNum = 0
 ALLOCATE(ChemReac%ReactNumRecomb(nSpecies, nSpecies, nSpecies))
 ChemReac%ReactNumRecomb = 0
-ALLOCATE(ChemReac%Arrhenius_Prefactor(ChemReac%NumOfReact),&
-          ChemReac%Arrhenius_Powerfactor(ChemReac%NumOfReact),&
-          ChemReac%EActiv(ChemReac%NumOfReact),&
-          ChemReac%EForm(ChemReac%NumOfReact),&
-          ChemReac%Hab(ChemReac%NumOfReact))
+ALLOCATE(ChemReac%Arrhenius_Prefactor(ChemReac%NumOfReact), ChemReac%Arrhenius_Powerfactor(ChemReac%NumOfReact),&
+          ChemReac%EActiv(ChemReac%NumOfReact), ChemReac%EForm(ChemReac%NumOfReact), ChemReac%Hab(ChemReac%NumOfReact))
 ChemReac%Hab=0.0
 ALLOCATE(ChemReac%MeanEVibQua_PerIter(nSpecies))
 ChemReac%MeanEVibQua_PerIter = 0
@@ -601,153 +601,23 @@ END DO
 DEALLOCATE(DummyRecomb)
 DEALLOCATE(ChemReac%ArbDiss)
 
-CALL Calc_Arrhenius_Factors()
-
-END SUBROUTINE DSMC_chemical_init
-
-
-SUBROUTINE Calc_Arrhenius_Factors()
-!===================================================================================================================================
-! Calculates variables for Arrhenius calculation (H_ab, Beta) for diatomic chemical reactions
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals         ,ONLY: Abort
-USE MOD_Globals_Vars    ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars       ,ONLY: ChemReac, SpecDSMC, CollInf
-USE MOD_PARTICLE_Vars   ,ONLY: nSpecies
-USE MOD_Globals_Vars    ,ONLY: Pi
-USE MOD_DSMC_Analyze    ,ONLY: CalcTVib
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                 :: iQuaMax1, iQuaMax2, iQuaMax3, iQua1, iQua2, iQua3, iReac, iSpec, iSpec1, iSpec2
-REAL                    :: omega, Xi_rot1, Xi_rot2, Xi_vib1, Xi_vib2, Xi_vib3, Xi_rel_rot, Xi_total
-!===================================================================================================================================
-
 DO iReac = 1, ChemReac%NumOfReact
   ! Skip photo-ionization reactions
   IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') CYCLE
   ! Skip reactions modelled with QK
   IF(ChemReac%QKProcedure(iReac)) CYCLE
-  iSpec1 = ChemReac%Reactants(iReac,1)
+  ! Skip reaction modelled with XSec
+  IF(ChemReac%XSec_Procedure(iReac)) CYCLE
+  iSpec = ChemReac%Reactants(iReac,1)
   iSpec2 = ChemReac%Reactants(iReac,2)
-  omega = CollInf%omega(iSpec1,iSpec2)
+  omega = CollInf%omega(iSpec,iSpec2)
   ! Compute VHS Factor H_ab necessary for reaction probs, only defined for one omega for all species (laux diss page 24)
-  ChemReac%Hab(iReac) = GAMMA(2.0 - omega) * 2.0 * CollInf%Cab(CollInf%Coll_Case(iSpec1,iSpec2)) &
-                        / ((1 + CollInf%KronDelta(CollInf%Coll_Case(iSpec1,iSpec2))) * SQRT(Pi)) &
-                        * (2.0 * BoltzmannConst / CollInf%MassRed(CollInf%Coll_Case(iSpec1, iSpec2))) ** (0.5 - omega)
-  ! Skip reactions with polyatomic educts, currently beta is calculated on the fly
-  IF((SpecDSMC(iSpec1)%PolyatomicMol).OR.(SpecDSMC(iSpec2)%PolyatomicMol)) CYCLE
-! ----------------------------------------------------------------------------------------------------------------------------------
-! Recombination
-! ----------------------------------------------------------------------------------------------------------------------------------
-  IF (TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
-    IF(SpecDSMC(ChemReac%Reactants(iReac,3))%PolyatomicMol &
-      .OR.SpecDSMC(ChemReac%Products(iReac,1))%PolyatomicMol) CYCLE
-    iQuaMax3 = MAXVAL(SpecDSMC(:)%MaxVibQuant)
-    ALLOCATE(ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(nSpecies,0:iQuaMax3-1))
-    ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(:,:) = 0.0
-    DO iSpec=1,nSpecies
-      IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-        iQuaMax3 = SpecDSMC(iSpec)%MaxVibQuant
-      ELSE
-        iQuaMax3 = 1
-      END IF
-      DO iQua3 = 0 , iQuaMax3-1
-        IF (iQua3.NE.0) THEN
-          Xi_vib3 = 2. * iQua3 * LOG(1.0/iQua3 + 1.0)
-        ELSE
-          Xi_vib3 = 0
-        END IF
-        Xi_total = 3. + SpecDSMC(iSpec)%Xi_Rot + Xi_vib3
-        ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(iSpec,iQua3) = ChemReac%Arrhenius_Prefactor(iReac) &
-                                  * BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) - omega) &
-                                  * GAMMA(Xi_total/2. - omega + 2.) / (ChemReac%Hab(iReac) * GAMMA(Xi_total/2. &
-                                  + 1.5 + ChemReac%Arrhenius_Powerfactor(iReac) ))
-      END DO
-    END DO
-  END IF
-! ----------------------------------------------------------------------------------------------------------------------------------
-! Dissociation & Exchange
-! ----------------------------------------------------------------------------------------------------------------------------------
-  IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'D').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'E')) THEN
-    IF ((SpecDSMC(iSpec1)%InterID.EQ.2).OR.(SpecDSMC(iSpec1)%InterID.EQ.20)) THEN
-      iQuaMax1 = SpecDSMC(iSpec1)%MaxVibQuant
-      Xi_Rot1 = SpecDSMC(iSpec1)%Xi_Rot
-    ELSE
-      iQuaMax1 = 1
-      Xi_Rot1 = 0.
-    END IF
-    IF ((SpecDSMC(iSpec2)%InterID.EQ.2).OR.(SpecDSMC(iSpec2)%InterID.EQ.20)) THEN
-      iQuaMax2 = SpecDSMC(iSpec2)%MaxVibQuant
-      Xi_Rot2 = SpecDSMC(iSpec2)%Xi_Rot
-    ELSE
-      iQuaMax2 = 1
-      Xi_Rot2 = 0.
-    END IF
-    Xi_rel_rot = 2.*(2. - omega) + Xi_Rot1 + Xi_Rot2
-    ALLOCATE(ChemReac%ReactInfo(iReac)%Beta_Arrhenius(0:iQuaMax1-1,0:iQuaMax2-1))
-    DO iQua1 = 0 , iQuaMax1 - 1
-      IF (iQua1.NE.0) THEN
-        Xi_vib1 = 2. * iQua1 * LOG(1.0/iQua1 + 1.0)
-      ELSE
-        Xi_vib1 = 0.
-      END IF
-      DO iQua2 = 0, iQuaMax2 - 1
-        IF (iQua2.NE.0) THEN
-          Xi_vib2 = 2. * iQua2 * LOG(1.0/iQua2 + 1.0)
-        ELSE
-          Xi_vib2 = 0
-        END IF
-        Xi_total = Xi_rel_rot + Xi_vib1 + Xi_vib2
-        ChemReac%ReactInfo(iReac)%Beta_Arrhenius(iQua1,iQua2) = Calc_Beta_Arrhenius_Diatomic(iReac,Xi_total)
-      END DO
-    END DO
-  END IF
+  ChemReac%Hab(iReac) = GAMMA(2.0 - omega) * 2.0 * CollInf%Cab(CollInf%Coll_Case(iSpec,iSpec2)) &
+                        / ((1 + CollInf%KronDelta(CollInf%Coll_Case(iSpec,iSpec2))) * SQRT(Pi)) &
+                        * (2.0 * BoltzmannConst / CollInf%MassRed(CollInf%Coll_Case(iSpec, iSpec2))) ** (0.5 - omega)
 END DO
 
-END SUBROUTINE Calc_Arrhenius_Factors
-
-
-PURE REAL FUNCTION Calc_Beta_Arrhenius_Diatomic(iReac,Xi_total)
-!===================================================================================================================================
-!>
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals           ,ONLY: Abort
-USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars         ,ONLY: ChemReac, CollInf
-USE MOD_DSMC_Analyze      ,ONLY: CalcTVib
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)       :: iReac
-REAL, INTENT(IN)          :: Xi_total
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                   :: iSpec1, iSpec2
-REAL                      :: omega, A_Arrhenius, b_Arrhenius
-!===================================================================================================================================
-
-iSpec1 = ChemReac%Reactants(iReac,1)
-iSpec2 = ChemReac%Reactants(iReac,2)
-
-omega = CollInf%omega(iSpec1,iSpec2)
-A_Arrhenius = ChemReac%Arrhenius_Prefactor(iReac)
-b_Arrhenius = ChemReac%Arrhenius_Powerfactor(iReac)
-
-Calc_Beta_Arrhenius_Diatomic = A_Arrhenius * (BoltzmannConst**(0.5 - b_Arrhenius - omega)) * GAMMA(Xi_total/2.) &
-                                / (ChemReac%Hab(iReac) * GAMMA(b_Arrhenius - 0.5 + omega + Xi_total/2.))
-
-END FUNCTION Calc_Beta_Arrhenius_Diatomic
+END SUBROUTINE DSMC_chemical_init
 
 
 SUBROUTINE Init_TLU_Data

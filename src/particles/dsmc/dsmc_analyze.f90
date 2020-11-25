@@ -25,10 +25,6 @@ INTERFACE WriteDSMCToHDF5
   MODULE PROCEDURE WriteDSMCToHDF5
 END INTERFACE
 
-INTERFACE CalcTVib
-  MODULE PROCEDURE CalcTVib
-END INTERFACE
-
 INTERFACE CalcSurfaceValues
   MODULE PROCEDURE CalcSurfaceValues
 END INTERFACE
@@ -930,24 +926,19 @@ DO iElem = 1, nElems ! element/cell main loop
           IF(useDSMC)THEN
             IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
               IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-                IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
-                  IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-                    IF( (PartEvib/PartNum) .GT. 0.0 ) THEN
-                      Macro_TempVib = CalcTVibPoly(PartEvib/PartNum + SpecDSMC(iSpec)%EZeroPoint, iSpec)
-                    ELSE
-                      Macro_TempVib = 0.0
-                    END IF
+                IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+                  IF( (PartEvib/PartNum) .GT. 0.0 ) THEN
+                    Macro_TempVib = CalcTVibPoly(PartEvib/PartNum + SpecDSMC(iSpec)%EZeroPoint, iSpec)
                   ELSE
-                    TVib_TempFac = PartEvib / (PartNum * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib)
-                    IF ((PartEvib /PartNum).LE.0.0) THEN
-                      Macro_TempVib = 0.0
-                    ELSE
-                      Macro_TempVib = SpecDSMC(iSpec)%CharaTVib / LOG(1. + 1./(TVib_TempFac))
-                    END IF
+                    Macro_TempVib = 0.0
                   END IF
-                ELSE                                            ! TSHO-model
-                  Macro_TempVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib, &
-                    PartEvib/PartNum + SpecDSMC(iSpec)%EZeroPoint, SpecDSMC(iSpec)%MaxVibQuant)
+                ELSE
+                  TVib_TempFac = PartEvib / (PartNum * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib)
+                  IF ((PartEvib /PartNum).LE.0.0) THEN
+                    Macro_TempVib = 0.0
+                  ELSE
+                    Macro_TempVib = SpecDSMC(iSpec)%CharaTVib / LOG(1. + 1./(TVib_TempFac))
+                  END IF
                 END IF
                 Macro_TempRot = 2. * PartERot / (PartNum*BoltzmannConst*REAL(SpecDSMC(iSpec)%Xi_Rot))
                 MolecPartNum = MolecPartNum + Macro_PartNum

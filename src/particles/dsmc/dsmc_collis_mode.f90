@@ -25,29 +25,12 @@ INTERFACE DSMC_perform_collision
   MODULE PROCEDURE DSMC_perform_collision
 END INTERFACE
 
-INTERFACE DSMC_calc_var_P_vib
-  MODULE PROCEDURE DSMC_calc_var_P_vib
-END INTERFACE
-
-INTERFACE InitCalcVibRelaxProb
-  MODULE PROCEDURE InitCalcVibRelaxProb
-END INTERFACE
-
-INTERFACE SumVibRelaxProb
-  MODULE PROCEDURE SumVibRelaxProb
-END INTERFACE
-
-INTERFACE FinalizeCalcVibRelaxProb
-  MODULE PROCEDURE FinalizeCalcVibRelaxProb
-END INTERFACE
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_perform_collision
-PUBLIC :: DSMC_calc_var_P_vib, InitCalcVibRelaxProb, SumVibRelaxProb, FinalizeCalcVibRelaxProb
 !===================================================================================================================================
 
 CONTAINS
@@ -364,7 +347,7 @@ USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, DSMC_RHS, DSMC, SpecDS
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, VarTimeStep, PEM
 USE MOD_DSMC_ElectronicModel  ,ONLY: ElectronicEnergyExchange, TVEEnergyExchange
 USE MOD_DSMC_PolyAtomicModel  ,ONLY: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
-USE MOD_DSMC_Relaxation       ,ONLY: DSMC_VibRelaxDiatomic
+USE MOD_DSMC_Relaxation       ,ONLY: DSMC_VibRelaxDiatomic, DSMC_calc_P_rot, DSMC_calc_P_vib
 USE MOD_DSMC_CollisVec        ,ONLY: PostCollVec
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 #if (PP_TimeDiscMethod==42)
@@ -702,7 +685,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, PolyatomMolDSMC, SpecDSMC, PartStateIntEn
   USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, PEM
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly, DSMC_VibRelaxPolySingle
-  USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
+  USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic, DSMC_calc_P_rot, DSMC_calc_P_vib
   USE MOD_DSMC_CollisVec,         ONLY : PostCollVec
 #ifdef CODE_ANALYZE
   USE MOD_Globals                ,ONLY : unit_stdout,myrank
@@ -1348,311 +1331,6 @@ END IF
 
 END SUBROUTINE ReactionDecision
 
-
-SUBROUTINE DSMC_calc_P_rot(iSpec1, iSpec2, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
-!===================================================================================================================================
-! Calculation of probability for rotational relaxation. Different Models implemented:
-! 0 - Constant Probability
-! 1 - No rotational relaxation. RotRelaxProb = 0
-! 2 - Boyd
-! 3 - Zhang (Nonequilibrium Direction Dependent)
-!===================================================================================================================================
-! MODULES
-  USE MOD_Globals            ,ONLY : Abort
-  USE MOD_Globals_Vars       ,ONLY : Pi, BoltzmannConst
-  USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, Coll_pData, PartStateIntEn, DSMC, useRelaxProbCorrFactor, CollInf
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  INTEGER, INTENT(IN)         :: iSpec1, iSpec2, iPair, iPart
-  REAL, INTENT(IN)            :: Xi_rel
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-  REAL, INTENT(OUT)         :: ProbRot, ProbRotMax
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  REAL                      :: TransEn, RotEn, RotDOF, CorrFact           ! CorrFact: To correct sample Bias
-                                                                          ! (fewer DSMC particles than natural ones)
-!===================================================================================================================================
-
-  TransEn    = Coll_pData(iPair)%Ec ! notice that during probability calculation,Collision energy only contains translational part
-  RotDOF     = SpecDSMC(iSpec1)%Xi_Rot
-  RotEn      = PartStateIntEn(2,iPart)
-  ProbRot    = 0.
-  ProbRotMax = 0.
-
-  ! calculate correction factor according to Lumpkin et al.
-  ! - depending on selection procedure. As only one particle undergoes relaxation
-  ! - only one RotDOF is needed (of considered species)
-  IF(useRelaxProbCorrFactor) THEN
-    CorrFact = 1. + RotDOF/Xi_rel
-  ELSE
-    CorrFact = 1.
-  END IF
-
-  ! calculate corrected probability for rotational relaxation
-  IF(DSMC%RotRelaxProb.GE.0.0.AND.DSMC%RotRelaxProb.LE.1.0) THEN
-    ProbRot = DSMC%RotRelaxProb * CorrFact
-  ELSEIF(DSMC%RotRelaxProb.EQ.2.0) THEN ! P_rot according to Boyd (based on Parker's model)
-
-    RotDOF = RotDOF*0.5 ! Only half of the rotational degree of freedom, because the other half is used in the relaxation
-                        ! probability of the collision partner, see Boyd (doi:10.1063/1.858531)
-
-    ProbRot = 1./SpecDSMC(iSpec1)%CollNumRotInf * (1. + GAMMA(RotDOF+2.-CollInf%omega(iSpec1,iSpec2)) &
-            / GAMMA(RotDOF+1.5-CollInf%omega(iSpec1,iSpec2)) * (PI**(3./2.)/2.)*(BoltzmannConst*SpecDSMC(iSpec1)%TempRefRot &
-            / (TransEn + RotEn) )**(1./2.) + GAMMA(RotDOF+2.-CollInf%omega(iSpec1,iSpec2))  &
-            / GAMMA(RotDOF+1.-CollInf%omega(iSpec1,iSpec2)) * (BoltzmannConst*SpecDSMC(iSpec1)%TempRefRot &
-            / (TransEn + RotEn) ) * (PI**2./4. + PI)) &
-            * CorrFact
-
-  ELSEIF(DSMC%RotRelaxProb.EQ.3.0) THEN ! P_rot according to Zhang (NDD)
-    ! if model is used for further species but N2, it should be checked if factors n = 0.5 and Cn = 1.92 are still valid
-    ! (see original eq of Zhang)
-    ProbRot = 1.92 * GAMMA(Xi_rel/2.) * GAMMA(RotDOF/2.) / GAMMA(Xi_rel/2.+0.5) / GAMMA(RotDOF/2.-0.5) &
-            * (1 + (Xi_rel/2-0.5)*BoltzmannConst*SpecDSMC(iSpec1)%TempRefRot/TransEn) * (TransEn/RotEn)**0.5 &
-            * CorrFact
-    ProbRotMax = MAX(ProbRot, 0.5) ! BL energy redistribution correction factor
-    ProbRot    = MIN(ProbRot, 0.5)
-  ELSE
-    CALL Abort(&
-__STAMP__&
-,'Error! Model for rotational relaxation undefined:',RealInfoOpt=DSMC%RotRelaxProb)
-  END IF
-
-END SUBROUTINE DSMC_calc_P_rot
-
-
-SUBROUTINE DSMC_calc_P_vib(iPair, iSpec, jSpec, Xi_rel, iElem, ProbVib)
-!===================================================================================================================================
-! Calculation of probability for vibrational relaxation. Different Models implemented:
-! 0 - Constant Probability
-! 1 - No vibrational relaxation. VibRelaxProb = 0
-! 2 - Boyd with correction of Abe
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals            ,ONLY: Abort
-USE MOD_DSMC_Vars          ,ONLY: SpecDSMC, DSMC, VarVibRelaxProb, useRelaxProbCorrFactor, XSec_Relaxation, CollInf, Coll_pData
-USE MOD_DSMC_Vars          ,ONLY: PolyatomMolDSMC, SpecXSec
-USE MOD_DSMC_SpecXSec      ,ONLY: XSec_CalcVibRelaxProb
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)       :: iPair, iSpec, jSpec, iElem
-REAL, INTENT(IN)          :: Xi_rel
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)         :: ProbVib
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                      :: CorrFact       ! CorrFact: To correct sample Bias
-                                            ! (fewer DSMC particles than natural ones)
-INTEGER                   :: iPolyatMole, iDOF, iCase
-!===================================================================================================================================
-
-  ProbVib = 0.
-
-  ! calculate correction factor according to Gimelshein et al.
-  ! - depending on selection procedure. As only one particle undergoes relaxation
-  ! - only one VibDOF (GammaVib) is needed (of considered species)
-  IF(useRelaxProbCorrFactor) THEN
-    CorrFact = 1. + SpecDSMC(iSpec)%GammaVib/Xi_rel
-  ELSE
-    CorrFact = 1.
-  END IF
-
-  IF((DSMC%VibRelaxProb.GE.0.0).AND.(DSMC%VibRelaxProb.LE.1.0)) THEN
-    IF (SpecDSMC(iSpec)%PolyatomicMol.AND.(DSMC%PolySingleMode)) THEN
-      iPolyatMole  = SpecDSMC(iSpec)%SpecToPolyArray
-      PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(1) = DSMC%VibRelaxProb * (1. + PolyatomMolDSMC(iPolyatMole)%GammaVib(1)/Xi_rel)
-      DO iDOF = 2, PolyatomMolDSMC(iPolyatMole)%VibDOF
-        PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(iDOF) = PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(iDOF - 1) + DSMC%VibRelaxProb &
-                                                        * (1. + PolyatomMolDSMC(iPolyatMole)%GammaVib(1)/Xi_rel)
-      END DO
-    ELSE
-      ProbVib = DSMC%VibRelaxProb * CorrFact
-    END IF
-    IF(XSec_Relaxation) THEN
-      iCase = CollInf%Coll_Case(iSpec,jSpec)
-      IF(SpecXSec(iCase)%UseVibXSec) THEN
-        IF(SpecXSec(iCase)%SpeciesToRelax.EQ.iSpec) THEN
-          IF(SpecXSec(iCase)%UseCollXSec) THEN
-            CALL XSec_CalcVibRelaxProb(iPair)
-            ! Cross-section is stored in the VibProb variable
-            ProbVib = SpecXSec(iCase)%VibProb / SpecXSec(iCase)%CrossSection
-          ELSE
-            ProbVib = SpecXSec(iCase)%VibProb / Coll_pData(iPair)%Prob
-          END IF
-        END IF
-      END IF
-    END IF
-  ELSE IF(DSMC%VibRelaxProb.EQ.2.0) THEN
-    ! Calculation of Prob Vib in function DSMC_calc_var_P_vib.
-    ! This has to average over all collisions according to Boyd (doi:10.1063/1.858495)
-    ! The average value of the cell is only taken from the vector
-    ProbVib = VarVibRelaxProb%ProbVibAv(iElem, iSpec) * CorrFact
-  ELSE
-    CALL Abort(&
-    __STAMP__&
-    ,'Error! Model for vibrational relaxation undefined:',RealInfoOpt=DSMC%VibRelaxProb)
-  END IF
-
-IF(DSMC%CalcQualityFactors) THEN
-  DSMC%CalcVibProb(iSpec,1) = DSMC%CalcVibProb(iSpec,1) + ProbVib
-  DSMC%CalcVibProb(iSpec,3) = DSMC%CalcVibProb(iSpec,3) + 1
-END IF
-
-END SUBROUTINE DSMC_calc_P_vib
-
-
-SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
-!===================================================================================================================================
-  ! Calculation of probability for vibrational relaxation for variable relaxation rates. This has to average over all collisions!
-  ! No instantanious variable probability calculateable
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals            ,ONLY : Abort
-USE MOD_Globals_Vars       ,ONLY : Pi, BoltzmannConst
-USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, Coll_pData, CollInf
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)       :: iPair, iSpec, jSpec
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)         :: ProbVib
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                      :: TempCorr, cRela
-!===================================================================================================================================
-  ! (i) dref changed from   DrefVHS = 0.5 * (SpecDSMC(iSpec)%DrefVHS + SpecDSMC(jSpec)%DrefVHS)
-  !                  to   dref(iSpec,jSpec) which is identical to old definition (for averagedCollisionParameters=TRUE (DEFAULT))
-  ! in case of averagedCollisionParameter=FALSE dref(iSpec,jSpec) contains collision specific dref see --help for details
-
-  ! P_vib according to Boyd, corrected by Abe, only V-T transfer
-  ! determine joint omega and Dref factor and rel velo
-  cRela=SQRT(Coll_pData(iPair)%cRela2)
-  ! calculate non-corrected probabilities
-  ProbVib = 1. /SpecDSMC(iSpec)%CollNumVib(jSpec)* cRela**(3.+2.*CollInf%omega(iSpec,jSpec)) &
-          * EXP(-1.*SpecDSMC(iSpec)%CharaVelo(jSpec)/cRela)
-  ! calculate high temperature correction
-  TempCorr = SpecDSMC(iSpec)%VibCrossSec / (SQRT(2.)*PI*CollInf%dref(iSpec,jSpec)**2.) &
-           * (  CollInf%MassRed(Coll_pData(iPair)%PairType)*cRela & !**2
-           / (2.*(2.-CollInf%omega(iSpec,jSpec))*BoltzmannConst*CollInf%Tref(iSpec,jSpec)))**CollInf%omega(iSpec,jSpec)
-  ! determine corrected probabilities
-  ProbVib = ProbVib * TempCorr / (ProbVib + TempCorr)        ! TauVib = TauVibStd + TauTempCorr
-  IF(ProbVib.NE.ProbVib) THEN !If is NAN
-    ProbVib=0.
-    WRITE(*,*) 'WARNING: Vibrational relaxation probability is NAN and is set to zero. cRela:', cRela
-    ! CALL Abort(&
-    ! __STAMP__&
-    ! ,'Error! Vibrational relaxation probability is NAN (cRela);',RealInfoOpt=cRela)!, jSpec, cRela
-  END IF
-
-END SUBROUTINE DSMC_calc_var_P_vib
-
-
-SUBROUTINE InitCalcVibRelaxProb()
-!===================================================================================================================================
-  ! Initialize the calculation of the variable vibrational relaxation probability in the cell for each iteration
-!===================================================================================================================================
-! MODULES
-USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb 
-USE MOD_Particle_Vars      ,ONLY: nSpecies
-
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                   :: iSpec
-!===================================================================================================================================
-
-IF(DSMC%VibRelaxProb.EQ.2.0) THEN ! Set summs for variable vibrational relaxation to zero
-  DO iSpec=1,nSpecies
-    VarVibRelaxProb%ProbVibAvNew(iSpec) = 0
-    VarVibRelaxProb%nCollis(iSpec) = 0
-  END DO
-END IF
-
-END SUBROUTINE InitCalcVibRelaxProb
-
-
-SUBROUTINE SumVibRelaxProb(iPair)
-!===================================================================================================================================
-  ! summes up the variable vibrational realaxation probabilities
-!===================================================================================================================================
-! MODULES
-USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb, Coll_pData, SpecDSMC
-USE MOD_Particle_Vars      ,ONLY: PartSpecies
-
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)       :: iPair
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                      :: VibProb
-INTEGER                   :: cSpec1, cSpec2
-!===================================================================================================================================
-
-  ! variable vibrational relaxation probability has to average of all collisions
-IF(DSMC%VibRelaxProb.EQ.2.0) THEN
-  cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
-  cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
-  IF((SpecDSMC(cSpec1)%InterID.EQ.2).OR.(SpecDSMC(cSpec1)%InterID.EQ.20)) THEN
-    CALL DSMC_calc_var_P_vib(cSpec1,cSpec2,iPair,VibProb)
-    VarVibRelaxProb%ProbVibAvNew(cSpec1) = VarVibRelaxProb%ProbVibAvNew(cSpec1) + VibProb
-    VarVibRelaxProb%nCollis(cSpec1) = VarVibRelaxProb%nCollis(cSpec1) + 1
-    IF(DSMC%CalcQualityFactors) THEN
-      DSMC%CalcVibProb(cSpec1,2) = MAX(DSMC%CalcVibProb(cSpec1,2),VibProb)
-    END IF
-  END IF
-  IF((SpecDSMC(cSpec2)%InterID.EQ.2).OR.(SpecDSMC(cSpec2)%InterID.EQ.20)) THEN
-    CALL DSMC_calc_var_P_vib(cSpec2,cSpec1,iPair,VibProb)
-    VarVibRelaxProb%ProbVibAvNew(cSpec2) = VarVibRelaxProb%ProbVibAvNew(cSpec2) + VibProb
-    VarVibRelaxProb%nCollis(cSpec2) = VarVibRelaxProb%nCollis(cSpec2) + 1
-    IF(DSMC%CalcQualityFactors) THEN
-      DSMC%CalcVibProb(cSpec2,2) = MAX(DSMC%CalcVibProb(cSpec2,2),VibProb)
-    END IF
-  END IF
-END IF
-
-END SUBROUTINE SumVibRelaxProb
-
-
-SUBROUTINE FinalizeCalcVibRelaxProb(iElem)
-!===================================================================================================================================
-  ! Finalize the calculation of the variable vibrational relaxation probability in the cell for each iteration
-!===================================================================================================================================
-! MODULES
-USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb 
-USE MOD_Particle_Vars      ,ONLY: nSpecies
-
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)       :: iElem
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                   :: iSpec
-!===================================================================================================================================
-
-IF(DSMC%VibRelaxProb.EQ.2.0) THEN
-  DO iSpec=1,nSpecies
-    IF(VarVibRelaxProb%nCollis(iSpec).NE.0) THEN ! Calc new vibrational relaxation probability
-      VarVibRelaxProb%ProbVibAv(iElem,iSpec) = VarVibRelaxProb%ProbVibAv(iElem,iSpec) &
-                                             * VarVibRelaxProb%alpha**(VarVibRelaxProb%nCollis(iSpec)) &
-                                             + (1.-VarVibRelaxProb%alpha**(VarVibRelaxProb%nCollis(iSpec))) &
-                                             / (VarVibRelaxProb%nCollis(iSpec)) * VarVibRelaxProb%ProbVibAvNew(iSpec)
-    END IF
-  END DO
-END IF
-
-END SUBROUTINE FinalizeCalcVibRelaxProb
 
 !--------------------------------------------------------------------------------------------------!
 END MODULE MOD_DSMC_Collis

@@ -55,7 +55,6 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_DSMC_PolyAtomicModel    ,ONLY: Calc_Beta_Poly
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf, ReactionProbGTUnityCounter
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, VarTimeStep
@@ -228,25 +227,8 @@ IF(((Coll_pData(iPair)%Ec-EZeroPoint_Educt).GE.(SumWeightEduct/NumWeightEduct*Ch
   IF(EductReac(3).NE.0) Xi_Total = Xi_Total + 3.
   ! Zero-point energy of educts is removed from the collision energy utilized for the calculation of the reaction probability
   EReact = NumWeightEduct*(Coll_pData(iPair)%Ec - EZeroPoint_Educt)/ SumWeightEduct
-  ! Determination of the Beta coefficient (array for diatomic molecules, calculation for polyatomic)
-  IF(.NOT.ChemReac%QKProcedure(iReac))THEN
-    IF (SpecDSMC(EductReac(1))%PolyatomicMol.OR.SpecDSMC(EductReac(2))%PolyatomicMol           &
-        .OR.SpecDSMC(ProductReac(1))%PolyatomicMol.OR.SpecDSMC(ProductReac(2))%PolyatomicMol) THEN
-      BetaReaction = Calc_Beta_Poly(iReac,Xi_Total)
-    ELSE
-      IF((TRIM(ChemReac%ReactType(iReac)).EQ.'D').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'E')) THEN
-        BetaReaction = ChemReac%ReactInfo(iReac)%Beta_Arrhenius(ChemReac%MeanEVibQua_PerIter(EductReac(1)), &
-                                                                ChemReac%MeanEVibQua_PerIter(EductReac(2)))
-      ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
-        IF(SpecDSMC(EductReac(3))%PolyatomicMol) THEN
-          BetaReaction = Calc_Beta_Poly(iReac,Xi_Total)
-        ELSE
-          BetaReaction = &
-            ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(EductReac(3),ChemReac%MeanEVibQua_PerIter(EductReac(3)))
-        END IF
-      END IF
-    END IF
-  END IF
+  ! Calculation of the beta factor (requires the collision pair-specific vibrational and electronic degrees of freedom)
+  BetaReaction = Calc_Beta_TCE(iReac,Xi_Total)
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Calculation of the backward reaction rate coefficient and applying to Beta coefficient after Boyd "Modeling backward chemical
   ! rate processes in the direct simulation Monte Carlo method", Phys. Fluids 19, 1261103 (2007)
@@ -336,6 +318,44 @@ END IF
 END SUBROUTINE CalcReactionProb
 
 
+PURE REAL FUNCTION Calc_Beta_TCE(iReac,Xi_Total)
+!===================================================================================================================================
+! Calculates the Beta coefficient for polyatomic reactions
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars       ,ONLY: ChemReac, CollInf
+USE MOD_Globals_Vars    ,ONLY: BoltzmannConst
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: iReac
+REAL, INTENT(IN)        :: Xi_Total
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                    :: omega
+!===================================================================================================================================
+
+omega = CollInf%omega(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
+
+IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
+  Calc_Beta_TCE = ChemReac%Arrhenius_Prefactor(iReac) * BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) - omega) &
+    * GAMMA(Xi_total/2. - omega + 2.) / (ChemReac%Hab(iReac) * GAMMA(ChemReac%Arrhenius_Powerfactor(iReac) + Xi_total/2. + 1.5))
+ELSE
+  IF((ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 + omega + Xi_Total/2.).GT.0.0) THEN
+    Calc_Beta_TCE = ChemReac%Arrhenius_Prefactor(iReac) * (BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) - omega)) &
+    * GAMMA(Xi_Total/2.) / (ChemReac%Hab(iReac) * GAMMA(ChemReac%Arrhenius_Powerfactor(iReac) + Xi_Total/2. - 0.5 + omega))
+  ELSE
+    Calc_Beta_TCE = 0.0
+  END IF
+END IF
+
+END FUNCTION Calc_Beta_TCE
+
+
 SUBROUTINE DSMC_Chemistry(iPair, iReac)
 !===================================================================================================================================
 ! Routine performs an exchange reaction of the type A + B + C -> D + E + F, where A, B, C, D, E, F can be anything
@@ -368,15 +388,15 @@ INTEGER, INTENT(IN)           :: iPair, iReac
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: ReactInx(1:4), EductReac(1:3), ProductReac(1:4), nProd, nDOFMAX, iProd, iPolyatMole, iSpec
-INTEGER                       :: SpecToDelete, iPart
+INTEGER                       :: ReactInx(1:4), EductReac(1:3), ProductReac(1:4), nDOFMAX, iProd, iPolyatMole, iSpec
+INTEGER                       :: SpecToDelete, iPart, NumEduct, NumProd
 REAL                          :: FracMassCent1, FracMassCent2, MassRed      ! mx/(mx+my)
 REAL                          :: VeloCOM(1:3)                               !> Centre of mass velocity
 REAL                          :: FakXi, Xi_total, iRan, FacEtraDistri
 REAL                          :: ERel_React1_React2, ERel_React1_React3, ERel_React2_React4
 REAL                          :: Xi_elec(1:4), EZeroTempToExec(1:4)
 REAL, ALLOCATABLE             :: XiVibPart(:,:)
-REAL                          :: Weight(1:4), NumWeightEduct, NumWeightProd, SumWeightProd
+REAL                          :: Weight(1:4), SumWeightProd
 REAL                          :: cRelaNew(3) ! relative velocity
 #ifdef CODE_ANALYZE
 REAL,PARAMETER                :: RelMomTol=5e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
@@ -427,7 +447,7 @@ Xi_elec = 0.
 EZeroTempToExec = 0.
 
 Weight = 0.
-NumWeightEduct = 2.; NumWeightProd = 2.; SumWeightProd = 0.
+NumEduct = 2; NumProd = 2; SumWeightProd = 0.
 
 !..Get the index of react1 and the react2
 IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%Reactants(iReac,1)) THEN
@@ -442,24 +462,24 @@ IF(EductReac(3).NE.0) THEN
   IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
     EductReac(3) = PartSpecies(ReactInx(3))
     ProductReac(2) = PartSpecies(ReactInx(3))
-    NumWeightEduct = 3.
+    NumEduct = 3
   END IF
   IF(ProductReac(3).EQ.0) THEN
     CALL RemoveParticle(ReactInx(3))
   ELSE
     PartSpecies(ReactInx(3)) = ProductReac(3)
-    NumWeightProd = 3.
+    NumProd = 3
   END IF
 END IF
 
 ! Set the particle weights of the reactants
-DO iPart = 1, NINT(NumWeightEduct)
+DO iPart = 1, NumEduct
   Weight(iPart) = GetParticleWeight(ReactInx(iPart))
 END DO
 
 IF(CalcPartBalance) THEN
   IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') THEN
-    DO iPart = 1, NINT(NumWeightEduct)
+    DO iPart = 1, NumEduct
       IF(BGGas%BackgroundSpecies(EductReac(iPart))) CYCLE
       nPartOut(EductReac(iPart))=nPartOut(EductReac(iPart)) + 1
       PartEkinOut(EductReac(iPart))=PartEkinOut(EductReac(iPart))+CalcEkinPart(ReactInx(iPart))
@@ -507,7 +527,7 @@ IF(EductReac(3).EQ.0) THEN
     IF(RadialWeighting%DoRadialWeighting) PartMPF(ReactInx(3)) = PartMPF(ReactInx(1))
     IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(ReactInx(3)) = VarTimeStep%ParticleTimeStep(ReactInx(1))
     Weight(3) = Weight(1)
-    NumWeightProd = 3.
+    NumProd = 3
     SumWeightProd = SumWeightProd + Weight(3)
   END IF
 END IF
@@ -537,7 +557,7 @@ IF(ProductReac(4).NE.0) THEN
   IF(RadialWeighting%DoRadialWeighting) PartMPF(ReactInx(4)) = PartMPF(ReactInx(1))
   IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(ReactInx(4)) = VarTimeStep%ParticleTimeStep(ReactInx(1))
   Weight(4) = Weight(1)
-  NumWeightProd = 4.
+  NumProd = 4
   SumWeightProd = SumWeightProd + Weight(4)
 END IF
 
@@ -547,7 +567,7 @@ Energy_old=0.5*Species(PartSpecies(ReactInx(1)))%MassIC*DOTPRODUCT(PartState(4:6
           +0.5*Species(PartSpecies(ReactInx(2)))%MassIC*DOTPRODUCT(PartState(4:6,ReactInx(2))) * Weight(2) &
           + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight(1) &
           + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2) &
-          + ChemReac%EForm(iReac)*SumWeightProd/NumWeightProd
+          + ChemReac%EForm(iReac)*SumWeightProd/REAL(NumProd)
 IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(3,ReactInx(1))*Weight(1) + PartStateIntEn(3,ReactInx(2)) * Weight(2)
 IF (EductReac(3).NE.0) THEN
   Energy_old=Energy_old+(0.5*Species(PartSpecies(ReactInx(3)))%MassIC*DOTPRODUCT(PartState(4:6,ReactInx(3)))&
@@ -562,14 +582,14 @@ IF (EductReac(3).NE.0) Momentum_old(1:3) = Momentum_old(1:3) + Species(PartSpeci
 #endif /* CODE_ANALYZE */
 
 ! Add heat of formation to collision energy
-Coll_pData(iPair)%Ec = 0.5 * MassRed *Coll_pData(iPair)%CRela2 + ChemReac%EForm(iReac)*SumWeightProd/NumWeightProd
+Coll_pData(iPair)%Ec = 0.5 * MassRed *Coll_pData(iPair)%CRela2 + ChemReac%EForm(iReac)*SumWeightProd/REAL(NumProd)
 
 IF(RadialWeighting%DoRadialWeighting) THEN
   ! Weighting factor already included in the weights
-  ChemEnergySum = ChemEnergySum + ChemReac%EForm(iReac)*SumWeightProd/NumWeightProd
+  ChemEnergySum = ChemEnergySum + ChemReac%EForm(iReac)*SumWeightProd/REAL(NumProd)
 ELSE
   ChemEnergySum = ChemEnergySum + ChemReac%EForm(iReac)*Species(EductReac(1))%MacroParticleFactor &
-                                  *SumWeightProd/NumWeightProd
+                                  *SumWeightProd/REAL(NumProd)
 END IF
 
 !-------------------------------------------------------------------------------------------------------------------------------
@@ -578,20 +598,17 @@ END IF
 IF(ProductReac(4).NE.0) THEN
   ! 4 Products
   Xi_total = 6.*(2. - CollInf%omega(ProductReac(1),ProductReac(2)))
-  nProd = 4
 ELSE IF(ProductReac(3).NE.0) THEN
   ! 3 Products
   Xi_total = 4.*(2. - CollInf%omega(ProductReac(1),ProductReac(2)))
-  nProd = 3
 ELSE
   ! 2 Products
   Xi_total = 2.*(2. - CollInf%omega(ProductReac(1),ProductReac(2)))
-  nProd = 2
 END IF
 !-------------------------------------------------------------------------------------------------------------------------------
 ! Rotational degrees of freedom
 !-------------------------------------------------------------------------------------------------------------------------------
-DO iProd = 1, nProd
+DO iProd = 1, NumProd
   Xi_total = Xi_total + SpecDSMC(ProductReac(iProd))%Xi_Rot
 END DO
 !-------------------------------------------------------------------------------------------------------------------------------
@@ -640,7 +657,7 @@ END IF
 !-------------------------------------------------------------------------------------------------------------------------------
 ! Determining the maximal number of vibrational SHOs for allocation of the XiVibPart array
 nDOFMAX = 0
-DO iProd = 1, nProd
+DO iProd = 1, NumProd
   IF((SpecDSMC(ProductReac(iProd))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(iProd))%InterID.EQ.20)) THEN
     IF(SpecDSMC(ProductReac(iProd))%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(ProductReac(iProd))%SpecToPolyArray
@@ -654,23 +671,23 @@ END DO
 ! Root-finding algorithm to determine the vibrational and electronic degrees of freedom
 IF((nDOFMAX.GT.0).AND.(DSMC%ElectronicModel)) THEN
   ! Electronic and vibrational energy is considered
-  ALLOCATE(XiVibPart(nProd,nDOFMAX))
+  ALLOCATE(XiVibPart(NumProd,nDOFMAX))
   XiVibPart = 0.
-  CALL CalcXiTotalEqui(iReac,iPair,nProd,Xi_total,Weight,XiVibPart=XiVibPart,XiElecPart=Xi_elec)
+  CALL CalcXiTotalEqui(iReac,iPair,NumProd,Xi_total,Weight,XiVibPart=XiVibPart,XiElecPart=Xi_elec)
 ELSEIF(DSMC%ElectronicModel) THEN
   ! Only electronic energy is considered
-  CALL CalcXiTotalEqui(iReac,iPair,nProd,Xi_total,Weight,XiElecPart=Xi_elec)
+  CALL CalcXiTotalEqui(iReac,iPair,NumProd,Xi_total,Weight,XiElecPart=Xi_elec)
 ELSEIF(nDOFMAX.GT.0) THEN
   ! Only vibrational energy is considered
-  ALLOCATE(XiVibPart(nProd,nDOFMAX))
+  ALLOCATE(XiVibPart(NumProd,nDOFMAX))
   XiVibPart = 0.
-  CALL CalcXiTotalEqui(iReac,iPair,nProd,Xi_total,Weight,XiVibPart=XiVibPart)
+  CALL CalcXiTotalEqui(iReac,iPair,NumProd,Xi_total,Weight,XiVibPart=XiVibPart)
 END IF
 !-------------------------------------------------------------------------------------------------------------------------------
 ! Addition of the vibrational and electronic degrees of freedom to Xi_total
 !-------------------------------------------------------------------------------------------------------------------------------
 IF(nDOFMAX.GT.0) THEN
-  DO iProd = 1, nProd
+  DO iProd = 1, NumProd
     IF((SpecDSMC(ProductReac(iProd))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(iProd))%InterID.EQ.20)) THEN
       Xi_total = Xi_total + SUM(XiVibPart(iProd,:))
       EZeroTempToExec(iProd) = SpecDSMC(ProductReac(iProd))%EZeroPoint*Weight(iProd)
@@ -678,7 +695,7 @@ IF(nDOFMAX.GT.0) THEN
   END DO
 END IF
 IF (DSMC%ElectronicModel) THEN
-  DO iProd = 1, nProd
+  DO iProd = 1, NumProd
     Xi_total = Xi_total + Xi_elec(iProd)
   END DO
 END IF
@@ -688,14 +705,14 @@ FakXi = 0.5*Xi_total - 1.0
 Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - SUM(EZeroTempToExec(:))
 !-------------------------------------------------------------------------------------------------------------------------------
 ! Set the new species of the products
-DO iProd = 1, nProd
+DO iProd = 1, NumProd
   PartSpecies(ReactInx(iProd)) = ProductReac(iProd)
 END DO
 !--------------------------------------------------------------------------------------------------
 ! Electronic energy exchange
 !--------------------------------------------------------------------------------------------------
 IF (DSMC%ElectronicModel) THEN
-  DO iProd = 1, nProd
+  DO iProd = 1, NumProd
     IF((SpecDSMC(ProductReac(iProd))%InterID.EQ.4).OR.SpecDSMC(ProductReac(iProd))%FullyIonized) THEN
       PartStateIntEn(3,ReactInx(iProd)) = 0.0
     ELSE
@@ -708,7 +725,7 @@ END IF
 !--------------------------------------------------------------------------------------------------
 ! Vibrational energy exchange
 !--------------------------------------------------------------------------------------------------
-DO iProd = 1, nProd
+DO iProd = 1, NumProd
   IF((SpecDSMC(ProductReac(iProd))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(iProd))%InterID.EQ.20)) THEN
     FakXi = FakXi - 0.5*XiVibPart(iProd,1)
     IF(SpecDSMC(ProductReac(iProd))%PolyatomicMol) THEN
@@ -728,7 +745,7 @@ END DO
 !--------------------------------------------------------------------------------------------------
 ! Rotational energy exchange (additional check: If new particle is an atom, internal energies are zero)
 !--------------------------------------------------------------------------------------------------
-DO iProd = 1, nProd
+DO iProd = 1, NumProd
   IF ((SpecDSMC(ProductReac(iProd))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(iProd))%InterID.EQ.20)) THEN
     IF(SpecDSMC(ProductReac(iProd))%Xi_Rot.EQ.3) THEN
       FakXi = FakXi - 0.5*SpecDSMC(ProductReac(iProd))%Xi_Rot
@@ -977,7 +994,7 @@ END IF
 IF(ChemReac%NumDeleteProducts.GT.0) THEN
   DO iSpec = 1, ChemReac%NumDeleteProducts
     SpecToDelete = ChemReac%DeleteProductsList(iSpec)
-    DO iProd = 1, nProd
+    DO iProd = 1, NumProd
       IF(ProductReac(iProd).EQ.SpecToDelete) THEN
         ! Remove the respective particle
         CALL RemoveParticle(ReactInx(iProd))
@@ -989,7 +1006,7 @@ IF(ChemReac%NumDeleteProducts.GT.0) THEN
 END IF
 
 IF(CalcPartBalance) THEN
-  DO iPart = 1, NINT(NumWeightProd)
+  DO iPart = 1, NumProd
     nPartIn(ProductReac(iPart))=nPartIn(ProductReac(iPart)) + 1
     PartEkinIn(ProductReac(iPart))=PartEkinIn(ProductReac(iPart))+CalcEkinPart(ReactInx(iPart))
   END DO
