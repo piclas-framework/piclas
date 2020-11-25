@@ -644,7 +644,7 @@ SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,TotalNbrOfReactions)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcMeanFreePath
-USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, PartStateIntEn, DSMC, DSMC_RHS
+USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, PartStateIntEn, DSMC
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_Particle_Vars          ,ONLY: PEM, PDM, PartSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
 USE MOD_DSMC_Init              ,ONLY: DSMC_SetInternalEnr_LauxVFD
@@ -652,11 +652,8 @@ USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_part_pos_and_velo      ,ONLY: SetParticleVelocity
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
 USE MOD_part_emission_tools    ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_DSMC_ChemReact         ,ONLY: DSMC_Chemistry
 USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
-USE MOD_Particle_Analyze       ,ONLY: PARTISELECTRON
-USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutput
-USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
+USE MOD_DSMC_ChemReact         ,ONLY: PhotoIonization_InsertProducts
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -667,7 +664,6 @@ INTEGER, INTENT(IN)           :: iSpec,iInit,TotalNbrOfReactions
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart, iPair, iNewPart, iReac, ParticleIndex, NewParticleIndex, bgSpec, NbrOfParticle
-INTEGER                       :: iPart_p1, iPart_p2, iPart_p3
 REAL                          :: RandVal,NumTmp,ProbRest
 INTEGER                       :: TotalNbrOfReactionsTmp,iCrossSection,NbrCrossSections
 INTEGER                       :: NumPhotoIonization(ChemReac%NumOfReact)
@@ -802,60 +798,7 @@ DO iReac = 1, ChemReac%NumOfReact
   IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
   DO iPart = 1, NumPhotoIonization(iReac)
     iPair = iPair + 1
-    CALL DSMC_Chemistry(iPair, iReac)
-    ! Add the velocity change due the energy distribution in the chemistry routine
-    iPart_p1 = Coll_pData(iPair)%iPart_p1
-    iPart_p2 = Coll_pData(iPair)%iPart_p2
-    PartState(4:6,iPart_p1) = PartState(4:6,iPart_p1) + DSMC_RHS(1:3,iPart_p1)
-    PartState(4:6,iPart_p2) = PartState(4:6,iPart_p2) + DSMC_RHS(1:3,iPart_p2)
-    ! Treatment of the third product
-    IF(ChemReac%Products(iReac,3).NE.0) THEN
-      iPart_p3 = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
-      PartState(4:6,iPart_p3) = PartState(4:6,iPart_p3) + DSMC_RHS(1:3,iPart_p3)
-    END IF
-    ! If an electron is created, change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
-    ASSOCIATE( b1 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC(1:3)) ,&
-               b2 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC(1:3)) )
-    ! OR check PartSpecies(iPart_p1) = iSpec and 
-    !          PartSpecies(iPart_p2) = iSpec
-      IF(PARTISELECTRON(iPart_p1)) THEN
-        ! Get random vector b3 in b1-b2-plane
-        CALL RANDOM_NUMBER(RandVal)
-        PartState(4:6,iPart_p1) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart_p1),RandVal)
-        ! Rotate the resulting vector in the b3-NormalIC-plane
-        PartState(4:6,iPart_p1) = GetRotatedVector(PartState(4:6,iPart_p1),Species(iSpec)%Init(iInit)%NormalIC)
-        ! Store the particle information in PartStateBoundary.h5
-        IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(iPart_p1,PartSpecies(iPart_p1),PartState(1:3,iPart_p1),&
-                                          UNITVECTOR(PartState(4:6,iPart_p1)),Species(iSpec)%Init(iInit)%NormalIC,mode=2,&
-                                          usevMPF_optIN=.FALSE.)
-      END IF
-      IF(PARTISELECTRON(iPart_p2)) THEN
-        CALL RANDOM_NUMBER(RandVal)
-        ! Get random vector b3 in b1-b2-plane
-        PartState(4:6,iPart_p2) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart_p2),RandVal)
-        ! Rotate the resulting vector in the b3-NormalIC-plane
-        PartState(4:6,iPart_p2) = GetRotatedVector(PartState(4:6,iPart_p2),Species(iSpec)%Init(iInit)%NormalIC)
-        ! Store the particle information in PartStateBoundary.h5
-        IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(iPart_p2,PartSpecies(iPart_p2),PartState(1:3,iPart_p2),&
-                                          UNITVECTOR(PartState(4:6,iPart_p2)),Species(iSpec)%Init(iInit)%NormalIC,mode=2,&
-                                          usevMPF_optIN=.FALSE.)
-      END IF
-      ! Treatment of the third product
-      IF(ChemReac%Products(iReac,3).NE.0) THEN
-        iPart_p3 = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
-        IF(PARTISELECTRON(iPart_p3)) THEN
-          CALL RANDOM_NUMBER(RandVal)
-          ! Get random vector b3 in b1-b2-plane
-          PartState(4:6,iPart_p3) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart_p3),RandVal)
-          ! Rotate the resulting vector in the b3-NormalIC-plane
-          PartState(4:6,iPart_p3) = GetRotatedVector(PartState(4:6,iPart_p3),Species(iSpec)%Init(iInit)%NormalIC)
-          ! Store the particle information in PartStateBoundary.h5
-          IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(iPart_p3,PartSpecies(iPart_p3),PartState(1:3,iPart_p3),&
-                                            UNITVECTOR(PartState(4:6,iPart_p3)),Species(iSpec)%Init(iInit)%NormalIC,mode=2,&
-                                            usevMPF_optIN=.FALSE.)
-        END IF
-      END IF
-    END ASSOCIATE
+    CALL PhotoIonization_InsertProducts(iPair, iReac, iInit, iSpec)
   END DO
 END DO
 
@@ -868,78 +811,5 @@ DSMCSumOfFormedParticles = 0
 DEALLOCATE(Coll_pData)
 
 END SUBROUTINE BGGas_PhotoIonization
-
-
-PURE FUNCTION GetRandomVectorInPlane(b1,b2,VeloVec,RandVal)
-!===================================================================================================================================
-! Pick random vector in a plane set up by the basis vectors b1 and b2
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals      ,ONLY: VECNORM
-USE MOD_Globals_Vars ,ONLY: PI
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)    :: b1(1:3),b2(1:3) ! Basis vectors (normalized)
-REAL,INTENT(IN)    :: VeloVec(1:3)    ! Velocity vector before the random direction selection within the plane defined by b1 and b2
-REAL,INTENT(IN)    :: RandVal         ! Random number (given from outside to render this function PURE)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLE
-REAL               :: GetRandomVectorInPlane(1:3) ! Output velocity vector
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL               :: Vabs ! Absolute velocity 
-REAL               :: phi ! random angle between 0 and 2*PI
-!===================================================================================================================================
-Vabs = VECNORM(VeloVec)
-phi = RandVal * 2.0 * PI
-GetRandomVectorInPlane = Vabs*(b1*COS(phi) + b2*SIN(phi))
-END FUNCTION GetRandomVectorInPlane
-
-
-FUNCTION GetRotatedVector(VeloVec,NormVec)
-!===================================================================================================================================
-! Rotate the vector in the plane set up by VeloVec and NormVec by choosing an angle from a 4.0 / PI * COS(Theta_temp)**2
-! distribution via the ARM
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals      ,ONLY: VECNORM, UNITVECTOR
-USE MOD_Globals_Vars ,ONLY: PI
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)    :: NormVec(1:3) ! Basis vector (normalized)
-REAL,INTENT(IN)    :: VeloVec(1:3) ! Velocity vector before the random direction selection within the plane defined by b1 and b2
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLE
-REAL               :: GetRotatedVector(1:3) ! Output velocity vector
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL               :: Vabs ! Absolute velocity
-REAL               :: RandVal, v(1:3)
-REAL               :: Theta, Theta_temp
-REAL               :: PDF_temp
-REAL, PARAMETER    :: PDF_max=4./ACOS(-1.)
-LOGICAL            :: ARM_SEE_PDF
-!===================================================================================================================================
-v = UNITVECTOR(VeloVec)
-Vabs = VECNORM(VeloVec)
-
-! ARM for angular distribution
-ARM_SEE_PDF=.TRUE.
-DO WHILE(ARM_SEE_PDF)
-  CALL RANDOM_NUMBER(RandVal)
-  Theta_temp = RandVal * 0.5 * PI
-  PDF_temp = 4.0 / PI * COS(Theta_temp)**2
-  CALL RANDOM_NUMBER(RandVal)
-  IF ((PDF_temp/PDF_max).GT.RandVal) ARM_SEE_PDF = .FALSE.
-END DO
-Theta = Theta_temp
-
-! Rotate original vector Vabs*v
-GetRotatedVector = Vabs*(v*COS(Theta) + NormVec*SIN(Theta))
-END FUNCTION GetRotatedVector
 
 END MODULE MOD_DSMC_BGGas

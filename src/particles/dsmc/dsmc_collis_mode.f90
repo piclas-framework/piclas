@@ -57,14 +57,17 @@ SUBROUTINE DSMC_Elastic_Col(iPair)
 ! Performs simple elastic collision (CollisMode = 1)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, RadialWeighting, DSMC
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, VarTimeStep, Species
-  USE MOD_DSMC_CollisVec,         ONLY : PostCollVec
-  USE MOD_part_tools              ,ONLY: GetParticleWeight
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, DSMC_RHS, RadialWeighting
+USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, VarTimeStep, Species
+USE MOD_DSMC_CollisVec          ,ONLY: PostCollVec
+USE MOD_part_tools              ,ONLY: GetParticleWeight
+#if (PP_TimeDiscMethod==42)
+USE MOD_DSMC_Vars               ,ONLY: DSMC
+#endif
 #ifdef CODE_ANALYZE
-  USE MOD_Globals                ,ONLY: Abort
-  USE MOD_Globals                ,ONLY: unit_stdout,myrank
-  USE MOD_Particle_Vars          ,ONLY: Symmetry
+USE MOD_Globals                 ,ONLY: Abort
+USE MOD_Globals                 ,ONLY: unit_stdout,myrank
+USE MOD_Particle_Vars           ,ONLY: Symmetry
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -357,15 +360,17 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair)
 ! Vibrational (of the relaxing molecule), rotational and relative translational energy (of both molecules) is redistributed (V-R-T)
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, DSMC_RHS, DSMC, SpecDSMC, PartStateIntEn, RadialWeighting, SpecXSec
-USE MOD_DSMC_Vars             ,ONLY: XSec_Relaxation
+USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, DSMC_RHS, DSMC, SpecDSMC, PartStateIntEn, RadialWeighting
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, VarTimeStep, PEM
 USE MOD_DSMC_ElectronicModel  ,ONLY: ElectronicEnergyExchange, TVEEnergyExchange
 USE MOD_DSMC_PolyAtomicModel  ,ONLY: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
 USE MOD_DSMC_Relaxation       ,ONLY: DSMC_VibRelaxDiatomic
 USE MOD_DSMC_CollisVec        ,ONLY: PostCollVec
 USE MOD_part_tools            ,ONLY: GetParticleWeight
+#if (PP_TimeDiscMethod==42)
+USE MOD_DSMC_Vars             ,ONLY: SpecXSec, XSec_Relaxation
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcRelaxProb
+#endif
 #ifdef CODE_ANALYZE
 USE MOD_Globals               ,ONLY: Abort
 USE MOD_Globals               ,ONLY: unit_stdout,myrank
@@ -390,11 +395,13 @@ REAL                          :: ProbRot1, ProbRotMax1, ProbRot2, ProbRotMax2, P
 INTEGER                       :: iSpec1, iSpec2, iPart1, iPart2, iElem ! Colliding particles 1 and 2 and their species
 ! variables for electronic level relaxation and transition
 LOGICAL                       :: DoElec1, DoElec2
+#if (PP_TimeDiscMethod==42)
+INTEGER                       :: iCase
+#endif
 #ifdef CODE_ANALYZE
 REAL                          :: Energy_old,Energy_new
 REAL                          :: Weight1, Weight2
 #endif /* CODE_ANALYZE */
-INTEGER                       :: iCase
 !===================================================================================================================================
 
   iPart1 = Coll_pData(iPair)%iPart_p1
@@ -1442,7 +1449,6 @@ REAL, INTENT(OUT)         :: ProbVib
 REAL                      :: CorrFact       ! CorrFact: To correct sample Bias
                                             ! (fewer DSMC particles than natural ones)
 INTEGER                   :: iPolyatMole, iDOF, iCase
-REAL                      :: CollisionEnergy
 !===================================================================================================================================
 
   ProbVib = 0.

@@ -43,7 +43,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb, CalcBackwardRate, CalcPartitionFunction
-PUBLIC :: CalcPhotoIonizationNumber
+PUBLIC :: CalcPhotoIonizationNumber, PhotoIonization_InsertProducts
 !===================================================================================================================================
 
 CONTAINS
@@ -1416,6 +1416,302 @@ DO iReac = 1, ChemReac%NumOfReact
 END DO
 
 END SUBROUTINE CalcPhotoIonizationNumber
+
+
+SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, iInit, InitSpec)
+!===================================================================================================================================
+!> Routine performing the photo-ionization reaction: initializing the heave species at the background gas temperature (first
+!> reactant) and distributing the remaining collision energy onto the electrons
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars               ,ONLY: ChemReac, PartStateIntEn, RadialWeighting
+USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep
+USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefmapping
+USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
+USE MOD_part_tools              ,ONLY: GetParticleWeight, DiceUnitVector
+USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_Macro_Restart           ,ONLY: CalcERot_particle, CalcEVib_particle, CalcEElec_particle
+USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
+USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutput
+USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iPair, iReac, iInit, InitSpec
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iPart, iSpec, iProd, NumProd, NumElec
+INTEGER                       :: ReactInx(1:4), EductReac(1:3), ProductReac(1:4)
+REAL                          :: Weight(1:4), SumWeightProd, Mass_Electron, CRela2_Electron, RandVal
+REAL                          :: VeloCOM(1:3), Temp_Trans, Temp_Rot, Temp_Vib, Temp_Elec
+!===================================================================================================================================
+
+EductReac(1:3) = ChemReac%Reactants(iReac,1:3)
+ProductReac(1:4) = ChemReac%Products(iReac,1:4)
+
+! Do not perform the reaction in case the reaction is to be calculated at a constant gas composition (DSMC%ReservoirSimuRate = T)
+#if (PP_TimeDiscMethod==42)
+IF (DSMC%ReservoirSimuRate) THEN
+  ! Count the number of reactions to determine the actual reaction rate
+  IF (DSMC%ReservoirRateStatistic) THEN
+    ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1
+  END IF
+  ! Leave the routine again
+  RETURN
+END IF
+#endif
+
+Weight = 0.
+NumProd = 2.; SumWeightProd = 0.
+
+!..Get the index of react1 and the react2
+IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%Reactants(iReac,1)) THEN
+  ReactInx(1) = Coll_pData(iPair)%iPart_p1
+  ReactInx(2) = Coll_pData(iPair)%iPart_p2
+ELSE
+  ReactInx(2) = Coll_pData(iPair)%iPart_p1
+  ReactInx(1) = Coll_pData(iPair)%iPart_p2
+END IF
+
+! Set the particle weights to the same as the background species
+Weight(1:2) = GetParticleWeight(ReactInx(1))
+! Set the particle species for the first two products (the other products require an index first)
+DO iProd = 1, NumProd
+  PartSpecies(ReactInx(iProd)) = ProductReac(iProd)
+END DO
+
+! Calculate the sum of the weights of the products
+SumWeightProd = Weight(1) + Weight(2)
+
+IF(EductReac(3).EQ.0) THEN
+  IF(ProductReac(3).NE.0) THEN
+    ! === Get free particle index for the 3rd product
+    DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
+    ReactInx(3) = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
+    IF (ReactInx(3).EQ.0) THEN
+      CALL abort(__STAMP__,&
+      'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
+    END IF
+    PDM%ParticleInside(ReactInx(3)) = .true.
+    PDM%IsNewPart(ReactInx(3)) = .true.
+    PDM%dtFracPush(ReactInx(3)) = .FALSE.
+    ! Set species index of new particle
+    PartSpecies(ReactInx(3)) = ProductReac(3)
+    PartState(1:3,ReactInx(3)) = PartState(1:3,ReactInx(1))
+    IF(DoRefMapping) THEN
+      PartPosRef(1:3,ReactInx(3))=PartPosRef(1:3,ReactInx(1))
+    END IF
+    PartStateIntEn(1,ReactInx(3)) = 0.
+    PartStateIntEn(2,ReactInx(3)) = 0.
+    IF(DSMC%ElectronicModel) PartStateIntEn(3,ReactInx(3)) = 0.
+    PEM%GlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(1))
+    PEM%LastGlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(3))
+    IF(RadialWeighting%DoRadialWeighting) PartMPF(ReactInx(3)) = PartMPF(ReactInx(1))
+    IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(ReactInx(3)) = VarTimeStep%ParticleTimeStep(ReactInx(1))
+    Weight(3) = Weight(1)
+    NumProd = 3.
+    SumWeightProd = SumWeightProd + Weight(3)
+  END IF
+END IF
+
+IF(ProductReac(4).NE.0) THEN
+  ! === Get free particle index for the 4th product
+  DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
+  ReactInx(4) = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
+  IF (ReactInx(4).EQ.0) THEN
+    CALL abort(__STAMP__,&
+    'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
+  END IF
+  PDM%ParticleInside(ReactInx(4)) = .true.
+  PDM%IsNewPart(ReactInx(4)) = .true.
+  PDM%dtFracPush(ReactInx(4)) = .FALSE.
+  ! Set species index of new particle
+  PartSpecies(ReactInx(4)) = ProductReac(4)
+  PartState(1:3,ReactInx(4)) = PartState(1:3,ReactInx(1))
+  IF(DoRefMapping) THEN ! here Nearst-GP is missing
+    PartPosRef(1:3,ReactInx(4))=PartPosRef(1:3,ReactInx(1))
+  END IF
+  PartStateIntEn(1,ReactInx(4)) = 0.
+  PartStateIntEn(2,ReactInx(4)) = 0.
+  IF(DSMC%ElectronicModel) PartStateIntEn(3,ReactInx(4)) = 0.
+  PEM%GlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(1))
+  PEM%LastGlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(4))
+  IF(RadialWeighting%DoRadialWeighting) PartMPF(ReactInx(4)) = PartMPF(ReactInx(1))
+  IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(ReactInx(4)) = VarTimeStep%ParticleTimeStep(ReactInx(1))
+  Weight(4) = Weight(1)
+  NumProd = 4.
+  SumWeightProd = SumWeightProd + Weight(4)
+END IF
+
+! Only consider the remaining energy from the photo-ionization
+Coll_pData(iPair)%Ec = ChemReac%EForm(iReac)*SumWeightProd/NumProd
+
+IF(RadialWeighting%DoRadialWeighting) THEN
+  ! Weighting factor already included in the weights
+  ChemEnergySum = ChemEnergySum + ChemReac%EForm(iReac)*SumWeightProd/NumProd
+ELSE
+  ChemEnergySum = ChemEnergySum + ChemReac%EForm(iReac)*Species(EductReac(1))%MacroParticleFactor &
+                                  *SumWeightProd/NumProd
+END IF
+
+! Saving the velocity of the background particle as the centre of mass velocity
+VeloCOM(1:3) = PartState(4:6,ReactInx(1))
+! Get the properties of the background species used for the photo-ionization reaction
+Temp_Trans = Species(EductReac(1))%Init(1)%MWTemperatureIC
+IF((SpecDSMC(EductReac(1))%InterID.EQ.2).OR.(SpecDSMC(EductReac(1))%InterID.EQ.20)) THEN
+  Temp_Vib   = SpecDSMC(EductReac(1))%Init(1)%TVib
+  Temp_Rot   = SpecDSMC(EductReac(1))%Init(1)%TRot
+ELSE
+  Temp_Vib   = Temp_Trans
+  Temp_Rot   = Temp_Trans
+END IF
+IF(DSMC%ElectronicModel) Temp_Elec = SpecDSMC(EductReac(1))%Init(1)%TElec
+!-------------------------------------------------------------------------------------------------------------------------------
+! Insert the heavy species at the properties of the background gas
+!-------------------------------------------------------------------------------------------------------------------------------
+NumElec = 0
+DO iProd = 1, NumProd
+  iPart = ReactInx(iProd)
+  iSpec = ProductReac(iProd)
+  IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
+    NumElec = NumElec + 1
+    Mass_Electron = Species(iSpec)%MassIC
+    CYCLE
+  END IF
+  ! Set the internal energies
+  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    PartStateIntEn(1,iPart) = CalcEVib_particle(iSpec,iPart,Temp_Vib)
+    PartStateIntEn(2,iPart) = CalcERot_particle(iSpec,Temp_Rot)
+  ELSE
+    PartStateIntEn(1:2,iPart) = 0.0
+  END IF
+  IF(DSMC%ElectronicModel) THEN
+    IF(.NOT.SpecDSMC(iSpec)%FullyIonized) THEN
+      PartStateIntEn(3,iPart) = CalcEElec_particle(iSpec,Temp_Elec)
+    ELSE
+      PartStateIntEn(3,iPart) = 0.0
+    END IF
+  END IF
+  ! Determine the particle velocity (is going to be added to the PartState)
+  CALL CalcVelocity_maxwell_lpn(FractNbr=iSpec, Vec3D=PartState(4:6,iPart), Temperature=Temp_Trans)
+  ! Remove the distributed energy from the available collision energy
+  Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - 0.5 * Species(iSpec)%MassIC * DOTPRODUCT(PartState(4:6,iPart)) * Weight(iProd)&
+                                              - (PartStateIntEn(1,iPart) + PartStateIntEn(2,iPart))*Weight(iProd)
+  IF (DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart)*Weight(iProd)
+END DO
+!--------------------------------------------------------------------------------------------------!
+! Calculation of new electron velocities 
+!--------------------------------------------------------------------------------------------------!
+CRela2_Electron  = 2. * (Coll_pData(iPair)%Ec / REAL(NumElec)) / Mass_Electron
+DO iProd = 1, NumProd
+  iPart = ReactInx(iProd)
+  iSpec = ProductReac(iProd)
+  IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
+    PartState(4:6,iPart) = VeloCOM(1:3) + SQRT(CRela2_Electron) * DiceUnitVector()
+  END IF
+  ! Change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
+  ASSOCIATE( b1 => UNITVECTOR(Species(InitSpec)%Init(iInit)%BaseVector1IC(1:3)) ,&
+             b2 => UNITVECTOR(Species(InitSpec)%Init(iInit)%BaseVector2IC(1:3)) )
+    ! Get random vector b3 in b1-b2-plane
+    CALL RANDOM_NUMBER(RandVal)
+    PartState(4:6,iPart) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart),RandVal)
+    ! Rotate the resulting vector in the b3-NormalIC-plane
+    PartState(4:6,iPart) = GetRotatedVector(PartState(4:6,iPart),Species(InitSpec)%Init(iInit)%NormalIC)
+    ! Store the particle information in PartStateBoundary.h5
+    IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),&
+                                      UNITVECTOR(PartState(4:6,iPart)),Species(InitSpec)%Init(iInit)%NormalIC,mode=2,&
+                                      usevMPF_optIN=.FALSE.)
+  END ASSOCIATE
+END DO
+
+IF(CalcPartBalance) THEN
+  DO iProd = 1, NumProd
+    iSpec = ProductReac(iPart)
+    nPartIn(iSpec) = nPartIn(iSpec) + 1
+    PartEkinIn(iSpec) = PartEkinIn(iSpec) + CalcEkinPart(ReactInx(iProd))
+  END DO
+END IF
+
+END SUBROUTINE PhotoIonization_InsertProducts
+
+
+PURE FUNCTION GetRandomVectorInPlane(b1,b2,VeloVec,RandVal)
+!===================================================================================================================================
+! Pick random vector in a plane set up by the basis vectors b1 and b2
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals      ,ONLY: VECNORM
+USE MOD_Globals_Vars ,ONLY: PI
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)    :: b1(1:3),b2(1:3) ! Basis vectors (normalized)
+REAL,INTENT(IN)    :: VeloVec(1:3)    ! Velocity vector before the random direction selection within the plane defined by b1 and b2
+REAL,INTENT(IN)    :: RandVal         ! Random number (given from outside to render this function PURE)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLE
+REAL               :: GetRandomVectorInPlane(1:3) ! Output velocity vector
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: Vabs ! Absolute velocity 
+REAL               :: phi ! random angle between 0 and 2*PI
+!===================================================================================================================================
+Vabs = VECNORM(VeloVec)
+phi = RandVal * 2.0 * PI
+GetRandomVectorInPlane = Vabs*(b1*COS(phi) + b2*SIN(phi))
+END FUNCTION GetRandomVectorInPlane
+
+
+FUNCTION GetRotatedVector(VeloVec,NormVec)
+!===================================================================================================================================
+! Rotate the vector in the plane set up by VeloVec and NormVec by choosing an angle from a 4.0 / PI * COS(Theta_temp)**2
+! distribution via the ARM
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals      ,ONLY: VECNORM, UNITVECTOR
+USE MOD_Globals_Vars ,ONLY: PI
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)    :: NormVec(1:3) ! Basis vector (normalized)
+REAL,INTENT(IN)    :: VeloVec(1:3) ! Velocity vector before the random direction selection within the plane defined by b1 and b2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLE
+REAL               :: GetRotatedVector(1:3) ! Output velocity vector
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: Vabs ! Absolute velocity
+REAL               :: RandVal, v(1:3)
+REAL               :: Theta, Theta_temp
+REAL               :: PDF_temp
+REAL, PARAMETER    :: PDF_max=4./ACOS(-1.)
+LOGICAL            :: ARM_SEE_PDF
+!===================================================================================================================================
+v = UNITVECTOR(VeloVec)
+Vabs = VECNORM(VeloVec)
+
+! ARM for angular distribution
+ARM_SEE_PDF=.TRUE.
+DO WHILE(ARM_SEE_PDF)
+  CALL RANDOM_NUMBER(RandVal)
+  Theta_temp = RandVal * 0.5 * PI
+  PDF_temp = 4.0 / PI * COS(Theta_temp)**2
+  CALL RANDOM_NUMBER(RandVal)
+  IF ((PDF_temp/PDF_max).GT.RandVal) ARM_SEE_PDF = .FALSE.
+END DO
+Theta = Theta_temp
+
+! Rotate original vector Vabs*v
+GetRotatedVector = Vabs*(v*COS(Theta) + NormVec*SIN(Theta))
+END FUNCTION GetRotatedVector
 
 
 END MODULE MOD_DSMC_ChemReact

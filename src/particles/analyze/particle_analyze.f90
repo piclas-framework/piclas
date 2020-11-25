@@ -690,7 +690,10 @@ USE MOD_TimeDisc_Vars          ,ONLY: iter, dt, IterDisplayStep
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, BGGas, XSec_Relaxation, SpecXSec
+USE MOD_DSMC_Vars              ,ONLY: BGGas
+#endif
+#if (PP_TimeDiscMethod==42)
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, XSec_Relaxation, SpecXSec
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -713,6 +716,8 @@ REAL                :: ETotal, MacroParticleFactor
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
 REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2)
+#endif
+#if (PP_TimeDiscMethod==42)
 INTEGER             :: jSpec, iCase
 #endif
 #if USE_MPI
