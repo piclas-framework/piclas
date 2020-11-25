@@ -1468,7 +1468,7 @@ END IF
 #endif
 
 Weight = 0.
-NumProd = 2.; SumWeightProd = 0.
+NumProd = 2; SumWeightProd = 0.
 
 !..Get the index of react1 and the react2
 IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%Reactants(iReac,1)) THEN
@@ -1515,7 +1515,7 @@ IF(EductReac(3).EQ.0) THEN
     IF(RadialWeighting%DoRadialWeighting) PartMPF(ReactInx(3)) = PartMPF(ReactInx(1))
     IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(ReactInx(3)) = VarTimeStep%ParticleTimeStep(ReactInx(1))
     Weight(3) = Weight(1)
-    NumProd = 3.
+    NumProd = 3
     SumWeightProd = SumWeightProd + Weight(3)
   END IF
 END IF
@@ -1545,7 +1545,7 @@ IF(ProductReac(4).NE.0) THEN
   IF(RadialWeighting%DoRadialWeighting) PartMPF(ReactInx(4)) = PartMPF(ReactInx(1))
   IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(ReactInx(4)) = VarTimeStep%ParticleTimeStep(ReactInx(1))
   Weight(4) = Weight(1)
-  NumProd = 4.
+  NumProd = 4
   SumWeightProd = SumWeightProd + Weight(4)
 END IF
 
