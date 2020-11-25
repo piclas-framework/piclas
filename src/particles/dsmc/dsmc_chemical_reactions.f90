@@ -1614,20 +1614,20 @@ DO iProd = 1, NumProd
   iSpec = ProductReac(iProd)
   IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
     PartState(4:6,iPart) = VeloCOM(1:3) + SQRT(CRela2_Electron) * DiceUnitVector()
-  END IF
   ! Change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
-  ASSOCIATE( b1 => UNITVECTOR(Species(InitSpec)%Init(iInit)%BaseVector1IC(1:3)) ,&
+    ASSOCIATE( b1 => UNITVECTOR(Species(InitSpec)%Init(iInit)%BaseVector1IC(1:3)) ,&
              b2 => UNITVECTOR(Species(InitSpec)%Init(iInit)%BaseVector2IC(1:3)) )
-    ! Get random vector b3 in b1-b2-plane
-    CALL RANDOM_NUMBER(RandVal)
-    PartState(4:6,iPart) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart),RandVal)
-    ! Rotate the resulting vector in the b3-NormalIC-plane
-    PartState(4:6,iPart) = GetRotatedVector(PartState(4:6,iPart),Species(InitSpec)%Init(iInit)%NormalIC)
-    ! Store the particle information in PartStateBoundary.h5
-    IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),&
-                                      UNITVECTOR(PartState(4:6,iPart)),Species(InitSpec)%Init(iInit)%NormalIC,mode=2,&
-                                      usevMPF_optIN=.FALSE.)
-  END ASSOCIATE
+      ! Get random vector b3 in b1-b2-plane
+      CALL RANDOM_NUMBER(RandVal)
+      PartState(4:6,iPart) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart),RandVal)
+      ! Rotate the resulting vector in the b3-NormalIC-plane
+      PartState(4:6,iPart) = GetRotatedVector(PartState(4:6,iPart),Species(InitSpec)%Init(iInit)%NormalIC)
+      ! Store the particle information in PartStateBoundary.h5
+      IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),&
+                                        UNITVECTOR(PartState(4:6,iPart)),Species(InitSpec)%Init(iInit)%NormalIC,mode=2,&
+                                        usevMPF_optIN=.FALSE.)
+    END ASSOCIATE
+  END IF
 END DO
 
 IF(CalcPartBalance) THEN
