@@ -133,7 +133,7 @@ SUBROUTINE DSMC_chemical_init()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi, ElementaryCharge
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, CollInf
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
@@ -293,13 +293,6 @@ DO iReac = 1, ReadInNumOfReact
   ChemReac%XSec_Procedure(iReac)           = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-XSec-Procedure')
   IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
     ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
-    ! Check if species 3 is an electron and abort (this is not implemented yet)
-    IF(ChemReac%Products(iReac,3).GT.0)THEN
-      IF(SpecDSMC(ChemReac%Products(iReac,3))%InterID.EQ.4) CALL abort(&
-        __STAMP__&
-        ,'Chemical reaction with electron as 3rd product species. This is not implemented yet for photoionization! iReac=',&
-        IntInfoOpt=iReac)
-    END IF ! ChemReac%Products(iReac,3).GT.0
   END IF
   ! Filling up ChemReac-Array for the given non-reactive dissociation/electron-impact ionization partners
   IF((TRIM(ChemReac%ReactType(iReac)).EQ.'D').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'iQK')) THEN
