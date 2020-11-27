@@ -1555,7 +1555,7 @@ USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
 USE MOD_Particle_Vars           ,ONLY: PDM
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
-USE MOD_DSMC_Init               ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_part_emission_tools     ,ONLY: DSMC_SetInternalEnr_LauxVFD
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

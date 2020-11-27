@@ -2236,6 +2236,7 @@ USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, PDM
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+USE MOD_DSMC_Vars             ,ONLY: DSMC, AmbipolElecVelo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2260,6 +2261,12 @@ DO i=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
     PartVandV2(PartSpecies(i),1:3) = PartVandV2(PartSpecies(i),1:3) + PartState(4:6,i) * GetParticleWeight(i)
     PartVandV2(PartSpecies(i),4:6) = PartVandV2(PartSpecies(i),4:6) + PartState(4:6,i)**2 * GetParticleWeight(i)
+    IF (DSMC%DoAmbipolarDiff) THEN
+      IF(Species(PartSpecies(i))%ChargeIC.GT.0.0) THEN
+        PartVandV2(DSMC%AmbiDiffElecSpec,1:3) = PartVandV2(DSMC%AmbiDiffElecSpec,1:3) + AmbipolElecVelo(i)%ElecVelo(1:3) * GetParticleWeight(i)
+        PartVandV2(DSMC%AmbiDiffElecSpec,4:6) = PartVandV2(DSMC%AmbiDiffElecSpec,4:6) + AmbipolElecVelo(i)%ElecVelo(1:3)**2 * GetParticleWeight(i)
+      END IF
+    END IF
   END IF
 END DO
 

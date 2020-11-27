@@ -52,7 +52,7 @@ REAL, INTENT(IN)              :: FakXi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                          :: MaxColQua, iRan, Ec
-INTEGER                       :: iQuaMax, iQua
+INTEGER                       :: iQuaMax, iQua, test
 !===================================================================================================================================
 IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
@@ -202,6 +202,7 @@ SUBROUTINE CalcXiTotalEqui(iReac, iPair, nProd, Xi_Total, Weight, XiVibPart, XiE
 USE MOD_Globals_Vars              ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, ChemReac, Coll_pData, DSMC
 USE MOD_DSMC_ElectronicModel      ,ONLY: CalcXiElec
+USE MOD_Particle_Vars             ,ONLY: nSpecies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -215,7 +216,7 @@ REAL, INTENT(OUT), OPTIONAL     :: XiVibPart(:,:), XiElecPart(1:4)
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                         :: iProd, iSpec, ProductReac(1:4)
-REAL                            :: ETotal, EZeroPoint, EGuess, LowerTemp, UpperTemp, MiddleTemp, Xi_TotalTemp, XiVibTotal
+REAL                            :: ETotal, EZeroPoint, EGuess, LowerTemp, UpperTemp, MiddleTemp, Xi_TotalTemp, XiVibTotal, TransElec
 REAL,PARAMETER                  :: eps_prec=1E-3
 !===================================================================================================================================
 

@@ -391,8 +391,8 @@ SUBROUTINE DSMC_2D_RadialWeighting(iPart,iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, DSMC, PartStateIntEn, useDSMC, CollisMode
-USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, VibQuantsPar, SpecDSMC, PolyatomMolDSMC
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, DSMC, PartStateIntEn, useDSMC, CollisMode, AmbipolElecVelo
+USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, VibQuantsPar, SpecDSMC, PolyatomMolDSMC, ElectronicDistriPart
 USE MOD_Particle_Vars           ,ONLY: PartMPF, PartSpecies, PartState, Species, LastPartPos
 USE MOD_TimeDisc_Vars           ,ONLY: iter
 USE MOD_part_operations         ,ONLY: RemoveParticle
@@ -457,7 +457,22 @@ IF(DoCloning) THEN
   ClonedParticles(cloneIndex,DelayCounter)%PartState(1:6)= PartState(1:6,iPart)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
     ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(1:2) = PartStateIntEn(1:2,iPart)
-    IF(DSMC%ElectronicModel) ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(3) =   PartStateIntEn(3,iPart)
+    IF(DSMC%ElectronicModel) THEN
+      ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(3) =   PartStateIntEn(3,iPart)
+      IF ((DSMC%ElectronicDistrModel).AND.(.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4) & 
+          .OR.SpecDSMC(PartSpecies(iPart))%FullyIonized))) THEN
+        IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)) &
+          DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)
+        ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant))
+        ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(:) = ElectronicDistriPart(iPart)%DistriFunc(:)
+      END IF
+    END IF
+    IF ((DSMC%DoAmbipolarDiff).AND.(Species(PartSpecies(iPart))%ChargeIC.GT.0.0)) THEN
+      IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo)) &
+        DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo)
+      ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo(1:3))
+      ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo(1:3) = AmbipolElecVelo(iPart)%ElecVelo(1:3)
+    END IF
     IF(SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
       IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%VibQuants)) &
@@ -504,8 +519,10 @@ SUBROUTINE DSMC_2D_SetInClones()
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, PartStateIntEn, useDSMC, CollisMode, DSMC, RadialWeighting
-USE MOD_DSMC_Vars               ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive
+USE MOD_DSMC_Vars               ,ONLY: AmbipolElecVelo
+USE MOD_DSMC_Vars               ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive, ElectronicDistriPart
 USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: Species
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: iter
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
@@ -566,7 +583,21 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   PartState(6,PositionNbr) = - ClonedParticles(iPart,DelayCounter)%PartState(6)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
     PartStateIntEn(1:2,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
-    IF(DSMC%ElectronicModel) PartStateIntEn(3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
+    IF(DSMC%ElectronicModel) THEN
+      PartStateIntEn(3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
+      IF ((DSMC%ElectronicDistrModel).AND.(.NOT.((SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) & 
+          .OR.SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%FullyIonized))) THEN
+        IF(ALLOCATED(ElectronicDistriPart(PositionNbr)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc)
+        ALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc(1:SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%MaxElecQuant))
+        ElectronicDistriPart(PositionNbr)%DistriFunc(:) = ClonedParticles(iPart,DelayCounter)%DistriFunc(:)
+      END IF
+    END IF
+    IF ((DSMC%DoAmbipolarDiff).AND.(Species(ClonedParticles(iPart,DelayCounter)%Species)%ChargeIC.GT.0.0)) THEN
+      IF(ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
+      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(1:3))
+      AmbipolElecVelo(PositionNbr)%ElecVelo(1:2) = ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(1:2)
+      AmbipolElecVelo(PositionNbr)%ElecVelo(3) = -ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(3)
+    END IF
     IF(SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%SpecToPolyArray
       IF(ALLOCATED(VibQuantsPar(PositionNbr)%Quants)) DEALLOCATE(VibQuantsPar(PositionNbr)%Quants)
@@ -856,7 +887,7 @@ INTEGER                       :: iPart_p1, iPart_p2, tempPart, cSpec1, cSpec2, i
 !===================================================================================================================================
 ! Two particles with the exact same velocities at the same positions -> clones that did not interact with other particles/walls
 IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
-  IF (nPart.EQ.1) THEN
+  IF ((CollisMode.LT.3).AND.(nPart.EQ.1)) THEN
     ! Uneven number of particles in the cell, a single particle is left without a pair
     ! Removing the pairs from the weighting factor and the case num sums
     CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
@@ -881,48 +912,61 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
                              + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
                              + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
   ELSE IF (iPair.LT.nPair) THEN
-  ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
-  ! are swapped
-    CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
-    CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
-      - 0.5 * (GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))
-    CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) - 1
-    CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
-      - 0.5 * (GetParticleWeight(Coll_pData(iPair+1)%iPart_p1) + GetParticleWeight(Coll_pData(iPair+1)%iPart_p2))
-    ! Breaking up the next pair and swapping partners
-    tempPart = Coll_pData(iPair)%iPart_p1
-    Coll_pData(iPair)%iPart_p1 = Coll_pData(iPair + 1)%iPart_p1
-    Coll_pData(iPair + 1)%iPart_p1 = tempPart
-    ! Increase the appropriate case number and set the right pair type
-    iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
-    cSpec1 = PartSpecies(iPart_p1); cSpec2 = PartSpecies(iPart_p2)
-    iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-    CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
-    Coll_pData(iPair)%PairType = iCase
-    ! Calculation of the relative velocity for the new first pair
-    Coll_pData(iPair)%CRela2 = (PartState(4,iPart_p1) - PartState(4,iPart_p2))**2 &
-                             + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
-                             + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
-    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
-    IF(Coll_pData(iPair)%CRela2.EQ.0.0) THEN
-      ! If the relative velocity is still zero, add the pair to the identical particles count
+    IF (.NOT.Coll_pData(iPair+1)%NeedForRec) THEN 
+    ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
+    ! are swapped
+      CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
+      CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
+        - 0.5 * (GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))
+      CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) - 1
+      CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
+        - 0.5 * (GetParticleWeight(Coll_pData(iPair+1)%iPart_p1) + GetParticleWeight(Coll_pData(iPair+1)%iPart_p2))
+      ! Breaking up the next pair and swapping partners
+      tempPart = Coll_pData(iPair)%iPart_p1
+      Coll_pData(iPair)%iPart_p1 = Coll_pData(iPair + 1)%iPart_p1
+      Coll_pData(iPair + 1)%iPart_p1 = tempPart
+      ! Increase the appropriate case number and set the right pair type
+      iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
+      cSpec1 = PartSpecies(iPart_p1); cSpec2 = PartSpecies(iPart_p2)
+      iCase = CollInf%Coll_Case(cSpec1, cSpec2)
+      CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
+      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
+      Coll_pData(iPair)%PairType = iCase
+      ! Calculation of the relative velocity for the new first pair
+      Coll_pData(iPair)%CRela2 = (PartState(4,iPart_p1) - PartState(4,iPart_p2))**2 &
+                               + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
+                               + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
+      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
+      IF(Coll_pData(iPair)%CRela2.EQ.0.0) THEN
+        ! If the relative velocity is still zero, add the pair to the identical particles count
+        IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
+          IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
+        END IF
+      END IF
+      ! Increase the appropriate case number and set the right pair type
+      iPart_p1 = Coll_pData(iPair+1)%iPart_p1; iPart_p2 = Coll_pData(iPair+1)%iPart_p2
+      cSpec1 = PartSpecies(iPart_p1); cSpec2 = PartSpecies(iPart_p2)
+      iCase = CollInf%Coll_Case(cSpec1, cSpec2)
+      CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
+      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
+      ! Calculation of the relative velocity for the new follow-up pair
+      Coll_pData(iPair+1)%CRela2 = (PartState(4,iPart_p1) - PartState(4,iPart_p2))**2 &
+                                 + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
+                                 + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
+      Coll_pData(iPair+1)%PairType = iCase
+      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
+    ELSE
+      ! For the last pair, only invert the velocity in z and calculate new relative velocity
+      iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
+      PartState(6,iPart_p1) = - PartState(6,iPart_p1)
+      Coll_pData(iPair)%CRela2 = (PartState(4,iPart_p1) - PartState(4,iPart_p2))**2 &
+                               + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
+                               + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
+      ! Add the pair to the number of identical particles output
       IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
         IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
       END IF
-    END IF
-    ! Increase the appropriate case number and set the right pair type
-    iPart_p1 = Coll_pData(iPair+1)%iPart_p1; iPart_p2 = Coll_pData(iPair+1)%iPart_p2
-    cSpec1 = PartSpecies(iPart_p1); cSpec2 = PartSpecies(iPart_p2)
-    iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-    CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
-    ! Calculation of the relative velocity for the new follow-up pair
-    Coll_pData(iPair+1)%CRela2 = (PartState(4,iPart_p1) - PartState(4,iPart_p2))**2 &
-                               + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
-                               + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
-    Coll_pData(iPair+1)%PairType = iCase
-    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
+    END IF  ! nPart.EQ.1/iPair.LT.nPair
   ELSE
     ! For the last pair, only invert the velocity in z and calculate new relative velocity
     iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2

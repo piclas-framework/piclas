@@ -696,6 +696,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
 USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution,DSMC_VolumeSample
+USE MOD_Globals_Vars               ,ONLY: ElementaryCharge
 USE MOD_InitializeBackgroundField  ,ONLY: InitializeBackgroundField
 USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
@@ -942,6 +943,7 @@ CALL InitializeVariablesWriteMacroValues()
 CALL InitializeVariablesvMPF()
 CALL InitializeVariablesIonization()
 CALL InitializeVariablesVarTimeStep()
+CALL InitializeVariablesAmbipolarDiff()
 
 END SUBROUTINE InitializeVariables
 
@@ -1240,6 +1242,46 @@ IF(VarTimeStep%UseVariableTimeStep) THEN
 END IF
 
 END SUBROUTINE InitializeVariablesVarTimeStep
+
+SUBROUTINE InitializeVariablesAmbipolarDiff()
+!===================================================================================================================================
+! Initialize the variables first
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_Globals_Vars        ,ONLY: ElementaryCharge
+USE MOD_Particle_Vars       ,ONLY: nSpecies,Species, PDM
+USE MOD_DSMC_Vars           ,ONLY: useDSMC, DSMC, AmbipolElecVelo
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER         :: iSpec
+!===================================================================================================================================
+! ------- Variable Time Step Initialization (parts requiring completed particle_init and readMesh)
+IF(useDSMC) THEN
+  DSMC%DoAmbipolarDiff = GETLOGICAL('Particles-DSMC-AmbipolarDiffusion')
+  IF (DSMC%DoAmbipolarDiff) THEN
+    DSMC%AmbiDiffElecSpec = 0
+    DO iSpec = 1, nSpecies
+      IF (Species(iSpec)%ChargeIC.GT.0.0) CYCLE
+      IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1) DSMC%AmbiDiffElecSpec=iSpec
+    END DO
+    IF(DSMC%AmbiDiffElecSpec.EQ.0) THEN
+      CALL abort(__STAMP__&
+          ,'ERROR: No electron species found for ambipolar diffusion: ' &
+          ,IntInfoOpt=DSMC%AmbiDiffElecSpec)
+    END IF
+    IF(.NOT.ALLOCATED(AmbipolElecVelo)) ALLOCATE(AmbipolElecVelo(PDM%maxParticleNumber))
+  END IF
+END IF
+
+END SUBROUTINE InitializeVariablesAmbipolarDiff
 
 SUBROUTINE InitializeVariablesRandomNumbers()
 !===================================================================================================================================

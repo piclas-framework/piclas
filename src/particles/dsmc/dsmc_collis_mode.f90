@@ -40,13 +40,10 @@ SUBROUTINE DSMC_Elastic_Col(iPair)
 ! Performs simple elastic collision (CollisMode = 1)
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, DSMC_RHS, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, DSMC_RHS, RadialWeighting, DSMC
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, VarTimeStep, Species
 USE MOD_DSMC_CollisVec          ,ONLY: PostCollVec
 USE MOD_part_tools              ,ONLY: GetParticleWeight
-#if (PP_TimeDiscMethod==42)
-USE MOD_DSMC_Vars               ,ONLY: DSMC
-#endif
 #ifdef CODE_ANALYZE
 USE MOD_Globals                 ,ONLY: Abort
 USE MOD_Globals                 ,ONLY: unit_stdout,myrank
@@ -427,14 +424,34 @@ REAL                          :: Weight1, Weight2
 !--------------------------------------------------------------------------------------------------!
 ! Decision if Rotation, Vibration and Electronic Relaxation of particles is performed
 !--------------------------------------------------------------------------------------------------!
+  IF ( DSMC%ElectronicModel ) THEN
+    IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
+      IF (DSMC%ElectronicDistrModel) THEN
+        DoElec1 = .TRUE.
+      ELSE
+        CALL RANDOM_NUMBER(iRan)
+        IF (SpecDSMC(iSpec1)%ElecRelaxProb.GT.iRan) DoElec1 = .TRUE.
+      END IF
+    END IF
+    IF((SpecDSMC(iSpec2)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec2)%FullyIonized)) THEN
+      IF (DSMC%ElectronicDistrModel) THEN
+        DoElec2 = .TRUE.
+      ELSE
+        CALL RANDOM_NUMBER(iRan)
+        IF (SpecDSMC(iSpec2)%ElecRelaxProb.GT.iRan) DoElec2 = .TRUE.
+      END IF
+    END IF
+  END IF
 
   IF((SpecDSMC(iSpec1)%InterID.EQ.2).OR.(SpecDSMC(iSpec1)%InterID.EQ.20)) THEN
     CALL RANDOM_NUMBER(iRan)
     CALL DSMC_calc_P_rot(iSpec1, iSpec2, iPair, Coll_pData(iPair)%iPart_p1, Xi_rel, ProbRot1, ProbRotMax1)
     IF(ProbRot1.GT.iRan) THEN
       DoRot1 = .TRUE.
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(2,iPart1) * GetParticleWeight(iPart1)
-      Xi = Xi + SpecDSMC(iSpec1)%Xi_Rot
+      IF ((DSMC%DoTEVRRelaxation).OR.(.NOT.(DoElec1.OR.DoElec2))) THEN
+        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(2,iPart1) * GetParticleWeight(iPart1)
+        Xi = Xi + SpecDSMC(iSpec1)%Xi_Rot
+      END IF
     END IF
     IF(DSMC%CalcQualityFactors.AND.(DSMC%RotRelaxProb.GE.2)) THEN
       DSMC%CalcRotProb(iSpec1,2) = MAX(DSMC%CalcRotProb(iSpec1,2),ProbRot1)
@@ -445,14 +462,6 @@ REAL                          :: Weight1, Weight2
     CALL RANDOM_NUMBER(iRan)
     CALL DSMC_calc_P_vib(iPair, iSpec1, iSpec2, Xi_rel, iElem, ProbVib1)
     IF(ProbVib1.GT.iRan) DoVib1 = .TRUE.
-  END IF
-  IF ( DSMC%ElectronicModel ) THEN
-    IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
-      CALL RANDOM_NUMBER(iRan)
-      IF (SpecDSMC(iSpec1)%ElecRelaxProb.GT.iRan) THEN
-        DoElec1 = .TRUE.
-      END IF
-    END IF
   END IF
 
 #if (PP_TimeDiscMethod==42)
@@ -471,8 +480,10 @@ END IF
     CALL DSMC_calc_P_rot(iSpec2, iSpec1, iPair, Coll_pData(iPair)%iPart_p2, Xi_rel, ProbRot2, ProbRotMax2)
     IF(ProbRot2.GT.iRan) THEN
       DoRot2 = .TRUE.
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(2,iPart2) * GetParticleWeight(iPart2)
-      Xi = Xi + SpecDSMC(iSpec2)%Xi_Rot
+      IF ((DSMC%DoTEVRRelaxation).OR.(.NOT.(DoElec1.OR.DoElec2))) THEN
+        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(2,iPart2) * GetParticleWeight(iPart2)
+        Xi = Xi + SpecDSMC(iSpec2)%Xi_Rot
+      END IF
     END IF
     IF(DSMC%CalcQualityFactors.AND.(DSMC%RotRelaxProb.GE.2)) THEN
       DSMC%CalcRotProb(iSpec2,2) = MAX(DSMC%CalcRotProb(iSpec2,2),ProbRot2)
@@ -482,18 +493,9 @@ END IF
     CALL RANDOM_NUMBER(iRan)
     CALL DSMC_calc_P_vib(iPair, iSpec2, iSpec1, Xi_rel, iElem, ProbVib2)
     IF(ProbVib2.GT.iRan) DoVib2 = .TRUE.
-
-  END IF
-  IF ( DSMC%ElectronicModel ) THEN
-    IF((SpecDSMC(iSpec2)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec2)%FullyIonized)) THEN
-      CALL RANDOM_NUMBER(iRan)
-      IF (SpecDSMC(iSpec2)%ElecRelaxProb.GT.iRan) THEN
-        DoElec2 = .TRUE.
-      END IF
-    END IF
   END IF
 
-  FakXi = 0.5*Xi  - 1  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
+  FakXi = 0.5*Xi  - 1.  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
 
 #if (PP_TimeDiscMethod==42)
 IF(CalcRelaxProb) THEN
@@ -547,6 +549,15 @@ IF (DSMC%ReservoirSimuRate) RETURN
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,iPart2) * GetParticleWeight(iPart2)
     CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p2,FakXi)
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart2) * GetParticleWeight(iPart2)
+  END IF
+
+  IF ((DoElec1.OR.DoElec2).AND.DoRot1.AND.(.NOT.DSMC%DoTEVRRelaxation)) THEN
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(2,iPart1) * GetParticleWeight(iPart1)
+    FakXi = FakXi + 0.5*SpecDSMC(iSpec1)%Xi_Rot
+  END IF
+  IF ((DoElec1.OR.DoElec2).AND.DoRot2.AND.(.NOT.DSMC%DoTEVRRelaxation)) THEN
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(2,iPart2) * GetParticleWeight(iPart2)
+    FakXi = FakXi + 0.5*SpecDSMC(iSpec2)%Xi_Rot
   END IF
 
 !--------------------------------------------------------------------------------------------------!
@@ -978,6 +989,7 @@ __STAMP__&
   DSMC_RHS(1,iPart2) = VeloMx - FracMassCent1*cRelaNew(1) - PartState(4,iPart2)
   DSMC_RHS(2,iPart2) = VeloMy - FracMassCent1*cRelaNew(2) - PartState(5,iPart2)
   DSMC_RHS(3,iPart2) = VeloMz - FracMassCent1*cRelaNew(3) - PartState(6,iPart2)
+
 #ifdef CODE_ANALYZE
   Energy_new= 0.5*Species(PartSpecies(iPart2))%MassIC*((VeloMx - FracMassCent1*cRelaNew(1))**2 &
                                                      + (VeloMy - FracMassCent1*cRelaNew(2))**2 &

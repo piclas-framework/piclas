@@ -94,6 +94,8 @@ TYPE tClonedParticles
   REAL                        :: LastPartPos(1:3)
   REAL                        :: WeightingFactor
   INTEGER, ALLOCATABLE        :: VibQuants(:)
+  REAL, ALLOCATABLE           :: DistriFunc(:) 
+  REAL, ALLOCATABLE           :: AmbiPolVelo(:) 
 END TYPE
 
 TYPE(tClonedParticles),ALLOCATABLE :: ClonedParticles(:,:)
@@ -261,6 +263,7 @@ TYPE tDSMC
   INTEGER, ALLOCATABLE          :: QualityFacSampVibSamp(:,:,:)!Sample size for QualityFacSampVib
   REAL, ALLOCATABLE             :: QualityFacSampRelaxSize(:,:)! Samplie size of quality relax factors (nElem,nSpec+1)
   LOGICAL                       :: ElectronicModel          ! Flag for Electronic State of atoms and molecules
+  LOGICAL                       :: ElectronicDistrModel     ! Flag for Electronic State of atoms and molecules
   CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file
   INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules
   REAL                          :: RotRelaxProb             ! Model for calculation of rotational relaxation probability, ini_1
@@ -276,6 +279,7 @@ TYPE tDSMC
                                                             ! relaxation probability, comparison with the same random number
                                                             ! while the previous probability is added to the next)
   REAL, ALLOCATABLE             :: InstantTransTemp(:)      ! Instantaneous translational temprerature for each cell (nSpieces+1)
+  REAL, ALLOCATABLE             :: InstantTXiElec(:,:)      ! Instantaneous translational temprerature for each cell (nSpieces+1)
   LOGICAL                       :: BackwardReacRate         ! Enables the automatic calculation of the backward reaction rate
                                                             ! coefficient with the equilibrium constant by partition functions
   REAL                          :: PartitionMaxTemp         ! Temperature limit for pre-stored partition function (DEF: 20 000K)
@@ -285,6 +289,8 @@ TYPE tDSMC
 #endif
   LOGICAL                       :: MergeSubcells            ! Merge subcells after quadtree division if number of particles within
                                                             ! subcell is less than 7
+  LOGICAL                       :: DoAmbipolarDiff
+  INTEGER                       :: AmbiDiffElecSpec
 END TYPE tDSMC
 
 TYPE(tDSMC)                     :: DSMC
@@ -473,6 +479,20 @@ TYPE tPolyatomMolVibQuant !DSMC Species Param
 END TYPE
 
 TYPE (tPolyatomMolVibQuant), ALLOCATABLE    :: VibQuantsPar(:)
+
+TYPE tAmbipolElecVelo !DSMC Species Param
+  REAL, ALLOCATABLE            :: ElecVelo(:)            ! Vib quants of each DOF for each particle
+END TYPE
+
+TYPE (tAmbipolElecVelo), ALLOCATABLE    :: AmbipolElecVelo(:)
+INTEGER, ALLOCATABLE            :: iPartIndx_NodeNewAmbi(:)
+INTEGER                         :: newAmbiParts
+
+TYPE tElectronicDistriPart !DSMC Species Param
+  REAL, ALLOCATABLE               :: DistriFunc(:)            ! Vib quants of each DOF for each particle
+END TYPE
+
+TYPE (tElectronicDistriPart), ALLOCATABLE    :: ElectronicDistriPart(:)
 
 REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)      ! variables,p,q,sides
 REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)! Macrovalues for Species specific surface output

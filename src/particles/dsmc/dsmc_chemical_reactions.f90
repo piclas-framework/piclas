@@ -54,7 +54,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, maxEXP
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf, ReactionProbGTUnityCounter
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, VarTimeStep
@@ -81,7 +81,7 @@ REAL                          :: Xi_vib(1:3), Xi_elec(1:3), Xi_Total
 REAL                          :: BetaReaction, BackwardRate
 REAL                          :: Rcoll, Tcoll, Telec, TiQK, NumWeightEduct, NumWeightProd
 INTEGER                       :: iPath, PathIndex
-REAL                          :: Weight(1:4), SumWeightEduct, SumWeightProd
+REAL                          :: Weight(1:4), SumWeightEduct, SumWeightProd, betaEXP
 !===================================================================================================================================
 
 Weight = 0.; ReactInx = 0
@@ -238,8 +238,9 @@ IF(((Coll_pData(iPair)%Ec-EZeroPoint_Educt).GE.(SumWeightEduct/NumWeightEduct*Ch
     IF(DSMC%InstantTransTemp(nSpecies+1).GT.0.0) THEN
       CALL CalcBackwardRate(iReac,DSMC%InstantTransTemp(nSpecies+1),BackwardRate)
       IF(TRIM(ChemReac%ReactType(iReac)).EQ.'E') THEN
-        BetaReaction = BetaReaction * BackwardRate &
-          / EXP(-(ChemReac%EActiv(iReacForward)-ChemReac%EActiv(iReac))/(BoltzmannConst*DSMC%InstantTransTemp(nSpecies+1))) &
+        betaEXP = (ChemReac%EActiv(iReacForward)-ChemReac%EActiv(iReac))/(BoltzmannConst*DSMC%InstantTransTemp(nSpecies+1))
+        betaEXP = MIN(maxexp,betaEXP)
+        BetaReaction = BetaReaction * BackwardRate / EXP(-betaEXP)  &
           / (ChemReac%Arrhenius_Prefactor(iReac) * DSMC%InstantTransTemp(nSpecies+1)**ChemReac%Arrhenius_Powerfactor(iReac))
       END IF
     ELSE
@@ -362,8 +363,9 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                ,ONLY: abort, DOTPRODUCT
-USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles, ElectronicDistriPart
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas
+USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep
 USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange, CalcXiElec
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
@@ -373,6 +375,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 USE MOD_part_tools             ,ONLY: GetParticleWeight
 USE MOD_part_operations        ,ONLY: RemoveParticle
+USE MOD_Particle_Analyze       ,ONLY: PARTISELECTRON
 #ifdef CODE_ANALYZE
 USE MOD_Globals                ,ONLY: unit_stdout,myrank
 USE MOD_Particle_Vars          ,ONLY: Symmetry
@@ -526,6 +529,10 @@ IF(EductReac(3).EQ.0) THEN
     PEM%LastGlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(3))
     IF(RadialWeighting%DoRadialWeighting) PartMPF(ReactInx(3)) = PartMPF(ReactInx(1))
     IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(ReactInx(3)) = VarTimeStep%ParticleTimeStep(ReactInx(1))
+    IF (DSMC%DoAmbipolarDiff) THEN
+      newAmbiParts = newAmbiParts + 1
+      iPartIndx_NodeNewAmbi(newAmbiParts) = ReactInx(3)
+    END IF
     Weight(3) = Weight(1)
     NumProd = 3
     SumWeightProd = SumWeightProd + Weight(3)
@@ -556,6 +563,10 @@ IF(ProductReac(4).NE.0) THEN
   PEM%LastGlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(4))
   IF(RadialWeighting%DoRadialWeighting) PartMPF(ReactInx(4)) = PartMPF(ReactInx(1))
   IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(ReactInx(4)) = VarTimeStep%ParticleTimeStep(ReactInx(1))
+  IF (DSMC%DoAmbipolarDiff) THEN
+    newAmbiParts = newAmbiParts + 1
+    iPartIndx_NodeNewAmbi(newAmbiParts) = ReactInx(4)
+  END IF
   Weight(4) = Weight(1)
   NumProd = 4
   SumWeightProd = SumWeightProd + Weight(4)
@@ -714,14 +725,25 @@ END DO
 IF (DSMC%ElectronicModel) THEN
   DO iProd = 1, NumProd
     IF((SpecDSMC(ProductReac(iProd))%InterID.EQ.4).OR.SpecDSMC(ProductReac(iProd))%FullyIonized) THEN
+      IF (DSMC%ElectronicDistrModel) THEN
+        IF(ALLOCATED(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)) DEALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)
+      END IF
       PartStateIntEn(3,ReactInx(iProd)) = 0.0
     ELSE
+      IF (DSMC%ElectronicDistrModel) THEN
+        IF(ALLOCATED(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)) DEALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)
+        ALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc(1:SpecDSMC(ProductReac(iProd))%MaxElecQuant))
+        ElectronicDistriPart(ReactInx(iProd))%DistriFunc = 0.0
+        PartStateIntEn(3,ReactInx(iProd)) = 0.0
+      END IF
       FakXi = FakXi - 0.5*Xi_elec(iProd)
-      CALL ElectronicEnergyExchange(iPair,ReactInx(iProd),FakXi)
+      CALL ElectronicEnergyExchange(iPair,ReactInx(iProd),FakXi, NewPart = .TRUE., Xi_elec = Xi_elec(iProd))
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(iProd))*Weight(iProd)
     END IF
   END DO
 END IF
+!print*,'DOF ELEc', Xi_Elec
+!read*
 !--------------------------------------------------------------------------------------------------
 ! Vibrational energy exchange
 !--------------------------------------------------------------------------------------------------
@@ -1233,6 +1255,7 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars          ,ONLY: maxEXP
 USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, ChemReac, QKChemistry
 USE MOD_Particle_Vars         ,ONLY: nSpecies
 USE MOD_DSMC_QK_Chemistry     ,ONLY: QK_CalcAnalyticRate
@@ -1249,7 +1272,7 @@ REAL, INTENT(OUT)             :: BackwardRate
 ! LOCAL VARIABLES
 INTEGER                         :: iReac, iSpec, LowerLevel, UpperLevel, iChemDir, MaxElecQua
 REAL                            :: PartFuncProduct(2), k_b_lower, k_b_upper, ActivationEnergy_K, PartitionFunction
-REAL                            :: Qtra, Qrot, Qvib, Qelec
+REAL                            :: Qtra, Qrot, Qvib, Qelec, expVal
 !===================================================================================================================================
   ! Determination of the lower and upper value of the temperature interval
   LowerLevel = INT(LocalTemp/DSMC%PartitionInterval)
@@ -1281,7 +1304,8 @@ REAL                            :: Qtra, Qrot, Qvib, Qelec
       END DO
     END DO
     IF (ChemReac%QKProcedure(iReac)) THEN
-      BackwardRate = QK_CalcAnalyticRate(iReac,LocalTemp)*(PartFuncProduct(1)/PartFuncProduct(2))*EXP(ActivationEnergy_K/LocalTemp)
+      expVal = MIN(maxexp,ActivationEnergy_K/LocalTemp)
+      BackwardRate = QK_CalcAnalyticRate(iReac,LocalTemp)*(PartFuncProduct(1)/PartFuncProduct(2))*EXP(expVal)
     ELSE
       BackwardRate = ChemReac%Arrhenius_Prefactor(iReac)  &
               * (LocalTemp)**ChemReac%Arrhenius_Powerfactor(iReac) &
@@ -1300,8 +1324,8 @@ REAL                            :: Qtra, Qrot, Qvib, Qelec
     END DO
     IF((PartFuncProduct(1).NE.0.).AND.(PartFuncProduct(2).NE.0.)) THEN
       IF (ChemReac%QKProcedure(iReac)) THEN
-        k_b_lower = QKChemistry(iReac)%ForwardRate(LowerLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) &
-            * EXP(ActivationEnergy_K/(LowerLevel * DSMC%PartitionInterval))
+        expVal = MIN(maxexp,ActivationEnergy_K/(LowerLevel * DSMC%PartitionInterval))
+        k_b_lower = QKChemistry(iReac)%ForwardRate(LowerLevel)* (PartFuncProduct(1)/PartFuncProduct(2))* EXP(expVal)
       ELSE
         k_b_lower = ChemReac%Arrhenius_Prefactor(iReac)  &
                 * (LowerLevel * DSMC%PartitionInterval)**ChemReac%Arrhenius_Powerfactor(iReac) &
@@ -1322,8 +1346,8 @@ REAL                            :: Qtra, Qrot, Qvib, Qelec
     END DO
     IF((PartFuncProduct(1).NE.0.).AND.(PartFuncProduct(2).NE.0.)) THEN
       IF (ChemReac%QKProcedure(iReac)) THEN
-        k_b_upper = QKChemistry(iReac)%ForwardRate(UpperLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) &
-            * EXP(ActivationEnergy_K/(UpperLevel * DSMC%PartitionInterval))
+        expVal = MIN(maxexp,ActivationEnergy_K/(UpperLevel * DSMC%PartitionInterval))
+        k_b_upper = QKChemistry(iReac)%ForwardRate(UpperLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) * EXP(expVal)
       ELSE
         k_b_upper = ChemReac%Arrhenius_Prefactor(iReac) &
               * (UpperLevel * DSMC%PartitionInterval)**ChemReac%Arrhenius_Powerfactor(iReac) &
