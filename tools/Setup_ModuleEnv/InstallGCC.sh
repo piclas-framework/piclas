@@ -32,6 +32,10 @@ fi
 # DOWNLOAD and INSTALL GCC COMPILER (example gcc-7.4.0)
 #GCCVERSION='7.4.0'
 #GCCVERSION='8.3.0'
+
+# 9.3.0: Building GCC requires: GMP 4.2+, MPFR 2.4.0+ and MPC 0.8.0+
+# sudo apt-get install libmpfr-dev
+# sudo apt-get install libmpc-dev
 #GCCVERSION='9.3.0'
 
 # 10.1.0: Building GCC requires GMP 4.2+, MPFR 3.1.0+ and MPC 0.8.0+

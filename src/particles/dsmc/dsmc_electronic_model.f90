@@ -133,6 +133,7 @@ ELSE
 #endif
   PartStateIntEn(3,iPart) = BoltzmannConst * SpecDSMC(iSpecies)%ElectronicState(2,iQua)
 END IF
+
 END SUBROUTINE InitElectronShell
 
 
@@ -212,12 +213,12 @@ END IF
 END FUNCTION RelaxElectronicShellWall
 
 
-SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi, NewPart)
+SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi, NewPart, Xi_elec)
 !===================================================================================================================================
 ! Electronic energy exchange
 !===================================================================================================================================
   USE MOD_Globals
-  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn, RadialWeighting, Coll_pData, DSMC, ElectronicDistriPart  
+  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn, RadialWeighting, Coll_pData, DSMC, ElectronicDistriPart 
   USE MOD_Particle_Vars,          ONLY : PartSpecies, VarTimeStep, usevMPF, nSpecies, PEM
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst, Pi
   USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -233,6 +234,7 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi, NewPart)
   INTEGER, INTENT(IN)           :: iPair, iPart1
   REAL, INTENT(IN)              :: FakXi
   LOGICAL, INTENT(IN),OPTIONAL  :: NewPart
+  REAL, INTENT(IN),OPTIONAL     :: Xi_elec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                       :: iQuaMax, MaxElecQuant, iQua, iSpecies
@@ -248,12 +250,16 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi, NewPart)
     END IF
     Eold=  PartStateIntEn(3,iPart1)
     DistriOld(:) = ElectronicDistriPart(iPart1)%DistriFunc(:)
-    ETraRel = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart1) * GetParticleWeight(iPart1)
+    ETraRel = Coll_pData(iPair)%Ec
     IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
       ETraRel = ETraRel / GetParticleWeight(iPart1)
     END IF    
-    TransElec = DSMC%InstantTransTemp(nSpecies + 1) !CalcTelec(ETraRel, iSpecies)
-    IF (TransElec.LE.0.0) TransElec = 1./(BoltzmannConst*(FakXi+1.))*ETraRel
+    IF (PRESENT(NewPart)) THEN
+      TransElec = 1./(BoltzmannConst*(FakXi+1.+ Xi_Elec/2.))*ETraRel
+    ELSE
+      TransElec = DSMC%InstantTransTemp(nSpecies + 1)
+      IF (TransElec.LE.0.0) TransElec = 1./(BoltzmannConst*(FakXi+1.))*ETraRel
+    END IF
     ElectronicPartition = 0.0
     DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
       tmpExp = SpecDSMC(iSpecies)%ElectronicState(2,iQua) / TransElec
@@ -460,19 +466,6 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi)
   END IF
 #endif
 
-!#if (PP_TimeDiscMethod==42)
-!    ! list of number of particles in each energy level
-!  IF (.NOT.DSMC%ReservoirSimuRate) THEN
-!    SpecDSMC(PartSpecies(iPart1))%levelcounter(iQuaold) = SpecDSMC(PartSpecies(iPart1))%levelcounter(iQuaold) - 1
-!    SpecDSMC(PartSpecies(iPart1))%levelcounter(iQua)    = SpecDSMC(PartSpecies(iPart1))%levelcounter(iQua)    + 1
-!    SpecDSMC(PartSpecies(iPart1))%dtlevelcounter(iQua)  = SpecDSMC(PartSpecies(iPart1))%dtlevelcounter(iQua)  + 1
-!  END IF
-!  ! collision with X resulting in a transition from i to j
-!  IF ( present(iPart2) .AND. (.NOT.usevMPF) ) THEN
-!  SpecDSMC(PartSpecies(iPart1))%ElectronicTransition(PartSpecies(iPart2),iQuaold,iQua) = &
-!                                SpecDSMC(PartSpecies(iPart1))%ElectronicTransition(PartSpecies(iPart2),iQuaold,iQua) + 1
-!  END IF
-!#endif
 END SUBROUTINE TVEEnergyExchange
 
 

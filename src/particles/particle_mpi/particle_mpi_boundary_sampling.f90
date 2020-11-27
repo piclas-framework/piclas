@@ -339,20 +339,37 @@ IF (.NOT.SurfOnNode) RETURN
 
 ! collect the information from the proc-local shadow arrays in the compute-node shared array
 MessageSize = SurfSampSize*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
-CALL MPI_REDUCE(SampWallState       ,SampWallState_Shared       ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+IF (myComputeNodeRank.EQ.0) THEN
+  CALL MPI_REDUCE(SampWallState,SampWallState_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+ELSE
+  CALL MPI_REDUCE(SampWallState,0                   ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+ENDIF
 !
 IF(nPorousBC.GT.0) THEN
   MessageSize = nComputeNodeSurfTotalSides
-  CALL MPI_REDUCE(SampWallPumpCapacity,SampWallPumpCapacity_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+  IF (myComputeNodeRank.EQ.0) THEN
+    CALL MPI_REDUCE(SampWallPumpCapacity,SampWallPumpCapacity_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+  ELSE
+    CALL MPI_REDUCE(SampWallPumpCapacity,0                          ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+  END IF
 END IF
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 IF (CalcSurfaceImpact) THEN
-  MessageSize = nSpecies*3*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
-  CALL MPI_REDUCE(SampWallImpactEnergy,SampWallImpactEnergy_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
-  CALL MPI_REDUCE(SampWallImpactVector,SampWallImpactVector_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
-  MessageSize = nSpecies*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
-  CALL MPI_REDUCE(SampWallImpactAngle ,SampWallImpactAngle_Shared ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
-  CALL MPI_REDUCE(SampWallImpactNumber,SampWallImpactNumber_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+  IF (myComputeNodeRank.EQ.0) THEN
+    MessageSize = nSpecies*3*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
+    CALL MPI_REDUCE(SampWallImpactEnergy,SampWallImpactEnergy_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+    CALL MPI_REDUCE(SampWallImpactVector,SampWallImpactVector_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+    MessageSize = nSpecies*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
+    CALL MPI_REDUCE(SampWallImpactAngle ,SampWallImpactAngle_Shared ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+    CALL MPI_REDUCE(SampWallImpactNumber,SampWallImpactNumber_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+  ELSE
+    MessageSize = nSpecies*3*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
+    CALL MPI_REDUCE(SampWallImpactEnergy,0                          ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+    CALL MPI_REDUCE(SampWallImpactVector,0                          ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+    MessageSize = nSpecies*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
+    CALL MPI_REDUCE(SampWallImpactAngle ,0                          ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+    CALL MPI_REDUCE(SampWallImpactNumber,0                          ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+  END IF
 END IF
 
 CALL MPI_WIN_SYNC(SampWallState_Shared_Win       ,IERROR)

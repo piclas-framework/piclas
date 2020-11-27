@@ -316,7 +316,10 @@ USE MOD_Eval_XYZ               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,NbrOfLostParticles, CountNbrOfLostParts, NbrOfLostParticlesTotal
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,NbrOfLostParticles, NbrOfLostParticlesTotal
+#if !(USE_MPI)
+USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts
+#endif /*!(USE_MPI)*/
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfBC
@@ -815,7 +818,7 @@ IF(DoRestart)THEN
         CALL ReadArray('PartData',2,(/INT(PartDataSize_HDF5,IK),locnPart/),offsetnPart,2,RealArray=PartData)!,&
         !xfer_mode_independent=.TRUE.)
 
-        IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+        IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0).AND.locnPart.GT.0) THEN
           CALL DatasetExists(File_ID,'VibQuantData',VibQuantDataExists)
           IF (.NOT.VibQuantDataExists) CALL abort(&
               __STAMP__&
@@ -826,7 +829,7 @@ IF(DoRestart)THEN
           !+1 is real number of necessary vib quants for the particle
         END IF ! useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)
 
-        IF (useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+        IF (useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel.AND.locnPart.GT.0) THEN
           CALL DatasetExists(File_ID,'ElecDistriData',ElecDistriDataExists)
           IF (.NOT.ElecDistriDataExists) CALL abort(&
               __STAMP__&
@@ -837,7 +840,7 @@ IF(DoRestart)THEN
           !+1 is real number of necessary vib quants for the particle
         END IF
 
-        IF (useDSMC.AND.DSMC%DoAmbipolarDiff) THEN
+        IF (useDSMC.AND.DSMC%DoAmbipolarDiff.AND.locnPart.GT.0) THEN
           CALL DatasetExists(File_ID,'ADVeloData',AD_DataExists)
           IF (.NOT.AD_DataExists) CALL abort(&
               __STAMP__&
@@ -920,7 +923,6 @@ IF(DoRestart)THEN
               IF(ALLOCATED(AmbipolElecVelo(iPart)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(iPart)%ElecVelo)
               ALLOCATE(AmbipolElecVelo(iPart)%ElecVelo(1:3))
               AmbipolElecVelo(iPart)%ElecVelo(1:3)= AD_Data(1:3,offsetnPart+iLoop)
-              AmbipolElecVelo(iPart)%IsCoupled = .TRUE.
             END IF
           END IF
 
@@ -939,10 +941,14 @@ IF(DoRestart)THEN
         END DO ! iElem=FirstElemInd,LastElemInd
         DEALLOCATE(PartData)
         IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-          DEALLOCATE(VibQuantData)
+          SDEALLOCATE(VibQuantData)
         END IF
-        IF (useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) DEALLOCATE(ElecDistriData)
-        IF (useDSMC.AND.DSMC%DoAmbipolarDiff) DEALLOCATE(AD_Data)
+        IF (useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+          SDEALLOCATE(ElecDistriData)
+        END IF
+        IF (useDSMC.AND.DSMC%DoAmbipolarDiff) THEN
+          SDEALLOCATE(AD_Data)
+        END IF
       ELSE ! not PartDataExists
         SWRITE(UNIT_stdOut,*)'PartData does not exists in restart file'
       END IF ! PartDataExists
@@ -1761,7 +1767,7 @@ USE MOD_HDF5_Input    ,ONLY: nDims,HSize,File_ID
 USE MOD_Restart_Vars  ,ONLY: MacroRestartFileName, MacroRestartValues
 USE MOD_Mesh_Vars     ,ONLY: offsetElem, nElems
 USE MOD_Particle_Vars ,ONLY: nSpecies
-USE MOD_macro_restart ,ONLY: MacroRestart_InsertParticles
+USE MOD_Macro_Restart ,ONLY: MacroRestart_InsertParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1825,7 +1831,6 @@ USE MOD_TimeDisc_Vars,           ONLY: iter
 USE MOD_PICDepo,                 ONLY: Deposition
 #if USE_MPI
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING

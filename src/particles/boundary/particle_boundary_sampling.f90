@@ -117,12 +117,11 @@ USE MOD_PICDepo_Vars            ,ONLY: SFResampleAnalyzeSurfCollis
 USE MOD_ReadInTools             ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
 #if USE_MPI
 USE MOD_MPI_Shared!             ,ONLY: Allocate_Shared
-USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPIRankLeader,nLeaderGroupProcs
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF,mySurfRank
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
-USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeTotalSides
 USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides
-USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,nComputeNodeElems
+!USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,nComputeNodeElems
 USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide_Shared,GlobalSide2SurfSide_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide_Shared,SurfSide2GlobalSide_Shared_Win
@@ -233,7 +232,8 @@ DO iBC=1,nBCs
   IF (PartBound%MapToPartBC(iBC).EQ.-1) CYCLE
 
   ! count number of reflective BCs
-  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%ReflectiveBC) THEN
+  IF ( (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%ReflectiveBC).OR. &
+       (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%RotPeriodicBC)    ) THEN
     nSurfBC         = nSurfBC + 1
     BCName(nSurfBC) = BoundaryName(iBC)
   END IF
@@ -275,7 +275,8 @@ DO iSide = firstSide,lastSide
   IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
 
   ! count number of reflective and inner BC sides
-  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%ReflectiveBC) THEN
+  IF ( (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%ReflectiveBC) .OR. &
+       (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%RotPeriodicBC) ) THEN
     nSurfSidesProc = nSurfSidesProc + 1
     ! check if element for this side is on the current compute-node
     ! IF ((SideInfo_Shared(SIDE_ID,iSide).GT.ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1))                  .AND. &
@@ -539,18 +540,14 @@ END IF
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 IF (CalcSurfaceImpact) THEN
   MPISharedSize = INT((nSpecies*3*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-  CALL Allocate_Shared(MPISharedSize,(/nSpecies,3,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactEnergy_Shared_Win &
-                                                                                                      ,SampWallImpactEnergy_Shared)
+  CALL Allocate_Shared(MPISharedSize,(/nSpecies,3,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactEnergy_Shared_Win,SampWallImpactEnergy_Shared)
   CALL MPI_WIN_LOCK_ALL(0,SampWallImpactEnergy_Shared_Win,IERROR)
-  CALL Allocate_Shared(MPISharedSize,(/nSpecies,3,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactVector_Shared_Win &
-                                                                                                      ,SampWallImpactVector_Shared)
+  CALL Allocate_Shared(MPISharedSize,(/nSpecies,3,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactVector_Shared_Win,SampWallImpactVector_Shared)
   CALL MPI_WIN_LOCK_ALL(0,SampWallImpactVector_Shared_Win,IERROR)
   MPISharedSize = INT((nSpecies*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-  CALL Allocate_Shared(MPISharedSize,(/nSpecies,  nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactAngle_Shared_Win  &
-                                                                                                      ,SampWallImpactAngle_Shared)
+  CALL Allocate_Shared(MPISharedSize,(/nSpecies,  nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactAngle_Shared_Win,SampWallImpactAngle_Shared)
   CALL MPI_WIN_LOCK_ALL(0,SampWallImpactAngle_Shared_Win,IERROR)
-  CALL Allocate_Shared(MPISharedSize,(/nSpecies,  nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactNumber_Shared_Win &
-                                                                                                      ,SampWallImpactNumber_Shared)
+  CALL Allocate_Shared(MPISharedSize,(/nSpecies,  nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactNumber_Shared_Win,SampWallImpactNumber_Shared)
   CALL MPI_WIN_LOCK_ALL(0,SampWallImpactNumber_Shared_Win,IERROR)
   IF (myComputeNodeRank.EQ.0) THEN
     SampWallImpactEnergy_Shared = 0.
@@ -1189,10 +1186,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iSurfSide
-#if USE_MPI
-INTEGER :: iProc
-#endif /*USE_MPI*/
+!INTEGER :: iSurfSide
+!#if USE_MPI
+!INTEGER :: iProc
+!#endif /*USE_MPI*/
 !===================================================================================================================================
 
 ! Return if nothing was allocated
@@ -1330,6 +1327,10 @@ SDEALLOCATE(AnalyzeSurfCollis%BCs)
 !  END DO
 !  SDEALLOCATE(SurfMapping)
 !END IF
+SDEALLOCATE(RotPeriodicSide2GlobalSide)
+SDEALLOCATE(NumRotPeriodicNeigh)
+SDEALLOCATE(RotPeriodicSideMapping)
+SDEALLOCATE(SurfSide2RotPeriodicSide)
 
 END SUBROUTINE FinalizeParticleBoundarySampling
 

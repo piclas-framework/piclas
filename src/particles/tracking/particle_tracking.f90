@@ -525,10 +525,7 @@ INTEGER                       :: ilocSide,SideID,flip,iAuxBC
 LOGICAL                       :: dolocSide(1:6)
 LOGICAL                       :: PartisDone,foundHit,markTol,crossedBC,SwitchedElement,isCriticalParallelInFace
 REAL                          :: localpha,xi,eta
-REAL                          :: locAlphaSphere
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
-LOGICAL                       :: onlyMacroPart
-INTEGER                       :: iMB
 REAL                          :: alphaDoneRel, oldLengthPartTrajectory
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
@@ -644,7 +641,6 @@ DO iPart=1,PDM%ParticleVecLength
       CYCLE
     ELSE
       PartTrajectory=PartTrajectory/lengthPartTrajectory
-      OnlyMacroPart=.FALSE.
     END IF
 
 #ifdef CODE_ANALYZE

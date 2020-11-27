@@ -460,8 +460,7 @@ CASE('constant')
     IF (PositionNbr.GT.0) THEN
       IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
       ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
-      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloVecIC(1:3) * VeloIC
-      AmbipolElecVelo(PositionNbr)%IsCoupled = .TRUE.
+      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloVecIC(1:3) * VeloIC 
     END IF
   END DO
 CASE('maxwell_lpn')
@@ -472,7 +471,6 @@ CASE('maxwell_lpn')
       IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
       ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
       AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloIC *VeloVecIC(1:3) + Vec3D(1:3)
-      AmbipolElecVelo(PositionNbr)%IsCoupled = .TRUE.
     END IF
   END DO
 CASE('maxwell')
@@ -484,7 +482,6 @@ CASE('maxwell')
       IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
       ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
       AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloIC *VeloVecIC(1:3) + iRanPart(1:3,i)*maxwellfac
-      AmbipolElecVelo(PositionNbr)%IsCoupled = .TRUE.
     END IF
   END DO
 CASE DEFAULT

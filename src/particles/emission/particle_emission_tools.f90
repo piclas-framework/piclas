@@ -1021,6 +1021,10 @@ __STAMP__,&
           PEM%GlobalElemID(ParticleIndexNbr) = iElem
           ichunkSize = ichunkSize + 1
         ELSE
+          WRITE(UNIT_stdOut,*) ""
+          IPWRITE(UNIT_stdOut,*) "ERROR:"
+          IPWRITE(UNIT_stdOut,*) "                iPart :", iPart
+          IPWRITE(UNIT_stdOut,*) "PDM%maxParticleNumber :", PDM%maxParticleNumber
           CALL abort(&
               __STAMP__&
               ,'ERROR in SetCellLocalParticlePosition: Maximum particle number reached during inserting! --> ParticleIndexNbr.EQ.0')

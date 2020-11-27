@@ -67,6 +67,7 @@ USE MOD_PICInit                    ,ONLY: DefineParametersPIC
 USE MOD_InitializeBackgroundField  ,ONLY: DefineParametersBGField
 USE MOD_Part_Emission              ,ONLY: DefineParametersParticleEmission
 USE MOD_DSMC_Init                  ,ONLY: DefineParametersDSMC
+USE MOD_DSMC_ChemInit              ,ONLY: DefineParametersChemistry
 USE MOD_SurfaceModel_Init          ,ONLY: DefineParametersSurfModel
 USE MOD_SurfaceModel_Analyze       ,ONLY: DefineParametersSurfModelAnalyze
 USE MOD_BGK_Init                   ,ONLY: DefineParametersBGK
@@ -128,6 +129,7 @@ CALL DefineParametersPIC()
 CALL DefineParametersBGField()
 CALL DefineParametersParticleEmission()
 CALL DefineParametersDSMC()
+CALL DefineParametersChemistry()
 #if (PP_TimeDiscMethod==300)
 CALL DefineParametersFPFlow()
 #endif

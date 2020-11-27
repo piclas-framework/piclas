@@ -67,10 +67,6 @@ END INTERFACE
 !  MODULE PROCEDURE ExchangeBezierControlPoints3D
 !END INTERFACE
 
-INTERFACE AddHaloNodeData
-  MODULE PROCEDURE AddHaloNodeData
-END INTERFACE
-
 PUBLIC :: InitParticleMPI
 PUBLIC :: InitEmissionComm
 PUBLIC :: InitParticleCommSize
@@ -81,7 +77,6 @@ PUBLIC :: MPIParticleRecv
 PUBLIC :: FinalizeParticleMPI
 !PUBLIC :: InitHaloMesh
 !PUBLIC :: ExchangeBezierControlPoints3D
-PUBLIC :: AddHaloNodeData
 #else
 PUBLIC :: InitParticleMPI
 #endif /*USE_MPI*/
@@ -105,9 +100,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !REAL                             :: myRealTestValue
-#if USE_MPI
-INTEGER                         :: color
-#endif /*USE_MPI*/
+!#if USE_MPI
+!INTEGER                         :: color
+!#endif /*USE_MPI*/
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -327,12 +322,11 @@ USE MOD_Part_Tools             ,ONLY: isDepositParticle
 USE MOD_DSMC_Vars              ,ONLY: DSMC,SpecDSMC, useDSMC, PolyatomMolDSMC
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIExchange,PartTargetProc!,PartHaloElemToProc
-USE MOD_Particle_MPI_Vars,      ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIExchange,PartTargetProc
+USE MOD_Particle_MPI_Vars,      ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc, halo_eps_velo
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,PEM,PDM,Species,PartPosRef
 ! variables for parallel deposition
-USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -343,14 +337,8 @@ LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                       :: doPartInExists
-INTEGER                       :: iPart,ElemID
+INTEGER                       :: iPart,ElemID, iPolyatMole
 INTEGER                       :: iProc,ProcID
-! shape function
-INTEGER                       :: CellX,CellY,CellZ!, iPartShape
-INTEGER                       :: PartDepoProcs(1:PartMPI%nProcs+1),nDepoProcs,LocalProcID
-INTEGER                       :: nPartShape, iPolyatMole
-REAL                          :: ShiftedPart(1:3)
-LOGICAL                       :: PartInBGM
 !===================================================================================================================================
 doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
@@ -361,8 +349,8 @@ PartMPIExchange%nPartsSend=0
 
 PartTargetProc=-1
 DO iPart=1,PDM%ParticleVecLength
-  ! Activate phantom particles
-  IF(PartSpecies(iPart).LT.0) PDM%ParticleInside(iPart) = .TRUE.
+  !         ! Activate phantom/ghost particles
+  !         IF(PartSpecies(iPart).LT.0) PDM%ParticleInside(iPart) = .TRUE.
 
   ! TODO: Info why and under which conditions the following 'CYCLE' is called
   IF(doPartInExists)THEN
@@ -378,28 +366,42 @@ DO iPart=1,PDM%ParticleVecLength
   ! Particle on local proc, do nothing
   IF (ProcID.EQ.myRank) CYCLE
 
+  ! Sanity check (fails here if halo region is too small)
+  IF(GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID).LT.0)THEN
+    IPWRITE (*,*) "GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) =", GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)
+    IPWRITE (*,*) "ProcID                                              =", ProcID
+    IPWRITE(UNIT_StdOut,'(I12,A,3(ES25.14E3))') " PartState(4:6,iPart)          =", PartState(4:6,iPart)
+    IPWRITE(UNIT_StdOut,'(I12,A,ES25.14E3)')    " VECNORM(PartState(4:6,iPart)) =", VECNORM(PartState(4:6,iPart))
+    IPWRITE(UNIT_StdOut,'(I12,A,ES25.14E3)')    " halo_eps_velo                 =", halo_eps_velo
+    CALL abort(&
+    __STAMP__&
+    ,'Error: GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) is negative. '//&
+     'The halo region might be too small. Try increasing Particles-HaloEpsVelo!')
+  END IF ! GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID).LT.0
+
   ! Add particle to target proc count
-    PartMPIExchange%nPartsSend(1,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
-      PartMPIExchange%nPartsSend(1,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + 1
-    IF (useDSMC) THEN
-      IF ((DSMC%NumPolyatomMolecs.GT.0).OR.(DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel).OR.DSMC%DoAmbipolarDiff) THEN
-        IF((DSMC%NumPolyatomMolecs.GT.0).AND.(SpecDSMC(PartSpecies(iPart))%PolyatomicMol)) THEN
-          iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
-          PartMPIExchange%nPartsSend(2,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
-            PartMPIExchange%nPartsSend(2,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + PolyatomMolDSMC(iPolyatMole)%VibDOF 
-        END IF
-        IF ((DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel).AND. & 
-            (.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized))) THEN
-          PartMPIExchange%nPartsSend(3,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
-            PartMPIExchange%nPartsSend(3,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + SpecDSMC(PartSpecies(iPart))%MaxElecQuant
-        END IF
-        IF(DSMC%DoAmbipolarDiff.AND.(Species(PartSpecies(iPart))%ChargeIC.GT.0.0)) THEN
-          PartMPIExchange%nPartsSend(4,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
-            PartMPIExchange%nPartsSend(4,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + 3
-        END IF
+
+  PartMPIExchange%nPartsSend(1,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
+    PartMPIExchange%nPartsSend(1,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + 1
+  IF (useDSMC) THEN
+    IF ((DSMC%NumPolyatomMolecs.GT.0).OR.(DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel).OR.DSMC%DoAmbipolarDiff) THEN
+      IF((DSMC%NumPolyatomMolecs.GT.0).AND.(SpecDSMC(PartSpecies(iPart))%PolyatomicMol)) THEN
+        iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
+        PartMPIExchange%nPartsSend(2,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
+          PartMPIExchange%nPartsSend(2,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + PolyatomMolDSMC(iPolyatMole)%VibDOF 
+      END IF
+      IF ((DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel).AND. & 
+          (.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized))) THEN
+        PartMPIExchange%nPartsSend(3,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
+          PartMPIExchange%nPartsSend(3,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + SpecDSMC(PartSpecies(iPart))%MaxElecQuant
+      END IF
+      IF(DSMC%DoAmbipolarDiff.AND.(Species(PartSpecies(iPart))%ChargeIC.GT.0.0)) THEN
+        PartMPIExchange%nPartsSend(4,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
+          PartMPIExchange%nPartsSend(4,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + 3
       END IF
     END IF
-    PartTargetProc(iPart) = GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)
+  END IF
+  PartTargetProc(iPart) = GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)
 END DO ! iPart
 
 ! 2) send number of send particles
@@ -442,15 +444,13 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DSMC_Vars,               ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_DSMC_Vars,               ONLY:ElectronicDistriPart, AmbipolElecVelo
-USE MOD_Particle_Mesh_Vars,      ONLY:GEO
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI,PartMPIExchange,PartCommSize,PartSendBuf,PartRecvBuf,PartTargetProc!,PartHaloElemToProc
-USE MOD_Particle_MPI_Vars,       ONLY:nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc
+USE MOD_Particle_MPI_Vars,       ONLY:nExchangeProcessors,ExchangeProcToGlobalProc
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
-USE MOD_Particle_Vars,           ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Species,PartPosRef
+USE MOD_Particle_Vars,           ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM,PartPosRef,Species
 #if defined(LSERK)
 USE MOD_Particle_Vars,           ONLY:Pt_temp
 #endif
-USE MOD_Particle_MPI_Vars,       ONLY:PartShiftVector
 #if defined(ROS) || defined(IMPA)
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Mesh_Vars,      ONLY:ElemToGlobalElemID
@@ -476,11 +476,6 @@ INTEGER                       :: iPart,iPos,iProc,jPos
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,0:nExchangeProcessors-1)
 INTEGER                       :: MessageSize, nRecvParticles, nSendParticles
 INTEGER                       :: ALLOCSTAT
-! shape function
-INTEGER                       :: CellX,CellY,CellZ!, iPartShape
-INTEGER                       :: PartDepoProcs(1:PartMPI%nProcs+1), nDepoProcs, ProcID, jProc, LocalProcID
-REAL                          :: ShiftedPart(1:3)
-LOGICAL                       :: PartInBGM
 #if defined(ROS) || defined(IMPA)
 INTEGER                       :: iCounter
 #endif /*ROS or IMPA*/
@@ -503,22 +498,6 @@ PartCommSize=PartCommSize0+iStage*6
 MsgLengthPoly(:) = PartMPIExchange%nPartsSend(2,:) 
 MsgLengthElec(:) = PartMPIExchange%nPartsSend(3,:) 
 MsgLengthAmbi(:) = PartMPIExchange%nPartsSend(4,:) 
-!IF ((DSMC%NumPolyatomMolecs.GT.0).OR.(DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel).OR.DSMC%DoAmbipolarDiff) THEN
-!  DO iPart=1,PDM%ParticleVecLength
-!    IF(PartTargetProc(iPart).EQ.-1) CYCLE
-!    IF((DSMC%NumPolyatomMolecs.GT.0).AND.(SpecDSMC(PartSpecies(iPart))%PolyatomicMol)) THEN
-!      iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
-!      MsgLengthPoly(PartTargetProc(iPart)) = MsgLengthPoly(PartTargetProc(iPart)) + PolyatomMolDSMC(iPolyatMole)%VibDOF
-!    END IF
-!    IF ((DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel).AND. & 
-!        (.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized))) THEN
-!      MsgLengthElec(PartTargetProc(iPart)) = MsgLengthElec(PartTargetProc(iPart)) + SpecDSMC(PartSpecies(iPart))%MaxElecQuant
-!    END IF
-!    IF(DSMC%DoAmbipolarDiff.AND.(Species(PartSpecies(iPart))%ChargeIC.GT.0.0)) THEN
-!      MsgLengthAmbi(PartTargetProc(iPart)) = MsgLengthAmbi(PartTargetProc(iPart)) + 3
-!    END IF
-!  END DO
-!END IF
 
 ! 3) Build Message
 DO iProc=0,nExchangeProcessors-1
@@ -912,7 +891,7 @@ USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
 #endif /*IMPA*/
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_RadialWeighting
-USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes
+!USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1130,19 +1109,19 @@ DO iProc=0,nExchangeProcessors-1
     !>> particle element
     PEM%GlobalElemID(PartID)     = INT(PartRecvBuf(iProc)%content(1+jPos),KIND=4)
 
-    ! Consider special particles that are communicated with negative species ID (ghost partilces that are deposited on surface
-    ! with their charge and are then removed)
-    IF(PartSpecies(PartID).LT.0)THEN
-      PartSpecies(PartID) = -PartSpecies(PartID) ! make positive species ID again
-      CALL DepositParticleOnNodes(PartID,PartState(1:3,PartID),PEM%GlobalElemID(PartID))
-      PartSpecies(PartID) = 0 ! For safety: nullify the speciesID
-      PDM%ParticleInside(PartID) = .FALSE.
-#ifdef IMPA
-      PartIsImplicit(PartID) = .FALSE.
-      DoPartInNewton(PartID) = .FALSE.
-#endif /*IMPA*/
-      CYCLE ! Continue the loop with the next particle
-    END IF ! PartSpecies(PartID).LT.0
+!           ! Consider special particles that are communicated with negative species ID (phantom/ghost particles that are deposited on a
+!           ! surface with their charge and are then removed here after deposition)
+!           IF(PartSpecies(PartID).LT.0)THEN
+!             PartSpecies(PartID) = -PartSpecies(PartID) ! make positive species ID again
+!             CALL DepositParticleOnNodes(PartID,PartState(1:3,PartID),PEM%GlobalElemID(PartID))
+!             PartSpecies(PartID) = 0 ! For safety: nullify the speciesID
+!             PDM%ParticleInside(PartID) = .FALSE.
+!       #ifdef IMPA
+!             PartIsImplicit(PartID) = .FALSE.
+!             DoPartInNewton(PartID) = .FALSE.
+!       #endif /*IMPA*/
+!             CYCLE ! Continue the loop with the next particle
+!           END IF ! PartSpecies(PartID).LT.0
     jPos=jPos+1
 
     IF (useDSMC.AND.(CollisMode.GT.1)) THEN
@@ -1211,7 +1190,6 @@ DO iProc=0,nExchangeProcessors-1
           IF(ALLOCATED(AmbipolElecVelo(PartID)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PartID)%ElecVelo)
           ALLOCATE(AmbipolElecVelo(PartID)%ElecVelo(1:3))
           AmbipolElecVelo(PartID)%ElecVelo(1:3) = PartRecvBuf(iProc)%content(pos_ambi+1:pos_ambi+3)
-          AmbipolElecVelo(PartID)%IsCoupled = .TRUE.
           pos_ambi = pos_ambi + 3
         END IF
       END IF
@@ -1824,102 +1802,102 @@ IF(    ((xmin.LE.GEO%FIBGMimax).AND.(xmax.GE.GEO%FIBGMimin)) &
 END FUNCTION PointInProc
 
 
-SUBROUTINE AddHaloNodeData(DataInReal)
-!===================================================================================================================================
-!> Add the cell node data of halo nodes to local nodes at same position and send local node data to halo procs
-!> Input Array of proc local nodes (REAL)
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Mesh_Vars         ,ONLY: nNodes
-USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
-USE MOD_Particle_MPI_Vars ,ONLY: NodeSendBuf, NodeRecvBuf, NodeExchange
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-REAL,INTENT(INOUT) :: DataInReal(1:nNodes)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER :: iProc, iPos, iSendNode, iRecvNode
-INTEGER :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINodeNeighbors)
-!===================================================================================================================================
-
-! open receive buffer
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesRecv(iProc).EQ.0) CYCLE
-  CALL MPI_IRECV( NodeRecvBuf(iProc)%content                &
-                , NodeExchange%nNodesRecv(iProc)            &
-                , MPI_DOUBLE_PRECISION                      &
-                , PartMPI%MPINodeNeighbor(iProc)%COMMProcID &
-                , 1415                                      &
-                , PartMPI%COMM                              &
-                , NodeExchange%RecvRequest(iProc)           &
-                , IERROR )
-END DO ! iProc
-
-! build message
-! after this message, the receiving process knows to which of his nodes it receives and the sending process will know which nodes to
-! send
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesSend(iProc).EQ.0) CYCLE
-  iPos=1
-  ! zero send content buffers
-  NodeSendBuf(iProc)%content(:)= 0.
-  ! fill send content buffers
-  DO iSendNode=1,NodeExchange%nNodesSend(iProc)
-    NodeSendBuf(iProc)%content(iPos)=DataInReal(PartMPI%MPINodeNeighbor(iProc)%SendList(iSendNode))
-    iPos=iPos+1
-  END DO ! iSendNode=1,NodeExchange%nNodesSend(iProc)
-END DO
-
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesSend(iProc).EQ.0) CYCLE
-  CALL MPI_ISEND( NodeSendBuf(iProc)%content                &
-                , NodeExchange%nNodesSend(iProc)            &
-                , MPI_DOUBLE_PRECISION                      &
-                , PartMPI%MPINodeNeighbor(iProc)%COMMProcID &
-                , 1415                                      &
-                , PartMPI%COMM                              &
-                , NodeExchange%SendRequest(iProc)           &
-                , IERROR )
-END DO ! iProc
-
-! 4) Finish Received indexing of received nodes
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesSend(iProc).NE.0) THEN
-    CALL MPI_WAIT(NodeExchange%SendRequest(iProc),MPIStatus,IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(&
-__STAMP__&
-          ,' MPI Communication error (Node data)', IERROR)
-  END IF
-  IF(NodeExchange%nNodesRecv(iProc).NE.0) THEN
-    CALL MPI_WAIT(NodeExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(&
-__STAMP__&
-          ,' MPI Communication error (Node data)', IERROR)
-  END IF
-END DO ! iProc
-
-! fill list with received Node-IDs
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesRecv(iProc).EQ.0) CYCLE
-  iPos=1
-  ! fill data-array with data from recv content buffers
-  DO iRecvNode=1,NodeExchange%nNodesRecv(iProc)
-    DataInReal(PartMPI%MPINodeNeighbor(iProc)%RecvList(iRecvNode))=DataInReal(PartMPI%MPINodeNeighbor(iProc)%RecvList(iRecvNode)) &
-        + NodeRecvBuf(iProc)%content(iPos)
-    iPos=iPos+1
-  END DO ! RecvNode=1,NodeExchange%nNodesRecv(iProc)
-  ! zero recv content buffers
-  NodeRecvBuf(iProc)%content(:)= 0.
-END DO ! iProc
-
-END SUBROUTINE AddHaloNodeData
+!SUBROUTINE AddHaloNodeData(DataInReal)
+!!===================================================================================================================================
+!!> Add the cell node data of halo nodes to local nodes at same position and send local node data to halo procs
+!!> Input Array of proc local nodes (REAL)
+!!===================================================================================================================================
+!! MODULES                                                                                                                          !
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!USE MOD_Globals
+!USE MOD_Preproc
+!USE MOD_Mesh_Vars         ,ONLY: nNodes
+!USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
+!USE MOD_Particle_MPI_Vars ,ONLY: NodeSendBuf, NodeRecvBuf, NodeExchange
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! IMPLICIT VARIABLE HANDLING
+!IMPLICIT NONE
+!! INPUT VARIABLES
+!REAL,INTENT(INOUT) :: DataInReal(1:nNodes)
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! OUTPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!INTEGER :: iProc, iPos, iSendNode, iRecvNode
+!INTEGER :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINodeNeighbors)
+!!===================================================================================================================================
+!
+!! open receive buffer
+!DO iProc=1,PartMPI%nMPINodeNeighbors
+!  IF(NodeExchange%nNodesRecv(iProc).EQ.0) CYCLE
+!  CALL MPI_IRECV( NodeRecvBuf(iProc)%content                &
+!                , NodeExchange%nNodesRecv(iProc)            &
+!                , MPI_DOUBLE_PRECISION                      &
+!                , PartMPI%MPINodeNeighbor(iProc)%COMMProcID &
+!                , 1415                                      &
+!                , PartMPI%COMM                              &
+!                , NodeExchange%RecvRequest(iProc)           &
+!                , IERROR )
+!END DO ! iProc
+!
+!! build message
+!! after this message, the receiving process knows to which of his nodes it receives and the sending process will know which nodes to
+!! send
+!DO iProc=1,PartMPI%nMPINodeNeighbors
+!  IF(NodeExchange%nNodesSend(iProc).EQ.0) CYCLE
+!  iPos=1
+!  ! zero send content buffers
+!  NodeSendBuf(iProc)%content(:)= 0.
+!  ! fill send content buffers
+!  DO iSendNode=1,NodeExchange%nNodesSend(iProc)
+!    NodeSendBuf(iProc)%content(iPos)=DataInReal(PartMPI%MPINodeNeighbor(iProc)%SendList(iSendNode))
+!    iPos=iPos+1
+!  END DO ! iSendNode=1,NodeExchange%nNodesSend(iProc)
+!END DO
+!
+!DO iProc=1,PartMPI%nMPINodeNeighbors
+!  IF(NodeExchange%nNodesSend(iProc).EQ.0) CYCLE
+!  CALL MPI_ISEND( NodeSendBuf(iProc)%content                &
+!                , NodeExchange%nNodesSend(iProc)            &
+!                , MPI_DOUBLE_PRECISION                      &
+!                , PartMPI%MPINodeNeighbor(iProc)%COMMProcID &
+!                , 1415                                      &
+!                , PartMPI%COMM                              &
+!                , NodeExchange%SendRequest(iProc)           &
+!                , IERROR )
+!END DO ! iProc
+!
+!! 4) Finish Received indexing of received nodes
+!DO iProc=1,PartMPI%nMPINodeNeighbors
+!  IF(NodeExchange%nNodesSend(iProc).NE.0) THEN
+!    CALL MPI_WAIT(NodeExchange%SendRequest(iProc),MPIStatus,IERROR)
+!    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(&
+!__STAMP__&
+!          ,' MPI Communication error (Node data)', IERROR)
+!  END IF
+!  IF(NodeExchange%nNodesRecv(iProc).NE.0) THEN
+!    CALL MPI_WAIT(NodeExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
+!    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(&
+!__STAMP__&
+!          ,' MPI Communication error (Node data)', IERROR)
+!  END IF
+!END DO ! iProc
+!
+!! fill list with received Node-IDs
+!DO iProc=1,PartMPI%nMPINodeNeighbors
+!  IF(NodeExchange%nNodesRecv(iProc).EQ.0) CYCLE
+!  iPos=1
+!  ! fill data-array with data from recv content buffers
+!  DO iRecvNode=1,NodeExchange%nNodesRecv(iProc)
+!    DataInReal(PartMPI%MPINodeNeighbor(iProc)%RecvList(iRecvNode))=DataInReal(PartMPI%MPINodeNeighbor(iProc)%RecvList(iRecvNode)) &
+!        + NodeRecvBuf(iProc)%content(iPos)
+!    iPos=iPos+1
+!  END DO ! RecvNode=1,NodeExchange%nNodesRecv(iProc)
+!  ! zero recv content buffers
+!  NodeRecvBuf(iProc)%content(:)= 0.
+!END DO ! iProc
+!
+!END SUBROUTINE AddHaloNodeData
 
 
 !SUBROUTINE ExchangeBezierControlPoints3D()

@@ -100,6 +100,12 @@ INTEGER                                 :: SampWallImpactAngle_Shared_Win
 INTEGER                                 :: SampWallImpactNumber_Shared_Win
 #endif /* USE_MPI */
 
+! ====================================================================
+! Rotational periodic sides
+INTEGER,ALLOCATABLE                     :: RotPeriodicSide2GlobalSide(:) ! Mapping BC-side with PartBoundCond=6 to Global Side ID
+INTEGER,ALLOCATABLE                     :: NumRotPeriodicNeigh(:)        ! Number of adjacent Neigbours sites in rotational periodic BC
+INTEGER,ALLOCATABLE                     :: RotPeriodicSideMapping(:,:)   ! Mapping between rotational periodic sides.
+INTEGER,ALLOCATABLE                     :: SurfSide2RotPeriodicSide(:)   ! Mapping between surf side and periodic sides.
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! required variables
@@ -297,6 +303,7 @@ TYPE tPartBoundary
   INTEGER                                :: PeriodicBC              = 3      ! = 3 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SimpleAnodeBC           = 4      ! = 4 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SimpleCathodeBC         = 5      ! = 5 (s.u.) Boundary Condition Integer Definition
+  INTEGER                                :: RotPeriodicBC           = 6      ! = 6 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SymmetryBC              = 10     ! = 10 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SymmetryAxis            = 11     ! = 10 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: AnalyzeBC               = 100    ! = 100 (s.u.) Boundary Condition Integer Definition
@@ -314,6 +321,11 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: ElecACC(:)
   REAL    , ALLOCATABLE                  :: WallVelo(:,:)
   REAL    , ALLOCATABLE                  :: Voltage(:), Voltage_CollectCharges(:)
+  LOGICAL , ALLOCATABLE                  :: RotVelo(:)                    ! Flag for rotating walls
+  REAL    , ALLOCATABLE                  :: RotFreq(:)                    ! Rotation frequency of the wall
+  REAL    , ALLOCATABLE                  :: RotAxi(:,:)                   ! Direction of rotation axis
+  REAL    , ALLOCATABLE                  :: RotOrg(:,:)                   ! Origin of rotation axis
+  INTEGER , ALLOCATABLE                  :: RotPeriodicDir(:)             ! Direction of rotation
   INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          !Number of Species to be changed at wall
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete

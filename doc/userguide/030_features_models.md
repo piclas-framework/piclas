@@ -191,13 +191,16 @@ Within the parameter file it is possible to define different particle boundary c
 The `Part-Boundary1-SourceName=` corresponds to the name given during the preprocessing step with HOPR. The available conditions (`Part-Boundary1-Condition=`) are described in the table below.
 
 |  Condition   | Description                                                                                                                                                                                 |
-| :----------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| :----------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 |    `open`    | Every particle crossing the boundary will be deleted.                                                                                                                                       |
 | `reflective` | Allows the definition of specular and diffuse reflection. A perfect specular reflection is performed, if no other parameters are given (discussed in more detail in the following section). |
 | `symmetric`  | A perfect specular reflection, without sampling of particle impacts.                                                                                                                        |
+| `rot_periodic`  | Allows the definition of rotational periodicity.                                                                                                                        |
 
 For `reflective` boundaries, an additional option `Part-Boundary2-SurfaceModel` is available, that
 is used for heterogeneous reactions (reactions have reactants in two or more phases) or secondary electron emission models. These models are described in \ref{sec:chem_reac}.
+
+For `rot_periodic` exactly two corresponding boundaries must be defined. Every particle crossing one of these boundaries will be inserted at the corresponding other boundary that is rotationally shifted.
 
 ### Diffuse Wall
 
@@ -221,13 +224,40 @@ Additionally, a wall velocity [m/s] and voltage [V] can be given
     Part-Boundary2-WallVelo=(/0,0,100/)
     Part-Boundary2-Voltage=100
 
+In the case of rotating walls the `-RotVelo` flag, a rotation frequency [Hz], a origin of rotation axis (x, y, z coordinates) and the rotation axis vector must be set. Note that the definition of rotation direction is given by the rotation axis and the right-hand rule.
+
+    Part-Boundary2-RotVelo = T
+    Part-Boundary2-RotFreq = 100
+    Part-Boundary2-RotOrg = (/0.,0.,0./)
+    Part-Boundary2-RotAxi = (/0.,0.,1./)
+
 A linear temperature gradient across a boundary can be defined by supplying a second wall temperature and the start and end vector
 
     Part-Boundary2-WallTemp2=500.
     Part-Boundary2-TemperatureGradientStart=(/0.,0.,0./)
     Part-Boundary2-TemperatureGradientEnd=(/0.,0.,1./)
 
-Between these two points the temperature will be interpolated, where the start vector corresponds to the first wall temperature, while the end vector to the second wall temperature. Beyond these position values, the first and second temperature will be used as the constant wall temperature, respectively.
+Between these two points the temperature will be interpolated, where the start vector corresponds to the first wall temperature, whereas the end vector to the second wall temperature. Beyond these position values, the first and second temperature will be used as the constant wall temperature, respectively.
+
+### Rotational Periodicity
+
+The rotational periodic boundary condition can be used in order to reduce the computational effort in case of an existing rotational periodicity. In contrast to symmetric boundary conditions, a macroscopic flow velocity in azimuthal direction can be simulated (e.g. circular flow around a rotating cylinder). Exactly two corresponding boundaries must be defined by setting `rot_periodic` as BC condition and the rotation direction for each BCs.
+
+    Part-Boundary1-SourceName=BC_Rot_Peri_plus
+    Part-Boundary1-Condition=rot_periodic
+    Part-Boundary1-RotPeriodicDir=1
+    
+    Part-Boundary2-SourceName=BC_Rot_Peri_minus
+    Part-Boundary2-Condition=rot_periodic
+    Part-Boundary2-RotPeriodicDir=-1
+
+CAUTION! The correct sign for the direction must be determined. Here, the rotation direction is defined by the rotation axis `Part-RotPeriodicAxi` that must be defined separately, and the right-hand rule.
+
+    Part-RotPeriodicAxi=1    ! (x=1, y=2, z=3)
+
+The usage of rotational periodic boundary conditions is limited to cases, where the rotational periodic axis is one of the three Cartesian coordinate axis (x, y, z) with its origin at (0, 0, 0). Finally the rotation angle `Part-RotPeriodicAngle` [°] must be defined.
+
+    Part-RotPeriodicAngle=90
 
 ### Porous Wall / Pump
 
@@ -256,7 +286,7 @@ To reduce the influence of statistical fluctuations, the relevant macroscopic va
 
     Part-PorousBC-IterationMacroVal=10
 
-A porous region on the specified boundary can be defined. At the moment, only the `circular` option is implemented. The origin of the circle/ring on the surface and the radius have to be given. In the case of a ring, a maximal and minimal radius is required (`-rmax` and `-rmin`, respectively), while for a circle only the input of maximal radius is sufficient.
+A porous region on the specified boundary can be defined. At the moment, only the `circular` option is implemented. The origin of the circle/ring on the surface and the radius have to be given. In the case of a ring, a maximal and minimal radius is required (`-rmax` and `-rmin`, respectively), whereas for a circle only the input of maximal radius is sufficient.
 
     Part-PorousBC1-Region=circular
     Part-PorousBC1-normalDir=1
@@ -496,7 +526,7 @@ The normal direction of the respective boundary has to be defined by
 
     Part-Species1-Surfaceflux1-axialDir=1
 
-Finally, the origin of the circle/ring on the surface and the radius have to be given. In the case of a ring, a maximal and minimal radius is required (`-rmax` and `-rmin`, respectively), while for a circle only the input of maximal radius is sufficient.
+Finally, the origin of the circle/ring on the surface and the radius have to be given. In the case of a ring, a maximal and minimal radius is required (`-rmax` and `-rmin`, respectively), whereas for a circle only the input of maximal radius is sufficient.
 
     Part-Species1-Surfaceflux1-origin=(/5e-6,5e-6/)
     Part-Species1-Surfaceflux1-rmax=2.5e-6
@@ -736,7 +766,7 @@ The other three types, which are actually coils, are described by the number of 
     Coil1-LoopNum = 10
     Coil1-PointsPerLoop = 10
 
-The cross-section of the coil is defined in a plane normal to the `-LengthVector`. A circular coil cross-section requires simply the input of a radius while a rectangular coil cross-section is spanned by two vectors (`-RectVec1` and `-RectVec2`) and an additional vector, which must be orthogonal to the `-LengthVector` to define the orientation of the cross-section (`-AxisVec1`). In these two cases, the base/origin vector defines the middle point of the cross-section.
+The cross-section of the coil is defined in a plane normal to the `-LengthVector`. A circular coil cross-section requires simply the input of a radius whereas a rectangular coil cross-section is spanned by two vectors (`-RectVec1` and `-RectVec2`) and an additional vector, which must be orthogonal to the `-LengthVector` to define the orientation of the cross-section (`-AxisVec1`). In these two cases, the base/origin vector defines the middle point of the cross-section.
 
     ! Circular coil cross-section
     Coil1-Radius = 1.
@@ -1026,7 +1056,7 @@ To consider inelastic collisions and relaxation processes within PICLas, the cho
 
     Particles-DSMC-CollisMode = 2
 
-Two selection procedures are implemented, which differ whether only a single or as many as possible relaxation processes can occur for a collision pair. The default model (`SelectionProcedure = 1`) allows the latter, so-called multi-relaxation method, while `SelectionProcedure = 2` enables the prohibiting double-relaxation method [@Haas1994b]
+Two selection procedures are implemented, which differ whether only a single or as many as possible relaxation processes can occur for a collision pair. The default model (`SelectionProcedure = 1`) allows the latter, so-called multi-relaxation method, whereas `SelectionProcedure = 2` enables the prohibiting double-relaxation method [@Haas1994b]
 
     Particles-DSMC-SelectionProcedure = 1    ! Multi-relaxation
                                         2    ! Prohibiting double-relaxation
@@ -1133,7 +1163,7 @@ The reactants (left-hand side) and products (right-hand side) are defined by the
     DSMC-Reaction1-NumberOfNonReactives=3
     DSMC-Reaction1-NonReactiveSpecies=(/1,2,3/)
 
-This allows to define a single reaction for an arbitrary number of collision partners. Ionization reactions require for the correct calculation of the reaction enthalpy, an additional entry for each ionic species about its previous state. This is done by providing the species index, an example is given below assuming that the first species is C, while the second and thirds species are the first and second ionization levels, respectively.
+This allows to define a single reaction for an arbitrary number of collision partners. Ionization reactions require for the correct calculation of the reaction enthalpy, an additional entry for each ionic species about its previous state. This is done by providing the species index, an example is given below assuming that the first species is C, whereas the second and thirds species are the first and second ionization levels, respectively.
 
     Part-Species2-PreviousState = 1
     Part-Species3-PreviousState = 2

@@ -65,57 +65,56 @@ USE MOD_HDF5_Input            ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,Rea
 USE MOD_HDF5_Input            ,ONLY: ISVALIDHDF5FILE,ISVALIDMESHFILE
 USE MOD_Mesh_ReadIn           ,ONLY: readMesh
 USE MOD_Mesh                  ,ONLY: FinalizeMesh
-#ifdef PARTICLES
-USE MOD_Particle_Mesh         ,ONLY: FinalizeParticleMesh
-#endif
-USE MOD_Mesh_Vars             ,ONLY: useCurveds,NGeo,nElems,NodeCoords,offsetElem
-USE MOD_Interpolation_Vars    ,ONLY: NodeTypeVisu
-USE MOD_Interpolation         ,ONLY: GetVandermonde
-USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
-USE MOD_VTK                   ,ONLY: WriteDataToVTK,WriteVTKMultiBlockDataSet
-USE MOD_Prepare_Mesh          ,ONLY: fillMeshInfo
+!USE MOD_Mesh_Vars             ,ONLY: NGeo,nElems,offsetElem
+USE MOD_Mesh_Vars             ,ONLY: useCurveds,NodeCoords
+!USE MOD_Interpolation_Vars    ,ONLY: NodeTypeVisu
+!USE MOD_Interpolation         ,ONLY: GetVandermonde
+!USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
+!USE MOD_VTK                   ,ONLY: WriteDataToVTK,WriteVTKMultiBlockDataSet
 #if USE_MPI
-USE MOD_MPI_Vars              ,ONLY: NbProc,nMPISides_Proc
+!USE MOD_MPI_Vars              ,ONLY: NbProc,nMPISides_Proc
 #endif /*USE_MPI*/
-USE MOD_Analyze               ,ONLY: CalcErrorStateFiles, CalcErrorStateFileSigma
-USE MOD_Interpolation_Vars    ,ONLY: NAnalyze
-USE MOD_Mesh_Vars             ,ONLY: sJ,NGeoRef
+!USE MOD_Analyze               ,ONLY: CalcErrorStateFiles, CalcErrorStateFileSigma
+!USE MOD_Interpolation_Vars    ,ONLY: NAnalyze
+!USE MOD_Mesh_Vars             ,ONLY: sJ,NGeoRef
 USE MOD_Preproc
-USE MOD_Metrics               ,ONLY: CalcMetricsErrorDiff
+!USE MOD_Metrics               ,ONLY: CalcMetricsErrorDiff
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                           :: Time                              ! Used to track computation time
 CHARACTER(LEN=255)             :: NodeTypeVisuOut                   ! Stores user selected type of visualization nodes
 INTEGER                        :: NVisu                             ! Polynomial degree of visualization
-INTEGER                        :: iArgs,iElem                       ! Loop counters
+INTEGER                        :: iArgs                             ! Loop counters
+!INTEGER                        :: iElem                             ! Loop counters
 INTEGER                        :: iExt                              ! Stores position where the filename extension begins
-CHARACTER(LEN=255)             :: InputStateFile,MeshFile
-INTEGER                        :: nVar_State,N_State,nElems_State   ! Properties read from state file
-INTEGER                        :: nVar_Solution
-CHARACTER(LEN=255)             :: NodeType_State                    !     "
+CHARACTER(LEN=255)             :: InputStateFile
+!CHARACTER(LEN=255)             :: MeshFile
+!INTEGER                        :: nVar_State,N_State,nElems_State   ! Properties read from state file
+!INTEGER                        :: nVar_Solution
+!CHARACTER(LEN=255)             :: NodeType_State                    !     "
 REAL,ALLOCATABLE               :: U(:,:,:,:,:)                      ! Solution from state file
-REAL,ALLOCATABLE               :: U_first(:,:,:,:,:)                ! Solution from state file
-REAL,ALLOCATABLE               :: U_average(:,:,:,:,:)              ! Solution from state file
-INTEGER                        :: N_average
+!REAL,ALLOCATABLE               :: U_first(:,:,:,:,:)                ! Solution from state file
+!REAL,ALLOCATABLE               :: U_average(:,:,:,:,:)              ! Solution from state file
+!INTEGER                        :: N_average
 REAL,ALLOCATABLE,TARGET        :: U_Visu(:,:,:,:,:)                 ! Solution on visualiation nodes
-REAL,POINTER                   :: U_Visu_p(:,:,:,:,:)               ! Solution on visualiation nodes
+!REAL,POINTER                   :: U_Visu_p(:,:,:,:,:)               ! Solution on visualiation nodes
 REAL,ALLOCATABLE               :: Coords_NVisu(:,:,:,:,:)           ! Coordinates of visualisation nodes
-REAL,ALLOCATABLE,TARGET        :: Coords_DG(:,:,:,:,:)
-REAL,POINTER                   :: Coords_DG_p(:,:,:,:,:)
+!REAL,ALLOCATABLE,TARGET        :: Coords_DG(:,:,:,:,:)
+!REAL,POINTER                   :: Coords_DG_p(:,:,:,:,:)
 REAL,ALLOCATABLE               :: Vdm_EQNgeo_NVisu(:,:)             ! Vandermonde from equidistand mesh to visualisation nodes
 REAL,ALLOCATABLE               :: Vdm_N_NVisu(:,:)                  ! Vandermonde from state to visualisation nodes
 INTEGER                        :: nGeo_old,nVar_State_old           ! Variables used to check if we need to reinitialize
 INTEGER                        :: N_State_old,nElems_old            !     "
-INTEGER                        :: N_State_first                     ! first state file
+!INTEGER                        :: N_State_first                     ! first state file
 CHARACTER(LEN=255)             :: MeshFile_old                      !     "
 CHARACTER(LEN=255)             :: NodeType_State_old                !     "
-CHARACTER(LEN=255)             :: FileString_DG
-CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:), StrVarNamesTemp2(:)
-CHARACTER(LEN=255)             :: StrVarNamesTemp(4)
-REAL                           :: OutputTime
-INTEGER                        :: iDG
-CHARACTER(LEN=255)             :: FileString_multiblock
+!CHARACTER(LEN=255)             :: FileString_DG
+!CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:), StrVarNamesTemp2(:)
+!CHARACTER(LEN=255)             :: StrVarNamesTemp(4)
+!REAL                           :: OutputTime
+!INTEGER                        :: iDG
+!CHARACTER(LEN=255)             :: FileString_multiblock
 LOGICAL                        :: CmdLineMode, NVisuDefault         ! In command line mode only NVisu is specified directly,
                                                                     ! otherwise a parameter file is needed
 CHARACTER(LEN=2)               :: NVisuString                       ! String containing NVisu from command line option
@@ -125,8 +124,9 @@ LOGICAL                        :: CalcDiffError                     ! Use first 
 LOGICAL                        :: AllowChangedMesh
 LOGICAL                        :: CalcDiffSigma                     ! Use last state file as state for L2 sigma calculation
 LOGICAL                        :: CalcAverage                       ! Calculate and write arithmetic mean of alle StateFile
-LOGICAL                        :: DGSourceExists, skip, DGSolutionExists, ElemDataExists, SurfaceDataExists
-CHARACTER(LEN=40)              :: DefStr
+!LOGICAL                        :: DGSourceExists, skip
+LOGICAL                        :: DGSolutionExists, ElemDataExists, SurfaceDataExists
+!CHARACTER(LEN=40)              :: DefStr
 INTEGER                        :: iArgsStart
 LOGICAL                        :: ReadMeshFinished, ElemMeshInit, SurfMeshInit
 LOGICAL                        :: VisuParticles, PartDataExists, BGFieldExists
@@ -1108,7 +1108,6 @@ USE MOD_Globals_Vars          ,ONLY: ProjectName
 USE MOD_IO_HDF5               ,ONLY: HSize
 USE MOD_HDF5_Input            ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray
 USE MOD_h5piclas2vtk_Vars     ,ONLY: SurfConnect
-USE MOD_Particle_Mesh_Vars    ,ONLY: nNonUniqueGlobalSides, SideInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1120,7 +1119,7 @@ CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)              :: FileString
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
-INTEGER                         :: nDims, nVarSurf, nSurfSample, iSide, nSurfaceSidesNonUnique, iUnique, iNonUnique
+INTEGER                         :: nDims, nVarSurf, nSurfSample, nSurfaceSidesNonUnique, iUnique, iNonUnique
 REAL                            :: OutputTime
 REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:), SurfData(:,:), Coords(:,:)
 !===================================================================================================================================

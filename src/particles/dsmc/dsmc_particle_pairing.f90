@@ -105,7 +105,7 @@ USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies,Par
 USE MOD_Particle_Tracking_vars  ,ONLY: DoRefMapping
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: GetParticleWeight
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared,GEO
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
@@ -363,14 +363,14 @@ SUBROUTINE PerformPairingAndCollision(iPartIndx_Node, PartNum, iElem, NodeVolume
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_CollisionProb      ,ONLY: DSMC_prob_calc
-USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision, SumVibRelaxProb
+USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: SelectionProc, useRelaxProbCorrFactor
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep, Symmetry, PEM
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
 USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath, CalcInstantElecTempXi
 USE MOD_part_tools              ,ONLY: GetParticleWeight
-USE MOD_DSMC_Relaxation         ,ONLY: CalcMeanVibQuaDiatomic
+USE MOD_DSMC_Relaxation         ,ONLY: CalcMeanVibQuaDiatomic,SumVibRelaxProb
 USE MOD_DSMC_Symmetry           ,ONLY: DSMC_2D_TreatIdenticalParticles
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_InsertParticles, AD_DeleteParticles
 ! IMPLICIT VARIABLE HANDLING

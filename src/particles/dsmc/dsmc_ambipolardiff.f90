@@ -48,7 +48,7 @@ SUBROUTINE AD_InsertParticles(iPartIndx_Node, nPart, iPartIndx_NodeTotalAmbi, To
 USE MOD_Globals                
 USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_Vars              ,ONLY: BGGas, SpecDSMC, CollisMode, DSMC, PartStateIntEn,AmbipolElecVelo,RadialWeighting
-USE MOD_DSMC_Vars              ,ONLY: DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars              ,ONLY: DSMCSumOfFormedParticles, newAmbiParts, iPartIndx_NodeNewAmbi, DSMC_RHS
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef, Species, nSpecies,VarTimeStep, PartMPF
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn
@@ -76,6 +76,7 @@ REAL              :: tLBStart
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
+
 MaxPos = -HUGE(MaxPos)
 MinPos = HUGE(MinPos)
 iNewPart=0
@@ -90,8 +91,6 @@ DO iLoop = 1, nPart
   MinPos(1) = MIN(MinPos(1),PartState(1,iPart))
   MinPos(2) = MIN(MinPos(2),PartState(2,iPart))
   MinPos(3) = MIN(MinPos(3),PartState(3,iPart))
-  AmbipolElecVelo(iPart)%IsCoupled = .FALSE.
-!  IF ( PEM%GlobalElemID(iPart).EQ.1882) IPWRITE(*,*) 'set in', iPart, PartSpecies(iPart), Species(PartSpecies(iPart))%ChargeIC, AmbipolElecVelo(iPart)%IsCoupled
   IF(Species(PartSpecies(iPart))%ChargeIC.GT.0.0) THEN
     nNewElectrons = nNewElectrons + 1
     IonIndX(nNewElectrons) = iPart
@@ -116,7 +115,8 @@ __STAMP__&
   PEM%GlobalElemID(PositionNbr) = PEM%GlobalElemID(iPartIndx_Node(1))
   PDM%ParticleInside(PositionNbr) = .true.
   PartState(4:6,PositionNbr) = AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(1:3)
-!  IF ( PEM%GlobalElemID(iPart).EQ.1882) IPWRITE(*,*) 'set in Electrons', IonIndX(iLoop), PositionNbr,AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(1:3), PartState(4:6,IonIndX(iLoop)) 
+  DSMC_RHS(1:3,PositionNbr) = 0.0
+  DEALLOCATE(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo)
   IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
     PartStateIntEn( 1,PositionNbr) = 0.
     PartStateIntEn( 2,PositionNbr) = 0.
@@ -127,6 +127,10 @@ __STAMP__&
   iPartIndx_NodeTotalAmbi(nPart+iLoop) = PositionNbr
 END DO
 TotalPartNum = nPart + nNewElectrons
+
+newAmbiParts = 0
+IF (ALLOCATED(iPartIndx_NodeNewAmbi)) DEALLOCATE(iPartIndx_NodeNewAmbi)
+ALLOCATE(iPartIndx_NodeNewAmbi(TotalPartNum))
 
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DSMC,tLBStart)
@@ -141,7 +145,7 @@ SUBROUTINE AD_DeleteParticles(iPartIndx_Node, nPart)
 USE MOD_Globals
 USE MOD_PARTICLE_Vars,      ONLY : PDM, PartSpecies, Species, PartState, PEM
 USE MOD_Particle_Analyze,   ONLY : PARTISELECTRON
-USE MOD_DSMC_Vars,          ONLY : AmbipolElecVelo
+USE MOD_DSMC_Vars,          ONLY : AmbipolElecVelo, newAmbiParts, iPartIndx_NodeNewAmbi, DSMC_RHS
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -152,7 +156,7 @@ INTEGER,INTENT(INOUT)       :: iPartIndx_Node(:), nPart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                     :: iPart, iLoop, nElectron, nIon
-INTEGER                     :: ElecIndx(nPart), IonIndX(nPart)
+INTEGER                     :: ElecIndx(2*nPart), IonIndX(2*nPart)
 !===================================================================================================================================
 nElectron =0; nIon = 0
 DO iLoop = 1, nPart
@@ -163,10 +167,21 @@ DO iLoop = 1, nPart
       ElecIndx(nElectron) = iPart
     END IF
     IF(Species(PartSpecies(iPart))%ChargeIC.GT.0.0) THEN
-      IF (.NOT.AmbipolElecVelo(iPart)%IsCoupled) THEN
-        nIon = nIon + 1
-        IonIndX(nIon) = iPart
-      END IF
+      nIon = nIon + 1
+      IonIndX(nIon) = iPart
+    END IF
+  END IF
+END DO
+DO iLoop = 1, newAmbiParts
+  iPart = iPartIndx_NodeNewAmbi(iLoop)
+  IF (PDM%ParticleInside(iPart)) THEN
+    IF(PARTISELECTRON(iPart)) THEN
+      nElectron = nElectron + 1
+      ElecIndx(nElectron) = iPart
+    END IF
+    IF(Species(PartSpecies(iPart))%ChargeIC.GT.0.0) THEN
+      nIon = nIon + 1
+      IonIndX(nIon) = iPart
     END IF
   END IF
 END DO
@@ -175,7 +190,7 @@ IF(nIon.NE.nElectron) THEN
   IPWRITE(*,*) 'nPart', nPart
   DO iLoop = 1, nPart
     iPart = iPartIndx_Node(iLoop)
-    IPWRITE(*,*) 'inside', iPart, PDM%ParticleInside(iPart), PartSpecies(iPart), Species(PartSpecies(iPart))%ChargeIC, AmbipolElecVelo(iPart)%IsCoupled, PEM%GlobalElemID(iPart)
+    IPWRITE(*,*) 'inside', iPart, PDM%ParticleInside(iPart), PartSpecies(iPart), Species(PartSpecies(iPart))%ChargeIC, PEM%GlobalElemID(iPart)
   END DO
   CALL abort(__STAMP__&
       ,'ERROR: Number of electrons and ions is not equal for ambipolar diffusion: ' &
@@ -185,10 +200,11 @@ END IF
 DO iLoop = 1, nElectron
   IF (ALLOCATED(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo)
   ALLOCATE(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(3))
-  AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(1:3) = PartState(4:6,ElecIndx(iLoop))
-  AmbipolElecVelo(IonIndX(iLoop))%IsCoupled = .TRUE.
+  AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(1:3) = PartState(4:6,ElecIndx(iLoop)) + DSMC_RHS(1:3,ElecIndx(iLoop))
   PDM%ParticleInside(ElecIndx(iLoop)) = .FALSE.
 END DO
+
+DEALLOCATE(iPartIndx_NodeNewAmbi)
 
 END SUBROUTINE AD_DeleteParticles
 

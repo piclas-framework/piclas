@@ -40,7 +40,8 @@ PUBLIC :: CalcNumPartsOfSpec
 
 CONTAINS
 
-PURE FUNCTION CalcEkinPart(iPart)
+
+PURE REAL FUNCTION CalcEkinPart(iPart)
 !===================================================================================================================================
 ! computes the kinetic energy of one particle
 !===================================================================================================================================
@@ -60,7 +61,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 INTEGER,INTENT(IN)                 :: iPart
-REAL                               :: CalcEkinPart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                               :: partV2, gamma1, WeightingFactor
@@ -83,14 +83,19 @@ ELSE
     CalcEkinPart= 0.5 * Species(PartSpecies(iPart))%MassIC * partV2 * WeightingFactor
   ELSE
     gamma1=partV2*c2_inv
-    gamma1=1.0/SQRT(1.-gamma1)
-    CalcEkinPart=(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2 * WeightingFactor
+    ! Sanity check: Lorentz factor must be below 1.0
+    IF(gamma1.GE.1.0)THEN
+      CalcEkinPart=-1.0
+    ELSE
+      gamma1=1.0/SQRT(1.-gamma1)
+      CalcEkinPart=(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2 * WeightingFactor
+    END IF ! gamma1.GE.1.0
   END IF ! ipartV2
 END IF
 END FUNCTION CalcEkinPart
 
 
-PURE FUNCTION CalcEkinPart2(velocity,Species_IN,WeightingFactor)
+PURE REAL FUNCTION CalcEkinPart2(velocity,Species_IN,WeightingFactor)
 !===================================================================================================================================
 ! computes the kinetic energy of one particle given its velocity, species and weighting factor
 !===================================================================================================================================
@@ -109,7 +114,6 @@ INTEGER,INTENT(IN)              :: Species_IN
 REAL,INTENT(IN)                 :: WeightingFactor
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                            :: CalcEkinPart2
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                            :: partV2, gamma1
@@ -126,8 +130,13 @@ ELSE
     CalcEkinPart2= 0.5 * Species(Species_IN)%MassIC * partV2 * WeightingFactor
   ELSE
     gamma1=partV2*c2_inv
-    gamma1=1.0/SQRT(1.-gamma1)
-    CalcEkinPart2=(gamma1-1.0)*Species(Species_IN)%MassIC*c2 * WeightingFactor
+    ! Sanity check: Lorentz factor must be below 1.0
+    IF(gamma1.GE.1.0)THEN
+      CalcEkinPart2=-1.0
+    ELSE
+      gamma1=1.0/SQRT(1.-gamma1)
+      CalcEkinPart2=(gamma1-1.0)*Species(Species_IN)%MassIC*c2 * WeightingFactor
+    END IF ! gamma1.GE.1.0
   END IF ! ipartV2
 END IF
 END FUNCTION CalcEkinPart2
