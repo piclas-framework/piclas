@@ -349,9 +349,6 @@ END IF
 IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)THEN
   ! Determine the average distances in x, y and z
   ! Move the determination of these variables as soon as they are required for other functions!
-  ADEALLOCATE(ElemCharLengthX_Shared)
-  ADEALLOCATE(ElemCharLengthX_Shared)
-  ADEALLOCATE(ElemCharLengthX_Shared)
 #if USE_MPI
   MPISharedSize = INT(nComputeNodeElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
   CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemCharLengthX_Shared_Win,ElemCharLengthX_Shared)
@@ -4266,12 +4263,15 @@ SUBROUTINE FinalizeParticleAnalyze()
 ! MODULES
 USE MOD_Particle_Analyze_Vars
 USE MOD_Particle_Vars         ,ONLY: nSpecies
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared_Win,ElemCharLengthX_Shared
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared_Win,ElemCharLengthY_Shared
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared_Win,ElemCharLengthZ_Shared
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iSpec
+INTEGER           :: iSpec,iError
 !===================================================================================================================================
 ParticleAnalyzeInitIsDone = .FALSE.
 SDEALLOCATE(DebyeLengthCell)
@@ -4310,6 +4310,21 @@ SDEALLOCATE(nPartOut)
 SDEALLOCATE(PartEkinIn)
 SDEALLOCATE(PartEkinOut)
 SDEALLOCATE(MassflowRate)
+
+
+IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)THEN
+  CALL MPI_WIN_UNLOCK_ALL(ElemCharLengthX_Shared_Win, iError)
+  CALL MPI_WIN_FREE(      ElemCharLengthX_Shared_Win, iError)
+  ADEALLOCATE(ElemCharLengthX_Shared)
+  CALL MPI_WIN_UNLOCK_ALL(ElemCharLengthY_Shared_Win, iError)
+  CALL MPI_WIN_FREE(      ElemCharLengthY_Shared_Win, iError)
+  ADEALLOCATE(ElemCharLengthY_Shared)
+  CALL MPI_WIN_UNLOCK_ALL(ElemCharLengthZ_Shared_Win, iError)
+  CALL MPI_WIN_FREE(      ElemCharLengthZ_Shared_Win, iError)
+  ADEALLOCATE(ElemCharLengthZ_Shared)
+END IF
+
+
 END SUBROUTINE FinalizeParticleAnalyze
 #endif /*PARTICLES*/
 
