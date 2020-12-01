@@ -45,17 +45,15 @@ USE MOD_Globals_Vars            ,ONLY: PI
 USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
 USE MOD_Part_Tools              ,ONLY: VeloFromDistribution
 USE MOD_part_operations         ,ONLY: CreateParticle, RemoveParticle
-USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues
 USE MOD_Particle_Vars           ,ONLY: PartState,Species,PartSpecies
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars           ,ONLY: LastPartPos, PEM
-USE MOD_DSMC_Vars               ,ONLY: DSMC
 USE MOD_Particle_Boundary_Tools ,ONLY: SurfaceToPartEnergyInternal, CalcWallSample, AnalyzeSurfaceCollisions
 USE MOD_Particle_Boundary_Tools ,ONLY: AddPartInfoToSample,CalcRotWallVelo
 USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample, Partbound, CalcSurfaceImpact, GlobalSide2SurfSide
-USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time, dt, RKdtFrac
+USE MOD_TimeDisc_Vars           ,ONLY: dt, RKdtFrac
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_SurfaceModel_Vars       ,ONLY: Adsorption, SurfModel
+USE MOD_SurfaceModel_Vars       ,ONLY: SurfModel
 USE MOD_SEE                     ,ONLY: SecondaryElectronEmission
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
@@ -90,7 +88,6 @@ REAL                             :: Xitild,EtaTild
 INTEGER                          :: p,q
 REAL                             :: tang1(1:3),tang2(1:3)
 INTEGER                          :: SurfSideID, SpecID
-REAL                             :: Norm_velo
 ! variables for Energy sampling
 REAL                             :: TransArray(1:6),IntArray(1:6)
 REAL                             :: oldVelo(1:3)

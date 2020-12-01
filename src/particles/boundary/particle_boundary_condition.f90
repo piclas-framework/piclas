@@ -393,7 +393,7 @@ USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,nSpecies,PartSpecie
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep
 USE MOD_DSMC_Vars               ,ONLY: DSMC,RadialWeighting,PartStateIntEn, AmbipolElecVelo
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,usevMPF
-USE MOD_TImeDisc_Vars           ,ONLY: dt,tend,time,RKdtFrac
+USE MOD_TImeDisc_Vars           ,ONLY: tend,time
 USE MOD_Globals_Vars            ,ONLY: c2_inv
 #if defined(LSERK)
 USE MOD_Particle_Vars           ,ONLY: Pt_temp,PDM
@@ -1471,7 +1471,7 @@ INTEGER,INTENT(IN)                :: PartID, SideID
 INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: locSideID, SideID2, ElemID2, iNeigh, RotSideID
+INTEGER                              :: SideID2, ElemID2, iNeigh, RotSideID
 REAL                                 :: adaptTimeStep
 LOGICAL                              :: FoundInElem
 REAL                                 :: det(6,2)
@@ -1542,7 +1542,6 @@ END ASSOCIATE
 ! (2) update particle positon after periodic BC
 PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac &
                         * PartState(4:6,PartID) * adaptTimeStep
-! #if !defined(IMPA) &&  !defined(ROS)
 ! compute moved particle || rest of movement
 PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 IF(ALMOSTZERO(VECNORM(PartTrajectory)))THEN
@@ -1563,26 +1562,22 @@ IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
 END IF
 #endif /*CODE_ANALYZE*/
 ! (3) move particle from old element to new element
-ASSOCIATE( RotSideID =>  SurfSide2RotPeriodicSide((GlobalSide2SurfSide(SURF_SIDEID,SideID))) )
-  DO iNeigh=1,NumRotPeriodicNeigh(RotSideID)
-    SideID2 = RotPeriodicSideMapping(RotSideID,iNeigh)
-    ElemID2 = SideInfo_Shared(SIDE_ELEMID,SideID2)    
-    ! find rotational periodic SideID2 through localization in all potentional rotational periodic sides
-    CALL ParticleInsideQuad3D(LastPartPos(1:3,PartID),ElemID2,FoundInElem,Det)
-    IF(FoundInElem) THEN
-      ElemID = ElemID2
-      EXIT
-    END IF
-  END DO
-  IF(.NOT.FoundInElem) THEN
-!    CALL abort(&
-!      __STAMP__&
-!      ,' ERROR: Particle not found after rotational periodic BC!.')
-    CALL StoreLostParticleProperties(PartID,ElemID)
-    NbrOfLostParticles=NbrOfLostParticles+1
-    CALL RemoveParticle(PartID,BCID=SideInfo_Shared(SIDE_BCID,SideID),alpha=alpha)
+RotSideID = SurfSide2RotPeriodicSide((GlobalSide2SurfSide(SURF_SIDEID,SideID)))
+DO iNeigh=1,NumRotPeriodicNeigh(RotSideID)
+  SideID2 = RotPeriodicSideMapping(RotSideID,iNeigh)
+  ElemID2 = SideInfo_Shared(SIDE_ELEMID,SideID2)
+  ! find rotational periodic SideID2 through localization in all potentional rotational periodic sides
+  CALL ParticleInsideQuad3D(LastPartPos(1:3,PartID),ElemID2,FoundInElem,Det)
+  IF(FoundInElem) THEN
+    ElemID = ElemID2
+    EXIT
   END IF
-END ASSOCIATE
+END DO
+IF(.NOT.FoundInElem) THEN
+  CALL StoreLostParticleProperties(PartID,ElemID)
+  NbrOfLostParticles=NbrOfLostParticles+1
+  CALL RemoveParticle(PartID,BCID=SideInfo_Shared(SIDE_BCID,SideID),alpha=alpha)
+END IF
 
 END SUBROUTINE RotPeriodicBC
 

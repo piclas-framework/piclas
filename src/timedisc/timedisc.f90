@@ -1341,9 +1341,6 @@ IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
   END IF
 ELSE
   IF (DoSurfaceFlux) THEN
-    ! treat surface with respective model
-    CALL SurfaceModel_main()
-
     CALL ParticleSurfaceflux()
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
@@ -3385,7 +3382,6 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
 USE MOD_TimeDisc_Vars          ,ONLY: dt_old
 #endif /*(PP_TimeDiscMethod==509)*/
 USE MOD_HDG                    ,ONLY: HDG
-USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
@@ -3960,14 +3956,6 @@ CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
 IF (time.GE.DelayTime) THEN
   IF (DoSurfaceFlux) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-    CALL SurfaceModel_main()
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_SURF,tLBStart)
-#endif /*USE_LOADBALANCE*/
-
     CALL ParticleSurfaceflux() !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
   END IF
 #if USE_LOADBALANCE
@@ -4113,13 +4101,6 @@ DO iStage=2,nRKStages
 #endif /*USE_LOADBALANCE*/
   IF (time.GE.DelayTime) THEN
     IF (DoSurfaceFlux)THEN
-#if USE_LOADBALANCE
-      CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-      CALL SurfaceModel_main()
-#if USE_LOADBALANCE
-      CALL LBPauseTime(LB_SURF,tLBStart)
-#endif /*USE_LOADBALANCE*/
       CALL ParticleSurfaceflux() !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
     END IF
     ! forces on particle

@@ -290,31 +290,21 @@ END FUNCTION DiceUnitVector
 FUNCTION VeloFromDistribution(distribution,specID,Tempergy)
 !===================================================================================================================================
 !> calculation of velocityvector (Vx,Vy,Vz) sampled from given distribution function
-!>  liquid_evap: normal direction to surface with ARM from shifted evaporation rayleigh, tangential from normal distribution
-!>  liquid_refl: normal direction to surface with ARM from shifted reflection rayleigh, tangential from normal distribution
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals                 ,ONLY: Abort,UNIT_stdOut
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars           ,ONLY: Species
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN) :: distribution !< specifying keyword for velocity distribution
 INTEGER,INTENT(IN)          :: specID       !< input species
-REAL,INTENT(IN)             :: Tempergy         !< input temperature [K] or energy [J] or velocity [m/s]
+REAL,INTENT(IN)             :: Tempergy     !< input temperature [K] or energy [J] or velocity [m/s]
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+REAL            :: VeloFromDistribution(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL, PARAMETER :: xmin=0., xmax=5.
-REAL            :: VeloFromDistribution(1:3)
-REAL            :: alpha, beta
-REAL            :: y1, f, ymax, i, binsize
-REAL            :: sigma, val(1:2)
-REAL            :: Velo1, Velo2, Velosq
-REAL            :: RandVal(2)
 !===================================================================================================================================
 !-- set velocities
 SELECT CASE(TRIM(distribution))

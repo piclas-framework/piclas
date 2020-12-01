@@ -85,17 +85,16 @@ SUBROUTINE CalcSurfaceValues(during_dt_opt)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars                  ,ONLY: MacroSurfaceVal,DSMC,MacroSurfaceSpecVal
-USE MOD_Mesh_Vars                  ,ONLY: MeshFile,BC
+USE MOD_Mesh_Vars                  ,ONLY: MeshFile
 USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfOnNode
-USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,CalcSurfCollis,nPorousBC,PartBound,CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample,CalcSurfCollis,nPorousBC,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide
 USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides
 USE MOD_Particle_Boundary_Vars     ,ONLY: PorousBCInfo_Shared,MapSurfSideToPorousSide_Shared
 USE MOD_Particle_Mesh_Vars         ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry
 USE MOD_Restart_Vars               ,ONLY: RestartTime
-USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
 USE MOD_Timedisc_Vars              ,ONLY: time,dt
 #if USE_MPI
@@ -121,7 +120,7 @@ LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                            :: BCID
-INTEGER                            :: iSpec,iSurfSide,p,q, iReact, nVar, nVarSpec, iPBC, nVarCount
+INTEGER                            :: iSpec,iSurfSide,p,q, nVar, nVarSpec, iPBC, nVarCount
 REAL                               :: TimeSample, ActualTime, TimeSampleTemp, CounterSum
 INTEGER, ALLOCATABLE               :: CounterTotal(:), SumCounterTotal(:)              ! Total Wall-Collision counter
 LOGICAL                            :: during_dt
@@ -652,7 +651,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_Preproc
 USE MOD_DSMC_Vars     ,ONLY: DSMC, CollInf, PartStateIntEn
-USE MOD_Particle_Vars ,ONLY: PartSpecies, Species, nSpecies
+USE MOD_Particle_Vars ,ONLY: PartSpecies, nSpecies
 USE MOD_part_tools    ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -773,7 +772,7 @@ SUBROUTINE CalcInstantTransTemp(iPartIndx,PartNum,vBulk)
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_Preproc
-USE MOD_DSMC_Vars     ,ONLY: DSMC, CollInf
+USE MOD_DSMC_Vars     ,ONLY: DSMC
 USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species, nSpecies
 USE MOD_part_tools    ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING

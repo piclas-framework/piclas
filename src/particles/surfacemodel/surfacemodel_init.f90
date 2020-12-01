@@ -160,17 +160,11 @@ SUBROUTINE InitSurfaceModel()
 !> Initialize surface model variables
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars               ,ONLY: BoltzmannConst, PI
 USE MOD_Globals
-USE MOD_Particle_Vars              ,ONLY: nSpecies,WriteMacroSurfaceValues
-USE MOD_Particle_Vars              ,ONLY: Species
+USE MOD_Particle_Vars              ,ONLY: nSpecies
 USE MOD_ReadInTools                ,ONLY: GETINT
-USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample, SurfMesh, nPartBound, PartBound
-USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
+USE MOD_Particle_Boundary_Vars     ,ONLY: nPartBound, PartBound
 USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption, SurfModel
-USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfTotalSides
-USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide
-USE MOD_Particle_Mesh_Vars         ,ONLY: SideInfo_Shared
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -181,8 +175,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(32)                    :: hilf, hilf2
-INTEGER                          :: iSpec, iSide, iPartBound
-INTEGER                          :: GlobalSideID, PartBoundID
+INTEGER                          :: iSpec, iPartBound
 !===================================================================================================================================
 IF (.NOT.(ANY(PartBound%Reactive))) RETURN
 ! allocate info and constants
@@ -230,10 +223,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                      :: iSubSurf,jSubSurf,iSurfSide,iCoord
-#if USE_MPI
-INTEGER                      :: iProc
-#endif /*USE_MPI*/
 !===================================================================================================================================
 SurfModelAnalyzeInitIsDone=.FALSE.
 ! variables used if particles are kept after adsorption (currentyl not working)

@@ -396,22 +396,14 @@ INTEGER                            :: LostPartsPoly(0:PartMPI%nProcs-1), Displac
 INTEGER                            :: LostPartsElec(0:PartMPI%nProcs-1), DisplaceElec(0:PartMPI%nProcs-1)
 INTEGER                            :: LostPartsAmbi(0:PartMPI%nProcs-1), DisplaceAmbi(0:PartMPI%nProcs-1)
 #endif /*USE_MPI*/
-INTEGER                            :: locnSurfPart,offsetnSurfPart
-INTEGER,ALLOCATABLE                :: SurfPartInt(:,:,:,:,:)
-INTEGER,ALLOCATABLE                :: SurfPartData(:,:)
-REAL,ALLOCATABLE                   :: SurfCalcData(:,:,:,:,:)
 REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
-INTEGER                            :: Coordinations, SurfPartIntSize, SurfPartDataSize
-INTEGER                            :: UsedSiteMapPos, nVar, nfreeArrayindeces, lastfreeIndx, current
-INTEGER                            :: xpos, ypos, firstpart, lastpart, PartBoundID, SideID
-INTEGER                            :: iCoord, SpecID, iSurfSide, isubsurf, jsubsurf, iInterAtom
-LOGICAL                            :: SurfCalcDataExists, SurfPartIntExists, SurfPartDataExists, MoveToLastFree, implemented
+LOGICAL                            :: implemented
 LOGICAL,ALLOCATABLE                :: readVarFromState(:)
 INTEGER                            :: i
 #endif
 INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
 #if USE_HDG
-INTEGER                            :: iSide,MinGlobalSideID,MaxGlobalSideID
+INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID
 REAL,ALLOCATABLE                   :: ExtendedLambda(:,:,:)
 INTEGER                            :: p,q,r,rr,pq(1:2)
 INTEGER                            :: iLocSide,iLocSide_NB,iLocSide_master
