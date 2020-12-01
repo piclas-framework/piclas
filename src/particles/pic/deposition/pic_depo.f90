@@ -664,9 +664,9 @@ SDEALLOCATE(NDepochooseK)
 SDEALLOCATE(tempcharge)
 SDEALLOCATE(CellVolWeightFac)
 SDEALLOCATE(CellVolWeight_Volumes)
-SDEALLOCATE(NodeSourceLoc)
 
 #if USE_MPI
+SDEALLOCATE(NodeSourceLoc)
 SDEALLOCATE(PartSourceProc)
 
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
