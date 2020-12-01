@@ -394,8 +394,8 @@ LOGICAL                            :: CloneExists
 REAL, ALLOCATABLE                  :: SendBuff(:), RecBuff(:)
 INTEGER                            :: TotalNbrOfMissingParticles(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
 INTEGER                            :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PartMPI%nProcs-1)
-INTEGER, ALLOCATABLE               :: SendBuffPoly(:), RecBuffPoly(:), SendBuffElec(:), RecBuffElec(:)
-INTEGER, ALLOCATABLE               :: SendBuffAmbi(:), RecBuffAmbi(:)
+INTEGER, ALLOCATABLE               :: SendBuffPoly(:), RecBuffPoly(:)
+REAL, ALLOCATABLE                  :: SendBuffAmbi(:), RecBuffAmbi(:), SendBuffElec(:), RecBuffElec(:)
 INTEGER                            :: LostPartsPoly(0:PartMPI%nProcs-1), DisplacePoly(0:PartMPI%nProcs-1)
 INTEGER                            :: LostPartsElec(0:PartMPI%nProcs-1), DisplaceElec(0:PartMPI%nProcs-1)
 INTEGER                            :: LostPartsAmbi(0:PartMPI%nProcs-1), DisplaceAmbi(0:PartMPI%nProcs-1)
@@ -1219,10 +1219,10 @@ IF(DoRestart)THEN
             RecBuffPoly, LostPartsPoly, DisplacePoly, MPI_INTEGER, PartMPI%COMM, IERROR)
         IF(useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) &
          CALL MPI_ALLGATHERV(SendBuffElec, LostPartsElec(PartMPI%MyRank), MPI_INTEGER, & 
-              RecBuffElec, LostPartsElec, DisplaceElec, MPI_INTEGER, PartMPI%COMM, IERROR)
+              RecBuffElec, LostPartsElec, DisplaceElec, MPI_DOUBLE_PRECISION, PartMPI%COMM, IERROR)
         IF(useDSMC.AND.DSMC%DoAmbipolarDiff) &
          CALL MPI_ALLGATHERV(SendBuffAmbi, LostPartsAmbi(PartMPI%MyRank), MPI_INTEGER, & 
-              RecBuffAmbi, LostPartsAmbi, DisplaceAmbi, MPI_INTEGER, PartMPI%COMM, IERROR)
+              RecBuffAmbi, LostPartsAmbi, DisplaceAmbi, MPI_DOUBLE_PRECISION, PartMPI%COMM, IERROR)
         ! Add them to particle list and check if they are in MyProcs domain
         NbrOfFoundParts = 0
         CurrentPartNum  = PDM%ParticleVecLength+1
