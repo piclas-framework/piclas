@@ -390,20 +390,14 @@ REAL                          :: iRan
 INTEGER, ALLOCATABLE, TARGET  :: iPartIndx_NodeTotalAmbi(:)
 INTEGER, POINTER              :: iPartIndx_NodeTotal(:)
 INTEGER, ALLOCATABLE          :: iPartIndx_NodeTotalAmbiDel(:)
-LOGICAL                       :: DoAmbiDel
 !===================================================================================================================================
 
 ! 0). Ambipolar Diffusion
 IF (DSMC%DoAmbipolarDiff) THEN
   nPart = PartNum
   CALL AD_InsertParticles(iPartIndx_Node,nPart, iPartIndx_NodeTotalAmbi, TotalPartNum)
-  IF (nPart.EQ.TotalPartNum) THEN
-    DoAmbiDel = .FALSE.
-  ELSE
-    DoAmbiDel = .TRUE.
-    ALLOCATE(iPartIndx_NodeTotalAmbiDel(1:TotalPartNum))
-    iPartIndx_NodeTotalAmbiDel(1:TotalPartNum) = iPartIndx_NodeTotalAmbi(1:TotalPartNum)
-  END IF
+  ALLOCATE(iPartIndx_NodeTotalAmbiDel(1:TotalPartNum))
+  iPartIndx_NodeTotalAmbiDel(1:TotalPartNum) = iPartIndx_NodeTotalAmbi(1:TotalPartNum)
   nPart = TotalPartNum
   iPartIndx_NodeTotal => iPartIndx_NodeTotalAmbi
 ELSE
@@ -537,7 +531,7 @@ IF(DSMC%CalcQualityFactors) THEN
 END IF
 
 DEALLOCATE(Coll_pData)
-IF (DSMC%DoAmbipolarDiff.AND.DoAmbiDel) THEN
+IF (DSMC%DoAmbipolarDiff) THEN
   CALL AD_DeleteParticles(iPartIndx_NodeTotalAmbiDel,TotalPartNum)
 END IF
 

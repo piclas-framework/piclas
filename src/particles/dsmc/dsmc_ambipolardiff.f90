@@ -99,7 +99,6 @@ END DO
 ALLOCATE(iPartIndx_NodeTotalAmbi(nPart + nNewElectrons))
 iPartIndx_NodeTotalAmbi(1:nPart) = iPartIndx_Node(1:nPart)
 TotalPartNum = nPart
-IF (nNewElectrons.EQ.0) RETURN
 
 DO iLoop = 1, nNewElectrons
   DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
@@ -187,9 +186,14 @@ DO iLoop = 1, newAmbiParts
 END DO
 
 IF(nIon.NE.nElectron) THEN
-  IPWRITE(*,*) 'nPart', nPart
+  IPWRITE(*,*) 'nPart', nPart, 'newAmbiParts', newAmbiParts
   DO iLoop = 1, nPart
     iPart = iPartIndx_Node(iLoop)
+    IPWRITE(*,*) 'inside', iPart, PDM%ParticleInside(iPart), PartSpecies(iPart), Species(PartSpecies(iPart))%ChargeIC, PEM%GlobalElemID(iPart)
+  END DO
+  IPWRITE(*,*) 'newParts!!!!!'
+  DO iLoop = 1, newAmbiParts
+    iPart = iPartIndx_NodeNewAmbi(iLoop)
     IPWRITE(*,*) 'inside', iPart, PDM%ParticleInside(iPart), PartSpecies(iPart), Species(PartSpecies(iPart))%ChargeIC, PEM%GlobalElemID(iPart)
   END DO
   CALL abort(__STAMP__&

@@ -57,7 +57,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, maxEXP
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf, ReactionProbGTUnityCounter
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, VarTimeStep, PEM
 USE MOD_DSMC_Analyze            ,ONLY: CalcTVibPoly, CalcTelec
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_GetAnalyticRate
@@ -92,7 +92,9 @@ EductReac(1:3) = ChemReac%Reactants(iReac,1:3)
 iCase = CollInf%Coll_Case(EductReac(1), EductReac(2))
 
 IF(EductReac(3).NE.0) THEN
-  IF(ChemReac%RecombParticle.EQ.0) THEN
+  IF((iPair.GE.ChemReac%LastPairForRec).AND.(ChemReac%LastPairForRec.GT.0)) THEN
+    ReactInx(3) = 0
+  ELSE IF(ChemReac%RecombParticle.EQ.0) THEN
     IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
       ChemReac%LastPairForRec = nPair - ChemReac%nPairForRec
       ReactInx(3) = Coll_pData(ChemReac%LastPairForRec)%iPart_p1
@@ -417,16 +419,18 @@ IF(EductReac(3).NE.0) THEN
     ReactInx(3) = ChemReac%RecombParticle
     ! If a pair ahead in the list was broken, check which of the particles is used
     IF(ChemReac%LastPairForRec.GT.0) THEN
+      Coll_pData(ChemReac%LastPairForRec)%NeedForRec = .TRUE.
       IF(ChemReac%RecombParticle.EQ.Coll_pData(ChemReac%LastPairForRec)%iPart_p2) THEN
         ! Both particles of the pair were already used, set the RecombParticle index to zero and advance the nPairForRec counter
         ! -> New pair will be broken up (in CalcReactionProb routine)
         ChemReac%RecombParticle = 0
         ChemReac%nPairForRec = ChemReac%nPairForRec + 1
       ELSE
-        ! Utilize the second particle of the pair for the recombination
-        Coll_pData(ChemReac%LastPairForRec)%NeedForRec = .TRUE.
+        ! Utilize the second particle of the pair for the recombination        
         ChemReac%RecombParticle = Coll_pData(ChemReac%LastPairForRec)%iPart_p2
       END IF
+    ELSE
+      ChemReac%RecombParticle = 0
     END IF
   ELSE
     CALL Abort(__STAMP__,&
