@@ -397,7 +397,7 @@ INTEGER                       :: ReactInx(1:4), EductReac(1:3), ProductReac(1:4)
 INTEGER                       :: SpecToDelete, iPart, NumEduct, NumProd
 REAL                          :: FracMassCent1, FracMassCent2, MassRed      ! mx/(mx+my)
 REAL                          :: VeloCOM(1:3)                               !> Centre of mass velocity
-REAL                          :: FakXi, Xi_total, iRan, FacEtraDistri
+REAL                          :: omega, FakXi, Xi_total, iRan, FacEtraDistri
 REAL                          :: ERel_React1_React2, ERel_React1_React3, ERel_React2_React4
 REAL                          :: Xi_elec(1:4), EZeroTempToExec(1:4)
 REAL, ALLOCATABLE             :: XiVibPart(:,:)
@@ -612,10 +612,17 @@ END IF
 !-------------------------------------------------------------------------------------------------------------------------------
 IF(ProductReac(4).NE.0) THEN
   ! 4 Products
-  Xi_total = 6.*(2. - CollInf%omega(ProductReac(1),ProductReac(2)))
+  ! Determine the omega of the pseudo pair (1-3) and (2-4)
+  omega = (CollInf%omega(ProductReac(1),ProductReac(3)) + CollInf%omega(ProductReac(2),ProductReac(4))) / 2.
+  ! Consider the relative degrees of freedom between the 1. and 3. product, 2. and 4. product and the between the pseudo pairs
+  Xi_total = 2.*(2. - CollInf%omega(ProductReac(1),ProductReac(3))) + 2.*(2. - CollInf%omega(ProductReac(2),ProductReac(4))) &
+              + 2.*(2. - omega)
 ELSE IF(ProductReac(3).NE.0) THEN
   ! 3 Products
-  Xi_total = 4.*(2. - CollInf%omega(ProductReac(1),ProductReac(2)))
+  ! Determine the omega of the pseudo pair (1-3) and the 2. product
+  omega = (CollInf%omega(ProductReac(1),ProductReac(3)) + CollInf%omega(ProductReac(2),ProductReac(2))) / 2.
+  ! Consider the relative degrees of freedom between the 1. and 3. product and the 2. product and the pseudo pair (1-3)
+  Xi_total = 2.*(2. - CollInf%omega(ProductReac(1),ProductReac(3))) + 2.*(2. - omega)
 ELSE
   ! 2 Products
   Xi_total = 2.*(2. - CollInf%omega(ProductReac(1),ProductReac(2)))
