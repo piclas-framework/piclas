@@ -721,7 +721,6 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
 USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfSides,offsetComputeNodeSurfSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName, PartBound
 USE MOD_Particle_Vars           ,ONLY: nSpecies
-USE MOD_SurfaceModel_Vars       ,ONLY: Adsorption
 #if USE_MPI
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF
 #endif
@@ -738,9 +737,9 @@ REAL,INTENT(IN)                      :: OutputTime
 CHARACTER(LEN=255)                  :: FileName,FileString,Statedummy
 CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255)                  :: NodeTypeTemp
-CHARACTER(LEN=255)                  :: SpecID, ReactID, PBCID
+CHARACTER(LEN=255)                  :: SpecID, PBCID
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
-INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec, nAdsSamples, iReact, iPBC
+INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec, iPBC
 REAL                                :: tstart,tend
 !===================================================================================================================================
 
@@ -764,11 +763,6 @@ FileString = TRIM(FileName)//'.h5'
 ! Create dataset attribute "SurfVarNames"
 nVar2D      = 5
 nVar2D_Spec = 1
-IF (ANY(PartBound%Reactive)) THEN
-  nAdsSamples = 5
-  nVar2D      = nVar2D + nAdsSamples
-  nVar2D_Spec = nVar2D_Spec + 2 + 2*Adsorption%ReactNum
-END IF
 
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number: Add 8 variables
 IF (CalcSurfaceImpact) nVar2D_Spec = nVar2D_Spec + 8
@@ -802,19 +796,6 @@ IF (mySurfRank.EQ.0) THEN
   DO iSpec = 1,nSpecies
     WRITE(SpecID,'(I3.3)') iSpec
     CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_Counter')
-    IF (ANY(PartBound%Reactive)) THEN
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_Accomodation')
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_Coverage')
-      DO iReact=1,Adsorption%ReactNum
-        WRITE(ReactID,'(I3.3)') iReact
-        CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_CollReact'//TRIM(ReactID)//'_Count')
-      END DO
-      DO iReact = 1,Adsorption%ReactNum
-        WRITE(ReactID,'(I3.3)') iReact
-        CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_SurfReact'//TRIM(ReactID)//'_Count')
-      END DO
-    END IF
-
     ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
     IF(CalcSurfaceImpact)THEN
       ! Add average impact energy for each species (trans, rot, vib)
@@ -839,13 +820,6 @@ IF (mySurfRank.EQ.0) THEN
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'ForcePerAreaZ')
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux')
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Counter_Total')
-  IF(ANY(PartBound%Reactive)) THEN
-    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux_Portion_LH')
-    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux_Portion_SurfDiss')
-    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux_Portion_ER')
-    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux_Portion_AdsDiss')
-    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux_Portion_SurfReconstruct')
-  END IF
 
   IF(nPorousBC.GT.0) THEN
     DO iPBC = 1, nPorousBC
@@ -1266,16 +1240,6 @@ ADEALLOCATE(SurfSide2GlobalSide)
 !!SDALLOCATE(SampWall%Energy)
 !!SDEALLOCATE(SampWall%Force)
 !!SDEALLOCATE(SampWall%Counter)
-!DO iSurfSide=1,nComputeNodeSurfTotalSides
-!!  SDEALLOCATE(SampWall(iSurfSide)%State)
-!  SDEALLOCATE(SampWall(iSurfSide)%SurfModelState)
-!  SDEALLOCATE(SampWall(iSurfSide)%Accomodation)
-!  SDEALLOCATE(SampWall(iSurfSide)%SurfModelReactCount)
-!!  SDEALLOCATE(SampWall(iSurfSide)%ImpactEnergy)
-!!  SDEALLOCATE(SampWall(iSurfSide)%ImpactVector)
-!!  SDEALLOCATE(SampWall(iSurfSide)%ImpactAngle)
-!!  SDEALLOCATE(SampWall(iSurfSide)%ImpactNumber)
-!END DO
 !SDEALLOCATE(SurfBCName)
 !SDEALLOCATE(SampWall)
 !#if USE_MPI

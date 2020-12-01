@@ -88,7 +88,7 @@ USE MOD_DSMC_Vars                  ,ONLY: MacroSurfaceVal,DSMC,MacroSurfaceSpecV
 USE MOD_Mesh_Vars                  ,ONLY: MeshFile,BC
 USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfOnNode
-USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,SampWall,CalcSurfCollis,nPorousBC,PartBound,CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,CalcSurfCollis,nPorousBC,PartBound,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide
 USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides
 USE MOD_Particle_Boundary_Vars     ,ONLY: PorousBCInfo_Shared,MapSurfSideToPorousSide_Shared
@@ -122,7 +122,6 @@ LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during t
 ! LOCAL VARIABLES
 INTEGER                            :: BCID
 INTEGER                            :: iSpec,iSurfSide,p,q, iReact, nVar, nVarSpec, iPBC, nVarCount
-INTEGER                            :: nAdsSamples, iAdsSampl
 REAL                               :: TimeSample, ActualTime, TimeSampleTemp, CounterSum
 INTEGER, ALLOCATABLE               :: CounterTotal(:), SumCounterTotal(:)              ! Total Wall-Collision counter
 LOGICAL                            :: during_dt
@@ -168,11 +167,6 @@ IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) RETURN
 ! Determine the number of variables
 nVar = 5
 nVarSpec = 1
-IF(ANY(PartBound%Reactive)) THEN
-  nAdsSamples = 5
-  nVar        = nVar + nAdsSamples
-  nVarSpec    = nVarSpec + 2 + 2*Adsorption%ReactNum
-END IF
 
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number: Add 8 to the buffer length
 nVarSpec = nVarSpec + 8
@@ -244,27 +238,6 @@ DO iSurfSide = 1,nComputeNodeSurfSides
 
       nVarCount = 5
       BCID = SideInfo_Shared(SIDE_BCID,SurfSide2GlobalSide(SURF_SIDEID,iSurfSide))
-      IF (PartBound%Reactive(PartBound%MapToPartBC(BC(BCID)))) THEN
-        ! Currently not working with new halo region
-        RETURN
-
-        MacroSurfaceVal(4,p,q,OutputCounter) = MacroSurfaceVal(4,p,q,OutputCounter) + &
-                                          (-  SampWall(iSurfSide)%SurfModelState(1,p,q)  &
-                                           -  SampWall(iSurfSide)%SurfModelState(2,p,q)  &
-                                           -  SampWall(iSurfSide)%SurfModelState(3,p,q)  &
-                                           -  SampWall(iSurfSide)%SurfModelState(4,p,q)  &
-                                           -  SampWall(iSurfSide)%SurfModelState(5,p,q) )&
-                                           / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
-
-        DO iAdsSampl=1, nAdsSamples
-          ! Note: the if-statement is required to prevent the output of "-0" in the .h5 file!
-          IF(ABS(SampWall(iSurfSide)%SurfModelState(iAdssampl,p,q)).GT.0.0)THEN
-            MacroSurfaceVal(nVarCount+iAdsSampl,p,q,OutputCounter) = (-SampWall(iSurfSide)%SurfModelState(iAdssampl,p,q))&
-                                             /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSampleTemp)
-          END IF ! ABS(SampWall(iSurfSide)%SurfModelState(iAdssampl,p,q)).GT.0.0
-        END DO
-        nVarCount = nVarCount + nAdsSamples
-      END IF
 
       IF(nPorousBC.GT.0) THEN
         DO iPBC=1, nPorousBC
@@ -286,30 +259,6 @@ DO iSurfSide = 1,nComputeNodeSurfSides
 
           idx = 1
           MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = nColl / TimeSample
-          IF (PartBound%Reactive(PartBound%MapToPartBC(BC(BCID)))) THEN
-            ! calculate accomodation coefficient
-            idx = idx + 1
-            IF (nColl.EQ.0) THEN
-              MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = 0.
-            ELSE
-              MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWall(iSurfSide)%Accomodation(iSpec,p,q) / nColl
-            END IF
-            ! calculate coverage
-            idx = idx + 1
-            IF(Adsorption%NumCovSamples.GT.0)THEN
-              MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWall(iSurfSide)%SurfModelState(5+iSpec,p,q) / &
-                                                                                                      Adsorption%NumCovSamples
-            END IF ! Adsorption%NumCovSamples.GT.0
-            ! calculate reaction counters
-            DO iReact=1,Adsorption%ReactNum
-              ! first part are surface collision processes
-              MacroSurfaceSpecVal(idx+iReact,p,q,OutputCounter,iSpec) = &
-                  SampWall(iSurfSide)%SurfModelReactCount(iReact,iSpec,p,q) / TimeSample
-              ! second part are adsorbate processes
-              MacroSurfaceSpecVal(idx+Adsorption%ReactNum+iReact,p,q,OutputCounter,iSpec) = &
-                  SampWall(iSurfSide)%SurfModelReactCount(Adsorption%ReactNum+iReact,iSpec,p,q) / TimeSample
-            END DO
-          END IF
 
           ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
           IF(CalcSurfaceImpact)THEN

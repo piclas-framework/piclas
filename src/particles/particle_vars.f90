@@ -329,8 +329,6 @@ TYPE tParticleElementMapping
                                                                !               ! pStart(1:PIC%nElem)
   INTEGER                , ALLOCATABLE    :: pNumber(:)        !     =>NULL()  ! Number of Particles in Element
                                                                !               ! pStart(1:PIC%nElem)
-  INTEGER                , ALLOCATABLE    :: wNumber(:)        !     =>NULL()  ! Number of Wall-Particles in Element
-                                                                               ! pStart(1:PIC%nElem)
   INTEGER                , ALLOCATABLE    :: pEnd(:)           !     =>NULL()  ! End of Linked List for Particles in Element
                                                                !               ! pEnd(1:PIC%nElem)
   INTEGER                , ALLOCATABLE    :: pNext(:)          !     =>NULL()  ! Next Particle in same Element (Linked List)
@@ -355,12 +353,6 @@ TYPE tParticleDataManagement
   INTEGER ,ALLOCATABLE                   :: nextFreePosition(:)  !  =>NULL()  ! next_free_Position(1:max_Particle_Number)
                                                                               ! List of free Positon
   LOGICAL ,ALLOCATABLE                   :: ParticleInside(:)    !  =>NULL()  ! Particle_inside(1:Particle_Number)
-  LOGICAL , ALLOCATABLE                  :: ParticleAtWall(:)                 ! Particle_adsorbed_on_to_wall(1:Particle_number)
-  INTEGER , ALLOCATABLE                  :: PartAdsorbSideIndx(:,:)           ! Surface index on which Particle i adsorbed
-                                                                              ! (1:3,1:PDM%maxParticleNumber)
-                                                                              ! 1: surface index ElemToSide(i,localsideID,ElementID)
-                                                                              ! 2: p
-                                                                              ! 3: q
   LOGICAL ,ALLOCATABLE                   :: dtFracPush(:)                     ! Push random fraction only
   LOGICAL ,ALLOCATABLE                   :: IsNewPart(:)                      ! Reconstruct RK-scheme in next stage
 END TYPE

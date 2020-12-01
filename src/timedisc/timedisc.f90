@@ -66,7 +66,7 @@ END SUBROUTINE DefineParametersTimeDisc
 
 SUBROUTINE InitTime()
 !===================================================================================================================================
-!>
+!> The genesis
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1122,7 +1122,6 @@ USE MOD_part_emission            ,ONLY: ParticleInserting
 USE MOD_surface_flux             ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars   ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking        ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_SurfaceModel             ,ONLY: UpdateSurfModelVars, SurfaceModel_main
 USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryRemovalProb_Pressure
 USE MOD_Particle_Boundary_Vars   ,ONLY: nPorousBC
 #if USE_MPI
@@ -1149,9 +1148,6 @@ REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 
   IF (DoSurfaceFlux) THEN
-    ! treat surface with respective model
-    CALL SurfaceModel_main()
-    CALL UpdateSurfModelVars()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_SURF,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1258,9 +1254,6 @@ REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
-  ! absorptions could have happened
-  CALL UpdateSurfModelVars()
-
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1319,7 +1312,6 @@ USE MOD_part_pos_and_velo      ,ONLY: SetParticleVelocity
 USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_SurfaceModel           ,ONLY: UpdateSurfModelVars, SurfaceModel_main
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -1335,9 +1327,6 @@ REAL                  :: timeStart, timeEnd, RandVal, dtFrac
 !===================================================================================================================================
 
 IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
-  ! treat surface with respective model
-  CALL SurfaceModel_main()
-  CALL UpdateSurfModelVars()
 
   CALL UpdateNextFreePosition()
 
@@ -1407,7 +1396,6 @@ ELSE
   ! finish communication
   CALL MPIParticleRecv()
 #endif /*USE_MPI*/
-  CALL UpdateSurfModelVars()
   CALL ParticleInserting()
   CALL UpdateNextFreePosition()
   CALL DSMC_main()
@@ -3910,7 +3898,6 @@ USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
-USE MOD_SurfaceModel           ,ONLY: UpdateSurfModelVars, SurfaceModel_main
 #endif /*PARTICLES*/
 USE MOD_HDG                    ,ONLY: HDG
 #if USE_LOADBALANCE
@@ -4075,8 +4062,6 @@ __STAMP__&
     END IF
   END IF
 
-  CALL UpdateSurfModelVars()
-
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4221,8 +4206,6 @@ DO iStage=2,nRKStages
         CALL ParticleTracing()
       END IF
     END IF
-
-    CALL UpdateSurfModelVars()
 
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)

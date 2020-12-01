@@ -438,18 +438,6 @@ IF (myComputeNodeRank.EQ.0) THEN
         DO p = 1,nSurfSample
           SurfSendBuf(iProc)%content(iPos+1:iPos+SurfSampSize) = SampWallState_Shared(:,p,q,SurfSideID)
           iPos = iPos + SurfSampSize
-
-!          IF (ANY(PartBound%Reactive)) THEN
-!            SurfSendBuf(iProc)%content(iPos+1:iPos+5+nSpecies) = SampWall(SurfSideID)%SurfModelState(:,p,q)
-!            iPos=iPos+5+nSpecies
-!            SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Accomodation(:,p,q)
-!            iPos=iPos+nSpecies
-!            DO iReact=1,2*Adsorption%ReactNum
-!              SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%SurfModelReactCount(iReact,:,p,q)
-!              iPos=iPos+nSpecies
-!            END DO
-!          END IF
-
           ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
           IF (CalcSurfaceImpact) THEN
             ! Add average impact energy for each species (trans, rot, vib)
@@ -484,11 +472,6 @@ IF (myComputeNodeRank.EQ.0) THEN
       END IF
 
       SampWallState_Shared(:,:,:,SurfSideID)=0.
-!      IF (ANY(PartBound%Reactive)) THEN
-!        SampWall(SurfSideID)%SurfModelState(:,:,:)=0.
-!        SampWall(SurfSideID)%Accomodation(:,:,:)=0.
-!        SampWall(SurfSideID)%SurfModelReactCount(:,:,:,:)=0.
-!      END IF
       ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
       IF (CalcSurfaceImpact) THEN
         SampWallImpactEnergy_Shared(:,:,:,:,SurfSideID) = 0.
@@ -556,20 +539,6 @@ IF (myComputeNodeRank.EQ.0) THEN
           SampWallState_Shared(:,p,q,SurfSideID) = SampWallState_Shared(:,p,q,SurfSideID) &
                                                  + SurfRecvBuf(iProc)%content(iPos+1:iPos+SurfSampSize)
           iPos = iPos + SurfSampSize
-  !        IF (ANY(PartBound%Reactive)) THEN
-  !          SampWall(SurfSideID)%SurfModelState(:,p,q)=SampWall(SurfSideID)%SurfModelState(:,p,q) &
-  !                                                +SurfRecvBuf(iProc)%content(iPos+1:iPos+5+nSpecies)
-  !          iPos=iPos+5+nSpecies
-  !          SampWall(SurfSideID)%Accomodation(:,p,q)=SampWall(SurfSideID)%Accomodation(:,p,q) &
-  !                                                  +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
-  !          iPos=iPos+nSpecies
-  !          DO iReact=1,2*Adsorption%ReactNum
-  !            SampWall(SurfSideID)%SurfModelReactCount(iReact,:,p,q)=SampWall(SurfSideID)%SurfModelReactCount(iReact,:,p,q) &
-  !                                                       +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
-  !            iPos=iPos+nSpecies
-  !          END DO
-  !        END IF
-  !
           ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
           IF(CalcSurfaceImpact)THEN
             ! Add average impact energy for each species (trans, rot, vib)

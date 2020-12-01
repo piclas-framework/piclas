@@ -30,7 +30,7 @@ PUBLIC :: SecondaryElectronEmission
 
 CONTAINS
 
-SUBROUTINE SecondaryElectronEmission(PartSurfaceModel_IN,PartID_IN,locBCID,Adsorption_prob_OUT,ReflectionIndex,ProductSpec,ProductSpecNbr,&
+SUBROUTINE SecondaryElectronEmission(PartSurfaceModel_IN,PartID_IN,locBCID,ReflectionIndex,ProductSpec,ProductSpecNbr,&
            v_new,velocityDistribution)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Determine the probability of an electron being emitted due to an impacting particles (ion/electron bombardment)
@@ -52,8 +52,6 @@ INTEGER,INTENT(IN)      :: PartSurfaceModel_IN !< which SEE model?
                                                !< 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is 
                                                !<    considered for SEE)
 INTEGER,INTENT(IN)      :: PartID_IN           !< Bombarding Particle ID
-REAL   ,INTENT(OUT)     :: Adsorption_prob_OUT !< probability of an electron being emitted due to an impacting particles
-                                               !< (ion/electron bombardment)
 INTEGER,INTENT(OUT)     :: ReflectionIndex     !< what happens to the bombarding particle and is a new one created?
 INTEGER,INTENT(OUT)     :: ProductSpec(2)      !< ProductSpec(1) new ID of impacting particle (the old one can change)
                                                !< ProductSpec(2) new ID of newly released electron
@@ -72,7 +70,6 @@ REAL              :: k_refl ! Coefficient for reflection of bombarding electron
 ProductSpec    = 0
 ProductSpecNbr = 0
 v_new          = 0.0
-Adsorption_prob_OUT = 0. ! default
 ! Select particle surface modeling
 SELECT CASE(PartSurfaceModel_IN)
 CASE(5) ! 5: SEE by Levko2015 for copper electrodes

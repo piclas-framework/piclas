@@ -415,9 +415,10 @@ CALL prms%SetSection("Particle Boundaries")
 
 CALL prms%CreateIntOption(      'Part-nBounds'     , 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Number of particle boundaries.', '1')
-CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Number of Species to be changed at wall.', '0', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Part-Boundary[$]-SourceName'  &
+                                , 'TODO-DEFINE-PARAMETER'//&
+                                  'No Default. Source Name of Boundary[i]. Has to be selected for all'//&
+                                  'nBounds. Has to be same name as defined in preproc tool', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Boundary[$]-Condition'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Used boundary condition for boundary[$].\n'//&
@@ -500,32 +501,16 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 , 'Defining surface to be treated reactively by defining Model used '//&
                                 'for particle surface interaction. If any >0 then look in section SurfaceModel.\n'//&
                                 '0: Maxwell scattering\n'//&
-                                '1: Kisliuk / Polanyi Wigner (currently not working)\n'//&
-                                '2: Recombination model\n'//&
-                                '3: adsorption/desorption + chemical interaction (SMCR with UBI-QEP, TST and TCE)\n'//&
-                                '4: TODO\n'//&
                                 '5: SEE-E and SEE-I (secondary e- emission due to e- or i+ bombardment) '//&
                                     'by Levko2015 for copper electrondes\n'//&
                                 '6: SEE-E (secondary e- emission due to e- bombardment) '//&
                                     'by Pagonakis2016 for molybdenum (originally from Harrower1956)'//&
                                 '7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for '//&
-                                'secondary e- emission with 0.13 probability) by Depla2009\n'//&
-                                '101: Maxwell scattering\n'//&
-                                '102: MD dsitributionfunction' &
+                                'secondary e- emission with 0.13 probability) by Depla2009\n' &
                                 , '0', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SolidState'  &
-                                , 'Flag defining if reflective BC is solid [TRUE] or liquid [FALSE].'&
-                                , '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidPartDens'  &
-  , 'If particle boundary defined as solid set surface atom density (in [part/m^2]).', '1.0E+19', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidMassIC'  &
-                                , 'Set mass of solid surface particles (in [kg]).', '3.2395E-25', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidAreaIncrease'  &
-                                , 'TODO-DEFINE-PARAMETER ', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Boundary[$]-SolidStructure'  &
-  , 'Defines the structure of the replicated surface [surfacemodel=3]:\n 1: fcc(100)\n 2: fcc(111)', '2', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Boundary[$]-SolidCrystalIndx'  &
-                                , 'Set number of interaction for hollow sites.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'Number of Species to be changed at wall.', '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-ProbOfSpeciesSwaps'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Probability of SpeciesSwaps at wall', '1.', numberedmulti=.TRUE.)
@@ -533,10 +518,6 @@ CALL prms%CreateIntArrayOption( 'Part-Boundary[$]-SpeciesSwaps[$]'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Species to be changed at wall (out=: delete)', '0 , 0'&
                                 , numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Part-Boundary[$]-SourceName'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'No Default. Source Name of Boundary[i]. Has to be selected for all'//&
-                                  'nBounds. Has to be same name as defined in preproc tool', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-UseForQCrit'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Flag to use Boundary for Q-Criterion', '.TRUE.', numberedmulti=.TRUE.)
@@ -1852,18 +1833,6 @@ ALLOCATE(PartBound%SurfaceModel(     1:nPartBound))
 PartBound%SurfaceModel = 0
 ALLOCATE(PartBound%Reactive(         1:nPartBound))
 PartBound%Reactive = .FALSE.
-ALLOCATE(PartBound%SolidState(       1:nPartBound))
-PartBound%SolidState = .FALSE.
-ALLOCATE(PartBound%SolidPartDens(    1:nPartBound))
-PartBound%SolidPartDens = 0.
-ALLOCATE(PartBound%SolidMassIC(      1:nPartBound))
-PartBound%SolidMassIC = 0.
-ALLOCATE(PartBound%SolidAreaIncrease(1:nPartBound))
-PartBound%SolidAreaIncrease = 0.
-ALLOCATE(PartBound%SolidStructure(   1:nPartBound))
-PartBound%SolidStructure = 0.
-ALLOCATE(PartBound%SolidCrystalIndx( 1:nPartBound))
-PartBound%SolidCrystalIndx = 0
 ALLOCATE(PartBound%Voltage(1:nPartBound))
 PartBound%Voltage = 0.
 ALLOCATE(PartBound%UseForQCrit(1:nPartBound))
@@ -1949,19 +1918,6 @@ DO iPartBound=1,nPartBound
             __STAMP__&
             ,'Error in particle init: only allowed SurfaceModels: 0,2,3,5,6,101,102!')
       END SELECT
-    END IF
-    PartBound%SolidState(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidState')
-    IF(PartBound%SolidState(iPartBound))THEN
-      PartBound%SolidPartDens(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidPartDens')
-      PartBound%SolidMassIC(iPartBound)       = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidMassIC')
-      PartBound%SolidAreaIncrease(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidAreaIncrease')
-      PartBound%SolidStructure(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidStructure')
-      IF (PartBound%SolidStructure(iPartBound).EQ.1) THEN
-        hilf2 ='4'
-      ELSE IF (PartBound%SolidStructure(iPartBound).EQ.2) THEN
-        hilf2 ='3'
-      END IF
-      PartBound%SolidCrystalIndx(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidCrystalIndx',hilf2)
     END IF
     IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
       !read Species to be changed at wall (in, out), out=0: delete
@@ -3274,12 +3230,6 @@ SDEALLOCATE(PartBound%SpeciesSwaps)
 SDEALLOCATE(PartBound%MapToPartBC)
 SDEALLOCATE(PartBound%SurfaceModel)
 SDEALLOCATE(PartBound%Reactive)
-SDEALLOCATE(PartBound%SolidState)
-SDEALLOCATE(PartBound%SolidPartDens)
-SDEALLOCATE(PartBound%SolidMassIC)
-SDEALLOCATE(PartBound%SolidAreaIncrease)
-SDEALLOCATE(PartBound%SolidStructure)
-SDEALLOCATE(PartBound%SolidCrystalIndx)
 SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutput)
 SDEALLOCATE(PartStateBoundary)
