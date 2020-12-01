@@ -518,6 +518,9 @@ USE MOD_part_tools         ,ONLY: isChargedParticle
 USE MOD_Particle_Vars      ,ONLY: PDM,PartSpecies,LastPartPos
 USE MOD_PICDepo_Tools      ,ONLY: DepositParticleOnNodes
 !USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems
+#if USE_MPI
+USE MOD_Globals            ,ONLY: myRank
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
