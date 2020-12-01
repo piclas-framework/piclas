@@ -424,7 +424,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: time
 USE MOD_Globals_Vars           ,ONLY: PI
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN) :: iPart
 INTEGER,INTENT(IN) :: SpecID ! The species ID is required as it might not yet be set during emission
 REAL,INTENT(IN)    :: PartPos(1:3)
@@ -464,7 +464,7 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
   ! Increase maximum number of boundary-impact particles
   iMax = iMax + 1
 
-  ! Check if array maximum is reached. 
+  ! Check if array maximum is reached.
   ! If this happens, re-allocate the arrays and increase their size (every time this barrier is reached, double the size)
   IF(iMax.GT.dims(2))THEN
 
@@ -512,8 +512,7 @@ SUBROUTINE DielectricSurfaceCharge(iPart,ElemID,PartTrajectory,alpha)
 ! description
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
-USE MOD_Globals            ,ONLY: abort,myrank
-!USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_Globals            ,ONLY: Abort
 USE MOD_part_operations    ,ONLY: CreateParticle
 USE MOD_part_tools         ,ONLY: isChargedParticle
 USE MOD_Particle_Vars      ,ONLY: PDM,PartSpecies,LastPartPos
@@ -553,7 +552,7 @@ IF(isChargedParticle(iPart))THEN
 !    PDM%ParticleInside(NewPartID)=.FALSE.
 !  ELSE ! Deposit single particle charge on surface here and
     CALL DepositParticleOnNodes(iPart,LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,ElemID)
-!  END IF ! ElemID.GT.nElems
+!  END IF ! ElemID.GT.nComputeNodeElems
 END IF ! isChargedParticle(iPart)
 
 END SUBROUTINE DielectricSurfaceCharge
@@ -598,7 +597,7 @@ END FUNCTION GetWallTemperature
 
 SUBROUTINE CalcRotWallVelo(locBCID,PartID,POI,WallVelo)
 !----------------------------------------------------------------------------------------------------------------------------------!
-! Calculation of additional velocity through the rotating wall. The velocity is equal to circumferential speed at 
+! Calculation of additional velocity through the rotating wall. The velocity is equal to circumferential speed at
 ! the point of intersection (POI):
 ! The direction is perpendicular to the rotational axis (vec_axi) AND the distance vector (vec_axi -> POI).
 ! Rotation direction based on Right-hand rule.
@@ -624,7 +623,7 @@ REAL                  :: radius, circ_speed
 
 ASSOCIATE ( vec_org  => PartBound%RotOrg(1:3,locBCID) ,&
             RotFreq  => PartBound%RotFreq(locBCID)    ,&
-            vec_axi  => PartBound%RotAxi(1:3,locBCID)   )         
+            vec_axi  => PartBound%RotAxi(1:3,locBCID)   )
   vec_OrgPOI(1:3) = POI(1:3) - vec_org(1:3)
   vec_axi_norm = vec_axi / VECNORM(vec_axi)
   vec_a(1:3) = DOT_PRODUCT(vec_axi_norm,vec_OrgPOI) * vec_axi_norm(1:3)
