@@ -457,9 +457,9 @@ END IF !IsAuxBC
 ! Get Point Of Intersection
 POI_vec(1:3) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
 
-IF(PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
-  CALL CalcRotWallVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)),PartID,POI_vec,WallVelo)
-END IF
+!IF(PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
+!  CALL CalcRotWallVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)),PartID,POI_vec,WallVelo)
+!END IF
 
 IF(SUM(ABS(WallVelo)).GT.0.)THEN
   SELECT CASE(PartLorentzType)
@@ -585,12 +585,12 @@ LastPartPos(1:3,PartID) = POI_vec(1:3)
 PartTrajectory(1:3)     = PartTrajectory(1:3)-2.*DOT_PRODUCT(PartTrajectory(1:3),n_loc)*n_loc
 
 ! Check if rotated velo is used, otherwise mirror the LastPartPos
-IF(PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))))THEN
-  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac &
-                          * PartState(4:6,PartID) * adaptTimeStep
-ELSE
+!IF(PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))))THEN
+!  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac &
+!                          * PartState(4:6,PartID) * adaptTimeStep
+!ELSE
   PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*(lengthPartTrajectory - alpha)
-END IF ! PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+!END IF ! PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
 
 ! #if !defined(IMPA) &&  !defined(ROS)
 ! compute moved particle || rest of movement

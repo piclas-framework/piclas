@@ -1006,6 +1006,7 @@ DO iSpec=1,nSpecies
         ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
                   1:BCdata_auxSF(currentBC)%SideNumber))
         Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight = 0.0
+        IF(ALMOSTEQUAL(Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow,0.)) CALL CalcConstMassflowWeightForZeroMassFlow(iSpec,iSF)
         ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
                 1:BCdata_auxSF(currentBC)%SideNumber))
         Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide = 0.0
@@ -1640,7 +1641,9 @@ DO iSpec=1,nSpecies
     ! Reset the mass flow rate counter for the next time step
     IF(CalcMassflowRate) Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = 0.
     IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
-      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) CALL AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
+      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
+        IF(.NOT.ALMOSTEQUAL(Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow,0.)) CALL AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
+      END IF
     END IF
     !Calc Particles for insertion in standard case
     IF ((.NOT.DoPoissonRounding).AND.(.NOT. DoTimeDepInflow).AND.(.NOT.RadialWeighting%DoRadialWeighting) &
@@ -2842,6 +2845,47 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
 END DO; END DO
 
 END SUBROUTINE CircularInflow_Area
+
+
+SUBROUTINE CalcConstMassflowWeightForZeroMassFlow(iSpec,iSF)
+!===================================================================================================================================
+!> Routine calculates the ConstMassflowWeight for AdaptiveType=4 in Case of zero massflow rate
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Vars               ,ONLY:Species
+USE MOD_Particle_Surfaces_Vars      ,ONLY:SurfMeshSubSideData, BCdata_auxSF, SurfFluxSideSize
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: iSpec, iSF
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iSample, jSample, currentBC, iSide, BCSideID
+REAL                            :: ProcBC_Area
+!===================================================================================================================================
+
+ProcBC_Area = 0.0
+currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
+DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+  BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
+  DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+    ProcBC_Area = ProcBC_Area + SurfMeshSubSideData(iSample,jSample,BCSideID)%area
+  END DO; END DO
+END DO
+
+DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+  BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
+  DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+    Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide) = SurfMeshSubSideData(iSample,jSample,BCSideID)%area / ProcBC_Area
+  END DO; END DO
+END DO
+
+END SUBROUTINE CalcConstMassflowWeightForZeroMassFlow
 
 
 END MODULE MOD_surface_flux

@@ -4160,9 +4160,10 @@ SUBROUTINE FinalizeParticleAnalyze()
 ! MODULES
 USE MOD_Particle_Analyze_Vars
 USE MOD_Particle_Vars         ,ONLY: nSpecies
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared_Win,ElemCharLengthX_Shared
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared_Win,ElemCharLengthY_Shared
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared_Win,ElemCharLengthZ_Shared
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
+#if USE_MPI
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared_Win,ElemCharLengthY_Shared_Win,ElemCharLengthZ_Shared_Win
+#endif /*USE_MPI*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -4210,14 +4211,16 @@ SDEALLOCATE(MassflowRate)
 
 
 IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)THEN
+#if USE_MPI
   CALL MPI_WIN_UNLOCK_ALL(ElemCharLengthX_Shared_Win, iError)
   CALL MPI_WIN_FREE(      ElemCharLengthX_Shared_Win, iError)
-  ADEALLOCATE(ElemCharLengthX_Shared)
   CALL MPI_WIN_UNLOCK_ALL(ElemCharLengthY_Shared_Win, iError)
   CALL MPI_WIN_FREE(      ElemCharLengthY_Shared_Win, iError)
-  ADEALLOCATE(ElemCharLengthY_Shared)
   CALL MPI_WIN_UNLOCK_ALL(ElemCharLengthZ_Shared_Win, iError)
   CALL MPI_WIN_FREE(      ElemCharLengthZ_Shared_Win, iError)
+#endif /*USE_MPI*/
+  ADEALLOCATE(ElemCharLengthX_Shared)
+  ADEALLOCATE(ElemCharLengthY_Shared)
   ADEALLOCATE(ElemCharLengthZ_Shared)
 END IF
 
