@@ -150,18 +150,6 @@ END IF
 TransArray(:) = 0.0
 IntArray(:) = 0.0
 
-! compute p and q
-! correction of xi and eta, can only be applied if xi & eta are not used later!
-IF (TriaTracking) THEN
-  p=1 ; q=1
-ELSE
-  Xitild =MIN(MAX(-1.,xi ),0.99)
-  Etatild=MIN(MAX(-1.,eta),0.99)
-  p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
-  q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
-END IF
-
-SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID) !SurfMesh%SideIDToSurfID(SideID)
 SpecID = PartSpecies(PartID)
 
 ReflectionIndex = -1 ! has to be reset in SurfaceModel, otherwise abort() will be called
@@ -225,6 +213,17 @@ CASE(1,2) ! (particle is treated in boundary condition)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) ! reactive interaction case
 !-----------------------------------------------------------------------------------------------------------------------------------
+  ! compute p and q
+  ! correction of xi and eta, can only be applied if xi & eta are not used later!
+  IF (TriaTracking) THEN
+    p=1 ; q=1
+  ELSE
+    Xitild =MIN(MAX(-1.,xi ),0.99)
+    Etatild=MIN(MAX(-1.,eta),0.99)
+    p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+    q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+  END IF
+  SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
   ! Old particle
   IF (ProductSpec(1).LT.0) THEN
     SurfModel%Info(SpecID)%NumOfAds = SurfModel%Info(SpecID)%NumOfAds + 1
@@ -234,7 +233,6 @@ CASE(3) ! reactive interaction case
   IF (ProductSpec(2).LT.0) THEN
     SurfModel%Info(SpecID)%NumOfAds = SurfModel%Info(SpecID)%NumOfAds + 1
   END IF
-
   !-----------------------------------------------------------
   ! Treat incident particle
   CALL AddPartInfoToSample(PartID,TransArray,IntArray,'old')
