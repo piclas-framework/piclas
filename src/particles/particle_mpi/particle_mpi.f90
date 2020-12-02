@@ -959,6 +959,10 @@ DO iProc=0,nExchangeProcessors-1
     IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) MessageSize = MessageSize + MsgLengthElec
     pos_ambi    = MessageSize
     IF (DSMC%DoAmbipolarDiff) MessageSize = MessageSize + MsgLengthAmbi
+  ELSE
+    MsgLengthPoly = 0.
+    MsgLengthElec = 0.
+    MsgLengthAmbi = 0.
   END IF
   ! finish communication with iproc
   CALL MPI_WAIT(PartMPIExchange%RecvRequest(2,iProc),recv_status_list(:,iProc),IERROR)
@@ -972,8 +976,7 @@ DO iProc=0,nExchangeProcessors-1
     ! find free position in particle array
     nRecv  = nRecv+1
     PartID = PDM%nextFreePosition(nRecv+PDM%CurrentNextFreePosition)
-    IF(PartID.EQ.0) &
-      CALL ABORT(__STAMP__,' Error in ParticleExchange_parallel. Corrupted list: PIC%nextFreePosition', nRecv)
+    IF(PartID.EQ.0) CALL ABORT(__STAMP__,' Error in ParticleExchange_parallel. Corrupted list: PIC%nextFreePosition', nRecv)
 
     !>> particle position in physical space
     PartState(1:6,PartID)    = PartRecvBuf(iProc)%content(1+iPos: 6+iPos)
