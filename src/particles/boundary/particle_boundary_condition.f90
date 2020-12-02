@@ -200,8 +200,6 @@ ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
     END IF
     ! assign right treatment
     SELECT CASE (ReflectionIndex)
-    CASE(-2) ! special case for double check that needs to be performed because particle moves away from surface
-      ! can happen if particle was reflected or inserted on the surface and consequently alpha is almost 0
     CASE(1) !elastic reflection
       CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,n_loc,IsSpeciesSwap)
     CASE(2) ! inelastic reflection

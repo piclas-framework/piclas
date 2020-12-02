@@ -1232,46 +1232,6 @@ INTEGER, ALLOCATABLE   :: PartInsProc(:)
   END IF
 END SUBROUTINE CalcPartInsSubSidesStandardCase
 
-SUBROUTINE CalcExtraPartsReactiveBC(iSpec, iSF)
-!===================================================================================================================================
-!>
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)                 :: iSpec, iSF
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-IPWRITE(UNIT_StdOut,*) "iSpec,iSF =", iSpec,iSF
-      CALL abort(&
-__STAMP__&
-,'Reactive Boundaries not implemented in this PICLas Version!')
-!  IF (SurfMesh%SideIDToSurfID(SideID).GT.0) THEN
-!    ! sumEvapPart for triatracking is only allocated over (1,1,nsurfsides,nspecies)
-!    IF (.NOT.TriaSurfaceFlux .OR. (iSample.EQ.1 .AND. jSample.EQ.1)) THEN
-!      ExtraParts = SurfModel%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
-!      SurfModel%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec) = 0
-!    END IF
-!    IF (TriaSurfaceFlux) THEN
-!      IF (iSample.EQ.1 .AND. jSample.EQ.1) THEN !first tria
-!        AreasTria(1)=SurfMeshSubSideData(1,1,BCSideID)%area
-!        AreasTria(2)=SurfMeshSubSideData(SurfFluxSideSize(1),SurfFluxSideSize(2),BCSideID)%area
-!        ExtraPartsTria(:) = 0
-!        CALL IntegerDivide(ExtraParts, 2, AreasTria, ExtraPartsTria)
-!        ExtraParts = ExtraPartsTria(1)
-!      ELSE !second tria
-!        ExtraParts = ExtraPartsTria(2)
-!      END IF
-!    END IF !TriaSurfaceFlux
-!    SurfModel%Info(iSpec)%NumOfDes=SurfModel%Info(iSpec)%NumOfDes+ExtraParts
-!  END IF !SurfMesh%SideIDToSurfID(SideID).GT.0
-END SUBROUTINE CalcExtraPartsReactiveBC
 
 SUBROUTINE DefineSideDirectVec2D(SideID, xyzNod, minPos, RVec)
 !===================================================================================================================================
@@ -1688,7 +1648,6 @@ __STAMP__&
           ndist(1:3) = BCdata_auxSF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%ndist(1:3)
         END IF
 
-        IF (PartBound%Reactive(currentBC)) CALL CalcExtraPartsReactiveBC(iSpec,iSF)
         ! REQUIRED LATER FOR THE POSITION START
         IF(Symmetry%Axisymmetric) CALL DefineSideDirectVec2D(SideID, xyzNod, minPos, RVec)
 

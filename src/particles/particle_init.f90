@@ -1911,12 +1911,12 @@ DO iPartBound=1,nPartBound
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
       CASE (0)
         PartBound%Reactive(iPartBound)        = .FALSE.
-      CASE (2,3,5,6,7,101,102)
+      CASE (5,6,7)
         PartBound%Reactive(iPartBound)        = .TRUE.
       CASE DEFAULT
         CALL abort(&
             __STAMP__&
-            ,'Error in particle init: only allowed SurfaceModels: 0,2,3,5,6,101,102!')
+            ,'Error in particle init: only allowed SurfaceModels: 0,5,6,7!')
       END SELECT
     END IF
     IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
