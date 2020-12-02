@@ -194,7 +194,7 @@ CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials
     RETURN ! nothing to do
   ELSEIF(Species(PartSpecies(PartID_IN))%ChargeIC.GT.0.0)THEN ! Positive bombarding ion
     CALL RANDOM_NUMBER(iRan)
-    IF(iRan.LT.0.13)THEN ! SEE-I: gamma=0.13 for the Ar^+ ions bombarding different metals, see 
+    IF(iRan.LT.0.13)THEN ! SEE-I: gamma=0.13 for the Ar^+ ions bombarding different metals, see
                          ! D. Depla, Magnetron sputter deposition: Linking discharge voltage with target properties, 2009
       ProductSpec(2) = Adsorption%ResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
       ProductSpecNbr = 1 ! Create one new particle
