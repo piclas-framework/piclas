@@ -61,7 +61,7 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 USE MOD_PreProc
 USE MOD_Globals                  ,ONLY: abort
 USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars            ,ONLY: PDM, PartSpecies
+USE MOD_Particle_Vars            ,ONLY: PartSpecies
 USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutput
@@ -97,9 +97,8 @@ REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTraj
 LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: n_loc(1:3),RanNum
-!INTEGER                              :: iNode,iSide
-LOGICAL                              :: isSpeciesSwap,ElasticReflectionAtPorousBC
+REAL                                 :: n_loc(1:3)
+LOGICAL                              :: isSpeciesSwap
 #if CODE_ANALYZE
 REAL                                 :: v1(3),v2(3)
 #endif /* CODE_ANALYZE */
@@ -173,7 +172,7 @@ ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(2) !PartBound%ReflectiveBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
-  ! Decide which interaction (reflection, reaction, adsorption)
+  ! Decide which interaction (specular/diffuse reflection, species swap, SEE)
     CALL SurfaceTreatment(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID,n_loc,IsSpeciesSwap)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(3) !PartBound%PeriodicBC)
