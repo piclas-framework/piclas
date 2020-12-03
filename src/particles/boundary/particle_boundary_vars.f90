@@ -279,7 +279,7 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: RotACC(:)
   REAL    , ALLOCATABLE                  :: ElecACC(:)
   REAL    , ALLOCATABLE                  :: WallVelo(:,:)
-  REAL    , ALLOCATABLE                  :: Voltage(:), Voltage_CollectCharges(:)
+  REAL    , ALLOCATABLE                  :: Voltage(:)
   LOGICAL , ALLOCATABLE                  :: RotVelo(:)                    ! Flag for rotating walls
   REAL    , ALLOCATABLE                  :: RotFreq(:)                    ! Rotation frequency of the wall
   REAL    , ALLOCATABLE                  :: RotAxi(:,:)                   ! Direction of rotation axis

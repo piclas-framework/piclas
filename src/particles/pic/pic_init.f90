@@ -79,11 +79,6 @@ CALL prms%CreateStringOption(   'PIC-variableexternalField'   , 'TODO-DEFINE-PAR
                                                                 'File containing the external '//&
                                                                 'field CSV table', 'none')
 
-CALL prms%CreateIntOption(      'PIC-nCollectChargesBCs'      , 'TODO-DEFINE-PARAMETER', '0')
-CALL prms%CreateIntOption(      'PIC-CollectCharges[$]-BC'    , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'PIC-CollectCharges[$]-NumOfRealCharges'  , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'PIC-CollectCharges[$]-ChargeDist'  , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
-
 CALL prms%CreateRealArrayOption('PIC-NormVecOfWall'  , 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Normal vector for pushTimeStep', '1. , 0. , 0.')
 CALL prms%CreateIntOption(      'PIC-DeltaType'      , 'Basis function type.\n'//&

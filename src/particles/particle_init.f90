@@ -917,7 +917,6 @@ CALL InitEmissionComm()
 CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 #endif /*USE_MPI*/
 
-CALL InitializeVariablesCollectCharges()
 CALL InitializeVariablesElectronFluidRegions()
 CALL InitializeVariablesIMD()
 CALL InitializeVariablesWriteMacroValues()
@@ -1071,54 +1070,6 @@ IF(DoFieldIonization)THEN
 END IF
 
 END SUBROUTINE InitializeVariablesIonization
-
-
-SUBROUTINE InitializeVariablesCollectCharges()
-!===================================================================================================================================
-! Initialize the variables first
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_ReadInTools
-USE MOD_Particle_Vars
-USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
-USE MOD_Particle_Boundary_Vars ,ONLY: nPartBound
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(32)         :: hilf
-INTEGER               :: iCC
-!===================================================================================================================================
-nDataBC_CollectCharges=0
-nCollectChargesBCs = GETINT('PIC-nCollectChargesBCs','0')
-IF (nCollectChargesBCs .GT. 0) THEN
-#if !((USE_HDG) && (PP_nVar==1))
-  CALL abort(__STAMP__&
-    , 'CollectCharges only implemented for electrostatic HDG!')
-#endif
-  ALLOCATE(CollectCharges(1:nCollectChargesBCs))
-  DO iCC=1,nCollectChargesBCs
-    WRITE(UNIT=hilf,FMT='(I0)') iCC
-    CollectCharges(iCC)%BC = GETINT('PIC-CollectCharges'//TRIM(hilf)//'-BC','0')
-    IF (CollectCharges(iCC)%BC.LT.1 .OR. CollectCharges(iCC)%BC.GT.nPartBound) THEN
-      CALL abort(__STAMP__&
-      , 'nCollectChargesBCs must be between 1 and nPartBound!')
-    ELSE IF (BCdata_auxSF(CollectCharges(iCC)%BC)%SideNumber.EQ. -1) THEN !not set yet
-      BCdata_auxSF(CollectCharges(iCC)%BC)%SideNumber=0
-      nDataBC_CollectCharges=nDataBC_CollectCharges+1 !side-data will be set in InitializeParticleSurfaceflux!!!
-    END IF
-    CollectCharges(iCC)%NumOfRealCharges = GETREAL('PIC-CollectCharges'//TRIM(hilf)//'-NumOfRealCharges','0.')
-    CollectCharges(iCC)%NumOfNewRealCharges = 0.
-    CollectCharges(iCC)%ChargeDist = GETREAL('PIC-CollectCharges'//TRIM(hilf)//'-ChargeDist','0.')
-  END DO !iCC
-END IF !nCollectChargesBCs .GT. 0
-
-END SUBROUTINE InitializeVariablesCollectCharges
 
 
 SUBROUTINE InitializeVariablesElectronFluidRegions()
@@ -1837,8 +1788,6 @@ ALLOCATE(PartBound%Voltage(1:nPartBound))
 PartBound%Voltage = 0.
 ALLOCATE(PartBound%UseForQCrit(1:nPartBound))
 PartBound%UseForQCrit = .FALSE.
-ALLOCATE(PartBound%Voltage_CollectCharges(1:nPartBound))
-PartBound%Voltage_CollectCharges(:)=0.
 ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
 PartBound%NbrOfSpeciesSwaps = 0
 
@@ -3223,7 +3172,6 @@ SDEALLOCATE(PartBound%RotPeriodicDir)
 SDEALLOCATE(Adaptive_MacroVal)
 SDEALLOCATE(PartBound%Voltage)
 SDEALLOCATE(PartBound%UseForQCrit)
-SDEALLOCATE(PartBound%Voltage_CollectCharges)
 SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
 SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
 SDEALLOCATE(PartBound%SpeciesSwaps)

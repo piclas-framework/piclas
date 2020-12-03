@@ -1132,7 +1132,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,dXiEQ_SurfSample,CalcSurfCollis
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState,GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,usevMPF
-USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
+USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,nSpecies,Species
 USE MOD_DSMC_Vars               ,ONLY: DSMC, RadialWeighting
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd,Time
 USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
@@ -1245,13 +1245,6 @@ ELSE
       ELSE
         MacroParticleFactor = GetParticleWeight(PartID)*Species(PartSpecies(PartID))%MacroParticleFactor
       END IF
-      DO iCC=1,nCollectChargesBCs !-chargeCollect
-        IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))) THEN
-          CollectCharges(iCC)%NumOfNewRealCharges = CollectCharges(iCC)%NumOfNewRealCharges &
-              + Species(PartSpecies(PartID))%ChargeIC * MacroParticleFactor
-          EXIT
-        END IF
-      END DO
       ! sample values of deleted species
       IF (DoSample) THEN
         SurfSideID=GlobalSide2SurfSide(SURF_SIDEID,SideID)
@@ -1282,13 +1275,6 @@ ELSE
       END IF ! CalcSurfaceImpact
       CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)),alpha=alpha)
     ELSE IF (targetSpecies.gt.0) THEN !swap species
-      DO iCC=1,nCollectChargesBCs !-chargeCollect
-        IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))) THEN
-          CollectCharges(iCC)%NumOfNewRealCharges = CollectCharges(iCC)%NumOfNewRealCharges &
-              + (Species(PartSpecies(PartID))%ChargeIC-Species(targetSpecies)%ChargeIC) * MacroParticleFactor
-          EXIT
-        END IF
-      END DO
       PartSpecies(PartID)=targetSpecies
     END IF ! targetSpecies.eq.0
   END IF ! RanNum.LE.PartBound%ProbOfSpeciesSwaps

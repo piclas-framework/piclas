@@ -364,7 +364,7 @@ OutputSurfaceFluxLinked=GETLOGICAL('OutputSurfaceFluxLinked','.FALSE.')
 TmpMapToBC = 0; TmpSideStart = 0; TmpSideNumber = 0; TmpSideEnd = 0; TmpSideNext = 0
 countDataBC=0
 DO iBC=1,nPartBound
-  IF (BCdata_auxSF(iBC)%SideNumber.EQ. -1) CYCLE !not set for SFs or CollectCharges
+  IF (BCdata_auxSF(iBC)%SideNumber.EQ. -1) CYCLE !not set for SFs
   countDataBC=countDataBC+1
   TmpMapToBC(countDataBC)=iBC
 END DO
@@ -935,7 +935,7 @@ USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas, tBCdata_auxSFRadWeight
 USE MOD_Particle_Surfaces_Vars ,ONLY: SurfFluxSideSize, TriaSurfaceFlux
 USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas
-USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges, DoTimeDepInflow
+USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, DoTimeDepInflow
 USE MOD_Particle_Vars          ,ONLY: UseAdaptive, UseCircularInflow, DoForceFreeSurfaceFlux
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 #if USE_MPI
@@ -973,7 +973,7 @@ CALL BCSurfMeshSideAreasandNormals()
 UseCircularInflow=.FALSE.
 UseAdaptive=.FALSE.
 MaxSurfacefluxBCs=0
-nDataBC=nDataBC_CollectCharges !sides may be also used for collectcharges of floating potential!!!
+nDataBC=0
 DoSurfaceFlux=.FALSE.
 
 !-- 1.: read/prepare parameters and determine nec. BCs

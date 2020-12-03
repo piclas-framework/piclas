@@ -3404,7 +3404,7 @@ USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIPar
 #endif
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
-USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -3569,7 +3569,6 @@ IF (time.GE.DelayTime) THEN
 #endif /*USE_LOADBALANCE*/
   END IF !velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==509)*/
-  CALL ParticleCollectCharges()
 END IF
 
 IF (doParticleMerge) THEN
@@ -3658,7 +3657,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #endif
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
-USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -3805,7 +3804,6 @@ IF (time.GE.DelayTime) THEN
     CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF !velocityOutputAtTime
-  CALL ParticleCollectCharges()
 END IF
 
 #if USE_MPI
@@ -3893,7 +3891,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
-USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 #endif /*PARTICLES*/
 USE MOD_HDG                    ,ONLY: HDG
 #if USE_LOADBALANCE
@@ -4062,7 +4060,6 @@ __STAMP__&
   CALL MPIParticleSend()   ! finish communication of number of particles and send particles
   CALL MPIParticleRecv()   ! finish communication
 #endif
-  CALL ParticleCollectCharges()
 END IF
 
 #endif /*PARTICLES*/
@@ -4200,7 +4197,6 @@ DO iStage=2,nRKStages
     CALL MPIParticleSend()   ! finish communication of number of particles and send particles
     CALL MPIParticleRecv()   ! finish communication
 #endif
-    CALL ParticleCollectCharges()
   END IF
 #endif /*PARTICLES*/
 END DO

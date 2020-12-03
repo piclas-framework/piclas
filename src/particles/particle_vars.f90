@@ -407,16 +407,6 @@ LOGICAL                                  :: DoZigguratSampling                ! 
 INTEGER(8)                               :: nTotalPart
 INTEGER(8)                               :: nTotalHalfPart
 
-INTEGER :: nCollectChargesBCs
-INTEGER :: nDataBC_CollectCharges
-TYPE tCollectCharges
-  INTEGER                              :: BC
-  REAL                                 :: NumOfRealCharges
-  REAL                                 :: NumOfNewRealCharges
-  REAL                                 :: ChargeDist
-END TYPE
-TYPE(tCollectCharges), ALLOCATABLE     :: CollectCharges(:)
-
 TYPE tVariableTimeStep
   LOGICAL                              :: UseVariableTimeStep
   LOGICAL                              :: UseLinearScaling

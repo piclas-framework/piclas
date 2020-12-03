@@ -323,7 +323,6 @@ USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
-USE MOD_Particle_Tracking      ,ONLY: ParticleCollectCharges
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition, RelaxDeposition, PartSourceOld
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 #endif /*PARTICLES*/
@@ -1335,10 +1334,6 @@ IF(DoRestart)THEN
 
 CALL CloseDataFile()
 
-#ifdef PARTICLES
-  ! include initially collected particles for first call of field-solver (e.g. in RecomputeLambda)
-  CALL ParticleCollectCharges(initialCall_opt=.TRUE.)
-#endif /*PARTICLES*/
 #if USE_HDG
   iter=0
   ! INSTEAD OF ALL THIS STUFF DO
@@ -1359,10 +1354,6 @@ CALL CloseDataFile()
   SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!'
 #endif
 ELSE ! no restart
-#ifdef PARTICLES
-  ! include initially collected particles for first call of field-solver (here because of consistency, but not used until timedisc)
-  CALL ParticleCollectCharges(initialCall_opt=.TRUE.)
-#endif /*PARTICLES*/
   ! Delete all files since we are doing a fresh start
   CALL FlushHDF5()
 END IF !IF(DoRestart)
