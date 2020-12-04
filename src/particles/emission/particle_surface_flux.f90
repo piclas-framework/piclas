@@ -1433,7 +1433,7 @@ IF ((PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) .AND. (Part
       IntArray(:) = 0.
     END IF
     ! sample values
-    CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray,.False.,emission_opt=.TRUE.)
+    CALL CalcWallSample(PartID,SurfSideID,p,q,'new',.FALSE.)
     currentSurfFluxPart => currentSurfFluxPart%next
 #if USE_LOADBALANCE
     CALL LBElemSplitTime(PEM%LocalElemID(PartID),tLBStart)

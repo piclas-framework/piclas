@@ -44,9 +44,9 @@ USE MOD_part_operations         ,ONLY: CreateParticle, RemoveParticle
 USE MOD_Particle_Vars           ,ONLY: PartState,Species,PartSpecies
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars           ,ONLY: LastPartPos, PEM
-USE MOD_Particle_Boundary_Tools ,ONLY: SurfaceToPartEnergyInternal, CalcWallSample, AnalyzeSurfaceCollisions
-USE MOD_Particle_Boundary_Tools ,ONLY: AddPartInfoToSample,CalcRotWallVelo
-USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample, Partbound, CalcSurfaceImpact, GlobalSide2SurfSide
+USE MOD_Particle_Boundary_Tools ,ONLY: CalcWallSample, AnalyzeSurfaceCollisions
+USE MOD_Particle_Boundary_Tools ,ONLY: CalcRotWallVelo
+USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample, Partbound, GlobalSide2SurfSide
 USE MOD_TimeDisc_Vars           ,ONLY: dt, RKdtFrac
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_SurfaceModel_Vars       ,ONLY: SurfModel
@@ -80,7 +80,6 @@ INTEGER                          :: p,q
 REAL                             :: tang1(1:3),tang2(1:3)
 INTEGER                          :: SurfSideID, SpecID
 ! variables for Energy sampling
-REAL                             :: TransArray(1:6),IntArray(1:6)
 REAL                             :: oldVelo(1:3)
 INTEGER                          :: locBCID
 REAL                             :: VeloReal, EtraOld
@@ -121,11 +120,6 @@ IF (ProductSpec(2).LT.0) THEN
   SurfModel%Info(SpecID)%NumOfAds = SurfModel%Info(SpecID)%NumOfAds + 1
 END IF
 !-----------------------------------------------------------
-! Treat incident particle
-CALL AddPartInfoToSample(PartID,TransArray,IntArray,'old')
-! Sample momentum, heatflux and collision counter on surface
-CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,IsSpeciesSwap,&
-                    impact_opt=CalcSurfaceImpact,PartTrajectory_opt=PartTrajectory,SurfaceNormal_opt=n_loc)
 CALL AnalyzeSurfaceCollisions(PartID,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
 
 IF (ProductSpec(1).LE.0) THEN
@@ -145,7 +139,6 @@ ELSE
     POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
     ! travel rest of particle vector
     IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
-
     ! recompute trajectory etc
     PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dt*RKdtFrac * PartState(4:6,PartID)
   ELSE
@@ -190,16 +183,11 @@ ELSE
   PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
   lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
   PartTrajectory=PartTrajectory/lengthPartTrajectory
-
   ! set new species of reflected particle
   PartSpecies(PartID) = ProductSpec(1)
   ! Adding the energy that is transferred from the surface onto the internal energies of the particle
-  CALL SurfaceToPartEnergyInternal(PartID,WallTemp)
-  CALL AddPartInfoToSample(PartID,TransArray,IntArray,'new')
-  ! Sample momentum, heatflux and collision counter on surface
-  CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,IsSpeciesSwap,emission_opt=.TRUE.)
+  CALL SurfaceTreatment_EnergyAccommodation(PartID,WallTemp)
 END IF
-
 !-----------------------------------------------------------
 ! Create new particles
 IF (ProductSpec(2).GT.0) THEN
@@ -210,16 +198,94 @@ IF (ProductSpec(2).GT.0) THEN
     NewVelo(1:3) = VeloFromDistribution(velocityDistribution(2),ProductSpec(2),TempErgy(2))
     ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
     NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
-
+    ! Create new particle and get a free particle index
     CALL CreateParticle(ProductSpec(2),LastPartPos(1:3,PartID),PEM%GlobalElemID(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
     ! Adding the energy that is transferred from the surface onto the internal energies of the particle
-    CALL SurfaceToPartEnergyInternal(NewPartID,WallTemp)
-
-    CALL AddPartInfoToSample(NewPartID,TransArray,IntArray,'new')
-    CALL CalcWallSample(NewPartID,SurfSideID,p,q,Transarray,IntArray,IsSpeciesSwap,emission_opt=.TRUE.)
+    CALL SurfaceTreatment_EnergyAccommodation(NewPartID,WallTemp)
   END DO ! iNewPart = 1, ProductSpecNbr
 END IF
 
 END SUBROUTINE SurfaceTreatment_ParticleEmission
+
+
+SUBROUTINE SurfaceTreatment_EnergyAccommodation(PartID,WallTemp)
+!===================================================================================================================================
+!> Energy accommodation at the surface: Particle internal energies PartStateIntEn() are sampled at surface temperature
+!===================================================================================================================================
+USE MOD_Particle_Vars ,ONLY: PartSpecies
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars     ,ONLY: CollisMode, PolyatomMolDSMC, useDSMC
+USE MOD_DSMC_Vars     ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: PartID
+REAL,INTENT(IN)    :: WallTemp
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL    :: RanNum
+REAL    :: NormProb
+INTEGER :: VibQuant, iDOF, iPolyatMole
+!-----------------------------------------------------------------------------------------------------------------------------------
+IF (useDSMC .AND. CollisMode.GT.1) THEN
+  IF (SpecDSMC(PartSpecies(PartID))%InterID.EQ.2.OR.SpecDSMC(PartSpecies(PartID))%InterID.EQ.20) THEN
+    ! Insert new particle with internal energies sampled from surface temperature
+    IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
+      ! set vibrational energy
+      iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
+      IF(ALLOCATED(VibQuantsPar(PartID)%Quants)) DEALLOCATE(VibQuantsPar(PartID)%Quants)
+      ALLOCATE(VibQuantsPar(PartID)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+      PartStateIntEn( 1,PartID) = 0.0
+      DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+        CALL RANDOM_NUMBER(RanNum)
+        VibQuant = INT(-LOG(RanNum)*WallTemp/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
+        DO WHILE (VibQuant.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF))
+          CALL RANDOM_NUMBER(RanNum)
+          VibQuant = INT(-LOG(RanNum)*WallTemp/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
+        END DO
+        PartStateIntEn( 1,PartID) = PartStateIntEn( 1,PartID) &
+                                   + (VibQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
+        VibQuantsPar(PartID)%Quants(iDOF)=VibQuant
+      END DO
+      IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.2) THEN
+        CALL RANDOM_NUMBER(RanNum)
+        PartStateIntEn( 2,PartID) = -BoltzmannConst*WallTemp*LOG(RanNum)
+      ELSE IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.3) THEN
+        CALL RANDOM_NUMBER(RanNum)
+        PartStateIntEn( 2,PartID) = RanNum*10 !the distribution function has only non-negligible values between 0 and 10
+        NormProb = SQRT(PartStateIntEn( 2,PartID))*EXP(-PartStateIntEn( 2,PartID))/(SQRT(0.5)*EXP(-0.5))
+        CALL RANDOM_NUMBER(RanNum)
+        DO WHILE (RanNum.GE.NormProb)
+          CALL RANDOM_NUMBER(RanNum)
+          PartStateIntEn( 2,PartID) = RanNum*10 !the distribution function has only non-negligible values between 0 and 10
+          NormProb = SQRT(PartStateIntEn( 2,PartID))*EXP(-PartStateIntEn( 2,PartID))/(SQRT(0.5)*EXP(-0.5))
+          CALL RANDOM_NUMBER(RanNum)
+        END DO
+        PartStateIntEn( 2,PartID) = PartStateIntEn( 2,PartID)*BoltzmannConst*WallTemp
+      END IF
+    ELSE
+      ! Set vibrational energy
+      CALL RANDOM_NUMBER(RanNum)
+      VibQuant = INT(-LOG(RanNum)*WallTemp/SpecDSMC(PartSpecies(PartID))%CharaTVib)
+      DO WHILE (VibQuant.GE.SpecDSMC(PartSpecies(PartID))%MaxVibQuant)
+        CALL RANDOM_NUMBER(RanNum)
+        VibQuant = INT(-LOG(RanNum)*WallTemp/SpecDSMC(PartSpecies(PartID))%CharaTVib)
+      END DO
+      PartStateIntEn( 1,PartID) = (VibQuant + DSMC%GammaQuant)*SpecDSMC(PartSpecies(PartID))%CharaTVib*BoltzmannConst
+      ! Set rotational energy
+      CALL RANDOM_NUMBER(RanNum)
+      PartStateIntEn( 2,PartID) = -BoltzmannConst*WallTemp*LOG(RanNum)
+    END IF
+  ELSE
+    ! Nullify energy for atomic species
+    PartStateIntEn( 1,PartID) = 0.0
+    PartStateIntEn( 2,PartID) = 0.0
+  END IF
+END IF
+!End internal energy accomodation
+END SUBROUTINE SurfaceTreatment_EnergyAccommodation
 
 END MODULE MOD_SurfaceModel_Tools

@@ -25,20 +25,8 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE AddPartInfoToSample
-  MODULE PROCEDURE AddPartInfoToSample
-END INTERFACE
-
-INTERFACE CalcWallSample
-  MODULE PROCEDURE CalcWallSample
-END INTERFACE
-
 INTERFACE AnalyzeSurfaceCollisions
   MODULE PROCEDURE AnalyzeSurfaceCollisions
-END INTERFACE
-
-INTERFACE SurfaceToPartEnergyInternal
-  MODULE PROCEDURE SurfaceToPartEnergyInternal
 END INTERFACE
 
 INTERFACE CountSurfaceImpact
@@ -57,10 +45,8 @@ INTERFACE CalcRotWallVelo
   MODULE PROCEDURE CalcRotWallVelo
 END INTERFACE
 
-PUBLIC :: AddPartInfoToSample
 PUBLIC :: CalcWallSample
 PUBLIC :: AnalyzeSurfaceCollisions
-PUBLIC :: SurfaceToPartEnergyInternal
 PUBLIC :: CountSurfaceImpact
 PUBLIC :: StoreBoundaryParticleProperties
 PUBLIC :: DielectricSurfaceCharge
@@ -70,162 +56,127 @@ PUBLIC :: CalcRotWallVelo
 
 CONTAINS
 
-
-SUBROUTINE AddPartInfoToSample(PartID,Transarray,IntArray,SampleType)
-!===================================================================================================================================
-!> Adds the velocities and particle energy of a particle to the correct position of transarray and intarray
-!>   only performed if sampling is enabled
-!===================================================================================================================================
-USE MOD_Globals       ,ONLY: abort,VECNORM
-USE MOD_Particle_Vars ,ONLY: WriteMacroSurfaceValues
-USE MOD_Particle_Vars ,ONLY: PartState, Species, PartSpecies
-USE MOD_DSMC_Vars     ,ONLY: CollisMode, useDSMC, SpecDSMC
-USE MOD_DSMC_Vars     ,ONLY: PartStateIntEn, DSMC
-USE MOD_TimeDisc_Vars ,ONLY: TEnd, time
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)      :: PartID
-REAL,INTENT(OUT)        :: TransArray(1:6),IntArray(1:6)
-CHARACTER(*),INTENT(IN) :: SampleType
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL    :: VeloReal, ETrans
-INTEGER :: ETransID, ERotID, EVibID
-!-----------------------------------------------------------------------------------------------------------------------------------
-IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-  TransArray(:)=0.
-  IntArray(:)=0.
-  VeloReal = VECNORM(PartState(4:6,PartID))
-  ETrans = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
-  SELECT CASE (TRIM(SampleType))
-  CASE ('old')
-    ! must be old_velocity-new_velocity
-    TransArray(4:6) = PartState(4:6,PartID)
-    ETransID = 1
-    ERotID = 1
-    EVibID = 4
-  CASE ('new')
-    ! must be old_velocity-new_velocity
-    TransArray(4:6) = -PartState(4:6,PartID)
-    ETransID = 3
-    ERotID = 3
-    EVibID = 6
-  CASE DEFAULT
-    CALL abort(&
-__STAMP__&
-,'ERROR in AddPartInfoToSample: wrong SampleType specified. Possible types -> ( old , new )')
-  END SELECT
-  TransArray(ETransID) = ETrans
-  IF (useDSMC .AND. CollisMode.GT.1) THEN
-    IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.SpecDSMC(PartSpecies(PartID))%InterID.EQ.20) THEN
-      IntArray(ERotID) = PartStateIntEn(2,PartID)
-      IntArray(EVibID) = PartStateIntEn(1,PartID)
-    END IF
-  END IF
-END IF
-END SUBROUTINE AddPartInfoToSample
-
-
-SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,IsSpeciesSwap,&
-                          emission_opt,impact_opt,PartTrajectory_opt,SurfaceNormal_opt)
+SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,SampleType,IsSpeciesSwap,PartTrajectory_opt,SurfaceNormal_opt)
 !===================================================================================================================================
 !> Sample Wall values from Particle collisions
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars
-USE MOD_Globals                ,ONLY: abort
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC,useDSMC
-USE MOD_DSMC_Vars              ,ONLY: CollisMode,DSMC
-USE MOD_Particle_Boundary_Vars ,ONLY: SampWallState,CalcSurfCollis
-USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
+USE MOD_Globals                 ,ONLY: abort,DOTPRODUCT
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC,useDSMC,PartStateIntEn,RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: CollisMode,DSMC,AmbipolElecVelo
+USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState,CalcSurfCollis,CalcSurfaceImpact
+USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
+USE MOD_part_tools              ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                 :: PartID,SurfSideID,p,q
-REAL,INTENT(IN)                    :: TransArray(1:6) ! 1-3 trans energies (old,wall,new), 4-6 diff. trans vel. [Delta_v (x,y,z)]
-REAL,INTENT(IN)                    :: IntArray(1:6)   ! 1-6 internal energies (rot-old,rot-wall,rot-new,vib-old,vib-wall,vib-new)
+CHARACTER(*),INTENT(IN)            :: SampleType
 LOGICAL,INTENT(IN)                 :: IsSpeciesSwap
-LOGICAL,INTENT(IN),OPTIONAL        :: emission_opt
-LOGICAL,INTENT(IN),OPTIONAL        :: impact_opt
 REAL,INTENT(IN),OPTIONAL           :: PartTrajectory_opt(1:3)
 REAL,INTENT(IN),OPTIONAL           :: SurfaceNormal_opt(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL        :: emission_opt_loc
-LOGICAL        :: impact_opt_loc
+REAL            :: ETrans, ETransAmbi, ERot, EVib, MomArray(1:3), MassIC, MPF
+INTEGER         :: ETransID, ERotID, EVibID, SpecID
 !===================================================================================================================================
-! return if sampling is not enabled
-IF (.NOT.(&
-         (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)&
-         )) RETURN
+MomArray(:)=0.
 
-ASSOCIATE ( MPF  => Species(PartSpecies(PartID))%MacroParticleFactor ,&
-            mass => Species(PartSpecies(PartID))%MassIC              ,&
-            id   => PartSpecies(PartID)                              )
-  !----  Sampling for energy (translation) accommodation at walls
-  SampWallState(SAMPWALL_ETRANSOLD ,p,q,SurfSideID) = SampWallState(SAMPWALL_ETRANSOLD ,p,q,SurfSideID) + TransArray(1) * MPF
-  SampWallState(SAMPWALL_ETRANSWALL,p,q,SurfSideID) = SampWallState(SAMPWALL_ETRANSWALL,p,q,SurfSideID) + TransArray(2) * MPF
-  SampWallState(SAMPWALL_ETRANSNEW ,p,q,SurfSideID) = SampWallState(SAMPWALL_ETRANSNEW ,p,q,SurfSideID) + TransArray(3) * MPF
+SpecID = PartSpecies(PartID)
 
-  !----  Sampling force at walls
-  SampWallState(SAMPWALL_DELTA_MOMENTUMX,p,q,SurfSideID) = SampWallState(SAMPWALL_DELTA_MOMENTUMX,p,q,SurfSideID) &
-                                                           + mass * TransArray(4) * MPF
-  SampWallState(SAMPWALL_DELTA_MOMENTUMY,p,q,SurfSideID) = SampWallState(SAMPWALL_DELTA_MOMENTUMY,p,q,SurfSideID) &
-                                                           + mass * TransArray(5) * MPF
-  SampWallState(SAMPWALL_DELTA_MOMENTUMZ,p,q,SurfSideID) = SampWallState(SAMPWALL_DELTA_MOMENTUMZ,p,q,SurfSideID) &
-                                                           + mass * TransArray(6) * MPF
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+  MPF = GetParticleWeight(PartID)
+ELSE
+  MPF = GetParticleWeight(PartID)*Species(SpecID)%MacroParticleFactor
+END IF
+MassIC = Species(SpecID)%MassIC
 
-  IF (useDSMC) THEN
-    IF (CollisMode.GT.1) THEN
-      IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.SpecDSMC(PartSpecies(PartID))%InterID.EQ.20) THEN
-        !----  Sampling for internal (rotational) energy accommodation at walls
-        SampWallState(SAMPWALL_EROTOLD ,p,q,SurfSideID) = SampWallState(SAMPWALL_EROTOLD ,p,q,SurfSideID) + IntArray(1) * MPF
-        SampWallState(SAMPWALL_EROTWALL,p,q,SurfSideID) = SampWallState(SAMPWALL_EROTWALL,p,q,SurfSideID) + IntArray(2) * MPF
-        SampWallState(SAMPWALL_EROTNEW ,p,q,SurfSideID) = SampWallState(SAMPWALL_EROTNEW ,p,q,SurfSideID) + IntArray(3) * MPF
-
-        !----  Sampling for internal (vibrational) energy accommodation at walls
-        SampWallState(SAMPWALL_EVIBOLD ,p,q,SurfSideID) = SampWallState(SAMPWALL_EVIBOLD ,p,q,SurfSideID) + IntArray(4) * MPF
-        SampWallState(SAMPWALL_EVIBWALL,p,q,SurfSideID) = SampWallState(SAMPWALL_EVIBWALL,p,q,SurfSideID) + IntArray(5) * MPF
-        SampWallState(SAMPWALL_EVIBNEW ,p,q,SurfSideID) = SampWallState(SAMPWALL_EVIBNEW ,p,q,SurfSideID) + IntArray(6) * MPF
+! Calculate the translational energy
+ETrans = 0.5 * Species(SpecID)%MassIC * DOTPRODUCT(PartState(4:6,PartID))
+IF (DSMC%DoAmbipolarDiff) THEN
+  ! Add the translational energy of electron "attached" to the ion
+  IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
+    ETransAmbi = 0.5 * Species(DSMC%AmbiDiffElecSpec)%MassIC * DOTPRODUCT(AmbipolElecVelo(PartID)%ElecVelo(1:3))
+    ! Save the electron energy to sample it later later in CountSurfaceImpact
+    ETrans = ETrans + ETransAmbi
+  END IF
+END IF
+! Depending on whether the routine is called before (old) or after (new) a surface interaction, the momentum is added or removed
+! from the sampling array. Additionally, the correct indices are set for the sampling array.
+SELECT CASE (TRIM(SampleType))
+CASE ('old')
+  MomArray(1:3)   = MassIC * PartState(4:6,PartID) * MPF
+  ETransID = SAMPWALL_ETRANSOLD
+  ERotID   = SAMPWALL_EROTOLD
+  EVibID   = SAMPWALL_EVIBOLD
+  IF (DSMC%DoAmbipolarDiff) THEN
+    IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
+      MomArray(1:3) = MomArray(1:3) + Species(DSMC%AmbiDiffElecSpec)%MassIC * AmbipolElecVelo(PartID)%ElecVelo(1:3) * MPF
+    END IF
+  END IF
+  ! Species-specific counter (only counting impacting particle)
+  IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
+    SampWallState(SAMPWALL_NVARS+SpecID,p,q,SurfSideID) = SampWallState(SAMPWALL_NVARS+SpecID,p,q,SurfSideID) + 1
+  END IF
+  ! Sampling of species-specific impact energies and angles
+  IF(CalcSurfaceImpact) THEN
+    IF (useDSMC) THEN
+      IF (CollisMode.GT.1) THEN
+        EVib = PartStateIntEn(1,PartID)
+        ERot = PartStateIntEn(2,PartID)
+      END IF
+    ELSE
+      EVib = 0.
+      ERot = 0.
+    END IF
+    CALL CountSurfaceImpact(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,PartTrajectory_opt,SurfaceNormal_opt,p,q)
+    IF (DSMC%DoAmbipolarDiff) THEN
+      IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
+        CALL CountSurfaceImpact(SurfSideID,DSMC%AmbiDiffElecSpec,MPF,ETransAmbi,0.,0.,PartTrajectory_opt,SurfaceNormal_opt,p,q)
       END IF
     END IF
   END IF
-
-  ! if calcwalsample is called with emission_opt (e.g. from particle emission for evaporation) than the collision counters are not
-  ! added to sampwall
-  IF (PRESENT(emission_opt)) THEN
-    emission_opt_loc=emission_opt
-  ELSE
-    emission_opt_loc=.FALSE.
+  ! Sample the time step for the correct determination of the heat flux
+  IF (VarTimeStep%UseVariableTimeStep) THEN
+    SampWallState(SAMPWALL_NVARS+nSpecies+1,p,q,SurfSideID) = SampWallState(SAMPWALL_NVARS+nSpecies+1,p,q,SurfSideID) &
+                                                              + VarTimeStep%ParticleTimeStep(PartID)
   END IF
-  IF (.NOT.emission_opt_loc) THEN
-    !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
-    IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
-      SampWallState(SAMPWALL_NVARS+PartSpecies(PartID),p,q,SurfSideID) = &
-          SampWallState(SAMPWALL_NVARS+PartSpecies(PartID),p,q,SurfSideID) + 1
+CASE ('new')
+  ! must be old_velocity-new_velocity
+  MomArray(1:3)   = -MassIC * PartState(4:6,PartID) * MPF
+  ETransID = SAMPWALL_ETRANSNEW
+  ERotID   = SAMPWALL_EROTNEW
+  EVibID   = SAMPWALL_EVIBNEW
+  IF (DSMC%DoAmbipolarDiff) THEN
+    IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
+      MomArray(1:3) = MomArray(1:3) - Species(DSMC%AmbiDiffElecSpec)%MassIC * AmbipolElecVelo(PartID)%ElecVelo(1:3) * MPF
     END IF
   END IF
-
-  ! if calcwalsample is called with impact_opt=.TRUE. (e.g. particles impacting on surfaces)
-  IF (PRESENT(impact_opt)) THEN
-    impact_opt_loc=impact_opt
-  ELSE
-    impact_opt_loc=.FALSE.
+CASE DEFAULT
+  CALL abort(&
+    __STAMP__&
+    ,'ERROR in CalcWallSample: wrong SampleType specified. Possible types -> ( old , new )')
+END SELECT
+!----  Sampling force at walls (correct sign is set above)
+SampWallState(SAMPWALL_DELTA_MOMENTUMX,p,q,SurfSideID) = SampWallState(SAMPWALL_DELTA_MOMENTUMX,p,q,SurfSideID) + MomArray(1)
+SampWallState(SAMPWALL_DELTA_MOMENTUMY,p,q,SurfSideID) = SampWallState(SAMPWALL_DELTA_MOMENTUMY,p,q,SurfSideID) + MomArray(2)
+SampWallState(SAMPWALL_DELTA_MOMENTUMZ,p,q,SurfSideID) = SampWallState(SAMPWALL_DELTA_MOMENTUMZ,p,q,SurfSideID) + MomArray(3)
+!----  Sampling the energy (translation) accommodation at walls
+SampWallState(ETransID ,p,q,SurfSideID) = SampWallState(ETransID ,p,q,SurfSideID) + ETrans * MPF
+IF (useDSMC) THEN
+  IF (CollisMode.GT.1) THEN
+    IF ((SpecDSMC(SpecID)%InterID.EQ.2).OR.SpecDSMC(SpecID)%InterID.EQ.20) THEN
+      !----  Sampling the internal (rotational) energy accommodation at walls
+      SampWallState(ERotID ,p,q,SurfSideID) = SampWallState(ERotID ,p,q,SurfSideID) + PartStateIntEn(2,PartID) * MPF
+      !----  Sampling for internal (vibrational) energy accommodation at walls
+      SampWallState(EVibID ,p,q,SurfSideID) = SampWallState(EVibID ,p,q,SurfSideID) + PartStateIntEn(1,PartID) * MPF
+    END IF
   END IF
-
-  ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
-  ! only works if impact_opt_loc=CalcSurfaceImpact=T
-  IF(impact_opt_loc) CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MPF,TransArray(1),IntArray(4),IntArray(1),&
-                                             PartTrajectory_opt,SurfaceNormal_opt,p,q)
-
-END ASSOCIATE
+END IF
 
 END SUBROUTINE CalcWallSample
 
@@ -279,88 +230,6 @@ __STAMP__&
   END IF
 END IF
 END SUBROUTINE AnalyzeSurfaceCollisions
-
-
-SUBROUTINE SurfaceToPartEnergyInternal(PartID,WallTemp)
-!===================================================================================================================================
-!> Particle internal energies PartStateIntEn() are sampled at surface temperature
-!===================================================================================================================================
-USE MOD_Particle_Vars ,ONLY: PartSpecies
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars     ,ONLY: CollisMode, PolyatomMolDSMC, useDSMC
-USE MOD_DSMC_Vars     ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: PartID
-REAL,INTENT(IN)    :: WallTemp
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL    :: RanNum
-REAL    :: NormProb
-INTEGER :: VibQuant, iDOF, iPolyatMole
-!-----------------------------------------------------------------------------------------------------------------------------------
-IF (useDSMC .AND. CollisMode.GT.1) THEN
-  IF (SpecDSMC(PartSpecies(PartID))%InterID.EQ.2.OR.SpecDSMC(PartSpecies(PartID))%InterID.EQ.20) THEN
-    ! Insert new particle with internal energies sampled from surface temperature
-    IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
-      ! set vibrational energy
-      iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
-      IF(ALLOCATED(VibQuantsPar(PartID)%Quants)) DEALLOCATE(VibQuantsPar(PartID)%Quants)
-      ALLOCATE(VibQuantsPar(PartID)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-      PartStateIntEn( 1,PartID) = 0.0
-      DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-        CALL RANDOM_NUMBER(RanNum)
-        VibQuant = INT(-LOG(RanNum)*WallTemp/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
-        DO WHILE (VibQuant.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF))
-          CALL RANDOM_NUMBER(RanNum)
-          VibQuant = INT(-LOG(RanNum)*WallTemp/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
-        END DO
-        PartStateIntEn( 1,PartID) = PartStateIntEn( 1,PartID) &
-                                   + (VibQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
-        VibQuantsPar(PartID)%Quants(iDOF)=VibQuant
-      END DO
-      IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.2) THEN
-        CALL RANDOM_NUMBER(RanNum)
-        PartStateIntEn( 2,PartID) = -BoltzmannConst*WallTemp*LOG(RanNum)
-      ELSE IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.3) THEN
-        CALL RANDOM_NUMBER(RanNum)
-        PartStateIntEn( 2,PartID) = RanNum*10 !the distribution function has only non-negligible  values betwenn 0 and 10
-        NormProb = SQRT(PartStateIntEn( 2,PartID))*EXP(-PartStateIntEn( 2,PartID))/(SQRT(0.5)*EXP(-0.5))
-        CALL RANDOM_NUMBER(RanNum)
-        DO WHILE (RanNum.GE.NormProb)
-          CALL RANDOM_NUMBER(RanNum)
-          PartStateIntEn( 2,PartID) = RanNum*10 !the distribution function has only non-negligible  values betwenn 0 and 10
-          NormProb = SQRT(PartStateIntEn( 2,PartID))*EXP(-PartStateIntEn( 2,PartID))/(SQRT(0.5)*EXP(-0.5))
-          CALL RANDOM_NUMBER(RanNum)
-        END DO
-        PartStateIntEn( 2,PartID) = PartStateIntEn( 2,PartID)*BoltzmannConst*WallTemp
-      END IF
-    ELSE
-      ! Set vibrational energy
-      CALL RANDOM_NUMBER(RanNum)
-      VibQuant = INT(-LOG(RanNum)*WallTemp/SpecDSMC(PartSpecies(PartID))%CharaTVib)
-      DO WHILE (VibQuant.GE.SpecDSMC(PartSpecies(PartID))%MaxVibQuant)
-        CALL RANDOM_NUMBER(RanNum)
-        VibQuant = INT(-LOG(RanNum)*WallTemp/SpecDSMC(PartSpecies(PartID))%CharaTVib)
-      END DO
-      PartStateIntEn( 1,PartID) = (VibQuant + DSMC%GammaQuant)*SpecDSMC(PartSpecies(PartID))%CharaTVib*BoltzmannConst
-      ! Set rotational energy
-      CALL RANDOM_NUMBER(RanNum)
-      PartStateIntEn( 2,PartID) = -BoltzmannConst*WallTemp*LOG(RanNum)
-    END IF
-  ELSE
-    ! Nullify energy for atomic species
-    PartStateIntEn( 1,PartID) = 0.0
-    PartStateIntEn( 2,PartID) = 0.0
-  END IF
-END IF
-!End internal energy accomodation
-END SUBROUTINE SurfaceToPartEnergyInternal
-
 
 
 SUBROUTINE CountSurfaceImpact(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,PartTrajectory,SurfaceNormal,p,q)
@@ -619,7 +488,6 @@ REAL,INTENT(IN)       :: POI(3)
 REAL,INTENT(INOUT)    :: WallVelo(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: NewPartID
 REAL                  :: vec_r(1:3),vec_a(1:3), vec_t(1:3), vec_OrgPOI(1:3),vec_axi_norm(1:3)
 REAL                  :: radius, circ_speed
 !===================================================================================================================================

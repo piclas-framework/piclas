@@ -33,26 +33,30 @@ CONTAINS
 
 SUBROUTINE SurfaceTreatment(PartTrajectory,LengthPartTrajectory,alpha,xi,eta,PartID,SideID,ElemID,n_Loc,IsSpeciesSwap)
 !===================================================================================================================================
-!> Routine for Selection of Surface interaction
+!> Selection and execution of a gas-surface interaction model
+!> 1.)
+!> 2.)
+!> 3.)
+!> 4.)
 !===================================================================================================================================
 USE MOD_Globals                 ,ONLY: abort,UNITVECTOR,OrthoNormVec
-USE MOD_Part_Tools              ,ONLY: VeloFromDistribution
-USE MOD_part_operations         ,ONLY: CreateParticle, RemoveParticle
-USE MOD_Particle_Vars           ,ONLY: PartSpecies
-USE MOD_SurfaceModel_Tools      ,ONLY: SurfaceTreatment_ParticleEmission
-USE MOD_Particle_Boundary_Tools ,ONLY: SurfaceToPartEnergyInternal, CalcWallSample, AnalyzeSurfaceCollisions
-USE MOD_Particle_Boundary_Tools ,ONLY: AddPartInfoToSample,CalcRotWallVelo
-USE MOD_Particle_Boundary_Vars  ,ONLY: Partbound
-USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Vars           ,ONLY: PartSpecies, WriteMacroSurfaceValues
+USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
+USE MOD_Particle_Boundary_Vars  ,ONLY: Partbound, GlobalSide2SurfSide
+USE MOD_Particle_Boundary_Vars  ,ONLY: nPorousBC, dXiEQ_SurfSample
 USE MOD_SurfaceModel_Vars       ,ONLY: SurfModel
-USE MOD_SEE                     ,ONLY: SecondaryElectronEmission
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
-USE MOD_Particle_Boundary_Porous,ONLY: PorousBoundaryTreatment
-USE MOD_Particle_Boundary_Tools ,ONLY: DielectricSurfaceCharge
 USE MOD_Particle_Vars           ,ONLY: PDM
 USE MOD_Particle_Vars           ,ONLY: UseCircularInflow
-USE MOD_Particle_Boundary_Vars  ,ONLY: nPorousBC
 USE MOD_Dielectric_Vars         ,ONLY: DoDielectricSurfaceCharge
+USE MOD_DSMC_Vars               ,ONLY: DSMC, SamplingActive
+USE MOD_SurfaceModel_Tools      ,ONLY: SurfaceTreatment_ParticleEmission
+USE MOD_SEE                     ,ONLY: SecondaryElectronEmission
+USE MOD_Particle_Boundary_Porous,ONLY: PorousBoundaryTreatment
+USE MOD_Particle_Boundary_Tools ,ONLY: DielectricSurfaceCharge,CalcWallSample
+USE MOD_Part_Tools              ,ONLY: VeloFromDistribution
+USE MOD_part_operations         ,ONLY: CreateParticle, RemoveParticle
+USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -75,21 +79,13 @@ INTEGER                          :: ProductSpecNbr  !< number of emitted particl
 CHARACTER(30)                    :: velocityDistribution(2)   !< specifying keyword for velocity distribution
 REAL                             :: TempErgy(2)               !< temperature, energy or velocity used for VeloFromDistribution
 REAL                             :: RanNum
-REAL                             :: tang1(1:3),tang2(1:3)
-INTEGER                          :: SpecID
-INTEGER                          :: locBCID
+REAL                             :: tang1(1:3),tang2(1:3),Xitild,Etatild
+INTEGER                          :: SpecID, locBCID, p, q
 
-INTEGER                         :: iBC, ReflectionIndex
-LOGICAL                         :: ElasticReflectionAtPorousBC
+INTEGER                         :: iBC, ReflectionIndex, SurfSideID
+LOGICAL                         :: ElasticReflectionAtPorousBC,DoSample
 !===================================================================================================================================
 iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
-! =============================
-! Workflow:
-!
-!  1.  Initial surface checks:  Check incident velocity vector and surface normal
-!  2.  Select surface model:    Determine what happens at the surface
-!  3.  (New) Particle handling: Perform reflection/removal of incident particle, create (multiple) possible new particles
-!==============================
 
 !---- Treatment of adaptive and porous boundary conditions (deletion of particles in case of circular inflow or porous BC)
 ElasticReflectionAtPorousBC = .FALSE.
@@ -122,30 +118,41 @@ velocityDistribution(1:2)=''
 TempErgy(1:2)=PartBound%WallTemp(locBCID)
 
 !===================================================================================================================================
-! 2.) Select surface model
-! Here, the surfacemodel decides how the particle is treated on the surface
+! 2.) Sample the properties BEFORE the surface interaction
+!===================================================================================================================================
+DoSample = (DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)
+IF(DoSample) THEN
+  IF (TriaTracking) THEN
+    p=1 ; q=1
+  ELSE
+    Xitild =MIN(MAX(-1.,xi ),0.99)
+    Etatild=MIN(MAX(-1.,eta),0.99)
+    p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+    q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+  END IF
+  SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
+  ! Sample momentum, heatflux and collision counter on surface
+  CALL CalcWallSample(PartID,SurfSideID,p,q,'old',IsSpeciesSwap,PartTrajectory_opt=PartTrajectory,SurfaceNormal_opt=n_loc)
+END IF
+!===================================================================================================================================
+! 3.) Perform the selected gas-surface interaction
 !===================================================================================================================================
 SELECT CASE(PartBound%SurfaceModel(locBCID))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (0) ! Maxwellian scattering (diffuse/specular reflection)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  ReflectionIndex=2 ! diffuse reflection
-  CALL RANDOM_NUMBER(RanNum)
-  IF(RanNum.GE.PartBound%MomentumACC(iBC).OR.ElasticReflectionAtPorousBC) ReflectionIndex=1 ! perfect reflection
-  ! assign right treatment
-  SELECT CASE (ReflectionIndex)
-  CASE(1) ! elastic reflection
-    CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,n_loc,IsSpeciesSwap)
-  CASE(2) ! inelastic reflection
+  IF(PartBound%MomentumACC(iBC).LT.1.0) THEN
+    CALL RANDOM_NUMBER(RanNum)
+    IF(RanNum.GE.PartBound%MomentumACC(iBC).OR.ElasticReflectionAtPorousBC) THEN
+      CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,n_loc,IsSpeciesSwap)
+    ELSE
+      CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,n_loc,IsSpeciesSwap)
+    END IF
+  ELSE
     CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,n_loc,IsSpeciesSwap)
-  CASE DEFAULT
-    CALL abort(&
-        __STAMP__&
-        ,'ERROR: wrong interaction case in surface treatment! ReflectionIndex=',IntInfoOpt=ReflectionIndex)
-  END SELECT
+  END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE (5,6,7) ! Copied from CASE(1) and adjusted for secondary e- emission (SEE)
-             ! 5: SEE by Levko2015
+CASE (5,6,7) ! 5: SEE by Levko2015
              ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
              ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -168,6 +175,14 @@ CASE DEFAULT
       ,'Not implemented anymore!')
 END SELECT
 
+!===================================================================================================================================
+! 4.) Sample the properties AFTER the surface interaction
+!===================================================================================================================================
+IF(DoSample) THEN
+  ! Sample momentum, heatflux and collision counter on surface
+  CALL CalcWallSample(PartID,SurfSideID,p,q,'new',IsSpeciesSwap,PartTrajectory_opt=PartTrajectory,SurfaceNormal_opt=n_loc)
+END IF
+
 END SUBROUTINE SurfaceTreatment
 
 
@@ -181,7 +196,7 @@ SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 USE MOD_Globals
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
-USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState,GlobalSide2SurfSide
+USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,nSpecies,PartSpecies,Species,WriteMacroSurfaceValues,PartLorentzType
@@ -310,36 +325,9 @@ IF (.NOT.IsAuxBC) THEN
   ! Wall sampling Macrovalues
   IF(.NOT.Symmetry) THEN !surface mesh is not built for the symmetry BC!?!
     IF (DoSample) THEN ! DoSample
-      SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
-      ! compute p and q
-      ! correction of xi and eta, can only be applied if xi & eta are not used later!
-      IF (TrackingMethod.EQ.TRIATRACKING) THEN
-        p=1 ; q=1
-      ELSE
-        Xitild =MIN(MAX(-1.,xi ),0.99)
-        Etatild=MIN(MAX(-1.,eta),0.99)
-        p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
-        q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
-      END IF
-
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        adaptTimeStep = VarTimeStep%ParticleTimeStep(PartID)
-        ! Sampling of the time step at the wall to get the correct time sample duration for the force per area calculation
-        SampWallState(12+nSpecies+1,p,q,SurfSideID) = SampWallState(12+nSpecies+1,p,q,SurfSideID) &
-            + adaptTimeStep
-      END IF
-      IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-        MacroParticleFactor = GetParticleWeight(PartID)
-      ELSE
-        MacroParticleFactor = GetParticleWeight(PartID)*Species(PartSpecies(PartID))%MacroParticleFactor
-      END IF
-      !----  Sampling Forces at walls
-      SampWallState(10:12,p,q,SurfSideID) = SampWallState(10:12,p,q,SurfSideID) + Species(PartSpecies(PartID))%MassIC &
-          * (v_old(1:3) - PartState(4:6,PartID)) * MacroParticleFactor
       !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
       !       IF (.NOT.CalcSurfCollis%OnlySwaps) THEN
       IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
-        SampWallState(12+PartSpecies(PartID),p,q,SurfSideID) = SampWallState(12+PartSpecies(PartID),p,q,SurfSideID) + 1
         IF (CalcSurfCollis%AnalyzeSurfCollis .AND. (ANY(AnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(AnalyzeSurfCollis%BCs.EQ.locBCID))) THEN
           AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
           AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
@@ -356,19 +344,6 @@ IF (.NOT.IsAuxBC) THEN
           AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) = locBCID
         END IF
       END IF
-
-      ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
-      IF(CalcSurfaceImpact) THEN
-        EtraOld = 0.5*Species(PartSpecies(PartID))%MassIC*VECNORM(v_old)**2
-        IF(ALLOCATED(PartStateIntEn))THEN
-          EvibOld=PartStateIntEn(1,PartID)
-          ErotOld=PartStateIntEn(2,PartID)
-        ELSE
-          EvibOld=0.
-          ErotOld=0.
-        END IF ! ALLOCATED(PartStateIntEn)
-        CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MacroParticleFactor,EtraOld,EvibOld,ErotOld,PartTrajectory,n_loc,p,q)
-      END IF ! CalcSurfaceImpact
     END IF ! DoSample
   END IF ! .NOT.Symmetry
 END IF !.NOT.IsAuxBC
@@ -461,7 +436,7 @@ USE MOD_Part_Tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact, GetWallTemperature,CalcRotWallVelo
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
-USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState,GlobalSide2SurfSide
+USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
@@ -633,49 +608,6 @@ ELSE
   MacroParticleFactor = GetParticleWeight(PartID)*Species(PartSpecies(PartID))%MacroParticleFactor
 END IF
 
-DoSample=DSMC%CalcSurfaceVal.AND.((Time.GE.(1.-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroSurfaceValues)
-
-IF (.NOT.IsAuxBC) THEN
-  IF (DoSample) THEN
-    !----  Sampling for energy (translation) accommodation at walls
-    ! has to be corrected to new scheme
-    SurfSideID=GlobalSide2SurfSide(SURF_SIDEID,SideID)
-    ! compute p and q
-    ! correction of xi and eta, can only be applied if xi & eta are not used later!
-    IF (TrackingMethod.EQ.TRIATRACKING) THEN
-      p=1 ; q=1
-    ELSE
-      Xitild =MIN(MAX(-1.,xi ),0.99)
-      Etatild=MIN(MAX(-1.,eta),0.99)
-      p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
-      q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
-    END IF
-
-    SampWallState(1,p,q,SurfSideID) = SampWallState(1,p,q,SurfSideID) + EtraOld  * MacroParticleFactor
-    SampWallState(2,p,q,SurfSideID) = SampWallState(2,p,q,SurfSideID) + EtraWall * MacroParticleFactor
-    SampWallState(3,p,q,SurfSideID) = SampWallState(3,p,q,SurfSideID) + EtraNew  * MacroParticleFactor
-    IF (DSMC%DoAmbipolarDiff) THEN
-      IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
-        SampWallState(1,p,q,SurfSideID) = SampWallState(1,p,q,SurfSideID) + EtraOldAmbi  * MacroParticleFactor
-        SampWallState(2,p,q,SurfSideID) = SampWallState(2,p,q,SurfSideID) + EtraWallAmbi * MacroParticleFactor
-        SampWallState(3,p,q,SurfSideID) = SampWallState(3,p,q,SurfSideID) + EtraNewAmbi  * MacroParticleFactor
-      END IF
-    END IF
-
-    ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
-    IF(ALLOCATED(PartStateIntEn))THEN
-      EvibOld=PartStateIntEn(1,PartID)
-      ErotOld=PartStateIntEn(2,PartID)
-    ELSE
-      EvibOld=0.
-      ErotOld=0.
-    END IF ! ALLOCATED(PartStateIntEn)
-    IF(CalcSurfaceImpact) CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MacroParticleFactor,EtraOld,EvibOld,ErotOld,&
-                                                  PartTrajectory,n_loc,p,q)
-  END IF
-END IF !.NOT.IsAuxBC
-
-
 !   Transformation local distribution -> global coordinates
 ! v = nv*u+t1*v+t2*f3
 
@@ -732,13 +664,6 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
         END IF
         ErotNew  = PartStateIntEn(2,PartID) + RotACC *(ErotWall - PartStateIntEn(2,PartID))
 
-        IF (DoSample) THEN
-          !----  Sampling for internal energy accommodation at walls
-          SampWallState(4,p,q,SurfSideID)=SampWallState(4,p,q,SurfSideID)+PartStateIntEn(2,PartID) * MacroParticleFactor
-          SampWallState(5,p,q,SurfSideID)=SampWallState(5,p,q,SurfSideID)+ErotWall * MacroParticleFactor
-          SampWallState(6,p,q,SurfSideID)=SampWallState(6,p,q,SurfSideID)+ErotNew * MacroParticleFactor
-        END IF
-
         PartStateIntEn(2,PartID) = ErotNew
 
 #if (PP_TimeDiscMethod==400)
@@ -792,26 +717,6 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
             END IF
           END IF
 
-          IF (DoSample) THEN
-            !----  Sampling for internal energy accommodation at walls
-            IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
-              iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
-              DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-                SampWallState(7,p,q,SurfSideID)= SampWallState(7,p,q,SurfSideID) &
-                    + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
-                    * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * MacroParticleFactor
-                SampWallState(8,p,q,SurfSideID)= SampWallState(8,p,q,SurfSideID) + VibQuantWallPoly(iDOF) * BoltzmannConst &
-                    * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * MacroParticleFactor
-              END DO
-            ELSE
-              SampWallState(7,p,q,SurfSideID)= SampWallState(7,p,q,SurfSideID) + (VibQuant + DSMC%GammaQuant) &
-                  * BoltzmannConst * SpecDSMC(PartSpecies(PartID))%CharaTVib * MacroParticleFactor
-              SampWallState(8,p,q,SurfSideID)= SampWallState(8,p,q,SurfSideID) + VibQuantWall &
-                  * BoltzmannConst * SpecDSMC(PartSpecies(PartID))%CharaTVib * MacroParticleFactor
-            END IF
-            SampWallState(9,p,q,SurfSideID)= SampWallState(9,p,q,SurfSideID) + EvibNew * MacroParticleFactor
-            ! #endif
-          END IF
           IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) VibQuantsPar(PartID)%Quants(:) = VibQuantTemp(:)
           PartStateIntEn(1,PartID) = EvibNew
 #if (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==300)
@@ -823,12 +728,7 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
         IF((SpecDSMC(PartSpecies(PartID))%InterID.NE.4).AND.(.NOT.SpecDSMC(PartSpecies(PartID))%FullyIonized)) THEN
           CALL RANDOM_NUMBER(RanNum)
           IF (RanNum.LT.ElecACC) THEN
-            IF (DoSample) SampWallState(4,p,q,SurfSideID)=SampWallState(4,p,q,SurfSideID)+PartStateIntEn(3,PartID) * MacroParticleFactor
             PartStateIntEn(3,PartID) = RelaxElectronicShellWall(PartID, WallTemp)
-            IF (DoSample) THEN
-              SampWallState(5,p,q,SurfSideID)=SampWallState(5,p,q,SurfSideID)+PartStateIntEn(3,PartID) * MacroParticleFactor
-              SampWallState(6,p,q,SurfSideID)=SampWallState(6,p,q,SurfSideID)+PartStateIntEn(3,PartID) * MacroParticleFactor
-            END IF
           END IF
         END IF
       END IF
@@ -838,9 +738,6 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
   ! Sampling of the time step at the wall to get the correct time sample duration for the surface values
   IF (VarTimeStep%UseVariableTimeStep) THEN
     adaptTimeStep = VarTimeStep%ParticleTimeStep(PartID)
-    IF (DoSample) THEN
-      SampWallState(12+nSpecies+1,p,q,SurfSideID) = SampWallState(12+nSpecies+1,p,q,SurfSideID) + adaptTimeStep
-    END IF
   ELSE
     adaptTimeStep = 1.
   END IF ! VarTimeStep%UseVariableTimeStep
@@ -893,20 +790,8 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
   END IF
 
   IF (DoSample) THEN
-    !----  Sampling force at walls
-    SampWallState(10:12,p,q,SurfSideID)= SampWallState(10:12,p,q,SurfSideID) &
-        + Species(PartSpecies(PartID))%MassIC * (PartState(4:6,PartID) - NewVelo(1:3)) * MacroParticleFactor
-    IF (DSMC%DoAmbipolarDiff) THEN
-      IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0)  SampWallState(10:12,p,q,SurfSideID)= SampWallState(10:12,p,q,SurfSideID) &
-        + Species(DSMC%AmbiDiffElecSpec)%MassIC * (AmbipolElecVelo(PartID)%ElecVelo(1:3) - NewVeloAmbi(1:3)) * MacroParticleFactor
-    END IF
     !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
     IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
-      SampWallState(12+PartSpecies(PartID),p,q,SurfSideID)= SampWallState(12+PartSpecies(PartID),p,q,SurfSideID) +1
-      IF (DSMC%DoAmbipolarDiff) THEN
-        IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0)  SampWallState(12+DSMC%AmbiDiffElecSpec,p,q,SurfSideID)= &
-          SampWallState(12+DSMC%AmbiDiffElecSpec,p,q,SurfSideID) +1
-      END IF
       IF (CalcSurfCollis%AnalyzeSurfCollis .AND. (ANY(AnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(AnalyzeSurfCollis%BCs.EQ.locBCID))) THEN
         AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
         AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
