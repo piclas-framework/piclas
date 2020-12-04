@@ -50,6 +50,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample, Partbound, GlobalSide2S
 USE MOD_TimeDisc_Vars           ,ONLY: dt, RKdtFrac
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_SurfaceModel_Vars       ,ONLY: SurfModel
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -96,6 +97,9 @@ INTEGER                          :: iNewPart ! particle counter for newly create
 ! correction of xi and eta, can only be applied if xi & eta are not used later!
 
 POI_vec(1:3) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
+locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
+SpecID = PartSpecies(PartID)
 
 IF(PartBound%RotVelo(locBCID)) THEN
   CALL CalcRotWallVelo(locBCID,PartID,POI_vec,WallVelo)
@@ -109,7 +113,6 @@ ELSE
   p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
   q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
 END IF
-SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
 ! Old particle
 IF (ProductSpec(1).LT.0) THEN
   SurfModel%Info(SpecID)%NumOfAds = SurfModel%Info(SpecID)%NumOfAds + 1
