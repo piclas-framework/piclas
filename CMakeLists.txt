@@ -122,6 +122,11 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           ROS46
                                                           ROS6)
 
+SET(PICLAS_SHARED_MEMORY "MPI_COMM_TYPE_SHARED" CACHE STRING "Split type for creating new communicators based on colors and keys.")
+SET_PROPERTY(CACHE PICLAS_SHARED_MEMORY PROPERTY STRINGS MPI_COMM_TYPE_SHARED
+                                                          OMPI_COMM_TYPE_CORE)
+                                                          
+
 OPTION(PICLAS_BUILD_POSTI "Build POSTI toolset" ON)
 OPTION(PICLAS_MPI "Compile SINGLE or MPI version" ON)
 CMAKE_DEPENDENT_OPTION(PICLAS_LOADBALANCE "Use load balance time measurement" ON "PICLAS_MPI" OFF)
@@ -335,6 +340,19 @@ IF(PICLAS_HDG)
 ELSE()
   ADD_DEFINITIONS(-DUSE_HDG=0)
 ENDIF(PICLAS_HDG)
+
+# =========================================================================
+# Shared memory split type
+# =========================================================================
+IF(PICLAS_SHARED_MEMORY STREQUAL "MPI_COMM_TYPE_SHARED")
+  ADD_DEFINITIONS(-DSharedMemoryMethod=0)
+  MESSAGE(STATUS "Shared memory split type for subcommunicators set to node-level")
+ELSEIF(PICLAS_SHARED_MEMORY STREQUAL "OMPI_COMM_TYPE_CORE")
+  ADD_DEFINITIONS(-DSharedMemoryMethod=1)
+  MESSAGE(STATUS "Shared memory split type for subcommunicators set to the same core/processing unit")
+ENDIF()
+
+
 
 # =========================================================================
 # USERBLOCK + Preproc_flags
