@@ -50,9 +50,13 @@ USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_Vars              ,ONLY: BGGas, SpecDSMC, CollisMode, DSMC, PartStateIntEn,AmbipolElecVelo,RadialWeighting
 USE MOD_DSMC_Vars              ,ONLY: DSMCSumOfFormedParticles, newAmbiParts, iPartIndx_NodeNewAmbi, DSMC_RHS
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
-USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef, Species, nSpecies,VarTimeStep, PartMPF
+USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef, Species, nSpecies,VarTimeStep, PartMPF, Symmetry
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping, TrackingMethod
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
+USE MOD_Particle_Localization  ,ONLY: PartInElemCheck
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -67,8 +71,9 @@ INTEGER,INTENT(INOUT),ALLOCATABLE :: iPartIndx_NodeTotalAmbi(:)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iNewPart, iPart, PositionNbr, LocalElemID, iLoop, nNewElectrons, IonIndX(nPart)
-REAL              :: MaxPos(3), MinPos(3), Vec3D(3)
+INTEGER           :: iNewPart, iPart, PositionNbr, LocalElemID, iLoop, nNewElectrons, IonIndX(nPart), iElem
+REAL              :: MaxPos(3), MinPos(3), Vec3D(3), Det(6,2), RefPos(3), RandomPos(3)
+LOGICAL           :: InsideFlag
 #if USE_LOADBALANCE
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -108,10 +113,26 @@ DO iLoop = 1, nNewElectrons
 __STAMP__&
 ,'ERROR in Ambipolar Diffusion: MaxParticleNumber too small!')
   END IF
-  CALL RANDOM_NUMBER(Vec3D(1:3))
-  PartState(1:3,PositionNbr) = MinPos(1:3)+Vec3D(1:3)*(MaxPos(1:3)-MinPos(1:3))
+  InsideFlag=.FALSE.
+  iElem = PEM%GlobalElemID(iPartIndx_Node(1))
+  DO WHILE(.NOT.InsideFlag)
+    CALL RANDOM_NUMBER(Vec3D(1:3))
+    RandomPos(1:3) = MinPos(1:3)+Vec3D(1:3)*(MaxPos(1:3)-MinPos(1:3))
+    IF(Symmetry%Order.LE.2) RandomPos(3) = 0.
+    IF(Symmetry%Order.LE.1) RandomPos(2) = 0.
+    SELECT CASE(TrackingMethod)
+      CASE(TRIATRACKING)
+        CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
+      CASE(TRACING)
+        CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
+      CASE(REFMAPPING)
+        CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
+        IF (MAXVAL(ABS(RefPos)).LE.ElemEpsOneCell(iElem)) InsideFlag=.TRUE.
+    END SELECT
+  END DO
+  PartState(1:3,PositionNbr) = RandomPos(1:3)
   PartSpecies(PositionNbr) = DSMC%AmbiDiffElecSpec
-  PEM%GlobalElemID(PositionNbr) = PEM%GlobalElemID(iPartIndx_Node(1))
+  PEM%GlobalElemID(PositionNbr) = iElem
   PDM%ParticleInside(PositionNbr) = .true.
   PartState(4:6,PositionNbr) = AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(1:3)
   DSMC_RHS(1:3,PositionNbr) = 0.0
