@@ -67,7 +67,7 @@ USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutput
 USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
-USE MOD_SurfaceModel             ,ONLY: SurfaceTreatment, PerfectReflection, DiffuseReflection, SpeciesSwap
+USE MOD_SurfaceModel             ,ONLY: SurfaceModel, PerfectReflection, DiffuseReflection, SpeciesSwap
 USE MOD_part_operations          ,ONLY: RemoveParticle
 #if defined(IMPA)
 USE MOD_Particle_Vars            ,ONLY: PartIsImplicit
@@ -173,7 +173,7 @@ ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
   CASE(2) !PartBound%ReflectiveBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! Decide which interaction (specular/diffuse reflection, species swap, SEE)
-    CALL SurfaceTreatment(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID,n_loc,IsSpeciesSwap)
+    CALL SurfaceModel(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID,n_loc,IsSpeciesSwap)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(3) !PartBound%PeriodicBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
