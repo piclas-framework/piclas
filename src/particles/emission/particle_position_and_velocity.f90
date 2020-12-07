@@ -237,6 +237,7 @@ IF (PartMPI%InitGroup(InitGroup)%nProcs.GT.1) THEN
   CALL SendEmissionParticlesToProcs(chunkSize,DimSend,FractNbr,iInit,Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles,particle_positions)
 ! Finish emission on local proc
 ELSE
+#endif /*USE_MPI*/
   Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles = 0
   ParticleIndexNbr = 1
   DO i = 1,chunkSize
@@ -257,6 +258,7 @@ ELSE
           CALL ABORT(__STAMP__,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
     END IF
   END DO
+#if USE_MPI
 END IF
 
 ! Start communicating matched particles. This routine is finished in particle_emission.f90
@@ -270,7 +272,7 @@ CALL MPI_IREDUCE( Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles &
                 , PartMPI%InitGroup(InitGroup)%Request &
                 , IERROR)
 #else
-! in the seriell case, particles are only emitted on the current proc
+! in the serial case, particles are only emitted on the current processor
 Species(FractNbr)%Init(iInit)%sumOfMatchedParticles = Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles
 #endif /*USE_MPI*/
 
