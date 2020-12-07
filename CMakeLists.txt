@@ -122,7 +122,7 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           ROS46
                                                           ROS6)
 
-SET(PICLAS_SHARED_MEMORY "MPI_COMM_TYPE_SHARED" CACHE STRING "Split type for creating new communicators based on colors and keys (requires MPI 3 or higher). Options with the prefix OMPI_ are specific to Open MPI.")
+SET(PICLAS_SHARED_MEMORY "OMPI_COMM_TYPE_CORE" CACHE STRING "Split type for creating new communicators based on colors and keys (requires MPI 3 or higher). Options with the prefix OMPI_ are specific to Open MPI.")
 SET_PROPERTY(CACHE PICLAS_SHARED_MEMORY PROPERTY STRINGS MPI_COMM_TYPE_SHARED
                                                           OMPI_COMM_TYPE_CORE)
                                                           
