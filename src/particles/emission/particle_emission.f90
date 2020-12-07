@@ -388,6 +388,7 @@ DO i=1,nSpecies
           NbrOfParticle = INT(PartIns + RandVal1)
         END IF
 #if USE_MPI
+        ! communicate number of particles with all procs in the same init group
         InitGroup=Species(i)%Init(iInit)%InitCOMM
         IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
           ! only procs which are part of group take part in the communication
@@ -497,17 +498,17 @@ DO i=1,nSpecies
 #endif
         ! add number of matching error to particle emission to fit
         ! number of added particles
-        Species(i)%Init(iInit)%InsertedParticleMisMatch = nbrOfParticle  - Species(i)%Init(iInit)%sumOfMatchedParticles
-        IF (nbrOfParticle .GT. Species(i)%Init(iInit)%sumOfMatchedParticles) THEN
+        Species(i)%Init(iInit)%InsertedParticleMisMatch = Species(i)%Init(iInit)%sumOfRequestedParticles - Species(i)%Init(iInit)%sumOfMatchedParticles
+        IF (Species(i)%Init(iInit)%sumOfRequestedParticles .GT. Species(i)%Init(iInit)%sumOfMatchedParticles) THEN
           SWRITE(UNIT_StdOut,'(A)')      'WARNING in ParticleEmission_parallel:'
           SWRITE(UNIT_StdOut,'(A,I0)')   'Fraction Nbr: '  , i
-          SWRITE(UNIT_StdOut,'(A,I0,A)') 'matched only '   , Species(i)%Init(iInit)%sumOfMatchedParticles, ' particles'
-          SWRITE(UNIT_StdOut,'(A,I0,A)') 'when '           , NbrOfParticle,  ' particles were required!'
-        ELSE IF (nbrOfParticle .LT. Species(i)%Init(iInit)%sumOfMatchedParticles) THEN
+          SWRITE(UNIT_StdOut,'(A,I0,A)') 'matched only '   , Species(i)%Init(iInit)%sumOfMatchedParticles  , ' particles'
+          SWRITE(UNIT_StdOut,'(A,I0,A)') 'when '           , Species(i)%Init(iInit)%sumOfRequestedParticles, ' particles were required!'
+        ELSE IF (Species(i)%Init(iInit)%sumOfRequestedParticles .LT. Species(i)%Init(iInit)%sumOfMatchedParticles) THEN
           SWRITE(UNIT_StdOut,'(A)')      'ERROR in ParticleEmission_parallel:'
           SWRITE(UNIT_StdOut,'(A,I0)')   'Fraction Nbr: '  , i
-          SWRITE(UNIT_StdOut,'(A,I0,A)') 'matched '        , Species(i)%Init(iInit)%sumOfMatchedParticles, ' particles'
-          SWRITE(UNIT_StdOut,'(A,I0,A)') 'when '           , NbrOfParticle, ' particles were required!'
+          SWRITE(UNIT_StdOut,'(A,I0,A)') 'matched '        , Species(i)%Init(iInit)%sumOfMatchedParticles  , ' particles'
+          SWRITE(UNIT_StdOut,'(A,I0,A)') 'when '           , Species(i)%Init(iInit)%sumOfRequestedParticles, ' particles were required!'
         ! ELSE IF (nbrOfParticle .EQ. Species(i)%Init(iInit)%sumOfMatchedParticles) THEN
         !  WRITE(UNIT_stdOut,'(A,I0)')   'Fraction Nbr: '  , FractNbr
         !  WRITE(UNIT_stdOut,'(A,I0,A)') 'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
@@ -516,8 +517,7 @@ DO i=1,nSpecies
         END IF ! PartMPI%iProc.EQ.0
       END IF
 #endif
-    END IF
-
+    END IF ! UseForEmission
   END DO  ! iInit
 END DO  ! i=1,nSpecies
 

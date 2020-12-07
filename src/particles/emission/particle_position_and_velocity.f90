@@ -45,7 +45,7 @@ SUBROUTINE SetParticlePositionCellLocal(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
+USE MOD_Particle_Vars          ,ONLY: Species,Symmetry
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
 USE MOD_part_Emission_Tools    ,ONLY: IntegerDivide,SetCellLocalParticlePosition
 #if USE_MPI
@@ -172,6 +172,7 @@ DimSend  = 3                   !save (and send) only positions
 nChunks  = 1                   ! Standard: Nicht-MPI
 Species(FractNbr)%Init(iInit)%sumOfMatchedParticles   = 0
 Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles = 0
+Species(FractNbr)%Init(iInit)%sumOfRequestedParticles = NbrOfParticle
 chunkSize = nbrOfParticle
 ! emission group communicator
 #if USE_MPI

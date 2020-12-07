@@ -196,6 +196,7 @@ TYPE tInit                                                                   ! P
   !REAL                               :: AngularBetaSEE
   REAL                               :: EffectiveIntensityFactor ! Scaling factor that increases I0 [-]
   INTEGER                            :: sumOfMatchedParticles    ! Sum of matched particles on all procs
+  INTEGER                            :: sumOfRequestedParticles  ! Sum of requested particles on all procs
   INTEGER                            :: mySumOfMatchedParticles  ! Sum of matched particles on current proc
 END TYPE tInit
 
