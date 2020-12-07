@@ -159,7 +159,7 @@ TYPE tInit                                                                   ! P
   INTEGER                                :: maxParticleNumberZ               ! Maximum Number of all Particles in z direction
   REAL                                   :: Alpha                            ! WaveNumber for sin-deviation initiation.
   REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
-  REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3) 
+  REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3)
   INTEGER                                :: ParticleEmissionType             ! Emission Type 1 = emission rate in 1/s,
                                                                              !               2 = emission rate 1/iteration
   REAL                                   :: ParticleEmission                 ! Emission in [1/s] or [1/Iteration]
@@ -174,11 +174,11 @@ TYPE tInit                                                                   ! P
 !====================================photo ionization =======================================================
   LOGICAL                            :: FirstQuadrantOnly  ! Only insert particles in the first quadrant that is spanned by the
                                                            ! vectors x=BaseVector1IC and y=BaseVector2IC in the interval x,y in [0,R]
-  REAL                               :: PulseDuration      ! Pulse duration tau for a Gaussian-type pulse with 
+  REAL                               :: PulseDuration      ! Pulse duration tau for a Gaussian-type pulse with
                                                            ! I~exp(-(t/tau)^2) [s]
   REAL                               :: WaistRadius        ! Beam waist radius (in focal spot) w_b for Gaussian-type pulse with
                                                            ! I~exp(-(r/w_b)^2) [m]
-  REAL                               :: IntensityAmplitude ! Beam intensity maximum I0 Gaussian-type pulse with 
+  REAL                               :: IntensityAmplitude ! Beam intensity maximum I0 Gaussian-type pulse with
                                                            ! I=I0*exp(-(t/tau)^2)exp(-(r/w_b)^2) [W/m^2]
   REAL                               :: WaveLength         ! Beam wavelength [m]
   REAL                               :: YieldSEE           ! Secondary photoelectron yield [-]
@@ -190,11 +190,13 @@ TYPE tInit                                                                   ! P
   REAL                               :: tShift             ! Time shift for pulse corresponding to half of the Pulse width (pulse time) [s]
   INTEGER                            :: NbrOfPulses        ! Number of pulses [-]
   REAL                               :: NINT_Correction    ! nearest integer correction factor due to cut-off when converting
-                                                           ! the number of particles calculated as real to integer for the 
+                                                           ! the number of particles calculated as real to integer for the
                                                            ! actual emission
   REAL                               :: WorkFunctionSEE    ! Photoelectron work function [eV]
   !REAL                               :: AngularBetaSEE
   REAL                               :: EffectiveIntensityFactor ! Scaling factor that increases I0 [-]
+  INTEGER                            :: sumOfMatchedParticles    ! Sum of matched particles on all procs
+  INTEGER                            :: mySumOfMatchedParticles  ! Sum of matched particles on current proc
 END TYPE tInit
 
 TYPE tSurfFluxSubSideData
