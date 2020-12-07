@@ -578,7 +578,7 @@ DO iProc=0,nExchangeProcessors-1
       PEM%NormVec(1:3,iPart) = 0.
       jPos=jPos+3
       !>> particle elmentN
-      PartSendBuf(iProc)%content(jPos+1) = REAL(ElemToGlobalElemID(PEM%GlobalElemID(iPart)))
+      PartSendBuf(iProc)%content(jPos+1) = REAL(PEM%GlobalElemID(iPart))
       jPos=jPos+1
       !>> periodic movement
       IF (PEM%PeriodicMoved(iPart)) THEN
