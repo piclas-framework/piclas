@@ -226,7 +226,7 @@ __STAMP__&
           ELSE
             CALL abort(&
             __STAMP__&
-            ,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')    
+            ,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
           END IF
           iPart = iPart + 1
         END DO
@@ -258,6 +258,7 @@ END IF
 SWRITE(UNIT_stdOut,'(A)') ' ...DONE '
 
 END SUBROUTINE InitializeParticleEmission
+
 
 SUBROUTINE ParticleInserting()
 !===================================================================================================================================
@@ -387,6 +388,7 @@ DO i=1,nSpecies
           NbrOfParticle = INT(PartIns + RandVal1)
         END IF
 #if USE_MPI
+        ! communicate number of particles with all procs in the same init group
         InitGroup=Species(i)%Init(iInit)%InitCOMM
         IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
           ! only procs which are part of group take part in the communication
@@ -413,7 +415,7 @@ DO i=1,nSpecies
               ! Calculate the number of currently active photons (both surface SEE and volumetric emission)
               CALL CalcNbrOfPhotons(i, iInit, NbrOfPhotons)
 
-              ! Check if only particles in the first quadrant are to be inserted that is spanned by the vectors 
+              ! Check if only particles in the first quadrant are to be inserted that is spanned by the vectors
               ! x=BaseVector1IC and y=BaseVector2IC in the interval x,y in [0,R] and reduce the number of photon accordingly
               IF(Species(i)%Init(iInit)%FirstQuadrantOnly) NbrOfPhotons = NbrOfPhotons / 4.0
 
@@ -421,7 +423,7 @@ DO i=1,nSpecies
               IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_SEE_disc')THEN
                 ! SEE based on photon impact
                 NbrOfPhotons = Species(i)%Init(iInit)%YieldSEE * NbrOfPhotons / Species(i)%MacroParticleFactor &
-                              + Species(i)%Init(iInit)%NINT_Correction 
+                              + Species(i)%Init(iInit)%NINT_Correction
                 NbrOfParticle = NINT(NbrOfPhotons)
                 Species(i)%Init(iInit)%NINT_Correction = NbrOfPhotons - REAL(NbrOfParticle)
               ELSE
@@ -485,8 +487,38 @@ DO i=1,nSpecies
       ! Update the current next free position and increase the particle vector length
       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
       PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-    END IF
-  END DO  ! iInit 
+
+      ! Complete check if all particles were emitted successfully
+#if USE_MPI
+      InitGroup=Species(i)%Init(iInit)%InitCOMM
+      IF (PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL .AND. Species(i)%Init(iInit)%sumOfRequestedParticles.GT.0) THEN
+        CALL MPI_WAIT(PartMPI%InitGroup(InitGroup)%Request, MPI_STATUS_IGNORE, iError)
+
+        IF(PartMPI%InitGroup(InitGroup)%MPIRoot) THEN
+#endif
+        ! add number of matching error to particle emission to fit
+        ! number of added particles
+        Species(i)%Init(iInit)%InsertedParticleMisMatch = Species(i)%Init(iInit)%sumOfRequestedParticles - Species(i)%Init(iInit)%sumOfMatchedParticles
+        IF (Species(i)%Init(iInit)%sumOfRequestedParticles .GT. Species(i)%Init(iInit)%sumOfMatchedParticles) THEN
+          SWRITE(UNIT_StdOut,'(A)')      'WARNING in ParticleEmission_parallel:'
+          SWRITE(UNIT_StdOut,'(A,I0)')   'Fraction Nbr: '  , i
+          SWRITE(UNIT_StdOut,'(A,I0,A)') 'matched only '   , Species(i)%Init(iInit)%sumOfMatchedParticles  , ' particles'
+          SWRITE(UNIT_StdOut,'(A,I0,A)') 'when '           , Species(i)%Init(iInit)%sumOfRequestedParticles, ' particles were required!'
+        ELSE IF (Species(i)%Init(iInit)%sumOfRequestedParticles .LT. Species(i)%Init(iInit)%sumOfMatchedParticles) THEN
+          SWRITE(UNIT_StdOut,'(A)')      'ERROR in ParticleEmission_parallel:'
+          SWRITE(UNIT_StdOut,'(A,I0)')   'Fraction Nbr: '  , i
+          SWRITE(UNIT_StdOut,'(A,I0,A)') 'matched '        , Species(i)%Init(iInit)%sumOfMatchedParticles  , ' particles'
+          SWRITE(UNIT_StdOut,'(A,I0,A)') 'when '           , Species(i)%Init(iInit)%sumOfRequestedParticles, ' particles were required!'
+        ! ELSE IF (nbrOfParticle .EQ. Species(i)%Init(iInit)%sumOfMatchedParticles) THEN
+        !  WRITE(UNIT_stdOut,'(A,I0)')   'Fraction Nbr: '  , FractNbr
+        !  WRITE(UNIT_stdOut,'(A,I0,A)') 'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
+        END IF
+#if USE_MPI
+        END IF ! PartMPI%iProc.EQ.0
+      END IF
+#endif
+    END IF ! UseForEmission
+  END DO  ! iInit
 END DO  ! i=1,nSpecies
 
 END SUBROUTINE ParticleInserting
