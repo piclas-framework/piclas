@@ -31,12 +31,6 @@
 #define Allocate_Shared(a,b,c,d)   Allocate_Shared_DEBUG(a,b,c,d,'c')
 #endif
 
-#if (SharedMemoryMethod==0)
-#define MPI_PICLAS_COMM_TYPE MPI_COMM_TYPE_SHARED
-#elif (SharedMemoryMethod==1)
-#define MPI_PICLAS_COMM_TYPE OMPI_COMM_TYPE_CORE
-#endif
-
 #ifdef GNU
 #define CHECKSAFEINT(x,k)  IF(x>HUGE(1_  k).OR.x<-HUGE(1_  k))       CALL ABORT(__STAMP__,'Integer conversion failed: out of range!')
 #define CHECKSAFEREAL(x,k) IF(x>HUGE(1._ k).OR.x<-HUGE(1._ k))       CALL ABORT(__STAMP__,'Real conversion failed: out of range!')
