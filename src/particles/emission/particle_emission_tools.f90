@@ -1057,12 +1057,12 @@ REAL, INTENT(OUT)       :: particle_positions(:)
 REAL                    :: Particle_pos(3)
 INTEGER                 :: i
 !===================================================================================================================================
- Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC
- DO i=1,chunkSize
-    particle_positions(i*3-2) = Particle_pos(1)
-    particle_positions(i*3-1) = Particle_pos(2)
-    particle_positions(i*3  ) = Particle_pos(3)
- END DO
+Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC
+DO i=1,chunkSize
+   particle_positions(i*3-2) = Particle_pos(1)
+   particle_positions(i*3-1) = Particle_pos(2)
+   particle_positions(i*3  ) = Particle_pos(3)
+END DO
 END SUBROUTINE SetParticlePositionPoint
 
 
