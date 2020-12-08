@@ -102,16 +102,27 @@ IF(DG_SourceExtExists)THEN
     CALL ChangeBasis3D(1, N_Restart, 1, Vdm_N_EQ, U_local(:,:,:,:,iElem),NodeSourceExtEqui(:,:,:,:))
 
     ! Map the solution to the global nodes 'NodeSourceExt' and apply the volumes (charge density -> charge)
-    ! Only change the nodes which are assigned to the proc
     NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
-    IF(firstNode.LE.NodeID(1).AND.NodeID(1).LE.lastNode) NodeSourceExt(1,NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeID(1))
-    IF(firstNode.LE.NodeID(2).AND.NodeID(2).LE.lastNode) NodeSourceExt(1,NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVolume(NodeID(2))
-    IF(firstNode.LE.NodeID(3).AND.NodeID(3).LE.lastNode) NodeSourceExt(1,NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVolume(NodeID(3))
-    IF(firstNode.LE.NodeID(4).AND.NodeID(4).LE.lastNode) NodeSourceExt(1,NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVolume(NodeID(4))
-    IF(firstNode.LE.NodeID(5).AND.NodeID(5).LE.lastNode) NodeSourceExt(1,NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVolume(NodeID(5))
-    IF(firstNode.LE.NodeID(6).AND.NodeID(6).LE.lastNode) NodeSourceExt(1,NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVolume(NodeID(6))
-    IF(firstNode.LE.NodeID(7).AND.NodeID(7).LE.lastNode) NodeSourceExt(1,NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVolume(NodeID(7))
-    IF(firstNode.LE.NodeID(8).AND.NodeID(8).LE.lastNode) NodeSourceExt(1,NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeID(8))
+
+    ! method 1: Only change the nodes which are assigned to the proc
+    !IF(firstNode.LE.NodeID(1).AND.NodeID(1).LE.lastNode) NodeSourceExt(1,NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeID(1))
+    !IF(firstNode.LE.NodeID(2).AND.NodeID(2).LE.lastNode) NodeSourceExt(1,NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVolume(NodeID(2))
+    !IF(firstNode.LE.NodeID(3).AND.NodeID(3).LE.lastNode) NodeSourceExt(1,NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVolume(NodeID(3))
+    !IF(firstNode.LE.NodeID(4).AND.NodeID(4).LE.lastNode) NodeSourceExt(1,NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVolume(NodeID(4))
+    !IF(firstNode.LE.NodeID(5).AND.NodeID(5).LE.lastNode) NodeSourceExt(1,NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVolume(NodeID(5))
+    !IF(firstNode.LE.NodeID(6).AND.NodeID(6).LE.lastNode) NodeSourceExt(1,NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVolume(NodeID(6))
+    !IF(firstNode.LE.NodeID(7).AND.NodeID(7).LE.lastNode) NodeSourceExt(1,NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVolume(NodeID(7))
+    !IF(firstNode.LE.NodeID(8).AND.NodeID(8).LE.lastNode) NodeSourceExt(1,NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeID(8))
+
+    ! method 2: change any node
+    NodeSourceExt(1,NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeID(1))
+    NodeSourceExt(1,NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVolume(NodeID(2))
+    NodeSourceExt(1,NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVolume(NodeID(3))
+    NodeSourceExt(1,NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVolume(NodeID(4))
+    NodeSourceExt(1,NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVolume(NodeID(5))
+    NodeSourceExt(1,NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVolume(NodeID(6))
+    NodeSourceExt(1,NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVolume(NodeID(7))
+    NodeSourceExt(1,NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeID(8))
   END DO
 
 #if USE_MPI

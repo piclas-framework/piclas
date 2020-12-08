@@ -886,8 +886,8 @@ CALL InitializeVariablesAuxBC()
 #if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
 DoDeposition    = .FALSE.
 !DoInterpolation = .FALSE.
-CALL PrintOption('No PIC-ralted Time discretization, turning deposition off. DoDeposition','*CHANGE',LogOpt=DoDeposition)
-!CALL PrintOption('No PIC-ralted Time discretization, turning interpolation off. DoInterpolation','*CHANGE',LogOpt=DoDeposition)
+CALL PrintOption('No PIC-related Time discretization, turning deposition off. DoDeposition','*CHANGE',LogOpt=DoDeposition)
+!CALL PrintOption('No PIC-related Time discretization, turning interpolation off. DoInterpolation','*CHANGE',LogOpt=DoDeposition)
 #else
 DoDeposition    = GETLOGICAL('PIC-DoDeposition')
 #endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
