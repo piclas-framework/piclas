@@ -166,13 +166,13 @@ IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
   RETURN
 END IF
 
+Species(FractNbr)%Init(iInit)%sumOfRequestedParticles = NbrOfParticle
 IF ((NbrOfParticle .LE. 0).AND. (ABS(Species(FractNbr)%Init(iInit)%PartDensity).LE.0.)) RETURN
 
 DimSend  = 3                   !save (and send) only positions
 nChunks  = 1                   ! Standard: Nicht-MPI
 Species(FractNbr)%Init(iInit)%sumOfMatchedParticles   = 0
 Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles = 0
-Species(FractNbr)%Init(iInit)%sumOfRequestedParticles = NbrOfParticle
 chunkSize = nbrOfParticle
 ! emission group communicator
 #if USE_MPI

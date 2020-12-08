@@ -491,7 +491,7 @@ DO i=1,nSpecies
       ! Complete check if all particles were emitted successfully
 #if USE_MPI
       InitGroup=Species(i)%Init(iInit)%InitCOMM
-      IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
+      IF (PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL .AND. Species(i)%Init(iInit)%sumOfRequestedParticles.GT.0) THEN
         CALL MPI_WAIT(PartMPI%InitGroup(InitGroup)%Request, MPI_STATUS_IGNORE, iError)
 
         IF(PartMPI%InitGroup(InitGroup)%MPIRoot) THEN
