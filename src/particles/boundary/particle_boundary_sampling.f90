@@ -271,8 +271,10 @@ DO iSide = firstSide,lastSide
   ! ignore non-BC sides
   IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
 
+#if USE_MPI
   ! ignore sides outside of halo region
   IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
+#endif /*USE_MPI*/
 
   ! count number of reflective and inner BC sides
   IF ( (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%ReflectiveBC) .OR. &
@@ -291,8 +293,8 @@ DO iSide = firstSide,lastSide
 
     ! Write local mapping from Side to Surf side. The rank is already correct, the offset must be corrected by the proc offset later
     GlobalSide2SurfSideProc(SURF_SIDEID,iSide) = nSurfSidesProc
-    GlobalSide2SurfSideProc(SURF_RANK  ,iSide) = ElemInfo_Shared(ELEM_RANK,SideInfo_Shared(SIDE_ELEMID,iSide))
 #if USE_MPI
+    GlobalSide2SurfSideProc(SURF_RANK  ,iSide) = ElemInfo_Shared(ELEM_RANK,SideInfo_Shared(SIDE_ELEMID,iSide))
     ! get global Elem ID
     GlobalElemID   = SideInfo_Shared(SIDE_ELEMID,iSide)
     GlobalElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
@@ -304,6 +306,7 @@ DO iSide = firstSide,lastSide
       GlobalSide2SurfSideProc(SURF_LEADER,iSide) = INT(GlobalElemRank/nComputeNodeProcessors)
         END IF
 #else
+    GlobalSide2SurfSideProc(SURF_RANK  ,iSide) = 0
     GlobalSide2SurfSideProc(SURF_LEADER,iSide) = GlobalSide2SurfSideProc(SURF_RANK,iSide)
 #endif /*USE_MPI*/
 
