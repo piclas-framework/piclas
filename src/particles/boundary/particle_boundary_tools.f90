@@ -25,25 +25,10 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-
-INTERFACE CountSurfaceImpact
-  MODULE PROCEDURE CountSurfaceImpact
-END INTERFACE
-
-INTERFACE StoreBoundaryParticleProperties
-  MODULE PROCEDURE StoreBoundaryParticleProperties
-END INTERFACE
-
-INTERFACE DielectricSurfaceCharge
-  MODULE PROCEDURE DielectricSurfaceCharge
-END INTERFACE
-
 PUBLIC :: CalcWallSample
-PUBLIC :: CountSurfaceImpact
+PUBLIC :: SampleImpactProperties
 PUBLIC :: StoreBoundaryParticleProperties
 PUBLIC :: DielectricSurfaceCharge
-PUBLIC :: GetWallTemperature
-PUBLIC :: CalcRotWallVelo
 !===================================================================================================================================
 
 CONTAINS
@@ -54,11 +39,12 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,SampleType,PartTrajectory_opt,Su
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars
-USE MOD_Globals                 ,ONLY: abort,DOTPRODUCT
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC,useDSMC,PartStateIntEn,RadialWeighting
-USE MOD_DSMC_Vars               ,ONLY: CollisMode,DSMC,AmbipolElecVelo
-USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState,CalcSurfaceImpact
-USE MOD_part_tools              ,ONLY: GetParticleWeight
+USE MOD_Globals                   ,ONLY: abort,DOTPRODUCT
+USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC,useDSMC,PartStateIntEn,RadialWeighting
+USE MOD_DSMC_Vars                 ,ONLY: CollisMode,DSMC,AmbipolElecVelo
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact
+USE MOD_part_tools                ,ONLY: GetParticleWeight
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfCollCounter, SurfAnalyzeCount
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -91,7 +77,7 @@ IF (DSMC%DoAmbipolarDiff) THEN
   ! Add the translational energy of electron "attached" to the ion
   IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
     ETransAmbi = 0.5 * Species(DSMC%AmbiDiffElecSpec)%MassIC * DOTPRODUCT(AmbipolElecVelo(PartID)%ElecVelo(1:3))
-    ! Save the electron energy to sample it later later in CountSurfaceImpact
+    ! Save the electron energy to sample it later in SampleImpactProperties
     ETrans = ETrans + ETransAmbi
   END IF
 END IF
@@ -108,7 +94,7 @@ CASE ('old')
       MomArray(1:3) = MomArray(1:3) + Species(DSMC%AmbiDiffElecSpec)%MassIC * AmbipolElecVelo(PartID)%ElecVelo(1:3) * MPF
     END IF
   END IF
-  ! Species-specific counter (only counting impacting particle)
+  ! Species-specific simulation particle impact counter
   SampWallState(SAMPWALL_NVARS+SpecID,p,q,SurfSideID) = SampWallState(SAMPWALL_NVARS+SpecID,p,q,SurfSideID) + 1
   ! Sampling of species-specific impact energies and angles
   IF(CalcSurfaceImpact) THEN
@@ -121,10 +107,10 @@ CASE ('old')
       EVib = 0.
       ERot = 0.
     END IF
-    CALL CountSurfaceImpact(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,PartTrajectory_opt,SurfaceNormal_opt,p,q)
+    CALL SampleImpactProperties(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,PartTrajectory_opt,SurfaceNormal_opt,p,q)
     IF (DSMC%DoAmbipolarDiff) THEN
       IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
-        CALL CountSurfaceImpact(SurfSideID,DSMC%AmbiDiffElecSpec,MPF,ETransAmbi,0.,0.,PartTrajectory_opt,SurfaceNormal_opt,p,q)
+        CALL SampleImpactProperties(SurfSideID,DSMC%AmbiDiffElecSpec,MPF,ETransAmbi,0.,0.,PartTrajectory_opt,SurfaceNormal_opt,p,q)
       END IF
     END IF
   END IF
@@ -133,6 +119,8 @@ CASE ('old')
     SampWallState(SAMPWALL_NVARS+nSpecies+1,p,q,SurfSideID) = SampWallState(SAMPWALL_NVARS+nSpecies+1,p,q,SurfSideID) &
                                                               + VarTimeStep%ParticleTimeStep(PartID)
   END IF
+  ! Surface analyze counter
+  IF (CalcSurfCollCounter) SurfAnalyzeCount(SpecID) = SurfAnalyzeCount(SpecID) + 1
 CASE ('new')
   ! must be old_velocity-new_velocity
   MomArray(1:3)   = -MassIC * PartState(4:6,PartID) * MPF
@@ -169,7 +157,7 @@ END IF
 END SUBROUTINE CalcWallSample
 
 
-SUBROUTINE CountSurfaceImpact(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,PartTrajectory,SurfaceNormal,p,q)
+SUBROUTINE SampleImpactProperties(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,PartTrajectory,SurfaceNormal,p,q)
 !===================================================================================================================================
 !> Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
 !>
@@ -214,7 +202,7 @@ SampWallImpactAngle(SpecID,p,q,SurfSideID) = SampWallImpactAngle(SpecID,p,q,Surf
 !----- Sampling of impact number for each species
 SampWallImpactNumber(SpecID,p,q,SurfSideID) = SampWallImpactNumber(SpecID,p,q,SurfSideID) + MPF
 
-END SUBROUTINE CountSurfaceImpact
+END SUBROUTINE SampleImpactProperties
 
 
 SUBROUTINE StoreBoundaryParticleProperties(iPart,SpecID,PartPos,PartTrajectory,SurfaceNormal,mode,usevMPF_optIN)
@@ -366,81 +354,5 @@ END IF ! isChargedParticle(iPart)
 
 END SUBROUTINE DielectricSurfaceCharge
 
-
-REAL FUNCTION GetWallTemperature(PartID,locBCID,PartTrajectory,alpha)
-!===================================================================================================================================
-!> Determine the wall temperature, current options: determine a temperature based on an imposed gradient or use a fixed temperature
-!===================================================================================================================================
-USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Particle_Vars           ,ONLY: LastPartPos
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)             :: locBCID, PartID
-REAL, INTENT(IN)                :: PartTrajectory(3), alpha
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                            :: TempGradLength, POI(3), POI_projected(1:3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-IF(PartBound%WallTemp2(locBCID).GT.0.0) THEN
-  POI(1:3) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
-  POI_projected(1:3) = PartBound%TempGradStart(1:3,locBCID) &
-                      + DOT_PRODUCT((POI(1:3) - PartBound%TempGradStart(1:3,locBCID)),PartBound%TempGradVec(1:3,locBCID)) &
-                        / DOTPRODUCT(PartBound%TempGradVec(1:3,locBCID)) * PartBound%TempGradVec(1:3,locBCID)
-  TempGradLength = VECNORM(POI_projected(1:3))/VECNORM(PartBound%TempGradVec(1:3,locBCID))
-  IF(TempGradLength.LT.0.0) THEN
-    GetWallTemperature = PartBound%WallTemp(locBCID)
-  ELSE IF(TempGradLength.GT.1.0) THEN
-    GetWallTemperature = PartBound%WallTemp2(locBCID)
-  ELSE
-    GetWallTemperature = PartBound%WallTemp(locBCID) + TempGradLength * PartBound%WallTempDelta(locBCID)
-  END IF
-ELSE
-  GetWallTemperature = PartBound%WallTemp(locBCID)
-END IF
-
-END FUNCTION GetWallTemperature
-
-SUBROUTINE CalcRotWallVelo(locBCID,POI,WallVelo)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! Calculation of additional velocity through the rotating wall. The velocity is equal to circumferential speed at
-! the point of intersection (POI):
-! The direction is perpendicular to the rotational axis (vec_axi) AND the distance vector (vec_axi -> POI).
-! Rotation direction based on Right-hand rule.
-! The magnitude of the velocity depends on radius and rotation frequency.
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-USE MOD_Globals                 ,ONLY: CROSSNORM,VECNORM
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Globals_Vars            ,ONLY: PI
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)    :: locBCID
-REAL,INTENT(IN)       :: POI(3)
-REAL,INTENT(INOUT)    :: WallVelo(3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                  :: vec_r(1:3),vec_a(1:3), vec_t(1:3), vec_OrgPOI(1:3),vec_axi_norm(1:3)
-REAL                  :: radius, circ_speed
-!===================================================================================================================================
-
-ASSOCIATE ( vec_org  => PartBound%RotOrg(1:3,locBCID) ,&
-            RotFreq  => PartBound%RotFreq(locBCID)    ,&
-            vec_axi  => PartBound%RotAxi(1:3,locBCID)   )
-  vec_OrgPOI(1:3) = POI(1:3) - vec_org(1:3)
-  vec_axi_norm = vec_axi / VECNORM(vec_axi)
-  vec_a(1:3) = DOT_PRODUCT(vec_axi_norm,vec_OrgPOI) * vec_axi_norm(1:3)
-  vec_r(1:3) = vec_OrgPOI(1:3) - vec_a(1:3)
-  radius = SQRT( vec_r(1)*vec_r(1) + vec_r(2)*vec_r(2) + vec_r(3)*vec_r(3) )
-  circ_speed = 2.0 * PI * radius * RotFreq
-  vec_t = CROSSNORM(vec_axi_norm,vec_r)
-  WallVelo(1:3) = circ_speed * vec_t(1:3)
-END ASSOCIATE
-
-END SUBROUTINE CalcRotWallVelo
 
 END MODULE MOD_Particle_Boundary_Tools

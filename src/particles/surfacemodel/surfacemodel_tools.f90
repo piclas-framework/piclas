@@ -25,7 +25,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: SurfaceModel_ParticleEmission, SurfaceModel_EnergyAccommodation
+PUBLIC :: SurfaceModel_ParticleEmission, SurfaceModel_EnergyAccommodation, GetWallTemperature, CalcRotWallVelo
 !===================================================================================================================================
 
 CONTAINS
@@ -33,23 +33,22 @@ CONTAINS
 SUBROUTINE SurfaceModel_ParticleEmission(PartTrajectory, LengthPartTrajectory, alpha, xi, eta, n_loc, PartID, SideID, &
             ProductSpec, ProductSpecNbr, velocityDistribution, TempErgy)
 !===================================================================================================================================
-!> Routine for Selection of Surface interaction
+!> Routine for the particle emission at a surface
 !===================================================================================================================================
-USE MOD_Globals                 ,ONLY: abort,UNITVECTOR,OrthoNormVec
-USE MOD_Globals_Vars            ,ONLY: PI
-USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
-USE MOD_Part_Tools              ,ONLY: VeloFromDistribution
-USE MOD_part_operations         ,ONLY: CreateParticle, RemoveParticle
-USE MOD_Particle_Vars           ,ONLY: PartState,Species,PartSpecies
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars           ,ONLY: LastPartPos, PEM
-USE MOD_Particle_Boundary_Tools ,ONLY: CalcWallSample
-USE MOD_Particle_Boundary_Tools ,ONLY: CalcRotWallVelo
-USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample, Partbound, GlobalSide2SurfSide
-USE MOD_TimeDisc_Vars           ,ONLY: dt, RKdtFrac
-USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_SurfaceModel_Vars       ,ONLY: SurfModel
-USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec
+USE MOD_Globals_Vars              ,ONLY: PI
+USE MOD_Particle_Tracking_Vars    ,ONLY: TriaTracking
+USE MOD_Part_Tools                ,ONLY: VeloFromDistribution
+USE MOD_part_operations           ,ONLY: CreateParticle, RemoveParticle
+USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies
+USE MOD_Globals_Vars              ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars             ,ONLY: LastPartPos, PEM
+USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
+USE MOD_Particle_Boundary_Vars    ,ONLY: dXiEQ_SurfSample, Partbound, GlobalSide2SurfSide
+USE MOD_TimeDisc_Vars             ,ONLY: dt, RKdtFrac
+USE MOD_Particle_Surfaces         ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfCollCounter, SurfAnalyzeNumOfAds, SurfAnalyzeNumOfDes
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -112,14 +111,16 @@ ELSE
   p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
   q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
 END IF
-! Old particle
-IF (ProductSpec(1).LT.0) THEN
-  SurfModel%Info(SpecID)%NumOfAds = SurfModel%Info(SpecID)%NumOfAds + 1
-END IF
 
-! New particle
-IF (ProductSpec(2).LT.0) THEN
-  SurfModel%Info(SpecID)%NumOfAds = SurfModel%Info(SpecID)%NumOfAds + 1
+IF(CalcSurfCollCounter) THEN
+  ! Old particle
+  IF (ProductSpec(1).LT.0) THEN
+    SurfAnalyzeNumOfAds(SpecID) = SurfAnalyzeNumOfAds(SpecID) + 1
+  END IF
+  ! New particle
+  IF (ProductSpec(2).LT.0) THEN
+    SurfAnalyzeNumOfAds(SpecID) = SurfAnalyzeNumOfAds(SpecID) + 1
+  END IF
 END IF
 
 IF (ProductSpec(1).LE.0) THEN
@@ -192,7 +193,7 @@ END IF
 ! Create new particles
 IF (ProductSpec(2).GT.0) THEN
   DO iNewPart = 1, ProductSpecNbr
-    SurfModel%Info(ProductSpec(2))%NumOfDes = SurfModel%Info(ProductSpec(2))%NumOfDes + 1
+    IF(CalcSurfCollCounter) SurfAnalyzeNumOfDes(ProductSpec(2)) = SurfAnalyzeNumOfDes(ProductSpec(2)) + 1
     ! create new particle and assign correct energies
     ! sample newly created velocity
     NewVelo(1:3) = VeloFromDistribution(velocityDistribution(2),ProductSpec(2),TempErgy(2))
@@ -218,6 +219,11 @@ USE MOD_Particle_Boundary_Vars,ONLY: PartBound
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, PolyatomMolDSMC, useDSMC
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
 USE MOD_DSMC_ElectronicModel  ,ONLY: RelaxElectronicShellWall
+#if (PP_TimeDiscMethod==400)
+USE MOD_BGK_Vars              ,ONLY: BGKDoVibRelaxation
+#elif (PP_TimeDiscMethod==300)
+USE MOD_FPFlow_Vars           ,ONLY: FPDoVibRelaxation
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -338,5 +344,84 @@ IF (useDSMC) THEN
 END IF ! useDSMC
 
 END SUBROUTINE SurfaceModel_EnergyAccommodation
+
+
+REAL FUNCTION GetWallTemperature(PartID,locBCID,PartTrajectory,alpha)
+!===================================================================================================================================
+!> Determine the wall temperature, current options: determine a temperature based on an imposed gradient or use a fixed temperature
+!===================================================================================================================================
+USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Vars           ,ONLY: LastPartPos
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: locBCID, PartID
+REAL, INTENT(IN)                :: PartTrajectory(3), alpha
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: TempGradLength, POI(3), POI_projected(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+IF(PartBound%WallTemp2(locBCID).GT.0.0) THEN
+  POI(1:3) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
+  POI_projected(1:3) = PartBound%TempGradStart(1:3,locBCID) &
+                      + DOT_PRODUCT((POI(1:3) - PartBound%TempGradStart(1:3,locBCID)),PartBound%TempGradVec(1:3,locBCID)) &
+                        / DOTPRODUCT(PartBound%TempGradVec(1:3,locBCID)) * PartBound%TempGradVec(1:3,locBCID)
+  TempGradLength = VECNORM(POI_projected(1:3))/VECNORM(PartBound%TempGradVec(1:3,locBCID))
+  IF(TempGradLength.LT.0.0) THEN
+    GetWallTemperature = PartBound%WallTemp(locBCID)
+  ELSE IF(TempGradLength.GT.1.0) THEN
+    GetWallTemperature = PartBound%WallTemp2(locBCID)
+  ELSE
+    GetWallTemperature = PartBound%WallTemp(locBCID) + TempGradLength * PartBound%WallTempDelta(locBCID)
+  END IF
+ELSE
+  GetWallTemperature = PartBound%WallTemp(locBCID)
+END IF
+
+END FUNCTION GetWallTemperature
+
+
+SUBROUTINE CalcRotWallVelo(locBCID,POI,WallVelo)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Calculation of additional velocity through the rotating wall. The velocity is equal to circumferential speed at
+! the point of intersection (POI):
+! The direction is perpendicular to the rotational axis (vec_axi) AND the distance vector (vec_axi -> POI).
+! Rotation direction based on Right-hand rule.
+! The magnitude of the velocity depends on radius and rotation frequency.
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+USE MOD_Globals                 ,ONLY: CROSSNORM,VECNORM
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Globals_Vars            ,ONLY: PI
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)    :: locBCID
+REAL,INTENT(IN)       :: POI(3)
+REAL,INTENT(INOUT)    :: WallVelo(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                  :: vec_r(1:3),vec_a(1:3), vec_t(1:3), vec_OrgPOI(1:3),vec_axi_norm(1:3)
+REAL                  :: radius, circ_speed
+!===================================================================================================================================
+
+ASSOCIATE ( vec_org  => PartBound%RotOrg(1:3,locBCID) ,&
+            RotFreq  => PartBound%RotFreq(locBCID)    ,&
+            vec_axi  => PartBound%RotAxi(1:3,locBCID)   )
+  vec_OrgPOI(1:3) = POI(1:3) - vec_org(1:3)
+  vec_axi_norm = vec_axi / VECNORM(vec_axi)
+  vec_a(1:3) = DOT_PRODUCT(vec_axi_norm,vec_OrgPOI) * vec_axi_norm(1:3)
+  vec_r(1:3) = vec_OrgPOI(1:3) - vec_a(1:3)
+  radius = SQRT( vec_r(1)*vec_r(1) + vec_r(2)*vec_r(2) + vec_r(3)*vec_r(3) )
+  circ_speed = 2.0 * PI * radius * RotFreq
+  vec_t = CROSSNORM(vec_axi_norm,vec_r)
+  WallVelo(1:3) = circ_speed * vec_t(1:3)
+END ASSOCIATE
+
+END SUBROUTINE CalcRotWallVelo
+
 
 END MODULE MOD_SurfaceModel_Tools

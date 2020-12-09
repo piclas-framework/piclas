@@ -718,7 +718,7 @@ IF (mySurfRank.EQ.0) THEN
   nVarCount        = 1
   DO iSpec = 1,nSpecies
     WRITE(SpecID,'(I3.3)') iSpec
-    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_Counter')
+    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_SimPartCounter')
     ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
     IF(CalcSurfaceImpact)THEN
       ! Add average impact energy for each species (trans, rot, vib)

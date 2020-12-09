@@ -43,7 +43,6 @@ USE MOD_Globals                 ,ONLY: abort,UNITVECTOR,OrthoNormVec
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, WriteMacroSurfaceValues
 USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
 USE MOD_Particle_Boundary_Vars  ,ONLY: Partbound, GlobalSide2SurfSide, dXiEQ_SurfSample
-USE MOD_SurfaceModel_Vars       ,ONLY: SurfModel
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars           ,ONLY: PDM
@@ -157,9 +156,6 @@ CASE (5,6,7) ! 5: SEE by Levko2015
              ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
              ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  ! Update wallcollision counter (currently here as SurfModel is only allocated for SurfaceModel GT 0)
-  SurfModel%Info(SpecID)%WallCollCount = SurfModel%Info(SpecID)%WallCollCount + 1
-
   ! Get electron emission probability
   CALL SecondaryElectronEmission(PartBound%SurfaceModel(locBCID),PartID,locBCID,ReflectionIndex,ProductSpec,&
   ProductSpecNbr,TempErgy(2),velocityDistribution)
@@ -207,7 +203,7 @@ USE MOD_Particle_Vars           ,ONLY: PDM
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Vars           ,ONLY: PEM
 #endif
-USE MOD_Particle_Boundary_Tools ,ONLY: CalcRotWallVelo
+USE MOD_SurfaceModel_Tools      ,ONLY: CalcRotWallVelo
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -380,7 +376,7 @@ USE MOD_Globals                 ,ONLY: ABORT, OrthoNormVec,VECNORM
 USE MOD_DSMC_Vars               ,ONLY: DSMC, RadialWeighting, AmbipolElecVelo
 USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
 USE MOD_Part_Tools              ,ONLY: GetParticleWeight
-USE MOD_Particle_Boundary_Tools ,ONLY: GetWallTemperature,CalcRotWallVelo
+USE MOD_SurfaceModel_Tools      ,ONLY: GetWallTemperature, CalcRotWallVelo
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,PartAuxBC
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier

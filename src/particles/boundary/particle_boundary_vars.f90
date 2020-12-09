@@ -238,16 +238,9 @@ TYPE tPartBoundary
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete
   INTEGER , ALLOCATABLE                  :: SurfaceModel(:)               ! Model used for surface interaction
                                                                              ! 0 perfect/diffusive reflection
-                                                                             ! 1 adsorption (Kisluik) / desorption (Polanyi Wigner)
-                                                                             ! 2 Recombination coefficient (Laux model)
-                                                                             ! 3 adsorption/desorption + chemical interaction
-                                                                             !   (SMCR with UBI-QEP, TST)
-                                                                             ! 4 TODO
                                                                              ! 5 SEE (secondary e- emission) by Levko2015
                                                                              ! 6 SEE (secondary e- emission) by Pagonakis2016
                                                                              !   (orignally from Harrower1956)
-                                                                             ! 101 liquid condensation coeff = 1 + evaporation
-                                                                             ! 102 liquid tsuruta model
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
   LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                ! Use Boundary for Q-Criterion ?
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibirum Distribution with reflection

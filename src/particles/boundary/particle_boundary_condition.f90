@@ -195,7 +195,7 @@ ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(10,11) !PartBound%SymmetryBC
   !-----------------------------------------------------------------------------------------------------------------------------------
-    CALL  PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,iPart,SideID,n_loc,opt_Symmetry=.TRUE.)
+    CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,iPart,SideID,n_loc,opt_Symmetry=.TRUE.)
   CASE DEFAULT
     CALL abort(&
       __STAMP__&

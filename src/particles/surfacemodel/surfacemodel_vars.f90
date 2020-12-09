@@ -22,21 +22,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-TYPE tMeanInfo
-  INTEGER                                :: WallCollCount           ! counter of wallcollisions
-  INTEGER                                :: NumOfAds                ! Number of Adsorptions on surfaces
-  INTEGER                                :: NumOfDes                ! Number of Desorptions on surfaces
-END TYPE
-
-TYPE tSurfaceModel
-  TYPE(tMeanInfo), ALLOCATABLE           :: Info(:)                 ! surfacemodel info for species n (nSpecies)
-END TYPE
-TYPE(tSurfaceModel)                      :: SurfModel               ! SurfModel container
-
-TYPE tAdsorption
-  INTEGER , ALLOCATABLE                  :: ResultSpec(:,:)         ! Resulting species after surfacemodel treatment (nPartBound,nSpecies)
-END TYPE
-TYPE(tAdsorption)                        :: Adsorption              ! Adsorption-container
+INTEGER , ALLOCATABLE                   :: SurfModelResultSpec(:,:) ! Resulting species after surfacemodel treatment (nPartBound,nSpecies)
 
 ! === Porous BC ====================================================================================================================
 INTEGER                                 :: nPorousBC                          ! Number of porous BCs

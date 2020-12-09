@@ -45,7 +45,6 @@ CALL prms%SetSection("SurfaceModel")
 CALL prms%CreateIntOption(     'Part-Species[$]-PartBound[$]-ResultSpec'&
                                ,'Resulting recombination species (one of nSpecies)','-1', numberedmulti=.TRUE.)
 
-
 END SUBROUTINE DefineParametersSurfModel
 
 
@@ -55,10 +54,10 @@ SUBROUTINE InitSurfaceModel()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars              ,ONLY: nSpecies
-USE MOD_ReadInTools                ,ONLY: GETINT
-USE MOD_Particle_Boundary_Vars     ,ONLY: nPartBound, PartBound
-USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption, SurfModel
+USE MOD_Particle_Vars             ,ONLY: nSpecies
+USE MOD_ReadInTools               ,ONLY: GETINT
+USE MOD_Particle_Boundary_Vars    ,ONLY: nPartBound, PartBound
+USE MOD_SurfaceModel_Vars         ,ONLY: SurfModelResultSpec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -68,17 +67,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(32)                    :: hilf, hilf2
-INTEGER                          :: iSpec, iPartBound
+CHARACTER(32)                     :: hilf, hilf2
+INTEGER                           :: iSpec, iPartBound
 !===================================================================================================================================
 IF (.NOT.(ANY(PartBound%Reactive))) RETURN
-! allocate info and constants
-ALLOCATE( SurfModel%Info(1:nSpecies))
-DO iSpec = 1,nSpecies
-  SurfModel%Info(iSpec)%WallCollCount = 0
-  SurfModel%Info(iSpec)%NumOfAds = 0
-  SurfModel%Info(iSpec)%NumOfDes = 0
-END DO
 
 ! initialize model specific variables
 DO iSpec = 1,nSpecies
@@ -91,8 +83,8 @@ DO iSpec = 1,nSpecies
 !-----------------------------------------------------------------------------------------------------------------------------------
     CASE(5,6,7)
 !-----------------------------------------------------------------------------------------------------------------------------------
-      IF (.NOT.ALLOCATED(Adsorption%ResultSpec)) ALLOCATE( Adsorption%ResultSpec(1:nPartBound,1:nSpecies))
-      Adsorption%ResultSpec(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-ResultSpec')
+      IF (.NOT.ALLOCATED(SurfModelResultSpec)) ALLOCATE(SurfModelResultSpec(1:nPartBound,1:nSpecies))
+      SurfModelResultSpec(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-ResultSpec')
 !-----------------------------------------------------------------------------------------------------------------------------------
     END SELECT
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -107,8 +99,8 @@ SUBROUTINE FinalizeSurfaceModel()
 !> Deallocate surface model vars
 !===================================================================================================================================
 ! MODULES
-USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfModel
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfModelAnalyzeInitIsDone
+USE MOD_SurfaceModel_Vars
+USE MOD_SurfaceModel_Analyze_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -119,9 +111,13 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 SurfModelAnalyzeInitIsDone=.FALSE.
-! variables used if particles are kept after adsorption (currentyl not working)
-SDEALLOCATE(SurfModel%Info)
-SDEALLOCATE(Adsorption%ResultSpec)
+
+SDEALLOCATE(SurfModelResultSpec)
+
+! === Surface Analyze Vars
+SDEALLOCATE(SurfAnalyzeCount)
+SDEALLOCATE(SurfAnalyzeNumOfAds)
+SDEALLOCATE(SurfAnalyzeNumOfDes)
 
 END SUBROUTINE FinalizeSurfaceModel
 

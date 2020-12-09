@@ -238,8 +238,8 @@ DO iSurfSide = 1,nComputeNodeSurfSides
 
       DO iSpec=1,nSpecies
         idx = 1
-        ! Species-specific species counter per second
-        MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallState(SAMPWALL_NVARS+iSpec,p,q,iSurfSide) / TimeSample
+        ! Species-specific counter of simulation particle impacts per iteration
+        MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallState(SAMPWALL_NVARS+iSpec,p,q,iSurfSide) * dt / TimeSample
         ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
         IF(CalcSurfaceImpact)THEN
           nImpacts = SampWallImpactNumber(iSpec,p,q,iSurfSide)

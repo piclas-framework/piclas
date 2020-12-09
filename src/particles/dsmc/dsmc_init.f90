@@ -102,10 +102,6 @@ CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirStatistic'&
                                           'Probabilities (rates) are calculated\n'//&
                                           ' [TRUE] counting reacting particles.\n'//&
                                           ' [FALSE] summing reaction probabilities (does not work with Q-K).' , '.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSurfaceRate'&
-                                          , 'Only TD=Reservoir (42).\n'//&
-                                          'Set [TRUE] to disable particle adsorption and desorption and keep surface coverage '//&
-                                            'constant. Only probabilities (rates) are calculated.' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-TEVR-Relaxation'&
                                           , 'Flag for Translational-Vibrational-Electric-Rotational relaxation (T-V-E-R)\n'//&
                                           '[TRUE] or more simple T-V-R T-E-R\n'//&
@@ -395,7 +391,6 @@ IF (DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)) THEN
       ,'ERROR: Do not use DSMC%CalcQualityFactors for CollisMode < 1')
 END IF ! DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)
 DSMC%ReservoirSimuRate       = GETLOGICAL('Particles-DSMCReservoirSimRate','.FALSE.')
-DSMC%ReservoirSurfaceRate    = GETLOGICAL('Particles-DSMCReservoirSurfaceRate','.FALSE.')
 DSMC%ReservoirRateStatistic  = GETLOGICAL('Particles-DSMCReservoirStatistic','.FALSE.')
 DSMC%DoTEVRRelaxation        = GETLOGICAL('Particles-DSMC-TEVR-Relaxation','.FALSE.')
 IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
@@ -999,36 +994,6 @@ ELSE !CollisMode.GT.0
     CALL SetNextIonizationSpecies()
 
     CALL DSMC_chemical_init()
-  ELSE IF (ANY(PartBound%Reactive) .AND. CollisMode.GT.1) THEN
-    DO iSpec = 1, nSpecies
-      WRITE(UNIT=hilf,FMT='(I0)') iSpec
-      IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-        SpecDSMC(iSpec)%SymmetryFactor              = GETINT('Part-Species'//TRIM(hilf)//'-SymmetryFactor','0')
-        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-          iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-          IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
-            IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
-              CALL abort(&
-                  __STAMP__&
-                  ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for Adsorptionmodel!', iSpec)
-            END IF
-          ELSE
-            IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)  &
-                * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
-              CALL abort(&
-                  __STAMP__&
-                  ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for Adsorptionmodel!', iSpec)
-            END IF
-          END IF
-        ELSE
-          IF(SpecDSMC(iSpec)%CharaTRot*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
-            CALL abort(&
-                __STAMP__&
-                ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for Adsorptionmodel!', iSpec)
-          END IF
-        END IF
-      END IF
-    END DO
   END IF
 
   !-----------------------------------------------------------------------------------------------------------------------------------

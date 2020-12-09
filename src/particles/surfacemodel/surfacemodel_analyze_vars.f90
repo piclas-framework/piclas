@@ -23,11 +23,16 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                       :: SurfModelAnalyzeInitIsDone = .FALSE.
-INTEGER                       :: SurfaceAnalyzeStep                  ! Analyze of surface is performed each Nth time step
-LOGICAL                       :: CalcCollCounter                     ! Calculate the number of surface collision and number of
-                                                                     ! adsorbed particles per species
-LOGICAL                       :: CalcDesCounter                      ! Calculate the number of desorption particle per species
-LOGICAL                       :: CalcPorousBCInfo                    !< Calculate output for porous BCs (averaged over whole BC)
+INTEGER                       :: SurfaceAnalyzeStep       ! Analyze of surface is performed each Nth time step
+! Output flags
+LOGICAL                       :: CalcSurfCollCounter      ! Calculate the number of surface collision and number of
+                                                          ! adsorbed particles per species
+LOGICAL                       :: CalcPorousBCInfo         ! Calculate output for porous BCs (averaged over whole BC)
+
+! Output variables
+INTEGER,ALLOCATABLE           :: SurfAnalyzeCount(:)      ! Counter of surface collisions
+INTEGER,ALLOCATABLE           :: SurfAnalyzeNumOfAds(:)   ! Number of adsorptions on surfaces
+INTEGER,ALLOCATABLE           :: SurfAnalyzeNumOfDes(:)   ! Number of desorptions on surfaces
 
 REAL,ALLOCATABLE              :: PorousBCOutput(:,:)  ! 1: Counter of impinged particles on the BC
                                                       ! 2: Measured pumping speed [m3/s] through # of deleted particles
