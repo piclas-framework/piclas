@@ -677,15 +677,15 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
 USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution,DSMC_VolumeSample
-USE MOD_Globals_Vars               ,ONLY: ElementaryCharge
 USE MOD_InitializeBackgroundField  ,ONLY: InitializeBackgroundField
 USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
 USE MOD_Mesh_Vars                  ,ONLY: nElems
 USE MOD_Part_Emission              ,ONLY: InitializeParticleEmission,AdaptiveBCAnalyze
-USE MOD_Particle_Boundary_Porous   ,ONLY: InitPorousBoundaryCondition
+USE MOD_SurfaceModel_Porous        ,ONLY: InitPorousBoundaryCondition
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
-USE MOD_Particle_Boundary_Vars     ,ONLY: nPorousBC, PartBound
+USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
+USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
 USE MOD_PICInterpolation_Vars      ,ONLY: useBGField
@@ -1711,8 +1711,8 @@ USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nPorousBC
-USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutput,PartStateBoundary
+USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutput,PartStateBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
@@ -1733,7 +1733,7 @@ CHARACTER(200)        :: tmpString
 dummy_int = CountOption('Part-nBounds')       ! check if Part-nBounds is present in .ini file
 nPartBound = GETINT('Part-nBounds','1.') ! get number of particle boundaries
 ! Read-in number of porous boundaries
-nPorousBC = GETINT('Part-nPorousBC', '0')
+nPorousBC = GETINT('Surf-nPorousBC', '0')
 IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) THEN
   CALL abort(&
 __STAMP__&
@@ -1876,6 +1876,11 @@ DO iPartBound=1,nPartBound
         PartBound%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
             GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
       END DO
+      IF(PartBound%Reactive(iPartBound)) THEN
+        CALL abort(&
+          __STAMP__&
+          ,'ERROR: Species swap is only supported in combination with Maxwell scattering (SurfModel = 0). PartBound: ',iPartBound)
+      END IF
     END IF
     ! Dielectric Surfaces
     PartBound%Dielectric(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Dielectric')
@@ -1905,17 +1910,6 @@ DO iPartBound=1,nPartBound
   CASE('symmetric_axis')
     PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryAxis
     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
-  CASE('analyze')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%AnalyzeBC
-    IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
-      !read Species to be changed at wall (in, out), out=0: delete
-      PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
-      DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(iPartBound)
-        WRITE(UNIT=hilf2,FMT='(I0)') iSwaps
-        PartBound%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
-            GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
-      END DO
-    END IF
   CASE('rot_periodic')
     GEO%RotPeriodicBC = .TRUE.
     PartBound%TargetBoundCond(iPartBound)  = PartBound%RotPeriodicBC
@@ -2914,7 +2908,6 @@ SUBROUTINE InitParticleBoundaryRotPeriodic()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSide2GlobalSide,nComputeNodeSurfTotalSides,SurfSide2GlobalSide,PartBound
-USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared, GEO
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
@@ -2926,7 +2919,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER              :: iSide, jSide, nRotPeriodicSides, SideID,SideID2, MaxNumRotPeriodicNeigh, iNode, jNode, iNeigh
-INTEGER              :: NodeID, CNElemID, CNElemID2, LocSideID, k, l, m, NodeID2, ElemID2, LocSideID2
+INTEGER              :: NodeID, CNElemID, CNElemID2, LocSideID, k, l, m, NodeID2, LocSideID2
 INTEGER,ALLOCATABLE  :: Rot2Glob_temp(:)
 INTEGER,ALLOCATABLE  :: RotPeriodicSideMapping_temp(:,:)
 LOGICAL              :: isMapped,SideIsMapped

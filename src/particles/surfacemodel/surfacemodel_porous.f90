@@ -12,7 +12,7 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_Particle_Boundary_Porous
+MODULE MOD_SurfaceModel_Porous
 !===================================================================================================================================
 ! Porous Boundary Condition: utilized as a pump with a target pressure, might be extended to other conditions
 !===================================================================================================================================
@@ -58,48 +58,48 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Porous BC")
 
-CALL prms%CreateIntOption(      'Part-nPorousBC'&
+CALL prms%CreateIntOption(      'Surf-nPorousBC'&
                                 , 'Number of porous boundary conditions', '0')
-CALL prms%CreateIntOption(      'Part-PorousBC-IterationMacroVal' &
+CALL prms%CreateIntOption(      'Surf-PorousBC-IterationMacroVal' &
                                 , 'Number of iterations the pressure and density will be sampled before updating the value. '//&
                                   'Alternative is to constantly update with a relaxation factor', '0')
-CALL prms%CreateIntOption(      'Part-PorousBC[$]-BC' &
+CALL prms%CreateIntOption(      'Surf-PorousBC[$]-BC' &
                                 , 'PartBound to be a porous boundary', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-PorousBC[$]-Pressure' &
+CALL prms%CreateRealOption(     'Surf-PorousBC[$]-Pressure' &
                                 , 'Pressure [Pa] at the porous boundary', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-PorousBC[$]-Temperature' &
+CALL prms%CreateRealOption(     'Surf-PorousBC[$]-Temperature' &
                                 , 'Temperature [K] at the porous boundary', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Part-PorousBC[$]-Type' &
+CALL prms%CreateStringOption(   'Surf-PorousBC[$]-Type' &
                                 , 'Define the type of porous boundary, currently available are sensor and pump.' //&
                                   'Option sensor: Using the defined region/BC to measure the pressure difference between the '//&
                                   'defined pressure and the pressure at the sensor. Option pump: Use the defined region/BC as '//&
                                   'as a pump by supplying a constant -PumpingSpeed or by supplying -DeltaPumpingSpeed-Kp ' //&
                                   'and -DeltaPumpingSpeed-Ki to adapt the pumping speed until the target pressure is reached.' &
                                 , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-PorousBC[$]-PumpingSpeed' &
+CALL prms%CreateRealOption(     'Surf-PorousBC[$]-PumpingSpeed' &
                                 , 'PorousBC used as a pump: Removal probability at the BC is determined through the pumping ' //&
                                   'speed, which can be controlled to achieve the given pressure. Initial pumping speed [m3/s] ' //&
                                   'can be zero', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-PorousBC[$]-DeltaPumpingSpeed-Kp' &
+CALL prms%CreateRealOption(     'Surf-PorousBC[$]-DeltaPumpingSpeed-Kp' &
                                 , 'Proportional factor for the pumping speed controller, Kp=0 -> constant given pumping speed' &
                                 , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-PorousBC[$]-DeltaPumpingSpeed-Ki' &
+CALL prms%CreateRealOption(     'Surf-PorousBC[$]-DeltaPumpingSpeed-Ki' &
                                 , 'Integral factor for the pumping speed controller, Ki=0 -> only proportional part is used' &
                                 , numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Part-PorousBC[$]-Region' &
+CALL prms%CreateStringOption(   'Surf-PorousBC[$]-Region' &
                                 , 'Define a region, allowing small geometrical features such as holes w/o meshing. ' //&
                                   'Option: circular, requires the definition of the parameters -normalDir, origin, rmax/rmin' &
                                 , 'none', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-PorousBC[$]-normalDir' &
+CALL prms%CreateIntOption(      'Surf-PorousBC[$]-normalDir' &
                                 , 'Definition of the normal direction (as an integer, 1: x, 2: y, 3: z) of the boundary on ' //&
                                   'which the region shall be created.' &
                                 , numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-PorousBC[$]-origin' &
+CALL prms%CreateRealArrayOption('Surf-PorousBC[$]-origin' &
                                 , 'Coordinates of the middle point of the region, Example: normalDir=1: (/y,z/), ' //&
                                   'normalDir=2: (/z,x/), normalDir=3: (/x,y/)', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-PorousBC[$]-rmax' &
+CALL prms%CreateRealOption(     'Surf-PorousBC[$]-rmax' &
                                 , 'Maximum radius [m] of the circular region', '1e21', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-PorousBC[$]-rmin' &
+CALL prms%CreateRealOption(     'Surf-PorousBC[$]-rmin' &
                                 , 'Minimal radius [m] of the circular region', '0.', numberedmulti=.TRUE.)
 END SUBROUTINE DefineParametersPorousBC
 
@@ -120,12 +120,10 @@ USE MOD_Mesh_Vars                   ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars               ,ONLY: nSpecies,Symmetry
 !USE MOD_Particle_Vars               ,ONLY: Adaptive_MacroVal
-USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound, nPorousBC, nPorousSides, PorousBCMacroVal
-USE MOD_Particle_Boundary_Vars      ,ONLY: nComputeNodeSurfTotalSides, SurfSide2GlobalSide
-USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCSampIter, PorousBC
-USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCSampWall, PorousBCOutput
+USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC, PorousBC, PorousBCMacroVal, PorousBCSampIter
+USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound, nPorousSides, MapSurfSideToPorousSide_Shared, PorousBCSampWall
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCInfo_Shared,PorousBCProperties_Shared,PorousBCSampWall_Shared
-USE MOD_Particle_Boundary_Vars      ,ONLY: MapSurfSideToPorousSide_Shared
+USE MOD_Particle_Boundary_Vars      ,ONLY: nComputeNodeSurfTotalSides, SurfSide2GlobalSide
 USE MOD_Particle_Tracking_Vars      ,ONLY: DoRefMapping
 #if USE_MPI
 USE MOD_MPI_Shared
@@ -163,7 +161,7 @@ IF((Symmetry%Order.LE.2).AND.(.NOT.Symmetry%Axisymmetric)) THEN
 END IF
 
 ! 1) Read-in of parameters
-PorousBCSampIter = GETINT('Part-PorousBC-IterationMacroVal', '0')
+PorousBCSampIter = GETINT('Surf-PorousBC-IterationMacroVal', '0')
 IF(PorousBCSampIter.GT.0) THEN
   ALLOCATE(PorousBCMacroVal(1:8,1:nElems,1:nSpecies))
   PorousBCMacroVal = 0.0
@@ -190,15 +188,15 @@ MapSurfSideToPorousSide_Shared = 0
 
 DO iPBC = 1, nPorousBC
   WRITE(UNIT=hilf,FMT='(I0)') iPBC
-  PorousBC(iPBC)%BC = GETINT('Part-PorousBC'//TRIM(hilf)//'-BC')
+  PorousBC(iPBC)%BC = GETINT('Surf-PorousBC'//TRIM(hilf)//'-BC')
   IF(PartBound%TargetBoundCond(PorousBC(iPBC)%BC).NE.PartBound%ReflectiveBC) THEN
     CALL abort(__STAMP__&
       ,'ERROR in init of porous BC: given boundary condition must be reflective!')
   END IF
   ! Read-in of the conditions at the porous boundary
-  PorousBC(iPBC)%Pressure  = GETREAL('Part-PorousBC'//TRIM(hilf)//'-Pressure')
-  PorousBC(iPBC)%Temperature  = GETREAL('Part-PorousBC'//TRIM(hilf)//'-Temperature')
-  PorousBC(iPBC)%Type  = TRIM(GETSTR('Part-PorousBC'//TRIM(hilf)//'-Type'))
+  PorousBC(iPBC)%Pressure  = GETREAL('Surf-PorousBC'//TRIM(hilf)//'-Pressure')
+  PorousBC(iPBC)%Temperature  = GETREAL('Surf-PorousBC'//TRIM(hilf)//'-Temperature')
+  PorousBC(iPBC)%Type  = TRIM(GETSTR('Surf-PorousBC'//TRIM(hilf)//'-Type'))
   SELECT CASE(PorousBC(iPBC)%Type)
     CASE('sensor')
       PorousBC(iPBC)%PumpingSpeed = 0.0
@@ -206,10 +204,10 @@ DO iPBC = 1, nPorousBC
       PorousBC(iPBC)%DeltaPumpingSpeedKi = 0.0
     CASE('pump')
       ! Initial pumping speed at the porous boundary [m3/s]
-      PorousBC(iPBC)%PumpingSpeed = GETREAL('Part-PorousBC'//TRIM(hilf)//'-PumpingSpeed')
+      PorousBC(iPBC)%PumpingSpeed = GETREAL('Surf-PorousBC'//TRIM(hilf)//'-PumpingSpeed')
       ! Proportional and integral factors for the control of the pumping speed
-      PorousBC(iPBC)%DeltaPumpingSpeedKp = GETREAL('Part-PorousBC'//TRIM(hilf)//'-DeltaPumpingSpeed-Kp')
-      PorousBC(iPBC)%DeltaPumpingSpeedKi = GETREAL('Part-PorousBC'//TRIM(hilf)//'-DeltaPumpingSpeed-Ki')
+      PorousBC(iPBC)%DeltaPumpingSpeedKp = GETREAL('Surf-PorousBC'//TRIM(hilf)//'-DeltaPumpingSpeed-Kp')
+      PorousBC(iPBC)%DeltaPumpingSpeedKi = GETREAL('Surf-PorousBC'//TRIM(hilf)//'-DeltaPumpingSpeed-Ki')
       ! Determining the order of magnitude
       IF(PorousBC(iPBC)%Pressure.GT.0.0) THEN
         PorousBC(iPBC)%DeltaPumpingSpeedKp = PorousBC(iPBC)%DeltaPumpingSpeedKp / 10.0**(ANINT(LOG10(PorousBC(iPBC)%Pressure)))
@@ -219,13 +217,13 @@ DO iPBC = 1, nPorousBC
       CALL abort(__STAMP__&
       ,'ERROR in type definition of porous bc:', iPBC)
   END SELECT
-  PorousBC(iPBC)%Region = TRIM(GETSTR('Part-PorousBC'//TRIM(hilf)//'-Region','none'))
+  PorousBC(iPBC)%Region = TRIM(GETSTR('Surf-PorousBC'//TRIM(hilf)//'-Region','none'))
   IF(PorousBC(iPBC)%Region.EQ.'none') THEN
     PorousBC(iPBC)%UsingRegion = .FALSE.
   ELSE
     PorousBC(iPBC)%UsingRegion = .TRUE.
     ! Normal direction to the surface (could be replaced by the normal vector of the boundary?)
-    PorousBC(iPBC)%dir(1) = GETINT('Part-PorousBC'//TRIM(hilf)//'-normalDir')
+    PorousBC(iPBC)%dir(1) = GETINT('Surf-PorousBC'//TRIM(hilf)//'-normalDir')
     IF (PorousBC(iPBC)%dir(1).EQ.1) THEN
         PorousBC(iPBC)%dir(2)=2
         PorousBC(iPBC)%dir(3)=3
@@ -241,10 +239,10 @@ DO iPBC = 1, nPorousBC
     END IF
     SELECT CASE(PorousBC(iPBC)%Region)
       CASE('circular')
-        PorousBC(iPBC)%origin = GETREALARRAY('Part-PorousBC'//TRIM(hilf)//'-origin',2)
+        PorousBC(iPBC)%origin = GETREALARRAY('Surf-PorousBC'//TRIM(hilf)//'-origin',2)
         WRITE(UNIT=hilf2,FMT='(E16.8)') HUGE(PorousBC(iPBC)%rmax)
-        PorousBC(iPBC)%rmax = GETREAL('Part-PorousBC'//TRIM(hilf)//'-rmax',TRIM(hilf2))
-        PorousBC(iPBC)%rmin = GETREAL('Part-PorousBC'//TRIM(hilf)//'-rmin','0.')
+        PorousBC(iPBC)%rmax = GETREAL('Surf-PorousBC'//TRIM(hilf)//'-rmax',TRIM(hilf2))
+        PorousBC(iPBC)%rmin = GETREAL('Surf-PorousBC'//TRIM(hilf)//'-rmin','0.')
         IF(Symmetry%Axisymmetric) THEN
           IF(PorousBC(iPBC)%dir(1).NE.1) THEN
             CALL abort(__STAMP__&
@@ -334,8 +332,6 @@ PorousBCSampWall_Shared = 0.
 
 ALLOCATE(PorousBCSampWall(1:2,1:nPorousSides))
 PorousBCSampWall = 0.
-ALLOCATE(PorousBCOutput(1:5,1:nPorousBC))
-PorousBCOutput = 0.
 #if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
 #endif /*USE_MPI*/
@@ -391,7 +387,8 @@ SUBROUTINE PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,ElasticRefl
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: LastPartPos
-USE MOD_Particle_Boundary_Vars  ,ONLY: PorousBCSampWall, PorousBC, MapSurfSideToPorousSide_Shared
+USE MOD_SurfaceModel_Vars       ,ONLY: PorousBC
+USE MOD_Particle_Boundary_Vars  ,ONLY: PorousBCSampWall, MapSurfSideToPorousSide_Shared
 USE MOD_Particle_Boundary_Vars  ,ONLY: PorousBCInfo_Shared, PorousBCProperties_Shared
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, GlobalSide2SurfSide
@@ -473,13 +470,14 @@ SUBROUTINE PorousBoundaryRemovalProb_Pressure()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars,              ONLY:DSMC, RadialWeighting
-USE MOD_Mesh_Vars,              ONLY:nElems,offsetElem
-USE MOD_Particle_Analyze_Vars,  ONLY:CalcPorousBCInfo
-USE MOD_Particle_Boundary_Vars, ONLY:SurfOnNode, SurfSide2GlobalSide
-USE MOD_Particle_Boundary_Vars, ONLY:nPorousBC, PorousBC, nPorousSides, PorousBCInfo_Shared, PorousBCOutput, PorousBCSampWall_Shared
-USE MOD_Particle_Boundary_Vars, ONLY:PorousBCProperties_Shared, SampWallPumpCapacity, PorousBCSampWall
-USE MOD_Particle_Vars,          ONLY:Species, nSpecies, Adaptive_MacroVal, usevMPF, VarTimeStep
+USE MOD_DSMC_Vars                   ,ONLY: DSMC, RadialWeighting
+USE MOD_Mesh_Vars                   ,ONLY: nElems,offsetElem
+USE MOD_Particle_Boundary_Vars      ,ONLY: SurfOnNode, SurfSide2GlobalSide
+USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC, PorousBC
+USE MOD_SurfaceModel_Analyze_Vars   ,ONLY: CalcPorousBCInfo, PorousBCOutput
+USE MOD_Particle_Boundary_Vars      ,ONLY: nPorousSides, PorousBCProperties_Shared, PorousBCInfo_Shared, SampWallPumpCapacity
+USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCSampWall, PorousBCSampWall_Shared
+USE MOD_Particle_Vars               ,ONLY: Species, nSpecies, Adaptive_MacroVal, usevMPF, VarTimeStep
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Timedisc_Vars,          ONLY:dt
 USE MOD_Particle_Mesh_Vars
@@ -1232,6 +1230,8 @@ SUBROUTINE FinalizePorousBoundaryCondition()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars
+USE MOD_SurfaceModel_Vars
+USE MOD_SurfaceModel_Analyze_Vars
 #if USE_MPI
 USE MOD_Particle_MPI_Vars       ,ONLY: PorousBCSendBuf,PorousBCRecvBuf
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
@@ -1273,4 +1273,4 @@ END IF
 
 END SUBROUTINE FinalizePorousBoundaryCondition
 
-END MODULE MOD_Particle_Boundary_Porous
+END MODULE MOD_SurfaceModel_Porous

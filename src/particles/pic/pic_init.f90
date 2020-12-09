@@ -119,38 +119,6 @@ CALL prms%CreateRealOption(     'PIC-shapefunction-radius0', 'Minimum shape func
 CALL prms%CreateRealOption(     'PIC-shapefunction-scale'  , 'Scaling factor of shape function radius '//&
                                                              '(for cylindrical and spherical)', '0.')
 
-CALL prms%CreateLogicalOption(  'PIC-SFResampleAnalyzeSurfCollis'  , 'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateIntArrayOption( 'PIC-SFResampleSurfCollisBC',        'TODO-DEFINE-PARAMETER\n'//&
-                                                                                 'BCs to be analyzed (def.: 0 = all)')
-CALL prms%CreateLogicalOption(  'PIC-SFResampleReducePartNumber'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                     'Reduce PartNumberSamp to PartNumberReduced', '.FALSE.')
-CALL prms%CreateIntOption(      'PIC-PartNumThreshold'      ,              'TODO-DEFINE-PARAMETER\n'//&
-                                                                                 'Threshold for checking inserted '//&
-                                                                           'parts per deposition (otherwise abort)', '0')
-CALL prms%CreateIntOption(      'PIC-SFResampleNumberOfBCs' ,        'TODO-DEFINE-PARAMETER\n'//&
-                                                                                 'Number of BC to be analyzed', '1')
-CALL prms%CreateIntOption(      'PIC-SFResamplePartNumberReduced'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                                 'Max. allowed number of parts to be saved', '0')
-CALL prms%CreateIntOption(      'PIC-SFResampleNbrOfSpeciesForDtCalc' ,        'TODO-DEFINE-PARAMETER\n'//&
-                                                                                 'Number of species used for SFResample-dt', '1')
-CALL prms%CreateIntArrayOption( 'PIC-SFResampleSpeciesForDtCalc',        'TODO-DEFINE-PARAMETER\n'//&
-                                                                                 'Species used for SFResample-dt (def.: 0 = all)')
-CALL prms%CreateLogicalOption(  'PIC-SFResampleRestart'     , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                     'Read-in old DSMCSurfCollis-file for restart'&
-                                                            , '.FALSE.')
-CALL prms%CreateStringOption(   'PIC-SFResampleRestartFile' , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                     'Name of the new DSMCSurfCollis-file to'//&
-                                                              ' read-in by restart', 'dummy')
-CALL prms%CreateRealOption(     'PIC-SFResample-xmin'       , 'TODO-DEFINE-PARAMETER ')
-CALL prms%CreateRealOption(     'PIC-SFResample-ymin'       , 'TODO-DEFINE-PARAMETER')
-CALL prms%CreateRealOption(     'PIC-SFResample-zmin'       , 'TODO-DEFINE-PARAMETER')
-CALL prms%CreateRealOption(     'PIC-SFResample-xmax'       , 'TODO-DEFINE-PARAMETER')
-CALL prms%CreateRealOption(     'PIC-SFResample-ymax'       , 'TODO-DEFINE-PARAMETER')
-CALL prms%CreateRealOption(     'PIC-SFResample-zmax'       , 'TODO-DEFINE-PARAMETER')
-CALL prms%CreateLogicalOption(  'PIC-SFResample-UseFixBounds','TODO-DEFINE-PARAMETER\n'//&
-                                                                     'Use all planes of SFdepoFixes as '//&
-                                                              'additional bounds?', '.TRUE.')
-
 END SUBROUTINE DefineParametersPIC
 
 

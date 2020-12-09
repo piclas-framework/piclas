@@ -769,7 +769,7 @@ USE MOD_FPFlow_Vars               ,ONLY: FPInitDone, FP_QualityFacSamp
 #if !defined(LSERK)
 USE MOD_DSMC_Vars                 ,ONLY: useDSMC
 #endif
-USE MOD_Particle_Boundary_Vars    ,ONLY: AnalyzeSurfCollis, CalcSurfCollis, nPorousBC
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides, CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,SampWallImpactEnergy,SampWallImpactVector
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallPumpCapacity,SampWallImpactAngle,SampWallImpactNumber
@@ -1075,13 +1075,6 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
         SampWallImpactNumber(:,:,:,  iSide)=0.
       END IF ! CalcSurfaceImpact
     END DO
-    IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
-      AnalyzeSurfCollis%Data=0.
-      AnalyzeSurfCollis%Spec=0
-      AnalyzeSurfCollis%BCid=0
-      AnalyzeSurfCollis%Number=0
-      !AnalyzeSurfCollis%Rate=0.
-    END IF
     iter_macsurfvalout = 0
   END IF
 END IF
@@ -1116,13 +1109,6 @@ IF(OutPutHDF5)THEN
         DO iSide=1,nComputeNodeSurfTotalSides
           SampWallState(:,:,:,iSide)=0.
         END DO
-        IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
-          AnalyzeSurfCollis%Data=0.
-          AnalyzeSurfCollis%Spec=0
-          AnalyzeSurfCollis%BCid=0
-          AnalyzeSurfCollis%Number=0
-          !AnalyzeSurfCollis%Rate=0.
-        END IF
         iter_macsurfvalout = 0
       END IF
     END IF

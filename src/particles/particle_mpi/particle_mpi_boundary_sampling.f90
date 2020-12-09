@@ -305,7 +305,6 @@ USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: nSurfLeaders,myComputeNodeRank,mySurfRank
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSampSize,SurfSampSizeReactive,nSurfSample
-USE MOD_Particle_Boundary_Vars  ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping,PartBound,CalcSurfaceImpact
@@ -317,7 +316,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactAngle ,SampWallImpactAngle_
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber,SampWallImpactNumber_Shared,SampWallImpactNumber_Shared_Win
 USE MOD_Particle_MPI_Vars       ,ONLY: SurfSendBuf,SurfRecvBuf
 USE MOD_Particle_Vars           ,ONLY: nSpecies
-!USE MOD_SurfaceModel_Vars       ,ONLY: Adsorption
+USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!

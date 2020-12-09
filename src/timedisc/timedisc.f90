@@ -318,7 +318,7 @@ USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_LoadBalance_Vars       ,ONLY: ElemTimePart
 #endif /* USE_LOADBALANCE && PARTICLES*/
 USE MOD_Part_Emission          ,ONLY: AdaptiveBCAnalyze
-USE MOD_Particle_Boundary_Vars ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -1122,8 +1122,8 @@ USE MOD_part_emission            ,ONLY: ParticleInserting
 USE MOD_surface_flux             ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars   ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking        ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryRemovalProb_Pressure
-USE MOD_Particle_Boundary_Vars   ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Porous      ,ONLY: PorousBoundaryRemovalProb_Pressure
+USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC
 #if USE_MPI
 USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -3108,8 +3108,8 @@ USE MOD_Particle_MPI              ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPI
 #endif /*USE_MPI*/
 USE MOD_FPFlow                    ,ONLY: FPFlow_main, FP_DSMC_main
 USE MOD_FPFlow_Vars               ,ONLY: CoupledFPDSMC
-USE MOD_Particle_Boundary_Porous  ,ONLY: PorousBoundaryRemovalProb_Pressure
-USE MOD_Particle_Boundary_Vars    ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryRemovalProb_Pressure
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3252,8 +3252,8 @@ USE MOD_Particle_MPI              ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPI
 #endif /*USE_MPI*/
 USE MOD_BGK                       ,ONLY: BGK_main, BGK_DSMC_main
 USE MOD_BGK_Vars                  ,ONLY: CoupledBGKDSMC
-USE MOD_Particle_Boundary_Porous  ,ONLY: PorousBoundaryRemovalProb_Pressure
-USE MOD_Particle_Boundary_Vars    ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryRemovalProb_Pressure
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

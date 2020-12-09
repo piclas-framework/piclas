@@ -132,7 +132,6 @@ LOGICAL                       :: printDiff                           !< TODO
 REAL                          :: printDiffTime                       !< TODO
 REAL                          :: printDiffVec(6)                     !< TODO
 REAL                          :: ChemEnergySum                       !< TODO
-LOGICAL                       :: CalcPorousBCInfo                    !< Calculate output for porous BCs (averaged over whole BC)
 REAL,ALLOCATABLE              :: MassflowRate(:,:)
 !===================================================================================================================================
 END MODULE MOD_Particle_Analyze_Vars

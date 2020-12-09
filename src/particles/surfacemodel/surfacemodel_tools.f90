@@ -31,8 +31,7 @@ PUBLIC :: SurfaceModel_ParticleEmission, SurfaceModel_EnergyAccommodation
 CONTAINS
 
 SUBROUTINE SurfaceModel_ParticleEmission(PartTrajectory, LengthPartTrajectory, alpha, xi, eta, n_loc, PartID, SideID, &
-            ProductSpec, ProductSpecNbr, velocityDistribution, TempErgy, &
-            IsSpeciesSwap)
+            ProductSpec, ProductSpecNbr, velocityDistribution, TempErgy)
 !===================================================================================================================================
 !> Routine for Selection of Surface interaction
 !===================================================================================================================================
@@ -44,7 +43,7 @@ USE MOD_part_operations         ,ONLY: CreateParticle, RemoveParticle
 USE MOD_Particle_Vars           ,ONLY: PartState,Species,PartSpecies
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars           ,ONLY: LastPartPos, PEM
-USE MOD_Particle_Boundary_Tools ,ONLY: CalcWallSample, AnalyzeSurfaceCollisions
+USE MOD_Particle_Boundary_Tools ,ONLY: CalcWallSample
 USE MOD_Particle_Boundary_Tools ,ONLY: CalcRotWallVelo
 USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample, Partbound, GlobalSide2SurfSide
 USE MOD_TimeDisc_Vars           ,ONLY: dt, RKdtFrac
@@ -56,7 +55,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT-OUTPUT VARIABLES
 REAL,INTENT(INOUT)          :: PartTrajectory(1:3), LengthPartTrajectory, alpha
-LOGICAL,INTENT(INOUT)       :: IsSpeciesSwap
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)             :: xi, eta
@@ -103,7 +101,7 @@ SpecID = PartSpecies(PartID)
 WallTemp = PartBound%WallTemp(locBCID)
 
 IF(PartBound%RotVelo(locBCID)) THEN
-  CALL CalcRotWallVelo(locBCID,PartID,POI_vec,WallVelo)
+  CALL CalcRotWallVelo(locBCID,POI_vec,WallVelo)
 END IF
 
 IF (TriaTracking) THEN
@@ -123,8 +121,6 @@ END IF
 IF (ProductSpec(2).LT.0) THEN
   SurfModel%Info(SpecID)%NumOfAds = SurfModel%Info(SpecID)%NumOfAds + 1
 END IF
-!-----------------------------------------------------------
-CALL AnalyzeSurfaceCollisions(PartID,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
 
 IF (ProductSpec(1).LE.0) THEN
   CALL RemoveParticle(PartID,alpha=alpha)
@@ -233,15 +229,12 @@ REAL,INTENT(IN)       :: WallTemp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: SpecID, vibQuant, vibQuantNew, VibQuantWall
-REAL                  :: VibQuantNewR
-REAL                  :: VeloReal, RanNum, EtraOld, VeloCrad, Fak_D
-REAL                  :: EtraWall, EtraNew
-REAL                  :: WallVelo(1:3), TransACC, VibACC, RotACC, ElecACC
-REAL                  :: tang1(1:3),tang2(1:3), NewVelo(3), POI_vec(1:3)
-REAL                  :: ErotNew, ErotWall, EVibNew, Phi, Cmr, VeloCx, VeloCy, VeloCz
+REAL                  :: RanNum
+REAL                  :: TransACC, VibACC, RotACC, ElecACC
+REAL                  :: ErotNew, ErotWall, EVibNew
 ! Polyatomic Molecules
+REAL                  :: NormProb, VibQuantNewR
 REAL, ALLOCATABLE     :: RanNumPoly(:), VibQuantNewRPoly(:)
-REAL                  :: NormProb
 INTEGER               :: iPolyatMole, iDOF
 INTEGER, ALLOCATABLE  :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
 !-----------------------------------------------------------------------------------------------------------------------------------

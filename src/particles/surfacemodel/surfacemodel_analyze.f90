@@ -22,10 +22,6 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE InitSurfModelAnalyze
-  MODULE PROCEDURE InitSurfModelAnalyze
-END INTERFACE
-
 INTERFACE AnalyzeSurface
   MODULE PROCEDURE AnalyzeSurface
 END INTERFACE
@@ -59,6 +55,9 @@ CALL prms%CreateIntOption(      'Surface-AnalyzeStep'   , 'Analyze is performed 
 CALL prms%CreateLogicalOption(  'Surf-CalcCollCounter'  , 'Analyze the number of surface collision and number of '//&
                                                           'adsorbed particles per species','.FALSE.')
 CALL prms%CreateLogicalOption(  'Surf-CalcDesCounter'   , 'Analyze the number of desorbed particles per species','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcPorousBCInfo' , 'Calculate output of porous BCs such pumping speed, removal '//&
+                                                             'probability and pressure (normalized with the given pressure). '//&
+                                                             'Values are averaged over the whole porous BC.' , '.FALSE.')
 
 END SUBROUTINE DefineParametersSurfModelAnalyze
 
@@ -72,10 +71,8 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ReadInTools               ,ONLY: GETLOGICAL, GETINT
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
 USE MOD_SurfaceModel_Analyze_Vars
-#if (PP_TimeDiscMethod==42)
-USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -98,6 +95,18 @@ DoSurfModelAnalyze = .FALSE.
 
 CalcCollCounter = GETLOGICAL('Surf-CalcCollCounter')
 CalcDesCounter = GETLOGICAL('Surf-CalcDesCounter')
+
+IF(nPorousBC.GT.0) THEN
+  ! Output for porous BC: Pump averaged values
+  CalcPorousBCInfo = GETLOGICAL('Surf-CalcPorousBCInfo')
+  IF(CalcPorousBCInfo) THEN
+    DoSurfModelAnalyze = .TRUE.
+    ALLOCATE(PorousBCOutput(1:5,1:nPorousBC))
+    PorousBCOutput = 0.
+  END IF
+END IF
+
+
 IF(CalcCollCounter.OR.CalcDesCounter) DoSurfModelAnalyze = .TRUE.
 
 SurfModelAnalyzeInitIsDone=.TRUE.
@@ -118,15 +127,11 @@ USE MOD_Preproc
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_SurfaceModel_Analyze_Vars
 USE MOD_Restart_Vars              ,ONLY: DoRestart
-USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh
-USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nPartBound
+USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfSides
 #if USE_MPI
-USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
+USE MOD_Particle_MPI_Vars    ,ONLY: PartMPI
 #endif /*USE_MPI*/
-USE MOD_SurfaceModel_Vars         ,ONLY: SurfModel
-#if ( PP_TimeDiscMethod ==42)
-USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption
-#endif /* DSMC*/
+USE MOD_SurfaceModel_Vars         ,ONLY: SurfModel, nPorousBC
 USE MOD_Particle_Vars             ,ONLY: nSpecies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -137,55 +142,54 @@ REAL,INTENT(IN)                 :: Time
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL             :: isOpen, isRestart, doDistributionData
+LOGICAL             :: isOpen, isRestart
 CHARACTER(LEN=350)  :: outfile
-INTEGER             :: unit_index, OutputCounter, iPB
+INTEGER             :: unit_index, OutputCounter
 INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionNum(nSpecies)
 INTEGER             :: iSpec
 !===================================================================================================================================
-IF (.NOT.SurfMesh%SurfOnProc) RETURN
-IF (SurfMesh%nOutputSides.EQ.0) RETURN
-  isRestart = .FALSE.
-  IF ( DoRestart ) THEN
-    isRestart = .TRUE.
-  END IF
-  IF (.NOT.DoSurfModelAnalyze) RETURN
-  OutputCounter = 2
-  unit_index = 636
-  doDistributionData=.FALSE.
-  DO iPB=1,nPartBound
-    IF (PartBound%SurfaceModel(iPB).EQ.3) THEN
-      doDistributionData=.TRUE.
-      EXIT
-    END IF
-  END DO
+IF (nComputeNodeSurfSides.EQ.0) RETURN
+isRestart = .FALSE.
+IF ( DoRestart ) THEN
+  isRestart = .TRUE.
+END IF
+IF (.NOT.DoSurfModelAnalyze) RETURN
+OutputCounter = 2
+unit_index = 636
 #if USE_MPI
-  IF (SurfCOMM%MPIOutputRoot) THEN
+IF (PartMPI%MPIRoot) THEN
 #endif /*USE_MPI*/
-    INQUIRE(UNIT   = unit_index , OPENED = isOpen)
-    IF (.NOT.isOpen) THEN
-      outfile = 'SurfaceAnalyze.csv'
+  INQUIRE(UNIT   = unit_index , OPENED = isOpen)
+  IF (.NOT.isOpen) THEN
+    outfile = 'SurfaceAnalyze.csv'
 !===================================================================================================================================
 ! Write Header
 !===================================================================================================================================
-      IF (isRestart .and. FILEEXISTS(outfile)) THEN
-        OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
-      ELSE
-        OPEN(unit_index,file=TRIM(outfile))
-        !--- insert header
-        WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME'
-        IF (CalcCollCounter) THEN
-          CALL WriteDataHeaderInfo(unit_index,'nSurfColl-Spec',OutputCounter,nSpecies)
-          CALL WriteDataHeaderInfo(unit_index,'N_Ads-Spec',OutputCounter,nSpecies)
-        END IF
-        IF (CalcDesCounter) THEN
-          CALL WriteDataHeaderInfo(unit_index,'N_Des-Spec',OutputCounter,nSpecies)
-        END IF
-        WRITE(unit_index,'(A)') ''
+    IF (isRestart .and. FILEEXISTS(outfile)) THEN
+      OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
+    ELSE
+      OPEN(unit_index,file=TRIM(outfile))
+      !--- insert header
+      WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME'
+      IF (CalcCollCounter) THEN
+        CALL WriteDataHeaderInfo(unit_index,'nSurfColl-Spec',OutputCounter,nSpecies)
+        CALL WriteDataHeaderInfo(unit_index,'N_Ads-Spec',OutputCounter,nSpecies)
       END IF
+      IF (CalcDesCounter) THEN
+        CALL WriteDataHeaderInfo(unit_index,'N_Des-Spec',OutputCounter,nSpecies)
+      END IF
+      IF(CalcPorousBCInfo) THEN ! calculate porous boundary condition output (pumping speed, removal probability, pressure
+                                ! normalized with given pressure. Values are averaged over the whole porous BC
+        CALL WriteDataHeaderInfo(unit_index,'PumpSpeed-Measure-PorousBC',OutputCounter,nPorousBC)
+        CALL WriteDataHeaderInfo(unit_index,'PumpSpeed-Control-PorousBC',OutputCounter,nPorousBC)
+        CALL WriteDataHeaderInfo(unit_index,'RemovalProbability-PorousBC',OutputCounter,nPorousBC)
+        CALL WriteDataHeaderInfo(unit_index,'PressureNorm-PorousBC',OutputCounter,nPorousBC)
+      END IF
+      WRITE(unit_index,'(A)') ''
     END IF
-#if USE_MPI
   END IF
+#if USE_MPI
+END IF
 #endif /*USE_MPI*/
 
 !===================================================================================================================================
@@ -193,6 +197,8 @@ IF (SurfMesh%nOutputSides.EQ.0) RETURN
 !===================================================================================================================================
 IF (CalcCollCounter) CALL GetCollCounter(SurfCollNum,AdsorptionNum) !collision counter is reset here
 IF (CalcDesCounter) CALL GetDesCounter(DesorptionNum)
+IF (CalcPorousBCInfo) CALL GetPorousBCInfo()
+
 ! ResetAllInfo
 IF (ALLOCATED(SurfModel%Info)) THEN
   DO iSpec = 1,nSpecies
@@ -205,7 +211,7 @@ END IF
 ! Output Analyzed variables
 !===================================================================================================================================
 #if USE_MPI
-IF (SurfCOMM%MPIOutputRoot) THEN
+IF (PartMPI%MPIRoot) THEN
 #endif /*USE_MPI*/
   WRITE(unit_index,'(E23.16E3)',ADVANCE='NO') Time
   IF (CalcCollCounter) THEN
@@ -215,9 +221,15 @@ IF (SurfCOMM%MPIOutputRoot) THEN
   IF (CalcDesCounter) THEN
     CALL WriteDataInfo(unit_index,nSpecies,IntegerArray=DesorptionNum(:))
   END IF
-    WRITE(unit_index,'(A)') ''
-#if USE_MPI
+  IF(CalcPorousBCInfo) THEN
+    CALL WriteDataInfo(unit_index,nPorousBC,RealArray=PorousBCOutput(2,:))
+    CALL WriteDataInfo(unit_index,nPorousBC,RealArray=PorousBCOutput(3,:))
+    CALL WriteDataInfo(unit_index,nPorousBC,RealArray=PorousBCOutput(4,:))
+    CALL WriteDataInfo(unit_index,nPorousBC,RealArray=PorousBCOutput(5,:))
   END IF
+  WRITE(unit_index,'(A)') ''
+#if USE_MPI
+END IF
 #endif /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 END SUBROUTINE AnalyzeSurface
@@ -331,7 +343,7 @@ USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
 #if USE_MPI
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
+USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -352,12 +364,12 @@ DO iSpec = 1,nSpecies
   AdsorbNum(iSpec) = SurfModel%Info(iSpec)%NumOfAds
 END DO
 #if USE_MPI
-IF (SurfCOMM%MPIOutputRoot) THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,SurfCollNum ,nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbNum   ,nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+IF (PartMPI%MPIRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,SurfCollNum ,nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbNum   ,nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
 ELSE
-  CALL MPI_REDUCE(SurfCollNum ,ADN         ,nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
-  CALL MPI_REDUCE(AdsorbNum   ,ADN         ,nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(SurfCollNum ,ADN         ,nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(AdsorbNum   ,ADN         ,nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
 END IF
 #endif /*USE_MPI*/
 END SUBROUTINE GetCollCounter
@@ -373,7 +385,7 @@ USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
 #if USE_MPI
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
+USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -393,16 +405,59 @@ DO iSpec = 1,nSpecies
   DesorbNum(iSpec) = SurfModel%Info(iSpec)%NumOfDes
 END DO
 #if USE_MPI
-IF (SurfCOMM%MPIOutputRoot) THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,DesorbNum   ,nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+IF (PartMPI%MPIRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,DesorbNum   ,nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
 ELSE
-  CALL MPI_REDUCE(DesorbNum   ,DEN         ,nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(DesorbNum   ,DEN         ,nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
 END IF
 #endif /*USE_MPI*/
 END SUBROUTINE GetDesCounter
 
 
+SUBROUTINE GetPorousBCInfo()
+!===================================================================================================================================
+!> 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: PorousBCOutput
+#if USE_MPI
+USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: iPBC
+!===================================================================================================================================
+#if USE_MPI
+IF (PartMPI%MPIRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,PorousBCOutput,5*nPorousBC,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+ELSE
+  CALL MPI_REDUCE(PorousBCOutput,PorousBCOutput,5*nPorousBC,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+END IF
+#endif /*USE_MPI*/
 
+#if USE_MPI
+IF (PartMPI%MPIRoot) THEN
+#endif /*USE_MPI*/
+  DO iPBC = 1, nPorousBC
+    IF(PorousBCOutput(1,iPBC).GT.0.0) THEN
+      ! Pumping Speed (Output(2)) is the sum of all elements (counter over particles exiting through pump)
+      ! Other variales are averaged over the elements
+      PorousBCOutput(3:5,iPBC) = PorousBCOutput(3:5,iPBC) / PorousBCOutput(1,iPBC)
+    END IF
+  END DO
+#if USE_MPI
+END IF
+#endif /*USE_MPI*/
+
+END SUBROUTINE GetPorousBCInfo
 #endif /*PARTICLES*/
 
 END MODULE MOD_SurfaceModel_Analyze

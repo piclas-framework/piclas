@@ -179,7 +179,6 @@ END TYPE
 
 TYPE (tSurfaceMesh)                     :: SurfMesh
 
-INTEGER                                 :: nPorousBC                          ! Number of porous BCs
 INTEGER                                 :: nPorousSides                       ! Number of porous sides per compute node
 INTEGER,ALLOCPOINT                      :: MapSurfSideToPorousSide_Shared(:)  ! Mapping of surface side to porous side
 INTEGER,ALLOCPOINT                      :: PorousBCInfo_Shared(:,:)           ! Info and mappings for porous BCs [1:3,1:nPorousSides]
@@ -205,56 +204,6 @@ REAL,ALLOCATABLE                        :: PorousBCSampWall(:,:)  ! Processor-lo
                                                                   ! REAL variable since the particle weight is used
                                                                   ! 1: Impinging particles
                                                                   ! 2: Deleted particles
-REAL,ALLOCATABLE                        :: PorousBCOutput(:,:)    ! 1: Counter of impinged particles on the BC
-                                                                  ! 2: Measured pumping speed [m3/s] through # of deleted particles
-                                                                  ! 3: Pumping speed [m3/s] used to calculate the removal prob.
-                                                                  ! 4: Removal probability [0-1]
-                                                                  ! 5: Pressure at the BC normalized with the user-given pressure
-
-INTEGER                                 :: PorousBCSampIter                   !
-REAL, ALLOCATABLE                       :: PorousBCMacroVal(:,:,:)            !
-
-TYPE tPorousBC
-  INTEGER                               :: BC                     ! Number of the reflective BC to be used as a porous BC
-  REAL                                  :: Pressure               ! Pressure at the BC [Pa], user-given
-  REAL                                  :: Temperature            ! Temperature at the BC [K], user-given
-  CHARACTER(LEN=50)                     :: Type
-  REAL                                  :: PumpingSpeed           ! Given/calculated pumping speed [m3/s]
-  REAL                                  :: DeltaPumpingSpeedKp    ! Proportional factor for the pumping speed controller
-  REAL                                  :: DeltaPumpingSpeedKi    ! Integral factor for the pumping speed controller
-  CHARACTER(LEN=50)                     :: Region                 ! Form of the porous BC: 'circular'
-  LOGICAL                               :: UsingRegion            ! Use only a smaller region on the BC as a porous BC (e.g. pump)
-  INTEGER                               :: dir(3)                 ! axial (1) and orth. coordinates (2,3) of polar system
-  REAL                                  :: origin(2)              ! origin in orth. coordinates of polar system
-  REAL                                  :: rmax                   ! max radius of to-be inserted particles
-  REAL                                  :: rmin                   ! min radius of to-be inserted particles
-END TYPE
-TYPE(tPorousBC), ALLOCATABLE            :: PorousBC(:)            ! Container for the porous BC, allocated with nPorousBC
-
-TYPE tSurfColl
-  INTEGER                               :: NbrOfSpecies           ! Nbr. of Species to be counted for wall collisions (def. 0: all)
-  LOGICAL,ALLOCATABLE                   :: SpeciesFlags(:)        ! Species counted for wall collisions (def.: all species=T)
-  LOGICAL                               :: OnlySwaps              ! count only wall collisions being SpeciesSwaps (def. F)
-  LOGICAL                               :: Only0Swaps             ! count only wall collisions being delete-SpeciesSwaps (def. F)
-  LOGICAL                               :: Output                 ! Print sums of all counted wall collisions (def. F)
-  LOGICAL                               :: AnalyzeSurfCollis      ! Output of collided/swaped particles
-                                                                  ! during Sampling period? (def. F)
-END TYPE
-TYPE (tSurfColl)                        :: CalcSurfCollis
-
-TYPE tAnalyzeSurfCollis
-  INTEGER                               :: maxPartNumber          ! max. number of collided/swaped particles during Sampling
-  REAL, ALLOCATABLE                     :: Data(:,:)              ! Output of collided/swaped particles during Sampling period
-                                                                  ! (Species,Particles,Data(x,y,z,u,v,w)
-  INTEGER, ALLOCATABLE                  :: Spec(:)                ! Species of Particle in Data-array
-  INTEGER, ALLOCATABLE                  :: BCid(:)                ! ID of PartBC from crossing of Particle in Data-array
-  INTEGER, ALLOCATABLE                  :: Number(:)              ! collided/swaped particles per Species during Sampling period
-  !REAL, ALLOCATABLE                     :: Rate(:)                ! collided/swaped particles/s per Species during Sampling period
-  INTEGER                               :: NumberOfBCs            ! Nbr of BC to be analyzed (def.: 1)
-  INTEGER, ALLOCATABLE                  :: BCs(:)                 ! BCs to be analyzed (def.: 0 = all)
-
-END TYPE tAnalyzeSurfCollis
-TYPE(tAnalyzeSurfCollis)                :: AnalyzeSurfCollis
 
 TYPE tPartBoundary
   INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
@@ -265,7 +214,6 @@ TYPE tPartBoundary
   INTEGER                                :: RotPeriodicBC           = 6      ! = 6 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SymmetryBC              = 10     ! = 10 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SymmetryAxis            = 11     ! = 10 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: AnalyzeBC               = 100    ! = 100 (s.u.) Boundary Condition Integer Definition
   CHARACTER(LEN=200)   , ALLOCATABLE     :: SourceBoundName(:)          ! Link part 1 for mapping PICLas BCs to Particle BC
   INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)          ! Link part 2 for mapping PICLas BCs to Particle BC
 !  INTEGER              , ALLOCATABLE     :: Map(:)                      ! Map from PICLas BCindex to Particle BC

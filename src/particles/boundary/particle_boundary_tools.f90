@@ -25,9 +25,6 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE AnalyzeSurfaceCollisions
-  MODULE PROCEDURE AnalyzeSurfaceCollisions
-END INTERFACE
 
 INTERFACE CountSurfaceImpact
   MODULE PROCEDURE CountSurfaceImpact
@@ -41,12 +38,7 @@ INTERFACE DielectricSurfaceCharge
   MODULE PROCEDURE DielectricSurfaceCharge
 END INTERFACE
 
-INTERFACE CalcRotWallVelo
-  MODULE PROCEDURE CalcRotWallVelo
-END INTERFACE
-
 PUBLIC :: CalcWallSample
-PUBLIC :: AnalyzeSurfaceCollisions
 PUBLIC :: CountSurfaceImpact
 PUBLIC :: StoreBoundaryParticleProperties
 PUBLIC :: DielectricSurfaceCharge
@@ -56,7 +48,7 @@ PUBLIC :: CalcRotWallVelo
 
 CONTAINS
 
-SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,SampleType,IsSpeciesSwap,PartTrajectory_opt,SurfaceNormal_opt)
+SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,SampleType,PartTrajectory_opt,SurfaceNormal_opt)
 !===================================================================================================================================
 !> Sample Wall values from Particle collisions
 !===================================================================================================================================
@@ -65,8 +57,7 @@ USE MOD_Particle_Vars
 USE MOD_Globals                 ,ONLY: abort,DOTPRODUCT
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC,useDSMC,PartStateIntEn,RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: CollisMode,DSMC,AmbipolElecVelo
-USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState,CalcSurfCollis,CalcSurfaceImpact
-USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
+USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState,CalcSurfaceImpact
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -74,7 +65,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                 :: PartID,SurfSideID,p,q
 CHARACTER(*),INTENT(IN)            :: SampleType
-LOGICAL,INTENT(IN)                 :: IsSpeciesSwap
 REAL,INTENT(IN),OPTIONAL           :: PartTrajectory_opt(1:3)
 REAL,INTENT(IN),OPTIONAL           :: SurfaceNormal_opt(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -119,9 +109,7 @@ CASE ('old')
     END IF
   END IF
   ! Species-specific counter (only counting impacting particle)
-  IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
-    SampWallState(SAMPWALL_NVARS+SpecID,p,q,SurfSideID) = SampWallState(SAMPWALL_NVARS+SpecID,p,q,SurfSideID) + 1
-  END IF
+  SampWallState(SAMPWALL_NVARS+SpecID,p,q,SurfSideID) = SampWallState(SAMPWALL_NVARS+SpecID,p,q,SurfSideID) + 1
   ! Sampling of species-specific impact energies and angles
   IF(CalcSurfaceImpact) THEN
     IF (useDSMC) THEN
@@ -179,57 +167,6 @@ IF (useDSMC) THEN
 END IF
 
 END SUBROUTINE CalcWallSample
-
-
-SUBROUTINE AnalyzeSurfaceCollisions(PartID,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
-!===================================================================================================================================
-!> Analyzes values for particle-surface collisions
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals                ,ONLY: abort
-USE MOD_Particle_Vars
-USE MOD_DSMC_Vars              ,ONLY: DSMC
-USE MOD_Particle_Boundary_Vars ,ONLY: CalcSurfCollis,AnalyzeSurfCollis
-USE MOD_TimeDisc_Vars          ,ONLY: TEnd,time
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)                 :: PartID,locBCID
-REAL,INTENT(IN)                    :: PartTrajectory(1:3), alpha
-LOGICAL,INTENT(IN)                 :: IsSpeciesSwap
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-! return if sampling is not enabled
-IF (.NOT.(&
-         (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)&
-         )) RETURN
-
-!---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
-IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
-  IF (CalcSurfCollis%AnalyzeSurfCollis .AND. (ANY(AnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(AnalyzeSurfCollis%BCs.EQ.locBCID))) THEN
-    AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
-    AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
-    IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
-      CALL abort(&
-__STAMP__&
-,'maxSurfCollisNumber reached!')
-    END IF
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(1:3,PartID) + alpha * PartTrajectory(1:3)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) = PartState(4,PartID)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) = PartState(5,PartID)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) = PartState(6,PartID)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) = LastPartPos(1,PartID)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) = LastPartPos(2,PartID)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) = LastPartPos(3,PartID)
-    AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1))   = PartSpecies(PartID)
-    AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1))   = locBCID
-  END IF
-END IF
-END SUBROUTINE AnalyzeSurfaceCollisions
 
 
 SUBROUTINE CountSurfaceImpact(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,PartTrajectory,SurfaceNormal,p,q)
@@ -467,7 +404,7 @@ END IF
 
 END FUNCTION GetWallTemperature
 
-SUBROUTINE CalcRotWallVelo(locBCID,PartID,POI,WallVelo)
+SUBROUTINE CalcRotWallVelo(locBCID,POI,WallVelo)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Calculation of additional velocity through the rotating wall. The velocity is equal to circumferential speed at
 ! the point of intersection (POI):
@@ -483,7 +420,6 @@ USE MOD_Globals_Vars            ,ONLY: PI
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)    :: locBCID
-INTEGER,INTENT(IN)    :: PartID
 REAL,INTENT(IN)       :: POI(3)
 REAL,INTENT(INOUT)    :: WallVelo(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
