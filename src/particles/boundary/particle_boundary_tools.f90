@@ -28,7 +28,6 @@ PRIVATE
 PUBLIC :: CalcWallSample
 PUBLIC :: SampleImpactProperties
 PUBLIC :: StoreBoundaryParticleProperties
-PUBLIC :: DielectricSurfaceCharge
 !===================================================================================================================================
 
 CONTAINS
@@ -298,61 +297,5 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
 END ASSOCIATE
 
 END SUBROUTINE StoreBoundaryParticleProperties
-
-
-
-SUBROUTINE DielectricSurfaceCharge(iPart,ElemID,PartTrajectory,alpha)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! description
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-USE MOD_Globals            ,ONLY: Abort
-USE MOD_part_operations    ,ONLY: CreateParticle
-USE MOD_part_tools         ,ONLY: isChargedParticle
-USE MOD_Particle_Vars      ,ONLY: PDM,PartSpecies,LastPartPos
-USE MOD_PICDepo_Tools      ,ONLY: DepositParticleOnNodes
-!USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems
-#if USE_MPI
-USE MOD_Globals            ,ONLY: myRank
-#endif
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)    :: iPart
-INTEGER,INTENT(IN)    :: ElemID
-REAL,INTENT(IN)       :: PartTrajectory(1:3), alpha
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!INTEGER               :: NewPartID
-!===================================================================================================================================
-! Sanity checks
-IF(.NOT.PDM%ParticleInside(iPart))THEN
-  IPWRITE (*,*) "iPart         :", iPart
-  IPWRITE (*,*) "global ElemID :", ElemID
-  CALL abort(&
-      __STAMP__&
-      ,'DielectricSurfaceCharge(): Particle not inside element.')
-ELSEIF(PartSpecies(iPart).LT.0)THEN
-  IPWRITE (*,*) "iPart         :", iPart
-  IPWRITE (*,*) "global ElemID :", ElemID
-  CALL abort(&
-      __STAMP__&
-      ,'DielectricSurfaceCharge(): Negative speciesID')
-END IF ! PartSpecies(iPart)
-
-IF(isChargedParticle(iPart))THEN
-!  IF(ElemID.GT.nComputeNodeElems)THEN
-!    ! Particle is now located in halo element: Create phantom/ghost particle, which is sent to new host Processor and removed there
-!    ! (set negative SpeciesID in order to remove particle in host Processor)
-!    CALL CreateParticle(-PartSpecies(iPart),LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,ElemID,(/0.,0.,0./),0.,0.,0.,NewPartID)
-!    ! Set inside to F (it is set to T in SendNbOfParticles if species ID is negative)
-!    PDM%ParticleInside(NewPartID)=.FALSE.
-!  ELSE ! Deposit single particle charge on surface here and
-    CALL DepositParticleOnNodes(iPart,LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,ElemID)
-!  END IF ! ElemID.GT.nComputeNodeElems
-END IF ! isChargedParticle(iPart)
-
-END SUBROUTINE DielectricSurfaceCharge
-
 
 END MODULE MOD_Particle_Boundary_Tools

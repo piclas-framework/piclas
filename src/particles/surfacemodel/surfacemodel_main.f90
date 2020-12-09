@@ -45,14 +45,15 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
 USE MOD_Particle_Boundary_Vars  ,ONLY: Partbound, GlobalSide2SurfSide, dXiEQ_SurfSample
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
-USE MOD_Particle_Vars           ,ONLY: PDM
+USE MOD_Particle_Vars           ,ONLY: PDM, LastPartPos
 USE MOD_Particle_Vars           ,ONLY: UseCircularInflow
 USE MOD_Dielectric_Vars         ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars               ,ONLY: DSMC, SamplingActive
 USE MOD_SurfaceModel_Tools      ,ONLY: SurfaceModel_ParticleEmission
 USE MOD_SEE                     ,ONLY: SecondaryElectronEmission
 USE MOD_SurfaceModel_Porous     ,ONLY: PorousBoundaryTreatment
-USE MOD_Particle_Boundary_Tools ,ONLY: DielectricSurfaceCharge,CalcWallSample
+USE MOD_Particle_Boundary_Tools ,ONLY: CalcWallSample
+USE MOD_PICDepo_Tools           ,ONLY: DepositParticleOnNodes
 USE MOD_Part_Tools              ,ONLY: VeloFromDistribution
 USE MOD_part_operations         ,ONLY: CreateParticle, RemoveParticle
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
@@ -91,7 +92,9 @@ IF(UseCircularInflow) CALL SurfaceFluxBasedBoundaryTreatment(PartID,SideID,alpha
 IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(PartID,SideID,alpha,PartTrajectory,ElasticReflectionAtPorousBC)
 
 !---- Dielectric particle-surface interaction
-IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) CALL DielectricSurfaceCharge(PartID,ElemID,PartTrajectory,alpha)
+IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN
+  CALL DepositParticleOnNodes(PartID,LastPartPos(1:3,PartID)+PartTrajectory(1:3)*alpha,ElemID)
+END IF
 
 !---- swap species?
 IF (PartBound%NbrOfSpeciesSwaps(iBC).gt.0) THEN

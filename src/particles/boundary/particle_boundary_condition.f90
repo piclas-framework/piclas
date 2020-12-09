@@ -65,16 +65,15 @@ USE MOD_Particle_Vars            ,ONLY: PartSpecies
 USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutput
-USE MOD_SurfaceModel_Porous      ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
-USE MOD_SurfaceModel             ,ONLY: SurfaceModel, PerfectReflection, DiffuseReflection, SpeciesSwap
+USE MOD_SurfaceModel             ,ONLY: SurfaceModel, PerfectReflection
 USE MOD_part_operations          ,ONLY: RemoveParticle
 #if defined(IMPA)
 USE MOD_Particle_Vars            ,ONLY: PartIsImplicit
 USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
 #endif /*IMPA*/
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
-USE MOD_Particle_Boundary_Tools  ,ONLY: StoreBoundaryParticleProperties,DielectricSurfaceCharge
+USE MOD_Particle_Boundary_Tools  ,ONLY: StoreBoundaryParticleProperties
 #if CODE_ANALYZE
 USE MOD_Globals                  ,ONLY: myRank,UNIT_stdout
 USE MOD_Mesh_Vars                ,ONLY: NGeo
