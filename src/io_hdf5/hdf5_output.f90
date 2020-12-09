@@ -3157,6 +3157,7 @@ USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmpLoc, NodeMapping, NodeSourceEx
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myLeaderGroupRank
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors, nLeaderGroupProcs
 #endif  /*USE_MPI*/
+USE MOD_TimeDisc_Vars      ,ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3185,7 +3186,8 @@ ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='NodeSourceExt'
 NodeSourceExtGlobal=0.
 
-
+! Skip MPI communication in the first step as nothing has been deposited yet
+IF(iter.NE.0)THEN
 
 ! Communicate the NodeSourceExtTmp values of the last boundary interaction before the state is written to .h5
 #if USE_MPI
@@ -3270,10 +3272,7 @@ CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif
 
-
-
-
-
+end if ! iter.NE.0
 
 
 ! Loop over all elements and store charge density values in equidistantly distributed nodes of PP_N=1

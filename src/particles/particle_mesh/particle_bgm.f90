@@ -635,8 +635,8 @@ CALL MPI_WIN_LOCK_ALL(0,FIBGM_nElems_Shared_Win,IERROR)
 MPISharedSize = INT((BGMiDelta+1)*(BGMjDelta+1)*(BGMkDelta+1),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/(BGMiDelta+1)*(BGMjDelta+1)*(BGMkDelta+1)/),FIBGM_offsetElem_Shared_Win,FIBGM_offsetElem_Shared)
 CALL MPI_WIN_LOCK_ALL(0,FIBGM_offsetElem_Shared_Win,IERROR)
-FIBGM_nElems     (BGMimin:BGMimax,BGMjmin:BGMjmax,BGMkmin:BGMkmax) => FIBGM_nElems_Shared
-FIBGM_offsetElem (BGMimin:BGMimax,BGMjmin:BGMjmax,BGMkmin:BGMkmax) => FIBGM_offsetElem_Shared
+FIBGM_nElems     (BGMimin:BGMimax, BGMjmin:BGMjmax, BGMkmin:BGMkmax) => FIBGM_nElems_Shared
+FIBGM_offsetElem (BGMimin:BGMimax, BGMjmin:BGMjmax, BGMkmin:BGMkmax) => FIBGM_offsetElem_Shared
 
 ! last proc of compute-node writes into shared memory to make nElems per BGM accessible for every proc
 IF(myComputeNodeRank.EQ.nComputeNodeProcessors-1)THEN
@@ -657,8 +657,8 @@ CALL MPI_WIN_SYNC(FIBGM_nElems_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(FIBGM_offsetElem_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #else /*NOT USE_MPI*/
-ALLOCATE( FIBGM_nElems    (BGMimin:BGMimax,BGMjmin:BGMjmax,BGMjmin:BGMjmax))
-ALLOCATE( FIBGM_offsetElem(BGMimin:BGMimax,BGMjmin:BGMjmax,BGMjmin:BGMjmax))
+ALLOCATE(FIBGM_nElems    (BGMimin:BGMimax, BGMjmin:BGMjmax, BGMkmin:BGMkmax))
+ALLOCATE(FIBGM_offsetElem(BGMimin:BGMimax, BGMjmin:BGMjmax, BGMkmin:BGMkmax))
 currentOffset = 0
   DO iBGM = BGMimin,BGMimax
     DO jBGM = BGMjmin,BGMjmax
