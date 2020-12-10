@@ -120,12 +120,10 @@ LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during t
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                            :: BCID
 INTEGER                            :: iSpec,iSurfSide,p,q, nVar, nVarSpec, iPBC, nVarCount
 REAL                               :: TimeSample, ActualTime, TimeSampleTemp, CounterSum, nImpacts
 LOGICAL                            :: during_dt
-INTEGER                            :: idx,OutputCounter
-INTEGER                            :: GlobalSideID, SurfSideNb
+INTEGER                            :: idx, GlobalSideID, SurfSideNb
 !===================================================================================================================================
 
 IF (PRESENT(during_dt_opt)) THEN
@@ -175,8 +173,6 @@ MacroSurfaceVal     = 0.
 ALLOCATE(MacroSurfaceSpecVal(1:nVarSpec , 1:nSurfSample , 1:nSurfSample , nComputeNodeSurfSides , nSpecies))
 MacroSurfaceSpecVal = 0.
 
-OutputCounter = 0
-
 #if USE_MPI
 ASSOCIATE(SampWallState        => SampWallState_Shared           ,&
           SampWallImpactNumber => SampWallImpactNumber_Shared    ,&
@@ -188,7 +184,6 @@ ASSOCIATE(SampWallState        => SampWallState_Shared           ,&
 #endif
 
 DO iSurfSide = 1,nComputeNodeSurfSides
-  OutputCounter = OutputCounter + 1
   !================== INNER BC CHECK
   GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
   IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
@@ -211,12 +206,12 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       END IF
 
       ! Force per area in x,y,z-direction
-      MacroSurfaceVal(1:3,p,q,OutputCounter) = SampWallState(SAMPWALL_DELTA_MOMENTUMX:SAMPWALL_DELTA_MOMENTUMZ,p,q,iSurfSide) &
+      MacroSurfaceVal(1:3,p,q,iSurfSide) = SampWallState(SAMPWALL_DELTA_MOMENTUMX:SAMPWALL_DELTA_MOMENTUMZ,p,q,iSurfSide) &
                                              / (SurfSideArea(p,q,iSurfSide)*TimeSampleTemp)
       ! Deleting the y/z-component for 1D/2D/axisymmetric simulations
-      IF(Symmetry%Order.LT.3) MacroSurfaceVal(Symmetry%Order+1:3,p,q,OutputCounter) = 0.
+      IF(Symmetry%Order.LT.3) MacroSurfaceVal(Symmetry%Order+1:3,p,q,iSurfSide) = 0.
       ! Heat flux (energy difference per second per area -> W/m2)
-      MacroSurfaceVal(4,p,q,OutputCounter) = (SampWallState(SAMPWALL_ETRANSOLD,p,q,iSurfSide)  &
+      MacroSurfaceVal(4,p,q,iSurfSide) = (SampWallState(SAMPWALL_ETRANSOLD,p,q,iSurfSide)  &
                                            +  SampWallState(SAMPWALL_EROTOLD  ,p,q,iSurfSide)  &
                                            +  SampWallState(SAMPWALL_EVIBOLD  ,p,q,iSurfSide)  &
                                            -  SampWallState(SAMPWALL_ETRANSNEW,p,q,iSurfSide)  &
@@ -224,14 +219,16 @@ DO iSurfSide = 1,nComputeNodeSurfSides
                                            -  SampWallState(SAMPWALL_EVIBNEW  ,p,q,iSurfSide)) &
                                            / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
 
+      ! Number of simulation particle impacts per iteration
+      MacroSurfaceVal(5,p,q,iSurfSide) = CounterSum * dt / TimeSample
+
       nVarCount = 5
-      BCID = SideInfo_Shared(SIDE_BCID,SurfSide2GlobalSide(SURF_SIDEID,iSurfSide))
 
       IF(nPorousBC.GT.0) THEN
         DO iPBC=1, nPorousBC
           IF(PorousBCInfo_Shared(1,MapSurfSideToPorousSide_Shared(iSurfSide)).EQ.iPBC) THEN
             ! Pump capacity is already in cubic meter per second (diving by the number of iterations)
-            MacroSurfaceVal(nVarCount+iPBC,p,q,OutputCounter) = SampWallPumpCapacity(iSurfSide) * dt / TimeSample
+            MacroSurfaceVal(nVarCount+iPBC,p,q,iSurfSide) = SampWallPumpCapacity(iSurfSide) * dt / TimeSample
           END IF
         END DO
       END IF
@@ -239,34 +236,34 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       DO iSpec=1,nSpecies
         idx = 1
         ! Species-specific counter of simulation particle impacts per iteration
-        MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallState(SAMPWALL_NVARS+iSpec,p,q,iSurfSide) * dt / TimeSample
+        MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWallState(SAMPWALL_NVARS+iSpec,p,q,iSurfSide) * dt / TimeSample
         ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
         IF(CalcSurfaceImpact)THEN
           nImpacts = SampWallImpactNumber(iSpec,p,q,iSurfSide)
           IF(nImpacts.GT.0.)THEN
             ! Add average impact energy for each species (trans, rot, vib)
             idx = idx + 1
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactEnergy(iSpec,1,p,q,iSurfSide) / nImpacts
+            MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWallImpactEnergy(iSpec,1,p,q,iSurfSide) / nImpacts
             idx = idx + 1
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactEnergy(iSpec,2,p,q,iSurfSide) / nImpacts
+            MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWallImpactEnergy(iSpec,2,p,q,iSurfSide) / nImpacts
             idx = idx + 1
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactEnergy(iSpec,3,p,q,iSurfSide) / nImpacts
+            MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWallImpactEnergy(iSpec,3,p,q,iSurfSide) / nImpacts
 
             ! Add average impact vector (x,y,z) for each species
             idx = idx + 1
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactVector(iSpec,1,p,q,iSurfSide) / nImpacts
+            MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWallImpactVector(iSpec,1,p,q,iSurfSide) / nImpacts
             idx = idx + 1
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactVector(iSpec,2,p,q,iSurfSide) / nImpacts
+            MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWallImpactVector(iSpec,2,p,q,iSurfSide) / nImpacts
             idx = idx + 1
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactVector(iSpec,3,p,q,iSurfSide) / nImpacts
+            MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWallImpactVector(iSpec,3,p,q,iSurfSide) / nImpacts
 
             ! Add average impact angle for each species
             idx = idx + 1
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactAngle(iSpec,p,q,iSurfSide) / nImpacts
+            MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWallImpactAngle(iSpec,p,q,iSurfSide) / nImpacts
 
             ! Add number of impacts
             idx = idx + 1
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = nImpacts
+            MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = nImpacts
           ELSE
             idx=idx+8
           END IF ! nImpacts.GT.0.

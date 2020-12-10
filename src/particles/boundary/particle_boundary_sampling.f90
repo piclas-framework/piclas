@@ -718,7 +718,7 @@ IF (mySurfRank.EQ.0) THEN
   nVarCount        = 1
   DO iSpec = 1,nSpecies
     WRITE(SpecID,'(I3.3)') iSpec
-    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_SimPartCounter')
+    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_SimPartPerIter')
     ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
     IF(CalcSurfaceImpact)THEN
       ! Add average impact energy for each species (trans, rot, vib)
@@ -738,11 +738,11 @@ IF (mySurfRank.EQ.0) THEN
   END DO ! iSpec=1,nSpecies
 
   ! fill varnames for total values
-  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'ForcePerAreaX')
-  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'ForcePerAreaY')
-  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'ForcePerAreaZ')
-  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux')
-  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Counter_Total')
+  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_ForcePerAreaX')
+  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_ForcePerAreaY')
+  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_ForcePerAreaZ')
+  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_HeatFlux')
+  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_SimPartPerIter')
 
   IF(nPorousBC.GT.0) THEN
     DO iPBC = 1, nPorousBC
