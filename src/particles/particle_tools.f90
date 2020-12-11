@@ -14,7 +14,7 @@
 
 MODULE MOD_part_tools
 !===================================================================================================================================
-! Contains tools for particle related operations. This routine is uses MOD_Particle_Boundary_Tools, but not vice versa!
+! Contains tools for particle related operations. This routine uses MOD_Particle_Boundary_Tools, but not vice versa!
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -58,7 +58,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, isChargedParticle
+PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CalcRadWeightMPF, isChargedParticle
 PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties
 !===================================================================================================================================
 
@@ -366,6 +366,45 @@ ELSE
 END IF
 
 END FUNCTION GetParticleWeight
+
+
+PURE REAL FUNCTION CalcRadWeightMPF(yPos, iSpec, iPart)
+!===================================================================================================================================
+!> Determines the weighting factor when using an additional radial weighting for axisymmetric simulations. Linear increase from the
+!> rotational axis (y=0) to the outer domain boundary (y=ymax).
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+USE MOD_Particle_Vars           ,ONLY: Species, PEM
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: yPos
+INTEGER, INTENT(IN)             :: iSpec
+INTEGER, OPTIONAL,INTENT(IN)    :: iPart
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+REAL                 :: yPosIn
+!===================================================================================================================================
+
+IF(RadialWeighting%CellLocalWeighting.AND.PRESENT(iPart)) THEN
+  yPosIn = ElemMidPoint_Shared(2,PEM%CNElemID(iPart))
+ELSE
+  yPosIn = yPos
+END IF
+
+CalcRadWeightMPF = (1. + yPosIn/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
+
+RETURN
+
+END FUNCTION CalcRadWeightMPF
 
 
 PURE FUNCTION isChargedParticle(iPart)

@@ -1510,7 +1510,7 @@ SUBROUTINE ParticleSurfaceflux()
 ! Modules
 USE MOD_Globals
 USE MOD_Particle_Vars
-USE MOD_DSMC_Symmetry           ,ONLY: CalcRadWeightMPF
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, RadialWeighting
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem

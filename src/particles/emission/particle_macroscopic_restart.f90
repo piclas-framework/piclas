@@ -38,7 +38,7 @@ SUBROUTINE MacroRestart_InsertParticles()
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: Pi
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, DSMC
-USE MOD_DSMC_Symmetry           ,ONLY: CalcRadWeightMPF
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
@@ -279,7 +279,7 @@ USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, VarTime
 USE MOD_DSMC_Vars               ,ONLY: DSMC, PartStateIntEn, CollisMode, SpecDSMC, RadialWeighting, AmbipolElecVelo
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
-USE MOD_DSMC_Symmetry           ,ONLY: CalcRadWeightMPF
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

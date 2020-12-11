@@ -30,25 +30,25 @@ PUBLIC :: SurfaceModel_ParticleEmission, SurfaceModel_EnergyAccommodation, GetWa
 
 CONTAINS
 
-SUBROUTINE SurfaceModel_ParticleEmission(PartTrajectory, LengthPartTrajectory, alpha, n_loc, PartID, SideID, &
+SUBROUTINE SurfaceModel_ParticleEmission(PartTrajectory, LengthPartTrajectory, alpha, n_loc, PartID, SideID, p, q, &
             ProductSpec, ProductSpecNbr, TempErgy)
 !===================================================================================================================================
 !> Routine for the particle emission at a surface
 !===================================================================================================================================
 USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec
 USE MOD_Globals_Vars              ,ONLY: PI
-USE MOD_Particle_Tracking_Vars    ,ONLY: TriaTracking
 USE MOD_Part_Tools                ,ONLY: VeloFromDistribution
 USE MOD_part_operations           ,ONLY: CreateParticle, RemoveParticle
-USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies
+USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies,WriteMacroSurfaceValues
 USE MOD_Globals_Vars              ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars             ,ONLY: LastPartPos, PEM
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
-USE MOD_Particle_Boundary_Vars    ,ONLY: dXiEQ_SurfSample, Partbound, GlobalSide2SurfSide
+USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide
 USE MOD_TimeDisc_Vars             ,ONLY: dt, RKdtFrac
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfModEnergyDistribution
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfCollCounter, SurfAnalyzeNumOfAds, SurfAnalyzeNumOfDes
+USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -57,7 +57,7 @@ REAL,INTENT(INOUT)          :: PartTrajectory(1:3), LengthPartTrajectory, alpha
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)             :: n_loc(1:3)
-INTEGER,INTENT(IN)          :: PartID, SideID
+INTEGER,INTENT(IN)          :: PartID, SideID, p, q
 INTEGER,INTENT(IN)          :: ProductSpec(2)   !< 1: product species of incident particle (also used for simple reflection)
                                                 !< 2: additional species added or removed from surface
                                                 !< If productSpec is negative, then the respective particles are adsorbed
@@ -181,6 +181,9 @@ IF (ProductSpec(2).GT.0) THEN
     CALL CreateParticle(ProductSpec(2),LastPartPos(1:3,PartID),PEM%GlobalElemID(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
     ! Adding the energy that is transferred from the surface onto the internal energies of the particle
     CALL SurfaceModel_EnergyAccommodation(NewPartID,locBCID,WallTemp)
+    ! Sampling of newly created particles
+    IF((DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) &
+      CALL CalcWallSample(NewPartID,SurfSideID,p,q,'new',PartTrajectory_opt=PartTrajectory,SurfaceNormal_opt=n_loc)
   END DO ! iNewPart = 1, ProductSpecNbr
 END IF
 

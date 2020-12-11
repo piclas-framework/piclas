@@ -162,7 +162,7 @@ CASE (5,6,7) ! 5: SEE by Levko2015
   IF(ReflectionIndex.EQ.2) THEN
     CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,PartID,SideID,n_loc)
   ELSE IF (ReflectionIndex.EQ.3) THEN
-    CALL SurfaceModel_ParticleEmission(PartTrajectory, LengthPartTrajectory, alpha, n_loc, PartID, SideID, &
+    CALL SurfaceModel_ParticleEmission(PartTrajectory, LengthPartTrajectory, alpha, n_loc, PartID, SideID, p, q, &
               ProductSpec, ProductSpecNbr,TempErgy)
   END IF
 CASE DEFAULT
