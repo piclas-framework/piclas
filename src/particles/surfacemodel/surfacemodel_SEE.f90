@@ -30,8 +30,7 @@ PUBLIC :: SecondaryElectronEmission
 
 CONTAINS
 
-SUBROUTINE SecondaryElectronEmission(PartSurfaceModel_IN,PartID_IN,locBCID,ReflectionIndex,ProductSpec,ProductSpecNbr,&
-           v_new,velocityDistribution)
+SUBROUTINE SecondaryElectronEmission(PartID_IN,locBCID,ReflectionIndex,ProductSpec,ProductSpecNbr,v_new)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Determine the probability of an electron being emitted due to an impacting particles (ion/electron bombardment)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -42,23 +41,21 @@ USE MOD_Globals_Vars      ,ONLY: c
 USE MOD_Particle_Vars     ,ONLY: PartState,Species,PartSpecies
 USE MOD_Particle_Analyze  ,ONLY: PartIsElectron
 USE MOD_Globals_Vars      ,ONLY: ElementaryCharge,ElectronMass
-USE MOD_SurfaceModel_Vars ,ONLY: SurfModelResultSpec
+USE MOD_SurfaceModel_Vars ,ONLY: SurfModResultSpec
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)      :: PartSurfaceModel_IN !< which SEE model?
-                                               !< 5: SEE by Levko2015
-                                               !< 6: SEE by Pagonakis2016 (originally from Harrower1956)
-                                               !< 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is 
-                                               !<    considered for SEE)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
 INTEGER,INTENT(IN)      :: PartID_IN           !< Bombarding Particle ID
+INTEGER,INTENT(IN)      :: locBCID
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
 INTEGER,INTENT(OUT)     :: ReflectionIndex     !< what happens to the bombarding particle and is a new one created?
 INTEGER,INTENT(OUT)     :: ProductSpec(2)      !< ProductSpec(1) new ID of impacting particle (the old one can change)
                                                !< ProductSpec(2) new ID of newly released electron
 INTEGER,INTENT(OUT)     :: ProductSpecNbr      !< number of species for ProductSpec(1)
 REAL,INTENT(OUT)        :: v_new  ! Velocity of emitted secondary electron
-CHARACTER(LEN=*),INTENT(OUT)   :: velocityDistribution(2) !< Name of veloctiy distribution of reflected and newly created electron
-INTEGER,INTENT(IN)             :: locBCID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL              :: eps_e  ! Energy of bombarding electron in eV
@@ -71,15 +68,12 @@ ProductSpec    = 0
 ProductSpecNbr = 0
 v_new          = 0.0
 ! Select particle surface modeling
-SELECT CASE(PartSurfaceModel_IN)
+SELECT CASE(PartBound%SurfaceModel(locBCID))
 CASE(5) ! 5: SEE by Levko2015 for copper electrodes
   !     ! D. Levko and L. L. Raja, Breakdown of atmospheric pressure microgaps at high excitation, J. Appl. Phys. 117, 173303 (2015)
 
   ProductSpec(1)  = PartSpecies(PartID_IN) ! old particle
   ReflectionIndex = 3
-  velocityDistribution(1) = ''
-  velocityDistribution(2) = 'deltadistribution'
-
 
   ASSOCIATE (&
         phi            => 4.4  ,& ! eV -> cathode work function phi Ref. [20] Y. P. Raizer, Gas Discharge Physics (Springer, 1991)
@@ -110,7 +104,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
           CALL RANDOM_NUMBER(iRan)
           IF(iRan.LT.k_ee/(k_ee+k_refl))THEN ! SEE
             !ReflectionIndex = 3 ! SEE + perfect elastic scattering of the bombarding electron
-            ProductSpec(2)  = SurfModelResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
+            ProductSpec(2)  = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
             ProductSpecNbr = 1
             v_new           = SQRT(2.*(eps_e*ElementaryCharge-ElementaryCharge*phi)/ElectronMass) ! Velocity of emitted secondary electron
             eps_e           = 0.5*mass*(v_new**2)/ElementaryCharge               ! Energy of the injected electron
@@ -149,7 +143,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
       !IF(iRan.LT.1.)THEN ! SEE-I: gamma=0.02 for the N2^+ ions and copper material
       IF(iRan.LT.0.02)THEN ! SEE-I: gamma=0.02 for the N2^+ ions and copper material
         !ReflectionIndex = -2       ! SEE + perfect elastic scattering of the bombarding electron
-        ProductSpec(2)  = SurfModelResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
+        ProductSpec(2)  = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
         ProductSpecNbr = 1
         eps_e           = I-2.*phi ! Energy of the injected electron
         v_new           = SQRT(2.*(eps_e*ElementaryCharge-ElementaryCharge*phi)/ElectronMass) ! Velocity of emitted secondary electron
@@ -185,8 +179,6 @@ CASE(6) ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
 CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
   ProductSpec(1)  = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
   ReflectionIndex = 3
-  velocityDistribution(1) = ''
-  velocityDistribution(2) = 'deltadistribution'
   ProductSpecNbr = 0 ! do not create new particle (default value)
   v_new = 0. ! initialize zero
 
@@ -196,7 +188,7 @@ CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials
     CALL RANDOM_NUMBER(iRan)
     IF(iRan.LT.0.13)THEN ! SEE-I: gamma=0.13 for the Ar^+ ions bombarding different metals, see
                          ! D. Depla, Magnetron sputter deposition: Linking discharge voltage with target properties, 2009
-      ProductSpec(2) = SurfModelResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
+      ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
       ProductSpecNbr = 1 ! Create one new particle
       v_new          = VECNORM(PartState(4:6,PartID_IN)) ! |v_new| = |v_old|
       RETURN

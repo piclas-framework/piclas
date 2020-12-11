@@ -161,8 +161,8 @@ IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) RETURN
 nVar = 5
 nVarSpec = 1
 
-! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number: Add 8 to the buffer length
-nVarSpec = nVarSpec + 8
+! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle and number: Add 9 to the buffer length
+nVarSpec = nVarSpec + 9
 
 IF(nPorousBC.GT.0) THEN
   nVar = nVar + nPorousBC
@@ -212,11 +212,13 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       IF(Symmetry%Order.LT.3) MacroSurfaceVal(Symmetry%Order+1:3,p,q,iSurfSide) = 0.
       ! Heat flux (energy difference per second per area -> W/m2)
       MacroSurfaceVal(4,p,q,iSurfSide) = (SampWallState(SAMPWALL_ETRANSOLD,p,q,iSurfSide)  &
-                                           +  SampWallState(SAMPWALL_EROTOLD  ,p,q,iSurfSide)  &
-                                           +  SampWallState(SAMPWALL_EVIBOLD  ,p,q,iSurfSide)  &
-                                           -  SampWallState(SAMPWALL_ETRANSNEW,p,q,iSurfSide)  &
-                                           -  SampWallState(SAMPWALL_EROTNEW  ,p,q,iSurfSide)  &
-                                           -  SampWallState(SAMPWALL_EVIBNEW  ,p,q,iSurfSide)) &
+                                        + SampWallState(SAMPWALL_EROTOLD  ,p,q,iSurfSide)  &
+                                        + SampWallState(SAMPWALL_EVIBOLD  ,p,q,iSurfSide)  &
+                                        + SampWallState(SAMPWALL_EELECOLD ,p,q,iSurfSide)  &
+                                        - SampWallState(SAMPWALL_ETRANSNEW,p,q,iSurfSide)  &
+                                        - SampWallState(SAMPWALL_EROTNEW  ,p,q,iSurfSide)  &
+                                        - SampWallState(SAMPWALL_EVIBNEW  ,p,q,iSurfSide)  &
+                                        - SampWallState(SAMPWALL_EELECNEW ,p,q,iSurfSide)) &
                                            / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
 
       ! Number of simulation particle impacts per iteration
@@ -248,6 +250,8 @@ DO iSurfSide = 1,nComputeNodeSurfSides
             MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWallImpactEnergy(iSpec,2,p,q,iSurfSide) / nImpacts
             idx = idx + 1
             MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWallImpactEnergy(iSpec,3,p,q,iSurfSide) / nImpacts
+            idx = idx + 1
+            MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWallImpactEnergy(iSpec,4,p,q,iSurfSide) / nImpacts
 
             ! Add average impact vector (x,y,z) for each species
             idx = idx + 1

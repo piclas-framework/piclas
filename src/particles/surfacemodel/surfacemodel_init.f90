@@ -57,7 +57,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars             ,ONLY: nSpecies
 USE MOD_ReadInTools               ,ONLY: GETINT
 USE MOD_Particle_Boundary_Vars    ,ONLY: nPartBound, PartBound
-USE MOD_SurfaceModel_Vars         ,ONLY: SurfModelResultSpec
+USE MOD_SurfaceModel_Vars         ,ONLY: SurfModResultSpec, SurfModEnergyDistribution
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -72,6 +72,10 @@ INTEGER                           :: iSpec, iPartBound
 !===================================================================================================================================
 IF (.NOT.(ANY(PartBound%Reactive))) RETURN
 
+ALLOCATE(SurfModResultSpec(1:nPartBound,1:nSpecies))
+SurfModResultSpec = 0
+ALLOCATE(SurfModEnergyDistribution(1:nPartBound))
+SurfModEnergyDistribution = ''
 ! initialize model specific variables
 DO iSpec = 1,nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -83,8 +87,8 @@ DO iSpec = 1,nSpecies
 !-----------------------------------------------------------------------------------------------------------------------------------
     CASE(5,6,7)
 !-----------------------------------------------------------------------------------------------------------------------------------
-      IF (.NOT.ALLOCATED(SurfModelResultSpec)) ALLOCATE(SurfModelResultSpec(1:nPartBound,1:nSpecies))
-      SurfModelResultSpec(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-ResultSpec')
+      SurfModResultSpec(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-ResultSpec')
+      SurfModEnergyDistribution = 'deltadistribution'
 !-----------------------------------------------------------------------------------------------------------------------------------
     END SELECT
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -112,7 +116,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 SurfModelAnalyzeInitIsDone=.FALSE.
 
-SDEALLOCATE(SurfModelResultSpec)
+SDEALLOCATE(SurfModResultSpec)
 
 ! === Surface Analyze Vars
 SDEALLOCATE(SurfAnalyzeCount)

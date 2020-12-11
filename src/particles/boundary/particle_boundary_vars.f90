@@ -233,14 +233,14 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: RotAxi(:,:)                   ! Direction of rotation axis
   REAL    , ALLOCATABLE                  :: RotOrg(:,:)                   ! Origin of rotation axis
   INTEGER , ALLOCATABLE                  :: RotPeriodicDir(:)             ! Direction of rotation
-  INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          !Number of Species to be changed at wall
-  REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
-  INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete
+  INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          ! Number of Species to be changed at wall
+  REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         ! Probability of SpeciesSwaps at wall
+  INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           ! Species to be changed at wall (in, out), out=0: delete
   INTEGER , ALLOCATABLE                  :: SurfaceModel(:)               ! Model used for surface interaction
-                                                                             ! 0 perfect/diffusive reflection
-                                                                             ! 5 SEE (secondary e- emission) by Levko2015
-                                                                             ! 6 SEE (secondary e- emission) by Pagonakis2016
-                                                                             !   (orignally from Harrower1956)
+                                                                            ! 0 perfect/diffusive reflection
+                                                                            ! 5 SEE (secondary e- emission) by Levko2015
+                                                                            ! 6 SEE (secondary e- emission) by Pagonakis2016
+                                                                            !   (originally from Harrower1956)
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
   LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                ! Use Boundary for Q-Criterion ?
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibirum Distribution with reflection

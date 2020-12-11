@@ -56,10 +56,13 @@ REAL,INTENT(IN),OPTIONAL           :: SurfaceNormal_opt(1:3)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL            :: ETrans, ETransAmbi, ERot, EVib, MomArray(1:3), MassIC, MPF
-INTEGER         :: ETransID, ERotID, EVibID, SpecID
+REAL            :: ETrans, ETransAmbi, ERot, EVib, EElec, MomArray(1:3), MassIC, MPF
+INTEGER         :: ETransID, ERotID, EVibID, EElecID, SpecID
 !===================================================================================================================================
 MomArray(:)=0.
+EVib = 0.
+ERot = 0.
+EElec = 0.
 
 SpecID = PartSpecies(PartID)
 
@@ -88,6 +91,7 @@ CASE ('old')
   ETransID = SAMPWALL_ETRANSOLD
   ERotID   = SAMPWALL_EROTOLD
   EVibID   = SAMPWALL_EVIBOLD
+  EElecID  = SAMPWALL_EELECOLD
   IF (DSMC%DoAmbipolarDiff) THEN
     IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
       MomArray(1:3) = MomArray(1:3) + Species(DSMC%AmbiDiffElecSpec)%MassIC * AmbipolElecVelo(PartID)%ElecVelo(1:3) * MPF
@@ -101,15 +105,15 @@ CASE ('old')
       IF (CollisMode.GT.1) THEN
         EVib = PartStateIntEn(1,PartID)
         ERot = PartStateIntEn(2,PartID)
+        IF(DSMC%ElectronicModel) THEN
+          EElec = PartStateIntEn(3,PartID)
+        END IF
       END IF
-    ELSE
-      EVib = 0.
-      ERot = 0.
     END IF
-    CALL SampleImpactProperties(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,PartTrajectory_opt,SurfaceNormal_opt,p,q)
+    CALL SampleImpactProperties(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,EElec,PartTrajectory_opt,SurfaceNormal_opt,p,q)
     IF (DSMC%DoAmbipolarDiff) THEN
       IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
-        CALL SampleImpactProperties(SurfSideID,DSMC%AmbiDiffElecSpec,MPF,ETransAmbi,0.,0.,PartTrajectory_opt,SurfaceNormal_opt,p,q)
+        CALL SampleImpactProperties(SurfSideID,DSMC%AmbiDiffElecSpec,MPF,ETransAmbi,0.,0.,0.,PartTrajectory_opt,SurfaceNormal_opt,p,q)
       END IF
     END IF
   END IF
@@ -126,6 +130,7 @@ CASE ('new')
   ETransID = SAMPWALL_ETRANSNEW
   ERotID   = SAMPWALL_EROTNEW
   EVibID   = SAMPWALL_EVIBNEW
+  EElecID  = SAMPWALL_EELECNEW
   IF (DSMC%DoAmbipolarDiff) THEN
     IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
       MomArray(1:3) = MomArray(1:3) - Species(DSMC%AmbiDiffElecSpec)%MassIC * AmbipolElecVelo(PartID)%ElecVelo(1:3) * MPF
@@ -150,13 +155,17 @@ IF (useDSMC) THEN
       !----  Sampling for internal (vibrational) energy accommodation at walls
       SampWallState(EVibID ,p,q,SurfSideID) = SampWallState(EVibID ,p,q,SurfSideID) + PartStateIntEn(1,PartID) * MPF
     END IF
+    IF(DSMC%ElectronicModel) THEN
+      !----  Sampling for internal (electronic) energy accommodation at walls
+      SampWallState(EElecID ,p,q,SurfSideID) = SampWallState(EElecID ,p,q,SurfSideID) + PartStateIntEn(3,PartID) * MPF
+    END IF
   END IF
 END IF
 
 END SUBROUTINE CalcWallSample
 
 
-SUBROUTINE SampleImpactProperties(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,PartTrajectory,SurfaceNormal,p,q)
+SUBROUTINE SampleImpactProperties(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,EElec,PartTrajectory,SurfaceNormal,p,q)
 !===================================================================================================================================
 !> Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
 !>
@@ -174,6 +183,7 @@ REAL,INTENT(IN)    :: MPF                 !< Particle macro particle factor
 REAL,INTENT(IN)    :: ETrans              !< Translational energy of impacting particle
 REAL,INTENT(IN)    :: ERot                !< Rotational energy of impacting particle
 REAL,INTENT(IN)    :: EVib                !< Vibrational energy of impacting particle
+REAL,INTENT(IN)    :: EElec               !< Electronic energy of impacting particle
 REAL,INTENT(IN)    :: PartTrajectory(1:3) !< Particle trajectory vector (normalized)
 REAL,INTENT(IN)    :: SurfaceNormal(1:3)  !< Surface normal vector (normalized)
 INTEGER,INTENT(IN) :: p                 !< Surface sub-faces
@@ -188,6 +198,7 @@ INTEGER,INTENT(IN) :: q                 !< Surface sub-faces
 SampWallImpactEnergy(SpecID,1,p,q,SurfSideID) = SampWallImpactEnergy(SpecID,1,p,q,SurfSideID) + ETrans * MPF
 SampWallImpactEnergy(SpecID,2,p,q,SurfSideID) = SampWallImpactEnergy(SpecID,2,p,q,SurfSideID) + ERot   * MPF
 SampWallImpactEnergy(SpecID,3,p,q,SurfSideID) = SampWallImpactEnergy(SpecID,3,p,q,SurfSideID) + EVib   * MPF
+SampWallImpactEnergy(SpecID,4,p,q,SurfSideID) = SampWallImpactEnergy(SpecID,4,p,q,SurfSideID) + EElec  * MPF
 
 !----- Sampling of impact vector ,SurfSideIDfor each species (x,y,z)
 SampWallImpactVector(SpecID,1,p,q,SurfSideID) = SampWallImpactVector(SpecID,1,p,q,SurfSideID) + PartTrajectory(1) * MPF

@@ -56,7 +56,6 @@ USE MOD_Particle_Boundary_Tools ,ONLY: CalcWallSample
 USE MOD_PICDepo_Tools           ,ONLY: DepositParticleOnNodes
 USE MOD_Part_Tools              ,ONLY: VeloFromDistribution
 USE MOD_part_operations         ,ONLY: CreateParticle, RemoveParticle
-USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -78,7 +77,7 @@ INTEGER                          :: ProductSpecNbr  !< number of emitted particl
 CHARACTER(30)                    :: velocityDistribution(2)   !< specifying keyword for velocity distribution
 REAL                             :: TempErgy(2)               !< temperature, energy or velocity used for VeloFromDistribution
 REAL                             :: RanNum
-REAL                             :: tang1(1:3),tang2(1:3),Xitild,Etatild
+REAL                             :: Xitild,Etatild
 INTEGER                          :: SpecID, locBCID, p, q
 
 INTEGER                         :: iBC, ReflectionIndex, SurfSideID
@@ -105,8 +104,6 @@ END IF
 ! 1.) Initial surface checks
 ! find normal vector two perpendicular tangential vectors (normal_vector points outwards !!!)
 !===================================================================================================================================
-CALL OrthoNormVec(n_loc,tang1,tang2)
-
 locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 SpecID = PartSpecies(PartID)
 ReflectionIndex = -1 ! has to be reset in SurfaceModel, otherwise abort() will be called
@@ -160,14 +157,13 @@ CASE (5,6,7) ! 5: SEE by Levko2015
              ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Get electron emission probability
-  CALL SecondaryElectronEmission(PartBound%SurfaceModel(locBCID),PartID,locBCID,ReflectionIndex,ProductSpec,&
-  ProductSpecNbr,TempErgy(2),velocityDistribution)
+  CALL SecondaryElectronEmission(PartID,locBCID,ReflectionIndex,ProductSpec,ProductSpecNbr,TempErgy(2))
   ! Emit the secondary electrons or diffuse reflection at the boundary
   IF(ReflectionIndex.EQ.2) THEN
     CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,PartID,SideID,n_loc)
   ELSE IF (ReflectionIndex.EQ.3) THEN
-    CALL SurfaceModel_ParticleEmission(PartTrajectory, LengthPartTrajectory, alpha, xi, eta, n_loc, PartID, SideID, &
-              ProductSpec, ProductSpecNbr, velocityDistribution, TempErgy)
+    CALL SurfaceModel_ParticleEmission(PartTrajectory, LengthPartTrajectory, alpha, n_loc, PartID, SideID, &
+              ProductSpec, ProductSpecNbr,TempErgy)
   END IF
 CASE DEFAULT
     CALL abort(&
@@ -194,7 +190,6 @@ SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,PartID,Si
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,PartAuxBC
-USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,Species,PartLorentzType
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_Globals_Vars            ,ONLY: c2_inv
@@ -382,7 +377,6 @@ USE MOD_Part_Tools              ,ONLY: GetParticleWeight
 USE MOD_SurfaceModel_Tools      ,ONLY: GetWallTemperature, CalcRotWallVelo
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,PartAuxBC
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,Symmetry
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac

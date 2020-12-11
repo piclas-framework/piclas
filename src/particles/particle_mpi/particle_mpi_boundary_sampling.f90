@@ -254,7 +254,7 @@ DO iProc = 0,nSurfLeaders-1
   ! Get message size
   SampSizeAllocate = SurfSampSize
   ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number
-  IF(CalcSurfaceImpact) SampSizeAllocate = SampSizeAllocate + 8*nSpecies
+  IF(CalcSurfaceImpact) SampSizeAllocate = SampSizeAllocate + 9*nSpecies
 
   ! Only allocate send buffer if we are expecting sides from this leader node
   IF (SurfMapping(iProc)%nSendSurfSides.GT.0) THEN
@@ -355,15 +355,17 @@ END IF
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 IF (CalcSurfaceImpact) THEN
   IF (myComputeNodeRank.EQ.0) THEN
-    MessageSize = nSpecies*3*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
+    MessageSize = nSpecies*4*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
     CALL MPI_REDUCE(SampWallImpactEnergy,SampWallImpactEnergy_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+    MessageSize = nSpecies*3*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
     CALL MPI_REDUCE(SampWallImpactVector,SampWallImpactVector_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
     MessageSize = nSpecies*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
     CALL MPI_REDUCE(SampWallImpactAngle ,SampWallImpactAngle_Shared ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
     CALL MPI_REDUCE(SampWallImpactNumber,SampWallImpactNumber_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
   ELSE
-    MessageSize = nSpecies*3*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
+    MessageSize = nSpecies*4*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
     CALL MPI_REDUCE(SampWallImpactEnergy,0                          ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+    MessageSize = nSpecies*3*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
     CALL MPI_REDUCE(SampWallImpactVector,0                          ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
     MessageSize = nSpecies*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
     CALL MPI_REDUCE(SampWallImpactAngle ,0                          ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
@@ -391,9 +393,9 @@ IF (myComputeNodeRank.EQ.0) THEN
     nReactiveValues = SurfSampSizeReactive*(nSurfSample)**2
     nValues         = nValues+nReactiveValues
   END IF
-  ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number: Add 8*nSpecies to the
-  ! buffer length
-  IF(CalcSurfaceImpact) nValues=nValues+8*nSpecies
+  ! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle and number: Add 9*nSpecies
+  ! to the buffer length
+  IF(CalcSurfaceImpact) nValues=nValues+9*nSpecies
   IF(nPorousBC.GT.0) nValues = nValues + 1
 
   ! open receive buffer
@@ -445,6 +447,8 @@ IF (myComputeNodeRank.EQ.0) THEN
             SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies) = SampWallImpactEnergy_Shared(:,2,p,q,SurfSideID)
             iPos=iPos + nSpecies
             SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies) = SampWallImpactEnergy_Shared(:,3,p,q,SurfSideID)
+            iPos=iPos + nSpecies
+            SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies) = SampWallImpactEnergy_Shared(:,4,p,q,SurfSideID)
             iPos=iPos + nSpecies
 
             ! Add average impact vector (x,y,z) for each species
@@ -548,6 +552,9 @@ IF (myComputeNodeRank.EQ.0) THEN
                                                             + SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
             iPos = iPos + nSpecies
             SampWallImpactEnergy_Shared(:,3,p,q,SurfSideID) = SampWallImpactEnergy_Shared(:,3,p,q,SurfSideID) &
+                                                            + SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
+            iPos = iPos + nSpecies
+            SampWallImpactEnergy_Shared(:,4,p,q,SurfSideID) = SampWallImpactEnergy_Shared(:,4,p,q,SurfSideID) &
                                                             + SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
             iPos = iPos + nSpecies
             ! Add average impact vector (x,y,z) for each species

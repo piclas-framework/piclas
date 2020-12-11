@@ -22,7 +22,9 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER , ALLOCATABLE                   :: SurfModelResultSpec(:,:) ! Resulting species after surfacemodel treatment (nPartBound,nSpecies)
+INTEGER , ALLOCATABLE                   :: SurfModResultSpec(:,:)       ! Resulting species after surface model treatment
+                                                                        ! (nPartBound,nSpecies)
+CHARACTER(LEN=50) , ALLOCATABLE         :: SurfModEnergyDistribution(:) ! Energy distribution of the reflected particles
 
 ! === Porous BC ====================================================================================================================
 INTEGER                                 :: nPorousBC                          ! Number of porous BCs

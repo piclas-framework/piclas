@@ -392,7 +392,7 @@ DEALLOCATE(GlobalSide2SurfSideProc)
 SurfOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
 
 !> Energy + Force + nSpecies
-SurfSampSize = 9+3+nSpecies
+SurfSampSize = SAMPWALL_NVARS+nSpecies
 IF(VarTimeStep%UseVariableTimeStep) SurfSampSize = SurfSampSize + 1
 
 !> Leader communication
@@ -420,9 +420,9 @@ IF(nPorousBC.GT.0) THEN
   ALLOCATE(SampWallPumpCapacity(1:nComputeNodeSurfTotalSides))
   SampWallPumpCapacity = 0.
 END IF
-! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
+! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z) and angle
 IF (CalcSurfaceImpact) THEN
-  ALLOCATE( SampWallImpactEnergy(1:nSpecies,1:3,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides) &
+  ALLOCATE( SampWallImpactEnergy(1:nSpecies,1:4,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides) &
           , SampWallImpactVector(1:nSpecies,1:3,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides) &
           , SampWallImpactAngle (1:nSpecies,    1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides) &
           , SampWallImpactNumber(1:nSpecies,    1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
@@ -462,7 +462,7 @@ END IF
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 IF (CalcSurfaceImpact) THEN
   MPISharedSize = INT((nSpecies*3*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-  CALL Allocate_Shared(MPISharedSize,(/nSpecies,3,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactEnergy_Shared_Win,SampWallImpactEnergy_Shared)
+  CALL Allocate_Shared(MPISharedSize,(/nSpecies,4,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactEnergy_Shared_Win,SampWallImpactEnergy_Shared)
   CALL MPI_WIN_LOCK_ALL(0,SampWallImpactEnergy_Shared_Win,IERROR)
   CALL Allocate_Shared(MPISharedSize,(/nSpecies,3,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactVector_Shared_Win,SampWallImpactVector_Shared)
   CALL MPI_WIN_LOCK_ALL(0,SampWallImpactVector_Shared_Win,IERROR)
@@ -790,26 +790,6 @@ ASSOCIATE (&
                         offset     =(/INT(nVarCount,IK), 0_IK       , 0_IK        , offsetSurfSide/)         , &
                         collective =.FALSE.                                                                  , &
                         RealArray  = MacroSurfaceVal(1:nVar2D,1:nSurfSample,1:nSurfSample,1:nLocalSides))
-  ! Output of InnerSurfSide Array
-  ! these sides should not exist with the new halo region
-!  IF(nInnerSides.GT.0) THEN
-!    nVarCount=0
-!    DO iSpec = 1,nSpecies
-!      CALL WriteArrayToHDF5(DataSetName=H5_Name             , rank=4                                      , &
-!                      nValGlobal =(/nVar2D_Total      , nSurfSample , nSurfSample , nGlobalSides/)  , &
-!                      nVal       =(/nVar2D_Spec       , nSurfSample , nSurfSample , nInnerSides/)        , &
-!                      offset     =(/INT(nVarCount,IK) , 0_IK        , 0_IK        , offsetInnerSurfSide/), &
-!                      collective =.FALSE.,&
-!                      RealArray  = MacroSurfaceSpecVal(1:nVar2D_Spec,1:nSurfSample,1:nSurfSample,LocalnBCSides+1:nOutputSides,iSpec))
-!      nVarCount = nVarCount + INT(nVar2D_Spec)
-!    END DO
-!    CALL WriteArrayToHDF5(DataSetName=H5_Name            , rank=4                                     , &
-!                          nValGlobal =(/nVar2D_Total     , nSurfSample, nSurfSample , nGlobalSides/)  , &
-!                          nVal       =(/nVar2D           , nSurfSample, nSurfSample , nInnerSides/)        , &
-!                          offset     =(/INT(nVarCount,IK), 0_IK       , 0_IK        , offsetInnerSurfSide/), &
-!                          collective =.FALSE.         ,&
-!                          RealArray  = MacroSurfaceVal(1:nVar2D,1:nSurfSample,1:nSurfSample,LocalnBCSides+1:nOutputSides))
-!  END IF
 END ASSOCIATE
 
 CALL CloseDataFile()
