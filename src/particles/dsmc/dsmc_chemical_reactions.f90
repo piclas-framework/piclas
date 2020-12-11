@@ -310,7 +310,8 @@ IF(DSMC%ReservoirSimu) THEN
   END IF
 #endif
 END IF
-
+! ReactionProb should not be gt 1 to avoid meaningless high weighting of a single reaction
+IF (ReactionProb.GT.1) ReactionProb = 1.0
 #if (PP_TimeDiscMethod==42)
 IF (.NOT.DSMC%ReservoirRateStatistic) THEN
   ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb
