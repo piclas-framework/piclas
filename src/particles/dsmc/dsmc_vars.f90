@@ -386,7 +386,6 @@ TYPE tCollCaseInfo
   INTEGER                         :: NumOfReactionPaths     ! Number of possible reaction paths for the collision pair
   INTEGER, ALLOCATABLE            :: ReactionIndex(:)       ! Reaction index as in ChemReac%NumOfReact (1:NumOfReactionPaths)
   REAL, ALLOCATABLE               :: ReactionProb(:)        ! Reaction probability (1:NumOfReactionPaths)
-  LOGICAL, ALLOCATABLE            :: QK_PerformReaction(:)  ! Flag whether a QK reaction is to be performed (1:NumOfReactionPaths)
   LOGICAL                         :: HasXSecReaction
 END TYPE
 

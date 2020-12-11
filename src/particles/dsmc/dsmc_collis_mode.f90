@@ -1164,10 +1164,13 @@ INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 INTEGER                       :: iPart1, iPart2, nPartNode, nPair, iCase, ReacTest, iPath, ReacCounter
 REAL                          :: Volume, NumDens, ReactionProb, iRan, ReactionProbSum
 REAL, ALLOCATABLE             :: ReactionProbArray(:)
+LOGICAL,ALLOCATABLE           :: PerformReaction(:)
 !===================================================================================================================================
 iPart1 = Coll_pData(iPair)%iPart_p1
 iPart2 = Coll_pData(iPair)%iPart_p2
 iCase = CollInf%Coll_Case(PartSpecies(iPart1), PartSpecies(iPart2))
+IF (ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths.EQ.0) RETURN
+ALLOCATE(PerformReaction(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
 ! 0.) Get the correct volume and particle number (in the case of an octree the volume and particle number are given as optionals)
 IF (PRESENT(NodeVolume)) THEN
   Volume = NodeVolume
@@ -1190,47 +1193,69 @@ END IF
 ! 1.) Calculate the reaction probabilities
 ALLOCATE(ReactionProbArray(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
 ReactionProbArray = 0.
-DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+! Reset the complete array (only populated for the specific collision case)
+PerformReaction = .FALSE.
+DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths 
   ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
   IF(ChemReac%XSec_Procedure(ReacTest)) CYCLE
   IF(ChemReac%QKProcedure(ReacTest)) THEN
-    CALL QK_TestReaction(iPair,ReacTest)
+    CALL QK_TestReaction(iPair,ReacTest,PerformReaction(iPath))
   ELSE
     CALL CalcReactionProb(iPair,ReacTest,ReactionProbArray(iPath),nPair,NumDens)
   END IF
 END DO
+
+ReactionProbSum = 0.
+DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+  ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+  ! Skip QK-based and XSec-based reactions
+  IF(ChemReac%QKProcedure(ReacTest).OR.ChemReac%XSec_Procedure(ReacTest)) CYCLE
+  ReactionProbSum = ReactionProbSum + ReactionProbArray(iPath)
+END DO
+
+ReactionProb = 0.
+CALL RANDOM_NUMBER(iRan)
+! Check if the reaction probability is greater than a random number
+IF (ReactionProbSum.GT.iRan) THEN
+  ! Decide which reaction should occur
+  CALL RANDOM_NUMBER(iRan)
+  DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+    ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+    IF(ChemReac%QKProcedure(ReacTest).OR.ChemReac%XSec_Procedure(ReacTest)) CYCLE
+    ReactionProb = ReactionProb + ReactionProbArray(iPath)
+    IF((ReactionProb/ReactionProbSum).GT.iRan) THEN
+      PerformReaction(iPath) = .TRUE.
+      EXIT
+    END IF
+  END DO
+END IF
+
 ReactionProb = 0.; ReacCounter = 0
 ! 2.) Decide which reaction to perform
-! 2a.) QK-based chemistry
-IF(ANY(ChemReac%QKProcedure(:))) THEN
-  ReacCounter = COUNT(ChemReac%CollCaseInfo(iCase)%QK_PerformReaction(:))
-  IF(ReacCounter.GT.0) THEN
-    DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
-      IF(ChemReac%CollCaseInfo(iCase)%QK_PerformReaction(iPath)) THEN
-        ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-        ! Do not perform a relaxation after the chemical reaction
-        RelaxToDo = .FALSE.
-        IF(ReacCounter.GT.1) THEN
-          ! Determine which reaction will occur, perform it and leave the loop
-          ReactionProb = ReactionProb + 1./REAL(ReacCounter)
-          CALL RANDOM_NUMBER(iRan)
-          IF(ReactionProb.GT.iRan) THEN
-            CALL DSMC_Chemistry(iPair, ReacTest)
-            ! Reset the complete array (only populated for the specific collision case)
-            ChemReac%CollCaseInfo(iCase)%QK_PerformReaction = .FALSE.
-            ! Exit the routine
-            RETURN
-          END IF
-        ELSE
+! 2a.) TCE- and QK-based chemistry
+ReacCounter = COUNT(PerformReaction(:))
+IF(ReacCounter.GT.0) THEN
+  IF(ReacCounter.GT.1) CALL RANDOM_NUMBER(iRan)
+  DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+    IF(PerformReaction(iPath)) THEN
+      ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+      ! Do not perform a relaxation after the chemical reaction
+      RelaxToDo = .FALSE.
+      IF(ReacCounter.GT.1) THEN
+        ! Determine which reaction will occur, perform it and leave the loop
+        ReactionProb = ReactionProb + 1./REAL(ReacCounter)  
+        IF(ReactionProb.GT.iRan) THEN
           CALL DSMC_Chemistry(iPair, ReacTest)
-          ! Reset the complete array (only populated for the specific collision case)
-          ChemReac%CollCaseInfo(iCase)%QK_PerformReaction = .FALSE.
           ! Exit the routine
           RETURN
         END IF
+      ELSE
+        CALL DSMC_Chemistry(iPair, ReacTest)
+        ! Exit the routine
+        RETURN
       END IF
-    END DO
-  END IF
+    END IF
+  END DO
 END IF
 
 ! 2b.) Cross-section based chemistry (XSec)
@@ -1269,33 +1294,6 @@ IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
   END IF
 END IF
 
-! 2c.) Conventional TCE treatment (Arrhenius-based)
-
-ReactionProbSum = 0.
-DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
-  ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-  ! Skip QK-based and XSec-based reactions
-  IF(ChemReac%QKProcedure(ReacTest).OR.ChemReac%XSec_Procedure(ReacTest)) CYCLE
-  ReactionProbSum = ReactionProbSum + ReactionProbArray(iPath)
-END DO
-
-ReactionProb = 0.
-CALL RANDOM_NUMBER(iRan)
-! Check if the reaction probability is greater than a random number
-IF (ReactionProbSum.GT.iRan) THEN
-  ! Decide which reaction should occur
-  CALL RANDOM_NUMBER(iRan)
-  DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
-    ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-    IF(ChemReac%QKProcedure(ReacTest).OR.ChemReac%XSec_Procedure(ReacTest)) CYCLE
-    ReactionProb = ReactionProb + ReactionProbArray(iPath)
-    IF((ReactionProb/ReactionProbSum).GT.iRan) THEN
-      CALL DSMC_Chemistry(iPair, ReacTest)
-      RelaxToDo = .FALSE.
-      EXIT
-    END IF
-  END DO
-END IF
 ! ! ############################################################################################################################### !
 !     CASE(16) ! simple CEX/MEX
 ! ! ############################################################################################################################### !

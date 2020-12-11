@@ -94,7 +94,7 @@ END IF
 END SUBROUTINE QK_Init
 
 
-SUBROUTINE QK_TestReaction(iPair,iReac)
+SUBROUTINE QK_TestReaction(iPair,iReac,PerformReaction)
 !===================================================================================================================================
 ! Decide whether a dissociation/ionization occurs: Check if the relative translation kinetic energy plus vibrational/electronic
 ! energy of the molecule under consideration is larger than the dissociation/ionization energy
@@ -110,12 +110,13 @@ USE MOD_part_tools            ,ONLY: GetParticleWeight
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: iPair, iReac
+LOGICAL, INTENT(INOUT)        :: PerformReaction
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: MaxQua, React1Inx, React2Inx, iCase, iPath, PathIndex
-REAL                          :: Weight1, Weight2, ReducedMass, IonizationEnergy
+REAL                          :: Weight1, Weight2, ReducedMass, IonizationEnergy, Ec
 !===================================================================================================================================
 ! Determining, which collision partner is the dissociating particle (always the first molecule in the DefinedReact array)
 IF (ChemReac%Reactants(iReac,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
@@ -143,31 +144,30 @@ ELSE
 END IF
 
 ! Determine the collision energy (relative translational + vibrational energy of dissociating molecule)
-Coll_pData(iPair)%Ec = 0.5 * ReducedMass*Coll_pData(iPair)%CRela2
+Ec = 0.5 * ReducedMass*Coll_pData(iPair)%CRela2
 
 SELECT CASE(TRIM(ChemReac%ReactType(iReac)))
 CASE('iQK')
-  IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,React1Inx)*Weight1
+  IF(DSMC%ElectronicModel) Ec = Ec + PartStateIntEn(3,React1Inx)*Weight1
   ! ionization level is last known energy level of species
   MaxQua=SpecDSMC(PartSpecies(React1Inx))%MaxElecQuant - 1
-  IonizationEnergy=SpecDSMC(PartSpecies(React1Inx))%ElectronicState(2,MaxQua)*BoltzmannConst*(2*Weight1 + Weight2)/3.
+  IonizationEnergy=SpecDSMC(PartSpecies(React1Inx))%ElectronicState(2,MaxQua)*BoltzmannConst*(Weight1 + Weight2)/2.
   ! if you have electronic levels above the ionization limit, such limits should be used instead of
   ! the pure energy comparison
-  IF(Coll_pData(iPair)%Ec .GT. IonizationEnergy) THEN
-    ChemReac%CollCaseInfo(iCase)%QK_PerformReaction(PathIndex) = .TRUE.
+  IF(Ec .GT. IonizationEnergy) THEN
+    PerformReaction = .TRUE.
   END IF
 CASE('D')
-  Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(1,React1Inx)*Weight1
+  Ec = Ec + PartStateIntEn(1,React1Inx)*Weight1
   ! Correction for second collision partner
   IF ((SpecDSMC(PartSpecies(React2Inx))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(React2Inx))%InterID.EQ.20)) THEN
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - SpecDSMC(PartSpecies(React2Inx))%EZeroPoint*Weight2
+    Ec = Ec - SpecDSMC(PartSpecies(React2Inx))%EZeroPoint*Weight2
   END IF
   ! Determination of the quantum number corresponding to the collision energy
-  MaxQua = INT(Coll_pData(iPair)%Ec &
-                / ((Weight1 + Weight2)/2.*BoltzmannConst * SpecDSMC(PartSpecies(React1Inx))%CharaTVib ) - DSMC%GammaQuant)
+  MaxQua = INT(Ec / ((Weight1 + Weight2)/2.*BoltzmannConst * SpecDSMC(PartSpecies(React1Inx))%CharaTVib ) - DSMC%GammaQuant)
   ! Comparing the collision quantum number with the dissociation quantum number
   IF (MaxQua.GT.SpecDSMC(PartSpecies(React1Inx))%DissQuant) THEN
-    ChemReac%CollCaseInfo(iCase)%QK_PerformReaction(PathIndex) = .TRUE.
+    PerformReaction = .TRUE.
   END IF
 CASE DEFAULT
   CALL Abort(__STAMP__,&

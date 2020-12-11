@@ -527,8 +527,6 @@ DO iCase = 1, CollInf%NumCase
   ChemReac%CollCaseInfo(iCase)%ReactionIndex = 0
   ALLOCATE(ChemReac%CollCaseInfo(iCase)%ReactionProb(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
   ChemReac%CollCaseInfo(iCase)%ReactionProb = 0.
-  ALLOCATE(ChemReac%CollCaseInfo(iCase)%QK_PerformReaction(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
-  ChemReac%CollCaseInfo(iCase)%QK_PerformReaction = .FALSE.
   ChemReac%CollCaseInfo(iCase)%HasXSecReaction    = .FALSE.
   ReacIndexCounter = 0
   RecombAdded = .FALSE.
