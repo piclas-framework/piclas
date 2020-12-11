@@ -285,19 +285,18 @@ CASE('cell_volweight_mean')
   ALLOCATE(NodeSourceLoc(1:4,1:nUniqueGlobalNodes))
 
   IF(DoDielectricSurfaceCharge)THEN
-
     firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
     lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
 
    ! Global, synchronized surface charge contribution (is added to NodeSource AFTER MPI synchronization)
     MPISharedSize = INT(nUniqueGlobalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-    CALL Allocate_Shared(MPISharedSize,(/1,nUniqueGlobalNodes/),NodeSourceExt_Shared_Win,NodeSourceExt_Shared)
+    CALL Allocate_Shared(MPISharedSize,(/nUniqueGlobalNodes/),NodeSourceExt_Shared_Win,NodeSourceExt_Shared)
     CALL MPI_WIN_LOCK_ALL(0,NodeSourceExt_Shared_Win,IERROR)
     NodeSourceExt => NodeSourceExt_Shared
     !ALLOCATE(NodeSourceExtLoc(1:1,1:nUniqueGlobalNodes))
     IF(.NOT.DoRestart)THEN
       DO iNode=firstNode, lastNode
-        NodeSourceExt(1,iNode) = 0.
+        NodeSourceExt(iNode) = 0.
       END DO
       CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
       CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
@@ -305,19 +304,18 @@ CASE('cell_volweight_mean')
 
    ! Local, non-synchronized surface charge contribution (is added to NodeSource BEFORE MPI synchronization)
     MPISharedSize = INT(nUniqueGlobalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-    CALL Allocate_Shared(MPISharedSize,(/1,nUniqueGlobalNodes/),NodeSourceExtTmp_Shared_Win,NodeSourceExtTmp_Shared)
+    CALL Allocate_Shared(MPISharedSize,(/nUniqueGlobalNodes/),NodeSourceExtTmp_Shared_Win,NodeSourceExtTmp_Shared)
     CALL MPI_WIN_LOCK_ALL(0,NodeSourceExtTmp_Shared_Win,IERROR)
     NodeSourceExtTmp => NodeSourceExtTmp_Shared
-    ALLOCATE(NodeSourceExtTmpLoc(1:1,1:nUniqueGlobalNodes))
+    ALLOCATE(NodeSourceExtTmpLoc(1:nUniqueGlobalNodes))
     NodeSourceExtTmpLoc = 0.
 
+    ! this array does not have to be initialized with zero
     ! DO iNode=firstNode, lastNode
-    !   NodeSourceExtTmp(1,iNode) = 0.
+    !   NodeSourceExtTmp(iNode) = 0.
     ! END DO
     !CALL MPI_WIN_SYNC(NodeSourceExtTmp_Shared_Win,IERROR)
     !CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
-
-
   END IF ! DoDielectricSurfaceCharge
 
 
@@ -382,8 +380,9 @@ CASE('cell_volweight_mean')
     DO iProc = 0,nLeaderGroupProcs-1
       IF (iProc.EQ.myLeaderGroupRank) CYCLE
       IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-        ALLOCATE(NodeMapping(iProc)%RecvNodeUniqueGlobalID(1:NodeMapping(iProc)%nRecvUniqueNodes), &
-              NodeMapping(iProc)%RecvNodeSource(1:4,1:NodeMapping(iProc)%nRecvUniqueNodes))
+        ALLOCATE(NodeMapping(iProc)%RecvNodeUniqueGlobalID(1:NodeMapping(iProc)%nRecvUniqueNodes))
+        ALLOCATE(NodeMapping(iProc)%RecvNodeSource(1:4,1:NodeMapping(iProc)%nRecvUniqueNodes))
+        IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMapping(iProc)%RecvNodeSourceExt(1:NodeMapping(iProc)%nRecvUniqueNodes))
         CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeUniqueGlobalID                   &
                       , NodeMapping(iProc)%nRecvUniqueNodes                         &
                       , MPI_INTEGER                                                 &
@@ -394,8 +393,9 @@ CASE('cell_volweight_mean')
                       , IERROR)
       END IF
       IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
-        ALLOCATE(NodeMapping(iProc)%SendNodeUniqueGlobalID(1:NodeMapping(iProc)%nSendUniqueNodes), &
-              NodeMapping(iProc)%SendNodeSource(1:4,1:NodeMapping(iProc)%nSendUniqueNodes))
+        ALLOCATE(NodeMapping(iProc)%SendNodeUniqueGlobalID(1:NodeMapping(iProc)%nSendUniqueNodes))
+        ALLOCATE(NodeMapping(iProc)%SendNodeSource(1:4,1:NodeMapping(iProc)%nSendUniqueNodes))
+        IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMapping(iProc)%SendNodeSourceExt(1:NodeMapping(iProc)%nSendUniqueNodes))
         SendNodeCount = 0
         DO iNode = 1, nUniqueGlobalNodes
           IF (NodeDepoMapping(iProc,iNode)) THEN
@@ -429,8 +429,8 @@ CASE('cell_volweight_mean')
 #else
   ALLOCATE(NodeSource(1:4,1:nUniqueGlobalNodes))
   IF(DoDielectricSurfaceCharge)THEN
-    ALLOCATE(NodeSourceExt(1:1,1:nUniqueGlobalNodes))
-    ALLOCATE(NodeSourceExtTmp(1:1,1:nUniqueGlobalNodes))
+    ALLOCATE(NodeSourceExt(1:nUniqueGlobalNodes))
+    ALLOCATE(NodeSourceExtTmp(1:nUniqueGlobalNodes))
     NodeSourceExt    = 0.
     NodeSourceExtTmp = 0.
   END IF ! DoDielectricSurfaceCharge

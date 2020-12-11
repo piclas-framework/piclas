@@ -366,69 +366,64 @@ END IF
 #if USE_MPI
 ASSOCIATE(NodeSource       => NodeSourceLoc       ,&
           NodeSourceExtTmp => NodeSourceExtTmpLoc )
-firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
-lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
+  firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
+  lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
 #else
-firstNode = 1
-lastNode = nUniqueGlobalNodes
+  firstNode = 1
+  lastNode = nUniqueGlobalNodes
 #endif
 
-NodeSource=0.0
-DO iPart=1,PDM%ParticleVecLength
-  IF(PRESENT(doParticle_In))THEN
-    IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
-  ELSE
-    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
-  END IF
-  IF (isDepositParticle(iPart)) THEN
-    IF (usevMPF) THEN
-      Charge = Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
+  NodeSource=0.0
+  DO iPart=1,PDM%ParticleVecLength
+    IF(PRESENT(doParticle_In))THEN
+      IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
     ELSE
-      Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
+      IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
-    CALL GetPositionInRefElem(PartState(1:3,iPart),TempPartPos(1:3),PEM%GlobalElemID(iPart),ForceMode=.TRUE.)
-    TSource(:) = 0.0
-    IF(doCalculateCurrentDensity)THEN
-      TSource(1:3) = PartState(4:6,iPart)*Charge
+    IF (isDepositParticle(iPart)) THEN
+      IF (usevMPF) THEN
+        Charge = Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
+      ELSE
+        Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
+      END IF
+      CALL GetPositionInRefElem(PartState(1:3,iPart),TempPartPos(1:3),PEM%GlobalElemID(iPart),ForceMode=.TRUE.)
+      TSource(:) = 0.0
+      IF(doCalculateCurrentDensity)THEN
+        TSource(1:3) = PartState(4:6,iPart)*Charge
+      END IF
+      TSource(4) = Charge
+
+      alpha1=0.5*(TempPartPos(1)+1.0)
+      alpha2=0.5*(TempPartPos(2)+1.0)
+      alpha3=0.5*(TempPartPos(3)+1.0)
+
+      NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,PEM%CNElemID(iPart)))
+      NodeSource(SourceDim:4,NodeID(1)) = NodeSource(SourceDim:4,NodeID(1)) + (TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
+      NodeSource(SourceDim:4,NodeID(2)) = NodeSource(SourceDim:4,NodeID(2)) + (TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*(1-alpha3))
+      NodeSource(SourceDim:4,NodeID(3)) = NodeSource(SourceDim:4,NodeID(3)) + (TSource(SourceDim:4)*  (alpha1)*  (alpha2)*(1-alpha3))
+      NodeSource(SourceDim:4,NodeID(4)) = NodeSource(SourceDim:4,NodeID(4)) + (TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*(1-alpha3))
+      NodeSource(SourceDim:4,NodeID(5)) = NodeSource(SourceDim:4,NodeID(5)) + (TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*  (alpha3))
+      NodeSource(SourceDim:4,NodeID(6)) = NodeSource(SourceDim:4,NodeID(6)) + (TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*  (alpha3))
+      NodeSource(SourceDim:4,NodeID(7)) = NodeSource(SourceDim:4,NodeID(7)) + (TSource(SourceDim:4)*  (alpha1)*  (alpha2)*  (alpha3))
+      NodeSource(SourceDim:4,NodeID(8)) = NodeSource(SourceDim:4,NodeID(8)) + (TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*  (alpha3))
+#if USE_LOADBALANCE
+    CALL LBElemSplitTime(PEM%LocalElemID(iPart),tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
+#endif /*USE_LOADBALANCE*/
     END IF
-    TSource(4) = Charge
-
-    alpha1=0.5*(TempPartPos(1)+1.0)
-    alpha2=0.5*(TempPartPos(2)+1.0)
-    alpha3=0.5*(TempPartPos(3)+1.0)
-
-    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,PEM%CNElemID(iPart)))
-    NodeSource(SourceDim:4,NodeID(1)) = NodeSource(SourceDim:4,NodeID(1)) + (TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
-    NodeSource(SourceDim:4,NodeID(2)) = NodeSource(SourceDim:4,NodeID(2)) + (TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*(1-alpha3))
-    NodeSource(SourceDim:4,NodeID(3)) = NodeSource(SourceDim:4,NodeID(3)) + (TSource(SourceDim:4)*  (alpha1)*  (alpha2)*(1-alpha3))
-    NodeSource(SourceDim:4,NodeID(4)) = NodeSource(SourceDim:4,NodeID(4)) + (TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*(1-alpha3))
-    NodeSource(SourceDim:4,NodeID(5)) = NodeSource(SourceDim:4,NodeID(5)) + (TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*  (alpha3))
-    NodeSource(SourceDim:4,NodeID(6)) = NodeSource(SourceDim:4,NodeID(6)) + (TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*  (alpha3))
-    NodeSource(SourceDim:4,NodeID(7)) = NodeSource(SourceDim:4,NodeID(7)) + (TSource(SourceDim:4)*  (alpha1)*  (alpha2)*  (alpha3))
-    NodeSource(SourceDim:4,NodeID(8)) = NodeSource(SourceDim:4,NodeID(8)) + (TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*  (alpha3))
-#if USE_LOADBALANCE
-  CALL LBElemSplitTime(PEM%LocalElemID(iPart),tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
-#endif /*USE_LOADBALANCE*/
-  END IF
-END DO
-
-
+  END DO
 
 #if USE_LOADBALANCE
-CALL LBStartTime(tLBStart) ! Start time measurement
+  CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
-! 1/2 Add the local non-synchronized surface charge contribution (does not consider the charge contribution from restart files) from
-! NodeSourceExtTmp. This contribution accumulates over time, but remains locally to each processor as it is communicated via the 
-! normal NodeSource container. The synchronized part is added after communication.
-IF(DoDielectricSurfaceCharge)THEN
-    NodeSource(4,:) = NodeSource(4,:) + NodeSourceExtTmp(1,:)
-END IF ! DoDielectricSurfaceCharge
+  ! 1/2 Add the local non-synchronized surface charge contribution (does not consider the charge contribution from restart files) from
+  ! NodeSourceExtTmp. This contribution accumulates over time, but remains locally to each processor as it is communicated via the 
+  ! normal NodeSource container. The synchronized part is added after communication.
+  IF(DoDielectricSurfaceCharge)THEN
+      NodeSource(4,:) = NodeSource(4,:) + NodeSourceExtTmp(:)
+  END IF ! DoDielectricSurfaceCharge
 #if USE_LOADBALANCE
-CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
+  CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 #endif /*USE_LOADBALANCE*/
-
-
-
 
 #if USE_MPI
 END ASSOCIATE
@@ -508,7 +503,7 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 ! NodeSourceExtTmp is nulled
 IF(DoDielectricSurfaceCharge)THEN
   DO iNode=firstNode, lastNode
-    NodeSource(4,iNode) = NodeSource(4,iNode) + NodeSourceExt(1,iNode)
+    NodeSource(4,iNode) = NodeSource(4,iNode) + NodeSourceExt(iNode)
   END DO
 END IF ! DoDielectricSurfaceCharge
 

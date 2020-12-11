@@ -98,14 +98,14 @@ ASSOCIATE( NodeSourceExtTmp => NodeSourceExtTmpLoc )
 #endif
   ! Apply charge to nodes (note that the volumes are not accounted for yet here!)
   NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
-  NodeSourceExtTmp(1,NodeID(1)) = NodeSourceExtTmp(1,NodeID(1)) + (Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
-  NodeSourceExtTmp(1,NodeID(2)) = NodeSourceExtTmp(1,NodeID(2)) + (Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
-  NodeSourceExtTmp(1,NodeID(3)) = NodeSourceExtTmp(1,NodeID(3)) + (Charge*  (alpha1)*  (alpha2)*(1-alpha3))
-  NodeSourceExtTmp(1,NodeID(4)) = NodeSourceExtTmp(1,NodeID(4)) + (Charge*(1-alpha1)*  (alpha2)*(1-alpha3))
-  NodeSourceExtTmp(1,NodeID(5)) = NodeSourceExtTmp(1,NodeID(5)) + (Charge*(1-alpha1)*(1-alpha2)*  (alpha3))
-  NodeSourceExtTmp(1,NodeID(6)) = NodeSourceExtTmp(1,NodeID(6)) + (Charge*  (alpha1)*(1-alpha2)*  (alpha3))
-  NodeSourceExtTmp(1,NodeID(7)) = NodeSourceExtTmp(1,NodeID(7)) + (Charge*  (alpha1)*  (alpha2)*  (alpha3))
-  NodeSourceExtTmp(1,NodeID(8)) = NodeSourceExtTmp(1,NodeID(8)) + (Charge*(1-alpha1)*  (alpha2)*  (alpha3))
+  NodeSourceExtTmp(NodeID(1)) = NodeSourceExtTmp(NodeID(1)) + (Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
+  NodeSourceExtTmp(NodeID(2)) = NodeSourceExtTmp(NodeID(2)) + (Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
+  NodeSourceExtTmp(NodeID(3)) = NodeSourceExtTmp(NodeID(3)) + (Charge*  (alpha1)*  (alpha2)*(1-alpha3))
+  NodeSourceExtTmp(NodeID(4)) = NodeSourceExtTmp(NodeID(4)) + (Charge*(1-alpha1)*  (alpha2)*(1-alpha3))
+  NodeSourceExtTmp(NodeID(5)) = NodeSourceExtTmp(NodeID(5)) + (Charge*(1-alpha1)*(1-alpha2)*  (alpha3))
+  NodeSourceExtTmp(NodeID(6)) = NodeSourceExtTmp(NodeID(6)) + (Charge*  (alpha1)*(1-alpha2)*  (alpha3))
+  NodeSourceExtTmp(NodeID(7)) = NodeSourceExtTmp(NodeID(7)) + (Charge*  (alpha1)*  (alpha2)*  (alpha3))
+  NodeSourceExtTmp(NodeID(8)) = NodeSourceExtTmp(NodeID(8)) + (Charge*(1-alpha1)*  (alpha2)*  (alpha3))
 #if USE_MPI
 END ASSOCIATE
 #endif
