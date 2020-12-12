@@ -335,7 +335,7 @@ ELSE
 #endif
 
   ! Check whether halo_eps is smaller than shape function radius e.g. 'shape_function'
-  IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+  IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     IF(halo_eps.LT.r_sf)THEN
       SWRITE(UNIT_stdOut,'(A)') ' halo_eps is smaller than shape function radius. Setting halo_eps=r_sf'
       halo_eps = halo_eps + r_sf

@@ -1616,7 +1616,7 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
   CALL MPI_WIN_LOCK_ALL(0,ElemRadius2NGeo_Shared_Win,IERROR)
   ElemRadius2NGeo    => ElemRadius2NGeo_Shared
   ElemBaryNGeo       => ElemBaryNGeo_Shared
-  IF (TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function') THEN
+  IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalElems/),ElemRadiusNGeo_Shared_Win,ElemRadiusNGEO_Shared)
     CALL MPI_WIN_LOCK_ALL(0,ElemRadiusNGeo_Shared_Win,IERROR)
     ElemRadiusNGeo    => ElemRadiusNGeo_Shared
@@ -1625,18 +1625,17 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #else
 ALLOCATE(ElemBaryNGeo(1:3,nElems) &
         ,ElemRadius2NGeo( nElems))
-IF (TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function') ALLOCATE(ElemRadiusNGeo( nElems))
+IF(StringBeginsWith(DepositionType,'shape_function')) ALLOCATE(ElemRadiusNGeo(nElems))
 #endif /*USE_MPI*/
 
 #if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
 #endif /* USE_MPI*/
   ElemRadius2NGeo = 0.
-  IF (TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function') ElemRadiusNGeo = 0.
+  IF(StringBeginsWith(DepositionType,'shape_function')) ElemRadiusNGeo = 0.
 #if USE_MPI
 END IF
-IF (TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function') &
-    CALL MPI_WIN_SYNC(ElemRadiusNGeo_Shared_Win,IERROR)
+IF(StringBeginsWith(DepositionType,'shape_function')) CALL MPI_WIN_SYNC(ElemRadiusNGeo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(ElemRadius2NGeo_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #endif /* USE_MPI*/
@@ -1663,12 +1662,11 @@ DO iElem=firstElem,lastElem
     Radius = MAX(Radius,VECNORM(xPos))
   END DO
   ElemRadius2NGeo(iElem) = Radius*Radius
-  IF (TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function') ElemRadiusNGeo(iElem) = Radius
+  IF(StringBeginsWith(DepositionType,'shape_function')) ElemRadiusNGeo(iElem) = Radius
 END DO ! iElem
 
 #if USE_MPI
-IF (TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function') &
-    CALL MPI_WIN_SYNC(ElemRadiusNGeo_Shared_Win,IERROR)
+IF(StringBeginsWith(DepositionType,'shape_function')) CALL MPI_WIN_SYNC(ElemRadiusNGeo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(ElemRadius2NGeo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(ElemBaryNGeo_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)

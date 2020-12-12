@@ -161,7 +161,7 @@ END DO
 firstElem = offsetElem+1
 lastElem  = offsetElem+nElems
 
-IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   ALLOCATE(FlagShapeElem(1:nComputeNodeElems))
   FlagShapeElem = .FALSE.
 END IF
@@ -381,7 +381,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
 !#endif
 
   ! Skip if the proc is already flagged, only if the exact elements are not required (.NOT.shape_function)
-  IF(.NOT.TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+    IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     SELECT CASE(GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc))
       ! Proc not previously encountered, check if possibly in range
       CASE(-1)
@@ -440,7 +440,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                        - MPISideBoundsOfElemCenter(1:3,iSide))                                         &
               .LE. MPI_halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
               ! flag the proc as exchange proc (in halo region)
-              IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+              IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                 FlagShapeElem(iElem) = .TRUE.
                 IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc).EQ.2) CYCLE ElemLoop
               END IF
@@ -461,7 +461,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                          - MPISideBoundsOfElemCenter(1:3,iSide))                                      &
                         .LE. MPI_halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
                 ! flag the proc as exchange proc (in halo region)
-                IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+                IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                   FlagShapeElem(iElem) = .TRUE.
                   IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc).EQ.2) CYCLE ElemLoop
                 END IF
@@ -482,7 +482,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                            - MPISideBoundsOfElemCenter(1:3,iSide))                                      &
                         .LE. MPI_halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
                   ! flag the proc as exchange proc (in halo region)
-                  IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+                  IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                     FlagShapeElem(iElem) = .TRUE.
                     IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc).EQ.2) CYCLE ElemLoop
                   END IF
@@ -507,7 +507,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                          - MPISideBoundsOfElemCenter(1:3,iSide))                                        &
                         .LE. MPI_halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
                 ! flag the proc as exchange proc (in halo region)
-                IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+                IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                   FlagShapeElem(iElem) = .TRUE.
                   IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc).EQ.2) CYCLE ElemLoop
                 END IF
@@ -528,7 +528,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                              - MPISideBoundsOfElemCenter(1:3,iSide))                                      &
                           .LE. MPI_halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
                     ! flag the proc as exchange proc (in halo region)
-                    IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+                    IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                       FlagShapeElem(iElem) = .TRUE.
                       IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc).EQ.2) CYCLE ElemLoop
                     END IF
@@ -553,7 +553,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                            - MPISideBoundsOfElemCenter(1:3,iSide))                                          &
                         .LE. MPI_halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
                   ! flag the proc as exchange proc (in halo region)
-                  IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+                  IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                     FlagShapeElem(iElem) = .TRUE.
                     IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc).EQ.2) CYCLE ElemLoop
                   END IF
@@ -595,7 +595,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                      - MPISideBoundsOfElemCenter(1:3,iSide))                                &
                   .LE. MPI_halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
             ! flag the proc as exchange proc (in halo region)
-            IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+            IF(StringBeginsWith(DepositionType,'shape_function'))THEN
               FlagShapeElem(iElem) = .TRUE.
               IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc).EQ.2) CYCLE ElemLoop
             END IF
@@ -609,7 +609,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
       END IF
     ! Element is in range of not-periodically displaced MPI side
     ELSE
-      IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+      IF(StringBeginsWith(DepositionType,'shape_function'))THEN
         FlagShapeElem(iElem) = .TRUE.
         IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc).EQ.2) CYCLE ElemLoop
       END IF
@@ -710,7 +710,7 @@ SWRITE(UNIT_stdOut,'(A,I0,A)') ' | Started particle exchange communication with 
                                  ' partners per proc'
 
 ! Build shapeFunction mapping
-IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   nSendShapeElems = 0
   DO iELem = 1,nComputeNodeTotalElems
     IF (FlagShapeElem(iElem)) nSendShapeElems = nSendShapeElems + 1
