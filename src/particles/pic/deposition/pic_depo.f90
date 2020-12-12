@@ -184,61 +184,6 @@ IF (TRIM(TimeAverageFile).NE.'none') THEN
   END IF
 END IF
 
-
-! Deposition 'shape_function'
-IF(StringBeginsWith(DepositionType,'shape_function'))THEN
-  r_sf                  = GETREAL('PIC-shapefunction-radius')
-  alpha_sf              = GETINT('PIC-shapefunction-alpha')
-  r2_sf = r_sf * r_sf  ! Radius squared
-  r2_sf_inv = 1./r2_sf ! Inverse of radius squared
-
-  IF(TRIM(DepositionType).EQ.'shape_function_adaptive') THEN
-#if USE_MPI
-    firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-    lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
-
-    MPISharedSize = INT(2*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-    CALL Allocate_Shared(MPISharedSize,(/2,nComputeNodeTotalElems/),SFElemr2_Shared_Win,SFElemr2_Shared)
-    CALL MPI_WIN_LOCK_ALL(0,SFElemr2_Shared_Win,IERROR)
-#else
-    ALLOCATE(SFElemr2_Shared(1:2,1:nElems))
-    firstElem = 1
-    lastElem  = nElems
-#endif  /*USE_MPI*/
-#if USE_MPI
-    IF (myComputeNodeRank.EQ.0) THEN
-#endif
-    SFElemr2_Shared   = HUGE(1.)
-#if USE_MPI
-    END IF
-    CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
-    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
-#endif
-    DO iElem = firstElem,lastElem
-      DO iNode = 1, 8
-        NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
-        UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
-        DO jElem = 1, NodeToElemMapping(2,UniqueNodeID)
-          NbElemID = NodeToElemInfo(NodeToElemMapping(1,UniqueNodeID)+jElem)
-          DO jNode = 1, 8
-            NeighNonUniqueNodeID = ElemNodeID_Shared(jNode,NbElemID)
-            NeighUniqueNodeID = NodeInfo_Shared(NeighNonUniqueNodeID)
-            IF (UniqueNodeID.EQ.NeighUniqueNodeID) CYCLE
-            r_sf_tmp = VECNORM(NodeCoords_Shared(1:3,NonUniqueNodeID)-NodeCoords_Shared(1:3,NeighNonUniqueNodeID))
-            IF (r_sf_tmp.LT.SFElemr2_Shared(1,iElem)) SFElemr2_Shared(1,iElem) = r_sf_tmp
-          END DO
-        END DO
-      END DO
-      SFElemr2_Shared(2,iElem) = SFElemr2_Shared(1,iElem)*SFElemr2_Shared(1,iElem)
-    END DO
-#if USE_MPI
-    CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
-    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
-#endif
-  END IF
-
-END IF
-
 !--- init DepositionType-specific vars
 SELECT CASE(TRIM(DepositionType))
 CASE('cell_volweight')
@@ -451,6 +396,66 @@ CASE('cell_volweight_mean')
 !    NodeSourceExtTmp = 0.0
 !  END IF ! DoDielectricSurfaceCharge
 CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
+  r_sf     = GETREAL('PIC-shapefunction-radius')
+  alpha_sf = GETINT('PIC-shapefunction-alpha')
+  dim_sf   = GETINT('PIC-shapefunction-dimension')
+  ! Get shape function direction for 1D (the direction in which the charge will be distributed) and 2D (the direction in which the 
+  ! charge will be constant)
+  dim_sf_dir = GETINT('PIC-shapefunction-direction')
+  IF(dim_sf.EQ.2)THEN
+    SWRITE(UNIT_stdOut,'(A)') ' Shape function 2D with const. distribution in dir ',dim_sf_dir,' and variable distrbution in ',&
+        MERGE(1,2,dim_sf_dir.EQ.2),' and ', MERGE(1,MERGE(3,3,dim_sf_dir.EQ.2),dim_sf_dir.EQ.3)
+    stop
+  END IF ! dim_sf.EQ.2
+
+  r2_sf = r_sf * r_sf  ! Radius squared
+  r2_sf_inv = 1./r2_sf ! Inverse of radius squared
+
+  IF(TRIM(DepositionType).EQ.'shape_function_adaptive') THEN
+#if USE_MPI
+    firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+    lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+
+    MPISharedSize = INT(2*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+    CALL Allocate_Shared(MPISharedSize,(/2,nComputeNodeTotalElems/),SFElemr2_Shared_Win,SFElemr2_Shared)
+    CALL MPI_WIN_LOCK_ALL(0,SFElemr2_Shared_Win,IERROR)
+#else
+    ALLOCATE(SFElemr2_Shared(1:2,1:nElems))
+    firstElem = 1
+    lastElem  = nElems
+#endif  /*USE_MPI*/
+#if USE_MPI
+    IF (myComputeNodeRank.EQ.0) THEN
+#endif
+    SFElemr2_Shared   = HUGE(1.)
+#if USE_MPI
+    END IF
+    CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
+    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif
+    DO iElem = firstElem,lastElem
+      DO iNode = 1, 8
+        NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
+        UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
+        DO jElem = 1, NodeToElemMapping(2,UniqueNodeID)
+          NbElemID = NodeToElemInfo(NodeToElemMapping(1,UniqueNodeID)+jElem)
+          DO jNode = 1, 8
+            NeighNonUniqueNodeID = ElemNodeID_Shared(jNode,NbElemID)
+            NeighUniqueNodeID = NodeInfo_Shared(NeighNonUniqueNodeID)
+            IF (UniqueNodeID.EQ.NeighUniqueNodeID) CYCLE
+            r_sf_tmp = VECNORM(NodeCoords_Shared(1:3,NonUniqueNodeID)-NodeCoords_Shared(1:3,NeighNonUniqueNodeID))
+            IF (r_sf_tmp.LT.SFElemr2_Shared(1,iElem)) SFElemr2_Shared(1,iElem) = r_sf_tmp
+          END DO
+        END DO
+      END DO
+      SFElemr2_Shared(2,iElem) = SFElemr2_Shared(1,iElem)*SFElemr2_Shared(1,iElem)
+    END DO
+#if USE_MPI
+    CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
+    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif
+  END IF
+
   !ALLOCATE(PartToFIBGM(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
   !IF (ALLOCSTAT.NE.0) CALL abort(&
   !    __STAMP__&

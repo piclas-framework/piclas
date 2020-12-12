@@ -59,17 +59,21 @@ INTEGER                         :: sf1d_dir                  ! direction of 1D s
 LOGICAL                         :: sfDepo3D                  ! when using 1D or 2D deposition, the charge can be deposited over the
 LOGICAL                         :: DoSFChargeCons
 !                                                            ! volume (3D) or line (1D) / area (2D)
-INTEGER                         :: NDepo                     ! polynomial degree of delta distri
-REAL,ALLOCATABLE                :: tempcharge(:)             ! temp-charge for epo. kernal
+INTEGER                         :: NDepo                     ! polynomial degree of delta distribution
+REAL,ALLOCATABLE                :: tempcharge(:)             ! temp-charge for epo. Kernel
 REAL,ALLOCATABLE                :: NDepoChooseK(:,:)         ! array n over n
 REAL,ALLOCATABLE                :: wBaryNDepo(:)             ! barycentric weights for deposition
 REAL,ALLOCATABLE                :: swGPNDepo(:)              ! integration weights for deposition
-REAL,ALLOCATABLE                :: XiNDepo(:)                ! gauss position of barycenters
-REAL,ALLOCATABLE                :: Vdm_NDepo_GaussN(:,:)     ! VdM between different polynomial degrees
+REAL,ALLOCATABLE                :: XiNDepo(:)                ! gauss position of bary centers
+REAL,ALLOCATABLE                :: Vdm_NDepo_GaussN(:,:)     ! Vandermonde between different polynomial degrees
 REAL,ALLOCATABLE                :: DDMassinv(:,:,:,:)        ! inverse mass-matrix for deposition
-REAL,ALLOCATABLE                :: Vdm_EquiN_GaussN(:,:)     ! Vdm from equidistant points to Gauss Points
-INTEGER                         :: alpha_sf                  ! shapefuntion exponent
-REAL                            :: BGMdeltas(3)              ! Backgroundmesh size in x,y,z
+REAL,ALLOCATABLE                :: Vdm_EquiN_GaussN(:,:)     ! Vandermonde from equidistant points to Gauss Points
+INTEGER                         :: alpha_sf                  ! shape function exponent
+INTEGER                         :: dim_sf                    ! 1D, 2D or 3D shape function
+INTEGER                         :: dim_sf_dir                ! Get shape function direction for 1D (the direction in which the charge
+!                                                            ! will be distributed) and 2D (the direction in which the charge will be
+!                                                            ! constant)
+REAL                            :: BGMdeltas(3)              ! Background mesh size in x,y,z
 REAL                            :: FactorBGM(3)              ! Divider for BGM (to allow real numbers)
 REAL                            :: BGMVolume                 ! Volume of a BGM Cell
 INTEGER                         :: BGMminX                   ! Local minimum BGM Index in x

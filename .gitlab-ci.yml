@@ -386,11 +386,11 @@ NIG_maxwell_RK4:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_RK4/ ; fi
 
-      # NIG_PIC_poisson_plasma_wave:
-      #   <<: *defaults_nightly
-      #   stage: reggie_nightly
-      #   script:
-      #     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_plasma_wave/ ; fi
+NIG_PIC_poisson_plasma_wave:
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_plasma_wave/ ; fi
 
 NIG_maxwell_dipole_dielectric:
   <<: *defaults_nightly
