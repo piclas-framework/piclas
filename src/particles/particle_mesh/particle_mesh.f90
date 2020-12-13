@@ -4032,7 +4032,7 @@ SUBROUTINE FinalizeParticleMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
-!USE MOD_Particle_Surfaces_Vars
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
 USE MOD_Particle_BGM           ,ONLY: FinalizeBGM
 USE MOD_Particle_Mesh_Readin   ,ONLY: FinalizeMeshReadin
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,Distance,ListDistance,PartStateLost
