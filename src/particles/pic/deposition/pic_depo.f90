@@ -95,6 +95,7 @@ INTEGER                   :: TestElemID
 LOGICAL,ALLOCATABLE       :: NodeDepoMapping(:,:)
 INTEGER                   :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1),firstNode,lastNode
 #endif
+REAL                      :: dimFactorSF
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
@@ -402,14 +403,56 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   ! Get shape function direction for 1D (the direction in which the charge will be distributed) and 2D (the direction in which the 
   ! charge will be constant)
   dim_sf_dir = GETINT('PIC-shapefunction-direction')
+  ! Distribute the charge over the volume (3D) or line (1D)/area (2D): default is TRUE
+  sfDepo3D = GETLOGICAL('PIC-shapefunction-3D-deposition')
   IF(dim_sf.EQ.2)THEN
-    SWRITE(UNIT_stdOut,'(A)') ' Shape function 2D with const. distribution in dir ',dim_sf_dir,' and variable distrbution in ',&
-        MERGE(1,2,dim_sf_dir.EQ.2),' and ', MERGE(1,MERGE(3,3,dim_sf_dir.EQ.2),dim_sf_dir.EQ.3)
-    stop
+    SWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') ' Shape function 2D with const. distribution in dir ',dim_sf_dir,&
+        ' and variable distrbution in ',MERGE(1,2,dim_sf_dir.EQ.2),' and ', MERGE(1,MERGE(3,3,dim_sf_dir.EQ.2),dim_sf_dir.EQ.3),&
+    ' (1: x, 2: y and 3: z)'
   END IF ! dim_sf.EQ.2
 
   r2_sf = r_sf * r_sf  ! Radius squared
   r2_sf_inv = 1./r2_sf ! Inverse of radius squared
+
+  ! Set the scaling factor for the shape function depending on 1D, 2D or 3D shape function and how the charge is to be distributed
+  IF(dim_sf.EQ.3)THEN! 3D shape function
+    BetaFac = beta(1.5, REAL(alpha_sf) + 1.)
+    w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) * (REAL(alpha_sf) + 1.)/(PI*(r_sf**3))
+  ELSE! 1D or 2D shape function
+    IF(dim_sf_dir.EQ.1)THEN ! Shape function deposits charge in x-direction (1D) or in y- and z-dir (2D)
+      dimFactorSF = (GEO%ymaxglob-GEO%yminglob)**(3-dim_sf)
+    ELSE IF (dim_sf_dir.EQ.2)THEN ! Shape function deposits charge in y-direction (1D) or in x- and z-dir (2D)
+      dimFactorSF = (GEO%xmaxglob-GEO%xminglob)**(3-dim_sf)
+    ELSE IF (dim_sf_dir.EQ.3)THEN ! Shape function deposits charge in z-direction (1D) or in x- and y-dir (2D)
+      dimFactorSF = (GEO%xmaxglob-GEO%xminglob)**(3-dim_sf)
+    END IF
+
+    IF(dim_sf.EQ.1)THEN
+      IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
+        ! Set prefix factor
+        w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf*GAMMA(REAL(alpha_sf+1))*dimFactorSF)
+      ELSE ! Distribute the charge over the line (1D)
+        ! Set prefix factor
+        w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf*GAMMA(REAL(alpha_sf+1)))
+        ! Set shape function length (1D volume)
+        !VolumeShapeFunction=2*r_sf
+        hilf2='line'
+      END IF
+    ELSE! 2D shape function
+      IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
+        ! Set prefix factor
+        w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf*dimFactorSF)
+      ELSE ! Distribute the charge over the area (2D)
+        ! Set prefix factor
+        w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf)
+        ! Set shape function length (2D volume)
+        !VolumeShapeFunction=PI*(r_sf**2)
+        hilf2='area'
+      END IF
+    END IF ! dim_sf.EQ.1
+
+  END IF ! dim_sf.EQ.3
+
 
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive') THEN
 #if USE_MPI
@@ -464,9 +507,6 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   !IF (ALLOCSTAT.NE.0) THEN
   !  CALL abort(__STAMP__&
   !    ' Cannot allocate ExtPartToFIBGM!')
-  BetaFac = beta(1.5, REAL(alpha_sf) + 1.)
-  w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) &
-                        * (REAL(alpha_sf) + 1.)/(PI*(r_sf**3))
 
   !-- ResampleAnalyzeSurfCollis
   SFResampleAnalyzeSurfCollis = GETLOGICAL('PIC-SFResampleAnalyzeSurfCollis','.FALSE.')
