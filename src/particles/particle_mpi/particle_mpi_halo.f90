@@ -381,7 +381,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
 !#endif
 
   ! Skip if the proc is already flagged, only if the exact elements are not required (.NOT.shape_function)
-    IF(StringBeginsWith(DepositionType,'shape_function'))THEN
+    IF(.NOT.StringBeginsWith(DepositionType,'shape_function'))THEN
     SELECT CASE(GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc))
       ! Proc not previously encountered, check if possibly in range
       CASE(-1)

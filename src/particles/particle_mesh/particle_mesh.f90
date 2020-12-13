@@ -4335,19 +4335,23 @@ IF(TRIM(DepositionType).EQ.'shape_function_adaptive'.OR.TrackingMethod.EQ.TRIATR
   CALL MPI_WIN_FREE(ElemNodeID_Shared_Win,iError)
   ADEALLOCATE(ElemNodeID_Shared)
 
-  ! From BuildNodeNeighbourhood
-  CALL MPI_WIN_UNLOCK_ALL(NodeToElemMapping_Shared_Win,iError)
-  CALL MPI_WIN_FREE(NodeToElemMapping_Shared_Win,iError)
-  ADEALLOCATE(NodeToElemMapping_Shared)
-  CALL MPI_WIN_UNLOCK_ALL(NodeToElemInfo_Shared_Win,iError)
-  CALL MPI_WIN_FREE(NodeToElemInfo_Shared_Win,iError)
-  ADEALLOCATE(NodeToElemInfo_Shared)
-  CALL MPI_WIN_UNLOCK_ALL(ElemToElemMapping_Shared_Win,iError)
-  CALL MPI_WIN_FREE(ElemToElemMapping_Shared_Win,iError)
-  ADEALLOCATE(ElemToElemMapping_Shared)
-  CALL MPI_WIN_UNLOCK_ALL(ElemToElemInfo_Shared_Win,iError)
-  CALL MPI_WIN_FREE(ElemToElemInfo_Shared_Win,iError)
-  ADEALLOCATE(ElemToElemInfo_Shared)
+  !FindNeighbourElems = .FALSE. ! THIS IS SET TO FALSE CURRENTLY in InitParticleMesh()
+  ! TODO: fix when FindNeighbourElems is not always set false
+  IF(FindNeighbourElems.OR.TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
+    ! From BuildNodeNeighbourhood
+    CALL MPI_WIN_UNLOCK_ALL(NodeToElemMapping_Shared_Win,iError)
+    CALL MPI_WIN_FREE(NodeToElemMapping_Shared_Win,iError)
+    ADEALLOCATE(NodeToElemMapping_Shared)
+    CALL MPI_WIN_UNLOCK_ALL(NodeToElemInfo_Shared_Win,iError)
+    CALL MPI_WIN_FREE(NodeToElemInfo_Shared_Win,iError)
+    ADEALLOCATE(NodeToElemInfo_Shared)
+    CALL MPI_WIN_UNLOCK_ALL(ElemToElemMapping_Shared_Win,iError)
+    CALL MPI_WIN_FREE(ElemToElemMapping_Shared_Win,iError)
+    ADEALLOCATE(ElemToElemMapping_Shared)
+    CALL MPI_WIN_UNLOCK_ALL(ElemToElemInfo_Shared_Win,iError)
+    CALL MPI_WIN_FREE(ElemToElemInfo_Shared_Win,iError)
+    ADEALLOCATE(ElemToElemInfo_Shared)
+  END IF ! FindNeighbourElems.OR.TRIM(DepositionType).EQ.'shape_function_adaptive'
 END IF
 
 SDEALLOCATE(GEO%PeriodicVectors)
