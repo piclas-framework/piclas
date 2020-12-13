@@ -639,6 +639,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: Geo
 USE MOD_PICDepo_Vars
 #if USE_MPI
 USE MOD_MPI_Shared_vars    ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -678,32 +679,25 @@ SDEALLOCATE(PartSourceProc)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 IF(DoDeposition)THEN
-  CALL MPI_WIN_UNLOCK_ALL(PartSource_Shared_Win, iError)
-  CALL MPI_WIN_FREE(      PartSource_Shared_Win, iError)
+  CALL UNLOCK_AND_FREE(PartSource_Shared_Win)
 
   ! Deposition-dependent arrays
   SELECT CASE(TRIM(DepositionType))
   CASE('cell_volweight_mean')
-    CALL MPI_WIN_UNLOCK_ALL(NodeSource_Shared_Win, iError)
-    CALL MPI_WIN_FREE(      NodeSource_Shared_Win, iError)
-    ADEALLOCATE(NodeSource_Shared)
-
-    CALL MPI_WIN_UNLOCK_ALL(NodeVolume_Shared_Win, iError)
-    CALL MPI_WIN_FREE(      NodeVolume_Shared_Win, iError)
-    ADEALLOCATE(NodeVolume_Shared)
+    CALL UNLOCK_AND_FREE(NodeSource_Shared_Win)
+    CALL UNLOCK_AND_FREE(NodeVolume_Shared_Win)
 
     ! Surface charging arrays
-    IF(DoDielectricSurfaceCharge)THEN
-      CALL MPI_WIN_UNLOCK_ALL(NodeSourceExt_Shared_Win, iError)
-      CALL MPI_WIN_FREE(      NodeSourceExt_Shared_Win, iError)
-      ADEALLOCATE(NodeSourceExt_Shared)
-    END IF ! DoDielectricSurfaceCharge
+    IF(DoDielectricSurfaceCharge) CALL UNLOCK_AND_FREE(NodeSourceExt_Shared_Win)
   CASE('shape_function_adaptive')
-    CALL MPI_WIN_UNLOCK_ALL(SFElemr2_Shared_Win, iError)
-    CALL MPI_WIN_FREE(      SFElemr2_Shared_Win, iError)
+    CALL UNLOCK_AND_FREE(SFElemr2_Shared_Win)
   END SELECT
 
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+
+  ADEALLOCATE(NodeSource_Shared)
+  ADEALLOCATE(NodeVolume_Shared)
+      ADEALLOCATE(NodeSourceExt_Shared)
 END IF ! DoDeposition
 
 ! Then, free the pointers or arrays

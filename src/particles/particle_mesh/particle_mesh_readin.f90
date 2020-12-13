@@ -752,10 +752,8 @@ IMPLICIT NONE
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 ! volumes
-CALL MPI_WIN_UNLOCK_ALL(ElemVolume_Shared_Win,iError)
-CALL MPI_WIN_FREE(ElemVolume_Shared_Win,iError)
-CALL MPI_WIN_UNLOCK_ALL(ElemCharLength_Shared_Win,iError)
-CALL MPI_WIN_FREE(ElemCharLength_Shared_Win,iError)
+CALL UNLOCK_AND_FREE(ElemVolume_Shared_Win)
+CALL UNLOCK_AND_FREE(ElemCharLength_Shared_Win)
 
 ! Then, free the pointers or arrays
 ADEALLOCATE(ElemVolume_Shared)
@@ -775,18 +773,14 @@ END IF
 #endif /*USE_LOADBALANCE*/
 
 ! elems
-CALL MPI_WIN_UNLOCK_ALL(ElemInfo_Shared_Win,iError)
-CALL MPI_WIN_FREE(ElemInfo_Shared_Win,iError)
+CALL UNLOCK_AND_FREE(ElemInfo_Shared_Win)
 
 ! sides
-CALL MPI_WIN_UNLOCK_ALL(SideInfo_Shared_Win,iError)
-CALL MPI_WIN_FREE(SideInfo_Shared_Win,iError)
+CALL UNLOCK_AND_FREE(SideInfo_Shared_Win)
 
 ! nodes
-CALL MPI_WIN_UNLOCK_ALL(NodeInfo_Shared_Win,iError)
-CALL MPI_WIN_FREE(NodeInfo_Shared_Win,iError)
-CALL MPI_WIN_UNLOCK_ALL(NodeCoords_Shared_Win,iError)
-CALL MPI_WIN_FREE(NodeCoords_Shared_Win,iError)
+CALL UNLOCK_AND_FREE(NodeInfo_Shared_Win)
+CALL UNLOCK_AND_FREE(NodeCoords_Shared_Win)
 
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #endif /*USE_MPI*/
