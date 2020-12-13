@@ -1095,4 +1095,33 @@ WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(h
 END SUBROUTINE DisplaySimulationTime
 
 
+PURE LOGICAL FUNCTION StringBeginsWith(MainString,SubString)
+!===================================================================================================================================
+! Check if the string MainString starts with the string SubString
+! Note that if one of the strings is of length zero, the result will be false and if both are zero the result will be true
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: MainString !< String in which the substring is looked for
+CHARACTER(LEN=*),INTENT(IN) :: SubString  !< String which might be in MainString
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: MainStringLength,SubStringLength
+!===================================================================================================================================
+MainStringLength = LEN(TRIM(ADJUSTL(MainString)))
+SubStringLength  = LEN(TRIM(ADJUSTL(SubString)))
+IF(SubStringLength.GT.0.AND.MainStringLength.GT.0)THEN
+  StringBeginsWith = TRIM(MainString(1:MIN(SubStringLength,LEN(TRIM(ADJUSTL(MainString)))))).EQ.TRIM(ADJUSTL(SubString))
+ELSEIF(SubStringLength.EQ.0.AND.MainStringLength.EQ.0)THEN
+  StringBeginsWith = .TRUE.
+ELSE
+  StringBeginsWith = .FALSE.
+END IF ! SubStringLength.GT.0.AND.MainStringLength.GT.0
+END FUNCTION StringBeginsWith
+
 END MODULE MOD_Globals

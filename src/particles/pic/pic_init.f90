@@ -109,13 +109,17 @@ CALL prms%CreateRealOption(     'PIC-RelaxFac'             , 'Relaxation factor 
 CALL prms%CreateLogicalOption(  'PIC-shapefunction-charge-conservation'   , 'Enable charge conservation.' , '.FALSE.')
 CALL prms%CreateRealOption(     'PIC-shapefunction-radius' , 'Radius of shape function', '1.')
 CALL prms%CreateIntOption(      'PIC-shapefunction-alpha'  , 'Exponent of shape function', '2')
-CALL prms%CreateLogicalOption(  'PIC-shapefunction-equi'   , 'Use equidistant points for shapefunction deposition' , '.FALSE.')
-CALL prms%CreateLogicalOption(  'PIC-shapefunction-local-depo-BC', 'Do not use shape function deposition in elements where a '//&
-                                                                   'boundary would truncate the shape function. Use a local '//&
-                                                                   'deposition in these elements instead of the shape function.'&
-                                                                 , '.FALSE.')
-CALL prms%CreateIntOption(      'PIC-shapefunction1d-direction' ,'1D shape function: Deposition direction\n'//&
-                                                                 '2D shape function: Perpendicular deposition')
+CALL prms%CreateIntOption(      'PIC-shapefunction-dimension', '1D, 2D or 3D shape function', '3')
+CALL prms%CreateIntOption(      'PIC-shapefunction-direction',&
+    'Only required for PIC-shapefunction-dimension 1 or 2: Shape function direction for 1D (the direction in which the charge '//&
+    'will be distributed) and 2D (the direction in which the charge will be constant)', '1')
+!CALL prms%CreateLogicalOption(  'PIC-shapefunction-equi'   , 'Use equidistant points for shapefunction deposition' , '.FALSE.')
+!CALL prms%CreateLogicalOption(  'PIC-shapefunction-local-depo-BC', 'Do not use shape function deposition in elements where a '//&
+                                                                   !'boundary would truncate the shape function. Use a local '//&
+                                                                   !'deposition in these elements instead of the shape function.'&
+                                                                 !, '.FALSE.')
+!CALL prms%CreateIntOption(      'PIC-shapefunction1d-direction' ,'1D shape function: Deposition direction\n'//&
+                                                                 !'2D shape function: Perpendicular deposition')
 CALL prms%CreateLogicalOption(  'PIC-shapefunction-3D-deposition' ,'Deposite the charge over volume (3D)\n'//&
                                                                    ' or over a line (1D)/area(2D)\n'//&
                                                                    '1D shape function: volume or line\n'//&

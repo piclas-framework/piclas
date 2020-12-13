@@ -500,15 +500,15 @@ DO i=1,nSpecies
         ! number of added particles
         Species(i)%Init(iInit)%InsertedParticleMisMatch = Species(i)%Init(iInit)%sumOfRequestedParticles - Species(i)%Init(iInit)%sumOfMatchedParticles
         IF (Species(i)%Init(iInit)%sumOfRequestedParticles .GT. Species(i)%Init(iInit)%sumOfMatchedParticles) THEN
-          SWRITE(UNIT_StdOut,'(A)')      'WARNING in ParticleEmission_parallel:'
-          SWRITE(UNIT_StdOut,'(A,I0)')   'Fraction Nbr: '  , i
-          SWRITE(UNIT_StdOut,'(A,I0,A)') 'matched only '   , Species(i)%Init(iInit)%sumOfMatchedParticles  , ' particles'
-          SWRITE(UNIT_StdOut,'(A,I0,A)') 'when '           , Species(i)%Init(iInit)%sumOfRequestedParticles, ' particles were required!'
+          WRITE(UNIT_StdOut,'(A)')      'WARNING in ParticleEmission_parallel:'
+          WRITE(UNIT_StdOut,'(A,I0)')   'Fraction Nbr: '  , i
+          WRITE(UNIT_StdOut,'(A,I0,A)') 'matched only '   , Species(i)%Init(iInit)%sumOfMatchedParticles  , ' particles'
+          WRITE(UNIT_StdOut,'(A,I0,A)') 'when '           , Species(i)%Init(iInit)%sumOfRequestedParticles, ' particles were required!'
         ELSE IF (Species(i)%Init(iInit)%sumOfRequestedParticles .LT. Species(i)%Init(iInit)%sumOfMatchedParticles) THEN
-          SWRITE(UNIT_StdOut,'(A)')      'ERROR in ParticleEmission_parallel:'
-          SWRITE(UNIT_StdOut,'(A,I0)')   'Fraction Nbr: '  , i
-          SWRITE(UNIT_StdOut,'(A,I0,A)') 'matched '        , Species(i)%Init(iInit)%sumOfMatchedParticles  , ' particles'
-          SWRITE(UNIT_StdOut,'(A,I0,A)') 'when '           , Species(i)%Init(iInit)%sumOfRequestedParticles, ' particles were required!'
+          WRITE(UNIT_StdOut,'(A)')      'ERROR in ParticleEmission_parallel:'
+          WRITE(UNIT_StdOut,'(A,I0)')   'Fraction Nbr: '  , i
+          WRITE(UNIT_StdOut,'(A,I0,A)') 'matched '        , Species(i)%Init(iInit)%sumOfMatchedParticles  , ' particles'
+          WRITE(UNIT_StdOut,'(A,I0,A)') 'when '           , Species(i)%Init(iInit)%sumOfRequestedParticles, ' particles were required!'
         ! ELSE IF (nbrOfParticle .EQ. Species(i)%Init(iInit)%sumOfMatchedParticles) THEN
         !  WRITE(UNIT_stdOut,'(A,I0)')   'Fraction Nbr: '  , FractNbr
         !  WRITE(UNIT_stdOut,'(A,I0,A)') 'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'

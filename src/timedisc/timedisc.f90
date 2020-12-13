@@ -370,7 +370,7 @@ IF(DoRestart) CALL EvalGradient()
 
 #if defined(PARTICLES) && (USE_MPI)
 ! e.g. 'shape_function'
-IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
   ! send number of particles

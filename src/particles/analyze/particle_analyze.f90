@@ -4266,13 +4266,14 @@ USE MOD_Particle_Vars         ,ONLY: nSpecies
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
 #if USE_MPI
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared_Win,ElemCharLengthY_Shared_Win,ElemCharLengthZ_Shared_Win
+USE MOD_MPI_Shared
 #endif /*USE_MPI*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iSpec,iError
+INTEGER           :: iSpec
 !===================================================================================================================================
 ParticleAnalyzeInitIsDone = .FALSE.
 SDEALLOCATE(DebyeLengthCell)
@@ -4315,12 +4316,9 @@ SDEALLOCATE(MassflowRate)
 
 IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)THEN
 #if USE_MPI
-  CALL MPI_WIN_UNLOCK_ALL(ElemCharLengthX_Shared_Win, iError)
-  CALL MPI_WIN_FREE(      ElemCharLengthX_Shared_Win, iError)
-  CALL MPI_WIN_UNLOCK_ALL(ElemCharLengthY_Shared_Win, iError)
-  CALL MPI_WIN_FREE(      ElemCharLengthY_Shared_Win, iError)
-  CALL MPI_WIN_UNLOCK_ALL(ElemCharLengthZ_Shared_Win, iError)
-  CALL MPI_WIN_FREE(      ElemCharLengthZ_Shared_Win, iError)
+  CALL UNLOCK_AND_FREE(ElemCharLengthX_Shared_Win)
+  CALL UNLOCK_AND_FREE(ElemCharLengthY_Shared_Win)
+  CALL UNLOCK_AND_FREE(ElemCharLengthZ_Shared_Win)
 #endif /*USE_MPI*/
   ADEALLOCATE(ElemCharLengthX_Shared)
   ADEALLOCATE(ElemCharLengthY_Shared)

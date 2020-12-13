@@ -150,7 +150,7 @@ INTEGER                                :: iSide,firstSide,lastSide
 INTEGER                                :: nSurfSidesProc,nSurfSidesTmp
 INTEGER                                :: offsetSurfTotalSidesProc
 INTEGER,ALLOCATABLE                    :: GlobalSide2SurfSideProc(:,:)
-INTEGER,ALLOCATABLE                    :: SurfSide2GlobalSideProc(:,:)
+!INTEGER,ALLOCATABLE                    :: SurfSide2GlobalSideProc(:,:)
 INTEGER,ALLOCATABLE                    :: CalcSurfCollis_SpeciesRead(:)                       ! help array for reading surface stuff
 CHARACTER(20)                          :: hilf,hilf2
 CHARACTER(LEN=255),ALLOCATABLE         :: BCName(:)
@@ -252,17 +252,17 @@ DEALLOCATE(BCName)
 ! NO HALO REGION REDUCTION
 firstSide = INT(REAL( myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
 lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
-ALLOCATE(GlobalSide2SurfSideProc(1:3,firstSide:lastSide) &
-        ,SurfSide2GlobalSideProc(1:3,1         :INT(nNonUniqueGlobalSides/REAL(nComputeNodeProcessors))))
+ALLOCATE(GlobalSide2SurfSideProc(1:3,firstSide:lastSide))
+        !,SurfSide2GlobalSideProc(1:3,1         :INT(nNonUniqueGlobalSides/REAL(nComputeNodeProcessors))))
 #else
 firstSide = 1
 lastSide  = nComputeNodeSides
-ALLOCATE(GlobalSide2SurfSideProc(1:3,1:nComputeNodeSides) &
-        ,SurfSide2GlobalSideProc(1:3,1:nComputeNodeSides))
+ALLOCATE(GlobalSide2SurfSideProc(1:3,1:nComputeNodeSides))
+        !,SurfSide2GlobalSideProc(1:3,1:nComputeNodeSides))
 #endif /*USE_MPI*/
 
 GlobalSide2SurfSideProc    = -1
-SurfSide2GlobalSideProc    = -1
+!SurfSide2GlobalSideProc    = -1
 nComputeNodeSurfSides      = 0
 nSurfSidesProc             = 0
 
@@ -271,8 +271,10 @@ DO iSide = firstSide,lastSide
   ! ignore non-BC sides
   IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
 
+#if USE_MPI
   ! ignore sides outside of halo region
   IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
+#endif /*USE_MPI*/
 
   ! count number of reflective and inner BC sides
   IF ( (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%ReflectiveBC) .OR. &
@@ -291,8 +293,8 @@ DO iSide = firstSide,lastSide
 
     ! Write local mapping from Side to Surf side. The rank is already correct, the offset must be corrected by the proc offset later
     GlobalSide2SurfSideProc(SURF_SIDEID,iSide) = nSurfSidesProc
-    GlobalSide2SurfSideProc(SURF_RANK  ,iSide) = ElemInfo_Shared(ELEM_RANK,SideInfo_Shared(SIDE_ELEMID,iSide))
 #if USE_MPI
+    GlobalSide2SurfSideProc(SURF_RANK  ,iSide) = ElemInfo_Shared(ELEM_RANK,SideInfo_Shared(SIDE_ELEMID,iSide))
     ! get global Elem ID
     GlobalElemID   = SideInfo_Shared(SIDE_ELEMID,iSide)
     GlobalElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
@@ -304,6 +306,7 @@ DO iSide = firstSide,lastSide
       GlobalSide2SurfSideProc(SURF_LEADER,iSide) = INT(GlobalElemRank/nComputeNodeProcessors)
         END IF
 #else
+    GlobalSide2SurfSideProc(SURF_RANK  ,iSide) = 0
     GlobalSide2SurfSideProc(SURF_LEADER,iSide) = GlobalSide2SurfSideProc(SURF_RANK,iSide)
 #endif /*USE_MPI*/
 
@@ -349,7 +352,7 @@ DO iSide = firstSide,lastSide
   IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) THEN
     nSurfSidesTmp = nSurfSidesTmp + 1
 
-    GlobalSide2SurfSide    (:          ,iSide) = GlobalSide2SurfSideProc(:          ,iSide)
+    GlobalSide2SurfSide(:          ,iSide) = GlobalSide2SurfSideProc(:,iSide)
     GlobalSide2SurfSide(SURF_SIDEID,iSide) = nSurfSidesTmp + offsetSurfSidesProc
   END IF
 END DO
@@ -362,7 +365,7 @@ DO iSide = firstSide,lastSide
   IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).NE.myLeaderGroupRank) THEN
     nSurfSidesTmp = nSurfSidesTmp + 1
 
-    GlobalSide2SurfSide    (:          ,iSide) = GlobalSide2SurfSideProc(:          ,iSide)
+    GlobalSide2SurfSide(:          ,iSide) = GlobalSide2SurfSideProc(:,iSide)
     GlobalSide2SurfSide(SURF_SIDEID,iSide) = nSurfSidesTmp + nComputeNodeSurfSides + offsetSurfTotalSidesProc
   END IF
 END DO
@@ -390,13 +393,17 @@ CALL MPI_WIN_SYNC(GlobalSide2SurfSide_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(SurfSide2GlobalSide_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #else
-ALLOCATE(SurfSide2GlobalSide(1:3,1:nComputeNodeSurfTotalSides))
-SurfSide2GlobalSide = SurfSide2GlobalSideProc(:,1:nComputeNodeSurfTotalSides)
+ALLOCATE(SurfSide2GlobalSide(1:1,1:nComputeNodeSurfTotalSides))
+!SurfSide2GlobalSide = SurfSide2GlobalSideProc(:,1:nComputeNodeSurfTotalSides)
+DO iSide = firstSide,lastSide
+  IF (GlobalSide2SurfSide(SURF_SIDEID,iSide).EQ.-1) CYCLE
+  SurfSide2GlobalSide(SURF_SIDEID,GlobalSide2SurfSide(SURF_SIDEID,iSide)) =iSide
+END DO
 #endif /*USE_MPI*/
 
 ! free temporary arrays
 DEALLOCATE(GlobalSide2SurfSideProc)
-DEALLOCATE(SurfSide2GlobalSideProc)
+!DEALLOCATE(SurfSide2GlobalSideProc)
 
 ! flag if there is at least one surf side on the node (sides in halo region do also count)
 SurfOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
@@ -560,8 +567,8 @@ IF (CalcSurfaceImpact) THEN
   CALL MPI_WIN_SYNC(SampWallImpactAngle_Shared_Win ,IERROR)
   CALL MPI_WIN_SYNC(SampWallImpactNumber_Shared_Win,IERROR)
 END IF
-#else
-CALL ABORT(__STAMP__,'Still needs to be implemented for MPI=OFF')
+!#else
+!CALL ABORT(__STAMP__,'Still needs to be implemented for MPI=OFF')
 #endif /*USE_MPI*/
 
 ! Surf sides are shared, array calculation can be distributed
@@ -1171,11 +1178,12 @@ SUBROUTINE FinalizeParticleBoundarySampling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_DSMC_Vars                   ,ONLY: DSMC
+USE MOD_DSMC_Vars                      ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars
-USE MOD_Particle_Vars               ,ONLY: WriteMacroSurfaceValues
+USE MOD_Particle_Vars                  ,ONLY: WriteMacroSurfaceValues
 #if USE_MPI
 USE MOD_MPI_Shared_Vars                ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
+USE MOD_MPI_Shared
 USE MOD_Particle_MPI_Boundary_Sampling ,ONLY: FinalizeSurfCommunication
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1202,26 +1210,16 @@ IF (.NOT.SurfOnNode) RETURN
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
-CALL MPI_WIN_UNLOCK_ALL(SampWallState_Shared_Win      ,iError)
-CALL MPI_WIN_FREE(      SampWallState_Shared_Win      ,iError)
-CALL MPI_WIN_UNLOCK_ALL(GlobalSide2SurfSide_Shared_Win,iError)
-CALL MPI_WIN_FREE(      GlobalSide2SurfSide_Shared_Win,iError)
-CALL MPI_WIN_UNLOCK_ALL(SurfSide2GlobalSide_Shared_Win,iError)
-CALL MPI_WIN_FREE(      SurfSide2GlobalSide_Shared_Win,iError)
-CALL MPI_WIN_UNLOCK_ALL(SurfSideArea_Shared_Win       ,iError)
-CALL MPI_WIN_FREE(      SurfSideArea_Shared_Win       ,iError)
-IF(nPorousBC.GT.0) THEN
-  CALL MPI_WIN_UNLOCK_ALL(SampWallPumpCapacity_Shared_Win,iError)
-  CALL MPI_WIN_FREE(SampWallPumpCapacity_Shared_Win,iError)
-END IF
+CALL UNLOCK_AND_FREE(SampWallState_Shared_Win)
+CALL UNLOCK_AND_FREE(GlobalSide2SurfSide_Shared_Win)
+CALL UNLOCK_AND_FREE(SurfSide2GlobalSide_Shared_Win)
+CALL UNLOCK_AND_FREE(SurfSideArea_Shared_Win)
+IF(nPorousBC.GT.0) CALL UNLOCK_AND_FREE(SampWallPumpCapacity_Shared_Win)
 IF (CalcSurfaceImpact) THEN
-  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactEnergy_Shared_Win,iError)
-  CALL MPI_WIN_FREE(SampWallImpactEnergy_Shared_Win,iError)
-  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactVector_Shared_Win,iError)
-  CALL MPI_WIN_FREE(SampWallImpactVector_Shared_Win,iError)
-  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactAngle_Shared_Win,iError)
-  CALL MPI_WIN_FREE(SampWallImpactAngle_Shared_Win,iError)
-  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactNumber_Shared_Win,iError)
+  CALL UNLOCK_AND_FREE(SampWallImpactEnergy_Shared_Win)
+  CALL UNLOCK_AND_FREE(SampWallImpactVector_Shared_Win)
+  CALL UNLOCK_AND_FREE(SampWallImpactAngle_Shared_Win)
+  CALL UNLOCK_AND_FREE(SampWallImpactNumber_Shared_Win)
   CALL MPI_WIN_FREE(SampWallImpactNumber_Shared_Win,iError)
 END IF
 
