@@ -1022,8 +1022,7 @@ ALLOCATE(Distance    (1:MAXVAL(FIBGM_nElems)) &
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
-CALL MPI_WIN_UNLOCK_ALL(ElemToBGM_Shared_Win,iError)
-CALL MPI_WIN_FREE(ElemToBGM_Shared_Win,iError)
+CALL UNLOCK_AND_FREE(ElemToBGM_Shared_Win)
 
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
@@ -1041,6 +1040,7 @@ SUBROUTINE FinalizeBGM()
 ! MODULES
 USE MOD_Globals
 USE MOD_MPI_Shared_Vars
+USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1054,22 +1054,14 @@ USE MOD_Particle_Mesh_Vars
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
-!CALL MPI_WIN_UNLOCK_ALL(ElemToBGM_Shared_Win,iError)
-!CALL MPI_WIN_FREE(ElemToBGM_Shared_Win,iError)
-CALL MPI_WIN_UNLOCK_ALL(BoundsOfElem_Shared_Win,iError)
-CALL MPI_WIN_FREE(BoundsOfElem_Shared_Win,iError)
-CALL MPI_WIN_UNLOCK_ALL(FIBGM_nTotalElems_Shared_Win,iError)
-CALL MPI_WIN_FREE(FIBGM_nTotalElems_Shared_Win,iError)
-CALL MPI_WIN_UNLOCK_ALL(FIBGM_nElems_Shared_Win,iError)
-CALL MPI_WIN_FREE(FIBGM_nElems_Shared_Win,iError)
-CALL MPI_WIN_UNLOCK_ALL(FIBGM_offsetElem_Shared_Win,iError)
-CALL MPI_WIN_FREE(FIBGM_offsetElem_Shared_Win,iError)
-CALL MPI_WIN_UNLOCK_ALL(FIBGM_Element_Shared_Win,iError)
-CALL MPI_WIN_FREE(FIBGM_Element_Shared_Win,iError)
-CALL MPI_WIN_UNLOCK_ALL(FIBGMToProc_Shared_Win,iError)
-CALL MPI_WIN_FREE(FIBGMToProc_Shared_Win,iError)
-CALL MPI_WIN_UNLOCK_ALL(FIBGMProcs_Shared_Win,iError)
-CALL MPI_WIN_FREE(FIBGMProcs_Shared_Win,iError)
+!CALL UNLOCK_AND_FREE(ElemToBGM_Shared_Win)
+CALL UNLOCK_AND_FREE(BoundsOfElem_Shared_Win)
+CALL UNLOCK_AND_FREE(FIBGM_nTotalElems_Shared_Win)
+CALL UNLOCK_AND_FREE(FIBGM_nElems_Shared_Win)
+CALL UNLOCK_AND_FREE(FIBGM_offsetElem_Shared_Win)
+CALL UNLOCK_AND_FREE(FIBGM_Element_Shared_Win)
+CALL UNLOCK_AND_FREE(FIBGMToProc_Shared_Win)
+CALL UNLOCK_AND_FREE(FIBGMProcs_Shared_Win)
 
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
@@ -1169,6 +1161,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHaloInfo_Array,ElemHaloInfo_Shared,ElemHaloInfo_Shared_Win
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1183,8 +1176,7 @@ IF (.NOT.CalcHaloInfo) RETURN
 
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-CALL MPI_WIN_UNLOCK_ALL(ElemHaloInfo_Shared_Win,iError)
-CALL MPI_WIN_FREE(      ElemHaloInfo_Shared_Win,iError)
+CALL UNLOCK_AND_FREE(ElemHaloInfo_Shared_Win)
 
 ! Then, free the pointers or arrays
 ADEALLOCATE(ElemHaloInfo_Shared)

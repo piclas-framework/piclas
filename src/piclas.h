@@ -31,6 +31,9 @@
 #define Allocate_Shared(a,b,c,d)   Allocate_Shared_DEBUG(a,b,c,d,'c')
 #endif
 
+! Replace function with dummy function and additional argument
+#define UNLOCK_AND_FREE(a)   UNLOCK_AND_FREE_DUMMY(a,'a')
+
 #ifdef GNU
 #define CHECKSAFEINT(x,k)  IF(x>HUGE(1_  k).OR.x<-HUGE(1_  k))       CALL ABORT(__STAMP__,'Integer conversion failed: out of range!')
 #define CHECKSAFEREAL(x,k) IF(x>HUGE(1._ k).OR.x<-HUGE(1._ k))       CALL ABORT(__STAMP__,'Real conversion failed: out of range!')

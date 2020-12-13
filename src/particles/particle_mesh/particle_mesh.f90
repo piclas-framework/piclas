@@ -4031,15 +4031,17 @@ SUBROUTINE FinalizeParticleMesh()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Particle_Mesh_Vars
+!USE MOD_Particle_Surfaces_Vars
 USE MOD_Particle_BGM           ,ONLY: FinalizeBGM
 USE MOD_Particle_Mesh_Readin   ,ONLY: FinalizeMeshReadin
-USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Surfaces_Vars
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,Distance,ListDistance,PartStateLost
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #if USE_MPI
 USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
-USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,DepositionType
+USE MOD_MPI_Shared
+USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -4071,93 +4073,62 @@ SELECT CASE (TrackingMethod)
 
     ! GetBCSidesAndOrgin
     IF (TrackingMethod.EQ.REFMAPPING) THEN
-      CALL MPI_WIN_UNLOCK_ALL(BCSide2SideID_Shared_Win        ,iError)
-      CALL MPI_WIN_FREE(      BCSide2SideID_Shared_Win        ,iError)
-      CALL MPI_WIN_UNLOCK_ALL(SideID2BCSide_Shared_Win        ,iError)
-      CALL MPI_WIN_FREE(      SideID2BCSide_Shared_Win        ,iError)
-      CALL MPI_WIN_UNLOCK_ALL(BCSideMetrics_Shared_Win        ,iError)
-      CALL MPI_WIN_FREE(      BCSideMetrics_Shared_Win        ,iError)
+      CALL UNLOCK_AND_FREE(BCSide2SideID_Shared_Win)
+      CALL UNLOCK_AND_FREE(SideID2BCSide_Shared_Win)
+      CALL UNLOCK_AND_FREE(BCSideMetrics_Shared_Win)
     END IF
 
 #if USE_LOADBALANCE
     IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
       ! CalcParticleMeshMetrics
-      CALL MPI_WIN_UNLOCK_ALL(XCL_NGeo_Shared_Win             ,iError)
-      CALL MPI_WIN_FREE(      XCL_NGeo_Shared_Win             ,iError)
-      CALL MPI_WIN_UNLOCK_ALL(Elem_xGP_Shared_Win             ,iError)
-      CALL MPI_WIN_FREE(      Elem_xGP_Shared_Win             ,iError)
-      CALL MPI_WIN_UNLOCK_ALL(dXCL_NGeo_Shared_Win            ,iError)
-      CALL MPI_WIN_FREE(      dXCL_NGeo_Shared_Win            ,iError)
+      CALL UNLOCK_AND_FREE(XCL_NGeo_Shared_Win)
+      CALL UNLOCK_AND_FREE(Elem_xGP_Shared_Win)
+      CALL UNLOCK_AND_FREE(dXCL_NGeo_Shared_Win)
 
       ! CalcBezierControlPoints
-      CALL MPI_WIN_UNLOCK_ALL(BezierControlPoints3D_Shared_Win,iError)
-      CALL MPI_WIN_FREE(      BezierControlPoints3D_Shared_Win,iError)
-      IF (BezierElevation.GT.0) THEN
-        CALL MPI_WIN_UNLOCK_ALL(BezierControlPoints3DElevated_Shared_Win,iError)
-        CALL MPI_WIN_FREE(      BezierControlPoints3DElevated_Shared_Win,iError)
-      END IF
+      CALL UNLOCK_AND_FREE(BezierControlPoints3D_Shared_Win)
+      IF (BezierElevation.GT.0) CALL UNLOCK_AND_FREE(BezierControlPoints3DElevated_Shared_Win)
 #if USE_LOADBALANCE
     END IF !PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
     ! GetSideSlabNormalsAndIntervals (allocated in particle_mesh.f90)
-    CALL MPI_WIN_UNLOCK_ALL(SideSlabNormals_Shared_Win      ,iError)
-    CALL MPI_WIN_FREE(      SideSlabNormals_Shared_Win      ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(SideSlabIntervals_Shared_Win    ,iError)
-    CALL MPI_WIN_FREE(      SideSlabIntervals_Shared_Win    ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(BoundingBoxIsEmpty_Shared_Win   ,iError)
-    CALL MPI_WIN_FREE(      BoundingBoxIsEmpty_Shared_Win   ,iError)
+    CALL UNLOCK_AND_FREE(SideSlabNormals_Shared_Win)
+    CALL UNLOCK_AND_FREE(SideSlabIntervals_Shared_Win)
+    CALL UNLOCK_AND_FREE(BoundingBoxIsEmpty_Shared_Win)
 
     ! BuildElementOriginShared
-    CALL MPI_WIN_UNLOCK_ALL(ElemBaryNGeo_Shared_Win         ,iError)
-    CALL MPI_WIN_FREE(      ElemBaryNGeo_Shared_Win         ,iError)
+    CALL UNLOCK_AND_FREE(ElemBaryNGeo_Shared_Win)
 
     ! IdentifyElemAndSideType
-    CALL MPI_WIN_UNLOCK_ALL(ElemCurved_Shared_Win           ,iError)
-    CALL MPI_WIN_FREE(      ElemCurved_Shared_Win           ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(SideType_Shared_Win             ,iError)
-    CALL MPI_WIN_FREE(      SideType_Shared_Win             ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(SideDistance_Shared_Win         ,iError)
-    CALL MPI_WIN_FREE(      SideDistance_Shared_Win         ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(SideNormVec_Shared_Win          ,iError)
-    CALL MPI_WIN_FREE(      SideNormVec_Shared_Win          ,iError)
+    CALL UNLOCK_AND_FREE(ElemCurved_Shared_Win)
+    CALL UNLOCK_AND_FREE(SideType_Shared_Win)
+    CALL UNLOCK_AND_FREE(SideDistance_Shared_Win)
+    CALL UNLOCK_AND_FREE(SideNormVec_Shared_Win)
 
     ! BuildElementBasisAndRadius
-    CALL MPI_WIN_UNLOCK_ALL(ElemRadiusNGeo_Shared_Win       ,iError)
-    CALL MPI_WIN_FREE(      ElemRadiusNGeo_Shared_Win       ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(ElemRadius2NGeo_Shared_Win      ,iError)
-    CALL MPI_WIN_FREE(      ElemRadius2NGeo_Shared_Win      ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(XiEtaZetaBasis_Shared_Win       ,iError)
-    CALL MPI_WIN_FREE(      XiEtaZetaBasis_Shared_Win       ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(slenXiEtaZetaBasis_Shared_Win   ,iError)
-    CALL MPI_WIN_FREE(      slenXiEtaZetaBasis_Shared_Win   ,iError)
+    CALL UNLOCK_AND_FREE(ElemRadiusNGeo_Shared_Win)
+    CALL UNLOCK_AND_FREE(ElemRadius2NGeo_Shared_Win)
+    CALL UNLOCK_AND_FREE(XiEtaZetaBasis_Shared_Win)
+    CALL UNLOCK_AND_FREE(slenXiEtaZetaBasis_Shared_Win)
 
     ! GetLinearSideBaseVectors
-    CALL MPI_WIN_UNLOCK_ALL(BaseVectors0_Shared_Win         ,iError)
-    CALL MPI_WIN_FREE(      BaseVectors0_Shared_Win         ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(BaseVectors1_Shared_Win         ,iError)
-    CALL MPI_WIN_FREE(      BaseVectors1_Shared_Win         ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(BaseVectors2_Shared_Win         ,iError)
-    CALL MPI_WIN_FREE(      BaseVectors2_Shared_Win         ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(BaseVectors3_Shared_Win         ,iError)
-    CALL MPI_WIN_FREE(      BaseVectors3_Shared_Win         ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(BaseVectorsScale_Shared_Win     ,iError)
-    CALL MPI_WIN_FREE(      BaseVectorsScale_Shared_Win     ,iError)
+    CALL UNLOCK_AND_FREE(BaseVectors0_Shared_Win)
+    CALL UNLOCK_AND_FREE(BaseVectors1_Shared_Win)
+    CALL UNLOCK_AND_FREE(BaseVectors2_Shared_Win)
+    CALL UNLOCK_AND_FREE(BaseVectors3_Shared_Win)
+    CALL UNLOCK_AND_FREE(BaseVectorsScale_Shared_Win)
 
     ! BuildBCElemDistance
     IF (TrackingMethod.EQ.REFMAPPING) THEN
-      CALL MPI_WIN_UNLOCK_ALL(ElemToBCSides_Shared_Win        ,iError)
-      CALL MPI_WIN_FREE(      ElemToBCSides_Shared_Win        ,iError)
-      CALL MPI_WIN_UNLOCK_ALL(SideBCMetrics_Shared_Win        ,iError)
-      CALL MPI_WIN_FREE(      SideBCMetrics_Shared_Win        ,iError)
+      CALL UNLOCK_AND_FREE(ElemToBCSides_Shared_Win)
+      CALL UNLOCK_AND_FREE(SideBCMetrics_Shared_Win)
     END IF
 
     ! BuildEpsOneCell
-    CALL MPI_WIN_UNLOCK_ALL(ElemsJ_Shared_Win               ,iError)
-    CALL MPI_WIN_FREE(      ElemsJ_Shared_Win               ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(ElemEpsOneCell_Shared_Win       ,iError)
-    CALL MPI_WIN_FREE(      ElemEpsOneCell_Shared_Win       ,iError)
+    CALL UNLOCK_AND_FREE(ElemEpsOneCell_Shared_Win)
+    CALL UNLOCK_AND_FREE(ElemsJ_Shared_Win)
 
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #endif /*USE_MPI*/
@@ -4243,44 +4214,30 @@ SELECT CASE (TrackingMethod)
       IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
         ! CalcParticleMeshMetrics
-        CALL MPI_WIN_UNLOCK_ALL(XCL_NGeo_Shared_Win             ,iError)
-        CALL MPI_WIN_FREE(      XCL_NGeo_Shared_Win             ,iError)
-        CALL MPI_WIN_UNLOCK_ALL(Elem_xGP_Shared_Win             ,iError)
-        CALL MPI_WIN_FREE(      Elem_xGP_Shared_Win             ,iError)
-        CALL MPI_WIN_UNLOCK_ALL(dXCL_NGeo_Shared_Win            ,iError)
-        CALL MPI_WIN_FREE(      dXCL_NGeo_Shared_Win            ,iError)
+        CALL UNLOCK_AND_FREE(XCL_NGeo_Shared_Win)
+        CALL UNLOCK_AND_FREE(Elem_xGP_Shared_Win)
+        CALL UNLOCK_AND_FREE(dXCL_NGeo_Shared_Win)
 #if USE_LOADBALANCE
       END IF !PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
       ! BuildElemTypeAndBasisTria
-      CALL MPI_WIN_UNLOCK_ALL(ElemCurved_Shared_Win           ,iError)
-      CALL MPI_WIN_FREE(      ElemCurved_Shared_Win           ,iError)
-      CALL MPI_WIN_UNLOCK_ALL(XiEtaZetaBasis_Shared_Win       ,iError)
-      CALL MPI_WIN_FREE(      XiEtaZetaBasis_Shared_Win       ,iError)
-      CALL MPI_WIN_UNLOCK_ALL(slenXiEtaZetaBasis_Shared_Win   ,iError)
-      CALL MPI_WIN_FREE(      slenXiEtaZetaBasis_Shared_Win   ,iError)
+      CALL UNLOCK_AND_FREE(ElemCurved_Shared_Win)
+      CALL UNLOCK_AND_FREE(XiEtaZetaBasis_Shared_Win)
+      CALL UNLOCK_AND_FREE(slenXiEtaZetaBasis_Shared_Win)
     END IF ! DoInterpolation
 
     ! InitParticleGeometry
-    CALL MPI_WIN_UNLOCK_ALL(ConcaveElemSide_Shared_Win,iError)
-    CALL MPI_WIN_FREE(ConcaveElemSide_Shared_Win,iError)
-    CALL MPI_WIN_UNLOCK_ALL(ElemSideNodeID_Shared_Win,iError)
-    CALL MPI_WIN_FREE(ElemSideNodeID_Shared_Win,iError)
-    CALL MPI_WIN_UNLOCK_ALL(ElemMidPoint_Shared_Win,iError)
-    CALL MPI_WIN_FREE(ElemMidPoint_Shared_Win,iError)
+    CALL UNLOCK_AND_FREE(ConcaveElemSide_Shared_Win)
+    CALL UNLOCK_AND_FREE(ElemSideNodeID_Shared_Win)
+    CALL UNLOCK_AND_FREE(ElemMidPoint_Shared_Win)
 
     ! BuildElementRadiusTria
-    CALL MPI_WIN_UNLOCK_ALL(ElemBaryNGeo_Shared_Win,iError)
-    CALL MPI_WIN_FREE(ElemBaryNGeo_Shared_Win,iError)
-    CALL MPI_WIN_UNLOCK_ALL(ElemRadius2NGeo_Shared_Win,iError)
-    CALL MPI_WIN_FREE(ElemRadius2NGeo_Shared_Win,iError)
+    CALL UNLOCK_AND_FREE(ElemBaryNGeo_Shared_Win)
+    CALL UNLOCK_AND_FREE(ElemRadius2NGeo_Shared_Win)
 
-    IF (DoDeposition) THEN
-      ! BuildEpsOneCell
-      CALL MPI_WIN_UNLOCK_ALL(ElemsJ_Shared_Win     , iError)
-      CALL MPI_WIN_FREE(      ElemsJ_Shared_Win     , iError)
-    END IF !DoDeposition
+    ! BuildEpsOneCell
+    IF (DoDeposition) CALL UNLOCK_AND_FREE(ElemsJ_Shared_Win)
 
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
@@ -4330,28 +4287,31 @@ SELECT CASE (TrackingMethod)
 END SELECT
 
 IF(TRIM(DepositionType).EQ.'shape_function_adaptive'.OR.TrackingMethod.EQ.TRIATRACKING)THEN
+#if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
   ! From InitElemNodeIDs
-  CALL MPI_WIN_UNLOCK_ALL(ElemNodeID_Shared_Win,iError)
-  CALL MPI_WIN_FREE(ElemNodeID_Shared_Win,iError)
-  ADEALLOCATE(ElemNodeID_Shared)
+  CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
 
   !FindNeighbourElems = .FALSE. ! THIS IS SET TO FALSE CURRENTLY in InitParticleMesh()
   ! TODO: fix when FindNeighbourElems is not always set false
   IF(FindNeighbourElems.OR.TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
     ! From BuildNodeNeighbourhood
-    CALL MPI_WIN_UNLOCK_ALL(NodeToElemMapping_Shared_Win,iError)
-    CALL MPI_WIN_FREE(NodeToElemMapping_Shared_Win,iError)
-    ADEALLOCATE(NodeToElemMapping_Shared)
-    CALL MPI_WIN_UNLOCK_ALL(NodeToElemInfo_Shared_Win,iError)
-    CALL MPI_WIN_FREE(NodeToElemInfo_Shared_Win,iError)
-    ADEALLOCATE(NodeToElemInfo_Shared)
-    CALL MPI_WIN_UNLOCK_ALL(ElemToElemMapping_Shared_Win,iError)
-    CALL MPI_WIN_FREE(ElemToElemMapping_Shared_Win,iError)
-    ADEALLOCATE(ElemToElemMapping_Shared)
-    CALL MPI_WIN_UNLOCK_ALL(ElemToElemInfo_Shared_Win,iError)
-    CALL MPI_WIN_FREE(ElemToElemInfo_Shared_Win,iError)
-    ADEALLOCATE(ElemToElemInfo_Shared)
+    CALL UNLOCK_AND_FREE(NodeToElemMapping_Shared_Win)
+    CALL UNLOCK_AND_FREE(NodeToElemInfo_Shared_Win)
+    CALL UNLOCK_AND_FREE(ElemToElemMapping_Shared_Win)
+    CALL UNLOCK_AND_FREE(ElemToElemInfo_Shared_Win)
   END IF ! FindNeighbourElems.OR.TRIM(DepositionType).EQ.'shape_function_adaptive'
+
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+#endif /*USE_MPI*/
+
+  ADEALLOCATE(ElemNodeID_Shared)
+  IF(FindNeighbourElems.OR.TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
+    ADEALLOCATE(NodeToElemMapping_Shared)
+    ADEALLOCATE(NodeToElemInfo_Shared)
+    ADEALLOCATE(ElemToElemMapping_Shared)
+    ADEALLOCATE(ElemToElemInfo_Shared)
+  END IF
 END IF
 
 SDEALLOCATE(GEO%PeriodicVectors)

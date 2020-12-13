@@ -244,7 +244,7 @@ DO kk = kmin,kmax
             INT((4-SourceSize+1)*(PP_N+1)**3*(globElemID-1),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND, &
             PartSourceSize, MPI_DOUBLE_PRECISION, MPI_SUM, PartSource_Shared_Win,Request, IERROR)
 !        CALL MPI_WAIT(Request, MPI_STATUS_IGNORE, IERROR)
-!         CALL MPI_WIN_UNLOCK(0,PartSource_Shared_Win, IERROR)
+!         CALL MPI_WIN_UNLOCK_ALL(0,PartSource_Shared_Win, IERROR)
 !        PartSource(4-SourceSize+1:4,:,:,:,globElemID) = PartSource(4-SourceSize+1:4,:,:,:,globElemID) &
 !            + PartSourceLoc(4-SourceSize+1:4,:,:,:)
 !        CALL MPI_Win_flush(0,PartSource_Shared_Win, IERROR)

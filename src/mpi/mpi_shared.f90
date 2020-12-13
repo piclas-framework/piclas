@@ -66,6 +66,12 @@ PUBLIC::Allocate_Shared_DEBUG
 PUBLIC::Allocate_Shared
 #endif /*DEBUG_MEMORY*/
 
+INTERFACE UNLOCK_AND_FREE_DUMMY
+  MODULE PROCEDURE UNLOCK_AND_FREE_1
+END INTERFACE
+
+PUBLIC::UNLOCK_AND_FREE_DUMMY
+
 !==================================================================================================================================
 CONTAINS
 
@@ -891,6 +897,40 @@ END IF
 CALL C_F_POINTER(SM_PTR, DataPointer,nVal)
 
 END SUBROUTINE ALLOCATE_SHARED_REAL_6
+
+
+!==================================================================================================================================
+!> Unlock and free shared memory array
+!==================================================================================================================================
+SUBROUTINE UNLOCK_AND_FREE_1(SharedWindow,SM_WIN_NAME)
+! MODULES
+USE MOD_Globals
+!USE MOD_ReadInTools
+#ifdef DEBUG_MEMORY
+USE MOD_MPI_Shared_Vars ,ONLY:myComputeNodeRank
+#endif /*DEBUG_MEMORY*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(INOUT)       :: SharedWindow !> Shared memory window
+CHARACTER(LEN=*),INTENT(IN) :: SM_WIN_NAME  !> Shared memory window name
+! LOCAL VARIABLES
+!==================================================================================================================================
+#ifdef DEBUG_MEMORY
+LWRITE(UNIT_stdOut,'(A,I7,A85)') "myrank=",myrank," Unlocking "//TRIM(SM_WIN_NAME)//" with MPI_WIN_UNLOCK_ALL()"
+#endif /*DEBUG_MEMORY*/
+CALL MPI_WIN_UNLOCK_ALL(SharedWindow,iError)
+#ifdef DEBUG_MEMORY
+LWRITE(UNIT_stdOut,'(A,I7,A85)') "myrank=",myrank," Freeing window "//TRIM(SM_WIN_NAME)//" with       MPI_WIN_FREE()"
+#endif /*DEBUG_MEMORY*/
+CALL MPI_WIN_FREE(      SharedWindow,iError)
+
+IF(iError.NE.0)THEN
+  CALL abort(__STAMP__,'ERROR in UNLOCK_AND_FREE_1() for '//TRIM(SM_WIN_NAME)//': iError returned non-zero value =',IntInfoOpt=iError)
+END IF ! iError.NE.0
+END SUBROUTINE UNLOCK_AND_FREE_1
 
 
 !==================================================================================================================================
