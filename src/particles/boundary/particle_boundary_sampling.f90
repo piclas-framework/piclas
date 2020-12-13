@@ -1220,7 +1220,6 @@ IF (CalcSurfaceImpact) THEN
   CALL UNLOCK_AND_FREE(SampWallImpactVector_Shared_Win)
   CALL UNLOCK_AND_FREE(SampWallImpactAngle_Shared_Win)
   CALL UNLOCK_AND_FREE(SampWallImpactNumber_Shared_Win)
-  CALL MPI_WIN_FREE(SampWallImpactNumber_Shared_Win,iError)
 END IF
 
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
