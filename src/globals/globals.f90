@@ -1097,7 +1097,8 @@ END SUBROUTINE DisplaySimulationTime
 
 PURE LOGICAL FUNCTION StringBeginsWith(MainString,SubString)
 !===================================================================================================================================
-! re-open log file (used by preprocessor LOGWRITE_BARRIER) to be sure that all logwrites are written to file
+! Check if the string MainString starts with the string SubString
+! Note that if one of the strings is of length zero, the result will be false and if both are zero the result will be true
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -1110,8 +1111,17 @@ CHARACTER(LEN=*),INTENT(IN) :: SubString  !< String which might be in MainString
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER           :: MainStringLength,SubStringLength
 !===================================================================================================================================
-StringBeginsWith = TRIM(MainString(1:MIN(14,LEN(TRIM(ADJUSTL(MainString)))))).EQ.TRIM(ADJUSTL(SubString))
+MainStringLength = LEN(TRIM(ADJUSTL(MainString)))
+SubStringLength  = LEN(TRIM(ADJUSTL(SubString)))
+IF(SubStringLength.GT.0.AND.MainStringLength.GT.0)THEN
+  StringBeginsWith = TRIM(MainString(1:MIN(SubStringLength,LEN(TRIM(ADJUSTL(MainString)))))).EQ.TRIM(ADJUSTL(SubString))
+ELSEIF(SubStringLength.EQ.0.AND.MainStringLength.EQ.0)THEN
+  StringBeginsWith = .TRUE.
+ELSE
+  StringBeginsWith = .FALSE.
+END IF ! SubStringLength.GT.0.AND.MainStringLength.GT.0
 END FUNCTION StringBeginsWith
 
 END MODULE MOD_Globals
