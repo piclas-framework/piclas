@@ -58,21 +58,6 @@ CALL prms%SetSection("Particle Boundary Sampling")
 CALL prms%CreateIntOption(      'DSMC-nSurfSample'  , 'Define polynomial degree of particle BC sampling. Default: NGeo', '1')
 CALL prms%CreateLogicalOption(  'CalcSurfaceImpact' , 'Sample average impact energy of particles for each species (trans, rot, '//&
                                                       'vib), impact vector and angle.','.FALSE.')
-
-CALL prms%SetSection("Particle SurfCollis")
-CALL prms%CreateLogicalOption(  'Particles-CalcSurfCollis_OnlySwaps'    , 'Count only wall collisions being SpeciesSwaps','.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-CalcSurfCollis_Only0Swaps'   , 'Count only wall collisions being delete-SpeciesSwaps'&
-                                                                          , '.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-CalcSurfCollis_Output'       , 'Print sums of all counted wall collisions','.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-AnalyzeSurfCollis'           , 'Output of collided/swaped particles during Sampling'//&
-                                                                          ' period? ', '.FALSE.')
-CALL prms%CreateIntOption(      'Particles-DSMC-maxSurfCollisNumber'    , 'Max. number of collided/swaped particles during'//&
-                                                                          ' Sampling', '0')
-CALL prms%CreateIntOption(      'Particles-DSMC-NumberOfBCs'            , 'Count of BC to be analyzed', '1')
-CALL prms%CreateIntArrayOption( 'Particles-DSMC-SurfCollisBC'           , 'BCs to be analyzed (def.: 0 = all)')
-CALL prms%CreateIntOption(      'Particles-CalcSurfCollis_NbrOfSpecies' , 'Count of Species for wall  collisions (0: all)' , '0')
-CALL prms%CreateIntArrayOption( 'Particles-CalcSurfCollis_Species'      , 'Help array for reading surface stuff')
-
 END SUBROUTINE DefineParametersParticleBoundarySampling
 
 
@@ -92,11 +77,12 @@ USE MOD_DSMC_Symmetry           ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSym
 USE MOD_Mesh_Vars               ,ONLY: NGeo,nBCs,BoundaryName
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample
-USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide,SurfSide2GlobalSide
-USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfCollis,AnalyzeSurfCollis,nPorousBC,CalcSurfaceImpact
+USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
+USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea,SurfSampSize
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallPumpCapacity
@@ -112,8 +98,6 @@ USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D,BezierSampleN
 USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
 USE MOD_Particle_Vars           ,ONLY: nSpecies,VarTimeStep
 USE MOD_Particle_Vars           ,ONLY: Symmetry
-USE MOD_PICDepo_Vars            ,ONLY: LastAnalyzeSurfCollis
-USE MOD_PICDepo_Vars            ,ONLY: SFResampleAnalyzeSurfCollis
 USE MOD_ReadInTools             ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
 #if USE_MPI
 USE MOD_MPI_Shared!             ,ONLY: Allocate_Shared
@@ -145,14 +129,13 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                :: iBC,iSpec
-INTEGER                                :: iSide,firstSide,lastSide
+INTEGER                                :: iBC
+INTEGER                                :: iSide,firstSide,lastSide,iSurfSide,GlobalSideID
 INTEGER                                :: nSurfSidesProc,nSurfSidesTmp
 INTEGER                                :: offsetSurfTotalSidesProc
 INTEGER,ALLOCATABLE                    :: GlobalSide2SurfSideProc(:,:)
-!INTEGER,ALLOCATABLE                    :: SurfSide2GlobalSideProc(:,:)
-INTEGER,ALLOCATABLE                    :: CalcSurfCollis_SpeciesRead(:)                       ! help array for reading surface stuff
-CHARACTER(20)                          :: hilf,hilf2
+INTEGER,ALLOCATABLE                    :: SurfSide2GlobalSideProc(:,:)
+CHARACTER(20)                          :: hilf
 CHARACTER(LEN=255),ALLOCATABLE         :: BCName(:)
 ! surface area
 INTEGER                                :: SideID,ElemID,CNElemID,LocSideID
@@ -401,6 +384,24 @@ DO iSide = firstSide,lastSide
 END DO
 #endif /*USE_MPI*/
 
+! Determine the number of surface output sides (inner BCs are not counted twice)
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
+  nComputeNodeSurfOutputSides = 0
+  DO iSurfSide = 1,nComputeNodeSurfSides
+    GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+    ! Check if the surface side has a neighbor (and is therefore an inner BCs)
+    IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+      ! Only add the side with the smaller index
+      IF(GlobalSideID.GT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)) CYCLE
+    END IF
+    nComputeNodeSurfOutputSides = nComputeNodeSurfOutputSides + 1
+  END DO
+#if USE_MPI
+END IF
+#endif
+
 ! free temporary arrays
 DEALLOCATE(GlobalSide2SurfSideProc)
 !DEALLOCATE(SurfSide2GlobalSideProc)
@@ -409,7 +410,7 @@ DEALLOCATE(GlobalSide2SurfSideProc)
 SurfOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
 
 !> Energy + Force + nSpecies
-SurfSampSize = 9+3+nSpecies
+SurfSampSize = SAMPWALL_NVARS+nSpecies
 IF(VarTimeStep%UseVariableTimeStep) SurfSampSize = SurfSampSize + 1
 
 !> Leader communication
@@ -424,74 +425,6 @@ mySurfRank      = 0
 nSurfTotalSides = nComputeNodeSurfTotalSides
 #endif /* USE_MPI */
 
-! Initialize surface collision sampling and analyze
-CalcSurfCollis%OnlySwaps         = GETLOGICAL('Particles-CalcSurfCollis_OnlySwaps' ,'.FALSE.')
-CalcSurfCollis%Only0Swaps        = GETLOGICAL('Particles-CalcSurfCollis_Only0Swaps','.FALSE.')
-CalcSurfCollis%Output            = GETLOGICAL('Particles-CalcSurfCollis_Output'    ,'.FALSE.')
-IF (CalcSurfCollis%Only0Swaps) CalcSurfCollis%OnlySwaps=.TRUE.
-CalcSurfCollis%AnalyzeSurfCollis = GETLOGICAL('Particles-AnalyzeSurfCollis'        ,'.FALSE.')
-AnalyzeSurfCollis%NumberOfBCs = 1 !initialize for ifs (BCs=0 means all)
-
-ALLOCATE(AnalyzeSurfCollis%BCs(1))
-AnalyzeSurfCollis%BCs = 0
-IF (.NOT.CalcSurfCollis%AnalyzeSurfCollis .AND. SFResampleAnalyzeSurfCollis) &
-  CALL abort(__STAMP__,'ERROR: SFResampleAnalyzeSurfCollis was set without CalcSurfCollis%AnalyzeSurfCollis!')
-
-IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
-  AnalyzeSurfCollis%maxPartNumber = GETINT('Particles-DSMC-maxSurfCollisNumber','0')
-  AnalyzeSurfCollis%NumberOfBCs   = GETINT('Particles-DSMC-NumberOfBCs'        ,'1')
-  IF (AnalyzeSurfCollis%NumberOfBCs.EQ.1) THEN !already allocated
-    AnalyzeSurfCollis%BCs    = GETINTARRAY('Particles-DSMC-SurfCollisBC'     ,1,'0') ! 0 means all...
-  ELSE
-    DEALLOCATE(AnalyzeSurfCollis%BCs)
-    ALLOCATE(AnalyzeSurfCollis%BCs(1:AnalyzeSurfCollis%NumberOfBCs)) !dummy
-    hilf2=''
-    ! build default string: 0,0,0,...
-    DO iBC=1,AnalyzeSurfCollis%NumberOfBCs
-      WRITE(UNIT=hilf,FMT='(I0)') 0
-      hilf2=TRIM(hilf2)//TRIM(hilf)
-      IF (iBC.NE.AnalyzeSurfCollis%NumberOfBCs) hilf2=TRIM(hilf2)//','
-    END DO
-    AnalyzeSurfCollis%BCs    = GETINTARRAY('Particles-DSMC-SurfCollisBC',AnalyzeSurfCollis%NumberOfBCs,TRIM(hilf2))
-  END IF
-  ALLOCATE(AnalyzeSurfCollis%Data(1:AnalyzeSurfCollis%maxPartNumber,1:9))
-  ALLOCATE(AnalyzeSurfCollis%Spec(1:AnalyzeSurfCollis%maxPartNumber))
-  ALLOCATE(AnalyzeSurfCollis%BCid(1:AnalyzeSurfCollis%maxPartNumber))
-  ALLOCATE(AnalyzeSurfCollis%Number(1:nSpecies+1))
-  IF (LastAnalyzeSurfCollis%Restart) THEN
-    CALL ReadAnalyzeSurfCollisToHDF5()
-  END IF
-  AnalyzeSurfCollis%Data   = 0.
-  AnalyzeSurfCollis%Spec   = 0
-  AnalyzeSurfCollis%BCid   = 0
-  AnalyzeSurfCollis%Number = 0
-END IF
-
-! Species-dependent calculations
-ALLOCATE(CalcSurfCollis%SpeciesFlags(1:nSpecies))
-CalcSurfCollis%NbrOfSpecies = GETINT('Particles-CalcSurfCollis_NbrOfSpecies','0')
-
-IF ( (CalcSurfCollis%NbrOfSpecies.GT.0) .AND. (CalcSurfCollis%NbrOfSpecies.LE.nSpecies) ) THEN
-  ALLOCATE(CalcSurfCollis_SpeciesRead(1:CalcSurfCollis%NbrOfSpecies))
-  hilf2=''
-  ! build default string: 1 - CSC_NoS
-  DO iSpec=1,CalcSurfCollis%NbrOfSpecies
-    WRITE(UNIT=hilf,FMT='(I0)') iSpec
-    hilf2=TRIM(hilf2)//TRIM(hilf)
-    IF (ispec.NE.CalcSurfCollis%NbrOfSpecies) hilf2=TRIM(hilf2)//','
-  END DO
-  CalcSurfCollis_SpeciesRead  = GETINTARRAY('Particles-CalcSurfCollis_Species',CalcSurfCollis%NbrOfSpecies,TRIM(hilf2))
-  CalcSurfCollis%SpeciesFlags(:) = .FALSE.
-  DO iSpec=1,CalcSurfCollis%NbrOfSpecies
-    CalcSurfCollis%SpeciesFlags(CalcSurfCollis_SpeciesRead(ispec)) = .TRUE.
-  END DO
-  DEALLOCATE(CalcSurfCollis_SpeciesRead)
-ELSE IF (CalcSurfCollis%NbrOfSpecies.EQ.0) THEN !default
-  CalcSurfCollis%SpeciesFlags(:) = .TRUE.
-ELSE
-  CALL ABORT(__STAMP__,'Error in Particles-CalcSurfCollis_NbrOfSpecies!')
-END IF
-
 ! surface sampling array do not need to be allocated if there are no sides within halo_eps range
 IF(.NOT.SurfOnNode) RETURN
 
@@ -505,9 +438,9 @@ IF(nPorousBC.GT.0) THEN
   ALLOCATE(SampWallPumpCapacity(1:nComputeNodeSurfTotalSides))
   SampWallPumpCapacity = 0.
 END IF
-! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
+! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z) and angle
 IF (CalcSurfaceImpact) THEN
-  ALLOCATE( SampWallImpactEnergy(1:nSpecies,1:3,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides) &
+  ALLOCATE( SampWallImpactEnergy(1:nSpecies,1:4,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides) &
           , SampWallImpactVector(1:nSpecies,1:3,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides) &
           , SampWallImpactAngle (1:nSpecies,    1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides) &
           , SampWallImpactNumber(1:nSpecies,    1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
@@ -547,7 +480,7 @@ END IF
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 IF (CalcSurfaceImpact) THEN
   MPISharedSize = INT((nSpecies*3*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-  CALL Allocate_Shared(MPISharedSize,(/nSpecies,3,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactEnergy_Shared_Win,SampWallImpactEnergy_Shared)
+  CALL Allocate_Shared(MPISharedSize,(/nSpecies,4,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactEnergy_Shared_Win,SampWallImpactEnergy_Shared)
   CALL MPI_WIN_LOCK_ALL(0,SampWallImpactEnergy_Shared_Win,IERROR)
   CALL Allocate_Shared(MPISharedSize,(/nSpecies,3,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactVector_Shared_Win,SampWallImpactVector_Shared)
   CALL MPI_WIN_LOCK_ALL(0,SampWallImpactVector_Shared_Win,IERROR)
@@ -723,12 +656,13 @@ USE MOD_DSMC_Vars               ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal, Coll
 USE MOD_HDF5_Output             ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
 USE MOD_IO_HDF5
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,nPorousBC,CalcSurfaceImpact
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
+USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides, nOutputSides
 USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfSides,offsetComputeNodeSurfSide
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName, PartBound
+USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName
 USE MOD_Particle_Vars           ,ONLY: nSpecies
-USE MOD_SurfaceModel_Vars       ,ONLY: Adsorption
 #if USE_MPI
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF
 #endif
@@ -745,9 +679,9 @@ REAL,INTENT(IN)                      :: OutputTime
 CHARACTER(LEN=255)                  :: FileName,FileString,Statedummy
 CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255)                  :: NodeTypeTemp
-CHARACTER(LEN=255)                  :: SpecID, ReactID, PBCID
+CHARACTER(LEN=255)                  :: SpecID, PBCID
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
-INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec, nAdsSamples, iReact, iPBC
+INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec, iPBC
 REAL                                :: tstart,tend
 !===================================================================================================================================
 
@@ -771,11 +705,6 @@ FileString = TRIM(FileName)//'.h5'
 ! Create dataset attribute "SurfVarNames"
 nVar2D      = 5
 nVar2D_Spec = 1
-IF (ANY(PartBound%Reactive)) THEN
-  nAdsSamples = 5
-  nVar2D      = nVar2D + nAdsSamples
-  nVar2D_Spec = nVar2D_Spec + 2 + 2*Adsorption%ReactNum
-END IF
 
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number: Add 8 variables
 IF (CalcSurfaceImpact) nVar2D_Spec = nVar2D_Spec + 8
@@ -808,20 +737,7 @@ IF (mySurfRank.EQ.0) THEN
   nVarCount        = 1
   DO iSpec = 1,nSpecies
     WRITE(SpecID,'(I3.3)') iSpec
-    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_Counter')
-    IF (ANY(PartBound%Reactive)) THEN
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_Accomodation')
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_Coverage')
-      DO iReact=1,Adsorption%ReactNum
-        WRITE(ReactID,'(I3.3)') iReact
-        CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_CollReact'//TRIM(ReactID)//'_Count')
-      END DO
-      DO iReact = 1,Adsorption%ReactNum
-        WRITE(ReactID,'(I3.3)') iReact
-        CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_SurfReact'//TRIM(ReactID)//'_Count')
-      END DO
-    END IF
-
+    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_SimPartPerIter')
     ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
     IF(CalcSurfaceImpact)THEN
       ! Add average impact energy for each species (trans, rot, vib)
@@ -841,18 +757,11 @@ IF (mySurfRank.EQ.0) THEN
   END DO ! iSpec=1,nSpecies
 
   ! fill varnames for total values
-  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'ForcePerAreaX')
-  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'ForcePerAreaY')
-  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'ForcePerAreaZ')
-  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux')
-  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Counter_Total')
-  IF(ANY(PartBound%Reactive)) THEN
-    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux_Portion_LH')
-    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux_Portion_SurfDiss')
-    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux_Portion_ER')
-    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux_Portion_AdsDiss')
-    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux_Portion_SurfReconstruct')
-  END IF
+  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_ForcePerAreaX')
+  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_ForcePerAreaY')
+  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_ForcePerAreaZ')
+  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_HeatFlux')
+  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_SimPartPerIter')
 
   IF(nPorousBC.GT.0) THEN
     DO iPBC = 1, nPorousBC
@@ -875,15 +784,17 @@ CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,comm
 CALL OpenDataFile(FileString,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #endif
 
+print*, nOutputSides, nComputeNodeSurfOutputSides, offsetComputeNodeSurfOutputSide
+
 nVarCount=0
 WRITE(H5_Name,'(A)') 'SurfaceData'
 ASSOCIATE (&
-      nVar2D_Total         => INT(nVar2D_Total,IK)              , &
-      nSurfSample          => INT(nSurfSample,IK)               , &
-      nGlobalSides         => INT(nSurfTotalSides,IK)           , &
-      nLocalSides          => INT(nComputeNodeSurfSides,IK)     , &
-      offsetSurfSide       => INT(offsetComputeNodeSurfSide,IK) , &
-      nVar2D_Spec          => INT(nVar2D_Spec,IK)               , &
+      nVar2D_Total         => INT(nVar2D_Total,IK)                    , &
+      nSurfSample          => INT(nSurfSample,IK)                     , &
+      nGlobalSides         => INT(nOutputSides,IK)                    , &
+      nLocalSides          => INT(nComputeNodeSurfOutputSides,IK)     , &
+      offsetSurfSide       => INT(offsetComputeNodeSurfOutputSide,IK) , &
+      nVar2D_Spec          => INT(nVar2D_Spec,IK)                     , &
       nVar2D               => INT(nVar2D,IK))
   DO iSpec = 1,nSpecies
     CALL WriteArrayToHDF5(DataSetName=H5_Name             , rank=4                                           , &
@@ -900,26 +811,6 @@ ASSOCIATE (&
                         offset     =(/INT(nVarCount,IK), 0_IK       , 0_IK        , offsetSurfSide/)         , &
                         collective =.FALSE.                                                                  , &
                         RealArray  = MacroSurfaceVal(1:nVar2D,1:nSurfSample,1:nSurfSample,1:nLocalSides))
-  ! Output of InnerSurfSide Array
-  ! these sides should not exist with the new halo region
-!  IF(nInnerSides.GT.0) THEN
-!    nVarCount=0
-!    DO iSpec = 1,nSpecies
-!      CALL WriteArrayToHDF5(DataSetName=H5_Name             , rank=4                                      , &
-!                      nValGlobal =(/nVar2D_Total      , nSurfSample , nSurfSample , nGlobalSides/)  , &
-!                      nVal       =(/nVar2D_Spec       , nSurfSample , nSurfSample , nInnerSides/)        , &
-!                      offset     =(/INT(nVarCount,IK) , 0_IK        , 0_IK        , offsetInnerSurfSide/), &
-!                      collective =.FALSE.,&
-!                      RealArray  = MacroSurfaceSpecVal(1:nVar2D_Spec,1:nSurfSample,1:nSurfSample,LocalnBCSides+1:nOutputSides,iSpec))
-!      nVarCount = nVarCount + INT(nVar2D_Spec)
-!    END DO
-!    CALL WriteArrayToHDF5(DataSetName=H5_Name            , rank=4                                     , &
-!                          nValGlobal =(/nVar2D_Total     , nSurfSample, nSurfSample , nGlobalSides/)  , &
-!                          nVal       =(/nVar2D           , nSurfSample, nSurfSample , nInnerSides/)        , &
-!                          offset     =(/INT(nVarCount,IK), 0_IK       , 0_IK        , offsetInnerSurfSide/), &
-!                          collective =.FALSE.         ,&
-!                          RealArray  = MacroSurfaceVal(1:nVar2D,1:nSurfSample,1:nSurfSample,LocalnBCSides+1:nOutputSides))
-!  END IF
 END ASSOCIATE
 
 CALL CloseDataFile()
@@ -930,222 +821,6 @@ IF (mySurfRank.EQ.0) THEN
 END IF
 
 END SUBROUTINE WriteSurfSampleToHDF5
-
-
-SUBROUTINE ReadAnalyzeSurfCollisToHDF5()
-!===================================================================================================================================
-! Reading AnalyzeSurfCollis-Data from hdf5 file for restart
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_PreProc
-USE MOD_HDF5_input,         ONLY: OpenDataFile,CloseDataFile,ReadArray,File_ID,GetDataSize,nDims,HSize,ReadAttribute
-USE MOD_Particle_Vars,      ONLY: nSpecies
-USE MOD_PICDepo_Vars,       ONLY: LastAnalyzeSurfCollis, r_SF !, SFResampleAnalyzeSurfCollis
-USE MOD_Particle_Boundary_Vars,ONLY: nPartBound, AnalyzeSurfCollis
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(LEN=255)             :: Filename, H5_Name
-INTEGER                        :: PartDataSize, iSpec
-REAL, ALLOCATABLE              :: PartSpecData(:,:,:)
-INTEGER                        :: TotalNumberMPF, counter2, counter, BCTotalNumberMPF, counter3
-REAL                           :: TotalFlowrateMPF, RandVal, BCTotalFlowrateMPF
-LOGICAL,ALLOCATABLE            :: PartDone(:)
-!===================================================================================================================================
-  FileName = TRIM(LastAnalyzeSurfCollis%DSMCSurfCollisRestartFile)
-  SWRITE(UNIT_stdOut,*)'Reading Particles from DSMCSurfCollis-File:',TRIM(FileName)
-
-  !-- initialize data (check if file exists and determine size of arrays)
-  PartDataSize=10
-  IF(MPIRoot) THEN
-    IF(.NOT.FILEEXISTS(FileName))  CALL abort(__STAMP__, &
-          'DSMCSurfCollis-File "'//TRIM(FileName)//'" does not exist',999,999.)
-    CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
-    DO iSpec=1,nSpecies
-      WRITE(H5_Name,'(A,I3.3)') 'SurfCollisData_Spec',iSpec
-      CALL GetDataSize(File_ID,TRIM(H5_Name),nDims,HSize)
-      AnalyzeSurfCollis%Number(iSpec)=INT(HSize(1),4) !global number of particles
-      IF ( INT(HSize(nDims),4) .NE. PartDataSize ) THEN
-        CALL Abort(&
-        __STAMP__,&
-        'Error in ReadAnalyzeSurfCollisToHDF5. Array has size of ',nDims,REAL(INT(HSize(nDims),4)))
-      END IF
-      DEALLOCATE(HSize)
-    END DO !iSpec
-    CALL CloseDataFile()
-    AnalyzeSurfCollis%Number(nSpecies+1) = SUM( AnalyzeSurfCollis%Number(1:nSpecies) )
-  END IF !MPIRoot
-#if USE_MPI
-  CALL MPI_BCAST(AnalyzeSurfCollis%Number(:),nSpecies+1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
-#endif
-  TotalNumberMPF=AnalyzeSurfCollis%Number(nSpecies+1)
-  ALLOCATE( PartSpecData(nSpecies,MAXVAL(AnalyzeSurfCollis%Number(1:nSpecies)),PartDataSize) )
-
-  !-- open file for actual read-in
-#if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-#endif
-  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-  ! Read in state
-  DO iSpec=1,nSpecies
-    WRITE(H5_Name,'(A,I3.3)') 'SurfCollisData_Spec',iSpec
-    IF (AnalyzeSurfCollis%Number(iSpec).GT.0) THEN
-      ! Associate construct for integer KIND=8 possibility
-      ASSOCIATE (&
-            AnalyzeSurfCollis  => INT(AnalyzeSurfCollis%Number(iSpec),IK) ,&
-            PartDataSize       => INT(PartDataSize,IK)                    )
-        CALL ReadArray(TRIM(H5_Name) , 2 , (/AnalyzeSurfCollis          , PartDataSize/)      , &
-            0_IK                     , 1 , RealArray=PartSpecData(iSpec , 1:AnalyzeSurfCollis , 1:PartDataSize))
-      END ASSOCIATE
-    END IF
-  END DO !iSpec
-  CALL ReadAttribute(File_ID,'TotalFlowrateMPF',1,RealScalar=TotalFlowrateMPF)
-  SWRITE(UNIT_stdOut,*)'DONE!'
-  CALL CloseDataFile()
-
-!--save data
-  IF (TotalNumberMPF.GT.0) THEN
-    ! determine number of parts at BC of interest
-    BCTotalNumberMPF=0
-    DO iSpec=1,nSpecies
-      DO counter=1,AnalyzeSurfCollis%Number(iSpec)
-        IF (INT(PartSpecData(iSpec,counter,10)).LT.1 .OR. INT(PartSpecData(iSpec,counter,10)).GT.nPartBound) THEN
-          CALL Abort(&
-            __STAMP__,&
-            'Error 3 in AnalyzeSurfCollis!')
-        ELSE IF ( ANY(LastAnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(LastAnalyzeSurfCollis%BCs.EQ.INT(PartSpecData(iSpec,counter,10))) ) THEN
-          BCTotalNumberMPF = BCTotalNumberMPF + 1
-        END IF
-      END DO
-    END DO
-    IF (BCTotalNumberMPF.EQ.0) THEN
-      SWRITE(*,*) 'WARNING in ReadAnalyzeSurfCollisToHDF5: no parts found for BC of interest!'
-      RETURN
-    ELSE IF (BCTotalNumberMPF.EQ.AnalyzeSurfCollis%Number(nSpecies+1)) THEN
-      BCTotalFlowrateMPF=TotalFlowrateMPF
-      SWRITE(*,*) 'ReadAnalyzeSurfCollisToHDF5: all particles are used for resampling...'
-    ELSE
-      BCTotalFlowrateMPF=TotalFlowrateMPF*REAL(BCTotalNumberMPF)/REAL(AnalyzeSurfCollis%Number(nSpecies+1))
-      SWRITE(*,*) 'ReadAnalyzeSurfCollisToHDF5: The fraction of particles used for resampling is: ',BCTotalFlowrateMPF/TotalFlowrateMPF
-    END IF
-
-    IF (LastAnalyzeSurfCollis%ReducePartNumber) THEN !reduce saved number of parts to MaxPartNumber
-      LastAnalyzeSurfCollis%PartNumberSamp=MIN(BCTotalNumberMPF,LastAnalyzeSurfCollis%PartNumberReduced)
-      ALLOCATE(PartDone(1:TotalNumberMPF))
-      PartDone(:)=.FALSE.
-    ELSE
-      LastAnalyzeSurfCollis%PartNumberSamp=BCTotalNumberMPF
-    END IF
-    SWRITE(*,*) 'Number of saved particles for SFResampleAnalyzeSurfCollis: ',LastAnalyzeSurfCollis%PartNumberSamp
-    SDEALLOCATE(LastAnalyzeSurfCollis%WallState)
-    SDEALLOCATE(LastAnalyzeSurfCollis%Species)
-    ALLOCATE(LastAnalyzeSurfCollis%WallState(6,LastAnalyzeSurfCollis%PartNumberSamp))
-    ALLOCATE(LastAnalyzeSurfCollis%Species(LastAnalyzeSurfCollis%PartNumberSamp))
-    LastAnalyzeSurfCollis%pushTimeStep = HUGE(LastAnalyzeSurfCollis%pushTimeStep)
-
-    ! Add particle to list
-    counter2 = 0
-    DO counter = 1, LastAnalyzeSurfCollis%PartNumberSamp
-      IF (LastAnalyzeSurfCollis%ReducePartNumber) THEN !reduce saved number of parts (differently for each proc. Could be changed)
-        DO !get random (equal!) position between [1,TotalNumberMPF] and accept if .NOT.PartDone and with right BC
-          CALL RANDOM_NUMBER(RandVal)
-          counter2 = MIN(1+INT(RandVal*REAL(TotalNumberMPF)),TotalNumberMPF)
-          IF (.NOT.PartDone(counter2)) THEN
-            counter3=counter2
-            iSpec=nSpecies
-            DO !determine in which species-"batch" the counter is located (use logical since it is used for ReducePartNumber anyway)
-              IF (iSpec.EQ.1) THEN
-                IF ( counter2 .GE. 1 ) THEN
-                  EXIT
-                ELSE
-                  CALL Abort(&
-                    __STAMP__, &
-                    'Error in SFResampleAnalyzeSurfCollis. Could not determine iSpec for counter2 ',counter2)
-                END IF
-              ELSE IF ( counter2 - SUM(AnalyzeSurfCollis%Number(1:iSpec-1)) .GE. 1 ) THEN
-                EXIT
-              ELSE
-                iSpec = iSpec - 1
-              END IF
-            END DO
-            IF (iSpec.GT.1) THEN
-              counter2 = counter2 - SUM(AnalyzeSurfCollis%Number(1:iSpec-1))
-            END IF
-            IF (counter2 .GT. AnalyzeSurfCollis%Number(iSpec)) THEN
-              CALL Abort(&
-                __STAMP__, &
-                'Error in SFResampleAnalyzeSurfCollis. Determined iSpec is wrong for counter2 ',counter2)
-            END IF
-            IF (( ANY(LastAnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(LastAnalyzeSurfCollis%BCs.EQ.PartSpecData(iSpec,counter2,10)) )) THEN
-              PartDone(counter3)=.TRUE.
-              EXIT
-            END IF
-          END IF
-        END DO
-      ELSE
-        counter2 = counter
-        iSpec=nSpecies
-        DO !determine in which species-"batch" the counter is located (use logical since it is used for ReducePartNumber anyway)
-          IF (iSpec.EQ.1) THEN
-            IF ( counter2 .GE. 1 ) THEN
-              EXIT
-            ELSE
-              CALL Abort(&
-                __STAMP__, &
-                'Error in SFResampleAnalyzeSurfCollis. Could not determine iSpec for counter2 ',counter2)
-            END IF
-          ELSE IF ( counter2 - SUM(AnalyzeSurfCollis%Number(1:iSpec-1)) .GE. 1 ) THEN
-            EXIT
-          ELSE
-            iSpec = iSpec - 1
-          END IF
-        END DO
-        IF (iSpec.GT.1) THEN
-          counter2 = counter2 - SUM(AnalyzeSurfCollis%Number(1:iSpec-1))
-        END IF
-        IF (counter2 .GT. AnalyzeSurfCollis%Number(iSpec)) THEN
-          CALL Abort(&
-            __STAMP__, &
-            'Error in SFResampleAnalyzeSurfCollis. Determined iSpec is wrong for counter2 ',counter2)
-        END IF
-      END IF
-      LastAnalyzeSurfCollis%WallState(:,counter) = PartSpecData(iSpec,counter2,1:6)
-      LastAnalyzeSurfCollis%Species(counter) = iSpec
-      IF (ANY(LastAnalyzeSurfCollis%SpeciesForDtCalc.EQ.0) .OR. &
-          ANY(LastAnalyzeSurfCollis%SpeciesForDtCalc.EQ.LastAnalyzeSurfCollis%Species(counter))) &
-        LastAnalyzeSurfCollis%pushTimeStep = MIN( LastAnalyzeSurfCollis%pushTimeStep &
-        , DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,LastAnalyzeSurfCollis%WallState(4:6,counter)) )
-    END DO
-
-    IF (LastAnalyzeSurfCollis%pushTimeStep .LE. 0.) THEN
-      CALL Abort(&
-        __STAMP__,&
-        'Error with SFResampleAnalyzeSurfCollis. Something is wrong with velocities or NormVecOfWall!',&
-        999,LastAnalyzeSurfCollis%pushTimeStep)
-    ELSE
-      LastAnalyzeSurfCollis%pushTimeStep = r_SF / LastAnalyzeSurfCollis%pushTimeStep !dt required for smallest projected velo to cross r_SF
-      LastAnalyzeSurfCollis%PartNumberDepo = NINT(BCTotalFlowrateMPF * LastAnalyzeSurfCollis%pushTimeStep)
-      SWRITE(*,'(A,E12.5,x,I0)') 'Total Flowrate and to be inserted number of MP for SFResampleAnalyzeSurfCollis: ' &
-        ,BCTotalFlowrateMPF, LastAnalyzeSurfCollis%PartNumberDepo
-      IF (LastAnalyzeSurfCollis%PartNumberDepo .GT. LastAnalyzeSurfCollis%PartNumberSamp) THEN
-        SWRITE(*,*) 'WARNING: PartNumberDepo .GT. PartNumberSamp!'
-      END IF
-      IF (LastAnalyzeSurfCollis%PartNumberDepo .GT. LastAnalyzeSurfCollis%PartNumThreshold) THEN
-        CALL Abort(&
-          __STAMP__,&
-          'Error with SFResampleAnalyzeSurfCollis: PartNumberDepo .gt. PartNumThreshold',&
-          LastAnalyzeSurfCollis%PartNumberDepo,r_SF/LastAnalyzeSurfCollis%pushTimeStep)
-      END IF
-    END IF
-  END IF !TotalNumberMPF.GT.0
-
-END SUBROUTINE ReadAnalyzeSurfCollisToHDF5
 
 
 SUBROUTINE AddVarName(StrArray,ArrayDim,idx,VarName)
@@ -1181,6 +856,7 @@ USE MOD_Globals
 USE MOD_DSMC_Vars                   ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars
 USE MOD_Particle_Vars               ,ONLY: WriteMacroSurfaceValues
+USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC
 #if USE_MPI
 USE MOD_MPI_Shared_Vars                ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_Particle_MPI_Boundary_Sampling ,ONLY: FinalizeSurfCommunication
@@ -1270,21 +946,7 @@ ADEALLOCATE(SurfSide2GlobalSide)
 !SDEALLOCATE(SurfMesh%SideIDToSurfID)
 !SDEALLOCATE(SurfMesh%SurfIDToSideID)
 !SDEALLOCATE(SurfMesh%innerBCSideToHaloMap)
-!!SDALLOCATE(SampWall%Energy)
-!!SDEALLOCATE(SampWall%Force)
-!!SDEALLOCATE(SampWall%Counter)
-!DO iSurfSide=1,nComputeNodeSurfTotalSides
-!!  SDEALLOCATE(SampWall(iSurfSide)%State)
-!  SDEALLOCATE(SampWall(iSurfSide)%SurfModelState)
-!  SDEALLOCATE(SampWall(iSurfSide)%Accomodation)
-!  SDEALLOCATE(SampWall(iSurfSide)%SurfModelReactCount)
-!!  SDEALLOCATE(SampWall(iSurfSide)%ImpactEnergy)
-!!  SDEALLOCATE(SampWall(iSurfSide)%ImpactVector)
-!!  SDEALLOCATE(SampWall(iSurfSide)%ImpactAngle)
-!!  SDEALLOCATE(SampWall(iSurfSide)%ImpactNumber)
-!END DO
 !SDEALLOCATE(SurfBCName)
-!SDEALLOCATE(SampWall)
 !#if USE_MPI
 !SDEALLOCATE(PartHaloSideToProc)
 !SDEALLOCATE(SurfExchange%nSidesSend)
@@ -1309,13 +971,6 @@ ADEALLOCATE(SurfSide2GlobalSide)
 !SDEALLOCATE(OffSetSurfSideMPI)
 !SDEALLOCATE(OffSetInnerSurfSideMPI)
 !#endif /*USE_MPI*/
-SDEALLOCATE(CalcSurfCollis%SpeciesFlags)
-SDEALLOCATE(AnalyzeSurfCollis%Data)
-SDEALLOCATE(AnalyzeSurfCollis%Spec)
-SDEALLOCATE(AnalyzeSurfCollis%BCid)
-SDEALLOCATE(AnalyzeSurfCollis%Number)
-! SDEALLOCATE(AnalyzeSurfCollis%Rate)
-SDEALLOCATE(AnalyzeSurfCollis%BCs)
 !
 !! adjusted for new halo region
 !ADEALLOCATE(SurfSideArea)

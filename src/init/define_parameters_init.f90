@@ -72,7 +72,7 @@ USE MOD_SurfaceModel_Init          ,ONLY: DefineParametersSurfModel
 USE MOD_SurfaceModel_Analyze       ,ONLY: DefineParametersSurfModelAnalyze
 USE MOD_BGK_Init                   ,ONLY: DefineParametersBGK
 USE MOD_FPFlow_Init                ,ONLY: DefineParametersFPFlow
-USE MOD_Particle_Boundary_Porous   ,ONLY: DefineParametersPorousBC
+USE MOD_SurfaceModel_Porous        ,ONLY: DefineParametersPorousBC
 USE MOD_Particle_VarTimeStep       ,ONLY: DefineParametersVaribleTimeStep
 USE MOD_DSMC_Symmetry              ,ONLY: DefineParametersParticleSymmetry
 USE MOD_SuperB_Init                ,ONLY: DefineParametersSuperB

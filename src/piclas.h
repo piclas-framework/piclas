@@ -259,19 +259,18 @@
 
 ! Sampwall_analyze indeces used in arrays
 #define SAMPWALL_ETRANSOLD        1
-#define SAMPWALL_ETRANSWALL       2
-#define SAMPWALL_ETRANSNEW        3
-#define SAMPWALL_EROTOLD          4
-#define SAMPWALL_EROTWALL         5
-#define SAMPWALL_EROTNEW          6
-#define SAMPWALL_EVIBOLD          7
-#define SAMPWALL_EVIBWALL         8
-#define SAMPWALL_EVIBNEW          9
-#define SAMPWALL_DELTA_MOMENTUMX  10
-#define SAMPWALL_DELTA_MOMENTUMY  11
-#define SAMPWALL_DELTA_MOMENTUMZ  12
+#define SAMPWALL_ETRANSNEW        2
+#define SAMPWALL_EROTOLD          3
+#define SAMPWALL_EROTNEW          4
+#define SAMPWALL_EVIBOLD          5
+#define SAMPWALL_EVIBNEW          6
+#define SAMPWALL_EELECOLD         7
+#define SAMPWALL_EELECNEW         8
+#define SAMPWALL_DELTA_MOMENTUMX  9
+#define SAMPWALL_DELTA_MOMENTUMY  10
+#define SAMPWALL_DELTA_MOMENTUMZ  11
 
-#define SAMPWALL_NVARS            12
+#define SAMPWALL_NVARS            11
 
 ! Tracking method
 #define REFMAPPING    1

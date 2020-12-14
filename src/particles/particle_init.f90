@@ -415,9 +415,10 @@ CALL prms%SetSection("Particle Boundaries")
 
 CALL prms%CreateIntOption(      'Part-nBounds'     , 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Number of particle boundaries.', '1')
-CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Number of Species to be changed at wall.', '0', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Part-Boundary[$]-SourceName'  &
+                                , 'TODO-DEFINE-PARAMETER'//&
+                                  'No Default. Source Name of Boundary[i]. Has to be selected for all'//&
+                                  'nBounds. Has to be same name as defined in preproc tool', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Boundary[$]-Condition'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Used boundary condition for boundary[$].\n'//&
@@ -500,32 +501,16 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 , 'Defining surface to be treated reactively by defining Model used '//&
                                 'for particle surface interaction. If any >0 then look in section SurfaceModel.\n'//&
                                 '0: Maxwell scattering\n'//&
-                                '1: Kisliuk / Polanyi Wigner (currently not working)\n'//&
-                                '2: Recombination model\n'//&
-                                '3: adsorption/desorption + chemical interaction (SMCR with UBI-QEP, TST and TCE)\n'//&
-                                '4: TODO\n'//&
                                 '5: SEE-E and SEE-I (secondary e- emission due to e- or i+ bombardment) '//&
                                     'by Levko2015 for copper electrondes\n'//&
                                 '6: SEE-E (secondary e- emission due to e- bombardment) '//&
                                     'by Pagonakis2016 for molybdenum (originally from Harrower1956)'//&
                                 '7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for '//&
-                                'secondary e- emission with 0.13 probability) by Depla2009\n'//&
-                                '101: Maxwell scattering\n'//&
-                                '102: MD dsitributionfunction' &
+                                'secondary e- emission with 0.13 probability) by Depla2009\n' &
                                 , '0', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SolidState'  &
-                                , 'Flag defining if reflective BC is solid [TRUE] or liquid [FALSE].'&
-                                , '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidPartDens'  &
-  , 'If particle boundary defined as solid set surface atom density (in [part/m^2]).', '1.0E+19', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidMassIC'  &
-                                , 'Set mass of solid surface particles (in [kg]).', '3.2395E-25', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidAreaIncrease'  &
-                                , 'TODO-DEFINE-PARAMETER ', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Boundary[$]-SolidStructure'  &
-  , 'Defines the structure of the replicated surface [surfacemodel=3]:\n 1: fcc(100)\n 2: fcc(111)', '2', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Boundary[$]-SolidCrystalIndx'  &
-                                , 'Set number of interaction for hollow sites.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'Number of Species to be changed at wall.', '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-ProbOfSpeciesSwaps'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Probability of SpeciesSwaps at wall', '1.', numberedmulti=.TRUE.)
@@ -533,10 +518,6 @@ CALL prms%CreateIntArrayOption( 'Part-Boundary[$]-SpeciesSwaps[$]'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Species to be changed at wall (out=: delete)', '0 , 0'&
                                 , numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Part-Boundary[$]-SourceName'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'No Default. Source Name of Boundary[i]. Has to be selected for all'//&
-                                  'nBounds. Has to be same name as defined in preproc tool', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-UseForQCrit'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Flag to use Boundary for Q-Criterion', '.TRUE.', numberedmulti=.TRUE.)
@@ -696,15 +677,15 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
 USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution,DSMC_VolumeSample
-USE MOD_Globals_Vars               ,ONLY: ElementaryCharge
 USE MOD_InitializeBackgroundField  ,ONLY: InitializeBackgroundField
 USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
 USE MOD_Mesh_Vars                  ,ONLY: nElems
 USE MOD_Part_Emission              ,ONLY: InitializeParticleEmission,AdaptiveBCAnalyze
-USE MOD_Particle_Boundary_Porous   ,ONLY: InitPorousBoundaryCondition
+USE MOD_SurfaceModel_Porous        ,ONLY: InitPorousBoundaryCondition
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
-USE MOD_Particle_Boundary_Vars     ,ONLY: nPorousBC, PartBound
+USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
+USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
 USE MOD_PICInterpolation_Vars      ,ONLY: useBGField
@@ -936,7 +917,6 @@ CALL InitEmissionComm()
 CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 #endif /*USE_MPI*/
 
-CALL InitializeVariablesCollectCharges()
 CALL InitializeVariablesElectronFluidRegions()
 CALL InitializeVariablesIMD()
 CALL InitializeVariablesWriteMacroValues()
@@ -1090,54 +1070,6 @@ IF(DoFieldIonization)THEN
 END IF
 
 END SUBROUTINE InitializeVariablesIonization
-
-
-SUBROUTINE InitializeVariablesCollectCharges()
-!===================================================================================================================================
-! Initialize the variables first
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_ReadInTools
-USE MOD_Particle_Vars
-USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
-USE MOD_Particle_Boundary_Vars ,ONLY: nPartBound
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(32)         :: hilf
-INTEGER               :: iCC
-!===================================================================================================================================
-nDataBC_CollectCharges=0
-nCollectChargesBCs = GETINT('PIC-nCollectChargesBCs','0')
-IF (nCollectChargesBCs .GT. 0) THEN
-#if !((USE_HDG) && (PP_nVar==1))
-  CALL abort(__STAMP__&
-    , 'CollectCharges only implemented for electrostatic HDG!')
-#endif
-  ALLOCATE(CollectCharges(1:nCollectChargesBCs))
-  DO iCC=1,nCollectChargesBCs
-    WRITE(UNIT=hilf,FMT='(I0)') iCC
-    CollectCharges(iCC)%BC = GETINT('PIC-CollectCharges'//TRIM(hilf)//'-BC','0')
-    IF (CollectCharges(iCC)%BC.LT.1 .OR. CollectCharges(iCC)%BC.GT.nPartBound) THEN
-      CALL abort(__STAMP__&
-      , 'nCollectChargesBCs must be between 1 and nPartBound!')
-    ELSE IF (BCdata_auxSF(CollectCharges(iCC)%BC)%SideNumber.EQ. -1) THEN !not set yet
-      BCdata_auxSF(CollectCharges(iCC)%BC)%SideNumber=0
-      nDataBC_CollectCharges=nDataBC_CollectCharges+1 !side-data will be set in InitializeParticleSurfaceflux!!!
-    END IF
-    CollectCharges(iCC)%NumOfRealCharges = GETREAL('PIC-CollectCharges'//TRIM(hilf)//'-NumOfRealCharges','0.')
-    CollectCharges(iCC)%NumOfNewRealCharges = 0.
-    CollectCharges(iCC)%ChargeDist = GETREAL('PIC-CollectCharges'//TRIM(hilf)//'-ChargeDist','0.')
-  END DO !iCC
-END IF !nCollectChargesBCs .GT. 0
-
-END SUBROUTINE InitializeVariablesCollectCharges
 
 
 SUBROUTINE InitializeVariablesElectronFluidRegions()
@@ -1779,8 +1711,8 @@ USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nPorousBC
-USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutput,PartStateBoundary
+USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutput,PartStateBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
@@ -1801,7 +1733,7 @@ CHARACTER(200)        :: tmpString
 dummy_int = CountOption('Part-nBounds')       ! check if Part-nBounds is present in .ini file
 nPartBound = GETINT('Part-nBounds','1.') ! get number of particle boundaries
 ! Read-in number of porous boundaries
-nPorousBC = GETINT('Part-nPorousBC', '0')
+nPorousBC = GETINT('Surf-nPorousBC', '0')
 IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) THEN
   CALL abort(&
 __STAMP__&
@@ -1852,24 +1784,10 @@ ALLOCATE(PartBound%SurfaceModel(     1:nPartBound))
 PartBound%SurfaceModel = 0
 ALLOCATE(PartBound%Reactive(         1:nPartBound))
 PartBound%Reactive = .FALSE.
-ALLOCATE(PartBound%SolidState(       1:nPartBound))
-PartBound%SolidState = .FALSE.
-ALLOCATE(PartBound%SolidPartDens(    1:nPartBound))
-PartBound%SolidPartDens = 0.
-ALLOCATE(PartBound%SolidMassIC(      1:nPartBound))
-PartBound%SolidMassIC = 0.
-ALLOCATE(PartBound%SolidAreaIncrease(1:nPartBound))
-PartBound%SolidAreaIncrease = 0.
-ALLOCATE(PartBound%SolidStructure(   1:nPartBound))
-PartBound%SolidStructure = 0.
-ALLOCATE(PartBound%SolidCrystalIndx( 1:nPartBound))
-PartBound%SolidCrystalIndx = 0
 ALLOCATE(PartBound%Voltage(1:nPartBound))
 PartBound%Voltage = 0.
 ALLOCATE(PartBound%UseForQCrit(1:nPartBound))
 PartBound%UseForQCrit = .FALSE.
-ALLOCATE(PartBound%Voltage_CollectCharges(1:nPartBound))
-PartBound%Voltage_CollectCharges(:)=0.
 ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
 PartBound%NbrOfSpeciesSwaps = 0
 
@@ -1942,26 +1860,13 @@ DO iPartBound=1,nPartBound
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
       CASE (0)
         PartBound%Reactive(iPartBound)        = .FALSE.
-      CASE (2,3,5,6,7,101,102)
+      CASE (5,6,7)
         PartBound%Reactive(iPartBound)        = .TRUE.
       CASE DEFAULT
         CALL abort(&
             __STAMP__&
-            ,'Error in particle init: only allowed SurfaceModels: 0,2,3,5,6,101,102!')
+            ,'Error in particle init: only allowed SurfaceModels: 0,5,6,7!')
       END SELECT
-    END IF
-    PartBound%SolidState(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidState')
-    IF(PartBound%SolidState(iPartBound))THEN
-      PartBound%SolidPartDens(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidPartDens')
-      PartBound%SolidMassIC(iPartBound)       = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidMassIC')
-      PartBound%SolidAreaIncrease(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidAreaIncrease')
-      PartBound%SolidStructure(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidStructure')
-      IF (PartBound%SolidStructure(iPartBound).EQ.1) THEN
-        hilf2 ='4'
-      ELSE IF (PartBound%SolidStructure(iPartBound).EQ.2) THEN
-        hilf2 ='3'
-      END IF
-      PartBound%SolidCrystalIndx(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidCrystalIndx',hilf2)
     END IF
     IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
       !read Species to be changed at wall (in, out), out=0: delete
@@ -1971,6 +1876,11 @@ DO iPartBound=1,nPartBound
         PartBound%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
             GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
       END DO
+      IF(PartBound%Reactive(iPartBound)) THEN
+        CALL abort(&
+          __STAMP__&
+          ,'ERROR: Species swap is only supported in combination with Maxwell scattering (SurfModel = 0). PartBound: ',iPartBound)
+      END IF
     END IF
     ! Dielectric Surfaces
     PartBound%Dielectric(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Dielectric')
@@ -2000,17 +1910,6 @@ DO iPartBound=1,nPartBound
   CASE('symmetric_axis')
     PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryAxis
     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
-  CASE('analyze')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%AnalyzeBC
-    IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
-      !read Species to be changed at wall (in, out), out=0: delete
-      PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
-      DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(iPartBound)
-        WRITE(UNIT=hilf2,FMT='(I0)') iSwaps
-        PartBound%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
-            GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
-      END DO
-    END IF
   CASE('rot_periodic')
     GEO%RotPeriodicBC = .TRUE.
     PartBound%TargetBoundCond(iPartBound)  = PartBound%RotPeriodicBC
@@ -3009,7 +2908,6 @@ SUBROUTINE InitParticleBoundaryRotPeriodic()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSide2GlobalSide,nComputeNodeSurfTotalSides,SurfSide2GlobalSide,PartBound
-USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared, GEO
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
@@ -3021,7 +2919,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER              :: iSide, jSide, nRotPeriodicSides, SideID,SideID2, MaxNumRotPeriodicNeigh, iNode, jNode, iNeigh
-INTEGER              :: NodeID, CNElemID, CNElemID2, LocSideID, k, l, m, NodeID2, ElemID2, LocSideID2
+INTEGER              :: NodeID, CNElemID, CNElemID2, LocSideID, k, l, m, NodeID2, LocSideID2
 INTEGER,ALLOCATABLE  :: Rot2Glob_temp(:)
 INTEGER,ALLOCATABLE  :: RotPeriodicSideMapping_temp(:,:)
 LOGICAL              :: isMapped,SideIsMapped
@@ -3267,19 +3165,12 @@ SDEALLOCATE(PartBound%RotPeriodicDir)
 SDEALLOCATE(Adaptive_MacroVal)
 SDEALLOCATE(PartBound%Voltage)
 SDEALLOCATE(PartBound%UseForQCrit)
-SDEALLOCATE(PartBound%Voltage_CollectCharges)
 SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
 SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
 SDEALLOCATE(PartBound%SpeciesSwaps)
 SDEALLOCATE(PartBound%MapToPartBC)
 SDEALLOCATE(PartBound%SurfaceModel)
 SDEALLOCATE(PartBound%Reactive)
-SDEALLOCATE(PartBound%SolidState)
-SDEALLOCATE(PartBound%SolidPartDens)
-SDEALLOCATE(PartBound%SolidMassIC)
-SDEALLOCATE(PartBound%SolidAreaIncrease)
-SDEALLOCATE(PartBound%SolidStructure)
-SDEALLOCATE(PartBound%SolidCrystalIndx)
 SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutput)
 SDEALLOCATE(PartStateBoundary)

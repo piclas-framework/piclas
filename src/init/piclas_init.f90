@@ -284,7 +284,7 @@ USE MOD_PICDepo                    ,ONLY: FinalizeDeposition
 USE MOD_ParticleInit               ,ONLY: FinalizeParticles
 USE MOD_TTMInit                    ,ONLY: FinalizeTTM
 USE MOD_DSMC_Init                  ,ONLY: FinalizeDSMC
-USE MOD_Particle_Boundary_Porous   ,ONLY:FinalizePorousBoundaryCondition
+USE MOD_SurfaceModel_Porous        ,ONLY: FinalizePorousBoundaryCondition
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: FinalizeFPFlow
 #endif

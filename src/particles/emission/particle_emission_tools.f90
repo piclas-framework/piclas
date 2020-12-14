@@ -275,7 +275,7 @@ SUBROUTINE SetParticleMPF(FractNbr,NbrOfParticle)
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY : PDM, PartMPF, Species, PartState
 USE MOD_DSMC_Vars               ,ONLY : RadialWeighting
-USE MOD_DSMC_Symmetry           ,ONLY : CalcRadWeightMPF
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
 !===================================================================================================================================
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -911,7 +911,7 @@ SUBROUTINE SetCellLocalParticlePosition(chunkSize,iSpec,iInit,UseExactPartNum)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry          ,ONLY: CalcRadWeightMPF
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Localization  ,ONLY: PartInElemCheck

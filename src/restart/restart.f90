@@ -320,14 +320,9 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,NbrOfLostParticles, NbrOfLo
 #if !(USE_MPI)
 USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts
 #endif /*!(USE_MPI)*/
-USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfBC
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample,SurfMesh,offSetSurfSide,PartBound,nPartBound
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
-USE MOD_Particle_Tracking      ,ONLY: ParticleCollectCharges
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition, RelaxDeposition, PartSourceOld
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 #endif /*PARTICLES*/
@@ -400,25 +395,14 @@ INTEGER                            :: LostPartsPoly(0:PartMPI%nProcs-1), Displac
 INTEGER                            :: LostPartsElec(0:PartMPI%nProcs-1), DisplaceElec(0:PartMPI%nProcs-1)
 INTEGER                            :: LostPartsAmbi(0:PartMPI%nProcs-1), DisplaceAmbi(0:PartMPI%nProcs-1)
 #endif /*USE_MPI*/
-INTEGER                            :: locnSurfPart,offsetnSurfPart
-INTEGER,ALLOCATABLE                :: SurfPartInt(:,:,:,:,:)
-INTEGER,ALLOCATABLE                :: SurfPartData(:,:)
-REAL,ALLOCATABLE                   :: SurfCalcData(:,:,:,:,:)
 REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
-INTEGER                            :: Coordinations, SurfPartIntSize, SurfPartDataSize
-INTEGER                            :: UsedSiteMapPos, nVar, nfreeArrayindeces, lastfreeIndx, current
-INTEGER                            :: xpos, ypos, firstpart, lastpart, PartBoundID, SideID
-INTEGER                            :: iCoord, SpecID, iSurfSide, isubsurf, jsubsurf, iInterAtom
-INTEGER                            :: nSpecies_HDF5, nSurfSample_HDF5, nSurfBC_HDF5, nSurfSides_HDF5
-LOGICAL                            :: SurfCalcDataExists, SurfPartIntExists, SurfPartDataExists, MoveToLastFree, implemented
+LOGICAL                            :: implemented
 LOGICAL,ALLOCATABLE                :: readVarFromState(:)
-LOGICAL                            :: WallmodelExists(1:nPartBound), SurfModelTypeExists
-INTEGER,ALLOCATABLE                :: SurfModelType(:)
 INTEGER                            :: i
 #endif
 INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
 #if USE_HDG
-INTEGER                            :: iSide,MinGlobalSideID,MaxGlobalSideID
+INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID
 REAL,ALLOCATABLE                   :: ExtendedLambda(:,:,:)
 INTEGER                            :: p,q,r,rr,pq(1:2)
 INTEGER                            :: iLocSide,iLocSide_NB,iLocSide_master
@@ -1346,213 +1330,10 @@ IF(DoRestart)THEN
     CALL UpdateNextFreePosition()
   END IF ! .NOT.DoMacroscopicRestart
 
-  ! ------------------------------------------------
-  ! Reactive Surfaces
-  ! ------------------------------------------------
-  WallModelExists(:)=.FALSE.
-  IF (ANY(PartBound%Reactive)) THEN
-    ! check if datasets for restarting of surface model from state exists in state file used for restart
-    SurfModelTypeExists=.FALSE.
-    CALL DatasetExists(File_ID,'SurfaceModelType',SurfModelTypeExists)
-    IF (SurfModelTypeExists) THEN
-      SWRITE(UNIT_stdOut,'(A,A)')' GET NUMBER OF SURFACE-SIDES IN RESTART FILE... '
-      CALL GetDataSize(File_ID,'SurfaceModelType',nDims,HSize,attrib=.FALSE.)
-      nSurfSides_HDF5 = INT(HSize(1),4)
-      IF (nSurfSides_HDF5.NE.SurfMesh%nGlobalSides) THEN
-        SWRITE(UNIT_stdOut,'(A,A)') ' NUMBER OF SURFACE-SIDES IN RESTART FILE NOT EQUAL TO CALCULATION ... RESTARTING FROM INI'
-      ELSE
-        ALLOCATE(SurfModelType(SurfMesh%nOutputSides))
-        ! Associate construct for integer KIND=8 possibility
-        ASSOCIATE (&
-              nSides          => INT(SurfMesh%nOutputSides,IK) ,&
-              offsetSurfSide  => INT(offsetSurfSide,IK) )
-          CALL ReadArray('SurfaceModelType',1,(/nSides/) ,&
-              offsetSurfSide,1,IntegerArray_i4=SurfModelType)
-        END ASSOCIATE
-        WallModelExists(:)=.TRUE.
-        DO iSurfSide=1,SurfMesh%nOutputSides
-          SideID = SurfMesh%SurfIDToSideID(iSurfSide)
-          PartboundID = PartBound%MapToPartBC(BC(SideID))
-          IF (PartBound%SurfaceModel(PartboundID).NE.SurfModelType(iSurfSide)) THEN
-            WallModelExists(PartBoundID)=.FALSE.
-            EXIT
-          END IF
-        END DO
-      END IF ! nsurfsides_hdf5 != nglobalsurfsides
-    END IF
-    IF (ANY(WallModelExists(:))) THEN
-      SWRITE(UNIT_stdOut,*)'Reading surface calculation infos from Restartfile...'
-      ! do sanity checks of data in h5 file before proceeding
-      CALL GetDataSize(File_ID,'Surface_BCs',nDims,HSize,attrib=.TRUE.)
-      nSurfBC_HDF5 = INT(HSize(1),4)
-      IF (nSurfBC_HDF5.NE.nSurfBC) CALL abort(&
-          __STAMP__&
-          ,'Error in surface restart: number of surface boundaries in HDF5-file does not match!')
-      CALL ReadAttribute(File_ID,'nSurfSample',1,IntegerScalar=nSurfSample_HDF5)
-      IF (nSurfSample_HDF5.NE.nSurfSample) CALL abort(&
-          __STAMP__&
-          ,'Error in surface restart: number of surface subsides (nSurfSample) in HDF5-file does not match!')
-      CALL ReadAttribute(File_ID,'nSpecies',1,IntegerScalar=nSpecies_HDF5)
-      IF (nSpecies_HDF5.NE.nSpecies) CALL abort(&
-          __STAMP__&
-          ,'Error in surface restart: number of Species in HDF5-file does not match!')
-
-      SurfCalcDataExists=.FALSE.
-      CALL DatasetExists(File_ID,'SurfCalcData',SurfCalcDataExists)
-      IF (SurfCalcDataExists) THEN
-        nVar = 4
-        ALLOCATE(SurfCalcData(nVar,nSurfSample,nSurfSample,SurfMesh%nOutputSides,nSpecies))
-
-        ! Associate construct for integer KIND=8 possibility
-        ASSOCIATE (&
-              nVar            => INT(nVar,IK) ,&
-              nSurfSample     => INT(nSurfSample,IK) ,&
-              nSides          => INT(SurfMesh%nOutputSides,IK) ,&
-              nSpecies        => INT(nSpecies,IK) ,&
-              offsetSurfSide  => INT(offsetSurfSide,IK) )
-          CALL ReadArray('SurfCalcData',5,(/nVar,nSurfSample,nSurfSample,nSides,nSpecies/) ,&
-              offsetSurfSide,4,RealArray=SurfCalcData)
-        END ASSOCIATE
-        DO iSurfSide = 1,SurfMesh%nOutputSides
-          SideID = SurfMesh%SurfIDToSideID(iSurfSide)
-          PartboundID = PartBound%MapToPartBC(BC(SideID))
-          IF (PartBound%Reactive(PartboundID).AND.WallModelExists(PartBoundID)) THEN
-            DO jsubsurf = 1,nSurfSample
-              DO isubsurf = 1,nSurfSample
-                Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,:) = SurfCalcData(1,iSubSurf,jSubSurf,iSurfSide,:)
-                IF (PartBound%SurfaceModel(PartBoundID).EQ.3) THEN
-                  SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%adsorbnum_tmp(:) = SurfCalcData(2,iSubSurf,jSubSurf,iSurfSide,:)
-                  SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%desorbnum_tmp(:) = SurfCalcData(3,iSubSurf,jSubSurf,iSurfSide,:)
-                  SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%reactnum_tmp(:)  = SurfCalcData(4,iSubSurf,jSubSurf,iSurfSide,:)
-                END IF
-              END DO
-            END DO
-          END IF
-        END DO
-        DEALLOCATE(SurfCalcData)
-        ! read additional data for wallmodel 3
-        !IF (PartSurfaceModel.EQ.3) THEN
-        Coordinations    = 3
-        SurfPartIntSize  = 3
-        SurfPartDataSize = 2
-        ! check if surfpartint exists
-        SurfPartIntExists=.FALSE.
-        CALL DatasetExists(File_ID,'SurfPartInt',SurfPartIntExists)
-        IF(SurfPartIntExists)THEN
-          ALLOCATE(SurfPartInt(offsetSurfSide+1:offsetSurfSide+SurfMesh%nOutputSides &
-              ,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize))
-
-          ! Associate construct for integer KIND=8 possibility
-          ASSOCIATE (&
-                nSides          => INT(SurfMesh%nOutputSides,IK) ,&
-                nSurfSample     => INT(nSurfSample,IK)     ,&
-                Coordinations   => INT(Coordinations,IK)   ,&
-                SurfPartIntSize => INT(SurfPartIntSize,IK) ,&
-                offsetSurfSide  => INT(offsetSurfSide,IK)   )
-            ! read local Surface Particle indexing from HDF5
-            CALL ReadArray('SurfPartInt',5,(/nSides,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/) &
-                ,offsetSurfSide,1,IntegerArray_i4=SurfPartInt)
-          END ASSOCIATE
-          ! check if surfpartdata exists
-          SurfPartDataExists=.FALSE.
-          CALL DatasetExists(File_ID,'SurfPartData',SurfPartDataExists)
-          IF(SurfPartDataExists)THEN
-            IF (SurfMesh%nOutputSides.GT.0) THEN
-              locnSurfPart = SurfPartInt(offsetSurfSide+SurfMesh%nOutputSides,nSurfSample,nSurfSample,Coordinations,3) &
-                  - SurfPartInt(offsetSurfSide+1,1,1,1,2)
-              offsetnSurfPart=SurfPartInt(offsetSurfSide+1,1,1,1,2)
-            ELSE
-              locnSurfPart = 0
-              offsetnSurfPart = 0
-            END IF
-            ALLOCATE(SurfPartData(SurfPartDataSize,offsetnSurfPart+1:offsetnSurfPart+locnSurfPart))
-            ! read local Surface Particle Data from HDF5
-
-            ! Associate construct for integer KIND=8 possibility
-            ASSOCIATE (&
-                  locnSurfPart      => INT(locnSurfPart,IK)      ,&
-                  SurfPartDataSize  => INT(SurfPartDataSize,IK)  ,&
-                  offsetnSurfPart   => INT(offsetnSurfPart,IK)   )
-              CALL ReadArray('SurfPartData',2,(/SurfPartDataSize,locnSurfPart/),offsetnSurfPart,2,IntegerArray_i4=SurfPartData)
-            END ASSOCIATE
-            IF (locnSurfPart.GT.0) THEN
-              DO iSurfSide = 1,SurfMesh%nOutputSides
-                SideID = SurfMesh%SurfIDToSideID(iSurfSide)
-                PartboundID = PartBound%MapToPartBC(BC(SideID))
-                IF (WallModelExists(PartBoundID).AND.PartBound%SurfaceModel(PartboundID).EQ.3) THEN
-                  DO jsubsurf = 1,nSurfSample
-                    DO isubsurf = 1,nSurfSample
-                      DO iCoord = 1,Coordinations
-                        firstpart = SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,2) + 1
-                        lastpart  = SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,3)
-                        ! set the surfpartdata array values
-                        DO iPart = firstpart, lastpart
-                          UsedSiteMapPos = SurfPartData(1,iPart)
-                          SpecID         = SurfPartData(2,ipart)
-                          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%Species(UsedSiteMapPos) = SpecID
-                          ! assign bond order of respective surface atoms in the surface lattice
-                          DO iInterAtom = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%nInterAtom
-                            xpos = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%BondAtomIndx( &
-                                UsedSiteMapPos,iInterAtom)
-                            ypos = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%BondAtomIndy( &
-                                UsedSiteMapPos,iInterAtom)
-                            SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SurfAtomBondOrder(SpecID,xpos,ypos) = &
-                                SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SurfAtomBondOrder(SpecID,xpos,ypos) + 1
-                          END DO
-                        END DO ! iPart = firstpart,lastpart
-                        ! sort and rearrange UsedSiteMap-Surfpos-array
-                        ! structure of UsedSiteMap array for one coordination
-                        !               [<---------------nSites---------------------------------------->]
-                        ! Name        :  nfreeArrayindeces   (lastfreeIndx)                   Adsorbates
-                        ! current     :  1 2                   3           |      4  5  6  7  8  9 10 11
-                        ! UsedSiteMap :  1 7                   8           |     11  9 10  3  4  5  2  6
-                        lastfreeIndx = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(iCoord)
-                        nfreeArrayindeces = lastfreeIndx - ( lastpart - (firstpart-1) )
-                        DO current = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(iCoord)
-                          UsedSiteMapPos =  SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(current)
-                          IF (SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%Species(UsedSiteMapPos).GT.0) THEN
-                            MoveToLastFree = .TRUE.
-                            ! move value to end of array and end of array to current array index
-                            DO WHILE (MoveToLastFree)
-                              SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(current) = &
-                                  SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(lastfreeIndx)
-                              SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(lastfreeIndx) = &
-                                  UsedSiteMapPos
-                              UsedSiteMapPos =  SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(current)
-                              IF (SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%Species(UsedSiteMapPos).EQ.0) THEN
-                                MoveToLastFree = .FALSE.
-                              END IF
-                              lastfreeIndx = lastfreeIndx - 1
-                              IF (lastfreeIndx .EQ. nfreeArrayindeces) EXIT
-                            END DO ! current Indx not empty
-                          END IF
-                          IF (lastfreeIndx .EQ. nfreeArrayindeces) EXIT
-                        END DO ! current = 1,nSites
-                        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain(iCoord) = nfreeArrayindeces
-                      END DO
-                    END DO
-                  END DO
-                END IF
-              END DO
-              DEALLOCATE(SurfPartData)
-            END IF
-          END IF ! SurfPartDataExists
-          DEALLOCATE(SurfPartInt)
-        END IF ! SurfPartIntExists
-        !END IF ! PartSurfaceModel.EQ.3
-      END IF ! SurfCalcDataExists
-    ELSE
-      SWRITE(UNIT_stdOut,*)'Data for current wallmodel does not exists in restart file'
-    END IF ! WallModel_HDF5.NE.PartSurfaceModel
-  END IF ! ANY(PartBound%Reactive)
 #endif /*PARTICLES*/
 
 CALL CloseDataFile()
 
-#ifdef PARTICLES
-  ! include initially collected particles for first call of field-solver (e.g. in RecomputeLambda)
-  CALL ParticleCollectCharges(initialCall_opt=.TRUE.)
-#endif /*PARTICLES*/
 #if USE_HDG
   iter=0
   ! INSTEAD OF ALL THIS STUFF DO
@@ -1573,10 +1354,6 @@ CALL CloseDataFile()
   SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!'
 #endif
 ELSE ! no restart
-#ifdef PARTICLES
-  ! include initially collected particles for first call of field-solver (here because of consistency, but not used until timedisc)
-  CALL ParticleCollectCharges(initialCall_opt=.TRUE.)
-#endif /*PARTICLES*/
   ! Delete all files since we are doing a fresh start
   CALL FlushHDF5()
 END IF !IF(DoRestart)

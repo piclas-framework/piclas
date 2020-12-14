@@ -66,7 +66,7 @@ END SUBROUTINE DefineParametersTimeDisc
 
 SUBROUTINE InitTime()
 !===================================================================================================================================
-!>
+!> The genesis
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -318,7 +318,7 @@ USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_LoadBalance_Vars       ,ONLY: ElemTimePart
 #endif /* USE_LOADBALANCE && PARTICLES*/
 USE MOD_Part_Emission          ,ONLY: AdaptiveBCAnalyze
-USE MOD_Particle_Boundary_Vars ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -1122,9 +1122,8 @@ USE MOD_part_emission            ,ONLY: ParticleInserting
 USE MOD_surface_flux             ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars   ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking        ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_SurfaceModel             ,ONLY: UpdateSurfModelVars, SurfaceModel_main
-USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryRemovalProb_Pressure
-USE MOD_Particle_Boundary_Vars   ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Porous      ,ONLY: PorousBoundaryRemovalProb_Pressure
+USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC
 #if USE_MPI
 USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -1149,9 +1148,6 @@ REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 
   IF (DoSurfaceFlux) THEN
-    ! treat surface with respective model
-    CALL SurfaceModel_main()
-    CALL UpdateSurfModelVars()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_SURF,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1258,9 +1254,6 @@ REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
-  ! absorptions could have happened
-  CALL UpdateSurfModelVars()
-
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1319,7 +1312,6 @@ USE MOD_part_pos_and_velo      ,ONLY: SetParticleVelocity
 USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_SurfaceModel           ,ONLY: UpdateSurfModelVars, SurfaceModel_main
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -1335,9 +1327,6 @@ REAL                  :: timeStart, timeEnd, RandVal, dtFrac
 !===================================================================================================================================
 
 IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
-  ! treat surface with respective model
-  CALL SurfaceModel_main()
-  CALL UpdateSurfModelVars()
 
   CALL UpdateNextFreePosition()
 
@@ -1352,9 +1341,6 @@ IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
   END IF
 ELSE
   IF (DoSurfaceFlux) THEN
-    ! treat surface with respective model
-    CALL SurfaceModel_main()
-
     CALL ParticleSurfaceflux()
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
@@ -1407,7 +1393,6 @@ ELSE
   ! finish communication
   CALL MPIParticleRecv()
 #endif /*USE_MPI*/
-  CALL UpdateSurfModelVars()
   CALL ParticleInserting()
   CALL UpdateNextFreePosition()
   CALL DSMC_main()
@@ -3123,8 +3108,8 @@ USE MOD_Particle_MPI              ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPI
 #endif /*USE_MPI*/
 USE MOD_FPFlow                    ,ONLY: FPFlow_main, FP_DSMC_main
 USE MOD_FPFlow_Vars               ,ONLY: CoupledFPDSMC
-USE MOD_Particle_Boundary_Porous  ,ONLY: PorousBoundaryRemovalProb_Pressure
-USE MOD_Particle_Boundary_Vars    ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryRemovalProb_Pressure
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3267,8 +3252,8 @@ USE MOD_Particle_MPI              ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPI
 #endif /*USE_MPI*/
 USE MOD_BGK                       ,ONLY: BGK_main, BGK_DSMC_main
 USE MOD_BGK_Vars                  ,ONLY: CoupledBGKDSMC
-USE MOD_Particle_Boundary_Porous  ,ONLY: PorousBoundaryRemovalProb_Pressure
-USE MOD_Particle_Boundary_Vars    ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryRemovalProb_Pressure
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3397,7 +3382,6 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
 USE MOD_TimeDisc_Vars          ,ONLY: dt_old
 #endif /*(PP_TimeDiscMethod==509)*/
 USE MOD_HDG                    ,ONLY: HDG
-USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
@@ -3420,7 +3404,7 @@ USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIPar
 #endif
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
-USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -3585,7 +3569,6 @@ IF (time.GE.DelayTime) THEN
 #endif /*USE_LOADBALANCE*/
   END IF !velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==509)*/
-  CALL ParticleCollectCharges()
 END IF
 
 IF (doParticleMerge) THEN
@@ -3674,7 +3657,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #endif
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
-USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -3821,7 +3804,6 @@ IF (time.GE.DelayTime) THEN
     CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF !velocityOutputAtTime
-  CALL ParticleCollectCharges()
 END IF
 
 #if USE_MPI
@@ -3909,8 +3891,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
-USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
-USE MOD_SurfaceModel           ,ONLY: UpdateSurfModelVars, SurfaceModel_main
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 #endif /*PARTICLES*/
 USE MOD_HDG                    ,ONLY: HDG
 #if USE_LOADBALANCE
@@ -3973,14 +3954,6 @@ CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
 IF (time.GE.DelayTime) THEN
   IF (DoSurfaceFlux) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-    CALL SurfaceModel_main()
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_SURF,tLBStart)
-#endif /*USE_LOADBALANCE*/
-
     CALL ParticleSurfaceflux() !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
   END IF
 #if USE_LOADBALANCE
@@ -4075,8 +4048,6 @@ __STAMP__&
     END IF
   END IF
 
-  CALL UpdateSurfModelVars()
-
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4089,7 +4060,6 @@ __STAMP__&
   CALL MPIParticleSend()   ! finish communication of number of particles and send particles
   CALL MPIParticleRecv()   ! finish communication
 #endif
-  CALL ParticleCollectCharges()
 END IF
 
 #endif /*PARTICLES*/
@@ -4128,13 +4098,6 @@ DO iStage=2,nRKStages
 #endif /*USE_LOADBALANCE*/
   IF (time.GE.DelayTime) THEN
     IF (DoSurfaceFlux)THEN
-#if USE_LOADBALANCE
-      CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-      CALL SurfaceModel_main()
-#if USE_LOADBALANCE
-      CALL LBPauseTime(LB_SURF,tLBStart)
-#endif /*USE_LOADBALANCE*/
       CALL ParticleSurfaceflux() !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
     END IF
     ! forces on particle
@@ -4222,8 +4185,6 @@ DO iStage=2,nRKStages
       END IF
     END IF
 
-    CALL UpdateSurfModelVars()
-
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4236,7 +4197,6 @@ DO iStage=2,nRKStages
     CALL MPIParticleSend()   ! finish communication of number of particles and send particles
     CALL MPIParticleRecv()   ! finish communication
 #endif
-    CALL ParticleCollectCharges()
   END IF
 #endif /*PARTICLES*/
 END DO

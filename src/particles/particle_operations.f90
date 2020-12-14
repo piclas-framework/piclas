@@ -38,20 +38,24 @@ PUBLIC :: CreateParticle, RemoveParticle
 
 CONTAINS
 
-SUBROUTINE CreateParticle(Species,Pos,ElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,NewPartID)
+SUBROUTINE CreateParticle(SpecID,Pos,ElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,NewPartID)
 !===================================================================================================================================
 !> creates a single particle at correct array position and assign properties
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies,PartPosRef
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies,PartPosRef, VarTimeStep, usevMPF, PartMPF
+USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
+USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-INTEGER, INTENT(IN)           :: Species       !< Species ID
+INTEGER, INTENT(IN)           :: SpecID        !< Species ID
 REAL, INTENT(IN)              :: Pos(1:3)      !< Position (x,y,z)
 INTEGER, INTENT(IN)           :: ElemID        !< global element ID
 REAL, INTENT(IN)              :: Velocity(1:3) !< Velocity (vx,vy,vz)
@@ -73,7 +77,7 @@ IF(newParticleID.GT.PDM%MaxParticleNumber)THEN
       ,'CreateParticle: newParticleID.GT.PDM%MaxParticleNumber. newParticleID=',IntInfoOpt=newParticleID)
 END IF
 
-PartSpecies(newParticleID)     = Species
+PartSpecies(newParticleID)     = SpecID
 LastPartPos(1:3,newParticleID) = Pos(1:3)
 PartState(1:3,newParticleID)   = Pos(1:3)
 PartState(4:6,newParticleID)   = Velocity(1:3)
@@ -89,6 +93,10 @@ IF (useDSMC.AND.(CollisMode.GT.1)) THEN
   IF (DSMC%ElectronicModel) THEN
     PartStateIntEn(3,newParticleID) = ElecEnergy
   ENDIF
+  IF (DSMC%DoAmbipolarDiff) THEN
+    newAmbiParts = newAmbiParts + 1
+    iPartIndx_NodeNewAmbi(newAmbiParts) = newParticleID
+  END IF
 END IF
 
 PDM%ParticleInside(newParticleID)   = .TRUE.
@@ -97,14 +105,19 @@ PDM%IsNewPart(newParticleID)        = .TRUE.
 PEM%GlobalElemID(newParticleID)     = ElemID
 PEM%LastGlobalElemID(newParticleID) = ElemID
 
-! ?????? necessary?
-! IF (VarTimeStep%UseVariableTimeStep) THEN
-!   VarTimeStep%ParticleTimeStep(newParticleID) &
-!     = CalcVarTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%GlobalElemID(newParticleID))
-! END IF
-! IF (RadialWeighting%DoRadialWeighting) THEN
-!   PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID), 1,newParticleID)
-! END IF
+! Set particle time step and weight (if required)
+IF (VarTimeStep%UseVariableTimeStep) THEN
+  VarTimeStep%ParticleTimeStep(newParticleID) = &
+    CalcVarTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%LocalElemID(newParticleID))
+END IF
+IF (usevMPF) THEN
+  IF (RadialWeighting%DoRadialWeighting) THEN
+    PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID),SpecID,newParticleID)
+  ELSE
+    PartMPF(newParticleID) = Species(SpecID)%MacroParticleFactor
+  END IF
+END IF
+
 IF (PRESENT(NewPartID)) NewPartID=newParticleID
 
 END SUBROUTINE CreateParticle

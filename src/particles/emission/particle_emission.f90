@@ -542,7 +542,7 @@ USE MOD_DSMC_Analyze           ,ONLY: CalcTVibPoly,CalcTelec
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, DSMC, CollisMode, SpecDSMC, useDSMC, RadialWeighting
 USE MOD_Mesh_Vars              ,ONLY: nElems, offsetElem
 USE MOD_Part_Tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Boundary_Vars ,ONLY: PorousBCSampIter, PorousBCMacroVal
+USE MOD_SurfaceModel_Vars      ,ONLY: PorousBCSampIter, PorousBCMacroVal
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared, SideInfo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal, AdaptiveWeightFac

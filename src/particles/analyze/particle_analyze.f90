@@ -176,10 +176,6 @@ CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'    , 'TODO-DEFINE-PARAME
 CALL prms%CreateLogicalOption(  'IsRestart'                , 'TODO-DEFINE-PARAMETER\n'//&
                                                              'Flag, if the current calculation is a restart. '&
                                                            , '.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcPorousBCInfo'         , 'Calculate output of porous BCs such pumping speed, removal '//&
-                                                             'probability and pressure (normalized with the given pressure). '//&
-                                                             'Values are averaged over the whole porous BC.' , '.FALSE.')
-
 CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , ' Calculate output of Power that is coupled into plasma' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'DisplayCoupledPower'      , ' Display coupled power in UNIT_stdOut' , '.FALSE.')
 
@@ -202,7 +198,6 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
-USE MOD_Particle_Boundary_Vars,ONLY: nPorousBC
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, VarTimeStep, PDM, usevMPF
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
 USE MOD_PICDepo_Vars          ,ONLY: r_sf
@@ -644,12 +639,6 @@ IF(DoPartAnalyze)THEN
 END IF
 IsRestart = GETLOGICAL('IsRestart','.FALSE.')
 
-IF(nPorousBC.GT.0) THEN
-  ! Output for porous BC: Pump averaged values
-  CalcPorousBCInfo = GETLOGICAL('CalcPorousBCInfo')
-  IF(CalcPorousBCInfo) DoPartAnalyze = .TRUE.
-END IF
-
 ParticleAnalyzeInitIsDone=.TRUE.
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTCILE ANALYZE DONE!'
@@ -680,7 +669,6 @@ USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_FPFlow_Vars            ,ONLY: FP_MaxRelaxFactor,FP_MaxRotRelaxFactor,FP_MeanRelaxFactor,FP_MeanRelaxFactorCounter
 USE MOD_FPFlow_Vars            ,ONLY: FP_PrandtlNumber,FPInitDone
 USE MOD_Particle_Analyze_Vars
-USE MOD_Particle_Boundary_Vars ,ONLY: nPorousBC,PorousBCOutput
 USE MOD_Particle_Mesh_Vars     ,ONLY: MeshVolume
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_Particle_Vars          ,ONLY: Species,nSpecies,usevMPF
@@ -706,7 +694,7 @@ REAL,INTENT(IN)                 :: Time
 ! LOCAL VARIABLES
 LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
-INTEGER             :: unit_index, iSpec, OutputCounter, iPBC, iSF, MaxSurfaceFluxBCs
+INTEGER             :: unit_index, iSpec, OutputCounter, iSF, MaxSurfaceFluxBCs
 INTEGER(KIND=IK)    :: SimNumSpec(nSpecAnalyze)
 REAL                :: NumSpec(nSpecAnalyze), NumDens(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
@@ -964,23 +952,6 @@ INTEGER             :: dir
             END DO
           END IF
         END IF
-        IF(CalcPorousBCInfo) THEN ! calculate porous boundary condition output (pumping speed, removal probability, pressure
-                                  ! normalized with given pressure. Values are averaged over the whole porous BC
-          DO iPBC = 1, nPorousBC
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I2.2,A,A5)',ADVANCE='NO') OutputCounter,'-PorousBC-',iPBC,'-PumpSpeed-Measure',' '
-            OutputCounter = OutputCounter + 1
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I2.2,A,A5)',ADVANCE='NO') OutputCounter,'-PorousBC-',iPBC,'-PumpSpeed-Control',' '
-            OutputCounter = OutputCounter + 1
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I2.2,A,A5)',ADVANCE='NO') OutputCounter,'-PorousBC-',iPBC,'-RemovalProbability',' '
-            OutputCounter = OutputCounter + 1
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I2.2,A,A5)',ADVANCE='NO') OutputCounter,'-PorousBC-',iPBC,'-PressureNorm',' '
-            OutputCounter = OutputCounter + 1
-          END DO
-        END IF
         IF(DSMC%CalcQualityFactors) THEN ! calculates flow-field variable maximum collision probability, time-averaged mean
                                          ! collision probability, mean collision separation distance over mean free path
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -1199,9 +1170,6 @@ INTEGER             :: dir
       MeanCollProb = sumMeanCollProb / REAL(PartMPI%nProcs)
     END IF
 #endif
-    IF(CalcPorousBCInfo) THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE,PorousBCOutput,5*nPorousBC,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-    END IF
     IF(FPInitDone) THEN
       IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
         CALL MPI_REDUCE(MPI_IN_PLACE,FP_MeanRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
@@ -1242,9 +1210,6 @@ INTEGER             :: dir
       CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, PartMPI%COMM, IERROR)
     END IF
 #endif
-    IF(CalcPorousBCInfo) THEN
-      CALL MPI_REDUCE(PorousBCOutput,PorousBCOutput,5*nPorousBC,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-    END IF
     IF(FPInitDone) THEN
       IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
         CALL MPI_REDUCE(FP_MeanRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
@@ -1274,15 +1239,6 @@ IF(PartMPI%MPIRoot) THEN
       PartEkinIn(nSpecies+1)  = SUM(PartEkinIn(1:nSpecies))
       PartEkinOut(nSpecies+1) = SUM(PartEkinOut(1:nSpecies))
     END IF
-  END IF
-  IF(CalcPorousBCInfo) THEN
-    DO iPBC = 1, nPorousBC
-      IF(PorousBCOutput(1,iPBC).GT.0.0) THEN
-        ! Pumping Speed (Output(2)) is the sum of all elements (counter over particles exiting through pump)
-        ! Other variales are averaged over the elements
-        PorousBCOutput(3:5,iPBC) = PorousBCOutput(3:5,iPBC) / PorousBCOutput(1,iPBC)
-      END IF
-    END DO
   END IF
   IF(FPInitDone) THEN
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
@@ -1474,22 +1430,6 @@ IF (PartMPI%MPIROOT) THEN
           WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') TempTotal(iSpec)
         END DO
       END IF
-    END IF
-    IF(CalcPorousBCInfo) THEN
-      DO iPBC = 1, nPorousBC
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBCOutput(2,iPBC)
-        OutputCounter = OutputCounter + 1
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBCOutput(3,iPBC)
-        OutputCounter = OutputCounter + 1
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBCOutput(4,iPBC)
-        OutputCounter = OutputCounter + 1
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBCOutput(5,iPBC)
-        OutputCounter = OutputCounter + 1
-      END DO
     END IF
     IF(DSMC%CalcQualityFactors) THEN
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','

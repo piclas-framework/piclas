@@ -51,7 +51,7 @@ USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,NodeType,NodeTypeVISU
 USE MOD_Mesh_Vars              ,ONLY: nElems,sJ,nGlobalElems,Vdm_EQ_N
 USE MOD_Particle_Vars
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,MeshVolume
+USE MOD_Particle_Mesh_Vars     ,ONLY: MeshVolume
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes,NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,NodeToElemInfo,NodeToElemMapping
 USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
@@ -79,12 +79,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
-INTEGER                   :: ALLOCSTAT, iElem, i, j, k, iBC, kk, ll, mm, firstElem, lastElem, jNode, NbElemID, NeighNonUniqueNodeID
+INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm, firstElem, lastElem, jNode, NbElemID, NeighNonUniqueNodeID
 INTEGER                   :: jElem, NonUniqueNodeID, iNode, NeighUniqueNodeID
 REAL                      :: VolumeShapeFunction,r_sf_tmp
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
-CHARACTER(32)             :: hilf, hilf2
 CHARACTER(255)            :: TimeAverageFile
 INTEGER                   :: nTotalDOF
 INTEGER                   :: UniqueNodeID
@@ -462,76 +461,6 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   BetaFac = beta(1.5, REAL(alpha_sf) + 1.)
   w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) &
                         * (REAL(alpha_sf) + 1.)/(PI*(r_sf**3))
-
-  !-- ResampleAnalyzeSurfCollis
-  SFResampleAnalyzeSurfCollis = GETLOGICAL('PIC-SFResampleAnalyzeSurfCollis','.FALSE.')
-  IF (SFResampleAnalyzeSurfCollis) THEN
-    LastAnalyzeSurfCollis%PartNumberSamp = 0
-    LastAnalyzeSurfCollis%PartNumberDepo = 0
-    LastAnalyzeSurfCollis%ReducePartNumber = GETLOGICAL('PIC-SFResampleReducePartNumber','.FALSE.')
-    LastAnalyzeSurfCollis%PartNumThreshold = GETINT('PIC-PartNumThreshold','0')
-    IF (LastAnalyzeSurfCollis%ReducePartNumber) THEN
-      WRITE(UNIT=hilf,FMT='(I0)') LastAnalyzeSurfCollis%PartNumThreshold
-      LastAnalyzeSurfCollis%PartNumberReduced = GETINT('PIC-SFResamplePartNumberReduced',TRIM(hilf)) !def. PartNumThreshold
-    END IF
-    WRITE(UNIT=hilf,FMT='(E16.8)') -HUGE(1.0)
-    LastAnalyzeSurfCollis%Bounds(1,1)   = MAX(GETREAL('PIC-SFResample-xmin',TRIM(hilf)),GEO%xmin-r_sf)
-    LastAnalyzeSurfCollis%Bounds(1,2)   = MAX(GETREAL('PIC-SFResample-ymin',TRIM(hilf)),GEO%ymin-r_sf)
-    LastAnalyzeSurfCollis%Bounds(1,3)   = MAX(GETREAL('PIC-SFResample-zmin',TRIM(hilf)),GEO%zmin-r_sf)
-    WRITE(UNIT=hilf,FMT='(E16.8)') HUGE(1.0)
-    LastAnalyzeSurfCollis%Bounds(2,1)   = MIN(GETREAL('PIC-SFResample-xmax',TRIM(hilf)),GEO%xmax+r_sf)
-    LastAnalyzeSurfCollis%Bounds(2,2)   = MIN(GETREAL('PIC-SFResample-ymax',TRIM(hilf)),GEO%ymax+r_sf)
-    LastAnalyzeSurfCollis%Bounds(2,3)   = MIN(GETREAL('PIC-SFResample-zmax',TRIM(hilf)),GEO%zmax+r_sf)
-    LastAnalyzeSurfCollis%UseFixBounds = GETLOGICAL('PIC-SFResample-UseFixBounds','.TRUE.')
-    LastAnalyzeSurfCollis%NormVecOfWall = GETREALARRAY('PIC-NormVecOfWall',3,'1. , 0. , 0.')  !directed outwards
-    IF (DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,LastAnalyzeSurfCollis%NormVecOfWall).GT.0.) THEN
-      LastAnalyzeSurfCollis%NormVecOfWall = LastAnalyzeSurfCollis%NormVecOfWall &
-        / SQRT( DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,LastAnalyzeSurfCollis%NormVecOfWall) )
-    END IF
-    LastAnalyzeSurfCollis%Restart = GETLOGICAL('PIC-SFResampleRestart','.FALSE.')
-    IF (LastAnalyzeSurfCollis%Restart) THEN
-      LastAnalyzeSurfCollis%DSMCSurfCollisRestartFile = GETSTR('PIC-SFResampleRestartFile','dummy')
-    END IF
-    !-- BCs
-    LastAnalyzeSurfCollis%NumberOfBCs = GETINT('PIC-SFResampleNumberOfBCs','1')
-    SDEALLOCATE(LastAnalyzeSurfCollis%BCs)
-    ALLOCATE(LastAnalyzeSurfCollis%BCs(1:LastAnalyzeSurfCollis%NumberOfBCs),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) THEN
-      CALL abort(__STAMP__, &
-        'ERROR in pic_depo.f90: Cannot allocate LastAnalyzeSurfCollis%BCs!')
-    END IF
-    IF (LastAnalyzeSurfCollis%NumberOfBCs.EQ.1) THEN !already allocated
-      LastAnalyzeSurfCollis%BCs = GETINTARRAY('PIC-SFResampleSurfCollisBC',1,'0') ! 0 means all...
-    ELSE
-      hilf2=''
-      DO iBC=1,LastAnalyzeSurfCollis%NumberOfBCs !build default string: 0,0,0,...
-        WRITE(UNIT=hilf,FMT='(I0)') 0
-        hilf2=TRIM(hilf2)//TRIM(hilf)
-        IF (iBC.NE.LastAnalyzeSurfCollis%NumberOfBCs) hilf2=TRIM(hilf2)//','
-      END DO
-      LastAnalyzeSurfCollis%BCs = GETINTARRAY('PIC-SFResampleSurfCollisBC',LastAnalyzeSurfCollis%NumberOfBCs,hilf2)
-    END IF
-    !-- spec for dt-calc
-    LastAnalyzeSurfCollis%NbrOfSpeciesForDtCalc = GETINT('PIC-SFResampleNbrOfSpeciesForDtCalc','1')
-    SDEALLOCATE(LastAnalyzeSurfCollis%SpeciesForDtCalc)
-    ALLOCATE(LastAnalyzeSurfCollis%SpeciesForDtCalc(1:LastAnalyzeSurfCollis%NbrOfSpeciesForDtCalc),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) THEN
-      CALL abort(__STAMP__, &
-        'ERROR in pic_depo.f90: Cannot allocate LastAnalyzeSurfCollis%SpeciesForDtCalc!')
-    END IF
-    IF (LastAnalyzeSurfCollis%NbrOfSpeciesForDtCalc.EQ.1) THEN !already allocated
-      LastAnalyzeSurfCollis%SpeciesForDtCalc = GETINTARRAY('PIC-SFResampleSpeciesForDtCalc',1,'0') ! 0 means all...
-    ELSE
-      hilf2=''
-      DO iBC=1,LastAnalyzeSurfCollis%NbrOfSpeciesForDtCalc !build default string: 0,0,0,...
-        WRITE(UNIT=hilf,FMT='(I0)') 0
-        hilf2=TRIM(hilf2)//TRIM(hilf)
-        IF (iBC.NE.LastAnalyzeSurfCollis%NbrOfSpeciesForDtCalc) hilf2=TRIM(hilf2)//','
-      END DO
-      LastAnalyzeSurfCollis%SpeciesForDtCalc &
-        = GETINTARRAY('PIC-SFResampleSpeciesForDtCalc',LastAnalyzeSurfCollis%NbrOfSpeciesForDtCalc,hilf2)
-    END IF
-  END IF
 
   VolumeShapeFunction=4./3.*PI*r_sf**3
   nTotalDOF=nGlobalElems*(PP_N+1)**3

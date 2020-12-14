@@ -56,7 +56,8 @@ USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank,nSurfLeaders!,nSurfCommProc
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,offsetComputeNodeSurfSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode,SurfSampSize,nSurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides, nOutputSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
 !USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide
 USE MOD_Particle_MPI_Vars       ,ONLY: SurfSendBuf,SurfRecvBuf
@@ -254,7 +255,7 @@ DO iProc = 0,nSurfLeaders-1
   ! Get message size
   SampSizeAllocate = SurfSampSize
   ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number
-  IF(CalcSurfaceImpact) SampSizeAllocate = SampSizeAllocate + 8*nSpecies
+  IF(CalcSurfaceImpact) SampSizeAllocate = SampSizeAllocate + 9*nSpecies
 
   ! Only allocate send buffer if we are expecting sides from this leader node
   IF (SurfMapping(iProc)%nSendSurfSides.GT.0) THEN
@@ -269,23 +270,36 @@ DO iProc = 0,nSurfLeaders-1
   END IF
 END DO ! iProc
 
+!--- Save number of output sides per node (inner BCs are only included once here)
+IF (nSurfLeaders.EQ.1) THEN
+  offsetComputeNodeSurfOutputSide = 0
+  nOutputSides           = nComputeNodeSurfOutputSides
+ELSE
+  sendbuf = nComputeNodeSurfOutputSides
+  recvbuf = 0
+  CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_LEADERS_SURF,iError)
+  offsetComputeNodeSurfOutputSide = recvbuf
+  ! last proc knows CN total number of BC elems
+  sendbuf = offsetComputeNodeSurfOutputSide + nComputeNodeSurfOutputSides
+  CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nSurfLeaders-1,MPI_COMM_LEADERS_SURF,iError)
+  nOutputSides = sendbuf
+END IF
+
 
 !--- Save number of total surf sides
-!IF (surfOnNode) THEN
-  IF (nSurfLeaders.EQ.1) THEN
-    offsetComputeNodeSurfSide = 0
-    nSurfTotalSides           = nComputeNodeSurfSides
-  ELSE
-    sendbuf = nComputeNodeSurfSides
-    recvbuf = 0
-    CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_LEADERS_SURF,iError)
-    offsetComputeNodeSurfSide = recvbuf
-    ! last proc knows CN total number of BC elems
-    sendbuf = offsetComputeNodeSurfSide + nComputeNodeSurfSides
-    CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nSurfLeaders-1,MPI_COMM_LEADERS_SURF,iError)
-    nSurfTotalSides = sendbuf
-  END IF
-!END IF
+IF (nSurfLeaders.EQ.1) THEN
+  offsetComputeNodeSurfSide = 0
+  nSurfTotalSides           = nComputeNodeSurfSides
+ELSE
+  sendbuf = nComputeNodeSurfSides
+  recvbuf = 0
+  CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_LEADERS_SURF,iError)
+  offsetComputeNodeSurfSide = recvbuf
+  ! last proc knows CN total number of BC elems
+  sendbuf = offsetComputeNodeSurfSide + nComputeNodeSurfSides
+  CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nSurfLeaders-1,MPI_COMM_LEADERS_SURF,iError)
+  nSurfTotalSides = sendbuf
+END IF
 
 
 END SUBROUTINE InitSurfCommunication
@@ -305,7 +319,6 @@ USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: nSurfLeaders,myComputeNodeRank,mySurfRank
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSampSize,SurfSampSizeReactive,nSurfSample
-USE MOD_Particle_Boundary_Vars  ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping,PartBound,CalcSurfaceImpact
@@ -317,7 +330,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactAngle ,SampWallImpactAngle_
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber,SampWallImpactNumber_Shared,SampWallImpactNumber_Shared_Win
 USE MOD_Particle_MPI_Vars       ,ONLY: SurfSendBuf,SurfRecvBuf
 USE MOD_Particle_Vars           ,ONLY: nSpecies
-!USE MOD_SurfaceModel_Vars       ,ONLY: Adsorption
+USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -356,15 +369,17 @@ END IF
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 IF (CalcSurfaceImpact) THEN
   IF (myComputeNodeRank.EQ.0) THEN
-    MessageSize = nSpecies*3*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
+    MessageSize = nSpecies*4*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
     CALL MPI_REDUCE(SampWallImpactEnergy,SampWallImpactEnergy_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+    MessageSize = nSpecies*3*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
     CALL MPI_REDUCE(SampWallImpactVector,SampWallImpactVector_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
     MessageSize = nSpecies*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
     CALL MPI_REDUCE(SampWallImpactAngle ,SampWallImpactAngle_Shared ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
     CALL MPI_REDUCE(SampWallImpactNumber,SampWallImpactNumber_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
   ELSE
-    MessageSize = nSpecies*3*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
+    MessageSize = nSpecies*4*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
     CALL MPI_REDUCE(SampWallImpactEnergy,0                          ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+    MessageSize = nSpecies*3*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
     CALL MPI_REDUCE(SampWallImpactVector,0                          ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
     MessageSize = nSpecies*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
     CALL MPI_REDUCE(SampWallImpactAngle ,0                          ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
@@ -392,9 +407,9 @@ IF (myComputeNodeRank.EQ.0) THEN
     nReactiveValues = SurfSampSizeReactive*(nSurfSample)**2
     nValues         = nValues+nReactiveValues
   END IF
-  ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number: Add 8*nSpecies to the
-  ! buffer length
-  IF(CalcSurfaceImpact) nValues=nValues+8*nSpecies
+  ! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle and number: Add 9*nSpecies
+  ! to the buffer length
+  IF(CalcSurfaceImpact) nValues=nValues+9*nSpecies
   IF(nPorousBC.GT.0) nValues = nValues + 1
 
   ! open receive buffer
@@ -438,18 +453,6 @@ IF (myComputeNodeRank.EQ.0) THEN
         DO p = 1,nSurfSample
           SurfSendBuf(iProc)%content(iPos+1:iPos+SurfSampSize) = SampWallState_Shared(:,p,q,SurfSideID)
           iPos = iPos + SurfSampSize
-
-!          IF (ANY(PartBound%Reactive)) THEN
-!            SurfSendBuf(iProc)%content(iPos+1:iPos+5+nSpecies) = SampWall(SurfSideID)%SurfModelState(:,p,q)
-!            iPos=iPos+5+nSpecies
-!            SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Accomodation(:,p,q)
-!            iPos=iPos+nSpecies
-!            DO iReact=1,2*Adsorption%ReactNum
-!              SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%SurfModelReactCount(iReact,:,p,q)
-!              iPos=iPos+nSpecies
-!            END DO
-!          END IF
-
           ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
           IF (CalcSurfaceImpact) THEN
             ! Add average impact energy for each species (trans, rot, vib)
@@ -458,6 +461,8 @@ IF (myComputeNodeRank.EQ.0) THEN
             SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies) = SampWallImpactEnergy_Shared(:,2,p,q,SurfSideID)
             iPos=iPos + nSpecies
             SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies) = SampWallImpactEnergy_Shared(:,3,p,q,SurfSideID)
+            iPos=iPos + nSpecies
+            SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies) = SampWallImpactEnergy_Shared(:,4,p,q,SurfSideID)
             iPos=iPos + nSpecies
 
             ! Add average impact vector (x,y,z) for each species
@@ -484,11 +489,6 @@ IF (myComputeNodeRank.EQ.0) THEN
       END IF
 
       SampWallState_Shared(:,:,:,SurfSideID)=0.
-!      IF (ANY(PartBound%Reactive)) THEN
-!        SampWall(SurfSideID)%SurfModelState(:,:,:)=0.
-!        SampWall(SurfSideID)%Accomodation(:,:,:)=0.
-!        SampWall(SurfSideID)%SurfModelReactCount(:,:,:,:)=0.
-!      END IF
       ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
       IF (CalcSurfaceImpact) THEN
         SampWallImpactEnergy_Shared(:,:,:,:,SurfSideID) = 0.
@@ -556,20 +556,6 @@ IF (myComputeNodeRank.EQ.0) THEN
           SampWallState_Shared(:,p,q,SurfSideID) = SampWallState_Shared(:,p,q,SurfSideID) &
                                                  + SurfRecvBuf(iProc)%content(iPos+1:iPos+SurfSampSize)
           iPos = iPos + SurfSampSize
-  !        IF (ANY(PartBound%Reactive)) THEN
-  !          SampWall(SurfSideID)%SurfModelState(:,p,q)=SampWall(SurfSideID)%SurfModelState(:,p,q) &
-  !                                                +SurfRecvBuf(iProc)%content(iPos+1:iPos+5+nSpecies)
-  !          iPos=iPos+5+nSpecies
-  !          SampWall(SurfSideID)%Accomodation(:,p,q)=SampWall(SurfSideID)%Accomodation(:,p,q) &
-  !                                                  +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
-  !          iPos=iPos+nSpecies
-  !          DO iReact=1,2*Adsorption%ReactNum
-  !            SampWall(SurfSideID)%SurfModelReactCount(iReact,:,p,q)=SampWall(SurfSideID)%SurfModelReactCount(iReact,:,p,q) &
-  !                                                       +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
-  !            iPos=iPos+nSpecies
-  !          END DO
-  !        END IF
-  !
           ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
           IF(CalcSurfaceImpact)THEN
             ! Add average impact energy for each species (trans, rot, vib)
@@ -580,6 +566,9 @@ IF (myComputeNodeRank.EQ.0) THEN
                                                             + SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
             iPos = iPos + nSpecies
             SampWallImpactEnergy_Shared(:,3,p,q,SurfSideID) = SampWallImpactEnergy_Shared(:,3,p,q,SurfSideID) &
+                                                            + SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
+            iPos = iPos + nSpecies
+            SampWallImpactEnergy_Shared(:,4,p,q,SurfSideID) = SampWallImpactEnergy_Shared(:,4,p,q,SurfSideID) &
                                                             + SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
             iPos = iPos + nSpecies
             ! Add average impact vector (x,y,z) for each species

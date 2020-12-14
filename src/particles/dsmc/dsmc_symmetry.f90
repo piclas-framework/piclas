@@ -27,7 +27,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_1D_InitVolumes, DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting, DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
-PUBLIC :: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea, CalcRadWeightMPF, DSMC_2D_CalcSymmetryAreaSubSides
+PUBLIC :: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 PUBLIC :: DefineParametersParticleSymmetry, Init_Symmetry, DSMC_2D_TreatIdenticalParticles
 !===================================================================================================================================
 
@@ -396,6 +396,7 @@ USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, VibQuantsPar, SpecDSMC, 
 USE MOD_Particle_Vars           ,ONLY: PartMPF, PartSpecies, PartState, Species, LastPartPos
 USE MOD_TimeDisc_Vars           ,ONLY: iter
 USE MOD_part_operations         ,ONLY: RemoveParticle
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
 USE Ziggurat
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -769,45 +770,6 @@ END DO
 RETURN
 
 END FUNCTION DSMC_2D_CalcSymmetryAreaSubSides
-
-
-PURE REAL FUNCTION CalcRadWeightMPF(yPos, iSpec, iPart)
-!===================================================================================================================================
-!> Determines the weighting factor when using an additional radial weighting for axisymmetric simulations. Linear increase from the
-!> rotational axis (y=0) to the outer domain boundary (y=ymax).
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_Particle_Vars           ,ONLY: Species, PEM
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)                :: yPos
-INTEGER, INTENT(IN)             :: iSpec
-INTEGER, OPTIONAL,INTENT(IN)    :: iPart
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-REAL                 :: yPosIn
-!===================================================================================================================================
-
-IF(RadialWeighting%CellLocalWeighting.AND.PRESENT(iPart)) THEN
-  yPosIn = ElemMidPoint_Shared(2,PEM%CNElemID(iPart))
-ELSE
-  yPosIn = yPos
-END IF
-
-CalcRadWeightMPF = (1. + yPosIn/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
-
-RETURN
-
-END FUNCTION CalcRadWeightMPF
 
 
 SUBROUTINE Init_Symmetry()

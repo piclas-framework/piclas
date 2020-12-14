@@ -1119,7 +1119,7 @@ CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)              :: FileString
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
-INTEGER                         :: nDims, nVarSurf, nSurfSample, nSurfaceSidesNonUnique, iUnique, iNonUnique
+INTEGER                         :: nDims, nVarSurf, nSurfSample, nSurfaceSidesReadin
 REAL                            :: OutputTime
 REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:), SurfData(:,:), Coords(:,:)
 !===================================================================================================================================
@@ -1137,28 +1137,21 @@ END IF
 
 CALL GetDataSize(File_ID,'SurfaceData',nDims,HSize)
 nVarSurf = INT(HSize(1),4)
-nSurfaceSidesNonUnique = INT(HSize(4),4)
+nSurfaceSidesReadin = INT(HSize(4),4)
 ALLOCATE(VarNamesSurf_HDF5(nVarSurf))
 CALL ReadAttribute(File_ID,'VarNamesSurface',nVarSurf,StrArray=VarNamesSurf_HDF5(1:nVarSurf))
 
 IF((nVarSurf.GT.0).AND.(SurfConnect%nSurfaceBCSides.GT.0))THEN
   ALLOCATE(SurfData(1:nVarSurf,1:SurfConnect%nSurfaceBCSides))
-  ALLOCATE(tempSurfData(1:nVarSurf,nSurfSample,nSurfSample,1:nSurfaceSidesNonUnique))
+  ALLOCATE(tempSurfData(1:nVarSurf,nSurfSample,nSurfSample,1:nSurfaceSidesReadin))
   SurfData=0.
   tempSurfData = 0.
   ASSOCIATE(nVarSurf        => INT(nVarSurf,IK),  &
-            nSurfaceSidesNonUnique => INT(nSurfaceSidesNonUnique,IK))
-    CALL ReadArray('SurfaceData',4,(/nVarSurf, 1_IK, 1_IK, nSurfaceSidesNonUnique/), &
+            nSurfaceSidesReadin => INT(nSurfaceSidesReadin,IK))
+    CALL ReadArray('SurfaceData',4,(/nVarSurf, 1_IK, 1_IK, nSurfaceSidesReadin/), &
                     0_IK,4,RealArray=tempSurfData(:,:,:,:))
   END ASSOCIATE
-  iUnique = 0
-  iNonUnique = 0
-  DO iNonUnique = 1,nSurfaceSidesNonUnique
-    iUnique = SurfConnect%NonUnique2UniqueSide(iNonUnique)
-    IF(iUnique.GT.0) THEN
-      SurfData(1:nVarSurf,iUnique) = tempSurfData(1:nVarSurf,1,1,iNonUnique)
-    END IF
-  END DO
+  SurfData(1:nVarSurf,1:SurfConnect%nSurfaceBCSides) = tempSurfData(1:nVarSurf,1,1,1:nSurfaceSidesReadin)
 END IF
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
