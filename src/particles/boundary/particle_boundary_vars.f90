@@ -32,10 +32,13 @@ REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: SurfSideArea                  !> Area
 ! ====================================================================
 ! Mesh info
 INTEGER                                 :: nSurfTotalSides
+INTEGER                                 :: nOutputSides
 
 INTEGER                                 :: nComputeNodeSurfSides         !> Number of surface sampling sides on compute node
+INTEGER                                 :: nComputeNodeSurfOutputSides   !> Number of output surface sampling sides on compute node (inner BCs only counted once)
 INTEGER                                 :: nComputeNodeSurfTotalSides    !> Number of surface sampling sides on compute node (including halo region)
 INTEGER                                 :: offsetComputeNodeSurfSide     !> elem offset of compute-node root
+INTEGER                                 :: offsetComputeNodeSurfOutputSide     !> elem offset of compute-node root
 
 ! ====================================================================
 ! Impact statistics

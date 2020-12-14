@@ -77,7 +77,7 @@ USE MOD_DSMC_Symmetry           ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSym
 USE MOD_Mesh_Vars               ,ONLY: NGeo,nBCs,BoundaryName
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample
-USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide,SurfSide2GlobalSide
@@ -130,7 +130,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                :: iBC
-INTEGER                                :: iSide,firstSide,lastSide
+INTEGER                                :: iSide,firstSide,lastSide,iSurfSide,GlobalSideID
 INTEGER                                :: nSurfSidesProc,nSurfSidesTmp
 INTEGER                                :: offsetSurfTotalSidesProc
 INTEGER,ALLOCATABLE                    :: GlobalSide2SurfSideProc(:,:)
@@ -383,6 +383,24 @@ DO iSide = firstSide,lastSide
   SurfSide2GlobalSide(SURF_SIDEID,GlobalSide2SurfSide(SURF_SIDEID,iSide)) =iSide
 END DO
 #endif /*USE_MPI*/
+
+! Determine the number of surface output sides (inner BCs are not counted twice)
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
+  nComputeNodeSurfOutputSides = 0
+  DO iSurfSide = 1,nComputeNodeSurfSides
+    GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+    ! Check if the surface side has a neighbor (and is therefore an inner BCs)
+    IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+      ! Only add the side with the smaller index
+      IF(GlobalSideID.GT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)) CYCLE
+    END IF
+    nComputeNodeSurfOutputSides = nComputeNodeSurfOutputSides + 1
+  END DO
+#if USE_MPI
+END IF
+#endif
 
 ! free temporary arrays
 DEALLOCATE(GlobalSide2SurfSideProc)
@@ -640,8 +658,9 @@ USE MOD_IO_HDF5
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,CalcSurfaceImpact
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides, nOutputSides
 USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfSides,offsetComputeNodeSurfSide
+USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 #if USE_MPI
@@ -765,15 +784,17 @@ CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,comm
 CALL OpenDataFile(FileString,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #endif
 
+print*, nOutputSides, nComputeNodeSurfOutputSides, offsetComputeNodeSurfOutputSide
+
 nVarCount=0
 WRITE(H5_Name,'(A)') 'SurfaceData'
 ASSOCIATE (&
-      nVar2D_Total         => INT(nVar2D_Total,IK)              , &
-      nSurfSample          => INT(nSurfSample,IK)               , &
-      nGlobalSides         => INT(nSurfTotalSides,IK)           , &
-      nLocalSides          => INT(nComputeNodeSurfSides,IK)     , &
-      offsetSurfSide       => INT(offsetComputeNodeSurfSide,IK) , &
-      nVar2D_Spec          => INT(nVar2D_Spec,IK)               , &
+      nVar2D_Total         => INT(nVar2D_Total,IK)                    , &
+      nSurfSample          => INT(nSurfSample,IK)                     , &
+      nGlobalSides         => INT(nOutputSides,IK)                    , &
+      nLocalSides          => INT(nComputeNodeSurfOutputSides,IK)     , &
+      offsetSurfSide       => INT(offsetComputeNodeSurfOutputSide,IK) , &
+      nVar2D_Spec          => INT(nVar2D_Spec,IK)                     , &
       nVar2D               => INT(nVar2D,IK))
   DO iSpec = 1,nSpecies
     CALL WriteArrayToHDF5(DataSetName=H5_Name             , rank=4                                           , &
