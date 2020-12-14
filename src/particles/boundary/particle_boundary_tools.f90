@@ -43,7 +43,6 @@ USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC,useDSMC,PartStateIntEn,RadialW
 USE MOD_DSMC_Vars                 ,ONLY: CollisMode,DSMC,AmbipolElecVelo
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact
 USE MOD_part_tools                ,ONLY: GetParticleWeight
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfCollCounter, SurfAnalyzeCount
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -122,8 +121,6 @@ CASE ('old')
     SampWallState(SAMPWALL_NVARS+nSpecies+1,p,q,SurfSideID) = SampWallState(SAMPWALL_NVARS+nSpecies+1,p,q,SurfSideID) &
                                                               + VarTimeStep%ParticleTimeStep(PartID)
   END IF
-  ! Surface analyze counter
-  IF (CalcSurfCollCounter) SurfAnalyzeCount(SpecID) = SurfAnalyzeCount(SpecID) + 1
 CASE ('new')
   ! must be old_velocity-new_velocity
   MomArray(1:3)   = -MassIC * PartState(4:6,PartID) * MPF

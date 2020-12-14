@@ -30,7 +30,7 @@ PUBLIC :: SecondaryElectronEmission
 
 CONTAINS
 
-SUBROUTINE SecondaryElectronEmission(PartID_IN,locBCID,ReflectionIndex,ProductSpec,ProductSpecNbr,v_new)
+SUBROUTINE SecondaryElectronEmission(PartID_IN,locBCID,ProductSpec,ProductSpecNbr,v_new)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Determine the probability of an electron being emitted due to an impacting particles (ion/electron bombardment)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -51,7 +51,6 @@ INTEGER,INTENT(IN)      :: PartID_IN           !< Bombarding Particle ID
 INTEGER,INTENT(IN)      :: locBCID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-INTEGER,INTENT(OUT)     :: ReflectionIndex     !< what happens to the bombarding particle and is a new one created?
 INTEGER,INTENT(OUT)     :: ProductSpec(2)      !< ProductSpec(1) new ID of impacting particle (the old one can change)
                                                !< ProductSpec(2) new ID of newly released electron
 INTEGER,INTENT(OUT)     :: ProductSpecNbr      !< number of species for ProductSpec(1)
@@ -73,7 +72,6 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
   !     ! D. Levko and L. L. Raja, Breakdown of atmospheric pressure microgaps at high excitation, J. Appl. Phys. 117, 173303 (2015)
 
   ProductSpec(1)  = PartSpecies(PartID_IN) ! old particle
-  ReflectionIndex = 3
 
   ASSOCIATE (&
         phi            => 4.4  ,& ! eV -> cathode work function phi Ref. [20] Y. P. Raizer, Gas Discharge Physics (Springer, 1991)
@@ -114,7 +112,6 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
 !WRITE (*,*) CHAR(27) // "[0;34mBombarding electron: v_new =", v_new,CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;34m                     eps_e =", eps_e,CHAR(27),"[m"
           ELSE ! Only perfect elastic scattering of the bombarding electron
-            ReflectionIndex = 2 ! Only perfect elastic scattering of the bombarding electron
             ProductSpecNbr = 0 ! do not create new particle
           END IF
           ! Original Code as described in the paper by Levko (2015)
@@ -155,7 +152,6 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
       ELSE ! Removal of the bombarding ion
         !ReflectionIndex = -1 ! Only perfect elastic scattering of the bombarding electron
         ProductSpec(1)  = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
-        ReflectionIndex = 3 ! Removal of the bombarding ion
         ProductSpecNbr = 0 ! do not create new particle
       END IF
     ELSE ! Neutral bombarding particle
@@ -178,7 +174,6 @@ CASE(6) ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
   ,'Not implemented yet')
 CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
   ProductSpec(1)  = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
-  ReflectionIndex = 3
   ProductSpecNbr = 0 ! do not create new particle (default value)
   v_new = 0. ! initialize zero
 

@@ -47,7 +47,6 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide
 USE MOD_TimeDisc_Vars             ,ONLY: dt, RKdtFrac
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfModEnergyDistribution
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfCollCounter, SurfAnalyzeNumOfAds, SurfAnalyzeNumOfDes
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -80,112 +79,38 @@ INTEGER                          :: locBCID
 REAL                             :: VeloReal, EtraOld
 REAL                             :: EtraWall, EtraNew
 REAL                             :: WallVelo(1:3), WallTemp
-REAL                             :: TransACC!, VibACC, RotACC
 ! Polyatomic Molecules
 REAL                             :: VeloCrad, Fak_D, NewVelo(3)
 REAL                             :: Phi, Cmr, VeloCx, VeloCy, VeloCz
 REAL                             :: POI_fak, TildTrajectory(3),POI_vec(3)
 INTEGER                          :: iNewPart ! particle counter for newly created particles
 !===================================================================================================================================
-POI_vec(1:3) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
 locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
-SpecID = PartSpecies(PartID)
 WallTemp = PartBound%WallTemp(locBCID)
 
 IF(PartBound%RotVelo(locBCID)) THEN
+  POI_vec(1:3) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
   CALL CalcRotWallVelo(locBCID,POI_vec,WallVelo)
 END IF
 
 CALL OrthoNormVec(n_loc,tang1,tang2)
 
-IF(CalcSurfCollCounter) THEN
-  ! Old particle
-  IF (ProductSpec(1).LT.0) THEN
-    SurfAnalyzeNumOfAds(SpecID) = SurfAnalyzeNumOfAds(SpecID) + 1
-  END IF
-  ! New particle
-  IF (ProductSpec(2).LT.0) THEN
-    SurfAnalyzeNumOfAds(SpecID) = SurfAnalyzeNumOfAds(SpecID) + 1
-  END IF
-END IF
-
-IF (ProductSpec(1).LE.0) THEN
-  CALL RemoveParticle(PartID,alpha=alpha)
-ELSE
-  oldVelo(1:3) = PartState(4:6,PartID)
-  IF(PartBound%MomentumACC(locBCID).LT.1.0) THEN
-    CALL RANDOM_NUMBER(RanNum)
-    IF(RanNum.GE.PartBound%MomentumACC(locBCID)) THEN
-      DiffuseReflection = .FALSE.
-    ELSE
-      DiffuseReflection = .TRUE.
-    END IF
-  ELSE
-    DiffuseReflection = .TRUE.
-  END IF
-  IF (DiffuseReflection) THEN
-    ! diffuse reflection
-    TransACC   = PartBound%TransACC(locBCID)
-    CALL RANDOM_NUMBER(RanNum)
-    VeloCrad    = SQRT(-LOG(RanNum))
-    CALL RANDOM_NUMBER(RanNum)
-    VeloCz      = SQRT(-LOG(RanNum))
-    Fak_D       = VeloCrad**2 + VeloCz**2
-    EtraWall    = BoltzmannConst * WallTemp * Fak_D
-    VeloReal    = SQRT(DOT_PRODUCT(oldVelo,oldVelo))
-    EtraOld     = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
-    EtraNew     = EtraOld + TransACC * (EtraWall - EtraOld)
-    Cmr         = SQRT(2.0 * EtraNew / (Species(ProductSpec(1))%MassIC * Fak_D))
-    CALL RANDOM_NUMBER(RanNum)
-    Phi     = 2.0 * PI * RanNum
-    VeloCx  = Cmr * VeloCrad * COS(Phi) ! tang1
-    VeloCy  = Cmr * VeloCrad * SIN(Phi) ! tang2
-    VeloCz  = Cmr * VeloCz
-    NewVelo = VeloCx*tang1-tang2*VeloCy-VeloCz*n_loc
-  ELSE
-    ! perfect velocity reflection
-    NewVelo(1:3) = oldVelo(1:3) - 2.*DOT_PRODUCT(oldVelo(1:3),n_loc)*n_loc
-    ! mass changes, therefore velocity is scaled because momentum remains the same
-    NewVelo(1:3) = NewVelo(1:3) * (Species(ProductSpec(1))%MassIC/Species(SpecID)%MassIC)
-  END IF
-  ! intersection point with surface
-  LastPartPos(1:3,PartID) = POI_vec(1:3)
-  ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
-  TildTrajectory=dt*RKdtFrac*oldVelo(1:3)
-  POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
-  ! travel rest of particle vector
-  IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
-  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3)
-  !----  saving new particle velocity
-  PartState(4:6,PartID)   = NewVelo(1:3) + WallVelo(1:3)
-  PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
-  lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
-  PartTrajectory=PartTrajectory/lengthPartTrajectory
-  ! set new species of reflected particle
-  PartSpecies(PartID) = ProductSpec(1)
-  ! Adding the energy that is transferred from the surface onto the internal energies of the particle
-  CALL SurfaceModel_EnergyAccommodation(PartID,locBCID,WallTemp)
-END IF
-!-----------------------------------------------------------
 ! Create new particles
-IF (ProductSpec(2).GT.0) THEN
-  DO iNewPart = 1, ProductSpecNbr
-    IF(CalcSurfCollCounter) SurfAnalyzeNumOfDes(ProductSpec(2)) = SurfAnalyzeNumOfDes(ProductSpec(2)) + 1
-    ! create new particle and assign correct energies
-    ! sample newly created velocity
-    NewVelo(1:3) = VeloFromDistribution(SurfModEnergyDistribution(locBCID),ProductSpec(2),TempErgy(2))
-    ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
-    NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
-    ! Create new particle and get a free particle index
-    CALL CreateParticle(ProductSpec(2),LastPartPos(1:3,PartID),PEM%GlobalElemID(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
-    ! Adding the energy that is transferred from the surface onto the internal energies of the particle
-    CALL SurfaceModel_EnergyAccommodation(NewPartID,locBCID,WallTemp)
-    ! Sampling of newly created particles
-    IF((DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) &
-      CALL CalcWallSample(NewPartID,SurfSideID,p,q,'new',PartTrajectory_opt=PartTrajectory,SurfaceNormal_opt=n_loc)
-  END DO ! iNewPart = 1, ProductSpecNbr
-END IF
+DO iNewPart = 1, ProductSpecNbr
+  ! create new particle and assign correct energies
+  ! sample newly created velocity
+  NewVelo(1:3) = VeloFromDistribution(SurfModEnergyDistribution(locBCID),ProductSpec(2),TempErgy(2))
+  ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
+  NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
+  ! Create new particle and get a free particle index
+  CALL CreateParticle(ProductSpec(2),LastPartPos(1:3,PartID),PEM%GlobalElemID(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
+  ! Adding the energy that is transferred from the surface onto the internal energies of the particle
+  CALL SurfaceModel_EnergyAccommodation(NewPartID,locBCID,WallTemp)
+  ! Sampling of newly created particles
+  IF((DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) &
+    CALL CalcWallSample(NewPartID,SurfSideID,p,q,'new',PartTrajectory_opt=PartTrajectory,SurfaceNormal_opt=n_loc)
+END DO ! iNewPart = 1, ProductSpecNbr
 
 END SUBROUTINE SurfaceModel_ParticleEmission
 
