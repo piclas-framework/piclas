@@ -51,7 +51,7 @@ USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,NodeType,NodeTypeVISU
 USE MOD_Mesh_Vars              ,ONLY: nElems,sJ,nGlobalElems,Vdm_EQ_N
 USE MOD_Particle_Vars
-USE MOD_Particle_Mesh_Vars     ,ONLY: MeshVolume
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,MeshVolume
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes,NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,NodeToElemInfo,NodeToElemMapping
 USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
@@ -84,6 +84,7 @@ INTEGER                   :: jElem, NonUniqueNodeID, iNode, NeighUniqueNodeID
 REAL                      :: VolumeShapeFunction,r_sf_tmp
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
+CHARACTER(32)             :: hilf2
 CHARACTER(255)            :: TimeAverageFile
 INTEGER                   :: nTotalDOF
 INTEGER                   :: UniqueNodeID
