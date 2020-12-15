@@ -4316,9 +4316,11 @@ SDEALLOCATE(MassflowRate)
 
 IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)THEN
 #if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
   CALL UNLOCK_AND_FREE(ElemCharLengthX_Shared_Win)
   CALL UNLOCK_AND_FREE(ElemCharLengthY_Shared_Win)
   CALL UNLOCK_AND_FREE(ElemCharLengthZ_Shared_Win)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #endif /*USE_MPI*/
   ADEALLOCATE(ElemCharLengthX_Shared)
   ADEALLOCATE(ElemCharLengthY_Shared)

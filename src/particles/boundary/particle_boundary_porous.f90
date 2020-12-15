@@ -1259,6 +1259,7 @@ IF(nPorousBC.GT.0) THEN
   CALL UNLOCK_AND_FREE(PorousBCInfo_Shared_Win)
   CALL UNLOCK_AND_FREE(PorousBCProperties_Shared_Win)
   CALL UNLOCK_AND_FREE(PorousBCSampWall_Shared_Win)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
   SDEALLOCATE(PorousBCSendBuf)
   SDEALLOCATE(PorousBCRecvBuf)
 #endif
