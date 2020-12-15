@@ -1122,6 +1122,7 @@ CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
 INTEGER                         :: nDims, nVarSurf, nSurfSample, nSurfaceSidesReadin
 REAL                            :: OutputTime
 REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:), SurfData(:,:), Coords(:,:)
+INTEGER                         :: iSide
 !===================================================================================================================================
 
 ! Read in solution
@@ -1151,7 +1152,20 @@ IF((nVarSurf.GT.0).AND.(SurfConnect%nSurfaceBCSides.GT.0))THEN
     CALL ReadArray('SurfaceData',4,(/nVarSurf, 1_IK, 1_IK, nSurfaceSidesReadin/), &
                     0_IK,4,RealArray=tempSurfData(:,:,:,:))
   END ASSOCIATE
-  SurfData(1:nVarSurf,1:SurfConnect%nSurfaceBCSides) = tempSurfData(1:nVarSurf,1,1,1:nSurfaceSidesReadin)
+
+  ! Sanity check
+  IF(SurfConnect%nSurfaceBCSides.NE.nSurfaceSidesReadin)THEN
+    WRITE (UNIT_stdOut,*) "SurfConnect%nSurfaceBCSides =", SurfConnect%nSurfaceBCSides
+    WRITE (UNIT_stdOut,*) "nSurfaceSidesReadin         =", nSurfaceSidesReadin
+    CALL abort(&
+    __STAMP__&
+    ,'Error: SurfConnect%nSurfaceBCSides.NE.nSurfaceSidesReadin')
+  END IF ! SurfConnect%nSurfaceBCSides.NE.nSurfaceSidesReadin
+
+  ! Copy data from tmp array
+  DO iSide = 1, SurfConnect%nSurfaceBCSides
+    SurfData(1:nVarSurf,iSide) = tempSurfData(1:nVarSurf,1,1,iSide)
+  END DO ! iSide = 1, SurfConnect%nSurfaceBCSides
 END IF
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'

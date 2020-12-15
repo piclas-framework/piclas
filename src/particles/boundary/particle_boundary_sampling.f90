@@ -120,6 +120,7 @@ USE MOD_Particle_MPI_Boundary_Sampling,ONLY: InitSurfCommunication
 #else
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
 USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nOutputSides
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -423,6 +424,7 @@ END IF
 #else
 mySurfRank      = 0
 nSurfTotalSides = nComputeNodeSurfTotalSides
+nOutputSides    = nComputeNodeSurfOutputSides
 #endif /* USE_MPI */
 
 ! surface sampling array do not need to be allocated if there are no sides within halo_eps range
@@ -783,8 +785,6 @@ CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,comm
 #else
 CALL OpenDataFile(FileString,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #endif
-
-print*, nOutputSides, nComputeNodeSurfOutputSides, offsetComputeNodeSurfOutputSide
 
 nVarCount=0
 WRITE(H5_Name,'(A)') 'SurfaceData'
