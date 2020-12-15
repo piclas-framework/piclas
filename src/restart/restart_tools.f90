@@ -115,14 +115,17 @@ IF(DG_SourceExtExists)THEN
     !IF(firstNode.LE.NodeID(8).AND.NodeID(8).LE.lastNode) NodeSourceExt(1,NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeID(8))
 
     ! method 2: change any node
-    NodeSourceExt(1,NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeID(1))
-    NodeSourceExt(1,NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVolume(NodeID(2))
-    NodeSourceExt(1,NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVolume(NodeID(3))
-    NodeSourceExt(1,NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVolume(NodeID(4))
-    NodeSourceExt(1,NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVolume(NodeID(5))
-    NodeSourceExt(1,NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVolume(NodeID(6))
-    NodeSourceExt(1,NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVolume(NodeID(7))
-    NodeSourceExt(1,NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeID(8))
+    ! this can lead to a race condition when two or more procs write to the same position in the
+    ! shared memory array NodeSourceExt
+    ! Fix: try MPI_FETCH_AND_OP(...)
+    NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeID(1))
+    NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVolume(NodeID(2))
+    NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVolume(NodeID(3))
+    NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVolume(NodeID(4))
+    NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVolume(NodeID(5))
+    NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVolume(NodeID(6))
+    NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVolume(NodeID(7))
+    NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeID(8))
   END DO
 
 #if USE_MPI

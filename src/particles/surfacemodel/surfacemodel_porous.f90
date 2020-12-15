@@ -1235,6 +1235,7 @@ USE MOD_SurfaceModel_Analyze_Vars
 #if USE_MPI
 USE MOD_Particle_MPI_Vars       ,ONLY: PorousBCSendBuf,PorousBCRecvBuf
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -1254,14 +1255,11 @@ IF(nPorousBC.GT.0) THEN
   ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
-  CALL MPI_WIN_UNLOCK_ALL(MapSurfSideToPorousSide_Shared_Win,iError)
-  CALL MPI_WIN_FREE(MapSurfSideToPorousSide_Shared_Win,iError)
-  CALL MPI_WIN_UNLOCK_ALL(PorousBCInfo_Shared_Win,iError)
-  CALL MPI_WIN_FREE(PorousBCInfo_Shared_Win,iError)
-  CALL MPI_WIN_UNLOCK_ALL(PorousBCProperties_Shared_Win,iError)
-  CALL MPI_WIN_FREE(PorousBCProperties_Shared_Win,iError)
-  CALL MPI_WIN_UNLOCK_ALL(PorousBCSampWall_Shared_Win,iError)
-  CALL MPI_WIN_FREE(PorousBCSampWall_Shared_Win,iError)
+  CALL UNLOCK_AND_FREE(MapSurfSideToPorousSide_Shared_Win)
+  CALL UNLOCK_AND_FREE(PorousBCInfo_Shared_Win)
+  CALL UNLOCK_AND_FREE(PorousBCProperties_Shared_Win)
+  CALL UNLOCK_AND_FREE(PorousBCSampWall_Shared_Win)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
   SDEALLOCATE(PorousBCSendBuf)
   SDEALLOCATE(PorousBCRecvBuf)
 #endif

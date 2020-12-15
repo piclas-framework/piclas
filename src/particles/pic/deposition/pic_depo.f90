@@ -94,6 +94,7 @@ INTEGER                   :: TestElemID
 LOGICAL,ALLOCATABLE       :: NodeDepoMapping(:,:)
 INTEGER                   :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1),firstNode,lastNode
 #endif
+REAL                      :: dimFactorSF
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
@@ -183,61 +184,6 @@ IF (TRIM(TimeAverageFile).NE.'none') THEN
   END IF
 END IF
 
-
-! Deposition 'shape_function'
-IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
-  r_sf                  = GETREAL('PIC-shapefunction-radius')
-  alpha_sf              = GETINT('PIC-shapefunction-alpha')
-  r2_sf = r_sf * r_sf  ! Radius squared
-  r2_sf_inv = 1./r2_sf ! Inverse of radius squared
-
-  IF(TRIM(DepositionType).EQ.'shape_function_adaptive') THEN
-#if USE_MPI
-    firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-    lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
-
-    MPISharedSize = INT(2*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-    CALL Allocate_Shared(MPISharedSize,(/2,nComputeNodeTotalElems/),SFElemr2_Shared_Win,SFElemr2_Shared)
-    CALL MPI_WIN_LOCK_ALL(0,SFElemr2_Shared_Win,IERROR)
-#else
-    ALLOCATE(SFElemr2_Shared(1:2,1:nElems))
-    firstElem = 1
-    lastElem  = nElems
-#endif  /*USE_MPI*/
-#if USE_MPI
-    IF (myComputeNodeRank.EQ.0) THEN
-#endif
-    SFElemr2_Shared   = HUGE(1.)
-#if USE_MPI
-    END IF
-    CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
-    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
-#endif
-    DO iElem = firstElem,lastElem
-      DO iNode = 1, 8
-        NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
-        UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
-        DO jElem = 1, NodeToElemMapping(2,UniqueNodeID)
-          NbElemID = NodeToElemInfo(NodeToElemMapping(1,UniqueNodeID)+jElem)
-          DO jNode = 1, 8
-            NeighNonUniqueNodeID = ElemNodeID_Shared(jNode,NbElemID)
-            NeighUniqueNodeID = NodeInfo_Shared(NeighNonUniqueNodeID)
-            IF (UniqueNodeID.EQ.NeighUniqueNodeID) CYCLE
-            r_sf_tmp = VECNORM(NodeCoords_Shared(1:3,NonUniqueNodeID)-NodeCoords_Shared(1:3,NeighNonUniqueNodeID))
-            IF (r_sf_tmp.LT.SFElemr2_Shared(1,iElem)) SFElemr2_Shared(1,iElem) = r_sf_tmp
-          END DO
-        END DO
-      END DO
-      SFElemr2_Shared(2,iElem) = SFElemr2_Shared(1,iElem)*SFElemr2_Shared(1,iElem)
-    END DO
-#if USE_MPI
-    CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
-    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
-#endif
-  END IF
-
-END IF
-
 !--- init DepositionType-specific vars
 SELECT CASE(TRIM(DepositionType))
 CASE('cell_volweight')
@@ -284,19 +230,18 @@ CASE('cell_volweight_mean')
   ALLOCATE(NodeSourceLoc(1:4,1:nUniqueGlobalNodes))
 
   IF(DoDielectricSurfaceCharge)THEN
-
     firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
     lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
 
    ! Global, synchronized surface charge contribution (is added to NodeSource AFTER MPI synchronization)
     MPISharedSize = INT(nUniqueGlobalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-    CALL Allocate_Shared(MPISharedSize,(/1,nUniqueGlobalNodes/),NodeSourceExt_Shared_Win,NodeSourceExt_Shared)
+    CALL Allocate_Shared(MPISharedSize,(/nUniqueGlobalNodes/),NodeSourceExt_Shared_Win,NodeSourceExt_Shared)
     CALL MPI_WIN_LOCK_ALL(0,NodeSourceExt_Shared_Win,IERROR)
     NodeSourceExt => NodeSourceExt_Shared
     !ALLOCATE(NodeSourceExtLoc(1:1,1:nUniqueGlobalNodes))
     IF(.NOT.DoRestart)THEN
       DO iNode=firstNode, lastNode
-        NodeSourceExt(1,iNode) = 0.
+        NodeSourceExt(iNode) = 0.
       END DO
       CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
       CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
@@ -304,19 +249,18 @@ CASE('cell_volweight_mean')
 
    ! Local, non-synchronized surface charge contribution (is added to NodeSource BEFORE MPI synchronization)
     MPISharedSize = INT(nUniqueGlobalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-    CALL Allocate_Shared(MPISharedSize,(/1,nUniqueGlobalNodes/),NodeSourceExtTmp_Shared_Win,NodeSourceExtTmp_Shared)
+    CALL Allocate_Shared(MPISharedSize,(/nUniqueGlobalNodes/),NodeSourceExtTmp_Shared_Win,NodeSourceExtTmp_Shared)
     CALL MPI_WIN_LOCK_ALL(0,NodeSourceExtTmp_Shared_Win,IERROR)
     NodeSourceExtTmp => NodeSourceExtTmp_Shared
-    ALLOCATE(NodeSourceExtTmpLoc(1:1,1:nUniqueGlobalNodes))
+    ALLOCATE(NodeSourceExtTmpLoc(1:nUniqueGlobalNodes))
     NodeSourceExtTmpLoc = 0.
 
+    ! this array does not have to be initialized with zero
     ! DO iNode=firstNode, lastNode
-    !   NodeSourceExtTmp(1,iNode) = 0.
+    !   NodeSourceExtTmp(iNode) = 0.
     ! END DO
     !CALL MPI_WIN_SYNC(NodeSourceExtTmp_Shared_Win,IERROR)
     !CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
-
-
   END IF ! DoDielectricSurfaceCharge
 
 
@@ -381,8 +325,9 @@ CASE('cell_volweight_mean')
     DO iProc = 0,nLeaderGroupProcs-1
       IF (iProc.EQ.myLeaderGroupRank) CYCLE
       IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-        ALLOCATE(NodeMapping(iProc)%RecvNodeUniqueGlobalID(1:NodeMapping(iProc)%nRecvUniqueNodes), &
-              NodeMapping(iProc)%RecvNodeSource(1:4,1:NodeMapping(iProc)%nRecvUniqueNodes))
+        ALLOCATE(NodeMapping(iProc)%RecvNodeUniqueGlobalID(1:NodeMapping(iProc)%nRecvUniqueNodes))
+        ALLOCATE(NodeMapping(iProc)%RecvNodeSource(1:4,1:NodeMapping(iProc)%nRecvUniqueNodes))
+        IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMapping(iProc)%RecvNodeSourceExt(1:NodeMapping(iProc)%nRecvUniqueNodes))
         CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeUniqueGlobalID                   &
                       , NodeMapping(iProc)%nRecvUniqueNodes                         &
                       , MPI_INTEGER                                                 &
@@ -393,8 +338,9 @@ CASE('cell_volweight_mean')
                       , IERROR)
       END IF
       IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
-        ALLOCATE(NodeMapping(iProc)%SendNodeUniqueGlobalID(1:NodeMapping(iProc)%nSendUniqueNodes), &
-              NodeMapping(iProc)%SendNodeSource(1:4,1:NodeMapping(iProc)%nSendUniqueNodes))
+        ALLOCATE(NodeMapping(iProc)%SendNodeUniqueGlobalID(1:NodeMapping(iProc)%nSendUniqueNodes))
+        ALLOCATE(NodeMapping(iProc)%SendNodeSource(1:4,1:NodeMapping(iProc)%nSendUniqueNodes))
+        IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMapping(iProc)%SendNodeSourceExt(1:NodeMapping(iProc)%nSendUniqueNodes))
         SendNodeCount = 0
         DO iNode = 1, nUniqueGlobalNodes
           IF (NodeDepoMapping(iProc,iNode)) THEN
@@ -428,8 +374,8 @@ CASE('cell_volweight_mean')
 #else
   ALLOCATE(NodeSource(1:4,1:nUniqueGlobalNodes))
   IF(DoDielectricSurfaceCharge)THEN
-    ALLOCATE(NodeSourceExt(1:1,1:nUniqueGlobalNodes))
-    ALLOCATE(NodeSourceExtTmp(1:1,1:nUniqueGlobalNodes))
+    ALLOCATE(NodeSourceExt(1:nUniqueGlobalNodes))
+    ALLOCATE(NodeSourceExtTmp(1:nUniqueGlobalNodes))
     NodeSourceExt    = 0.
     NodeSourceExtTmp = 0.
   END IF ! DoDielectricSurfaceCharge
@@ -450,6 +396,108 @@ CASE('cell_volweight_mean')
 !    NodeSourceExtTmp = 0.0
 !  END IF ! DoDielectricSurfaceCharge
 CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
+  r_sf     = GETREAL('PIC-shapefunction-radius')
+  alpha_sf = GETINT('PIC-shapefunction-alpha')
+  dim_sf   = GETINT('PIC-shapefunction-dimension')
+  ! Get shape function direction for 1D (the direction in which the charge will be distributed) and 2D (the direction in which the 
+  ! charge will be constant)
+  dim_sf_dir = GETINT('PIC-shapefunction-direction')
+  ! Distribute the charge over the volume (3D) or line (1D)/area (2D): default is TRUE
+  sfDepo3D = GETLOGICAL('PIC-shapefunction-3D-deposition')
+  IF(dim_sf.EQ.2)THEN
+    SWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') ' Shape function 2D with const. distribution in dir ',dim_sf_dir,&
+        ' and variable distrbution in ',MERGE(1,2,dim_sf_dir.EQ.2),' and ', MERGE(1,MERGE(3,3,dim_sf_dir.EQ.2),dim_sf_dir.EQ.3),&
+    ' (1: x, 2: y and 3: z)'
+  END IF ! dim_sf.EQ.2
+
+  r2_sf = r_sf * r_sf  ! Radius squared
+  r2_sf_inv = 1./r2_sf ! Inverse of radius squared
+
+  ! Set the scaling factor for the shape function depending on 1D, 2D or 3D shape function and how the charge is to be distributed
+  IF(dim_sf.EQ.3)THEN! 3D shape function
+    BetaFac = beta(1.5, REAL(alpha_sf) + 1.)
+    w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) * (REAL(alpha_sf) + 1.)/(PI*(r_sf**3))
+  ELSE! 1D or 2D shape function
+    IF(dim_sf_dir.EQ.1)THEN ! Shape function deposits charge in x-direction (1D) or in y- and z-dir (2D)
+      dimFactorSF = (GEO%ymaxglob-GEO%yminglob)**(3-dim_sf)
+    ELSE IF (dim_sf_dir.EQ.2)THEN ! Shape function deposits charge in y-direction (1D) or in x- and z-dir (2D)
+      dimFactorSF = (GEO%xmaxglob-GEO%xminglob)**(3-dim_sf)
+    ELSE IF (dim_sf_dir.EQ.3)THEN ! Shape function deposits charge in z-direction (1D) or in x- and y-dir (2D)
+      dimFactorSF = (GEO%xmaxglob-GEO%xminglob)**(3-dim_sf)
+    END IF
+
+    IF(dim_sf.EQ.1)THEN
+      IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
+        ! Set prefix factor
+        w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf*GAMMA(REAL(alpha_sf+1))*dimFactorSF)
+      ELSE ! Distribute the charge over the line (1D)
+        ! Set prefix factor
+        w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf*GAMMA(REAL(alpha_sf+1)))
+        ! Set shape function length (1D volume)
+        !VolumeShapeFunction=2*r_sf
+        hilf2='line'
+      END IF
+    ELSE! 2D shape function
+      IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
+        ! Set prefix factor
+        w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf*dimFactorSF)
+      ELSE ! Distribute the charge over the area (2D)
+        ! Set prefix factor
+        w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf)
+        ! Set shape function length (2D volume)
+        !VolumeShapeFunction=PI*(r_sf**2)
+        hilf2='area'
+      END IF
+    END IF ! dim_sf.EQ.1
+
+  END IF ! dim_sf.EQ.3
+
+
+  IF(TRIM(DepositionType).EQ.'shape_function_adaptive') THEN
+#if USE_MPI
+    firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+    lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+
+    MPISharedSize = INT(2*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+    CALL Allocate_Shared(MPISharedSize,(/2,nComputeNodeTotalElems/),SFElemr2_Shared_Win,SFElemr2_Shared)
+    CALL MPI_WIN_LOCK_ALL(0,SFElemr2_Shared_Win,IERROR)
+#else
+    ALLOCATE(SFElemr2_Shared(1:2,1:nElems))
+    firstElem = 1
+    lastElem  = nElems
+#endif  /*USE_MPI*/
+#if USE_MPI
+    IF (myComputeNodeRank.EQ.0) THEN
+#endif
+    SFElemr2_Shared   = HUGE(1.)
+#if USE_MPI
+    END IF
+    CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
+    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif
+    DO iElem = firstElem,lastElem
+      DO iNode = 1, 8
+        NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
+        UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
+        DO jElem = 1, NodeToElemMapping(2,UniqueNodeID)
+          NbElemID = NodeToElemInfo(NodeToElemMapping(1,UniqueNodeID)+jElem)
+          DO jNode = 1, 8
+            NeighNonUniqueNodeID = ElemNodeID_Shared(jNode,NbElemID)
+            NeighUniqueNodeID = NodeInfo_Shared(NeighNonUniqueNodeID)
+            IF (UniqueNodeID.EQ.NeighUniqueNodeID) CYCLE
+            r_sf_tmp = VECNORM(NodeCoords_Shared(1:3,NonUniqueNodeID)-NodeCoords_Shared(1:3,NeighNonUniqueNodeID))
+            IF (r_sf_tmp.LT.SFElemr2_Shared(1,iElem)) SFElemr2_Shared(1,iElem) = r_sf_tmp
+          END DO
+        END DO
+      END DO
+      SFElemr2_Shared(2,iElem) = SFElemr2_Shared(1,iElem)*SFElemr2_Shared(1,iElem)
+    END DO
+#if USE_MPI
+    CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
+    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif
+  END IF
+
   !ALLOCATE(PartToFIBGM(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
   !IF (ALLOCSTAT.NE.0) CALL abort(&
   !    __STAMP__&
@@ -458,9 +506,6 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   !IF (ALLOCSTAT.NE.0) THEN
   !  CALL abort(__STAMP__&
   !    ' Cannot allocate ExtPartToFIBGM!')
-  BetaFac = beta(1.5, REAL(alpha_sf) + 1.)
-  w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) &
-                        * (REAL(alpha_sf) + 1.)/(PI*(r_sf**3))
 
   VolumeShapeFunction=4./3.*PI*r_sf**3
   nTotalDOF=nGlobalElems*(PP_N+1)**3
@@ -563,6 +608,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: Geo
 USE MOD_PICDepo_Vars
 #if USE_MPI
 USE MOD_MPI_Shared_vars    ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -602,32 +648,25 @@ SDEALLOCATE(PartSourceProc)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 IF(DoDeposition)THEN
-  CALL MPI_WIN_UNLOCK_ALL(PartSource_Shared_Win, iError)
-  CALL MPI_WIN_FREE(      PartSource_Shared_Win, iError)
+  CALL UNLOCK_AND_FREE(PartSource_Shared_Win)
 
   ! Deposition-dependent arrays
   SELECT CASE(TRIM(DepositionType))
   CASE('cell_volweight_mean')
-    CALL MPI_WIN_UNLOCK_ALL(NodeSource_Shared_Win, iError)
-    CALL MPI_WIN_FREE(      NodeSource_Shared_Win, iError)
-    ADEALLOCATE(NodeSource_Shared)
-
-    CALL MPI_WIN_UNLOCK_ALL(NodeVolume_Shared_Win, iError)
-    CALL MPI_WIN_FREE(      NodeVolume_Shared_Win, iError)
-    ADEALLOCATE(NodeVolume_Shared)
+    CALL UNLOCK_AND_FREE(NodeSource_Shared_Win)
+    CALL UNLOCK_AND_FREE(NodeVolume_Shared_Win)
 
     ! Surface charging arrays
-    IF(DoDielectricSurfaceCharge)THEN
-      CALL MPI_WIN_UNLOCK_ALL(NodeSourceExt_Shared_Win, iError)
-      CALL MPI_WIN_FREE(      NodeSourceExt_Shared_Win, iError)
-      ADEALLOCATE(NodeSourceExt_Shared)
-    END IF ! DoDielectricSurfaceCharge
+    IF(DoDielectricSurfaceCharge) CALL UNLOCK_AND_FREE(NodeSourceExt_Shared_Win)
   CASE('shape_function_adaptive')
-    CALL MPI_WIN_UNLOCK_ALL(SFElemr2_Shared_Win, iError)
-    CALL MPI_WIN_FREE(      SFElemr2_Shared_Win, iError)
+    CALL UNLOCK_AND_FREE(SFElemr2_Shared_Win)
   END SELECT
 
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+
+  ADEALLOCATE(NodeSource_Shared)
+  ADEALLOCATE(NodeVolume_Shared)
+      ADEALLOCATE(NodeSourceExt_Shared)
 END IF ! DoDeposition
 
 ! Then, free the pointers or arrays

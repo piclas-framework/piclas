@@ -367,6 +367,13 @@ NIG_PIC_poisson_Leapfrog:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_Leapfrog/ ; fi
 
+      # NIG_PIC_poisson_Leapfrog_not_working:
+      #   <<: *defaults_nightly
+      #   stage: reggie_nightly
+      #   script:
+      #     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_Leapfrog_not_working/ ; fi
+
+      # Crank-Nicolson (2nd order implicit) time integration
       # NIG_PIC_poisson_powerdensity:
       #   <<: *defaults_nightly
       #   stage: reggie_nightly
@@ -385,11 +392,11 @@ NIG_maxwell_RK4:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_RK4/ ; fi
 
-      # NIG_PIC_poisson_plasma_wave:
-      #   <<: *defaults_nightly
-      #   stage: reggie_nightly
-      #   script:
-      #     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_plasma_wave/ ; fi
+NIG_PIC_poisson_plasma_wave:
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_plasma_wave/ ; fi
 
 NIG_maxwell_dipole_dielectric:
   <<: *defaults_nightly
@@ -429,10 +436,27 @@ NIG_PIC_Deposition:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_cell_volweight_mean -e ./bin/piclas ; fi
-    #- if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_Shape-function -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_cell_volweight_mean -e ./bin/piclas ; cd ../ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_Shape-function -e ./bin/piclas ; cd ../ ; fi
 
-NIG_Photoionization:
+# Add surf model (SEE) 13% probabilty test case here
+#feature_SurfaceModel:
+#  <<: *defaults_nightly
+#  stage: reggie_nightly
+#  tags:
+#    - withmodules-concurrent
+#  script:
+#    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SurfaceModel/ ; fi
+
+NIG_Photoionization_release:
+  <<: *defaults_poisson_nightly
+  stage: reggie_nightly
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_poisson_release ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/surface_emission -e ./bin/piclas ; fi
+
+NIG_Photoionization_debug:
   <<: *defaults_poisson_nightly
   stage: reggie_nightly
   script:

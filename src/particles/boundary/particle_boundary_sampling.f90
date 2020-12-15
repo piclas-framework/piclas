@@ -853,12 +853,13 @@ SUBROUTINE FinalizeParticleBoundarySampling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_DSMC_Vars                   ,ONLY: DSMC
+USE MOD_DSMC_Vars                      ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars
 USE MOD_Particle_Vars               ,ONLY: WriteMacroSurfaceValues
 USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC
 #if USE_MPI
 USE MOD_MPI_Shared_Vars                ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
+USE MOD_MPI_Shared
 USE MOD_Particle_MPI_Boundary_Sampling ,ONLY: FinalizeSurfCommunication
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -885,27 +886,16 @@ IF (.NOT.SurfOnNode) RETURN
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
-CALL MPI_WIN_UNLOCK_ALL(SampWallState_Shared_Win      ,iError)
-CALL MPI_WIN_FREE(      SampWallState_Shared_Win      ,iError)
-CALL MPI_WIN_UNLOCK_ALL(GlobalSide2SurfSide_Shared_Win,iError)
-CALL MPI_WIN_FREE(      GlobalSide2SurfSide_Shared_Win,iError)
-CALL MPI_WIN_UNLOCK_ALL(SurfSide2GlobalSide_Shared_Win,iError)
-CALL MPI_WIN_FREE(      SurfSide2GlobalSide_Shared_Win,iError)
-CALL MPI_WIN_UNLOCK_ALL(SurfSideArea_Shared_Win       ,iError)
-CALL MPI_WIN_FREE(      SurfSideArea_Shared_Win       ,iError)
-IF(nPorousBC.GT.0) THEN
-  CALL MPI_WIN_UNLOCK_ALL(SampWallPumpCapacity_Shared_Win,iError)
-  CALL MPI_WIN_FREE(SampWallPumpCapacity_Shared_Win,iError)
-END IF
+CALL UNLOCK_AND_FREE(SampWallState_Shared_Win)
+CALL UNLOCK_AND_FREE(GlobalSide2SurfSide_Shared_Win)
+CALL UNLOCK_AND_FREE(SurfSide2GlobalSide_Shared_Win)
+CALL UNLOCK_AND_FREE(SurfSideArea_Shared_Win)
+IF(nPorousBC.GT.0) CALL UNLOCK_AND_FREE(SampWallPumpCapacity_Shared_Win)
 IF (CalcSurfaceImpact) THEN
-  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactEnergy_Shared_Win,iError)
-  CALL MPI_WIN_FREE(SampWallImpactEnergy_Shared_Win,iError)
-  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactVector_Shared_Win,iError)
-  CALL MPI_WIN_FREE(SampWallImpactVector_Shared_Win,iError)
-  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactAngle_Shared_Win,iError)
-  CALL MPI_WIN_FREE(SampWallImpactAngle_Shared_Win,iError)
-  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactNumber_Shared_Win,iError)
-  CALL MPI_WIN_FREE(SampWallImpactNumber_Shared_Win,iError)
+  CALL UNLOCK_AND_FREE(SampWallImpactEnergy_Shared_Win)
+  CALL UNLOCK_AND_FREE(SampWallImpactVector_Shared_Win)
+  CALL UNLOCK_AND_FREE(SampWallImpactAngle_Shared_Win)
+  CALL UNLOCK_AND_FREE(SampWallImpactNumber_Shared_Win)
 END IF
 
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
