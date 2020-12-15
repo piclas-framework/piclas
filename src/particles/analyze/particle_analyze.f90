@@ -4266,6 +4266,7 @@ USE MOD_Particle_Vars         ,ONLY: nSpecies
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
 #if USE_MPI
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared_Win,ElemCharLengthY_Shared_Win,ElemCharLengthZ_Shared_Win
+USE MOD_MPI_Shared_Vars       ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 #endif /*USE_MPI*/
 IMPLICIT NONE
