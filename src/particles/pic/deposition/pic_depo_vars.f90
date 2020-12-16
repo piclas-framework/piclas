@@ -138,29 +138,6 @@ END TYPE
 TYPE (tNodeMapping),ALLOCATABLE      :: NodeMapping(:)
 #endif
 
-LOGICAL                         :: SFResampleAnalyzeSurfCollis
-TYPE tLastAnalyzeSurfCollis
-  INTEGER                       :: PartNumberSamp                ! number of parts from last sampling
-  INTEGER                       :: PartNumberReduced             ! max. allowed number of parts to be saved
-  LOGICAL                       :: ReducePartNumber              ! reduce PartNumberSamp to PartNumberReduced
-  INTEGER                       :: PartNumberDepo                ! number of parts to be inserted in depo
-  REAL, ALLOCATABLE             :: WallState(:,:)                ! Pos at wall and velocities from last sampling
-  INTEGER, ALLOCATABLE          :: Species(:)                    ! Spec of parts
-  REAL                          :: pushTimeStep                  ! timestep for (fractional) euler push from wall into ghost domain
-  INTEGER                       :: PartNumThreshold              ! Threshold for checking inserted parts per depo (otherwise abort)
-  REAL                          :: NormVecOfWall(3)              ! normVec for pushTimeStep
-  REAL                          :: Bounds(1:2,1:3)               ! bounds after push for preventing parts outside of...
-                                                                 ! ...extruded domain 1:2(min,max);1:3(x,y,z)
-  LOGICAL                       :: UseFixBounds                  ! use alls planes of SFdepoFixes as additional bounds?
-  LOGICAL                       :: Restart                       ! read-in old DSMCSurfCollis-file for restart
-  CHARACTER(LEN=256)            :: DSMCSurfCollisRestartFile
-  INTEGER                       :: NumberOfBCs                   ! Nbr of BC to be analyzed (def.: 1)
-  INTEGER, ALLOCATABLE          :: BCs(:)                        ! BCs to be analyzed (def.: 0 = all)
-  INTEGER                       :: NbrOfSpeciesForDtCalc         ! Number of species used for SFResample-dt (def.: 1)
-  INTEGER, ALLOCATABLE          :: SpeciesForDtCalc(:)           ! Species used for SFResample-dt (def.: 0 = all)
-END TYPE
-TYPE(tLastAnalyzeSurfCollis)    :: LastAnalyzeSurfCollis
-
 #if USE_MPI
 TYPE tShapeMapping
   INTEGER,ALLOCATABLE           :: RecvShapeElemID(:)

@@ -108,9 +108,7 @@ CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
       resul=U_Face(:,p,q)
       n_loc=normal(:,p,q)
     ! U_Face_loc(1,p,q) = 2. * 1000. - resul(1)  !- c*DOT_PRODUCT(resul(2:4),n_loc)
-      U_Face_loc(1,p,q) = 2. * (PartBound%Voltage(PartBound%MapToPartBC(BC(iSide))) &
-                               +PartBound%Voltage_CollectCharges(PartBound%MapToPartBC(BC(iSide))) ) &
-                          - resul(1)  !+ c*DOT_PRODUCT(resul(2:4),n_loc)
+      U_Face_loc(1,p,q) = 2. * (PartBound%Voltage(PartBound%MapToPartBC(BC(iSide))) - resul(1)  !+ c*DOT_PRODUCT(resul(2:4),n_loc)
       U_Face_loc(2:4,p,q) = + resul(2:4) !- 1./c*resul(1)*n_loc
     END DO ! p
   END DO ! q

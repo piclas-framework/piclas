@@ -439,6 +439,7 @@ NIG_PIC_Deposition:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_cell_volweight_mean -e ./bin/piclas ; cd ../ ; fi
     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_Shape-function -e ./bin/piclas ; cd ../ ; fi
 
+# Add surf model (SEE) 13% probabilty test case here
 #feature_SurfaceModel:
 #  <<: *defaults_nightly
 #  stage: reggie_nightly

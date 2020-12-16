@@ -49,11 +49,13 @@ SUBROUTINE DepositParticleOnNodes(iPart,PartPos,GlobalElemID)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Vars      ,ONLY: PartSpecies,Species
-USE MOD_Particle_Vars      ,ONLY: usevMPF,PartMPF
+USE MOD_Particle_Vars      ,ONLY: usevMPF,PartMPF,PDM
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_part_tools         ,ONLY: isChargedParticle
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
@@ -78,6 +80,25 @@ REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
 INTEGER                          :: NodeID(1:8)
 !===================================================================================================================================
+
+! Sanity checks
+IF(.NOT.PDM%ParticleInside(iPart))THEN
+  IPWRITE (*,*) "iPart         :", iPart
+  IPWRITE (*,*) "global ElemID :", GlobalElemID
+  CALL abort(&
+      __STAMP__&
+      ,'DepositParticleOnNodes(): Particle not inside element.')
+ELSEIF(PartSpecies(iPart).LT.0)THEN
+  IPWRITE (*,*) "iPart         :", iPart
+  IPWRITE (*,*) "global ElemID :", GlobalElemID
+  CALL abort(&
+      __STAMP__&
+      ,'DepositParticleOnNodes(): Negative speciesID')
+END IF ! PartSpecies(iPart)
+
+! Skip for neutral particles
+IF(isChargedParticle(iPart)) RETURN
+
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/

@@ -78,9 +78,6 @@ PUBLIC:: CalculatePartElemData
 PUBLIC:: WriteParticleTrackingData
 #ifdef CODE_ANALYZE
 PUBLIC:: AnalyticParticleMovement,CalcAnalyticalParticleState
-#if (PP_TimeDiscMethod==42)
-PUBLIC :: ElectronicTransition, WriteEletronicTransition
-#endif
 #endif /*CODE_ANALYZE*/
 PUBLIC :: CalcCoupledPowerPart
 !===================================================================================================================================
@@ -179,10 +176,6 @@ CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'    , 'TODO-DEFINE-PARAME
 CALL prms%CreateLogicalOption(  'IsRestart'                , 'TODO-DEFINE-PARAMETER\n'//&
                                                              'Flag, if the current calculation is a restart. '&
                                                            , '.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcPorousBCInfo'         , 'Calculate output of porous BCs such pumping speed, removal '//&
-                                                             'probability and pressure (normalized with the given pressure). '//&
-                                                             'Values are averaged over the whole porous BC.' , '.FALSE.')
-
 CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , ' Calculate output of Power that is coupled into plasma' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'DisplayCoupledPower'      , ' Display coupled power in UNIT_stdOut' , '.FALSE.')
 
@@ -196,7 +189,7 @@ SUBROUTINE InitParticleAnalyze()
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_Preproc
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting, DSMC, Collismode
+USE MOD_DSMC_Vars             ,ONLY: RadialWeighting, Collismode
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars             ,ONLY: nElems,offsetElem
 USE MOD_Particle_Analyze_Vars
@@ -205,7 +198,6 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
-USE MOD_Particle_Boundary_Vars,ONLY: nPorousBC
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, VarTimeStep, PDM, usevMPF
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
 USE MOD_PICDepo_Vars          ,ONLY: r_sf
@@ -582,15 +574,10 @@ END IF
 CalcCollRates = GETLOGICAL('CalcCollRates','.FALSE.')
 CalcReacRates = GETLOGICAL('CalcReacRates','.FALSE.')
 CalcRelaxProb = GETLOGICAL('CalcRelaxProb','.FALSE.')
-IF(CalcRelaxProb.AND..NOT.DSMC%CalcQualityFactors) THEN
-  CALL abort(&
-    __STAMP__&
-    ,'ERROR: Particles-DSMC-CalcQualityFactors hat to be true to calculate variable relaxation probabilities in PartAnalyse.csv')
-END IF
 IF(CalcRelaxProb.AND.(Collismode.LE.1)) THEN
   CALL abort(&
     __STAMP__&
-    ,'Collis mode has to be greater than 1 to calculate variable relaxation probabilities in PartAnalyse.csv')
+    ,'CollisMode has to be greater than 1 to calculate variable relaxation probabilities in PartAnalyze.csv')
 END IF
 
 
@@ -652,12 +639,6 @@ IF(DoPartAnalyze)THEN
 END IF
 IsRestart = GETLOGICAL('IsRestart','.FALSE.')
 
-IF(nPorousBC.GT.0) THEN
-  ! Output for porous BC: Pump averaged values
-  CalcPorousBCInfo = GETLOGICAL('CalcPorousBCInfo')
-  IF(CalcPorousBCInfo) DoPartAnalyze = .TRUE.
-END IF
-
 ParticleAnalyzeInitIsDone=.TRUE.
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTCILE ANALYZE DONE!'
@@ -688,7 +669,6 @@ USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_FPFlow_Vars            ,ONLY: FP_MaxRelaxFactor,FP_MaxRotRelaxFactor,FP_MeanRelaxFactor,FP_MeanRelaxFactorCounter
 USE MOD_FPFlow_Vars            ,ONLY: FP_PrandtlNumber,FPInitDone
 USE MOD_Particle_Analyze_Vars
-USE MOD_Particle_Boundary_Vars ,ONLY: nPorousBC,PorousBCOutput
 USE MOD_Particle_Mesh_Vars     ,ONLY: MeshVolume
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_Particle_Vars          ,ONLY: Species,nSpecies,usevMPF
@@ -698,7 +678,10 @@ USE MOD_TimeDisc_Vars          ,ONLY: iter, dt, IterDisplayStep
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, BGGas, XSec_Relaxation
+USE MOD_DSMC_Vars              ,ONLY: BGGas
+#endif
+#if (PP_TimeDiscMethod==42)
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, XSec_Relaxation, SpecXSec
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -711,7 +694,7 @@ REAL,INTENT(IN)                 :: Time
 ! LOCAL VARIABLES
 LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
-INTEGER             :: unit_index, iSpec, OutputCounter, iPBC, iSF, MaxSurfaceFluxBCs
+INTEGER             :: unit_index, iSpec, OutputCounter, iSF, MaxSurfaceFluxBCs
 INTEGER(KIND=IK)    :: SimNumSpec(nSpecAnalyze)
 REAL                :: NumSpec(nSpecAnalyze), NumDens(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
@@ -720,7 +703,9 @@ REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpec
 REAL                :: ETotal, MacroParticleFactor
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
-REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2),VibRelaxProbCase(CollInf%NumCase)
+REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2)
+#endif
+#if (PP_TimeDiscMethod==42)
 INTEGER             :: jSpec, iCase
 #endif
 #if USE_MPI
@@ -730,7 +715,7 @@ REAL                :: sumMeanCollProb
 REAL                :: RECBR(nSpecies),RECBR1
 INTEGER             :: RECBIM(nSpecies)
 #endif /*USE_MPI*/
-REAL, ALLOCATABLE   :: CRate(:), RRate(:)
+REAL, ALLOCATABLE   :: CRate(:), RRate(:), VibRelaxRate(:)
 #if (PP_TimeDiscMethod ==42)
 #ifdef CODE_ANALYZE
 CHARACTER(LEN=64)   :: DebugElectronicStateFilename
@@ -750,6 +735,10 @@ INTEGER             :: dir
       SDEALLOCATE(CRate)
       ALLOCATE(CRate(CollInf%NumCase + 1))
       CRate = 0.0
+      IF(CalcRelaxProb) THEN
+        ALLOCATE(VibRelaxRate(CollInf%NumCase))
+        VibRelaxRate = 0.0
+      END IF
       IF (CollisMode.EQ.3) THEN
         SDEALLOCATE(RRate)
         ALLOCATE(RRate(ChemReac%NumOfReact))
@@ -963,23 +952,6 @@ INTEGER             :: dir
             END DO
           END IF
         END IF
-        IF(CalcPorousBCInfo) THEN ! calculate porous boundary condition output (pumping speed, removal probability, pressure
-                                  ! normalized with given pressure. Values are averaged over the whole porous BC
-          DO iPBC = 1, nPorousBC
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I2.2,A,A5)',ADVANCE='NO') OutputCounter,'-PorousBC-',iPBC,'-PumpSpeed-Measure',' '
-            OutputCounter = OutputCounter + 1
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I2.2,A,A5)',ADVANCE='NO') OutputCounter,'-PorousBC-',iPBC,'-PumpSpeed-Control',' '
-            OutputCounter = OutputCounter + 1
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I2.2,A,A5)',ADVANCE='NO') OutputCounter,'-PorousBC-',iPBC,'-RemovalProbability',' '
-            OutputCounter = OutputCounter + 1
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I2.2,A,A5)',ADVANCE='NO') OutputCounter,'-PorousBC-',iPBC,'-PressureNorm',' '
-            OutputCounter = OutputCounter + 1
-          END DO
-        END IF
         IF(DSMC%CalcQualityFactors) THEN ! calculates flow-field variable maximum collision probability, time-averaged mean
                                          ! collision probability, mean collision separation distance over mean free path
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -1004,18 +976,6 @@ INTEGER             :: dir
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-VibRelaxPmax',' '
             OutputCounter = OutputCounter + 1
-            IF(XSec_Relaxation) THEN
-              DO iSpec = 1, nSpecies
-                DO jSpec = iSpec, nSpecies
-                  ! Skip entry if both species are NOT molecules
-                  IF(((SpecDSMC(iSpec)%InterID.NE.2).AND.(SpecDSMC(iSpec)%InterID.NE.20)).AND. &
-                    ((SpecDSMC(jSpec)%InterID.NE.2).AND.(SpecDSMC(jSpec)%InterID.NE.20))) CYCLE
-                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-VibRelaxPmean', iSpec, '+', jSpec
-                  OutputCounter = OutputCounter + 1
-                END DO
-              END DO
-            END IF
           END IF
         END IF
 #endif
@@ -1060,6 +1020,22 @@ INTEGER             :: dir
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-TotalCollRate',' '
           OutputCounter = OutputCounter + 1
+        END IF
+        IF(CalcRelaxProb) THEN
+          IF(XSec_Relaxation) THEN
+            DO iSpec = 1, nSpecies
+              DO jSpec = iSpec, nSpecies
+                IF(SpecXSec(CollInf%Coll_Case(iSpec,jSpec))%UseVibXSec) THEN
+                  ! Skip entry if both species are NOT molecules
+                  IF(((SpecDSMC(iSpec)%InterID.NE.2).AND.(SpecDSMC(iSpec)%InterID.NE.20)).AND. &
+                    ((SpecDSMC(jSpec)%InterID.NE.2).AND.(SpecDSMC(jSpec)%InterID.NE.20))) CYCLE
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-VibRelaxRate', iSpec, '+', jSpec
+                  OutputCounter = OutputCounter + 1
+                END IF
+              END DO
+            END DO
+          END IF
         END IF
         IF(CalcReacRates) THEN ! calculates reaction rate per reaction
           IF(CollisMode.EQ.3) THEN
@@ -1157,8 +1133,7 @@ INTEGER             :: dir
                                                               MeshVolume, TempTotal(nSpecAnalyze))
       END IF
     END IF
-    VibRelaxProbCase = 0.
-    IF(CalcRelaxProb) CALL CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb,VibRelaxProbCase)
+    IF(CalcRelaxProb) CALL CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb)
   END IF
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1195,9 +1170,6 @@ INTEGER             :: dir
       MeanCollProb = sumMeanCollProb / REAL(PartMPI%nProcs)
     END IF
 #endif
-    IF(CalcPorousBCInfo) THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE,PorousBCOutput,5*nPorousBC,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-    END IF
     IF(FPInitDone) THEN
       IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
         CALL MPI_REDUCE(MPI_IN_PLACE,FP_MeanRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
@@ -1238,9 +1210,6 @@ INTEGER             :: dir
       CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, PartMPI%COMM, IERROR)
     END IF
 #endif
-    IF(CalcPorousBCInfo) THEN
-      CALL MPI_REDUCE(PorousBCOutput,PorousBCOutput,5*nPorousBC,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-    END IF
     IF(FPInitDone) THEN
       IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
         CALL MPI_REDUCE(FP_MeanRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
@@ -1270,15 +1239,6 @@ IF(PartMPI%MPIRoot) THEN
       PartEkinIn(nSpecies+1)  = SUM(PartEkinIn(1:nSpecies))
       PartEkinOut(nSpecies+1) = SUM(PartEkinOut(1:nSpecies))
     END IF
-  END IF
-  IF(CalcPorousBCInfo) THEN
-    DO iPBC = 1, nPorousBC
-      IF(PorousBCOutput(1,iPBC).GT.0.0) THEN
-        ! Pumping Speed (Output(2)) is the sum of all elements (counter over particles exiting through pump)
-        ! Other variales are averaged over the elements
-        PorousBCOutput(3:5,iPBC) = PorousBCOutput(3:5,iPBC) / PorousBCOutput(1,iPBC)
-      END IF
-    END DO
   END IF
   IF(FPInitDone) THEN
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
@@ -1312,10 +1272,9 @@ END IF
 #if (PP_TimeDiscMethod==42)
   IF(iter.GT.0) THEN
     IF(CalcCollRates) CALL CollRates(CRate)
+    IF(CalcRelaxProb) CALL CalcRelaxRates(NumSpecTmp,VibRelaxRate)
     IF(CalcReacRates) THEN
-      IF (CollisMode.EQ.3) THEN
-        CALL ReacRates(RRate, NumSpecTmp, iter)
-      END IF
+      IF (CollisMode.EQ.3) CALL ReacRates(NumSpecTmp,RRate)
     END IF
   END IF
 #endif
@@ -1472,22 +1431,6 @@ IF (PartMPI%MPIROOT) THEN
         END DO
       END IF
     END IF
-    IF(CalcPorousBCInfo) THEN
-      DO iPBC = 1, nPorousBC
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBCOutput(2,iPBC)
-        OutputCounter = OutputCounter + 1
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBCOutput(3,iPBC)
-        OutputCounter = OutputCounter + 1
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBCOutput(4,iPBC)
-        OutputCounter = OutputCounter + 1
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBCOutput(5,iPBC)
-        OutputCounter = OutputCounter + 1
-      END DO
-    END IF
     IF(DSMC%CalcQualityFactors) THEN
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
       WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') MeanCollProb
@@ -1504,18 +1447,6 @@ IF (PartMPI%MPIROOT) THEN
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') VibRelaxProb(2)
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') VibRelaxProb(1)
-        IF(XSec_Relaxation) THEN
-          DO iSpec = 1, nSpecies
-            DO jSpec = iSpec, nSpecies
-              iCase = CollInf%Coll_Case(iSpec,jSpec)
-              ! Skip entry if both species are NOT molecules
-              IF(((SpecDSMC(iSpec)%InterID.NE.2).AND.(SpecDSMC(iSpec)%InterID.NE.20)).AND. &
-                  ((SpecDSMC(jSpec)%InterID.NE.2).AND.(SpecDSMC(jSpec)%InterID.NE.20))) CYCLE
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') VibRelaxProbCase(iCase)
-            END DO
-          END DO
-        END IF
       END IF
     END IF
 #endif
@@ -1548,6 +1479,22 @@ IF (PartMPI%MPIROOT) THEN
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') CRate(iCase)
       END DO
     END IF
+    IF(CalcRelaxProb) THEN
+      IF(XSec_Relaxation) THEN
+        DO iSpec = 1, nSpecies
+          DO jSpec = iSpec, nSpecies
+            iCase = CollInf%Coll_Case(iSpec,jSpec)
+            IF(SpecXSec(iCase)%UseVibXSec) THEN
+              ! Skip entry if both species are NOT molecules
+              IF(((SpecDSMC(iSpec)%InterID.NE.2).AND.(SpecDSMC(iSpec)%InterID.NE.20)).AND. &
+                  ((SpecDSMC(jSpec)%InterID.NE.2).AND.(SpecDSMC(jSpec)%InterID.NE.20))) CYCLE
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') VibRelaxRate(iCase)
+            END IF
+          END DO
+        END DO
+      END IF
+    END IF
     IF(CalcReacRates) THEN
       DO iCase=1, ChemReac%NumOfReact
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -1569,30 +1516,6 @@ END IF
 IF(CalcPartBalance) THEN
   nPartIn=0; nPartOut=0; PartEkinIn=0.; PartEkinOut=0.
 END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-#if ( PP_TimeDiscMethod==42 )
-#ifdef CODE_ANALYZE
-IF (DSMC%ElectronicModel.AND.DSMC%ReservoirSimuRate) THEN
-  ! Debug output for initialized electronic state
-  IF(Time.GT.0.) CALL ElectronicTransition( Time, NumSpec )
-  DO iSpec = 1, nSpecies
-    IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-      IF (  SpecDSMC(iSpec)%levelcounter(0) .ne. 0) THEN
-        WRITE(DebugElectronicStateFilename,'(I2.2)') iSpec
-        iunit = 485
-        DebugElectronicStateFilename = 'End_Electronic_State_Species_'//trim(DebugElectronicStateFilename)//'.dat'
-        OPEN(unit=iunit,file=DebugElectronicStateFilename,form='formatted',status='unknown')
-        DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant - 1                         !has to be changed when using %Init definitions!!!
-          WRITE(iunit,'(I3.1,3x,F12.7)') ii, REAL( SpecDSMC(iSpec)%levelcounter(ii) ) / &
-                                              REAL( Species(iSpec)%Init(1)%initialParticleNumber)
-        END DO
-        CLOSE(iunit)
-      END IF
-    END IF
-  END DO
-END IF
-#endif /*CODE_ANALYZE*/
-#endif /*PP_TimeDiscMethod==42*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 END SUBROUTINE AnalyzeParticles
@@ -2143,7 +2066,7 @@ END SUBROUTINE CalcTemperature
 
 
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
-SUBROUTINE CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb,VibRelaxProbCase)
+SUBROUTINE CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb)
 !===================================================================================================================================
 ! Calculates global rotational and vibrational relaxation probability for PartAnalyse.csv
 !===================================================================================================================================
@@ -2151,7 +2074,7 @@ SUBROUTINE CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb,VibRelaxProbCase)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars         ,ONLY: nSpecies
-USE MOD_DSMC_Vars             ,ONLY: DSMC, VarVibRelaxProb, CollisMode, SpecXSec, XSec_Relaxation, CollInf
+USE MOD_DSMC_Vars             ,ONLY: DSMC, VarVibRelaxProb, CollisMode
 USE MOD_Mesh_Vars             ,ONLY: nElems, nGlobalElems
 #if USE_MPI
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
@@ -2161,18 +2084,13 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: RotRelaxProb(2),VibRelaxProb(2)       !< output value is already the GLOBAL RelaxProbs
-REAL,INTENT(OUT)                :: VibRelaxProbCase(CollInf%NumCase)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iElem, iSpec, iCase
+INTEGER                         :: iElem, iSpec
 REAL                            :: PartNum
 !===================================================================================================================================
 IF(CollisMode.LT.2) RETURN
-! IF(nspecies.EQ.1) THEN
-!   iSpec = 1
-! ELSE
-!   iSpec = nSpecies + 1
-! END IF
+
 ! Rot Relax Prob
 IF(DSMC%RotRelaxProb.GE.2) THEN
   RotRelaxProb = 0.
@@ -2227,18 +2145,10 @@ ELSE
     CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%CalcVibProb(1:nSpecies,1),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
     CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%CalcVibProb(1:nSpecies,2),nSpecies,MPI_DOUBLE_PRECISION,MPI_MAX,0,PartMPI%COMM, IERROR)
     CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%CalcVibProb(1:nSpecies,3),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
-    IF(XSec_Relaxation) THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE,SpecXSec(:)%VibProb(1),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
-      CALL MPI_REDUCE(MPI_IN_PLACE,SpecXSec(:)%VibProb(2),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
-    END IF
   ELSE
     CALL MPI_REDUCE(DSMC%CalcVibProb(1:nSpecies,1),DSMC%CalcVibProb(1:nSpecies,1),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
     CALL MPI_REDUCE(DSMC%CalcVibProb(1:nSpecies,2),DSMC%CalcVibProb(1:nSpecies,2),nSpecies,MPI_DOUBLE_PRECISION,MPI_MAX,0,PartMPI%COMM, IERROR)
     CALL MPI_REDUCE(DSMC%CalcVibProb(1:nSpecies,3),DSMC%CalcVibProb(1:nSpecies,3),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
-    IF(XSec_Relaxation) THEN
-      CALL MPI_REDUCE(SpecXSec(:)%VibProb(1),SpecXSec(:)%VibProb(1),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
-      CALL MPI_REDUCE(SpecXSec(:)%VibProb(2),SpecXSec(:)%VibProb(2),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
-    END IF
   END IF
 #endif /*USE_MPI*/
   IF(MPIRoot)THEN
@@ -2246,16 +2156,9 @@ ELSE
     IF(SUM(DSMC%CalcVibProb(1:nSpecies,3)).GT.0) THEN
       VibRelaxProb(2) = SUM(DSMC%CalcVibProb(1:nSpecies,1))/SUM(DSMC%CalcVibProb(1:nSpecies,3))
     END IF
-    VibRelaxProbCase = 0.
-    IF(XSec_Relaxation) THEN
-      DO iCase=1,CollInf%NumCase
-        IF(SpecXSec(iCase)%VibProb(2).GT.0.0) THEN
-          VibRelaxProbCase(iCase)=SpecXSec(iCase)%VibProb(1)/SpecXSec(iCase)%VibProb(2)
-        END IF
-      END DO
-    END IF
   END IF
 END IF
+
 END SUBROUTINE CalcRelaxProbRotVib
 #endif
 
@@ -2273,6 +2176,7 @@ USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, PDM
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+USE MOD_DSMC_Vars             ,ONLY: DSMC, AmbipolElecVelo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2297,6 +2201,12 @@ DO i=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
     PartVandV2(PartSpecies(i),1:3) = PartVandV2(PartSpecies(i),1:3) + PartState(4:6,i) * GetParticleWeight(i)
     PartVandV2(PartSpecies(i),4:6) = PartVandV2(PartSpecies(i),4:6) + PartState(4:6,i)**2 * GetParticleWeight(i)
+    IF (DSMC%DoAmbipolarDiff) THEN
+      IF(Species(PartSpecies(i))%ChargeIC.GT.0.0) THEN
+        PartVandV2(DSMC%AmbiDiffElecSpec,1:3) = PartVandV2(DSMC%AmbiDiffElecSpec,1:3) + AmbipolElecVelo(i)%ElecVelo(1:3) * GetParticleWeight(i)
+        PartVandV2(DSMC%AmbiDiffElecSpec,4:6) = PartVandV2(DSMC%AmbiDiffElecSpec,4:6) + AmbipolElecVelo(i)%ElecVelo(1:3)**2 * GetParticleWeight(i)
+      END IF
+    END IF
   END IF
 END DO
 
@@ -2499,7 +2409,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, PDM, nSpecies, usevMPF
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC
-USE MOD_DSMC_Analyze          ,ONLY: CalcTVib, CalcTelec, CalcTVibPoly
+USE MOD_DSMC_Analyze          ,ONLY: CalcTelec, CalcTVibPoly
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -2568,15 +2478,11 @@ IF(PartMPI%MPIRoot)THEN
         IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
           IntTemp(iSpec,1) = CalcTVibPoly(EVib(iSpec)/NumSpecTemp, iSpec)
         ELSE
-          IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
-            tempVib = (EVib(iSpec)/(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant)
-            IF ((tempVib.GT.0.0) &
-              .OR.(EVib(iSpec)/(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib).GT.DSMC%GammaQuant)) THEN
-              IntTemp(iSpec,1) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(EVib(iSpec) &
-                                /(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant))
-            END IF
-          ELSE                                            ! TSHO-model
-            IntTemp(iSpec,1) = CalcTVib(SpecDSMC(iSpec)%CharaTVib, EVib(iSpec)/NumSpecTemp, SpecDSMC(iSpec)%MaxVibQuant)
+          tempVib = (EVib(iSpec)/(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant)
+          IF ((tempVib.GT.0.0) &
+            .OR.(EVib(iSpec)/(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib).GT.DSMC%GammaQuant)) THEN
+            IntTemp(iSpec,1) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(EVib(iSpec) &
+                              /(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant))
           END IF
         END IF
       ELSE
@@ -2670,14 +2576,85 @@ DSMC%NumColl = 0.
 
 END SUBROUTINE CollRates
 
-SUBROUTINE ReacRates(RRate, NumSpec,iter)
+
+SUBROUTINE CalcRelaxRates(NumSpec,VibRelaxProbCase)
+!===================================================================================================================================
+! Calculates global rotational and vibrational relaxation probability for PartAnalyse.csv
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Vars         ,ONLY: nSpecies, Species
+USE MOD_DSMC_Vars             ,ONLY: CollisMode, SpecXSec, XSec_Relaxation, CollInf
+USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume
+USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
+USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
+#if USE_MPI
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(IN)                 :: NumSpec(:)
+REAL,INTENT(OUT)                :: VibRelaxProbCase(CollInf%NumCase)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iSpec, iCase, jSpec
+REAL                            :: MPF_1, MPF_2
+!===================================================================================================================================
+IF(CollisMode.LT.2) RETURN
+
+#if USE_MPI
+IF(XSec_Relaxation) THEN
+  IF(PartMPI%MPIRoot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,SpecXSec(:)%VibCount,CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+  ELSE
+    CALL MPI_REDUCE(SpecXSec(:)%VibCount,SpecXSec(:)%VibCount,CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+  END IF
+END IF
+#endif /*USE_MPI*/
+VibRelaxProbCase = 0.
+IF(PartMPI%MPIRoot)THEN
+  IF(XSec_Relaxation) THEN
+    DO iSpec=1,nSpecies
+      IF(NumSpec(iSpec).LE.0.0) CYCLE
+      MPF_1 = Species(iSpec)%MacroParticleFactor
+      DO jSpec = iSpec, nSpecies
+        IF(NumSpec(jSpec).LE.0.0) CYCLE
+        MPF_2 = Species(jSpec)%MacroParticleFactor
+        iCase = CollInf%Coll_Case(iSpec,jSpec)
+        VibRelaxProbCase(iCase) = SpecXSec(iCase)%VibCount * MPF_1 * MeshVolume &
+                                  / (dt * MPF_1*NumSpec(iSpec) * MPF_2*NumSpec(jSpec))
+      END DO
+    END DO
+  END IF
+  ! Consider Part-AnalyzeStep
+  IF(PartAnalyzeStep.GT.1) THEN
+    IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
+      DO iCase = 1, CollInf%NumCase
+        VibRelaxProbCase(iCase) = VibRelaxProbCase(iCase) / iter
+      END DO
+    ELSE
+      DO iCase = 1, CollInf%NumCase
+        VibRelaxProbCase(iCase) = VibRelaxProbCase(iCase) / MIN(PartAnalyzeStep,iter)
+      END DO
+    END IF
+  END IF
+END IF
+SpecXSec(:)%VibCount = 0.
+
+END SUBROUTINE CalcRelaxRates
+
+
+SUBROUTINE ReacRates(NumSpec, RRate)
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: ChemReac, DSMC
-USE MOD_TimeDisc_Vars         ,ONLY: dt
+USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies
 USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
@@ -2688,12 +2665,11 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+REAL,INTENT(IN)                 :: NumSpec(:)
 REAL,INTENT(OUT)                :: RRate(:)
-REAL,INTENT(IN)                 :: NumSpec(:) ! is the global number of real particles
-INTEGER(KIND=8),INTENT(IN)      :: iter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iReac
+INTEGER                         :: iReac, iCase
 #if USE_MPI
 REAL                            :: RD(1:ChemReac%NumOfReact)
 #endif /*USE_MPI*/
@@ -2709,44 +2685,45 @@ END IF
 
 IF(PartMPI%MPIRoot)THEN
   DO iReac=1, ChemReac%NumOfReact
-    IF ((NumSpec(ChemReac%DefinedReact(iReac,1,1)).GT.0).AND.(NumSpec(ChemReac%DefinedReact(iReac,1,2)).GT.0)) THEN
-      SELECT CASE(TRIM(ChemReac%ReactType(iReac)))
-      CASE('R','r','rQK')
+    iCase = ChemReac%ReactCase(iReac)
+    IF ((NumSpec(ChemReac%Reactants(iReac,1)).GT.0).AND.(NumSpec(ChemReac%Reactants(iReac,2)).GT.0)) THEN
+      IF(ChemReac%Reactants(iReac,3).NE.0) THEN
+        ! Recombination reactions with 3 reactants
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
-          RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
+          RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%Products(iReac,1))%MacroParticleFactor &
                      * MeshVolume**2 / (dt &
-                     * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
-                     * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,2)) &
-                     * Species(ChemReac%DefinedReact(iReac,1,3))%MacroParticleFactor * NumSpec(nSpecies+1))
+                     * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor * NumSpec(ChemReac%Reactants(iReac,1)) &
+                     * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor * NumSpec(ChemReac%Reactants(iReac,2)) &
+                     * Species(ChemReac%Reactants(iReac,3))%MacroParticleFactor * NumSpec(nSpecies+1))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
-          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iReac) * MeshVolume**2 &
-               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor / (dt * ChemReac%ReacCount(iReac)             &
-               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))     &
-               * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2))    &
-               * Species(ChemReac%DefinedReact(iReac,1,3))%MacroParticleFactor*NumSpec(nSpecies+1))
+          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iCase) * MeshVolume**2 &
+               * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor / (dt * ChemReac%ReacCount(iReac)             &
+               * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,1))     &
+               * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,2))    &
+               * Species(ChemReac%Reactants(iReac,3))%MacroParticleFactor*NumSpec(nSpecies+1))
         END IF
-      CASE('D','E','i','iQK','x')
+      ELSE
+        ! Regular reactions with 2 reactants (dissociation, ionization, exchange)
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
-          RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
+          RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%Products(iReac,1))%MacroParticleFactor &
                        * MeshVolume / (dt &
-                       * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
-                       * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
+                       * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,1)) &
+                       * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,2)))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
-          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iReac) &
-               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor* MeshVolume / (dt * ChemReac%ReacCount(iReac) &
-               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))         &
-               * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
+          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iCase) &
+               * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor* MeshVolume / (dt * ChemReac%ReacCount(iReac) &
+               * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,1))         &
+               * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,2)))
         END IF
-      END SELECT
+      END IF
     END IF
   END DO
 END IF
 ChemReac%NumReac = 0.
 ChemReac%ReacCount = 0
 ChemReac%ReacCollMean = 0.0
-ChemReac%ReacCollMeanCount = 0
 ! Consider Part-AnalyzeStep
 IF(PartAnalyzeStep.GT.1)THEN
   IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
@@ -2760,147 +2737,7 @@ IF(PartAnalyzeStep.GT.1)THEN
   END IF
 END IF
 
-
 END SUBROUTINE ReacRates
-#endif
-
-#if ( PP_TimeDiscMethod == 42)
-#ifdef CODE_ANALYZE
-SUBROUTINE ElectronicTransition (  Time, NumSpec )
-!===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
-!===================================================================================================================================
-! MODULES
-USE MOD_DSMC_Vars          ,ONLY: DSMC, SpecDSMC
-USE MOD_TimeDisc_Vars      ,ONLY: dt
-USE MOD_Particle_Vars      ,ONLY: nSpecies, Species
-USE MOD_Particle_Mesh_Vars ,ONLY: MeshVolume
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(IN)                :: Time
-REAL,INTENT(IN)                :: NumSpec(:)
-INTEGER                        :: iSpec, iSpec2, iQua1, iQua2, MaxElecQua
-! accary of kf
-!===================================================================================================================================
-
-IF ( DSMC%ElectronicModel ) THEN
-! kf = d n_of_N^i / dt / ( n_of_N^i n_of_M) )
-  DO iSpec = 1, nSpecies
-    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-      DO iSpec2 = 1, nSpecies
-   ! calculaction of kf for each reaction
-!      MaxElecQua = SpecDSMC(iSpec)%MaxElecQuant
-      MaxElecQua = 2
-      ! for first tests only consider the first 10 transition levels
-        DO iQua1 = 0, MaxElecQua
-          DO iQua2 = 0, MaxElecQua
-        ! calculate kf
-        ! kf = ( d n_of_N^i / d t )  / ( n_of_N^i n_of_M )
-            IF ( (NumSpec(iSpec2) .ne. 0) .and. (SpecDSMC(iSpec)%levelcounter(iQua1) .ne. 0 ) ) THEN
-              SpecDSMC(iSpec)%ElectronicTransition(iSpec2,iQua1,iQua2) = &
-                                    SpecDSMC(iSpec)%ElectronicTransition(iSpec2,iQua1,iQua2) * MeshVolume &
-                                  / ( dt * SpecDSMC(iSpec)%levelcounter(iQua1) * NumSpec(iSpec2) *           &
-                                      Species(iSpec2)%MacroParticleFactor )
-            END IF
-!             print*,SpecDSMC(iSpec)%ElectronicTransition(iSpec2,iQua1,iQua2)
-          END DO
-        END DO
-      END DO
-    END IF
-  END DO
-  CALL WriteEletronicTransition( Time )
-  ! nullyfy
-  DO iSpec = 1, nSpecies
-    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-      SpecDSMC(iSpec)%ElectronicTransition = 0
-    END IF
-  END DO
-END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-END SUBROUTINE ElectronicTransition
-#endif
-#endif
-
-#if ( PP_TimeDiscMethod == 42)
-#ifdef CODE_ANALYZE
-SUBROUTINE WriteEletronicTransition ( Time )
-!===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals       ,ONLY: Getfreeunit
-USE MOD_DSMC_Vars     ,ONLY: DSMC, SpecDSMC
-USE MOD_Particle_Vars ,ONLY: nSpecies
-!   ! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(IN)                :: Time
-INTEGER                        :: iSpec, iSpec2, iunit, iQua1, iQua2, MaxElecQua, ii
-CHARACTER(LEN=128)             :: FileNameTransition
-LOGICAL                        :: bExist
-! accary of kf
-!-----------------------------------------------------------------------------------------------------------------------------------
-bExist = .false.
-IF ( DSMC%ElectronicModel ) THEN
-! kf = d n_of_N^i / dt / ( n_of_N^i n_of_M) )
-  DO iSpec = 1, nSpecies
-    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-!        MaxElecQua = SpecDSMC(iSpec)%MaxElecQuant
-      MaxElecQua = 2
-      ! output to transition file
-      FileNameTransition = trim(SpecDSMC(iSpec)%Name)//'_Transition.csv'
-      INQUIRE( FILE = FileNameTransition, EXIST=bExist)
-!-----------------------------------------------------------------------------------------------------------------------------------
-      IF ( bExist .EQV. .false. ) THEN
-        iunit=GETFREEUNIT()
-        OPEN(UNIT=iunit,FILE=FileNameTransition,FORM='FORMATTED',STATUS='UNKNOWN')
-!         ! writing header
-        WRITE(iunit,'(A6,A5)',ADVANCE='NO') '001-TIME', ' '
-        ii = 2
-        DO iSpec2 = 1, nSpecies
-          DO iQua1 = 0, MaxElecQua
-            DO iQua2 = 0, MaxElecQua
-              WRITE(iunit,'(I3.3,A,I2.2,A,I2.2,A,I2.2,A)', ADVANCE='NO') ii,'_Species',iSpec2,'_',iQua1,'_to_',iQua2,'  '
-              WRITE(iunit,'(A1)',ADVANCE='NO') ','
-              ii = ii + 1
-            END DO
-          END DO
-        END DO
-      ELSE
-!-----------------------------------------------------------------------------------------------------------------------------------
-!         ! writing header
-        iunit=GETFREEUNIT()
-        OPEN(unit=iunit,FILE=FileNameTransition,FORM='Formatted',POSITION='APPEND',STATUS='old')
-        WRITE(iunit,104,ADVANCE='NO') TIME
-        DO iSpec2 = 1, nSpecies
-!       ! calculaction of kf for each reaction
-          DO iQua1 = 0, MaxElecQua
-            DO iQua2 = 0, MaxElecQua
-            ! write values to file
-              WRITE(iunit,'(A1)',ADVANCE='NO') ','
-              WRITE(iunit,104,ADVANCE='NO') SpecDSMC(iSpec)%ElectronicTransition(iSpec2,iQua1,iQua2)
-            END DO
-          END DO
-        END DO
-        WRITE(iunit,'(A)') ' '
-      END IF
-      CLOSE(unit = iunit)
-    END IF
-  END DO
-!-----------------------------------------------------------------------------------------------------------------------------------
-END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-104    FORMAT (e25.14)
-!-----------------------------------------------------------------------------------------------------------------------------------
-END SUBROUTINE WriteEletronicTransition
-#endif
 #endif
 
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -4266,6 +4103,7 @@ USE MOD_Particle_Vars         ,ONLY: nSpecies
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
 #if USE_MPI
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared_Win,ElemCharLengthY_Shared_Win,ElemCharLengthZ_Shared_Win
+USE MOD_MPI_Shared_Vars       ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 #endif /*USE_MPI*/
 IMPLICIT NONE
@@ -4273,7 +4111,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iSpec
+INTEGER           :: iSpec,iError
 !===================================================================================================================================
 ParticleAnalyzeInitIsDone = .FALSE.
 SDEALLOCATE(DebyeLengthCell)
@@ -4316,9 +4154,11 @@ SDEALLOCATE(MassflowRate)
 
 IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)THEN
 #if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
   CALL UNLOCK_AND_FREE(ElemCharLengthX_Shared_Win)
   CALL UNLOCK_AND_FREE(ElemCharLengthY_Shared_Win)
   CALL UNLOCK_AND_FREE(ElemCharLengthZ_Shared_Win)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #endif /*USE_MPI*/
   ADEALLOCATE(ElemCharLengthX_Shared)
   ADEALLOCATE(ElemCharLengthY_Shared)

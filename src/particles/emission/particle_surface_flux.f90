@@ -364,7 +364,7 @@ OutputSurfaceFluxLinked=GETLOGICAL('OutputSurfaceFluxLinked','.FALSE.')
 TmpMapToBC = 0; TmpSideStart = 0; TmpSideNumber = 0; TmpSideEnd = 0; TmpSideNext = 0
 countDataBC=0
 DO iBC=1,nPartBound
-  IF (BCdata_auxSF(iBC)%SideNumber.EQ. -1) CYCLE !not set for SFs or CollectCharges
+  IF (BCdata_auxSF(iBC)%SideNumber.EQ. -1) CYCLE !not set for SFs
   countDataBC=countDataBC+1
   TmpMapToBC(countDataBC)=iBC
 END DO
@@ -837,7 +837,7 @@ SUBROUTINE InitAdaptiveSurfFlux(iSpec, iSF, ElemID, AdaptiveInitDone)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species, Adaptive_MacroVal
-USE MOD_Particle_Boundary_Vars ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart, MacroRestartValues
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -930,12 +930,12 @@ SUBROUTINE InitializeParticleSurfaceflux()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Mesh_Vars              ,ONLY: nBCSides, SideToElem, offsetElem, NGeo
-USE MOD_Particle_Boundary_Vars ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas, tBCdata_auxSFRadWeight
 USE MOD_Particle_Surfaces_Vars ,ONLY: SurfFluxSideSize, TriaSurfaceFlux
 USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas
-USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges, DoTimeDepInflow
+USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, DoTimeDepInflow
 USE MOD_Particle_Vars          ,ONLY: UseAdaptive, UseCircularInflow, DoForceFreeSurfaceFlux
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 #if USE_MPI
@@ -973,7 +973,7 @@ CALL BCSurfMeshSideAreasandNormals()
 UseCircularInflow=.FALSE.
 UseAdaptive=.FALSE.
 MaxSurfacefluxBCs=0
-nDataBC=nDataBC_CollectCharges !sides may be also used for collectcharges of floating potential!!!
+nDataBC=0
 DoSurfaceFlux=.FALSE.
 
 !-- 1.: read/prepare parameters and determine nec. BCs
@@ -1232,46 +1232,6 @@ INTEGER, ALLOCATABLE   :: PartInsProc(:)
   END IF
 END SUBROUTINE CalcPartInsSubSidesStandardCase
 
-SUBROUTINE CalcExtraPartsReactiveBC(iSpec, iSF)
-!===================================================================================================================================
-!>
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)                 :: iSpec, iSF
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-IPWRITE(UNIT_StdOut,*) "iSpec,iSF =", iSpec,iSF
-      CALL abort(&
-__STAMP__&
-,'Reactive Boundaries not implemented in this PICLas Version!')
-!  IF (SurfMesh%SideIDToSurfID(SideID).GT.0) THEN
-!    ! sumEvapPart for triatracking is only allocated over (1,1,nsurfsides,nspecies)
-!    IF (.NOT.TriaSurfaceFlux .OR. (iSample.EQ.1 .AND. jSample.EQ.1)) THEN
-!      ExtraParts = SurfModel%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
-!      SurfModel%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec) = 0
-!    END IF
-!    IF (TriaSurfaceFlux) THEN
-!      IF (iSample.EQ.1 .AND. jSample.EQ.1) THEN !first tria
-!        AreasTria(1)=SurfMeshSubSideData(1,1,BCSideID)%area
-!        AreasTria(2)=SurfMeshSubSideData(SurfFluxSideSize(1),SurfFluxSideSize(2),BCSideID)%area
-!        ExtraPartsTria(:) = 0
-!        CALL IntegerDivide(ExtraParts, 2, AreasTria, ExtraPartsTria)
-!        ExtraParts = ExtraPartsTria(1)
-!      ELSE !second tria
-!        ExtraParts = ExtraPartsTria(2)
-!      END IF
-!    END IF !TriaSurfaceFlux
-!    SurfModel%Info(iSpec)%NumOfDes=SurfModel%Info(iSpec)%NumOfDes+ExtraParts
-!  END IF !SurfMesh%SideIDToSurfID(SideID).GT.0
-END SUBROUTINE CalcExtraPartsReactiveBC
 
 SUBROUTINE DefineSideDirectVec2D(SideID, xyzNod, minPos, RVec)
 !===================================================================================================================================
@@ -1395,9 +1355,8 @@ SUBROUTINE SamplingForReactiveBC(iSpec, iSF, PartsEmitted, currentSurfFluxPart)
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars        ,ONLY: PartBound, nSurfSample
 USE MOD_Particle_Tracking_Vars        ,ONLY: TriaTracking
-USE MOD_Particle_Vars                 ,ONLY: Species, tSurfFluxLink, PartState, PEM
+USE MOD_Particle_Vars                 ,ONLY: Species, tSurfFluxLink, PEM
 USE MOD_Particle_Boundary_Tools       ,ONLY: CalcWallSample
-USE MOD_DSMC_Vars                     ,ONLY: CollisMode, PartStateIntEn
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers            ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
@@ -1412,8 +1371,6 @@ INTEGER, INTENT(IN)                        :: iSpec, iSF, PartsEmitted
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                     :: currentBC, PartID, SurfSideID, p, q
-REAL                        :: VelXold, VelYold, VelZold, VeloReal, TransArray(1:6),IntArray(1:6)
-REAL                        :: EtraOld, EtraWall, EtraNew, ErotOld, ErotWall, ErotNew, EvibOld, EvibWall, EVibNew
 #if USE_LOADBALANCE
 REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -1436,44 +1393,8 @@ IF ((PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) .AND. (Part
       p = currentSurfFluxPart%SideInfo(2)
       q = currentSurfFluxPart%SideInfo(3)
     END IF
-    ! set velocities and translational energies
-    VelXold  = PartBound%WallVelo(1,CurrentBC)
-    VelYold  = PartBound%WallVelo(2,CurrentBC)
-    VelZold  = PartBound%WallVelo(3,CurrentBC)
-    EtraOld = 0.0
-    EtraWall = EtraOld
-    VeloReal = VECNORM(PartState(4:6,PartID))
-    EtraNew = 0.5 * Species(iSpec)%MassIC * VeloReal**2
-    ! fill Transarray
-    TransArray(1) = EtraOld
-    TransArray(2) = EtraWall
-    TransArray(3) = EtraNew
-    ! must be old_velocity-new_velocity
-    TransArray(4) = VelXold-PartState(4,PartID)
-    TransArray(5) = VelYold-PartState(5,PartID)
-    TransArray(6) = VelZold-PartState(6,PartID)
-    IF (CollisMode.GT.1) THEN
-      ! set rotational energies
-      ErotWall = 0
-      ErotOld  = ErotWall
-      ErotNew  = PartStateIntEn(2,PartID)
-      ! fill rotational internal array
-      IntArray(1) = ErotOld
-      IntArray(2) = ErotWall
-      IntArray(3) = ErotNew
-      ! set vibrational energies
-      EvibWall = 0 ! calculated and added in particle desorption calculation
-      EvibOld  = EvibWall ! calculated and added in particle desorption calculation
-      EvibNew  = PartStateIntEn(1,PartID)
-      ! fill vibrational internal array
-      IntArray(4) = EvibOld
-      IntArray(5) = EvibWall
-      IntArray(6) = EvibNew
-    ELSE
-      IntArray(:) = 0.
-    END IF
     ! sample values
-    CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray,.False.,emission_opt=.TRUE.)
+    CALL CalcWallSample(PartID,SurfSideID,p,q,'new')
     currentSurfFluxPart => currentSurfFluxPart%next
 #if USE_LOADBALANCE
     CALL LBElemSplitTime(PEM%LocalElemID(PartID),tLBStart)
@@ -1556,7 +1477,7 @@ USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
 USE MOD_Particle_Vars           ,ONLY: PDM
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
-USE MOD_DSMC_Init               ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_part_emission_tools     ,ONLY: DSMC_SetInternalEnr_LauxVFD
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1589,7 +1510,7 @@ SUBROUTINE ParticleSurfaceflux()
 ! Modules
 USE MOD_Globals
 USE MOD_Particle_Vars
-USE MOD_DSMC_Symmetry           ,ONLY: CalcRadWeightMPF
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, RadialWeighting
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
@@ -1688,7 +1609,6 @@ __STAMP__&
           ndist(1:3) = BCdata_auxSF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%ndist(1:3)
         END IF
 
-        IF (PartBound%Reactive(currentBC)) CALL CalcExtraPartsReactiveBC(iSpec,iSF)
         ! REQUIRED LATER FOR THE POSITION START
         IF(Symmetry%Axisymmetric) CALL DefineSideDirectVec2D(SideID, xyzNod, minPos, RVec)
 
