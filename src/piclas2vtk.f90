@@ -17,16 +17,16 @@
 !> readable by ParaView. Supports parallel readin.
 !> The state files can come from different calculations with different mesh files, equation systems, polynomial degrees and so on.
 !> Two modes of usage: command line mode and parameter file mode.
-!> In parameter file mode the usage is: h5piclas2vtk parameter.ini State1.h5 State2.h5 State3.h5 ...
+!> In parameter file mode the usage is: piclas2vtk parameter.ini State1.h5 State2.h5 State3.h5 ...
 !> In the parameter file the following can be specified:
 !> - NVisu: Integer, polynomial degree of visualization basis
 !> - NodeTypeVisu: String, node type of visualization basis
 !> - useCurveds: Logical, should the mesh be curved or not (if the mesh itself is curved)
 !> In command line mode, only the degree of the visualization basis can be directly specified, no parameter file is needed:
-!> h5piclas2vtk --NVisu=INTEGER State1.h5 State2.h5 State3.h5 ...
+!> piclas2vtk --NVisu=INTEGER State1.h5 State2.h5 State3.h5 ...
 !> All other options are set to their standard values.
 !==================================================================================================================================
-MODULE MOD_h5piclas2vtk_Vars
+MODULE MOD_piclas2vtk_Vars
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -48,9 +48,9 @@ END TYPE
 
 TYPE (tSurfaceConnect)               :: SurfConnect
 
-END MODULE MOD_h5piclas2vtk_Vars
+END MODULE MOD_piclas2vtk_Vars
 
-PROGRAM H5PICLAS2VTK
+PROGRAM piclas2vtk
 ! MODULES
 USE MOD_Globals_Vars
 USE MOD_StringTools
@@ -137,8 +137,8 @@ CALL InitMPI()
 CALL ParseCommandlineArguments()
 !CALL DefineParametersMPI()
 !CALL DefineParametersIO_HDF5()
-! Define parameters for H5PICLAS2VTK
-CALL prms%SetSection("H5PICLAS2VTK")
+! Define parameters for piclas2vtk
+CALL prms%SetSection("piclas2vtk")
 CALL prms%CreateStringOption( 'NodeTypeVisu',"Node type of the visualization basis: "//&
                                              "VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO", 'VISU')
 CALL prms%CreateIntOption(    'NVisu',       "Number of points at which solution is sampled for visualization.")
@@ -202,23 +202,23 @@ END IF
 
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)')
-SWRITE(UNIT_stdOut,'(A)')"                  .----------.                                 _..._"
-SWRITE(UNIT_stdOut,'(A)')"                 /          /                               .-'_..._''. .---.                         .-''-."
-SWRITE(UNIT_stdOut,'(A)')"   .            /   ______.'_________   _...._      .--.  .' .'      '.\|   |                       .' .-.  ).----.     .----.          ."
-SWRITE(UNIT_stdOut,'(A)')" .'|           /   /_       \        |.'      '-.   |__| / .'           |   |                      / .'  / /  \    \   /    /         .'|"
-SWRITE(UNIT_stdOut,'(A)')"<  |          /      '''--.  \        .'```'.    '. .--.. '             |   |                     (_/   / /    '   '. /'   /    .|  .'  |"
-SWRITE(UNIT_stdOut,'(A)')" | |         '___          `. \      |       \     \|  || |             |   |    __                    / /     |    |'    /   .' |_<    |"
-SWRITE(UNIT_stdOut,'(A)')" | | .'''-.      `'.         | |     |        |    ||  || |             |   | .:--.'.         _       / /      |    ||    | .'     ||   | ____"
-SWRITE(UNIT_stdOut,'(A)')" | |/.'''. \        )        | |      \      /    . |  |. '             |   |/ |   \ |      .' |     . '       '.   `'   .''--.  .-'|   | \ .'"
-SWRITE(UNIT_stdOut,'(A)')" |  /    | |......-'        /  |     |\`'-.-'   .'  |  | \ '.          .|   |`' __ | |     .   | /  / /    _.-')\        /    |  |  |   |/  ."
-SWRITE(UNIT_stdOut,'(A)')" | |     | |\          _..'`   |     | '-....-'`    |__|  '. `._____.-'/|   | .'.''| |   .'.'| |//.' '  _.'.-''  \      /     |  |  |    /\  \"
-SWRITE(UNIT_stdOut,'(A)')" | |     | | '------'''       .'     '.                     `-.______ / '---'/ /   | |_.'.'.-'  //  /.-'_.'       '----'      |  '.'|   |  \  \"
-SWRITE(UNIT_stdOut,'(A)')" | '.    | '.               '-----------'                            `       \ \._,\ '/.'   \_.'/    _.'                      |   / '    \  \  \"
-SWRITE(UNIT_stdOut,'(A)')" '---'   '---'                                                                `--'  `'         ( _.-'                         `'-' '------'  '---'"
+SWRITE(UNIT_stdOut,'(A)')"                                   _..._"
+SWRITE(UNIT_stdOut,'(A)')"                                .-'_..._''. .---.                         .-''-."
+SWRITE(UNIT_stdOut,'(A)')"_________   _...._      .--.  .' .'      '.\|   |                       .' .-.  ).----.     .----.          ."
+SWRITE(UNIT_stdOut,'(A)')"\        |.'      '-.   |__| / .'           |   |                      / .'  / /  \    \   /    /         .'|"
+SWRITE(UNIT_stdOut,'(A)')" \        .'```'.    '. .--.. '             |   |                     (_/   / /    '   '. /'   /    .|  .'  |"
+SWRITE(UNIT_stdOut,'(A)')"  \      |       \     \|  || |             |   |    __                    / /     |    |'    /   .' |_<    |"
+SWRITE(UNIT_stdOut,'(A)')"   |     |        |    ||  || |             |   | .:--.'.         _       / /      |    ||    | .'     ||   | ____"
+SWRITE(UNIT_stdOut,'(A)')"   |      \      /    . |  |. '             |   |/ |   \ |      .' |     . '       '.   `'   .''--.  .-'|   | \ .'"
+SWRITE(UNIT_stdOut,'(A)')"   |     |\`'-.-'   .'  |  | \ '.          .|   |`' __ | |     .   | /  / /    _.-')\        /    |  |  |   |/  ."
+SWRITE(UNIT_stdOut,'(A)')"   |     | '-....-'`    |__|  '. `._____.-'/|   | .'.''| |   .'.'| |//.' '  _.'.-''  \      /     |  |  |    /\  \"
+SWRITE(UNIT_stdOut,'(A)')"  .'     '.                     `-.______ / '---'/ /   | |_.'.'.-'  //  /.-'_.'       '----'      |  '.'|   |  \  \"
+SWRITE(UNIT_stdOut,'(A)')"'-----------'                            `       \ \._,\ '/.'   \_.'/    _.'                      |   / '    \  \  \"
+SWRITE(UNIT_stdOut,'(A)')"                                                  `--'  `'         ( _.-'                         `'-' '------'  '---'"
 SWRITE(UNIT_stdOut,'(A)')
 SWRITE(UNIT_stdOut,'(132("="))')
 
-! Set and read in parameters differently depending if H5PICLAS2VTK is invoked with a parameter file or not
+! Set and read in parameters differently depending if piclas2vtk is invoked with a parameter file or not
 IF(NVisuDefault.OR.CmdLineMode) THEN
   IF(NVisuDefault) THEN
     NVisu = 1
@@ -250,7 +250,7 @@ ELSE
   NVisu            = GETINT('NVisu')                  ! Degree of visualization basis
 END IF
 
-! Set necessary parameters for H5PICLAS2VTK tool
+! Set necessary parameters for piclas2vtk tool
 ! If no parameter file has been set, the standard values will be used
 NodeTypeVisuOut  = GETSTR('NodeTypeVisu','VISU')    ! Node type of visualization basis
 useCurveds       = GETLOGICAL('useCurveds','.FALSE.')  ! Allow curved mesh or not
@@ -323,7 +323,7 @@ DO iArgs = iArgsStart,nArgs
   CALL DatasetExists(File_ID,'BGField',BGFieldExists)
 
   IF(ElemDataExists.OR.SurfaceDataExists) THEN
-    CALL ReadMesh_h5piclas2vtk(InputStateFile,SurfaceDataExists,ElemMeshInit,SurfMeshInit)
+    CALL ReadMesh_piclas2vtk(InputStateFile,SurfaceDataExists,ElemMeshInit,SurfMeshInit)
   END IF
   ! === DG_Solution ================================================================================================================
   ! Read in parameters from the State file
@@ -569,10 +569,10 @@ IF(iError .NE. 0) THEN
 END IF
 #endif
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' H5PICLAS2VTK FINISHED! [',Time-StartTime,' sec ]'
+SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' piclas2vtk FINISHED! [',Time-StartTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
 
-END PROGRAM H5PICLAS2VTK
+END PROGRAM piclas2vtk
 
 SUBROUTINE WriteDataToVTK_PICLas(data_size,FileString,nVar,VarNameVisu,nNodes,Coords,nElems,Value,ConnectInfo)
 !===================================================================================================================================
@@ -762,7 +762,7 @@ SDEALLOCATE(VarNameCombineLen)
 END SUBROUTINE WriteDataToVTK_PICLas
 
 
-SUBROUTINE ReadMesh_h5piclas2vtk(InputStateFile,SurfaceDataExists,ElemMeshInit,SurfMeshInit)
+SUBROUTINE ReadMesh_piclas2vtk(InputStateFile,SurfaceDataExists,ElemMeshInit,SurfMeshInit)
 !===================================================================================================================================
 !
 !===================================================================================================================================
@@ -775,7 +775,7 @@ USE MOD_Mesh_Vars           ,ONLY: nElems, nGlobalElems, NGeo
 USE MOD_Particle_Mesh_Vars  ,ONLY: nNonUniqueGlobalSides,nNonUniqueGlobalNodes
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemNodeID_Shared,ElemSideNodeID_Shared,NodeCoords_Shared,SideInfo_Shared,NodeInfo_Shared
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemInfo_Shared
-USE MOD_h5piclas2vtk_Vars   ,ONLY: NodeCoords_Connect, ElemUniqueNodeID, nUniqueNodes
+USE MOD_piclas2vtk_Vars     ,ONLY: NodeCoords_Connect, ElemUniqueNodeID, nUniqueNodes
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -919,7 +919,7 @@ IF(SurfaceDataExists.AND..NOT.SurfMeshInit) THEN
   SurfMeshInit = .TRUE.
 END IF
 
-END SUBROUTINE ReadMesh_h5piclas2vtk
+END SUBROUTINE ReadMesh_piclas2vtk
 
 
 SUBROUTINE ConvertPartData(InputStateFile)
@@ -1034,12 +1034,12 @@ SUBROUTINE ConvertElemData(InputStateFile)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY: ProjectName
-USE MOD_IO_HDF5,                ONLY: HSize
-USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize
-USE MOD_Mesh_ReadIn,            ONLY: readMesh
-USE MOD_Mesh_Vars,              ONLY: nElems, offsetElem
-USE MOD_h5piclas2vtk_Vars      ,ONLY: nUniqueNodes, NodeCoords_Connect, ElemUniqueNodeID
+USE MOD_Globals_Vars    ,ONLY: ProjectName
+USE MOD_IO_HDF5         ,ONLY: HSize
+USE MOD_HDF5_Input      ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize
+USE MOD_Mesh_ReadIn     ,ONLY: readMesh
+USE MOD_Mesh_Vars       ,ONLY: nElems, offsetElem
+USE MOD_piclas2vtk_Vars ,ONLY: nUniqueNodes, NodeCoords_Connect, ElemUniqueNodeID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1101,10 +1101,10 @@ SUBROUTINE ConvertSurfaceData(InputStateFile)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars          ,ONLY: ProjectName
-USE MOD_IO_HDF5               ,ONLY: HSize
-USE MOD_HDF5_Input            ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray
-USE MOD_h5piclas2vtk_Vars     ,ONLY: SurfConnect
+USE MOD_Globals_Vars    ,ONLY: ProjectName
+USE MOD_IO_HDF5         ,ONLY: HSize
+USE MOD_HDF5_Input      ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray
+USE MOD_piclas2vtk_Vars ,ONLY: SurfConnect
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1130,7 +1130,7 @@ CALL ReadAttribute(File_ID,'DSMC_nSurfSample',1,IntegerScalar=nSurfSample)
 IF(nSurfSample.NE.1) THEN
   CALL abort(&
       __STAMP__&
-      ,'Error in h5piclas2vtk: Conversion to VTK only possible for DSMC_nSurfSample=1!')
+      ,'Error in piclas2vtk: Conversion to VTK only possible for DSMC_nSurfSample=1!')
 END IF
 
 CALL GetDataSize(File_ID,'SurfaceData',nDims,HSize)
@@ -1185,13 +1185,13 @@ SUBROUTINE BuildSurfMeshConnectivity(InputStateFile)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_IO_HDF5               ,ONLY: HSize
-USE MOD_HDF5_Input            ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray,GetDataSize
-USE MOD_Mesh_ReadIn           ,ONLY: readMesh
-USE MOD_Mesh_Vars             ,ONLY: BoundaryName
-USE MOD_h5piclas2vtk_Vars     ,ONLY: SurfConnect
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemSideNodeID_Shared,SideInfo_Shared,NodeCoords_Shared,NodeInfo_Shared
-USE MOD_Particle_Mesh_Vars    ,ONLY: nNonUniqueGlobalSides
+USE MOD_IO_HDF5            ,ONLY: HSize
+USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray,GetDataSize
+USE MOD_Mesh_ReadIn        ,ONLY: readMesh
+USE MOD_Mesh_Vars          ,ONLY: BoundaryName
+USE MOD_piclas2vtk_Vars    ,ONLY: SurfConnect
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared,SideInfo_Shared,NodeCoords_Shared,NodeInfo_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: nNonUniqueGlobalSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
