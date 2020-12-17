@@ -1530,6 +1530,9 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping
 USE MOD_LoadBalance_Vars        ,ONLY: nSurfacefluxPerElem
 USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1563,6 +1566,9 @@ DO iSpec=1,nSpecies
     IF(CalcMassflowRate) Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = 0.
     IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
       IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
+#if USE_MPI
+        CALL MPI_ALLREDUCE(MPI_IN_PLACE,Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,IERROR)
+#endif
         IF(.NOT.ALMOSTEQUAL(Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow,0.)) CALL AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
       END IF
     END IF
@@ -1572,6 +1578,7 @@ DO iSpec=1,nSpecies
 
 !----- 0.: go through (sub)sides if present in proc
     IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) THEN
+      Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0
       CYCLE
     ELSE IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
       CALL abort(&
@@ -2776,6 +2783,9 @@ SUBROUTINE CalcConstMassflowWeightForZeroMassFlow(iSpec,iSF)
 USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY:Species
 USE MOD_Particle_Surfaces_Vars      ,ONLY:SurfMeshSubSideData, BCdata_auxSF, SurfFluxSideSize
+#if USE_MPI
+USE MOD_Particle_MPI_Vars           ,ONLY: PartMPI
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2787,6 +2797,9 @@ INTEGER, INTENT(IN)             :: iSpec, iSF
 ! LOCAL VARIABLES
 INTEGER                         :: iSample, jSample, currentBC, iSide, BCSideID
 REAL                            :: ProcBC_Area
+#if USE_MPI
+REAL                  :: totalAreaSF_global
+#endif
 !===================================================================================================================================
 
 ProcBC_Area = 0.0
@@ -2797,7 +2810,12 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
     ProcBC_Area = ProcBC_Area + SurfMeshSubSideData(iSample,jSample,BCSideID)%area
   END DO; END DO
 END DO
-
+#if USE_MPI
+totalAreaSF_global = 0.0
+CALL MPI_ALLREDUCE(ProcBC_Area,totalAreaSF_global,1, &
+                     MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
+ProcBC_Area=totalAreaSF_global
+#endif
 DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
   BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
   DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
