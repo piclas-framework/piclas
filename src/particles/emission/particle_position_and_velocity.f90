@@ -33,8 +33,12 @@ INTERFACE SetParticleVelocity
   MODULE PROCEDURE SetParticleVelocity
 END INTERFACE
 
+INTERFACE AD_SetInitElectronVelo
+  MODULE PROCEDURE AD_SetInitElectronVelo
+END INTERFACE
+
 !===================================================================================================================================
-PUBLIC         :: SetParticleVelocity,SetParticlePosition
+PUBLIC         :: SetParticleVelocity,SetParticlePosition, AD_SetInitElectronVelo
 !===================================================================================================================================
 CONTAINS
 
@@ -45,7 +49,7 @@ SUBROUTINE SetParticlePositionCellLocal(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
+USE MOD_Particle_Vars          ,ONLY: Species,Symmetry
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
 USE MOD_part_Emission_Tools    ,ONLY: IntegerDivide,SetCellLocalParticlePosition
 #if USE_MPI
@@ -125,6 +129,7 @@ __STAMP__&
 
 END SUBROUTINE SetParticlePositionCellLocal
 
+
 SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! Set particle position
@@ -155,7 +160,7 @@ INTEGER,INTENT(INOUT)                    :: NbrOfParticle
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE                         :: particle_positions(:)
 INTEGER                                  :: i,ParticleIndexNbr,allocStat,nChunks, chunkSize
-INTEGER                                  :: mySumOfMatchedParticles, sumOfMatchedParticles, DimSend
+INTEGER                                  :: DimSend
 #if USE_MPI
 INTEGER                                  :: InitGroup
 #endif
@@ -164,12 +169,14 @@ IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
   CALL SetParticlePositionCellLocal(FractNbr,iInit,NbrOfParticle)
   RETURN
 END IF
-IF ( (NbrOfParticle .LE. 0).AND. (ABS(Species(FractNbr)%Init(iInit)%PartDensity).LE.0.) ) RETURN
 
-DimSend=3 !save (and send) only positions
-nChunks = 1                   ! Standard: Nicht-MPI
-sumOfMatchedParticles = 0
-mySumOfMatchedParticles = 0
+Species(FractNbr)%Init(iInit)%sumOfRequestedParticles = NbrOfParticle
+IF ((NbrOfParticle .LE. 0).AND. (ABS(Species(FractNbr)%Init(iInit)%PartDensity).LE.0.)) RETURN
+
+DimSend  = 3                   !save (and send) only positions
+nChunks  = 1                   ! Standard: Nicht-MPI
+Species(FractNbr)%Init(iInit)%sumOfMatchedParticles   = 0
+Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles = 0
 chunkSize = nbrOfParticle
 ! emission group communicator
 #if USE_MPI
@@ -227,72 +234,55 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
   !------------------SpaceIC-cases: end-------------------------------------------------------------------------------------------
 #if USE_MPI
 ELSE !no mpi root, nchunks=1
-  chunkSize=0
+  chunkSize = 0
 END IF
 ! Need to open MPI communication regardless of the chunk number. Make it only dependent on the number of procs
 IF (PartMPI%InitGroup(InitGroup)%nProcs.GT.1) THEN
-  CALL SendEmissionParticlesToProcs(chunkSize,DimSend,FractNbr,iInit,mySumOfMatchedParticles,particle_positions)
+  CALL SendEmissionParticlesToProcs(chunkSize,DimSend,FractNbr,iInit,Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles,particle_positions)
 ! Finish emission on local proc
 ELSE
-  mySumOfMatchedParticles = 0
-  ParticleIndexNbr        = 1
-  DO i=1,chunkSize
+#endif /*USE_MPI*/
+  Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles = 0
+  ParticleIndexNbr = 1
+  DO i = 1,chunkSize
     ! Find a free position in the PDM array
     IF ((i.EQ.1).OR.PDM%ParticleInside(ParticleIndexNbr)) THEN
-      ParticleIndexNbr = PDM%nextFreePosition(mySumOfMatchedParticles + 1 + PDM%CurrentNextFreePosition)
+      ParticleIndexNbr = PDM%nextFreePosition(Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles + 1 + PDM%CurrentNextFreePosition)
     END IF
     IF (ParticleIndexNbr.NE.0) THEN
       PartState(1:DimSend,ParticleIndexNbr) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
       PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
       CALL LocateParticleInElement(ParticleIndexNbr,doHALO=.FALSE.)
       IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
-        mySumOfMatchedParticles = mySumOfMatchedParticles + 1
-        PDM%IsNewPart(ParticleIndexNbr) = .TRUE.
+        Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles = Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles + 1
+        PDM%IsNewPart(ParticleIndexNbr)  = .TRUE.
         PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
       END IF
     ELSE
-          CALL abort(&
-    __STAMP__&
-    ,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
+          CALL ABORT(__STAMP__,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
     END IF
   END DO
+#if USE_MPI
 END IF
-! we want always warnings to know if the emission has failed. if a timedisc does not require this, this
-! timedisc has to be handled separately
-! check the sum of the matched particles: did each particle find its "home"-CPU?
-CALL MPI_ALLREDUCE( mySumOfMatchedParticles, sumOfMatchedParticles, 1, MPI_INTEGER, MPI_SUM &
-                  , PartMPI%InitGroup(InitGroup)%COMM, IERROR)
-#else
-! in the seriell case, particles are only emitted on the current proc
-sumOfMatchedParticles = mySumOfMatchedParticles
-#endif
 
-#if USE_MPI
-IF(PartMPI%InitGroup(InitGroup)%MPIRoot) THEN
-#endif
-  ! add number of matching error to particle emission to fit
-  ! number of added particles
-  Species(FractNbr)%Init(iInit)%InsertedParticleMisMatch = nbrOfParticle  - sumOfMatchedParticles
-  IF (nbrOfParticle .GT. sumOfMatchedParticles) THEN
-    SWRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
-    SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-    SWRITE(UNIT_StdOut,'(A,I0,A)')'matched only ', sumOfMatchedParticles, ' particles'
-    SWRITE(UNIT_StdOut,'(A,I0,A)')'when ', NbrOfParticle, ' particles were required!'
-  ELSE IF (nbrOfParticle .LT. sumOfMatchedParticles) THEN
-        SWRITE(UNIT_StdOut,'(A)')'ERROR in ParticleEmission_parallel:'
-        SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-        SWRITE(UNIT_StdOut,'(A,I0,A)')'matched ', sumOfMatchedParticles, ' particles'
-        SWRITE(UNIT_StdOut,'(A,I0,A)')'when ', NbrOfParticle, ' particles were required!'
-  ELSE IF (nbrOfParticle .EQ. sumOfMatchedParticles) THEN
-  !  WRITE(UNIT_stdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-  !  WRITE(UNIT_stdOut,'(A,I0,A)')'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
-  END IF
-#if USE_MPI
-END IF ! PartMPI%iProc.EQ.0
-#endif
+! Start communicating matched particles. This routine is finished in particle_emission.f90
+CALL MPI_IREDUCE( Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles &
+                , Species(FractNbr)%Init(iInit)%sumOfMatchedParticles   &
+                , 1                                    &
+                , MPI_INTEGER                          &
+                , MPI_SUM                              &
+                , 0                                    &
+                , PartMPI%InitGroup(InitGroup)%COMM    &
+                , PartMPI%InitGroup(InitGroup)%Request &
+                , IERROR)
+#else
+! in the serial case, particles are only emitted on the current processor
+Species(FractNbr)%Init(iInit)%sumOfMatchedParticles = Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles
+#endif /*USE_MPI*/
+
 ! Return the *local* NbrOfParticle so that the following Routines only fill in
 ! the values for the local particles
-NbrOfParticle = mySumOfMatchedParticles
+NbrOfParticle = Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles
 
 IF (chunkSize.GT.0) THEN
   DEALLOCATE(particle_positions, STAT=allocStat)
@@ -406,5 +396,86 @@ __STAMP__&
 END SELECT
 END SUBROUTINE SetParticleVelocity
 
+SUBROUTINE AD_SetInitElectronVelo(FractNbr,iInit,NbrOfParticle)
+!===================================================================================================================================
+! Deletes all background gas particles and updates the particle index list
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_FPFlow_Init             ,ONLY: FP_BuildTransGaussNums
+USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)              :: FractNbr,iInit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,INTENT(INOUT)           :: NbrOfParticle
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+! LOCAL VARIABLES
+INTEGER                         :: i, PositionNbr
+CHARACTER(30)                   :: velocityDistribution
+REAL                            :: VeloIC, VeloVecIC(3), maxwellfac, VeloVecNorm
+REAL                            :: iRanPart(3, NbrOfParticle), Vec3D(3)
+!===================================================================================================================================
+IF(NbrOfParticle.LT.1) RETURN
+IF(Species(FractNbr)%ChargeIC.LE.0.0) RETURN
+IF(NbrOfParticle.GT.PDM%maxParticleNumber)THEN
+     CALL abort(&
+__STAMP__&
+,'NbrOfParticle > PDM%maxParticleNumber!')
+END IF
+
+velocityDistribution=Species(FractNbr)%Init(iInit)%velocityDistribution
+VeloIC=Species(FractNbr)%Init(iInit)%VeloIC
+VeloVecIC=Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
+VeloVecNorm = VECNORM(VeloVecIC(1:3))
+IF (VeloVecNorm.GT.0.0) THEN
+  VeloVecIC(1:3) = VeloVecIC(1:3) / VECNORM(VeloVecIC(1:3))
+END IF
+
+SELECT CASE(TRIM(velocityDistribution))
+CASE('constant')
+  DO i = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr.GT.0) THEN
+      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
+      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
+      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloVecIC(1:3) * VeloIC 
+    END IF
+  END DO
+CASE('maxwell_lpn')
+  DO i = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr.GT.0) THEN
+      CALL CalcVelocity_maxwell_lpn(DSMC%AmbiDiffElecSpec, Vec3D, Temperature=Species(FractNbr)%Init(iInit)%MWTemperatureIC)
+      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
+      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
+      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloIC *VeloVecIC(1:3) + Vec3D(1:3)
+    END IF
+  END DO
+CASE('maxwell')
+  CALL FP_BuildTransGaussNums(NbrOfParticle, iRanPart)
+  maxwellfac = SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(DSMC%AmbiDiffElecSpec)%MassIC)
+  DO i = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr.GT.0) THEN
+      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
+      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
+      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloIC *VeloVecIC(1:3) + iRanPart(1:3,i)*maxwellfac
+    END IF
+  END DO
+CASE DEFAULT
+  CALL abort(&
+__STAMP__&
+,'Velo-Distri not implemented for ambipolar diffusion!')
+END SELECT
+
+END SUBROUTINE AD_SetInitElectronVelo
 
 END  MODULE MOD_part_pos_and_velo

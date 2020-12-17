@@ -12,7 +12,7 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_macro_restart
+MODULE MOD_Macro_Restart
 !===================================================================================================================================
 ! module for particle emission
 !===================================================================================================================================
@@ -26,7 +26,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
 !----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC         :: MacroRestart_InsertParticles
+PUBLIC         :: MacroRestart_InsertParticles, CalcERot_particle, CalcEVib_particle, CalcEElec_particle
 !===================================================================================================================================
 CONTAINS
 
@@ -37,8 +37,8 @@ SUBROUTINE MacroRestart_InsertParticles()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: Pi
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry           ,ONLY: CalcRadWeightMPF
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, DSMC
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
@@ -77,6 +77,9 @@ DO iElem = 1, nElems
     IF (Symmetry%Axisymmetric) THEN
       IF (RadialWeighting%DoRadialWeighting) THEN
         DO iSpec = 1, nSpecies
+          IF (DSMC%DoAmbipolarDiff) THEN
+            IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+          END IF
           yPartitions = 6
           PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS)
           ! Particle weighting
@@ -116,6 +119,9 @@ DO iElem = 1, nElems
         END DO ! nSpecies
       ELSE ! No RadialWeighting
         DO iSpec = 1, nSpecies
+          IF (DSMC%DoAmbipolarDiff) THEN
+            IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+          END IF
           CALL RANDOM_NUMBER(iRan)
           TempMPF = Species(iSpec)%MacroParticleFactor
           IF(VarTimeStep%UseVariableTimeStep) THEN
@@ -149,6 +155,9 @@ DO iElem = 1, nElems
     ELSE IF(Symmetry%Order.EQ.2) THEN
       Volume = (Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
       DO iSpec = 1, nSpecies
+        IF (DSMC%DoAmbipolarDiff) THEN
+          IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+        END IF
         CALL RANDOM_NUMBER(iRan)
         TempMPF = Species(iSpec)%MacroParticleFactor
         IF(VarTimeStep%UseVariableTimeStep) THEN
@@ -180,6 +189,9 @@ DO iElem = 1, nElems
     ELSE IF(Symmetry%Order.EQ.1) THEN
       Volume = (Bounds(2,1) - Bounds(1,1))
       DO iSpec = 1, nSpecies
+        IF (DSMC%DoAmbipolarDiff) THEN
+          IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+        END IF
         CALL RANDOM_NUMBER(iRan)
         TempMPF = Species(iSpec)%MacroParticleFactor
         IF(VarTimeStep%UseVariableTimeStep) THEN
@@ -213,6 +225,9 @@ DO iElem = 1, nElems
 ! #################### 3D ##########################################################################################################
       Volume = (Bounds(2,3) - Bounds(1,3))*(Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
       DO iSpec = 1, nSpecies
+        IF (DSMC%DoAmbipolarDiff) THEN
+          IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+        END IF
         CALL RANDOM_NUMBER(iRan)
         TempMPF = Species(iSpec)%MacroParticleFactor
         IF(VarTimeStep%UseVariableTimeStep) THEN
@@ -260,11 +275,11 @@ SUBROUTINE MacroRestart_InitializeParticle_Maxwell(iPart,iSpec,iElem)
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
-USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, VarTimeStep, PartMPF
-USE MOD_DSMC_Vars               ,ONLY: DSMC, PartStateIntEn, CollisMode, SpecDSMC, RadialWeighting
+USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, VarTimeStep, PartMPF, Species
+USE MOD_DSMC_Vars               ,ONLY: DSMC, PartStateIntEn, CollisMode, SpecDSMC, RadialWeighting, AmbipolElecVelo
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
-USE MOD_DSMC_Symmetry           ,ONLY: CalcRadWeightMPF
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -281,6 +296,14 @@ INTEGER, INTENT(IN)             :: iPart, iSpec, iElem
 PartState(4:6,iPart) = CalcVelocity_maxwell_particle(iSpec,MacroRestartValues(iElem,iSpec,4:6)) &
                           + MacroRestartValues(iElem,iSpec,1:3)
 
+IF (DSMC%DoAmbipolarDiff) THEN
+  IF(Species(iSpec)%ChargeIC.GT.0.0) THEN
+    IF (ALLOCATED(AmbipolElecVelo(iPart)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(iPart)%ElecVelo)
+    ALLOCATE(AmbipolElecVelo(iPart)%ElecVelo(3))
+    AmbipolElecVelo(iPart)%ElecVelo(1:3) = CalcVelocity_maxwell_particle(DSMC%AmbiDiffElecSpec, &
+          MacroRestartValues(iElem,DSMC%AmbiDiffElecSpec,4:6)) + MacroRestartValues(iElem,DSMC%AmbiDiffElecSpec,1:3)
+  END IF
+END IF
 ! 2) Set internal energies (rotational, vibrational, electronic)
 IF(CollisMode.GT.1) THEN
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
@@ -488,4 +511,4 @@ RETURN
 END FUNCTION CalcEElec_particle
 
 
-END MODULE MOD_macro_restart
+END MODULE MOD_Macro_Restart

@@ -788,10 +788,10 @@ ENDFOREACH()
 ADD_CUSTOM_TARGET(preproc_defines COMMAND echo ${comp_defs_str})
 
 # =========================================================================
-# Add H5piclas2VTK tool
+# Add piclas2vtk tool
 # =========================================================================
-add_exec(h5piclas2vtk ./src/h5piclas2vtk.f90)
-ADD_DEPENDENCIES(h5piclas2vtk libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
+add_exec(piclas2vtk ./src/piclas2vtk.f90)
+ADD_DEPENDENCIES(piclas2vtk libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
 
 # =========================================================================
 # Posti

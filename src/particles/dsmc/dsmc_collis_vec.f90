@@ -170,7 +170,7 @@ LOGICAL,INTENT(IN),OPTIONAL :: ForceUnitVector
 ! LOCAL VARIABLES
 REAL                 :: VeloVec(3)
 !===================================================================================================================================
-VeloVec(:) = SQRT (Coll_pData(iPair)%cRela2) * DiceUnitVector()
+VeloVec(:) = SQRT(Coll_pData(iPair)%cRela2) * DiceUnitVector()
 RETURN
 IF(PRESENT(ForceUnitVector)) THEN
 END IF

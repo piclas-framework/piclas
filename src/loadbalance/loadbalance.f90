@@ -299,7 +299,7 @@ IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
         + tCurrent(LB_SURFFLUX)  * nSurfacefluxPerElem(iElem)*stotalSurfacefluxes &
         + tCurrent(LB_SURF)     * nSurfacePartsPerElem(iElem)*stotalSurfaceParts
     ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
-    IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+    IF(StringBeginsWith(DepositionType,'shape_function'))THEN
       ElemTimePartElem = ElemTimePartElem &
           + tCurrent(LB_DEPOSITION) * nDeposPerElem(iElem)*stotalDepos
     END IF
@@ -432,7 +432,7 @@ SWRITE(UNIT_stdOut,'(A,ES9.3,A,ES9.3,A,ES9.3,A,ES9.3)')&
 
 #ifdef PARTICLES
 ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
-IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
   ! send number of particles

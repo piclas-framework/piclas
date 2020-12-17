@@ -758,7 +758,6 @@ USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfac
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles,CalculatePartElemData,WriteParticleTrackingData
 USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep,DoPartAnalyze,TrackParticlePosition
-USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfaceAnalyzeStep
 USE MOD_SurfaceModel_Analyze      ,ONLY: AnalyzeSurface
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
@@ -770,8 +769,8 @@ USE MOD_FPFlow_Vars               ,ONLY: FPInitDone, FP_QualityFacSamp
 #if !defined(LSERK)
 USE MOD_DSMC_Vars                 ,ONLY: useDSMC
 #endif
-USE MOD_Particle_Boundary_Vars    ,ONLY: AnalyzeSurfCollis, CalcSurfCollis, nPorousBC
-USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides, SampWall, PartBound, CalcSurfaceImpact
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
+USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides, CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,SampWallImpactEnergy,SampWallImpactVector
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallPumpCapacity,SampWallImpactAngle,SampWallImpactNumber
 USE MOD_DSMC_Analyze              ,ONLY: DSMC_data_sampling, WriteDSMCToHDF5
@@ -1065,11 +1064,6 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
     CALL CalcSurfaceValues()
     DO iSide=1,nComputeNodeSurfTotalSides
       SampWallState(:,:,:,iSide)=0.
-      IF (ANY(PartBound%Reactive)) THEN
-        SampWall(iSide)%SurfModelState=0.
-        SampWall(iSide)%Accomodation=0.
-        SampWall(iSide)%SurfModelReactCount=0.
-      END IF
       IF(nPorousBC.GT.0) THEN
         SampWallPumpCapacity(iSide)=0.
       END IF
@@ -1081,14 +1075,6 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
         SampWallImpactNumber(:,:,:,  iSide)=0.
       END IF ! CalcSurfaceImpact
     END DO
-    Adsorption%NumCovsamples=0
-    IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
-      AnalyzeSurfCollis%Data=0.
-      AnalyzeSurfCollis%Spec=0
-      AnalyzeSurfCollis%BCid=0
-      AnalyzeSurfCollis%Number=0
-      !AnalyzeSurfCollis%Rate=0.
-    END IF
     iter_macsurfvalout = 0
   END IF
 END IF
@@ -1123,13 +1109,6 @@ IF(OutPutHDF5)THEN
         DO iSide=1,nComputeNodeSurfTotalSides
           SampWallState(:,:,:,iSide)=0.
         END DO
-        IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
-          AnalyzeSurfCollis%Data=0.
-          AnalyzeSurfCollis%Spec=0
-          AnalyzeSurfCollis%BCid=0
-          AnalyzeSurfCollis%Number=0
-          !AnalyzeSurfCollis%Rate=0.
-        END IF
         iter_macsurfvalout = 0
       END IF
     END IF

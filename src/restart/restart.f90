@@ -308,9 +308,10 @@ USE MOD_Equation_Vars          ,ONLY: Phi
 #ifdef PARTICLES
 USE MOD_Restart_Tools          ,ONLY: ReadNodeSourceExtFromHDF5
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
-USE MOD_Particle_Vars          ,ONLY: PartState, PartSpecies, PEM, PDM, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset
+USE MOD_Particle_Vars          ,ONLY: PartState, PartSpecies, PEM, PDM, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset, Species
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition,StoreLostParticleProperties
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,PartStateIntEn,DSMC,VibQuantsPar,PolyatomMolDSMC,SpecDSMC,RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 USE MOD_Eval_XYZ               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
@@ -319,14 +320,9 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,NbrOfLostParticles, NbrOfLo
 #if !(USE_MPI)
 USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts
 #endif /*!(USE_MPI)*/
-USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfBC
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample,SurfMesh,offSetSurfSide,PartBound,nPartBound
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
-USE MOD_Particle_Tracking      ,ONLY: ParticleCollectCharges
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition, RelaxDeposition, PartSourceOld
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 #endif /*PARTICLES*/
@@ -381,10 +377,12 @@ INTEGER,PARAMETER                  :: ELEM_LastPartInd=2
 REAL,ALLOCATABLE                   :: PartData(:,:)
 REAL                               :: xi(3)
 LOGICAL                            :: InElementCheck,PartIntExists,PartDataExists,VibQuantDataExists,changedVars,DGSourceExists
+LOGICAL                            :: ElecDistriDataExists, AD_DataExists
 REAL                               :: det(6,2)
 INTEGER                            :: NbrOfMissingParticles, CounterPoly
 INTEGER, ALLOCATABLE               :: VibQuantData(:,:)
-INTEGER                            :: MaxQuantNum, iPolyatMole, iSpec, iPart, iVar
+REAL, ALLOCATABLE                  :: ElecDistriData(:,:), AD_Data(:,:)
+INTEGER                            :: MaxQuantNum, iPolyatMole, iSpec, iPart, iVar, MaxElecQuant, CounterElec, CounterAmbi
 ! 2D Symmetry RadialWeighting
 LOGICAL                            :: CloneExists
 #if USE_MPI
@@ -392,27 +390,19 @@ REAL, ALLOCATABLE                  :: SendBuff(:), RecBuff(:)
 INTEGER                            :: TotalNbrOfMissingParticles(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
 INTEGER                            :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PartMPI%nProcs-1)
 INTEGER, ALLOCATABLE               :: SendBuffPoly(:), RecBuffPoly(:)
+REAL, ALLOCATABLE                  :: SendBuffAmbi(:), RecBuffAmbi(:), SendBuffElec(:), RecBuffElec(:)
 INTEGER                            :: LostPartsPoly(0:PartMPI%nProcs-1), DisplacePoly(0:PartMPI%nProcs-1)
+INTEGER                            :: LostPartsElec(0:PartMPI%nProcs-1), DisplaceElec(0:PartMPI%nProcs-1)
+INTEGER                            :: LostPartsAmbi(0:PartMPI%nProcs-1), DisplaceAmbi(0:PartMPI%nProcs-1)
 #endif /*USE_MPI*/
-INTEGER                            :: locnSurfPart,offsetnSurfPart
-INTEGER,ALLOCATABLE                :: SurfPartInt(:,:,:,:,:)
-INTEGER,ALLOCATABLE                :: SurfPartData(:,:)
-REAL,ALLOCATABLE                   :: SurfCalcData(:,:,:,:,:)
 REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
-INTEGER                            :: Coordinations, SurfPartIntSize, SurfPartDataSize
-INTEGER                            :: UsedSiteMapPos, nVar, nfreeArrayindeces, lastfreeIndx, current
-INTEGER                            :: xpos, ypos, firstpart, lastpart, PartBoundID, SideID
-INTEGER                            :: iCoord, SpecID, iSurfSide, isubsurf, jsubsurf, iInterAtom
-INTEGER                            :: nSpecies_HDF5, nSurfSample_HDF5, nSurfBC_HDF5, nSurfSides_HDF5
-LOGICAL                            :: SurfCalcDataExists, SurfPartIntExists, SurfPartDataExists, MoveToLastFree, implemented
+LOGICAL                            :: implemented
 LOGICAL,ALLOCATABLE                :: readVarFromState(:)
-LOGICAL                            :: WallmodelExists(1:nPartBound), SurfModelTypeExists
-INTEGER,ALLOCATABLE                :: SurfModelType(:)
 INTEGER                            :: i
 #endif
 INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
 #if USE_HDG
-INTEGER                            :: iSide,MinGlobalSideID,MaxGlobalSideID
+INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID
 REAL,ALLOCATABLE                   :: ExtendedLambda(:,:,:)
 INTEGER                            :: p,q,r,rr,pq(1:2)
 INTEGER                            :: iLocSide,iLocSide_NB,iLocSide_master
@@ -736,6 +726,15 @@ IF(DoRestart)THEN
       END DO ! iSpec = 1, nSpecies
     END IF ! useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)
 
+    IF (useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+      MaxElecQuant = 0
+      DO iSpec = 1, nSpecies
+        IF (.NOT.((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized)) THEN
+          IF (SpecDSMC(iSpec)%MaxElecQuant.GT.MaxElecQuant) MaxElecQuant = SpecDSMC(iSpec)%MaxElecQuant
+        END IF
+      END DO
+    END IF
+
     SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Reading Particles from Restartfile...'
     !read local ElemInfo from HDF5
     FirstElemInd=offsetElem+1
@@ -803,7 +802,7 @@ IF(DoRestart)THEN
         CALL ReadArray('PartData',2,(/INT(PartDataSize_HDF5,IK),locnPart/),offsetnPart,2,RealArray=PartData)!,&
         !xfer_mode_independent=.TRUE.)
 
-        IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+        IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0).AND.locnPart.GT.0) THEN
           CALL DatasetExists(File_ID,'VibQuantData',VibQuantDataExists)
           IF (.NOT.VibQuantDataExists) CALL abort(&
               __STAMP__&
@@ -813,6 +812,28 @@ IF(DoRestart)THEN
           CALL ReadArray('VibQuantData',2,(/INT(MaxQuantNum,IK),locnPart/),offsetnPart,2,IntegerArray_i4=VibQuantData)
           !+1 is real number of necessary vib quants for the particle
         END IF ! useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)
+
+        IF (useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel.AND.locnPart.GT.0) THEN
+          CALL DatasetExists(File_ID,'ElecDistriData',ElecDistriDataExists)
+          IF (.NOT.ElecDistriDataExists) CALL abort(&
+              __STAMP__&
+              ,' Restart file does not contain "ElecDistriDataExists" in restart file for reading of electronic data')
+          ALLOCATE(ElecDistriData(MaxElecQuant,offsetnPart+1_IK:offsetnPart+locnPart))
+
+          CALL ReadArray('ElecDistriData',2,(/INT(MaxElecQuant,IK),locnPart/),offsetnPart,2,RealArray=ElecDistriData)
+          !+1 is real number of necessary vib quants for the particle
+        END IF
+
+        IF (useDSMC.AND.DSMC%DoAmbipolarDiff.AND.locnPart.GT.0) THEN
+          CALL DatasetExists(File_ID,'ADVeloData',AD_DataExists)
+          IF (.NOT.AD_DataExists) CALL abort(&
+              __STAMP__&
+              ,' Restart file does not contain "ADVeloData" in restart file for reading of ambipolar diffusion data')
+          ALLOCATE(AD_Data(3,offsetnPart+1_IK:offsetnPart+locnPart))
+
+          CALL ReadArray('ADVeloData',2,(/INT(3,IK),locnPart/),offsetnPart,2,RealArray=AD_Data)
+          !+1 is real number of necessary vib quants for the particle
+        END IF
 
         iPart=0
         DO iLoop = 1_IK,locnPart
@@ -872,6 +893,23 @@ IF(DoRestart)THEN
             END IF ! SpecDSMC(PartSpecies(iPart))%PolyatomicMol
           END IF ! useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)
 
+          IF (useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+            IF (.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized)) THEN
+              IF(ALLOCATED(ElectronicDistriPart(iPart)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(iPart)%DistriFunc)
+              ALLOCATE(ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant))
+              ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant)= &
+              ElecDistriData(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant,offsetnPart+iLoop)
+            END IF
+          END IF 
+
+          IF (useDSMC.AND.DSMC%DoAmbipolarDiff) THEN
+            IF (Species(PartSpecies(iPart))%ChargeIC.GT.0.0) THEN
+              IF(ALLOCATED(AmbipolElecVelo(iPart)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(iPart)%ElecVelo)
+              ALLOCATE(AmbipolElecVelo(iPart)%ElecVelo(1:3))
+              AmbipolElecVelo(iPart)%ElecVelo(1:3)= AD_Data(1:3,offsetnPart+iLoop)
+            END IF
+          END IF
+
           PDM%ParticleInside(iPart) = .TRUE.
         END DO ! iLoop = 1_IK,locnPart
         iPart = 0
@@ -887,7 +925,13 @@ IF(DoRestart)THEN
         END DO ! iElem=FirstElemInd,LastElemInd
         DEALLOCATE(PartData)
         IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-          DEALLOCATE(VibQuantData)
+          SDEALLOCATE(VibQuantData)
+        END IF
+        IF (useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+          SDEALLOCATE(ElecDistriData)
+        END IF
+        IF (useDSMC.AND.DSMC%DoAmbipolarDiff) THEN
+          SDEALLOCATE(AD_Data)
         END IF
       ELSE ! not PartDataExists
         SWRITE(UNIT_stdOut,*)'PartData does not exists in restart file'
@@ -912,6 +956,8 @@ IF(DoRestart)THEN
       NbrOfMissingParticles = 0
       NbrOfLostParticles    = 0
       CounterPoly           = 0
+      CounterElec           = 0
+      CounterAmbi           = 0
 
       SELECT CASE(TrackingMethod)
         CASE(TRIATRACKING)
@@ -934,6 +980,16 @@ IF(DoRestart)THEN
                   IF (SpecDSMC(PartSpecies(i))%PolyatomicMol) THEN
                     iPolyatMole = SpecDSMC(PartSpecies(i))%SpecToPolyArray
                     CounterPoly = CounterPoly + PolyatomMolDSMC(iPolyatMole)%VibDOF
+                  END IF
+                END IF
+                IF (useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+                  IF (.NOT.((SpecDSMC(PartSpecies(i))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(i))%FullyIonized)) THEN
+                    CounterElec = CounterElec + SpecDSMC(PartSpecies(i))%MaxElecQuant
+                  END IF
+                END IF
+                IF (useDSMC.AND.DSMC%DoAmbipolarDiff) THEN
+                  IF (Species(PartSpecies(i))%ChargeIC.GT.0.0) THEN
+                    CounterAmbi = CounterAmbi + 3
                   END IF
                 END IF
               ELSE
@@ -970,6 +1026,16 @@ IF(DoRestart)THEN
                     CounterPoly = CounterPoly + PolyatomMolDSMC(iPolyatMole)%VibDOF
                   END IF
                 END IF
+                IF (useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+                  IF (.NOT.((SpecDSMC(PartSpecies(i))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(i))%FullyIonized)) THEN
+                    CounterElec = CounterElec + SpecDSMC(PartSpecies(i))%MaxElecQuant
+                  END IF
+                END IF
+                IF (useDSMC.AND.DSMC%DoAmbipolarDiff) THEN
+                  IF (Species(PartSpecies(i))%ChargeIC.GT.0.0) THEN
+                    CounterAmbi = CounterAmbi + 3
+                  END IF
+                END IF
               ELSE
                 PEM%LastGlobalElemID(i) = PEM%GlobalElemID(i)
               END IF ! .NOT.PDM%ParticleInside(i)
@@ -1004,6 +1070,16 @@ IF(DoRestart)THEN
                     CounterPoly = CounterPoly + PolyatomMolDSMC(iPolyatMole)%VibDOF
                   END IF
                 END IF
+                IF (useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+                  IF (.NOT.((SpecDSMC(PartSpecies(i))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(i))%FullyIonized)) THEN
+                    CounterElec = CounterElec + SpecDSMC(PartSpecies(i))%MaxElecQuant
+                  END IF
+                END IF
+                IF (useDSMC.AND.DSMC%DoAmbipolarDiff) THEN
+                  IF (Species(PartSpecies(i))%ChargeIC.GT.0.0) THEN
+                    CounterAmbi = CounterAmbi + 3
+                  END IF
+                END IF
                 PartPosRef(1:3,i) = -888.
               ELSE
                 PEM%LastGlobalElemID(i) = PEM%GlobalElemID(i)
@@ -1019,6 +1095,10 @@ IF(DoRestart)THEN
       CALL MPI_ALLGATHER(NbrOfLostParticles, 1, MPI_INTEGER, TotalNbrOfMissingParticles, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
       IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) CALL MPI_ALLGATHER(CounterPoly, 1, MPI_INTEGER, LostPartsPoly, 1, MPI_INTEGER, &
                                                                        PartMPI%COMM, IERROR)
+      IF(useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) &
+        CALL MPI_ALLGATHER(CounterElec, 1, MPI_INTEGER, LostPartsElec, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
+      IF(useDSMC.AND.DSMC%DoAmbipolarDiff) &
+        CALL MPI_ALLGATHER(CounterAmbi, 1, MPI_INTEGER, LostPartsAmbi, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
       ! Check total number of missing particles and start re-locating them on other procs
       IF (SUM(TotalNbrOfMissingParticles).GT.0) THEN
         ALLOCATE(SendBuff(1:NbrOfLostParticles*PartDataSize))
@@ -1027,9 +1107,19 @@ IF(DoRestart)THEN
           ALLOCATE(SendBuffPoly(1:CounterPoly))
           ALLOCATE(RecBuffPoly(1:SUM(LostPartsPoly)))
         END IF
+        IF(useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+          ALLOCATE(SendBuffElec(1:CounterElec))
+          ALLOCATE(RecBuffElec(1:SUM(LostPartsElec)))
+        END IF
+        IF(useDSMC.AND.DSMC%DoAmbipolarDiff) THEN
+          ALLOCATE(SendBuffAmbi(1:CounterAmbi))
+          ALLOCATE(RecBuffAmbi(1:SUM(LostPartsAmbi)))
+        END IF
         ! Fill SendBuffer
         NbrOfMissingParticles = 0
         CounterPoly = 0
+        CounterAmbi = 0
+        CounterElec = 0
         DO i = 1, PDM%ParticleVecLength
           IF (.NOT.PDM%ParticleInside(i)) THEN
             SendBuff(NbrOfMissingParticles+1:NbrOfMissingParticles+6) = PartState(1:6,i)
@@ -1068,11 +1158,28 @@ IF(DoRestart)THEN
                 CounterPoly = CounterPoly + PolyatomMolDSMC(iPolyatMole)%VibDOF
               END IF ! SpecDSMC(PartSpecies(i))%PolyatomicMol
             END IF ! useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)
+            !--- receive the polyatomic vibquants per particle at the end of the message
+            IF(useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)  THEN
+              IF (.NOT.((SpecDSMC(PartSpecies(i))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(i))%FullyIonized)) THEN
+                SendBuffElec(CounterElec+1:CounterElec+SpecDSMC(PartSpecies(i))%MaxElecQuant) &
+                    = ElectronicDistriPart(i)%DistriFunc(1:SpecDSMC(PartSpecies(i))%MaxElecQuant)
+                CounterElec = CounterElec + SpecDSMC(PartSpecies(i))%MaxElecQuant
+              END IF !
+            END IF ! 
+            IF(useDSMC.AND.DSMC%DoAmbipolarDiff)  THEN
+              IF (Species(PartSpecies(i))%ChargeIC.GT.0.0)  THEN
+                SendBuffAmbi(CounterAmbi+1:CounterAmbi+3) = AmbipolElecVelo(i)%ElecVelo(1:3)
+                CounterAmbi = CounterAmbi + 3
+              END IF !
+            END IF ! 
+
           END IF ! .NOT.PDM%ParticleInside(i)
         END DO ! i = 1, PDM%ParticleVecLength
         ! Distribute lost particles to all procs
         NbrOfMissingParticles = 0
         CounterPoly = 0
+        CounterElec = 0
+        CounterAmbi = 0
         DO i = 0, PartMPI%nProcs-1
           RecCount(i) = TotalNbrOfMissingParticles(i) * PartDataSize
           Displace(i) = NbrOfMissingParticles
@@ -1081,16 +1188,32 @@ IF(DoRestart)THEN
             DisplacePoly(i) = CounterPoly
             CounterPoly = CounterPoly + LostPartsPoly(i)
           END IF
+          IF(useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)  THEN
+            DisplaceElec(i) = CounterElec
+            CounterElec = CounterElec + LostPartsElec(i)
+          END IF
+          IF(useDSMC.AND.DSMC%DoAmbipolarDiff)  THEN
+            DisplaceAmbi(i) = CounterAmbi
+            CounterAmbi = CounterAmbi + LostPartsAmbi(i)
+          END IF
         END DO ! i = 0, PartMPI%nProcs-1
         CALL MPI_ALLGATHERV(SendBuff, PartDataSize*TotalNbrOfMissingParticles(PartMPI%MyRank), MPI_DOUBLE_PRECISION, &
             RecBuff, RecCount, Displace, MPI_DOUBLE_PRECISION, PartMPI%COMM, IERROR)
         IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) CALL MPI_ALLGATHERV(SendBuffPoly, LostPartsPoly(PartMPI%MyRank), MPI_INTEGER, &
             RecBuffPoly, LostPartsPoly, DisplacePoly, MPI_INTEGER, PartMPI%COMM, IERROR)
+        IF(useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) &
+         CALL MPI_ALLGATHERV(SendBuffElec, LostPartsElec(PartMPI%MyRank), MPI_INTEGER, & 
+              RecBuffElec, LostPartsElec, DisplaceElec, MPI_DOUBLE_PRECISION, PartMPI%COMM, IERROR)
+        IF(useDSMC.AND.DSMC%DoAmbipolarDiff) &
+         CALL MPI_ALLGATHERV(SendBuffAmbi, LostPartsAmbi(PartMPI%MyRank), MPI_INTEGER, & 
+              RecBuffAmbi, LostPartsAmbi, DisplaceAmbi, MPI_DOUBLE_PRECISION, PartMPI%COMM, IERROR)
         ! Add them to particle list and check if they are in MyProcs domain
         NbrOfFoundParts = 0
         CurrentPartNum  = PDM%ParticleVecLength+1
         NbrOfMissingParticles = 0
         CounterPoly = 0
+        CounterElec = 0
+        CounterAmbi = 0
         DO i = 1, SUM(TotalNbrOfMissingParticles)
           PartState(1:6,CurrentPartNum) = RecBuff(NbrOfMissingParticles+1:NbrOfMissingParticles+6)
           PDM%ParticleInside(CurrentPartNum) = .true.
@@ -1134,6 +1257,25 @@ IF(DoRestart)THEN
                 VibQuantsPar(CurrentPartNum)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF) &
                     = RecBuffPoly(CounterPoly+1:CounterPoly+PolyatomMolDSMC(iPolyatMole)%VibDOF)
                 CounterPoly = CounterPoly + PolyatomMolDSMC(iPolyatMole)%VibDOF
+              END IF
+            END IF
+            IF(useDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)  THEN
+              IF (.NOT.((SpecDSMC(PartSpecies(CurrentPartNum))%InterID.EQ.4) & 
+                  .OR.SpecDSMC(PartSpecies(CurrentPartNum))%FullyIonized)) THEN
+                IF(ALLOCATED(ElectronicDistriPart(CurrentPartNum)%DistriFunc)) &  
+                  DEALLOCATE(ElectronicDistriPart(CurrentPartNum)%DistriFunc)
+                ALLOCATE(ElectronicDistriPart(CurrentPartNum)%DistriFunc(1:SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant))
+                ElectronicDistriPart(CurrentPartNum)%DistriFunc(1:SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant)= &
+                  RecBuffElec(CounterElec+1:CounterElec+SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant)
+                CounterElec = CounterElec +SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant
+              END IF
+            END IF
+            IF(useDSMC.AND.DSMC%DoAmbipolarDiff)  THEN
+              IF (Species(PartSpecies(CurrentPartNum))%ChargeIC.GT.0.0) THEN
+                IF(ALLOCATED(AmbipolElecVelo(CurrentPartNum)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(CurrentPartNum)%ElecVelo)
+                ALLOCATE(AmbipolElecVelo(CurrentPartNum)%ElecVelo(1:3))
+                AmbipolElecVelo(CurrentPartNum)%ElecVelo(1:3)= RecBuffAmbi(CounterAmbi+1:CounterAmbi+3)
+                CounterAmbi = CounterAmbi + 3
               END IF
             END IF
             CurrentPartNum = CurrentPartNum + 1
@@ -1188,213 +1330,10 @@ IF(DoRestart)THEN
     CALL UpdateNextFreePosition()
   END IF ! .NOT.DoMacroscopicRestart
 
-  ! ------------------------------------------------
-  ! Reactive Surfaces
-  ! ------------------------------------------------
-  WallModelExists(:)=.FALSE.
-  IF (ANY(PartBound%Reactive)) THEN
-    ! check if datasets for restarting of surface model from state exists in state file used for restart
-    SurfModelTypeExists=.FALSE.
-    CALL DatasetExists(File_ID,'SurfaceModelType',SurfModelTypeExists)
-    IF (SurfModelTypeExists) THEN
-      SWRITE(UNIT_stdOut,'(A,A)')' GET NUMBER OF SURFACE-SIDES IN RESTART FILE... '
-      CALL GetDataSize(File_ID,'SurfaceModelType',nDims,HSize,attrib=.FALSE.)
-      nSurfSides_HDF5 = INT(HSize(1),4)
-      IF (nSurfSides_HDF5.NE.SurfMesh%nGlobalSides) THEN
-        SWRITE(UNIT_stdOut,'(A,A)') ' NUMBER OF SURFACE-SIDES IN RESTART FILE NOT EQUAL TO CALCULATION ... RESTARTING FROM INI'
-      ELSE
-        ALLOCATE(SurfModelType(SurfMesh%nOutputSides))
-        ! Associate construct for integer KIND=8 possibility
-        ASSOCIATE (&
-              nSides          => INT(SurfMesh%nOutputSides,IK) ,&
-              offsetSurfSide  => INT(offsetSurfSide,IK) )
-          CALL ReadArray('SurfaceModelType',1,(/nSides/) ,&
-              offsetSurfSide,1,IntegerArray_i4=SurfModelType)
-        END ASSOCIATE
-        WallModelExists(:)=.TRUE.
-        DO iSurfSide=1,SurfMesh%nOutputSides
-          SideID = SurfMesh%SurfIDToSideID(iSurfSide)
-          PartboundID = PartBound%MapToPartBC(BC(SideID))
-          IF (PartBound%SurfaceModel(PartboundID).NE.SurfModelType(iSurfSide)) THEN
-            WallModelExists(PartBoundID)=.FALSE.
-            EXIT
-          END IF
-        END DO
-      END IF ! nsurfsides_hdf5 != nglobalsurfsides
-    END IF
-    IF (ANY(WallModelExists(:))) THEN
-      SWRITE(UNIT_stdOut,*)'Reading surface calculation infos from Restartfile...'
-      ! do sanity checks of data in h5 file before proceeding
-      CALL GetDataSize(File_ID,'Surface_BCs',nDims,HSize,attrib=.TRUE.)
-      nSurfBC_HDF5 = INT(HSize(1),4)
-      IF (nSurfBC_HDF5.NE.nSurfBC) CALL abort(&
-          __STAMP__&
-          ,'Error in surface restart: number of surface boundaries in HDF5-file does not match!')
-      CALL ReadAttribute(File_ID,'nSurfSample',1,IntegerScalar=nSurfSample_HDF5)
-      IF (nSurfSample_HDF5.NE.nSurfSample) CALL abort(&
-          __STAMP__&
-          ,'Error in surface restart: number of surface subsides (nSurfSample) in HDF5-file does not match!')
-      CALL ReadAttribute(File_ID,'nSpecies',1,IntegerScalar=nSpecies_HDF5)
-      IF (nSpecies_HDF5.NE.nSpecies) CALL abort(&
-          __STAMP__&
-          ,'Error in surface restart: number of Species in HDF5-file does not match!')
-
-      SurfCalcDataExists=.FALSE.
-      CALL DatasetExists(File_ID,'SurfCalcData',SurfCalcDataExists)
-      IF (SurfCalcDataExists) THEN
-        nVar = 4
-        ALLOCATE(SurfCalcData(nVar,nSurfSample,nSurfSample,SurfMesh%nOutputSides,nSpecies))
-
-        ! Associate construct for integer KIND=8 possibility
-        ASSOCIATE (&
-              nVar            => INT(nVar,IK) ,&
-              nSurfSample     => INT(nSurfSample,IK) ,&
-              nSides          => INT(SurfMesh%nOutputSides,IK) ,&
-              nSpecies        => INT(nSpecies,IK) ,&
-              offsetSurfSide  => INT(offsetSurfSide,IK) )
-          CALL ReadArray('SurfCalcData',5,(/nVar,nSurfSample,nSurfSample,nSides,nSpecies/) ,&
-              offsetSurfSide,4,RealArray=SurfCalcData)
-        END ASSOCIATE
-        DO iSurfSide = 1,SurfMesh%nOutputSides
-          SideID = SurfMesh%SurfIDToSideID(iSurfSide)
-          PartboundID = PartBound%MapToPartBC(BC(SideID))
-          IF (PartBound%Reactive(PartboundID).AND.WallModelExists(PartBoundID)) THEN
-            DO jsubsurf = 1,nSurfSample
-              DO isubsurf = 1,nSurfSample
-                Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,:) = SurfCalcData(1,iSubSurf,jSubSurf,iSurfSide,:)
-                IF (PartBound%SurfaceModel(PartBoundID).EQ.3) THEN
-                  SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%adsorbnum_tmp(:) = SurfCalcData(2,iSubSurf,jSubSurf,iSurfSide,:)
-                  SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%desorbnum_tmp(:) = SurfCalcData(3,iSubSurf,jSubSurf,iSurfSide,:)
-                  SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%reactnum_tmp(:)  = SurfCalcData(4,iSubSurf,jSubSurf,iSurfSide,:)
-                END IF
-              END DO
-            END DO
-          END IF
-        END DO
-        DEALLOCATE(SurfCalcData)
-        ! read additional data for wallmodel 3
-        !IF (PartSurfaceModel.EQ.3) THEN
-        Coordinations    = 3
-        SurfPartIntSize  = 3
-        SurfPartDataSize = 2
-        ! check if surfpartint exists
-        SurfPartIntExists=.FALSE.
-        CALL DatasetExists(File_ID,'SurfPartInt',SurfPartIntExists)
-        IF(SurfPartIntExists)THEN
-          ALLOCATE(SurfPartInt(offsetSurfSide+1:offsetSurfSide+SurfMesh%nOutputSides &
-              ,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize))
-
-          ! Associate construct for integer KIND=8 possibility
-          ASSOCIATE (&
-                nSides          => INT(SurfMesh%nOutputSides,IK) ,&
-                nSurfSample     => INT(nSurfSample,IK)     ,&
-                Coordinations   => INT(Coordinations,IK)   ,&
-                SurfPartIntSize => INT(SurfPartIntSize,IK) ,&
-                offsetSurfSide  => INT(offsetSurfSide,IK)   )
-            ! read local Surface Particle indexing from HDF5
-            CALL ReadArray('SurfPartInt',5,(/nSides,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/) &
-                ,offsetSurfSide,1,IntegerArray_i4=SurfPartInt)
-          END ASSOCIATE
-          ! check if surfpartdata exists
-          SurfPartDataExists=.FALSE.
-          CALL DatasetExists(File_ID,'SurfPartData',SurfPartDataExists)
-          IF(SurfPartDataExists)THEN
-            IF (SurfMesh%nOutputSides.GT.0) THEN
-              locnSurfPart = SurfPartInt(offsetSurfSide+SurfMesh%nOutputSides,nSurfSample,nSurfSample,Coordinations,3) &
-                  - SurfPartInt(offsetSurfSide+1,1,1,1,2)
-              offsetnSurfPart=SurfPartInt(offsetSurfSide+1,1,1,1,2)
-            ELSE
-              locnSurfPart = 0
-              offsetnSurfPart = 0
-            END IF
-            ALLOCATE(SurfPartData(SurfPartDataSize,offsetnSurfPart+1:offsetnSurfPart+locnSurfPart))
-            ! read local Surface Particle Data from HDF5
-
-            ! Associate construct for integer KIND=8 possibility
-            ASSOCIATE (&
-                  locnSurfPart      => INT(locnSurfPart,IK)      ,&
-                  SurfPartDataSize  => INT(SurfPartDataSize,IK)  ,&
-                  offsetnSurfPart   => INT(offsetnSurfPart,IK)   )
-              CALL ReadArray('SurfPartData',2,(/SurfPartDataSize,locnSurfPart/),offsetnSurfPart,2,IntegerArray_i4=SurfPartData)
-            END ASSOCIATE
-            IF (locnSurfPart.GT.0) THEN
-              DO iSurfSide = 1,SurfMesh%nOutputSides
-                SideID = SurfMesh%SurfIDToSideID(iSurfSide)
-                PartboundID = PartBound%MapToPartBC(BC(SideID))
-                IF (WallModelExists(PartBoundID).AND.PartBound%SurfaceModel(PartboundID).EQ.3) THEN
-                  DO jsubsurf = 1,nSurfSample
-                    DO isubsurf = 1,nSurfSample
-                      DO iCoord = 1,Coordinations
-                        firstpart = SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,2) + 1
-                        lastpart  = SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,3)
-                        ! set the surfpartdata array values
-                        DO iPart = firstpart, lastpart
-                          UsedSiteMapPos = SurfPartData(1,iPart)
-                          SpecID         = SurfPartData(2,ipart)
-                          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%Species(UsedSiteMapPos) = SpecID
-                          ! assign bond order of respective surface atoms in the surface lattice
-                          DO iInterAtom = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%nInterAtom
-                            xpos = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%BondAtomIndx( &
-                                UsedSiteMapPos,iInterAtom)
-                            ypos = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%BondAtomIndy( &
-                                UsedSiteMapPos,iInterAtom)
-                            SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SurfAtomBondOrder(SpecID,xpos,ypos) = &
-                                SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SurfAtomBondOrder(SpecID,xpos,ypos) + 1
-                          END DO
-                        END DO ! iPart = firstpart,lastpart
-                        ! sort and rearrange UsedSiteMap-Surfpos-array
-                        ! structure of UsedSiteMap array for one coordination
-                        !               [<---------------nSites---------------------------------------->]
-                        ! Name        :  nfreeArrayindeces   (lastfreeIndx)                   Adsorbates
-                        ! current     :  1 2                   3           |      4  5  6  7  8  9 10 11
-                        ! UsedSiteMap :  1 7                   8           |     11  9 10  3  4  5  2  6
-                        lastfreeIndx = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(iCoord)
-                        nfreeArrayindeces = lastfreeIndx - ( lastpart - (firstpart-1) )
-                        DO current = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(iCoord)
-                          UsedSiteMapPos =  SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(current)
-                          IF (SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%Species(UsedSiteMapPos).GT.0) THEN
-                            MoveToLastFree = .TRUE.
-                            ! move value to end of array and end of array to current array index
-                            DO WHILE (MoveToLastFree)
-                              SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(current) = &
-                                  SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(lastfreeIndx)
-                              SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(lastfreeIndx) = &
-                                  UsedSiteMapPos
-                              UsedSiteMapPos =  SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(current)
-                              IF (SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%Species(UsedSiteMapPos).EQ.0) THEN
-                                MoveToLastFree = .FALSE.
-                              END IF
-                              lastfreeIndx = lastfreeIndx - 1
-                              IF (lastfreeIndx .EQ. nfreeArrayindeces) EXIT
-                            END DO ! current Indx not empty
-                          END IF
-                          IF (lastfreeIndx .EQ. nfreeArrayindeces) EXIT
-                        END DO ! current = 1,nSites
-                        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain(iCoord) = nfreeArrayindeces
-                      END DO
-                    END DO
-                  END DO
-                END IF
-              END DO
-              DEALLOCATE(SurfPartData)
-            END IF
-          END IF ! SurfPartDataExists
-          DEALLOCATE(SurfPartInt)
-        END IF ! SurfPartIntExists
-        !END IF ! PartSurfaceModel.EQ.3
-      END IF ! SurfCalcDataExists
-    ELSE
-      SWRITE(UNIT_stdOut,*)'Data for current wallmodel does not exists in restart file'
-    END IF ! WallModel_HDF5.NE.PartSurfaceModel
-  END IF ! ANY(PartBound%Reactive)
 #endif /*PARTICLES*/
 
 CALL CloseDataFile()
 
-#ifdef PARTICLES
-  ! include initially collected particles for first call of field-solver (e.g. in RecomputeLambda)
-  CALL ParticleCollectCharges(initialCall_opt=.TRUE.)
-#endif /*PARTICLES*/
 #if USE_HDG
   iter=0
   ! INSTEAD OF ALL THIS STUFF DO
@@ -1415,10 +1354,6 @@ CALL CloseDataFile()
   SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!'
 #endif
 ELSE ! no restart
-#ifdef PARTICLES
-  ! include initially collected particles for first call of field-solver (here because of consistency, but not used until timedisc)
-  CALL ParticleCollectCharges(initialCall_opt=.TRUE.)
-#endif /*PARTICLES*/
   ! Delete all files since we are doing a fresh start
   CALL FlushHDF5()
 END IF !IF(DoRestart)
@@ -1436,7 +1371,7 @@ USE MOD_io_hdf5
 USE MOD_Mesh_Vars,                ONLY : offsetElem, nElems
 USE MOD_DSMC_Vars,                ONLY : UseDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
 USE MOD_DSMC_Vars,                ONLY : RadialWeighting, ClonedParticles
-USE MOD_Particle_Vars,            ONLY : nSpecies, usevMPF
+USE MOD_Particle_Vars,            ONLY : nSpecies, usevMPF, Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1448,8 +1383,9 @@ IMPLICIT NONE
   INTEGER                           :: nDimsClone, CloneDataSize, ClonePartNum, iPart, iDelay, maxDelay, iElem, tempDelay
   INTEGER(HSIZE_T), POINTER         :: SizeClone(:)
   REAL,ALLOCATABLE                  :: CloneData(:,:)
-  INTEGER                           :: iPolyatmole, MaxQuantNum, iSpec, compareDelay
+  INTEGER                           :: iPolyatmole, MaxQuantNum, iSpec, compareDelay, MaxElecQuant
   INTEGER,ALLOCATABLE               :: pcount(:), VibQuantData(:,:)
+  REAL, ALLOCATABLE                 :: ElecDistriData(:,:), AD_Data(:,:)
 !===================================================================================================================================
 
   CALL GetDataSize(File_ID,'CloneData',nDimsClone,SizeClone)
@@ -1504,6 +1440,24 @@ IMPLICIT NONE
         CALL ReadArray('CloneVibQuantData',2,(/MaxQuantNum,ClonePartNum/),0_IK,2,IntegerArray_i4=VibQuantData)
       END ASSOCIATE
     END IF
+    IF (UseDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+      MaxElecQuant = 0
+      DO iSpec = 1, nSpecies
+        IF (.NOT.((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized)) THEN
+          IF (SpecDSMC(iSpec)%MaxElecQuant.GT.MaxElecQuant) MaxElecQuant = SpecDSMC(iSpec)%MaxElecQuant
+        END IF
+      END DO
+      ALLOCATE(ElecDistriData(1:MaxElecQuant,1:ClonePartNum))
+      ASSOCIATE(ClonePartNum => INT(ClonePartNum,IK),MaxElecQuant => INT(MaxElecQuant,IK))
+        CALL ReadArray('CloneElecDistriData',2,(/MaxElecQuant,ClonePartNum/),0_IK,2,RealArray=ElecDistriData)
+      END ASSOCIATE
+    END IF
+    IF (UseDSMC.AND.DSMC%DoAmbipolarDiff) THEN
+      ALLOCATE(AD_Data(1:3,1:ClonePartNum))
+      ASSOCIATE(ClonePartNum => INT(ClonePartNum,IK))
+        CALL ReadArray('CloneADVeloData',2,(/INT(3,IK),ClonePartNum/),0_IK,2,RealArray=AD_Data)
+      END ASSOCIATE
+    END IF
     ! Copying particles into ClonedParticles array
     DO iPart = 1, ClonePartNum
       iDelay = INT(CloneData(9,iPart))
@@ -1550,8 +1504,21 @@ IMPLICIT NONE
               ALLOCATE(ClonedParticles(pcount(iDelay),iDelay)%VibQuants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
               ClonedParticles(pcount(iDelay),iDelay)%VibQuants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF) &
                 = VibQuantData(1:PolyatomMolDSMC(iPolyatMole)%VibDOF,iPart)
-            ELSE
-               VibQuantData(:,iPart) = 0
+            END IF
+          END IF
+          IF (UseDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)  THEN
+            IF (.NOT.((SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%InterID.EQ.4) &
+                .OR.SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%FullyIonized)) THEN 
+              ALLOCATE(ClonedParticles(pcount(iDelay),iDelay)%DistriFunc( &
+                      1:SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%MaxElecQuant))
+              ClonedParticles(pcount(iDelay),iDelay)%DistriFunc(1:SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%MaxElecQuant) &
+                = ElecDistriData(1:SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%MaxElecQuant,iPart)
+            END IF
+          END IF
+          IF (UseDSMC.AND.DSMC%DoAmbipolarDiff)  THEN
+            IF (Species(ClonedParticles(pcount(iDelay),iDelay)%Species)%ChargeIC.GT.0.0) THEN      
+              ALLOCATE(ClonedParticles(pcount(iDelay),iDelay)%AmbiPolVelo(1:3))
+              ClonedParticles(pcount(iDelay),iDelay)%AmbiPolVelo(1:3) = AD_Data(1:3,iPart)
             END IF
           END IF
         END IF
@@ -1577,7 +1544,7 @@ USE MOD_HDF5_Input    ,ONLY: nDims,HSize,File_ID
 USE MOD_Restart_Vars  ,ONLY: MacroRestartFileName, MacroRestartValues
 USE MOD_Mesh_Vars     ,ONLY: offsetElem, nElems
 USE MOD_Particle_Vars ,ONLY: nSpecies
-USE MOD_macro_restart ,ONLY: MacroRestart_InsertParticles
+USE MOD_Macro_Restart ,ONLY: MacroRestart_InsertParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

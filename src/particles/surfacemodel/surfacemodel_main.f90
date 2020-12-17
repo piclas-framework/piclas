@@ -25,663 +25,811 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE ReactiveSurfaceTreatment
-  MODULE PROCEDURE ReactiveSurfaceTreatment
-END INTERFACE
-
-PUBLIC :: SurfaceModel_main
-PUBLIC :: UpdateSurfModelVars
-PUBLIC :: ReactiveSurfaceTreatment
+PUBLIC :: SurfaceModel, MaxwellScattering, PerfectReflection, DiffuseReflection, SpeciesSwap
 !===================================================================================================================================
 
 CONTAINS
 
-SUBROUTINE SurfaceModel_main()
+SUBROUTINE SurfaceModel(PartTrajectory,LengthPartTrajectory,alpha,xi,eta,PartID,SideID,ElemID,n_Loc)
 !===================================================================================================================================
-!> Main Routine treating all surface and calculating desorbing / evaporating number of particles
+!> Selection and execution of a gas-surface interaction model
+!> 1.)
+!> 2.)
+!> 3.)
+!> 4.)
 !===================================================================================================================================
-! MODULES                                                                                                                          !
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
-USE MOD_SMCR                   ,ONLY: SMCR_PartDesorb, SMCR_Diffusion
-USE MOD_SurfaceModel_Tools     ,ONLY: CalcEvapPartNum
-USE MOD_TimeDisc_Vars          ,ONLY: iter
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! LOCAL VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-IF (.NOT.ANY(PartBound%Reactive)) RETURN
-! Surface variables have to updated (mpi communication) in first iteration because coverage is initialized in init or restart
-IF (iter.EQ.0) CALL UpdateSurfModelVars()
-! evaporating particles for surface models using mean values on surfaces
-CALL CalcEvapPartNum()
-! desorbing particles for surface model 3
-CALL SMCR_Diffusion()
-CALL SMCR_PartDesorb()
-
-END SUBROUTINE SurfaceModel_main
-
-
-SUBROUTINE UpdateSurfModelVars()
-!===================================================================================================================================
-!> Update and sample surface values for adsorption, desorption and reactions on surfaces (heterogeneous reactions)
-!> Only procs with surface enter function, all other exit routine
-!> 1. Communicate number of particles that were absorbed by halo-sides of neighbour procs (SumAdsorbPart and SumERDesorbed),
-!>    so that own proc has number of total adsorption particles for each species on own surfaces
-!> 2. After communication go through all own sides (no mpi halo sides) and adjust coverage resulting from changes through
-!>    adsorption and reactions for all surfacemodels
-!> 2.1  For surfacemodel=3 calculate number of adsorbate change (surfacempf!=gasmpf) and if changed Call AdjustReconstructMapNum
-!>      to adjust number of adsorbates on reconstructed Monte Carlo surface
-!> 2.2  Sample macroscopic surface coverage values
-!> 3. Reset/Adjust surface model sum counters
-!> 4. Calculate global mean probabilities for surface models
-!> 5. Send Coverages and Distribution info of own sides to halo sides of other procs (other procs have own sides as halo sides
-!>    and need coverage info for adsorption calculation (mpi routines know which sides to communicate)
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, Species, nSpecies
-USE MOD_DSMC_Vars              ,ONLY: DSMC
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall, PartBound
-USE MOD_TimeDisc_Vars          ,ONLY: tend,time
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
-#endif /*USE_LOADBALANCE*/
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo, SurfModel
-USE MOD_SurfaceModel_Tools     ,ONLY: CalcAdsorbProb, CalcDesorbProb
-USE MOD_SurfaceModel_Tools     ,ONLY: SMCR_AdjustMapNum, IsReactiveSurface, SurfaceHasModelNum
-#if USE_MPI
-USE MOD_SurfaceModel_MPI       ,ONLY: ExchangeSurfaceHaloToOrigin, ExchangeSurfaceOriginToHalo, ExchangeSurfDistInfo
-USE MOD_SurfaceModel_MPI       ,ONLY: MapHaloInnerToOriginInnerSurf
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
-#endif /*USE_MPI*/
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! LOCAL VARIABLES
-INTEGER                          :: iSpec, iSurfSide, p, q, new_adsorbates, numSites
-REAL                             :: maxPart
-REAL                             :: coverage_tmp, coverage_corrected
-#if USE_LOADBALANCE
-REAL                             :: tLBStart
-#endif /*USE_LOADBALANCE*/
-#if (PP_TimeDiscMethod==42)
-REAL                             :: desorbnum_covreduce
-#endif
-!----------------------------------------------------------------------------------------------------------------------------------!
-IF (.NOT.SurfMesh%SurfOnProc) RETURN
-IF (.NOT.ANY(Partbound%Reactive)) RETURN
-
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-
-#if USE_MPI
-!----- 1.
-DO iSpec = 1,nSpecies
-  IF(SurfCOMM%InnerBCs) THEN
-  ! if there are innerBCs with reflective (reactive) surface properties
-  ! additional communcation is needed (see:SUBROUTINE MapInnerSurfData)
-    CALL ExchangeSurfaceHaloToOrigin(IntDataIN=SurfModel%SumAdsorbPart(:,:,:,iSpec),AddFlag=.TRUE.)
-    CALL ExchangeSurfaceHaloToOrigin(IntDataIN=SurfModel%SumERDesorbed(:,:,:,iSpec),AddFlag=.TRUE.)
-    CALL ExchangeSurfaceHaloToOrigin(RealDataIN=Adsorption%SurfaceNormalVelo(:,:,:,iSpec),AddFlag=.TRUE.)
-    CALL ExchangeSurfaceHaloToOrigin(IntDataIN=Adsorption%CollSpecPartNum(:,:,:,iSpec),AddFlag=.TRUE.)
-    CALL MapHaloInnerToOriginInnerSurf(IntDataIN=SurfModel%SumAdsorbPart(:,:,:,iSpec),AddFlag=.TRUE.)
-    CALL MapHaloInnerToOriginInnerSurf(IntDataIN=SurfModel%SumERDesorbed(:,:,:,iSpec),AddFlag=.TRUE.)
-    CALL MapHaloInnerToOriginInnerSurf(RealDataIN=Adsorption%SurfaceNormalVelo(:,:,:,iSpec),AddFlag=.TRUE.)
-    CALL MapHaloInnerToOriginInnerSurf(IntDataIN=Adsorption%CollSpecPartNum(:,:,:,iSpec),AddFlag=.TRUE.)
-  END IF
-  CALL ExchangeSurfaceHaloToOrigin(IntDataIN=SurfModel%SumAdsorbPart(:,:,:,iSpec),AddFlag=.TRUE.)
-  CALL ExchangeSurfaceHaloToOrigin(IntDataIN=SurfModel%SumERDesorbed(:,:,:,iSpec),AddFlag=.TRUE.)
-  CALL ExchangeSurfaceHaloToOrigin(RealDataIN=Adsorption%SurfaceNormalVelo(:,:,:,iSpec),AddFlag=.TRUE.)
-  CALL ExchangeSurfaceHaloToOrigin(IntDataIN=Adsorption%CollSpecPartNum(:,:,:,iSpec),AddFlag=.TRUE.)
-END DO
-#if USE_LOADBALANCE
-CALL LBSplitTime(LB_SURFCOMM,tLBStart)
-#endif /*USE_LOADBALANCE*/
-#endif /*USE_MPI*/
-
-! adjust coverages of all species on surfaces
-DO iSpec = 1,nSpecies
-#if (PP_TimeDiscMethod==42)
-  IF (DSMC%ReservoirRateStatistic) SurfModel%Info(iSpec)%WallSpecNumCount = 0
-#endif
-!----- 2.
-  DO iSurfSide = 1,SurfMesh%nOutputSides
-    IF (.NOT.IsReactiveSurface(iSurfSide)) CYCLE
-    DO q = 1,nSurfSample
-      DO p = 1,nSurfSample
-#if (PP_TimeDiscMethod==42)
-        ! write number of adsorbates into info array
-        IF (DSMC%ReservoirRateStatistic) THEN
-          maxPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
-          SurfModel%Info(iSpec)%WallSpecNumCount = SurfModel%Info(iSpec)%WallSpecNumCount &
-                                                        + INT( Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                                                        * maxPart/Species(iSpec)%MacroParticleFactor)
-        END IF
-#endif
-        SELECT CASE (SurfaceHasModelNum(iSurfSide))
-        CASE(1)
-          maxPart = Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide)
-          Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-              + ( SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec) &
-              - (SurfModel%SumDesorbPart(p,q,iSurfSide,iSpec) - SurfModel%SumReactPart(p,q,iSurfSide,iSpec)) ) &
-              * Species(iSpec)%MacroParticleFactor / maxPart
-        CASE(2)
-          Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-              + SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec)
-        CASE(3)
-#if (PP_TimeDiscMethod==42)
-          IF (Adsorption%CoverageReduction) THEN
-            ! calculate number of desorbed particles for each species
-            desorbnum_covreduce = (REAL(Adsorption%CovReductionStep(iSpec))/REAL(SurfDistInfo(p,q,iSurfSide)%nSites(3))) &
-                * REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) &
-                * SurfMesh%SurfaceArea(p,q,iSurfSide),8)) / Species(iSpec)%MacroParticleFactor
-            coverage_tmp = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                - REAL(desorbnum_covreduce) * Species(iSpec)%MacroParticleFactor &
-                / REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
-            IF(coverage_tmp.GT.0.) THEN
-              Adsorption%Coverage(p,q,iSurfSide,iSpec) = coverage_tmp
-              new_adsorbates = -1*Adsorption%CovReductionStep(iSpec)
-              CALL SMCR_AdjustMapNum(p,q,iSurfSide,new_adsorbates,iSpec)
-            END IF
-          END IF
-#endif
-          maxPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
-          coverage_tmp = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-              + REAL(( SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec) &
-              - (SurfModel%SumDesorbPart(p,q,iSurfSide,iSpec) - SurfModel%SumReactPart(p,q,iSurfSide,iSpec)) ) &
-              * Species(iSpec)%MacroParticleFactor) / maxPart
-          IF (coverage_tmp.LT.0.) THEN ! can only happen for (ER + desorption) or (ER + MPF_surf<MPF_gas) --> SumAdsorbPart<0
-            coverage_corrected = 0. !Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                !+ REAL(( - (SurfModel%SumDesorbPart(p,q,iSurfSide,iSpec) - SurfModel%SumReactPart(p,q,iSurfSide,iSpec)) ) &
-                !* Species(iSpec)%MacroParticleFactor) / maxPart
-          ELSE
-            coverage_corrected = coverage_tmp
-          END IF
-!----- 2.1
-          IF (SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec).NE.0) THEN
-            ! calculate number of adsorbed particles on reconstructed surface for each species
-            numSites = SurfDistInfo(p,q,iSurfSide)%nSites(3) !number of simulated surface atoms
-            SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
-                  + (REAL(SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec)) * Species(iSpec)%MacroParticleFactor &
-                  / maxPart) * REAL(numSites)
-          END IF ! SumAdsorbPart!=0
-          ! convert to integer adsorbates
-          new_adsorbates = INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))
-          IF (new_adsorbates.NE.0) THEN
-            ! Adjust tracking of adsorbing background particles
-            CALL SMCR_AdjustMapNum(p,q,iSurfSide,new_adsorbates,iSpec,SampleFlag=.TRUE.)
-            SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
-                                                              - new_adsorbates
-          END IF
-          Adsorption%Coverage(p,q,iSurfSide,iSpec) = coverage_corrected
-        END SELECT
-!----- 2.2
-        IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
-            .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-          SampWall(iSurfSide)%SurfModelState(5+iSpec,p,q) = SampWall(iSurfSide)%SurfModelState(5+iSpec,p,q) &
-                                                      + Adsorption%Coverage(p,q,iSurfSide,iSpec)
-        END IF
-      END DO
-    END DO
-  END DO
-END DO
-!----- 3.
-! SumEvapPart is nullified in particle emission (surface flux) after inserting particles at corresponding surfaces
-SurfModel%SumEvapPart(:,:,:,:) = SurfModel%SumEvapPart(:,:,:,:) + SurfModel%SumERDesorbed(:,:,1:SurfMesh%nOutputSides,:)
-SurfModel%SumERDesorbed(:,:,:,:) = 0
-SurfModel%SumDesorbPart(:,:,:,:) = 0
-SurfModel%SumAdsorbPart(:,:,:,:) = 0
-SurfModel%SumReactPart(:,:,:,:) = 0
-
-Adsorption%NumCovSamples = Adsorption%NumCovSamples + 1
-!----- 4.
-CALL CalcDesorbProb()
-CALL CalcAdsorbProb()
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_SURF,tLBStart)
-#endif /*USE_LOADBALANCE*/
-
-DO iSurfSide = 1,SurfMesh%nOutputSides ; DO q=1,nSurfSample ; DO p=1,nSurfSample
-  DO iSpec=1, nSpecies
-    IF(Adsorption%CollSpecPartNum(p,q,iSurfSide,iSpec).GT.50) THEN
-      Adsorption%IncidentNormalVeloAtSurf(p,q,iSurfSide,iSpec) = &
-          Adsorption%SurfaceNormalVelo(p,q,iSurfSide,iSpec) / REAL(Adsorption%CollSpecPartNum(p,q,iSurfSide,iSpec))
-      Adsorption%SurfaceNormalVelo(p,q,iSurfSide,iSpec)  = 0.
-      Adsorption%CollSpecPartNum(p,q,iSurfSide,iSpec)    = 0
-     END IF
-  END DO
-END DO ; END DO ; END DO
-
-!----- 5.
-#if USE_MPI
-! communicate coverage and probabilities to halo sides of neighbour procs
-DO iSpec = 1,nSpecies
-  CALL ExchangeSurfaceOriginToHalo(RealDataIN=Adsorption%Coverage(:,:,:,iSpec),AddFlag=.FALSE.)
-  CALL ExchangeSurfaceOriginToHalo(RealDataIN=Adsorption%ProbAds(:,:,:,iSpec),AddFlag=.FALSE.)
-  CALL ExchangeSurfaceOriginToHalo(RealDataIN=Adsorption%ProbDes(:,:,:,iSpec),AddFlag=.FALSE.)
-  CALL ExchangeSurfaceOriginToHalo(RealDataIN=Adsorption%IncidentNormalVeloAtSurf(:,:,:,iSpec),AddFlag=.FALSE.)
-  IF(SurfCOMM%InnerBCs) THEN
-    CALL MapHaloInnerToOriginInnerSurf(RealDataIN=Adsorption%Coverage(:,:,:,iSpec),AddFlag=.FALSE.,Reverse=.TRUE.)
-    CALL MapHaloInnerToOriginInnerSurf(RealDataIN=Adsorption%ProbAds(:,:,:,iSpec),AddFlag=.FALSE.,Reverse=.TRUE.)
-    CALL MapHaloInnerToOriginInnerSurf(RealDataIN=Adsorption%ProbDes(:,:,:,iSpec),AddFlag=.FALSE.,Reverse=.TRUE.)
-    CALL MapHaloInnerToOriginInnerSurf(RealDataIN=Adsorption%IncidentNormalVeloAtSurf(:,:,:,iSpec),AddFlag=.FALSE.,Reverse=.TRUE.)
-  END IF
-END DO
-! communicate distribution to halo-sides of neighbour procs
-CALL ExchangeSurfDistInfo()
-#endif
-
-END SUBROUTINE UpdateSurfModelVars
-
-
-SUBROUTINE ReactiveSurfaceTreatment(PartTrajectory,LengthPartTrajectory,alpha,xi,eta,PartID,SideID,n_Loc,IsSpeciesSwap,&
-                              ReflectionIndex)
-!===================================================================================================================================
-!> Routine for Selection of Surface interaction
-!===================================================================================================================================
-USE MOD_Globals                 ,ONLY: CROSSNORM,UNITVECTOR,OrthoNormVec
-USE MOD_Globals_Vars            ,ONLY: PI
-USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
-USE MOD_Part_Tools              ,ONLY: VeloFromDistribution
-USE MOD_part_operations         ,ONLY: CreateParticle, RemoveParticle
-USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues
-USE MOD_Particle_Vars           ,ONLY: PartState,Species,PartSpecies
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars           ,ONLY: LastPartPos, PEM
-USE MOD_DSMC_Vars               ,ONLY: DSMC
-USE MOD_Particle_Boundary_Tools ,ONLY: SurfaceToPartEnergyInternal, CalcWallSample, AnalyzeSurfaceCollisions
-USE MOD_Particle_Boundary_Tools ,ONLY: AddPartInfoToSample,CalcRotWallVelo
-USE MOD_Part_Tools              ,ONLY: TSURUTACONDENSCOEFF
-USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample, Partbound, SampWall, CalcSurfaceImpact, GlobalSide2SurfSide
-USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time, dt, RKdtFrac
-USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_SurfaceModel_Vars       ,ONLY: Adsorption, ModelERSpecular, SurfModel
-USE MOD_SMCR                    ,ONLY: SMCR_PartAdsorb
-USE MOD_SEE                     ,ONLY: SecondaryElectronEmission
-USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec
+USE MOD_Particle_Vars             ,ONLY: PartSpecies, WriteMacroSurfaceValues
+USE MOD_Particle_Tracking_Vars    ,ONLY: TriaTracking
+USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide, dXiEQ_SurfSample
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
+USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
+USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos
+USE MOD_Particle_Vars             ,ONLY: UseCircularInflow
+USE MOD_Dielectric_Vars           ,ONLY: DoDielectricSurfaceCharge
+USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfCollCounter, SurfAnalyzeCount, SurfAnalyzeNumOfAds, SurfAnalyzeNumOfDes
+USE MOD_SurfaceModel_Tools        ,ONLY: SurfaceModel_ParticleEmission
+USE MOD_SEE                       ,ONLY: SecondaryElectronEmission
+USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryTreatment
+USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
+USE MOD_PICDepo_Tools             ,ONLY: DepositParticleOnNodes
+USE MOD_Part_Tools                ,ONLY: VeloFromDistribution
+USE MOD_part_operations           ,ONLY: CreateParticle, RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(INOUT)       :: ReflectionIndex !< has to be set to 1: diffuse , 2: perfect reflection, or 3: reaction
 REAL,INTENT(INOUT)          :: PartTrajectory(1:3), LengthPartTrajectory, alpha
 REAL,INTENT(IN)             :: xi, eta
 REAL,INTENT(IN)             :: n_loc(1:3)
-INTEGER,INTENT(IN)          :: PartID
-INTEGER,INTENT(IN)          :: SideID
-LOGICAL,INTENT(IN)          :: IsSpeciesSwap
+INTEGER,INTENT(IN)          :: PartID, SideID, ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: ProductSpec(2)   !< 1: product species of incident particle (also used for simple reflection)
-                                                     !< 2: additional species added or removed from surface
-                                                          !< If productSpec is negative, then the respective particles are adsorbed
-                                                          !< If productSpec is positive the particle is reflected/emitted
-                                                          !< with respective species
-INTEGER                          :: ProductSpecNbr   !< number of emitted particles for ProductSpec(1)
-CHARACTER(30)                    :: velocityDistribution(2)   !< specifying keyword for velocity distribution
+INTEGER                          :: ProductSpec(2)  !< 1: product species of incident particle (also used for simple reflection)
+                                                    !< 2: additional species added or removed from surface
+                                                    !< If productSpec is negative, then the respective particles are adsorbed
+                                                    !< If productSpec is positive the particle is reflected/emitted
+                                                    !< with respective species
+INTEGER                          :: ProductSpecNbr  !< number of emitted particles for ProductSpec(1)
 REAL                             :: TempErgy(2)               !< temperature, energy or velocity used for VeloFromDistribution
-REAL                             :: reactionEnthalpy     !< negative: transferred to surface / positive: transferred from surface
-LOGICAL                          :: SampledEnthalpy
-REAL                             :: PartTrajectory2(1:3)
-INTEGER                          :: NewPartID
 REAL                             :: RanNum
-REAL                             :: Xitild,EtaTild
-INTEGER                          :: p,q
-REAL                             :: tang1(1:3),tang2(1:3)
-REAL                             :: Adsorption_prob, Recombination_prob
-INTEGER                          :: SurfSideID, SpecID
-REAL                             :: Norm_velo
-! variables for Energy sampling
-REAL                             :: TransArray(1:6),IntArray(1:6)
-REAL                             :: oldVelo(1:3)
-INTEGER                          :: locBCID
-REAL                             :: VeloReal, EtraOld
-REAL                             :: EtraWall, EtraNew
-REAL                             :: WallVelo(1:3), WallTemp
-REAL                             :: TransACC!, VibACC, RotACC
-! Polyatomic Molecules
-INTEGER                          :: iReact, RecombReactID
-REAL                             :: VeloCrad, Fak_D, NewVelo(3)
-REAL                             :: Phi, Cmr, VeloCx, VeloCy, VeloCz
-REAL                             :: POI_fak, TildTrajectory(3),POI_vec(3)
-INTEGER                          :: iNewPart ! particle counter for newly created particles
-!===================================================================================================================================
+REAL                             :: Xitild,Etatild
+INTEGER                          :: SpecID, locBCID, p, q
 
-! =============================
-! Workflow:
-!
-!  1.  Initial surface checks:  Check incident velocity vector and surface normal
-!  2.  Select surface model:    Determine what happens at the surface
-!  3.  (New) Particle handling: Perform reflection/removal of incident particle, create (multiple) possible new particles
-!==============================
+INTEGER                         :: iBC, SurfSideID
+LOGICAL                         :: SpecularReflectionOnly,DoSample
+!===================================================================================================================================
+iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+
+!---- Treatment of adaptive and porous boundary conditions (deletion of particles in case of circular inflow or porous BC)
+SpecularReflectionOnly = .FALSE.
+IF(UseCircularInflow) CALL SurfaceFluxBasedBoundaryTreatment(PartID,SideID,alpha,PartTrajectory)
+IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(PartID,SideID,alpha,PartTrajectory,SpecularReflectionOnly)
+
+!---- Dielectric particle-surface interaction
+IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN
+  CALL DepositParticleOnNodes(PartID,LastPartPos(1:3,PartID)+PartTrajectory(1:3)*alpha,ElemID)
+END IF
+
+!---- swap species?
+IF (PartBound%NbrOfSpeciesSwaps(iBC).gt.0) THEN
+  CALL SpeciesSwap(alpha,PartID,SideID)
+END IF
 
 !===================================================================================================================================
 ! 1.) Initial surface checks
 ! find normal vector two perpendicular tangential vectors (normal_vector points outwards !!!)
 !===================================================================================================================================
-CALL OrthoNormVec(n_loc,tang1,tang2)
-
-! additional states
 locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
-! get BC values
-WallVelo     = PartBound%WallVelo(1:3,locBCID)
-WallTemp     = PartBound%WallTemp(locBCID)
-
-POI_vec(1:3) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
-
-IF(PartBound%RotVelo(locBCID)) THEN
-  CALL CalcRotWallVelo(locBCID,PartID,POI_vec,WallVelo)
-END IF
-
-! initialize sampling arrays
-TransArray(:) = 0.0
-IntArray(:) = 0.0
-
-! compute p and q
-! correction of xi and eta, can only be applied if xi & eta are not used later!
-IF (TriaTracking) THEN
-  p=1 ; q=1
-ELSE
-  Xitild =MIN(MAX(-1.,xi ),0.99)
-  Etatild=MIN(MAX(-1.,eta),0.99)
-  p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
-  q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
-END IF
-
-SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID) !SurfMesh%SideIDToSurfID(SideID)
 SpecID = PartSpecies(PartID)
-! Update wallcollision counter
-SurfModel%Info(SpecID)%WallCollCount = SurfModel%Info(SpecID)%WallCollCount + 1
-#if (PP_TimeDiscMethod==42)
-IF (PartBound%SurfaceModel(locBCID).EQ.1) THEN
-  SurfModel%Info(SpecID)%Accomodation = SurfModel%Info(SpecID)%Accomodation &
-      + (PartBound%TransACC(locBCID) + PartBound%VibACC(locBCID)+ PartBound%RotACC(locBCID))/3.
-END IF
-#endif
-
-ReflectionIndex = -1 ! has to be reset in SurfaceModel, otherwise abort() will be called
-reactionEnthalpy = 0.
-SampledEnthalpy = .FALSE.
 ProductSpec(1) = SpecID
 ProductSpec(2) = 0
 ProductSpecNbr = 0
-velocityDistribution(1:2)=''
-TempErgy(1:2)=WallTemp
-
+TempErgy(1:2)=PartBound%WallTemp(locBCID)
 !===================================================================================================================================
-! 2.) Select surface model
-! Here, the surfacemodel decides how the particle is treated on the surface
+! 2.) Count and sample the properties BEFORE the surface interaction
+!===================================================================================================================================
+! Counter for surface analyze
+IF(CalcSurfCollCounter) SurfAnalyzeCount(SpecID) = SurfAnalyzeCount(SpecID) + 1
+! Sampling
+DoSample = (DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)
+IF(DoSample) THEN
+  IF (TriaTracking) THEN
+    p=1 ; q=1
+  ELSE
+    Xitild =MIN(MAX(-1.,xi ),0.99)
+    Etatild=MIN(MAX(-1.,eta),0.99)
+    p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+    q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+  END IF
+  SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
+  ! Sample momentum, heatflux and collision counter on surface
+  CALL CalcWallSample(PartID,SurfSideID,p,q,'old',PartTrajectory_opt=PartTrajectory,SurfaceNormal_opt=n_loc)
+END IF
+!===================================================================================================================================
+! Particle was deleted during the species swap/circular flow, leave the routine
+!===================================================================================================================================
+IF(.NOT.PDM%ParticleInside(PartID)) THEN
+  ! Increase the counter for deleted/absorbed/adsorbed particles
+  IF(CalcSurfCollCounter) SurfAnalyzeNumOfAds(SpecID) = SurfAnalyzeNumOfAds(SpecID) + 1
+  RETURN
+END IF
+!===================================================================================================================================
+! 3.) Perform the selected gas-surface interaction
 !===================================================================================================================================
 SELECT CASE(PartBound%SurfaceModel(locBCID))
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE (1)
+CASE (0) ! Maxwellian scattering (diffuse/specular reflection)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  ReflectionIndex = 2
-  CALL RANDOM_NUMBER(RanNum)
-  IF(RanNum.GE.PartBound%MomentumACC(locBCID)) ReflectionIndex = 1
-  Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
-  CALL RANDOM_NUMBER(RanNum)
-  IF ( (Adsorption_prob.GE.RanNum) .AND. &
-     (Adsorption%Coverage(p,q,SurfSideID,SpecID).LT.Adsorption%MaxCoverage(SurfSideID,SpecID)) ) THEN
-    ProductSpec(1) = -SpecID
-    ReflectionIndex = 3
-  END IF
+  CALL MaxwellScattering(PartTrajectory,LengthPartTrajectory,alpha,PartID,SideID,n_Loc,SpecularReflectionOnly)
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE (2)
-!-----------------------------------------------------------------------------------------------------------------------------------
-  ReflectionIndex = 2
-  CALL RANDOM_NUMBER(RanNum)
-  IF(RanNum.GE.PartBound%MomentumACC(locBCID)) ReflectionIndex = 1
-  ! Set probabilities
-  Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
-  Recombination_prob = Adsorption%ProbDes(p,q,SurfSideID,SpecID)
-  ! check if still enough saved particles on surface
-  IF (Adsorption%Coverage(p,q,SurfSideID,SpecID).LE.(-SurfModel%SumAdsorbPart(p,q,SurfSideID,SpecID))) THEN
-    Adsorption_prob = Adsorption_prob + Recombination_prob
-    Recombination_prob = 0.
-  END IF
-  ! Decide what happens to colliding particle
-  CALL RANDOM_NUMBER(RanNum)
-  IF ((Adsorption_prob+Recombination_prob).GE.RanNum) THEN
-    ReflectionIndex = 3
-    CALL RANDOM_NUMBER(RanNum)
-    IF ((Adsorption_prob/(Adsorption_prob+Recombination_prob)).GE.RanNum) THEN
-      ProductSpec(1) = -SpecID
-      ProductSpec(2) = 0
-    ELSE ! Eley Rideal reaction
-      DO iReact = Adsorption%DissNum+1,(Adsorption%ReactNum)
-        RecombReactID = iReact-Adsorption%DissNum
-        IF (Adsorption%RecombReact(2,RecombReactID,SpecID).EQ.Adsorption%ResultSpec(locBCID,SpecID)) THEN
-          EXIT
-        END IF
-      END DO
-      ProductSpec(2) = Adsorption%RecombReact(1,RecombReactID,SpecID)
-      ProductSpec(1) = Adsorption%RecombReact(2,RecombReactID,SpecID)
-      reactionEnthalpy = - Adsorption%EDissBond(iReact,SpecID) * Adsorption%ReactAccomodation(locBCID,SpecID) * BoltzmannConst
-    END IF
-  END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-CASE (3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-  Norm_velo = DOT_PRODUCT(PartState(4:6,PartID),n_loc(1:3))
-  CALL SMCR_PartAdsorb(p,q,SurfSideID,PartID,Norm_velo,ReflectionIndex,ProductSpec,reactionEnthalpy)
-!-----------------------------------------------------------------------------------------------------------------------------------
-CASE (4)
-!-----------------------------------------------------------------------------------------------------------------------------------
-  ! TODO
-!-----------------------------------------------------------------------------------------------------------------------------------
-CASE (5,6,7) ! Copied from CASE(1) and adjusted for secondary e- emission (SEE)
-             ! 5: SEE by Levko2015
+CASE (5,6,7) ! 5: SEE by Levko2015
              ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
              ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Get electron emission probability
-  CALL SecondaryElectronEmission(PartBound%SurfaceModel(locBCID),PartID,locBCID,Adsorption_prob,ReflectionIndex,ProductSpec,&
-  ProductSpecNbr,TempErgy(2),velocityDistribution)
-!-----------------------------------------------------------------------------------------------------------------------------------
-CASE (101) ! constant condensation coefficient
-!-----------------------------------------------------------------------------------------------------------------------------------
-  ReflectionIndex = 2
-  CALL RANDOM_NUMBER(RanNum)
-  IF(RanNum.GE.PartBound%MomentumACC(locBCID)) ReflectionIndex = 1
-  Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
-  CALL RANDOM_NUMBER(RanNum)
-  IF ( (Adsorption_prob.GE.RanNum) ) THEN
-    ReflectionIndex = 3
-    ProductSpec(1) = -SpecID
-  END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-CASE (102) ! calculate condensation probability by tsuruta2005 and reflection distribution function
-!-----------------------------------------------------------------------------------------------------------------------------------
-  ReflectionIndex = 3
-  velocityDistribution(1)='liquid_refl'
-  Norm_velo = DOT_PRODUCT(PartState(4:6,PartID),n_loc(1:3))
-  CALL RANDOM_NUMBER(RanNum)
-  IF ( (TSURUTACONDENSCOEFF(SpecID,Norm_velo,WallTemp).GE.RanNum) ) THEN
-    ProductSpec(1) = -SpecID
-  END IF
-END SELECT
-
-
-
-!===================================================================================================================================
-! 3.) (New) Particle handling
-! Here, the incident particle is reflected/adsorbed and an additional product is emitted/adsorbed
-!===================================================================================================================================
-SELECT CASE(ReflectionIndex)
-!-----------------------------------------------------------------------------------------------------------------------------------
-CASE(1,2) ! (particle is treated in boundary condition)
-!-----------------------------------------------------------------------------------------------------------------------------------
-  ! 1: Diffuse reflection
-  ! 2: Perfect elastic scattering
-  RETURN
-!-----------------------------------------------------------------------------------------------------------------------------------
-CASE(3) ! reactive interaction case
-!-----------------------------------------------------------------------------------------------------------------------------------
-  ! Old particle
-  IF (ProductSpec(1).LT.0) THEN
-    SurfModel%SumAdsorbPart(p,q,SurfSideID,ABS(ProductSpec(1))) = SurfModel%SumAdsorbPart(p,q,SurfSideID,ABS(ProductSpec(1))) + 1
-    SurfModel%Info(SpecID)%NumOfAds = SurfModel%Info(SpecID)%NumOfAds + 1
-  END IF
-
-  ! New particle
-  IF (ProductSpec(2).NE.0) THEN
-    SurfModel%SumAdsorbPart(p,q,SurfSideID,ABS(ProductSpec(2))) = SurfModel%SumAdsorbPart(p,q,SurfSideID,ABS(ProductSpec(2))) &
-                                                                - SIGN(1,ProductSpec(2))
-    IF (ProductSpec(2).LT.0) THEN
-      SurfModel%Info(SpecID)%NumOfAds = SurfModel%Info(SpecID)%NumOfAds + 1
-    END IF
-  END IF
-#if (PP_TimeDiscMethod==42)
-  SurfModel%ProperInfo(SpecID)%HeatFlux(1) = SurfModel%ProperInfo(SpecID)%HeatFlux(1) + reactionEnthalpy/BoltzmannConst
-#endif
-
-  !-----------------------------------------------------------
-  ! Sampling of reaction enthalpies and reaction counters on respective surface element
-  IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-    ! Sample dissociation reaction counter and heatflux
-    DO iReact = 1,Adsorption%DissNum
-      IF (SampledEnthalpy) EXIT
-      IF (Adsorption%DissocReact(1,iReact,SpecID).EQ.ABS(ProductSpec(1)) &
-          .AND. Adsorption%DissocReact(2,iReact,SpecID).EQ.ABS(ProductSpec(2)))THEN
-        SampWall(SurfSideID)%SurfModelState(4,p,q) = SampWall(SurfSideID)%SurfModelState(4,p,q) &
-                                               + reactionEnthalpy * Species(SpecID)%MacroParticleFactor
-        SampWall(SurfSideID)%SurfModelReactCount(iReact,SpecID,p,q)=SampWall(SurfSideID)%SurfModelReactCount(iReact,SpecID,p,q) + 1
-        SampledEnthalpy = .TRUE.
-      END IF
-    END DO
-    ! Sample recombination reaction counter and heatflux
-    DO iReact = 1,Adsorption%RecombNum
-      IF (SampledEnthalpy) EXIT
-      IF (Adsorption%RecombReact(2,iReact,SpecID).EQ.ABS(ProductSpec(1)) &
-          .AND. Adsorption%RecombReact(1,iReact,SpecID).EQ.ABS(ProductSpec(2)))THEN
-        SampWall(SurfSideID)%SurfModelReactCount(Adsorption%DissNum+iReact,SpecID,p,q) = &
-            SampWall(SurfSideID)%SurfModelReactCount(Adsorption%DissNum+iReact,SpecID,p,q) + 1
-        !----  Sampling of reactionEnthalpy
-        IF (ALLOCATED(Adsorption%ReactAccomodation)) reactionEnthalpy = &
-              reactionEnthalpy * Adsorption%ReactAccomodation(locBCID,SpecID)
-        SampWall(SurfSideID)%SurfModelState(3,p,q) = SampWall(SurfSideID)%SurfModelState(3,p,q) &
-                                               + reactionEnthalpy * Species(SpecID)%MacroParticleFactor
-        SampledEnthalpy = .TRUE.
-      END IF
-    END DO
-    IF (.NOT.SampledEnthalpy) SampWall(SurfSideID)%SurfModelState(5,p,q) = SampWall(SurfSideID)%SurfModelState(5,p,q) &
-                                                                          + ReactionEnthalpy * Species(SpecID)%MacroParticleFactor
-  END IF
-
-  !-----------------------------------------------------------
-  ! Treat incident particle
-  CALL AddPartInfoToSample(PartID,TransArray,IntArray,'old')
-  ! Sample momentum, heatflux and collision counter on surface
-  CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,IsSpeciesSwap,&
-                      impact_opt=CalcSurfaceImpact,PartTrajectory_opt=PartTrajectory,SurfaceNormal_opt=n_loc)
-  CALL AnalyzeSurfaceCollisions(PartID,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
-
+  CALL SecondaryElectronEmission(PartID,locBCID,ProductSpec,ProductSpecNbr,TempErgy(2))
+  ! Decide the fate of the impacting particle
   IF (ProductSpec(1).LE.0) THEN
     CALL RemoveParticle(PartID,alpha=alpha)
   ELSE
-    oldVelo(1:3) = PartState(4:6,PartID)
-    IF(TRIM(velocityDistribution(1)).NE.'') THEN
-      ! sample new velocity for reflected particle
-      NewVelo(1:3) = VeloFromDistribution(velocityDistribution(1),ProductSpec(1),TempErgy(1))
-      ! important: n_loc points outwards
-      PartState(4:6,PartID) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
-
-      ! intersection point with surface
-      LastPartPos(1:3,PartID) = POI_vec(1:3)
-      ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
-      TildTrajectory=dt*RKdtFrac*oldVelo(1:3)
-      POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
-      ! travel rest of particle vector
-      IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
-
-      ! recompute trajectory etc
-      PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dt*RKdtFrac * PartState(4:6,PartID)
-    ELSE
-      IF (PartBound%MomentumACC(locBCID).GT.0.0 .AND. .NOT.ModelERSpecular) THEN
-        ! diffuse reflection
-        TransACC   = PartBound%TransACC(locBCID)
-        !VibACC     = PartBound%VibACC(locBCID)
-        !RotACC     = PartBound%RotACC(locBCID)
-        CALL RANDOM_NUMBER(RanNum)
-        VeloCrad    = SQRT(-LOG(RanNum))
-        CALL RANDOM_NUMBER(RanNum)
-        VeloCz      = SQRT(-LOG(RanNum))
-        Fak_D       = VeloCrad**2 + VeloCz**2
-        EtraWall    = BoltzmannConst * WallTemp * Fak_D
-        VeloReal    = SQRT(DOT_PRODUCT(oldVelo,oldVelo))
-        EtraOld     = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
-        EtraNew     = EtraOld + TransACC * (EtraWall - EtraOld)
-        Cmr         = SQRT(2.0 * EtraNew / (Species(ProductSpec(1))%MassIC * Fak_D))
-        CALL RANDOM_NUMBER(RanNum)
-        Phi     = 2.0 * PI * RanNum
-        VeloCx  = Cmr * VeloCrad * COS(Phi) ! tang1
-        VeloCy  = Cmr * VeloCrad * SIN(Phi) ! tang2
-        VeloCz  = Cmr * VeloCz
-        NewVelo = VeloCx*tang1-tang2*VeloCy-VeloCz*n_loc
-      ELSE
-        ! perfect velocity reflection
-        NewVelo(1:3) = oldVelo(1:3) - 2.*DOT_PRODUCT(oldVelo(1:3),n_loc)*n_loc
-        ! mass changes, therefore velocity is scaled because momentum remains the same
-        NewVelo(1:3) = NewVelo(1:3) * (Species(ProductSpec(1))%MassIC/Species(SpecID)%MassIC)
-      END IF
-      ! intersection point with surface
-      LastPartPos(1:3,PartID) = POI_vec(1:3)
-      ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
-      TildTrajectory=dt*RKdtFrac*oldVelo(1:3)
-      POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
-      ! travel rest of particle vector
-      IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
-      PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3)
-      !----  saving new particle velocity
-      PartState(4:6,PartID)   = NewVelo(1:3) + WallVelo(1:3)
-    END IF
-    PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
-    lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
-    PartTrajectory=PartTrajectory/lengthPartTrajectory
-
-    ! set new species of reflected particle
-    PartSpecies(PartID) = ProductSpec(1)
-    ! Adding the energy that is transferred from the surface onto the internal energies of the particle
-    CALL SurfaceToPartEnergyInternal(PartID,WallTemp)
-    CALL AddPartInfoToSample(PartID,TransArray,IntArray,'new')
-    ! Sample momentum, heatflux and collision counter on surface
-    CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,IsSpeciesSwap,emission_opt=.TRUE.)
+    CALL MaxwellScattering(PartTrajectory,LengthPartTrajectory,alpha,PartID,SideID,n_Loc)
   END IF
-
-  !-----------------------------------------------------------
-  ! Create new particles
+  ! Emit the secondary electrons
   IF (ProductSpec(2).GT.0) THEN
-    DO iNewPart = 1, ProductSpecNbr
-      SurfModel%Info(ProductSpec(2))%NumOfDes = SurfModel%Info(ProductSpec(2))%NumOfDes + 1
-      ! create new particle and assign correct energies
-      ! sample newly created velocity
-      NewVelo(1:3) = VeloFromDistribution(velocityDistribution(2),ProductSpec(2),TempErgy(2))
-      ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
-      NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
-
-      PartTrajectory2=UNITVECTOR(NewVelo(1:3))
-
-      CALL CreateParticle(ProductSpec(2),LastPartPos(1:3,PartID),PEM%GlobalElemID(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
-      ! Adding the energy that is transferred from the surface onto the internal energies of the particle
-      CALL SurfaceToPartEnergyInternal(NewPartID,WallTemp)
-
-      CALL AddPartInfoToSample(NewPartID,TransArray,IntArray,'new')
-      CALL CalcWallSample(NewPartID,SurfSideID,p,q,Transarray,IntArray,IsSpeciesSwap,emission_opt=.TRUE.)
-    END DO ! iNewPart = 1, ProductSpecNbr
+    CALL SurfaceModel_ParticleEmission(PartTrajectory, LengthPartTrajectory, alpha, n_loc, PartID, SideID, p, q, &
+            ProductSpec, ProductSpecNbr,TempErgy)
   END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
 CASE DEFAULT
-!-----------------------------------------------------------------------------------------------------------------------------------
-  ReflectionIndex = -1
+    CALL abort(&
+      __STAMP__&
+      ,'Not implemented anymore!')
 END SELECT
 
-END SUBROUTINE ReactiveSurfaceTreatment
+!===================================================================================================================================
+! 4.) Count and sample the properties AFTER the surface interaction
+!===================================================================================================================================
+! Counter for surface analyze
+IF(CalcSurfCollCounter) THEN
+  ! Old particle was deleted/absorbed/adsorbed at the wall (in case it happend during a surface model and not during the 
+  ! SpeciesSwap routine)
+  IF (ProductSpec(1).LE.0) THEN
+    SurfAnalyzeNumOfAds(SpecID) = SurfAnalyzeNumOfAds(SpecID) + 1
+  END IF
+  ! New particle was created/desorbed at the wall
+  IF (ProductSpec(2).GT.0) THEN
+    SurfAnalyzeNumOfDes(ProductSpec(2)) = SurfAnalyzeNumOfDes(ProductSpec(2)) + ProductSpecNbr
+  END IF
+END IF
+! Sampling
+IF(DoSample) THEN
+  ! Sample momentum, heatflux and collision counter on surface (only the original impacting particle, not the newly created parts
+  ! through SurfaceModel_ParticleEmission)
+  CALL CalcWallSample(PartID,SurfSideID,p,q,'new',PartTrajectory_opt=PartTrajectory,SurfaceNormal_opt=n_loc)
+END IF
+
+END SUBROUTINE SurfaceModel
+
+
+SUBROUTINE MaxwellScattering(PartTrajectory,LengthPartTrajectory,alpha,PartID,SideID,n_loc,SpecularReflectionOnly)
+!===================================================================================================================================
+!> SurfaceModel = 0, classic DSMC gas-surface interaction model choosing between a perfect specular and a complete diffuse
+!> reflection by comparing the given momentum accommodation coefficient (MomentumACC) with a random number
+!===================================================================================================================================
+USE MOD_Globals                 ,ONLY: abort,UNITVECTOR,OrthoNormVec
+USE MOD_Particle_Vars           ,ONLY: PartSpecies, WriteMacroSurfaceValues
+USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
+USE MOD_Particle_Boundary_Vars  ,ONLY: Partbound, GlobalSide2SurfSide, dXiEQ_SurfSample
+USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_Particle_Vars           ,ONLY: PDM, LastPartPos
+USE MOD_Particle_Vars           ,ONLY: UseCircularInflow
+USE MOD_Dielectric_Vars         ,ONLY: DoDielectricSurfaceCharge
+USE MOD_DSMC_Vars               ,ONLY: DSMC, SamplingActive
+USE MOD_SurfaceModel_Tools      ,ONLY: SurfaceModel_ParticleEmission
+USE MOD_SEE                     ,ONLY: SecondaryElectronEmission
+USE MOD_SurfaceModel_Porous     ,ONLY: PorousBoundaryTreatment
+USE MOD_Particle_Boundary_Tools ,ONLY: CalcWallSample
+USE MOD_PICDepo_Tools           ,ONLY: DepositParticleOnNodes
+USE MOD_Part_Tools              ,ONLY: VeloFromDistribution
+USE MOD_part_operations         ,ONLY: CreateParticle, RemoveParticle
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT-OUTPUT VARIABLES
+REAL,INTENT(INOUT)          :: PartTrajectory(1:3), LengthPartTrajectory, alpha
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)             :: n_loc(1:3)
+INTEGER,INTENT(IN)          :: PartID, SideID
+LOGICAL,INTENT(IN),OPTIONAL :: SpecularReflectionOnly
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                        :: RanNum
+INTEGER                     :: iBC
+!===================================================================================================================================
+
+iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+
+IF (SpecularReflectionOnly) THEN
+  CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,PartID,SideID,n_loc)
+ELSE IF(PartBound%MomentumACC(iBC).LT.1.0) THEN
+  CALL RANDOM_NUMBER(RanNum)
+  IF(RanNum.GE.PartBound%MomentumACC(iBC).OR.SpecularReflectionOnly) THEN
+    CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,PartID,SideID,n_loc)
+  ELSE
+    CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,PartID,SideID,n_loc)
+  END IF
+ELSE
+  CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,PartID,SideID,n_loc)
+END IF
+
+END SUBROUTINE MaxwellScattering
+
+
+SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,PartID,SideID,n_Loc,opt_Symmetry,AuxBCIdx)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Computes the perfect reflection in 3D
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,PartAuxBC
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,Species,PartLorentzType
+USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
+USE MOD_Globals_Vars            ,ONLY: c2_inv
+#if defined(LSERK)
+USE MOD_Particle_Vars           ,ONLY: Pt_temp,PDM
+#elif (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+USE MOD_Particle_Vars           ,ONLY: PDM
+#endif
+#if defined(IMPA) || defined(ROS)
+USE MOD_Particle_Vars           ,ONLY: PEM
+#endif
+USE MOD_SurfaceModel_Tools      ,ONLY: CalcRotWallVelo
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
+REAL,INTENT(IN)                   :: n_loc(1:3)
+INTEGER,INTENT(IN)                :: PartID, SideID !,ElemID
+LOGICAL,INTENT(IN),OPTIONAL       :: opt_Symmetry
+INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                 :: v_old(1:3),WallVelo(3), v_old_Ambi(1:3)
+REAL                                 :: LorentzFac, LorentzFacInv
+INTEGER                              :: locBCID
+LOGICAL                              :: Symmetry, IsAuxBC
+REAL                                 :: POI_vec(1:3)
+REAL                                 :: adaptTimeStep
+!===================================================================================================================================
+! Initialize
+adaptTimeStep = 1.0
+IsAuxBC=.FALSE.
+Symmetry = .FALSE.
+
+IF (PRESENT(AuxBCIdx)) IsAuxBC=.TRUE.
+
+IF (IsAuxBC) THEN
+  WallVelo = PartAuxBC%WallVelo(1:3,AuxBCIdx)
+ELSE
+  WallVelo = PartBound%WallVelo(1:3,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+  locBCID  = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+  IF(PRESENT(opt_Symmetry)) Symmetry = opt_Symmetry
+END IF !IsAuxBC
+
+! Get Point Of Intersection
+POI_vec(1:3) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
+
+!IF(PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
+!  CALL CalcRotWallVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)),POI_vec,WallVelo)
+!END IF
+
+IF(SUM(ABS(WallVelo)).GT.0.)THEN
+  SELECT CASE(PartLorentzType)
+  CASE(3)
+    v_old = PartState(4:6,PartID)
+    PartState(4:6,PartID) = PartState(4:6,PartID) &
+                          - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc + WallVelo
+    ! sanity check of new particle velocity
+    LorentzFac=1.0-DOT_PRODUCT(PartState(4:6,PartID),PartState(4:6,PartID))*c2_inv
+    IF(LorentzFac.LT.0.) CALL Abort(&
+                          __STAMP__&
+                          ,'Particle exceeds speed of light! PartID ',PartID)
+  CASE(5)
+    ! map relativistic momentum to velocity
+    LorentzFacInv         = 1.0+DOT_PRODUCT(PartState(4:6,PartID),PartState(4:6,PartID))*c2_inv
+    LorentzFacInv         = 1.0/SQRT(LorentzFacInv)
+    PartState(4:6,PartID) = LorentzFacInv*PartState(4:6,PartID)
+    v_old                 = PartState(4:6,PartID)
+    ! update velocity
+    PartState(4:6,PartID) = PartState(4:6,PartID) &
+                          - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc + WallVelo
+    ! map back from velocity to relativistic momentum
+    LorentzFac=1.0-DOT_PRODUCT(PartState(4:6,PartID),PartState(4:6,PartID))*c2_inv
+    IF(LorentzFac.LT.0.)THEN
+      CALL Abort(&
+        __STAMP__&
+        ,'Particle exceeds speed of light! PartID ',PartID)
+    END IF
+    LorentzFac=1.0/SQRT(LorentzFac)
+    PartState(4:6,PartID) = LorentzFac*PartState(4:6,PartID)
+  CASE DEFAULT
+    v_old = PartState(4:6,PartID)
+    PartState(4:6,PartID) = PartState(4:6,PartID) &
+                          - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc + WallVelo
+  END SELECT
+ELSE
+  v_old = PartState(4:6,PartID)
+  PartState(4:6,PartID) = PartState(4:6,PartID) &
+                        - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc
+  IF (DSMC%DoAmbipolarDiff) THEN
+    IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
+      v_old_Ambi = AmbipolElecVelo(PartID)%ElecVelo(1:3)
+      AmbipolElecVelo(PartID)%ElecVelo(1:3) = AmbipolElecVelo(PartID)%ElecVelo(1:3) &
+                     - 2.*DOT_PRODUCT(AmbipolElecVelo(PartID)%ElecVelo(1:3),n_loc)*n_loc
+    END IF
+  END IF
+END IF
+
+! set particle position on face
+LastPartPos(1:3,PartID) = POI_vec(1:3)
+
+PartTrajectory(1:3)     = PartTrajectory(1:3)-2.*DOT_PRODUCT(PartTrajectory(1:3),n_loc)*n_loc
+
+! Check if rotated velo is used, otherwise mirror the LastPartPos
+!IF(PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))))THEN
+!  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac &
+!                          * PartState(4:6,PartID) * adaptTimeStep
+!ELSE
+  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*(lengthPartTrajectory - alpha)
+!END IF ! PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+
+! #if !defined(IMPA) &&  !defined(ROS)
+! compute moved particle || rest of movement
+PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
+
+IF(ALMOSTZERO(VECNORM(PartTrajectory)))THEN
+  lengthPartTrajectory= 0.0
+ELSE
+  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                           +PartTrajectory(2)*PartTrajectory(2) &
+                           +PartTrajectory(3)*PartTrajectory(3) )
+  PartTrajectory=PartTrajectory/lengthPartTrajectory
+END IF
+! #endif
+
+#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+   ! correction for Runge-Kutta (correct position!!)
+!---------- old ----------
+!  absPt_temp=SQRT(Pt_temp(1,PartID)*Pt_temp(1,PartID)+Pt_temp(2,PartID)*Pt_temp(2,PartID)+Pt_temp(3,PartID)*Pt_temp(3,PartID))
+!  ! scale PartTrajectory to new Pt_temp
+!  Pt_temp(1:3,PartID)=absPt_temp*PartTrajectory(1:3)
+!  ! deleate force history
+!  Pt_temp(4:6,PartID)=0.
+!  ! what happens with force term || acceleration?
+!-------------------------
+IF (.NOT.ALMOSTZERO(DOT_PRODUCT(WallVelo,WallVelo))) THEN
+  PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
+#if defined(LSERK)
+ELSE
+  Pt_temp(1:3,PartID)=Pt_temp(1:3,PartID)-2.*DOT_PRODUCT(Pt_temp(1:3,PartID),n_loc)*n_loc
+  IF (Symmetry) THEN !reflect also force history for symmetry
+    Pt_temp(4:6,PartID)=Pt_temp(4:6,PartID)-2.*DOT_PRODUCT(Pt_temp(4:6,PartID),n_loc)*n_loc
+  ELSE
+    Pt_temp(4:6,PartID)=0. !produces best result compared to analytical solution in plate capacitor...
+  END IF
+#endif  /*LSERK*/
+END IF
+#endif  /*LSERK || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
+
+! rotation for IMEX and Rosenbrock Method (requires the rotation of the previous rk-stages... simplification of boundary condition)
+! results in an order reduction
+#ifdef IMPA
+!IF(SUM(ABS(PEM%NormVec(1:3,PartID))).GT.0)THEN
+!   IPWRITE(*,*) ' Caution: Field rotation for several reflection is not implemented!', iStage,PartIsImplicit(PartID), PartID
+! END IF
+PEM%NormVec(1:3,PartID)=n_loc
+#endif /*IMPA*/
+#ifdef ROS
+! IF(SUM(ABS(PEM%NormVec(1:3,PartID))).GT.0)THEN
+!   !IPWRITE(*,*) ' Caution: Field rotation for several reflection is not implemented!'
+! END IF
+PEM%NormVec(1:3,PartID)=n_loc
+#endif /*ROS*/
+
+END SUBROUTINE PerfectReflection
+
+
+SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,PartID,SideID,n_loc,AuxBCIdx)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Computes the diffuse reflection in 3D
+! only implemented for RefMapping tracking
+! PartBCs are reduced!
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals                 ,ONLY: ABORT, OrthoNormVec,VECNORM
+USE MOD_DSMC_Vars               ,ONLY: DSMC, RadialWeighting, AmbipolElecVelo
+USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
+USE MOD_Part_Tools              ,ONLY: GetParticleWeight
+USE MOD_SurfaceModel_Tools      ,ONLY: GetWallTemperature, CalcRotWallVelo
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,PartAuxBC
+USE MOD_Particle_Mesh_Vars
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,Symmetry
+USE MOD_Particle_Vars           ,ONLY: VarTimeStep, usevMPF
+USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+USE MOD_Particle_Vars           ,ONLY: PDM
+#endif
+USE MOD_SurfaceModel_Tools      ,ONLY: SurfaceModel_EnergyAccommodation
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
+REAL,INTENT(IN)                   :: n_loc(1:3)
+INTEGER,INTENT(IN)                :: PartID, SideID
+INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: locBCID
+REAL                              :: VeloReal, RanNum, EtraOld, VeloCrad, Fak_D
+REAL                              :: EtraWall, EtraNew
+REAL                              :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC, ElecACC
+REAL                              :: tang1(1:3),tang2(1:3), NewVelo(3), POI_vec(1:3)
+REAL                              :: Phi, Cmr, VeloCx, VeloCy, VeloCz
+REAL                              :: POI_fak,TildTrajectory(3)
+LOGICAL                           :: IsAuxBC
+! Symmetry
+REAL                              :: rotVelY, rotVelZ, rotPosY, MacroParticleFactor, adaptTimeStep
+REAL                              :: VelX, VelY, VelZ,VecX, VecY, VecZ
+REAL                              :: Vector1(1:3), Vector2(1:3)
+REAL                              :: nx, ny, nz, nVal
+INTEGER                           :: LocSideID, CNElemID
+REAL                              :: EtraOldAmbi, EtraNewAmbi, EtraWallAmbi, NewVeloAmbi(3), VeloCxAmbi, VeloCyAmbi, VeloCzAmbi
+!===================================================================================================================================
+IF (PRESENT(AuxBCIdx)) THEN
+  IsAuxBC=.TRUE.
+ELSE
+  IsAuxBC=.FALSE.
+END IF
+IF (IsAuxBC) THEN
+  WallVelo   = PartAuxBC%WallVelo(1:3,AuxBCIdx)
+  WallTemp   = PartAuxBC%WallTemp(AuxBCIdx)
+  TransACC   = PartAuxBC%TransACC(AuxBCIdx)
+  VibACC     = PartAuxBC%VibACC(AuxBCIdx)
+  RotACC     = PartAuxBC%RotACC(AuxBCIdx)
+  ElecACC    = PartAuxBC%ElecACC(AuxBCIdx)
+ELSE
+  ! additional states
+  locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+  ! get BC values
+  WallVelo   = PartBound%WallVelo(1:3,locBCID)
+  WallTemp   = GetWallTemperature(PartID,locBCID,PartTrajectory,alpha)
+  TransACC   = PartBound%TransACC(locBCID)
+  VibACC     = PartBound%VibACC(locBCID)
+  RotACC     = PartBound%RotACC(locBCID)
+  ElecACC    = PartBound%ElecACC(locBCID)
+END IF !IsAuxBC
+
+POI_vec(1:3) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
+
+IF(PartBound%RotVelo(locBCID)) THEN
+  CALL CalcRotWallVelo(locBCID,POI_vec,WallVelo)
+END IF
+
+CALL OrthoNormVec(n_loc,tang1,tang2)
+
+IF(Symmetry%Axisymmetric) THEN
+  ! Storing the old and the new particle position (which is outside the domain), at this point the position is only in the xy-plane
+  VelX = PartState(1,PartID) - LastPartPos(1,PartID)
+  VelY = PartState(2,PartID) - LastPartPos(2,PartID)
+  VelZ = PartState(3,PartID) - LastPartPos(3,PartID)
+
+  CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
+  LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+
+  ! Getting the vectors, which span the cell (1-2 and 1-4)
+  Vector1(1:3)=NodeCoords_Shared(1:3,ElemSideNodeID_Shared(2,LocSideID,CNElemID)+1)-NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
+  Vector2(1:3)=NodeCoords_Shared(1:3,ElemSideNodeID_Shared(4,LocSideID,CNElemID)+1)-NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
+
+  ! Get the vector, which does NOT have the z-component
+  IF (ABS(Vector1(3)).GT.ABS(Vector2(3))) THEN
+    Vector1 = Vector2
+  END IF
+  ! Cross product of the two vectors is simplified as Vector1(3) is zero
+  nx = Vector1(2)
+  ny = -Vector1(1)
+  nz = 0.
+  ! Check for the correct orientation of the normal vectors (should be inwards)
+  IF ((VelX*nx+VelY*ny).GT.0) THEN
+    nx = -Vector1(2)
+    ny = Vector1(1)
+  END IF
+
+  nVal = SQRT(nx*nx + ny*ny)
+  nx = nx/nVal
+  ny = ny/nVal
+END IF
+
+! calculate new velocity vector (Extended Maxwellian Model)
+VeloReal = VECNORM(PartState(4:6,PartID))
+
+EtraOld     = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
+CALL RANDOM_NUMBER(RanNum)
+VeloCrad    = SQRT(-LOG(RanNum))
+CALL RANDOM_NUMBER(RanNum)
+VeloCz      = SQRT(-LOG(RanNum))
+Fak_D       = VeloCrad**2 + VeloCz**2
+
+EtraWall    = BoltzmannConst * WallTemp * Fak_D
+EtraNew     = EtraOld + TransACC * (EtraWall - EtraOld)
+Cmr         = SQRT(2.0 * EtraNew / (Species(PartSpecies(PartID))%MassIC * Fak_D))
+CALL RANDOM_NUMBER(RanNum)
+Phi     = 2.0 * PI * RanNum
+VeloCx  = Cmr * VeloCrad * COS(Phi) ! tang1
+VeloCy  = Cmr * VeloCrad * SIN(Phi) ! tang2
+VeloCz  = Cmr * VeloCz
+
+IF (DSMC%DoAmbipolarDiff) THEN
+  IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
+    VeloReal = VECNORM(AmbipolElecVelo(PartID)%ElecVelo(1:3))
+    EtraOldAmbi = 0.5 * Species(DSMC%AmbiDiffElecSpec)%MassIC * VeloReal**2
+    CALL RANDOM_NUMBER(RanNum)
+    VeloCrad    = SQRT(-LOG(RanNum))
+    CALL RANDOM_NUMBER(RanNum)
+    VeloCzAmbi      = SQRT(-LOG(RanNum))
+    Fak_D       = VeloCrad**2 + VeloCzAmbi**2
+    EtraWallAmbi= BoltzmannConst * WallTemp * Fak_D
+    EtraNewAmbi = EtraOldAmbi + TransACC * (EtraWallAmbi - EtraOldAmbi)
+    Cmr         = SQRT(2.0 * EtraNewAmbi / (Species(DSMC%AmbiDiffElecSpec)%MassIC * Fak_D))
+    CALL RANDOM_NUMBER(RanNum)
+    Phi     = 2.0 * PI * RanNum
+    VeloCxAmbi  = Cmr * VeloCrad * COS(Phi) ! tang1
+    VeloCyAmbi  = Cmr * VeloCrad * SIN(Phi) ! tang2
+    VeloCzAmbi  = Cmr * VeloCzAmbi
+  END IF
+END IF
+
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+  MacroParticleFactor = GetParticleWeight(PartID)
+ELSE
+  MacroParticleFactor = GetParticleWeight(PartID)*Species(PartSpecies(PartID))%MacroParticleFactor
+END IF
+
+!   Transformation local distribution -> global coordinates
+! v = nv*u+t1*v+t2*f3
+
+!NewVelo = VeloCx*tang1+CROSS(-n_loc,tang1)*VeloCy-VeloCz*n_loc
+!---- Transformation local distribution -> global coordinates
+IF(Symmetry%Axisymmetric) THEN
+  VecX = Vector1(1) / SQRT( Vector1(1)**2 + Vector1(2)**2)
+  VecY = Vector1(2) / SQRT( Vector1(1)**2 + Vector1(2)**2)
+  VecZ = 0.
+  NewVelo(1) = VecX*VeloCx + nx*VeloCz
+  NewVelo(2) = VecY*VeloCx + ny*VeloCz
+  NewVelo(3) = VeloCy
+ELSE
+  NewVelo(1:3) = VeloCx*tang1(1:3)-tang2(1:3)*VeloCy-VeloCz*n_loc(1:3)
+END IF
+! add wall velocity
+NewVelo(1:3) = NewVelo(1:3) + WallVelo(1:3)
+
+IF (DSMC%DoAmbipolarDiff) THEN
+  IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
+    IF(Symmetry%Axisymmetric) THEN
+      NewVeloAmbi(1) = VecX*VeloCxAmbi + nx*VeloCzAmbi
+      NewVeloAmbi(2) = VecY*VeloCxAmbi + ny*VeloCzAmbi
+      NewVeloAmbi(3) = VeloCyAmbi
+    ELSE
+      NewVeloAmbi(1:3) = VeloCxAmbi*tang1(1:3)-tang2(1:3)*VeloCyAmbi-VeloCzAmbi*n_loc(1:3)
+    END IF
+    NewVeloAmbi(1:3) = NewVeloAmbi(1:3) + WallVelo(1:3)
+  END IF
+END IF
+
+IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
+  CALL SurfaceModel_EnergyAccommodation(PartID,locBCID,WallTemp)
+  ! Sampling of the time step at the wall to get the correct time sample duration for the surface values
+  IF (VarTimeStep%UseVariableTimeStep) THEN
+    adaptTimeStep = VarTimeStep%ParticleTimeStep(PartID)
+  ELSE
+    adaptTimeStep = 1.
+  END IF ! VarTimeStep%UseVariableTimeStep
+
+  ! intersection point with surface
+  LastPartPos(1:3,PartID) = POI_vec(1:3)
+
+  ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
+  !TildPos       =PartState(1:3,PartID)-dt*RKdtFrac*PartState(4:6,PartID)
+  TildTrajectory=dt*RKdtFrac*PartState(4:6,PartID)*adaptTimeStep
+  POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
+  ! travel rest of particle vector
+  !PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac * NewVelo(1:3)
+  IF (IsAuxBC) THEN
+    IF (PartAuxBC%Resample(AuxBCIdx)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
+  ELSE
+    IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
+  END IF ! IsAuxBC
+  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3) * adaptTimeStep
+
+  IF(Symmetry%Axisymmetric) THEN
+    ! Symmetry considerations --------------------------------------------------------
+    rotPosY = SQRT(PartState(2,PartID)**2 + (PartState(3,PartID))**2)
+    ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
+    !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
+    ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
+    ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
+    IF (DSMC%DoAmbipolarDiff) THEN
+      IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
+        rotVelY = (NewVeloAmbi(2)*(PartState(2,PartID))+NewVeloAmbi(3)*PartState(3,PartID))/rotPosY
+        rotVelZ = (-NewVeloAmbi(2)*PartState(3,PartID)+NewVeloAmbi(3)*(PartState(2,PartID)))/rotPosY
+
+        NewVeloAmbi(2) = rotVelY
+        NewVeloAmbi(3) = rotVelZ
+      END IF
+    END IF
+    rotVelY = (NewVelo(2)*(PartState(2,PartID))+NewVelo(3)*PartState(3,PartID))/rotPosY
+    rotVelZ = (-NewVelo(2)*PartState(3,PartID)+NewVelo(3)*(PartState(2,PartID)))/rotPosY
+
+    PartState(2,PartID) = rotPosY
+    PartState(3,PartID) = 0.0
+    NewVelo(2) = rotVelY
+    NewVelo(3) = rotVelZ
+  END IF ! Symmetry%Axisymmetric
+
+  IF(Symmetry%Order.LT.3) THEN
+    ! y/z-variable is set to zero for the different symmetry cases
+    LastPartPos(Symmetry%Order+1:3,PartID) = 0.0
+    PartState(Symmetry%Order+1:3,PartID) = 0.0
+  END IF
+END IF !.NOT.IsAuxBC
+
+!----  saving new particle velocity
+PartState(4:6,PartID)   = NewVelo(1:3)
+IF (DSMC%DoAmbipolarDiff) THEN
+  IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) AmbipolElecVelo(PartID)%ElecVelo(1:3) = NewVeloAmbi(1:3) 
+END IF
+
+! recompute trajectory etc
+IF(Symmetry%Axisymmetric) THEN
+  PartTrajectory(1:2)=PartState(1:2,PartID) - LastPartPos(1:2,PartID)
+  PartTrajectory(3) = 0.
+  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                          +PartTrajectory(2)*PartTrajectory(2))
+ELSE
+  PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
+  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                          +PartTrajectory(2)*PartTrajectory(2) &
+                          +PartTrajectory(3)*PartTrajectory(3) )
+END IF
+IF(ABS(lengthPartTrajectory).GT.0.) PartTrajectory=PartTrajectory/lengthPartTrajectory
+
+#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
+#endif
+
+END SUBROUTINE DiffuseReflection
+
+
+SUBROUTINE SpeciesSwap(alpha,PartID,SideID,AuxBCIdx,targetSpecies_IN)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Computes the Species Swap on ReflectiveBC
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals                 ,ONLY: abort,VECNORM
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,PartAuxBC
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_Particle_Vars           ,ONLY: PartSpecies
+USE MOD_part_operations         ,ONLY: RemoveParticle
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+REAL,INTENT(INOUT)                :: alpha
+INTEGER,INTENT(IN)                :: PartID, SideID
+INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
+INTEGER,INTENT(IN),OPTIONAL       :: targetSpecies_IN
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: targetSpecies, iSwaps
+REAL                              :: RanNum
+INTEGER                           :: locBCID
+LOGICAL                           :: IsAuxBC
+!===================================================================================================================================
+IF (PRESENT(AuxBCIdx)) THEN
+  IsAuxBC=.TRUE.
+ELSE
+  IsAuxBC=.FALSE.
+END IF
+
+IF (IsAuxBC) THEN
+  CALL RANDOM_NUMBER(RanNum)
+  IF(RanNum.LE.PartAuxBC%ProbOfSpeciesSwaps(AuxBCIdx)) THEN
+    targetSpecies=-1 ! Dummy initialization value
+    IF(PRESENT(targetSpecies_IN))THEN
+      targetSpecies = targetSpecies_IN
+    ELSE ! Normal swap routine
+      DO iSwaps=1,PartAuxBC%NbrOfSpeciesSwaps(AuxBCIdx)
+        IF (PartSpecies(PartID).eq.PartAuxBC%SpeciesSwaps(1,iSwaps,AuxBCIdx)) &
+            targetSpecies = PartAuxBC%SpeciesSwaps(2,iSwaps,AuxBCIdx)
+      END DO
+    END IF ! PRESENT(targetSpecies_IN)
+    !swap species
+    IF (targetSpecies.eq.0) THEN !delete particle -> same as PartAuxBC%OpenBC
+      CALL RemoveParticle(PartID,alpha=alpha)
+    ELSEIF (targetSpecies.gt.0) THEN !swap species
+      PartSpecies(PartID)=targetSpecies
+    END IF
+  END IF !RanNum.LE.PartAuxBC%ProbOfSpeciesSwaps
+ELSE
+  locBCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+  CALL RANDOM_NUMBER(RanNum)
+  IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
+    targetSpecies=-1 ! Dummy initialization value
+    IF(PRESENT(targetSpecies_IN))THEN
+      targetSpecies = targetSpecies_IN
+    ELSE ! Normal swap routine
+      DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+        IF (PartSpecies(PartID).eq.PartBound%SpeciesSwaps(1,iSwaps,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) &
+            targetSpecies = PartBound%SpeciesSwaps(2,iSwaps,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+      END DO
+    END IF ! PRESENT(targetSpecies_IN)
+    !swap species
+    IF (targetSpecies.eq.0) THEN
+      ! Delete particle -> same as PartBound%OpenBC
+      CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)),alpha=alpha)
+    ELSE IF (targetSpecies.gt.0) THEN
+      ! Swap species
+      PartSpecies(PartID)=targetSpecies
+    END IF ! targetSpecies.eq.0
+  END IF ! RanNum.LE.PartBound%ProbOfSpeciesSwaps
+END IF ! IsAuxBC
+
+END SUBROUTINE SpeciesSwap
+
+
+SUBROUTINE SurfaceFluxBasedBoundaryTreatment(iPart,SideID,alpha,PartTrajectory)
+!===================================================================================================================================
+! Treatment of particles at the boundary if adaptive surface BCs or circular inflows based on the surface flux are present
+! Circular Inflow: Particles are deleted if within (allows multiple surface flux inflows defined by circles on a single boundary)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: Species, LastPartPos, PartSpecies
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
+!USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_part_operations        ,ONLY: RemoveParticle
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                  :: iPart, SideID
+REAL,INTENT(IN)                     :: PartTrajectory(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)                  :: alpha
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                :: point(1:2), intersectionPoint(1:3), radius
+INTEGER                             :: iSpec, iSF
+!===================================================================================================================================
+
+iSpec = PartSpecies(iPart)
+DO iSF=1,Species(iSpec)%nSurfacefluxBCs
+  IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))) THEN
+    IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+      intersectionPoint(1:3) = LastPartPos(1:3,iPart)+ alpha*PartTrajectory(1:3)
+      point(1)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(2))-Species(iSpec)%Surfaceflux(iSF)%origin(1)
+      point(2)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(3))-Species(iSpec)%Surfaceflux(iSF)%origin(2)
+      radius=SQRT( (point(1))**2+(point(2))**2 )
+      IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
+        CALL RemoveParticle(iPart,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)),alpha=alpha)
+      END IF
+    END IF
+  END IF
+END DO
+
+END SUBROUTINE SurfaceFluxBasedBoundaryTreatment
 
 
 END MODULE MOD_SurfaceModel

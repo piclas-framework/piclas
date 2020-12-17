@@ -49,11 +49,13 @@ SUBROUTINE DepositParticleOnNodes(iPart,PartPos,GlobalElemID)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Vars      ,ONLY: PartSpecies,Species
-USE MOD_Particle_Vars      ,ONLY: usevMPF,PartMPF
+USE MOD_Particle_Vars      ,ONLY: usevMPF,PartMPF,PDM
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_part_tools         ,ONLY: isChargedParticle
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
@@ -78,6 +80,25 @@ REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
 INTEGER                          :: NodeID(1:8)
 !===================================================================================================================================
+
+! Sanity checks
+IF(.NOT.PDM%ParticleInside(iPart))THEN
+  IPWRITE (*,*) "iPart         :", iPart
+  IPWRITE (*,*) "global ElemID :", GlobalElemID
+  CALL abort(&
+      __STAMP__&
+      ,'DepositParticleOnNodes(): Particle not inside element.')
+ELSEIF(PartSpecies(iPart).LT.0)THEN
+  IPWRITE (*,*) "iPart         :", iPart
+  IPWRITE (*,*) "global ElemID :", GlobalElemID
+  CALL abort(&
+      __STAMP__&
+      ,'DepositParticleOnNodes(): Negative speciesID')
+END IF ! PartSpecies(iPart)
+
+! Skip for neutral particles
+IF(isChargedParticle(iPart)) RETURN
+
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
@@ -98,14 +119,14 @@ ASSOCIATE( NodeSourceExtTmp => NodeSourceExtTmpLoc )
 #endif
   ! Apply charge to nodes (note that the volumes are not accounted for yet here!)
   NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
-  NodeSourceExtTmp(1,NodeID(1)) = NodeSourceExtTmp(1,NodeID(1)) + (Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
-  NodeSourceExtTmp(1,NodeID(2)) = NodeSourceExtTmp(1,NodeID(2)) + (Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
-  NodeSourceExtTmp(1,NodeID(3)) = NodeSourceExtTmp(1,NodeID(3)) + (Charge*  (alpha1)*  (alpha2)*(1-alpha3))
-  NodeSourceExtTmp(1,NodeID(4)) = NodeSourceExtTmp(1,NodeID(4)) + (Charge*(1-alpha1)*  (alpha2)*(1-alpha3))
-  NodeSourceExtTmp(1,NodeID(5)) = NodeSourceExtTmp(1,NodeID(5)) + (Charge*(1-alpha1)*(1-alpha2)*  (alpha3))
-  NodeSourceExtTmp(1,NodeID(6)) = NodeSourceExtTmp(1,NodeID(6)) + (Charge*  (alpha1)*(1-alpha2)*  (alpha3))
-  NodeSourceExtTmp(1,NodeID(7)) = NodeSourceExtTmp(1,NodeID(7)) + (Charge*  (alpha1)*  (alpha2)*  (alpha3))
-  NodeSourceExtTmp(1,NodeID(8)) = NodeSourceExtTmp(1,NodeID(8)) + (Charge*(1-alpha1)*  (alpha2)*  (alpha3))
+  NodeSourceExtTmp(NodeID(1)) = NodeSourceExtTmp(NodeID(1)) + (Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
+  NodeSourceExtTmp(NodeID(2)) = NodeSourceExtTmp(NodeID(2)) + (Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
+  NodeSourceExtTmp(NodeID(3)) = NodeSourceExtTmp(NodeID(3)) + (Charge*  (alpha1)*  (alpha2)*(1-alpha3))
+  NodeSourceExtTmp(NodeID(4)) = NodeSourceExtTmp(NodeID(4)) + (Charge*(1-alpha1)*  (alpha2)*(1-alpha3))
+  NodeSourceExtTmp(NodeID(5)) = NodeSourceExtTmp(NodeID(5)) + (Charge*(1-alpha1)*(1-alpha2)*  (alpha3))
+  NodeSourceExtTmp(NodeID(6)) = NodeSourceExtTmp(NodeID(6)) + (Charge*  (alpha1)*(1-alpha2)*  (alpha3))
+  NodeSourceExtTmp(NodeID(7)) = NodeSourceExtTmp(NodeID(7)) + (Charge*  (alpha1)*  (alpha2)*  (alpha3))
+  NodeSourceExtTmp(NodeID(8)) = NodeSourceExtTmp(NodeID(8)) + (Charge*(1-alpha1)*  (alpha2)*  (alpha3))
 #if USE_MPI
 END ASSOCIATE
 #endif

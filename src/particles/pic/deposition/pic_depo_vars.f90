@@ -59,17 +59,21 @@ INTEGER                         :: sf1d_dir                  ! direction of 1D s
 LOGICAL                         :: sfDepo3D                  ! when using 1D or 2D deposition, the charge can be deposited over the
 LOGICAL                         :: DoSFChargeCons
 !                                                            ! volume (3D) or line (1D) / area (2D)
-INTEGER                         :: NDepo                     ! polynomial degree of delta distri
-REAL,ALLOCATABLE                :: tempcharge(:)             ! temp-charge for epo. kernal
+INTEGER                         :: NDepo                     ! polynomial degree of delta distribution
+REAL,ALLOCATABLE                :: tempcharge(:)             ! temp-charge for epo. Kernel
 REAL,ALLOCATABLE                :: NDepoChooseK(:,:)         ! array n over n
 REAL,ALLOCATABLE                :: wBaryNDepo(:)             ! barycentric weights for deposition
 REAL,ALLOCATABLE                :: swGPNDepo(:)              ! integration weights for deposition
-REAL,ALLOCATABLE                :: XiNDepo(:)                ! gauss position of barycenters
-REAL,ALLOCATABLE                :: Vdm_NDepo_GaussN(:,:)     ! VdM between different polynomial degrees
+REAL,ALLOCATABLE                :: XiNDepo(:)                ! gauss position of bary centers
+REAL,ALLOCATABLE                :: Vdm_NDepo_GaussN(:,:)     ! Vandermonde between different polynomial degrees
 REAL,ALLOCATABLE                :: DDMassinv(:,:,:,:)        ! inverse mass-matrix for deposition
-REAL,ALLOCATABLE                :: Vdm_EquiN_GaussN(:,:)     ! Vdm from equidistant points to Gauss Points
-INTEGER                         :: alpha_sf                  ! shapefuntion exponent
-REAL                            :: BGMdeltas(3)              ! Backgroundmesh size in x,y,z
+REAL,ALLOCATABLE                :: Vdm_EquiN_GaussN(:,:)     ! Vandermonde from equidistant points to Gauss Points
+INTEGER                         :: alpha_sf                  ! shape function exponent
+INTEGER                         :: dim_sf                    ! 1D, 2D or 3D shape function
+INTEGER                         :: dim_sf_dir                ! Get shape function direction for 1D (the direction in which the charge
+!                                                            ! will be distributed) and 2D (the direction in which the charge will be
+!                                                            ! constant)
+REAL                            :: BGMdeltas(3)              ! Background mesh size in x,y,z
 REAL                            :: FactorBGM(3)              ! Divider for BGM (to allow real numbers)
 REAL                            :: BGMVolume                 ! Volume of a BGM Cell
 INTEGER                         :: BGMminX                   ! Local minimum BGM Index in x
@@ -93,19 +97,19 @@ INTEGER                         :: NodeVolume_Shared_Win
 REAL,ALLOCPOINT                 :: NodeVolume_Shared(:)
 #endif
 
-REAL,ALLOCPOINT                 :: SFElemr2_Shared(:,:)
+REAL,ALLOCPOINT                 :: SFElemr2_Shared(:,:) ! index 1: radius, index 2: radius squared
 
 REAL,ALLOCPOINT                 :: NodeSource(:,:)
-REAL,ALLOCPOINT                 :: NodeSourceExt(:,:) ! Additional source for cell_volweight_mean (external or surface charge) 
-!                                                     ! that accumulates over time in elements adjacent to dielectric interfaces.
-!                                                     ! It contains the global, synchronized surface charge contribution that is
-!                                                     ! read and written to .h5
-REAL,ALLOCPOINT                 :: NodeSourceExtTmp(:,:) ! Additional source for cell_volweight_mean (external or surface charge) 
-!                                                        ! that accumulates over time in elements adjacent to dielectric interfaces.
-!                                                        ! It contains the local non-synchronized surface charge contribution (does
-!                                                        ! not consider the charge contribution from restart files). This
-!                                                        ! contribution accumulates over time, but remains locally to each processor
-!                                                        ! as it is communicated via the normal NodeSource container NodeSourceExt.
+REAL,ALLOCPOINT                 :: NodeSourceExt(:) ! Additional source for cell_volweight_mean (external or surface charge) 
+!                                                   ! that accumulates over time in elements adjacent to dielectric interfaces.
+!                                                   ! It contains the global, synchronized surface charge contribution that is
+!                                                   ! read and written to .h5
+REAL,ALLOCPOINT                 :: NodeSourceExtTmp(:) ! Additional source for cell_volweight_mean (external or surface charge) 
+!                                                      ! that accumulates over time in elements adjacent to dielectric interfaces.
+!                                                      ! It contains the local non-synchronized surface charge contribution (does
+!                                                      ! not consider the charge contribution from restart files). This
+!                                                      ! contribution accumulates over time, but remains locally to each processor
+!                                                      ! as it is communicated via the normal NodeSource container NodeSourceExt.
 
 #if USE_MPI
 INTEGER                         :: SFElemr2_Shared_Win  
@@ -113,47 +117,26 @@ REAL, ALLOCATABLE               :: NodeSourceLoc(:,:)           ! global, synchr
 INTEGER                         :: NodeSource_Shared_Win
 REAL,ALLOCPOINT                 :: NodeSource_Shared(:,:)
 
-!REAL, ALLOCATABLE               :: NodeSourceExtLoc(:,:)       ! global, synchronized surface charge contribution
+!REAL, ALLOCATABLE               :: NodeSourceExtLoc(:)       ! global, synchronized surface charge contribution
 INTEGER                         :: NodeSourceExt_Shared_Win
-REAL,ALLOCPOINT                 :: NodeSourceExt_Shared(:,:)
+REAL,ALLOCPOINT                 :: NodeSourceExt_Shared(:)
 
-REAL, ALLOCATABLE               :: NodeSourceExtTmpLoc(:,:)     ! local, non-synchronized surface charge contribution
+REAL, ALLOCATABLE               :: NodeSourceExtTmpLoc(:)     ! local, non-synchronized surface charge contribution
 INTEGER                         :: NodeSourceExtTmp_Shared_Win
-REAL,ALLOCPOINT                 :: NodeSourceExtTmp_Shared(:,:)
+REAL,ALLOCPOINT                 :: NodeSourceExtTmp_Shared(:)
 
 TYPE tNodeMapping
-  INTEGER,ALLOCATABLE                   :: RecvNodeUniqueGlobalID(:)
-  INTEGER,ALLOCATABLE                   :: SendNodeUniqueGlobalID(:)
-  REAL,ALLOCATABLE                      :: RecvNodeSource(:,:)
-  REAL,ALLOCATABLE                      :: SendNodeSource(:,:)
-  INTEGER                               :: nSendUniqueNodes
-  INTEGER                               :: nRecvUniqueNodes
+  INTEGER,ALLOCATABLE           :: RecvNodeUniqueGlobalID(:)
+  INTEGER,ALLOCATABLE           :: SendNodeUniqueGlobalID(:)
+  REAL,ALLOCATABLE              :: RecvNodeSource(:,:)
+  REAL,ALLOCATABLE              :: SendNodeSource(:,:)
+  REAL,ALLOCATABLE              :: RecvNodeSourceExt(:)
+  REAL,ALLOCATABLE              :: SendNodeSourceExt(:)
+  INTEGER                       :: nSendUniqueNodes
+  INTEGER                       :: nRecvUniqueNodes
 END TYPE
 TYPE (tNodeMapping),ALLOCATABLE      :: NodeMapping(:)
 #endif
-
-LOGICAL                         :: SFResampleAnalyzeSurfCollis
-TYPE tLastAnalyzeSurfCollis
-  INTEGER                       :: PartNumberSamp                ! number of parts from last sampling
-  INTEGER                       :: PartNumberReduced             ! max. allowed number of parts to be saved
-  LOGICAL                       :: ReducePartNumber              ! reduce PartNumberSamp to PartNumberReduced
-  INTEGER                       :: PartNumberDepo                ! number of parts to be inserted in depo
-  REAL, ALLOCATABLE             :: WallState(:,:)                ! Pos at wall and velocities from last sampling
-  INTEGER, ALLOCATABLE          :: Species(:)                    ! Spec of parts
-  REAL                          :: pushTimeStep                  ! timestep for (fractional) euler push from wall into ghost domain
-  INTEGER                       :: PartNumThreshold              ! Threshold for checking inserted parts per depo (otherwise abort)
-  REAL                          :: NormVecOfWall(3)              ! normVec for pushTimeStep
-  REAL                          :: Bounds(1:2,1:3)               ! bounds after push for preventing parts outside of...
-                                                                 ! ...extruded domain 1:2(min,max);1:3(x,y,z)
-  LOGICAL                       :: UseFixBounds                  ! use alls planes of SFdepoFixes as additional bounds?
-  LOGICAL                       :: Restart                       ! read-in old DSMCSurfCollis-file for restart
-  CHARACTER(LEN=256)            :: DSMCSurfCollisRestartFile
-  INTEGER                       :: NumberOfBCs                   ! Nbr of BC to be analyzed (def.: 1)
-  INTEGER, ALLOCATABLE          :: BCs(:)                        ! BCs to be analyzed (def.: 0 = all)
-  INTEGER                       :: NbrOfSpeciesForDtCalc         ! Number of species used for SFResample-dt (def.: 1)
-  INTEGER, ALLOCATABLE          :: SpeciesForDtCalc(:)           ! Species used for SFResample-dt (def.: 0 = all)
-END TYPE
-TYPE(tLastAnalyzeSurfCollis)    :: LastAnalyzeSurfCollis
 
 #if USE_MPI
 TYPE tShapeMapping

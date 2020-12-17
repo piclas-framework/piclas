@@ -53,6 +53,7 @@ CHARACTER(LEN=255)         :: ParameterDSMCFile                     !> filename 
 REAL, PARAMETER            :: BoltzmannConst=1.380648813e-23        !> Boltzmann constant [J/K] SI-Unit! in m^2/(s^2*K)
 CHARACTER(LEN=5)           :: TimeStampLenStr,TimeStampLenStr2      !> Strings for timestamp format of time
 
+REAL,PARAMETER             :: maxEXP= LOG(HUGE(maxexp))
 ! Set variables (natural constants and derived quantities) from user input or hard coded 
 ! depending on compile flag (PICLAS_READIN_CONSTANTS=ON)
 #if USE_READIN_CONSTANTS

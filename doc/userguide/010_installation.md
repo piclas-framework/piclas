@@ -112,7 +112,7 @@ Note that cloning **PICLas** from GitHub may not be possible on some machines, a
     ccmake ..
     make
 
-For a list of all compiler options visit Section \ref{sec:compileroptions}. Finally, the executables **PICLas** and **h5piclas2vtk** are contained in your **PICLas** directory in `build/bin/`. 
+For a list of all compiler options visit Section \ref{sec:compileroptions}. Finally, the executables **PICLas** and **piclas2vtk** are contained in your **PICLas** directory in `build/bin/`. 
 
 ### Directory paths \label{sec:installation_directory}
 

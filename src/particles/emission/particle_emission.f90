@@ -139,9 +139,9 @@ USE MOD_Particle_MPI_Vars   ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Dielectric_Vars     ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
-USE MOD_DSMC_Vars           ,ONLY: useDSMC, RadialWeighting
+USE MOD_DSMC_Vars           ,ONLY: useDSMC, RadialWeighting, DSMC
 USE MOD_Part_Emission_Tools ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
-USE MOD_Part_Pos_and_Velo   ,ONLY: SetParticlePosition,SetParticleVelocity
+USE MOD_Part_Pos_and_Velo   ,ONLY: SetParticlePosition,SetParticleVelocity, AD_SetInitElectronVelo
 USE MOD_Part_Tools          ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Mesh_Vars  ,ONLY: LocalVolume
 USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, Symmetry, VarTimeStep
@@ -166,6 +166,9 @@ CALL UpdateNextFreePosition()
 ! Do sanity check of max. particle number compared to the number that is to be inserted for certain insertion types
 insertParticles = 0
 DO i=1,nSpecies
+  IF (DSMC%DoAmbipolarDiff) THEN
+    IF (i.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+  END IF
   IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
   DO iInit = 1, Species(i)%NumberOfInits
     IF (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
@@ -202,6 +205,9 @@ __STAMP__&
 ,'Number of to be inserted particles per init-proc exceeds max. particle number! ')
 END IF
 DO i = 1,nSpecies
+  IF (DSMC%DoAmbipolarDiff) THEN
+    IF (i.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+  END IF
   IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
   DO iInit = 1, Species(i)%NumberOfInits
     IF (Species(i)%Init(iInit)%UseForInit) THEN ! no special emissiontype to be used
@@ -218,6 +224,7 @@ __STAMP__&
       IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
       IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
       IF (useDSMC) THEN
+        IF (DSMC%DoAmbipolarDiff) CALL AD_SetInitElectronVelo(i,iInit,NbrOfParticle)
         iPart = 1
         DO WHILE (iPart .le. NbrOfParticle)
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
@@ -226,7 +233,7 @@ __STAMP__&
           ELSE
             CALL abort(&
             __STAMP__&
-            ,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')    
+            ,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
           END IF
           iPart = iPart + 1
         END DO
@@ -259,6 +266,7 @@ SWRITE(UNIT_stdOut,'(A)') ' ...DONE '
 
 END SUBROUTINE InitializeParticleEmission
 
+
 SUBROUTINE ParticleInserting()
 !===================================================================================================================================
 ! Particle Inserting
@@ -275,7 +283,7 @@ USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, SpecDSMC
-USE MOD_DSMC_Init              ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
@@ -387,6 +395,7 @@ DO i=1,nSpecies
           NbrOfParticle = INT(PartIns + RandVal1)
         END IF
 #if USE_MPI
+        ! communicate number of particles with all procs in the same init group
         InitGroup=Species(i)%Init(iInit)%InitCOMM
         IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
           ! only procs which are part of group take part in the communication
@@ -413,7 +422,7 @@ DO i=1,nSpecies
               ! Calculate the number of currently active photons (both surface SEE and volumetric emission)
               CALL CalcNbrOfPhotons(i, iInit, NbrOfPhotons)
 
-              ! Check if only particles in the first quadrant are to be inserted that is spanned by the vectors 
+              ! Check if only particles in the first quadrant are to be inserted that is spanned by the vectors
               ! x=BaseVector1IC and y=BaseVector2IC in the interval x,y in [0,R] and reduce the number of photon accordingly
               IF(Species(i)%Init(iInit)%FirstQuadrantOnly) NbrOfPhotons = NbrOfPhotons / 4.0
 
@@ -421,7 +430,7 @@ DO i=1,nSpecies
               IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_SEE_disc')THEN
                 ! SEE based on photon impact
                 NbrOfPhotons = Species(i)%Init(iInit)%YieldSEE * NbrOfPhotons / Species(i)%MacroParticleFactor &
-                              + Species(i)%Init(iInit)%NINT_Correction 
+                              + Species(i)%Init(iInit)%NINT_Correction
                 NbrOfParticle = NINT(NbrOfPhotons)
                 Species(i)%Init(iInit)%NINT_Correction = NbrOfPhotons - REAL(NbrOfParticle)
               ELSE
@@ -485,8 +494,38 @@ DO i=1,nSpecies
       ! Update the current next free position and increase the particle vector length
       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
       PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-    END IF
-  END DO  ! iInit 
+
+      ! Complete check if all particles were emitted successfully
+#if USE_MPI
+      InitGroup=Species(i)%Init(iInit)%InitCOMM
+      IF (PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL .AND. Species(i)%Init(iInit)%sumOfRequestedParticles.GT.0) THEN
+        CALL MPI_WAIT(PartMPI%InitGroup(InitGroup)%Request, MPI_STATUS_IGNORE, iError)
+
+        IF(PartMPI%InitGroup(InitGroup)%MPIRoot) THEN
+#endif
+        ! add number of matching error to particle emission to fit
+        ! number of added particles
+        Species(i)%Init(iInit)%InsertedParticleMisMatch = Species(i)%Init(iInit)%sumOfRequestedParticles - Species(i)%Init(iInit)%sumOfMatchedParticles
+        IF (Species(i)%Init(iInit)%sumOfRequestedParticles .GT. Species(i)%Init(iInit)%sumOfMatchedParticles) THEN
+          WRITE(UNIT_StdOut,'(A)')      'WARNING in ParticleEmission_parallel:'
+          WRITE(UNIT_StdOut,'(A,I0)')   'Fraction Nbr: '  , i
+          WRITE(UNIT_StdOut,'(A,I0,A)') 'matched only '   , Species(i)%Init(iInit)%sumOfMatchedParticles  , ' particles'
+          WRITE(UNIT_StdOut,'(A,I0,A)') 'when '           , Species(i)%Init(iInit)%sumOfRequestedParticles, ' particles were required!'
+        ELSE IF (Species(i)%Init(iInit)%sumOfRequestedParticles .LT. Species(i)%Init(iInit)%sumOfMatchedParticles) THEN
+          WRITE(UNIT_StdOut,'(A)')      'ERROR in ParticleEmission_parallel:'
+          WRITE(UNIT_StdOut,'(A,I0)')   'Fraction Nbr: '  , i
+          WRITE(UNIT_StdOut,'(A,I0,A)') 'matched '        , Species(i)%Init(iInit)%sumOfMatchedParticles  , ' particles'
+          WRITE(UNIT_StdOut,'(A,I0,A)') 'when '           , Species(i)%Init(iInit)%sumOfRequestedParticles, ' particles were required!'
+        ! ELSE IF (nbrOfParticle .EQ. Species(i)%Init(iInit)%sumOfMatchedParticles) THEN
+        !  WRITE(UNIT_stdOut,'(A,I0)')   'Fraction Nbr: '  , FractNbr
+        !  WRITE(UNIT_stdOut,'(A,I0,A)') 'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
+        END IF
+#if USE_MPI
+        END IF ! PartMPI%iProc.EQ.0
+      END IF
+#endif
+    END IF ! UseForEmission
+  END DO  ! iInit
 END DO  ! i=1,nSpecies
 
 END SUBROUTINE ParticleInserting
@@ -499,11 +538,11 @@ SUBROUTINE AdaptiveBCAnalyze(initSampling_opt)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
-USE MOD_DSMC_Analyze           ,ONLY: CalcTVib,CalcTVibPoly,CalcTelec
+USE MOD_DSMC_Analyze           ,ONLY: CalcTVibPoly,CalcTelec
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, DSMC, CollisMode, SpecDSMC, useDSMC, RadialWeighting
 USE MOD_Mesh_Vars              ,ONLY: nElems, offsetElem
 USE MOD_Part_Tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Boundary_Vars ,ONLY: PorousBCSampIter, PorousBCMacroVal
+USE MOD_SurfaceModel_Vars      ,ONLY: PorousBCSampIter, PorousBCMacroVal
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared, SideInfo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal, AdaptiveWeightFac
@@ -699,28 +738,22 @@ DO AdaptiveElemID = 1,nElems
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
         IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-            IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
-              IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-                IF( (Source(8,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec)) .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
-                  Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
-                    + RelaxationFactor*CalcTVibPoly(Source(8,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec),iSpec)
-                ELSE
-                  Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec)
-                END IF
+            IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+              IF( (Source(8,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec)) .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
+                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
+                  + RelaxationFactor*CalcTVibPoly(Source(8,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec),iSpec)
               ELSE
-                TVib_TempFac=Source(8,AdaptiveElemID,iSpec)/ (Source(11,AdaptiveElemID,iSpec) &
-                  *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
-                IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
-                  Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec)
-                ELSE
-                  Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
-                    + RelaxationFactor*SpecDSMC(iSpec)%CharaTVib / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
-                END IF
+                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec)
               END IF
-            ELSE                                            ! TSHO-model
-              Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
-                + RelaxationFactor*CalcTVib(SpecDSMC(iSpec)%CharaTVib &
-                , Source(8,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec),SpecDSMC(iSpec)%MaxVibQuant)
+            ELSE
+              TVib_TempFac=Source(8,AdaptiveElemID,iSpec)/ (Source(11,AdaptiveElemID,iSpec) &
+                *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
+              IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
+                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec)
+              ELSE
+                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
+                  + RelaxationFactor*SpecDSMC(iSpec)%CharaTVib / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
+              END IF
             END IF
             Adaptive_MacroVal(9,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(9,AdaptiveElemID,iSpec) &
                 + RelaxationFactor*Source(9,AdaptiveElemID,iSpec)/(Source(11,AdaptiveElemID,iSpec)*BoltzmannConst)

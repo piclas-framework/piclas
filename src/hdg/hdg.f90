@@ -459,8 +459,7 @@ DO iVar = 1, PP_nVar
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
   !      CALL ExactFunc(BCState,t,0,Face_xGP(:,p,q,SideID),lambda(r:r,SideID))
-       lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID))) &
-         +PartBound%Voltage_CollectCharges(PartBound%MapToPartBC(BC(SideID)))
+       lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
       END DO; END DO !p,q
     CASE(5) ! exact BC = Dirichlet BC !!
 !print*,"BCType=",BCType,"    BCsideID=",BCsideID,"     IniExactFunc",IniExactFunc
@@ -730,8 +729,7 @@ DO BCsideID=1,nDirichletBCSides
     ! SPECIAL BC: BCState specifies exactfunc to be used!!
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
-      lambda(PP_nVar,r:r,SideID)= PartBound%Voltage(PartBound%MapToPartBC(BC(SideID))) &
-        +PartBound%Voltage_CollectCharges(PartBound%MapToPartBC(BC(SideID)))
+      lambda(PP_nVar,r:r,SideID)= PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
     END DO; END DO !p,q
   END SELECT ! BCType
 END DO !BCsideID=1,nDirichletBCSides
