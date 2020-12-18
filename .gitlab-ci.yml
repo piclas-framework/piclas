@@ -312,7 +312,7 @@ NIG_SuperB_standalone:
 # Stage "reggie_bgk_nightly": Build and run BGK-Flow examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 gnu_NIG_BGK-Flow:
-  <<: *defaults_gnu
+  <<: *defaults_nightly
   stage: reggie_bgk_nightly
   tags:
     - withmodules-concurrent
