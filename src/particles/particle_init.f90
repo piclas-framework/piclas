@@ -676,7 +676,7 @@ SUBROUTINE InitParticles()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
-USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution,DSMC_VolumeSample
+USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution
 USE MOD_InitializeBackgroundField  ,ONLY: InitializeBackgroundField
 USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
@@ -747,9 +747,7 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
 ! definition of DSMC sampling values
   DSMC%SampNum = 0
   ALLOCATE(DSMC_Solution(1:11,1:nElems,1:nSpecies))
-  ALLOCATE(DSMC_VolumeSample(1:nElems))
   DSMC_Solution = 0.0
-  DSMC_VolumeSample = 0.0
 END IF
 
 ! Initialize surface sampling / rotational periodic mapping
@@ -820,6 +818,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
+USE MOD_DSMC_AmbipolarDiffusion,ONLY: InitializeVariablesAmbipolarDiff
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1175,44 +1174,6 @@ END IF
 
 END SUBROUTINE InitializeVariablesVarTimeStep
 
-SUBROUTINE InitializeVariablesAmbipolarDiff()
-!===================================================================================================================================
-!> Ambipolar Diffusion: Electrons are attached to and move with the ions, but still have their own velocity vector for collisions
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_ReadInTools
-USE MOD_Globals_Vars        ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars       ,ONLY: nSpecies,Species, PDM
-USE MOD_DSMC_Vars           ,ONLY: useDSMC, DSMC, AmbipolElecVelo
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER         :: iSpec
-!===================================================================================================================================
-IF(useDSMC) THEN
-  DSMC%DoAmbipolarDiff = GETLOGICAL('Particles-DSMC-AmbipolarDiffusion')
-  IF (DSMC%DoAmbipolarDiff) THEN
-    DSMC%AmbiDiffElecSpec = 0
-    DO iSpec = 1, nSpecies
-      IF (Species(iSpec)%ChargeIC.GT.0.0) CYCLE
-      IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1) DSMC%AmbiDiffElecSpec=iSpec
-    END DO
-    IF(DSMC%AmbiDiffElecSpec.EQ.0) THEN
-      CALL abort(__STAMP__&
-          ,'ERROR: No electron species found for ambipolar diffusion: ' &
-          ,IntInfoOpt=DSMC%AmbiDiffElecSpec)
-    END IF
-    IF(.NOT.ALLOCATED(AmbipolElecVelo)) ALLOCATE(AmbipolElecVelo(PDM%maxParticleNumber))
-  END IF
-END IF
-
-END SUBROUTINE InitializeVariablesAmbipolarDiff
 
 SUBROUTINE InitializeVariablesRandomNumbers()
 !===================================================================================================================================
