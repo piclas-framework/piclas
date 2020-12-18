@@ -796,7 +796,6 @@ END SUBROUTINE GlobalBCSR
 !!          IF(ABS(Ut(iVar,i,j,k,iElem)-Ut2(ivar,i,j,k,iElem)).GT.1e-5)THEN
 !!            WRITE(*,'(A,I3,I3,I3,I3,I3,E24.12)') 'iVar,i,j,k,iElem,err',iVar,i,j,k,iElem,ABS(Ut(iVar,i,j,k,iElem)-&
 !                                            !Ut2(ivar,i,j,k,iElem))
-!!            read*
 !!          END IF
 !!        END DO ! iVar
 !!      END DO !i
