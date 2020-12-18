@@ -313,12 +313,10 @@ END DO ! i
 ! flip   = ElemToSide(E2S_FLIP,XI_MINUS,iELEM)
 ! ! get derivative of flux maxtrix
 ! print*,'ximinus',flip
-! read*
 ! CALL ConstructJacRiemann(flip,nVec(:,:,:,XI_MINUS,iElem),Surf(:,:,XI_MINUS,iElem),JacA)
 ! IF (SideID.LE.nBCSides) THEN
 !  BCType=Boundarytype(BC(SideID),BC_TYPE)
 !  print*,'BC Side, BcType',BcType
-!  read*
 !  CALL ConstructJacBCRiemann(BCType,nVec(:,:,:,XI_MINUS,iElem),Surf(:,:,XI_MINUS,iElem),JacBC)
 !  JacA = JacA + JacBC
 ! END IF
@@ -348,12 +346,10 @@ END DO ! i
 ! flip   = ElemToSide(E2S_FLIP,   XI_PLUS,iELEM)
 ! ! get derivative of flux maxtrix
 ! print*,'xiplus',flip
-! read*
 ! CALL ConstructJacRiemann(flip,nVec(:,:,:,XI_PLUS,iElem),Surf(:,:,XI_PLUS,iElem),JacA)
 ! IF (SideID.LE.nBCSides) THEN
 !  BCType=Boundarytype(BC(SideID),BC_TYPE)
 !  print*,'BC Side, BcType',BcType
-!  read*
 !  CALL ConstructJacBCRiemann(BCType,nVec(:,:,:,XI_PLUS,iElem),Surf(:,:,XI_PLUS,iElem),JacBC)
 !  JacA = JacA + JacBC
 ! END IF
@@ -387,7 +383,6 @@ END DO ! i
  IF (SideID.LE.nBCSides) THEN
    BCType=Boundarytype(BC(SideID),BC_TYPE)
    print*,'BC Side, BcType',BcType
-   read*
    CALL ConstructJacBCRiemann(BCType,nVecLoc(:,:,:,ETA_MINUS,iElem),SurfLoc(:,:,ETA_MINUS,iElem),JacBC)
    JacA = JacA + JacBC
  END IF

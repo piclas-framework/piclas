@@ -42,18 +42,18 @@ SUBROUTINE BGK_DSMC_main()
 ! MODULES
 USE MOD_Globals
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
-USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
+USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, Symmetry, usevMPF
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength,BGKDSMCSwitchDens
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
-USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor
+USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
+USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC                ,ONLY: DSMC_main
-USE MOD_DSMC_Analyze        ,ONLY: DSMC_data_sampling
 USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, RadialWeighting
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
-USE MOD_Particle_Vars       ,ONLY: PEM, PartState, Species, WriteMacroVolumeValues, Symmetry, usevMPF
 USE MOD_Part_Tools          ,ONLY: GetParticleWeight
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -62,17 +62,17 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iElem, nPart, iLoop, iPart, GlobalElemID
+INTEGER               :: iElem, nPart, iLoop, iPart, CNElemID
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
 LOGICAL               :: DoElement(nElems)
-REAL                  :: vBulk(3), dens, partWeight, totalWeight
+REAL                  :: dens, partWeight, totalWeight
 !===================================================================================================================================
 DSMC_RHS = 0.0
 DoElement = .FALSE.
 
 DO iElem = 1, nElems
   nPart = PEM%pNumber(iElem)
-  GlobalElemID = iElem + offsetElem
+  CNElemID = GetCNElemID(iElem + offsetElem)
   IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
 
   totalWeight = 0.0
@@ -84,9 +84,9 @@ DO iElem = 1, nElems
   END DO
 
   IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    dens = totalWeight / ElemVolume_Shared(GlobalElemID)
+    dens = totalWeight / ElemVolume_Shared(CNElemID)
   ELSE
-    dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(GlobalElemID)
+    dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
   END IF
 
   IF (dens.LT.BGKDSMCSwitchDens) THEN
@@ -102,27 +102,22 @@ DO iElem = 1, nElems
     END IF
   ELSE
     ALLOCATE(iPartIndx_Node(nPart))
-    totalWeight = 0.0
-    vBulk(1:3) = 0.0
     iPart = PEM%pStart(iElem)
     DO iLoop = 1, nPart
       iPartIndx_Node(iLoop) = iPart
-      partWeight = GetParticleWeight(iPart)
-      vBulk(1:3)  =  vBulk(1:3) + PartState(4:6,iPart) * partWeight
-      totalWeight = totalWeight + partWeight
       iPart = PEM%pNext(iPart)
     END DO
-    vBulk = vBulk / totalWeight
 
     IF(DSMC%CalcQualityFactors) THEN
       BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.
+      BGK_PrandtlNumber=0.; BGK_ExpectedPrandtlNumber=0.
     END IF
     IF (BGKMovingAverage) THEN
-      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(GlobalElemID), vBulk, &
+      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID), &
           ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
                CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
     ELSE
-      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(GlobalElemID), vBulk)
+      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
     END IF
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
@@ -132,6 +127,8 @@ DO iElem = 1, nElems
         BGK_QualityFacSamp(3,iElem) = BGK_QualityFacSamp(3,iElem) + BGK_MaxRelaxFactor
         BGK_QualityFacSamp(4,iElem) = BGK_QualityFacSamp(4,iElem) + 1.
         BGK_QualityFacSamp(5,iElem) = BGK_QualityFacSamp(5,iElem) + BGK_MaxRotRelaxFactor
+        BGK_QualityFacSamp(6,iElem) = BGK_QualityFacSamp(6,iElem) + BGK_PrandtlNumber
+        BGK_QualityFacSamp(7,iElem) = BGK_QualityFacSamp(7,iElem) + BGK_ExpectedPrandtlNumber
       END IF
     END IF
   END IF
@@ -150,19 +147,19 @@ SUBROUTINE BGK_main()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
+USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile, offsetElem
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
-USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
+USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry
+USE MOD_Restart_Vars        ,ONLY: RestartTime
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation, BGKMovingAverage, ElemNodeAveraging, BGKMovingAverageLength
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
-USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor
+USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
+USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_Analyze        ,ONLY: DSMC_data_sampling,CalcSurfaceValues,WriteDSMCToHDF5
-USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, SamplingActive
-USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile, offsetElem
-USE MOD_Part_Tools          ,ONLY: GetParticleWeight
-USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry
-USE MOD_Restart_Vars        ,ONLY: RestartTime
-USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
+USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, SamplingActive
+USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -171,9 +168,8 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iElem, nPart, iLoop, iPart, nOutput, GlobalElemID
+INTEGER               :: iElem, nPart, iLoop, iPart, nOutput, CNElemID
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
-REAL                  :: vBulk(3), partWeight, totalWeight
 !===================================================================================================================================
 DSMC_RHS = 0.0
 
@@ -187,32 +183,27 @@ IF (DoBGKCellAdaptation) THEN
   END DO
 ELSE ! No octree cell refinement
   DO iElem = 1, nElems
-    GlobalElemID = iElem + offsetElem
+    CNElemID = GetCNElemID(iElem + offsetElem)
     nPart = PEM%pNumber(iElem)
     IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
     ALLOCATE(iPartIndx_Node(nPart))
-    vBulk(1:3) = 0.0
-    totalWeight = 0.0
     iPart = PEM%pStart(iElem)
     DO iLoop = 1, nPart
-      partWeight = GetParticleWeight(iPart)
       iPartIndx_Node(iLoop) = iPart
-      vBulk(1:3)  =  vBulk(1:3) + PartState(4:6,iPart) * partWeight
-      totalWeight = totalWeight + partWeight
       iPart = PEM%pNext(iPart)
     END DO
-    vBulk = vBulk / totalWeight
 
     IF(DSMC%CalcQualityFactors) THEN
       BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.
+      BGK_PrandtlNumber=0.; BGK_ExpectedPrandtlNumber=0.
     END IF
 
     IF (BGKMovingAverage) THEN
-      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(GlobalElemID), vBulk, &
+      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID), &
           ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
                CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
     ELSE
-      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(GlobalElemID), vBulk)
+      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
     END IF
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
@@ -222,6 +213,8 @@ ELSE ! No octree cell refinement
         BGK_QualityFacSamp(3,iElem) = BGK_QualityFacSamp(3,iElem) + BGK_MaxRelaxFactor
         BGK_QualityFacSamp(4,iElem) = BGK_QualityFacSamp(4,iElem) + 1.
         BGK_QualityFacSamp(5,iElem) = BGK_QualityFacSamp(5,iElem) + BGK_MaxRotRelaxFactor
+        BGK_QualityFacSamp(6,iElem) = BGK_QualityFacSamp(6,iElem) + BGK_PrandtlNumber
+        BGK_QualityFacSamp(7,iElem) = BGK_QualityFacSamp(7,iElem) + BGK_ExpectedPrandtlNumber
       END IF
     END IF
   END DO

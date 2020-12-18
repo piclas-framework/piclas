@@ -52,20 +52,15 @@ CALL prms%SetSection("BGK")
 CALL prms%CreateIntOption(    'Particles-BGK-CollModel',            'Select the BGK method:\n'//&
                                                                     '1: Ellipsoidal statistical (ESBGK)\n'//&
                                                                     '2: Shakov (SBGK)\n'//&
-                                                                    '3: Standard BGK\n'//&
-                                                                    '4: Unified \n')
+                                                                    '3: Standard BGK')
 CALL prms%CreateIntOption(    'Particles-ESBGK-Model',              'Select sampling method for the ESBGK target distribution '//&
                                                                     'function:\n'//&
                                                                     '1: Approximative\n'//&
                                                                     '2: Exact\n'//&
                                                                     '3: Metropolis-Hastings', '1')
-CALL prms%CreateIntOption(    'Particles-SBGK-EnergyConsMethod',    'Select the SBGK energy conservation scheme:\n'//&
-                                                                    '1: Method includes all particles for energy conservation\n'//&
-                                                                    '2: Number of particles included in the conservation scheme '//&
-                                                                    'depends on the number of relaxing particles', '1')
-CALL prms%CreateRealOption(   'Particles-UnifiedBGK-Ces',           'Parameter C_ES for the Unified BGK scheme. The default '//&
-                                                                    'value 1000 enables the automatic calculation to reproduce '//&
-                                                                    'the correct Prandtl number for equilibrium gas flows','1000.0')
+CALL prms%CreateIntOption(    'Particles-BGK-MixtureModel',         'Select model for mixture transport properties:\n'//&
+                                                                    '1: Wilke\n'//&
+                                                                    '2: Collision Integrals Kestin', '1')
 CALL prms%CreateLogicalOption('Particles-BGK-DoCellAdaptation',     'Enables octree cell refinement until the given number of '//&
                                                                     'particles is reached. Equal refinement in all three '//&
                                                                     'directions (x,y,z)','.FALSE.')
@@ -112,43 +107,41 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iSpec2
+REAL                  :: delta_ij
+LOGICAL               :: MoleculePresent
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)') ' INIT BGK Solver...'
+MoleculePresent = .FALSE.
 ALLOCATE(SpecBGK(nSpecies))
 DO iSpec=1, nSpecies
+  IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) MoleculePresent = .TRUE.
   ALLOCATE(SpecBGK(iSpec)%CollFreqPreFactor(nSpecies))
   DO iSpec2=1, nSpecies
-    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*(CollInf%dref(iSpec,iSpec) + CollInf%dref(iSpec2,iSpec2))**2.0 &
-        * SQRT(2.*Pi*BoltzmannConst*CollInf%Tref(iSpec,iSpec)*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
-        /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/CollInf%Tref(iSpec,iSpec)**(-CollInf%omega(iSpec,iSpec) +0.5)
+    IF (iSpec.EQ.iSpec2) THEN
+      delta_ij = 1.0
+    ELSE
+      delta_ij = 0.0
+    END IF
+    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 4.*(2.-delta_ij)*CollInf%dref(iSpec,iSpec2)**2.0 &
+        * SQRT(Pi*BoltzmannConst*CollInf%Tref(iSpec,iSpec2)*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
+        /(2.*(Species(iSpec)%MassIC * Species(iSpec2)%MassIC)))/CollInf%Tref(iSpec,iSpec2)**(-CollInf%omega(iSpec,iSpec2) +0.5)
   END DO
 END DO
-
-BGKCollModel = GETINT('Particles-BGK-CollModel')
-! ESBGK options
-ESBGKModel = GETINT('Particles-ESBGK-Model')         ! 1: Approximative, 2: Exact, 3: MetropolisHastings
-! Shakov BGK options
-IF (BGKCollModel.EQ.2) THEN
-  SBGKEnergyConsMethod = GETINT('Particles-SBGK-EnergyConsMethod')
-  IF(SBGKEnergyConsMethod.EQ.2) THEN
-    IF(ANY(SpecDSMC(:)%InterID.GT.1)) THEN
-      CALL abort(&
-__STAMP__&
-,' ERROR SBGK: The chosen energy conservation method for SBGK was not tested with molecules!')
-    END IF
-  END IF
-ELSE
-  SBGKEnergyConsMethod = 1
-END IF
-! Unified BGK options
-BGKUnifiedCes = GETREAL('Particles-UnifiedBGK-Ces')
-IF (BGKUnifiedCes.EQ.1000.) THEN
-  BGKUnifiedCes = 1. - (6.-2.*CollInf%omega(1,1))*(4.- 2.*CollInf%omega(1,1))/30.
-ELSE IF((BGKUnifiedCes.LT.-0.5).OR.(BGKUnifiedCes.GE.1.0)) THEN
+IF ((nSpecies.GT.1).AND.(ANY(SpecDSMC(:)%PolyatomicMol))) THEN
   CALL abort(&
 __STAMP__&
-,' ERROR Unified BGK: The parameter C_ES has to be in the range of -0.5 <= C_ES < 1 !')
+,' ERROR Multispec not implemented with polyatomic molecules!')
 END IF
+
+BGKCollModel = GETINT('Particles-BGK-CollModel')
+IF ((nSpecies.GT.1).AND.(BGKCollModel.GT.1)) THEN
+      CALL abort(&
+__STAMP__&
+,' ERROR Multispec only with ESBGK model!')
+END IF
+BGKMixtureModel = GETINT('Particles-BGK-MixtureModel')
+! ESBGK options
+ESBGKModel = GETINT('Particles-ESBGK-Model')         ! 1: Approximative, 2: Exact, 3: MetropolisHastings
 ! Coupled BGK with DSMC, use a number density as limit above which BGK is used, and below which DSMC is used
 CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
 IF(CoupledBGKDSMC) THEN
@@ -180,13 +173,20 @@ __STAMP__&
 ,' ERROR BGK Init: Moving average is neither implemented with radial weighting nor variable time step!')
   END IF
 END IF
-! Vibrational modelling
-BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation')
-BGKUseQuantVibEn = GETLOGICAL('Particles-BGK-UseQuantVibEn')
+IF(MoleculePresent) THEN
+  ! Vibrational modelling
+  BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation')
+  BGKUseQuantVibEn = GETLOGICAL('Particles-BGK-UseQuantVibEn')
+  IF ((nSpecies.GT.1).AND.(BGKUseQuantVibEn)) THEN
+    CALL abort(&
+      __STAMP__&
+      ,' ERROR Multispec not implemented for quantized vibrational energy!')
+  END IF
+END IF
 
 IF(DSMC%CalcQualityFactors) THEN
-  ALLOCATE(BGK_QualityFacSamp(1:5,nElems))
-  BGK_QualityFacSamp(1:5,1:nElems) = 0.0
+  ALLOCATE(BGK_QualityFacSamp(1:7,nElems))
+  BGK_QualityFacSamp(1:7,1:nElems) = 0.0
 END IF
 
 BGKInitDone = .TRUE.

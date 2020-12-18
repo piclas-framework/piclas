@@ -45,19 +45,19 @@ SUBROUTINE FP_DSMC_main()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
-USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
+USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
+USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
+USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, Symmetry, usevMPF
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
 USE MOD_FPFlow_Vars         ,ONLY: FPDSMCSwitchDens, FP_QualityFacSamp, FP_PrandtlNumber
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_DSMC                ,ONLY: DSMC_main
-USE MOD_DSMC_Analyze        ,ONLY: DSMC_data_sampling
 USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, RadialWeighting
-USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
+USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
+USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
+USE MOD_DSMC                ,ONLY: DSMC_main
 USE MOD_Part_Tools          ,ONLY: GetParticleWeight
-USE MOD_Particle_Vars       ,ONLY: PEM, PartState, Species, WriteMacroVolumeValues, Symmetry, usevMPF
-USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -66,16 +66,16 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iElem, nPart, iLoop, iPart, GlobalElemID
+INTEGER               :: iElem, nPart, iLoop, iPart, CNElemID
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
 LOGICAL               :: DoElement(nElems)
-REAL                  :: vBulk(3), dens, partWeight, totalWeight
+REAL                  :: dens, partWeight, totalWeight
 !===================================================================================================================================
 DSMC_RHS = 0.0
 DoElement = .FALSE.
 
 DO iElem = 1, nElems
-  GlobalElemID = iElem + offsetElem
+  CNElemID = GetCNElemID(iElem + offsetElem)
   nPart = PEM%pNumber(iElem)
   totalWeight = 0.0
   iPart = PEM%pStart(iElem)
@@ -86,9 +86,9 @@ DO iElem = 1, nElems
   END DO
 
   IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    dens = totalWeight / ElemVolume_Shared(GlobalElemID)
+    dens = totalWeight / ElemVolume_Shared(CNElemID)
   ELSE
-    dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(GlobalElemID)
+    dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
   END IF
   IF (dens.LT.FPDSMCSwitchDens) THEN
     DoElement(iElem) = .TRUE.
@@ -104,23 +104,17 @@ DO iElem = 1, nElems
     END IF
   ELSE
     ALLOCATE(iPartIndx_Node(nPart))
-    totalWeight = 0.0
-    vBulk(1:3) = 0.0
     iPart = PEM%pStart(iElem)
     DO iLoop = 1, nPart
       iPartIndx_Node(iLoop) = iPart
-      partWeight  = GetParticleWeight(iPart)
-      vBulk(1:3)  = vBulk(1:3) + PartState(4:6,iPart) * partWeight
-      totalWeight = totalWeight + partWeight
       iPart = PEM%pNext(iPart)
     END DO
-    vBulk = vBulk / totalWeight
 
     IF(DSMC%CalcQualityFactors) THEN
       FP_MeanRelaxFactorCounter=0; FP_MeanRelaxFactor=0.; FP_MaxRelaxFactor=0.; FP_MaxRotRelaxFactor=0.; FP_PrandtlNumber=0.
     END IF
 
-    CALL FP_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(GlobalElemID), vBulk)
+    CALL FP_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
@@ -148,19 +142,19 @@ SUBROUTINE FPFlow_main()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
-USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
-USE MOD_DSMC_Analyze        ,ONLY: DSMC_data_sampling,WriteDSMCToHDF5,CalcSurfaceValues
-USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, SamplingActive
+USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
+USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile, offsetElem
+USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
+USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, SamplingActive
+USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
+USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
+USE MOD_DSMC_Analyze        ,ONLY: DSMC_data_sampling,WriteDSMCToHDF5,CalcSurfaceValues
+USE MOD_Restart_Vars        ,ONLY: RestartTime
 USE MOD_FPFlow_Vars         ,ONLY: FP_QualityFacSamp, FP_PrandtlNumber
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile, offsetElem
-USE MOD_Part_Tools          ,ONLY: GetParticleWeight
-USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry
-USE MOD_Restart_Vars        ,ONLY: RestartTime
-USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -169,8 +163,7 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iElem, nPart, iPart, iLoop, nOutput, GlobalElemID
-REAL                        :: vBulk(1:3), partWeight, totalWeight
+INTEGER                     :: iElem, nPart, iPart, iLoop, nOutput, CNElemID
 INTEGER, ALLOCATABLE        :: iPartIndx_Node(:)
 !===================================================================================================================================
 DSMC_RHS = 0.0
@@ -185,27 +178,21 @@ IF (DoBGKCellAdaptation) THEN
   END DO
 ELSE
   DO iElem = 1, nElems
-    GlobalElemID = iElem + offsetElem
+    CNElemID = GetCNElemID(iElem + offsetElem)
     nPart = PEM%pNumber(iElem)
     IF (nPart.LT.3) CYCLE
     ALLOCATE(iPartIndx_Node(nPart))
-    vBulk(1:3) = 0.0
-    totalWeight = 0.0
     iPart = PEM%pStart(iElem)
     DO iLoop = 1, nPart
-      partWeight = GetParticleWeight(iPart)
       iPartIndx_Node(iLoop) = iPart
-      vBulk(1:3)  = vBulk(1:3) + PartState(4:6,iPart) * partWeight
-      totalWeight = totalWeight + partWeight
       iPart = PEM%pNext(iPart)
     END DO
-    vBulk = vBulk / totalWeight
 
     IF(DSMC%CalcQualityFactors) THEN
       FP_MeanRelaxFactorCounter=0; FP_MeanRelaxFactor=0.; FP_MaxRelaxFactor=0.; FP_MaxRotRelaxFactor=0.; FP_PrandtlNumber=0.
     END IF
 
-    CALL FP_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(GlobalElemID), vBulk)
+    CALL FP_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
