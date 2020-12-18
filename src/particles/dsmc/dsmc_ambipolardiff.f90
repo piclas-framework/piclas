@@ -66,12 +66,12 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(INOUT)             :: iPartIndx_Node(1:nPart)
 INTEGER,INTENT(INOUT)             :: nPart, TotalPartNum
-INTEGER,INTENT(INOUT),ALLOCATABLE :: iPartIndx_NodeTotalAmbi(:)             
+INTEGER,INTENT(INOUT),ALLOCATABLE :: iPartIndx_NodeTotalAmbi(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iNewPart, iPart, PositionNbr, LocalElemID, iLoop, nNewElectrons, IonIndX(nPart), iElem
+INTEGER           :: iNewPart, iPart, PositionNbr, LocalElemID, iLoop, nNewElectrons, IonIndX(nPart), iElem, PartNum
 REAL              :: MaxPos(3), MinPos(3), Vec3D(3), Det(6,2), RefPos(3), RandomPos(3)
 LOGICAL           :: InsideFlag
 #if USE_LOADBALANCE
@@ -87,7 +87,7 @@ MinPos = HUGE(MinPos)
 iNewPart=0
 PositionNbr = 0
 nNewElectrons = 0
-!IF ( PEM%GlobalElemID(iPartIndx_Node(1)).EQ.1882) IPWRITE(*,*) 'ne tree!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+
 DO iLoop = 1, nPart
   iPart = iPartIndx_Node(iLoop)
   MaxPos(1) = MAX(MaxPos(1),PartState(1,iPart))
@@ -146,11 +146,16 @@ __STAMP__&
   IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(PositionNbr) = VarTimeStep%ParticleTimeStep(IonIndX(iLoop))
   iPartIndx_NodeTotalAmbi(nPart+iLoop) = PositionNbr
 END DO
+! Output variable
 TotalPartNum = nPart + nNewElectrons
+! Variable used for allocation
+PartNum = TotalPartNum
+! In case of the background gas, additional particles will be added
+IF(BGGas%NumberOfSpecies.GT.0) PartNum = PartNum + TotalPartNum
 
 newAmbiParts = 0
 IF (ALLOCATED(iPartIndx_NodeNewAmbi)) DEALLOCATE(iPartIndx_NodeNewAmbi)
-ALLOCATE(iPartIndx_NodeNewAmbi(TotalPartNum))
+ALLOCATE(iPartIndx_NodeNewAmbi(PartNum))
 
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DSMC,tLBStart)
@@ -159,7 +164,7 @@ END SUBROUTINE AD_InsertParticles
 
 SUBROUTINE AD_DeleteParticles(iPartIndx_Node, nPart)
 !===================================================================================================================================
-! Deletes all background gas particles and updates the particle index list
+!> Deletes all electron created for the collision process
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

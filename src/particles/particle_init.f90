@@ -1177,7 +1177,7 @@ END SUBROUTINE InitializeVariablesVarTimeStep
 
 SUBROUTINE InitializeVariablesAmbipolarDiff()
 !===================================================================================================================================
-! Initialize the variables first
+!> Ambipolar Diffusion: Electrons are attached to and move with the ions, but still have their own velocity vector for collisions
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1195,7 +1195,6 @@ USE MOD_DSMC_Vars           ,ONLY: useDSMC, DSMC, AmbipolElecVelo
 ! LOCAL VARIABLES
 INTEGER         :: iSpec
 !===================================================================================================================================
-! ------- Variable Time Step Initialization (parts requiring completed particle_init and readMesh)
 IF(useDSMC) THEN
   DSMC%DoAmbipolarDiff = GETLOGICAL('Particles-DSMC-AmbipolarDiffusion')
   IF (DSMC%DoAmbipolarDiff) THEN

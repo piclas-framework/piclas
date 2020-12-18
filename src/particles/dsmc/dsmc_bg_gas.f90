@@ -373,7 +373,7 @@ SUBROUTINE MCC_pairing_bggas(iElem)
 !> 2.) Determining the total number of pairs
 !> 3a.) Creating the background particles as required by the determined numbers of collision pairs
 !> 3b.) Pairing the newly created background particles with the actual simulation particles
-!> 
+!> 4.) Determine the particle number of the background species and calculate the cell temperature
 !> 5.) Calculate the square of the relative collision velocity
 !===================================================================================================================================
 ! MODULES
@@ -397,6 +397,8 @@ USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
 USE MOD_DSMC_CollisionProb      ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Relaxation         ,ONLY: CalcMeanVibQuaDiatomic
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_InsertParticles, AD_DeleteParticles
+USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -407,14 +409,35 @@ INTEGER, INTENT(IN)           :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, jSpec, bgSpec, PartIndex, bggPartIndex, PairCount, RandomPart
-INTEGER                       :: cSpec1, cSpec2, iCase, SpecPairNumTemp
-INTEGER,ALLOCATABLE           :: iPartIndex(:), PairingPartner(:), iPartIndexSpec(:,:), SpecPartNum(:), SpecPairNum(:)
+INTEGER                       :: cSpec1, cSpec2, iCase, SpecPairNumTemp, nPartAmbi
+INTEGER,ALLOCATABLE           :: PairingPartner(:), iPartIndexSpec(:,:), SpecPartNum(:), SpecPairNum(:)
 REAL                          :: iRan, ProbRest, SpecPairNumReal
+INTEGER, ALLOCATABLE          :: iPartIndx_NodeTotalAmbiDel(:)
+INTEGER, ALLOCATABLE, TARGET  :: iPartIndx_Node(:), iPartIndx_NodeTotalAmbi(:)
+INTEGER, POINTER              :: iPartIndx_NodeTotal(:)
 !===================================================================================================================================
+! Create particle index list for pairing
 nPart = PEM%pNumber(iElem)
+ALLOCATE(iPartIndx_Node(nPart))
+iPart = PEM%pStart(iElem)
+DO iLoop = 1, nPart
+  iPartIndx_Node(iLoop) = iPart
+  iPart = PEM%pNext(iPart)
+END DO
+
+! Ambipolar Diffusion
+IF (DSMC%DoAmbipolarDiff) THEN
+  CALL AD_InsertParticles(iPartIndx_Node,nPart, iPartIndx_NodeTotalAmbi, nPartAmbi)
+  ALLOCATE(iPartIndx_NodeTotalAmbiDel(1:nPartAmbi))
+  iPartIndx_NodeTotalAmbiDel(1:nPartAmbi) = iPartIndx_NodeTotalAmbi(1:nPartAmbi)
+  nPart = nPartAmbi
+  iPartIndx_NodeTotal => iPartIndx_NodeTotalAmbi
+ELSE
+  iPartIndx_NodeTotal => iPartIndx_Node
+END IF
+
 MCC_TotalPairNum = 0
 
-ALLOCATE(iPartIndex(nPart))
 CollInf%Coll_SpecPartNum = 0.
 CollInf%Coll_CaseNum = 0
 
@@ -428,18 +451,15 @@ CALL InitCalcVibRelaxProb()
 IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
 
 ! 1.) Counting the number of particles per species and creating a species-specific particle index list
-iPart = PEM%pStart(iElem)
 DO iLoop = 1, nPart
+  iPart = iPartIndx_NodeTotal(iLoop)
   iSpec = PartSpecies(iPart)
   CollInf%Coll_SpecPartNum(iSpec) = CollInf%Coll_SpecPartNum(iSpec) + 1.
   SpecPartNum(iSpec) = SpecPartNum(iSpec) + 1
   ! Calculation of mean vibrational energy per cell and iter, necessary for dissociation probability
   IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) + PartStateIntEn(1,iPart)
-  ! Create particle index list for pairing
-  iPartIndex(iLoop) = iPart
   ! Create species-specific particle index list for cross-section based pairing
   iPartIndexSpec(SpecPartNum(iSpec),iSpec) = iPart
-  iPart = PEM%pNext(iPart)
 END DO
 
 ! 2.) Determining the total number of pairs
@@ -530,13 +550,18 @@ DO iSpec = 1,nSpecies                             ! Loop over all non-background
           ! Pairing
           Coll_pData(PairCount)%iPart_p1 = PartIndex
           Coll_pData(PairCount)%iPart_p2 = bggPartIndex
+          ! Ambipolar diffusion: add the background particle to consider (as its index might be used for an ion after a reaction)
+          IF(DSMC%DoAmbipolarDiff) THEN
+            newAmbiParts = newAmbiParts + 1
+            iPartIndx_NodeNewAmbi(newAmbiParts) = bggPartIndex
+          END IF
         END DO
       END IF
     END DO
   END IF
 END DO
 
-! 4.) Determine the particle number of the background species and calculate the cell tempreature
+! 4.) Determine the particle number of the background species and calculate the cell temperature
 DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
     CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec)) &
@@ -578,7 +603,7 @@ DO iPair = 1, MCC_TotalPairNum
   IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
     CALL DSMC_prob_calc(iElem, iPair)
     CALL RANDOM_NUMBER(iRan)
-    IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
+    IF (Coll_pData(iPair)%Prob.GE.iRan) THEN
       CALL DSMC_perform_collision(iPair,iElem)
     END IF
   END IF
@@ -595,6 +620,10 @@ IF(DSMC%CalcQualityFactors) THEN
 END IF
 DEALLOCATE(Coll_pData)
 CALL FinalizeCalcVibRelaxProb(iElem)
+
+IF (DSMC%DoAmbipolarDiff) THEN
+  CALL AD_DeleteParticles(iPartIndx_NodeTotalAmbiDel,nPart)
+END IF
 
 END SUBROUTINE MCC_pairing_bggas
 
