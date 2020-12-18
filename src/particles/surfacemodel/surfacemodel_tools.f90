@@ -88,6 +88,7 @@ INTEGER                          :: iNewPart ! particle counter for newly create
 locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
 WallTemp = PartBound%WallTemp(locBCID)
+WallVelo = PartBound%WallVelo(1:3,locBCID)
 
 IF(PartBound%RotVelo(locBCID)) THEN
   POI_vec(1:3) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
