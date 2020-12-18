@@ -712,8 +712,6 @@ INTEGER             :: jSpec, iCase
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 REAL                :: sumMeanCollProb
 #endif
-REAL                :: RECBR(nSpecies),RECBR1
-INTEGER             :: RECBIM(nSpecies)
 #endif /*USE_MPI*/
 REAL, ALLOCATABLE   :: CRate(:), RRate(:), VibRelaxRate(:)
 #if (PP_TimeDiscMethod ==42)
@@ -1094,7 +1092,7 @@ INTEGER             :: dir
 !         IF(PartMPI%MPIRoot) THEN
 !           CALL MPI_REDUCE(ChemEnergySum,totalChemEnergySum,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
 !         ELSE
-!           CALL MPI_REDUCE(ChemEnergySum,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+!           CALL MPI_REDUCE(ChemEnergySum,0,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
 !         END IF
 ! #else
 !         totalChemEnergySum = ChemEnergySum
@@ -1159,72 +1157,72 @@ INTEGER             :: dir
                       MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
     IF(CalcCoupledPower) THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE,PCoupl,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,PCoupl       ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PCouplAverage,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
       ! Determining the maximal (MPI_MAX) and mean (MPI_SUM) collision probabilities
-      CALL MPI_REDUCE(MPI_IN_PLACE,MaxCollProb,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,MaxCollProb    ,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
       CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
       MeanCollProb = sumMeanCollProb / REAL(PartMPI%nProcs)
     END IF
 #endif
     IF(FPInitDone) THEN
       IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE,FP_MeanRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(MPI_IN_PLACE,FP_MeanRelaxFactorCounter,1, MPI_INTEGER, MPI_SUM,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(MPI_IN_PLACE,FP_PrandtlNumber,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,FP_MeanRelaxFactor       ,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,FP_MeanRelaxFactorCounter,1, MPI_INTEGER         , MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,FP_PrandtlNumber         ,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
         ! Determining the maximal (MPI_MAX) relaxation factors
-        CALL MPI_REDUCE(MPI_IN_PLACE,FP_MaxRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,FP_MaxRelaxFactor   ,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
         CALL MPI_REDUCE(MPI_IN_PLACE,FP_MaxRotRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
       END IF
     END IF
     IF(BGKInitDone) THEN
       IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MeanRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MeanRelaxFactorCounter,1, MPI_INTEGER, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MeanRelaxFactor       ,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MeanRelaxFactorCounter,1, MPI_INTEGER         , MPI_SUM,0, PartMPI%COMM, IERROR)
         ! Determining the maximal (MPI_MAX) relaxation factors
-        CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MaxRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MaxRelaxFactor   ,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
         CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MaxRotRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
       END IF
     END IF
   ELSE ! no Root
     IF (CalcPartBalance)THEN
-      CALL MPI_REDUCE(nPartIn,RECBIM   ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(nPartOut,RECBIM  ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(PartEkinIn,RECBR ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(PartEkinOut,RECBR,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(nPartIn    ,0,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(nPartOut   ,0,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(PartEkinIn ,0,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(PartEkinOut,0,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
     IF(CalcMassflowRate) THEN
       MaxSurfaceFluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
       CALL MPI_REDUCE(MassflowRate,MassflowRate,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
     IF(CalcCoupledPower) THEN
-      CALL MPI_REDUCE(PCoupl,PCoupl,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(PCouplAverage,PCouplAverage,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(PCoupl       ,0,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(PCouplAverage,0,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
-      CALL MPI_REDUCE(MaxCollProb,RECBR1,1,MPI_DOUBLE_PRECISION,MPI_MAX,0, PartMPI%COMM, IERROR)
-      CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, PartMPI%COMM, IERROR)
+      CALL MPI_REDUCE(MaxCollProb ,0,1,MPI_DOUBLE_PRECISION,MPI_MAX,0, PartMPI%COMM, IERROR)
+      CALL MPI_REDUCE(MeanCollProb,0,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, PartMPI%COMM, IERROR)
     END IF
 #endif
     IF(FPInitDone) THEN
       IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
-        CALL MPI_REDUCE(FP_MeanRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(FP_MeanRelaxFactorCounter,RECBR1,1, MPI_INTEGER, MPI_SUM,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(FP_PrandtlNumber,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(FP_MaxRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(FP_MaxRotRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(FP_MeanRelaxFactor       ,0,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(FP_MeanRelaxFactorCounter,0,1, MPI_INTEGER         , MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(FP_PrandtlNumber         ,0,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(FP_MaxRelaxFactor        ,0,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(FP_MaxRotRelaxFactor     ,0,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
       END IF
     END IF
     IF(BGKInitDone) THEN
       IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
-        CALL MPI_REDUCE(BGK_MeanRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(BGK_MeanRelaxFactorCounter,RECBR1,1, MPI_INTEGER, MPI_SUM,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(BGK_MaxRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(BGK_MaxRotRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(BGK_MeanRelaxFactor       ,0,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(BGK_MeanRelaxFactorCounter,0,1, MPI_INTEGER         , MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(BGK_MaxRelaxFactor        ,0,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(BGK_MaxRotRelaxFactor     ,0,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
       END IF
     END IF
   END IF
