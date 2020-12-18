@@ -173,6 +173,7 @@ SUBROUTINE InitParticleMesh()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalElemID,InitGetCNElemID,GetCNElemID
+USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID
 USE MOD_Mesh_Vars              ,ONLY: deleteMeshPointer,NodeCoords
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
 USE MOD_Mesh_Vars              ,ONLY: useCurveds
@@ -2420,14 +2421,19 @@ USE MOD_Mesh_Vars              ,ONLY: NGeo
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: BCSide2SideID,SideID2BCSide,BCSideMetrics
-USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides,nUniqueBCSides
+USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueBCSides
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
+USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalSides
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalSideID
 USE MOD_Particle_Mesh_Vars     ,ONLY: BCSide2SideID_Shared,SideID2BCSide_Shared,BCSideMetrics_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: BCSide2SideID_Shared_Win,SideID2BCSide_Shared_Win,BCSideMetrics_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides
+#else
+USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2438,7 +2444,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: p,q
-INTEGER                        :: iSide,firstSide,lastSide,BCSideID
+INTEGER                        :: iSide,SideID,firstSide,lastSide,BCSideID
 INTEGER                        :: nUniqueBCSidesProc,offsetUniqueBCSidesProc
 REAL                           :: origin(1:3),xi(1:2),radius,radiusMax,vec(1:3)
 #if USE_MPI
@@ -2448,8 +2454,8 @@ INTEGER                        :: sendbuf,recvbuf
 !===================================================================================================================================
 
 #if USE_MPI
-firstSide = INT(REAL( myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+firstSide = INT(REAL( myComputeNodeRank   *nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))
 #else
 firstSide = 1
 lastSide  = nNonUniqueGlobalSides
@@ -2458,6 +2464,8 @@ lastSide  = nNonUniqueGlobalSides
 ! Count number of BC sides in range
 nUniqueBCSidesProc = 0
 DO iSide = firstSide,lastSide
+  SideID = GetGlobalSideID(iSide)
+
   ! ignore elements not on the compute node
   IF (GetCNElemID(SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.-1) CYCLE
 
