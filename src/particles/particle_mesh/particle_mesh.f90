@@ -266,6 +266,12 @@ CALL InitGetGlobalElemID()
 ! Initialize mapping function: GetCNElemID(1:GlobalElemID)
 CALL InitGetCNElemID()
 
+! Initialize mapping function: GetGlobalSideID(1:nComputeNodeTotalSides)
+CALL InitGetGlobalSideID()
+
+! Initialize mapping function: GetCNSideID(1:GlobalSideID)
+CALL InitGetCNSideID()
+
 ! Initialize mapping function: PEM%LocalElemID(1:PDM%ParticleVecLength)
 CALL InitPEM_LocalElemID()
 
