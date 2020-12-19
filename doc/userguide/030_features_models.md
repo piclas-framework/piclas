@@ -975,7 +975,7 @@ This model is extended to more species by calculating a separate probability for
 
 #### Electronic Relaxation \label{sec:dsmc_electronic_relaxation}
 
-The modelling of electronic states is based on the work of [@Liechty2011a] and uses tabulated energy levels, which can be found in literature for a wide range of species (e.g. for monatomic [@NISTASD], diatomic [@Huber1979], polyatomic [@Herzberg1966] molecules). An example database `DSMCSpecies_electronic_state_full_Data.h5` can be found in e.g. `piclas/regressioncheck/checks/NIG_Reservoir/CHEM_EQUI_TCE_Air_5Spec`, where the energy levels are stored in containers and accessed via the species name, e.g. `Part-Species1-SpeciesName=N2`. Each level is described by its degeneracy in the first column and by the energy in [J] in the seconed column. To include electronic excitation in the simulation, the following parameters are required
+For the modelling of electronic relaxation, two models are available: the model by Liechty et al. [@Liechty2011a], where each particle has a specific electronic state and the model by Burt and Eswar [@Burt2015b], where each particle has an electronic distribution function attached. Both models tabulated energy levels, which can be found in literature for a wide range of species (e.g. for monatomic [@NISTASD], diatomic [@Huber1979], polyatomic [@Herzberg1966] molecules). An example database `DSMCSpecies_electronic_state_full_Data.h5` can be found in e.g. `piclas/regressioncheck/checks/NIG_Reservoir/CHEM_EQUI_TCE_Air_5Spec`, where the energy levels are stored in containers and accessed via the species name, e.g. `Part-Species1-SpeciesName=N2`. Each level is described by its degeneracy in the first column and by the energy in [J] in the seconed column. To include electronic excitation in the simulation, the following parameters are required
 
     Particles-DSMC-ElectronicModel  = T
     Particles-DSMCElectronicDatabase = DSMCSpecies_electronic_state_full_Data.h5
@@ -1036,7 +1036,7 @@ This allows to define a single reaction for an arbitrary number of collision par
     Part-Species2-PreviousState = 1
     Part-Species3-PreviousState = 2
 
-In the following, two possibilities to model the reaction rate are presented.
+In the following, three possibilities to model the reaction rates are presented.
 
 #### Arrhenius-based Chemistry (TCE)
 
@@ -1093,12 +1093,21 @@ Since the partition functions are tabulated, a maximum temperature and the inter
 
 The rotational symmetry factor depends on the symmetry point group of the molecule and can be found in e.g. Table 2 in [@Fernandez-Ramos2007]. While linear polyatomic and diatomic molecules require a single characteristic rotational temperature, three values have to be supplied for non-linear polyatomic molecules. Finally, electronic energy levels have to be supplied to consider the electronic partition function. For this purpose, the user should provide an electronic state database as presented in Section \ref{sec:dsmc_electronic_relaxation}.
 
-#### Additional features
+### Additional Features
+#### Deletion of Chemistry Products
 
 Specified product species can be deleted immediately after the reaction occurs, e.g. if an ionization process with a background gas is simulated and the neutral species as a result from dissociation are not of interest. To do so, the number of species to be deleted and there indices have to be defined
 
     Particles-Chemistry-NumDeleteProducts = 2
     Particles-Chemistry-DeleteProductsList = (/2,3/)
+
+#### Ambipolar Diffusion
+
+The ambipolar diffusion model can be enabled by
+
+    Particles-DSMC-AmbipolarDiffusion = T
+
+Electrons are now attached to and move with the ions, although, they still have their own velocity vector and are part of the pairing and collisional process (including chemical reactions).
 
 ### Ensuring Physical Simulation Results \label{sec:dsmc_quality}
 
