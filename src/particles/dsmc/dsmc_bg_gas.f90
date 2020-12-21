@@ -707,7 +707,7 @@ SumCrossSections = 0.
 NbrCrossSections = 0
 DO iReac = 1, ChemReac%NumOfReact
   ! Only treat photoionization reactions
-  IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
+  IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') CYCLE
   SumCrossSections = SumCrossSections + ChemReac%CrossSection(iReac)
   NbrCrossSections = NbrCrossSections + 1
 END DO ! iReac = 1, ChemReac%NumOfReact
@@ -716,7 +716,7 @@ END DO ! iReac = 1, ChemReac%NumOfReact
 iCrossSection = 0
 DO iReac = 1, ChemReac%NumOfReact
   ! Only treat photoionization reactions
-  IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
+  IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') CYCLE
   iCrossSection  = iCrossSection + 1
   IF(iCrossSection.EQ.NbrCrossSections)THEN
     NumPhotoIonization(iReac) = TotalNbrOfReactionsTmp
@@ -823,7 +823,7 @@ END IF
 !>     to the photon's path
 DO iReac = 1, ChemReac%NumOfReact
   ! Only treat photoionization reactions
-  IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
+  IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') CYCLE
   DO iPart = 1, NumPhotoIonization(iReac)
     iPair = iPair + 1
     CALL PhotoIonization_InsertProducts(iPair, iReac, iInit, iSpec)

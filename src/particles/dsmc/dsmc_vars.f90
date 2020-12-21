@@ -399,9 +399,12 @@ TYPE tArbDiss
 END TYPE
 
 TYPE tChemReactions
+  LOGICAL                         :: AnyQKReaction          ! Defines if any QK reaction present
   INTEGER                         :: NumOfReact             ! Number of possible reactions
+  INTEGER                         :: NumOfReactWOBackward   ! Number of possible reactions w/o automatic backward reactions
   TYPE(tArbDiss), ALLOCATABLE     :: ArbDiss(:)             ! Construct to allow the definition of a list of non-reactive educts
-  LOGICAL, ALLOCATABLE            :: QKProcedure(:)         ! Defines if QK Procedure is selected
+  LOGICAL, ALLOCATABLE            :: BackwardReac(:)        ! Defines if backward reaction is calculated
+  INTEGER, ALLOCATABLE            :: BackwardReacForwardIndx(:)
   REAL, ALLOCATABLE               :: QKRColl(:)             ! Collision factor in QK model
   REAL, ALLOCATABLE               :: QKTCollCorrFac(:)      ! Correction factor for collision temperature due to averaging over T^b
   REAL, ALLOCATABLE               :: NumReac(:)             ! Number of occurred reactions for each reaction number
@@ -409,11 +412,15 @@ TYPE tChemReactions
                                                             ! coefficient based on the reaction probabilities
   REAL, ALLOCATABLE               :: ReacCollMean(:)        ! Mean collision probability for each collision pair
   CHARACTER(LEN=5),ALLOCATABLE    :: ReactType(:)           ! Type of Reaction (reaction num)
-                                                            !    i (electron impact ionization)
+                                                            !    I (electron impact ionization)
                                                             !    R (molecular recombination
                                                             !    D (molecular dissociation)
                                                             !    E (molecular exchange reaction)
-                                                            !    x (simple charge exchange reaction)
+  CHARACTER(LEN=5),ALLOCATABLE    :: ReactModel(:)          ! Model of Reaction (reaction num)
+                                                            !    TCE (total collision energy)
+                                                            !    QK (quantum kinetic)
+                                                            !    phIon (photon-ionization)
+                                                            !    XSec (based on cross-section data)
   INTEGER, ALLOCATABLE            :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
   INTEGER, ALLOCATABLE            :: Products(:,:)          ! Products: indices of the species resulting from the reaction [NumOfReact,4]
   INTEGER, ALLOCATABLE            :: ReactCase(:)           ! Case/pair of the reaction (1:NumOfReact)
@@ -447,7 +454,7 @@ TYPE tChemReactions
   REAL, ALLOCATABLE               :: CrossSection(:)        ! Cross-section of the given photo-ionization reaction
   TYPE(tCollCaseInfo), ALLOCATABLE:: CollCaseInfo(:)        ! Information of collision cases (nCase)
   ! XSec Chemistry
-  LOGICAL, ALLOCATABLE            :: XSec_Procedure(:)      ! Defines if reaction is based on cross-section data
+  LOGICAL                         :: AnyXSecReaction          ! Defines if any QK reaction present
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac

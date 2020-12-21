@@ -49,16 +49,15 @@ CALL prms%CreateIntOption(      'DSMC-Reaction[$]-NumberOfNonReactives', &
 CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-NonReactiveSpecies'  &
                                            ,'Array with the non-reactive collision partners for dissociation' &
                                            ,numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'DSMC-Reaction[$]-ReactionType'  &
-                                           ,'Used reaction types\n'//&
-                                            'iQK: electron impact ionization\n'//&
-                                            'R: molecular recombination\n'//&
-                                            'D: molecular dissociation\n'//&
-                                            'E: molecular exchange reaction\n'//&
+CALL prms%CreateStringOption(   'DSMC-Reaction[$]-ReactModel'  &
+                                           ,'Used reaction model\n'//&
+                                            'TCE: total collision energy\n'//&
                                             'phIon: photon-ionization\n'//&
-                                            'X: simple charge exchange reaction)', 'none', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'DSMC-Reaction[$]-QKProcedure'  &
-                                           ,'Flag to use quantum-kinetic model', '.FALSE.', numberedmulti=.TRUE.)
+                                            'QK: quantum kinetic\n'//&
+                                            'XSec: cross-section based data for the reaction)', 'TCE', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'DSMC-Reaction[$]-BackwardReac'  &
+                                           ,'Consider automatic backward reaction for this single reaction', & 
+                                            '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Reactants'  &
                                            ,'Reactants of Reaction[$]\n'//&
                                             '(SpecNumOfReactant1,\n'//&
@@ -121,9 +120,6 @@ CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
                                   ,'.TRUE.')
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CrossSection'  &
                                 , 'Photon-ionization cross-section for the reaction type phIon', numberedmulti=.TRUE.)
-! XSec Chemistry
-CALL prms%CreateLogicalOption(  'DSMC-Reaction[$]-XSec-Procedure', &
-                                'Flag to use cross-section based data for the reaction', '.FALSE.', numberedmulti=.TRUE.)
 END SUBROUTINE DefineParametersChemistry
 
 SUBROUTINE DSMC_chemical_init()
@@ -154,7 +150,7 @@ INTEGER               :: iReac, iReac2, iSpec, iPart, iReacForward, iReacDiss, P
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
 LOGICAL               :: DoScat
 INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, MaxElecQua, ReadInNumOfReact
-REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec, BGGasEVib, PhotonEnergy, omega
+REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec, BGGasEVib, PhotonEnergy, omega, ChargeProducts, ChargeReactants
 INTEGER               :: iInit
 INTEGER               :: iCase, iCase2, ReacIndexCounter
 LOGICAL               :: RecombAdded
@@ -162,11 +158,14 @@ LOGICAL               :: RecombAdded
 
 ChemReac%NumOfReact = GETINT('DSMC-NumOfReactions')
 ReadInNumOfReact = ChemReac%NumOfReact
+ChemReac%NumOfReactWOBackward = ChemReac%NumOfReact
 IF(ChemReac%NumOfReact.LE.0) THEN
   CALL Abort(&
     __STAMP__&
     ,' CollisMode = 3 requires a chemical reaction database. DSMC-NumOfReactions cannot be zero!')
 END IF
+ChemReac%AnyQKReaction = .FALSE.
+ChemReac%AnyXSecReaction = .FALSE.
 ALLOCATE(ChemReac%ArbDiss(ChemReac%NumOfReact))
 ! Allowing unspecified non-reactive collision partner (CH4 + M -> CH3 + H + M, e.g. (/1,0,0/) -> (/2,0,3/)
 iReacDiss = ChemReac%NumOfReact
@@ -179,6 +178,24 @@ DO iReac = 1, ReadInNumOfReact
                                               ChemReac%ArbDiss(iReac)%NumOfNonReactives)
     ! First reaction is saved within the dummy input reaction, thus "- 1"
     ChemReac%NumOfReact = ChemReac%NumOfReact + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
+    ChemReac%NumOfReactWOBackward = ChemReac%NumOfReactWOBackward + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
+  END IF
+END DO
+
+ALLOCATE(ChemReac%BackwardReac(ChemReac%NumOfReactWOBackward))
+ChemReac%BackwardReac = .FALSE.
+DO iReac = 1, ReadInNumOfReact
+  WRITE(UNIT=hilf,FMT='(I0)') iReac
+  ! Calculation of the backward reaction rates
+  IF(DSMC%BackwardReacRate) THEN
+    ChemReac%BackwardReac(iReac) = .TRUE.
+  ELSE
+    ChemReac%BackwardReac(iReac) = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-BackwardReac')
+  END IF
+  IF (ChemReac%BackwardReac(iReac)) THEN 
+    ChemReac%NumOfReact = ChemReac%NumOfReact + 1
+    IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.GT.0) &
+      ChemReac%NumOfReact = ChemReac%NumOfReact + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
   END IF
 END DO
 ! Delete products if they belong to a certain species
@@ -187,10 +204,7 @@ IF(ChemReac%NumDeleteProducts.GT.0) THEN
   ALLOCATE(ChemReac%DeleteProductsList(ChemReac%NumDeleteProducts))
   ChemReac%DeleteProductsList = GETINTARRAY('Particles-Chemistry-DeleteProductsList', ChemReac%NumDeleteProducts)
 END IF
-! Calculation of the backward reaction rates
-IF(DSMC%BackwardReacRate) THEN
-  ChemReac%NumOfReact = 2 * ChemReac%NumOfReact
-END IF
+
 ChemEnergySum = 0.
 SWRITE(*,*) '| Number of considered reaction paths (including dissociation and recombination): ', ChemReac%NumOfReact
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -202,10 +216,10 @@ ChemReac%ReacCount = 0
 ALLOCATE(ChemReac%ReacCollMean(CollInf%NumCase))
 ChemReac%ReacCollMean = 0.0
 #endif
-ALLOCATE(ChemReac%QKProcedure(ChemReac%NumOfReact))
-ChemReac%QKProcedure = .FALSE.
 ALLOCATE(ChemReac%ReactType(ChemReac%NumOfReact))
 ChemReac%ReactType = '0'
+ALLOCATE(ChemReac%ReactModel(ChemReac%NumOfReact))
+ChemReac%ReactModel = '0'
 ALLOCATE(ChemReac%Reactants(ChemReac%NumOfReact,3))
 ChemReac%Reactants = 0
 ALLOCATE(ChemReac%Products(ChemReac%NumOfReact,4))
@@ -238,9 +252,6 @@ ALLOCATE(ChemReac%ReactInfo(ChemReac%NumOfReact))
 ALLOCATE(ChemReac%TLU_FileName(ChemReac%NumOfReact))
 ALLOCATE(ChemReac%CrossSection(ChemReac%NumOfReact))
 ChemReac%CrossSection = 0.
-! XSec Chemistry
-ALLOCATE(ChemReac%XSec_Procedure(ChemReac%NumOfReact))
-ChemReac%XSec_Procedure = .FALSE.
 
 IF (BGGas%NumberOfSpecies.GT.0) THEN
   DO iSpec = 1, nSpecies
@@ -266,10 +277,26 @@ END IF
 DoScat = .false.
 DO iReac = 1, ReadInNumOfReact
   WRITE(UNIT=hilf,FMT='(I0)') iReac
-  ChemReac%ReactType(iReac)             = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionType'))
-  ChemReac%QKProcedure(iReac)           = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-QKProcedure','.FALSE.')
+  ChemReac%ReactModel(iReac)             = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionModel'))
+  IF (TRIM(ChemReac%ReactModel(iReac)).EQ.'QK') ChemReac%AnyQKReaction = .TRUE.
+  IF (TRIM(ChemReac%ReactModel(iReac)).EQ.'XSec') ChemReac%AnyXSecReaction = .TRUE.
   ChemReac%Reactants(iReac,:)           = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Reactants',3,'0,0,0')
   ChemReac%Products(iReac,:)            = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Products',4,'0,0,0,0')
+  IF (ChemReac%Reactants(iReac,3).NE.0) THEN
+    ChemReac%ReactType(iReac)           = 'R'
+  ELSE IF (ChemReac%Products(iReac,3).NE.0) THEN
+    ChargeReactants = Species(ChemReac%Reactants(iReac,1))%ChargeIC + Species(ChemReac%Reactants(iReac,2))%ChargeIC
+    ChargeProducts = Species(ChemReac%Products(iReac,1))%ChargeIC + Species(ChemReac%Products(iReac,2))%ChargeIC &
+        + Species(ChemReac%Products(iReac,3))%ChargeIC
+    IF (ChemReac%Products(iReac,4).GT.0) ChargeProducts = ChargeProducts + Species(ChemReac%Products(iReac,4))%ChargeIC
+    IF (ChargeReactants.NE.ChargeProducts) THEN
+      ChemReac%ReactType(iReac)           = 'I'
+    ELSE
+      ChemReac%ReactType(iReac)           = 'D'
+    END IF
+  ELSE  
+    ChemReac%ReactType(iReac)           = 'E'
+  END IF
   ChemReac%Arrhenius_Prefactor(iReac)   = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Prefactor','0')
   ChemReac%Arrhenius_Powerfactor(iReac) = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Powerfactor','0')
   ChemReac%EActiv(iReac)                = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Activation-Energy_K','0')*BoltzmannConst
@@ -289,13 +316,11 @@ DO iReac = 1, ReadInNumOfReact
     ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','-27.2')
     ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','175.269')
   END IF
-  ! XSec Chemistry
-  ChemReac%XSec_Procedure(iReac)           = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-XSec-Procedure')
-  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
     ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
   END IF
   ! Filling up ChemReac-Array for the given non-reactive dissociation/electron-impact ionization partners
-  IF((TRIM(ChemReac%ReactType(iReac)).EQ.'D').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'iQK')) THEN
+  IF((TRIM(ChemReac%ReactType(iReac)).EQ.'D').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'I')) THEN
     IF((ChemReac%Reactants(iReac,2).EQ.0).AND.(ChemReac%Products(iReac,2).EQ.0)) THEN
       IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.EQ.0) THEN
         CALL abort(__STAMP__,&
@@ -308,8 +333,9 @@ DO iReac = 1, ReadInNumOfReact
           ChemReac%Products(iReac,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
         ELSE
           ! The following reaction are added after the number of originally read-in reactions (counter: iReacDiss)
+          ChemReac%BackwardReac(iReacDiss+iReac2-1)         =ChemReac%BackwardReac(iReac)
           ChemReac%ReactType(iReacDiss+iReac2-1)             = ChemReac%ReactType(iReac)
-          ChemReac%QKProcedure(iReacDiss+iReac2-1)           = ChemReac%QKProcedure(iReac)
+          ChemReac%ReactModel(iReacDiss+iReac2-1)             = ChemReac%ReactModel(iReac)
           ChemReac%Reactants(iReacDiss+iReac2-1,:)      = ChemReac%Reactants(iReac,:)
           ChemReac%Reactants(iReacDiss+iReac2-1,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
           ChemReac%Products(iReacDiss+iReac2-1,:)      = ChemReac%Products(iReac,:)
@@ -353,17 +379,15 @@ DO iReac = 1, ChemReac%NumOfReact
                           - ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,2)*SpecDSMC(iSpec)%HeatOfFormation  &
                           + ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,1)*SpecDSMC(iSpec)%HeatOfFormation
     ! For the impact-ionization, the heat of reaction is equal to the ionization energy
-    IF(TRIM(ChemReac%ReactType(iReac)).EQ.'iQK') THEN
+    IF(TRIM(ChemReac%ReactType(iReac)).EQ.'I') THEN
       IF(.NOT.ALLOCATED(SpecDSMC(ChemReac%Reactants(iReac,1))%ElectronicState)) THEN
         CALL abort(&
         __STAMP__&
-        ,'ERROR: QK reactions require the definition of at least the ionization energy as electronic level!',iReac)
+        ,'ERROR: Ionization reactions require the definition of at least the ionization energy as electronic level!',iReac)
       END IF
-      MaxElecQua=SpecDSMC(ChemReac%Reactants(iReac,1))%MaxElecQuant - 1
-      ChemReac%EForm(iReac) = - SpecDSMC(ChemReac%Reactants(iReac,1))%ElectronicState(2,MaxElecQua)*BoltzmannConst
     END IF
   END DO
-  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
     PhotonEnergy = 0.
     DO iSpec = 1, nSpecies
       DO iInit = 1, Species(iSpec)%NumberOfInits
@@ -383,8 +407,8 @@ DO iReac = 1, ChemReac%NumOfReact
 END DO
 
 ! Initialize partition functions required for automatic backward rates
-IF(DSMC%BackwardReacRate) THEN
-  IF(ANY(ChemReac%XSec_Procedure(:))) CALL abort(__STAMP__,&
+IF(ANY(ChemReac%BackwardReac(:))) THEN
+  IF(ChemReac%AnyXSecReaction) CALL abort(__STAMP__,&
       'Automatic calculation of backward reaction rates in combination with cross-section based reactions is NOT supported!')
   IF(MOD(DSMC%PartitionMaxTemp,DSMC%PartitionInterval).EQ.0.0) THEN
     PartitionArraySize = NINT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)
@@ -401,17 +425,19 @@ __STAMP__&
       SpecDSMC(iSpec)%PartitionFunction(iInter) = Qtra * Qrot * Qvib * Qelec
     END DO
   END DO
-END IF
-
-! Filling up ChemReac-Array with forward rate coeff., switching reactants with products and setting new energies
-IF(DSMC%BackwardReacRate) THEN
-  DO iReac = ChemReac%NumOfReact/2+1, ChemReac%NumOfReact
-    iReacForward = iReac - ChemReac%NumOfReact/2
-    IF(ChemReac%QKProcedure(iReacForward)) THEN
-      IF((TRIM(ChemReac%ReactType(iReacForward)).EQ.'iQK').OR.&
+  
+  ALLOCATE(ChemReac%BackwardReacForwardIndx(ChemReac%NumOfReactWOBackward+1:ChemReac%NumOfReact))
+  ! Filling up ChemReac-Array with forward rate coeff., switching reactants with products and setting new energies
+  iReac = ChemReac%NumOfReactWOBackward
+  DO iReacForward = 1, ChemReac%NumOfReactWOBackward
+    IF (.NOT.ChemReac%BackwardReac(iReacForward)) CYCLE
+    iReac = iReac + 1
+    ChemReac%BackwardReacForwardIndx(iReac) = iReacForward
+    IF(TRIM(ChemReac%ReactModel(iReacForward)).EQ.'QK') THEN
+      IF((TRIM(ChemReac%ReactType(iReacForward)).EQ.'I').OR.&
           (TRIM(ChemReac%ReactType(iReacForward)).EQ.'D'  )) THEN
-        ChemReac%ReactType(iReac) = 'r'
-        IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'D') ChemReac%ReactType(iReac) = 'R'
+        ChemReac%ReactType(iReac) = 'R'
+        ChemReac%ReactModel(iReac) = 'TCE'
         ChemReac%Reactants(iReac,1)      = ChemReac%Products(iReacForward,1)
         ! Products of the dissociation (which are the reactants of the recombination) have to be swapped in order to comply with
         ! definition of the recombination reaction (e.g. CH3 + H + M -> CH4 + M but CH4 + M -> CH3 + M + H)
@@ -422,12 +448,13 @@ IF(DSMC%BackwardReacRate) THEN
         ChemReac%EActiv(iReac) = 0.0
       ELSE
         CALL abort(__STAMP__,&
-        'Other reaction types than iQK are not implemented with the automatic backward rate determination, Reaction:', iReac)
+        'Other reaction types than I and D are not implemented with the automatic backward rate determination, Reaction:', iReac)
       END IF
     ELSE
       IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'D') THEN
-        ! Analogous to the iQK case
+        ! Analogous to the I case
         ChemReac%ReactType(iReac) = 'R'
+        ChemReac%ReactModel(iReac) = 'TCE'
         ChemReac%Reactants(iReac,1)      = ChemReac%Products(iReacForward,1)
         ChemReac%Reactants(iReac,2)      = ChemReac%Products(iReacForward,3)
         ChemReac%Reactants(iReac,3)      = ChemReac%Products(iReacForward,2)
@@ -435,6 +462,7 @@ IF(DSMC%BackwardReacRate) THEN
         ChemReac%EActiv(iReac) = 0.0
       ELSEIF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'E') THEN
         ChemReac%ReactType(iReac) = 'E'
+        ChemReac%ReactModel(iReac) = 'TCE'
         ChemReac%Reactants(iReac,1:3)      = ChemReac%Products(iReacForward,1:3)
         ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
         ChemReac%EActiv(iReac)                = ChemReac%EForm(iReacForward) + ChemReac%EActiv(iReacForward)
@@ -457,7 +485,7 @@ END IF
 
 ! Initialize analytic QK reaction rate (required for calculation of backward rate with QK and if multiple QK reactions can occur
 ! during a single collision, e.g. N2+e -> ionization or dissociation)
-IF(ANY(ChemReac%QKProcedure).OR.DSMC%BackwardReacRate) THEN
+IF(ChemReac%AnyQKReaction.OR.ANY(ChemReac%BackwardReac(:))) THEN
   CALL QK_Init()
 END IF
 
@@ -468,7 +496,7 @@ DO iReac = 1, ChemReac%NumOfReact
       CALL abort(__STAMP__,&
       'Recombination - Error in Definition: Not all reactant species are defined! ReacNbr: ',iReac)
     END IF
-  ELSE IF (TRIM(ChemReac%ReactType(iReac)).NE.'phIon') THEN
+  ELSE IF (TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') THEN
     IF ((ChemReac%Reactants(iReac,1)*ChemReac%Reactants(iReac,2)).EQ.0) THEN
       CALL abort(__STAMP__,&
       'Chemistry - Error in Definition: Reactant species not properly defined. ReacNbr:',iReac)
@@ -504,12 +532,12 @@ DO iCase = 1, CollInf%NumCase
   RecombAdded = .FALSE.
   DO iReac = 1, ChemReac%NumOfReact
     ! Skip the special case of photo ionization
-    IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') CYCLE
+    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
     iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
     ! Count the number of possible reactions paths per collision case
     IF(iCase.EQ.iCase2) THEN
       ! Only add recombination reactions once
-      IF((TRIM(ChemReac%ReactType(iReac)).EQ.'r').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'R')) THEN
+      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
         IF(RecombAdded) THEN
           CYCLE
         ELSE
@@ -532,7 +560,7 @@ DO iCase = 1, CollInf%NumCase
   RecombAdded = .FALSE.
   DO iReac = 1, ChemReac%NumOfReact
     ! Skip the special case of photo ionization
-    IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') CYCLE
+    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
     iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
     ! Save the reaction index for the specific collision case
     IF(iCase.EQ.iCase2) THEN
@@ -540,7 +568,7 @@ DO iCase = 1, CollInf%NumCase
       ChemReac%ReactCase(iReac) = iCase
       ! But only add one recombination reaction to the number of reaction paths (the index of the others is stored in ReactNumRecomb
       ! and is chosen based on the third collision partner selected during the simulation)
-      IF((TRIM(ChemReac%ReactType(iReac)).EQ.'r').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'R')) THEN
+      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
         IF(RecombAdded) THEN
           CYCLE
         ELSE
@@ -549,7 +577,7 @@ DO iCase = 1, CollInf%NumCase
       END IF
       ReacIndexCounter = ReacIndexCounter + 1
       ChemReac%CollCaseInfo(iCase)%ReactionIndex(ReacIndexCounter) = iReac
-      IF(ChemReac%XSec_Procedure(iReac)) THEN
+      IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'XSec')  THEN
         ChemReac%CollCaseInfo(iCase)%HasXSecReaction = .TRUE.
         IF(ChemReac%Reactants(iReac,3).NE.0) THEN
           CALL abort(__STAMP__,&
@@ -560,13 +588,13 @@ DO iCase = 1, CollInf%NumCase
   END DO
 END DO
 
-IF(ANY(ChemReac%XSec_Procedure(:))) THEN
+IF(ChemReac%AnyXSecReaction) THEN
   CALL MCC_Chemistry_Init()
 END IF
 
 ! Recombination
 DO iReac = 1, ChemReac%NumOfReact
-  IF((TRIM(ChemReac%ReactType(iReac)).EQ.'r').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'R')) THEN
+  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
     Reactant1 = ChemReac%Reactants(iReac,1)
     Reactant2 = ChemReac%Reactants(iReac,2)
     Reactant3 = ChemReac%Reactants(iReac,3)
@@ -577,7 +605,7 @@ DO iReac = 1, ChemReac%NumOfReact
 END DO
 ! Filling empty values of ReactNumRecomb with the last recombination reaction for that collision pair
 DO iReac = 1, ChemReac%NumOfReact
-  IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
+  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
     Reactant1 = ChemReac%Reactants(iReac,1)
     Reactant2 = ChemReac%Reactants(iReac,2)
     DO iSpec = 1, nSpecies
@@ -594,11 +622,11 @@ DEALLOCATE(ChemReac%ArbDiss)
 
 DO iReac = 1, ChemReac%NumOfReact
   ! Skip photo-ionization reactions
-  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') CYCLE
+  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
   ! Skip reactions modelled with QK
-  IF(ChemReac%QKProcedure(iReac)) CYCLE
+  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'QK')  CYCLE
   ! Skip reaction modelled with XSec
-  IF(ChemReac%XSec_Procedure(iReac)) CYCLE
+  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'XSec')  CYCLE
   iSpec = ChemReac%Reactants(iReac,1)
   iSpec2 = ChemReac%Reactants(iReac,2)
   omega = CollInf%omega(iSpec,iSpec2)
