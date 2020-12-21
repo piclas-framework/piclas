@@ -49,7 +49,7 @@ CALL prms%CreateIntOption(      'DSMC-Reaction[$]-NumberOfNonReactives', &
 CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-NonReactiveSpecies'  &
                                            ,'Array with the non-reactive collision partners for dissociation' &
                                            ,numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'DSMC-Reaction[$]-ReactModel'  &
+CALL prms%CreateStringOption(   'DSMC-Reaction[$]-ReactionModel'  &
                                            ,'Used reaction model\n'//&
                                             'TCE: total collision energy\n'//&
                                             'phIon: photon-ionization\n'//&
@@ -285,10 +285,10 @@ DO iReac = 1, ReadInNumOfReact
   IF (ChemReac%Reactants(iReac,3).NE.0) THEN
     ChemReac%ReactType(iReac)           = 'R'
   ELSE IF (ChemReac%Products(iReac,3).NE.0) THEN
-    ChargeReactants = Species(ChemReac%Reactants(iReac,1))%ChargeIC + Species(ChemReac%Reactants(iReac,2))%ChargeIC
-    ChargeProducts = Species(ChemReac%Products(iReac,1))%ChargeIC + Species(ChemReac%Products(iReac,2))%ChargeIC &
-        + Species(ChemReac%Products(iReac,3))%ChargeIC
-    IF (ChemReac%Products(iReac,4).GT.0) ChargeProducts = ChargeProducts + Species(ChemReac%Products(iReac,4))%ChargeIC
+    ChargeReactants = ABS(Species(ChemReac%Reactants(iReac,1))%ChargeIC) + ABS(Species(ChemReac%Reactants(iReac,2))%ChargeIC)
+    ChargeProducts = ABS(Species(ChemReac%Products(iReac,1))%ChargeIC) + ABS(Species(ChemReac%Products(iReac,2))%ChargeIC) &
+        + ABS(Species(ChemReac%Products(iReac,3))%ChargeIC)
+    IF (ChemReac%Products(iReac,4).GT.0) ChargeProducts = ChargeProducts + ABS(Species(ChemReac%Products(iReac,4))%ChargeIC)
     IF (ChargeReactants.NE.ChargeProducts) THEN
       ChemReac%ReactType(iReac)           = 'I'
     ELSE
