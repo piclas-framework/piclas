@@ -51,13 +51,10 @@ CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-NonReactiveSpecies'  &
                                            ,numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'DSMC-Reaction[$]-ReactionModel'  &
                                            ,'Used reaction model\n'//&
-                                            'TCE: total collision energy\n'//&
+                                            'TCE: Total Collision Energy\n'//&
                                             'phIon: photon-ionization\n'//&
                                             'QK: quantum kinetic\n'//&
                                             'XSec: cross-section based data for the reaction)', 'TCE', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'DSMC-Reaction[$]-BackwardReac'  &
-                                           ,'Consider automatic backward reaction for this single reaction', & 
-                                            '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Reactants'  &
                                            ,'Reactants of Reaction[$]\n'//&
                                             '(SpecNumOfReactant1,\n'//&
@@ -103,22 +100,28 @@ CALL prms%CreateIntOption(      'Particles-Chemistry-NumDeleteProducts','Number 
 CALL prms%CreateIntArrayOption( 'Particles-Chemistry-DeleteProductsList','List of the species indices to be deleted if they are '//&
                                 'a product of chemical reactions')
 
-CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
-                                           ,'Utilize collision cross sections for the determination of collision probabilities' &
-                                           ,'.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-UseVibXSec'  &
-                                           ,'Utilize vibrational cross sections for the determination of relaxation probabilities' &
-                                           ,'.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for the collision cross section database. Container '//&
-                                                               'should be named with species pair (e.g. "Ar-electron"). The '//&
-                                                               'first column shall contain the energy in eV and the second '//&
-                                                               'column the cross-section in m^2', 'none')
-CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
-                                  ,'Utilize the null collision method for the determination of the number of pairs '//&
-                                  'based on the maximum collision frequency and time step (only with a background gas)' &
-                                  ,'.TRUE.')
-CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CrossSection'  &
-                                , 'Photon-ionization cross-section for the reaction type phIon', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CrossSection', &
+                                'Photon-ionization cross-section for the reaction type phIon', numberedmulti=.TRUE.)
+
+CALL prms%SetSection("Chemistry - Backward Reaction Rates")
+CALL prms%CreateLogicalOption(  'Particles-DSMC-BackwardReacRate', &
+                                          'Set [TRUE] to enable the automatic calculation of the backward reaction rate '//&
+                                          'coefficient using the equilibrium constant calculated by partition functions\n'//&
+                                          '[FALSE] if they are defined as separate reactions. This option can be overwritten '//&
+                                          'by the reaction-specific flag, e.g. DSMC-Reaction1-BackwardReac = T/F ' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'DSMC-Reaction[$]-BackwardReac', &
+                                          'Consider automatic backward reaction for this specific reaction. The default value '//&
+                                          'is equal the value of the global flag Particles-DSMC-BackwardReacRate.', &
+                                          numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Particles-DSMC-PartitionMaxTemp', &
+                                          'Define temperature limit for pre-stored partition function that are used for '//&
+                                          'calculation of backwards rates', '20000.0')
+CALL prms%CreateRealOption(     'Particles-DSMC-PartitionInterval', &
+                                          'Define temperature interval for pre-stored partition functions that are used for '//&
+                                          'calculation of backwards rates', '10.0')
+CALL prms%CreateIntOption(      'Part-Species[$]-SymmetryFactor', &
+                                          'Rotational symmetry factor, depending on the molecule configuration', &
+                                          numberedmulti=.TRUE.)
 END SUBROUTINE DefineParametersChemistry
 
 SUBROUTINE DSMC_chemical_init()
@@ -145,14 +148,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=3)      :: hilf
-INTEGER               :: iReac, iReac2, iSpec, iPart, iReacForward, iReacDiss, PartitionArraySize, iInter, iSpec2
+INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit, iCase, iCase2, ReacIndexCounter
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
-LOGICAL               :: DoScat
+LOGICAL               :: DoScat, RecombAdded
+REAL                  :: BGGasEVib, PhotonEnergy, omega, ChargeProducts, ChargeReactants
 INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, ReadInNumOfReact
-REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec, BGGasEVib, PhotonEnergy, omega, ChargeProducts, ChargeReactants
-INTEGER               :: iInit
-INTEGER               :: iCase, iCase2, ReacIndexCounter
-LOGICAL               :: RecombAdded
 !===================================================================================================================================
 
 ChemReac%NumOfReact = GETINT('DSMC-NumOfReactions')
@@ -180,23 +180,31 @@ DO iReac = 1, ReadInNumOfReact
     ChemReac%NumOfReactWOBackward = ChemReac%NumOfReactWOBackward + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
   END IF
 END DO
-
+!-----------------------------------------------------------------------------------
+! Flag for the automatic calculation of the backward reaction rate with the partition functions and equilibrium constant.
+DSMC%BackwardReacRate  = GETLOGICAL('Particles-DSMC-BackwardReacRate')
+! Partition functions are calculated for each species during initialization and stored for values starting with the
+! DSMC%PartitionInterval up to DSMC%PartitionMaxTemp, interpolation between the stored values (also used for analytic QK reactions)
+DSMC%PartitionMaxTemp  = GETREAL('Particles-DSMC-PartitionMaxTemp','20000')
+DSMC%PartitionInterval = GETREAL('Particles-DSMC-PartitionInterval','10')
 ALLOCATE(ChemReac%BackwardReac(ChemReac%NumOfReactWOBackward))
 ChemReac%BackwardReac = .FALSE.
 DO iReac = 1, ReadInNumOfReact
   WRITE(UNIT=hilf,FMT='(I0)') iReac
   ! Calculation of the backward reaction rates
   IF(DSMC%BackwardReacRate) THEN
-    ChemReac%BackwardReac(iReac) = .TRUE.
+    ChemReac%BackwardReac(iReac) = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-BackwardReac','.TRUE.')
   ELSE
-    ChemReac%BackwardReac(iReac) = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-BackwardReac')
+    ChemReac%BackwardReac(iReac) = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-BackwardReac','.FALSE.')
   END IF
   IF (ChemReac%BackwardReac(iReac)) THEN 
+    DSMC%BackwardReacRate = .TRUE.
     ChemReac%NumOfReact = ChemReac%NumOfReact + 1
     IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.GT.0) &
       ChemReac%NumOfReact = ChemReac%NumOfReact + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
   END IF
 END DO
+!-----------------------------------------------------------------------------------
 ! Delete products if they belong to a certain species
 ChemReac%NumDeleteProducts = GETINT('Particles-Chemistry-NumDeleteProducts')
 IF(ChemReac%NumDeleteProducts.GT.0) THEN
@@ -415,85 +423,13 @@ DO iReac = 1, ChemReac%NumOfReact
 END DO
 
 ! Initialize partition functions required for automatic backward rates
-IF(ANY(ChemReac%BackwardReac(:))) THEN
-  IF(ChemReac%AnyXSecReaction) CALL abort(__STAMP__,&
-      'Automatic calculation of backward reaction rates in combination with cross-section based reactions is NOT supported!')
-  IF(MOD(DSMC%PartitionMaxTemp,DSMC%PartitionInterval).EQ.0.0) THEN
-    PartitionArraySize = NINT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)
-  ELSE
-    CALL abort(&
-__STAMP__&
-,'ERROR in Chemistry Init: Partition temperature limit must be multiple of partition interval!')
-  END IF
-  DO iSpec = 1, nSpecies
-    ALLOCATE(SpecDSMC(iSpec)%PartitionFunction(1:PartitionArraySize))
-    DO iInter = 1, PartitionArraySize
-      Temp = iInter * DSMC%PartitionInterval
-      CALL CalcPartitionFunction(iSpec, Temp, Qtra, Qrot, Qvib, Qelec)
-      SpecDSMC(iSpec)%PartitionFunction(iInter) = Qtra * Qrot * Qvib * Qelec
-    END DO
-  END DO
-  
-  ALLOCATE(ChemReac%BackwardReacForwardIndx(ChemReac%NumOfReactWOBackward+1:ChemReac%NumOfReact))
-  ! Filling up ChemReac-Array with forward rate coeff., switching reactants with products and setting new energies
-  iReac = ChemReac%NumOfReactWOBackward
-  DO iReacForward = 1, ChemReac%NumOfReactWOBackward
-    IF (.NOT.ChemReac%BackwardReac(iReacForward)) CYCLE
-    iReac = iReac + 1
-    ChemReac%BackwardReacForwardIndx(iReac) = iReacForward
-    IF(TRIM(ChemReac%ReactModel(iReacForward)).EQ.'QK') THEN
-      IF((TRIM(ChemReac%ReactType(iReacForward)).EQ.'I').OR.&
-          (TRIM(ChemReac%ReactType(iReacForward)).EQ.'D'  )) THEN
-        ChemReac%ReactType(iReac) = 'R'
-        ChemReac%ReactModel(iReac) = 'TCE'
-        ChemReac%Reactants(iReac,1)      = ChemReac%Products(iReacForward,1)
-        ! Products of the dissociation (which are the reactants of the recombination) have to be swapped in order to comply with
-        ! definition of the recombination reaction (e.g. CH3 + H + M -> CH4 + M but CH4 + M -> CH3 + M + H)
-        ChemReac%Reactants(iReac,2)      = ChemReac%Products(iReacForward,3)
-        ChemReac%Reactants(iReac,3)      = ChemReac%Products(iReacForward,2)
-        ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
-        ChemReac%EForm(iReac)            = -ChemReac%EForm(iReacForward)
-        ChemReac%EActiv(iReac) = 0.0
-      ELSE
-        CALL abort(__STAMP__,&
-        'Other reaction types than I and D are not implemented with the automatic backward rate determination, Reaction:', iReac)
-      END IF
-    ELSE
-      IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'D') THEN
-        ! Analogous to the I case
-        ChemReac%ReactType(iReac) = 'R'
-        ChemReac%ReactModel(iReac) = 'TCE'
-        ChemReac%Reactants(iReac,1)      = ChemReac%Products(iReacForward,1)
-        ChemReac%Reactants(iReac,2)      = ChemReac%Products(iReacForward,3)
-        ChemReac%Reactants(iReac,3)      = ChemReac%Products(iReacForward,2)
-        ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
-        ChemReac%EActiv(iReac) = 0.0
-      ELSEIF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'E') THEN
-        ChemReac%ReactType(iReac) = 'E'
-        ChemReac%ReactModel(iReac) = 'TCE'
-        ChemReac%Reactants(iReac,1:3)      = ChemReac%Products(iReacForward,1:3)
-        ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
-        ChemReac%EActiv(iReac)                = ChemReac%EForm(iReacForward) + ChemReac%EActiv(iReacForward)
-        IF(ChemReac%EActiv(iReac).LT.0.0) THEN
-          ! The absolute value of the heat of formation cannot be larger than the activation energy but Arrhenius fits require
-          ! sometimes a different value to better reproduce the experimental results. Doesnt matter for backward rate.
-          ChemReac%EActiv(iReac) = 0.0
-        END IF
-      ELSE
-        CALL abort(&
-        __STAMP__&
-        ,'Automatic calculation of backward reaction rate not supported with the chosen react type:',iReac)
-      END IF
-      ChemReac%Arrhenius_Prefactor(iReac)     = ChemReac%Arrhenius_Prefactor(iReacForward)
-      ChemReac%Arrhenius_Powerfactor(iReac)   = ChemReac%Arrhenius_Powerfactor(iReacForward)
-      ChemReac%EForm(iReac)                   = -ChemReac%EForm(iReacForward)
-    END IF
-  END DO
+IF(DSMC%BackwardReacRate) THEN
+  CALL DSMC_BackwardRate_init()
 END IF
 
 ! Initialize analytic QK reaction rate (required for calculation of backward rate with QK and if multiple QK reactions can occur
 ! during a single collision, e.g. N2+e -> ionization or dissociation)
-IF(ChemReac%AnyQKReaction.OR.ANY(ChemReac%BackwardReac(:))) THEN
+IF(ChemReac%AnyQKReaction.OR.DSMC%BackwardReacRate) THEN
   CALL QK_Init()
 END IF
 
@@ -629,12 +565,8 @@ DEALLOCATE(DummyRecomb)
 DEALLOCATE(ChemReac%ArbDiss)
 
 DO iReac = 1, ChemReac%NumOfReact
-  ! Skip photo-ionization reactions
-  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
-  ! Skip reactions modelled with QK
-  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'QK')  CYCLE
-  ! Skip reaction modelled with XSec
-  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'XSec')  CYCLE
+  ! Skip reactions that are not TCE
+  IF(TRIM(ChemReac%ReactModel(iReac)).NE.'TCE') CYCLE
   iSpec = ChemReac%Reactants(iReac,1)
   iSpec2 = ChemReac%Reactants(iReac,2)
   omega = CollInf%omega(iSpec,iSpec2)
@@ -645,6 +577,147 @@ DO iReac = 1, ChemReac%NumOfReact
 END DO
 
 END SUBROUTINE DSMC_chemical_init
+
+
+SUBROUTINE DSMC_BackwardRate_init()
+!===================================================================================================================================
+!> Initialize and read-in of variables required for the automatic backward reaction rate calculation
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, PolyatomMolDSMC
+USE MOD_PARTICLE_Vars           ,ONLY: nSpecies
+USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=3)      :: hilf
+INTEGER               :: iSpec, iReac, iReacForward, iPolyatMole, PartitionArraySize, iInter
+REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec
+!===================================================================================================================================
+
+IF(ChemReac%AnyXSecReaction) CALL abort(__STAMP__,&
+  'Automatic calculation of backward reaction rates in combination with cross-section based reactions is NOT supported!')
+
+! 1.) Read-in of species parameters for the partition function calculation
+DO iSpec = 1, nSpecies
+  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    SpecDSMC(iSpec)%SymmetryFactor              = GETINT('Part-Species'//TRIM(hilf)//'-SymmetryFactor')
+    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+      iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+      IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
+        IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
+          CALL abort(&
+              __STAMP__&
+              ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
+        END IF
+      ELSE
+        IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)  &
+            * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
+          CALL abort(&
+              __STAMP__&
+              ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
+        END IF
+      END IF
+    ELSE
+      IF(SpecDSMC(iSpec)%CharaTRot*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
+        CALL abort(&
+            __STAMP__&
+            ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
+      END IF
+    END IF
+  END IF
+  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%ElectronicState)) THEN
+      CALL abort(&
+          __STAMP__&
+          ,'ERROR: Electronic energy levels required for the calculation of backward reaction rate!',iSpec)
+    END IF
+  END IF
+END DO
+
+! 2.) Initialize the tabulated partition functions
+
+IF(MOD(DSMC%PartitionMaxTemp,DSMC%PartitionInterval).EQ.0.0) THEN
+  PartitionArraySize = NINT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)
+ELSE
+  CALL abort(&
+    __STAMP__&
+    ,'ERROR in Chemistry Init: Partition temperature limit must be multiple of partition interval!')
+END IF
+DO iSpec = 1, nSpecies
+  ALLOCATE(SpecDSMC(iSpec)%PartitionFunction(1:PartitionArraySize))
+  DO iInter = 1, PartitionArraySize
+    Temp = iInter * DSMC%PartitionInterval
+    CALL CalcPartitionFunction(iSpec, Temp, Qtra, Qrot, Qvib, Qelec)
+    SpecDSMC(iSpec)%PartitionFunction(iInter) = Qtra * Qrot * Qvib * Qelec
+  END DO
+END DO
+
+! 3.) Filling up ChemReac-Array with forward rate coefficients, switching reactants with products and setting new energies
+ALLOCATE(ChemReac%BackwardReacForwardIndx(ChemReac%NumOfReactWOBackward+1:ChemReac%NumOfReact))
+iReac = ChemReac%NumOfReactWOBackward
+DO iReacForward = 1, ChemReac%NumOfReactWOBackward
+  IF (.NOT.ChemReac%BackwardReac(iReacForward)) CYCLE
+  iReac = iReac + 1
+  ChemReac%BackwardReacForwardIndx(iReac) = iReacForward
+  IF(TRIM(ChemReac%ReactModel(iReacForward)).EQ.'QK') THEN
+    IF((TRIM(ChemReac%ReactType(iReacForward)).EQ.'I').OR.&
+        (TRIM(ChemReac%ReactType(iReacForward)).EQ.'D'  )) THEN
+      ChemReac%ReactType(iReac) = 'R'
+      ChemReac%ReactModel(iReac) = 'TCE'
+      ChemReac%Reactants(iReac,1)      = ChemReac%Products(iReacForward,1)
+      ! Products of the dissociation (which are the reactants of the recombination) have to be swapped in order to comply with
+      ! definition of the recombination reaction (e.g. CH3 + H + M -> CH4 + M but CH4 + M -> CH3 + M + H)
+      ChemReac%Reactants(iReac,2)      = ChemReac%Products(iReacForward,3)
+      ChemReac%Reactants(iReac,3)      = ChemReac%Products(iReacForward,2)
+      ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
+      ChemReac%EForm(iReac)            = -ChemReac%EForm(iReacForward)
+      ChemReac%EActiv(iReac) = 0.0
+    ELSE
+      CALL abort(__STAMP__,&
+      'Other reaction types than I and D are not implemented with the automatic backward rate determination, Reaction:', iReac)
+    END IF
+  ELSE
+    IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'D') THEN
+      ! Analogous to the I case
+      ChemReac%ReactType(iReac) = 'R'
+      ChemReac%ReactModel(iReac) = 'TCE'
+      ChemReac%Reactants(iReac,1)      = ChemReac%Products(iReacForward,1)
+      ChemReac%Reactants(iReac,2)      = ChemReac%Products(iReacForward,3)
+      ChemReac%Reactants(iReac,3)      = ChemReac%Products(iReacForward,2)
+      ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
+      ChemReac%EActiv(iReac) = 0.0
+    ELSEIF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'E') THEN
+      ChemReac%ReactType(iReac) = 'E'
+      ChemReac%ReactModel(iReac) = 'TCE'
+      ChemReac%Reactants(iReac,1:3)      = ChemReac%Products(iReacForward,1:3)
+      ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
+      ChemReac%EActiv(iReac)                = ChemReac%EForm(iReacForward) + ChemReac%EActiv(iReacForward)
+      IF(ChemReac%EActiv(iReac).LT.0.0) THEN
+        ! The absolute value of the heat of formation cannot be larger than the activation energy but Arrhenius fits require
+        ! sometimes a different value to better reproduce the experimental results. Doesnt matter for backward rate.
+        ChemReac%EActiv(iReac) = 0.0
+      END IF
+    ELSE
+      CALL abort(&
+      __STAMP__&
+      ,'Automatic calculation of backward reaction rate not supported with the chosen react type:',iReac)
+    END IF
+    ChemReac%Arrhenius_Prefactor(iReac)     = ChemReac%Arrhenius_Prefactor(iReacForward)
+    ChemReac%Arrhenius_Powerfactor(iReac)   = ChemReac%Arrhenius_Powerfactor(iReacForward)
+    ChemReac%EForm(iReac)                   = -ChemReac%EForm(iReacForward)
+  END IF
+END DO
+
+END SUBROUTINE DSMC_BackwardRate_init
 
 
 SUBROUTINE Init_TLU_Data

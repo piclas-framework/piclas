@@ -72,16 +72,6 @@ CALL prms%CreateRealOption(     'Particles-DSMC-ElecRelaxProb'&
 CALL prms%CreateRealOption(     'Particles-DSMC-GammaQuant'&
                                           , 'Set the GammaQuant for zero point energy in Evib (perhaps also Erot) should be'//&
                                           ' 0.5 or 0.', '0.5')
-CALL prms%CreateLogicalOption(  'Particles-DSMC-BackwardReacRate'&
-                                         , 'Set [TRUE] to enable the automatic calculation of the backward reaction rate '//&
-                                           'coefficientusing the equilibrium constant calculated by partition functions\n'//&
-                                           '[FALSE] if they are defined as separate reactions.' , '.FALSE.')
-CALL prms%CreateRealOption(     'Particles-DSMC-PartitionMaxTemp'&
-                                          , 'Define temperature limit for pre-stored partition function that are used for '//&
-                                          'calculation of backwards rates', '20000.0')
-CALL prms%CreateRealOption(     'Particles-DSMC-PartitionInterval'&
-                                          , 'Define temperature interval for pre-stored partition functions that are used for '//&
-                                          'calculation of backwards rates', '10.0')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-AmbipolarDiffusion', &
                                           'Enables the ambipolar diffusion modelling of electrons, which are attached to the '//&
                                           'ions, however, retain their own velocity vector to participate in collision events.',&
@@ -276,9 +266,6 @@ CALL prms%CreateIntOption(      'Part-Species[$]-ElectronicDegeneracy-Level[$]' 
 CALL prms%CreateRealOption(     'Part-Species[$]-ElectronicEnergyLevel-Level[$]'  &
                                            ,'Electronic energy level of respective species', '0.', numberedmulti=.TRUE.)
 
-CALL prms%CreateIntOption(      'Part-Species[$]-SymmetryFactor'  &
-                                           , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
-
 CALL prms%SetSection("DSMC Species Polyatomic")
 CALL prms%CreateLogicalOption(  'Part-Species[$]-PolyatomicMol'  &
                                            ,'Allows the usage of polyatomic molecules (3 or more atoms).', '.FALSE.' &
@@ -294,6 +281,21 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib[$]'  &
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot[$]'  &
                                            ,'Characteristic rotational temperature [K]. Linear molecules require only a single '//&
                                             'input, while non-linear molecules require three.', '0.', numberedmulti=.TRUE.)
+
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
+                                           ,'Utilize collision cross sections for the determination of collision probabilities' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseVibXSec'  &
+                                           ,'Utilize vibrational cross sections for the determination of relaxation probabilities' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for the collision cross section database. Container '//&
+                                                               'should be named with species pair (e.g. "Ar-electron"). The '//&
+                                                               'first column shall contain the energy in eV and the second '//&
+                                                               'column the cross-section in m^2', 'none')
+CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
+                                  ,'Utilize the null collision method for the determination of the number of pairs '//&
+                                  'based on the maximum collision frequency and time step (only with a background gas)' &
+                                  ,'.TRUE.')
 
 END SUBROUTINE DefineParametersDSMC
 
@@ -326,7 +328,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(32)         :: hilf , hilf2
-INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF, VarNum
+INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iDOF, VarNum
 INTEGER               :: iColl, jColl, pColl, nCollision ! for collision parameter read in
 REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
 LOGICAL               :: PostCollPointerSet
@@ -362,13 +364,6 @@ END IF
   END IF
 DSMC%ElecRelaxProb = GETREAL('Particles-DSMC-ElecRelaxProb','0.01')
 DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant', '0.5')
-!-----------------------------------------------------------------------------------
-! Flag for the automatic calculation of the backward reaction rate with the partition functions and equilibrium constant.
-DSMC%BackwardReacRate  = GETLOGICAL('Particles-DSMC-BackwardReacRate','.FALSE.')
-! Partition functions are calculated for each species during initialization and stored for values starting with the
-! DSMC%PartitionInterval up to DSMC%PartitionMaxTemp, interpolation between the stored values (also used for analytic QK reactions)
-DSMC%PartitionMaxTemp  = GETREAL('Particles-DSMC-PartitionMaxTemp','20000')
-DSMC%PartitionInterval = GETREAL('Particles-DSMC-PartitionInterval','10')
 !-----------------------------------------------------------------------------------
 DSMC%CalcQualityFactors = GETLOGICAL('Particles-DSMC-CalcQualityFactors','.FALSE.')
 DSMC%ReservoirSimu = GETLOGICAL('Particles-DSMCReservoirSim','.FALSE.')
@@ -701,21 +696,6 @@ ELSE !CollisMode.GT.0
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! reading/writing molecular stuff
   !-----------------------------------------------------------------------------------------------------------------------------------
-  ! Check whether calculation of instantaneous translational temperature is required
-  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
-            .OR.(DSMC%VibRelaxProb.EQ.2).OR.(DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)) THEN
-    ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
-    !           relaxation probability (CalcGammaVib)
-    ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
-    ! 3. Case: Temperature required for the mean free path with the VHS model
-    ALLOCATE(DSMC%InstantTransTemp(nSpecies+1))
-    DSMC%InstantTransTemp = 0.0
-    IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
-      ALLOCATE(DSMC%InstantTXiElec(2,nSpecies))
-      DSMC%InstantTXiElec = 0.0
-    END IF
-  END IF
-
   IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN ! perform relaxation (molecular) reactions
     ! reading molecular stuff
     SpecDSMC(1:nSpecies)%Xi_Rot = 0
@@ -932,42 +912,6 @@ ELSE !CollisMode.GT.0
           END IF
         END IF
       END IF
-      ! Read-in of species parameters for the partition function calculation -------------------------------------------------------
-      IF(DSMC%BackwardReacRate) THEN
-        IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-          SpecDSMC(iSpec)%SymmetryFactor              = GETINT('Part-Species'//TRIM(hilf)//'-SymmetryFactor','0')
-          IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-            iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-            IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
-              IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
-                CALL abort(&
-                    __STAMP__&
-                    ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
-              END IF
-            ELSE
-              IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)  &
-                  * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
-                CALL abort(&
-                    __STAMP__&
-                    ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
-              END IF
-            END IF
-          ELSE
-            IF(SpecDSMC(iSpec)%CharaTRot*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
-              CALL abort(&
-                  __STAMP__&
-                  ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
-            END IF
-          END IF
-        END IF
-        IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-          IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%ElectronicState)) THEN
-            CALL abort(&
-                __STAMP__&
-                ,'ERROR: Electronic energy levels required for the calculation of backward reaction rate!',iSpec)
-          END IF
-        END IF
-      END IF
     END DO
 
     ! Calculating the heat of formation for ionized species (including higher ionization levels)
@@ -979,6 +923,23 @@ ELSE !CollisMode.GT.0
     CALL SetNextIonizationSpecies()
 
     CALL DSMC_chemical_init()
+  ELSE
+    DSMC%BackwardReacRate = .FALSE.
+  END IF
+
+    ! Check whether calculation of instantaneous translational temperature is required
+  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC%CalcQualityFactors &
+            .OR.(DSMC%VibRelaxProb.EQ.2).OR.(DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)) THEN
+    ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
+    !           relaxation probability (CalcGammaVib)
+    ! 2. Case: Backward reaction rates
+    ! 3. Case: Temperature required for the mean free path with the VHS model
+    ALLOCATE(DSMC%InstantTransTemp(nSpecies+1))
+    DSMC%InstantTransTemp = 0.0
+    IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+      ALLOCATE(DSMC%InstantTXiElec(2,nSpecies))
+      DSMC%InstantTXiElec = 0.0
+    END IF
   END IF
 
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1067,8 +1028,7 @@ ELSE !CollisMode.GT.0
     END IF
     CALL SetVarVibProb2Elems()
     ! CHeck if DSMC%InstantTransTemp is still needed
-    IF(.NOT.(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate) &
-            .OR.DSMC%CalcQualityFactors)) THEN
+    IF(.NOT.(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC%CalcQualityFactors)) THEN
       SDEALLOCATE(DSMC%InstantTransTemp)
     END IF
   END IF ! VibRelaxProb = 2

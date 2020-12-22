@@ -1205,10 +1205,9 @@ ReactionProbArray = 0.
 PerformReaction = .FALSE.
 DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths 
   ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-  IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'TCE') CYCLE
   IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'QK') THEN
     CALL QK_TestReaction(iPair,ReacTest,PerformReaction(iPath))
-  ELSE
+  ELSE IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'TCE') THEN
     CALL CalcReactionProb(iPair,ReacTest,ReactionProbArray(iPath),nPair,NumDens)
   END IF
 END DO
