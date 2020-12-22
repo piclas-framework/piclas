@@ -97,8 +97,7 @@ CALL prms%CreateRealOption(     'DSMC-Reaction[$]-MEXb'  &
                                 , 'with DoScat=F: MEX const. factor '//&
                                 '(g-dep. cross section in Angstrom, def.: value for Xe+)', '175.269' , numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(     'DSMC-Reaction[$]-TLU_FileName'  &
-                                , 'with DoScat=F: No TLU-File needed '//&
-                                '(def.: )', '0' , numberedmulti=.TRUE.)
+                                , 'with DoScat=F: No TLU-File needed ', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Particles-Chemistry-NumDeleteProducts','Number of species, which should be deleted if they are '//&
                                 'a product of chemical reactions', '0')
 CALL prms%CreateIntArrayOption( 'Particles-Chemistry-DeleteProductsList','List of the species indices to be deleted if they are '//&
@@ -129,7 +128,7 @@ SUBROUTINE DSMC_chemical_init()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi, ElementaryCharge
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, CollInf
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
@@ -149,7 +148,7 @@ CHARACTER(LEN=3)      :: hilf
 INTEGER               :: iReac, iReac2, iSpec, iPart, iReacForward, iReacDiss, PartitionArraySize, iInter, iSpec2
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
 LOGICAL               :: DoScat
-INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, MaxElecQua, ReadInNumOfReact
+INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, ReadInNumOfReact
 REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec, BGGasEVib, PhotonEnergy, omega, ChargeProducts, ChargeReactants
 INTEGER               :: iInit
 INTEGER               :: iCase, iCase2, ReacIndexCounter
@@ -278,10 +277,73 @@ DoScat = .false.
 DO iReac = 1, ReadInNumOfReact
   WRITE(UNIT=hilf,FMT='(I0)') iReac
   ChemReac%ReactModel(iReac)             = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionModel'))
-  IF (TRIM(ChemReac%ReactModel(iReac)).EQ.'QK') ChemReac%AnyQKReaction = .TRUE.
-  IF (TRIM(ChemReac%ReactModel(iReac)).EQ.'XSec') ChemReac%AnyXSecReaction = .TRUE.
   ChemReac%Reactants(iReac,:)           = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Reactants',3,'0,0,0')
   ChemReac%Products(iReac,:)            = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Products',4,'0,0,0,0')
+  SELECT CASE (TRIM(ChemReac%ReactModel(iReac)))
+    CASE('TCE')
+      ! Total Collision Energy: Arrhenius-based chemistry model
+      ChemReac%Arrhenius_Prefactor(iReac)   = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Prefactor','0')
+      ChemReac%Arrhenius_Powerfactor(iReac) = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Powerfactor','0')
+      ChemReac%EActiv(iReac)                = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Activation-Energy_K','0')*BoltzmannConst
+    CASE('QK')
+      ! Quantum Kinetic: Threshold energy based chemistry model
+      ChemReac%AnyQKReaction = .TRUE.
+    CASE('XSec')
+      ! Chemistry model based on cross-section data
+      ChemReac%AnyXSecReaction = .TRUE.
+    CASE('CEX')
+      ! Simple charge exchange reactions
+      ChemReac%CEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXa','-27.2')
+      ChemReac%CEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXb','175.269')
+      ChemReac%DoScat(iReac)               = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-DoScat','.FALSE.')
+      IF (ChemReac%DoScat(iReac)) THEN
+        DoScat = .true.
+        ChemReac%ELa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-ELa','-26.8')
+        ChemReac%ELb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-ELb','148.975')
+        ChemReac%TLU_FileName(iReac)        = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-TLU_FileName'))
+      ELSE
+        ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','-27.2')
+        ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','175.269')
+      END IF
+    CASE('phIon')
+      ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
+    CASE DEFAULT
+      CALL abort(__STAMP__,&
+        'Selected reaction model is not supported in reaction number: ', iReac)
+  END SELECT
+  ! Filling up ChemReac-Array for the given non-reactive dissociation/electron-impact ionization partners
+  IF((ChemReac%Reactants(iReac,2).EQ.0).AND.(ChemReac%Products(iReac,2).EQ.0)) THEN
+    IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.EQ.0) THEN
+      CALL abort(__STAMP__,&
+      'Error in Definition: Non-reacting partner(s) has to be defined!',iReac)
+    END IF
+    DO iReac2 = 1, ChemReac%ArbDiss(iReac)%NumOfNonReactives
+      IF(iReac2.EQ.1) THEN
+        ! The first non-reacting partner is written into the reaction, which was read-in.
+        ChemReac%Reactants(iReac,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
+        ChemReac%Products(iReac,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
+      ELSE
+        ! The following reaction are added after the number of originally read-in reactions (counter: iReacDiss)
+        ChemReac%BackwardReac(iReacDiss+iReac2-1)           = ChemReac%BackwardReac(iReac)
+        ChemReac%ReactModel(iReacDiss+iReac2-1)             = ChemReac%ReactModel(iReac)
+        ChemReac%Reactants(iReacDiss+iReac2-1,:)            = ChemReac%Reactants(iReac,:)
+        ChemReac%Reactants(iReacDiss+iReac2-1,2)            = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
+        ChemReac%Products(iReacDiss+iReac2-1,:)             = ChemReac%Products(iReac,:)
+        ChemReac%Products(iReacDiss+iReac2-1,2)             = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
+        ChemReac%Arrhenius_Prefactor(iReacDiss+iReac2-1)    = ChemReac%Arrhenius_Prefactor(iReac)
+        ChemReac%Arrhenius_Powerfactor(iReacDiss+iReac2-1)  = ChemReac%Arrhenius_Powerfactor(iReac)
+        ChemReac%EActiv(iReacDiss+iReac2-1)                 = ChemReac%EActiv(iReac)
+      END IF
+    END DO
+    iReacDiss = iReacDiss + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
+  ELSE IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.NE.0) THEN
+    CALL abort(__STAMP__,&
+      'Dissociation/Ionization - Error in Definition: Non-reacting partner(s) has to be zero!',iReac)
+  END IF
+END DO
+
+! Automatic determination of the reaction type based on the number of reactants, products and charge balance (for ionization)
+DO iReac = 1, ChemReac%NumOfReact
   IF (ChemReac%Reactants(iReac,3).NE.0) THEN
     ChemReac%ReactType(iReac)           = 'R'
   ELSE IF (ChemReac%Products(iReac,3).NE.0) THEN
@@ -294,62 +356,8 @@ DO iReac = 1, ReadInNumOfReact
     ELSE
       ChemReac%ReactType(iReac)           = 'D'
     END IF
-  ELSE  
-    ChemReac%ReactType(iReac)           = 'E'
-  END IF
-  ChemReac%Arrhenius_Prefactor(iReac)   = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Prefactor','0')
-  ChemReac%Arrhenius_Powerfactor(iReac) = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Powerfactor','0')
-  ChemReac%EActiv(iReac)                = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Activation-Energy_K','0')*BoltzmannConst
-  ChemReac%CEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXa','-27.2')
-  ChemReac%CEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXb','175.269')
-  ChemReac%DoScat(iReac)               = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-DoScat','.FALSE.')
-  IF (ChemReac%DoScat(iReac)) THEN
-    DoScat = .true.
-    ChemReac%ELa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-ELa','-26.8')
-    ChemReac%ELb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-ELb','148.975')
-    ChemReac%TLU_FileName(iReac)        = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-TLU_FileName','0'))
-    IF(TRIM(ChemReac%TLU_FileName(iReac)).EQ.'0') THEN
-      CALL abort(__STAMP__,&
-        'Input Error: No file containing table lookup data for scattering simulation has been found.')
-    END IF
   ELSE
-    ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','-27.2')
-    ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','175.269')
-  END IF
-  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
-    ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
-  END IF
-  ! Filling up ChemReac-Array for the given non-reactive dissociation/electron-impact ionization partners
-  IF((TRIM(ChemReac%ReactType(iReac)).EQ.'D').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'I')) THEN
-    IF((ChemReac%Reactants(iReac,2).EQ.0).AND.(ChemReac%Products(iReac,2).EQ.0)) THEN
-      IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.EQ.0) THEN
-        CALL abort(__STAMP__,&
-        'Error in Definition: Non-reacting partner(s) has to be defined!',iReac)
-      END IF
-      DO iReac2 = 1, ChemReac%ArbDiss(iReac)%NumOfNonReactives
-        IF(iReac2.EQ.1) THEN
-          ! The first non-reacting partner is written into the reaction, which was read-in.
-          ChemReac%Reactants(iReac,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
-          ChemReac%Products(iReac,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
-        ELSE
-          ! The following reaction are added after the number of originally read-in reactions (counter: iReacDiss)
-          ChemReac%BackwardReac(iReacDiss+iReac2-1)         =ChemReac%BackwardReac(iReac)
-          ChemReac%ReactType(iReacDiss+iReac2-1)             = ChemReac%ReactType(iReac)
-          ChemReac%ReactModel(iReacDiss+iReac2-1)             = ChemReac%ReactModel(iReac)
-          ChemReac%Reactants(iReacDiss+iReac2-1,:)      = ChemReac%Reactants(iReac,:)
-          ChemReac%Reactants(iReacDiss+iReac2-1,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
-          ChemReac%Products(iReacDiss+iReac2-1,:)      = ChemReac%Products(iReac,:)
-          ChemReac%Products(iReacDiss+iReac2-1,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
-          ChemReac%Arrhenius_Prefactor(iReacDiss+iReac2-1)   = ChemReac%Arrhenius_Prefactor(iReac)
-          ChemReac%Arrhenius_Powerfactor(iReacDiss+iReac2-1) = ChemReac%Arrhenius_Powerfactor(iReac)
-          ChemReac%EActiv(iReacDiss+iReac2-1)                = ChemReac%EActiv(iReac)
-        END IF
-      END DO
-      iReacDiss = iReacDiss + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
-    ELSE IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.NE.0) THEN
-      CALL abort(__STAMP__,&
-        'Dissociation - Error in Definition: Non-reacting partner(s) has to be zero!',iReac)
-    END IF
+    ChemReac%ReactType(iReac)           = 'E'
   END IF
 END DO
 

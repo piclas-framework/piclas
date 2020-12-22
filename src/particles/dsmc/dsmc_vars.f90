@@ -127,10 +127,6 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   REAL                        :: dref                      ! collision model: reference diameter        , ini_2
   REAL                        :: omega                     ! collision model: temperature exponent      , ini_2
   REAL                        :: alphaVSS                  ! collision model: scattering exponent(VSS)  , ini_2
-  INTEGER                     :: NumOfPro                  ! Number of Protons, ini_2
-  REAL                        :: Eion_eV                   ! Energy of Ionisation in eV, ini_2
-  REAL                        :: RelPolarizability         ! relative polarizability, ini_2
-  INTEGER                     :: NumEquivElecOutShell      ! number of equivalent electrons in outer shell, ini2
   INTEGER                     :: Xi_Rot                    ! Rotational DOF
   REAL                        :: GammaVib                  ! GammaVib = Xi_Vib(T_t)² * exp(CharaTVib/T_t) / 2 -> correction fact
                                                            ! for vib relaxation -> see 'Vibrational relaxation rates

@@ -222,9 +222,6 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib','Characteristic v
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot'  &
                                            ,'Characteristic rotational temperature', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Ediss_eV','Energy of Dissoziation in [eV].', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-VFDPhi3'  &
-                                           ,'Factor of Phi3 in VFD Method: Phi3 = 0 => VFD', '0.'&
-                                           , numberedmulti=.TRUE.)
 ! ----------------------------------------------------------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-useRelaxProbCorrFactor'&
                                            ,'Use the relaxation probability correction factor of Lumpkin', '.FALSE.')
@@ -280,17 +277,6 @@ CALL prms%CreateRealOption(     'Part-Species[$]-ElectronicEnergyLevel-Level[$]'
 CALL prms%CreateIntOption(      'Part-Species[$]-SymmetryFactor'  &
                                            , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
 
-CALL prms%CreateRealOption(     'Part-Species[$]-IonizationEn_eV'  &
-                                           ,'Energy of Ionization in [eV].', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-RelPolarizability'  &
-                                           ,'Relative Polarizability', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-NumEquivElecOutShell'  &
-                                           ,'Number of equivalent electrons in outer shells', '0'&
-                                           , numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-NumOfProtons'  &
-                                           ,'Number of protons for respective species.', '0', numberedmulti=.TRUE.)
-
-
 CALL prms%SetSection("DSMC Species Polyatomic")
 CALL prms%CreateLogicalOption(  'Part-Species[$]-PolyatomicMol'  &
                                            ,'Allows the usage of polyatomic molecules (3 or more atoms).', '.FALSE.' &
@@ -326,7 +312,6 @@ USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState       ,ONLY: DSMC_SteadyStateInit
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_DSMC_SpecXSec          ,ONLY: MCC_Init
 USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelocityVector4Coll, PostCollVec
 USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
@@ -973,15 +958,6 @@ ELSE !CollisMode.GT.0
                 ,'ERROR: Electronic energy levels required for the calculation of backward reaction rate!',iSpec)
           END IF
         END IF
-      END IF
-      !-----------------------------------------------------------------------------------------------------------------------------
-      SpecDSMC(iSpec)%Eion_eV               = GETREAL('Part-Species'//TRIM(hilf)//'-IonizationEn_eV','0')
-      SpecDSMC(iSpec)%RelPolarizability     = GETREAL('Part-Species'//TRIM(hilf)//'-RelPolarizability','0')
-      SpecDSMC(iSpec)%NumEquivElecOutShell  = GETINT('Part-Species'//TRIM(hilf)//'-NumEquivElecOutShell','0')
-      SpecDSMC(iSpec)%NumOfPro              = GETINT('Part-Species'//TRIM(hilf)//'-NumOfProtons','0')
-      IF((SpecDSMC(iSpec)%Eion_eV*SpecDSMC(iSpec)%RelPolarizability*SpecDSMC(iSpec)%NumEquivElecOutShell &
-          *SpecDSMC(iSpec)%NumOfPro).EQ.0) THEN
-        SWRITE(*,*) "Ionization parameters are not defined for species:", iSpec
       END IF
     END DO
 
