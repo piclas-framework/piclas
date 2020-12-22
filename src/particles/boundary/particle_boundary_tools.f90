@@ -34,7 +34,8 @@ CONTAINS
 
 SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,SampleType,PartTrajectory_opt,SurfaceNormal_opt)
 !===================================================================================================================================
-!> Sample Wall values from Particle collisions
+!> Sample the energy of particles before and after a wall interaction for the determination of macroscopic properties such as heat
+!> flux and force per area
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars

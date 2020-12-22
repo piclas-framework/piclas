@@ -1718,8 +1718,8 @@ USE MOD_Particle_Mesh_Vars,       ONLY:GEO
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)   :: CartNodes(1:3,1:nNodes)
 INTEGER,INTENT(IN):: nNodes
+REAL,INTENT(IN)   :: CartNodes(1:3,1:nNodes)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL           :: BoxInProc

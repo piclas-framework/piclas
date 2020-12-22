@@ -921,7 +921,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,Elem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry, VarTimeStep
+USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry, VarTimeStep, PartMPF
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1020,6 +1020,13 @@ __STAMP__,&
           PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
           PEM%GlobalElemID(ParticleIndexNbr) = iElem
           ichunkSize = ichunkSize + 1
+          IF (VarTimeStep%UseVariableTimeStep) THEN
+            VarTimeStep%ParticleTimeStep(ParticleIndexNbr) = &
+              CalcVarTimeStep(PartState(1,ParticleIndexNbr), PartState(2,ParticleIndexNbr),iElem)
+          END IF
+          IF(RadialWeighting%DoRadialWeighting) THEN
+            PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr),iSpec,ParticleIndexNbr)
+          END IF
         ELSE
           WRITE(UNIT_stdOut,*) ""
           IPWRITE(UNIT_stdOut,*) "ERROR:"

@@ -173,6 +173,7 @@ SUBROUTINE InitParticleMesh()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalElemID,InitGetCNElemID,GetCNElemID
+USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID
 USE MOD_Mesh_Vars              ,ONLY: deleteMeshPointer,NodeCoords
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
 USE MOD_Mesh_Vars              ,ONLY: useCurveds
@@ -265,6 +266,12 @@ CALL InitGetGlobalElemID()
 
 ! Initialize mapping function: GetCNElemID(1:GlobalElemID)
 CALL InitGetCNElemID()
+
+! Initialize mapping function: GetGlobalSideID(1:nComputeNodeTotalSides)
+CALL InitGetGlobalSideID()
+
+! Initialize mapping function: GetCNSideID(1:GlobalSideID)
+CALL InitGetCNSideID()
 
 ! Initialize mapping function: PEM%LocalElemID(1:PDM%ParticleVecLength)
 CALL InitPEM_LocalElemID()

@@ -1136,7 +1136,15 @@ END SUBROUTINE DSMC_perform_collision
 
 SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 !===================================================================================================================================
-! Decision of reaction type (recombination, exchange, dissociation, CEX/MEX and multiple combinations of those)
+!> Decision of reaction path to perform
+!> 1.) Calculate the TCE reaction probabilities/test whether any QK reactions are possible (XSec probabilities are treated in the
+!>     DSMC_prob_calc subroutine)
+!> 2.) Determine which TCE reaction is most likely to occur
+!> 3.) Treat QK and TCE reaction paths
+!>    a. Logical array which indicates which reactions are possible (QK: reactions above the threshold energy, TCE: reaction
+!>       chosen based on probability)
+!>    b. If any reaction is to occur, a XSec-based reaction path will not be considered.
+!> 4.) Treat XSec reaction paths
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                 ,ONLY: Abort
@@ -1190,7 +1198,7 @@ ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
 ELSE
   NumDens = nPartNode / Volume * Species(1)%MacroParticleFactor
 END IF
-! 1.) Calculate the reaction probabilities
+! 1.) Calculate the reaction probabilities/test whether any QK reactions are possible
 ALLOCATE(ReactionProbArray(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
 ReactionProbArray = 0.
 ! Reset the complete array (only populated for the specific collision case)
@@ -1205,6 +1213,7 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
   END IF
 END DO
 
+! TCE: Determine the sum of the reaction probabilities
 ReactionProbSum = 0.
 DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
   ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
@@ -1212,6 +1221,7 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
   IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'TCE') ReactionProbSum = ReactionProbSum + ReactionProbArray(iPath)
 END DO
 
+! 2.) Determine which TCE reaction is most likely to occur
 ReactionProb = 0.
 CALL RANDOM_NUMBER(iRan)
 ! Check if the reaction probability is greater than a random number
@@ -1231,8 +1241,7 @@ IF (ReactionProbSum.GT.iRan) THEN
 END IF
 
 ReactionProb = 0.; ReacCounter = 0
-! 2.) Decide which reaction to perform
-! 2a.) TCE- and QK-based chemistry
+! 3.) Decide which reaction to perform: TCE- and QK-based chemistry
 ReacCounter = COUNT(PerformReaction(:))
 IF(ReacCounter.GT.0) THEN
   IF(ReacCounter.GT.1) CALL RANDOM_NUMBER(iRan)
@@ -1258,7 +1267,7 @@ IF(ReacCounter.GT.0) THEN
   END DO
 END IF
 
-! 2b.) Cross-section based chemistry (XSec)
+! 4.) Cross-section based chemistry (XSec)
 
 IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
   IF(SpecXSec(iCase)%UseCollXSec) THEN

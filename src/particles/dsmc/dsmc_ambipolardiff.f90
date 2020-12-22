@@ -35,10 +35,50 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: AD_InsertParticles, AD_DeleteParticles
+PUBLIC :: InitializeVariablesAmbipolarDiff, AD_InsertParticles, AD_DeleteParticles
 !===================================================================================================================================
 
 CONTAINS
+
+SUBROUTINE InitializeVariablesAmbipolarDiff()
+!===================================================================================================================================
+!> Ambipolar Diffusion: Electrons are attached to and move with the ions, but still have their own velocity vector for collisions
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_Globals_Vars        ,ONLY: ElementaryCharge
+USE MOD_Particle_Vars       ,ONLY: nSpecies,Species, PDM
+USE MOD_DSMC_Vars           ,ONLY: useDSMC, DSMC, AmbipolElecVelo
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER         :: iSpec
+!===================================================================================================================================
+IF(useDSMC) THEN
+  DSMC%DoAmbipolarDiff = GETLOGICAL('Particles-DSMC-AmbipolarDiffusion')
+  IF (DSMC%DoAmbipolarDiff) THEN
+    DSMC%AmbiDiffElecSpec = 0
+    DO iSpec = 1, nSpecies
+      IF (Species(iSpec)%ChargeIC.GT.0.0) CYCLE
+      IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1) DSMC%AmbiDiffElecSpec=iSpec
+    END DO
+    IF(DSMC%AmbiDiffElecSpec.EQ.0) THEN
+      CALL abort(__STAMP__&
+          ,'ERROR: No electron species found for ambipolar diffusion: ' &
+          ,IntInfoOpt=DSMC%AmbiDiffElecSpec)
+    END IF
+    IF(.NOT.ALLOCATED(AmbipolElecVelo)) ALLOCATE(AmbipolElecVelo(PDM%maxParticleNumber))
+  END IF
+END IF
+
+END SUBROUTINE InitializeVariablesAmbipolarDiff
+
 
 SUBROUTINE AD_InsertParticles(iPartIndx_Node, nPart, iPartIndx_NodeTotalAmbi, TotalPartNum)
 !===================================================================================================================================
@@ -57,15 +97,12 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Localization  ,ONLY: PartInElemCheck
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime,LBPauseTime
-#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(INOUT)             :: iPartIndx_Node(1:nPart)
 INTEGER,INTENT(INOUT)             :: nPart, TotalPartNum
+INTEGER,INTENT(INOUT)             :: iPartIndx_Node(1:nPart)
 INTEGER,INTENT(INOUT),ALLOCATABLE :: iPartIndx_NodeTotalAmbi(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -74,13 +111,7 @@ INTEGER,INTENT(INOUT),ALLOCATABLE :: iPartIndx_NodeTotalAmbi(:)
 INTEGER           :: iNewPart, iPart, PositionNbr, LocalElemID, iLoop, nNewElectrons, IonIndX(nPart), iElem, PartNum
 REAL              :: MaxPos(3), MinPos(3), Vec3D(3), Det(6,2), RefPos(3), RandomPos(3)
 LOGICAL           :: InsideFlag
-#if USE_LOADBALANCE
-REAL              :: tLBStart
-#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
 
 MaxPos = -HUGE(MaxPos)
 MinPos = HUGE(MinPos)
@@ -157,10 +188,8 @@ newAmbiParts = 0
 IF (ALLOCATED(iPartIndx_NodeNewAmbi)) DEALLOCATE(iPartIndx_NodeNewAmbi)
 ALLOCATE(iPartIndx_NodeNewAmbi(PartNum))
 
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DSMC,tLBStart)
-#endif /*USE_LOADBALANCE*/
 END SUBROUTINE AD_InsertParticles
+
 
 SUBROUTINE AD_DeleteParticles(iPartIndx_Node, nPart)
 !===================================================================================================================================

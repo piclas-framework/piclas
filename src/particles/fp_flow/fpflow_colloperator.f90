@@ -34,7 +34,7 @@ PUBLIC :: FP_CollisionOperator
 
 CONTAINS
 
-SUBROUTINE FP_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, vBulkAll)
+SUBROUTINE FP_CollisionOperator(iPartIndx_Node, nPart, NodeVolume)
 !===================================================================================================================================
 ! Cell-local collision operator using different Fokker-Planck-based approximations
 !===================================================================================================================================
@@ -61,7 +61,6 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
 REAL, INTENT(IN)                        :: NodeVolume
 INTEGER, INTENT(INOUT)                  :: nPart
 INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
-REAL, INTENT(IN)                        :: vBulkAll(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -80,7 +79,7 @@ REAL                  :: betaV
 REAL                  :: A(3,3), Work(1000), W(3), trace, nu, Theta, iRan, NewEnRot, NewEnVib, OldEnRot
 REAL                  :: ProbAddPart,  RotExp, VibExp, TEqui, TRot, TVib, xi_rot, xi_vib_old, dtCell
 INTEGER               :: INFO, iQuant, iQuaMax, nRotRelax, nVibRelax, info_dgesv
-REAL                  :: partWeight, totalWeight
+REAL                  :: partWeight, totalWeight, vBulkAll(3)
 #ifdef CODE_ANALYZE
 REAL                  :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
 INTEGER               :: iMom, iPart
@@ -105,10 +104,17 @@ FPCoeffMatr= 0.0; dens = 0.0; u0ij=0.0; u2ij=0.0; u0ijk=0.0; u2=0.0; u4i=0.0; u2
 ALLOCATE(Ni(3,nPart))
 Ni=0.0; ERot=0.0; EVib=0.0; OldEn = 0.0; NewEn = 0.0; OldEnRot = 0.0; NewEnRot = 0.0; NewEnVib=0.0; nRotRelax = 0; nVibRelax = 0
 totalWeight = 0.0; dtCell = 0.0
+vBulkAll(1:3) = 0.0
 
 DO iLoop2 = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop2))
   totalWeight = totalWeight + partWeight
+  vBulkAll(1:3) = vBulkAll(1:3) + PartState(4:6,iPartIndx_Node(iLoop2))*partWeight
+END DO
+vBulkAll(1:3) = vBulkAll(1:3) / totalWeight
+
+DO iLoop2 = 1, nPart
+  partWeight = GetParticleWeight(iPartIndx_Node(iLoop2))
   V_rel(1:3)=PartState(4:6,iPartIndx_Node(iLoop2))-vBulkAll(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
   u2= u2 + vmag2 * partWeight

@@ -16,6 +16,7 @@ stages:
   - reggie_checkin
   - reggie_feature_checkin
   - reggie_DSMC_nightly
+  - reggie_bgk_nightly
   - reggie_superB_nightly
   - reggie_nightly
   - reggie_nightly_build_all
@@ -306,6 +307,17 @@ NIG_SuperB_standalone:
   stage: reggie_superB_nightly
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB -e ./bin/superB ; fi
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "reggie_bgk_nightly": Build and run BGK-Flow examples on nightly
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+gnu_NIG_BGK-Flow:
+  <<: *defaults_nightly
+  stage: reggie_bgk_nightly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_BGK-Flow ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly": Build and run

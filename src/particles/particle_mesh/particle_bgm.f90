@@ -92,7 +92,7 @@ USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Periodic_BC   ,ONLY: InitPeriodicBC
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,Distance,ListDistance
-USE MOD_ReadInTools            ,ONLY: GETREAL, GetRealArray, PrintOption
+USE MOD_ReadInTools            ,ONLY: GETREAL,GetRealArray,PrintOption
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c
 #endif
@@ -104,7 +104,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: time
 #if USE_MPI
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
-USE MOD_PICDepo_Vars           ,ONLY: DepositionType, r_sf
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
 USE MOD_Particle_Vars          ,ONLY: manualtimestep
 #endif /*USE_MPI*/
@@ -121,22 +121,22 @@ INTEGER                        :: FirstElem,LastElem
 INTEGER                        :: firstNodeID,lastNodeID
 INTEGER                        :: offsetNodeID,nNodeIDs,currentOffset
 INTEGER,PARAMETER              :: moveBGMindex=1
-REAL                           :: xmin, xmax, ymin, ymax, zmin, zmax
-INTEGER                        :: iBGM, jBGM, kBGM
-INTEGER                        :: BGMimax, BGMimin, BGMjmax, BGMjmin, BGMkmax, BGMkmin
-INTEGER                        :: BGMCellXmax, BGMCellXmin, BGMCellYmax, BGMCellYmin, BGMCellZmax, BGMCellZmin
+REAL                           :: xmin,xmax,ymin,ymax,zmin,zmax
+INTEGER                        :: iBGM,jBGM,kBGM
+INTEGER                        :: BGMimax,BGMimin,BGMjmax,BGMjmin,BGMkmax,BGMkmin
+INTEGER                        :: BGMCellXmax,BGMCellXmin,BGMCellYmax,BGMCellYmin,BGMCellZmax,BGMCellZmin
 INTEGER                        :: BGMiminglob,BGMimaxglob,BGMjminglob,BGMjmaxglob,BGMkminglob,BGMkmaxglob
 #if USE_MPI
 INTEGER                        :: iSide
 INTEGER                        :: ElemID
 REAL                           :: deltaT
 REAL                           :: globalDiag,maxCellRadius
-INTEGER,ALLOCATABLE            :: sendbuf(:,:,:), recvbuf(:,:,:)
+INTEGER,ALLOCATABLE            :: sendbuf(:,:,:),recvbuf(:,:,:)
 INTEGER,ALLOCATABLE            :: offsetElemsInBGMCell(:,:,:)
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 INTEGER                        :: nHaloElems,nMPISidesShared
-INTEGER,ALLOCATABLE            :: offsetCNHalo2GlobalElem(:), offsetMPISideShared(:)
-REAL,ALLOCATABLE               :: BoundsOfElemCenter(:), MPISideBoundsOfElemCenter(:,:)
+INTEGER,ALLOCATABLE            :: offsetCNHalo2GlobalElem(:),offsetMPISideShared(:)
+REAL,ALLOCATABLE               :: BoundsOfElemCenter(:),MPISideBoundsOfElemCenter(:,:)
 LOGICAL                        :: ElemInsideHalo
 INTEGER                        :: firstHaloElem,lastHaloElem
 ! FIBGMToProc
@@ -789,7 +789,7 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 ! Abort if FIBGM_Element still contains unfilled entries
 IF (ANY(FIBGM_Element.EQ.-1)) CALL ABORT(__STAMP__,'Error while filling FIBGM element array')
 
-! sum up Number of all elements on current compute-node (including halo region)
+! Locally sum up Number of all elements on current compute-node (including halo region)
 IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
   nComputeNodeTotalElems = nGlobalElems
   nComputeNodeTotalSides = nNonUniqueGlobalSides
@@ -805,7 +805,6 @@ ELSE
   END DO
   ALLOCATE(CNTotalElem2GlobalElem(1:nComputeNodeTotalElems))
   ALLOCATE(GlobalElem2CNTotalElem(1:nGlobalElems))
-  nComputeNodeTotalElems = 0
   nComputeNodeTotalElems = 0
   GlobalElem2CNTotalElem(1:nGlobalElems) = -1
   ! CN-local elements
@@ -887,7 +886,6 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*CODE_ANALYZE*/
 
 ! Loop over all elements and build a global FIBGM to processor mapping. This is required to identify potential emission procs
-
 firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
 
@@ -1018,8 +1016,50 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 ALLOCATE(Distance    (1:MAXVAL(FIBGM_nElems)) &
         ,ListDistance(1:MAXVAL(FIBGM_nElems)) )
 
-! ElemToBGM is only used during init. First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
+! Build a local nNonUniqueSides to nComputeNodeSides/nComputeNodeTotalSides mapping
+ALLOCATE(CNTotalSide2GlobalSide(1:nComputeNodeTotalSides))
+ALLOCATE(GlobalSide2CNTotalSide(1:nNonUniqueGlobalSides))
+
+! Use MessageSize to store temporally store the previous value
+MessageSize = nComputeNodeTotalSides
+nComputeNodeSides      = 0
+nComputeNodeTotalSides = 0
+GlobalSide2CNTotalSide(1:nGlobalElems) = -1
+
+! CN-local elements
+DO iElem = 1,nComputeNodeElems
+  ElemID = iElem + offsetComputeNodeElem
+
+  ! Loop over all sides
+  DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID)
+    nComputeNodeSides             = nComputeNodeSides      + 1
+    nComputeNodeTotalSides        = nComputeNodeTotalSides + 1
+    CNTotalSide2GlobalSide(nComputeNodeTotalSides) = iSide
+    GlobalSide2CNTotalSide(iSide) = nComputeNodeTotalSides
+  END DO
+END DO
+
+! CN-halo elements
+Do iElem = nComputeNodeElems + 1,nComputeNodeTotalElems
+  ElemID = CNTotalElem2GlobalElem(iElem)
+
+  ! Loop over all sides
+  DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID)
+    nComputeNodeTotalSides        = nComputeNodeTotalSides + 1
+    CNTotalSide2GlobalSide(nComputeNodeTotalSides) = iSide
+    GlobalSide2CNTotalSide(iSide) = nComputeNodeTotalSides
+  END DO
+END DO
+
+! Sanity check
+IF (nComputeNodeSides.NE.ElemInfo_Shared(ELEM_LASTSIDEIND,offsetComputeNodeElem+nComputeNodeElems)-ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1)) &
+  CALL ABORT(__STAMP__,'Error with number of local sides on compute node')
+
+IF (nComputeNodeTotalSides.NE.MessageSize) &
+  CALL ABORT(__STAMP__,'Error with number of halo sides on compute node')
+
+! ElemToBGM is only used during init. First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 CALL UNLOCK_AND_FREE(ElemToBGM_Shared_Win)
@@ -1068,6 +1108,8 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 ! Then, free the pointers or arrays
 SDEALLOCATE(CNTotalElem2GlobalElem)
 SDEALLOCATE(GlobalElem2CNTotalElem)
+SDEALLOCATE(CNTotalSide2GlobalSide)
+SDEALLOCATE(GlobalSide2CNTotalSide)
 #endif /*USE_MPI*/
 
 !ADEALLOCATE(ElemToBGM_Shared)

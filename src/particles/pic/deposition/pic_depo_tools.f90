@@ -97,7 +97,7 @@ ELSEIF(PartSpecies(iPart).LT.0)THEN
 END IF ! PartSpecies(iPart)
 
 ! Skip for neutral particles
-IF(isChargedParticle(iPart)) RETURN
+IF(.NOT.isChargedParticle(iPart)) RETURN
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement

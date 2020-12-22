@@ -15,15 +15,17 @@ A database (containing multiple species and cross-section types) downloaded dire
     database_input = "Database.txt"
     database_output = "Database.h5"
 
-Currently, PICLas only utilizes effective and vibrational cross-sections, however, all excitation cross-section types are grouped and stored in the output file. An example is given below 
+Currently, PICLas only utilizes the elastic, effective and vibrational cross-sections, however, all excitation cross-section types are grouped and stored in the output file. An example is given below 
 
-    CO2-election (group)
+    CO2-electron (group)
         EFFECTIVE (dataset)
         ROTATION (group)
             0.02 (dataset)
         VIBRATION (group)
             0.29
             0.59
+        REACTION (group)
+            CO2Ion1-electron-electron
 
 Datasets, which cannot be identified as rotational, vibrational or electronic excitation will grouped within an `UNDEFINED` group. By defining a species list, only certain species can be included in the output database
 
@@ -34,6 +36,8 @@ Finally, the utilized cross-section data should be properly referenced by adding
     reference = 'XXX database, www.lxcat.net, retrieved on MMMM DD, YYYY.'
 
 Users of cross-section data are encouraged to download the data directly from the [LXCat project website](https://fr.lxcat.net/home/) and to consider the guidelines regarding referencing and publication.
+
+Chemical reaction can be added to the database manually using [HDF View](https://www.hdfgroup.org/downloads/hdfview/). Make sure to re-open the file as `Read/Write` to be able to modify and create the dataset.
 
 ## Visualization (NEEDS AN UPDATE)
 

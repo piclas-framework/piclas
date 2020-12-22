@@ -199,8 +199,8 @@ DO iPart = 1, PDM%ParticleVecLength
     PositionNbr = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition)
     IF (PositionNbr.EQ.0) THEN
       CALL Abort(&
-__STAMP__&
-,'ERROR in BGGas: MaxParticleNumber should be twice the expected number of particles, to account for the BGG particles!')
+        __STAMP__&
+        ,'ERROR in BGGas: MaxParticleNumber should be twice the expected number of particles, to account for the BGG particles!')
     END IF
     PartState(1:3,PositionNbr) = PartState(1:3,iPart)
     IF(DoRefMapping)THEN ! here Nearst-GP is missing

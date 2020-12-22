@@ -82,8 +82,10 @@ CALL prms%CreateRealOption(     'Particles-DSMC-PartitionMaxTemp'&
 CALL prms%CreateRealOption(     'Particles-DSMC-PartitionInterval'&
                                           , 'Define temperature interval for pre-stored partition functions that are used for '//&
                                           'calculation of backwards rates', '10.0')
-CALL prms%CreateLogicalOption(  'Particles-DSMC-AmbipolarDiffusion'&
-                                          , 'FOOBAR' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-AmbipolarDiffusion', &
+                                          'Enables the ambipolar diffusion modelling of electrons, which are attached to the '//&
+                                          'ions, however, retain their own velocity vector to participate in collision events.',&
+                                          '.FALSE.')
 !-----------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcQualityFactors'&
                                           , 'Enables [TRUE] / disables [FALSE] the calculation and output of flow-field variable.\n'//&
@@ -688,6 +690,13 @@ ELSE !CollisMode.GT.0
     UseMCC = .FALSE.
     XSec_NullCollision =.FALSE.
     XSec_Relaxation = .FALSE.
+  END IF
+  ! Ambipolar diffusion is not implemented with the regular background gas, only with MCC
+  IF(DSMC%DoAmbipolarDiff) THEN
+    IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) THEN
+      CALL abort(__STAMP__&
+          ,'ERROR: Ambipolar diffusion is not implemented with the regular background gas!')
+    END IF
   END IF
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! reading/writing molecular stuff
@@ -1512,7 +1521,6 @@ SDEALLOCATE(MacroSurfaceVal)
 !SDEALLOCATE(VibQuantsPar)
 ! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_Solution)
-SDEALLOCATE(DSMC_Volumesample)
 CALL DeleteElemNodeVol()
 SDEALLOCATE(BGGas%PairingPartner)
 SDEALLOCATE(BGGas%BackgroundSpecies)
