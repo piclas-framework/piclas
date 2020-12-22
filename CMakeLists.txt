@@ -1,7 +1,7 @@
 # =========================================================================
 # PICLas CMake configuration
 # =========================================================================
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.11)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
 # TODO: eventually require CMake 3.0 in future releases
 # Advantages: Possible to split string
 IF ("${CMAKE_VERSION}" VERSION_GREATER 3.11)
