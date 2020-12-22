@@ -953,7 +953,7 @@ DO iPart=1,PDM%ParticleVecLength
             SideID   = GetGlobalNonUniqueSideID(OldElemID,currentIntersect%Side)
             CNSideID = GetCNSideID(SideID)
 
-            SELECT CASE(SideType(SideID))
+            SELECT CASE(SideType(CNSideID))
               CASE(BILINEAR,PLANAR_NONRECT)
                 moveList=.TRUE.
             END SELECT
