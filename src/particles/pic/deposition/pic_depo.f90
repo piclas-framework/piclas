@@ -419,15 +419,15 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
     BetaFac = beta(1.5, REAL(alpha_sf) + 1.)
     w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) * (REAL(alpha_sf) + 1.)/(PI*(r_sf**3))
   ELSE! 1D or 2D shape function
-    IF(dim_sf_dir.EQ.1)THEN ! Shape function deposits charge in x-direction (1D) or in y- and z-dir (2D)
-      dimFactorSF = (GEO%ymaxglob-GEO%yminglob)**(3-dim_sf)
-    ELSE IF (dim_sf_dir.EQ.2)THEN ! Shape function deposits charge in y-direction (1D) or in x- and z-dir (2D)
-      dimFactorSF = (GEO%xmaxglob-GEO%xminglob)**(3-dim_sf)
-    ELSE IF (dim_sf_dir.EQ.3)THEN ! Shape function deposits charge in z-direction (1D) or in x- and y-dir (2D)
-      dimFactorSF = (GEO%xmaxglob-GEO%xminglob)**(3-dim_sf)
-    END IF
-
     IF(dim_sf.EQ.1)THEN
+      ! Set perpendicular directions
+      IF(dim_sf_dir.EQ.1)THEN ! Shape function deposits charge in x-direction
+        dimFactorSF = (GEO%ymaxglob-GEO%yminglob)*(GEO%zmaxglob-GEO%zminglob)
+      ELSE IF (dim_sf_dir.EQ.2)THEN ! Shape function deposits charge in y-direction
+        dimFactorSF = (GEO%xmaxglob-GEO%xminglob)*(GEO%zmaxglob-GEO%zminglob)
+      ELSE IF (dim_sf_dir.EQ.3)THEN ! Shape function deposits charge in z-direction
+        dimFactorSF = (GEO%xmaxglob-GEO%xminglob)*(GEO%ymaxglob-GEO%yminglob)
+      END IF
       IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
         ! Set prefix factor
         w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf*GAMMA(REAL(alpha_sf+1))*dimFactorSF)
@@ -439,6 +439,14 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
         hilf2='line'
       END IF
     ELSE! 2D shape function
+      ! Set perpendicular direction
+      IF(dim_sf_dir.EQ.1)THEN ! Shape function deposits charge in y-z-direction (const. in x)
+        dimFactorSF = (GEO%xmaxglob-GEO%xminglob)
+      ELSE IF (dim_sf_dir.EQ.2)THEN ! Shape function deposits charge in x-z-direction (const. in y)
+        dimFactorSF = (GEO%ymaxglob-GEO%yminglob)
+      ELSE IF (dim_sf_dir.EQ.3)THEN! Shape function deposits charge in x-y-direction (const. in z)
+        dimFactorSF = (GEO%zmaxglob-GEO%zminglob)
+      END IF
       IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
         ! Set prefix factor
         w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf*dimFactorSF)
