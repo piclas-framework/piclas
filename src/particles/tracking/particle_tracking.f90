@@ -871,8 +871,9 @@ DO iPart=1,PDM%ParticleVecLength
           !------------------------------------
           CASE(1) ! intersection with cell side
           !------------------------------------
-            SideID = GetGlobalNonUniqueSideID(ElemID,currentIntersect%Side)
-            flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
+            SideID   = GetGlobalNonUniqueSideID(ElemID,currentIntersect%Side)
+            CNSideID = GetCNSideID(SideID)
+            flip     = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
 
             ! missing!!! : mapping from GlobalNonUnique to CNtotalsides
             CALL SelectInterSectionType( PartIsDone                   &
