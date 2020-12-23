@@ -489,7 +489,8 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
     ELSEIF(dim_sf.EQ.2)THEN
       CALL PrintOption('Shape function volume (corresponding to a cylinder in 3D)', 'CALCUL.', RealOpt=VolumeShapeFunction)
     ELSE
-      CALL PrintOption('Shape function volume (corresponding to a sphere in 3D)'  , 'CALCUL.', RealOpt=VolumeShapeFunctionSphere)
+      VolumeShapeFunction = VolumeShapeFunctionSphere
+      CALL PrintOption('Shape function volume (corresponding to a sphere in 3D)'  , 'CALCUL.', RealOpt=VolumeShapeFunction)
     END IF
     !CALL PrintOption('Shape function volume ('//TRIM(hilf_dim)//')'              , 'CALCUL.', RealOpt=VolumeShapeFunction)
     IF(MPIRoot)THEN
@@ -645,7 +646,7 @@ ELSE
   CALL DepositionMethod()
 END IF
 
-IF(MOD(iter,PartAnalyzeStep).EQ.0) THEN
+IF(MOD(iter,INT(PartAnalyzeStep,8)).EQ.0) THEN
   IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 END IF
 RETURN
