@@ -142,7 +142,6 @@ INTEGER                                               :: ii,k1,k2,jj,iEntry,iEle
 !END DO
 !IF(TEST) THEN
 !  print*,'buggy init'
-!  read*
 !END IF
 
 Vcalc=Vin
@@ -207,7 +206,6 @@ END DO
 !END DO
 !IF(TEST) THEN
 !  print*,'Vout NAN'
-!  read*
 !END IF
 END SUBROUTINE ApplyILU
 
@@ -245,7 +243,6 @@ DO iElem=1,PP_nElems
     DO jj=k1,k2
       jrow=BlockJA(jj)
       !print*,'jrwo',jrow
-      !read*
       DO iVar=1,PP_nVar
         DO iVar2=1,PP_nVar
           Vcalc(iVar,ii) = Vcalc(iVar,ii)-BlockAA(iVar,iVar2,jj,iElem)*Vcalc(iVar2,jrow)

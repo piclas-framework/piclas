@@ -1097,7 +1097,6 @@ SUBROUTINE SetNewTemp(PartIndx, Temp, iPart)                                    
                        * PartState(4:6,PartIndx)
   IF(vMPF_oldEngSum.lT.0) then
    print*, 'mist: ', iPart
-    read*
   end if
 
 END SUBROUTINE SetNewTemp

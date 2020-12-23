@@ -1119,7 +1119,6 @@ CASE('FH_lens')
    !SWRITE(UNIT_stdOut,'(F24.12)',ADVANCE='NO') Geometry(I,J)
   !END DO
    !SWRITE(UNIT_stdOut,'(A)') ' '
-  !!READ*
 !END DO
   Geometry(:,1)=Geometry(:,1)-array_shift
 

@@ -173,6 +173,7 @@ SUBROUTINE InitParticleMesh()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalElemID,InitGetCNElemID,GetCNElemID
+USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID
 USE MOD_Mesh_Vars              ,ONLY: deleteMeshPointer,NodeCoords
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
 USE MOD_Mesh_Vars              ,ONLY: useCurveds
@@ -265,6 +266,12 @@ CALL InitGetGlobalElemID()
 
 ! Initialize mapping function: GetCNElemID(1:GlobalElemID)
 CALL InitGetCNElemID()
+
+! Initialize mapping function: GetGlobalSideID(1:nComputeNodeTotalSides)
+CALL InitGetGlobalSideID()
+
+! Initialize mapping function: GetCNSideID(1:GlobalSideID)
+CALL InitGetCNSideID()
 
 ! Initialize mapping function: PEM%LocalElemID(1:PDM%ParticleVecLength)
 CALL InitPEM_LocalElemID()
@@ -2012,6 +2019,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ChangeBasis            ,ONLY: changeBasis3D
 USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Mesh_Tools             ,ONLY: GetCNSideID
 USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides
 USE MOD_Mesh_Vars              ,ONLY: Vdm_CLNGeo1_CLNGeo,NGeo,Vdm_CLNGeo1_CLNGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: XCL_NGeo_Shared,ElemBaryNGeo
@@ -2023,7 +2031,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,SideType,SideNormVec
 #if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_MPI_Shared
-USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
+USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeTotalSides
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemCurved_Shared,ElemCurved_Shared_Win
@@ -2041,7 +2049,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                  :: ilocSide,SideID,flip
+INTEGER                                  :: ilocSide,SideID,CNSideID,flip
 INTEGER                                  :: iElem,firstElem,lastElem,ElemID
 REAL,DIMENSION(1:3)                      :: v1,v2,v3
 LOGICAL,ALLOCATABLE                      :: SideIsDone(:)
@@ -2081,8 +2089,8 @@ ALLOCATE(ElemCurved(1:nComputeNodeElems))
 
 ! sides
 #if USE_MPI
-MPISharedSize = INT((nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/nNonUniqueGlobalSides/),SideType_Shared_Win,SideType_Shared)
+MPISharedSize = INT((nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),SideType_Shared_Win,SideType_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideType_Shared_Win,IERROR)
 SideType => SideType_Shared
 CALL Allocate_Shared(MPISharedSize,(/nNonUniqueGlobalSides/),SideDistance_Shared_Win,SideDistance_Shared)
@@ -2159,7 +2167,8 @@ DO iElem=firstElem,lastElem
   ! a) check if the sides are straight
   ! b) use curved information to decide side type
   DO ilocSide=1,6
-    SideID = GetGlobalNonUniqueSideID(ElemID,iLocSide)
+    SideID   = GetGlobalNonUniqueSideID(ElemID,iLocSide)
+    CNSideID = GetCNSideID(SideID)
     flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
 
     IF(.NOT.ElemCurved(iElem))THEN
@@ -2197,9 +2206,9 @@ DO iElem=firstElem,lastElem
           IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
         END IF
         IF(isRectangular)THEN
-          SideType(SideID)=PLANAR_RECT
+          SideType(CNSideID)=PLANAR_RECT
         ELSE
-          SideType(SideID)=PLANAR_NONRECT
+          SideType(CNSideID)=PLANAR_NONRECT
         END IF
       ELSE
         v1=(-BezierControlPoints_loc(:,0,0   )+BezierControlPoints_loc(:,NGeo,0   )   &
@@ -2207,7 +2216,7 @@ DO iElem=firstElem,lastElem
         v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
             +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
         SideNormVec(:,SideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
-        SideType(SideID)=BILINEAR
+        SideType(CNSideID)=BILINEAR
       END IF
     ELSE
       BezierControlPoints_loc(1:3,0:NGeo,0:NGeo) = BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID)
@@ -2235,7 +2244,7 @@ DO iElem=firstElem,lastElem
       CALL PointsEqual(NGeo2,XCL_NGeoSideNew,XCL_NGeoSideOld,isCurvedSide)
       IF(isCurvedSide)THEn
         IF(BoundingBoxIsEmpty(SideID))THEN
-          SideType(SideID)=PLANAR_CURVED
+          SideType(CNSideID)=PLANAR_CURVED
           v1=(-BezierControlPoints_loc(:,0,0   )+BezierControlPoints_loc(:,NGeo,0   )   &
               -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
 
@@ -2255,7 +2264,7 @@ DO iElem=firstElem,lastElem
           END IF
           SideDistance(SideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
         ELSE
-          SideType(SideID)=CURVED
+          SideType(CNSideID)=CURVED
         END IF
       ELSE
         IF (BoundingBoxIsEmpty(SideID)) THEN
@@ -2294,9 +2303,9 @@ DO iElem=firstElem,lastElem
             IF(DOT_PRODUCT(v1,v3).GT.1E-14) isRectangular=.FALSE.
           END IF
           IF(isRectangular)THEN
-            SideType(SideID)=PLANAR_RECT
+            SideType(CNSideID)=PLANAR_RECT
           ELSE
-            SideType(SideID)=PLANAR_NONRECT
+            SideType(CNSideID)=PLANAR_NONRECT
           END IF
         ELSE
           v1=(-BezierControlPoints_loc(:,0,0   )+BezierControlPoints_loc(:,NGeo,0   )   &
@@ -2304,7 +2313,7 @@ DO iElem=firstElem,lastElem
           v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
               +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo))
           SideNormVec(:,SideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
-          SideType(SideID)=BILINEAR
+          SideType(CNSideID)=BILINEAR
         END IF
       END IF
     END IF
@@ -2346,8 +2355,9 @@ DO iElem = firstElem,lastElem
 
   DO ilocSide = 1,6
     ! ignore small mortar sides attached to big mortar sides
-    SideID = GetGlobalNonUniqueSideID(iElem,ilocSide)
-    SELECT CASE(SideType(SideID))
+    SideID   = GetGlobalNonUniqueSideID(iElem,ilocSide)
+    CNSideID = GetCNSideID(SideID)
+    SELECT CASE(SideType(CNSideID))
       CASE (PLANAR_RECT)
         nPlanarRectangular    = nPlanarRectangular   +1
       CASE (PLANAR_NONRECT)

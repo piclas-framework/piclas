@@ -382,9 +382,15 @@ $if(logo)$
 $endif$
 $endif$
 
-
-
-
+% Fix that is required for newer pandoc versions, e.g., pandoc 2.9.2.1
+$if(csl-refs)$
+\newlength{\cslhangindent}
+\setlength{\cslhangindent}{1.5em}
+\newenvironment{cslreferences}%
+  {$if(csl-hanging-indent)$\setlength{\parindent}{0pt}%
+  \everypar{\setlength{\hangindent}{\cslhangindent}}\ignorespaces$endif$}%
+  {\par}
+$endif$
 
 \begin{document}
 $if(title)$

@@ -45,21 +45,22 @@ SUBROUTINE BGK_octree_adapt(iElem)
 !> a recursive octree algorithm to subdivide the cell until the limit is reached.
 !===================================================================================================================================
 ! MODULES
-USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
-USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKMovingAverage,ElemNodeAveraging,BGKSplittingDens,BGKMovingAverageLength
-USE MOD_BGK_Vars                ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
-USE MOD_BGK_Vars                ,ONLY: BGK_QualityFacSamp, BGK_MaxRotRelaxFactor
+USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting
-USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
-USE MOD_FP_CollOperator         ,ONLY: FP_CollisionOperator
-USE MOD_FPFlow_Vars             ,ONLY: FPInitDone, FP_PrandtlNumber, FP_QualityFacSamp
-USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_Particle_Vars           ,ONLY: PEM, PartState, PartPosRef,Species,WriteMacroVolumeValues, usevMPF
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping
-USE MOD_Part_tools              ,ONLY: GetParticleWeight
-USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
+USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
+USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKMovingAverage,ElemNodeAveraging,BGKSplittingDens,BGKMovingAverageLength
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_FP_CollOperator         ,ONLY: FP_CollisionOperator
+USE MOD_BGK_Vars                ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
+USE MOD_BGK_Vars                ,ONLY: BGK_QualityFacSamp, BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
+USE MOD_FPFlow_Vars             ,ONLY: FPInitDone, FP_PrandtlNumber, FP_QualityFacSamp
+USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
+USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -69,14 +70,15 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, nPart, GlobalElemID
-REAL                          :: vBulk(3), Dens, partWeight, totalWeight
+INTEGER                       :: iPart, iLoop, nPart, CNElemID
+REAL                          :: Dens, partWeight, totalWeight
 TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
 IF(DSMC%CalcQualityFactors) THEN
   IF(BGKInitDone) THEN
     BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.
+    BGK_PrandtlNumber=0.; BGK_ExpectedPrandtlNumber=0.
   END IF
   IF(FPInitDone) THEN
     FP_MeanRelaxFactorCounter = 0; FP_MeanRelaxFactor = 0.; FP_MaxRelaxFactor = 0.; FP_MaxRotRelaxFactor = 0.; FP_PrandtlNumber = 0.
@@ -89,30 +91,27 @@ IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
   RETURN
 END IF
 
-GlobalElemID = iElem + offsetElem
+CNElemID = GetCNElemID(iElem+offSetElem)
 
 NULLIFY(TreeNode)
 ALLOCATE(TreeNode)
 ALLOCATE(TreeNode%iPartIndx_Node(nPart))
 TreeNode%iPartIndx_Node(1:nPart) = 0
 
-vBulk(1:3) = 0.0
 totalWeight = 0.0
 iPart = PEM%pStart(iElem)
 DO iLoop = 1, nPart
   TreeNode%iPartIndx_Node(iLoop) = iPart
   partWeight = GetParticleWeight(iPart)
-  vBulk(1:3)  =  vBulk(1:3) + PartState(4:6,iPart) * partWeight
   totalWeight = totalWeight + partWeight
   iPart = PEM%pNext(iPart)
 END DO
-vBulk = vBulk / totalWeight
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   ! totalWeight contains the weighted particle number
-  Dens = totalWeight / ElemVolume_Shared(GlobalElemID)
+  Dens = totalWeight / ElemVolume_Shared(CNElemID)
 ELSE
-  Dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(GlobalElemID)
+  Dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
 END IF
 
 ! The octree refinement is performed if either the particle number or number density is above a user-given limit
@@ -139,17 +138,14 @@ IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
   DEALLOCATE(TreeNode%MappedPartStates)
 ELSE ! No octree refinement: Call of the respective collision operator
 #if (PP_TimeDiscMethod==300)
-    CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPart &
-                              , ElemVolume_Shared(GlobalElemID), vBulk)
+    CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
 #else
   IF (BGKMovingAverage) THEN
-    CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, &
-              ElemVolume_Shared(GlobalElemID), vBulk, &
+    CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart,ElemVolume_Shared(CNElemID), &
              ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
              CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
   ELSE
-    CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart &
-                            , ElemVolume_Shared(GlobalElemID), vBulk)
+    CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
   END IF
 #endif
 END IF ! nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)
@@ -163,6 +159,8 @@ IF(DSMC%CalcQualityFactors) THEN
       BGK_QualityFacSamp(3,iElem) = BGK_QualityFacSamp(3,iElem) + BGK_MaxRelaxFactor
       BGK_QualityFacSamp(4,iElem) = BGK_QualityFacSamp(4,iElem) + 1.
       BGK_QualityFacSamp(5,iElem) = BGK_QualityFacSamp(5,iElem) + BGK_MaxRotRelaxFactor
+      BGK_QualityFacSamp(6,iElem) = BGK_QualityFacSamp(6,iElem) + BGK_PrandtlNumber
+      BGK_QualityFacSamp(7,iElem) = BGK_QualityFacSamp(7,iElem) + BGK_ExpectedPrandtlNumber
     END IF
     IF(FPInitDone) THEN
       FP_QualityFacSamp(1,iElem) = FP_QualityFacSamp(1,iElem) + FP_MeanRelaxFactor
@@ -192,12 +190,10 @@ RECURSIVE SUBROUTINE AddBGKOctreeNode(TreeNode, iElem, NodeVol, Averaging)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: tTreeNode, tNodeVolume, ElemNodeVol
-USE MOD_Particle_Vars         ,ONLY: PartState
 USE MOD_BGK_CollOperator      ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_CalcSubNodeVolumes3D
 USE MOD_BGK_Vars              ,ONLY: BGKMinPartPerCell,tNodeAverage, BGKMovingAverage, BGKMovingAverageLength
 USE MOD_FP_CollOperator       ,ONLY: FP_CollisionOperator
-USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -214,7 +210,7 @@ INTEGER                      :: iPart, iLoop, iPartIndx, localDepth, iLoop2
 INTEGER, ALLOCATABLE         :: iPartIndx_ChildNode(:,:)
 REAL, ALLOCATABLE            :: MappedPart_ChildNode(:,:,:)
 INTEGER                      :: PartNumChildNode(8)
-REAL                         :: NodeVolumeTemp(8), vBulk(3,8), partWeight, totalWeight(8)
+REAL                         :: NodeVolumeTemp(8)
 LOGICAL                      :: CombineChildNodes
 !===================================================================================================================================
 ! 0. Determine if subcells with less particles than the given limit might occur (MARCEL FRAGEN)
@@ -246,63 +242,45 @@ END IF
 !     | 4  | 1  | /
 !     |____|____|/
 !
-vBulk = 0.0
-totalWeight = 0.0
+
 DO iPart=1,TreeNode%PNum_Node
   iPartIndx = TreeNode%iPartIndx_Node(iPart)
-  partWeight = GetParticleWeight(iPartIndx)
   IF ((TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) &
       .AND.(TreeNode%MappedPartStates(2,iPart).GE.TreeNode%MidPoint(2)) &
       .AND.(TreeNode%MappedPartStates(3,iPart).LE.TreeNode%MidPoint(3))) THEN
     PartNumChildNode(1) = PartNumChildNode(1) + 1
     iPartIndx_ChildNode(1,PartNumChildNode(1)) = iPartIndx
-    vBulk(1:3,1) = vBulk(1:3,1) + PartState(4:6,iPartIndx) * partWeight
-    totalWeight(1) = totalWeight(1) + partWeight
     MappedPart_ChildNode(1:3,PartNumChildNode(1),1) = TreeNode%MappedPartStates(1:3,iPart)
   ELSE IF((TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) &
       .AND.(TreeNode%MappedPartStates(2,iPart).GE.TreeNode%MidPoint(2))) THEN
     PartNumChildNode(2) = PartNumChildNode(2) + 1
     iPartIndx_ChildNode(2,PartNumChildNode(2)) = iPartIndx
-    vBulk(1:3,2) = vBulk(1:3,2) + PartState(4:6,iPartIndx) * partWeight
-    totalWeight(2) = totalWeight(2) + partWeight
     MappedPart_ChildNode(1:3,PartNumChildNode(2),2) = TreeNode%MappedPartStates(1:3,iPart)
   ELSE IF((TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) &
       .AND.(TreeNode%MappedPartStates(3,iPart).GE.TreeNode%MidPoint(3))) THEN
     PartNumChildNode(3) = PartNumChildNode(3) + 1
     iPartIndx_ChildNode(3,PartNumChildNode(3)) = iPartIndx
-    vBulk(1:3,3) = vBulk(1:3,3) + PartState(4:6,iPartIndx) * partWeight
-    totalWeight(3) = totalWeight(3) + partWeight
     MappedPart_ChildNode(1:3,PartNumChildNode(3),3) = TreeNode%MappedPartStates(1:3,iPart)
   ELSE IF (TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) THEN
     PartNumChildNode(4) = PartNumChildNode(4) + 1
     iPartIndx_ChildNode(4,PartNumChildNode(4)) = iPartIndx
-    vBulk(1:3,4) = vBulk(1:3,4) + PartState(4:6,iPartIndx) * partWeight
-    totalWeight(4) = totalWeight(4) + partWeight
     MappedPart_ChildNode(1:3,PartNumChildNode(4),4) = TreeNode%MappedPartStates(1:3,iPart)
   ELSE IF((TreeNode%MappedPartStates(2,iPart).GE.TreeNode%MidPoint(2)) &
       .AND.(TreeNode%MappedPartStates(3,iPart).LE.TreeNode%MidPoint(3))) THEN
     PartNumChildNode(5) = PartNumChildNode(5) + 1
     iPartIndx_ChildNode(5,PartNumChildNode(5)) = iPartIndx
-    vBulk(1:3,5) = vBulk(1:3,5) + PartState(4:6,iPartIndx) * partWeight
-    totalWeight(5) = totalWeight(5) + partWeight
     MappedPart_ChildNode(1:3,PartNumChildNode(5),5) = TreeNode%MappedPartStates(1:3,iPart)
   ELSE IF (TreeNode%MappedPartStates(2,iPart).GE.TreeNode%MidPoint(2)) THEN
     PartNumChildNode(6) = PartNumChildNode(6) + 1
     iPartIndx_ChildNode(6,PartNumChildNode(6)) = iPartIndx
-    vBulk(1:3,6) = vBulk(1:3,6) + PartState(4:6,iPartIndx) * partWeight
-    totalWeight(6) = totalWeight(6) + partWeight
     MappedPart_ChildNode(1:3,PartNumChildNode(6),6) = TreeNode%MappedPartStates(1:3,iPart)
   ELSE IF (TreeNode%MappedPartStates(3,iPart).GE.TreeNode%MidPoint(3)) THEN
     PartNumChildNode(7) = PartNumChildNode(7) + 1
     iPartIndx_ChildNode(7,PartNumChildNode(7)) = iPartIndx
-    vBulk(1:3,7) = vBulk(1:3,7) + PartState(4:6,iPartIndx) * partWeight
-    totalWeight(7) = totalWeight(7) + partWeight
     MappedPart_ChildNode(1:3,PartNumChildNode(7),7) = TreeNode%MappedPartStates(1:3,iPart)
   ELSE
     PartNumChildNode(8) = PartNumChildNode(8) + 1
     iPartIndx_ChildNode(8,PartNumChildNode(8)) = iPartIndx
-    vBulk(1:3,8) = vBulk(1:3,8) + PartState(4:6,iPartIndx) * partWeight
-    totalWeight(8) = totalWeight(8) + partWeight
     MappedPart_ChildNode(1:3,PartNumChildNode(8),8) = TreeNode%MappedPartStates(1:3,iPart)
   END IF
 END DO
@@ -338,11 +316,8 @@ IF(CombineChildNodes) THEN
   DO iLoop = 1, 7
     IF (PartNumChildNode(iLoop).LT.BGKMinPartPerCell) THEN
       DO iPart=1, PartNumChildNode(iLoop)
-        partWeight = GetParticleWeight(iPartIndx_ChildNode(iLoop,iPart))
         iPartIndx_ChildNode(iLoop+1,PartNumChildNode(iLoop+1)+iPart) = iPartIndx_ChildNode(iLoop,iPart)
         MappedPart_ChildNode(1:3,PartNumChildNode(iLoop+1)+iPart,iLoop+1) = MappedPart_ChildNode(1:3,iPart,iLoop)
-        vBulk(1:3,iLoop+1) = vBulk(1:3,iLoop+1) + PartState(4:6,iPartIndx_ChildNode(iLoop,iPart)) * partWeight
-        totalWeight(iLoop+1) = totalWeight(iLoop+1) + partWeight
       END DO
       PartNumChildNode(iLoop+1) = PartNumChildNode(iLoop+1) + PartNumChildNode(iLoop)
       PartNumChildNode(iLoop) = 0
@@ -356,11 +331,8 @@ IF(CombineChildNodes) THEN
      IF (PartNumChildNode(iLoop).GT.0) EXIT
     END DO
     DO iPart=1, PartNumChildNode(8)
-      partWeight = GetParticleWeight(iPartIndx_ChildNode(8,iPart))
       iPartIndx_ChildNode(iLoop2,PartNumChildNode(iLoop2)+iPart) = iPartIndx_ChildNode(8,iPart)
       MappedPart_ChildNode(1:3,PartNumChildNode(iLoop2)+iPart,iLoop2) = MappedPart_ChildNode(1:3,iPart,8)
-      vBulk(1:3,iLoop2) = vBulk(1:3,iLoop2) + PartState(4:6,iPartIndx_ChildNode(8,iPart)) * partWeight
-      totalWeight(iLoop2) = totalWeight(iLoop2) + partWeight
     END DO
     PartNumChildNode(iLoop2) = PartNumChildNode(iLoop2) + PartNumChildNode(8)
     PartNumChildNode(8) = 0
@@ -428,57 +400,56 @@ DO iLoop = 1, 8
     DEALLOCATE(TreeNode%ChildNode%iPartIndx_Node)
     DEALLOCATE(TreeNode%ChildNode)
   ELSE IF (PartNumChildNode(iLoop).GE.2) THEN
-    vBulk(1:3,iLoop) = vBulk(1:3,iLoop) / totalWeight(iLoop)
 #if (PP_TimeDiscMethod==300)
       CALL FP_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-              PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop))
+              PartNumChildNode(iLoop), NodeVolumeTemp(iLoop))
 #else
     IF (BGKMovingAverage) THEN
       SELECT CASE(iLoop)
         CASE(1)
           CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
                 Averaging%SubNode1%AverageValues(1:5,1:BGKMovingAverageLength), &
                 CorrectStep = Averaging%SubNode1%CorrectStep)
         CASE(2)
           CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
                 Averaging%SubNode2%AverageValues(1:5,1:BGKMovingAverageLength), &
                 CorrectStep = Averaging%SubNode2%CorrectStep)
         CASE(3)
           CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
                 Averaging%SubNode3%AverageValues(1:5,1:BGKMovingAverageLength), &
                 CorrectStep = Averaging%SubNode3%CorrectStep)
         CASE(4)
           CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
                 Averaging%SubNode4%AverageValues(1:5,1:BGKMovingAverageLength), &
                 CorrectStep = Averaging%SubNode4%CorrectStep)
         CASE(5)
           CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
                 Averaging%SubNode5%AverageValues(1:5,1:BGKMovingAverageLength), &
                 CorrectStep = Averaging%SubNode5%CorrectStep)
         CASE(6)
           CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
                 Averaging%SubNode6%AverageValues(1:5,1:BGKMovingAverageLength), &
                 CorrectStep = Averaging%SubNode6%CorrectStep)
         CASE(7)
           CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
                 Averaging%SubNode7%AverageValues(1:5,1:BGKMovingAverageLength), &
                 CorrectStep = Averaging%SubNode7%CorrectStep)
         CASE(8)
           CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
                 Averaging%SubNode8%AverageValues(1:5,1:BGKMovingAverageLength), &
                 CorrectStep = Averaging%SubNode8%CorrectStep)
       END SELECT
     ELSE
       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-              PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop))
+              PartNumChildNode(iLoop), NodeVolumeTemp(iLoop))
     END IF
 #endif
   END IF
@@ -546,20 +517,21 @@ SUBROUTINE BGK_quadtree_adapt(iElem)
 !> a recursive quadtree algorithm to subdivide the cell until the limit is reached.
 !===================================================================================================================================
 ! MODULES
-USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
-USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKSplittingDens!,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength
-USE MOD_BGK_Vars                ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
-USE MOD_BGK_Vars                ,ONLY: BGK_QualityFacSamp, BGK_MaxRotRelaxFactor
+USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
 USE MOD_DSMC_ParticlePairing    ,ONLY: GeoCoordToMap2D
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting
+USE MOD_Particle_Vars           ,ONLY: PEM, PartState, Species,WriteMacroVolumeValues, usevMPF
+USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
+USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKSplittingDens!,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength
 USE MOD_FP_CollOperator         ,ONLY: FP_CollisionOperator
+USE MOD_BGK_Vars                ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
+USE MOD_BGK_Vars                ,ONLY: BGK_QualityFacSamp, BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
 USE MOD_FPFlow_Vars             ,ONLY: FPInitDone, FP_PrandtlNumber, FP_QualityFacSamp
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_Particle_Vars           ,ONLY: PEM, PartState, Species,WriteMacroVolumeValues, usevMPF
-USE MOD_Part_tools              ,ONLY: GetParticleWeight
-USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
+USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -569,14 +541,15 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, nPart, GlobalElemID
-REAL                          :: vBulk(3), Dens, partWeight, totalWeight
+INTEGER                       :: iPart, iLoop, nPart, CNElemID
+REAL                          :: Dens, partWeight, totalWeight
 TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
 IF(DSMC%CalcQualityFactors) THEN
   IF(BGKInitDone) THEN
     BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.
+    BGK_PrandtlNumber=0.; BGK_ExpectedPrandtlNumber=0.
   END IF
   IF(FPInitDone) THEN
     FP_MeanRelaxFactorCounter = 0; FP_MeanRelaxFactor = 0.; FP_MaxRelaxFactor = 0.; FP_MaxRotRelaxFactor = 0.; FP_PrandtlNumber = 0.
@@ -589,30 +562,27 @@ IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
   RETURN
 END IF
 
-GlobalElemID = iElem + offsetElem
+CNElemID = GetCNElemID(iElem+offSetElem)
 
 NULLIFY(TreeNode)
 ALLOCATE(TreeNode)
 ALLOCATE(TreeNode%iPartIndx_Node(nPart))
 TreeNode%iPartIndx_Node(1:nPart) = 0
 
-vBulk(1:3) = 0.0
 totalWeight = 0.0
 iPart = PEM%pStart(iElem)
 DO iLoop = 1, nPart
   TreeNode%iPartIndx_Node(iLoop) = iPart
   partWeight = GetParticleWeight(iPart)
-  vBulk(1:3)  =  vBulk(1:3) + PartState(4:6,iPart) * partWeight
   totalWeight = totalWeight + partWeight
   iPart = PEM%pNext(iPart)
 END DO
-vBulk = vBulk / totalWeight
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   ! totalWeight contains the weighted particle number
-  Dens = totalWeight / ElemVolume_Shared(GlobalElemID)
+  Dens = totalWeight / ElemVolume_Shared(CNElemID)
 ELSE
-  Dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(GlobalElemID)
+  Dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
 END IF
 
 ! The quadtree refinement is performed if either the particle number or number density is above a user-given limit
@@ -635,17 +605,15 @@ IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
   DEALLOCATE(TreeNode%MappedPartStates)
 ELSE ! No quadtree refinement: Call of the respective collision operator
 #if (PP_TimeDiscMethod==300)
-    CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPart &
-                              , ElemVolume_Shared(GlobalElemID), vBulk)
+    CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
 #else
   ! IF (BGKMovingAverage) THEN
   !   CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, &
-  !             ElemVolume_Shared(GlobalElemID), vBulk, &
+  !             ElemVolume_Shared(CNElemID), &
   !            ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
   !            CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
   ! ELSE
-    CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart &
-                            , ElemVolume_Shared(GlobalElemID), vBulk)
+    CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
   ! END IF
 #endif
 END IF ! nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)
@@ -659,6 +627,8 @@ IF(DSMC%CalcQualityFactors) THEN
       BGK_QualityFacSamp(3,iElem) = BGK_QualityFacSamp(3,iElem) + BGK_MaxRelaxFactor
       BGK_QualityFacSamp(4,iElem) = BGK_QualityFacSamp(4,iElem) + 1.
       BGK_QualityFacSamp(5,iElem) = BGK_QualityFacSamp(5,iElem) + BGK_MaxRotRelaxFactor
+      BGK_QualityFacSamp(6,iElem) = BGK_QualityFacSamp(6,iElem) + BGK_PrandtlNumber
+      BGK_QualityFacSamp(7,iElem) = BGK_QualityFacSamp(7,iElem) + BGK_ExpectedPrandtlNumber
     END IF
     IF(FPInitDone) THEN
       FP_QualityFacSamp(1,iElem) = FP_QualityFacSamp(1,iElem) + FP_MeanRelaxFactor
@@ -689,12 +659,10 @@ RECURSIVE SUBROUTINE AddBGKQuadtreeNode(TreeNode, iElem, NodeVol)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: tTreeNode, tNodeVolume, ElemNodeVol
-USE MOD_Particle_Vars         ,ONLY: PartState
 USE MOD_BGK_CollOperator      ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_CalcSubNodeVolumes2D
 USE MOD_BGK_Vars              ,ONLY: BGKMinPartPerCell    !,tNodeAverage, BGKMovingAverage, BGKMovingAverageLength
 USE MOD_FP_CollOperator       ,ONLY: FP_CollisionOperator
-USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -711,7 +679,7 @@ INTEGER                      :: iPart, iLoop, iPartIndx, localDepth, iLoop2
 INTEGER, ALLOCATABLE         :: iPartIndx_ChildNode(:,:)
 REAL, ALLOCATABLE            :: MappedPart_ChildNode(:,:,:)
 INTEGER                      :: PartNumChildNode(1:4)
-REAL                         :: NodeVolumeTemp(1:4), vBulk(1:3,1:4), partWeight, totalWeight(1:4)
+REAL                         :: NodeVolumeTemp(1:4)
 LOGICAL                      :: CombineChildNodes
 !===================================================================================================================================
 ! 0. Determine if subcells with less particles than the given limit might occur (MARCEL FRAGEN)
@@ -739,37 +707,25 @@ END IF
 !     | 4  | 1  |   |______x
 !     |____|____|
 
-vBulk = 0.0
-totalWeight = 0.0
-
 DO iPart=1,TreeNode%PNum_Node
   iPartIndx = TreeNode%iPartIndx_Node(iPart)
-  partWeight = GetParticleWeight(iPartIndx)
   IF ((TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) &
       .AND.(TreeNode%MappedPartStates(2,iPart).LE.TreeNode%MidPoint(2))) THEN
     PartNumChildNode(1) = PartNumChildNode(1) + 1
     iPartIndx_ChildNode(1,PartNumChildNode(1)) = iPartIndx
     MappedPart_ChildNode(1:2,PartNumChildNode(1),1) = TreeNode%MappedPartStates(1:2,iPart)
-    vBulk(1:3,1) = vBulk(1:3,1) + PartState(4:6,iPartIndx) * partWeight
-    totalWeight(1) = totalWeight(1) + partWeight
   ELSE IF(TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) THEN
     PartNumChildNode(2) = PartNumChildNode(2) + 1
     iPartIndx_ChildNode(2,PartNumChildNode(2)) = iPartIndx
     MappedPart_ChildNode(1:2,PartNumChildNode(2),2) = TreeNode%MappedPartStates(1:2,iPart)
-    vBulk(1:3,2) = vBulk(1:3,2) + PartState(4:6,iPartIndx) * partWeight
-    totalWeight(2) = totalWeight(2) + partWeight
   ELSE IF(TreeNode%MappedPartStates(2,iPart).GE.TreeNode%MidPoint(2)) THEN
     PartNumChildNode(3) = PartNumChildNode(3) + 1
     iPartIndx_ChildNode(3,PartNumChildNode(3)) = iPartIndx
     MappedPart_ChildNode(1:2,PartNumChildNode(3),3) = TreeNode%MappedPartStates(1:2,iPart)
-    vBulk(1:3,3) = vBulk(1:3,3) + PartState(4:6,iPartIndx) * partWeight
-    totalWeight(3) = totalWeight(3) + partWeight
   ELSE
     PartNumChildNode(4) = PartNumChildNode(4) + 1
     iPartIndx_ChildNode(4,PartNumChildNode(4)) = iPartIndx
     MappedPart_ChildNode(1:2,PartNumChildNode(4),4) = TreeNode%MappedPartStates(1:2,iPart)
-    vBulk(1:3,4) = vBulk(1:3,4) + PartState(4:6,iPartIndx) * partWeight
-    totalWeight(4) = totalWeight(4) + partWeight
   END IF
 END DO
 
@@ -801,11 +757,8 @@ IF(CombineChildNodes) THEN
   DO iLoop = 1, 3
     IF (PartNumChildNode(iLoop).LT.BGKMinPartPerCell) THEN
       DO iPart=1, PartNumChildNode(iLoop)
-        partWeight = GetParticleWeight(iPartIndx_ChildNode(iLoop,iPart))
         iPartIndx_ChildNode(iLoop+1,PartNumChildNode(iLoop+1)+iPart) = iPartIndx_ChildNode(iLoop,iPart)
         MappedPart_ChildNode(1:3,PartNumChildNode(iLoop+1)+iPart,iLoop+1) = MappedPart_ChildNode(1:3,iPart,iLoop)
-        vBulk(1:3,iLoop+1) = vBulk(1:3,iLoop+1) + PartState(4:6,iPartIndx_ChildNode(iLoop,iPart)) * partWeight
-        totalWeight(iLoop+1) = totalWeight(iLoop+1) + partWeight
       END DO
       PartNumChildNode(iLoop+1) = PartNumChildNode(iLoop+1) + PartNumChildNode(iLoop)
       PartNumChildNode(iLoop) = 0
@@ -819,11 +772,8 @@ IF(CombineChildNodes) THEN
      IF (PartNumChildNode(iLoop).GT.0) EXIT
     END DO
     DO iPart=1, PartNumChildNode(4)
-      partWeight = GetParticleWeight(iPartIndx_ChildNode(4,iPart))
       iPartIndx_ChildNode(iLoop2,PartNumChildNode(iLoop2)+iPart) = iPartIndx_ChildNode(4,iPart)
       MappedPart_ChildNode(1:3,PartNumChildNode(iLoop2)+iPart,iLoop2) = MappedPart_ChildNode(1:3,iPart,4)
-      vBulk(1:3,iLoop2) = vBulk(1:3,iLoop2) + PartState(4:6,iPartIndx_ChildNode(4,iPart)) * partWeight
-      totalWeight(iLoop2) = totalWeight(iLoop2) + partWeight
     END DO
     PartNumChildNode(iLoop2) = PartNumChildNode(iLoop2) + PartNumChildNode(4)
     PartNumChildNode(4) = 0
@@ -879,37 +829,36 @@ DO iLoop = 1, 4
     DEALLOCATE(TreeNode%ChildNode%iPartIndx_Node)
     DEALLOCATE(TreeNode%ChildNode)
   ELSE IF (PartNumChildNode(iLoop).GE.2) THEN
-    vBulk(1:3,iLoop) = vBulk(1:3,iLoop) / totalWeight(iLoop)
 #if (PP_TimeDiscMethod==300)
       CALL FP_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-              PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop))
+              PartNumChildNode(iLoop), NodeVolumeTemp(iLoop))
 #else
     ! IF (BGKMovingAverage) THEN
     !   SELECT CASE(iLoop)
     !     CASE(1)
     !       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
     !             Averaging%SubNode1%AverageValues(1:5,1:BGKMovingAverageLength), &
     !             CorrectStep = Averaging%SubNode1%CorrectStep)
     !     CASE(2)
     !       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
     !             Averaging%SubNode2%AverageValues(1:5,1:BGKMovingAverageLength), &
     !             CorrectStep = Averaging%SubNode2%CorrectStep)
     !     CASE(3)
     !       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
     !             Averaging%SubNode3%AverageValues(1:5,1:BGKMovingAverageLength), &
     !             CorrectStep = Averaging%SubNode3%CorrectStep)
     !     CASE(4)
     !       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
     !             Averaging%SubNode4%AverageValues(1:5,1:BGKMovingAverageLength), &
     !             CorrectStep = Averaging%SubNode4%CorrectStep)
     !   END SELECT
     ! ELSE
       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-              PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop))
+              PartNumChildNode(iLoop), NodeVolumeTemp(iLoop))
     ! END IF
 #endif
   END IF

@@ -1310,7 +1310,6 @@ DO WHILE(iClipIter.LE.BezierClipMaxIter)
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(PartID.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(A,I0,X,I0)') ' iClipIter,ClipMode ', iClipIter, ClipMode
-      !read*
     END IF
   END IF
 #endif /*CODE_ANALYZE*/

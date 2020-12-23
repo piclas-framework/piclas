@@ -1223,7 +1223,7 @@ IF (DSMC%CalcQualityFactors) THEN
   nVar_quality=3
   IF(VarTimeStep%UseVariableTimeStep) nVar_quality = nVar_quality + 1
   IF(RadialWeighting%PerformCloning) nVar_quality = nVar_quality + 2
-  IF(BGKInitDone) nVar_quality = nVar_quality + 4
+  IF(BGKInitDone) nVar_quality = nVar_quality + 6
   IF(FPInitDone) nVar_quality = nVar_quality + 5
 ELSE
   nVar_quality=0
@@ -1303,10 +1303,12 @@ IF (DSMC%CalcQualityFactors) THEN
   END IF
   IF(BGKInitDone) THEN
     StrVarNames(nVarCount+1) ='BGK_MeanRelaxationFactor'
-    StrVarNames(nVarCount+2) ='BGK_MaxRelaxationFactor'
-    StrVarNames(nVarCount+3) ='BGK_MaxRotationRelaxFactor'
-    StrVarNames(nVarCount+4) ='BGK_DSMC_Ratio'
-    nVarCount=nVarCount+4
+    StrVarNames(nVarCount+2) ='BGK_MeanPrandtlNumber'
+    StrVarNames(nVarCount+3) ='BGK_ExpectedPrandtlNumber'
+    StrVarNames(nVarCount+4) ='BGK_MaxRelaxationFactor'
+    StrVarNames(nVarCount+5) ='BGK_MaxRotationRelaxFactor'
+    StrVarNames(nVarCount+6) ='BGK_DSMC_Ratio'
+    nVarCount=nVarCount+6
   END IF
   IF(FPInitDone) THEN
     StrVarNames(nVarCount+1) ='FP_MeanRelaxationFactor'

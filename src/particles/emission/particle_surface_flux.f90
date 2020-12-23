@@ -323,6 +323,7 @@ SUBROUTINE CreateSideListAndFinalizeAreasSurfFlux(nDataBC, BCdata_auxSFTemp)
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
+USE MOD_Mesh_Tools             ,ONLY: GetCNSideID
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, SurfMeshSubSideData, SurfFluxSideSize, TriaSurfaceFlux, tBCdata_auxSFRadWeight
 USE MOD_Particle_Surfaces_Vars ,ONLY: SideType
@@ -351,12 +352,12 @@ TYPE(tBCdata_auxSFRadWeight), ALLOCATABLE, INTENT(INOUT)        :: BCdata_auxSFT
 INTEGER               :: TmpMapToBC(1:nDataBC), TmpSideStart(1:nDataBC), TmpSideNumber(1:nDataBC), TmpSideEnd(1:nDataBC)
 ! PartBC, Start of Linked List for Sides in SurfacefluxBC, Number of Particles in Sides in SurfacefluxBC, End of Linked List for Sides in SurfacefluxBC
 INTEGER               :: TmpSideNext(1:nBCSides) !Next: Sides of diff. BCs ar not overlapping!
-INTEGER               :: countDataBC, iBC, BCSideID, currentBC, iSF, iCount, iLocSide, SideID, iPartBound
-INTEGER               :: ElemID, CNElemID, GlobalElemID
-INTEGER               :: iSample, jSample, iSpec, iSub
+INTEGER               :: countDataBC,iBC,BCSideID,currentBC,iSF,iCount,iLocSide,SideID,CNSideID,iPartBound
+INTEGER               :: ElemID,CNElemID,GlobalElemID
+INTEGER               :: iSample,jSample,iSpec,iSub
 REAL, ALLOCATABLE     :: areasLoc(:),areasGlob(:)
 LOGICAL               :: OutputSurfaceFluxLinked
-REAL                  :: ymax, ymin, yMaxTemp, yMinTemp
+REAL                  :: ymax,ymin,yMaxTemp,yMinTemp
 !===================================================================================================================================
 !-- 2.: create Side lists for applicable BCs
 !--- 2a: temporary (linked) lists
@@ -473,7 +474,8 @@ DO iBC=1,countDataBC
       END IF
       !----- symmetry specific area calculation end
       IF (.NOT.TriaTracking) THEN !check that all sides are planar if TriaSurfaceFlux is used for tracing or refmapping
-        IF (SideType(SideID).NE.PLANAR_RECT .AND. SideType(SideID).NE.PLANAR_NONRECT) CALL abort(&
+        CNSideID = GetCNSideID(SideID)
+        IF (SideType(CNSideID).NE.PLANAR_RECT .AND. SideType(CNSideID).NE.PLANAR_NONRECT) CALL abort(&
 __STAMP__&
 ,'every surfaceflux-sides must be planar if TriaSurfaceFlux is used for tracing or refmapping!!!')
       END IF !.NOT.TriaTracking
@@ -1719,7 +1721,7 @@ __STAMP__&
                 = CalcVarTimeStep(PartState(1,ParticleIndexNbr),PartState(2,ParticleIndexNbr),PEM%LocalElemID(ParticleIndexNbr))
             END IF
             IF (RadialWeighting%DoRadialWeighting) THEN
-              PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), 1,ParticleIndexNbr)
+              PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), iSpec,ParticleIndexNbr)
             END IF
             IF(CalcMassflowRate) THEN
               Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow &
