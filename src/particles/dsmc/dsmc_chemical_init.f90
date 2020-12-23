@@ -198,12 +198,12 @@ DO iReac = 1, ReadInNumOfReact
     ChemReac%BackwardReac(iReac) = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-BackwardReac','.FALSE.')
   END IF
   IF (ChemReac%BackwardReac(iReac)) THEN 
-    DSMC%BackwardReacRate = .TRUE.
     ChemReac%NumOfReact = ChemReac%NumOfReact + 1
     IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.GT.0) &
       ChemReac%NumOfReact = ChemReac%NumOfReact + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
   END IF
 END DO
+IF (ANY(ChemReac%BackwardReac)) DSMC%BackwardReacRate = .TRUE.
 !-----------------------------------------------------------------------------------
 ! Delete products if they belong to a certain species
 ChemReac%NumDeleteProducts = GETINT('Particles-Chemistry-NumDeleteProducts')
