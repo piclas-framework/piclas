@@ -405,10 +405,13 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   dim_sf_dir = GETINT('PIC-shapefunction-direction')
   ! Distribute the charge over the volume (3D) or line (1D)/area (2D): default is TRUE
   sfDepo3D = GETLOGICAL('PIC-shapefunction-3D-deposition')
+  ! Check if 2D shape function is activated
   IF(dim_sf.EQ.2)THEN
+    ! set the two perpendicular directions used for deposition
+    dim_sf_dir1 = MERGE(1,2,dim_sf_dir.EQ.2)
+    dim_sf_dir2 = MERGE(1,MERGE(3,3,dim_sf_dir.EQ.2),dim_sf_dir.EQ.3)
     SWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') ' Shape function 2D with const. distribution in dir ',dim_sf_dir,&
-        ' and variable distrbution in ',MERGE(1,2,dim_sf_dir.EQ.2),' and ', MERGE(1,MERGE(3,3,dim_sf_dir.EQ.2),dim_sf_dir.EQ.3),&
-    ' (1: x, 2: y and 3: z)'
+        ' and variable distrbution in ',dim_sf_dir1,' and ',dim_sf_dir2,' (1: x, 2: y and 3: z)'
   END IF ! dim_sf.EQ.2
 
   r2_sf = r_sf * r_sf  ! Radius squared
