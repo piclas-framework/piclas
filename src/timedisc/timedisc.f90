@@ -233,7 +233,7 @@ DO !iter_t=0,MaxIter
 
 #ifdef PARTICLES
   IF(enableParticleMerge) THEN
-    IF ((iter.GT.0).AND.(MOD(iter,vMPFMergeParticleIter).EQ.0)) doParticleMerge=.true.
+    IF ((iter.GT.0).AND.(MOD(iter,INT(vMPFMergeParticleIter,8)).EQ.0)) doParticleMerge=.true.
   END IF
 #endif /*PARTICLES*/
 

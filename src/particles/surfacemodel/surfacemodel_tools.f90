@@ -44,7 +44,6 @@ USE MOD_Globals_Vars              ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars             ,ONLY: LastPartPos, PEM
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide
-USE MOD_TimeDisc_Vars             ,ONLY: dt, RKdtFrac
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfModEnergyDistribution
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
@@ -69,20 +68,14 @@ REAL,INTENT(IN)             :: TempErgy(2)               !< temperature, energy 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                          :: NewPartID
-REAL                             :: RanNum
 REAL                             :: tang1(1:3),tang2(1:3)
-INTEGER                          :: SurfSideID, SpecID
-LOGICAL                          :: DiffuseReflection
+INTEGER                          :: SurfSideID
 ! variables for Energy sampling
-REAL                             :: oldVelo(1:3)
 INTEGER                          :: locBCID
-REAL                             :: VeloReal, EtraOld
-REAL                             :: EtraWall, EtraNew
 REAL                             :: WallVelo(1:3), WallTemp
 ! Polyatomic Molecules
-REAL                             :: VeloCrad, Fak_D, NewVelo(3)
-REAL                             :: Phi, Cmr, VeloCx, VeloCy, VeloCz
-REAL                             :: POI_fak, TildTrajectory(3),POI_vec(3)
+REAL                             :: NewVelo(3)
+REAL                             :: POI_vec(3)
 INTEGER                          :: iNewPart ! particle counter for newly created particles
 !===================================================================================================================================
 locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))

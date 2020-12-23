@@ -102,7 +102,6 @@ LOGICAL,ALLOCATABLE            :: CommFlag(:)
 INTEGER                        :: nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob
 INTEGER                        :: nExchangeProcessorsGlobal
 REAL,ALLOCATABLE               :: MPISideAngle(:)
-INTEGER,ALLOCATABLE            :: MPIPeriodicSideAxi(:)
 REAL,ALLOCATABLE               :: RotBoundsOfElemCenter(:)
 !=================================================================================================================================
 

@@ -513,7 +513,7 @@ SUBROUTINE depoChargeOnDOFsSF2D(Position,SourceSize,Fac)
 !============================================================================================================================
 ! use MODULES
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:r_sf,r2_sf,r2_sf_inv,alpha_sf,PartSource,dim_sf_dir,dim_sf_dir1,dim_sf_dir2
+USE MOD_PICDepo_Vars,           ONLY:r_sf,r2_sf,r2_sf_inv,alpha_sf,PartSource,dim_sf_dir1,dim_sf_dir2
 USE MOD_Mesh_Vars,              ONLY:nElems,offSetElem
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,ElemBaryNgeo,FIBGM_offsetElem,FIBGM_nElems,FIBGM_Element,Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo
@@ -995,7 +995,7 @@ SUBROUTINE depoChargeOnDOFsSFChargeCon2D(Position,SourceSize,Fac)
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:r_sf, r2_sf, r2_sf_inv,alpha_sf,PartSource,w_sf,dim_sf_dir,dim_sf_dir1,dim_sf_dir2
+USE MOD_PICDepo_Vars,           ONLY:r_sf, r2_sf, r2_sf_inv,alpha_sf,PartSource,w_sf,dim_sf_dir1,dim_sf_dir2
 USE MOD_Mesh_Vars,              ONLY:nElems, offSetElem
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo, ElemsJ

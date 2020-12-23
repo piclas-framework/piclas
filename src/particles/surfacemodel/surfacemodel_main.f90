@@ -75,7 +75,6 @@ INTEGER                          :: ProductSpec(2)  !< 1: product species of inc
                                                     !< with respective species
 INTEGER                          :: ProductSpecNbr  !< number of emitted particles for ProductSpec(1)
 REAL                             :: TempErgy(2)               !< temperature, energy or velocity used for VeloFromDistribution
-REAL                             :: RanNum
 REAL                             :: Xitild,Etatild
 INTEGER                          :: SpecID, locBCID, p, q
 
@@ -200,22 +199,8 @@ SUBROUTINE MaxwellScattering(PartTrajectory,LengthPartTrajectory,alpha,PartID,Si
 !> reflection by comparing the given momentum accommodation coefficient (MomentumACC) with a random number
 !===================================================================================================================================
 USE MOD_Globals                 ,ONLY: abort,UNITVECTOR,OrthoNormVec
-USE MOD_Particle_Vars           ,ONLY: PartSpecies, WriteMacroSurfaceValues
-USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
-USE MOD_Particle_Boundary_Vars  ,ONLY: Partbound, GlobalSide2SurfSide, dXiEQ_SurfSample
-USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
-USE MOD_Particle_Vars           ,ONLY: PDM, LastPartPos
-USE MOD_Particle_Vars           ,ONLY: UseCircularInflow
-USE MOD_Dielectric_Vars         ,ONLY: DoDielectricSurfaceCharge
-USE MOD_DSMC_Vars               ,ONLY: DSMC, SamplingActive
-USE MOD_SurfaceModel_Tools      ,ONLY: SurfaceModel_ParticleEmission
-USE MOD_SEE                     ,ONLY: SecondaryElectronEmission
-USE MOD_SurfaceModel_Porous     ,ONLY: PorousBoundaryTreatment
-USE MOD_Particle_Boundary_Tools ,ONLY: CalcWallSample
-USE MOD_PICDepo_Tools           ,ONLY: DepositParticleOnNodes
-USE MOD_Part_Tools              ,ONLY: VeloFromDistribution
-USE MOD_part_operations         ,ONLY: CreateParticle, RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
