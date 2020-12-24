@@ -52,7 +52,7 @@ ChemReac%QKTCollCorrFac = 0.
 
 DO iReac = 1, ChemReac%NumOfReact
   ! Skip the special case of photo ionization
-  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') CYCLE
+  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
   iSpec1 = ChemReac%Reactants(iReac,1)
   iSpec2 = ChemReac%Reactants(iReac,2)
   iCase = CollInf%Coll_Case(iSpec1, iSpec2)
@@ -66,7 +66,7 @@ DO iReac = 1, ChemReac%NumOfReact
 END DO
 
 
-IF(ANY(ChemReac%QKProcedure)) THEN
+IF(ChemReac%AnyQKReaction) THEN
   IF(MOD(DSMC%PartitionMaxTemp,DSMC%PartitionInterval).EQ.0.0) THEN
     PartitionArraySize = NINT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)
   ELSE
@@ -76,7 +76,7 @@ IF(ANY(ChemReac%QKProcedure)) THEN
   END IF
   ALLOCATE(QKChemistry(ChemReac%NumOfReact))
   DO iReac = 1, ChemReac%NumOfReact
-    IF(ChemReac%QKProcedure(iReac)) THEN
+    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'QK')THEN
       ! Calculation of the analytical rate, to be able to calculate the backward rate with partition function
       ALLOCATE(QKChemistry(iReac)%ForwardRate(1:PartitionArraySize))
       DO iInter = 1, PartitionArraySize
@@ -84,8 +84,8 @@ IF(ANY(ChemReac%QKProcedure)) THEN
         QKChemistry(iReac)%ForwardRate(iInter) = QK_CalcAnalyticRate(iReac,Temp)
       END DO
       ! For backward rates, the corresponding forward rate is stored to be used with the equilibrium constant
-      IF(DSMC%BackwardReacRate.AND.(iReac.GT.ChemReac%NumOfReact/2)) THEN
-        QKChemistry(iReac)%ForwardRate = QKChemistry(iReac - ChemReac%NumOfReact/2)%ForwardRate
+      IF(iReac.GT.ChemReac%NumOfReactWOBackward) THEN
+        QKChemistry(iReac)%ForwardRate = QKChemistry(ChemReac%BackwardReacForwardIndx(iReac))%ForwardRate
       END IF
     END IF
   END DO
@@ -147,7 +147,7 @@ END IF
 Ec = 0.5 * ReducedMass*Coll_pData(iPair)%CRela2
 
 SELECT CASE(TRIM(ChemReac%ReactType(iReac)))
-CASE('iQK')
+CASE('I')
   IF(DSMC%ElectronicModel) Ec = Ec + PartStateIntEn(3,React1Inx)*Weight1
   ! ionization level is last known energy level of species
   MaxQua=SpecDSMC(PartSpecies(React1Inx))%MaxElecQuant - 1
@@ -206,7 +206,7 @@ Tref = CollInf%Tref(iSpec1,iSpec2)
 omega = CollInf%omega(iSpec1,iSpec2)
 
 SELECT CASE (ChemReac%ReactType(iReac))
-CASE('iQK')
+CASE('I')
   MaxElecQua=SpecDSMC(iSpec1)%MaxElecQuant - 1
   DO iQua = 0, MaxElecQua
     Q = gammainc([2.-omega,(SpecDSMC(iSpec1)%ElectronicState(2,MaxElecQua)- &

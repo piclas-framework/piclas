@@ -724,7 +724,7 @@ DO iCase = 1, CollInf%NumCase
   IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) ALLOCATE(SpecXSec(iCase)%ReactionPath(1:NumPaths))
   DO iPath = 1, NumPaths
     iReac = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-    IF(ChemReac%XSec_Procedure(iReac)) THEN
+    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'XSec') THEN
       CALL ReadReacXSec(iCase,iPath)
     END IF
   END DO
@@ -978,7 +978,7 @@ NumWeightProd = 2
 
 DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
   ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-  IF(ChemReac%XSec_Procedure(ReacTest)) THEN
+  IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'XSec') THEN
     EductReac(1:3) = ChemReac%Reactants(ReacTest,1:3); ProductReac(1:4) = ChemReac%Products(ReacTest,1:4)
     IF (EductReac(1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
       ReactInx(1) = Coll_pData(iPair)%iPart_p1; ReactInx(2) = Coll_pData(iPair)%iPart_p2

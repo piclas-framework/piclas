@@ -190,12 +190,12 @@ Within the parameter file it is possible to define different particle boundary c
 
 The `Part-Boundary1-SourceName=` corresponds to the name given during the preprocessing step with HOPR. The available conditions (`Part-Boundary1-Condition=`) are described in the table below.
 
-|  Condition   | Description                                                                                                                                                                                 |
-| :----------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-|    `open`    | Every particle crossing the boundary will be deleted.                                                                                                                                       |
-| `reflective` | Allows the definition of specular and diffuse reflection. A perfect specular reflection is performed, if no other parameters are given (discussed in more detail in the following section). |
-| `symmetric`  | A perfect specular reflection, without sampling of particle impacts.                                                                                                                        |
-| `rot_periodic`  | Allows the definition of rotational periodicity.                                                                                                                        |
+|   Condition    | Description                                                                                                                                                                                 |
+| :------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+|     `open`     | Every particle crossing the boundary will be deleted.                                                                                                                                       |
+|  `reflective`  | Allows the definition of specular and diffuse reflection. A perfect specular reflection is performed, if no other parameters are given (discussed in more detail in the following section). |
+|  `symmetric`   | A perfect specular reflection, without sampling of particle impacts.                                                                                                                        |
+| `rot_periodic` | Allows the definition of rotational periodicity.                                                                                                                                            |
 
 For `reflective` boundaries, an additional option `Part-Boundary2-SurfaceModel` is available, that
 is used for heterogeneous reactions (reactions have reactants in two or more phases) or secondary electron emission models. These models are described in \ref{sec:chem_reac}.
@@ -1010,19 +1010,18 @@ The reactions paths can then be defined in the species parameter file. First, th
 
 A reaction is then defined by
 
-    DSMC-Reaction1-ReactionType=D
-    DSMC-Reaction1-Reactants=(/1,1,0/)
-    DSMC-Reaction1-Products=(/2,1,2,0/)
+    DSMC-Reaction1-ReactionModel = TCE
+    DSMC-Reaction1-Reactants     = (/1,1,0/)
+    DSMC-Reaction1-Products      = (/2,1,2,0/)
 
-where the reaction type can be defined as follows
+where the reaction model can be defined as follows
 
-|  Type | Description                                 |
-| ----: | ------------------------------------------- |
-|     D | Dissociation (e.g. N$_2$ + M -> N + N + M)  |
-|     E | Exchange (e.g. N$_2$ + O -> NO + N)         |
-|     R | Recombination (e.g. N + O + M -> NO + M)    |
-|   iQK | Ionization (e.g. N + e -> N$^+$ + e + e)    |
-| phIon | Photo-ionization (e.g. N + ph -> N$^+$ + e) |
+| Model | Description                                       |
+| ----: | ------------------------------------------------- |
+|   TCE | Total Collision Energy: Arrhenius-based chemistry |
+|    QK | Quantum Kinetic: Threshold-based chemistry        |
+|  XSec | Cross-section based chemistry                     |
+| phIon | Photo-ionization (e.g. N + ph -> N$^+$ + e)       |
 
 The reactants (left-hand side) and products (right-hand side) are defined by their respective species index. The photo-ionization reaction is a special case to model the ionization process within a defined volume by photon impact (see Section \ref{sec:particle_photoionization}). It should be noted that for the dissociation reaction, the first given species is the molecule to be dissociated. The second given species is the non-reacting partner, which can either be defined specifically or set to zero to define multiple possible collision partners. In the latter case, the number of non-reactive partners and their species have to be given by
 
@@ -1038,7 +1037,7 @@ This allows to define a single reaction for an arbitrary number of collision par
 
 In the following, three possibilities to model the reaction rates are presented.
 
-#### Arrhenius-based Chemistry (TCE)
+#### Total Collision Energy (TCE)
 
 The Total Collision Energy (TCE) model [@Bird1994] utilizes Arrhenius type reaction rates to reproduce the probabilities for a chemical reaction. The extended Arrhenius equation is
 
@@ -1054,19 +1053,10 @@ An example initialization file for a TCE-based chemistry model can be found in t
 
 #### Quantum-Kinetic Chemistry (QK)
 
-The quantum-kinetic (QK) model [@Bird2011] chooses a different approach and models chemical reactions on the microscopic level. It can be enabled for each reaction separately by
-
-    DSMC-Reaction1-QKProcedure = T
-
-Currently, the QK model is only available for ionization (Type: iQK) and dissociation reactions (Type: D). It is possible to utilize TCE- and QK-based reactions in the same simulation for different reactions paths for the same collision pair, such as the ionization and dissociation reactions paths (e.g. N$_2$ + e can lead to a dissociation with the TCE model and to an ionization with the QK model). An example setup can be found in the regression tests (e.g. `regressioncheck/checks/NIG_Reservoir/CHEM_QK_multi-ionization_C_to_C6+`).
-
+The quantum-kinetic (QK) model [@Bird2011] chooses a different approach and models chemical reactions on the microscopic level. Currently, the QK model is only available for ionization and dissociation reactions. It is possible to utilize TCE- and QK-based reactions in the same simulation for different reactions paths for the same collision pair, such as the ionization and dissociation reactions paths (e.g. N$_2$ + e can lead to a dissociation with the TCE model and to an ionization with the QK model). An example setup can be found in the regression tests (e.g. `regressioncheck/checks/NIG_Reservoir/CHEM_QK_multi-ionization_C_to_C6+`).
 #### Cross-section Chemistry (XSec)
 
-The cross-section based chemistry model utilizes experimentally measured or ab-initio calculated cross-sections (analogous to the collision probability procedure described in Section \ref{sec:xsec_collision}). It requires the same database, where the reaction paths are stored per particle pair, e.g. the `N2-electron` container contains the `REACTION` folder, which includes the reactions named by their products, e.g. `N2Ion1-electron-electron`. The reaction is then defined in the species parameter file as
-
-    DSMC-Reaction1-Reactants        = (/1,3,0/)
-    DSMC-Reaction1-Products         = (/2,3,3,0/)
-    DSMC-Reaction1-XSec-Procedure   = T
+The cross-section based chemistry model utilizes experimentally measured or ab-initio calculated cross-sections (analogous to the collision probability procedure described in Section \ref{sec:xsec_collision}). It requires the same database, where the reaction paths are stored per particle pair, e.g. the `N2-electron` container contains the `REACTION` folder, which includes the reactions named by their products, e.g. `N2Ion1-electron-electron`.
 
 If the defined reaction cannot be found in the database, the code will abort. It should be noted that this model is not limited to the utilization with MCC or a background gas and can be used with conventional DSMC as an alternative chemistry model. Here, the probability will be added to the collision probability to reproduce the reaction rate. Examples of the utlization of this model can be found in the regression tests (e.g. `regressioncheck/checks/NIG_Reservoir/CHEM_RATES_XSec_Chem_H2-e`).
 #### Backward Reaction Rates
@@ -1075,13 +1065,20 @@ Backward reaction rates can be calculated for any given forward reaction rate by
 
 $$K_\mathrm{equi} = \frac{k_\mathrm{f}}{k_\mathrm{b}}$$
 
-where $K_\mathrm{equi}$ is calculated through partition functions. This option can be enabled by
+where $K_\mathrm{equi}$ is calculated through partition functions. This option can be enabled for all given reaction paths in the first parameter file by
 
     Particles-DSMC-BackwardReacRate = T
+
+or it can be enabled for each reaction path separately in the species parameter file, e.g. to disable certain reaction paths or to treat the backward reaction directly with a given Arrhenius rate
+
+    DSMC-Reaction1-BackwardReac = T
+
+It should be noted that if the backward reactions are enabled globally, a single backward reaction can be disabled by setting the reaction-specific flag to false and vice versa, if the global backward rates are disabled then a single backward reaction can be enabled. Since the partition functions are tabulated, a maximum temperature and the interval are required to define the temperature range which is expected during the simulation.
+
     Particles-DSMC-PartitionMaxTemp = 120000.
     Particles-DSMC-PartitionInterval = 20.
 
-Since the partition functions are tabulated, a maximum temperature and the interval are required to define the temperature range which is expected during the simulation. Should a collision temperature be outside of that range, the partition function will be calculated on the fly. Additional species-specific parameters are required in the species initialization file to calculate the rotational partition functions
+ Should a collision temperature be outside of that range, the partition function will be calculated on the fly. Additional species-specific parameters are required in the species initialization file to calculate the rotational partition functions
 
     Part-Species1-SymmetryFactor=2
     ! Linear poly- and diatomic molecules

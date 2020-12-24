@@ -433,7 +433,7 @@ IF (CollisMode.EQ.3) THEN
   CALL CalcMeanVibQuaDiatomic()
 END IF
 
-IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
+IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC%CalcQualityFactors &
 .OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1)).OR.(DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)) THEN
   ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
   !           relaxation probability (CalcGammaVib)

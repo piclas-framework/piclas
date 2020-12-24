@@ -1205,10 +1205,9 @@ ReactionProbArray = 0.
 PerformReaction = .FALSE.
 DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths 
   ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-  IF(ChemReac%XSec_Procedure(ReacTest)) CYCLE
-  IF(ChemReac%QKProcedure(ReacTest)) THEN
+  IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'QK') THEN
     CALL QK_TestReaction(iPair,ReacTest,PerformReaction(iPath))
-  ELSE
+  ELSE IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'TCE') THEN
     CALL CalcReactionProb(iPair,ReacTest,ReactionProbArray(iPath),nPair,NumDens)
   END IF
 END DO
@@ -1218,8 +1217,7 @@ ReactionProbSum = 0.
 DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
   ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
   ! Skip QK-based and XSec-based reactions
-  IF(ChemReac%QKProcedure(ReacTest).OR.ChemReac%XSec_Procedure(ReacTest)) CYCLE
-  ReactionProbSum = ReactionProbSum + ReactionProbArray(iPath)
+  IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'TCE') ReactionProbSum = ReactionProbSum + ReactionProbArray(iPath)
 END DO
 
 ! 2.) Determine which TCE reaction is most likely to occur
@@ -1231,11 +1229,12 @@ IF (ReactionProbSum.GT.iRan) THEN
   CALL RANDOM_NUMBER(iRan)
   DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-    IF(ChemReac%QKProcedure(ReacTest).OR.ChemReac%XSec_Procedure(ReacTest)) CYCLE
-    ReactionProb = ReactionProb + ReactionProbArray(iPath)
-    IF((ReactionProb/ReactionProbSum).GT.iRan) THEN
-      PerformReaction(iPath) = .TRUE.
-      EXIT
+    IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'TCE') THEN
+      ReactionProb = ReactionProb + ReactionProbArray(iPath)
+      IF((ReactionProb/ReactionProbSum).GT.iRan) THEN
+        PerformReaction(iPath) = .TRUE.
+        EXIT
+      END IF
     END IF
   END DO
 END IF
@@ -1283,7 +1282,7 @@ IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
   CALL RANDOM_NUMBER(iRan)
   DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-    IF(ChemReac%XSec_Procedure(ReacTest)) THEN
+    IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'XSec') THEN
       ReactionProb = ReactionProb + ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath)
       IF((ReactionProb/ReactionProbSum).GT.iRan) THEN
         CALL DSMC_Chemistry(iPair, ReacTest)

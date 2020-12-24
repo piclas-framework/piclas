@@ -235,8 +235,8 @@ IF(((Coll_pData(iPair)%Ec-EZeroPoint_Educt).GE.(SumWeightEduct/NumWeightEduct*Ch
   ! Calculation of the backward reaction rate coefficient and applying to Beta coefficient after Boyd "Modeling backward chemical
   ! rate processes in the direct simulation Monte Carlo method", Phys. Fluids 19, 1261103 (2007)
   !---------------------------------------------------------------------------------------------------------------------------------
-  IF(DSMC%BackwardReacRate.AND.((iReac.GT.ChemReac%NumOfReact/2))) THEN
-    iReacForward = iReac - ChemReac%NumOfReact/2
+  IF(iReac.GT.ChemReac%NumOfReactWOBackward) THEN
+    iReacForward = ChemReac%BackwardReacForwardIndx(iReac)
     IF(DSMC%InstantTransTemp(nSpecies+1).GT.0.0) THEN
       CALL CalcBackwardRate(iReac,DSMC%InstantTransTemp(nSpecies+1),BackwardRate)
       IF(TRIM(ChemReac%ReactType(iReac)).EQ.'E') THEN
@@ -253,8 +253,8 @@ IF(((Coll_pData(iPair)%Ec-EZeroPoint_Educt).GE.(SumWeightEduct/NumWeightEduct*Ch
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Actual calculation of the reaction probability, different equation for recombination reaction
   !---------------------------------------------------------------------------------------------------------------------------------
-  IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
-    IF(DSMC%BackwardReacRate.AND.((iReac.GT.ChemReac%NumOfReact/2))) THEN
+  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
+    IF(iReac.GT.ChemReac%NumOfReactWOBackward) THEN
       Tcoll =ReducedMassUnweighted*Coll_pData(iPair)%CRela2 / (BoltzmannConst * 2.*(2.-omega))
       Rcoll = (Tcoll / Tref)**(0.5 - omega) &
               * ChemReac%QKRColl(iCase) / SQRT(ReducedMassUnweighted) * ChemReac%QKTCollCorrFac(iCase)
@@ -264,21 +264,6 @@ IF(((Coll_pData(iPair)%Ec-EZeroPoint_Educt).GE.(SumWeightEduct/NumWeightEduct*Ch
       ReactionProb = BetaReaction * NumDens &
                 * EReact**(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 + CollInf%omega(EductReac(3),EductReac(3)))
     END IF
-  ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'iQK') THEN
-    TiQK = (ReducedMassUnweighted*Coll_pData(iPair)%CRela2 + 2.*PartStateIntEn(3,ReactInx(1)))/((2.*(2.-omega) &
-              + Xi_elec(1))*BoltzmannConst)
-    Tcoll = ReducedMassUnweighted*Coll_pData(iPair)%CRela2 / (BoltzmannConst * 2.*(2.-omega))
-    Rcoll = (Tcoll / Tref)**(0.5 - omega) * ChemReac%QKRColl(iCase) &
-              / SQRT(ReducedMassUnweighted) * ChemReac%QKTCollCorrFac(iCase)
-    ReactionProb = QK_GetAnalyticRate(iReac,TiQK) / Rcoll
-  ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'D'.AND.ChemReac%QKProcedure(iReac)) THEN
-    TiQK = (ReducedMassUnweighted*Coll_pData(iPair)%CRela2  &
-              + 2.*PartStateIntEn(1,ReactInx(1)))/((2.*(2.-omega) + Xi_vib(1))*BoltzmannConst)
-    Tcoll = ReducedMassUnweighted*Coll_pData(iPair)%CRela2 / (BoltzmannConst * 2.*(2.-omega))
-    Rcoll = (Tcoll / Tref)**(0.5 - omega) * ChemReac%QKRColl(iCase) &
-              / SQRT(ReducedMassUnweighted) * ChemReac%QKTCollCorrFac(iCase)
-    ! Get the analytic forward rate for QK
-    ReactionProb = QK_GetAnalyticRate(iReac,TiQK) / Rcoll
   ELSE
     IF(SpecDSMC(EductReac(2))%PolyatomicMol.OR.SpecDSMC(EductReac(1))%PolyatomicMol) THEN
       ! Energy is multiplied by a factor to increase the resulting exponent and avoid floating overflows for high vibrational
@@ -467,7 +452,7 @@ ELSE
 END IF
 
 IF(EductReac(3).NE.0) THEN
-  IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
+  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
     EductReac(3) = PartSpecies(ReactInx(3))
     ProductReac(2) = PartSpecies(ReactInx(3))
     NumEduct = 3
@@ -486,7 +471,7 @@ DO iPart = 1, NumEduct
 END DO
 
 IF(CalcPartBalance) THEN
-  IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') THEN
+  IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') THEN
     DO iPart = 1, NumEduct
       IF(BGGas%BackgroundSpecies(EductReac(iPart))) CYCLE
       nPartOut(EductReac(iPart))=nPartOut(EductReac(iPart)) + 1
@@ -495,7 +480,7 @@ IF(CalcPartBalance) THEN
   END IF
 END IF
 
-IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
   MassRed = 0.
 ELSE
   IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
@@ -808,7 +793,7 @@ IF(ProductReac(3).NE.0) THEN
     VeloCOM(1:3) = FracMassCent1 * PartState(4:6,ReactInx(1)) + FracMassCent2 * PartState(4:6,ReactInx(3))
   ELSE
     ! Scattering 2 -> 3/4
-    IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
     ! Do not consider the momentum of the photon
       FracMassCent1 = 1.
       FracMassCent2 = 0.
@@ -961,7 +946,7 @@ ELSEIF(ProductReac(3).EQ.0) THEN
     ! therefore, there is no need to set change the index as the proper species, ProductReac(2), was utilized for the relaxation
   ELSE
     ! Scattering 2 -> 2
-    IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
     ! Do not consider the momentum of the photon
       FracMassCent1 = 1.
       FracMassCent2 = 0.
@@ -1291,9 +1276,9 @@ REAL                            :: Qtra, Qrot, Qvib, Qelec, expVal
   UpperLevel = LowerLevel + 1
 
   ! Reading the stoichiometric coefficients from the reactants
-  iReac = iReacTmp - ChemReac%NumOfReact/2
-  IF (ChemReac%QKProcedure(iReac)) THEN
-    IF (TRIM(ChemReac%ReactType(iReac)).EQ.'iQK') THEN
+  iReac = ChemReac%BackwardReacForwardIndx(iReacTmp)
+  IF (TRIM(ChemReac%ReactModel(iReac)).EQ.'QK') THEN
+    IF (TRIM(ChemReac%ReactType(iReac)).EQ.'I') THEN
       MaxElecQua=SpecDSMC(ChemReac%Reactants(iReac,1))%MaxElecQuant - 1
       ActivationEnergy_K = SpecDSMC(ChemReac%Reactants(iReac,1))%ElectronicState(2,MaxElecQua)
     ELSEIF(TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
@@ -1315,7 +1300,7 @@ REAL                            :: Qtra, Qrot, Qvib, Qelec, expVal
         END IF
       END DO
     END DO
-    IF (ChemReac%QKProcedure(iReac)) THEN
+    IF (TRIM(ChemReac%ReactModel(iReac)).EQ.'QK') THEN
       expVal = MIN(maxexp,ActivationEnergy_K/LocalTemp)
       BackwardRate = QK_CalcAnalyticRate(iReac,LocalTemp)*(PartFuncProduct(1)/PartFuncProduct(2))*EXP(expVal)
     ELSE
@@ -1335,7 +1320,7 @@ REAL                            :: Qtra, Qrot, Qvib, Qelec, expVal
       END DO
     END DO
     IF((PartFuncProduct(1).NE.0.).AND.(PartFuncProduct(2).NE.0.)) THEN
-      IF (ChemReac%QKProcedure(iReac)) THEN
+      IF (TRIM(ChemReac%ReactModel(iReac)).EQ.'QK') THEN
         expVal = MIN(maxexp,ActivationEnergy_K/(LowerLevel * DSMC%PartitionInterval))
         k_b_lower = QKChemistry(iReac)%ForwardRate(LowerLevel)* (PartFuncProduct(1)/PartFuncProduct(2))* EXP(expVal)
       ELSE
@@ -1357,7 +1342,7 @@ REAL                            :: Qtra, Qrot, Qvib, Qelec, expVal
       END DO
     END DO
     IF((PartFuncProduct(1).NE.0.).AND.(PartFuncProduct(2).NE.0.)) THEN
-      IF (ChemReac%QKProcedure(iReac)) THEN
+      IF (TRIM(ChemReac%ReactModel(iReac)).EQ.'QK') THEN
         expVal = MIN(maxexp,ActivationEnergy_K/(UpperLevel * DSMC%PartitionInterval))
         k_b_upper = QKChemistry(iReac)%ForwardRate(UpperLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) * EXP(expVal)
       ELSE
@@ -1459,7 +1444,7 @@ NbrOfReactions = 0.
 
 DO iReac = 1, ChemReac%NumOfReact
   ! Only treat photoionization reactions
-  IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
+  IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') CYCLE
   ! First reactant of the reaction is the actual heavy particle species
   bgSpec = BGGas%MapSpecToBGSpec(ChemReac%Reactants(iReac,1))
   ! Collision number: Z = n_gas * n_ph * sigma_reac * v (in the case of photons its speed of light)
