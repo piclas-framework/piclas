@@ -25,20 +25,6 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 #if USE_MPI
-INTERFACE InitLoadBalance
-  MODULE PROCEDURE InitLoadBalance
-END INTERFACE
-
-#if USE_LOADBALANCE
-INTERFACE ComputeElemLoad
-  MODULE PROCEDURE ComputeElemLoad
-END INTERFACE
-
-INTERFACE LoadBalance
-  MODULE PROCEDURE LoadBalance
-END INTERFACE
-#endif /*USE_LOADBALANCE*/
-
 PUBLIC::InitLoadBalance
 #if USE_LOADBALANCE
 PUBLIC::LoadBalance
