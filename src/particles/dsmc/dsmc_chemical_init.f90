@@ -440,6 +440,10 @@ DO iReac = 1, ChemReac%NumOfReact
       CALL abort(__STAMP__,&
       'Recombination - Error in Definition: Not all reactant species are defined! ReacNbr: ',iReac)
     END IF
+    IF (ChemReac%Reactants(iReac,3).NE.ChemReac%Products(iReac,2)) THEN
+      CALL abort(__STAMP__,&
+      'Recombination - Error in Definition: Third-collision partner does not correspond to the second product! ReacNbr: ',iReac)
+    END IF
   ELSE IF (TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') THEN
     IF ((ChemReac%Reactants(iReac,1)*ChemReac%Reactants(iReac,2)).EQ.0) THEN
       CALL abort(__STAMP__,&
@@ -452,9 +456,12 @@ DO iReac = 1, ChemReac%NumOfReact
       CALL abort(__STAMP__,&
       'Dissociation - Error in Definition: Not all product species are defined!  ReacNbr: ',iReac)
     END IF
-    IF(ChemReac%Reactants(iReac,2).NE.ChemReac%Products(iReac,2)) THEN
-      CALL abort(__STAMP__,&
-      'Dissociation - Error in Definition: Non-reacting partner has to remain second product (/1,2,3/)  ReacNbr: ',iReac)
+    IF(TRIM(ChemReac%ReactModel(iReac)).NE.'XSec') THEN
+      ! Cross-section based chemistry does not require this definition as no backward reaction rates are implemented
+      IF(ChemReac%Reactants(iReac,2).NE.ChemReac%Products(iReac,2)) THEN
+        CALL abort(__STAMP__,&
+        'Dissociation - Error in Definition: Non-reacting partner has to remain second product (/1,2,3/)  ReacNbr: ',iReac)
+      END IF
     END IF
   ELSE
     IF ((ChemReac%Products(iReac,1)*ChemReac%Products(iReac,2)).EQ.0) THEN
