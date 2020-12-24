@@ -458,17 +458,12 @@ DO iVar = 1, PP_nVar
       ! SPECIAL BC: BCState specifies exactfunc to be used!!
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-  !      CALL ExactFunc(BCState,t,0,Face_xGP(:,p,q,SideID),lambda(r:r,SideID))
        lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
       END DO; END DO !p,q
     CASE(5) ! exact BC = Dirichlet BC !!
-!print*,"BCType=",BCType,"    BCsideID=",BCsideID,"     IniExactFunc",IniExactFunc
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
         CALL ExactFunc(BCState,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t)
-!print*,"t=",t,"r=",r,"BCState=",BCState,"Face_xGP(:,p,q,SideID)=",Face_xGP(:,p,q,SideID)
-!print*,lambda(iVar,r:r,SideID)
-       !lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
       END DO; END DO !p,q
     END SELECT ! BCType
   END DO !BCsideID=1,nDirichletBCSides
@@ -485,8 +480,7 @@ DO iVar = 1, PP_nVar
     CASE(10) !neumann q=0
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-        qn_face(iVar,r,BCSideID)= 0. !SUM((/0.,0.,0./)  &
-                                !*MATMUL(chitens_face(:,:,p,q,SideID),NormVec(:,p,q,SideID)))*SurfElem(p,q,SideID)*wGP(p)*wGP(q)
+        qn_face(iVar,r,BCSideID)= 0.
       END DO; END DO !p,q
     CASE(11) !neumann q*n=1 !test
       DO q=0,PP_N; DO p=0,PP_N

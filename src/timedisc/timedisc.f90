@@ -373,12 +373,12 @@ DO !iter_t=0,MaxIter
       PID=(WallTimeEnd-WallTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_PID)
     END IF
 
+#ifdef PARTICLES
 #if USE_MPI
 #if !defined(LSERK) && !defined(IMPA) && !defined(ROS)
     CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 #endif
 #if USE_LOADBALANCE
-#ifdef PARTICLES
     ! Check if loadbalancing is enabled with partweight and set PerformLBSample true to calculate elemtimes with partweight
     ! LoadBalanceSample is 0 if partweightLB or IAR_partweighlb are enabled. If only one of them is set Loadbalancesample switches
     ! during time loop
