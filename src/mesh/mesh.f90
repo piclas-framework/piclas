@@ -181,7 +181,7 @@ IF(DoSwapMesh)THEN
     IF(.NOT.ExistFile) THEN
       SWRITE(UNIT_stdOut,'(A)') ' ERROR: no swapmesh binary found'
       SWRITE(UNIT_stdOut,'(A,A)') ' FileName:             ',TRIM(FileName)
-      SWRITE(UNIT_stdOut,'(A,L)') ' ExistFile:            ',ExistFile
+      SWRITE(UNIT_stdOut,'(A,L1)') ' ExistFile:            ',ExistFile
       DoSwapMesh=.FALSE.
     ELSE
       SwapMeshExePath=FileName
@@ -554,14 +554,14 @@ INQUIRE(File='../'//TRIM(NewFolderName),EXIST=objExist)
 IF(.NOT.objExist)THEN ! no swapmesh folder found
   SWRITE(UNIT_stdOut,'(A)')   ' ERROR: no swapmesh folder found. Cannot perform swapmesh'
   SWRITE(UNIT_stdOut,'(A,A)') ' objName:             ',TRIM(NewFolderName)
-  SWRITE(UNIT_stdOut,'(A,L)') ' objExist:            ',objExist
+  SWRITE(UNIT_stdOut,'(A,L1)') ' objExist:            ',objExist
 ELSE
   FileName='../'//TRIM(NewFolderName)//'/'//ParameterFile
   INQUIRE(File=FileName,EXIST=objExist)
   IF(.NOT.objExist) THEN
     SWRITE(UNIT_stdOut,'(A)')   ' ERROR: no '//ParameterFile//' found. Cannot perform swapmesh'
     SWRITE(UNIT_stdOut,'(A,A)') ' objName:             ',TRIM(FileName)
-    SWRITE(UNIT_stdOut,'(A,L)') ' objExist:            ',objExist
+    SWRITE(UNIT_stdOut,'(A,L1)') ' objExist:            ',objExist
   ELSE
     !NewFolderName=FileName
 
