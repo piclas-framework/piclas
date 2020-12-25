@@ -363,8 +363,10 @@ INTEGER(KIND=8)                    :: iter
 #if USE_MPI
 REAL                               :: StartT,EndT
 #endif /*USE_MPI*/
-#ifdef PARTICLES
+#if !(USE_HDG) || defined(PARTICLES)
 INTEGER                            :: iElem
+#endif /*!(USE_HDG) || defined(PARTICLES)*/
+#ifdef PARTICLES
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames_HDF5(:)
 INTEGER                            :: FirstElemInd,LastelemInd,j,k
