@@ -389,6 +389,7 @@ END SUBROUTINE HDG
 
 SUBROUTINE HDGLinear(t,U_out)
 !===================================================================================================================================
+! Linear HDG solver
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -400,7 +401,6 @@ USE MOD_Equation_Vars          ,ONLY: chitens_face
 USE MOD_Mesh_Vars              ,ONLY: Face_xGP,BoundaryType,nSides,BC
 USE MOD_Mesh_Vars              ,ONLY: ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars     ,ONLY: wGP
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Elem_Mat               ,ONLY: PostProcessGradient
 USE MOD_FillMortar_HDG         ,ONLY: SmallToBigMortar_HDG
 #if (PP_nVar==1)
@@ -458,7 +458,7 @@ DO iVar = 1, PP_nVar
       ! SPECIAL BC: BCState specifies exactfunc to be used!!
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-       lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
+       lambda(iVar,r:r,SideID)=0.
       END DO; END DO !p,q
     CASE(5) ! exact BC = Dirichlet BC !!
       DO q=0,PP_N; DO p=0,PP_N
@@ -644,6 +644,7 @@ END SUBROUTINE HDGLinear
 
 SUBROUTINE HDGNewton(t,U_out,td_iter)
 !===================================================================================================================================
+! HDG non-linear solver via Newton's method
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -662,7 +663,6 @@ USE MOD_Mesh_Vars              ,ONLY: Face_xGP,BoundaryType,nSides,BC
 USE MOD_Mesh_Vars              ,ONLY: ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars     ,ONLY: wGP
 USE MOD_Particle_Vars          ,ONLY:  RegionElectronRef
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Elem_Mat               ,ONLY: PostProcessGradient, Elem_Mat,BuildPrecond
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime
@@ -721,7 +721,7 @@ DO BCsideID=1,nDirichletBCSides
     ! SPECIAL BC: BCState specifies exactfunc to be used!!
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
-      lambda(PP_nVar,r:r,SideID)= PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
+      lambda(PP_nVar,r:r,SideID)= 0.
     END DO; END DO !p,q
   END SELECT ! BCType
 END DO !BCsideID=1,nDirichletBCSides
