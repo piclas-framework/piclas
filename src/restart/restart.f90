@@ -360,11 +360,11 @@ LOGICAL                            :: DG_SolutionLambdaExists
 LOGICAL                            :: DG_SolutionUExists
 INTEGER(KIND=8)                    :: iter
 #endif /*USE_HDG*/
-INTEGER                            :: iElem
 #if USE_MPI
 REAL                               :: StartT,EndT
 #endif /*USE_MPI*/
 #ifdef PARTICLES
+INTEGER                            :: iElem
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames_HDF5(:)
 INTEGER                            :: FirstElemInd,LastelemInd,j,k

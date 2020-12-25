@@ -895,9 +895,9 @@ END IF
 
 ! FieldAnalyzeStep
 ! 2) normal analyze at analyze step
-IF(MOD(iter,FieldAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformFieldAnalyze=.TRUE.
+IF(MOD(iter,INT(FieldAnalyzeStep,8)).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformFieldAnalyze=.TRUE.
 ! 3) + 4) force analyze during a write-state information and prevent duplicates
-IF(MOD(iter,FieldAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformFieldAnalyze=.TRUE.
+IF(MOD(iter,INT(FieldAnalyzeStep,8)).NE.0 .AND. OutPutHDF5)       DoPerformFieldAnalyze=.TRUE.
 ! Remove analyze during restart or load-balance step
 IF(DoRestart .AND. iter.EQ.0) DoPerformFieldAnalyze=.FALSE.
 ! BUT print analyze info for CODE_ANALYZE and USE_HDG to get the HDG solver statistics (number of iterations, runtime and norm)

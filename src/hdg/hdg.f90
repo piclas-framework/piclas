@@ -1202,11 +1202,11 @@ END IF ! iteration.GT.0
 HDGNorm = SQRT(Norm_R2)
 
 IF(HDGDisplayConvergence.AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
-  WRITE(UNIT_StdOut,'(A,X,I16)')      '#iterations          :',iteration
-  WRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime           [s]:',RunTime
-  WRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime/iteration [s]:',RunTimePerIteration
-  !WRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime/iteration/DOF[s]:',(TimeEndCG-TimeStartCG)/REAL(iteration*PP_nElems*nGP_vol)
-  WRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'Final Residual       :',HDGNorm
+  WRITE(UNIT_StdOut,'(A,1X,I16)')      '#iterations          :',iteration
+  WRITE(UNIT_StdOut,'(A,1X,ES25.14E3)')'RunTime           [s]:',RunTime
+  WRITE(UNIT_StdOut,'(A,1X,ES25.14E3)')'RunTime/iteration [s]:',RunTimePerIteration
+  !WRITE(UNIT_StdOut,'(A,1X,ES16.7)')'RunTime/iteration/DOF[s]:',(TimeEndCG-TimeStartCG)/REAL(iteration*PP_nElems*nGP_vol)
+  WRITE(UNIT_StdOut,'(A,1X,ES25.14E3)')'Final Residual       :',HDGNorm
   WRITE(UNIT_StdOut,'(132("-"))')
 END IF
 END SUBROUTINE DisplayConvergence

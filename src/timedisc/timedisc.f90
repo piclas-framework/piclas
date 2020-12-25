@@ -70,11 +70,11 @@ USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
 USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance,LoadBalanceMaxSteps,nLoadBalanceSteps
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample,IAR_PerformPartWeightLB
-USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime
 USE MOD_LoadBalance_Vars       ,ONLY: ElemTimeField
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 #ifdef PARTICLES
+USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_HDF5_Output_Tools      ,ONLY: WriteIMDStateToHDF5
 #endif /*PARTICLES*/

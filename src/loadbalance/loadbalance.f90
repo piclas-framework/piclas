@@ -380,8 +380,8 @@ IF(.NOT.PerformLoadBalance) THEN
   RETURN
 END IF
 
-SWRITE(UNIT_StdOut,'(X)')
-SWRITE(UNIT_StdOut,'(X)')
+SWRITE(UNIT_StdOut,'(1X)')
+SWRITE(UNIT_StdOut,'(1X)')
 SWRITE(UNIT_StdOut,'(132("="))')
 CALL set_formatting("green")
 SWRITE(UNIT_stdOut,'(A)') ' PERFORMING LOAD BALANCE ...'

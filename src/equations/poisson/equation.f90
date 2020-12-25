@@ -510,8 +510,9 @@ SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear)
 ! MODULES
 USE MOD_Globals            ,ONLY: Abort
 USE MOD_PreProc
-USE MOD_Mesh_Vars          ,ONLY: Elem_xGP, offSetElem
+USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
 #ifdef PARTICLES
+USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
@@ -536,9 +537,12 @@ REAL,INTENT(IN),OPTIONAL        :: Phi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                            :: x(3)
-REAL                            :: r1,r2, source_e
+REAL                            :: r1,r2
 REAL,DIMENSION(3)               :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
+#ifdef PARTICLES
+REAL                            :: source_e
 INTEGER                         :: RegionID, CNElemID
+#endif /*PARTICLES*/
 !===================================================================================================================================
 ! Calculate IniExactFunc before particles are superimposed, because the IniExactFunc might be needed by the CalcError function
 SELECT CASE (IniExactFunc)

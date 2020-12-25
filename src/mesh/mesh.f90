@@ -292,10 +292,10 @@ IF (meshMode.GT.0) THEN
   AnalyzeSide = 0
 
 ! fill output definition for InnerBCs
-#ifdef PARTICLES
+#if defined(PARTICLES) || USE_HDG
   ALLOCATE(GlobalUniqueSideID(1:nSides))
   GlobalUniqueSideID(:)=-1
-#endif
+#endif /*defined(PARTICLES) || USE_HDG*/
 
   !NOTE: nMortarSides=nMortarInnerSides+nMortarMPISides
   ALLOCATE(MortarType(2,1:nSides))              ! 1: Type, 2: Index in MortarInfo

@@ -39,10 +39,12 @@ SUBROUTINE TimeStepPoissonByLSERK()
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort, LocalTime
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars          ,ONLY: dt,iStage,RKdtFrac,RKdtFracTotal,time,iter,dt_Min,dtWeight
-USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,RK_c,nRKStages
+USE MOD_TimeDisc_Vars          ,ONLY: dt,iStage,time,iter
+USE MOD_TimeDisc_Vars          ,ONLY: RK_c,nRKStages
 USE MOD_DG_Vars                ,ONLY: U
 #ifdef PARTICLES
+USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,dt_Min,dtWeight
+USE MOD_TimeDisc_Vars          ,ONLY: RKdtFracTotal,RKdtFrac
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime,  PEM, PDM, &
@@ -76,15 +78,18 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL           :: tStage,b_dt(1:nRKStages)
-REAL           :: Pa_rebuilt_coeff(1:nRKStages),Pa_rebuilt(1:3,1:nRKStages),Pv_rebuilt(1:3,1:nRKStages),v_rebuilt(1:3,0:nRKStages-1)
+REAL           :: tStage
+#ifdef PARTICLES
 INTEGER        :: iPart, iStage_loc
-REAL           :: RandVal
-#if USE_LOADBALANCE
+REAL           :: RandVal,b_dt(1:nRKStages)
+REAL           :: Pa_rebuilt_coeff(1:nRKStages),Pa_rebuilt(1:3,1:nRKStages),Pv_rebuilt(1:3,1:nRKStages),v_rebuilt(1:3,0:nRKStages-1)
+#endif /*PARTICLES*/
+#if defined(PARTICLES) && USE_LOADBALANCE
 REAL           :: tLBStart
-#endif /*USE_LOADBALANCE*/
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 !===================================================================================================================================
 
+#ifdef PARTICLES
 DO iStage_loc=1,nRKStages
   ! RK coefficients
   b_dt(iStage_loc)=RK_b(iStage_loc)*dt
@@ -95,6 +100,7 @@ DO iStage_loc=1,nRKStages
     Pa_rebuilt_coeff(iStage_loc) = 1. - RK_a(iStage_loc)*Pa_rebuilt_coeff(iStage_loc-1)
   END IF
 END DO
+#endif /*PARTICLES*/
 iStage=1
 
 ! first RK step
