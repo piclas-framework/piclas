@@ -242,7 +242,7 @@ coords=>NodeCoords
 nElemsLoc=nElems
 
 ! scale and deform mesh if desired (warning: no mesh output!)
-#if !PARTICLES
+#if !defined(PARTICLES)
 meshScale=GETREAL('meshScale','1.0')
 #endif /*!USE_PARTICLES*/
 IF(ABS(meshScale-1.).GT.1e-14)&
