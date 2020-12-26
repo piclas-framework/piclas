@@ -119,9 +119,9 @@ IniExactFunc = GETINT('IniExactFunc')
 nRefState=CountOption('RefState')
 
 IF(nRefState .GT. 0)THEN
-  ALLOCATE(RefState(2,nRefState))
+  ALLOCATE(RefState(3,nRefState))
   DO iState=1,nRefState
-    RefState(1:2,iState) = GETREALARRAY('RefState',2)
+    RefState(1:3,iState) = GETREALARRAY('RefState',3)
   END DO
 END IF
 
@@ -211,7 +211,8 @@ CASE(-1) ! Amplitude and Frequency supplied by RefState
   !RefState(1,iRefState): amplitude
   !RefState(2,iRefState): frequency
   Omega   = 2.*PI*RefState(2,iRefState)
-  Resu(:) = RefState(1,iRefState)*SIN(Omega*t)
+  !Resu(:) = RefState(1,iRefState)*SIN(Omega*t)
+  Resu(:) = RefState(1,iRefState)*COS(Omega*t+RefState(3,iRefState))
 CASE(0) !linear
     Resu(:)=0.
 CASE(1) !linear
