@@ -820,7 +820,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
-USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
+USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep,useManualTimeStep
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -844,6 +844,7 @@ DelayTime = GETREAL('Part-DelayTime','0.')
 ManualTimeStepParticle = GETREAL('Particles-ManualTimeStep')
 IF(ManualTimeStepParticle.GT.0.0)THEN
   ManualTimeStep = ManualTimeStepParticle
+  IF (ManualTimeStep.GT.0.0) useManualTimeStep=.True.
 END IF ! ManualTimeStepParticle.GT.0.0
 
 nSpecies = GETINT('Part-nSpecies','1')

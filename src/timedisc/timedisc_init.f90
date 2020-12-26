@@ -103,6 +103,7 @@ USE MOD_ReadInTools   ,ONLY: GetReal,GetInt, GETLOGICAL
 USE MOD_TimeDisc_Vars ,ONLY: IterDisplayStepUser
 USE MOD_TimeDisc_Vars ,ONLY: CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal,dtWeight
 USE MOD_TimeDisc_Vars ,ONLY: IterDisplayStep,DoDisplayIter
+USE MOD_TimeDisc_Vars ,ONLY: ManualTimeStep,useManualTimestep
 #ifdef IMPA
 USE MOD_TimeDisc_Vars ,ONLY: RK_c, RK_inc,RK_inflow,nRKStages
 #endif
@@ -133,6 +134,11 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT TIMEDISC...'
 ! Read the normalized CFL number
 CFLScale = GETREAL('CFLScale')
 CALL FillCFL_DFL()
+
+!--- Read Manual Time Step
+useManualTimeStep = .FALSE.
+ManualTimeStep = GETREAL('ManualTimeStep')
+IF (ManualTimeStep.GT.0.0) useManualTimeStep=.True.
 
 ! Read the maximum number of time steps MaxIter and the end time TEnd from ini file
 TEnd=GetReal('TEnd') ! must be read in here due to DSMC_init
@@ -261,13 +267,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-!--- Read Manual Time Step
-useManualTimeStep = .FALSE.
-ManualTimeStep = GETREAL('ManualTimeStep')
-IF (ManualTimeStep.GT.0.0) THEN
-  useManualTimeStep=.True.
-END IF
-
 ! For tEnd != tStart we have to advance the solution in time
 IF(useManualTimeStep)THEN
   ! particle time step is given externally and not calculated through the solver
