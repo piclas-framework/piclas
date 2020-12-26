@@ -106,7 +106,7 @@ USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
-USE MOD_Particle_Vars          ,ONLY: manualtimestep
+USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING

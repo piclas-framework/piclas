@@ -374,7 +374,8 @@ SUBROUTINE DetermineNullCollProb(iCase,iSpec,jSpec)
 ! MODULES
 USE MOD_ReadInTools
 USE MOD_Globals_Vars          ,ONLY: Pi
-USE MOD_Particle_Vars         ,ONLY: Species, ManualTimeStep
+USE MOD_Particle_Vars         ,ONLY: Species
+USE MOD_TimeDisc_Vars         ,ONLY: ManualTimeStep
 USE MOD_DSMC_Vars             ,ONLY: BGGas, SpecXSec
 IMPLICIT NONE
 ! INPUT VARIABLES
