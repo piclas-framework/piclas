@@ -309,7 +309,7 @@ ELSE
 #else
      CALL abort(&
   __STAMP__&
-  , 'ManualTimeStep.EQ.0.0 -> ManualTimeStep is not defined correctly! Particles-ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
+  , 'ManualTimeStep.EQ.0.0 -> ManualTimeStep is not defined correctly! ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
 #endif /*USE_HDG*/
   ELSE
     deltaT=ManualTimeStep

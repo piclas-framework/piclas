@@ -814,9 +814,9 @@ Additionally, the number of simulated physical models depending on the applicati
 
 `CollisMode = 1` can be utilized for the simulation of a non-reactive, cold atomic gas, where no chemical reactions or electronic excitation is expected. `CollisMode = 2` should be chosen for non-reactive diatomic gas flows to include the internal energy exchange (by default including the rotational and vibrational energy treatment). Finally, reactive gas flows can be simulated with `CollisMode = 3`. The following sections describe the required definition of species parameter (Section \ref{sec:dsmc_species}), the parameters for the internal energy exchange (Section \ref{sec:dsmc_relaxation}) and chemical reactions (Section \ref{sec:dsmc_chemistry}).
 
-The simulation time step $\Delta t$ is defined by
+A fixed simulation time step $\Delta t$ is defined by
 
-    Particles-ManualTimeStep = 1.00E-7
+    ManualTimeStep = 1.00E-7
 
 ### Macroscopic Restart \label{sec:macro_restart}
 
