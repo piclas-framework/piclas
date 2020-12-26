@@ -443,7 +443,7 @@ CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Defin
                               , '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-Voltage'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
-                                  'Voltage on boundary [$]', '0.', numberedmulti=.TRUE.)
+                                  'Voltage on boundary [$]', '1.0e20', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp'  &
                                 , 'Wall temperature (in [K]) of reflective particle boundary [$].' &
                                 , '0.', numberedmulti=.TRUE.)
@@ -1728,6 +1728,7 @@ INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps
 INTEGER               :: ALLOCSTAT, dummy_int
 CHARACTER(32)         :: hilf , hilf2
 CHARACTER(200)        :: tmpString
+LOGICAL               :: DeprecatedVoltage
 !===================================================================================================================================
 ! Read in boundary parameters
 dummy_int = CountOption('Part-nBounds')       ! check if Part-nBounds is present in .ini file
@@ -1786,6 +1787,7 @@ ALLOCATE(PartBound%Reactive(         1:nPartBound))
 PartBound%Reactive = .FALSE.
 ALLOCATE(PartBound%Voltage(1:nPartBound))
 PartBound%Voltage = 0.
+DeprecatedVoltage = .FALSE.
 ALLOCATE(PartBound%UseForQCrit(1:nPartBound))
 PartBound%UseForQCrit = .FALSE.
 ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
@@ -1825,7 +1827,8 @@ DO iPartBound=1,nPartBound
   SELECT CASE (TRIM(tmpString))
   CASE('open')
     PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic
-    PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0.')
+    PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
+    IF(ABS(PartBound%Voltage(iPartBound)).LT.1e20) DeprecatedVoltage=.TRUE.
   CASE('reflective')
 #if defined(IMPA) || defined(ROS)
     PartMeshHasReflectiveBCs=.TRUE.
@@ -1844,6 +1847,7 @@ DO iPartBound=1,nPartBound
     PartBound%RotOrg(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotOrg',3)
     PartBound%RotAxi(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotAxi',3)
     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
+    IF(ABS(PartBound%Voltage(iPartBound)).LT.1e20) DeprecatedVoltage=.TRUE.
     PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
     PartBound%WallTemp2(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp2')
     IF(PartBound%WallTemp2(iPartBound).GT.0.) THEN
@@ -2000,6 +2004,11 @@ DO iPartBound=1,nPartBound
   BCdata_auxSF(iPartBound)%GlobalArea=0.
   BCdata_auxSF(iPartBound)%LocalArea=0.
 END DO
+
+!-- Sanity check: Deprecated voltage parameter
+IF(DeprecatedVoltage) CALL abort(&
+  __STAMP__&
+  ,'Part-Boundary-Voltage is no longer supported. Use corresponding RefState parameter as described in the user guide.')
 
 END SUBROUTINE InitializeVariablesPartBoundary
 
