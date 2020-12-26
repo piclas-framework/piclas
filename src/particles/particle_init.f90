@@ -93,7 +93,7 @@ CALL DefineParametersParticleRHS()
 
 CALL prms%SetSection("Particle")
 
-CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  ,         'Manual timestep [sec]', '0.0')
+CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  ,         'Manual timestep [sec]', '-1.0')
 CALL prms%CreateRealOption(     'Part-AdaptiveWeightingFactor', 'Weighting factor theta for weighting of average'//&
                                                                 ' instantaneous values with those of previous iterations.', '0.001')
 CALL prms%CreateIntOption(      'Particles-nPointsMCVolumeEstimate', 'Number of points used to calculate volume portion '//&
@@ -820,6 +820,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
+USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -828,6 +829,7 @@ USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL              :: ManualTimeStepParticle ! temporary variable
 !===================================================================================================================================
 ! Read basic particle parameter
 PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
@@ -838,12 +840,11 @@ CALL InitializeVariablesRandomNumbers()
 DoPoissonRounding = GETLOGICAL('Particles-DoPoissonRounding','.FALSE.')
 DoTimeDepInflow   = GETLOGICAL('Particles-DoTimeDepInflow','.FALSE.')
 DelayTime = GETREAL('Part-DelayTime','0.')
-!--- Read Manual Time Step
-useManualTimeStep = .FALSE.
-ManualTimeStep = GETREAL('Particles-ManualTimeStep', '0.0')
-IF (ManualTimeStep.GT.0.0) THEN
-  useManualTimeStep=.True.
-END IF
+!--- Read Manual Time Step: Old variable name still supported
+ManualTimeStepParticle = GETREAL('Particles-ManualTimeStep')
+IF(ManualTimeStepParticle.GT.0.0)THEN
+  ManualTimeStep = ManualTimeStepParticle
+END IF ! ManualTimeStepParticle.GT.0.0
 
 nSpecies = GETINT('Part-nSpecies','1')
 IF (nSpecies.LE.0) THEN

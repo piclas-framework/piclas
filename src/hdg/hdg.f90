@@ -387,7 +387,7 @@ END IF
 END SUBROUTINE HDG
 
 
-SUBROUTINE HDGLinear(t,U_out)
+SUBROUTINE HDGLinear(time,U_out)
 !===================================================================================================================================
 ! Linear HDG solver
 !===================================================================================================================================
@@ -417,7 +417,7 @@ USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)     :: t !time
+REAL,INTENT(IN)     :: time !time
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
@@ -448,22 +448,21 @@ DO iVar = 1, PP_nVar
     BCType =BoundaryType(BC(SideID),BC_TYPE)
     BCState=BoundaryType(BC(SideID),BC_STATE)
     SELECT CASE(BCType)
-    CASE(2) ! exact BC = Dirichlet BC !!
+    CASE(2) ! exact BC = Dirichlet BC !! ExactFunc via BCState (time is optional)
       ! Determine the exact BC state
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-        CALL ExactFunc(BCState,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID))
+        CALL ExactFunc(BCState,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t=time)
       END DO; END DO !p,q
-    CASE(4) ! exact BC = Dirichlet BC !!
-      ! SPECIAL BC: BCState specifies exactfunc to be used!!
+    CASE(4) ! exact BC = Dirichlet BC !! Zero potential
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
        lambda(iVar,r:r,SideID)=0.
       END DO; END DO !p,q
-    CASE(5) ! exact BC = Dirichlet BC !!
+    CASE(5) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-        CALL ExactFunc(BCState,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t)
+        CALL ExactFunc(-1,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t=time,iRefState=BCState)
       END DO; END DO !p,q
     END SELECT ! BCType
   END DO !BCsideID=1,nDirichletBCSides
@@ -477,7 +476,7 @@ DO iVar = 1, PP_nVar
     BCType =BoundaryType(BC(SideID),BC_TYPE)
     BCState=BoundaryType(BC(SideID),BC_STATE)
     SELECT CASE(BCType)
-    CASE(10) !neumann q=0
+    CASE(10) !neumann q=0 !! Zero gradient
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
         qn_face(iVar,r,BCSideID)= 0.
@@ -642,7 +641,7 @@ CALL LBPauseTime(LB_DG,tLBStart)
 END SUBROUTINE HDGLinear
 
 
-SUBROUTINE HDGNewton(t,U_out,td_iter)
+SUBROUTINE HDGNewton(time,U_out,td_iter)
 !===================================================================================================================================
 ! HDG non-linear solver via Newton's method
 !===================================================================================================================================
@@ -676,7 +675,7 @@ USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)     :: t !time
+REAL,INTENT(IN)     :: time !time
 INTEGER(KIND=8),INTENT(IN)  :: td_iter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -711,17 +710,20 @@ DO BCsideID=1,nDirichletBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(2) ! exact BC = Dirichlet BC !!
-    ! Determine the exact BC state
+  CASE(2) ! exact BC = Dirichlet BC !! ExactFunc via BCState (time is optional)
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
-      CALL ExactFunc(BCState,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID))
+      CALL ExactFunc(BCState,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),time)
     END DO; END DO !p,q
-  CASE(4) ! exact BC = Dirichlet BC !!
-    ! SPECIAL BC: BCState specifies exactfunc to be used!!
+  CASE(4) ! exact BC = Dirichlet BC !! Zero potential
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
       lambda(PP_nVar,r:r,SideID)= 0.
+    END DO; END DO !p,q
+  CASE(5) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
+    DO q=0,PP_N; DO p=0,PP_N
+      r=q*(PP_N+1) + p+1
+      CALL ExactFunc(-1,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iRefState=BCState)
     END DO; END DO !p,q
   END SELECT ! BCType
 END DO !BCsideID=1,nDirichletBCSides
@@ -732,7 +734,7 @@ DO BCsideID=1,nNeumannBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(10) !neumann q=0
+  CASE(10) !neumann q=0 !! Zero gradient
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
       qn_face(PP_nVar,r,BCSideID)= 0.
@@ -824,7 +826,7 @@ ELSE
   END DO !iElem
 
   IF(AdaptNewtonStartValue) THEN
-    IF ((.NOT.DoRestart.AND.ALMOSTEQUAL(t,0.)).OR.(DoRestart.AND.ALMOSTEQUAL(t,RestartTime))) THEN
+    IF ((.NOT.DoRestart.AND.ALMOSTEQUAL(time,0.)).OR.(DoRestart.AND.ALMOSTEQUAL(time,RestartTime))) THEN
       DO iElem=1,PP_nElems
         RegionID=GEO%ElemToRegion(iElem)
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N

@@ -23,6 +23,9 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
+REAL             :: ManualTimeStep                    !> Manual TimeStep
+LOGICAL          :: useManualTimeStep                 !> Logical Flag for manual timestep. For consistency
+                                                      !> with IAG programming style
 REAL             :: TEnd                              !> simulation end time
 REAL             :: TAnalyze                          !> time for next analyze
 REAL             :: Time                              !> Simulation Time
