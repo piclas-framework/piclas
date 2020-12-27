@@ -77,7 +77,7 @@ Have a look at the source code of one of the already implemented unit tests if y
 
 ### Generation of reference mesh data
 
-Some of the unit tests require parts of the mesh data structure to be able to call the funtions to be tested. For this purpose, a curved single element is created and all the mesh data stored as a binary file called ``UnittestElementData.bin``. This binary file can then be read during runtime
+Some of the unit tests require parts of the mesh data structure to be able to call the functions to be tested. For this purpose, a curved single element is created and all the mesh data stored as a binary file called ``UnittestElementData.bin``. This binary file can then be read during runtime
 by the unit test programs. 
 
 To generate the curved single element mesh, run **HOPR** with the parameter file provided in the ``unitTest`` subdirectory of **PICLas**. To generate the binary file, run **PICLas** with the following command line argument and the parameter file 

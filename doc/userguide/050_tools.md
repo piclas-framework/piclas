@@ -15,7 +15,7 @@ A database (containing multiple species and cross-section types) downloaded dire
     database_input = "Database.txt"
     database_output = "Database.h5"
 
-Currently, PICLas only utilizes effective and vibrational cross-sections, however, all excitation cross-section types are grouped and stored in the output file. An example is given below 
+Currently, PICLas only utilizes effective and vibrational cross-sections, however, all excitation cross-section types are grouped and stored in the output file. An example is given below
 
     CO2-election (group)
         EFFECTIVE (dataset)
@@ -41,62 +41,60 @@ Users of cross-section data are encouraged to download the data directly from th
 
 A ParaView reader based on `posti_visu` to load **PICLas** state files in ParaView. Provides the interface to adjust `posti_visu` parameters in the ParaView GUI. For this purpose the `libVisuReader.so` has to be loaded as a Plugin in ParaView.
 
-#### Aktuell
+#### Currently Tested Combinations
 
-Getestet mit:
+* GNU **v7.3.0** with Ubuntu **v18.04**
+* Paraview **v5.6.0** (via cmake and GNU)
+* OPENMPI **v3.1.2** (via configure and GNU)
+* HDF5 **v1.10.2** parallel compiled (via cmake and GNU)
+* **flexi** and **fleximultiphase** with GNU
 
-* GNU **v7.3.0** mit Ubuntu **v18.04**
-* Paraview **v5.6.0** (via cmake und GNU)
-* OPENMPI **v3.1.2** (via configure und GNU)
-* HDF5 **v1.10.2** parallel gebaut (via cmake und GNU)
-* **flexi** und **fleximultiphase** mit GNU
+and
 
-und
+* GNU **v7.3.0** with Mint **v19**
+* Paraview **v5.6.0** (via cmake and GNU)
+* OPENMPI **v3.1.3** (via configure and GNU)
+* HDF5 **v1.10.0-patch1** parallel compiled (via cmake and GNU)
+* **flexi**  with GNU
 
-* GNU **v7.3.0** mit Mint **v19**
-* Paraview **v5.6.0** (via cmake und GNU)
-* OPENMPI **v3.1.3** (via configure und GNU)
-* HDF5 **v1.10.0-patch1** parallel gebaut (via cmake und GNU)
-* **flexi**  mit GNU
+and
 
-und
+* INTEL **v19.0** with Ubuntu **v18.04**
+* Paraview **v5.6.0** (via cmake and Intel)
+* OPENMPI **v3.1.2** (via configure and Intel)
+* HDF5 **v1.10.2** parallel compiled (via cmake and Intel)
+* **flexi** and **fleximultiphase** with Intel
 
-* INTEL **v19.0** mit Ubuntu **v18.04**
-* Paraview **v5.6.0** (via cmake und Intel)
-* OPENMPI **v3.1.2** (via configure und Intel)
-* HDF5 **v1.10.2** parallel gebaut (via cmake und Intel)
-* **flexi** und **fleximultiphase** mit Intel
+What needs to be considered when comparing with older versions, eg. **v5.3.0**?
+* Paraview should be compiled with **an own HDF5** (pre-installed in /opt/hdf5/...)
+* Paraview uses **by default qt5** (see Paraview with Qt5)
 
-Was ist zu beachten im Vergleich zu den älteren Versionen, z.B. Paraview **v5.3.0**?
-* Paraview sollte mit **eigenem HDF5** (vorinstalliert in /opt/hdf5/...) gebaut werden
-* Paraview verwendet **standardmäßig qt5** (siehe Paraview mit Qt5)
+What else should be considered?
 
-Was ist sonst noch zu beachten?
-
-Führe anstatt "ccmake .." folgenden Befehl aus:
+Use the following "cmake .." command:
 ```
 ccmake .. -DHDF5_PARALLEL=ON
 ```
-oder
+or
 ```
 cmake .. -DHDF5_PARALLEL=ON ... "Flags siehe unten"
 ```
+Set the following variables:
 
-Setze während des Konfigurierens:
-
-**neu**
+**new**
 * VTK_USE_SYSTEM_HDF5 = **ON**
 * HDF5_IS_PARALLEL = **ON**
 * VTK_MODULE_vtkhdf5_IS_SHARED = **OFF**
 
-**alt**
+**old**
 - CMAKE_BUILD_TYPE = **Release**
 - PARAVIEW_ENABLE_PYTHON = **ON**
 - PARAVIEW_USE_MPI = **ON**
 - PARAVIEW_INSTALL_DEVELOPMENT_FILES = **ON**
 - CMAKE_INSTALL_PREFIX = **/opt/paraview/...**
 
-Damit alle Pakete richtig gefunden werden, z.B. HDF5 (egal ob mit cmake oder configure), wird natürlich vorausgesetzt, dass alle Umgebungsvariablen
+In order to set all packages correctly, e.g., HDF5 (it does not matter if compiled with cmake or configure), it is assumed that all
+environment variables are set correctly (e.g. .bashrc):
 
 * **PATH**
 * **LD_LIBRARY_PATH**
@@ -104,141 +102,143 @@ Damit alle Pakete richtig gefunden werden, z.B. HDF5 (egal ob mit cmake oder con
 * **CMAKE_LIRBRARY_PATH**
 * **CMAKE_INCLUDE_PATH**
 
-mit den relevanten Pfaden in der ".bashrc" richtig gesetzt sind.
 
-Anschließend sollte alles wie gehabt funktionieren.
+Afterwards, everything should work as expected.
 
-Was ist zusätzlich mit dem **INTEL compiler** zu beachten?
+What else must be considered when using the **INTEL compiler**?
 
 *  PARAVIEW_ENABLE_MOTIONFX = **OFF**
-*  [bugfix für plugin](https://gitlabext.iag.uni-stuttgart.de/fleximultiphase/Codes/fleximultiphase/merge_requests/141)
+*  [bugfix for plugin](https://gitlab.com./fleximultiphase/Codes/fleximultiphase/merge_requests/141)
 
-#### Übersicht
-Fuer ein jungfräuliches Ubuntu 16.04 folgende Pakete installieren:
+#### Overview
+For Ubuntu 16.04:
 ```
 sudo apt-get install gfortran libpython-dev libboost-dev make libphonon-dev libphonon4 qt4-dev-tools libqt4-dev qt4-qmake libxt-dev g++ gcc cmake-curses-gui libqt4-opengl-dev mesa-common-dev git vim
 ```
 
-Weitere Schritte wie folgt:
-* OpenMPI (Version: 2.0.0 getestet. Andere sollten aber auch funktionieren.) mit GNU bauen (exports in der .bashrc nicht vergessen und diese auch neu laden!!!) **ATTENTION: Alle andere Software (hdf5, ParaView, Flexi, ...) sollte mit diesem MPI gebaut werden.**
-* HDF5 (Version: 1.10.0-patch1 getestet. Andere sollten aber auch funktionieren.) mit cmake wie unten beschrieben bauen, aber beim export das letzte hdf5 streichen (am besten wieder in die .bashrc), also so:
+Additional steps:
+* OpenMPI (Version: 2.0.0 tested. Others should also work.) compiled with GNU (set exports in the .bashrc and reload!)
+  **ATTENTION: All other Software (hdf5, ParaView, Flexi, ...) must be compiled with the same MPI version.**
+* HDF5 (Version: 1.10.0-patch1 tested. Others should also work.) with cmake as shown in the following,
+  but remove the last hdf5 in the export (place in the .bashrc), as follows:
    * export HDF5_DIR=/opt/hdf5/1.X.X/share/cmake/
-* Paraview (5.4.1) runterladen und entpacken
-* Hier: [FileParser-Patch fuer Timestamps](https://paraview.uservoice.com/forums/11350-general/suggestions/12591231-expand-the-name-patterns-for-temporal-file-series) voten und den patch anwenden mit
+* Paraview (5.4.1) downloaded and extracted
+* Vote for this fix and apply the patch: [FileParser-Patch fuer Timestamps](https://paraview.uservoice.com/forums/11350-general/suggestions/12591231-expand-the-name-patterns-for-temporal-file-series)
 ```
 patch -p1 < FileParser.patch
 ```
-im paraview root directory.
-   * PATCH fuer 5.3.0: [FileParser.patch](/uploads/ec2723307910f061389d83bba0c1897c/FileParser.patch), [ErrorMessage.patch](/uploads/793df4cdaee862d10a48fdc321b8df93/ErrorMessage.patch)
-   * PATCH fuer 5.4.1: [FileParser.patch](/uploads/4f413a1cac1a04645749def3b016c28d/FileParser.patch), [ErrorMessage.patch](/uploads/412d199f264c51aafebb871e16fd730b/ErrorMessage.patch)
-* Paraview mit dem untigem cmake-Commando bauen, wieder die exports nicht vergessen
-* Plugin bauen
+im ParaView root directory.
+   * PATCH for 5.3.0: [FileParser.patch](/uploads/ec2723307910f061389d83bba0c1897c/FileParser.patch), [ErrorMessage.patch](/uploads/793df4cdaee862d10a48fdc321b8df93/ErrorMessage.patch)
+   * PATCH for 5.4.1: [FileParser.patch](/uploads/4f413a1cac1a04645749def3b016c28d/FileParser.patch), [ErrorMessage.patch](/uploads/412d199f264c51aafebb871e16fd730b/ErrorMessage.patch)
+* Compile ParaView with the following cmake command and don't forget the exports
+* Compile the plugin
 
-#### OpenMPI kompilieren
-OpenMPI selbst kompilieren (Versionen 1.8.4, 1.8.8, 2.0.0, 3.1.3 getestet):
+#### OpenMPI installation
+OpenMPI compilation (Versions 1.8.4, 1.8.8, 2.0.0, 3.1.3 tested):
 ```
  GNU: ./configure --prefix=/opt/openmpi/1.X.X/gnu
  INTEL: ./configure CC=icc CXX=icpc F77=ifort FC=ifort --prefix=/opt/openmpi/1.X.X/intel
  make && make install
 ```
-Setzen der Umgebungsvariablen (in /etc/profile oder .bashrc oder .zshrc ...):
+Set the environment variables (in /etc/profile or .bashrc or .zshrc ...):
 ```
  export PATH=/opt/openmpi/1.X.X/YYYYY/bin:$PATH
  export LD_LIBRARY_PATH=/opt/openmpi/1.X.X/YYYYY/lib/:$LD_LIBRARY_PATH
  export CMAKE_PREFIX_PATH=/opt/openmpi/1.X.X/YYYYY/:$CMAKE_PREFIX_PATH
 ```
-**ATTENTION: .bashrc bzw. .zshrc neu laden!!!**
+**ATTENTION: reload .bashrc or. .zshrc!!!**
 
-Für ältere Ubuntu (14.04) kann hier auch direkt das OpenMPI aus den Paketquellen (Version 1.6.x) verwendet werden (**NICHT EMPFOHLEN**). Bei Ubuntu 16.04 wird OpenMPI 1.10.x mitgeliefert, hier **selber kompilieren**! Ansonsten geht die Ausführung des Plugins später schief.
+For older Ubuntu versions (14.04), the OpenMPI version from the package manager can be used (version 1.6.x) but this is **NOT
+ENCOURAGED**. For Ubuntu 16.04, OpenMPI 1.10.x is supplied, which should be compiled, otherwise the plugin might not work later on.
+#### HDF5 installation
+HDF5 compilation (Versions 1.8.13, 1.8.14, 1.8.16, 1.10.0-patch1 tested):
 
-#### HDF5 kompilieren
-HDF5 bauen (Versionen 1.8.13, 1.8.14, 1.8.16, 1.10.0-patch1 getestet):
-
-###### entweder mit '''cmake''' (**EMPFOHLEN**)
+###### either via '''cmake''' (**ENCOURAGED**)
 ```
  cmake -DBUILD_TESTING=OFF -DHDF5_BUILD_FORTRAN=ON -DHDF5_BUILD_CPP_LIB=OFF -DHDF5_BUILD_EXAMPLES=OFF -DHDF5_ENABLE_PARALLEL=ON -DHDF5_BUILD_HL_LIB=ON -DHDF5_BUILD_TOOLS=ON -DHDF5_ENABLE_F2003=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/hdf5/1.X.X ..
  make && make install
 ```
-Setzen der Umgebungsvariablen (in /etc/profile oder .bashrc oder .zshrc ...):
+Set the environment variables (in /etc/profile or .bashrc or .zshrc ...):
 ```
  export HDF5_DIR=/opt/hdf5/1.X.X/share/cmake/hdf5
  export CMAKE_PREFIX_PATH=/opt/hdf5/1.X.X/:$CMAKE_PREFIX_PATH
 ```
-Achtung: Zumindest bei HDF5 1.8.16 lautet der richtige Pfad (ohne /hdf5):
+Attention: At least for HDF5 1.8.16 the correct path does not include /hdf5:
 ```
  export HDF5_DIR=/opt/hdf5/1.X.X/share/cmake
 ```
-**ATTENTION: .bashrc bzw. .zshrc neu laden!!!**
+**ATTENTION: reload .bashrc or .zshrc!!!**
 
-###### oder mit configure (**NICHT EMPFOHLEN**)
+###### or via configure (**NOT ENCOURAGED**)
 ```
  ./configure --prefix=/opt/hdf5/1.X.X --with-pic --enable-fortran --enable-fortran2003 --disable-shared --enable-parallel
  make && make install
 ```
-Setzen der Umgebungsvariablen (in /etc/profile oder .bashrc oder .zshrc ...):
+Set the environment variables (in /etc/profile or .bashrc or .zshrc ...):
 ```
  export HDF5_DIR=/opt/hdf5/1.X.X/
  export CMAKE_PREFIX_PATH=/opt/hdf5/1.X.X/:$CMAKE_PREFIX_PATH
 ```
-**ATTENTION: .bashrc bzw. .zshrc neu laden!!!**
+**ATTENTION: reload .bashrc or .zshrc!!!**
 
 
-#### ParaView kompilieren
-Paraview source files gibt es auf github unter
+#### ParaView installation
+Download the ParaView source files, e.g., from github
 ```
 git clone https://github.com/Kitware/ParaView.git ./paraview
 git submodule update --init --recursive
 ```
 
-ParaView bauen (Versionen 4.3.1, 5.0.0, 5.3.0, 5.4.1 getestet):
+ParaView compilation (Versions 4.3.1, 5.0.0, 5.3.0, 5.4.1 tested):
 
-Siehe auch "Prerequisits" auf der Paraview Dokumentationsseite [ParaView-Doku](http://www.paraview.org/Wiki/ParaView:Build_And_Install#Download_ParaView_Source_Code).
-Für Ubuntu 14.04 und 16.04 werden u.a. folgende Pakete benötigt:
+See the "Prerequisites" listed on the ParaView documentation [ParaView-Doku](http://www.paraview.org/Wiki/ParaView:Build_And_Install#Download_ParaView_Source_Code).
+For Ubuntu 14.04 and 16.04 the following packages are required:
 ```
 sudo apt-get install libqt4-dev libboost-dev libpython-dev qt4-dev-tools
 ```
-Falls die folgenden Executables beim Kompilieren im qt4/bin Ordner nicht gefunden werden, kann dort ein symbolischer Link zu /usr/bin/ gesetzt werden:
+If the following executables are not found during the installation in the qt4/bin folder, a symbolic link to /usr/bin/ can be set
+for:
 * usr/bin/xmlpatterns
 * (usr/bin/qhelpgenerator)
-* wer die VisitBridge benoetigt (z.B. fuer CGNS Files), der stellt -DPARAVIEW_USE_VISITBRIDGE auf ON
-* Hier: [FileParser-Patch fuer Timestamps](https://paraview.uservoice.com/forums/11350-general/suggestions/12591231-expand-the-name-patterns-for-temporal-file-series) voten und den patch anwenden
-   * PATCH fuer 5.3.0: [FileParser.patch](/uploads/ec2723307910f061389d83bba0c1897c/FileParser.patch), [ErrorMessage.patch](/uploads/793df4cdaee862d10a48fdc321b8df93/ErrorMessage.patch)
-   * PATCH fuer 5.4.1: [FileParser.patch](/uploads/4f413a1cac1a04645749def3b016c28d/FileParser.patch), [ErrorMessage.patch](/uploads/412d199f264c51aafebb871e16fd730b/ErrorMessage.patch)
+* if somebody required VisitBridge (e.g. for CGNS files), set -DPARAVIEW_USE_VISITBRIDGE to ON
+* Apply the patch here (please vote): [FileParser-Patch fuer Timestamps](https://paraview.uservoice.com/forums/11350-general/suggestions/12591231-expand-the-name-patterns-for-temporal-file-series)
+   * PATCH for 5.3.0: [FileParser.patch](/uploads/ec2723307910f061389d83bba0c1897c/FileParser.patch), [ErrorMessage.patch](/uploads/793df4cdaee862d10a48fdc321b8df93/ErrorMessage.patch)
+   * PATCH for 5.4.1: [FileParser.patch](/uploads/4f413a1cac1a04645749def3b016c28d/FileParser.patch), [ErrorMessage.patch](/uploads/412d199f264c51aafebb871e16fd730b/ErrorMessage.patch)
 
-ParaView bauen:
+ParaView compilation:
 ```
  cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DBUILD_EXAMPLES=OFF -DPARAVIEW_ENABLE_PYTHON=ON -DPARAVIEW_USE_MPI=ON -DPARAVIEW_USE_VISITBRIDGE=OFF -DPARAVIEW_INSTALL_DEVELOPMENT_FILES=ON -DPARAVIEW_QT_VERSION=4 -DCMAKE_INSTALL_PREFIX=/opt/paraview/X.X.X ..
  make && make install
 ```
-
-Setzen der Umgebungsvariablen (in /etc/profile oder .bashrc oder .zshrc ...):
+Set the environment variables (in /etc/profile or .bashrc or .zshrc ...):
 ```
  export ParaView_DIR=/opt/paraview/X.X.X
 ```
-**ATTENTION: .bashrc bzw. .zshrc neu laden!!!**
+**ATTENTION: reload .bashrc or .zshrc!!!**
 
-##### ParaView mit Qt5
+##### ParaView with Qt5
 
-Die neueren ParaView-Versionen werden standardmäßig mit Qt5 gebaut, wenn dies nicht wie oben explizit ausgeschlossen wird. Wer schon auf Qt5 ist, der benötigt die folgenden Pakete, um zu kompilieren (getestet mit Ubuntu 18.04):
+The new ParaView versions are built with Qt5 by default. The following packages are required (tested with Ubuntu 18.04):
 ```
 sudo apt-get install qttools5-dev libqt5x11extras5-dev qt5-default libxt-dev libgl1-mesa-dev
 ```
 
-#### ParaView-Plugin kompilieren
-* Im Flexi cmake das bauen des Plugins aktivieren:
+#### Compile the ParaView-Plugin
+* Set the Flexi cmake to compile the plugin
 ```
 FLEXI_BUILDPOSTI = ON
 POSTI_BUILD_VISU = ON
 POSTI_USE_PARAVIEW = ON
 ```
-* paraview in der .bash_aliases/.zshrc/... umlenken auf:
+* set an appropriate alias for ParaView in .bash_aliases/.zshrc/...
 ```
  alias paraview='paraview --mpi'
 ```
-* Mehrere Plugins kann man ganz einfach benutzen (z.b. bei mehreren `build` Ordnern), indem man auf der Commandline die `PV_PLUGIN_PATH`-Variable setzt. Zum Beispiel paraview mit folgendem Befehl ausführen um das Plugin im entsprechenden lib-Ordner zu verwenden:
+* Multiple plugins can be used, e.g., from different `build` folders, by setting the variable `PV_PLUGIN_PATH`. The following command can be utilized
 ```
 PV_PLUGIN_PATH=pfad_zum_flexi_build_ordner/lib paraview
 ```
+
 ### ParaView on Hazel Hen (ParaView 5.3)
 
 HLRS is providing ParaView as a module. Some special steps have to be taken to connect a ParaView client on a local machine to a server on the Hazel Hen.
@@ -390,9 +390,9 @@ overview of the tools is given in [TOOLS.md](https://github.com/piclas-framework
 
 ### Userblock
 
-The `userblock` contains the complete information about a **PICLas** run (git branch of the 
-repository, differences to that branch, `cmake` configuration and parameter file) and is prepended 
-to every `.h5` state file. The parameter file is prepended in ASCII format, the rest is binary and 
+The `userblock` contains the complete information about a **PICLas** run (git branch of the
+repository, differences to that branch, `cmake` configuration and parameter file) and is prepended
+to every `.h5` state file. The parameter file is prepended in ASCII format, the rest is binary and
 is generated automatically during the build process with the `generateuserblock.sh` script.
 
 ### `extract_userblock.py`
@@ -409,18 +409,18 @@ where `-XXX` can be replaced by
 
 ### `rebuild.py`
 
-The second python tool in this folder is `rebuild.py`. It extracts the userblock from a state file 
-and builds a **PICLas** repository and binary identical to the one that the state file was created 
-with. In order to do so, it clones a **PICLas** git repository, checks out the given branch, applies 
-the stored changes to the git `HEAD` and builds **PICLas** with the stored `cmake` options. 
-If run with the parameter file given in the `INIFILE` part of the userblock, this binary should 
-reproduce the same results/behaviour (possible remaining sources of different output are for example 
+The second python tool in this folder is `rebuild.py`. It extracts the userblock from a state file
+and builds a **PICLas** repository and binary identical to the one that the state file was created
+with. In order to do so, it clones a **PICLas** git repository, checks out the given branch, applies
+the stored changes to the git `HEAD` and builds **PICLas** with the stored `cmake` options.
+If run with the parameter file given in the `INIFILE` part of the userblock, this binary should
+reproduce the same results/behaviour (possible remaining sources of different output are for example
 differences in restart files, compilers, linked libraries or machines). The basic usage is
 
     python2 rebuild.py [dir] [statefile.h5]
 
-where `dir` is an empty directory that the repository is cloned into and where the `piclas` 
-executable is built. `statefile.h5` is the state file whose userblock is used to rebuild the `piclas` 
+where `dir` is an empty directory that the repository is cloned into and where the `piclas`
+executable is built. `statefile.h5` is the state file whose userblock is used to rebuild the `piclas`
 executable. Help can be shown via `-h` for both userblock scripts.
 
 
