@@ -614,9 +614,10 @@ High-order field solvers require deposition methods that reduce the noise, e.g.,
 
 or
 
-    PIC-Deposition-Type = shape_function_simple
+    PIC-Deposition-Type = shape_function_cc
 
-where `shape_function_simple` is faster for small numbers of elements per processor (high parallelization).
+where `shape_function_cc` is a more charge-conserving method that adjusts the deposited charge by
+comparing its integral value to the total charge given by the particles.
 
 The shape function sphere might be truncated at walls or open boundaries, which can be prevented by
 using a local deposition method near boundaries. The deposition of particles in elements where the shape
@@ -645,10 +646,17 @@ $$
 
 The direction in which deposition is performed is chosen via
 
-    PIC-shapefunction1d-direction = 1 ! for x-direction
-                                    2 ! for y-direction
-                                    3 ! for z-direction
+    PIC-shapefunction-direction = 1 ! for x-direction
+                                  2 ! for y-direction
+                                  3 ! for z-direction
 
+and the dimensionality of the shape function is controlled by
+
+    PIC-shapefunction-dimension = 1 ! for 1D
+                                  2 ! for 2D
+                                  3 ! for 3D
+
+which has to be set to 1 in the case of 1D deposition.
 
 ##### Shape Function 2D
 A two-dimensional shape function in $x$-$y$-direction is given by
@@ -663,9 +671,9 @@ grid point at position $\boldsymbol{x}$ and the $n$-th particle at position $\bo
 $R$ is the cut-off radius and $\Delta z=z_{2}-z_{1}$ is the domain length in $z$-direction.
 The perpendicular direction to the two axes, in which deposition is performed is chosen via
 
-    PIC-shapefunction1d-direction = 1 ! for const. depo in x-direction
-                                    2 ! for const. depo in y-direction
-                                    3 ! for const. depo in z-direction
+    PIC-shapefunction-direction = 1 ! for const. depo in x-direction
+                                  2 ! for const. depo in y-direction
+                                  3 ! for const. depo in z-direction
 
 when the charge is to be deposited const. along the $x$- or $y$- or $z$-direction.
 If the charge is to be deposited over the area instead of the volume, the flag
@@ -673,6 +681,13 @@ If the charge is to be deposited over the area instead of the volume, the flag
     PIC-shapefunction-3D-deposition=F
 
 must be set, which simply sets $\Delta z=1$ for the example described above.
+Again, the dimensionality of the shape function is controlled by
+
+    PIC-shapefunction-dimension = 1 ! for 1D
+                                  2 ! for 2D
+                                  3 ! for 3D
+
+which has to be set to 2 in the case of 2D deposition.
 
 ##### Shape Function 3D
 A three-dimensional shape function in $x$-$y$-direction is given by [@Stock2012]
