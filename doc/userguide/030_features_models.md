@@ -154,13 +154,55 @@ include, periodic, Dirichlet, Silver-Mueller, perfectly conducting, symmetry and
 |   (/10,0/)   |    10: Sym   |                                       Symmetry BC (perfect MAGNETIC conductor, PMC)                                       |
 |              |              |                                                                                                                           |
 |   (/20,0/)   |    20: Ref   |                              Use state that is read from .h5 file and interpolated to the BC                              |
-|              |              |                                                                                                                           |
 
 Dielectric -> type 100?
 
 ### Poisson's Equation
 
-To-do
+The boundary conditions used for Maxwell's equations are defined by the first integer value in the *BoundaryType* vector and
+include, periodic, Dirichlet (via pre-defined function, zero-potential or *RefState*), Neumann and reference state boundaries
+as detailed in the following table.
+
+| BoundaryType |     Type     |                                                            State                                                           |
+|  :--------:  |  :---------: |                                   :------------------------------------------------------                                  |
+|    (/1,1/)   |  1: periodic |                                     1: positive direction of the 1st periodicity vector                                    |
+|   (/1,-1/)   |  1: periodic |                               -1: negative (opposite) direction of the 1st periodicity vector                              |
+|              |              |                                                                                                                            |
+|    (/2,0/)   | 2: Dirichlet |                                                          0: Phi=0                                                          |
+|    (/2,2/)   | 2: Dirichlet |                                      2: linear potential y-z via Phi = y*2340 + z*2340                                     |
+|   (/2,103/)  | 2: Dirichlet |                                                         103: dipole                                                        |
+|   (/2,104/)  | 2: Dirichlet |                              104: solution to Laplace's equation: Phi_xx + Phi_yy + Phi_zz = 0                             |
+|   (/2,200/)  | 2: Dirichlet | 200: Dielectric Sphere of Radius R in constant electric field E_0 from book: John David Jackson, Classical Electrodynamics |
+|   (/2,300/)  | 2: Dirichlet |                     300: Dielectric Slab in z-direction of half width R in constant electric field E_0:                    |
+|              |              |                                                   adjusted from CASE(200)                                                  |
+|   (/2,301/)  | 2: Dirichlet |                    301: like CASE=300, but only in positive z-direction the dielectric region is assumed                   |
+|   (/2,400/)  | 2: Dirichlet |                                         400: Point Source in Dielectric Region with                                        |
+|              |              |                                              epsR_1  = 1  for x $<$ 0 (vacuum)                                             |
+|              |              |                                         epsR_2 != 1 for x $>$ 0 (dielectric region)                                        |
+|              |              |                                                                                                                            |
+|    (/4,0/)   | 4: Dirichlet |                                                   zero-potential (Phi=0)                                                   |
+|              |              |                                                                                                                            |
+|    (/5,1/)   | 5: Dirichlet |                                          1: use RefState Nbr 1, see details below                                          |
+|              |              |                                                                                                                            |
+|   (/10,0/)   |  10: Neumann |                                                  zero-gradient (dPhi/dn=0)                                                 |
+|   (/11,0/)   |  11: Neumann |                                                            q*n=1                                                           |
+
+For each boundary of type *5* (reference state boundary *RefState*), e.g.,
+
+    BoundaryName = BC_WALL ! BC name in the mesh.h5 file
+    BoundaryType = (/5,1/) ! (/ Type, curveIndex, State, alpha /)
+
+the corresponding *RefState* number must also be supplied (here 1) and is selected from its position in the parameter file. Each
+*RefState* is defined in the *parameter.ini* file by supplying a value for the voltage an alternating frequency for the cosine
+function (a frequency of 0 results in a fixed potential over time) and phase shift
+
+    RefState = (/-0.18011, 0.0, 0.0/) ! RefState Nbr 1: Voltage, Frequency and Phase shift
+
+This yields the three parameters used in the general function
+
+    Phi(t) = COS(2*pi*f*t + psi)
+
+where, *t* is the time, *f* is the frequency and *psi* is the phase shift.
 
 ### Dielectric Materials
 
@@ -293,7 +335,7 @@ The rotational periodic boundary condition can be used in order to reduce the co
     Part-Boundary1-SourceName=BC_Rot_Peri_plus
     Part-Boundary1-Condition=rot_periodic
     Part-Boundary1-RotPeriodicDir=1
-    
+
     Part-Boundary2-SourceName=BC_Rot_Peri_minus
     Part-Boundary2-Condition=rot_periodic
     Part-Boundary2-RotPeriodicDir=-1

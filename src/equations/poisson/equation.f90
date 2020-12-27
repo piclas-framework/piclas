@@ -207,11 +207,11 @@ REAL                            :: cos_theta
 REAL                            :: eps1,eps2
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
-CASE(-1) ! Amplitude and Frequency supplied by RefState
-  !RefState(1,iRefState): amplitude
-  !RefState(2,iRefState): frequency
+CASE(-1) ! Amplitude, Frequency and Phase Shift supplied by RefState
+  ! RefState(1,iRefState): amplitude
+  ! RefState(2,iRefState): frequency
+  ! RefState(3,iRefState): phase shift
   Omega   = 2.*PI*RefState(2,iRefState)
-  !Resu(:) = RefState(1,iRefState)*SIN(Omega*t)
   Resu(:) = RefState(1,iRefState)*COS(Omega*t+RefState(3,iRefState))
 CASE(0) !linear
     Resu(:)=0.
