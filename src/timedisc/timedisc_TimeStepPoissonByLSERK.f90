@@ -101,12 +101,12 @@ DO iStage_loc=1,nRKStages
   END IF
 END DO
 #endif /*PARTICLES*/
-iStage=1
 
 ! first RK step
+iStage=1
+tStage=time
 #ifdef PARTICLES
 CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
-tStage=time
 RKdtFrac = RK_c(2)
 dtWeight = dt/dt_Min * RKdtFrac
 RKdtFracTotal=RKdtFrac

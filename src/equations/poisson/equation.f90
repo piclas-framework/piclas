@@ -536,7 +536,7 @@ REAL                            :: source_e
 INTEGER                         :: RegionID, CNElemID
 #endif /*PARTICLES*/
 !===================================================================================================================================
-warning_linear=.FALSE. ! Initialize
+IF(PRESENT(warning_linear)) warning_linear=.FALSE. ! Initialize
 ! Calculate IniExactFunc before particles are superimposed, because the IniExactFunc might be needed by the CalcError function
 SELECT CASE (IniExactFunc)
 CASE(0) ! Particles
