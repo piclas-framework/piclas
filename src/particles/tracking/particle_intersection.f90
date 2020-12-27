@@ -1633,7 +1633,7 @@ LOGICAL                              :: InsideBoundingBox
 REAL                                 :: x,y,z,P(3)
 !================================================================================================================================
 P=ParticlePosition-BezierControlPoints3D(1:3,0,0,SideID)
-! y is perpendicular to xi & eta directions --> check first, smallest intervall
+! y is perpendicular to xi & eta directions --> check first, smallest interval
 y=DOT_PRODUCT(P,SideSlabNormals(:,2,SideID))
 IF((y.LT.SideSlabIntervals(3,SideID)-100.*epsMach).OR.(y.GT.SideSlabIntervals(4,SideID)+100.*epsMach))THEN
   InsideBoundingBox=.FALSE.

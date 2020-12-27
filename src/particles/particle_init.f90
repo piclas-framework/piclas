@@ -473,7 +473,7 @@ CALL prms%CreateRealArrayOption('Part-Boundary[$]-WallVelo'  &
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-RotVelo'  &
                                 , 'Flag for rotating walls:'//&
                                   ' Particles will be accelerated additionaly to the boundary interaction'//&
-                                  ' through the rotating wall depoending on their POI, rotation frequency and rotationaxis.'//&
+                                  ' through the rotating wall depending on their POI, rotation frequency and rotation axis.'//&
                                   ' In that case Part-Boundary[$]-WallVelo will be overwritten.' &
                                 , '.FALSE.'&
                                 , numberedmulti=.TRUE.)
@@ -503,7 +503,7 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 'for particle surface interaction. If any >0 then look in section SurfaceModel.\n'//&
                                 '0: Maxwell scattering\n'//&
                                 '5: SEE-E and SEE-I (secondary e- emission due to e- or i+ bombardment) '//&
-                                    'by Levko2015 for copper electrondes\n'//&
+                                    'by Levko2015 for copper electrodes\n'//&
                                 '6: SEE-E (secondary e- emission due to e- bombardment) '//&
                                     'by Pagonakis2016 for molybdenum (originally from Harrower1956)'//&
                                 '7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for '//&

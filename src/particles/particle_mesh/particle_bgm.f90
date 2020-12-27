@@ -66,7 +66,7 @@ CALL prms%SetSection('BGM')
 
 ! Background mesh init variables
 CALL prms%CreateRealArrayOption('Part-FIBGMdeltas'&
-  , 'Define the deltas for the cartesian Fast-Init-Background-Mesh.'//&
+  , 'Define the deltas for the Cartesian Fast-Init-Background-Mesh.'//&
   ' They should be of the similar size as the smallest cells of the used mesh for simulation.'&
   , '1. , 1. , 1.')
 CALL prms%CreateRealArrayOption('Part-FactorFIBGM'&

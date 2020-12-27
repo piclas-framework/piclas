@@ -68,13 +68,13 @@ CALL prms%CreateRealOption(     'Particles-DSMC-RotRelaxProb'&
 CALL prms%CreateRealOption(     'Particles-DSMC-VibRelaxProb'&
                                           , 'Define the vibrational relaxation probability upon collision of molecules', '0.004')
 CALL prms%CreateRealOption(     'Particles-DSMC-ElecRelaxProb'&
-                                          , 'Define the elextronic relaxation probability upon collision of molecules', '0.01')
+                                          , 'Define the electronic relaxation probability upon collision of molecules', '0.01')
 CALL prms%CreateRealOption(     'Particles-DSMC-GammaQuant'&
                                           , 'Set the GammaQuant for zero point energy in Evib (perhaps also Erot) should be'//&
                                           ' 0.5 or 0.', '0.5')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-BackwardReacRate'&
                                          , 'Set [TRUE] to enable the automatic calculation of the backward reaction rate '//&
-                                           'coefficientusing the equilibrium constant calculated by partition functions\n'//&
+                                           'coefficient using the equilibrium constant calculated by partition functions\n'//&
                                            '[FALSE] if they are defined as separate reactions.' , '.FALSE.')
 CALL prms%CreateRealOption(     'Particles-DSMC-PartitionMaxTemp'&
                                           , 'Define temperature limit for pre-stored partition function that are used for '//&
@@ -148,7 +148,7 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-MergeSubcells'&
 
 CALL prms%SetSection("DSMC Collision")
 CALL prms%CreateIntOption(      'Particles-DSMC-crossSectionConstantMode'  &
-                                            ,'Flags which cross section (sigma) constant Cab calcuation mode is used.\n'//&
+                                            ,'Flags which cross section (sigma) constant Cab calculation mode is used.\n'//&
                                             ' sigma=Cab * cr^(-2 omega)\n'//&
                                             ' 0 : single omega for the computational domain\n'//&
                                             '     Part-Species1=omega will be set \n     for all and Cab will be calculated\n'//&
@@ -232,7 +232,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CollNumRotInf'  &
                                            ,'Collision number for rotational relaxation according to Parker or'//&
                                             'Zhang, ini_2 -> model dependent!', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-TempRefRot'  &
-                                           ,'Referece temperature for rotational relaxation according to Parker or '//&
+                                           ,'Reference temperature for rotational relaxation according to Parker or '//&
                                             'Zhang, ini_2 -> model dependent!', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MWConstA-[$]-[$]'  &
                                            ,'Millikan-White constant A for variable vibrational relaxation probability, ini_2' &
