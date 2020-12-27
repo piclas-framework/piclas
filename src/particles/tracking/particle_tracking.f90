@@ -1964,7 +1964,7 @@ USE MOD_Particle_Surfaces_Vars      ,ONLY: SideNormVec
 USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
 USE MOD_Particle_Tracking_Vars      ,ONLY: TrackInfo
 USE MOD_Particle_Vars               ,ONLY: PDM
-#if CODE_ANALYZE
+#ifdef CODE_ANALYZE
 USE MOD_Mesh_Vars                   ,ONLY: NGeo
 USE MOD_Particle_Localization       ,ONLY: SinglePointToElement
 USE MOD_Particle_Surfaces_Vars      ,ONLY: BezierControlPoints3D
@@ -2000,7 +2000,7 @@ INTEGER                           :: iLocalSide
 !INTEGER                           :: locFlip
 REAL                              :: locAlpha,locXi,locEta
 REAL                              :: n_loc(3)
-#if CODE_ANALYZE
+#ifdef CODE_ANALYZE
 REAL                              :: v1(3),v2(3)
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
@@ -2029,7 +2029,7 @@ ELSE
       CALL CalcNormAndTangBezier(  nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
   END SELECT
 
-#if CODE_ANALYZE
+#ifdef CODE_ANALYZE
   ! check if normal vector points outwards
   v1 = 0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)  &
            + BezierControlPoints3D(:,NGeo,0   ,SideID)  &
@@ -2050,7 +2050,7 @@ ELSE
   ! check if the side is a big mortar side
   NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
 
-#if CODE_ANALYZE
+#ifdef CODE_ANALYZE
   WRITE(UNIT_stdout,'(30("-"))')
   WRITE(UNIT_stdout,*) 'ElemID:',ElemID,'PartID',PartID,'SideID:',SideID,'Move rel. to Side:',DOT_PRODUCT(n_loc,PartTrajectory),'NbElemID:',NbElemID, 'PartElem (w/o refl.)', SinglePointToElement(PartState(1:3,PartID),doHalo=.TRUE.)
   WRITE(UNIT_stdout,*) 'PartPos',PartState(1:3,PartID), 'PartVel:',PartState(4:6,PartID)

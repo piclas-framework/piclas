@@ -366,7 +366,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
 
   IF (HaloProc.EQ.myRank) CYCLE
 
-!#if CODE_ANALYZE
+!#ifdef CODE_ANALYZE
 !    ! Sanity checks. Elems in halo region must have ELEM_HALOFLAG=2 and the proc must not be flagged yet
 !    IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.2) THEN
 !      IPWRITE(UNIT_stdOut,*) 'Element ID:',ElemID,'Halo Flag: ',ElemInfo_Shared(ELEM_HALOFLAG,ElemID)

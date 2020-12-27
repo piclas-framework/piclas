@@ -90,7 +90,7 @@ INTERFACE DSMC_SetInternalEnr_LauxVFD
   MODULE PROCEDURE DSMC_SetInternalEnr_LauxVFD
 END INTERFACE
 
-#if CODE_ANALYZE
+#ifdef CODE_ANALYZE
 INTERFACE CalcVectorAdditionCoeffs
   MODULE PROCEDURE CalcVectorAdditionCoeffs
 END INTERFACE
@@ -108,7 +108,7 @@ PUBLIC :: CalcNbrOfPhotons, CalcPhotonEnergy
 PUBLIC :: CalcIntensity_Gaussian
 PUBLIC :: CalcVelocity_FromWorkFuncSEE, DSMC_SetInternalEnr_LauxVFD
 PUBLIC :: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
-#if CODE_ANALYZE
+#ifdef CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
@@ -1591,7 +1591,7 @@ END DO
 END SUBROUTINE InsideExcludeRegionCheck
 
 
-#if CODE_ANALYZE
+#ifdef CODE_ANALYZE
 PURE FUNCTION CalcVectorAdditionCoeffs(point,Vector1,Vector2)
 !===================================================================================================================================
 ! robust calculation of Coeffs C(1) and C(2) from point = C(1)*Vector1 + C(2)*Vector2

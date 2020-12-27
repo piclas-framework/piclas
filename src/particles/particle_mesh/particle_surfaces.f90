@@ -209,7 +209,7 @@ SDEALLOCATE(D_Bezier)
 
 ! InitParticleMesh
 SDEALLOCATE(BezierSampleXi)
-#if CODE_ANALYZE
+#ifdef CODE_ANALYZE
 SDEALLOCATE(SideBoundingBoxVolume)
 #endif
 

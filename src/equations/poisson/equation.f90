@@ -61,13 +61,11 @@ IMPLICIT NONE
 CALL prms%SetSection("Equation")
 CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Define exact function necessary for linear scalar advection')
-CALL prms%CreateRealArrayOption('RefState'         , 'State(s) for electric potential (amplitude, frequency).', multiple=.TRUE.)
+CALL prms%CreateRealArrayOption('RefState'         , 'State(s) for electric potential (amplitude, frequency and phase shift).', multiple=.TRUE.)
 CALL prms%CreateRealArrayOption('IniWavenumber'    , 'TODO-DEFINE-PARAMETER' , '1. , 1. , 1.')
 CALL prms%CreateRealArrayOption('IniCenter'        , 'TODO-DEFINE-PARAMETER' , '0. , 0. , 0.')
 CALL prms%CreateRealOption(     'IniAmplitude'     , 'TODO-DEFINE-PARAMETER' , '0.1')
 CALL prms%CreateRealOption(     'IniHalfwidth'     , 'TODO-DEFINE-PARAMETER' , '0.1')
-CALL prms%CreateRealOption(     'ACfrequency'      , 'TODO-DEFINE-PARAMETER' , '0.0')
-CALL prms%CreateRealOption(     'ACamplitude'      , 'TODO-DEFINE-PARAMETER' , '0.0')
 
 CALL prms%CreateIntOption(      'chitensWhichField', 'TODO-DEFINE-PARAMETER', '-1')
 CALL prms%CreateRealOption(     'chitensValue'     , 'TODO-DEFINE-PARAMETER', '-1.0')
@@ -131,8 +129,6 @@ IniWavenumber = GETREALARRAY('IniWavenumber',3,'1.,1.,1.')
 IniCenter     = GETREALARRAY('IniCenter',3,'0.,0.,0.')
 IniAmplitude  = GETREAL('IniAmplitude','0.1')
 IniHalfwidth  = GETREAL('IniHalfwidth','0.1')
-ACfrequency   = GETREAL('ACfrequency','0.0')
-ACamplitude   = GETREAL('ACamplitude','0.0')
 
 chitensWhichField = GETINT( 'chitensWhichField','-1')
 chitensValue      = GETREAL('chitensValue','-1.0')
@@ -182,7 +178,6 @@ SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState)
 USE MOD_Globals         ,ONLY: Abort,mpiroot
 USE MOD_Globals_Vars    ,ONLY: PI
 USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState
-USE MOD_Equation_Vars   ,ONLY: ACfrequency,ACamplitude
 USE MOD_Dielectric_Vars ,ONLY: DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
 USE MOD_Mesh_Vars       ,ONLY: ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
@@ -199,8 +194,7 @@ INTEGER,INTENT(IN),OPTIONAL     :: iRefState        ! ElemID
 REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: Frequency,Amplitude,Omega
-REAL                            :: Cent(3)
+REAL                            :: Omega
 REAL                            :: r1,r2
 REAL                            :: r_2D,r_3D,r_bary
 REAL                            :: cos_theta
@@ -542,6 +536,7 @@ REAL                            :: source_e
 INTEGER                         :: RegionID, CNElemID
 #endif /*PARTICLES*/
 !===================================================================================================================================
+warning_linear=.FALSE. ! Initialize
 ! Calculate IniExactFunc before particles are superimposed, because the IniExactFunc might be needed by the CalcError function
 SELECT CASE (IniExactFunc)
 CASE(0) ! Particles

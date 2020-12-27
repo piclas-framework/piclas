@@ -27,7 +27,6 @@ INTEGER           :: IniExactFunc
 REAL              :: IniCenter(3)
 REAL              :: IniAmplitude
 REAL              :: IniHalfwidth
-REAL              :: ACfrequency,ACamplitude ! used for alternate current BC
 
 ! needed for various stuff (compilation)
 REAL              :: c_corr

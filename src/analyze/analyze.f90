@@ -818,10 +818,10 @@ INTEGER                       :: iSide
 INTEGER                       :: RECI
 REAL                          :: RECR
 #endif /*USE_MPI*/
-#endif /*PARTICLES*/
 #ifdef CODE_ANALYZE
-REAL                          :: TotalSideBoundingBoxVolume,rDummy
+REAL                          :: TotalSideBoundingBoxVolume
 #endif /*CODE_ANALYZE*/
+#endif /*PARTICLES*/
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
 REAL                          :: L_Inf_Error(PP_nVar)
@@ -1168,9 +1168,9 @@ IF(TrackingMethod.NE.TRIATRACKING)THEN
       TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
 #if USE_MPI
       IF(MPIRoot) THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE,TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,TotalSideBoundingBoxVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
       ELSE ! no Root
-        CALL MPI_REDUCE(TotalSideBoundingBoxVolume,rDummy  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
+        CALL MPI_REDUCE(TotalSideBoundingBoxVolume,0,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
       END IF
 #endif /*USE_MPI*/
       SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
@@ -1229,6 +1229,7 @@ END IF
 
 END SUBROUTINE PerformAnalyze
 
+#ifdef PARTICLES
 #ifdef CODE_ANALYZE
 SUBROUTINE CodeAnalyzeOutput(TIME)
 !===================================================================================================================================
@@ -1341,5 +1342,6 @@ rPerformBezierNewton=0.
 
 END SUBROUTINE CodeAnalyzeOutput
 #endif /*CODE_ANALYZE*/
+#endif /*PARTICLES*/
 
 END MODULE MOD_Analyze
