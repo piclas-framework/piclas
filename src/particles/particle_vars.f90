@@ -22,9 +22,6 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL                  :: ManualTimeStep                                      ! Manual TimeStep
-LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
-                                                                             ! with IAG programming style
 TYPE tSymmetry
   INTEGER             :: Order                                               ! 1-3 D
   LOGICAL             :: Axisymmetric

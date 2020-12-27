@@ -115,7 +115,7 @@ CALL prms%CreateIntOption(      'PIC-shapefunction-direction',&
                                                                  !, '.FALSE.')
 !CALL prms%CreateIntOption(      'PIC-shapefunction1d-direction' ,'1D shape function: Deposition direction\n'//&
                                                                  !'2D shape function: Perpendicular deposition')
-CALL prms%CreateLogicalOption(  'PIC-shapefunction-3D-deposition' ,'Deposite the charge over volume (3D)\n'//&
+CALL prms%CreateLogicalOption(  'PIC-shapefunction-3D-deposition' ,'Deposit the charge over volume (3D)\n'//&
                                                                    ' or over a line (1D)/area(2D)\n'//&
                                                                    '1D shape function: volume or line\n'//&
                                                                    '2D shape function: volume or area', '.TRUE.')

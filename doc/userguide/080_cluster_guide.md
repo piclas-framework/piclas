@@ -97,7 +97,7 @@ An example submit script for the test queue is then
     module unload craype-hugepages16M
 
     # restart
-    aprun -n $ncores -N $nodecores -j 1 ./piclas parameter.ini DSMCSpecies.ini restart.h5 1>log 2>log.err 
+    aprun -n $ncores -N $nodecores -j 1 ./piclas parameter.ini DSMCSpecies.ini restart.h5 1>log 2>log.err
 
 More information on using the queue system can be found in the [HLRS wiki](https://wickie.hlrs.de/platforms/index.php/CRAY_XC40_Using_the_Batch_System).
 
@@ -105,16 +105,16 @@ Section last updated: 27.03.2019
 
 ### Profiling with Craypat
 
-* Compile PICLas with 
+* Compile PICLas with
        module load perftools-base && module load perftools-lite && export CRAYPAT_LITE=event_profile
 * Run PICLas with normal submit script
-* Program has to finish normally! Enough time during execution. Note, that the profiled version is slower, hence, the testqueue is maybe too short. 
-* Visualize the *.app2 files 
+* Program has to finish normally! Enough time during execution. Note, that the profiled version is slower, hence, the testqueue is maybe too short.
+* Visualize the *.app2 files
 
 ## Simulating at forHLR \label{sec:forhlr}
 
 For building with *CMake* on the forhlr1 cluster, the following modules (Intel compiler) should be loaded and included in the .bashrc or .profile:
-  
+
     module load devel/cmake
     module load compiler/intel/18.0
     module load mpi/impi/2018
@@ -130,10 +130,10 @@ Example submit script:
     #SBATCH --partition multinode
     #SBATCH --mail-user=your@mail.de
     #SBATCH --mail-type=ALL
-    
+
     module load mpi/impi/2018
     module load lib/hdf5/1.10
-    
+
     mpiexec.hydra -bootstrap slurm ./piclas parameter.ini DSMCSpecies.ini 1>log 2>log.err
 
 More information about the cluster and the batch system can be found at the [ForHLR wiki](https://wiki.scc.kit.edu/hpc/index.php/Category:ForHLR).
@@ -143,7 +143,7 @@ Section last updated: 27.03.2019
 ## Simulating at bwUniCluster \label{sec:bwuni}
 
 For building with *CMake* on the bwUniCluster cluster, the following modules (Intel compiler) should be loaded and included in the .bashrc or .profile:
-  
+
     module load devel/cmake
     module load compiler/intel/17.0
     module load mpi/openmpi/3.1-intel-17.0

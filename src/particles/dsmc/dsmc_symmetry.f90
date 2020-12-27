@@ -52,7 +52,7 @@ CALL prms%CreateLogicalOption('Particles-RadialWeighting', 'Activates a radial w
                               'simulation based on the particle position.', '.FALSE.')
 CALL prms%CreateRealOption(   'Particles-RadialWeighting-PartScaleFactor', 'Axisymmetric radial weighting factor, defining '//&
                               'the linear increase of the weighting factor (e.g. factor 2 means that the weighting factor will '//&
-                              'be twice as large at the outer radial domain boudary than at the rotational axis')
+                              'be twice as large at the outer radial domain boundary than at the rotational axis')
 CALL prms%CreateLogicalOption('Particles-RadialWeighting-CellLocalWeighting', 'Enables a cell-local radial weighting, '//&
                               'where every particle has the same weighting factor within a cell', '.FALSE.')
 CALL prms%CreateIntOption(    'Particles-RadialWeighting-CloneMode',  &

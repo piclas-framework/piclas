@@ -40,8 +40,10 @@ CALL prms%SetSection("TimeDisc")
                                                !"  * standardrk3-3\n  * carpenterrk4-5\n  * niegemannrk4-14\n"//&
                                                !"  * toulorgerk4-8c\n  * toulorgerk3-7c\n  * toulorgerk4-8f\n"//&
                                                !"  * ketchesonrk4-20\n  * ketchesonrk4-18", value='CarpenterRK4-5')
+CALL prms%CreateRealOption(  'ManualTimeStep'  , 'Manual timestep [sec]. Old variable name Particles-ManualTimeStep is'//&
+                                                 'also still supported', '-1.0')
 CALL prms%CreateRealOption(  'TEnd',           "End time of the simulation (mandatory).")
-CALL prms%CreateRealOption(  'CFLScale',       "Scaling factor for the theoretical CFL number, typical range 0.1..1.0 (mandatory)")
+CALL prms%CreateRealOption(  'CFLScale',       "Scaling factor for the theoretical CFL number, typical range 0.1..1.0",value='1.0')
 CALL prms%CreateIntOption(   'maxIter',        "Stop simulation when specified number of timesteps has been performed.", value='-1')
 CALL prms%CreateIntOption(   'NCalcTimeStepMax',"Compute dt at least after every Nth timestep.", value='1')
 
@@ -101,6 +103,7 @@ USE MOD_ReadInTools   ,ONLY: GetReal,GetInt, GETLOGICAL
 USE MOD_TimeDisc_Vars ,ONLY: IterDisplayStepUser
 USE MOD_TimeDisc_Vars ,ONLY: CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal,dtWeight
 USE MOD_TimeDisc_Vars ,ONLY: IterDisplayStep,DoDisplayIter
+USE MOD_TimeDisc_Vars ,ONLY: ManualTimeStep,useManualTimestep
 #ifdef IMPA
 USE MOD_TimeDisc_Vars ,ONLY: RK_c, RK_inc,RK_inflow,nRKStages
 #endif
@@ -131,6 +134,11 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT TIMEDISC...'
 ! Read the normalized CFL number
 CFLScale = GETREAL('CFLScale')
 CALL FillCFL_DFL()
+
+!--- Read Manual Time Step
+useManualTimeStep = .FALSE.
+ManualTimeStep = GETREAL('ManualTimeStep')
+IF (ManualTimeStep.GT.0.0) useManualTimeStep=.True.
 
 ! Read the maximum number of time steps MaxIter and the end time TEnd from ini file
 TEnd=GetReal('TEnd') ! must be read in here due to DSMC_init
@@ -245,15 +253,13 @@ SUBROUTINE InitTimeStep()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_TimeDisc_Vars,      ONLY: dt, dt_Min
-USE MOD_TimeDisc_Vars,      ONLY: sdtCFLOne
+USE MOD_TimeDisc_Vars ,ONLY: dt, dt_Min,ManualTimeStep,useManualTimestep
+USE MOD_TimeDisc_Vars ,ONLY: sdtCFLOne
 #if !(USE_HDG)
-USE MOD_CalcTimeStep,       ONLY:CalcTimeStep
-USE MOD_TimeDisc_Vars,      ONLY: CFLtoOne
+USE MOD_CalcTimeStep  ,ONLY: CalcTimeStep
+USE MOD_TimeDisc_Vars ,ONLY: CFLtoOne
 #endif
-#ifdef PARTICLES
-USE MOD_Particle_Vars,      ONLY: ManualTimeStep, useManualTimestep
-#endif /*PARTICLES*/
+USE MOD_ReadInTools   ,ONLY: GETREAL
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -261,13 +267,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-#ifdef PARTICLES
 ! For tEnd != tStart we have to advance the solution in time
 IF(useManualTimeStep)THEN
   ! particle time step is given externally and not calculated through the solver
   dt_Min=ManualTimeStep
 ELSE ! .NO. ManualTimeStep
-#endif /*PARTICLES*/
   ! time step is calculated by the solver
   ! first Maxwell time step for explicit LSRK
 #if !(USE_HDG)
@@ -281,10 +285,7 @@ ELSE ! .NO. ManualTimeStep
   dt=dt_Min
   ! calculate time step for sub-cycling of divergence correction
   ! automatic particle time step of quasi-stationary time integration is not implemented
-#ifdef PARTICLES
 END IF ! useManualTimestep
-
-#endif /*PARTICLES*/
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_StdOut,'(A,ES16.7)')'Initial Timestep  : ', dt_Min

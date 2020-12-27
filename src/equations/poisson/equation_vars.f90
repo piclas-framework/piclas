@@ -57,5 +57,7 @@ CHARACTER(LEN=255),DIMENSION(4),PARAMETER :: StrVarNames(4)=(/ CHARACTER(LEN=255
                                                                                      'ElectricFieldX', &
                                                                                      'ElectricFieldY', &
                                                                                      'ElectricFieldZ'/)
+INTEGER           :: nRefState     !< number of refstates defined in parameter file
+REAL,ALLOCATABLE  :: RefState(:,:) !< refstates in primitive variables (as read from ini file)
 !===================================================================================================================================
 END MODULE MOD_Equation_Vars

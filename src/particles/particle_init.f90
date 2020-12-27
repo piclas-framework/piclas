@@ -93,7 +93,8 @@ CALL DefineParametersParticleRHS()
 
 CALL prms%SetSection("Particle")
 
-CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  ,         'Manual timestep [sec]', '0.0')
+CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  , 'Manual timestep [sec]. This variable is deprecated. '//&
+                                                              'Use ManualTimestep instead.', '-1.0')
 CALL prms%CreateRealOption(     'Part-AdaptiveWeightingFactor', 'Weighting factor theta for weighting of average'//&
                                                                 ' instantaneous values with those of previous iterations.', '0.001')
 CALL prms%CreateIntOption(      'Particles-nPointsMCVolumeEstimate', 'Number of points used to calculate volume portion '//&
@@ -443,7 +444,7 @@ CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Defin
                               , '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-Voltage'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
-                                  'Voltage on boundary [$]', '0.', numberedmulti=.TRUE.)
+                                  'Voltage on boundary [$]', '1.0e20', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp'  &
                                 , 'Wall temperature (in [K]) of reflective particle boundary [$].' &
                                 , '0.', numberedmulti=.TRUE.)
@@ -472,7 +473,7 @@ CALL prms%CreateRealArrayOption('Part-Boundary[$]-WallVelo'  &
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-RotVelo'  &
                                 , 'Flag for rotating walls:'//&
                                   ' Particles will be accelerated additionaly to the boundary interaction'//&
-                                  ' through the rotating wall depoending on their POI, rotation frequency and rotationaxis.'//&
+                                  ' through the rotating wall depending on their POI, rotation frequency and rotation axis.'//&
                                   ' In that case Part-Boundary[$]-WallVelo will be overwritten.' &
                                 , '.FALSE.'&
                                 , numberedmulti=.TRUE.)
@@ -502,7 +503,7 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 'for particle surface interaction. If any >0 then look in section SurfaceModel.\n'//&
                                 '0: Maxwell scattering\n'//&
                                 '5: SEE-E and SEE-I (secondary e- emission due to e- or i+ bombardment) '//&
-                                    'by Levko2015 for copper electrondes\n'//&
+                                    'by Levko2015 for copper electrodes\n'//&
                                 '6: SEE-E (secondary e- emission due to e- bombardment) '//&
                                     'by Pagonakis2016 for molybdenum (originally from Harrower1956)'//&
                                 '7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for '//&
@@ -820,6 +821,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
+USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep,useManualTimeStep
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -828,6 +830,7 @@ USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL              :: ManualTimeStepParticle ! temporary variable
 !===================================================================================================================================
 ! Read basic particle parameter
 PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
@@ -838,12 +841,12 @@ CALL InitializeVariablesRandomNumbers()
 DoPoissonRounding = GETLOGICAL('Particles-DoPoissonRounding','.FALSE.')
 DoTimeDepInflow   = GETLOGICAL('Particles-DoTimeDepInflow','.FALSE.')
 DelayTime = GETREAL('Part-DelayTime','0.')
-!--- Read Manual Time Step
-useManualTimeStep = .FALSE.
-ManualTimeStep = GETREAL('Particles-ManualTimeStep', '0.0')
-IF (ManualTimeStep.GT.0.0) THEN
-  useManualTimeStep=.True.
-END IF
+!--- Read Manual Time Step: Old variable name still supported
+ManualTimeStepParticle = GETREAL('Particles-ManualTimeStep')
+IF(ManualTimeStepParticle.GT.0.0)THEN
+  ManualTimeStep = ManualTimeStepParticle
+  IF (ManualTimeStep.GT.0.0) useManualTimeStep=.True.
+END IF ! ManualTimeStepParticle.GT.0.0
 
 nSpecies = GETINT('Part-nSpecies','1')
 IF (nSpecies.LE.0) THEN
@@ -1728,6 +1731,7 @@ INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps
 INTEGER               :: ALLOCSTAT, dummy_int
 CHARACTER(32)         :: hilf , hilf2
 CHARACTER(200)        :: tmpString
+LOGICAL               :: DeprecatedVoltage
 !===================================================================================================================================
 ! Read in boundary parameters
 dummy_int = CountOption('Part-nBounds')       ! check if Part-nBounds is present in .ini file
@@ -1786,6 +1790,7 @@ ALLOCATE(PartBound%Reactive(         1:nPartBound))
 PartBound%Reactive = .FALSE.
 ALLOCATE(PartBound%Voltage(1:nPartBound))
 PartBound%Voltage = 0.
+DeprecatedVoltage = .FALSE.
 ALLOCATE(PartBound%UseForQCrit(1:nPartBound))
 PartBound%UseForQCrit = .FALSE.
 ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
@@ -1825,7 +1830,8 @@ DO iPartBound=1,nPartBound
   SELECT CASE (TRIM(tmpString))
   CASE('open')
     PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic
-    PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0.')
+    PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
+    IF(ABS(PartBound%Voltage(iPartBound)).LT.1e20) DeprecatedVoltage=.TRUE.
   CASE('reflective')
 #if defined(IMPA) || defined(ROS)
     PartMeshHasReflectiveBCs=.TRUE.
@@ -1844,6 +1850,7 @@ DO iPartBound=1,nPartBound
     PartBound%RotOrg(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotOrg',3)
     PartBound%RotAxi(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotAxi',3)
     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
+    IF(ABS(PartBound%Voltage(iPartBound)).LT.1e20) DeprecatedVoltage=.TRUE.
     PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
     PartBound%WallTemp2(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp2')
     IF(PartBound%WallTemp2(iPartBound).GT.0.) THEN
@@ -2000,6 +2007,11 @@ DO iPartBound=1,nPartBound
   BCdata_auxSF(iPartBound)%GlobalArea=0.
   BCdata_auxSF(iPartBound)%LocalArea=0.
 END DO
+
+!-- Sanity check: Deprecated voltage parameter
+IF(DeprecatedVoltage) CALL abort(&
+  __STAMP__&
+  ,'Part-Boundary-Voltage is no longer supported. Use corresponding RefState parameter as described in the user guide.')
 
 END SUBROUTINE InitializeVariablesPartBoundary
 
