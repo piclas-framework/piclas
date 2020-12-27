@@ -215,30 +215,8 @@ CASE(-1) ! Amplitude, Frequency and Phase Shift supplied by RefState
   Resu(:) = RefState(1,iRefState)*COS(Omega*t+RefState(3,iRefState))
 CASE(0) !linear
     Resu(:)=0.
-CASE(1) !linear
-    Resu(:)=0.
-CASE(21) !linear
-    Resu(:)=10.+SUM(x)
-CASE(101) !constant
-    Resu(:)=7.7
 CASE(1001) ! linear in y-z
     Resu(:)=x(2)*2340 + x(3)*2340
-CASE(2) !sinus
-  Frequency=0.5
-  Amplitude=0.3
-  Omega=2.*PI*Frequency
-  Resu(:)=1.+Amplitude*SIN(Omega*SUM(Cent))
-CASE(30) !sinus: shifted by PI into the future (ACamplitude -> -1*ACamplitude)
-  Omega=2.*PI*ACfrequency
-  Resu(:)=-ACamplitude*SIN(Omega*t)
-CASE(31) !sinus
-  Omega=2.*PI*ACfrequency
-  Resu(:)=ACamplitude*SIN(Omega*t)
-CASE(32) !sinus
-  resu=0.
-  !return
-  !Omega=2.*PI*ACfrequency
-  !Resu(:)=ACamplitude*SIN(Omega*t-PI)
 CASE(102) !linear: z=-1: 0, z=1, 1000
   resu(:)=(1+x(3))*1000.
 CASE(103) ! dipole

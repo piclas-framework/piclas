@@ -169,9 +169,11 @@ as detailed in the following table.
 |   (/1,-1/)   |  1: periodic |                               -1: negative (opposite) direction of the 1st periodicity vector                              |
 |              |              |                                                                                                                            |
 |    (/2,0/)   | 2: Dirichlet |                                                          0: Phi=0                                                          |
-|    (/2,2/)   | 2: Dirichlet |                                      2: linear potential y-z via Phi = y*2340 + z*2340                                     |
+|  (/2,1001/)  | 2: Dirichlet |                                    1001: linear potential y-z via Phi = y*2340 + z*2340                                    |
+|   (/2,101/)  | 2: Dirichlet |                                       101: linear in z-direction: z=-1: 0, z=1, 1000                                       |
 |   (/2,103/)  | 2: Dirichlet |                                                         103: dipole                                                        |
 |   (/2,104/)  | 2: Dirichlet |                              104: solution to Laplace's equation: Phi_xx + Phi_yy + Phi_zz = 0                             |
+|              |              |                          $\Phi=(COS(x)+SIN(x))(COS(y)+SIN(y))(COSH(SQRT(2.0)z)+SINH(SQRT(2.0)z))$                          |
 |   (/2,200/)  | 2: Dirichlet | 200: Dielectric Sphere of Radius R in constant electric field E_0 from book: John David Jackson, Classical Electrodynamics |
 |   (/2,300/)  | 2: Dirichlet |                     300: Dielectric Slab in z-direction of half width R in constant electric field E_0:                    |
 |              |              |                                                   adjusted from CASE(200)                                                  |
