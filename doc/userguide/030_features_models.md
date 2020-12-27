@@ -14,7 +14,7 @@ Three different particle tracking methods are implemented in PICLas and are sele
                                   ! particles:
                                   ! refmapping (1): reference mapping of particle
                                   ! position with (bi-)linear and bezier (curved)
-                                  ! description of sides. 
+                                  ! description of sides.
                                   ! tracing (2): tracing of particle path with
                                   ! (bi-)linear and bezier (curved) description of
                                   ! sides.
@@ -42,7 +42,7 @@ The two alternative tracking routines and their options are described in the fol
     TrackingMethod = refmapping
 
 This method is the slowest implemented method for linear grids and large particle displacements.
-A particle is mapped into a element to compute the particle position in the reference space. 
+A particle is mapped into a element to compute the particle position in the reference space.
 This test determines in which element a particle is located. Each element has a slightly larger
 reference space due to tolerance. Starting from reference values >=1. the best element is found and used for the
 hosting element. In order to take boundary interactions into account, all BC faces in the halo vicinity of the element
@@ -70,7 +70,7 @@ located inside of this element. Next, the particle trajectory is traced througho
 for an intersection and a particle assigned accordingly to neighbor elements or the interaction with boundary conditions occur. This
 algorithm has no inherent self-consistency check. For critical intersections (beginning or end of a particle path or if a particle is located close to
 the edges of element faces) an additional safety check is performed by recomputing the element check and if it fails a re-localization of
-the particle is required. Particles traveling parallel to element faces are in an undefined state and are currently removed from the computation. 
+the particle is required. Particles traveling parallel to element faces are in an undefined state and are currently removed from the computation.
 This leads to a warning message. Note that tracing on periodic meshes works only for non-mpi computations. Periodic displacement requires
 additional coding.
 
@@ -237,8 +237,8 @@ Spherical regions can be defined by setting a radius value
 
     DielectricRadiusValue = X
 
-and special pre-defined regions (which also consider spatially varying material properties) may also be 
-used, e.g., 
+and special pre-defined regions (which also consider spatially varying material properties) may also be
+used, e.g.,
 
     DielectricTestCase = FishEyeLens
 
@@ -425,7 +425,7 @@ For surface sampling output, where the surface is split into, e.g., $3\times3$ s
     Particles-DSMC-CalcSurfaceVal = T
     Part-IterationForMacroVal = 200
 
-where `BezierSampleN=DSMC-nSurfSample`. In this example, sampling is performed over 200 interations.
+where `BezierSampleN=DSMC-nSurfSample`. In this example, sampling is performed over 200 iterations.
 
 ### Deposition of Charges on Dielectric Surfaces
 
@@ -551,7 +551,7 @@ A special case is the ionization of a background gas through photon impact, mode
     Part-Species1-Init1-WaveLength              = 1E-9      ! [m]
     Part-Species1-Init1-NbrOfPulses             = 1         ! [-], default = 1
 
-The pulse duration and waist radius are utilized to define the spatial and temporal Gaussian profile of the intensity. The number of pulses allows to consider multiple light pulses within a single simulation. To define the intensity of the light pulse, either the average pulse power (energy of a single pulse times repetition rate), the pulse energy or the intensity amplitude have to be provided. 
+The pulse duration and waist radius are utilized to define the spatial and temporal Gaussian profile of the intensity. The number of pulses allows to consider multiple light pulses within a single simulation. To define the intensity of the light pulse, either the average pulse power (energy of a single pulse times repetition rate), the pulse energy or the intensity amplitude have to be provided.
 
     Part-Species1-Init1-Power                   = 1         ! [W]
     Part-Species1-Init1-RepetitionRate          = 1         ! [Hz]
@@ -564,7 +564,7 @@ The intensity can be scaled with an additional factor to account for example for
 
     Part-Species1-Init1-EffectiveIntensityFactor    = 1         ! [-]
 
-It should be noted that this initialization should be done with a particle spiecies (i.e. not the background gas species) that is also a product of the ionization reaction. The ionization reactions are defined as described in Section \ref{sec:dsmc_chemistry} by
+It should be noted that this initialization should be done with a particle species (i.e. not the background gas species) that is also a product of the ionization reaction. The ionization reactions are defined as described in Section \ref{sec:dsmc_chemistry} by
 
     DSMC-NumOfReactions = 1
     DSMC-Reaction1-ReactionType         = phIon
@@ -596,7 +596,7 @@ The surface flux is mapped to a certain boundary by giving its boundary number (
 
     Part-Species1-Surfaceflux1-BC=1
 
-The remaining parameters such as flow velocity, temperature and number density are given analogously to the initial particle insertion presented in Section \ref{sec:particle_insertion}. An example to define the surface flux for a diatomic species is given below 
+The remaining parameters such as flow velocity, temperature and number density are given analogously to the initial particle insertion presented in Section \ref{sec:particle_insertion}. An example to define the surface flux for a diatomic species is given below
 
     Part-Species1-Surfaceflux1-VeloIC=1500
     Part-Species1-Surfaceflux1-VeloVecIC=(/-1.0,0.0,0.0/)
@@ -660,7 +660,7 @@ The relaxation factor $f_{\mathrm{relax}}$ is defined by
 
     Part-AdaptiveWeightingFactor = 0.001
 
-The adaptive particle emission can be combined with the circular inflow feature. In this context when the area of the actual emission circle/ring is very small, it is preferable to utilize the `Type=4` constant mass flow condition. `Type=3` assumes an open boundary and accounts for particles leaving the domain through that boundary already when determining the number of particles to be inserted. As a result, this method tends to overpredict the given mass flow, when the emission area is very small and large sample size would be required to have enough particles that leave the domain through the emission area. For the `Type=4` method, the actual number of particles leaving the domain through the circular inflow is counted and the mass flow adapted accordingly, thus the correct mass flow can be reproduced.
+The adaptive particle emission can be combined with the circular inflow feature. In this context when the area of the actual emission circle/ring is very small, it is preferable to utilize the `Type=4` constant mass flow condition. `Type=3` assumes an open boundary and accounts for particles leaving the domain through that boundary already when determining the number of particles to be inserted. As a result, this method tends to over predict the given mass flow, when the emission area is very small and large sample size would be required to have enough particles that leave the domain through the emission area. For the `Type=4` method, the actual number of particles leaving the domain through the circular inflow is counted and the mass flow adapted accordingly, thus the correct mass flow can be reproduced.
 
 Additionally, the `Type=4` method can be utilized in combination with a reflective boundary condition to model diffusion and leakage (e.g. in vacuum tanks) based on a diffusion rate $Q$ [Pa m$^3$ s$^{-1}$]. The input mass flow [kg s$^{-1}$] for the simulation is then determined by
 
@@ -885,7 +885,7 @@ The last cross-section type `custom` allows the definition of a cross-section as
 
     Coil1-AxisVec1 = (/0.0,0.0,1.0/)
     Coil1-NumOfSegments = 3
-    ! Linear segment defined by 
+    ! Linear segment defined by
     Coil1-Segment1-SegmentType = line
     Coil1-Segment1-NumOfPoints = 5
     Coil1-Segment1-LineVector = (/1.0,1.0/)
@@ -920,7 +920,7 @@ Additionally, the number of simulated physical models depending on the applicati
 
 `CollisMode = 1` can be utilized for the simulation of a non-reactive, cold atomic gas, where no chemical reactions or electronic excitation is expected. `CollisMode = 2` should be chosen for non-reactive diatomic gas flows to include the internal energy exchange (by default including the rotational and vibrational energy treatment). Finally, reactive gas flows can be simulated with `CollisMode = 3`. The following sections describe the required definition of species parameter (Section \ref{sec:dsmc_species}), the parameters for the internal energy exchange (Section \ref{sec:dsmc_relaxation}) and chemical reactions (Section \ref{sec:dsmc_chemistry}).
 
-A fixed simulation time step $\Delta t$ is defined by
+A fixed ("manual") simulation time step $\Delta t$ is defined by
 
     ManualTimeStep = 1.00E-7
 
@@ -958,7 +958,7 @@ The first option is to adapt the time step during a simulation restart based on 
     Particles-MacroscopicRestart = T
     Particles-MacroscopicRestart-Filename = Test_DSMCState.h5
 
-The second flag allows to enable/disable the adaptation of the time step distribution. Typically, a simulation would be performed until a steady-state (or close to it, e.g. the particle number is not increasing significantly anymore) is reached with a uniform time step. Then a restart with the above options would be performed, where the time step distribution is adapted using the DSMC output of the last simulation. Now, the user can decide to continue adapting the time step with the subsequent DSMC outputs (Note: Do not forget to update the DSMCState file name!) or to disable the adaptation and to continue the simulation with the distribution from the last simulation (the adapted particle time step is saved within the regular state file). It should be noted that if after a successful restart at e.g. $t=2$, and the simulation fails during the runtime at $t=2.5$ before the next state file could be written out at $t=3$, an adaptation for the next simulation attempt shoud NOT be performed as the adapted time step is stored in the output of new restart file at the restart time $t=2$. Restart files from which the restart is performed are overwritten after a successful restart.
+The second flag allows to enable/disable the adaptation of the time step distribution. Typically, a simulation would be performed until a steady-state (or close to it, e.g. the particle number is not increasing significantly anymore) is reached with a uniform time step. Then a restart with the above options would be performed, where the time step distribution is adapted using the DSMC output of the last simulation. Now, the user can decide to continue adapting the time step with the subsequent DSMC outputs (Note: Do not forget to update the DSMCState file name!) or to disable the adaptation and to continue the simulation with the distribution from the last simulation (the adapted particle time step is saved within the regular state file). It should be noted that if after a successful restart at e.g. $t=2$, and the simulation fails during the runtime at $t=2.5$ before the next state file could be written out at $t=3$, an adaptation for the next simulation attempt should NOT be performed as the adapted time step is stored in the output of new restart file at the restart time $t=2$. Restart files from which the restart is performed are overwritten after a successful restart.
 
 The `MaxFactor` and `MinFactor` allow to limit the adapted time step within a range of $f_{\mathrm{min}} \Delta t$ and $f_{\mathrm{max}} \Delta t$. The time step adaptation can be used to increase the number of particles by defining a minimum particle number (e.g `MinPartNum` = 10, optional). For DSMC, the parameters `TargetMCSoverMFP` (ratio of the mean collision separation distance over mean free path) and `TargetMaxCollProb` (maximum collision probability) allow to modify the target values for the adaptation. For the BGK and FP methods, the time step can be adapted according to a target maximal relaxation frequency.
 
@@ -1035,7 +1035,7 @@ For the cloning procedure, two methods are implemented, where the information of
     Particles-RadialWeighting-CloneMode=2
     Particles-RadialWeighting-CloneDelay=10
 
-This serves the purpose to avoid the so-called particle avalanche phenomenon [@Galitzine2015], where clones travel on the exactly same path as the original in the direction of a decreasing weight. They have a zero relative velocity (due to the same velocity vector) and thus a collision probability of zero. Combined with the nearest neighbor pairing, this would lead to an ever-increasing number of identical particles travelling on the same path. An indicator how often identical particle pairs are encountered per time step during collisions is given as an output (`2D_IdenticalParticles`, to enable the output see Section \ref{sec:dsmc_quality}). Additionally, it should be noted that a large delay of the clone insertion might be problematic for time-accurate simulations. However, for the most cases, values for the clone delay between 2 and 10 should be sufficient to avoid the avalance phenomenon.
+This serves the purpose to avoid the so-called particle avalanche phenomenon [@Galitzine2015], where clones travel on the exactly same path as the original in the direction of a decreasing weight. They have a zero relative velocity (due to the same velocity vector) and thus a collision probability of zero. Combined with the nearest neighbor pairing, this would lead to an ever-increasing number of identical particles travelling on the same path. An indicator how often identical particle pairs are encountered per time step during collisions is given as an output (`2D_IdenticalParticles`, to enable the output see Section \ref{sec:dsmc_quality}). Additionally, it should be noted that a large delay of the clone insertion might be problematic for time-accurate simulations. However, for the most cases, values for the clone delay between 2 and 10 should be sufficient to avoid the avalanche phenomenon.
 
 Another issue is the particle emission on large sides in $y$-dimension close to the rotational axis. As particles are inserted linearly along the $y$-direction of the side, a higher number density is inserted closer to the axis. This effect is directly visible in the free-stream in the cells downstream, when using mortar elements, or in the heatflux (unrealistic peak) close to the rotational axis. It can be avoided by splitting the surface flux emission side into multiple subsides with the following flag (default value is 20)
 
@@ -1047,7 +1047,7 @@ An alternative to the particle position-based weighting is the cell-local radial
 
 However, this method is not preferable if the cell dimensions in $y$-direction are large, resulting in numerical artifacts due to the clustered cloning processes at cell boundaries.
 
-Besides DSMC, 2D/axisymmetric simulations are also possible the BGK/FP particle method with the same parameters as discussed above (for more informatino about the BGK and FP methods, see Section \ref{sec:continuum}).
+Besides DSMC, 2D/axisymmetric simulations are also possible the BGK/FP particle method with the same parameters as discussed above (for more information about the BGK and FP methods, see Section \ref{sec:continuum}).
 
 ##### Variable Time Step: Linear scaling \label{sec:2DAxi_vts}
 
@@ -1209,7 +1209,7 @@ If `VibRelaxProb` is between 0 and 1, it is used as a constant vibrational relax
     Part-Species2-MWConstB-2-1 = -6.92
     Part-Species2-VibCrossSection = 1e-19
 
-It is not possible to calculate an instantaneous vibrational relaxation probability with this model [@Boyd1992]. Thus, the probability is calculated for every colission and is averaged. To avoid large errors in cells containing only a few particles, a relaxation of this average probability is implemented. The relaxation factor $\alpha$ can be changed with the following parameter in the ini file:
+It is not possible to calculate an instantaneous vibrational relaxation probability with this model [@Boyd1992]. Thus, the probability is calculated for every collision and is averaged. To avoid large errors in cells containing only a few particles, a relaxation of this average probability is implemented. The relaxation factor $\alpha$ can be changed with the following parameter in the ini file:
 
     Particles-DSMC-alpha = 0.99
 
@@ -1282,7 +1282,7 @@ The Total Collision Energy (TCE) model [@Bird1994] utilizes Arrhenius type react
 
 $$k(T) = A T^b e^{-E_\mathrm{a}/T}$$
 
-where $A$ is the prefactor ([$1/s$, $m^3/s$, $m^6/s$] depending on the reaction type), $b$ the powerfactor and $E_\mathrm{a}$ the activation energy [K]. These parameters can be defined in PICLas as follows
+where $A$ is the prefactor ([$1/s$, $m^3/s$, $m^6/s$] depending on the reaction type), $b$ the power factor and $E_\mathrm{a}$ the activation energy [K]. These parameters can be defined in PICLas as follows
 
     DSMC-Reaction1-Arrhenius-Prefactor=6.170E-9
     DSMC-Reaction1-Arrhenius-Powerfactor=-1.60
@@ -1358,7 +1358,7 @@ Under this assumption, collisions within the particle species can be neglected a
 
 Other species parameters such as mass, charge, temperature and velocity distribution for the background are also defined by the regular read-in parameters. A mixture as a background gas can be simulated by simply defining multiple background species.
 
-Every time step particles are generated from the background gas (for a mixture, the species of the generated particle is chosen based on the species composition) and paired with the particle species. Consequently, the collision probabilities are calculated using the conventional DSMC routines and the VHS cross-section model. Aftwards, the collilsion process is performed (if the probability is greater than a random number) and it is tested whether additional energy exchange and chemical reactions occur. While the VHS model is sufficient to model collisions between neutral species, it cannot reproduce the phenomena of a neutral-electron interaction. For this purpose, the cross-section based collision probabilities should be utilized, which are discussed in the following.
+Every time step particles are generated from the background gas (for a mixture, the species of the generated particle is chosen based on the species composition) and paired with the particle species. Consequently, the collision probabilities are calculated using the conventional DSMC routines and the VHS cross-section model. Afterwards, the collision process is performed (if the probability is greater than a random number) and it is tested whether additional energy exchange and chemical reactions occur. While the VHS model is sufficient to model collisions between neutral species, it cannot reproduce the phenomena of a neutral-electron interaction. For this purpose, the cross-section based collision probabilities should be utilized, which are discussed in the following.
 
 ### Cross-section based collision probability \label{sec:xsec_collision}
 
@@ -1397,7 +1397,7 @@ where $\mathbf{A}$ is the drift vector and $\mathcal{D}$ the diffusion matrix.
 The current implementation supports:
 
 - 2 different methods: Cubic and Ellipsoidal Statistical (ES)
-- Single species, monoatomic and polyatomic gases
+- Single species, monatomic and polyatomic gases
 - Thermal non-equilibrium with rotational and vibrational excitation (continuous or quantized treatment)
 - 2D/Axisymmetric simulations
 - Variable time step (adaption of the distribution according to the maximal relaxation factor and linear scaling)
