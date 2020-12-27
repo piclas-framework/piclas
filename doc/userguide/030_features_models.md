@@ -103,11 +103,58 @@ Following parameters can be used for both schemes.
 
 ## Boundary Conditions - Field Solver
 
-To-do: Modification of boundaries with the PICLas parameter file (order is of importance)
+Boundary conditions are defined in the mesh creation step in the hopr.ini file and can be modified when running PICLas in the
+corresponding *parameter.ini* file. In the *hopr.ini* file, which is read by the *hopr* executable, a boundary is defined by
+
+    BoundaryName = BC_Inflow   ! BC index 1 (from  position in the parameter file)
+    BoundaryType = (/4,0,0,0/) ! (/ Type, curveIndex, State, alpha /)
+
+where the name of the boundary is directly followed by its type definition, which contains information on the BC type, curving,
+state and periodicity. This can be modified in the *parameter.ini* file, which is read by the *piclas* executable via
+
+    BoundaryName = BC_Inflow ! BC name in the mesh.h5 file
+    BoundaryType = (/5,0/)   ! (/ Type, State /)
+
+In this case the boundary type is changed from 4 (in the mesh file) to 5 in the simulation.
 
 ### Maxwell's Equations
 
-To-do
+The boundary conditions used for Maxwell's equations are defined by the first integer value in the *BoundaryType* vector and
+include, periodic, Dirichlet, Silver-Mueller, perfectly conducting, symmetry and reference state boundaries as detailed in the following table.
+
+| BoundaryType |     Type     |                                                           State                                                           |
+|  :--------:  |   :-------:  |                                  :------------------------------------------------------                                  |
+|    (/1,1/)   |  1: periodic |                                    1: positive direction of the 1st periodicity vector                                    |
+|   (/1,-1/)   |  1: periodic |                              -1: negative (opposite) direction of the 1st periodicity vector                              |
+|              |              |                                                                                                                           |
+|    (/2,2/)   | 2: Dirichlet |                                                    2: Coaxial waveguide                                                   |
+|    (/2,3/)   | 2: Dirichlet |                                                        3: Resonator                                                       |
+|    (/2,4/)   | 2: Dirichlet |                 4: Electromagnetic dipole (implemented via RHS source terms and shape function deposition)                |
+|   (/2,40/)   | 2: Dirichlet |   40: Electromagnetic dipole without initial condition (implemented via RHS source terms and shape function deposition)   |
+|   (/2,41/)   | 2: Dirichlet |             41: Pulsed Electromagnetic dipole (implemented via RHS source terms and shape function deposition)            |
+|    (/2,5/)   | 2: Dirichlet |                              5: Transversal Electric (TE) plane wave in a circular waveguide                              |
+|    (/2,7/)   | 2: Dirichlet |                                              7: Special manufactured Solution                                             |
+|   (/2,10/)   | 2: Dirichlet |                10: Issautier 3D test case with source (Stock et al., div. correction paper), domain [0;1]^3               |
+|   (/2,12/)   | 2: Dirichlet |                                                       12: Plane wave                                                      |
+|   (/2,121/)  | 2: Dirichlet |                             121: Pulsed plane wave (infinite spot size) and temporal Gaussian                             |
+|   (/2,14/)   | 2: Dirichlet |             14: Gaussian pulse is initialized inside the domain (usually used as initial condition and not BC)            |
+|   (/2,15/)   | 2: Dirichlet |                                  15: Gaussian pulse with optional delay time *tDelayTime*                                 |
+|   (/2,16/)   | 2: Dirichlet |               16: Gaussian pulse which is initialized in the domain and used as a boundary condition for t>0              |
+|   (/2,50/)   | 2: Dirichlet |                                 50: Initialization and BC Gyrotron - including derivatives                                |
+|   (/2,51/)   | 2: Dirichlet |                   51: Initialization and BC Gyrotron - including derivatives (nothing is set for z>eps)                   |
+|              |              |                                                                                                                           |
+|    (/3,0/)   |     3: SM    |      1st order absorbing BC (Silver-Mueller) - Munz et al. 2000 / Computer Physics Communication 130, 83-117 with fix     |
+|              |              |              of div. correction field for low B-fields that only set the correction fields when ABS(B)>1e-10              |
+|    (/5,0/)   |     5: SM    |          1st order absorbing BC (Silver-Mueller) - Munz et al. 2000 / Computer Physics Communication 130, 83-117          |
+|    (/6,0/)   |     6: SM    |      1st order absorbing BC (Silver-Mueller) - Munz et al. 2000 / Computer Physics Communication 130, 83-117 with fix     |
+|              |              | of div. correction field for low B-fields that only set the correction fields when B is significantly large compared to E |
+|              |              |                                                                                                                           |
+|    (/4,0/)   |     4: PEC   |                           Perfectly conducting surface (Munz, Omnes, Schneider 2000, pp. 97-98)                           |
+|              |              |                                                                                                                           |
+|   (/10,0/)   |    10: Sym   |                                       Symmetry BC (perfect MAGNETIC conductor, PMC)                                       |
+|              |              |                                                                                                                           |
+|   (/20,0/)   |    20: Ref   |                              Use state that is read from .h5 file and interpolated to the BC                              |
+|              |              |                                                                                                                           |
 
 Dielectric -> type 100?
 
@@ -118,8 +165,8 @@ To-do
 ### Dielectric Materials
 
 Dielectric material properties can be considered by defining regions (or specific elements)
-in the computational domain, where permittivity and permeability constants for linear isotropic 
-non-lossy dielectrics are used. The interfaces between dielectrics and vacuum regions must be separated 
+in the computational domain, where permittivity and permeability constants for linear isotropic
+non-lossy dielectrics are used. The interfaces between dielectrics and vacuum regions must be separated
 by element-element interfaces due to the DGSEM (Maxwell) and HDG (Poisson) solver requirements, but
 can vary spatially within these elements.
 
@@ -132,12 +179,12 @@ and specifying values for the permittivity and permeability constants
     DielectricEpsR = X
     DielectricMuR = X
 
-Furthermore, the corresponding regions in which the dielectric materials are found must be defined, 
+Furthermore, the corresponding regions in which the dielectric materials are found must be defined,
 e.g., simple boxes via
 
     xyzDielectricMinMax  = (/0.0 , 1.0 , 0.0 , 1.0 , 0.0 , 1.0/)
 
-for the actual dielectric region (vector with 6 entries yielding $x$-min/max, $y$-min/max and 
+for the actual dielectric region (vector with 6 entries yielding $x$-min/max, $y$-min/max and
 $z$-min/max) or the inverse (vacuum, define all elements which are NOT dielectric) by
 
     xyzPhysicalMinMaxDielectric = (/0.0 , 1.0 , 0.0 , 1.0 , 0.0 , 1.0/)
