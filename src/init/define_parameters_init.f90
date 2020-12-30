@@ -64,7 +64,6 @@ USE MOD_Particle_Mesh              ,ONLY: DefineparametersParticleMesh
 USE MOD_Particle_Analyze           ,ONLY: DefineParametersParticleAnalyze
 USE MOD_TTMInit                    ,ONLY: DefineParametersTTM
 USE MOD_PICInit                    ,ONLY: DefineParametersPIC
-USE MOD_InitializeBackgroundField  ,ONLY: DefineParametersBGField
 USE MOD_Part_Emission              ,ONLY: DefineParametersParticleEmission
 USE MOD_DSMC_Init                  ,ONLY: DefineParametersDSMC
 USE MOD_DSMC_ChemInit              ,ONLY: DefineParametersChemistry
@@ -126,7 +125,6 @@ CALL DefineParametersParticleBGM()
 CALL DefineParametersParticleAnalyze()
 CALL DefineParametersTTM()
 CALL DefineParametersPIC()
-CALL DefineParametersBGField()
 CALL DefineParametersParticleEmission()
 CALL DefineParametersDSMC()
 CALL DefineParametersChemistry()

@@ -52,7 +52,8 @@ IMPLICIT NONE
 CALL prms%SetSection("PIC Interpolation")
 
 #ifdef CODE_ANALYZE
-CALL prms%CreateLogicalOption('PIC-DoInterpolationAnalytic'      , "Use an analytic/algebraic function for PIC interpolation "//&
+! -- external field 1
+CALL prms%CreateLogicalOption('PIC-DoInterpolationAnalytic'      , "Method 1 of 5: Use an analytic/algebraic function for PIC interpolation "//&
                                                                    "(ifdef CODE_ANALYZE)",&
                                                                    '.FALSE.')
 
@@ -67,19 +68,33 @@ CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationPhase'   , "Phase shift 
 #endif /*CODE_ANALYZE*/
 
 CALL prms%CreateLogicalOption(  'PIC-DoInterpolation'         , "Interpolate electric/magnetic fields at charged particle position"//&
- "for calculating the acting Lorentz forces, which are used in the RHS of the evolution equation (particle time integrtion)"&
-                                                                , '.TRUE.')
+ " for calculating the acting Lorentz forces, which are used in the RHS of the evolution equation (particle time integration). "//&
+ "Required flag also for using OPTIONAL external fields, for which 5 methods are available:\n"//&
+ "  Method 1: PIC-DoInterpolationAnalytic (convergence tests, CODE_ANALYZE=ON)\n"//&
+ "  Method 2: PIC-externalField (const. E/B field)\n"//&
+ "  Method 3: PIC-variableExternalField (CSV file for Bz(z) that is interpolated)\n"//&
+ "  Method 4: PIC-AlgebraicExternalField (E/B pre-defined algebraic expression)\n"//&
+ "  Method 5: PIC-BG-Field (read 3D magnetic field from .h5)\n"  , '.TRUE.')
 CALL prms%CreateStringOption(   'PIC-Interpolation-Type'      , "Type of Interpolation-Method to calculate the electro(-magnetic)"//&
-                                                                " field's value for the particle", 'particle_position')
+                                                                " field values for the particle push. Poisson solver (E field) "//&
+                                                                "and Maxwell solver (E+B field)", 'particle_position')
 CALL prms%CreateLogicalOption(  'PIC-InterpolationElemLoop'   , 'Interpolate with outer iElem-loop (increased comp. performance '//&
                                                                 ' when using many elements per processor)', '.TRUE.')
-CALL prms%CreateRealArrayOption('PIC-externalField'           , 'Vector for applying a const./externally acting E and B field'//&
+! -- external field 2
+CALL prms%CreateRealArrayOption('PIC-externalField'           , 'Method 2 of 5: Vector for applying a const./externally acting E and B field'//&
                                                                 ' acting on charged particles. This external field is added to the'//&
                                                                 'maxwell/poisson-solver-field', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
 CALL prms%CreateRealOption(     'PIC-scaleexternalField'      , 'Scaling factor for PIC-externalField', '1.0')
 
-CALL prms%CreateStringOption(   'PIC-variableExternalField'   , 'CSV file containing the external magnetic field Bz in z-direction '//&
+! -- external field 3
+CALL prms%CreateStringOption(   'PIC-variableExternalField'   , 'Method 3 of 5: CSV file containing the external magnetic field Bz in z-direction '//&
                                                                 'for interpolating the variable field at each particle z-position.', 'none')
+
+! -- external field 4
+CALL prms%CreateIntOption(      'PIC-AlgebraicExternalField'   , 'Method 4 of 5: External E and B field from algebraic expression that is '//&
+                                                                 'interpolated to the particle position\n[1]: Axial Bz(x) field '//&
+                                                                 'from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark '//&
+                                                                 'for low-temperature partially magnetized plasmas (2019)', '0')
 
 CALL prms%CreateRealArrayOption('PIC-NormVecOfWall'  , 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Normal vector for pushTimeStep', '1. , 0. , 0.')
@@ -87,7 +102,7 @@ CALL prms%CreateRealArrayOption('PIC-BGMdeltas'      , 'TODO-DEFINE-PARAMETER\n'
                                                        'Dimensions of PIC background mesh', '0. , 0. , 0.')
 CALL prms%CreateRealArrayOption('PIC-FactorBGM'      , 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Denominator of PIC-BGMdeltas', '1. , 1. , 1.')
-CALL prms%CreateLogicalOption(  'PIC-OutputSource'   , 'Flag for acticating the output of particle cahrge and current density'//&
+CALL prms%CreateLogicalOption(  'PIC-OutputSource'   , 'Flag for activating the output of particle charge and current density'//&
                                                        'source terms to hdf5', '.FALSE.')
 END SUBROUTINE DefineParametersPICInterpolation
 
@@ -100,7 +115,7 @@ SUBROUTINE InitializeParticleInterpolation
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ReadInTools
-USE MOD_Particle_Vars,          ONLY : PDM
+USE MOD_Particle_Vars         ,ONLY: PDM
 USE MOD_PICInterpolation_Vars
 USE MOD_ReadInTools           ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
@@ -116,6 +131,8 @@ REAL                      :: scaleExternalField
 #ifdef CODE_ANALYZE
 CHARACTER(LEN=20)         :: tempStr
 #endif /*CODE_ANALYZE*/
+REAL              :: B(6),x
+INTEGER           :: i
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
 
@@ -147,6 +164,15 @@ IF (FileNameVariableExternalField.NE.'none') THEN ! if supplied, read the data f
   useVariableExternalField = .TRUE.
   CALL ReadVariableExternalField()
 END IF
+
+! Algebraic external field
+useAlgebraicExternalField    = .FALSE.
+AlgebraicExternalField = GETINT('PIC-AlgebraicExternalField')
+IF(AlgebraicExternalField.GT.0) useAlgebraicExternalField=.TRUE.
+! Sanity Check: Add all integer values that are possible to the vector for checking
+IF(.NOT.ANY(AlgebraicExternalField.EQ.(/1/))) CALL abort(&
+  __STAMP__&
+  ,'Value for PIC-AlgebraicExternalField not defined',IntInfoOpt=AlgebraicExternalField)
 
 !--- Allocate arrays for interpolation of fields to particles
 SDEALLOCATE(FieldAtParticle)
@@ -187,7 +213,7 @@ IF(DoInterpolationAnalytic)THEN
         ,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(ADJUSTL(TempStr))//'" in pic_interpolation.f90')
   END SELECT
 
-  ! Calculate the initial velocity of the particle from an analytic expression: must be implemented for the different 
+  ! Calculate the initial velocity of the particle from an analytic expression: must be implemented for the different
   ! AnalyticInterpolationType methods
   ! Note that for time-staggered methods, Leapfrog and Boris, the initial velocity in shifted by -dt/2 into the past
   IF(DoInterpolationAnalytic.AND.ANY((/0,1/).EQ.AnalyticInterpolationType))THEN
@@ -236,10 +262,10 @@ IF(.NOT.DoInterpolation) RETURN
 !1. Calculate the time step of the discretization of the Current
 IF (CalcBField) CALL GetTimeDependentBGField()
 
-!3. Select element-particle loop (InterpolationElemLoop) or particle-element (.NOT.InterpolationElemLoop)
+!2. Select element-particle loop (InterpolationElemLoop) or particle-element (.NOT.InterpolationElemLoop)
 IF (InterpolationElemLoop) THEN ! element-particle loop
   ! If PP_nElems.LE.10 (so far arbitrary threshold...) do NOT use InterpolateFieldToSingleParticle routine
-  !3.2 InterpolationElemLoop (loop elements and then particles)
+  !2.1 InterpolationElemLoop (loop elements and then particles)
   SELECT CASE(TRIM(InterpolationType))
   CASE('particle_position')
     ! particles have already been mapped
@@ -259,6 +285,7 @@ IF (InterpolationElemLoop) THEN ! element-particle loop
        , 'ERROR: Unknown InterpolationType!')
   END SELECT
 ELSE ! .NOT.InterpolationElemLoop -> particle-element loop
+  ! 2.2 particle-element loop: Loop particles and select corresponding element
   ! IF PP_nElems.GT.10 (so far arbitrary threshold...) use InterpolateFieldToSingleParticle routine
   DO iPart = 1, PDM%ParticleVecLength
     IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -325,9 +352,15 @@ END SUBROUTINE InterpolateFieldToSingleParticle
 PURE FUNCTION GetExternalFieldAtParticle(PartID)
 !===================================================================================================================================
 ! Get the external field (analytic, variable, etc.) for the particle at position PartState(1:3,PartID)
+! 4 Methods can be used:
+!   0. External field from analytic function (only for convergence tests and compiled with CODE_ANALYZE=ON)
+!   1. External E field from user-supplied vector (const.) and
+!      B field from CSV file (only Bz) that is interpolated to the particle z-coordinate
+!   2. External field from CSV file (only Bz) that is interpolated to the particle z-coordinate
+!   3. External E and B field from user-supplied vector (const.)
 !===================================================================================================================================
 ! MODULES
-USE MOD_PICInterpolation_Vars ,ONLY: externalField,useVariableExternalField
+USE MOD_PICInterpolation_Vars ,ONLY: externalField,useVariableExternalField,useAlgebraicExternalField
 USE MOD_Particle_Vars         ,ONLY: PartState
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolationAnalytic
@@ -335,7 +368,7 @@ USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolationAnalytic
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN) :: PartID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -345,16 +378,23 @@ REAL :: GetExternalFieldAtParticle(1:6)
 !===================================================================================================================================
 GetExternalFieldAtParticle=0.
 #ifdef CODE_ANALYZE
+! 0. External field from analytic function (only for convergence tests)
 IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field interpolation
   GetExternalFieldAtParticle(1:6) = GetAnalyticFieldAtParticle(PartState(1:3,PartID))
 ELSE ! use variable or fixed external field
 #endif /*CODE_ANALYZE*/
-  GetExternalFieldAtParticle(1:3) = externalField(1:3)
 !#if (PP_nVar==8))
   IF(useVariableExternalField)THEN
-    GetExternalFieldAtParticle(4:6) = (/externalField(4:5),InterpolateVariableExternalField(PartState(3,PartID))/)
+    ! 1. External E field from user-supplied vector (const.) and
+    !    B field from CSV file (only Bz) that is interpolated to the particle z-coordinate
+    GetExternalFieldAtParticle(1:5) = externalField(1:5)
+    GetExternalFieldAtParticle(6) = InterpolateVariableExternalField(PartState(3,PartID))
+  ELSEIF(useAlgebraicExternalField)THEN
+    ! 2. External E and B field from algebraic expression that is interpolated to the particle position
+    GetExternalFieldAtParticle(1:6) = InterpolateAlgebraicExternalField(PartState(1:3,PartID))
   ELSE
-    GetExternalFieldAtParticle(4:6) = externalField(4:6)
+    ! 3. External E and B field from user-supplied vector (const.)
+    GetExternalFieldAtParticle(1:6) = externalField(1:6)
   END IF
 !#endif /*(PP_nVar==8))*/
 #ifdef CODE_ANALYZE
@@ -374,7 +414,7 @@ USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)    :: PartPos(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -393,7 +433,7 @@ CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
 CASE(2)
   ! const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
   !                                  E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
-  ! Example from Paper by H. Qin: Why is Boris algorithm so good? (2013) 
+  ! Example from Paper by H. Qin: Why is Boris algorithm so good? (2013)
   ! http://dx.doi.org/10.1063/1.4818428
   ASSOCIATE( x => PartPos(1), y => PartPos(2) )
     ! Ex and Ey
@@ -421,7 +461,7 @@ USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN) :: ElemID !< Global element ID
 INTEGER,INTENT(IN) :: PartID
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -481,7 +521,7 @@ USE MOD_Equation_Vars ,ONLY: B,E
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN) :: ElemID !< Local element ID
 REAL,INTENT(IN)    :: PartPosRef_loc(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -640,6 +680,67 @@ END IF
 END FUNCTION InterpolateVariableExternalField
 
 
+PURE FUNCTION InterpolateAlgebraicExternalField(Pos)
+!===================================================================================================================================
+!> Interpolates the variable external field to the z-position
+!> NO z-values smaller than VariableExternalField(1,1) are allowed!
+!===================================================================================================================================
+! MODULES
+!USE MOD_Globals
+USE MOD_PICInterpolation_Vars   ,ONLY:DeltaExternalField,nIntPoints,VariableExternalField
+USE MOD_PICInterpolation_Vars ,ONLY: externalField,AlgebraicExternalField
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)          :: Pos(1:3)                            !< particle position
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                     :: InterpolateAlgebraicExternalField(1:6)  !< E and B field at particle position
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                  :: iPos                              !< index in array (equidistant subdivision assumed)
+!===================================================================================================================================
+SELECT CASE (AlgebraicExternalField)
+CASE (1)
+  ! Set E and Bx, By
+  InterpolateAlgebraicExternalField(1:5) = externalField(1:5)
+
+  ! Calc Bz
+  ! Original formula
+  !ASSOCIATE(&
+  !      x     => Pos(1)   ,&
+  !      Lx    => 2.50E-2  ,&
+  !      xBmax => 0.750E-2 ,&
+  !      B0    => 6.00E-3  ,&
+  !      BLx   => 1.00E-3  ,&
+  !      Bmax  => 10.0E-3  ,&
+  !      sigma => 0.625E-2  &
+  !      )
+  ASSOCIATE(&
+        x     => Pos(1)   ,&
+        xBmax => 0.750E-2 )
+    IF(Pos(1).LT.xBmax)THEN
+      ! Original formula
+      !ASSOCIATE(a1 => (Bmax-B0)/(1.0-EXP(-0.5*(xBmax/sigma)**2))                              ,&
+      !          b1 => (B0 - Bmax*EXP(-0.5*(xBmax/sigma)**2))/(1.0-EXP(-0.5*(xBmax/sigma)**2))  )
+      !  InterpolateAlgebraicExternalField(6) = a1 * EXP(-0.5*((x-xBmax)/sigma)**2) + b1
+      !END ASSOCIATE
+      InterpolateAlgebraicExternalField(6) = 7.7935072222899814E-003 * EXP(-12800.0*(x-xBmax)**2) + 2.2064927777100192E-003
+    ELSE
+      ! Original formula
+      !ASSOCIATE(a2 => (Bmax-BLx)/(1.0-EXP(-0.5*((Lx-xBmax)/sigma)**2))                                  ,&
+      !          b2 => (BLx - Bmax*EXP(-0.5*((Lx-xBmax)/sigma)**2))/(1.0-EXP(-0.5*((Lx-xBmax)/sigma)**2))  )
+      !  InterpolateAlgebraicExternalField(6) = a2 * EXP(-0.5*((x-xBmax)/sigma)**2) + b2
+      !END ASSOCIATE
+      InterpolateAlgebraicExternalField(6) = 9.1821845944997683E-003 * EXP(-12800.0*(x-xBmax)**2) + 8.1781540550023306E-004
+    END IF ! Pos(1).LT.xBmax
+  END ASSOCIATE
+  !END ASSOCIATE
+END SELECT
+END FUNCTION InterpolateAlgebraicExternalField
+
+
 SUBROUTINE GetTimeDependentBGField()
 !===================================================================================================================================
 ! Calculates BGField for at t=Time by interpolation between two already calculated time steps
@@ -651,7 +752,7 @@ USE MOD_SuperB_Vars        ,ONLY: TimeDepCoil, nTimePoints, BGFieldTDep
 USE MOD_TimeDisc_Vars      ,ONLY: Time, TEnd
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: iTime
@@ -683,7 +784,7 @@ USE MOD_Particle_Vars          ,ONLY: PartState, PDM
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL    :: PartStateAnalytic(6)

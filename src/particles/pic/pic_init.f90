@@ -39,15 +39,17 @@ CONTAINS
 SUBROUTINE DefineParametersPIC()
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools      ,ONLY: prms
-USE MOD_PICDepo_Method   ,ONLY: DefineParametersDepositionMethod
-USE MOD_PICInterpolation ,ONLY: DefineParametersPICInterpolation
-USE MOD_PICDepo          ,ONLY: DefineParametersPICDeposition
+USE MOD_ReadInTools               ,ONLY: prms
+USE MOD_PICDepo_Method            ,ONLY: DefineParametersDepositionMethod
+USE MOD_PICInterpolation          ,ONLY: DefineParametersPICInterpolation
+USE MOD_PICDepo                   ,ONLY: DefineParametersPICDeposition
+USE MOD_InitializeBackgroundField ,ONLY: DefineParametersBGField
 IMPLICIT NONE
 !==================================================================================================================================
 CALL DefineParametersPICInterpolation() ! Get PIC Interpolation parameters
 CALL DefineParametersDepositionMethod() ! Get PIC-DoDeposition and PIC-Deposition-Type
-CALL DefineParametersPICDeposition()    ! Get remaining PIC Deposition parameters
+CALL DefineParametersPICDeposition()    ! Get more PIC Deposition parameters
+CALL DefineParametersBGField()          ! Get PIC Background field parameters
 END SUBROUTINE DefineParametersPIC
 
 
@@ -57,9 +59,11 @@ SUBROUTINE InitPIC()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PICInterpolation       ,ONLY: InitializeParticleInterpolation
-USE MOD_PICDepo                ,ONLY: InitializeDeposition
-USE MOD_PIC_Vars ,              ONLY: PICInitIsDone
+USE MOD_PICInterpolation          ,ONLY: InitializeParticleInterpolation
+USE MOD_PICDepo                   ,ONLY: InitializeDeposition
+USE MOD_PIC_Vars                  ,ONLY: PICInitIsDone
+USE MOD_PICInterpolation_Vars     ,ONLY: useBGField
+USE MOD_InitializeBackgroundField ,ONLY: InitializeBackgroundField
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -78,6 +82,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PIC ...'
 
 CALL InitializeParticleInterpolation()
 CALL InitializeDeposition()
+IF(useBGField) CALL InitializeBackgroundField()
 
 PICInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PIC DONE!'

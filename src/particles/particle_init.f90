@@ -678,7 +678,6 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
 USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution
-USE MOD_InitializeBackgroundField  ,ONLY: InitializeBackgroundField
 USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
 USE MOD_Mesh_Vars                  ,ONLY: nElems
@@ -689,7 +688,6 @@ USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
-USE MOD_PICInterpolation_Vars      ,ONLY: useBGField
 USE MOD_Restart_Vars               ,ONLY: DoRestart
 USE MOD_Surface_Flux               ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
@@ -734,7 +732,6 @@ IF(.NOT.ALLOCATED(nPartsPerElem))THEN
 END IF
 
 CALL InitializeVariables()
-IF(useBGField) CALL InitializeBackgroundField()
 
 !#if USE_MPI
 !CALL InitEmissionParticlesToProcs()
