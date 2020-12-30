@@ -31,10 +31,44 @@ INTERFACE FinalizeDeposition
   MODULE PROCEDURE FinalizeDeposition
 END INTERFACE
 
-PUBLIC:: Deposition, InitializeDeposition, FinalizeDeposition
+PUBLIC:: Deposition, InitializeDeposition, FinalizeDeposition, DefineParametersPICDeposition
 !===================================================================================================================================
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for PIC Deposition
+!==================================================================================================================================
+SUBROUTINE DefineParametersPICDeposition()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools      ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%CreateStringOption( 'PIC-TimeAverageFile'      , 'Read charge density from .h5 file and save to PartSource\n'//&
+                                                           'WARNING: Currently not correctly implemented for shared memory', 'none')
+CALL prms%CreateLogicalOption('PIC-RelaxDeposition'      , 'Relaxation of current PartSource with RelaxFac\n'//&
+                                                           'into PartSourceOld', '.FALSE.')
+CALL prms%CreateRealOption(   'PIC-RelaxFac'             , 'Relaxation factor of current PartSource with RelaxFac\n'//&
+                                                           'into PartSourceOld', '0.001')
+
+CALL prms%CreateLogicalOption('PIC-shapefunction-charge-conservation', 'Enable charge conservation.', '.FALSE.')
+CALL prms%CreateRealOption(   'PIC-shapefunction-radius'             , 'Radius of shape function'   , '1.')
+CALL prms%CreateIntOption(    'PIC-shapefunction-alpha'              , 'Exponent of shape function' , '2')
+CALL prms%CreateIntOption(    'PIC-shapefunction-dimension'          , '1D                          , 2D or 3D shape function', '3')
+CALL prms%CreateIntOption(    'PIC-shapefunction-direction'          , &
+    'Only required for PIC-shapefunction-dimension 1 or 2: Shape function direction for 1D (the direction in which the charge '//&
+    'will be distributed) and 2D (the direction in which the charge will be constant)', '1')
+CALL prms%CreateLogicalOption(  'PIC-shapefunction-3D-deposition' ,'Deposit the charge over volume (3D)\n'//&
+                                                                   ' or over a line (1D)/area(2D)\n'//&
+                                                                   '1D shape function: volume or line\n'//&
+                                                                   '2D shape function: volume or area', '.TRUE.')
+CALL prms%CreateRealOption(     'PIC-shapefunction-radius0', 'Minimum shape function radius (for cylindrical and spherical)', '1.')
+CALL prms%CreateRealOption(     'PIC-shapefunction-scale'  , 'Scaling factor of shape function radius '//&
+                                                             '(for cylindrical and spherical)', '0.')
+
+END SUBROUTINE DefineParametersPICDeposition
+
 
 SUBROUTINE InitializeDeposition
 !===================================================================================================================================
@@ -152,7 +186,7 @@ ELSE
   OutputSource = GETLOGICAL('PIC-OutputSource','F')
 END IF
 
-!--- check if chargedensity is computed from TimeAverageFile
+!--- check if charge density is computed from TimeAverageFile
 TimeAverageFile = GETSTR('PIC-TimeAverageFile','none')
 IF (TRIM(TimeAverageFile).NE.'none') THEN
   CALL abort(&

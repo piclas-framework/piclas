@@ -26,15 +26,8 @@ PUBLIC :: InterpolateVariableExternalField
 #ifdef CODE_ANALYZE
 PUBLIC :: InitAnalyticalParticleState
 #endif /*CODE_ANALYZE*/
+PUBLIC :: DefineParametersPICInterpolation
 !===================================================================================================================================
-INTERFACE InitializeParticleInterpolation
-  MODULE PROCEDURE InitializeParticleInterpolation
-END INTERFACE
-
-INTERFACE InterpolateFieldToParticle
-  MODULE PROCEDURE InterpolateFieldToParticle
-END INTERFACE
-
 INTERFACE InterpolateVariableExternalField
   MODULE PROCEDURE InterpolateVariableExternalField
 END INTERFACE
@@ -45,6 +38,59 @@ END INTERFACE
 !===================================================================================================================================
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for PIC Interpolation
+!==================================================================================================================================
+SUBROUTINE DefineParametersPICInterpolation()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools    ,ONLY: prms
+USE MOD_PICDepo_Method ,ONLY: DefineParametersDepositionMethod
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("PIC Interpolation")
+
+#ifdef CODE_ANALYZE
+CALL prms%CreateLogicalOption('PIC-DoInterpolationAnalytic'      , "Use an analytic/algebraic function for PIC interpolation "//&
+                                                                   "(ifdef CODE_ANALYZE)",&
+                                                                   '.FALSE.')
+
+CALL prms%CreateIntOption(    'PIC-AnalyticInterpolation-Type'   , "Type of AnalyticInterpolation-Method for calculating the "//&
+                                                                   "EM field's value for the particle (ifdef CODE_ANALYZE)",'0')
+
+CALL prms%CreateIntOption(    'PIC-AnalyticInterpolation-SubType', "SubType of AnalyticInterpolation-Method for calculating the "//&
+                                                                   "EM field's value for the particle (ifdef CODE_ANALYZE)",'0')
+
+CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationP'       , "parameter 'p' for AnalyticInterpolationType = 1", '1.')
+CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationPhase'   , "Phase shift angle phi that is used for cos(w*t + phi)", '0.')
+#endif /*CODE_ANALYZE*/
+
+CALL prms%CreateLogicalOption(  'PIC-DoInterpolation'         , "Interpolate electric/magnetic fields at charged particle position"//&
+ "for calculating the acting Lorentz forces, which are used in the RHS of the evolution equation (particle time integrtion)"&
+                                                                , '.TRUE.')
+CALL prms%CreateStringOption(   'PIC-Interpolation-Type'      , "Type of Interpolation-Method to calculate the electro(-magnetic)"//&
+                                                                " field's value for the particle", 'particle_position')
+CALL prms%CreateLogicalOption(  'PIC-InterpolationElemLoop'   , 'Interpolate with outer iElem-loop (increased comp. performance '//&
+                                                                ' when using many elements per processor)', '.TRUE.')
+CALL prms%CreateRealArrayOption('PIC-externalField'           , 'Vector for applying a const./externally acting E and B field'//&
+                                                                ' acting on charged particles. This external field is added to the'//&
+                                                                'maxwell/poisson-solver-field', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
+CALL prms%CreateRealOption(     'PIC-scaleexternalField'      , 'Scaling factor for PIC-externalField', '1.0')
+
+CALL prms%CreateStringOption(   'PIC-variableExternalField'   , 'CSV file containing the external magnetic field Bz in z-direction '//&
+                                                                'for interpolating the variable field at each particle z-position.', 'none')
+
+CALL prms%CreateRealArrayOption('PIC-NormVecOfWall'  , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Normal vector for pushTimeStep', '1. , 0. , 0.')
+CALL prms%CreateRealArrayOption('PIC-BGMdeltas'      , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Dimensions of PIC background mesh', '0. , 0. , 0.')
+CALL prms%CreateRealArrayOption('PIC-FactorBGM'      , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Denominator of PIC-BGMdeltas', '1. , 1. , 1.')
+CALL prms%CreateLogicalOption(  'PIC-OutputSource'   , 'Flag for acticating the output of particle cahrge and current density'//&
+                                                       'source terms to hdf5', '.FALSE.')
+END SUBROUTINE DefineParametersPICInterpolation
+
 
 SUBROUTINE InitializeParticleInterpolation
 !===================================================================================================================================
@@ -95,11 +141,8 @@ externalField      = externalField*ScaleExternalField
 useBGField         = GETLOGICAL('PIC-BG-Field')
 
 ! Variable external field
-useVariableExternalField = .FALSE.
-FileNameVariableExternalField=GETSTR('PIC-curvedexternalField')     ! old variable name (for backward compatibility)
-IF (FileNameVariableExternalField.EQ.'none') THEN                          ! if not supplied, check the new variable name
-  FileNameVariableExternalField=GETSTR('PIC-variableexternalField') ! new variable name (overwrites the old)
-END IF
+useVariableExternalField      = .FALSE.
+FileNameVariableExternalField = GETSTR('PIC-variableExternalField')
 IF (FileNameVariableExternalField.NE.'none') THEN ! if supplied, read the data file
   useVariableExternalField = .TRUE.
   CALL ReadVariableExternalField()

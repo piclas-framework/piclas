@@ -28,7 +28,7 @@ REAL,ALLOCATABLE        :: FieldAtParticle(:,:)          !< 1st index: Ex,Ey,Ez,
 CHARACTER(LEN=256)      :: InterpolationType             !< Type of Interpolation-Method
 LOGICAL                 :: InterpolationElemLoop         !< Interpolate with outer iElem-loop (not for many elements per processor!)
 REAL                    :: externalField(6)              !< ext field is added to the maxwell-solver-field
-LOGICAL                 :: DoInterpolation               !< Flag for interpolation
+LOGICAL                 :: DoInterpolation               !< Flag for PIC interpolation
 LOGICAL                 :: useBGField                    !< Flag for background field BGField via h5-File
 LOGICAL                 :: CalcBField                    !< Calculate the background field BGField from parameters defined in the 
                                                          !< input file
