@@ -170,7 +170,7 @@ useAlgebraicExternalField    = .FALSE.
 AlgebraicExternalField = GETINT('PIC-AlgebraicExternalField')
 IF(AlgebraicExternalField.GT.0) useAlgebraicExternalField=.TRUE.
 ! Sanity Check: Add all integer values that are possible to the vector for checking
-IF(.NOT.ANY(AlgebraicExternalField.EQ.(/1/))) CALL abort(&
+IF(.NOT.ANY(AlgebraicExternalField.EQ.(/0,1/))) CALL abort(&
   __STAMP__&
   ,'Value for PIC-AlgebraicExternalField not defined',IntInfoOpt=AlgebraicExternalField)
 
