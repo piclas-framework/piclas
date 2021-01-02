@@ -2203,11 +2203,12 @@ DO iSpec = 1, nSpecies
 
     ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
     ! for low-temperature partially magnetized plasmas (2019)
-    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'2D_landmark') THEN
+    SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+    CASE('2D_landmark','2D_landmark_copy')
       Species(iSpec)%Init(iInit)%ParticleEmissionType = 8
       Species(iSpec)%Init(iInit)%UseForEmission       = .TRUE.
       Species(iSpec)%Init(iInit)%NINT_Correction      = 0.0
-    END IF ! SpaceIC = '2D_landmark'
+    END SELECT ! SpaceIC = '2D_landmark' or '2D_landmark_copy'
 
     Species(iSpec)%Init(iInit)%NumberOfExcludeRegions= GETINT('Part-Species'//TRIM(hilf2)//'-NumberOfExcludeRegions')
     Species(iSpec)%Init(iInit)%InsertedParticle      = 0
@@ -3159,6 +3160,7 @@ SDEALLOCATE(PEM%pNext)
 SDEALLOCATE(seeds)
 SDEALLOCATE(RegionBounds)
 SDEALLOCATE(RegionElectronRef)
+SDEALLOCATE(PartPosLandmark)
 #if USE_MPI
 SDEALLOCATE(SendShapeElemID)
 SDEALLOCATE(SendElemShapeID)

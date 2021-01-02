@@ -1406,8 +1406,9 @@ DO iSpec=1,nSpecies
       xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,+zlen/)
       xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
-    CASE('2D_landmark') ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
-                        ! for low-temperature partially magnetized plasmas (2019)
+    CASE('2D_landmark','2D_landmark_copy')
+       ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
+       ! for low-temperature partially magnetized plasmas (2019)
        ASSOCIATE( x2 => 1.0e-2       ,& ! m
                   x1 => 0.25e-2      ,& ! m
                   y2 => GEO%ymaxglob ,& ! m

@@ -136,7 +136,7 @@ SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState
+USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,FractNbrOld,chunkSizeOld
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 USE MOD_part_emission_tools    ,ONLY: IntegerDivide,SetCellLocalParticlePosition,SetParticlePositionPoint
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionEquidistLine, SetParticlePositionLine, SetParticlePositionDisk
@@ -231,9 +231,16 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
     CALL SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize,particle_positions)
   CASE('photon_cylinder') ! cylinder case for photonionization
     CALL SetParticlePositionPhotonCylinder(FractNbr,iInit,chunkSize,particle_positions)
-  CASE('2D_landmark') ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
-                      ! for low-temperature partially magnetized plasmas (2019)
-    CALL SetParticlePositionLandmark(FractNbr,iInit,chunkSize,particle_positions)
+  CASE('2D_landmark','2D_landmark_copy')
+    ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
+    ! for low-temperature partially magnetized plasmas (2019)
+    IF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'2D_landmark')THEN
+      FractNbrOld  = FractNbr
+      chunkSizeOld = chunkSize
+      CALL SetParticlePositionLandmark(FractNbr,iInit,chunkSize,particle_positions,1)
+    ELSEIF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'2D_landmark_copy')THEN
+      CALL SetParticlePositionLandmark(FractNbrOld,iInit,chunkSizeOld,particle_positions,2)
+    END IF ! TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'2D_landmark')
   END SELECT
   !------------------SpaceIC-cases: end-------------------------------------------------------------------------------------------
 #if USE_MPI
@@ -354,7 +361,7 @@ CASE('gyrotron_circle')
       PartState(4:6,PositionNbr) = Vec3D(1:3)
     END IF
   END DO
-CASE('maxwell_lpn','2D_landmark')
+CASE('maxwell_lpn','2D_landmark','2D_landmark_copy')
   ! maxwell_lpn: Maxwell low particle number
   ! 2D_landmark: Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark for low-temperature partially 
   !              magnetized plasmas (2019)

@@ -292,6 +292,7 @@ USE MOD_part_pos_and_velo      ,ONLY: SetParticlePosition,SetParticleVelocity
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_PhotoIonization
 USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_ReadInTools            ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -454,7 +455,8 @@ DO i=1,nSpecies
             NbrOfParticle = 0
           END IF ! Time.LE.Species(i)%Init(iInit)%tActive
         END ASSOCIATE
-      CASE(8) ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
+      CASE(8) ! SpaceIC='2D_landmark','2D_landmark_copy'
+              ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
               ! for low-temperature partially magnetized plasmas (2019)
        ASSOCIATE( x2 => 1.0e-2  ,& ! m
                   x1 => 0.25e-2 ,& ! m
@@ -465,6 +467,25 @@ DO i=1,nSpecies
                               + Species(i)%Init(iInit)%NINT_Correction
          NbrOfParticle = NINT(NbrOfParticlesReal)
          Species(i)%Init(iInit)%NINT_Correction = NbrOfParticlesReal - REAL(NbrOfParticle)
+         IF(.NOT.ALLOCATED(PartPosLandmark))THEN
+           NbrOfParticleLandmarkMax = MAX(10,NINT(NbrOfParticlesReal*1.2)) ! Add 20% safety
+           CALL PrintOption('Landmark emission allocation size NbrOfParticleLandmarkMax' , 'CALCUL.' , IntOpt=NbrOfParticleLandmarkMax)
+           ALLOCATE(PartPosLandmark(1:3,1:NbrOfParticleLandmarkMax))
+           PartPosLandmark=HUGE(1.)
+           IF(NbrOfParticleLandmarkMax.LE.0)THEN
+             IPWRITE(UNIT_StdOut,*) "NbrOfParticleLandmarkMax =", NbrOfParticleLandmarkMax
+             CALL abort(&
+                 __STAMP__&
+                 ,'NbrOfParticleLandmarkMax.LE.0')
+           END IF
+         ELSE
+           IF(NbrOfParticleLandmarkMax.LT.NbrOfParticle)THEN
+             IPWRITE(UNIT_StdOut,*) "NbrOfParticleLandmarkMax,NbrOfParticle =", NbrOfParticleLandmarkMax,NbrOfParticle
+             CALL abort(&
+             __STAMP__&
+             ,'NbrOfParticleLandmarkMax.LT.NbrOfParticle is not allowed! Allocate PartPosLandmark to the appropriate size.')
+           END IF ! NbrOfParticleLandmarkMax.LE.NbrOfParticle
+         END IF ! .NOT.ALLOCATED()
        END ASSOCIATE
       CASE DEFAULT
         NbrOfParticle = 0

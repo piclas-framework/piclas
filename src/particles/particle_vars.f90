@@ -399,6 +399,11 @@ LOGICAL                                  :: DoZigguratSampling                ! 
 INTEGER(8)                               :: nTotalPart
 INTEGER(8)                               :: nTotalHalfPart
 
+REAL, ALLOCATABLE                        :: PartPosLandmark(:,:)              ! store particle positions during emission for placing
+!                                                                             ! electrons and ions at the exact same position
+INTEGER                                  :: NbrOfParticleLandmarkMax          ! Array max size for storing positions
+INTEGER                                  :: FractNbrOld,chunkSizeOld          ! Auxiliary integers for storing positions
+
 TYPE tVariableTimeStep
   LOGICAL                              :: UseVariableTimeStep
   LOGICAL                              :: UseLinearScaling

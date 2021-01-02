@@ -1959,7 +1959,7 @@ END DO
 END SUBROUTINE SetParticlePositionPhotonCylinder
 
 
-SUBROUTINE SetParticlePositionLandmark(FractNbr,iInit,chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionLandmark(FractNbr,iInit,chunkSize,particle_positions,mode)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
@@ -1967,12 +1967,13 @@ SUBROUTINE SetParticlePositionLandmark(FractNbr,iInit,chunkSize,particle_positio
 USE MOD_Globals
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Particle_Vars      ,ONLY: PartPosLandmark,NbrOfParticleLandmarkMax
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
+INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize, mode
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)       :: particle_positions(:)
@@ -1982,18 +1983,36 @@ REAL                    :: Particle_pos(3)
 INTEGER                 :: i
 REAL                    :: RandVal(2)
 !===================================================================================================================================
+IF(NbrOfParticleLandmarkMax.LT.chunkSize) THEN
+  IPWRITE(UNIT_StdOut,*) "NbrOfParticleLandmarkMax,chunkSize =", NbrOfParticleLandmarkMax,chunkSize
+  CALL abort(&
+      __STAMP__&
+      ,'NbrOfParticleLandmarkMax.LT.chunkSize is not allowed! Allocate PartPosLandmark to the appropriate size.')
+END IF
 
-DO i=1,chunkSize
-  CALL RANDOM_NUMBER(RandVal)
-    ASSOCIATE( x2 => 1.0e-2                           ,& ! m
-               x1 => 0.25e-2                          ,& ! m
-               Ly => 1.28e-2                          ,& ! m
-               z  => (GEO%zmaxglob+GEO%zminglob)/2.0 )   ! m
-    particle_positions(i*3-2) = (x2+x1)/2.0 + ASIN(2.0*RandVal(1)-1.0)*(x2-x1)/PI
-    particle_positions(i*3-1) = RandVal(2) * Ly
-    particle_positions(i*3  ) = z
-  END ASSOCIATE
-END DO
+IF(mode.EQ.1)THEN!Create new position and store them
+  DO i=1,chunkSize
+    CALL RANDOM_NUMBER(RandVal)
+      ASSOCIATE( x2 => 1.0e-2                           ,& ! m
+                 x1 => 0.25e-2                          ,& ! m
+                 Ly => 1.28e-2                          ,& ! m
+                 z  => (GEO%zmaxglob+GEO%zminglob)/2.0 )   ! m
+      particle_positions(i*3-2) = (x2+x1)/2.0 + ASIN(2.0*RandVal(1)-1.0)*(x2-x1)/PI
+      particle_positions(i*3-1) = RandVal(2) * Ly
+      particle_positions(i*3  ) = z
+      ! Store particle positions for re-using them when placing the opposite charged particles (mode=2)
+      PartPosLandmark(1,i) = particle_positions(i*3-2)
+      PartPosLandmark(2,i) = particle_positions(i*3-1)
+      PartPosLandmark(3,i) = particle_positions(i*3  )
+    END ASSOCIATE
+  END DO
+ELSEIF(mode.EQ.2)THEN!Re-use previously created positions
+  DO i=1,chunkSize
+    particle_positions(i*3-2) = PartPosLandmark(1,i)
+    particle_positions(i*3-1) = PartPosLandmark(2,i)
+    particle_positions(i*3  ) = PartPosLandmark(3,i)
+  END DO
+END IF ! mode.EQ.1
 END SUBROUTINE SetParticlePositionLandmark
 
 
