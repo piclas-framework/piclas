@@ -1406,6 +1406,25 @@ DO iSpec=1,nSpecies
       xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,+zlen/)
       xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
+    CASE('2D_landmark') ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
+                        ! for low-temperature partially magnetized plasmas (2019)
+       ASSOCIATE( x2 => 1.0e-2       ,& ! m
+                  x1 => 0.25e-2      ,& ! m
+                  y2 => GEO%ymaxglob ,& ! m
+                  y1 => GEO%yminglob ,& ! m
+                  z2 => GEO%zmaxglob ,& ! m
+                  z1 => GEO%zminglob )
+        ! Check all 8 edges
+        xCoords(1:3,1) = (/x1,y1,z1/)
+        xCoords(1:3,2) = (/x2,y1,z1/)
+        xCoords(1:3,3) = (/x1,y2,z1/)
+        xCoords(1:3,4) = (/x2,y2,z1/)
+        xCoords(1:3,5) = (/x1,y1,z2/)
+        xCoords(1:3,6) = (/x2,y1,z2/)
+        xCoords(1:3,7) = (/x1,y2,z2/)
+        xCoords(1:3,8) = (/x2,y2,z2/)
+        RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
+      END ASSOCIATE
     CASE('circle')
       xlen=Species(iSpec)%Init(iInit)%RadiusIC * &
            SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))

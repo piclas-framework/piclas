@@ -143,6 +143,7 @@ USE MOD_part_emission_tools    ,ONLY: SetParticlePositionEquidistLine, SetPartic
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionCuboidCylinder, SetParticlePositionGyrotronCircle,SetParticlePositionCircle
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionSphere, SetParticlePositionSinDeviation
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
+USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLandmark
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: SendEmissionParticlesToProcs
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
@@ -226,10 +227,13 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
     CALL SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions)
   CASE('sin_deviation')
     CALL SetParticlePositionSinDeviation(FractNbr,iInit,particle_positions)
-  CASE('photon_SEE_disc') ! disc case for surface disribution
+  CASE('photon_SEE_disc') ! disc case for surface distribution
     CALL SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize,particle_positions)
   CASE('photon_cylinder') ! cylinder case for photonionization
     CALL SetParticlePositionPhotonCylinder(FractNbr,iInit,chunkSize,particle_positions)
+  CASE('2D_landmark') ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
+                      ! for low-temperature partially magnetized plasmas (2019)
+    CALL SetParticlePositionLandmark(FractNbr,iInit,chunkSize,particle_positions)
   END SELECT
   !------------------SpaceIC-cases: end-------------------------------------------------------------------------------------------
 #if USE_MPI
@@ -350,7 +354,10 @@ CASE('gyrotron_circle')
       PartState(4:6,PositionNbr) = Vec3D(1:3)
     END IF
   END DO
-CASE('maxwell_lpn')
+CASE('maxwell_lpn','2D_landmark')
+  ! maxwell_lpn: Maxwell low particle number
+  ! 2D_landmark: Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark for low-temperature partially 
+  !              magnetized plasmas (2019)
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr.GT.0) THEN

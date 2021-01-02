@@ -2089,7 +2089,7 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%ParticleEmissionType  = 0 !dummy
       Species(iSpec)%Init(iInit)%ParticleEmission      = 0. !dummy
     END IF
-    ! Photoionization in cylinderical volume (modelling a laser pulse) and SEE based on photon impact on a surface
+    ! Photoionization in cylindrical volume (modelling a laser pulse) and SEE based on photon impact on a surface
     IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_SEE_disc')          &
    .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder')) THEN
       Species(iSpec)%Init(iInit)%ParticleEmissionType = 7
@@ -2199,7 +2199,15 @@ DO iSpec = 1, nSpecies
       ELSE
         Species(iSpec)%Init(iInit)%YieldSEE           = GETREAL('Part-Species'//TRIM(hilf2)//'-YieldSEE')
       END IF
-    END IF
+    END IF ! SpaceIC = 'photon_SEE_disc' .OR. 'photon_cylinder'
+
+    ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
+    ! for low-temperature partially magnetized plasmas (2019)
+    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'2D_landmark') THEN
+      Species(iSpec)%Init(iInit)%ParticleEmissionType = 8
+      Species(iSpec)%Init(iInit)%UseForEmission = .TRUE.
+    END IF ! SpaceIC = '2D_landmark'
+
     Species(iSpec)%Init(iInit)%NumberOfExcludeRegions= GETINT('Part-Species'//TRIM(hilf2)//'-NumberOfExcludeRegions')
     Species(iSpec)%Init(iInit)%InsertedParticle      = 0
     Species(iSpec)%Init(iInit)%InsertedParticleSurplus = 0

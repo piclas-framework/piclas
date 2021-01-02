@@ -276,7 +276,7 @@ SUBROUTINE ParticleInserting()
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: c
+USE MOD_Globals_Vars           ,ONLY: c,PI
 USE MOD_Timedisc_Vars          ,ONLY: dt,time
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
 USE MOD_Particle_Vars
@@ -309,7 +309,7 @@ REAL                             :: RiseFactor, RiseTime,NbrOfPhotons
 #if USE_MPI
 INTEGER                          :: InitGroup
 #endif
-REAL                             :: NbrOfReactions
+REAL                             :: NbrOfReactions,NbrOfParticlesReal
 !===================================================================================================================================
 
 !---  Emission at time step (initial emission see particle_init.f90: InitializeParticleEmission)
@@ -453,6 +453,17 @@ DO i=1,nSpecies
             NbrOfParticle = 0
           END IF ! Time.LE.Species(i)%Init(iInit)%tActive
         END ASSOCIATE
+      CASE(8) ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
+              ! for low-temperature partially magnetized plasmas (2019)
+       ASSOCIATE( x2 => 1.0e-2  ,& ! m
+                  x1 => 0.25e-2 ,& ! m
+                  Ly => 1.28e-2 ,& ! m
+                  S0 => 5.23e23 )  ! m^-3 s^-1
+         NbrOfParticlesReal = Ly*dt*S0*2.0*(x2-x1)/PI
+         NbrOfParticlesReal = NbrOfParticlesReal/Species(i)%MacroParticleFactor + Species(i)%Init(iInit)%NINT_Correction
+         NbrOfParticle = NINT(NbrOfParticlesReal)
+         Species(i)%Init(iInit)%NINT_Correction = NbrOfParticlesReal - REAL(NbrOfParticle)
+       END ASSOCIATE
       CASE DEFAULT
         NbrOfParticle = 0
       END SELECT

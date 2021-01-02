@@ -108,6 +108,7 @@ PUBLIC :: CalcNbrOfPhotons, CalcPhotonEnergy
 PUBLIC :: CalcIntensity_Gaussian
 PUBLIC :: CalcVelocity_FromWorkFuncSEE, DSMC_SetInternalEnr_LauxVFD
 PUBLIC :: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
+PUBLIC :: SetParticlePositionLandmark
 #ifdef CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
@@ -1956,6 +1957,44 @@ DO i=1,chunkSize
   particle_positions(i*3  ) = Particle_pos(3)
 END DO
 END SUBROUTINE SetParticlePositionPhotonCylinder
+
+
+SUBROUTINE SetParticlePositionLandmark(FractNbr,iInit,chunkSize,particle_positions)
+!===================================================================================================================================
+! Set particle position
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Globals_Vars       ,ONLY: PI
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)       :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                    :: Particle_pos(3)
+INTEGER                 :: i
+REAL                    :: RandVal(2)
+!===================================================================================================================================
+
+DO i=1,chunkSize
+  CALL RANDOM_NUMBER(RandVal)
+    ASSOCIATE( x2 => 1.0e-2                           ,& ! m
+               x1 => 0.25e-2                          ,& ! m
+               Ly => 1.28e-2                          ,& ! m
+               z  => (GEO%zmaxglob+GEO%zminglob)/2.0 )   ! m
+    particle_positions(i*3-2) = (x2+x1)/2.0 + ASIN(2.0*RandVal(1)-1.0)*(x2-x1)/PI
+    particle_positions(i*3-1) = RandVal(2) * Ly
+    particle_positions(i*3  ) = z
+  END ASSOCIATE
+END DO
+END SUBROUTINE SetParticlePositionLandmark
 
 
 END MODULE MOD_part_emission_tools
