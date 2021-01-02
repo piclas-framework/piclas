@@ -291,6 +291,7 @@ USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,Sa
 USE MOD_part_pos_and_velo      ,ONLY: SetParticlePosition,SetParticleVelocity
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_PhotoIonization
 USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -459,8 +460,9 @@ DO i=1,nSpecies
                   x1 => 0.25e-2 ,& ! m
                   Ly => 1.28e-2 ,& ! m
                   S0 => 5.23e23 )  ! m^-3 s^-1
-         NbrOfParticlesReal = Ly*dt*S0*2.0*(x2-x1)/PI
-         NbrOfParticlesReal = NbrOfParticlesReal/Species(i)%MacroParticleFactor + Species(i)%Init(iInit)%NINT_Correction
+         NbrOfParticlesReal = Ly*dt*S0*2.0*(x2-x1)/PI ! yields 1.60E+08 m^-1 (i.e. per metre in z-direction)
+         NbrOfParticlesReal = NbrOfParticlesReal*(GEO%zmaxglob-GEO%zminglob)/Species(i)%MacroParticleFactor &
+                              + Species(i)%Init(iInit)%NINT_Correction
          NbrOfParticle = NINT(NbrOfParticlesReal)
          Species(i)%Init(iInit)%NINT_Correction = NbrOfParticlesReal - REAL(NbrOfParticle)
        END ASSOCIATE
