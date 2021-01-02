@@ -500,7 +500,6 @@ DO i=1,nSpecies
        ELSE
          NbrOfParticle = 0
        END IF ! NeutralizationBalance.GT.0
-       WRITE (*,*) "NbrOfParticle =", NbrOfParticle
       CASE DEFAULT
         NbrOfParticle = 0
       END SELECT
