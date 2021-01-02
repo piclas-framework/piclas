@@ -2205,7 +2205,8 @@ DO iSpec = 1, nSpecies
     ! for low-temperature partially magnetized plasmas (2019)
     IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'2D_landmark') THEN
       Species(iSpec)%Init(iInit)%ParticleEmissionType = 8
-      Species(iSpec)%Init(iInit)%UseForEmission = .TRUE.
+      Species(iSpec)%Init(iInit)%UseForEmission       = .TRUE.
+      Species(iSpec)%Init(iInit)%NINT_Correction      = 0.0
     END IF ! SpaceIC = '2D_landmark'
 
     Species(iSpec)%Init(iInit)%NumberOfExcludeRegions= GETINT('Part-Species'//TRIM(hilf2)//'-NumberOfExcludeRegions')
