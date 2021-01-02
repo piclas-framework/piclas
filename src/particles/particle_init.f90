@@ -410,6 +410,11 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-ExcludeRegion[$]-Cylind
                                   ' Part-Species[$]-Init[$]-ExcludeRegion[$]-SpaceIC=cylinder (set 0 for flat circle),'//&
                                   'negative value = opposite direction ', '1.', numberedmulti=.TRUE.)
 
+                            !Part-Species'//TRIM(hilf2)//'-NeutralizationSource
+CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-NeutralizationSource'  &
+                                , 'Name of the boundary used for calculating the charged particle balance used for thruster'//&
+                                  ' neutralization (no default).' ,numberedmulti=.TRUE.)
+
 CALL prms%SetSection("Particle Boundaries")
 
 CALL prms%CreateIntOption(      'Part-nBounds'     , 'TODO-DEFINE-PARAMETER\n'//&
@@ -2007,6 +2012,8 @@ BGGas%NumberDensity = 0.
 ALLOCATE(SpecReset(1:nSpecies))
 SpecReset=.FALSE.
 
+UseNeutralization = .FALSE.
+
 DO iSpec = 1, nSpecies
   SWRITE (UNIT_stdOut,'(66(". "))')
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -2208,6 +2215,12 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%ParticleEmissionType = 8
       Species(iSpec)%Init(iInit)%UseForEmission       = .TRUE.
       Species(iSpec)%Init(iInit)%NINT_Correction      = 0.0
+    CASE('2D_landmark_neutralization')
+      Species(iSpec)%Init(iInit)%ParticleEmissionType = 9
+      Species(iSpec)%Init(iInit)%UseForEmission       = .TRUE.
+      NeutralizationSource = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-NeutralizationSource'))
+      NeutralizationBalance = 0
+      UseNeutralization = .TRUE.
     END SELECT ! SpaceIC = '2D_landmark' or '2D_landmark_copy'
 
     Species(iSpec)%Init(iInit)%NumberOfExcludeRegions= GETINT('Part-Species'//TRIM(hilf2)//'-NumberOfExcludeRegions')

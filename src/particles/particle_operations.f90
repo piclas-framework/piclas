@@ -130,15 +130,17 @@ SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 !>  !!!NOTE!!! This routine is inside particle analyze because of circular definition of modules (CalcEkinPart)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, Species, UseAdaptive
-USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcMassflowRate
+USE MOD_Particle_Vars          ,ONLY: PDM, PartSpecies, Species, UseAdaptive
+USE MOD_Particle_Vars          ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcMassflowRate
 #if defined(IMPA)
-USE MOD_Particle_Vars           ,ONLY: PartIsImplicit
-USE MOD_Particle_Vars           ,ONLY: DoPartInNewton
+USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
+USE MOD_Particle_Vars          ,ONLY: DoPartInNewton
 #endif /*IMPA*/
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
-USE MOD_part_tools              ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars               ,ONLY: CollInf
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
+USE MOD_part_tools             ,ONLY: GetParticleWeight
+USE MOD_DSMC_Vars              ,ONLY: CollInf
+USE MOD_Mesh_Vars              ,ONLY: BoundaryName
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -165,7 +167,7 @@ IF(CalcPartBalance) THEN
 END IF ! CalcPartBalance
 
 ! If a BCID is given (e.g. when a particle is removed at a boundary), check if its an adaptive surface flux BC or the mass flow
-! through the boundary shall be calculated
+! through the boundary shall be calculated or the charges impinging on the boundary are to be summed (thruster neutralization)
 IF(PRESENT(BCID)) THEN
   IF(UseAdaptive.OR.CalcMassflowRate) THEN
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
@@ -177,6 +179,13 @@ IF(PRESENT(BCID)) THEN
       END IF
     END DO
   END IF ! UseAdaptive.OR.CalcMassflowRate
+
+  IF(UseNeutralization)THEN
+    IF(TRIM(BoundaryName(BCID)).EQ.TRIM(NeutralizationSource))THEN
+      ! Add +1 for electrons and -1 for ions
+      NeutralizationBalance = NeutralizationBalance - SIGN(1.0, Species(iSpec)%ChargeIC)
+    END IF
+  END IF ! UseNeutralization
 END IF ! PRESENT(BCID)
 
 ! Tracking-relevant variables (not required if a particle is removed within the domain, e.g. removal due to radial weighting)

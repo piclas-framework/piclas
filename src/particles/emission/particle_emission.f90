@@ -469,7 +469,7 @@ DO i=1,nSpecies
          Species(i)%Init(iInit)%NINT_Correction = NbrOfParticlesReal - REAL(NbrOfParticle)
          IF(.NOT.ALLOCATED(PartPosLandmark))THEN
            NbrOfParticleLandmarkMax = MAX(10,NINT(NbrOfParticlesReal*1.2)) ! Add 20% safety
-           CALL PrintOption('Landmark emission allocation size NbrOfParticleLandmarkMax' , 'CALCUL.' , IntOpt=NbrOfParticleLandmarkMax)
+           CALL PrintOption('Landmark volume emission allocation size NbrOfParticleLandmarkMax' , 'CALCUL.' , IntOpt=NbrOfParticleLandmarkMax)
            ALLOCATE(PartPosLandmark(1:3,1:NbrOfParticleLandmarkMax))
            PartPosLandmark=HUGE(1.)
            IF(NbrOfParticleLandmarkMax.LE.0)THEN
@@ -487,6 +487,20 @@ DO i=1,nSpecies
            END IF ! NbrOfParticleLandmarkMax.LE.NbrOfParticle
          END IF ! .NOT.ALLOCATED()
        END ASSOCIATE
+     CASE(9) ! '2D_landmark_neutralization'
+#if USE_MPI
+       CALL MPI_ALLREDUCE(MPI_IN_PLACE,NeutralizationBalance,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,IERROR)
+#endif
+       ! Insert electrons only when the number is greater than zero
+       IF(NeutralizationBalance.GT.0)THEN
+         ! Insert only when positive
+         NbrOfParticle = NeutralizationBalance
+         ! Reset the counter
+         NeutralizationBalance = 0
+       ELSE
+         NbrOfParticle = 0
+       END IF ! NeutralizationBalance.GT.0
+       WRITE (*,*) "NbrOfParticle =", NbrOfParticle
       CASE DEFAULT
         NbrOfParticle = 0
       END SELECT

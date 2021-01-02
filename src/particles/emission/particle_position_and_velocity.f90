@@ -143,7 +143,7 @@ USE MOD_part_emission_tools    ,ONLY: SetParticlePositionEquidistLine, SetPartic
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionCuboidCylinder, SetParticlePositionGyrotronCircle,SetParticlePositionCircle
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionSphere, SetParticlePositionSinDeviation
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
-USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLandmark
+USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLandmark,SetParticlePositionLandmarkNeutralization
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: SendEmissionParticlesToProcs
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
@@ -241,6 +241,10 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
     ELSEIF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'2D_landmark_copy')THEN
       CALL SetParticlePositionLandmark(FractNbrOld,iInit,chunkSizeOld,particle_positions,2)
     END IF ! TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'2D_landmark')
+  CASE('2D_landmark_neutralization')
+    ! Neutralization at const. x-position from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
+    ! for low-temperature partially magnetized plasmas (2019)
+    CALL SetParticlePositionLandmarkNeutralization(FractNbr,iInit,chunkSize,particle_positions)
   END SELECT
   !------------------SpaceIC-cases: end-------------------------------------------------------------------------------------------
 #if USE_MPI
@@ -361,7 +365,7 @@ CASE('gyrotron_circle')
       PartState(4:6,PositionNbr) = Vec3D(1:3)
     END IF
   END DO
-CASE('maxwell_lpn','2D_landmark','2D_landmark_copy')
+CASE('maxwell_lpn','2D_landmark','2D_landmark_copy','2D_landmark_neutralization')
   ! maxwell_lpn: Maxwell low particle number
   ! 2D_landmark: Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark for low-temperature partially 
   !              magnetized plasmas (2019)
