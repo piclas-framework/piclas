@@ -642,6 +642,7 @@ SDEALLOCATE(chitens)
 SDEALLOCATE(chitensInv)
 SDEALLOCATE(chitens_face)
 SDEALLOCATE(E)
+SDEALLOCATE(RefState)
 END SUBROUTINE FinalizeEquation
 
 END MODULE MOD_Equation
