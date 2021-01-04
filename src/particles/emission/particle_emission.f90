@@ -489,17 +489,27 @@ DO i=1,nSpecies
        END ASSOCIATE
      CASE(9) ! '2D_landmark_neutralization'
 #if USE_MPI
-       CALL MPI_ALLREDUCE(MPI_IN_PLACE,NeutralizationBalance,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,IERROR)
+       ! Communicate number of particles with all procs in the same init group
+       InitGroup=Species(i)%Init(iInit)%InitCOMM
+       IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
+         ! Only processors which are part of group take part in the communication
+         CALL MPI_ALLREDUCE(NeutralizationBalance,NeutralizationBalanceGlobal,1,MPI_INTEGER,MPI_SUM,PartMPI%InitGroup(InitGroup)%COMM,IERROR)
+       ELSE
+         NeutralizationBalanceGlobal=0
+       END IF
+#else
+       NeutralizationBalanceGlobal = NeutralizationBalance
 #endif
        ! Insert electrons only when the number is greater than zero
-       IF(NeutralizationBalance.GT.0)THEN
+       IF(NeutralizationBalanceGlobal.GT.0)THEN
          ! Insert only when positive
-         NbrOfParticle = NeutralizationBalance
+         NbrOfParticle = NeutralizationBalanceGlobal
          ! Reset the counter
          NeutralizationBalance = 0
        ELSE
          NbrOfParticle = 0
        END IF ! NeutralizationBalance.GT.0
+
       CASE DEFAULT
         NbrOfParticle = 0
       END SELECT

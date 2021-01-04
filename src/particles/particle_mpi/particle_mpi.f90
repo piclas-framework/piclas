@@ -1427,25 +1427,47 @@ DO iSpec=1,nSpecies
         RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
       END ASSOCIATE
     CASE('2D_landmark_neutralization')
-       ! Neutralization at const. x-position from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
-       ! for low-temperature partially magnetized plasmas (2019)
-       ASSOCIATE( x2 => 2.3999e-2    ,& ! m
-                  x1 => 2.4001e-2    ,& ! m
-                  y2 => GEO%ymaxglob ,& ! m
-                  y1 => GEO%yminglob ,& ! m
-                  z2 => GEO%zmaxglob ,& ! m
-                  z1 => GEO%zminglob )
-        ! Check all 8 edges
-        xCoords(1:3,1) = (/x1,y1,z1/)
-        xCoords(1:3,2) = (/x2,y1,z1/)
-        xCoords(1:3,3) = (/x1,y2,z1/)
-        xCoords(1:3,4) = (/x2,y2,z1/)
-        xCoords(1:3,5) = (/x1,y1,z2/)
-        xCoords(1:3,6) = (/x2,y1,z2/)
-        xCoords(1:3,7) = (/x1,y2,z2/)
-        xCoords(1:3,8) = (/x2,y2,z2/)
-        RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
+      ! Neutralization at const. x-position from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
+      ! for low-temperature partially magnetized plasmas (2019)
+      ! Check 1st region (emission at fixed x-position x=2.4cm)
+      ASSOCIATE( x2 => 2.3999e-2    ,& ! m
+                 x1 => 2.4001e-2    ,& ! m
+                 y2 => GEO%ymaxglob ,& ! m
+                 y1 => GEO%yminglob ,& ! m
+                 z2 => GEO%zmaxglob ,& ! m
+                 z1 => GEO%zminglob )
+       ! Check all 8 edges
+       xCoords(1:3,1) = (/x1,y1,z1/)
+       xCoords(1:3,2) = (/x2,y1,z1/)
+       xCoords(1:3,3) = (/x1,y2,z1/)
+       xCoords(1:3,4) = (/x2,y2,z1/)
+       xCoords(1:3,5) = (/x1,y1,z2/)
+       xCoords(1:3,6) = (/x2,y1,z2/)
+       xCoords(1:3,7) = (/x1,y2,z2/)
+       xCoords(1:3,8) = (/x2,y2,z2/)
+       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
       END ASSOCIATE
+
+      ! Check 2nd region (left boundary where the exiting particles are counted)
+      IF(.NOT.RegionOnProc)THEN
+        ASSOCIATE( x2 => -0.001e-2    ,& ! m
+                   x1 => 0.0001e-2    ,& ! m
+                   y2 => GEO%ymaxglob ,& ! m
+                   y1 => GEO%yminglob ,& ! m
+                   z2 => GEO%zmaxglob ,& ! m
+                   z1 => GEO%zminglob )
+         ! Check all 8 edges
+         xCoords(1:3,1) = (/x1,y1,z1/)
+         xCoords(1:3,2) = (/x2,y1,z1/)
+         xCoords(1:3,3) = (/x1,y2,z1/)
+         xCoords(1:3,4) = (/x2,y2,z1/)
+         xCoords(1:3,5) = (/x1,y1,z2/)
+         xCoords(1:3,6) = (/x2,y1,z2/)
+         xCoords(1:3,7) = (/x1,y2,z2/)
+         xCoords(1:3,8) = (/x2,y2,z2/)
+         RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
+      END ASSOCIATE
+      END IF ! .NOT.RegionOnProc
     CASE('circle')
       xlen=Species(iSpec)%Init(iInit)%RadiusIC * &
            SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
@@ -1720,7 +1742,8 @@ DO iSpec=1,nSpecies
 !    IPWRITE(UNIT_stdOut,*) 'loc rank',PartMPI%InitGroup(nInitRegions)%MyRank
 !    IPWRITE(UNIT_stdOut,*) 'loc comm',PartMPI%InitGroup(nInitRegions)%COMM
     IF(PartMPI%InitGroup(nInitRegions)%MyRank.EQ.0 .AND. RegionOnProc) &
-    WRITE(UNIT_StdOut,*) ' Emission-Region,Emission-Communicator:',nInitRegions,PartMPI%InitGroup(nInitRegions)%nProcs,' procs'
+    WRITE(UNIT_StdOut,'(A,I0,A,I0,A,I0,A)') ' Emission-Region,Emission-Communicator:',nInitRegions,' on ',&
+    PartMPI%InitGroup(nInitRegions)%nProcs,' procs ('//TRIM(Species(iSpec)%Init(iInit)%SpaceIC)//', iSpec=',iSpec,')'
     IF(PartMPI%InitGroup(nInitRegions)%COMM.NE.MPI_COMM_NULL) THEN
       IF(PartMPI%InitGroup(nInitRegions)%MyRank.EQ.0) THEN
         PartMPI%InitGroup(nInitRegions)%MPIRoot=.TRUE.
