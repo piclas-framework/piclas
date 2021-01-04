@@ -1430,8 +1430,9 @@ DO iSpec=1,nSpecies
       ! Neutralization at const. x-position from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
       ! for low-temperature partially magnetized plasmas (2019)
       ! Check 1st region (emission at fixed x-position x=2.4cm)
-      ASSOCIATE( x2 => 2.3999e-2    ,& ! m
-                 x1 => 2.4001e-2    ,& ! m
+      ASSOCIATE( &
+                 x2 => 2.4001e-2    ,& ! m
+                 x1 => 2.3999e-2    ,& ! m
                  y2 => GEO%ymaxglob ,& ! m
                  y1 => GEO%yminglob ,& ! m
                  z2 => GEO%zmaxglob ,& ! m
@@ -1450,8 +1451,9 @@ DO iSpec=1,nSpecies
 
       ! Check 2nd region (left boundary where the exiting particles are counted)
       IF(.NOT.RegionOnProc)THEN
-        ASSOCIATE( x2 => -0.001e-2    ,& ! m
-                   x1 => 0.0001e-2    ,& ! m
+        ASSOCIATE(&
+                   x2 => 0.0001e-2    ,& ! m
+                   x1 => -0.001e-2    ,& ! m
                    y2 => GEO%ymaxglob ,& ! m
                    y1 => GEO%yminglob ,& ! m
                    z2 => GEO%zmaxglob ,& ! m
