@@ -701,7 +701,9 @@ IF (PerformLoadBalance) THEN
 
   RETURN
 END IF
+#endif  /*USE_LOADBALANCE*/
 
+#if USE_MPI
 ! Finish non-blocking mesh communication
 IF (myComputeNodeRank.EQ.0) THEN
   CALL MPI_WAITALL(4,MPI_COMM_LEADERS_REQUEST,MPI_STATUSES_IGNORE,IERROR)
