@@ -574,6 +574,8 @@ IF (PerformLoadBalance) THEN
   ! Broadcast compute node node offset on node
   offsetComputeNodeNode=offsetNodeID
   CALL MPI_BCAST(offsetComputeNodeNode,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+
+  RETURN
 END IF
 #endif /*USE_LOADBALANCE*/
 
