@@ -505,7 +505,7 @@ INTEGER                        :: FirstElemInd,LastElemInd
 INTEGER                        :: nSideIDs,offsetSideID
 #if USE_MPI
 INTEGER                        :: iProc
-INTEGER                        :: nNodeIDs,offsetNodeID
+INTEGER                        :: offsetNodeID!,nNodeIDs
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
@@ -518,7 +518,7 @@ LastElemInd  = offsetElem+nElems
 offsetSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
 nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND ,LastElemInd) - ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd)
 offsetNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
-nNodeIDs     = ElemInfo_Shared(ELEM_LASTNODEIND,LastElemInd)-ElemInfo_Shared(ELEM_FIRSTNODEIND,FirstElemind)
+! nNodeIDs     = ElemInfo_Shared(ELEM_LASTNODEIND,LastElemInd)-ElemInfo_Shared(ELEM_FIRSTNODEIND,FirstElemind)
 #else
 FirstElemInd = 1
 LastElemInd  = nElems
