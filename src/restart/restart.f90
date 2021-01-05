@@ -339,7 +339,7 @@ USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
 USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
-#if (PARTICLES) || (USE_HDG)
+#if defined(PARTICLES) || (USE_HDG)
 USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists,nDims,HSize
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -360,10 +360,12 @@ LOGICAL                            :: DG_SolutionLambdaExists
 LOGICAL                            :: DG_SolutionUExists
 INTEGER(KIND=8)                    :: iter
 #endif /*USE_HDG*/
-INTEGER                            :: iElem
 #if USE_MPI
 REAL                               :: StartT,EndT
 #endif /*USE_MPI*/
+#if !(USE_HDG) || defined(PARTICLES)
+INTEGER                            :: iElem
+#endif /*!(USE_HDG) || defined(PARTICLES)*/
 #ifdef PARTICLES
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames_HDF5(:)

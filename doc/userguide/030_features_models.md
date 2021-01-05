@@ -14,7 +14,7 @@ Three different particle tracking methods are implemented in PICLas and are sele
                                   ! particles:
                                   ! refmapping (1): reference mapping of particle
                                   ! position with (bi-)linear and bezier (curved)
-                                  ! description of sides. 
+                                  ! description of sides.
                                   ! tracing (2): tracing of particle path with
                                   ! (bi-)linear and bezier (curved) description of
                                   ! sides.
@@ -42,7 +42,7 @@ The two alternative tracking routines and their options are described in the fol
     TrackingMethod = refmapping
 
 This method is the slowest implemented method for linear grids and large particle displacements.
-A particle is mapped into a element to compute the particle position in the reference space. 
+A particle is mapped into a element to compute the particle position in the reference space.
 This test determines in which element a particle is located. Each element has a slightly larger
 reference space due to tolerance. Starting from reference values >=1. the best element is found and used for the
 hosting element. In order to take boundary interactions into account, all BC faces in the halo vicinity of the element
@@ -70,7 +70,7 @@ located inside of this element. Next, the particle trajectory is traced througho
 for an intersection and a particle assigned accordingly to neighbor elements or the interaction with boundary conditions occur. This
 algorithm has no inherent self-consistency check. For critical intersections (beginning or end of a particle path or if a particle is located close to
 the edges of element faces) an additional safety check is performed by recomputing the element check and if it fails a re-localization of
-the particle is required. Particles traveling parallel to element faces are in an undefined state and are currently removed from the computation. 
+the particle is required. Particles traveling parallel to element faces are in an undefined state and are currently removed from the computation.
 This leads to a warning message. Note that tracing on periodic meshes works only for non-mpi computations. Periodic displacement requires
 additional coding.
 
@@ -103,23 +103,114 @@ Following parameters can be used for both schemes.
 
 ## Boundary Conditions - Field Solver
 
-To-do: Modification of boundaries with the PICLas parameter file (order is of importance)
+Boundary conditions are defined in the mesh creation step in the hopr.ini file and can be modified when running PICLas in the
+corresponding *parameter.ini* file. In the *hopr.ini* file, which is read by the *hopr* executable, a boundary is defined by
+
+    BoundaryName = BC_Inflow   ! BC index 1 (from  position in the parameter file)
+    BoundaryType = (/4,0,0,0/) ! (/ Type, curveIndex, State, alpha /)
+
+where the name of the boundary is directly followed by its type definition, which contains information on the BC type, curving,
+state and periodicity. This can be modified in the *parameter.ini* file, which is read by the *piclas* executable via
+
+    BoundaryName = BC_Inflow ! BC name in the mesh.h5 file
+    BoundaryType = (/5,0/)   ! (/ Type, State /)
+
+In this case the boundary type is changed from 4 (in the mesh file) to 5 in the simulation.
 
 ### Maxwell's Equations
 
-To-do
+The boundary conditions used for Maxwell's equations are defined by the first integer value in the *BoundaryType* vector and
+include, periodic, Dirichlet, Silver-Mueller, perfectly conducting, symmetry and reference state boundaries as detailed in the following table.
+
+| BoundaryType |     Type     |                                                           State                                                           |
+|  :--------:  |   :-------:  |                                  :------------------------------------------------------                                  |
+|    (/1,1/)   |  1: periodic |                                    1: positive direction of the 1st periodicity vector                                    |
+|   (/1,-1/)   |  1: periodic |                              -1: negative (opposite) direction of the 1st periodicity vector                              |
+|              |              |                                                                                                                           |
+|    (/2,2/)   | 2: Dirichlet |                                                    2: Coaxial waveguide                                                   |
+|    (/2,3/)   | 2: Dirichlet |                                                        3: Resonator                                                       |
+|    (/2,4/)   | 2: Dirichlet |                 4: Electromagnetic dipole (implemented via RHS source terms and shape function deposition)                |
+|   (/2,40/)   | 2: Dirichlet |   40: Electromagnetic dipole without initial condition (implemented via RHS source terms and shape function deposition)   |
+|   (/2,41/)   | 2: Dirichlet |             41: Pulsed Electromagnetic dipole (implemented via RHS source terms and shape function deposition)            |
+|    (/2,5/)   | 2: Dirichlet |                              5: Transversal Electric (TE) plane wave in a circular waveguide                              |
+|    (/2,7/)   | 2: Dirichlet |                                              7: Special manufactured Solution                                             |
+|   (/2,10/)   | 2: Dirichlet |                10: Issautier 3D test case with source (Stock et al., div. correction paper), domain [0;1]^3               |
+|   (/2,12/)   | 2: Dirichlet |                                                       12: Plane wave                                                      |
+|   (/2,121/)  | 2: Dirichlet |                             121: Pulsed plane wave (infinite spot size) and temporal Gaussian                             |
+|   (/2,14/)   | 2: Dirichlet |             14: Gaussian pulse is initialized inside the domain (usually used as initial condition and not BC)            |
+|   (/2,15/)   | 2: Dirichlet |                                  15: Gaussian pulse with optional delay time *tDelayTime*                                 |
+|   (/2,16/)   | 2: Dirichlet |               16: Gaussian pulse which is initialized in the domain and used as a boundary condition for t>0              |
+|   (/2,50/)   | 2: Dirichlet |                                 50: Initialization and BC Gyrotron - including derivatives                                |
+|   (/2,51/)   | 2: Dirichlet |                   51: Initialization and BC Gyrotron - including derivatives (nothing is set for z>eps)                   |
+|              |              |                                                                                                                           |
+|    (/3,0/)   |     3: SM    |      1st order absorbing BC (Silver-Mueller) - Munz et al. 2000 / Computer Physics Communication 130, 83-117 with fix     |
+|              |              |              of div. correction field for low B-fields that only set the correction fields when ABS(B)>1e-10              |
+|    (/5,0/)   |     5: SM    |          1st order absorbing BC (Silver-Mueller) - Munz et al. 2000 / Computer Physics Communication 130, 83-117          |
+|    (/6,0/)   |     6: SM    |      1st order absorbing BC (Silver-Mueller) - Munz et al. 2000 / Computer Physics Communication 130, 83-117 with fix     |
+|              |              | of div. correction field for low B-fields that only set the correction fields when B is significantly large compared to E |
+|              |              |                                                                                                                           |
+|    (/4,0/)   |     4: PEC   |                           Perfectly conducting surface (Munz, Omnes, Schneider 2000, pp. 97-98)                           |
+|              |              |                                                                                                                           |
+|   (/10,0/)   |    10: Sym   |                                       Symmetry BC (perfect MAGNETIC conductor, PMC)                                       |
+|              |              |                                                                                                                           |
+|   (/20,0/)   |    20: Ref   |                              Use state that is read from .h5 file and interpolated to the BC                              |
 
 Dielectric -> type 100?
 
 ### Poisson's Equation
 
-To-do
+The boundary conditions used for Maxwell's equations are defined by the first integer value in the *BoundaryType* vector and
+include, periodic, Dirichlet (via pre-defined function, zero-potential or *RefState*), Neumann and reference state boundaries
+as detailed in the following table.
+
+| BoundaryType |     Type     |                                                            State                                                           |
+|  :--------:  |  :---------: |                                   :------------------------------------------------------                                  |
+|    (/1,1/)   |  1: periodic |                                     1: positive direction of the 1st periodicity vector                                    |
+|   (/1,-1/)   |  1: periodic |                               -1: negative (opposite) direction of the 1st periodicity vector                              |
+|              |              |                                                                                                                            |
+|    (/2,0/)   | 2: Dirichlet |                                                          0: Phi=0                                                          |
+|  (/2,1001/)  | 2: Dirichlet |                                    1001: linear potential y-z via Phi = y*2340 + z*2340                                    |
+|   (/2,101/)  | 2: Dirichlet |                                       101: linear in z-direction: z=-1: 0, z=1, 1000                                       |
+|   (/2,103/)  | 2: Dirichlet |                                                         103: dipole                                                        |
+|   (/2,104/)  | 2: Dirichlet |                              104: solution to Laplace's equation: Phi_xx + Phi_yy + Phi_zz = 0                             |
+|              |              |                          $\Phi=(COS(x)+SIN(x))(COS(y)+SIN(y))(COSH(SQRT(2.0)z)+SINH(SQRT(2.0)z))$                          |
+|   (/2,200/)  | 2: Dirichlet | 200: Dielectric Sphere of Radius R in constant electric field E_0 from book: John David Jackson, Classical Electrodynamics |
+|   (/2,300/)  | 2: Dirichlet |                     300: Dielectric Slab in z-direction of half width R in constant electric field E_0:                    |
+|              |              |                                                   adjusted from CASE(200)                                                  |
+|   (/2,301/)  | 2: Dirichlet |                    301: like CASE=300, but only in positive z-direction the dielectric region is assumed                   |
+|   (/2,400/)  | 2: Dirichlet |                                         400: Point Source in Dielectric Region with                                        |
+|              |              |                                              epsR_1  = 1  for x $<$ 0 (vacuum)                                             |
+|              |              |                                         epsR_2 != 1 for x $>$ 0 (dielectric region)                                        |
+|              |              |                                                                                                                            |
+|    (/4,0/)   | 4: Dirichlet |                                                   zero-potential (Phi=0)                                                   |
+|              |              |                                                                                                                            |
+|    (/5,1/)   | 5: Dirichlet |                                          1: use RefState Nbr 1, see details below                                          |
+|              |              |                                                                                                                            |
+|   (/10,0/)   |  10: Neumann |                                                  zero-gradient (dPhi/dn=0)                                                 |
+|   (/11,0/)   |  11: Neumann |                                                            q*n=1                                                           |
+
+For each boundary of type *5* (reference state boundary *RefState*), e.g.,
+
+    BoundaryName = BC_WALL ! BC name in the mesh.h5 file
+    BoundaryType = (/5,1/) ! (/ Type, curveIndex, State, alpha /)
+
+the corresponding *RefState* number must also be supplied (here 1) and is selected from its position in the parameter file. Each
+*RefState* is defined in the *parameter.ini* file by supplying a value for the voltage an alternating frequency for the cosine
+function (a frequency of 0 results in a fixed potential over time) and phase shift
+
+    RefState = (/-0.18011, 0.0, 0.0/) ! RefState Nbr 1: Voltage, Frequency and Phase shift
+
+This yields the three parameters used in the general function
+
+    Phi(t) = COS(2*pi*f*t + psi)
+
+where, *t* is the time, *f* is the frequency and *psi* is the phase shift.
 
 ### Dielectric Materials
 
 Dielectric material properties can be considered by defining regions (or specific elements)
-in the computational domain, where permittivity and permeability constants for linear isotropic 
-non-lossy dielectrics are used. The interfaces between dielectrics and vacuum regions must be separated 
+in the computational domain, where permittivity and permeability constants for linear isotropic
+non-lossy dielectrics are used. The interfaces between dielectrics and vacuum regions must be separated
 by element-element interfaces due to the DGSEM (Maxwell) and HDG (Poisson) solver requirements, but
 can vary spatially within these elements.
 
@@ -132,12 +223,12 @@ and specifying values for the permittivity and permeability constants
     DielectricEpsR = X
     DielectricMuR = X
 
-Furthermore, the corresponding regions in which the dielectric materials are found must be defined, 
+Furthermore, the corresponding regions in which the dielectric materials are found must be defined,
 e.g., simple boxes via
 
     xyzDielectricMinMax  = (/0.0 , 1.0 , 0.0 , 1.0 , 0.0 , 1.0/)
 
-for the actual dielectric region (vector with 6 entries yielding $x$-min/max, $y$-min/max and 
+for the actual dielectric region (vector with 6 entries yielding $x$-min/max, $y$-min/max and
 $z$-min/max) or the inverse (vacuum, define all elements which are NOT dielectric) by
 
     xyzPhysicalMinMaxDielectric = (/0.0 , 1.0 , 0.0 , 1.0 , 0.0 , 1.0/)
@@ -146,8 +237,8 @@ Spherical regions can be defined by setting a radius value
 
     DielectricRadiusValue = X
 
-and special pre-defined regions (which also consider spatially varying material properties) may also be 
-used, e.g., 
+and special pre-defined regions (which also consider spatially varying material properties) may also be
+used, e.g.,
 
     DielectricTestCase = FishEyeLens
 
@@ -246,7 +337,7 @@ The rotational periodic boundary condition can be used in order to reduce the co
     Part-Boundary1-SourceName=BC_Rot_Peri_plus
     Part-Boundary1-Condition=rot_periodic
     Part-Boundary1-RotPeriodicDir=1
-    
+
     Part-Boundary2-SourceName=BC_Rot_Peri_minus
     Part-Boundary2-Condition=rot_periodic
     Part-Boundary2-RotPeriodicDir=-1
@@ -334,7 +425,7 @@ For surface sampling output, where the surface is split into, e.g., $3\times3$ s
     Particles-DSMC-CalcSurfaceVal = T
     Part-IterationForMacroVal = 200
 
-where `BezierSampleN=DSMC-nSurfSample`. In this example, sampling is performed over 200 interations.
+where `BezierSampleN=DSMC-nSurfSample`. In this example, sampling is performed over 200 iterations.
 
 ### Deposition of Charges on Dielectric Surfaces
 
@@ -460,7 +551,7 @@ A special case is the ionization of a background gas through photon impact, mode
     Part-Species1-Init1-WaveLength              = 1E-9      ! [m]
     Part-Species1-Init1-NbrOfPulses             = 1         ! [-], default = 1
 
-The pulse duration and waist radius are utilized to define the spatial and temporal Gaussian profile of the intensity. The number of pulses allows to consider multiple light pulses within a single simulation. To define the intensity of the light pulse, either the average pulse power (energy of a single pulse times repetition rate), the pulse energy or the intensity amplitude have to be provided. 
+The pulse duration and waist radius are utilized to define the spatial and temporal Gaussian profile of the intensity. The number of pulses allows to consider multiple light pulses within a single simulation. To define the intensity of the light pulse, either the average pulse power (energy of a single pulse times repetition rate), the pulse energy or the intensity amplitude have to be provided.
 
     Part-Species1-Init1-Power                   = 1         ! [W]
     Part-Species1-Init1-RepetitionRate          = 1         ! [Hz]
@@ -473,7 +564,7 @@ The intensity can be scaled with an additional factor to account for example for
 
     Part-Species1-Init1-EffectiveIntensityFactor    = 1         ! [-]
 
-It should be noted that this initialization should be done with a particle spiecies (i.e. not the background gas species) that is also a product of the ionization reaction. The ionization reactions are defined as described in Section \ref{sec:dsmc_chemistry} by
+It should be noted that this initialization should be done with a particle species (i.e. not the background gas species) that is also a product of the ionization reaction. The ionization reactions are defined as described in Section \ref{sec:dsmc_chemistry} by
 
     DSMC-NumOfReactions = 1
     DSMC-Reaction1-ReactionType         = phIon
@@ -505,7 +596,7 @@ The surface flux is mapped to a certain boundary by giving its boundary number (
 
     Part-Species1-Surfaceflux1-BC=1
 
-The remaining parameters such as flow velocity, temperature and number density are given analogously to the initial particle insertion presented in Section \ref{sec:particle_insertion}. An example to define the surface flux for a diatomic species is given below 
+The remaining parameters such as flow velocity, temperature and number density are given analogously to the initial particle insertion presented in Section \ref{sec:particle_insertion}. An example to define the surface flux for a diatomic species is given below
 
     Part-Species1-Surfaceflux1-VeloIC=1500
     Part-Species1-Surfaceflux1-VeloVecIC=(/-1.0,0.0,0.0/)
@@ -569,7 +660,7 @@ The relaxation factor $f_{\mathrm{relax}}$ is defined by
 
     Part-AdaptiveWeightingFactor = 0.001
 
-The adaptive particle emission can be combined with the circular inflow feature. In this context when the area of the actual emission circle/ring is very small, it is preferable to utilize the `Type=4` constant mass flow condition. `Type=3` assumes an open boundary and accounts for particles leaving the domain through that boundary already when determining the number of particles to be inserted. As a result, this method tends to overpredict the given mass flow, when the emission area is very small and large sample size would be required to have enough particles that leave the domain through the emission area. For the `Type=4` method, the actual number of particles leaving the domain through the circular inflow is counted and the mass flow adapted accordingly, thus the correct mass flow can be reproduced.
+The adaptive particle emission can be combined with the circular inflow feature. In this context when the area of the actual emission circle/ring is very small, it is preferable to utilize the `Type=4` constant mass flow condition. `Type=3` assumes an open boundary and accounts for particles leaving the domain through that boundary already when determining the number of particles to be inserted. As a result, this method tends to over predict the given mass flow, when the emission area is very small and large sample size would be required to have enough particles that leave the domain through the emission area. For the `Type=4` method, the actual number of particles leaving the domain through the circular inflow is counted and the mass flow adapted accordingly, thus the correct mass flow can be reproduced.
 
 Additionally, the `Type=4` method can be utilized in combination with a reflective boundary condition to model diffusion and leakage (e.g. in vacuum tanks) based on a diffusion rate $Q$ [Pa m$^3$ s$^{-1}$]. The input mass flow [kg s$^{-1}$] for the simulation is then determined by
 
@@ -614,9 +705,10 @@ High-order field solvers require deposition methods that reduce the noise, e.g.,
 
 or
 
-    PIC-Deposition-Type = shape_function_simple
+    PIC-Deposition-Type = shape_function_cc
 
-where `shape_function_simple` is faster for small numbers of elements per processor (high parallelization).
+where `shape_function_cc` is a more charge-conserving method that adjusts the deposited charge by
+comparing its integral value to the total charge given by the particles.
 
 The shape function sphere might be truncated at walls or open boundaries, which can be prevented by
 using a local deposition method near boundaries. The deposition of particles in elements where the shape
@@ -645,10 +737,17 @@ $$
 
 The direction in which deposition is performed is chosen via
 
-    PIC-shapefunction1d-direction = 1 ! for x-direction
-                                    2 ! for y-direction
-                                    3 ! for z-direction
+    PIC-shapefunction-direction = 1 ! for x-direction
+                                  2 ! for y-direction
+                                  3 ! for z-direction
 
+and the dimensionality of the shape function is controlled by
+
+    PIC-shapefunction-dimension = 1 ! for 1D
+                                  2 ! for 2D
+                                  3 ! for 3D
+
+which has to be set to 1 in the case of 1D deposition.
 
 ##### Shape Function 2D
 A two-dimensional shape function in $x$-$y$-direction is given by
@@ -663,9 +762,9 @@ grid point at position $\boldsymbol{x}$ and the $n$-th particle at position $\bo
 $R$ is the cut-off radius and $\Delta z=z_{2}-z_{1}$ is the domain length in $z$-direction.
 The perpendicular direction to the two axes, in which deposition is performed is chosen via
 
-    PIC-shapefunction1d-direction = 1 ! for const. depo in x-direction
-                                    2 ! for const. depo in y-direction
-                                    3 ! for const. depo in z-direction
+    PIC-shapefunction-direction = 1 ! for const. depo in x-direction
+                                  2 ! for const. depo in y-direction
+                                  3 ! for const. depo in z-direction
 
 when the charge is to be deposited const. along the $x$- or $y$- or $z$-direction.
 If the charge is to be deposited over the area instead of the volume, the flag
@@ -673,6 +772,13 @@ If the charge is to be deposited over the area instead of the volume, the flag
     PIC-shapefunction-3D-deposition=F
 
 must be set, which simply sets $\Delta z=1$ for the example described above.
+Again, the dimensionality of the shape function is controlled by
+
+    PIC-shapefunction-dimension = 1 ! for 1D
+                                  2 ! for 2D
+                                  3 ! for 3D
+
+which has to be set to 2 in the case of 2D deposition.
 
 ##### Shape Function 3D
 A three-dimensional shape function in $x$-$y$-direction is given by [@Stock2012]
@@ -779,7 +885,7 @@ The last cross-section type `custom` allows the definition of a cross-section as
 
     Coil1-AxisVec1 = (/0.0,0.0,1.0/)
     Coil1-NumOfSegments = 3
-    ! Linear segment defined by 
+    ! Linear segment defined by
     Coil1-Segment1-SegmentType = line
     Coil1-Segment1-NumOfPoints = 5
     Coil1-Segment1-LineVector = (/1.0,1.0/)
@@ -814,9 +920,9 @@ Additionally, the number of simulated physical models depending on the applicati
 
 `CollisMode = 1` can be utilized for the simulation of a non-reactive, cold atomic gas, where no chemical reactions or electronic excitation is expected. `CollisMode = 2` should be chosen for non-reactive diatomic gas flows to include the internal energy exchange (by default including the rotational and vibrational energy treatment). Finally, reactive gas flows can be simulated with `CollisMode = 3`. The following sections describe the required definition of species parameter (Section \ref{sec:dsmc_species}), the parameters for the internal energy exchange (Section \ref{sec:dsmc_relaxation}) and chemical reactions (Section \ref{sec:dsmc_chemistry}).
 
-The simulation time step $\Delta t$ is defined by
+A fixed ("manual") simulation time step $\Delta t$ is defined by
 
-    Particles-ManualTimeStep = 1.00E-7
+    ManualTimeStep = 1.00E-7
 ### Species Definition \label{sec:dsmc_species}
 
 For the DSMC simulation, additional species-specific parameters (collision model parameters, characteristic vibrational temperature, etc.) are required. This file is also utilized for the definition of chemical reactions paths. To define a species, its name as well as an `InteractionID` have to be defined
@@ -963,7 +1069,7 @@ If `VibRelaxProb` is between 0 and 1, it is used as a constant vibrational relax
     Part-Species2-MWConstB-2-1 = -6.92
     Part-Species2-VibCrossSection = 1e-19
 
-It is not possible to calculate an instantaneous vibrational relaxation probability with this model [@Boyd1992]. Thus, the probability is calculated for every colission and is averaged. To avoid large errors in cells containing only a few particles, a relaxation of this average probability is implemented. The relaxation factor $\alpha$ can be changed with the following parameter in the ini file:
+It is not possible to calculate an instantaneous vibrational relaxation probability with this model [@Boyd1992]. Thus, the probability is calculated for every collision and is averaged. To avoid large errors in cells containing only a few particles, a relaxation of this average probability is implemented. The relaxation factor $\alpha$ can be changed with the following parameter in the ini file:
 
     Particles-DSMC-alpha = 0.99
 
@@ -1043,7 +1149,7 @@ The Total Collision Energy (TCE) model [@Bird1994] utilizes Arrhenius type react
 
 $$k(T) = A T^b e^{-E_\mathrm{a}/T}$$
 
-where $A$ is the prefactor ([1/s, m$^3$/s, m$^6$/s] depending on the reaction type), $b$ the powerfactor and $E_\mathrm{a}$ the activation energy [K]. These parameters can be defined in PICLas as follows
+where $A$ is the prefactor ([1/s, m$^3$/s, m$^6$/s] depending on the reaction type), $b$ the power factor and $E_\mathrm{a}$ the activation energy [K]. These parameters can be defined in PICLas as follows
 
     DSMC-Reaction1-Arrhenius-Prefactor=6.170E-9
     DSMC-Reaction1-Arrhenius-Powerfactor=-1.60
@@ -1135,7 +1241,7 @@ Under this assumption, collisions within the particle species can be neglected a
 
 Other species parameters such as mass, charge, temperature and velocity distribution for the background are also defined by the regular read-in parameters. A mixture as a background gas can be simulated by simply defining multiple background species.
 
-Every time step particles are generated from the background gas (for a mixture, the species of the generated particle is chosen based on the species composition) and paired with the particle species. Consequently, the collision probabilities are calculated using the conventional DSMC routines and the VHS cross-section model. Aftwards, the collilsion process is performed (if the probability is greater than a random number) and it is tested whether additional energy exchange and chemical reactions occur. While the VHS model is sufficient to model collisions between neutral species, it cannot reproduce the phenomena of a neutral-electron interaction. For this purpose, the cross-section based collision probabilities should be utilized, which are discussed in the following.
+Every time step particles are generated from the background gas (for a mixture, the species of the generated particle is chosen based on the species composition) and paired with the particle species. Consequently, the collision probabilities are calculated using the conventional DSMC routines and the VHS cross-section model. Afterwards, the collision process is performed (if the probability is greater than a random number) and it is tested whether additional energy exchange and chemical reactions occur. While the VHS model is sufficient to model collisions between neutral species, it cannot reproduce the phenomena of a neutral-electron interaction. For this purpose, the cross-section based collision probabilities should be utilized, which are discussed in the following.
 
 ### Cross-section based collision probability \label{sec:xsec_collision}
 
@@ -1174,7 +1280,7 @@ where $\mathbf{A}$ is the drift vector and $\mathcal{D}$ the diffusion matrix.
 The current implementation supports:
 
 - 2 different methods: Cubic and Ellipsoidal Statistical (ES)
-- Single species, monoatomic and polyatomic gases
+- Single species, monatomic and polyatomic gases
 - Thermal non-equilibrium with rotational and vibrational excitation (continuous or quantized treatment)
 - 2D/Axisymmetric simulations
 - Variable time step (adaption of the distribution according to the maximal relaxation factor and linear scaling)
@@ -1288,7 +1394,8 @@ Although this feature was tested with a hypersonic flow around a $70^\circ$ blun
 
 ## Features of the Particle Solver (DSMC/BGK/FP)
 
-This section describes general features, which are available to the particle-based methods approximating the Boltzmann collision integral such as DSMC, BGK and FP.
+This section describes common features, which are available to the particle-based methods approximating the Boltzmann collision integral such as DSMC, BGK and FP.
+
 ### Macroscopic Restart \label{sec:macro_restart}
 
 The so-called macroscopic restart, allows to restart the simulation by using an output file of a previous simulation run (the regular state file has still to be supplied). This enables to change the weighting factor, without beginning a new simulation.
@@ -1297,6 +1404,7 @@ The so-called macroscopic restart, allows to restart the simulation by using an 
     Particles-MacroscopicRestart-Filename = Test_DSMCState.h5
 
 The particle velocity distribution within the domain is then generated assuming a Maxwell-Boltzmann distribution, using the translational temperature per direction of each species per cell. The rotational and vibrational energy per species is initialized assuming an equilibrium distribution.
+
 ### Variable Time Step \label{sec:vartimestep}
 
 A spatially variable time step (VTS) can be activated for steady-state simulations, where two options are currently available and described in the following:

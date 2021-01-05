@@ -686,7 +686,7 @@ IF (CalcCoupledPower.AND.(timediff.GT.0.)) THEN
 END IF
 #endif /*PARTICLES*/
 
-#if !(PARTICLES)
+#if !defined(PARTICLES)
 ! Suppress compiler warning
 RETURN
 dummy=mode

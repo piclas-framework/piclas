@@ -53,6 +53,8 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals                  ,ONLY: abort
+USE MOD_Mesh_Tools               ,ONLY: GetCNSideID
+USE MOD_Part_Operations          ,ONLY: RemoveParticle
 USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars            ,ONLY: PartSpecies
 USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod
@@ -60,14 +62,13 @@ USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutput
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
 USE MOD_SurfaceModel             ,ONLY: SurfaceModel, PerfectReflection
-USE MOD_part_operations          ,ONLY: RemoveParticle
 #if defined(IMPA)
 USE MOD_Particle_Vars            ,ONLY: PartIsImplicit
 USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
 #endif /*IMPA*/
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
 USE MOD_Particle_Boundary_Tools  ,ONLY: StoreBoundaryParticleProperties
-#if CODE_ANALYZE
+#ifdef CODE_ANALYZE
 USE MOD_Globals                  ,ONLY: myRank,UNIT_stdout
 USE MOD_Mesh_Vars                ,ONLY: NGeo
 USE MOD_Mesh_Tools               ,ONLY: GetCNElemID
@@ -89,8 +90,9 @@ REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTraj
 LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                              :: CNSideID
 REAL                                 :: n_loc(1:3)
-#if CODE_ANALYZE
+#ifdef CODE_ANALYZE
 REAL                                 :: v1(3),v2(3)
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
@@ -102,19 +104,20 @@ SELECT CASE(TrackingMethod)
 CASE(REFMAPPING,TRACING)
   ! set BCSideID for normal vector calculation call with (curvi-)linear side description
   ! IF (TrackingMethod.EQ.RefMapping) BCSideID=PartBCSideList(SideID)
+  CNSideID = GetCNSideID(SideID)
 
-  SELECT CASE(SideType(SideID))
-  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-    n_loc=SideNormVec(1:3,SideID)
-  CASE(BILINEAR)
-    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-  CASE(CURVED)
-    CALL CalcNormAndTangBezier(  nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+  SELECT CASE(SideType(CNSideID))
+    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+      n_loc=SideNormVec(1:3,SideID)
+    CASE(BILINEAR)
+      CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+    CASE(CURVED)
+      CALL CalcNormAndTangBezier(  nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
   END SELECT
 
   IF(flip.NE.0) n_loc=-n_loc
 
-#if CODE_ANALYZE
+#ifdef CODE_ANALYZE
   ! check if normal vector points outwards
   v1 = 0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)  &
            + BezierControlPoints3D(:,NGeo,0   ,SideID)  &

@@ -222,11 +222,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myComputeNodeRank.EQ.0) THEN
-  WIN_SIZE  = datasize_byte
-ELSE
-  WIN_SIZE  = 0
-END IF
+WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -280,11 +276,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myComputeNodeRank.EQ.0) THEN
-  WIN_SIZE  = datasize_byte
-ELSE
-  WIN_SIZE  = 0
-END IF
+WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -338,11 +330,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myComputeNodeRank.EQ.0) THEN
-  WIN_SIZE  = datasize_byte
-ELSE
-  WIN_SIZE  = 0
-END IF
+WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -397,11 +385,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myComputeNodeRank.EQ.0) THEN
-  WIN_SIZE  = datasize_byte
-ELSE
-  WIN_SIZE  = 0
-END IF
+WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -456,11 +440,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myComputeNodeRank.EQ.0) THEN
-  WIN_SIZE  = datasize_byte
-ELSE
-  WIN_SIZE  = 0
-END IF
+WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -515,11 +495,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myComputeNodeRank.EQ.0) THEN
-  WIN_SIZE  = datasize_byte
-ELSE
-  WIN_SIZE  = 0
-END IF
+WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -574,11 +550,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myComputeNodeRank.EQ.0) THEN
-  WIN_SIZE  = datasize_byte
-ELSE
-  WIN_SIZE  = 0
-END IF
+WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -634,11 +606,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myComputeNodeRank.EQ.0) THEN
-  WIN_SIZE  = datasize_byte
-ELSE
-  WIN_SIZE  = 0
-END IF
+WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -693,11 +661,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myComputeNodeRank.EQ.0) THEN
-  WIN_SIZE  = datasize_byte
-ELSE
-  WIN_SIZE  = 0
-END IF
+WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -752,11 +716,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myComputeNodeRank.EQ.0) THEN
-  WIN_SIZE  = datasize_byte
-ELSE
-  WIN_SIZE  = 0
-END IF
+WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -811,11 +771,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myComputeNodeRank.EQ.0) THEN
-  WIN_SIZE  = datasize_byte
-ELSE
-  WIN_SIZE  = 0
-END IF
+WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -870,11 +826,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myComputeNodeRank.EQ.0) THEN
-  WIN_SIZE  = datasize_byte
-ELSE
-  WIN_SIZE  = 0
-END IF
+WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY

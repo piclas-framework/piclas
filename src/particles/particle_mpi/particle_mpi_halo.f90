@@ -56,7 +56,7 @@ USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_MPI_Vars       ,ONLY: SafetyFactor,halo_eps,halo_eps_velo
 USE MOD_Particle_MPI_Vars       ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc
-USE MOD_Particle_Vars           ,ONLY: ManualTimeStep
+USE MOD_TimeDisc_Vars           ,ONLY: ManualTimeStep
 USE MOD_PICDepo_Vars            ,ONLY: DepositionType
 USE MOD_PICDepo_Vars            ,ONLY: nSendShapeElems,SendShapeElemID, SendElemShapeID
 USE MOD_PICDepo_Vars            ,ONLY: ShapeMapping,CNShapeMapping
@@ -102,7 +102,6 @@ LOGICAL,ALLOCATABLE            :: CommFlag(:)
 INTEGER                        :: nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob
 INTEGER                        :: nExchangeProcessorsGlobal
 REAL,ALLOCATABLE               :: MPISideAngle(:)
-INTEGER,ALLOCATABLE            :: MPIPeriodicSideAxi(:)
 REAL,ALLOCATABLE               :: RotBoundsOfElemCenter(:)
 !=================================================================================================================================
 
@@ -367,7 +366,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
 
   IF (HaloProc.EQ.myRank) CYCLE
 
-!#if CODE_ANALYZE
+!#ifdef CODE_ANALYZE
 !    ! Sanity checks. Elems in halo region must have ELEM_HALOFLAG=2 and the proc must not be flagged yet
 !    IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.2) THEN
 !      IPWRITE(UNIT_stdOut,*) 'Element ID:',ElemID,'Halo Flag: ',ElemInfo_Shared(ELEM_HALOFLAG,ElemID)

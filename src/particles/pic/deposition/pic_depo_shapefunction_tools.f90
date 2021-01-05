@@ -513,7 +513,7 @@ SUBROUTINE depoChargeOnDOFsSF2D(Position,SourceSize,Fac)
 !============================================================================================================================
 ! use MODULES
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:r_sf,r2_sf,r2_sf_inv,alpha_sf,PartSource,dim_sf_dir
+USE MOD_PICDepo_Vars,           ONLY:r_sf,r2_sf,r2_sf_inv,alpha_sf,PartSource,dim_sf_dir1,dim_sf_dir2
 USE MOD_Mesh_Vars,              ONLY:nElems,offSetElem
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,ElemBaryNgeo,FIBGM_offsetElem,FIBGM_nElems,FIBGM_Element,Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo
@@ -555,13 +555,9 @@ LOGICAL                          :: chargedone(1:nComputeNodeTotalElems)
 LOGICAL                          :: chargedone(1:nElems)
 !INTEGER                          :: usedElems(   nElems)
 #endif /*USE_MPI*/
-INTEGER           :: dim1,dim2 ! Distribution directions for 2D shape function
 !----------------------------------------------------------------------------------------------------------------------------------
 chargedone(:) = .FALSE.
 nUsedElems = 0
-! Pick the opposite directions of dim_sf_dir in the 2D case via MERGE(...)
-dim1 = MERGE(1,2,dim_sf_dir.EQ.2)
-dim2 = MERGE(1,MERGE(3,3,dim_sf_dir.EQ.2),dim_sf_dir.EQ.3)
 !-- determine which background mesh cells (and interpolation points within) need to be considered
 kmax = CEILING((Position(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
 kmax = MIN(kmax,GEO%FIBGMimax)
@@ -583,8 +579,9 @@ DO kk = kmin,kmax
         globElemID = FIBGM_Element(FIBGM_offsetElem(kk,ll,mm)+ppp)
         CNElemID = GetCNElemID(globElemID)
         IF (chargedone(CNElemID)) CYCLE
-        IF (SQRT((Position(dim1)-ElemBaryNgeo(dim1,CNElemID))**2+&
-                 (Position(dim2)-ElemBaryNgeo(dim2,CNElemID))**2).GT.(r_sf+ElemRadiusNGeo(CNElemID))) CYCLE
+        ! Pick the opposite directions of dim_sf_dir in the 2D case via MERGE(...)
+        IF (SQRT((Position(dim_sf_dir1)-ElemBaryNgeo(dim_sf_dir1,CNElemID))**2+&
+                 (Position(dim_sf_dir2)-ElemBaryNgeo(dim_sf_dir2,CNElemID))**2).GT.(r_sf+ElemRadiusNGeo(CNElemID))) CYCLE
 #if USE_LOADBALANCE
         IF (((globElemID-offSetElem).GE.1).AND.(globElemID-offSetElem).LE.nElems) &
           nDeposPerElem(globElemID-offSetElem)=nDeposPerElem(globElemID-offSetElem)+1
@@ -592,8 +589,9 @@ DO kk = kmin,kmax
           !--- go through all gauss points
         DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
           !-- calculate distance between gauss and particle
-          radius2 = (Position(dim1) - Elem_xGP_Shared(dim1,k,l,m,globElemID))**2.+&
-                    (Position(dim2) - Elem_xGP_Shared(dim2,k,l,m,globElemID))**2.
+          ! Pick the opposite directions of dim_sf_dir in the 2D case via MERGE(...)
+          radius2 = (Position(dim_sf_dir1) - Elem_xGP_Shared(dim_sf_dir1,k,l,m,globElemID))**2.+&
+                    (Position(dim_sf_dir2) - Elem_xGP_Shared(dim_sf_dir2,k,l,m,globElemID))**2.
           !-- calculate charge and current density at ip point using a shape function
           !-- currently only one shapefunction available, more to follow (including structure change)
           IF (radius2 .LE. r2_sf) THEN
@@ -997,7 +995,7 @@ SUBROUTINE depoChargeOnDOFsSFChargeCon2D(Position,SourceSize,Fac)
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:r_sf, r2_sf, r2_sf_inv,alpha_sf,PartSource,w_sf,dim_sf_dir
+USE MOD_PICDepo_Vars,           ONLY:r_sf, r2_sf, r2_sf_inv,alpha_sf,PartSource,w_sf,dim_sf_dir1,dim_sf_dir2
 USE MOD_Mesh_Vars,              ONLY:nElems, offSetElem
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo, ElemsJ
@@ -1048,13 +1046,9 @@ TYPE SPElem
 END TYPE
 TYPE (SPElem), POINTER :: first => null()
 TYPE (SPElem), POINTER :: element
-INTEGER           :: dim1,dim2 ! Distribution directions for 2D shape function
 !----------------------------------------------------------------------------------------------------------------------------------
 chargedone(:) = .FALSE.
 firstElem = .TRUE.
-! Pick the opposite directions of dim_sf_dir in the 2D case via MERGE(...)
-dim1 = MERGE(1,2,dim_sf_dir.EQ.2)
-dim2 = MERGE(1,MERGE(3,3,dim_sf_dir.EQ.2),dim_sf_dir.EQ.3)
 
 ALLOCATE(first)
 ALLOCATE(first%PartSourceLoc(1:4,0:PP_N,0:PP_N,0:PP_N))
@@ -1083,16 +1077,18 @@ DO kk = kmin,kmax
         CNElemID = GetCNElemID(globElemID)
         localElem = globElemID-offSetElem
         IF (chargedone(CNElemID)) CYCLE
-        IF (SQRT((Position(dim1)-ElemBaryNgeo(dim1,CNElemID))**2+&
-                 (Position(dim2)-ElemBaryNgeo(dim2,CNElemID))**2).GT.(r_sf+ElemRadiusNGeo(CNElemID))) CYCLE
+        ! Pick the opposite directions of dim_sf_dir in the 2D case via MERGE(...)
+        IF (SQRT((Position(dim_sf_dir1)-ElemBaryNgeo(dim_sf_dir1,CNElemID))**2+&
+                 (Position(dim_sf_dir2)-ElemBaryNgeo(dim_sf_dir2,CNElemID))**2).GT.(r_sf+ElemRadiusNGeo(CNElemID))) CYCLE
 #if USE_LOADBALANCE
         IF ((localElem.GE.1).AND.localElem.LE.nElems) nDeposPerElem(localElem)=nDeposPerElem(localElem)+1
 #endif /*USE_LOADBALANCE*/
           !--- go through all gauss points
         DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
           !-- calculate distance between gauss and particle
-          radius2 = (Position(dim1) - Elem_xGP_Shared(dim1,k,l,m,globElemID))**2.+&
-                    (Position(dim2) - Elem_xGP_Shared(dim2,k,l,m,globElemID))**2.
+          ! Pick the opposite directions of dim_sf_dir in the 2D case via MERGE(...)
+          radius2 = (Position(dim_sf_dir1) - Elem_xGP_Shared(dim_sf_dir1,k,l,m,globElemID))**2.+&
+                    (Position(dim_sf_dir2) - Elem_xGP_Shared(dim_sf_dir2,k,l,m,globElemID))**2.
           !-- calculate charge and current density at ip point using a shape function
           !-- currently only one shapefunction available, more to follow (including structure change)
           IF (radius2 .LE. r2_sf) THEN

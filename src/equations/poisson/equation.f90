@@ -61,12 +61,11 @@ IMPLICIT NONE
 CALL prms%SetSection("Equation")
 CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Define exact function necessary for linear scalar advection')
+CALL prms%CreateRealArrayOption('RefState'         , 'State(s) for electric potential (amplitude, frequency and phase shift).', multiple=.TRUE.)
 CALL prms%CreateRealArrayOption('IniWavenumber'    , 'TODO-DEFINE-PARAMETER' , '1. , 1. , 1.')
 CALL prms%CreateRealArrayOption('IniCenter'        , 'TODO-DEFINE-PARAMETER' , '0. , 0. , 0.')
 CALL prms%CreateRealOption(     'IniAmplitude'     , 'TODO-DEFINE-PARAMETER' , '0.1')
 CALL prms%CreateRealOption(     'IniHalfwidth'     , 'TODO-DEFINE-PARAMETER' , '0.1')
-CALL prms%CreateRealOption(     'ACfrequency'      , 'TODO-DEFINE-PARAMETER' , '0.0')
-CALL prms%CreateRealOption(     'ACamplitude'      , 'TODO-DEFINE-PARAMETER' , '0.0')
 
 CALL prms%CreateIntOption(      'chitensWhichField', 'TODO-DEFINE-PARAMETER', '-1')
 CALL prms%CreateRealOption(     'chitensValue'     , 'TODO-DEFINE-PARAMETER', '-1.0')
@@ -84,13 +83,13 @@ SUBROUTINE InitEquation()
 ! Init Poisson euqation system
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Preproc
-USE MOD_ReadInTools        ,ONLY: GETREALARRAY,GETREAL,GETINT
-USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
+USE MOD_Globals
 USE MOD_Equation_Vars
 USE MOD_HDG_vars
+USE MOD_Globals_Vars       ,ONLY: PI
+USE MOD_ReadInTools        ,ONLY: GETREALARRAY,GETREAL,GETINT,CountOption
+USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
 USE MOD_Mesh_Vars          ,ONLY: nSides
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -102,6 +101,7 @@ USE MOD_Mesh_Vars          ,ONLY: nSides
 ! LOCAL VARIABLES
 REAL                         :: chitensValue,chitensRadius  ! Deprecated variables, remove in future (by the end of 2017)
 INTEGER                      :: chitensWhichField           ! Deprecated variables, remove in future (by the end of 2017)
+INTEGER                      :: iState                      ! i-th RefState
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
    SWRITE(*,*) "InitPoisson not ready to be called or already called."
@@ -110,15 +110,25 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT POISSON...'
 
-! Read the velocity vector from ini file
-IniWavenumber     = GETREALARRAY('IniWavenumber',3,'1.,1.,1.')
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
-IniCenter    = GETREALARRAY('IniCenter',3,'0.,0.,0.')
-IniAmplitude = GETREAL('IniAmplitude','0.1')
-IniHalfwidth = GETREAL('IniHalfwidth','0.1')
-ACfrequency = GETREAL('ACfrequency','0.0')
-ACamplitude = GETREAL('ACamplitude','0.0')
+
+! Read Boundary information / RefStates / perform sanity check
+nRefState=CountOption('RefState')
+
+IF(nRefState .GT. 0)THEN
+  ALLOCATE(RefState(3,nRefState))
+  DO iState=1,nRefState
+    RefState(1:3,iState) = GETREALARRAY('RefState',3)
+  END DO
+END IF
+
+
+! Read the velocity vector from ini file
+IniWavenumber = GETREALARRAY('IniWavenumber',3,'1.,1.,1.')
+IniCenter     = GETREALARRAY('IniCenter',3,'0.,0.,0.')
+IniAmplitude  = GETREAL('IniAmplitude','0.1')
+IniHalfwidth  = GETREAL('IniHalfwidth','0.1')
 
 chitensWhichField = GETINT( 'chitensWhichField','-1')
 chitensValue      = GETREAL('chitensValue','-1.0')
@@ -160,15 +170,14 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
 
-SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID)
+SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals         ,ONLY: Abort,mpiroot
 USE MOD_Globals_Vars    ,ONLY: PI
-USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude
-USE MOD_Equation_Vars   ,ONLY: ACfrequency,ACamplitude
+USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState
 USE MOD_Dielectric_Vars ,ONLY: DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
 USE MOD_Mesh_Vars       ,ONLY: ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
@@ -178,47 +187,30 @@ IMPLICIT NONE
 REAL,INTENT(IN)                 :: x(3)
 INTEGER,INTENT(IN)              :: ExactFunction    ! determines the exact function
 INTEGER,INTENT(IN),OPTIONAL     :: ElemID           ! ElemID
-REAL,INTENT(IN),OPTIONAl        :: t ! time
+REAL,INTENT(IN),OPTIONAl        :: t                ! time
+INTEGER,INTENT(IN),OPTIONAL     :: iRefState        ! ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: Frequency,Amplitude,Omega
-REAL                            :: Cent(3)
+REAL                            :: Omega
 REAL                            :: r1,r2
 REAL                            :: r_2D,r_3D,r_bary
 REAL                            :: cos_theta
 REAL                            :: eps1,eps2
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
-CASE(0)
+CASE(-1) ! Amplitude, Frequency and Phase Shift supplied by RefState
+  ! RefState(1,iRefState): amplitude
+  ! RefState(2,iRefState): frequency
+  ! RefState(3,iRefState): phase shift
+  Omega   = 2.*PI*RefState(2,iRefState)
+  Resu(:) = RefState(1,iRefState)*COS(Omega*t+RefState(3,iRefState))
+CASE(0) !linear
     Resu(:)=0.
-CASE(1) !linear
-    Resu(:)=0.
-CASE(21) !linear
-    Resu(:)=10.+SUM(x)
-CASE(101) !constant
-    Resu(:)=7.7
 CASE(1001) ! linear in y-z
     Resu(:)=x(2)*2340 + x(3)*2340
-
-CASE(2) !sinus
-  Frequency=0.5
-  Amplitude=0.3
-  Omega=2.*PI*Frequency
-  Resu(:)=1.+Amplitude*SIN(Omega*SUM(Cent))
-CASE(30) !sinus: shifted by PI into the future (ACamplitude -> -1*ACamplitude)
-  Omega=2.*PI*ACfrequency
-  Resu(:)=-ACamplitude*SIN(Omega*t)
-CASE(31) !sinus
-  Omega=2.*PI*ACfrequency
-  Resu(:)=ACamplitude*SIN(Omega*t)
-CASE(32) !sinus
-  resu=0.
-return
-  Omega=2.*PI*ACfrequency
-  Resu(:)=ACamplitude*SIN(Omega*t-PI)
 CASE(102) !linear: z=-1: 0, z=1, 1000
   resu(:)=(1+x(3))*1000.
 CASE(103) ! dipole
@@ -510,8 +502,9 @@ SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear)
 ! MODULES
 USE MOD_Globals            ,ONLY: Abort
 USE MOD_PreProc
-USE MOD_Mesh_Vars          ,ONLY: Elem_xGP, offSetElem
+USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
 #ifdef PARTICLES
+USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
@@ -536,10 +529,14 @@ REAL,INTENT(IN),OPTIONAL        :: Phi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                            :: x(3)
-REAL                            :: r1,r2, source_e
+REAL                            :: r1,r2
 REAL,DIMENSION(3)               :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
+#ifdef PARTICLES
+REAL                            :: source_e
 INTEGER                         :: RegionID, CNElemID
+#endif /*PARTICLES*/
 !===================================================================================================================================
+IF(PRESENT(warning_linear)) warning_linear=.FALSE. ! Initialize
 ! Calculate IniExactFunc before particles are superimposed, because the IniExactFunc might be needed by the CalcError function
 SELECT CASE (IniExactFunc)
 CASE(0) ! Particles
@@ -645,6 +642,7 @@ SDEALLOCATE(chitens)
 SDEALLOCATE(chitensInv)
 SDEALLOCATE(chitens_face)
 SDEALLOCATE(E)
+SDEALLOCATE(RefState)
 END SUBROUTINE FinalizeEquation
 
 END MODULE MOD_Equation

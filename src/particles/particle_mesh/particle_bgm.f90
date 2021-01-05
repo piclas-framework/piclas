@@ -66,7 +66,7 @@ CALL prms%SetSection('BGM')
 
 ! Background mesh init variables
 CALL prms%CreateRealArrayOption('Part-FIBGMdeltas'&
-  , 'Define the deltas for the cartesian Fast-Init-Background-Mesh.'//&
+  , 'Define the deltas for the Cartesian Fast-Init-Background-Mesh.'//&
   ' They should be of the similar size as the smallest cells of the used mesh for simulation.'&
   , '1. , 1. , 1.')
 CALL prms%CreateRealArrayOption('Part-FactorFIBGM'&
@@ -106,7 +106,7 @@ USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
-USE MOD_Particle_Vars          ,ONLY: manualtimestep
+USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -309,7 +309,7 @@ ELSE
 #else
      CALL abort(&
   __STAMP__&
-  , 'ManualTimeStep.EQ.0.0 -> ManualTimeStep is not defined correctly! Particles-ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
+  , 'ManualTimeStep.EQ.0.0 -> ManualTimeStep is not defined correctly! ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
 #endif /*USE_HDG*/
   ELSE
     deltaT=ManualTimeStep
@@ -501,6 +501,7 @@ ELSE
     END IF
   END IF
 
+  ! Get centers and radii of all CN elements connected to MPI sides for distance check with the halo elements assigned to the proc
   ALLOCATE(MPISideBoundsOfElemCenter(1:4,1:nMPISidesShared))
   DO iSide = 1, nMPISidesShared
     SideID = offsetMPISideShared(iSide)
@@ -508,6 +509,7 @@ ELSE
     MPISideBoundsOfElemCenter(1:3,iSide) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
                                               SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
                                               SUM(   BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
+    ! Calculate outer radius of the element on my compute node
     MPISideBoundsOfElemCenter(4,iSide) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
                                                      BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                                      BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
@@ -523,6 +525,7 @@ ELSE
     BoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
                                  SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
                                  SUM(   BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
+    ! Calculate halo element outer radius
     BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
                                         BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                         BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)

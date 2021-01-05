@@ -213,7 +213,7 @@ TYPE tDSMC
   REAL                          :: TimeFracSamp=0.          ! %-of simulation time for sampling
   INTEGER                       :: SampNum                  ! number of Samplingsteps
   INTEGER                       :: NumOutput                ! number of Outputs
-  REAL                          :: DeltaTimeOutput          ! Time intervall for Output
+  REAL                          :: DeltaTimeOutput          ! Time interval for Output
   LOGICAL                       :: ReservoirSimu            ! Flag for reservoir simulation
   LOGICAL                       :: ReservoirSimuRate        ! Does not performe the collision.
                                                             ! Switch to enable to create reaction rates curves

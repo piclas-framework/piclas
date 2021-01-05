@@ -41,7 +41,7 @@ USE MOD_LinearSolver               ,ONLY: DefineParametersLinearSolver
 USE MOD_LoadBalance                ,ONLY: DefineParametersLoadBalance
 USE MOD_Analyze                    ,ONLY: DefineParametersAnalyze
 USE MOD_RecordPoints               ,ONLY: DefineParametersRecordPoints
-USE MOD_TimeDisc                   ,ONLY: DefineParametersTimedisc
+USE MOD_TimeDiscInit               ,ONLY: DefineParametersTimeDisc
 USE MOD_Mesh                       ,ONLY: DefineParametersMesh
 USE MOD_Equation                   ,ONLY: DefineParametersEquation
 #if !(USE_HDG)
@@ -101,7 +101,7 @@ CALL DefineParametersLinearSolver()
 #endif
 CALL DefineParametersOutput()
 CALL DefineParametersPiclas()
-CALL DefineParametersTimedisc()
+CALL DefineParametersTimeDisc()
 CALL DefineParametersMesh()
 CALL DefineParametersEquation()
 #if !(USE_HDG)

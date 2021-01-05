@@ -27,7 +27,6 @@ INTEGER           :: IniExactFunc
 REAL              :: IniCenter(3)
 REAL              :: IniAmplitude
 REAL              :: IniHalfwidth
-REAL              :: ACfrequency,ACamplitude ! used for alternate current BC
 
 ! needed for various stuff (compilation)
 REAL              :: c_corr
@@ -57,5 +56,7 @@ CHARACTER(LEN=255),DIMENSION(4),PARAMETER :: StrVarNames(4)=(/ CHARACTER(LEN=255
                                                                                      'ElectricFieldX', &
                                                                                      'ElectricFieldY', &
                                                                                      'ElectricFieldZ'/)
+INTEGER           :: nRefState     !< number of refstates defined in parameter file
+REAL,ALLOCATABLE  :: RefState(:,:) !< refstates in primitive variables (as read from ini file)
 !===================================================================================================================================
 END MODULE MOD_Equation_Vars

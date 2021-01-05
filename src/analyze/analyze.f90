@@ -66,7 +66,7 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Analyze")
 CALL prms%CreateLogicalOption('DoCalcErrorNorms'     , 'Set true to compute L2 and LInf error norms at analyze step.','.FALSE.')
-CALL prms%CreateRealOption(   'Analyze_dt'           , 'Specifies time intervall at which analysis routines are called.','0.')
+CALL prms%CreateRealOption(   'Analyze_dt'           , 'Specifies time interval at which analysis routines are called.','0.')
 CALL prms%CreateRealOption(   'OutputTimeFixed'      , 'fixed time for writing state to .h5','-1.0')
 CALL prms%CreateIntOption(    'nSkipAnalyze'         , '(Skip Analyze-Dt)','1')
 CALL prms%CreateLogicalOption('CalcTimeAverage'      , 'Flag if time averaging should be performed','.FALSE.')
@@ -77,7 +77,7 @@ CALL prms%CreateStringOption( 'VarNameFluc'          , 'Count of fluctuation var
 CALL prms%CreateIntOption(    'nSkipAvg'             , 'Iter every which CalcTimeAverage is performed')
 !CALL prms%CreateLogicalOption('AnalyzeToFile',   "Set true to output result of error norms to a file (DoCalcErrorNorms=T)",&
                                                  !'.FALSE.')
-!CALL prms%CreateIntOption(    'nWriteData' ,     "Intervall as multiple of Analyze_dt at which HDF5 files "//&
+!CALL prms%CreateIntOption(    'nWriteData' ,     "Interval as multiple of Analyze_dt at which HDF5 files "//&
                                                  !"(e.g. State,TimeAvg,Fluc) are written.",&
                                                  !'1')
 !CALL prms%CreateIntOption(    'AnalyzeExactFunc',"Define exact function used for analyze (e.g. for computing L2 errors). "//&
@@ -818,10 +818,10 @@ INTEGER                       :: iSide
 INTEGER                       :: RECI
 REAL                          :: RECR
 #endif /*USE_MPI*/
-#endif /*PARTICLES*/
 #ifdef CODE_ANALYZE
-REAL                          :: TotalSideBoundingBoxVolume,rDummy
+REAL                          :: TotalSideBoundingBoxVolume
 #endif /*CODE_ANALYZE*/
+#endif /*PARTICLES*/
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
 REAL                          :: L_Inf_Error(PP_nVar)
@@ -895,9 +895,9 @@ END IF
 
 ! FieldAnalyzeStep
 ! 2) normal analyze at analyze step
-IF(MOD(iter,FieldAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformFieldAnalyze=.TRUE.
+IF(MOD(iter,INT(FieldAnalyzeStep,8)).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformFieldAnalyze=.TRUE.
 ! 3) + 4) force analyze during a write-state information and prevent duplicates
-IF(MOD(iter,FieldAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformFieldAnalyze=.TRUE.
+IF(MOD(iter,INT(FieldAnalyzeStep,8)).NE.0 .AND. OutPutHDF5)       DoPerformFieldAnalyze=.TRUE.
 ! Remove analyze during restart or load-balance step
 IF(DoRestart .AND. iter.EQ.0) DoPerformFieldAnalyze=.FALSE.
 ! BUT print analyze info for CODE_ANALYZE and USE_HDG to get the HDG solver statistics (number of iterations, runtime and norm)
@@ -1166,9 +1166,9 @@ IF(TrackingMethod.NE.TRIATRACKING)THEN
       TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
 #if USE_MPI
       IF(MPIRoot) THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE,TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,TotalSideBoundingBoxVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
       ELSE ! no Root
-        CALL MPI_REDUCE(TotalSideBoundingBoxVolume,rDummy  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
+        CALL MPI_REDUCE(TotalSideBoundingBoxVolume,0,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
       END IF
 #endif /*USE_MPI*/
       SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
@@ -1227,6 +1227,7 @@ END IF
 
 END SUBROUTINE PerformAnalyze
 
+#ifdef PARTICLES
 #ifdef CODE_ANALYZE
 SUBROUTINE CodeAnalyzeOutput(TIME)
 !===================================================================================================================================
@@ -1339,5 +1340,6 @@ rPerformBezierNewton=0.
 
 END SUBROUTINE CodeAnalyzeOutput
 #endif /*CODE_ANALYZE*/
+#endif /*PARTICLES*/
 
 END MODULE MOD_Analyze

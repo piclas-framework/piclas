@@ -181,7 +181,7 @@ IF(DoSwapMesh)THEN
     IF(.NOT.ExistFile) THEN
       SWRITE(UNIT_stdOut,'(A)') ' ERROR: no swapmesh binary found'
       SWRITE(UNIT_stdOut,'(A,A)') ' FileName:             ',TRIM(FileName)
-      SWRITE(UNIT_stdOut,'(A,L)') ' ExistFile:            ',ExistFile
+      SWRITE(UNIT_stdOut,'(A,L1)') ' ExistFile:            ',ExistFile
       DoSwapMesh=.FALSE.
     ELSE
       SwapMeshExePath=FileName
@@ -242,7 +242,7 @@ coords=>NodeCoords
 nElemsLoc=nElems
 
 ! scale and deform mesh if desired (warning: no mesh output!)
-#if !PARTICLES
+#if !defined(PARTICLES)
 meshScale=GETREAL('meshScale','1.0')
 #endif /*!USE_PARTICLES*/
 IF(ABS(meshScale-1.).GT.1e-14)&
@@ -292,10 +292,10 @@ IF (meshMode.GT.0) THEN
   AnalyzeSide = 0
 
 ! fill output definition for InnerBCs
-#ifdef PARTICLES
+#if defined(PARTICLES) || USE_HDG
   ALLOCATE(GlobalUniqueSideID(1:nSides))
   GlobalUniqueSideID(:)=-1
-#endif
+#endif /*defined(PARTICLES) || USE_HDG*/
 
   !NOTE: nMortarSides=nMortarInnerSides+nMortarMPISides
   ALLOCATE(MortarType(2,1:nSides))              ! 1: Type, 2: Index in MortarInfo
@@ -554,14 +554,14 @@ INQUIRE(File='../'//TRIM(NewFolderName),EXIST=objExist)
 IF(.NOT.objExist)THEN ! no swapmesh folder found
   SWRITE(UNIT_stdOut,'(A)')   ' ERROR: no swapmesh folder found. Cannot perform swapmesh'
   SWRITE(UNIT_stdOut,'(A,A)') ' objName:             ',TRIM(NewFolderName)
-  SWRITE(UNIT_stdOut,'(A,L)') ' objExist:            ',objExist
+  SWRITE(UNIT_stdOut,'(A,L1)') ' objExist:            ',objExist
 ELSE
   FileName='../'//TRIM(NewFolderName)//'/'//ParameterFile
   INQUIRE(File=FileName,EXIST=objExist)
   IF(.NOT.objExist) THEN
     SWRITE(UNIT_stdOut,'(A)')   ' ERROR: no '//ParameterFile//' found. Cannot perform swapmesh'
     SWRITE(UNIT_stdOut,'(A,A)') ' objName:             ',TRIM(FileName)
-    SWRITE(UNIT_stdOut,'(A,L)') ' objExist:            ',objExist
+    SWRITE(UNIT_stdOut,'(A,L1)') ' objExist:            ',objExist
   ELSE
     !NewFolderName=FileName
 

@@ -84,7 +84,7 @@ INTEGER                   :: jElem, NonUniqueNodeID, iNode, NeighUniqueNodeID
 REAL                      :: VolumeShapeFunction,r_sf_tmp
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
-CHARACTER(32)             :: hilf2
+CHARACTER(32)             :: hilf_dim,hilf_geo
 CHARACTER(255)            :: TimeAverageFile
 INTEGER                   :: nTotalDOF
 INTEGER                   :: UniqueNodeID
@@ -405,29 +405,35 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   dim_sf_dir = GETINT('PIC-shapefunction-direction')
   ! Distribute the charge over the volume (3D) or line (1D)/area (2D): default is TRUE
   sfDepo3D = GETLOGICAL('PIC-shapefunction-3D-deposition')
+  ! Check if 2D shape function is activated
   IF(dim_sf.EQ.2)THEN
+    ! set the two perpendicular directions used for deposition
+    dim_sf_dir1 = MERGE(1,2,dim_sf_dir.EQ.2)
+    dim_sf_dir2 = MERGE(1,MERGE(3,3,dim_sf_dir.EQ.2),dim_sf_dir.EQ.3)
     SWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') ' Shape function 2D with const. distribution in dir ',dim_sf_dir,&
-        ' and variable distrbution in ',MERGE(1,2,dim_sf_dir.EQ.2),' and ', MERGE(1,MERGE(3,3,dim_sf_dir.EQ.2),dim_sf_dir.EQ.3),&
-    ' (1: x, 2: y and 3: z)'
+        ' and variable distrbution in ',dim_sf_dir1,' and ',dim_sf_dir2,' (1: x, 2: y and 3: z)'
   END IF ! dim_sf.EQ.2
 
   r2_sf = r_sf * r_sf  ! Radius squared
   r2_sf_inv = 1./r2_sf ! Inverse of radius squared
 
+  ! Initialize auxiliary variables
+  hilf_geo='volume'
+  hilf_dim='3D'
   ! Set the scaling factor for the shape function depending on 1D, 2D or 3D shape function and how the charge is to be distributed
   IF(dim_sf.EQ.3)THEN! 3D shape function
     BetaFac = beta(1.5, REAL(alpha_sf) + 1.)
     w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) * (REAL(alpha_sf) + 1.)/(PI*(r_sf**3))
   ELSE! 1D or 2D shape function
-    IF(dim_sf_dir.EQ.1)THEN ! Shape function deposits charge in x-direction (1D) or in y- and z-dir (2D)
-      dimFactorSF = (GEO%ymaxglob-GEO%yminglob)**(3-dim_sf)
-    ELSE IF (dim_sf_dir.EQ.2)THEN ! Shape function deposits charge in y-direction (1D) or in x- and z-dir (2D)
-      dimFactorSF = (GEO%xmaxglob-GEO%xminglob)**(3-dim_sf)
-    ELSE IF (dim_sf_dir.EQ.3)THEN ! Shape function deposits charge in z-direction (1D) or in x- and y-dir (2D)
-      dimFactorSF = (GEO%xmaxglob-GEO%xminglob)**(3-dim_sf)
-    END IF
-
     IF(dim_sf.EQ.1)THEN
+      ! Set perpendicular directions
+      IF(dim_sf_dir.EQ.1)THEN ! Shape function deposits charge in x-direction
+        dimFactorSF = (GEO%ymaxglob-GEO%yminglob)*(GEO%zmaxglob-GEO%zminglob)
+      ELSE IF (dim_sf_dir.EQ.2)THEN ! Shape function deposits charge in y-direction
+        dimFactorSF = (GEO%xmaxglob-GEO%xminglob)*(GEO%zmaxglob-GEO%zminglob)
+      ELSE IF (dim_sf_dir.EQ.3)THEN ! Shape function deposits charge in z-direction
+        dimFactorSF = (GEO%xmaxglob-GEO%xminglob)*(GEO%ymaxglob-GEO%yminglob)
+      END IF
       IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
         ! Set prefix factor
         w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf*GAMMA(REAL(alpha_sf+1))*dimFactorSF)
@@ -436,9 +442,22 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
         w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf*GAMMA(REAL(alpha_sf+1)))
         ! Set shape function length (1D volume)
         !VolumeShapeFunction=2*r_sf
-        hilf2='line'
+        hilf_geo='line'
       END IF
+      ! Set shape function length (3D volume)
+      VolumeShapeFunction=2*r_sf*dimFactorSF
+      ! Calculate number of 1D DOF (assume second and third direction with 1 cell layer and area given by dimFactorSF)
+      nTotalDOF=nGlobalElems*(PP_N+1)
+      hilf_dim='1D'
     ELSE! 2D shape function
+      ! Set perpendicular direction
+      IF(dim_sf_dir.EQ.1)THEN ! Shape function deposits charge in y-z-direction (const. in x)
+        dimFactorSF = (GEO%xmaxglob-GEO%xminglob)
+      ELSE IF (dim_sf_dir.EQ.2)THEN ! Shape function deposits charge in x-z-direction (const. in y)
+        dimFactorSF = (GEO%ymaxglob-GEO%yminglob)
+      ELSE IF (dim_sf_dir.EQ.3)THEN! Shape function deposits charge in x-y-direction (const. in z)
+        dimFactorSF = (GEO%zmaxglob-GEO%zminglob)
+      END IF
       IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
         ! Set prefix factor
         w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf*dimFactorSF)
@@ -447,12 +466,49 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
         w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf)
         ! Set shape function length (2D volume)
         !VolumeShapeFunction=PI*(r_sf**2)
-        hilf2='area'
+        hilf_geo='area'
       END IF
+      ! Set shape function length (3D volume)
+      VolumeShapeFunction=PI*(r_sf**2)*dimFactorSF
+      ! Calculate number of 2D DOF (assume third direction with 1 cell layer and width dimFactorSF)
+      nTotalDOF=nGlobalElems*(PP_N+1)**2
+      hilf_dim='2D'
     END IF ! dim_sf.EQ.1
-
   END IF ! dim_sf.EQ.3
 
+  ! Output info regarding charge distribution and points per shape function resolution
+  ASSOCIATE(nTotalDOFin3D             => nGlobalElems*(PP_N+1)**3   ,&
+            VolumeShapeFunctionSphere => 4./3.*PI*r_sf**3           )
+    SWRITE(UNIT_stdOut,'(A)') ' The complete charge is '//TRIM(hilf_geo)//' distributed (via '//TRIM(hilf_dim)//' shape function)'
+    IF(.NOT.sfDepo3D)THEN
+      SWRITE(UNIT_stdOut,'(A)') ' Note that the integral of the charge density over the mesh volume is larger than the complete charge'
+      SWRITE(UNIT_stdOut,'(A)') ' because the charge is spread out over either a line (1D shape function) or an area (2D shape function)!'
+    END IF
+    IF(dim_sf.EQ.1)THEN
+      CALL PrintOption('Shape function volume (corresponding to a cuboid in 3D)'  , 'CALCUL.', RealOpt=VolumeShapeFunction)
+    ELSEIF(dim_sf.EQ.2)THEN
+      CALL PrintOption('Shape function volume (corresponding to a cylinder in 3D)', 'CALCUL.', RealOpt=VolumeShapeFunction)
+    ELSE
+      VolumeShapeFunction = VolumeShapeFunctionSphere
+      CALL PrintOption('Shape function volume (corresponding to a sphere in 3D)'  , 'CALCUL.', RealOpt=VolumeShapeFunction)
+    END IF
+    !CALL PrintOption('Shape function volume ('//TRIM(hilf_dim)//')'              , 'CALCUL.', RealOpt=VolumeShapeFunction)
+    IF(MPIRoot)THEN
+      IF(VolumeShapeFunction.GT.MeshVolume)THEN
+        CALL PrintOption('Mesh volume ('//TRIM(hilf_dim)//')', 'CALCUL.' , RealOpt=MeshVolume)
+        WRITE(UNIT_stdOut,'(A)') ' Maybe wrong perpendicular direction (PIC-shapefunction-direction)?'
+        CALL abort(&
+        __STAMP__&
+        ,'ShapeFunctionVolume > MeshVolume ('//TRIM(hilf_dim)//' shape function)')
+      END IF
+    END IF
+    IF(dim_sf.NE.3)THEN
+      CALL PrintOption('Average DOFs in Shape-Function '//TRIM(hilf_geo)//' ('//TRIM(hilf_dim)//')' , 'CALCUL.' , RealOpt=&
+           REAL(nTotalDOF)*VolumeShapeFunction/MeshVolume)
+    END IF ! dim_sf.NE.3
+    CALL PrintOption('Average DOFs in Shape-Function (corresponding 3D sphere)' , 'CALCUL.' , RealOpt=&
+         REAL(nTotalDOFin3D)*VolumeShapeFunctionSphere/MeshVolume)
+  END ASSOCIATE
 
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive') THEN
 #if USE_MPI
@@ -590,7 +646,7 @@ ELSE
   CALL DepositionMethod()
 END IF
 
-IF(MOD(iter,PartAnalyzeStep).EQ.0) THEN
+IF(MOD(iter,INT(PartAnalyzeStep,8)).EQ.0) THEN
   IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 END IF
 RETURN
