@@ -352,6 +352,8 @@ END DO
 
 ! Automatic determination of the reaction type based on the number of reactants, products and charge balance (for ionization)
 DO iReac = 1, ChemReac%NumOfReact
+  ! Skip photo-ionization reactions
+  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
   IF (ChemReac%Reactants(iReac,3).NE.0) THEN
     ChemReac%ReactType(iReac)           = 'R'
   ELSE IF (ChemReac%Products(iReac,3).NE.0) THEN
@@ -422,19 +424,14 @@ DO iReac = 1, ChemReac%NumOfReact
   END IF
 END DO
 
-! Initialize partition functions required for automatic backward rates
+! Populate the background reaction arrays and initialize the required partition functions
 IF(DSMC%BackwardReacRate) THEN
   CALL DSMC_BackwardRate_init()
 END IF
 
-! Initialize analytic QK reaction rate (required for calculation of backward rate with QK and if multiple QK reactions can occur
-! during a single collision, e.g. N2+e -> ionization or dissociation)
-IF(ChemReac%AnyQKReaction.OR.DSMC%BackwardReacRate) THEN
-  CALL QK_Init()
-END IF
-
+! Check for possible input errors in the chemistry definition
 DO iReac = 1, ChemReac%NumOfReact
-  ! Proof of reactant definition
+  ! Proof of recombination definition
   IF (TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
     IF ((ChemReac%Reactants(iReac,1)*ChemReac%Reactants(iReac,2)*ChemReac%Reactants(iReac,3)).EQ.0) THEN
       CALL abort(__STAMP__,&
@@ -450,8 +447,9 @@ DO iReac = 1, ChemReac%NumOfReact
       'Chemistry - Error in Definition: Reactant species not properly defined. ReacNbr:',iReac)
     END IF
   END IF
-  ! Proof of product definition
+  ! Proof of dissociation definition
   IF (TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
+    ! Three product species are given
     IF ((ChemReac%Products(iReac,1)*ChemReac%Products(iReac,2)*ChemReac%Products(iReac,3)).EQ.0) THEN
       CALL abort(__STAMP__,&
       'Dissociation - Error in Definition: Not all product species are defined!  ReacNbr: ',iReac)
@@ -463,12 +461,19 @@ DO iReac = 1, ChemReac%NumOfReact
         'Dissociation - Error in Definition: Non-reacting partner has to remain second product (/1,2,3/)  ReacNbr: ',iReac)
       END IF
     END IF
+    ! At least a molecule is given as a reactant
+    IF((SpecDSMC(ChemReac%Reactants(iReac,1))%InterID.NE.2).AND.(SpecDSMC(ChemReac%Reactants(iReac,1))%InterID.NE.20) &
+      .AND.(SpecDSMC(ChemReac%Reactants(iReac,2))%InterID.NE.2).AND.(SpecDSMC(ChemReac%Reactants(iReac,2))%InterID.NE.20)) THEN
+      CALL abort(__STAMP__,&
+        'Dissociation - Error in Definition: None of the reactants is a molecule, check species indices and charge definition. ReacNbr: ',iReac)
+    END IF
   ELSE
     IF ((ChemReac%Products(iReac,1)*ChemReac%Products(iReac,2)).EQ.0) THEN
       CALL abort(__STAMP__,&
       'Chemistry - Error in Definition: Product species not properly defined. ReacNbr:',iReac)
     END IF
   END IF
+  ! Check if the maximum species index is not greater than the number of species
   MaxSpecies = MAXVAL(ChemReac%Reactants(iReac,1:3))
   IF(MaxSpecies.GT.nSpecies) THEN
     CALL abort(__STAMP__,&
@@ -476,6 +481,13 @@ DO iReac = 1, ChemReac%NumOfReact
   END IF
 END DO
 
+! Initialize analytic QK reaction rate (required for calculation of backward rate with QK and if multiple QK reactions can occur
+! during a single collision, e.g. N2+e -> ionization or dissociation)
+IF(ChemReac%AnyQKReaction.OR.DSMC%BackwardReacRate) THEN
+  CALL QK_Init()
+END IF
+
+! Count the number of possible reactions paths per collision case
 ALLOCATE(ChemReac%CollCaseInfo(CollInf%NumCase))
 ChemReac%CollCaseInfo(:)%NumOfReactionPaths = 0
 
@@ -485,7 +497,6 @@ DO iCase = 1, CollInf%NumCase
     ! Skip the special case of photo ionization
     IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
     iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
-    ! Count the number of possible reactions paths per collision case
     IF(iCase.EQ.iCase2) THEN
       ! Only add recombination reactions once
       IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
@@ -543,7 +554,7 @@ IF(ChemReac%AnyXSecReaction) THEN
   CALL MCC_Chemistry_Init()
 END IF
 
-! Recombination
+! Recombination: saving the reaction index based on the third species
 DO iReac = 1, ChemReac%NumOfReact
   IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
     Reactant1 = ChemReac%Reactants(iReac,1)
