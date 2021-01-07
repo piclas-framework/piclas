@@ -948,7 +948,18 @@ Depending on the utilized collision model, different parameters have to be defin
 
 More detail on the utilization of species-specific, collision-specific parameters and the utilization of the Variable Soft Sphere (VSS) model are given in Section \ref{sec:dsmc_collision}.
 
-Diatomic molecular species require the definition of the characteristic temperature [K] and their dissociation energy [eV] (which is at the moment only utilized as a first guess for the upper bound of the temperature calculation)
+In case of chemical reactions, the input of a species-specific heat/enthalpy of formation [K] is required. A reliable source for these reference values are the [Active Thermochemical Tables (ATcT)](https://atct.anl.gov/) by the Argonne National Laboratory [@Ruscic2004;@Ruscic2005].
+
+    Part-Species1-HeatOfFormation_K = 0.0
+
+In the case of ionization reactions the heat of formation is not required, as the ionization energy is read-in as the last electronic level of the neutral (or previous) state. Therefore, an additional entry for each ionic species about its previous state is required. This is done by providing the species index, an example is given below assuming that the first species is C, whereas the second and thirds species are the first and second ionization levels, respectively.
+
+    Part-Species2-PreviousState = 1
+    Part-Species3-PreviousState = 2
+
+If the previous state of the ionized species is not part of the simulation (e.g. a reservoir with N, N$_2^+$, and e), the previous state of N$_2^+$ can be set to zero, however, in that case a heat/enthalpy of formation has to be provided, which includes the ionization energy (as given in ATcT).
+
+Diatomic molecular species require the definition of the characteristic temperature [K] and their dissociation energy [eV] (which is at the moment utilized as a first guess for the upper bound of the temperature calculation as well as the threshold energy for the dissociation by the Quantum-Kinetic chemistry model)
 
     Part-Species1-CharaTempVib = 4194.9
     Part-Species1-Ediss_eV = 4.53
@@ -1002,7 +1013,7 @@ In order to enable the collision-specific definition of the VHS/VSS parameters, 
 
     ! Input in parameter.ini
     Particles-DSMC-averagedCollisionParameters = F
-    ! Input in DSMC.ini
+    ! Input in species.ini
     Part-Collision1 - partnerSpecies = (/1,1/)              ! Collision1: Parameters for the collision between equal species
     Part-Collision1 - Tref           = 273
     Part-Collision1 - dref           = 4.037e-10
@@ -1138,13 +1149,7 @@ The reactants (left-hand side) and products (right-hand side) are defined by the
     DSMC-Reaction1-NumberOfNonReactives=3
     DSMC-Reaction1-NonReactiveSpecies=(/1,2,3/)
 
-This allows to define a single reaction for an arbitrary number of collision partners. Ionization reactions require for the correct calculation of the reaction enthalpy, an additional entry for each ionic species about its previous state. This is done by providing the species index, an example is given below assuming that the first species is C, whereas the second and thirds species are the first and second ionization levels, respectively.
-
-    Part-Species2-PreviousState = 1
-    Part-Species3-PreviousState = 2
-
-In the following, three possibilities to model the reaction rates are presented.
-
+This allows to define a single reaction for an arbitrary number of collision partners. In the following, three possibilities to model the reaction rates are presented.
 #### Total Collision Energy (TCE)
 
 The Total Collision Energy (TCE) model [@Bird1994] utilizes Arrhenius type reaction rates to reproduce the probabilities for a chemical reaction. The extended Arrhenius equation is
@@ -1159,9 +1164,15 @@ where $A$ is the prefactor ([1/s, m$^3$/s, m$^6$/s] depending on the reaction ty
 
 An example initialization file for a TCE-based chemistry model can be found in the regression tests (e.g. `regressioncheck/checks/NIG_Reservoir/CHEM_EQUI_TCE_Air_5Spec`).
 
-#### Quantum-Kinetic Chemistry (QK)
+#### Quantum Kinetic Chemistry (QK)
 
-The quantum-kinetic (QK) model [@Bird2011] chooses a different approach and models chemical reactions on the microscopic level. Currently, the QK model is only available for ionization and dissociation reactions. It is possible to utilize TCE- and QK-based reactions in the same simulation for different reactions paths for the same collision pair, such as the ionization and dissociation reactions paths (e.g. N$_2$ + e can lead to a dissociation with the TCE model and to an ionization with the QK model). An example setup can be found in the regression tests (e.g. `regressioncheck/checks/NIG_Reservoir/CHEM_QK_multi-ionization_C_to_C6+`).
+The Quantum Kinetic (QK) model [@Bird2011] chooses a different approach and models chemical reactions on the microscopic level. Currently, the QK model is only available for ionization and dissociation reactions. It is possible to utilize TCE- and QK-based reactions in the same simulation for different reactions paths for the same collision pair, such as the ionization and dissociation reactions paths (e.g. N$_2$ + e can lead to a dissociation with the TCE model and to an ionization with the QK model). An example setup can be found in the regression tests (e.g. `regressioncheck/checks/NIG_Reservoir/CHEM_QK_multi-ionization_C_to_C6+`).
+
+Besides the reaction model, reactants and products definition no further parameter are required for the reaction. However, the dissociation energy [eV] has to be defined on a species basis
+
+    Part-Species1-Ediss_eV = 4.53
+
+The ionization threshold is determined from the last level of the previous state of the ionized product and thus requires the read-in of the electronic state database.
 #### Cross-section Chemistry (XSec)
 
 The cross-section based chemistry model utilizes experimentally measured or ab-initio calculated cross-sections (analogous to the collision probability procedure described in Section \ref{sec:xsec_collision}). It requires the same database, where the reaction paths are stored per particle pair, e.g. the `N2-electron` container contains the `REACTION` folder, which includes the reactions named by their products, e.g. `N2Ion1-electron-electron`.
@@ -1511,7 +1522,7 @@ For the cloning procedure, two methods are implemented, where the information of
 
 This serves the purpose to avoid the so-called particle avalanche phenomenon [@Galitzine2015], where clones travel on the exactly same path as the original in the direction of a decreasing weight. They have a zero relative velocity (due to the same velocity vector) and thus a collision probability of zero. Combined with the nearest neighbor pairing, this would lead to an ever-increasing number of identical particles travelling on the same path. An indicator how often identical particle pairs are encountered per time step during collisions is given as an output (`2D_IdenticalParticles`, to enable the output see Section \ref{sec:dsmc_quality}). Additionally, it should be noted that a large delay of the clone insertion might be problematic for time-accurate simulations. However, for the most cases, values for the clone delay between 2 and 10 should be sufficient to avoid the avalance phenomenon.
 
-Another issue is the particle emission on large sides in $y$-dimension close to the rotational axis. As particles are inserted linearly along the $y$-direction of the side, a higher number density is inserted closer to the axis. This effect is directly visible in the free-stream in the cells downstream, when using mortar elements, or in the heatflux (unrealistic peak) close to the rotational axis. It can be avoided by splitting the surface flux emission side into multiple subsides with the following flag (default value is 20)
+Another issue is the particle emission on large sides in $y$-dimension close to the rotational axis. As particles are inserted linearly along the $y$-direction of the side, a higher number density is inserted closer to the axis. This effect is directly visible in the free-stream in the cells downstream, when using mortar elements, or in the heat flux (unrealistic peak) close to the rotational axis. It can be avoided by splitting the surface flux emission side into multiple subsides with the following flag (default value is 20)
 
     Particles-RadialWeighting-SurfFluxSubSides = 20
 
