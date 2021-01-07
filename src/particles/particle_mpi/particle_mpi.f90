@@ -185,13 +185,13 @@ PartCommSize   = PartCommSize + 1
 PartCommSize   = PartCommSize + 1
 
 IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-  IF (usevMPF .AND. DSMC%ElectronicModel) THEN
+  IF (usevMPF .AND. DSMC%ElectronicModel.GT.0) THEN
     ! vib. , rot and electronic energy and macroparticle factor for each particle
     PartCommSize = PartCommSize + 4
   ELSE IF (usevMPF ) THEN
     ! vib. and rot energy and macroparticle factor for each particle
     PartCommSize = PartCommSize + 3
-  ELSE IF ( DSMC%ElectronicModel ) THEN
+  ELSE IF (DSMC%ElectronicModel.GT.0) THEN
     ! vib., rot. and electronic energy
     PartCommSize = PartCommSize + 3
   ELSE
@@ -384,13 +384,13 @@ DO iPart=1,PDM%ParticleVecLength
   PartMPIExchange%nPartsSend(1,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
     PartMPIExchange%nPartsSend(1,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + 1
   IF (useDSMC) THEN
-    IF ((DSMC%NumPolyatomMolecs.GT.0).OR.(DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel).OR.DSMC%DoAmbipolarDiff) THEN
+    IF ((DSMC%NumPolyatomMolecs.GT.0).OR.(DSMC%ElectronicModel.EQ.2).OR.DSMC%DoAmbipolarDiff) THEN
       IF((DSMC%NumPolyatomMolecs.GT.0).AND.(SpecDSMC(PartSpecies(iPart))%PolyatomicMol)) THEN
         iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
         PartMPIExchange%nPartsSend(2,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
           PartMPIExchange%nPartsSend(2,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + PolyatomMolDSMC(iPolyatMole)%VibDOF 
       END IF
-      IF ((DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel).AND. & 
+      IF ((DSMC%ElectronicModel.EQ.2).AND. & 
           (.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized))) THEN
         PartMPIExchange%nPartsSend(3,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
           PartMPIExchange%nPartsSend(3,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + SpecDSMC(PartSpecies(iPart))%MaxElecQuant
@@ -518,7 +518,7 @@ DO iProc=0,nExchangeProcessors-1
       MessageSize = MessageSize + MsgLengthPoly(iProc)
     END IF
 
-    IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+    IF (DSMC%ElectronicModel.EQ.2) THEN
       pos_elec(iProc) = MessageSize
       MessageSize = MessageSize + MsgLengthElec(iProc)
     END IF
@@ -658,7 +658,7 @@ DO iProc=0,nExchangeProcessors-1
       jPos=jPos+1
 
       IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-        IF (usevMPF .AND. DSMC%ElectronicModel) THEN
+        IF (usevMPF .AND. DSMC%ElectronicModel.GT.0) THEN
           PartSendBuf(iProc)%content(1+jPos) = PartStateIntEn( 1,iPart)
           PartSendBuf(iProc)%content(2+jPos) = PartStateIntEn( 2,iPart)
           PartSendBuf(iProc)%content(3+jPos) = PartMPF(iPart)
@@ -669,7 +669,7 @@ DO iProc=0,nExchangeProcessors-1
           PartSendBuf(iProc)%content(2+jPos) = PartStateIntEn( 2,iPart)
           PartSendBuf(iProc)%content(3+jPos) = PartMPF(iPart)
           jPos=jPos+3
-        ELSE IF ( DSMC%ElectronicModel ) THEN
+        ELSE IF (DSMC%ElectronicModel.GT.0) THEN
           PartSendBuf(iProc)%content(1+jPos) = PartStateIntEn( 1,iPart)
           PartSendBuf(iProc)%content(2+jPos) = PartStateIntEn( 2,iPart)
           PartSendBuf(iProc)%content(3+jPos) = PartStateIntEn( 3,iPart)
@@ -697,7 +697,7 @@ DO iProc=0,nExchangeProcessors-1
           END IF
         END IF
 
-        IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+        IF (DSMC%ElectronicModel.EQ.2) THEN
           IF(.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized)) THEN
             PartSendBuf(iProc)%content(pos_elec(iProc)+1:pos_elec(iProc)+ SpecDSMC(PartSpecies(iPart))%MaxElecQuant) &
                                          = ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant)
@@ -784,7 +784,7 @@ DO iProc=0,nExchangeProcessors-1
       MessageSize       = MessageSize + MsgRecvLengthPoly
     END IF
 
-    IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+    IF (DSMC%ElectronicModel.EQ.2) THEN
       MsgRecvLengthElec = PartMPIExchange%nPartsRecv(3,iProc)
       MessageSize       = MessageSize + MsgRecvLengthElec
     END IF
@@ -827,7 +827,7 @@ DO iProc=0,nExchangeProcessors-1
     IF(DSMC%NumPolyatomMolecs.GT.0) THEN
       MessageSize = MessageSize + MsgLengthPoly(iProc)
     END IF
-    IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+    IF (DSMC%ElectronicModel.EQ.2) THEN
       MessageSize = MessageSize + MsgLengthElec(iProc)
     END IF
     IF (DSMC%DoAmbipolarDiff) THEN
@@ -942,7 +942,7 @@ DO iProc=0,nExchangeProcessors-1
       MsgLengthPoly = 0
     END IF
 
-    IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+    IF (DSMC%ElectronicModel.EQ.2) THEN
       MsgLengthElec = PartMPIExchange%nPartsRecv(3,iProc)
     ELSE
       MsgLengthElec = 0
@@ -956,7 +956,7 @@ DO iProc=0,nExchangeProcessors-1
     pos_poly    = MessageSize
     IF (DSMC%NumPolyatomMolecs.GT.0) MessageSize = MessageSize + MsgLengthPoly
     pos_elec    = MessageSize
-    IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) MessageSize = MessageSize + MsgLengthElec
+    IF (DSMC%ElectronicModel.EQ.2) MessageSize = MessageSize + MsgLengthElec
     pos_ambi    = MessageSize
     IF (DSMC%DoAmbipolarDiff) MessageSize = MessageSize + MsgLengthAmbi
   ELSE
@@ -1128,7 +1128,7 @@ DO iProc=0,nExchangeProcessors-1
     jPos=jPos+1
 
     IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-      IF (usevMPF .AND. DSMC%ElectronicModel) THEN
+      IF (usevMPF .AND. DSMC%ElectronicModel.GT.0) THEN
         PartStateIntEn( 1,PartID) = PartRecvBuf(iProc)%content(1+jPos)
         PartStateIntEn( 2,PartID) = PartRecvBuf(iProc)%content(2+jPos)
         PartMPF(PartID)           = PartRecvBuf(iProc)%content(3+jPos)
@@ -1139,7 +1139,7 @@ DO iProc=0,nExchangeProcessors-1
         PartStateIntEn( 2,PartID) = PartRecvBuf(iProc)%content(2+jPos)
         PartMPF(PartID)           = PartRecvBuf(iProc)%content(3+jPos)
         jPos=jPos+3
-      ELSE IF ( DSMC%ElectronicModel) THEN
+      ELSE IF ( DSMC%ElectronicModel.GT.0) THEN
         PartStateIntEn( 1,PartID) = PartRecvBuf(iProc)%content(1+jPos)
         PartStateIntEn( 2,PartID) = PartRecvBuf(iProc)%content(2+jPos)
         PartStateIntEn( 3,PartID) = PartRecvBuf(iProc)%content(3+jPos)
@@ -1178,7 +1178,7 @@ DO iProc=0,nExchangeProcessors-1
         END IF
       END IF
 
-      IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+      IF (DSMC%ElectronicModel.EQ.2) THEN
         IF(.NOT.((SpecDSMC(PartSpecies(PartID))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(PartID))%FullyIonized)) THEN
           IF(ALLOCATED(ElectronicDistriPart(PartID)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PartID)%DistriFunc)
           ALLOCATE(ElectronicDistriPart(PartID)%DistriFunc(1:SpecDSMC(PartSpecies(PartID))%MaxElecQuant))

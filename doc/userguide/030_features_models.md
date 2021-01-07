@@ -1081,9 +1081,11 @@ This model is extended to more species by calculating a separate probability for
 
 #### Electronic Relaxation \label{sec:dsmc_electronic_relaxation}
 
-For the modelling of electronic relaxation, two models are available: the model by Liechty et al. [@Liechty2011a], where each particle has a specific electronic state and the model by Burt and Eswar [@Burt2015b], where each particle has an electronic distribution function attached. Both models tabulated energy levels, which can be found in literature for a wide range of species (e.g. for monatomic [@NISTASD], diatomic [@Huber1979], polyatomic [@Herzberg1966] molecules). An example database `DSMCSpecies_electronic_state_full_Data.h5` can be found in e.g. `piclas/regressioncheck/checks/NIG_Reservoir/CHEM_EQUI_TCE_Air_5Spec`, where the energy levels are stored in containers and accessed via the species name, e.g. `Part-Species1-SpeciesName=N2`. Each level is described by its degeneracy in the first column and by the energy in [J] in the seconed column. To include electronic excitation in the simulation, the following parameters are required
+For the modelling of electronic relaxation, two models are available: the model by Liechty et al. [@Liechty2011a], where each particle has a specific electronic state and the model by Burt and Eswar [@Burt2015b], where each particle has an electronic distribution function attached. Both models utilize tabulated energy levels, which can be found in literature for a wide range of species (e.g. for monatomic [@NISTASD], diatomic [@Huber1979], polyatomic [@Herzberg1966] molecules). An example database `DSMCSpecies_electronic_state_full_Data.h5` can be found in e.g. `piclas/regressioncheck/checks/NIG_Reservoir/CHEM_EQUI_TCE_Air_5Spec`, where the energy levels are stored in containers and accessed via the species name, e.g. `Part-Species1-SpeciesName=N2`. Each level is described by its degeneracy in the first column and by the energy in [J] in the seconed column. To include electronic excitation in the simulation, the following parameters are required
 
-    Particles-DSMC-ElectronicModel  = T
+    Particles-DSMC-ElectronicModel  = 0     ! No electronic energy is considered (default)
+                                    = 1     ! Model by Liechty
+                                    = 2     ! Model by Burt
     Particles-DSMCElectronicDatabase = DSMCSpecies_electronic_state_full_Data.h5
 
 In case of a large number of electronic levels, their number can be reduced by providing a relative merge tolerance. Levels those relative differences are below this parameter will be merged:

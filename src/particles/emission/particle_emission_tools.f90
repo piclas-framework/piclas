@@ -454,7 +454,7 @@ END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set electronic energy
 !-----------------------------------------------------------------------------------------------------------------------------------
-IF (DSMC%ElectronicModel) THEN
+IF (DSMC%ElectronicModel.GT.0) THEN
   IF((SpecDSMC(iSpecies)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpecies)%FullyIonized)) THEN
     CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
   ELSE

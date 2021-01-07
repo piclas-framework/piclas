@@ -86,13 +86,10 @@ SUBROUTINE AD_InsertParticles(iPartIndx_Node, nPart, iPartIndx_NodeTotalAmbi, To
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                
-USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
-USE MOD_DSMC_Vars              ,ONLY: BGGas, SpecDSMC, CollisMode, DSMC, PartStateIntEn,AmbipolElecVelo,RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: BGGas, CollisMode, DSMC, PartStateIntEn, AmbipolElecVelo, RadialWeighting
 USE MOD_DSMC_Vars              ,ONLY: DSMCSumOfFormedParticles, newAmbiParts, iPartIndx_NodeNewAmbi, DSMC_RHS
-USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
-USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef, Species, nSpecies,VarTimeStep, PartMPF, Symmetry
-USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping, TrackingMethod
+USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, Species, VarTimeStep, PartMPF, Symmetry
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Localization  ,ONLY: PartInElemCheck
@@ -108,7 +105,7 @@ INTEGER,INTENT(INOUT),ALLOCATABLE :: iPartIndx_NodeTotalAmbi(:)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iNewPart, iPart, PositionNbr, LocalElemID, iLoop, nNewElectrons, IonIndX(nPart), iElem, PartNum
+INTEGER           :: iNewPart, iPart, PositionNbr, iLoop, nNewElectrons, IonIndX(nPart), iElem, PartNum
 REAL              :: MaxPos(3), MinPos(3), Vec3D(3), Det(6,2), RefPos(3), RandomPos(3)
 LOGICAL           :: InsideFlag
 !===================================================================================================================================
@@ -171,7 +168,7 @@ __STAMP__&
   IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
     PartStateIntEn( 1,PositionNbr) = 0.
     PartStateIntEn( 2,PositionNbr) = 0.
-    IF (DSMC%ElectronicModel)   PartStateIntEn( 3,PositionNbr) = 0.
+    IF (DSMC%ElectronicModel.GT.0)   PartStateIntEn( 3,PositionNbr) = 0.
   END IF
   IF(RadialWeighting%DoRadialWeighting) PartMPF(PositionNbr) = PartMPF(IonIndX(iLoop))
   IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(PositionNbr) = VarTimeStep%ParticleTimeStep(IonIndX(iLoop))

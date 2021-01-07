@@ -220,7 +220,7 @@ IF (useDSMC) THEN
 #endif
     END IF
 
-    IF (DSMC%ElectronicModel) THEN
+    IF (DSMC%ElectronicModel.GT.0) THEN
       IF((SpecDSMC(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
         CALL RANDOM_NUMBER(RanNum)
         IF (RanNum.LT.ElecACC) THEN

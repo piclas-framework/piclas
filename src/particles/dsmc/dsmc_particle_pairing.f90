@@ -434,14 +434,14 @@ IF (CollisMode.EQ.3) THEN
 END IF
 
 IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC%CalcQualityFactors &
-.OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1)).OR.(DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)) THEN
+.OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1)).OR.(DSMC%ElectronicModel.EQ.2)) THEN
   ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
   !           relaxation probability (CalcGammaVib)
   ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
   ! 3. Case: Temperature required for the mean free path with the VHS model
   ! 4. Case: Needed to calculate the correction factor
   CALL CalcInstantTransTemp(iPartIndx_NodeTotal,TotalPartNum)
-  IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) CALL CalcInstantElecTempXi(iPartIndx_NodeTotal,TotalPartNum)
+  IF (DSMC%ElectronicModel.EQ.2) CALL CalcInstantElecTempXi(iPartIndx_NodeTotal,TotalPartNum)
   IF((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)) CALL CalcGammaVib()
 END IF
 

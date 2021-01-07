@@ -81,7 +81,7 @@ END SELECT
 ElectronicPartition  = 0.
 ElectronicPartitionTemp = 0.
 ! calculate sum over all energy levels == partition function for temperature Telec
-IF (DSMC%ElectronicDistrModel) THEN
+IF (DSMC%ElectronicModel.EQ.2) THEN
   IF(ALLOCATED(ElectronicDistriPart(iPart)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(iPart)%DistriFunc)
   ALLOCATE(ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(iSpec)%MaxElecQuant))
   PartStateIntEn(3,iPart) = 0.0
@@ -161,7 +161,7 @@ REAL                          :: iRan, ElectronicPartition, ElectronicPartitionT
 ElectronicPartition  = 0.
 ElectronicPartitionTemp = 0.
 iSpec = PartSpecies(iPart)
-IF (DSMC%ElectronicDistrModel) THEN
+IF (DSMC%ElectronicModel.EQ.2) THEN
   RelaxElectronicShellWall = 0.0
   DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
     tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TWall
@@ -245,7 +245,7 @@ REAL                          :: Eold, DistriOld(SpecDSMC(PartSpecies(iPart1))%M
 !===================================================================================================================================
 iSpec = PartSpecies(iPart1)
 
-IF (DSMC%ElectronicDistrModel) THEN
+IF (DSMC%ElectronicModel.EQ.2) THEN
   IF (PRESENT(NewPart)) THEN
     LocRelaxProb = 1.0
   ELSE

@@ -148,7 +148,7 @@ Ec = 0.5 * ReducedMass*Coll_pData(iPair)%CRela2
 
 SELECT CASE(TRIM(ChemReac%ReactType(iReac)))
 CASE('I')
-  IF(DSMC%ElectronicModel) Ec = Ec + PartStateIntEn(3,React1Inx)*Weight1
+  IF(DSMC%ElectronicModel.GT.0) Ec = Ec + PartStateIntEn(3,React1Inx)*Weight1
   ! ionization level is last known energy level of species
   MaxQua=SpecDSMC(PartSpecies(React1Inx))%MaxElecQuant - 1
   IonizationEnergy=SpecDSMC(PartSpecies(React1Inx))%ElectronicState(2,MaxQua)*BoltzmannConst*(Weight1 + Weight2)/2.

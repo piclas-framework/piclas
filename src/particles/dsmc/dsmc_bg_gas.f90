@@ -804,7 +804,7 @@ DO iPart = 1, NbrOfParticle
   PartState(4:6,ParticleIndex) = 0.
   ! Internal energies (set it to zero)
   PartStateIntEn(1:2,ParticleIndex) = 0.
-  IF(DSMC%ElectronicModel) PartStateIntEn(3,ParticleIndex) = 0.
+  IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,ParticleIndex) = 0.
 END DO
 
 ! Add the particles initialized through the emission and the background particles

@@ -887,7 +887,7 @@ DO iElem=1,PP_nElems
     IF ((useDSMC).AND.(CollisMode.GT.1)) THEN
       PartStateIntEn( 1,ParticleIndexNbr) = 0.
       PartStateIntEn( 2,ParticleIndexNbr) = 0.
-      IF ( DSMC%ElectronicModel )  PartStateIntEn( 3,ParticleIndexNbr) = 0.
+      IF (DSMC%ElectronicModel.GT.0)  PartStateIntEn( 3,ParticleIndexNbr) = 0.
     END IF
 
     ! Set the element ID of the electron to the current element ID

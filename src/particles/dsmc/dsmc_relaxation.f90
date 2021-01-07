@@ -52,7 +52,7 @@ REAL, INTENT(IN)              :: FakXi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                          :: MaxColQua, iRan, Ec
-INTEGER                       :: iQuaMax, iQua, test
+INTEGER                       :: iQuaMax, iQua
 !===================================================================================================================================
 IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
@@ -202,7 +202,6 @@ SUBROUTINE CalcXiTotalEqui(iReac, iPair, nProd, Xi_Total, Weight, XiVibPart, XiE
 USE MOD_Globals_Vars              ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, ChemReac, Coll_pData, DSMC
 USE MOD_DSMC_ElectronicModel      ,ONLY: CalcXiElec
-USE MOD_Particle_Vars             ,ONLY: nSpecies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -216,7 +215,7 @@ REAL, INTENT(OUT), OPTIONAL     :: XiVibPart(:,:), XiElecPart(1:4)
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                         :: iProd, iSpec, ProductReac(1:4)
-REAL                            :: ETotal, EZeroPoint, EGuess, LowerTemp, UpperTemp, MiddleTemp, Xi_TotalTemp, XiVibTotal, TransElec
+REAL                            :: ETotal, EZeroPoint, EGuess, LowerTemp, UpperTemp, MiddleTemp, Xi_TotalTemp, XiVibTotal
 REAL,PARAMETER                  :: eps_prec=1E-3
 !===================================================================================================================================
 
@@ -244,7 +243,7 @@ DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_pr
     ELSE
       IF(PRESENT(XiVibPart)) XiVibPart(iProd,:) = 0.0
     END IF
-    IF(DSMC%ElectronicModel) THEN
+    IF(DSMC%ElectronicModel.GT.0) THEN
       IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
         XiElecPart(iProd) = CalcXiElec(MiddleTemp, iSpec)
         Xi_TotalTemp = Xi_TotalTemp + XiElecPart(iProd)

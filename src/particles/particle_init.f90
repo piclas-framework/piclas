@@ -765,7 +765,7 @@ IF (useDSMC) THEN
   CALL InitSurfaceModel()
 #if (PP_TimeDiscMethod==300)
 IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__&
-  ,'ERROR: 1D fokker-plank flow is not implemented yet')
+  ,'ERROR: 1D Fokker-Planck flow is not implemented yet')
   CALL InitFPFlow()
 #endif
 #if (PP_TimeDiscMethod==400)
@@ -774,7 +774,7 @@ IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__&
   CALL InitBGK()
 #endif
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
-  DSMC%ElectronicModel = .FALSE.
+  DSMC%ElectronicModel = 0
 END IF
 
 #if USE_MPI
@@ -2850,7 +2850,7 @@ DO iElem=1,PP_nElems
     IF ((useDSMC).AND.(CollisMode.GT.1)) THEN
       PartStateIntEn(1,ParticleIndexNbr) = 0.
       PartStateIntEn(2,ParticleIndexNbr) = 0.
-      IF ( DSMC%ElectronicModel )  PartStateIntEn(3,ParticleIndexNbr) = 0.
+      IF (DSMC%ElectronicModel.GT.0)  PartStateIntEn(3,ParticleIndexNbr) = 0.
     END IF
 
     ! Set the element ID of the electron to the current element ID

@@ -105,7 +105,7 @@ CASE ('old')
       IF (CollisMode.GT.1) THEN
         EVib = PartStateIntEn(1,PartID)
         ERot = PartStateIntEn(2,PartID)
-        IF(DSMC%ElectronicModel) THEN
+        IF(DSMC%ElectronicModel.GT.0) THEN
           EElec = PartStateIntEn(3,PartID)
         END IF
       END IF
@@ -153,7 +153,7 @@ IF (useDSMC) THEN
       !----  Sampling for internal (vibrational) energy accommodation at walls
       SampWallState(EVibID ,p,q,SurfSideID) = SampWallState(EVibID ,p,q,SurfSideID) + PartStateIntEn(1,PartID) * MPF
     END IF
-    IF(DSMC%ElectronicModel) THEN
+    IF(DSMC%ElectronicModel.GT.0) THEN
       !----  Sampling for internal (electronic) energy accommodation at walls
       SampWallState(EElecID ,p,q,SurfSideID) = SampWallState(EElecID ,p,q,SurfSideID) + PartStateIntEn(3,PartID) * MPF
     END IF

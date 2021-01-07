@@ -412,7 +412,7 @@ REAL                          :: Weight1, Weight2
             +0.5*Species(iSpec2)%MassIC*DOT_PRODUCT(PartState(4:6,iPart2),PartState(4:6,iPart2)) * Weight2 &
             + (PartStateIntEn(1,iPart1) + PartStateIntEn(2,iPart1)) * Weight1 &
             + (PartStateIntEn(1,iPart2) + PartStateIntEn(2,iPart2)) * Weight2
-  IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(3,iPart1)*Weight1 + PartStateIntEn(3,iPart2) * Weight2
+  IF(DSMC%ElectronicModel.GT.0) Energy_old=Energy_old + PartStateIntEn(3,iPart1)*Weight1 + PartStateIntEn(3,iPart2) * Weight2
 #endif /* CODE_ANALYZE */
   Xi_rel = 2*(2. - CollInf%omega(iSpec1,iSpec2))
   ! DOF of relative motion in VHS model
@@ -424,9 +424,9 @@ REAL                          :: Weight1, Weight2
 !--------------------------------------------------------------------------------------------------!
 ! Decision if Rotation, Vibration and Electronic Relaxation of particles is performed
 !--------------------------------------------------------------------------------------------------!
-  IF ( DSMC%ElectronicModel ) THEN
+  IF (DSMC%ElectronicModel.GT.0) THEN
     IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
-      IF (DSMC%ElectronicDistrModel) THEN
+      IF (DSMC%ElectronicModel.EQ.2) THEN
         DoElec1 = .TRUE.
       ELSE
         CALL RANDOM_NUMBER(iRan)
@@ -434,7 +434,7 @@ REAL                          :: Weight1, Weight2
       END IF
     END IF
     IF((SpecDSMC(iSpec2)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec2)%FullyIonized)) THEN
-      IF (DSMC%ElectronicDistrModel) THEN
+      IF (DSMC%ElectronicModel.EQ.2) THEN
         DoElec2 = .TRUE.
       ELSE
         CALL RANDOM_NUMBER(iRan)
@@ -659,7 +659,7 @@ IF (DSMC%ReservoirSimuRate) RETURN
                                         + (VeloMz + FracMassCent2*cRelaNew(3))**2) * Weight1 &
                         + (PartStateIntEn(1,iPart1) + PartStateIntEn(2,iPart1)) * Weight1 &
                         + (PartStateIntEn(1,iPart2) + PartStateIntEn(2,iPart2)) * Weight2
-  IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(3,iPart1) * Weight1 &
+  IF(DSMC%ElectronicModel.GT.0) Energy_new = Energy_new + PartStateIntEn(3,iPart1) * Weight1 &
                                                    + PartStateIntEn(3,iPart2) * Weight2
   ! Check for energy difference
   IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
@@ -764,7 +764,7 @@ IF (DSMC%ReservoirSimuRate) RETURN
             +0.5*Species(iSpec2)%MassIC*DOT_PRODUCT(PartState(4:6,iPart2),PartState(4:6,iPart2)) * Weight2 &
             + (PartStateIntEn(1,iPart1) + PartStateIntEn(2,iPart1)) * Weight1 &
             + (PartStateIntEn(1,iPart2) + PartStateIntEn(2,iPart2)) * Weight2
-  IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(3,iPart1)*Weight1 + PartStateIntEn(3,iPart2) * Weight2
+  IF(DSMC%ElectronicModel.GT.0) Energy_old=Energy_old + PartStateIntEn(3,iPart1)*Weight1 + PartStateIntEn(3,iPart2) * Weight2
 #endif /* CODE_ANALYZE */
 !--------------------------------------------------------------------------------------------------!
 ! Decision if Rotation, Vibration and Electronic Relaxation of particles is performed
@@ -999,7 +999,7 @@ __STAMP__&
                                                      + (VeloMz + FracMassCent2*cRelaNew(3))**2) * Weight1 &
                         + (PartStateIntEn(1,iPart1) + PartStateIntEn(2,iPart1)) * Weight1 &
                         + (PartStateIntEn(1,iPart2) + PartStateIntEn(2,iPart2)) * Weight2
-  IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(3,iPart1) * Weight1 &
+  IF(DSMC%ElectronicModel.GT.0) Energy_new = Energy_new + PartStateIntEn(3,iPart1) * Weight1 &
                                                    + PartStateIntEn(3,iPart2) * Weight2
   ! Check for energy difference
   IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN

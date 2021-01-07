@@ -258,8 +258,10 @@ TYPE tDSMC
                                                             !     2: Instantanious maximal vib relax prob
   INTEGER, ALLOCATABLE          :: QualityFacSampVibSamp(:,:,:)!Sample size for QualityFacSampVib
   REAL, ALLOCATABLE             :: QualityFacSampRelaxSize(:,:)! Samplie size of quality relax factors (nElem,nSpec+1)
-  LOGICAL                       :: ElectronicModel          ! Flag for Electronic State of atoms and molecules
-  LOGICAL                       :: ElectronicDistrModel     ! Flag for Electronic State of atoms and molecules
+  INTEGER                       :: ElectronicModel          ! Model selection for electronic state of atoms and molecules
+                                                            !     0: No electronic energy relaxation
+                                                            !     1: Liechty, each particle has a specific electronic state
+                                                            !     2: Burt, each particle has an electronic distribution function
   CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file
   INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules
   REAL                          :: RotRelaxProb             ! Model for calculation of rotational relaxation probability, ini_1
