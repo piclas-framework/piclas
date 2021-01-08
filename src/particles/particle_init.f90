@@ -677,7 +677,7 @@ SUBROUTINE InitParticles()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
-USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution,DSMC_VolumeSample
+USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution
 USE MOD_InitializeBackgroundField  ,ONLY: InitializeBackgroundField
 USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
@@ -748,9 +748,7 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
 ! definition of DSMC sampling values
   DSMC%SampNum = 0
   ALLOCATE(DSMC_Solution(1:11,1:nElems,1:nSpecies))
-  ALLOCATE(DSMC_VolumeSample(1:nElems))
   DSMC_Solution = 0.0
-  DSMC_VolumeSample = 0.0
 END IF
 
 ! Initialize surface sampling / rotational periodic mapping
@@ -767,7 +765,7 @@ IF (useDSMC) THEN
   CALL InitSurfaceModel()
 #if (PP_TimeDiscMethod==300)
 IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__&
-  ,'ERROR: 1D fokker-plank flow is not implemented yet')
+  ,'ERROR: 1D Fokker-Planck flow is not implemented yet')
   CALL InitFPFlow()
 #endif
 #if (PP_TimeDiscMethod==400)
@@ -776,7 +774,7 @@ IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__&
   CALL InitBGK()
 #endif
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
-  DSMC%ElectronicModel = .FALSE.
+  DSMC%ElectronicModel = 0
 END IF
 
 #if USE_MPI
@@ -821,6 +819,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
+USE MOD_DSMC_AmbipolarDiffusion,ONLY: InitializeVariablesAmbipolarDiff
 USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep,useManualTimeStep
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1178,45 +1177,6 @@ END IF
 
 END SUBROUTINE InitializeVariablesVarTimeStep
 
-SUBROUTINE InitializeVariablesAmbipolarDiff()
-!===================================================================================================================================
-! Initialize the variables first
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_ReadInTools
-USE MOD_Globals_Vars        ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars       ,ONLY: nSpecies,Species, PDM
-USE MOD_DSMC_Vars           ,ONLY: useDSMC, DSMC, AmbipolElecVelo
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER         :: iSpec
-!===================================================================================================================================
-! ------- Variable Time Step Initialization (parts requiring completed particle_init and readMesh)
-IF(useDSMC) THEN
-  DSMC%DoAmbipolarDiff = GETLOGICAL('Particles-DSMC-AmbipolarDiffusion')
-  IF (DSMC%DoAmbipolarDiff) THEN
-    DSMC%AmbiDiffElecSpec = 0
-    DO iSpec = 1, nSpecies
-      IF (Species(iSpec)%ChargeIC.GT.0.0) CYCLE
-      IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1) DSMC%AmbiDiffElecSpec=iSpec
-    END DO
-    IF(DSMC%AmbiDiffElecSpec.EQ.0) THEN
-      CALL abort(__STAMP__&
-          ,'ERROR: No electron species found for ambipolar diffusion: ' &
-          ,IntInfoOpt=DSMC%AmbiDiffElecSpec)
-    END IF
-    IF(.NOT.ALLOCATED(AmbipolElecVelo)) ALLOCATE(AmbipolElecVelo(PDM%maxParticleNumber))
-  END IF
-END IF
-
-END SUBROUTINE InitializeVariablesAmbipolarDiff
 
 SUBROUTINE InitializeVariablesRandomNumbers()
 !===================================================================================================================================
@@ -2890,7 +2850,7 @@ DO iElem=1,PP_nElems
     IF ((useDSMC).AND.(CollisMode.GT.1)) THEN
       PartStateIntEn(1,ParticleIndexNbr) = 0.
       PartStateIntEn(2,ParticleIndexNbr) = 0.
-      IF ( DSMC%ElectronicModel )  PartStateIntEn(3,ParticleIndexNbr) = 0.
+      IF (DSMC%ElectronicModel.GT.0)  PartStateIntEn(3,ParticleIndexNbr) = 0.
     END IF
 
     ! Set the element ID of the electron to the current element ID

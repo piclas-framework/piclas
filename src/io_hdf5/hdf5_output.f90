@@ -1077,9 +1077,9 @@ MaxQuantNum=-1
 withDSMC=useDSMC
 IF (withDSMC) THEN
 !IF (withDSMC) THEN
-  IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicModel ) THEN !int ener + 3, vmpf +1
+  IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel.GT.0)) THEN !int ener + 3, vmpf +1
     PartDataSize=11
-  ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicModel ) ) THEN !int ener + 2 and vmpf + 1
+  ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. (DSMC%ElectronicModel.GT.0)) ) THEN !int ener + 2 and vmpf + 1
                                                                             ! or int energ +3 but no vmpf +1
     PartDataSize=10
   ELSE IF (CollisMode.GT.1) THEN
@@ -1105,7 +1105,7 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
   END DO
 END IF
 
-IF (withDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2)) THEN
   MaxElecQuant = 0
   DO iSpec = 1, nSpecies
     IF (.NOT.((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized)) THEN
@@ -1157,7 +1157,7 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
   VibQuantData = 0
   !+1 is real number of necessary vib quants for the particle
 END IF
-IF (withDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)  THEN
+IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
   ALLOCATE(ElecDistriData(MaxElecQuant,offsetnPart+1_IK:offsetnPart+locnPart))
   ElecDistriData = 0
   !+1 is real number of necessary vib quants for the particle
@@ -1213,7 +1213,7 @@ DO iElem_loc=1,PP_nElems
 #endif /*CODE_ANALYZE*/
       IF (withDSMC) THEN
       !IF (withDSMC) THEN
-        IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
+        IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel.GT.0) ) THEN
           PartData(8,iPart)=PartStateIntEn(1,pcount)
           PartData(9,iPart)=PartStateIntEn(2,pcount)
           PartData(10,iPart)=PartStateIntEn(3,pcount)
@@ -1222,7 +1222,7 @@ DO iElem_loc=1,PP_nElems
           PartData(8,iPart)=PartStateIntEn(1,pcount)
           PartData(9,iPart)=PartStateIntEn(2,pcount)
           PartData(10,iPart)=PartMPF(pcount)
-        ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
+        ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel.GT.0) ) THEN
           PartData(8,iPart)=PartStateIntEn(1,pcount)
           PartData(9,iPart)=PartStateIntEn(2,pcount)
           PartData(10,iPart)=PartStateIntEn(3,pcount)
@@ -1248,7 +1248,7 @@ DO iElem_loc=1,PP_nElems
         END IF
       END IF
 
-      IF (withDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+      IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2)) THEN
         IF (.NOT.((SpecDSMC(PartSpecies(pcount))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(pcount))%FullyIonized)) THEN
           ElecDistriData(1:SpecDSMC(PartSpecies(pcount))%MaxElecQuant,iPart) = &
             ElectronicDistriPart(pcount)%DistriFunc(1:SpecDSMC(PartSpecies(pcount))%MaxElecQuant)
@@ -1333,7 +1333,7 @@ ASSOCIATE (&
 
   IF(withDSMC)THEN
     ! IF(withDSMC)THEN
-    IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
+    IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel.GT.0))THEN
       StrVarNames( 8)='Vibrational'
       StrVarNames( 9)='Rotational'
       StrVarNames(10)='Electronic'
@@ -1342,7 +1342,7 @@ ASSOCIATE (&
       StrVarNames( 8)='Vibrational'
       StrVarNames( 9)='Rotational'
       StrVarNames(10)='MPF'
-    ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
+    ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel.GT.0) ) THEN
       StrVarNames( 8)='Vibrational'
       StrVarNames( 9)='Rotational'
       StrVarNames(10)='Electronic'
@@ -1392,7 +1392,7 @@ ASSOCIATE (&
                                 communicator=PartMPI%COMM  , IntegerArray_i4=VibQuantData)
       DEALLOCATE(VibQuantData)
     END IF
-    IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+    IF (DSMC%ElectronicModel.EQ.2) THEN
       CALL DistributedWriteArray(FileName , &
                                 DataSetName ='ElecDistriData', rank=2           , &
                                 nValGlobal  =(/MaxElecQuant  , nGlobalNbrOfParticles  /)   , &
@@ -1439,7 +1439,7 @@ ASSOCIATE (&
                             collective  = .TRUE.         , IntegerArray_i4 = VibQuantData)
       DEALLOCATE(VibQuantData)
     END IF
-    IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+    IF (DSMC%ElectronicModel.EQ.2) THEN
       CALL WriteArrayToHDF5(DataSetName = 'ElecDistriData' , rank = 2             , &
                             nValGlobal  = (/ MaxElecQuant  , nGlobalNbrOfParticles   /)      , &
                             nVal        = (/ MaxElecQuant  , locnPart     /)      , &
@@ -2143,9 +2143,9 @@ INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec, tempDelay, Ma
 !!added for Evib, Erot writeout
 withDSMC=useDSMC
 IF (withDSMC) THEN
-  IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicModel ) THEN !int ener + 3, vmpf +1
+  IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel.GT.0)) THEN !int ener + 3, vmpf +1
     PartDataSize=13
-  ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicModel ) ) THEN !int ener + 2 and vmpf + 1
+  ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. (DSMC%ElectronicModel.GT.0)) ) THEN !int ener + 2 and vmpf + 1
                                                                             ! or int energ +3 but no vmpf +1
     PartDataSize=12
   ELSE IF (CollisMode.GT.1) THEN
@@ -2171,7 +2171,7 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
   END DO
 END IF
 
-IF (withDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2)) THEN
   MaxElecQuant = 0
   DO iSpec = 1, nSpecies
     IF (.NOT.((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized)) THEN
@@ -2216,7 +2216,7 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
   VibQuantData = 0
   !+1 is real number of necessary vib quants for the particle
 END IF
-IF (withDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)  THEN
+IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
   ALLOCATE(ElecDistriData(MaxElecQuant,offsetnPart+1_IK:offsetnPart+locnPart))
   ElecDistriData = 0
   !+1 is real number of necessary vib quants for the particle
@@ -2241,7 +2241,7 @@ DO iDelay=0,tempDelay
     PartData(8,iPart)=REAL(iElem_glob)
     PartData(9,iPart)=REAL(iDelay)
     IF (withDSMC) THEN
-      IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
+      IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel.GT.0) ) THEN
         PartData(10,iPart)=ClonedParticles(pcount,iDelay)%PartStateIntEn(1)
         PartData(11,iPart)=ClonedParticles(pcount,iDelay)%PartStateIntEn(2)
         PartData(12,iPart)=ClonedParticles(pcount,iDelay)%PartStateIntEn(3)
@@ -2250,7 +2250,7 @@ DO iDelay=0,tempDelay
         PartData(10,iPart)=ClonedParticles(pcount,iDelay)%PartStateIntEn(1)
         PartData(11,iPart)=ClonedParticles(pcount,iDelay)%PartStateIntEn(2)
         PartData(12,iPart)=ClonedParticles(pcount,iDelay)%WeightingFactor
-      ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
+      ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel.GT.0) ) THEN
         PartData(10,iPart)=ClonedParticles(pcount,iDelay)%PartStateIntEn(1)
         PartData(11,iPart)=ClonedParticles(pcount,iDelay)%PartStateIntEn(2)
         PartData(12,iPart)=ClonedParticles(pcount,iDelay)%PartStateIntEn(3)
@@ -2272,7 +2272,7 @@ DO iDelay=0,tempDelay
           VibQuantData(:,iPart) = 0
       END IF
     END IF
-    IF (withDSMC.AND.DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)  THEN
+    IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
       IF (.NOT.((SpecDSMC(ClonedParticles(pcount,iDelay)%Species)%InterID.EQ.4) &
           .OR.SpecDSMC(ClonedParticles(pcount,iDelay)%Species)%FullyIonized)) THEN      
           ElecDistriData(1:SpecDSMC(ClonedParticles(pcount,iDelay)%Species)%MaxElecQuant,iPart) = &
@@ -2299,7 +2299,7 @@ StrVarNames(8)='Element'
 StrVarNames(9)='CloneDelay'
 
 IF(withDSMC)THEN
-  IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
+  IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel.GT.0))THEN
     StrVarNames(10)='Vibrational'
     StrVarNames(11)='Rotational'
     StrVarNames(12)='Electronic'
@@ -2308,7 +2308,7 @@ IF(withDSMC)THEN
     StrVarNames(10)='Vibrational'
     StrVarNames(11)='Rotational'
     StrVarNames(12)='MPF'
-  ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
+  ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel.GT.0) ) THEN
     StrVarNames(10)='Vibrational'
     StrVarNames(11)='Rotational'
     StrVarNames(12)='Electronic'
@@ -2347,7 +2347,7 @@ IF (withDSMC) THEN
                           collective=.FALSE.              , IntegerArray_i4=VibQuantData)
     DEALLOCATE(VibQuantData)
   END IF
-  IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
+  IF (DSMC%ElectronicModel.EQ.2) THEN
     CALL WriteArrayToHDF5(DataSetName='CloneElecDistriData' , rank=2              , &
                           nValGlobal=(/MaxElecQuant       , nPart_glob     /)   , &
                           nVal=      (/MaxElecQuant        , locnPart       /)   , &

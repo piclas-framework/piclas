@@ -312,7 +312,7 @@ IF(CollisMode.GT.1) THEN
   ELSE
     PartStateIntEn(1:2,iPart) = 0.0
   END IF
-  IF(DSMC%ElectronicModel) THEN
+  IF(DSMC%ElectronicModel.GT.0) THEN
     IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
       PartStateIntEn(3,iPart) = CalcEElec_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TELEC))
     ELSE

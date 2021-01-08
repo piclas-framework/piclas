@@ -144,7 +144,7 @@ DO iLoop = 1, nPart
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
       Energy_old = Energy_old + (PartStateIntEn(1,iPartIndx_Node(iLoop)) +  PartStateIntEn(2,iPartIndx_Node(iLoop))) * partWeight
     END IF
-    IF(DSMC%ElectronicModel) Energy_old = Energy_old + PartStateIntEn(3,iPartIndx_Node(iLoop))*partWeight
+    IF(DSMC%ElectronicModel.GT.0) Energy_old = Energy_old + PartStateIntEn(3,iPartIndx_Node(iLoop))*partWeight
   END IF
   ! Momentum conservation
   Momentum_old(1:3) = Momentum_old(1:3) + Species(iSpec)%MassIC * PartState(4:6,iPartIndx_Node(iLoop)) * partWeight
@@ -166,7 +166,7 @@ DO iLoop = 1, nPart
       EOld_Inner = EOld_Inner + partWeight * (PartStateIntEn(1,iPartIndx_Node(iLoop)) +  PartStateIntEn(2,iPartIndx_Node(iLoop)))
     END IF
     ! Electronic energy
-    IF(DSMC%ElectronicModel) EOld_Inner = EOld_Inner + partWeight * PartStateIntEn(3,iPartIndx_Node(iLoop))
+    IF(DSMC%ElectronicModel.GT.0) EOld_Inner = EOld_Inner + partWeight * PartStateIntEn(3,iPartIndx_Node(iLoop))
   END IF
 END DO
 
@@ -208,7 +208,7 @@ DO iLoop = 1, nPartNew
       ENew_Inner = ENew_Inner + partWeight * (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop)))
     END IF
     ! Electronic energy
-    IF(DSMC%ElectronicModel) ENew_Inner = ENew_Inner + partWeight * PartStateIntEn(3,iPartIndx_Node(iLoop))
+    IF(DSMC%ElectronicModel.GT.0) ENew_Inner = ENew_Inner + partWeight * PartStateIntEn(3,iPartIndx_Node(iLoop))
   END IF
 END DO
 
@@ -227,7 +227,7 @@ DO iLoop = 1, nPartNew
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
       Energy_new = Energy_new + (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop))) * partWeight
     END IF
-    IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(3,iPartIndx_Node(iLoop))*partWeight
+    IF(DSMC%ElectronicModel.GT.0) Energy_new = Energy_new + PartStateIntEn(3,iPartIndx_Node(iLoop))*partWeight
   END IF
   ! Momentum conservation
   Momentum_new(1:3) = Momentum_new(1:3) + Species(iSpec)%MassIC * PartState(4:6,iPartIndx_Node(iLoop)) * partWeight

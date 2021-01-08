@@ -79,7 +79,7 @@ INTEGER                       :: ReactInx(1:3), ProductReac(1:4), EductReac(1:3)
 REAL                          :: EZeroPoint_Educt, EZeroPoint_Prod, EReact, ReducedMass, ReducedMassUnweighted, omega, Tref
 REAL                          :: Xi_vib(1:3), Xi_elec(1:3), Xi_Total
 REAL                          :: BetaReaction, BackwardRate
-REAL                          :: Rcoll, Tcoll, Telec, TiQK, NumWeightEduct, NumWeightProd
+REAL                          :: Rcoll, Tcoll, Telec, NumWeightEduct, NumWeightProd
 INTEGER                       :: iPath, PathIndex
 REAL                          :: Weight(1:4), SumWeightEduct, SumWeightProd, betaEXP
 !===================================================================================================================================
@@ -167,7 +167,7 @@ Coll_pData(iPair)%Ec = 0.5 * ReducedMass*Coll_pData(iPair)%CRela2
 DO iPart = 1, NINT(NumWeightEduct)
   Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(1,ReactInx(iPart))*Weight(iPart) &
                                               + PartStateIntEn(2,ReactInx(iPart))*Weight(iPart)
-  IF (DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,ReactInx(iPart))*Weight(iPart)
+  IF (DSMC%ElectronicModel.GT.0) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,ReactInx(iPart))*Weight(iPart)
 END DO
 ! Add the translational energy of the third particle in case of a recombination reaction
 IF(EductReac(3).NE.0) THEN
@@ -208,7 +208,7 @@ IF(((Coll_pData(iPair)%Ec-EZeroPoint_Educt).GE.(SumWeightEduct/NumWeightEduct*Ch
         Xi_vib(iPart) = ChemReac%MeanXiVib_PerIter(EductReac(iPart))
       END IF
     END IF
-    IF (DSMC%ElectronicModel) THEN
+    IF (DSMC%ElectronicModel.GT.0) THEN
       IF((SpecDSMC(EductReac(iPart))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(iPart))%FullyIonized)) THEN
         IF(PartStateIntEn(3,ReactInx(iPart)).GT.0.0)THEN
           Telec=CalcTelec( PartStateIntEn(3,ReactInx(iPart)) , EductReac(iPart))
@@ -235,8 +235,8 @@ IF(((Coll_pData(iPair)%Ec-EZeroPoint_Educt).GE.(SumWeightEduct/NumWeightEduct*Ch
   ! Calculation of the backward reaction rate coefficient and applying to Beta coefficient after Boyd "Modeling backward chemical
   ! rate processes in the direct simulation Monte Carlo method", Phys. Fluids 19, 1261103 (2007)
   !---------------------------------------------------------------------------------------------------------------------------------
-  IF(DSMC%BackwardReacRate.AND.((iReac.GT.ChemReac%NumOfReact/2))) THEN
-    iReacForward = iReac - ChemReac%NumOfReact/2
+  IF(iReac.GT.ChemReac%NumOfReactWOBackward) THEN
+    iReacForward = ChemReac%BackwardReacForwardIndx(iReac)
     IF(DSMC%InstantTransTemp(nSpecies+1).GT.0.0) THEN
       CALL CalcBackwardRate(iReac,DSMC%InstantTransTemp(nSpecies+1),BackwardRate)
       IF(TRIM(ChemReac%ReactType(iReac)).EQ.'E') THEN
@@ -253,8 +253,8 @@ IF(((Coll_pData(iPair)%Ec-EZeroPoint_Educt).GE.(SumWeightEduct/NumWeightEduct*Ch
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Actual calculation of the reaction probability, different equation for recombination reaction
   !---------------------------------------------------------------------------------------------------------------------------------
-  IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
-    IF(DSMC%BackwardReacRate.AND.((iReac.GT.ChemReac%NumOfReact/2))) THEN
+  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
+    IF(iReac.GT.ChemReac%NumOfReactWOBackward) THEN
       Tcoll =ReducedMassUnweighted*Coll_pData(iPair)%CRela2 / (BoltzmannConst * 2.*(2.-omega))
       Rcoll = (Tcoll / Tref)**(0.5 - omega) &
               * ChemReac%QKRColl(iCase) / SQRT(ReducedMassUnweighted) * ChemReac%QKTCollCorrFac(iCase)
@@ -264,21 +264,6 @@ IF(((Coll_pData(iPair)%Ec-EZeroPoint_Educt).GE.(SumWeightEduct/NumWeightEduct*Ch
       ReactionProb = BetaReaction * NumDens &
                 * EReact**(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 + CollInf%omega(EductReac(3),EductReac(3)))
     END IF
-  ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'iQK') THEN
-    TiQK = (ReducedMassUnweighted*Coll_pData(iPair)%CRela2 + 2.*PartStateIntEn(3,ReactInx(1)))/((2.*(2.-omega) &
-              + Xi_elec(1))*BoltzmannConst)
-    Tcoll = ReducedMassUnweighted*Coll_pData(iPair)%CRela2 / (BoltzmannConst * 2.*(2.-omega))
-    Rcoll = (Tcoll / Tref)**(0.5 - omega) * ChemReac%QKRColl(iCase) &
-              / SQRT(ReducedMassUnweighted) * ChemReac%QKTCollCorrFac(iCase)
-    ReactionProb = QK_GetAnalyticRate(iReac,TiQK) / Rcoll
-  ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'D'.AND.ChemReac%QKProcedure(iReac)) THEN
-    TiQK = (ReducedMassUnweighted*Coll_pData(iPair)%CRela2  &
-              + 2.*PartStateIntEn(1,ReactInx(1)))/((2.*(2.-omega) + Xi_vib(1))*BoltzmannConst)
-    Tcoll = ReducedMassUnweighted*Coll_pData(iPair)%CRela2 / (BoltzmannConst * 2.*(2.-omega))
-    Rcoll = (Tcoll / Tref)**(0.5 - omega) * ChemReac%QKRColl(iCase) &
-              / SQRT(ReducedMassUnweighted) * ChemReac%QKTCollCorrFac(iCase)
-    ! Get the analytic forward rate for QK
-    ReactionProb = QK_GetAnalyticRate(iReac,TiQK) / Rcoll
   ELSE
     IF(SpecDSMC(EductReac(2))%PolyatomicMol.OR.SpecDSMC(EductReac(1))%PolyatomicMol) THEN
       ! Energy is multiplied by a factor to increase the resulting exponent and avoid floating overflows for high vibrational
@@ -467,7 +452,7 @@ ELSE
 END IF
 
 IF(EductReac(3).NE.0) THEN
-  IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
+  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
     EductReac(3) = PartSpecies(ReactInx(3))
     ProductReac(2) = PartSpecies(ReactInx(3))
     NumEduct = 3
@@ -486,7 +471,7 @@ DO iPart = 1, NumEduct
 END DO
 
 IF(CalcPartBalance) THEN
-  IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') THEN
+  IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') THEN
     DO iPart = 1, NumEduct
       IF(BGGas%BackgroundSpecies(EductReac(iPart))) CYCLE
       nPartOut(EductReac(iPart))=nPartOut(EductReac(iPart)) + 1
@@ -495,7 +480,7 @@ IF(CalcPartBalance) THEN
   END IF
 END IF
 
-IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
   MassRed = 0.
 ELSE
   IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
@@ -529,7 +514,7 @@ IF(EductReac(3).EQ.0) THEN
     END IF
     PartStateIntEn(1,ReactInx(3)) = 0.
     PartStateIntEn(2,ReactInx(3)) = 0.
-    IF(DSMC%ElectronicModel) PartStateIntEn(3,ReactInx(3)) = 0.
+    IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,ReactInx(3)) = 0.
     PEM%GlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(1))
     PEM%LastGlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(3))
     IF(RadialWeighting%DoRadialWeighting) PartMPF(ReactInx(3)) = PartMPF(ReactInx(1))
@@ -563,7 +548,7 @@ IF(ProductReac(4).NE.0) THEN
   END IF
   PartStateIntEn(1,ReactInx(4)) = 0.
   PartStateIntEn(2,ReactInx(4)) = 0.
-  IF(DSMC%ElectronicModel) PartStateIntEn(3,ReactInx(4)) = 0.
+  IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,ReactInx(4)) = 0.
   PEM%GlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(1))
   PEM%LastGlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(4))
   IF(RadialWeighting%DoRadialWeighting) PartMPF(ReactInx(4)) = PartMPF(ReactInx(1))
@@ -584,11 +569,11 @@ Energy_old=0.5*Species(PartSpecies(ReactInx(1)))%MassIC*DOTPRODUCT(PartState(4:6
           + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight(1) &
           + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2) &
           + ChemReac%EForm(iReac)*SumWeightProd/REAL(NumProd)
-IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(3,ReactInx(1))*Weight(1) + PartStateIntEn(3,ReactInx(2)) * Weight(2)
+IF(DSMC%ElectronicModel.GT.0) Energy_old=Energy_old + PartStateIntEn(3,ReactInx(1))*Weight(1) + PartStateIntEn(3,ReactInx(2)) * Weight(2)
 IF (EductReac(3).NE.0) THEN
   Energy_old=Energy_old+(0.5*Species(PartSpecies(ReactInx(3)))%MassIC*DOTPRODUCT(PartState(4:6,ReactInx(3)))&
       + PartStateIntEn(1,ReactInx(3))+PartStateIntEn(2,ReactInx(3))) * Weight(3)
-  IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(3,ReactInx(3)) * Weight(3)
+  IF(DSMC%ElectronicModel.GT.0) Energy_old=Energy_old + PartStateIntEn(3,ReactInx(3)) * Weight(3)
 END IF
 ! Momentum conservation
 Momentum_old(1:3) = Species(PartSpecies(ReactInx(1)))%MassIC * PartState(4:6,ReactInx(1)) * Weight(1) &
@@ -642,7 +627,7 @@ Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (PartStateIntEn(2,ReactInx(1)) + P
 !-------------------------------------------------------------------------------------------------------------------------------
 ! Addition of the electronic energy to the collision energy)
 !-------------------------------------------------------------------------------------------------------------------------------
-IF (DSMC%ElectronicModel) THEN
+IF (DSMC%ElectronicModel.GT.0) THEN
   Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,ReactInx(1))*Weight(1) + PartStateIntEn(3,ReactInx(2))*Weight(2)
 END IF
 
@@ -672,7 +657,7 @@ IF(EductReac(3).NE.0) THEN
                                               + 0.5 * MassRed * ((VeloCOM(1)-PartState(4,ReactInx(3)))**2 &
                                                                + (VeloCOM(2)-PartState(5,ReactInx(3)))**2 &
                                                                + (VeloCOM(3)-PartState(6,ReactInx(3)))**2)
-  IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,ReactInx(3))*Weight(3)
+  IF(DSMC%ElectronicModel.GT.0) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,ReactInx(3))*Weight(3)
 END IF
 
 !-------------------------------------------------------------------------------------------------------------------------------
@@ -692,12 +677,12 @@ DO iProd = 1, NumProd
 END DO
 !-------------------------------------------------------------------------------------------------------------------------------
 ! Root-finding algorithm to determine the vibrational and electronic degrees of freedom
-IF((nDOFMAX.GT.0).AND.(DSMC%ElectronicModel)) THEN
+IF((nDOFMAX.GT.0).AND.(DSMC%ElectronicModel.GT.0)) THEN
   ! Electronic and vibrational energy is considered
   ALLOCATE(XiVibPart(NumProd,nDOFMAX))
   XiVibPart = 0.
   CALL CalcXiTotalEqui(iReac,iPair,NumProd,Xi_total,Weight,XiVibPart=XiVibPart,XiElecPart=Xi_elec)
-ELSEIF(DSMC%ElectronicModel) THEN
+ELSEIF(DSMC%ElectronicModel.GT.0) THEN
   ! Only electronic energy is considered
   CALL CalcXiTotalEqui(iReac,iPair,NumProd,Xi_total,Weight,XiElecPart=Xi_elec)
 ELSEIF(nDOFMAX.GT.0) THEN
@@ -717,7 +702,7 @@ IF(nDOFMAX.GT.0) THEN
     END IF
   END DO
 END IF
-IF (DSMC%ElectronicModel) THEN
+IF (DSMC%ElectronicModel.GT.0) THEN
   DO iProd = 1, NumProd
     Xi_total = Xi_total + Xi_elec(iProd)
   END DO
@@ -734,15 +719,15 @@ END DO
 !--------------------------------------------------------------------------------------------------
 ! Electronic energy exchange
 !--------------------------------------------------------------------------------------------------
-IF (DSMC%ElectronicModel) THEN
+IF (DSMC%ElectronicModel.GT.0) THEN
   DO iProd = 1, NumProd
     IF((SpecDSMC(ProductReac(iProd))%InterID.EQ.4).OR.SpecDSMC(ProductReac(iProd))%FullyIonized) THEN
-      IF (DSMC%ElectronicDistrModel) THEN
+      IF (DSMC%ElectronicModel.EQ.2) THEN
         IF(ALLOCATED(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)) DEALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)
       END IF
       PartStateIntEn(3,ReactInx(iProd)) = 0.0
     ELSE
-      IF (DSMC%ElectronicDistrModel) THEN
+      IF (DSMC%ElectronicModel.EQ.2) THEN
         IF(ALLOCATED(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)) DEALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)
         ALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc(1:SpecDSMC(ProductReac(iProd))%MaxElecQuant))
         ElectronicDistriPart(ReactInx(iProd))%DistriFunc = 0.0
@@ -754,8 +739,6 @@ IF (DSMC%ElectronicModel) THEN
     END IF
   END DO
 END IF
-!print*,'DOF ELEc', Xi_Elec
-!read*
 !--------------------------------------------------------------------------------------------------
 ! Vibrational energy exchange
 !--------------------------------------------------------------------------------------------------
@@ -808,7 +791,7 @@ IF(ProductReac(3).NE.0) THEN
     VeloCOM(1:3) = FracMassCent1 * PartState(4:6,ReactInx(1)) + FracMassCent2 * PartState(4:6,ReactInx(3))
   ELSE
     ! Scattering 2 -> 3/4
-    IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
     ! Do not consider the momentum of the photon
       FracMassCent1 = 1.
       FracMassCent2 = 0.
@@ -869,7 +852,7 @@ IF(ProductReac(3).NE.0) THEN
                         + Species(ProductReac(4))%MassIC*(VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)) * Weight(4)
     Energy_new = Energy_new + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2) &
                             + (PartStateIntEn(1,ReactInx(4)) + PartStateIntEn(2,ReactInx(4))) * Weight(4)
-    IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(3,ReactInx(2)) * Weight(2) &
+    IF(DSMC%ElectronicModel.GT.0) Energy_new = Energy_new + PartStateIntEn(3,ReactInx(2)) * Weight(2) &
                                                      + PartStateIntEn(3,ReactInx(4)) * Weight(4)
 #endif /* CODE_ANALYZE */
   ELSE
@@ -902,7 +885,7 @@ IF(ProductReac(3).NE.0) THEN
     Momentum_new(1:3) = Species(ProductReac(2))%MassIC* (VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)) * Weight(2)
 
     Energy_new = Energy_new + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2)
-    IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(3,ReactInx(2)) * Weight(2)
+    IF(DSMC%ElectronicModel.GT.0) Energy_new = Energy_new + PartStateIntEn(3,ReactInx(2)) * Weight(2)
 #endif /* CODE_ANALYZE */
     ! Set velocity of pseudo molec (AB) and calculate the centre of mass frame velocity: m_pseu / (m_3 + m_4) * v_pseu
     ! (Velocity of pseudo molecule is NOT equal to the COM frame velocity)
@@ -944,7 +927,7 @@ IF(ProductReac(3).NE.0) THEN
                         + 0.5*Species(ProductReac(3))%MassIC*DOTPRODUCT(VeloCOM(1:3)-FracMassCent1*cRelaNew(1:3))*Weight(3) &
                         + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight(1) &
                         + (PartStateIntEn(1,ReactInx(3)) + PartStateIntEn(2,ReactInx(3))) * Weight(3)
-  IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(3,ReactInx(1)) * Weight(1) &
+  IF(DSMC%ElectronicModel.GT.0) Energy_new = Energy_new + PartStateIntEn(3,ReactInx(1)) * Weight(1) &
                                                    + PartStateIntEn(3,ReactInx(3)) * Weight(3)
   ! New total momentum
   Momentum_new(1:3) = Momentum_new(1:3) &
@@ -961,7 +944,7 @@ ELSEIF(ProductReac(3).EQ.0) THEN
     ! therefore, there is no need to set change the index as the proper species, ProductReac(2), was utilized for the relaxation
   ELSE
     ! Scattering 2 -> 2
-    IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
     ! Do not consider the momentum of the photon
       FracMassCent1 = 1.
       FracMassCent2 = 0.
@@ -1013,7 +996,7 @@ ELSEIF(ProductReac(3).EQ.0) THEN
                                                  + (VeloCOM(3) - FracMassCent1*cRelaNew(3))**2) * Weight(2) &
               + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight(1) &
               + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2)
-  IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(3,ReactInx(1)) * Weight(1) &
+  IF(DSMC%ElectronicModel.GT.0) Energy_new = Energy_new + PartStateIntEn(3,ReactInx(1)) * Weight(1) &
                                                    + PartStateIntEn(3,ReactInx(2)) * Weight(2)
   ! New total momentum
     Momentum_new(1:3) = Species(ProductReac(1))%MassIC * (/VeloCOM(1) + FracMassCent2*cRelaNew(1),  &
@@ -1291,9 +1274,9 @@ REAL                            :: Qtra, Qrot, Qvib, Qelec, expVal
   UpperLevel = LowerLevel + 1
 
   ! Reading the stoichiometric coefficients from the reactants
-  iReac = iReacTmp - ChemReac%NumOfReact/2
-  IF (ChemReac%QKProcedure(iReac)) THEN
-    IF (TRIM(ChemReac%ReactType(iReac)).EQ.'iQK') THEN
+  iReac = ChemReac%BackwardReacForwardIndx(iReacTmp)
+  IF (TRIM(ChemReac%ReactModel(iReac)).EQ.'QK') THEN
+    IF (TRIM(ChemReac%ReactType(iReac)).EQ.'I') THEN
       MaxElecQua=SpecDSMC(ChemReac%Reactants(iReac,1))%MaxElecQuant - 1
       ActivationEnergy_K = SpecDSMC(ChemReac%Reactants(iReac,1))%ElectronicState(2,MaxElecQua)
     ELSEIF(TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
@@ -1315,7 +1298,7 @@ REAL                            :: Qtra, Qrot, Qvib, Qelec, expVal
         END IF
       END DO
     END DO
-    IF (ChemReac%QKProcedure(iReac)) THEN
+    IF (TRIM(ChemReac%ReactModel(iReac)).EQ.'QK') THEN
       expVal = MIN(maxexp,ActivationEnergy_K/LocalTemp)
       BackwardRate = QK_CalcAnalyticRate(iReac,LocalTemp)*(PartFuncProduct(1)/PartFuncProduct(2))*EXP(expVal)
     ELSE
@@ -1335,7 +1318,7 @@ REAL                            :: Qtra, Qrot, Qvib, Qelec, expVal
       END DO
     END DO
     IF((PartFuncProduct(1).NE.0.).AND.(PartFuncProduct(2).NE.0.)) THEN
-      IF (ChemReac%QKProcedure(iReac)) THEN
+      IF (TRIM(ChemReac%ReactModel(iReac)).EQ.'QK') THEN
         expVal = MIN(maxexp,ActivationEnergy_K/(LowerLevel * DSMC%PartitionInterval))
         k_b_lower = QKChemistry(iReac)%ForwardRate(LowerLevel)* (PartFuncProduct(1)/PartFuncProduct(2))* EXP(expVal)
       ELSE
@@ -1357,7 +1340,7 @@ REAL                            :: Qtra, Qrot, Qvib, Qelec, expVal
       END DO
     END DO
     IF((PartFuncProduct(1).NE.0.).AND.(PartFuncProduct(2).NE.0.)) THEN
-      IF (ChemReac%QKProcedure(iReac)) THEN
+      IF (TRIM(ChemReac%ReactModel(iReac)).EQ.'QK') THEN
         expVal = MIN(maxexp,ActivationEnergy_K/(UpperLevel * DSMC%PartitionInterval))
         k_b_upper = QKChemistry(iReac)%ForwardRate(UpperLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) * EXP(expVal)
       ELSE
@@ -1459,7 +1442,7 @@ NbrOfReactions = 0.
 
 DO iReac = 1, ChemReac%NumOfReact
   ! Only treat photoionization reactions
-  IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
+  IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') CYCLE
   ! First reactant of the reaction is the actual heavy particle species
   bgSpec = BGGas%MapSpecToBGSpec(ChemReac%Reactants(iReac,1))
   ! Collision number: Z = n_gas * n_ph * sigma_reac * v (in the case of photons its speed of light)
@@ -1562,7 +1545,7 @@ IF(EductReac(3).EQ.0) THEN
     END IF
     PartStateIntEn(1,ReactInx(3)) = 0.
     PartStateIntEn(2,ReactInx(3)) = 0.
-    IF(DSMC%ElectronicModel) PartStateIntEn(3,ReactInx(3)) = 0.
+    IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,ReactInx(3)) = 0.
     PEM%GlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(1))
     PEM%LastGlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(3))
     IF(RadialWeighting%DoRadialWeighting) PartMPF(ReactInx(3)) = PartMPF(ReactInx(1))
@@ -1592,7 +1575,7 @@ IF(ProductReac(4).NE.0) THEN
   END IF
   PartStateIntEn(1,ReactInx(4)) = 0.
   PartStateIntEn(2,ReactInx(4)) = 0.
-  IF(DSMC%ElectronicModel) PartStateIntEn(3,ReactInx(4)) = 0.
+  IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,ReactInx(4)) = 0.
   PEM%GlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(1))
   PEM%LastGlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(4))
   IF(RadialWeighting%DoRadialWeighting) PartMPF(ReactInx(4)) = PartMPF(ReactInx(1))
@@ -1624,7 +1607,7 @@ ELSE
   Temp_Vib   = Temp_Trans
   Temp_Rot   = Temp_Trans
 END IF
-IF(DSMC%ElectronicModel) Temp_Elec = SpecDSMC(EductReac(1))%Init(1)%TElec
+IF(DSMC%ElectronicModel.GT.0) Temp_Elec = SpecDSMC(EductReac(1))%Init(1)%TElec
 !-------------------------------------------------------------------------------------------------------------------------------
 ! Insert the heavy species at the properties of the background gas
 !-------------------------------------------------------------------------------------------------------------------------------
@@ -1644,7 +1627,7 @@ DO iProd = 1, NumProd
   ELSE
     PartStateIntEn(1:2,iPart) = 0.0
   END IF
-  IF(DSMC%ElectronicModel) THEN
+  IF(DSMC%ElectronicModel.GT.0) THEN
     IF(.NOT.SpecDSMC(iSpec)%FullyIonized) THEN
       PartStateIntEn(3,iPart) = CalcEElec_particle(iSpec,Temp_Elec)
     ELSE
@@ -1656,7 +1639,7 @@ DO iProd = 1, NumProd
   ! Remove the distributed energy from the available collision energy
   Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - 0.5 * Species(iSpec)%MassIC * DOTPRODUCT(PartState(4:6,iPart)) * Weight(iProd)&
                                               - (PartStateIntEn(1,iPart) + PartStateIntEn(2,iPart))*Weight(iProd)
-  IF (DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart)*Weight(iProd)
+  IF (DSMC%ElectronicModel.GT.0) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart)*Weight(iProd)
 END DO
 !--------------------------------------------------------------------------------------------------!
 ! Calculation of new electron velocities 

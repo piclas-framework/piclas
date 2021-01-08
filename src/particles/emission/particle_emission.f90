@@ -617,7 +617,7 @@ DO i=1,PDM%ParticleVecLength
           Source(8:9,ElemID, iSpec) = Source(8:9,ElemID, iSpec) + PartStateIntEn(1:2,i) * GetParticleWeight(i)
         END IF
       END IF
-      IF (DSMC%ElectronicModel) THEN
+      IF (DSMC%ElectronicModel.GT.0) THEN
         Source(10,ElemID, iSpec) = Source(10,ElemID, iSpec) + PartStateIntEn(3,i) * GetParticleWeight(i)
       END IF
     END IF
@@ -757,7 +757,7 @@ DO AdaptiveElemID = 1,nElems
             END IF
             Adaptive_MacroVal(9,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(9,AdaptiveElemID,iSpec) &
                 + RelaxationFactor*Source(9,AdaptiveElemID,iSpec)/(Source(11,AdaptiveElemID,iSpec)*BoltzmannConst)
-            IF (DSMC%ElectronicModel) THEN
+            IF (DSMC%ElectronicModel.GT.0) THEN
               Adaptive_MacroVal(10,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(10,AdaptiveElemID,iSpec) &
                 + RelaxationFactor*CalcTelec( Source(10,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec),iSpec)
             END IF

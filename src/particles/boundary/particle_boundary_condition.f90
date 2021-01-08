@@ -14,8 +14,8 @@
 
 MODULE MOD_Particle_Boundary_Condition
 !===================================================================================================================================
-! Determines how particles interact with a given boundary condition. This routine is used by MOD_Part_Tools, hence, it cannot be
-! used here due to circular definitions!
+!> Determines how particles interact with a given boundary condition. This routine is used by MOD_Part_Tools, hence, it cannot be
+!> used here due to circular definitions!
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -35,10 +35,6 @@ INTERFACE GetBoundaryInteractionAuxBC
   MODULE PROCEDURE GetBoundaryInteractionAuxBC
 END INTERFACE
 
-!INTERFACE PartSwitchElement
-!  MODULE PROCEDURE PartSwitchElement
-!END INTERFACE
-
 PUBLIC :: GetBoundaryInteraction
 PUBLIC :: GetBoundaryInteractionAuxBC
 !PUBLIC :: PartSwitchElement
@@ -49,13 +45,10 @@ CONTAINS
 SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,ElemID,crossedBC&
                                   ,TriNum,locSideID)
 !===================================================================================================================================
-! Computes the post boundary state of a particle that interacts with a boundary condition
-!  OpenBC                  = 1
-!  ReflectiveBC            = 2
-!  PeriodicBC              = 3
-!  SimpleAnodeBC           = 4
-!  SimpleCathodeBC         = 5
-!  MPINeighborhoodBC       = 6
+!> Determines the post boundary state of a particle that interacts with a boundary condition
+!> * Open: Particle is removed
+!> * Reflective: Further treatment as part of the surface modelling (`src/particles/surfacemodel/`)
+!> * Periodic (+ Rotational periodic): Further treatment in the specific routines
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
