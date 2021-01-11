@@ -186,7 +186,7 @@ LOGICAL                           :: TimeStepExists, QualityExists, TimeStepModi
 REAL, ALLOCATABLE                 :: DSMCQualityFactors(:,:), PartNum(:)
 REAL                              :: TimeFracTemp
 CHARACTER(LEN=255),ALLOCATABLE    :: VarNames_tmp(:)
-INTEGER                           :: nVar_HDF5, N_HDF5, nVar_MaxCollProb, nVar_MCSoverMFP, nVar_TotalPartNum
+INTEGER                           :: nVar_HDF5, N_HDF5, nVar_MaxCollProb, nVar_MCSoverMFP, nVar_TotalPartNum, nVar_TimeStep
 REAL, ALLOCATABLE                 :: ElemData_HDF5(:,:)
 #if (PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400)
 INTEGER                           :: nVar_MaxRelaxFac
@@ -198,6 +198,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT VARIABLE TIME STEP DISTRIBUTION...'
 
 TimeStepExists = .FALSE.
 QualityExists = .FALSE.
+nVar_TimeStep = 0
 
 IF(DoRestart) THEN
 ! Try to get the time step factor distribution directly from state file
@@ -260,6 +261,7 @@ IF(VarTimeStep%AdaptDistribution) THEN
     'ERROR: Number of variables in the ElemData array appears to be zero!')
   END IF
 
+  ! Get the variable names from the DSMC state and find the position of required quality factors
   ALLOCATE(VarNames_tmp(1:nVar_HDF5))
   CALL ReadAttribute(File_ID,'VarNamesAdd',nVar_HDF5,StrArray=VarNames_tmp(1:nVar_HDF5))
 
@@ -272,6 +274,10 @@ IF(VarTimeStep%AdaptDistribution) THEN
     END IF
     IF (STRICMP(VarNames_tmp(iVar),"Total_SimPartNum")) THEN
       nVar_TotalPartNum = iVar
+    END IF
+    ! Check if a time step distribution was written out in the DSMC state file
+    IF (STRICMP(VarNames_tmp(iVar),"VariableTimeStep")) THEN
+      nVar_TimeStep = iVar
     END IF
 #if (PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400)
     IF (STRICMP(VarNames_tmp(iVar),"BGK_MaxRelaxationFactor").OR.STRICMP(VarNames_tmp(iVar),"FP_MaxRelaxationFactor")) THEN
@@ -291,6 +297,8 @@ IF(VarTimeStep%AdaptDistribution) THEN
   DSMCQualityFactors(:,1) = ElemData_HDF5(nVar_MaxCollProb,:)
   DSMCQualityFactors(:,2) = ElemData_HDF5(nVar_MCSoverMFP,:)
   PartNum(:)              = ElemData_HDF5(nVar_TotalPartNum,:)
+  ! Check if a time step distribution is available in the DSMC state file and use that instead of the read-in from the state file
+  IF(nVar_TimeStep.GT.0) VarTimeStep%ElemFac(:) = ElemData_HDF5(nVar_TimeStep,:)
 #if (PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400)
   ALLOCATE(MaxRelaxFactor(nGlobalElems))
   MaxRelaxFactor(:) = ElemData_HDF5(nVar_MaxRelaxFac,:)
