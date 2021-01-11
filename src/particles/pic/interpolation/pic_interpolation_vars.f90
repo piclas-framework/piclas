@@ -38,10 +38,12 @@ LOGICAL                 :: useVariableExternalField      !< Use given external f
 LOGICAL                 :: useAlgebraicExternalField     !< Use given algebraic expression for the external e and B field
 INTEGER                 :: AlgebraicExternalField        !< External E and B field from algebraic expression that is
                                                          !< interpolated to the particle position:
-                                                         !< 1: Axial B(x) field from T. Charoy, 2D axial-azimuthal particle-in-cell
+                                                         !< 1: Axial B(x) and E(x) field 
+                                                         !<    from T. Charoy, 2D axial-azimuthal particle-in-cell
                                                          !<    benchmark for low-temperature partially magnetized plasmas (2019)
 REAL,ALLOCATABLE        :: VariableExternalField(:,:)    !< z - Pos , Bz
 REAL                    :: DeltaExternalField            !< equidistant z-spacing for the VariableExternalField (fast computation)
+REAL                    :: AverageElectricPotential      !< 2D Landmark: averaged electric field in y-direction (for interpolation)
 INTEGER                 :: nIntPoints                    !< number of all interpolation points external field
 
 #ifdef CODE_ANALYZE

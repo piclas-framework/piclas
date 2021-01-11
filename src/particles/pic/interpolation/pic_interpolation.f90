@@ -173,6 +173,7 @@ IF(AlgebraicExternalField.GT.0) useAlgebraicExternalField=.TRUE.
 IF(.NOT.ANY(AlgebraicExternalField.EQ.(/0,1/))) CALL abort(&
   __STAMP__&
   ,'Value for PIC-AlgebraicExternalField not defined',IntInfoOpt=AlgebraicExternalField)
+AverageElectricPotential=0. ! initialize
 
 !--- Allocate arrays for interpolation of fields to particles
 SDEALLOCATE(FieldAtParticle)
@@ -687,8 +688,8 @@ PURE FUNCTION InterpolateAlgebraicExternalField(Pos)
 !===================================================================================================================================
 ! MODULES
 !USE MOD_Globals
-USE MOD_PICInterpolation_Vars   ,ONLY:DeltaExternalField,nIntPoints,VariableExternalField
-USE MOD_PICInterpolation_Vars ,ONLY: externalField,AlgebraicExternalField
+USE MOD_PICInterpolation_Vars ,ONLY: DeltaExternalField,nIntPoints,VariableExternalField
+USE MOD_PICInterpolation_Vars ,ONLY: externalField,AlgebraicExternalField,AverageElectricPotential
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -703,8 +704,14 @@ INTEGER                  :: iPos                              !< index in array 
 !===================================================================================================================================
 SELECT CASE (AlgebraicExternalField)
 CASE (1)
-  ! Set E and Bx, By
-  InterpolateAlgebraicExternalField(1:5) = externalField(1:5)
+  ! Set Ex = Ue/xe
+  ASSOCIATE( Ue => AverageElectricPotential ,&
+             xe => 2.4e-2                   )
+    InterpolateAlgebraicExternalField(1) = Ue/xe
+  END ASSOCIATE
+
+  ! Set Ey, Ez, Bx and By
+  InterpolateAlgebraicExternalField(2:5) = externalField(2:5)
 
   ! Calc Bz
   ! Original formula

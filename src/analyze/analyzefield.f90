@@ -66,16 +66,19 @@ SUBROUTINE AnalyzeField(Time)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars         ,ONLY: DoFieldAnalyze,CalcEpot,CalcPoyntingInt,nPoyntingIntPlanes,PosPoyntingInt,WEl
+USE MOD_Analyze_Vars          ,ONLY: DoFieldAnalyze,CalcEpot,CalcPoyntingInt,nPoyntingIntPlanes,PosPoyntingInt,WEl
 #if (PP_nVar==8)
-USE MOD_Analyze_Vars         ,ONLY: WMag,WPhi,WPsi
+USE MOD_Analyze_Vars          ,ONLY: WMag,WPhi,WPsi
 #endif /*PP_nVar=8*/
-USE MOD_Particle_Analyze_Vars,ONLY: IsRestart
-USE MOD_Restart_Vars         ,ONLY: DoRestart
-USE MOD_Dielectric_Vars      ,ONLY: DoDielectric
+USE MOD_Particle_Analyze_Vars ,ONLY: IsRestart
+USE MOD_Restart_Vars          ,ONLY: DoRestart
+USE MOD_Dielectric_Vars       ,ONLY: DoDielectric
 #if USE_HDG
-USE MOD_HDG_Vars          ,ONLY: HDGNorm,iteration,Runtime,RunTimePerIteration
+USE MOD_HDG_Vars              ,ONLY: HDGNorm,iteration,Runtime,RunTimePerIteration
 #endif /*USE_HDG*/
+#ifdef PARTICLES
+USE MOD_PICInterpolation_Vars ,ONLY: useAlgebraicExternalField,AlgebraicExternalField,AverageElectricPotential
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -145,6 +148,9 @@ IF(MPIROOT)THEN
       ! Set the header line content
       nPoyntingIntPlanes=MERGE(nPoyntingIntPlanes,0,CalcPoyntingInt) ! set to zero if the flag is false (otherwise not initialized)
       nOutputVarTotal = nOutputVar + nPoyntingIntPlanes
+#ifdef PARTICLES
+      IF(useAlgebraicExternalField) nOutputVarTotal = nOutputVarTotal + 1
+#endif /*PARTICLES*/
 #if (PP_nVar==8)
       IF(.NOT.CalcEpot) nOutputVarTotal = nOutputVarTotal - 5
 #else
@@ -165,6 +171,7 @@ IF(MPIROOT)THEN
         WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNames(I))//'"'
       END DO
 
+      ! Add Poynting vector integral (integrated energy density through plane)
       IF(CalcPoyntingInt)THEN
         DO iPlane=1,nPoyntingIntPlanes
           nOutputVarTotal = nOutputVarTotal + 1
@@ -172,6 +179,17 @@ IF(MPIROOT)THEN
           WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
         END DO
       END IF
+
+#ifdef PARTICLES
+      ! Add averaged electric field (integrated and averaged along y-direction)
+      IF(useAlgebraicExternalField)THEN
+        SELECT CASE (AlgebraicExternalField)
+        CASE (1)
+          nOutputVarTotal = nOutputVarTotal + 1
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-AverageElectricPotential"'
+        END SELECT
+      END IF ! useAlgebraicExternalField
+#endif /*PARTICLES*/
 
       ! Set the format
       WRITE(formatStr,'(A1)')'('
@@ -225,17 +243,27 @@ IF(MPIROOT)THEN
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WEl + WMag + WPhi + WPsi
 #endif /*PP_nVar=8*/
   END IF
-  IF(CalcPoyntingInt)THEN
-    DO iPlane=1,nPoyntingIntPlanes
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',PoyntingIntegral(iPlane)
-    END DO
-  END IF
 #if USE_HDG
   WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(iteration)
   WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', Runtime
   WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RunTimePerIteration
   WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', HDGNorm
 #endif /*USE_HDG*/
+  ! Add Poynting vector integral (integrated energy density through plane)
+  IF(CalcPoyntingInt)THEN
+    DO iPlane=1,nPoyntingIntPlanes
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',PoyntingIntegral(iPlane)
+    END DO
+  END IF
+#ifdef PARTICLES
+  ! Add averaged electric field (integrated and averaged along y-direction)
+  IF(useAlgebraicExternalField)THEN
+    SELECT CASE (AlgebraicExternalField)
+    CASE (1)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',AverageElectricPotential
+    END SELECT
+  END IF ! useAlgebraicExternalField
+#endif /*PARTICLES*/
   write(unit_index,'(A)') '' ! write 'newline' to file to finish the current line
 END IF
 
