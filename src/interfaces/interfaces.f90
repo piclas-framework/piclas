@@ -850,12 +850,12 @@ LOGICAL,INTENT(IN)                :: useMinMax
 ! LOCAL VARIABLES
 !===================================================================================================================================
 ! display ranges of special region depending on useMinMax
-!SWRITE(UNIT_stdOut,'(A,L,A1)')'  '//TRIM(useMinMax_Name)//'=[',useMinMax,']'
+!SWRITE(UNIT_stdOut,'(A,L1,A1)')'  '//TRIM(useMinMax_Name)//'=[',useMinMax,']'
 IF(useMinMax)THEN
-  SWRITE(UNIT_stdOut,'(A,L,A1,A)')'  '//TRIM(useMinMax_Name)//'=[',useMinMax,']',': Ranges '//TRIM(xyzMinMax_name)//'(1:6) are'
+  SWRITE(UNIT_stdOut,'(A,L1,A1,A)')'  '//TRIM(useMinMax_Name)//'=[',useMinMax,']',': Ranges '//TRIM(xyzMinMax_name)//'(1:6) are'
   CALL DisplayMinMax(xyzMinMax)
 ELSE
-  SWRITE(UNIT_stdOut,'(A,L,A1,A)')'  '//TRIM(useMinMax_Name)//'=[',useMinMax,']',': Ranges '//TRIM(PhysicalMinMax_Name)//'(1:6) are'
+  SWRITE(UNIT_stdOut,'(A,L1,A1,A)')'  '//TRIM(useMinMax_Name)//'=[',useMinMax,']',': Ranges '//TRIM(PhysicalMinMax_Name)//'(1:6) are'
   CALL DisplayMinMax(xyzPhysicalMinMax)
 END IF
 END SUBROUTINE DisplayRanges

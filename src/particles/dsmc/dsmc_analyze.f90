@@ -868,7 +868,7 @@ DO iPart=1,PDM%ParticleVecLength
             + (PartStateIntEn(1,iPart) - SpecDSMC(iSpec)%EZeroPoint)*partWeight
           DSMC_Solution(9,iElem, iSpec) = DSMC_Solution(9,iElem, iSpec)+PartStateIntEn(2,iPart)*partWeight
         END IF
-        IF (DSMC%ElectronicModel) THEN
+        IF (DSMC%ElectronicModel.GT.0) THEN
           IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
             DSMC_Solution(10,iElem,iSpec)=DSMC_Solution(10,iElem,iSpec)+PartStateIntEn(3,iPart)*partWeight
           END IF
@@ -1023,7 +1023,7 @@ DO iElem = 1, nElems ! element/cell main loop
                   Total_TempRot  = Total_TempRot  + Macro_TempRot*Macro_PartNum
                 END IF
               END IF
-              IF (DSMC%ElectronicModel) THEN
+              IF (DSMC%ElectronicModel.GT.0) THEN
                 IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
                   Macro_TempElec = CalcTelec(PartEelec/PartNum, iSpec)
                   HeavyPartNum = HeavyPartNum + Macro_PartNum
@@ -1046,7 +1046,7 @@ DO iElem = 1, nElems ! element/cell main loop
             Total_TempVib = Total_TempVib / MolecPartNum
             Total_TempRot = Total_TempRot / MolecPartNum
           END IF
-          IF ( DSMC%ElectronicModel .AND.(HeavyPartNum.GT. 0)) THEN
+          IF ((DSMC%ElectronicModel.GT.0).AND.(HeavyPartNum.GT.0)) THEN
             Total_TempElec = Total_TempElec / HeavyPartNum
           END IF
         END IF

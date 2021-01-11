@@ -844,8 +844,11 @@ USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: tElem,tSide,Elems
 USE MOD_Mesh_Vars        ,ONLY: nElems,offsetElem,nBCSides,nSides
 USE MOD_Mesh_Vars        ,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
-USE MOD_Mesh_Vars        ,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob,GlobalUniqueSideID
+USE MOD_Mesh_Vars        ,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob
 USE MOD_Mesh_Vars        ,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
+#if defined(PARTICLES) || USE_HDG
+USE MOD_Mesh_Vars        ,ONLY: GlobalUniqueSideID
+#endif /*defined(PARTICLES) || USE_HDG*/
 #if USE_MPI
 USE MOD_MPI_vars
 #endif
@@ -901,9 +904,9 @@ DO iElem=1,nElems
       SideToElem(S2E_FLIP,aSide%SideID)            = aSide%Flip
     END IF
     BC(aSide%sideID)=aSide%BCIndex
-#ifdef PARTICLES
+#if defined(PARTICLES) || USE_HDG
     GlobalUniqueSideID(aSide%sideID)=aSide%Ind
-#endif /*PARTICLES*/
+#endif /*defined(PARTICLES) || USE_HDG*/
   END DO ! LocSideID
 END DO ! iElem
 
@@ -927,10 +930,10 @@ DO iElem=1,nElems
       DO iMortar=1,aSide%nMortars
         mSide=>aSide%MortarSide(iMortar)%sp
         MortarType(1,mSide%SideID)=mSide%MortarType
-#ifdef PARTICLES
+#if defined(PARTICLES) || USE_HDG
         ! Store global unique side index on mortar side if the side has not been set previously
         IF(GlobalUniqueSideID(mSide%SideID).EQ.-1) GlobalUniqueSideID(mSide%SideID) = mSide%Ind
-#endif /*PARTICLES*/
+#endif /*defined(PARTICLES) || USE_HDG*/
         MortarInfo(MI_SIDEID,iMortar,SideID)=mSide%SideID
         MortarInfo(MI_FLIP,iMortar,SideID)=mSide%Flip
       END DO ! iMortar

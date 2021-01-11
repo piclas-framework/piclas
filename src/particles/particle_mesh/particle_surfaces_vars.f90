@@ -42,9 +42,9 @@ REAL,ALLOCPOINT,DIMENSION(:)           :: BaseVectorsScale             ! approx.
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElevationMatrix              ! array for binomial coefficients used for Bezier Elevation
 
 REAL,ALLOCPOINT,DIMENSION(:,:,:)       :: SideSlabNormals              ! normal vectors of bounding slab box (Sides)
-REAL,ALLOCPOINT,DIMENSION(:,:)         :: SideSlabIntervals            ! intervalls beta1, beta2, beta3 (Sides)
+REAL,ALLOCPOINT,DIMENSION(:,:)         :: SideSlabIntervals            ! intervals beta1, beta2, beta3 (Sides)
 REAL,ALLOCPOINT,DIMENSION(:,:,:)       :: ElemSlabNormals              ! normal vectors of bounding slab box (Elements)
-REAL,ALLOCPOINT,DIMENSION(:,:)         :: ElemSlabIntervals            ! intervalls beta1, beta2, beta3 (Elements)
+REAL,ALLOCPOINT,DIMENSION(:,:)         :: ElemSlabIntervals            ! intervals beta1, beta2, beta3 (Elements)
 LOGICAL,ALLOCPOINT,DIMENSION(:)        :: BoundingBoxIsEmpty           ! logical if Side bounding box is empty
 
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: Vdm_Bezier,sVdm_Bezier       ! Vdm from/to Bezier Polynomial from BC representation

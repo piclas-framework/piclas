@@ -34,8 +34,9 @@ if [ "${WHICHMPI}" == "openmpi" ]; then
   #MPIVERSION=2.1.6
   #MPIVERSION=3.1.3
   #MPIVERSION=3.1.4
+  MPIVERSION=3.1.6
   #MPIVERSION=4.0.1
-  MPIVERSION=4.0.5
+  #MPIVERSION=4.0.5
 elif [ "${WHICHMPI}" == "mpich" ]; then
   # DOWNLOAD and INSTALL MPICH (example mpich-3.2.0)
   MPIVERSION=3.2
@@ -125,10 +126,10 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
       elif [ "${WHICHCOMPILER}" == "intel" ]; then
         ../configure --prefix=${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION} CC=$(which icc) CXX=$(which icpc) FC=$(which ifort)
       fi
-      make -j 2 2>&1 | tee make.out
+      make -j 2>&1 | tee make.out
       if [ ${PIPESTATUS[0]} -ne 0 ]; then
         echo " "
-        echo -e "$RED""Failed: [make -j 2 2>&1 | tee make.out]$NC"
+        echo -e "$RED""Failed: [make -j 2>&1 | tee make.out]$NC"
         break
       else
         make install 2>&1 | tee install.out

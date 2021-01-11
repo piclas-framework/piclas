@@ -374,7 +374,8 @@ SUBROUTINE DetermineNullCollProb(iCase,iSpec,jSpec)
 ! MODULES
 USE MOD_ReadInTools
 USE MOD_Globals_Vars          ,ONLY: Pi
-USE MOD_Particle_Vars         ,ONLY: Species, ManualTimeStep
+USE MOD_Particle_Vars         ,ONLY: Species
+USE MOD_TimeDisc_Vars         ,ONLY: ManualTimeStep
 USE MOD_DSMC_Vars             ,ONLY: BGGas, SpecXSec
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -724,7 +725,7 @@ DO iCase = 1, CollInf%NumCase
   IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) ALLOCATE(SpecXSec(iCase)%ReactionPath(1:NumPaths))
   DO iPath = 1, NumPaths
     iReac = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-    IF(ChemReac%XSec_Procedure(iReac)) THEN
+    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'XSec') THEN
       CALL ReadReacXSec(iCase,iPath)
     END IF
   END DO
@@ -978,7 +979,7 @@ NumWeightProd = 2
 
 DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
   ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-  IF(ChemReac%XSec_Procedure(ReacTest)) THEN
+  IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'XSec') THEN
     EductReac(1:3) = ChemReac%Reactants(ReacTest,1:3); ProductReac(1:4) = ChemReac%Products(ReacTest,1:4)
     IF (EductReac(1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
       ReactInx(1) = Coll_pData(iPair)%iPart_p1; ReactInx(2) = Coll_pData(iPair)%iPart_p2
@@ -1032,7 +1033,7 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     Coll_pData(iPair)%Ec = 0.5 * ReducedMass * Coll_pData(iPair)%CRela2 &
                 + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight(1) &
                 + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2)
-    IF (DSMC%ElectronicModel) THEN
+    IF (DSMC%ElectronicModel.GT.0) THEN
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,ReactInx(1))*Weight(1) &
                                                   + PartStateIntEn(3,ReactInx(2))*Weight(2)
     END IF

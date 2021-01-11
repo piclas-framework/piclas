@@ -205,7 +205,7 @@ USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GE
 USE MOD_ReadInTools           ,ONLY: PrintOption
 #if (PP_TimeDiscMethod == 42)
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
-USE MOD_Particle_Vars         ,ONLY: ManualTimeStep
+USE MOD_TimeDisc_Vars         ,ONLY: ManualTimeStep
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 #endif
 #if USE_MPI
@@ -899,7 +899,7 @@ INTEGER             :: dir
               WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-E-Rot',iSpec,' '
               OutputCounter = OutputCounter + 1
             END DO
-            IF (DSMC%ElectronicModel) THEN
+            IF (DSMC%ElectronicModel.GT.0) THEN
               DO iSpec = 1, nSpecAnalyze
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                 WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-E-Elec',iSpec,' '
@@ -931,7 +931,7 @@ INTEGER             :: dir
               WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-TempRot',iSpec,' '
               OutputCounter = OutputCounter + 1
             END DO
-            IF ( DSMC%ElectronicModel ) THEN
+            IF (DSMC%ElectronicModel.GT.0) THEN
               DO iSpec=1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                 WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-TempElec',iSpec,' '
@@ -1385,7 +1385,7 @@ IF (PartMPI%MPIROOT) THEN
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') IntEn(iSpec,2)
         END DO
-        IF (DSMC%ElectronicModel) THEN
+        IF (DSMC%ElectronicModel.GT.0) THEN
           DO iSpec=1, nSpecAnalyze
           ! currently set to one
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -1412,7 +1412,7 @@ IF (PartMPI%MPIROOT) THEN
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') IntTemp(iSpec,2)
         END DO
-        IF ( DSMC%ElectronicModel ) THEN
+        IF (DSMC%ElectronicModel.GT.0) THEN
           DO iSpec=1, nSpecies
           ! currently set to one
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -2441,7 +2441,7 @@ DO iPart=1,PDM%ParticleVecLength
     iSpec = PartSpecies(iPart)
     EVib(iSpec) = EVib(iSpec) + PartStateIntEn(1,iPart) * GetParticleWeight(iPart)
     ERot(iSpec) = ERot(iSpec) + PartStateIntEn(2,iPart) * GetParticleWeight(iPart)
-    IF (DSMC%ElectronicModel) THEN
+    IF (DSMC%ElectronicModel.GT.0) THEN
       IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
         Eelec(iSpec) = Eelec(iSpec) + PartStateIntEn(3,iPart) * GetParticleWeight(iPart)
       END IF
@@ -2453,11 +2453,11 @@ END DO
 IF(PartMPI%MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,EVib ,nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,ERot ,nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-  IF(DSMC%ElectronicModel) CALL MPI_REDUCE(MPI_IN_PLACE,Eelec,nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+  IF(DSMC%ElectronicModel.GT.0) CALL MPI_REDUCE(MPI_IN_PLACE,Eelec,nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
 ELSE
   CALL MPI_REDUCE(EVib        ,RD   ,nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
   CALL MPI_REDUCE(ERot        ,RD   ,nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-  IF(DSMC%ElectronicModel) CALL MPI_REDUCE(Eelec       ,RD   ,nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+  IF(DSMC%ElectronicModel.GT.0) CALL MPI_REDUCE(Eelec       ,RD   ,nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
 END IF
 #endif /*USE_MPI*/
 
@@ -2490,7 +2490,7 @@ IF(PartMPI%MPIRoot)THEN
       IntTemp(iSpec,1) = 0
       IntTemp(iSpec,2) = 0
     END IF
-    IF(DSMC%ElectronicModel) THEN
+    IF(DSMC%ElectronicModel.GT.0) THEN
       IF(NumSpecTemp.GT.0) THEN
         IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
           IntTemp(iSpec,3) = CalcTelec(Eelec(iSpec)/NumSpecTemp,iSpec)
@@ -2503,18 +2503,18 @@ IF(PartMPI%MPIRoot)THEN
       ! MacroParticleFactor is included in the case of RadialWeighting (also in combination with variable time step)
       IntEn(iSpec,1) = EVib(iSpec)
       IntEn(iSpec,2) = ERot(iSpec)
-      IF(DSMC%ElectronicModel) IntEn(iSpec,3) = Eelec(iSpec)
+      IF(DSMC%ElectronicModel.GT.0) IntEn(iSpec,3) = Eelec(iSpec)
     ELSE
       IntEn(iSpec,1) = EVib(iSpec) * Species(iSpec)%MacroParticleFactor
       IntEn(iSpec,2) = ERot(iSpec) * Species(iSpec)%MacroParticleFactor
-      IF(DSMC%ElectronicModel) IntEn(iSpec,3) = Eelec(iSpec) * Species(iSpec)%MacroParticleFactor
+      IF(DSMC%ElectronicModel.GT.0) IntEn(iSpec,3) = Eelec(iSpec) * Species(iSpec)%MacroParticleFactor
     END IF
   END DO
   ! Sums of the energy values
   IF(nSpecAnalyze.GT.1) THEN
     IntEn(nSpecAnalyze,1) = SUM(IntEn(:,1))
     IntEn(nSpecAnalyze,2) = SUM(IntEn(:,2))
-    IF(DSMC%ElectronicModel) IntEn(nSpecAnalyze,3) = SUM(IntEn(:,3))
+    IF(DSMC%ElectronicModel.GT.0) IntEn(nSpecAnalyze,3) = SUM(IntEn(:,3))
   END IF
 END IF
 

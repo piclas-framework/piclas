@@ -68,37 +68,29 @@ CALL prms%CreateRealOption(     'Particles-DSMC-RotRelaxProb'&
 CALL prms%CreateRealOption(     'Particles-DSMC-VibRelaxProb'&
                                           , 'Define the vibrational relaxation probability upon collision of molecules', '0.004')
 CALL prms%CreateRealOption(     'Particles-DSMC-ElecRelaxProb'&
-                                          , 'Define the elextronic relaxation probability upon collision of molecules', '0.01')
+                                          , 'Define the electronic relaxation probability upon collision of molecules', '0.01')
 CALL prms%CreateRealOption(     'Particles-DSMC-GammaQuant'&
                                           , 'Set the GammaQuant for zero point energy in Evib (perhaps also Erot) should be'//&
                                           ' 0.5 or 0.', '0.5')
-CALL prms%CreateLogicalOption(  'Particles-DSMC-BackwardReacRate'&
-                                         , 'Set [TRUE] to enable the automatic calculation of the backward reaction rate '//&
-                                           'coefficientusing the equilibrium constant calculated by partition functions\n'//&
-                                           '[FALSE] if they are defined as separate reactions.' , '.FALSE.')
-CALL prms%CreateRealOption(     'Particles-DSMC-PartitionMaxTemp'&
-                                          , 'Define temperature limit for pre-stored partition function that are used for '//&
-                                          'calculation of backwards rates', '20000.0')
-CALL prms%CreateRealOption(     'Particles-DSMC-PartitionInterval'&
-                                          , 'Define temperature interval for pre-stored partition functions that are used for '//&
-                                          'calculation of backwards rates', '10.0')
-CALL prms%CreateLogicalOption(  'Particles-DSMC-AmbipolarDiffusion'&
-                                          , 'FOOBAR' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-AmbipolarDiffusion', &
+                                          'Enables the ambipolar diffusion modelling of electrons, which are attached to the '//&
+                                          'ions, however, retain their own velocity vector to participate in collision events.',&
+                                          '.FALSE.')
 !-----------------------------------------------------------------------------------
-CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcQualityFactors'&
-                                          , 'Enables [TRUE] / disables [FALSE] the calculation and output of flow-field variable.\n'//&
-                                           'Maximal collision probability\n'//&
+CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcQualityFactors', &
+                                          'Enables [TRUE] / disables [FALSE] the calculation and output of:\n'//&
+                                          'Maximal collision probability\n'//&
                                           'Time-averaged mean collision probability\n'//&
-                                          'Mean collision separation distance over mean free path ' , '.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSim'&
-                                            , 'Only TD=Reservoir (42).\n'//&
+                                          'Mean collision separation distance over mean free path' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSim', &
+                                          'Only TD=Reservoir (42).\n'//&
                                           'Set [TRUE] to disable particle movement. Use for reservoir simulations.' , '.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSimRate'&
-                                          , 'Only TD=Reservoir (42).\n'//&
-                                          'Set [TRUE] to disable particle reactions.Only probabilities (rates) are calculated.' &
-                                        , '.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirStatistic'&
-                                         , 'Only TD=Reservoir (42).\n'//&
+CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSimRate', &
+                                          'Only TD=Reservoir (42).\n'//&
+                                          'Set [TRUE] to disable particle reactions. Only probabilities (rates) are calculated.', &
+                                          '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirStatistic', &
+                                          'Only TD=Reservoir (42).\n'//&
                                           'Probabilities (rates) are calculated\n'//&
                                           ' [TRUE] counting reacting particles.\n'//&
                                           ' [FALSE] summing reaction probabilities (does not work with Q-K).' , '.FALSE.')
@@ -106,10 +98,11 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-TEVR-Relaxation'&
                                           , 'Flag for Translational-Vibrational-Electric-Rotational relaxation (T-V-E-R)\n'//&
                                           '[TRUE] or more simple T-V-R T-E-R\n'//&
                                           '[FALSE] relaxation.' , '.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-DSMC-ElectronicModel'&
-                                          , 'Set [TRUE] to model electronic states of atoms and molecules.' , '.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-DSMC-ElectronicDistrModel'&
-                                          , 'FOOBAR' , '.FALSE.')
+CALL prms%CreateIntOption(  'Particles-DSMC-ElectronicModel', &
+                                          'Select model for the electronic states of atoms and molecules:\n'//&
+                                          '0: No electronic energy treatment [default]\n'//&
+                                          '1: Model by Liechty, each particle has a specific electronic state\n'//&
+                                          '2: Model by Burt, each particle has an electronic distribution function', '0')
 CALL prms%CreateStringOption(   'Particles-DSMCElectronicDatabase'&
                                           , 'If electronic model is used give (relative) path to (h5) Name of Electronic State'//&
                                           ' Database', 'none')
@@ -148,7 +141,7 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-MergeSubcells'&
 
 CALL prms%SetSection("DSMC Collision")
 CALL prms%CreateIntOption(      'Particles-DSMC-crossSectionConstantMode'  &
-                                            ,'Flags which cross section (sigma) constant Cab calcuation mode is used.\n'//&
+                                            ,'Flags which cross section (sigma) constant Cab calculation mode is used.\n'//&
                                             ' sigma=Cab * cr^(-2 omega)\n'//&
                                             ' 0 : single omega for the computational domain\n'//&
                                             '     Part-Species1=omega will be set \n     for all and Cab will be calculated\n'//&
@@ -222,9 +215,6 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib','Characteristic v
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot'  &
                                            ,'Characteristic rotational temperature', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Ediss_eV','Energy of Dissoziation in [eV].', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-VFDPhi3'  &
-                                           ,'Factor of Phi3 in VFD Method: Phi3 = 0 => VFD', '0.'&
-                                           , numberedmulti=.TRUE.)
 ! ----------------------------------------------------------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-useRelaxProbCorrFactor'&
                                            ,'Use the relaxation probability correction factor of Lumpkin', '.FALSE.')
@@ -232,7 +222,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CollNumRotInf'  &
                                            ,'Collision number for rotational relaxation according to Parker or'//&
                                             'Zhang, ini_2 -> model dependent!', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-TempRefRot'  &
-                                           ,'Referece temperature for rotational relaxation according to Parker or '//&
+                                           ,'Reference temperature for rotational relaxation according to Parker or '//&
                                             'Zhang, ini_2 -> model dependent!', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MWConstA-[$]-[$]'  &
                                            ,'Millikan-White constant A for variable vibrational relaxation probability, ini_2' &
@@ -277,20 +267,6 @@ CALL prms%CreateIntOption(      'Part-Species[$]-ElectronicDegeneracy-Level[$]' 
 CALL prms%CreateRealOption(     'Part-Species[$]-ElectronicEnergyLevel-Level[$]'  &
                                            ,'Electronic energy level of respective species', '0.', numberedmulti=.TRUE.)
 
-CALL prms%CreateIntOption(      'Part-Species[$]-SymmetryFactor'  &
-                                           , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
-
-CALL prms%CreateRealOption(     'Part-Species[$]-IonizationEn_eV'  &
-                                           ,'Energy of Ionization in [eV].', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-RelPolarizability'  &
-                                           ,'Relative Polarizability', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-NumEquivElecOutShell'  &
-                                           ,'Number of equivalent electrons in outer shells', '0'&
-                                           , numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-NumOfProtons'  &
-                                           ,'Number of protons for respective species.', '0', numberedmulti=.TRUE.)
-
-
 CALL prms%SetSection("DSMC Species Polyatomic")
 CALL prms%CreateLogicalOption(  'Part-Species[$]-PolyatomicMol'  &
                                            ,'Allows the usage of polyatomic molecules (3 or more atoms).', '.FALSE.' &
@@ -306,6 +282,21 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib[$]'  &
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot[$]'  &
                                            ,'Characteristic rotational temperature [K]. Linear molecules require only a single '//&
                                             'input, while non-linear molecules require three.', '0.', numberedmulti=.TRUE.)
+
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
+                                           ,'Utilize collision cross sections for the determination of collision probabilities' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseVibXSec'  &
+                                           ,'Utilize vibrational cross sections for the determination of relaxation probabilities' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for the collision cross section database. Container '//&
+                                                               'should be named with species pair (e.g. "Ar-electron"). The '//&
+                                                               'first column shall contain the energy in eV and the second '//&
+                                                               'column the cross-section in m^2', 'none')
+CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
+                                  ,'Utilize the null collision method for the determination of the number of pairs '//&
+                                  'based on the maximum collision frequency and time step (only with a background gas)' &
+                                  ,'.TRUE.')
 
 END SUBROUTINE DefineParametersDSMC
 
@@ -326,7 +317,6 @@ USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState       ,ONLY: DSMC_SteadyStateInit
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_DSMC_SpecXSec          ,ONLY: MCC_Init
 USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelocityVector4Coll, PostCollVec
 USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
@@ -339,7 +329,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(32)         :: hilf , hilf2
-INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF, VarNum
+INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iDOF, VarNum
 INTEGER               :: iColl, jColl, pColl, nCollision ! for collision parameter read in
 REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
 LOGICAL               :: PostCollPointerSet
@@ -361,7 +351,7 @@ IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   END IF
 END IF
 
-DSMC%MergeSubcells = GETLOGICAL('Particles-DSMC-MergeSubcells','.FALSE.')
+DSMC%MergeSubcells = GETLOGICAL('Particles-DSMC-MergeSubcells')
 IF(DSMC%MergeSubcells.AND.(Symmetry%Order.NE.2)) THEN
   CALL abort(__STAMP__&
       ,'ERROR: Merging of subcells only supported within a 2D/axisymmetric simulation!')
@@ -376,39 +366,31 @@ END IF
 DSMC%ElecRelaxProb = GETREAL('Particles-DSMC-ElecRelaxProb','0.01')
 DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant', '0.5')
 !-----------------------------------------------------------------------------------
-! Flag for the automatic calculation of the backward reaction rate with the partition functions and equilibrium constant.
-DSMC%BackwardReacRate  = GETLOGICAL('Particles-DSMC-BackwardReacRate','.FALSE.')
-! Partition functions are calculated for each species during initialization and stored for values starting with the
-! DSMC%PartitionInterval up to DSMC%PartitionMaxTemp, interpolation between the stored values (also used for analytic QK reactions)
-DSMC%PartitionMaxTemp  = GETREAL('Particles-DSMC-PartitionMaxTemp','20000')
-DSMC%PartitionInterval = GETREAL('Particles-DSMC-PartitionInterval','10')
-!-----------------------------------------------------------------------------------
-DSMC%CalcQualityFactors = GETLOGICAL('Particles-DSMC-CalcQualityFactors','.FALSE.')
-DSMC%ReservoirSimu = GETLOGICAL('Particles-DSMCReservoirSim','.FALSE.')
+DSMC%CalcQualityFactors = GETLOGICAL('Particles-DSMC-CalcQualityFactors')
+DSMC%ReservoirSimu = GETLOGICAL('Particles-DSMCReservoirSim')
 IF (DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)) THEN
   CALL abort(&
       __STAMP__&
       ,'ERROR: Do not use DSMC%CalcQualityFactors for CollisMode < 1')
 END IF ! DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)
-DSMC%ReservoirSimuRate       = GETLOGICAL('Particles-DSMCReservoirSimRate','.FALSE.')
-DSMC%ReservoirRateStatistic  = GETLOGICAL('Particles-DSMCReservoirStatistic','.FALSE.')
-DSMC%DoTEVRRelaxation        = GETLOGICAL('Particles-DSMC-TEVR-Relaxation','.FALSE.')
+DSMC%ReservoirSimuRate       = GETLOGICAL('Particles-DSMCReservoirSimRate')
+DSMC%ReservoirRateStatistic  = GETLOGICAL('Particles-DSMCReservoirStatistic')
+DSMC%DoTEVRRelaxation        = GETLOGICAL('Particles-DSMC-TEVR-Relaxation')
 IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   IF(DSMC%DoTEVRRelaxation) THEN
     CALL abort(__STAMP__&
         ,'ERROR: Radial weighting or variable time step is not implemented with T-E-V-R relaxation!')
   END IF
 END IF
-DSMC%ElectronicModel         = GETLOGICAL('Particles-DSMC-ElectronicModel','.FALSE.')
-DSMC%ElectronicDistrModel    = GETLOGICAL('Particles-DSMC-ElectronicDistrModel','.FALSE.')
-IF (DSMC%ElectronicDistrModel) THEN
+DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
+IF (DSMC%ElectronicModel.EQ.2) THEN
   IF(.NOT.ALLOCATED(ElectronicDistriPart)) ALLOCATE(ElectronicDistriPart(PDM%maxParticleNumber))
 END IF
 DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','none'))
 IF ((DSMC%ElectronicModelDatabase .NE. 'none').AND.&
     ((CollisMode .GT. 1).OR.(CollisMode .EQ. 0))) THEN ! CollisMode=0 is for use of in PIC simulation without collisions
   DSMC%EpsElecBin = GETREAL('EpsMergeElectronicState','1E-4')
-ELSEIF(DSMC%ElectronicModel) THEN
+ELSEIF(DSMC%ElectronicModel.GT.0) THEN
   CALL Abort(&
       __STAMP__,&
       'ERROR: Electronic model requires a electronic levels database and CollisMode > 1!')
@@ -600,7 +582,7 @@ END IF
   END IF ! DoFieldIonization.OR.CollisMode.NE.0
 
 ! allocate internal energy arrays
-IF ( DSMC%ElectronicModel ) THEN
+IF (DSMC%ElectronicModel.GT.0) THEN
   ALLOCATE(PartStateIntEn(1:3,PDM%maxParticleNumber))
 ELSE
   ALLOCATE(PartStateIntEn(1:2,PDM%maxParticleNumber))
@@ -704,24 +686,16 @@ ELSE !CollisMode.GT.0
     XSec_NullCollision =.FALSE.
     XSec_Relaxation = .FALSE.
   END IF
+  ! Ambipolar diffusion is not implemented with the regular background gas, only with MCC
+  IF(DSMC%DoAmbipolarDiff) THEN
+    IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) THEN
+      CALL abort(__STAMP__&
+          ,'ERROR: Ambipolar diffusion is not implemented with the regular background gas!')
+    END IF
+  END IF
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! reading/writing molecular stuff
   !-----------------------------------------------------------------------------------------------------------------------------------
-  ! Check whether calculation of instantaneous translational temperature is required
-  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
-            .OR.(DSMC%VibRelaxProb.EQ.2).OR.(DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel)) THEN
-    ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
-    !           relaxation probability (CalcGammaVib)
-    ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
-    ! 3. Case: Temperature required for the mean free path with the VHS model
-    ALLOCATE(DSMC%InstantTransTemp(nSpecies+1))
-    DSMC%InstantTransTemp = 0.0
-    IF (DSMC%ElectronicModel.AND.DSMC%ElectronicDistrModel) THEN
-      ALLOCATE(DSMC%InstantTXiElec(2,nSpecies))
-      DSMC%InstantTXiElec = 0.0
-    END IF
-  END IF
-
   IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN ! perform relaxation (molecular) reactions
     ! reading molecular stuff
     SpecDSMC(1:nSpecies)%Xi_Rot = 0
@@ -810,7 +784,7 @@ ELSE !CollisMode.GT.0
             SpecDSMC(iSpec)%Init(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot')
           END IF
           ! read electronic temperature
-          IF ( DSMC%ElectronicModel ) THEN
+          IF (DSMC%ElectronicModel.GT.0) THEN
             SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec')
           END IF ! electronic model
         END DO !Inits
@@ -828,7 +802,7 @@ ELSE !CollisMode.GT.0
             END IF
           END IF
           ! read electronic temperature
-          IF ( DSMC%ElectronicModel ) THEN
+          IF (DSMC%ElectronicModel.GT.0) THEN
             SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec','0.')
             IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec.EQ.0.) THEN
               CALL Abort(&
@@ -938,51 +912,6 @@ ELSE !CollisMode.GT.0
           END IF
         END IF
       END IF
-      ! Read-in of species parameters for the partition function calculation -------------------------------------------------------
-      IF(DSMC%BackwardReacRate) THEN
-        IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-          SpecDSMC(iSpec)%SymmetryFactor              = GETINT('Part-Species'//TRIM(hilf)//'-SymmetryFactor','0')
-          IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-            iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-            IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
-              IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
-                CALL abort(&
-                    __STAMP__&
-                    ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
-              END IF
-            ELSE
-              IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)  &
-                  * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
-                CALL abort(&
-                    __STAMP__&
-                    ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
-              END IF
-            END IF
-          ELSE
-            IF(SpecDSMC(iSpec)%CharaTRot*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
-              CALL abort(&
-                  __STAMP__&
-                  ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
-            END IF
-          END IF
-        END IF
-        IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-          IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%ElectronicState)) THEN
-            CALL abort(&
-                __STAMP__&
-                ,'ERROR: Electronic energy levels required for the calculation of backward reaction rate!',iSpec)
-          END IF
-        END IF
-      END IF
-      !-----------------------------------------------------------------------------------------------------------------------------
-      SpecDSMC(iSpec)%Eion_eV               = GETREAL('Part-Species'//TRIM(hilf)//'-IonizationEn_eV','0')
-      SpecDSMC(iSpec)%RelPolarizability     = GETREAL('Part-Species'//TRIM(hilf)//'-RelPolarizability','0')
-      SpecDSMC(iSpec)%NumEquivElecOutShell  = GETINT('Part-Species'//TRIM(hilf)//'-NumEquivElecOutShell','0')
-      SpecDSMC(iSpec)%NumOfPro              = GETINT('Part-Species'//TRIM(hilf)//'-NumOfProtons','0')
-      IF((SpecDSMC(iSpec)%Eion_eV*SpecDSMC(iSpec)%RelPolarizability*SpecDSMC(iSpec)%NumEquivElecOutShell &
-          *SpecDSMC(iSpec)%NumOfPro).EQ.0) THEN
-        SWRITE(*,*) "Ionization parameters are not defined for species:", iSpec
-      END IF
     END DO
 
     ! Calculating the heat of formation for ionized species (including higher ionization levels)
@@ -994,6 +923,23 @@ ELSE !CollisMode.GT.0
     CALL SetNextIonizationSpecies()
 
     CALL DSMC_chemical_init()
+  ELSE
+    DSMC%BackwardReacRate = .FALSE.
+  END IF
+
+    ! Check whether calculation of instantaneous translational temperature is required
+  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC%CalcQualityFactors &
+            .OR.(DSMC%VibRelaxProb.EQ.2).OR.(DSMC%ElectronicModel.EQ.2)) THEN
+    ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
+    !           relaxation probability (CalcGammaVib)
+    ! 2. Case: Backward reaction rates
+    ! 3. Case: Temperature required for the mean free path with the VHS model
+    ALLOCATE(DSMC%InstantTransTemp(nSpecies+1))
+    DSMC%InstantTransTemp = 0.0
+    IF(DSMC%ElectronicModel.EQ.2) THEN
+      ALLOCATE(DSMC%InstantTXiElec(2,nSpecies))
+      DSMC%InstantTXiElec = 0.0
+    END IF
   END IF
 
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1082,8 +1028,7 @@ ELSE !CollisMode.GT.0
     END IF
     CALL SetVarVibProb2Elems()
     ! CHeck if DSMC%InstantTransTemp is still needed
-    IF(.NOT.(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate) &
-            .OR.DSMC%CalcQualityFactors)) THEN
+    IF(.NOT.(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC%CalcQualityFactors)) THEN
       SDEALLOCATE(DSMC%InstantTransTemp)
     END IF
   END IF ! VibRelaxProb = 2
@@ -1482,7 +1427,8 @@ SDEALLOCATE(SampDSMC)
 SDEALLOCATE(MacroDSMC)
 SDEALLOCATE(QKChemistry)
 
-SDEALLOCATE(ChemReac%QKProcedure)
+SDEALLOCATE(ChemReac%ReactModel)
+SDEALLOCATE(ChemReac%BackwardReac)
 SDEALLOCATE(ChemReac%QKRColl)
 SDEALLOCATE(ChemReac%QKTCollCorrFac)
 SDEALLOCATE(ChemReac%NumReac)
@@ -1514,7 +1460,6 @@ SDEALLOCATE(ChemReac%CrossSection)
 SDEALLOCATE(ChemReac%ReactNumRecomb)
 SDEALLOCATE(ChemReac%Hab)
 SDEALLOCATE(ChemReac%DeleteProductsList)
-SDEALLOCATE(ChemReac%XSec_Procedure)
 SDEALLOCATE(ChemReac%CollCaseInfo)
 
 SDEALLOCATE(CollInf%collidingSpecies)
@@ -1536,7 +1481,6 @@ SDEALLOCATE(MacroSurfaceVal)
 !SDEALLOCATE(VibQuantsPar)
 ! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_Solution)
-SDEALLOCATE(DSMC_Volumesample)
 CALL DeleteElemNodeVol()
 SDEALLOCATE(BGGas%PairingPartner)
 SDEALLOCATE(BGGas%BackgroundSpecies)

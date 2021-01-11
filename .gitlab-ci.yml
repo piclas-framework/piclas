@@ -16,7 +16,7 @@ stages:
   - reggie_checkin
   - reggie_feature_checkin
   - reggie_DSMC_nightly
-  - reggie_bgk_nightly
+#  - reggie_bgk_nightly
   - reggie_superB_nightly
   - reggie_nightly
   - reggie_nightly_build_all
@@ -309,15 +309,15 @@ NIG_SuperB_standalone:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB -e ./bin/superB ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_bgk_nightly": Build and run BGK-Flow examples on nightly
+# Stage "reggie_bgk_nightly": Build and run BGK-Flow examples on nightly (CURRENTLY NO NIGHTLY TEST FOR BGK)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_NIG_BGK-Flow:
-  <<: *defaults_nightly
-  stage: reggie_bgk_nightly
-  tags:
-    - withmodules-concurrent
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_BGK-Flow ; fi
+# gnu_NIG_BGK-Flow:
+#   <<: *defaults_nightly
+#   stage: reggie_bgk_nightly
+#   tags:
+#     - withmodules-concurrent
+#   script:
+#     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_BGK-Flow ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly": Build and run
@@ -448,8 +448,7 @@ NIG_PIC_Deposition:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_cell_volweight_mean -e ./bin/piclas ; cd ../ ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_Shape-function -e ./bin/piclas ; cd ../ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/ ; fi
 
 # Add surf model (SEE) 13% probabilty test case here
 #feature_SurfaceModel:

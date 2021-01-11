@@ -22,9 +22,6 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL                  :: ManualTimeStep                                      ! Manual TimeStep
-LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
-                                                                             ! with IAG programming style
 TYPE tSymmetry
   INTEGER             :: Order                                               ! 1-3 D
   LOGICAL             :: Axisymmetric
@@ -211,12 +208,6 @@ TYPE tSurfFluxSubSideData
                                                                              ! (1:2,0:NGeo,0:NGeo)
 END TYPE tSurfFluxSubSideData
 
-TYPE tSurfFluxLink
-  INTEGER                                :: PartIdx
-  INTEGER,ALLOCATABLE                    :: SideInfo(:)
-  TYPE(tSurfFluxLink), POINTER           :: next => null()
-END TYPE tSurfFluxLink
-
 TYPE typeSurfaceflux
   INTEGER                                :: BC                               ! PartBound to be emitted from
   CHARACTER(30)                          :: velocityDistribution             ! specifying keyword for velocity distribution
@@ -244,11 +235,6 @@ TYPE typeSurfaceflux
   REAL                                   :: rmax                             ! max radius of to-be inserted particles
   REAL                                   :: rmin                             ! min radius of to-be inserted particles
   INTEGER, ALLOCATABLE                   :: SurfFluxSideRejectType(:)        ! Type if parts in side can be rejected (1:SideNumber)
-  REAL                                   :: PressureFraction
-  TYPE(tSurfFluxLink), POINTER           :: firstSurfFluxPart => null()      ! pointer to first particle inserted for iSurfaceFlux
-                                                                             ! used for linked list during sampling
-  TYPE(tSurfFluxLink), POINTER           :: lastSurfFluxPart => null()       ! pointer to last particle inserted for iSurfaceFlux
-                                                                             ! used for abort criterion in do while during sampling
   LOGICAL                                :: Adaptive                         ! Is the surface flux an adaptive boundary?
   INTEGER                                :: AdaptiveType                     ! Chose the adaptive type, description in DefineParams
   REAL                                   :: AdaptiveMassflow                 ! Mass flow [kg/s], which is held constant
@@ -278,9 +264,12 @@ TYPE tSpecies                                                                ! P
 #endif
 END TYPE
 
-LOGICAL                                  :: UseCircularInflow                !
-INTEGER, ALLOCATABLE                     :: CountCircInflowType(:,:,:)
-LOGICAL                                  :: UseAdaptive                 !
+LOGICAL                                  :: UseCircularInflow                ! Flag is set if the circular inflow feature is used:
+                                                                             ! Particle insertion only in the defined circular area
+                                                                             ! on the surface of a surface flux
+INTEGER, ALLOCATABLE                     :: CountCircInflowType(:,:,:)       ! Counter whether cells are inside/partially inside or
+                                                                             ! outside of circular region (only with CODE_ANALYZE)
+LOGICAL                                  :: UseAdaptive                      ! Flag is set if an adaptive boundary is present
 REAL                                     :: AdaptiveWeightFac                ! weighting factor theta for weighting of average
                                                                              ! instantaneous values with those
                                                                              ! of previous iterations

@@ -52,7 +52,7 @@ CALL prms%CreateLogicalOption('Particles-RadialWeighting', 'Activates a radial w
                               'simulation based on the particle position.', '.FALSE.')
 CALL prms%CreateRealOption(   'Particles-RadialWeighting-PartScaleFactor', 'Axisymmetric radial weighting factor, defining '//&
                               'the linear increase of the weighting factor (e.g. factor 2 means that the weighting factor will '//&
-                              'be twice as large at the outer radial domain boudary than at the rotational axis')
+                              'be twice as large at the outer radial domain boundary than at the rotational axis')
 CALL prms%CreateLogicalOption('Particles-RadialWeighting-CellLocalWeighting', 'Enables a cell-local radial weighting, '//&
                               'where every particle has the same weighting factor within a cell', '.FALSE.')
 CALL prms%CreateIntOption(    'Particles-RadialWeighting-CloneMode',  &
@@ -407,17 +407,18 @@ INTEGER, INTENT(IN)             :: iPart, iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iPolyatMole, cloneIndex, DelayCounter
+INTEGER                         :: SpecID, iPolyatMole, cloneIndex, DelayCounter
 REAL                            :: DeleteProb, iRan, NewMPF, CloneProb, OldMPF
 LOGICAL                         :: DoCloning
 !===================================================================================================================================
 DoCloning = .FALSE.
 DeleteProb = 0.
+SpecID = PartSpecies(iPart)
 
-IF (.NOT.(PartMPF(iPart).GT.Species(PartSpecies(iPart))%MacroParticleFactor)) RETURN
+IF (.NOT.(PartMPF(iPart).GT.Species(SpecID)%MacroParticleFactor)) RETURN
 
 ! 1.) Determine the new particle weight and decide whether to clone or to delete the particle
-NewMPF = CalcRadWeightMPF(PartState(2,iPart), PartSpecies(iPart),iPart)
+NewMPF = CalcRadWeightMPF(PartState(2,iPart),SpecID,iPart)
 OldMPF = PartMPF(iPart)
 CloneProb = (OldMPF/NewMPF)-INT(OldMPF/NewMPF)
 CALL RANDOM_NUMBER(iRan)
@@ -458,31 +459,30 @@ IF(DoCloning) THEN
   ClonedParticles(cloneIndex,DelayCounter)%PartState(1:6)= PartState(1:6,iPart)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
     ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(1:2) = PartStateIntEn(1:2,iPart)
-    IF(DSMC%ElectronicModel) THEN
+    IF(DSMC%ElectronicModel.GT.0) THEN
       ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(3) =   PartStateIntEn(3,iPart)
-      IF ((DSMC%ElectronicDistrModel).AND.(.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4) & 
-          .OR.SpecDSMC(PartSpecies(iPart))%FullyIonized))) THEN
+      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized))) THEN
         IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)) &
           DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)
-        ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant))
+        ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(1:SpecDSMC(SpecID)%MaxElecQuant))
         ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(:) = ElectronicDistriPart(iPart)%DistriFunc(:)
       END IF
     END IF
-    IF ((DSMC%DoAmbipolarDiff).AND.(Species(PartSpecies(iPart))%ChargeIC.GT.0.0)) THEN
+    IF ((DSMC%DoAmbipolarDiff).AND.(Species(SpecID)%ChargeIC.GT.0.0)) THEN
       IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo)) &
         DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo)
       ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo(1:3))
       ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo(1:3) = AmbipolElecVelo(iPart)%ElecVelo(1:3)
     END IF
-    IF(SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
-      iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
+    IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
+      iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
       IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%VibQuants)) &
         DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%VibQuants)
       ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%VibQuants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
       ClonedParticles(cloneIndex,DelayCounter)%VibQuants(:) = VibQuantsPar(iPart)%Quants(:)
     END IF
   END IF
-  ClonedParticles(cloneIndex,DelayCounter)%Species = PartSpecies(iPart)
+  ClonedParticles(cloneIndex,DelayCounter)%Species = SpecID
   ClonedParticles(cloneIndex,DelayCounter)%Element = iElem
   ClonedParticles(cloneIndex,DelayCounter)%LastPartPos(1:3) = LastPartPos(1:3,iPart)
   ClonedParticles(cloneIndex,DelayCounter)%WeightingFactor = PartMPF(iPart)
@@ -584,9 +584,9 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   PartState(6,PositionNbr) = - ClonedParticles(iPart,DelayCounter)%PartState(6)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
     PartStateIntEn(1:2,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
-    IF(DSMC%ElectronicModel) THEN
+    IF(DSMC%ElectronicModel.GT.0) THEN
       PartStateIntEn(3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
-      IF ((DSMC%ElectronicDistrModel).AND.(.NOT.((SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) & 
+      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) & 
           .OR.SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%FullyIonized))) THEN
         IF(ALLOCATED(ElectronicDistriPart(PositionNbr)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc)
         ALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc(1:SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%MaxElecQuant))

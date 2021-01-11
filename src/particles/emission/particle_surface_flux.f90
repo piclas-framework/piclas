@@ -1280,140 +1280,6 @@ CASE(2)
 END SELECT
 END SUBROUTINE DefineSideDirectVec2D
 
-SUBROUTINE CreateLinkedListReactiveBC(iSpec, iSF, SideID, iSide, iSample, jSample, ParticleIndexNbr, currentSurfFluxPart)
-!===================================================================================================================================
-!>
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_DSMC_Vars                     ,ONLY: DSMC
-USE MOD_TimeDisc_Vars                 ,ONLY: Time, TEnd
-USE MOD_Particle_Boundary_Vars        ,ONLY: SurfMesh, PartBound, nSurfSample
-USE MOD_Particle_Tracking_Vars        ,ONLY: TriaTracking
-USE MOD_Particle_Vars                 ,ONLY: Species, tSurfFluxLink, WriteMacroSurfaceValues
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-TYPE(tSurfFluxLink),POINTER, INTENT(INOUT) :: currentSurfFluxPart
-INTEGER, INTENT(IN)                        :: iSpec, iSF, SideID, iSide, iSample, jSample, ParticleIndexNbr
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                     :: currentBC
-!===================================================================================================================================
-! check if surfaceflux is used for surface sampling (neccessary for desorption and evaporation)
-! create linked list of surfaceflux-particle-info for sampling case
-currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
- IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)) &
-      .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-    IF (PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) THEN
-      ! first check if linked list is initialized and initialize if neccessary
-      IF (.NOT. ASSOCIATED(currentSurfFluxPart)) THEN
-        ALLOCATE(currentSurfFluxPart)
-        IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
-          Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
-          Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
-        END IF
-      ! check if surfaceflux has already list (happens if second etc. surfaceflux is considered)
-      ! create linke to next surfflux-part from current list
-      ELSE IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
-        IF (.NOT. ASSOCIATED(currentSurfFluxPart%next)) THEN
-          ALLOCATE(currentSurfFluxPart%next)
-        END IF
-        currentSurfFluxPart => currentSurfFluxPart%next
-        Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
-        Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
-      ! surfaceflux has already list but new particle is being inserted
-      ! create linke to next surfflux-part from current list
-      ELSE
-        IF (.NOT. ASSOCIATED(currentSurfFluxPart%next)) THEN
-          ALLOCATE(currentSurfFluxPart%next)
-        END IF
-        currentSurfFluxPart => currentSurfFluxPart%next
-        Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
-      END IF
-      ! save index and sideinfo for current to be inserted particle
-      currentSurfFluxPart%PartIdx = ParticleIndexNbr
-      IF (.NOT.TriaTracking .AND. (nSurfSample.GT.1)) THEN
-        IF (.NOT. ALLOCATED(currentSurfFluxPart%SideInfo)) ALLOCATE(currentSurfFluxPart%SideInfo(1:3))
-        currentSurfFluxPart%SideInfo(1) = iSide
-        currentSurfFluxPart%SideInfo(2) = iSample
-        currentSurfFluxPart%SideInfo(3) = jSample
-      ELSE
-        IF (.NOT. ALLOCATED(currentSurfFluxPart%SideInfo)) ALLOCATE(currentSurfFluxPart%SideInfo(1))
-        currentSurfFluxPart%SideInfo(1) = SurfMesh%SideIDToSurfID(SideID)
-      END IF
-    END IF ! sampling is on (CalcSurfaceVal)
-  END IF ! wallmodel or liquidsim
-END SUBROUTINE CreateLinkedListReactiveBC
-
-SUBROUTINE SamplingForReactiveBC(iSpec, iSF, PartsEmitted, currentSurfFluxPart)
-!===================================================================================================================================
-!>
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Particle_Boundary_Vars        ,ONLY: PartBound, nSurfSample
-USE MOD_Particle_Tracking_Vars        ,ONLY: TriaTracking
-USE MOD_Particle_Vars                 ,ONLY: Species, tSurfFluxLink, PEM
-USE MOD_Particle_Boundary_Tools       ,ONLY: CalcWallSample
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers            ,ONLY: LBStartTime, LBElemSplitTime
-#endif /*USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-TYPE(tSurfFluxLink),POINTER, INTENT(INOUT) :: currentSurfFluxPart
-INTEGER, INTENT(IN)                        :: iSpec, iSF, PartsEmitted
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                     :: currentBC, PartID, SurfSideID, p, q
-#if USE_LOADBALANCE
-REAL                        :: tLBStart
-#endif /*USE_LOADBALANCE*/
-!===================================================================================================================================
-currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
-IF ((PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) .AND. (PartsEmitted.GT.0)) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-  ! check if surfaceflux is used for surface sampling (neccessary for desorption and evaporation)
-  ! only allocated if sampling and surface model enabled
-  currentSurfFluxPart => Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart
-  DO WHILE(ASSOCIATED(currentSurfFluxPart))
-    PartID     = currentSurfFluxPart%PartIdx
-    SurfSideID = currentSurfFluxPart%SideInfo(1)
-    IF (TriaTracking.OR.(nSurfSample.EQ.1)) THEN
-      p = 1
-      q = 1
-    ELSE
-      p = currentSurfFluxPart%SideInfo(2)
-      q = currentSurfFluxPart%SideInfo(3)
-    END IF
-    ! sample values
-    CALL CalcWallSample(PartID,SurfSideID,p,q,'new')
-    currentSurfFluxPart => currentSurfFluxPart%next
-#if USE_LOADBALANCE
-    CALL LBElemSplitTime(PEM%LocalElemID(PartID),tLBStart)
-#endif /*USE_LOADBALANCE*/
-    IF (ASSOCIATED(currentSurfFluxPart,Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart%next)) THEN
-      currentSurfFluxPart => Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart
-      EXIT
-    END IF
-  END DO
-END IF ! reflective bc
-IF (ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
-  Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart  => NULL()
-  Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => NULL()
-END IF
-
-END SUBROUTINE SamplingForReactiveBC
-
 
 #ifdef CODE_ANALYZE
 SUBROUTINE AnalyzePartPos(ParticleIndexNbr)
@@ -1520,7 +1386,6 @@ USE MOD_Part_Tools              ,ONLY: GetParticleWeight
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass, SetParticleMPF
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, CalcMassflowRate, nPartIn, PartEkinIn
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, BCdata_auxSF
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
@@ -1553,7 +1418,6 @@ REAL                        :: ndist(3), midpoint(3)
 LOGICAL                     :: AcceptPos
 REAL,ALLOCATABLE            :: particle_positions(:), particle_xis(:)
 INTEGER,ALLOCATABLE         :: PartInsSubSides(:,:,:)
-TYPE(tSurfFluxLink),POINTER :: currentSurfFluxPart => NULL()
 #if USE_LOADBALANCE
 REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -1701,8 +1565,6 @@ __STAMP__&
               ParticleIndexNbr = PDM%nextFreePosition(iPartTotal + 1 + PDM%CurrentNextFreePosition)
           IF (ParticleIndexNbr .ne. 0) THEN
             PartState(1:3,ParticleIndexNbr) = particle_positions(3*(iPart-1)+1:3*(iPart-1)+3)
-            IF (PartBound%Reactive(CurrentBC)) &
-               CALL CreateLinkedListReactiveBC(iSpec, iSF, SideID, iSide, iSample, jSample, ParticleIndexNbr, currentSurfFluxPart)
             IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal.AND.(.NOT.TriaSurfaceFlux)) THEN
               PartState(4:5,ParticleIndexNbr) = particle_xis(2*(iPart-1)+1:2*(iPart-1)+2) !use velo as dummy-storage for xi!
             END IF
@@ -1786,7 +1648,6 @@ __STAMP__&
 __STAMP__&
 ,'ERROR in ParticleSurfaceflux: NbrOfParticle.NE.PartsEmitted')
     END IF
-    IF (PartBound%Reactive(CurrentBC)) CALL SamplingForReactiveBC(iSpec, iSF, PartsEmitted, currentSurfFluxPart)
   END DO !iSF
 END DO !iSpec
 

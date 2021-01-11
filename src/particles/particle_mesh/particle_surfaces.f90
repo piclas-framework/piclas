@@ -209,7 +209,7 @@ SDEALLOCATE(D_Bezier)
 
 ! InitParticleMesh
 SDEALLOCATE(BezierSampleXi)
-#if CODE_ANALYZE
+#ifdef CODE_ANALYZE
 SDEALLOCATE(SideBoundingBoxVolume)
 #endif
 
@@ -700,7 +700,7 @@ END SUBROUTINE EvaluateBezierPolynomialAndGradient
 
 SUBROUTINE GetSideSlabNormalsAndIntervals(BezierControlPoints3D,SideSlabNormals,SideSlabInterVals,BoundingBoxIsEmpty)
 !===================================================================================================================================
-! computes the oriented-slab box for each bezier basis surface (i.e. 3 slab normals + 3 intervalls)
+! computes the oriented-slab box for each bezier basis surface (i.e. 3 slab normals + 3 intervals)
 ! see article:
 !    author = {Shyue-wu Wang and Zen-chung Shih and Ruei-chuan Chang},
 !    title = {An Efficient and Stable Ray Tracing Algorithm for Parametric Surfaces},
@@ -785,12 +785,12 @@ IF((ABS(DOT_PRODUCT(SideSlabNormals(:,2),SideSlabNormals(:,3)))).GT.1.E-6) CALL 
 __STAMP__&
 ,'Side slab normal 2 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(SideSlabNormals(:,2),SideSlabNormals(:,3))))
 !-----------------------------------------------------------------------------------------------------------------------------------
-! 2.) slab box intervalls beta_1, beta_2, beta_3
+! 2.) slab box intervals beta_1, beta_2, beta_3
 !-----------------------------------------------------------------------------------------------------------------------------------
 !SideSlabIntervals(x- x+ y- y+ z- z+, SideID)
 
 
-! Intervall beta_1
+! Interval beta_1
 !print*,"SideID",SideID
 SideSlabIntervals(:)=0.
 

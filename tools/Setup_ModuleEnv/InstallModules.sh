@@ -46,7 +46,7 @@ if [ ! -d "${MODULESHOME}" ]; then
     make 2>&1 | tee make.out
     if [ ${PIPESTATUS[0]} -ne 0 ]; then
       echo " "
-      echo "Failed: [make -j 2>&1 | tee make.out]"
+      echo "Failed: [make 2>&1 | tee make.out]"
       exit
     else
       make install 2>&1 | tee install.out

@@ -46,7 +46,7 @@ USE MOD_Restart_Vars           ,ONLY: RestartFile
 USE MOD_Restart                ,ONLY: Restart
 USE MOD_Interpolation          ,ONLY: InitInterpolation
 USE MOD_IO_HDF5                ,ONLY: InitIOHDF5
-USE MOD_TimeDisc               ,ONLY: InitTime,InitTimeDisc
+USE MOD_TimeDiscInit           ,ONLY: InitTime,InitTimeDisc
 USE MOD_MPI                    ,ONLY: InitMPI
 USE MOD_Mesh_Vars              ,ONLY: DoSwapMesh
 USE MOD_Mesh                   ,ONLY: SwapMesh

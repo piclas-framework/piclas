@@ -127,10 +127,6 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   REAL                        :: dref                      ! collision model: reference diameter        , ini_2
   REAL                        :: omega                     ! collision model: temperature exponent      , ini_2
   REAL                        :: alphaVSS                  ! collision model: scattering exponent(VSS)  , ini_2
-  INTEGER                     :: NumOfPro                  ! Number of Protons, ini_2
-  REAL                        :: Eion_eV                   ! Energy of Ionisation in eV, ini_2
-  REAL                        :: RelPolarizability         ! relative polarizability, ini_2
-  INTEGER                     :: NumEquivElecOutShell      ! number of equivalent electrons in outer shell, ini2
   INTEGER                     :: Xi_Rot                    ! Rotational DOF
   REAL                        :: GammaVib                  ! GammaVib = Xi_Vib(T_t)² * exp(CharaTVib/T_t) / 2 -> correction fact
                                                            ! for vib relaxation -> see 'Vibrational relaxation rates
@@ -217,7 +213,7 @@ TYPE tDSMC
   REAL                          :: TimeFracSamp=0.          ! %-of simulation time for sampling
   INTEGER                       :: SampNum                  ! number of Samplingsteps
   INTEGER                       :: NumOutput                ! number of Outputs
-  REAL                          :: DeltaTimeOutput          ! Time intervall for Output
+  REAL                          :: DeltaTimeOutput          ! Time interval for Output
   LOGICAL                       :: ReservoirSimu            ! Flag for reservoir simulation
   LOGICAL                       :: ReservoirSimuRate        ! Does not performe the collision.
                                                             ! Switch to enable to create reaction rates curves
@@ -262,8 +258,10 @@ TYPE tDSMC
                                                             !     2: Instantanious maximal vib relax prob
   INTEGER, ALLOCATABLE          :: QualityFacSampVibSamp(:,:,:)!Sample size for QualityFacSampVib
   REAL, ALLOCATABLE             :: QualityFacSampRelaxSize(:,:)! Samplie size of quality relax factors (nElem,nSpec+1)
-  LOGICAL                       :: ElectronicModel          ! Flag for Electronic State of atoms and molecules
-  LOGICAL                       :: ElectronicDistrModel     ! Flag for Electronic State of atoms and molecules
+  INTEGER                       :: ElectronicModel          ! Model selection for electronic state of atoms and molecules
+                                                            !     0: No electronic energy relaxation
+                                                            !     1: Liechty, each particle has a specific electronic state
+                                                            !     2: Burt, each particle has an electronic distribution function
   CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file
   INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules
   REAL                          :: RotRelaxProb             ! Model for calculation of rotational relaxation probability, ini_1
@@ -399,9 +397,12 @@ TYPE tArbDiss
 END TYPE
 
 TYPE tChemReactions
+  LOGICAL                         :: AnyQKReaction          ! Defines if any QK reaction present
   INTEGER                         :: NumOfReact             ! Number of possible reactions
+  INTEGER                         :: NumOfReactWOBackward   ! Number of possible reactions w/o automatic backward reactions
   TYPE(tArbDiss), ALLOCATABLE     :: ArbDiss(:)             ! Construct to allow the definition of a list of non-reactive educts
-  LOGICAL, ALLOCATABLE            :: QKProcedure(:)         ! Defines if QK Procedure is selected
+  LOGICAL, ALLOCATABLE            :: BackwardReac(:)        ! Defines if backward reaction is calculated
+  INTEGER, ALLOCATABLE            :: BackwardReacForwardIndx(:)
   REAL, ALLOCATABLE               :: QKRColl(:)             ! Collision factor in QK model
   REAL, ALLOCATABLE               :: QKTCollCorrFac(:)      ! Correction factor for collision temperature due to averaging over T^b
   REAL, ALLOCATABLE               :: NumReac(:)             ! Number of occurred reactions for each reaction number
@@ -409,11 +410,15 @@ TYPE tChemReactions
                                                             ! coefficient based on the reaction probabilities
   REAL, ALLOCATABLE               :: ReacCollMean(:)        ! Mean collision probability for each collision pair
   CHARACTER(LEN=5),ALLOCATABLE    :: ReactType(:)           ! Type of Reaction (reaction num)
-                                                            !    i (electron impact ionization)
+                                                            !    I (electron impact ionization)
                                                             !    R (molecular recombination
                                                             !    D (molecular dissociation)
                                                             !    E (molecular exchange reaction)
-                                                            !    x (simple charge exchange reaction)
+  CHARACTER(LEN=5),ALLOCATABLE    :: ReactModel(:)          ! Model of Reaction (reaction num)
+                                                            !    TCE (total collision energy)
+                                                            !    QK (quantum kinetic)
+                                                            !    phIon (photon-ionization)
+                                                            !    XSec (based on cross-section data)
   INTEGER, ALLOCATABLE            :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
   INTEGER, ALLOCATABLE            :: Products(:,:)          ! Products: indices of the species resulting from the reaction [NumOfReact,4]
   INTEGER, ALLOCATABLE            :: ReactCase(:)           ! Case/pair of the reaction (1:NumOfReact)
@@ -447,7 +452,7 @@ TYPE tChemReactions
   REAL, ALLOCATABLE               :: CrossSection(:)        ! Cross-section of the given photo-ionization reaction
   TYPE(tCollCaseInfo), ALLOCATABLE:: CollCaseInfo(:)        ! Information of collision cases (nCase)
   ! XSec Chemistry
-  LOGICAL, ALLOCATABLE            :: XSec_Procedure(:)      ! Defines if reaction is based on cross-section data
+  LOGICAL                         :: AnyXSecReaction          ! Defines if any QK reaction present
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac
@@ -574,7 +579,6 @@ REAL, ALLOCATABLE                :: HValue(:)                  ! Entropy Paramet
 
 INTEGER, ALLOCATABLE      :: SymmetrySide(:,:)
 REAL,ALLOCATABLE          :: DSMC_Solution(:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evib, 9 erot, 10 eelec
-REAL,ALLOCATABLE          :: DSMC_VolumeSample(:)         !sampnum samples of volume in element
 
 TYPE tTreeNode
 !  TYPE (tTreeNode), POINTER       :: One, Two, Three, Four, Five, Six, Seven, Eight !8 Childnodes of Octree Treenode

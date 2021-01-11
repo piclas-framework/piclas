@@ -187,7 +187,6 @@ CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing l
 CALL InitDielectric() ! Dielectric media
 CALL InitDG()
 CALL InitFilter()
-!CALL InitTimeDisc()
 #if defined(ROS) || defined(IMPA)
 CALL InitLinearSolver()
 #endif /*ROS /IMEX*/

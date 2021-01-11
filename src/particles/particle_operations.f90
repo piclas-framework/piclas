@@ -90,7 +90,7 @@ END IF ! TrackingMethod.EQ.REFMAPPING
 IF (useDSMC.AND.(CollisMode.GT.1)) THEN
   PartStateIntEn(1,newParticleID) = VibEnergy
   PartStateIntEn(2,newParticleID) = RotEnergy
-  IF (DSMC%ElectronicModel) THEN
+  IF (DSMC%ElectronicModel.GT.0) THEN
     PartStateIntEn(3,newParticleID) = ElecEnergy
   ENDIF
   IF (DSMC%DoAmbipolarDiff) THEN

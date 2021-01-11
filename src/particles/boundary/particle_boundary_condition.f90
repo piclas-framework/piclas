@@ -14,8 +14,8 @@
 
 MODULE MOD_Particle_Boundary_Condition
 !===================================================================================================================================
-! Determines how particles interact with a given boundary condition. This routine is used by MOD_Part_Tools, hence, it cannot be
-! used here due to circular definitions!
+!> Determines how particles interact with a given boundary condition. This routine is used by MOD_Part_Tools, hence, it cannot be
+!> used here due to circular definitions!
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -35,10 +35,6 @@ INTERFACE GetBoundaryInteractionAuxBC
   MODULE PROCEDURE GetBoundaryInteractionAuxBC
 END INTERFACE
 
-!INTERFACE PartSwitchElement
-!  MODULE PROCEDURE PartSwitchElement
-!END INTERFACE
-
 PUBLIC :: GetBoundaryInteraction
 PUBLIC :: GetBoundaryInteractionAuxBC
 !PUBLIC :: PartSwitchElement
@@ -49,13 +45,10 @@ CONTAINS
 SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,ElemID,crossedBC&
                                   ,TriNum,locSideID)
 !===================================================================================================================================
-! Computes the post boundary state of a particle that interacts with a boundary condition
-!  OpenBC                  = 1
-!  ReflectiveBC            = 2
-!  PeriodicBC              = 3
-!  SimpleAnodeBC           = 4
-!  SimpleCathodeBC         = 5
-!  MPINeighborhoodBC       = 6
+!> Determines the post boundary state of a particle that interacts with a boundary condition
+!> * Open: Particle is removed
+!> * Reflective: Further treatment as part of the surface modelling (`src/particles/surfacemodel/`)
+!> * Periodic (+ Rotational periodic): Further treatment in the specific routines
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -75,7 +68,7 @@ USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
 #endif /*IMPA*/
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
 USE MOD_Particle_Boundary_Tools  ,ONLY: StoreBoundaryParticleProperties
-#if CODE_ANALYZE
+#ifdef CODE_ANALYZE
 USE MOD_Globals                  ,ONLY: myRank,UNIT_stdout
 USE MOD_Mesh_Vars                ,ONLY: NGeo
 USE MOD_Mesh_Tools               ,ONLY: GetCNElemID
@@ -99,7 +92,7 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 ! LOCAL VARIABLES
 INTEGER                              :: CNSideID
 REAL                                 :: n_loc(1:3)
-#if CODE_ANALYZE
+#ifdef CODE_ANALYZE
 REAL                                 :: v1(3),v2(3)
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
@@ -124,7 +117,7 @@ CASE(REFMAPPING,TRACING)
 
   IF(flip.NE.0) n_loc=-n_loc
 
-#if CODE_ANALYZE
+#ifdef CODE_ANALYZE
   ! check if normal vector points outwards
   v1 = 0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)  &
            + BezierControlPoints3D(:,NGeo,0   ,SideID)  &
