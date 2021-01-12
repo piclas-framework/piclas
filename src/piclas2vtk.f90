@@ -63,7 +63,9 @@ USE MOD_HDF5_Input            ,ONLY: ISVALIDHDF5FILE
 USE MOD_Mesh_Vars             ,ONLY: nGlobalElems
 USE MOD_Interpolation         ,ONLY: DefineParametersInterpolation,InitInterpolation
 USE MOD_Mesh                  ,ONLY: DefineParametersMesh,InitMesh
-USE MOD_Particle_Mesh         ,ONLY: InitParticleMesh, InitParticleGeometry, InitElemNodeIDs
+#ifdef PARTICLES
+USE MOD_Particle_Mesh         ,ONLY: InitParticleGeometry, InitElemNodeIDs
+#endif /*PARTICLES*/
 USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemNodeID_Shared, NodeInfo_Shared
 USE MOD_Mesh_Tools            ,ONLY: InitGetCNElemID, InitGetGlobalElemID
 #if USE_MPI
@@ -271,14 +273,20 @@ DO iArgs = iArgsStart,nArgs
 #if USE_MPI
     nComputeNodeTotalElems = nGlobalElems
 #endif /*USE_MPI*/
+#ifdef PARTICLES
     ! ElemSideNodeID_Shared is required for the connectivity
     CALL InitParticleGeometry()
     ! ElemNodeID_Shared is required for the connectivity
     CALL InitElemNodeIDs()
+#endif /*PARTICLES*/
     ReadMeshFinished = .TRUE.
   END IF
   ! Build connectivity for element/volume output
   IF(ElemDataExists.AND..NOT.ElemMeshInit) THEN
+#ifndef PARTICLES
+    CALL Abort(__STAMP__,&
+      'ERROR - Conversion of ElemData requires the compilation of piclas2vtk with PARTICLES set to ON!')
+#endif
     CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
     CALL ReadAttribute(File_ID,'nUniqueNodes',1,IntegerScalar=nUniqueNodes)
     CALL CloseDataFile()
@@ -294,6 +302,10 @@ DO iArgs = iArgsStart,nArgs
   END IF
   ! Build connectivity for surface output
   IF(SurfaceDataExists.AND..NOT.SurfMeshInit) THEN
+#ifndef PARTICLES
+    CALL Abort(__STAMP__,&
+      'ERROR - Conversion of SurfaceData requires the compilation of piclas2vtk with PARTICLES set to ON!')
+#endif
     CALL BuildSurfMeshConnectivity(InputStateFile)
     SurfMeshInit = .TRUE.
   END IF
