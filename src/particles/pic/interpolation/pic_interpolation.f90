@@ -131,8 +131,6 @@ REAL                      :: scaleExternalField
 #ifdef CODE_ANALYZE
 CHARACTER(LEN=20)         :: tempStr
 #endif /*CODE_ANALYZE*/
-REAL              :: B(6),x
-INTEGER           :: i
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
 
@@ -173,7 +171,6 @@ IF(AlgebraicExternalField.GT.0) useAlgebraicExternalField=.TRUE.
 IF(.NOT.ANY(AlgebraicExternalField.EQ.(/0,1/))) CALL abort(&
   __STAMP__&
   ,'Value for PIC-AlgebraicExternalField not defined',IntInfoOpt=AlgebraicExternalField)
-AverageElectricPotential=0. ! initialize
 
 !--- Allocate arrays for interpolation of fields to particles
 SDEALLOCATE(FieldAtParticle)
@@ -236,16 +233,20 @@ SUBROUTINE InterpolateFieldToParticle()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Particle_Vars          ,ONLY: PDM,PEM,DoFieldIonization
-USE MOD_Part_Tools             ,ONLY: isInterpolateParticle
+USE MOD_Particle_Vars         ,ONLY: PDM,PEM,DoFieldIonization
+USE MOD_Part_Tools            ,ONLY: isInterpolateParticle
 USE MOD_PIC_Vars
-USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle,DoInterpolation,InterpolationType
-USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationElemLoop
+USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle,DoInterpolation,InterpolationType
+USE MOD_PICInterpolation_Vars ,ONLY: InterpolationElemLoop
 #ifdef CODE_ANALYZE
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
+USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
 #endif /* CODE_ANALYZE */
-USE MOD_PICInterpolation_Vars  ,ONLY: CalcBField
-USE MOD_HDF5_Output_Tools      ,ONLY: WriteBGFieldToHDF5
+USE MOD_PICInterpolation_Vars ,ONLY: CalcBField
+USE MOD_HDF5_Output_Tools     ,ONLY: WriteBGFieldToHDF5
+#if USE_HDG
+USE MOD_AnalyzeField          ,ONLY: CalculateAverageElectricPotential
+USE MOD_Analyze_Vars          ,ONLY: CalcAverageElectricPotential
+#endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -260,8 +261,13 @@ INTEGER                          :: iPart,iElem
 !0. Return if interpolation is not required
 IF(.NOT.DoInterpolation) RETURN
 
-!1. Calculate the time step of the discretization of the Current
+!1.1 Calculate the time step of the discretization of the Current
 IF (CalcBField) CALL GetTimeDependentBGField()
+
+#if USE_HDG
+!1.2 Calculate external E-field
+IF(CalcAverageElectricPotential) CALL CalculateAverageElectricPotential()
+#endif /*USE_HDG*/
 
 !2. Select element-particle loop (InterpolationElemLoop) or particle-element (.NOT.InterpolationElemLoop)
 IF (InterpolationElemLoop) THEN ! element-particle loop
@@ -688,8 +694,10 @@ PURE FUNCTION InterpolateAlgebraicExternalField(Pos)
 !===================================================================================================================================
 ! MODULES
 !USE MOD_Globals
-USE MOD_PICInterpolation_Vars ,ONLY: DeltaExternalField,nIntPoints,VariableExternalField
-USE MOD_PICInterpolation_Vars ,ONLY: externalField,AlgebraicExternalField,AverageElectricPotential
+USE MOD_PICInterpolation_Vars ,ONLY: externalField,AlgebraicExternalField
+#if USE_HDG
+USE MOD_Analyze_Vars          ,ONLY: AverageElectricPotential
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -700,15 +708,19 @@ REAL,INTENT(IN)          :: Pos(1:3)                            !< particle posi
 REAL                     :: InterpolateAlgebraicExternalField(1:6)  !< E and B field at particle position
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                  :: iPos                              !< index in array (equidistant subdivision assumed)
 !===================================================================================================================================
 SELECT CASE (AlgebraicExternalField)
 CASE (1)
+#if USE_HDG
   ! Set Ex = Ue/xe
   ASSOCIATE( Ue => AverageElectricPotential ,&
              xe => 2.4e-2                   )
     InterpolateAlgebraicExternalField(1) = Ue/xe
   END ASSOCIATE
+#else
+    InterpolateAlgebraicExternalField(1) = externalField(1) ! default
+#endif /*USE_HDG*/
+
 
   ! Set Ey, Ez, Bx and By
   InterpolateAlgebraicExternalField(2:5) = externalField(2:5)

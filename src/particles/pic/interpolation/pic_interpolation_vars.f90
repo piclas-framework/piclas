@@ -43,7 +43,6 @@ INTEGER                 :: AlgebraicExternalField        !< External E and B fie
                                                          !<    benchmark for low-temperature partially magnetized plasmas (2019)
 REAL,ALLOCATABLE        :: VariableExternalField(:,:)    !< z - Pos , Bz
 REAL                    :: DeltaExternalField            !< equidistant z-spacing for the VariableExternalField (fast computation)
-REAL                    :: AverageElectricPotential      !< 2D Landmark: averaged electric field in y-direction (for interpolation)
 INTEGER                 :: nIntPoints                    !< number of all interpolation points external field
 
 #ifdef CODE_ANALYZE

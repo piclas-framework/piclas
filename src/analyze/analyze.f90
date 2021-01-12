@@ -94,7 +94,8 @@ CALL prms%CreateLogicalOption(  'CalcPointsPerWavelength', 'Flag to compute the 
 
 CALL prms%SetSection("Analyzefield")
 CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"Calculate Poynting vector integral, which is the integrated energy density "//&
-                                                         "over a plane, perpendicular to PoyntingMainDir axis (default is z-direction)",&
+                                                         "over a plane, perpendicular to PoyntingMainDir axis (default is z-direction)"//&
+                                                         ". The plane position must lie on an interface between two adjacent elements.",&
                                                       '.FALSE.')
 CALL prms%CreateIntOption( 'PoyntingVecInt-Planes', 'Total number of Poynting vector integral planes for measuring the '//&
                                                     'directed power flow (energy flux density: Density and direction of an '//&
@@ -108,6 +109,13 @@ CALL prms%CreateRealOption('Plane-[$]-z-coord', 'z-coordinate of the n-th Poynti
 CALL prms%CreateIntOption( 'PoyntingMainDir'  , 'Direction in which the Poynting vector integral is to be measured. '//&
                                                    '\n1: x \n2: y \n3: z (default)','3')
 
+
+CALL prms%CreateLogicalOption( 'CalcAverageElectricPotential',"Calculate the averaged electric potential at a specific x-coordinate."//&
+                                                              " The plane position must lie on an interface between two adjacent elements",&
+                                                              '.FALSE.')
+CALL prms%CreateRealOption('AvgPotential-Plane-x-coord', 'x-coordinate of the averaged electric potential')
+CALL prms%CreateRealOption('AvgPotential-Plane-Tolerance', 'Absolute tolerance for checking the averaged electric potential plane '&
+                                                         , '1E-5')
 END SUBROUTINE DefineParametersAnalyze
 
 SUBROUTINE InitAnalyze()
@@ -117,8 +125,11 @@ SUBROUTINE InitAnalyze()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+#if PP_nVar>=6
 USE MOD_AnalyzeField          ,ONLY: GetPoyntingIntPlane
-USE MOD_Analyze_Vars          ,ONLY: AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
+USE MOD_Analyze_Vars          ,ONLY: CalcPoyntingInt
+#endif /*PP_nVar>=6*/
+USE MOD_Analyze_Vars          ,ONLY: AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms
 USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed,FieldAnalyzeStep
 USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_Analyze_Vars          ,ONLY: doFieldAnalyze,CalcEpot
@@ -136,6 +147,13 @@ USE MOD_Equation_vars         ,ONLY: Wavelength
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+#if USE_HDG
+USE MOD_Analyze_Vars          ,ONLY: CalcAverageElectricPotential,PosAverageElectricPotential
+USE MOD_AnalyzeField          ,ONLY: GetAverageElectricPotentialPlane
+#ifdef PARTICLES
+USE MOD_PICInterpolation_Vars ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
+#endif /*PARTICLES*/
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -167,7 +185,6 @@ doCalcTimeAverage = GETLOGICAL('CalcTimeAverage')
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
 
 FieldAnalyzeStep  = GETINT('Field-AnalyzeStep')
-CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral') ! PoyntingVecIntegral
 DoFieldAnalyze    = .FALSE.
 #if (USE_HDG)
 IF (FieldAnalyzeStep.GT.0) DoFieldAnalyze = .TRUE.
@@ -175,7 +192,35 @@ IF (FieldAnalyzeStep.GT.0) DoFieldAnalyze = .TRUE.
 IF (FieldAnalyzeStep.EQ.0) FieldAnalyzeStep = HUGE(FieldAnalyzeStep)
 CalcEpot          = GETLOGICAL('CalcPotentialEnergy')
 IF(CalcEpot)        DoFieldAnalyze = .TRUE.
-IF(CalcPoyntingInt) DoFieldAnalyze = .TRUE.
+#if PP_nVar>=6
+CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral') ! PoyntingVecIntegral
+IF(CalcPoyntingInt)THEN
+  DoFieldAnalyze = .TRUE.
+  CALL GetPoyntingIntPlane()
+END IF
+#endif /*PP_nVar>=6*/
+
+!--- Get averaged electric potential
+#if USE_HDG
+CalcAverageElectricPotential=.FALSE. ! Initialize
+#ifdef PARTICLES
+IF(useAlgebraicExternalField.AND.AlgebraicExternalField.EQ.1)THEN
+  CalcAverageElectricPotential = .TRUE.
+  PosAverageElectricPotential  = 2.4e-2 ! automatic setting for this case
+  CALL PrintOption('AlgebraicExternalField.EQ.1, Setting CalcAverageElectricPotential','INFO',LogOpt=CalcAverageElectricPotential)
+  CALL PrintOption('AlgebraicExternalField.EQ.1, Setting PosAverageElectricPotential ','INFO',RealOpt=PosAverageElectricPotential)
+ELSE
+#endif /*PARTICLES*/
+  CalcAverageElectricPotential = GETLOGICAL('CalcAverageElectricPotential') ! user-defined activation
+  IF(CalcAverageElectricPotential) PosAverageElectricPotential = GETREAL('AvgPotential-Plane-x-coord')    ! user-required input
+#ifdef PARTICLES
+END IF
+#endif /*PARTICLES*/
+IF(CalcAverageElectricPotential)THEN
+  DoFieldAnalyze = .TRUE.
+  CALL GetAverageElectricPotentialPlane()
+END IF
+#endif /*USE_HDG*/
 
 ! Get logical for measurement of time spent in analyze routines
 DoMeasureAnalyzeTime = GETLOGICAL('DoMeasureAnalyzeTime')
@@ -186,9 +231,6 @@ AnalyzeTime  = 0.0
 AnalyzeInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
-
-! init Poynting-Integral
-IF(CalcPoyntingInt) CALL GetPoyntingIntPlane()
 
 ! Points Per Wavelength
 CalcPointsPerWavelength = GETLOGICAL('CalcPointsPerWavelength')
@@ -696,15 +738,23 @@ END DO
 WRITE(VARformatStr,'(A,A2)')TRIM(VARformatStr),'A)'
 END SUBROUTINE getVARformatStr
 
+
 SUBROUTINE FinalizeAnalyze()
 !===================================================================================================================================
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Analyze_Vars,     ONLY: CalcPoyntingInt,PPWCell,AnalyzeInitIsDone
+#if PP_nVar>=6
+USE MOD_Analyze_Vars,     ONLY: CalcPoyntingInt
 USE MOD_AnalyzeField,     ONLY: FinalizePoyntingInt
+#endif /*PP_nVar>=6*/
+USE MOD_Analyze_Vars,     ONLY: PPWCell,AnalyzeInitIsDone
 USE MOD_TimeAverage_Vars, ONLY: doCalcTimeAverage
 USE MOD_TimeAverage,      ONLY: FinalizeTimeAverage
+#if USE_HDG
+USE MOD_Analyze_Vars,     ONLY: CalcAverageElectricPotential
+USE MOD_AnalyzeField,     ONLY: FinalizeAverageElectricPotential
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLINGDGInitIsDone
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -712,7 +762,12 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+#if PP_nVar>=6
 IF(CalcPoyntingInt) CALL FinalizePoyntingInt()
+#endif /*PP_nVar>=6*/
+#if USE_HDG
+IF(CalcAverageElectricPotential) CALL FinalizeAverageElectricPotential()
+#endif /*USE_HDG*/
 IF(doCalcTimeAverage) CALL FinalizeTimeAverage
 SDEALLOCATE(PPWCell)
 AnalyzeInitIsDone = .FALSE.
