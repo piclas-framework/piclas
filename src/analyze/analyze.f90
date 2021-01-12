@@ -93,18 +93,20 @@ CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'Calculate Potential Ener
 CALL prms%CreateLogicalOption(  'CalcPointsPerWavelength', 'Flag to compute the points per wavelength in each cell','.FALSE.')
 
 CALL prms%SetSection("Analyzefield")
-CALL prms%CreateIntOption(    'PoyntingVecInt-Planes', 'Total number of Poynting vector integral planes for measuring the '//&
-                                                       'directed power flow (energy flux density: Density and direction of an '//&
-                                                       'electromagnetic field.', '0')
-CALL prms%CreateRealOption(   'Plane-Tolerance'      , 'Absolute tolerance for checking the Poynting vector integral plane '//&
-                                                       'coordinates and normal vectors of the corresponding sides for selecting '//&
-                                                       'relevant sides', '1E-5')
-CALL prms%CreateRealOption(   'Plane-[$]-x-coord'      , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(   'Plane-[$]-y-coord'      , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(   'Plane-[$]-z-coord'      , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(   'Plane-[$]-factor'       , 'TODO-DEFINE-PARAMETER', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(    'PoyntingMainDir'        , 'Direction in which the Poynting vector integral is to be measured. '//&
-                                                         '\n1: x \n2: y \n3: z (default)')
+CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"Calculate Poynting vector integral, which is the integrated energy density "//&
+                                                         "over a plane, perpendicular to PoyntingMainDir axis (default is z-direction)",&
+                                                      '.FALSE.')
+CALL prms%CreateIntOption( 'PoyntingVecInt-Planes', 'Total number of Poynting vector integral planes for measuring the '//&
+                                                    'directed power flow (energy flux density: Density and direction of an '//&
+                                                    'electromagnetic field.', '0')
+CALL prms%CreateRealOption('Plane-Tolerance'  , 'Absolute tolerance for checking the Poynting vector integral plane '//&
+                                                'coordinates and normal vectors of the corresponding sides for selecting '//&
+                                                'relevant sides', '1E-5')
+CALL prms%CreateRealOption('Plane-[$]-x-coord', 'x-coordinate of the n-th Poynting vector plane (when PoyntingMainDir=1)', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Plane-[$]-y-coord', 'y-coordinate of the n-th Poynting vector plane (when PoyntingMainDir=2)', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Plane-[$]-z-coord', 'z-coordinate of the n-th Poynting vector plane (when PoyntingMainDir=3)', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption( 'PoyntingMainDir'  , 'Direction in which the Poynting vector integral is to be measured. '//&
+                                                   '\n1: x \n2: y \n3: z (default)','3')
 
 END SUBROUTINE DefineParametersAnalyze
 
@@ -165,6 +167,7 @@ doCalcTimeAverage = GETLOGICAL('CalcTimeAverage')
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
 
 FieldAnalyzeStep  = GETINT('Field-AnalyzeStep')
+CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral') ! PoyntingVecIntegral
 DoFieldAnalyze    = .FALSE.
 #if (USE_HDG)
 IF (FieldAnalyzeStep.GT.0) DoFieldAnalyze = .TRUE.
@@ -763,7 +766,6 @@ USE MOD_SurfaceModel_Analyze      ,ONLY: AnalyzeSurface
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
 USE MOD_DSMC_Vars                 ,ONLY: DSMC_Solution
 USE MOD_Particle_Tracking_vars    ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
-USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep
 USE MOD_BGK_Vars                  ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_FPFlow_Vars               ,ONLY: FPInitDone, FP_QualityFacSamp
 #if !defined(LSERK)
@@ -895,9 +897,9 @@ END IF
 
 ! FieldAnalyzeStep
 ! 2) normal analyze at analyze step
-IF(MOD(iter,INT(FieldAnalyzeStep,8)).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformFieldAnalyze=.TRUE.
+IF(MOD(iter,FieldAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformFieldAnalyze=.TRUE.
 ! 3) + 4) force analyze during a write-state information and prevent duplicates
-IF(MOD(iter,INT(FieldAnalyzeStep,8)).NE.0 .AND. OutPutHDF5)       DoPerformFieldAnalyze=.TRUE.
+IF(MOD(iter,FieldAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformFieldAnalyze=.TRUE.
 ! Remove analyze during restart or load-balance step
 IF(DoRestart .AND. iter.EQ.0) DoPerformFieldAnalyze=.FALSE.
 ! BUT print analyze info for CODE_ANALYZE and USE_HDG to get the HDG solver statistics (number of iterations, runtime and norm)

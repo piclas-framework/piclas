@@ -23,7 +23,7 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                       :: SurfModelAnalyzeInitIsDone = .FALSE.
-INTEGER                       :: SurfaceAnalyzeStep       ! Analyze of surface is performed each Nth time step
+INTEGER(KIND=8)               :: SurfaceAnalyzeStep       ! Analyze of surface is performed each Nth time step
 ! Output flags
 LOGICAL                       :: CalcSurfCollCounter      ! Calculate the number of surface collision and number of
                                                           ! adsorbed particles per species

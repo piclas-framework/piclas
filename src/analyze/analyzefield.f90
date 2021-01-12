@@ -276,9 +276,9 @@ SUBROUTINE CalcPoyntingIntegral(PoyntingIntegral,doProlong)
 ! Calculation of Poynting Integral with its own Prolong to face // check if Gauss-Labatto or Gaus Points is used is missing ... ups
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars          ,ONLY: isPoyntingIntSide,nElems, SurfElem, NormVec,whichPoyntingPlane
+USE MOD_Mesh_Vars          ,ONLY: nElems, SurfElem, NormVec
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide,PoyntingMainDir
-USE MOD_Analyze_Vars       ,ONLY: nPoyntingIntPlanes,S
+USE MOD_Analyze_Vars       ,ONLY: nPoyntingIntPlanes,S,isPoyntingIntSide,whichPoyntingPlane
 USE MOD_Interpolation_Vars ,ONLY: L_Minus,L_Plus,wGPSurf
 USE MOD_DG_Vars            ,ONLY: U,U_master
 USE MOD_Globals_Vars       ,ONLY: smu0
@@ -536,9 +536,10 @@ SUBROUTINE GetPoyntingIntPlane()
 !> with a defined Poynting vector integral plane.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars       ,ONLY: nPoyntingIntSides,isPoyntingIntSide,nSides,nElems,Face_xGP,whichPoyntingPlane
-USE MOD_Mesh_Vars       ,ONLY: ElemToSide,normvec,PoyntingMainDir
-USE MOD_Analyze_Vars    ,ONLY: PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoyntingInt,S,STEM,PoyntingIntPlaneFactor
+USE MOD_Mesh_Vars       ,ONLY: nSides,nElems,Face_xGP
+USE MOD_Mesh_Vars       ,ONLY: ElemToSide,normvec
+USE MOD_Analyze_Vars    ,ONLY: PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoyntingInt,S,STEM
+USE MOD_Analyze_Vars    ,ONLY: nPoyntingIntSides,isPoyntingIntSide,whichPoyntingPlane,PoyntingMainDir
 USE MOD_ReadInTools     ,ONLY: GETINT,GETREAL
 USE MOD_Dielectric_Vars ,ONLY: DoDielectric,nDielectricElems,DielectricMu,ElemToDielectric,isDielectricInterFace
 USE MOD_Dielectric_Vars ,ONLY: isDielectricFace,PoyntingUseMuR_Inv
@@ -573,8 +574,8 @@ ALLOCATE(isPoyntingIntSide(1:nSides))
 isPoyntingIntSide = .FALSE.
 
 ! Get the number of Poynting planes and coordinates
-nPoyntingIntPlanes = GETINT('PoyntingVecInt-Planes','0')
-PoyntingMainDir = GETINT('PoyntingMainDir','3') ! default "3" is z-direction
+nPoyntingIntPlanes = GETINT('PoyntingVecInt-Planes')
+PoyntingMainDir = GETINT('PoyntingMainDir') ! default "3" is z-direction
 SELECT CASE (PoyntingMainDir)
   CASE (1) ! poynting vector integral in x-direction
     PoyntingNormalDir1=2
@@ -601,13 +602,12 @@ DO iPlane=1,nPoyntingIntPlanes
  WRITE(UNIT=index_plane,FMT='(I2.2)') iPlane
  SELECT CASE (PoyntingMainDir)
     CASE (1)
-      PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-x-coord','0.')
+      PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-x-coord')
     CASE (2)
-      PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-y-coord','0.')
+      PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-y-coord')
     CASE (3)
-      PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-z-coord','0.')
+      PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-z-coord')
   END SELECT
-  PoyntingIntPlaneFactor= GETREAL('Plane-'//TRIM(index_plane)//'-factor','1.')
 END DO
 PoyntingIntCoordErr=GETREAL('Plane-Tolerance','1E-5')
 
@@ -732,8 +732,7 @@ SUBROUTINE FinalizePoyntingInt()
 ! Finalize Poynting Integral
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars         ,ONLY:isPoyntingIntSide,whichPoyntingPlane
-USE MOD_Analyze_Vars      ,ONLY:PosPoyntingInt, S, STEM
+USE MOD_Analyze_Vars ,ONLY:PosPoyntingInt,S,STEM,isPoyntingIntSide,whichPoyntingPlane
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

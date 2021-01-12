@@ -183,7 +183,7 @@ IF(PRESENT(BCID)) THEN
   IF(UseNeutralization)THEN
     IF(TRIM(BoundaryName(BCID)).EQ.TRIM(NeutralizationSource))THEN
       ! Add +1 for electrons and -1 for ions
-      NeutralizationBalance = NeutralizationBalance - SIGN(1.0, Species(iSpec)%ChargeIC)
+      NeutralizationBalance = NeutralizationBalance - INT(SIGN(1.0, Species(iSpec)%ChargeIC))
     END IF
   END IF ! UseNeutralization
 END IF ! PRESENT(BCID)

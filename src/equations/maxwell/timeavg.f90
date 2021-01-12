@@ -89,6 +89,7 @@ ELSE
 #endif
 END IF
 
+! --- Mean values
 ! Define variables to be averaged
 nMaxVarAvg=PP_nVar+6
 #ifdef PARTICLES
@@ -124,6 +125,7 @@ DO iSpec=1,nSpecies
 END DO
 #endif /*PARTICLES*/
 
+! --- Fluctuations
 nMaxVarFluc=PP_nVar+6
 #ifdef PARTICLES
 nMaxVarFluc=nMaxVarFluc+9*nSpecies

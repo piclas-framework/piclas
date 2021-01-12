@@ -680,7 +680,7 @@ ELSE
   CALL DepositionMethod()
 END IF
 
-IF(MOD(iter,INT(PartAnalyzeStep,8)).EQ.0) THEN
+IF(MOD(iter,PartAnalyzeStep).EQ.0) THEN
   IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 END IF
 RETURN

@@ -78,9 +78,6 @@ CALL prms%CreateRealOption(    'meshScale',           "Scale the mesh by this fa
                                                       '1.0')
 CALL prms%CreateLogicalOption( 'meshdeform',          "Apply simple sine-shaped deformation on cartesion mesh (for testing).",&
                                                       '.FALSE.')
-CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"TODO-DEFINE-PARAMETER\nCalculate pointing vector integral "//&
-                                                         "| only perpendicular to z axis",&
-                                                      '.FALSE.')
 CALL prms%CreateLogicalOption( 'CalcMeshInfo',        'Calculate and output elem data for myrank, ElemID and tracking info to '//&
                                                       'ElemData',&
                                                       '.FALSE.')
@@ -122,7 +119,7 @@ USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Metrics                ,ONLY: BuildCoords,CalcMetrics
-USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,CalcMeshInfo
+USE MOD_Analyze_Vars           ,ONLY: CalcMeshInfo
 USE MOD_Mappings               ,ONLY: InitMappings
 #if USE_MPI
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
@@ -347,8 +344,6 @@ IF (meshMode.GT.1) THEN
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
 
-  ! PoyntingVecIntegral
-  CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral')
 
 ! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
 ! assign 1/detJ (sJ)

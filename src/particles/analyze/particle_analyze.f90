@@ -2730,7 +2730,7 @@ IF(PartAnalyzeStep.GT.1)THEN
     END DO ! iReac=1, ChemReac%NumOfReact
   ELSE
     DO iReac=1, ChemReac%NumOfReact
-      RRate(iReac) = RRate(iReac) / MIN(PartAnalyzeStep,iter)
+      RRate(iReac) = RRate(iReac) / REAL(MIN(PartAnalyzeStep,iter))
     END DO ! iReac=1, ChemReac%NumOfReact
   END IF
 END IF
@@ -2864,7 +2864,7 @@ IF (printDiff) THEN
       diffPos=diffPos+(printDiffVec(iPartState)-PartState(iPartState,1))**2
       diffVelo=diffVelo+(printDiffVec(iPartState+3)-PartState(iPartState+3,1))**2
     END DO
-    WRITE(*,'(A,e24.14,x,e24.14)') 'L2-norm from printDiffVec: ',SQRT(diffPos),SQRT(diffVelo)
+    WRITE(*,'(A,e24.14,1X,e24.14)') 'L2-norm from printDiffVec: ',SQRT(diffPos),SQRT(diffVelo)
   END IF
 END IF
 END SUBROUTINE WriteParticleTrackingData

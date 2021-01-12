@@ -25,21 +25,15 @@ SAVE
 REAL              :: Analyze_dt                  !< time difference to trigger analyze output
 INTEGER(KIND=8)   :: iAnalyze                    !> count number of next analyze
 REAL              :: OutputTimeFixed             !< fixed time for writing state to .h5
-LOGICAL           :: CalcPoyntingInt             !< calculate pointing vector integral | only perp to z axis
 LOGICAL           :: CalcMeshInfo                !< Output myrank, ElemID and tracking info to ElemData
 LOGICAL           :: CalcHaloInfo                !< Output halo element information to ElemData
-REAL              :: PoyntingIntCoordErr         !< tolerance in plane searching
-REAL              :: PoyntingIntPlaneFactor      !< factor for poyntingintplanes
-INTEGER           :: nPoyntingIntPlanes          !< number of planes
-REAL,ALLOCATABLE  :: PoyntingIntegral(:)         !< poyntingintegral of each plane
 INTEGER           :: AnalyzeCount                !< number of analyzes (for info)
 REAL              :: AnalyzeTime                 !< accumulated time of analyzes (for info)
-REAL,ALLOCATABLE  :: PosPoyntingInt(:)           !< z-coordinate of plane
 REAL,ALLOCATABLE  :: S(:,:,:,:), STEM(:,:,:)     !< vector, abs for TEM waves
 LOGICAL           :: DoFieldAnalyze              !< perform analyze
 LOGICAL           :: DoMeasureAnalyzeTime        !< measure time that is spent in analyze routines and count the number of analysis
                                                  !< calls (to std out stream)
-INTEGER           :: FieldAnalyzeStep            !< Analyze is performed each Nth time step
+INTEGER(KIND=8)   :: FieldAnalyzeStep            !< Analyze is performed each Nth time step
 LOGICAL           :: DoCalcErrorNorms            !< perform L2, LInf error calculation
 LOGICAL           :: DoSurfModelAnalyze          !< perform analyze for SurfaceModel
 LOGICAL           :: CalcEpot                    !< Computation of the energy stored in the electric and
@@ -57,6 +51,18 @@ LOGICAL           :: CalcPointsPerWavelength     !< Flag to compute the points p
 !                                                !< PPW = (p+1)*lambda / GEO%CharLength
 !                                                !<   GEO%CharLength = (V_cell)^(1/3)          characteristic length in the cell
 REAL,ALLOCATABLE  :: PPWCell(:)                  !< Points per wavelength for each cell
+!-----------------------------------------------------------------------------------------------------------------------------------
+!< PoyntingVectorIntegral variables
+!-----------------------------------------------------------------------------------------------------------------------------------
+LOGICAL             :: CalcPoyntingInt        !< calculate pointing vector integral | only perp to z axis
+INTEGER             :: nPoyntingIntSides=0    !< Sides for the calculation of the Poynting vector integral
+INTEGER             :: PoyntingMainDir        !< direction in which the Poynting vector integral is to be computed
+LOGICAL,ALLOCATABLE :: isPoyntingIntSide(:)   !< number of all PoyntingInt sides
+INTEGER,ALLOCATABLE :: whichPoyntingPlane(:)  !< plane number used for calculation of Poynting vector
+REAL,ALLOCATABLE    :: PosPoyntingInt(:)      !< z-coordinate of plane
+REAL                :: PoyntingIntCoordErr    !< tolerance in plane searching
+INTEGER             :: nPoyntingIntPlanes     !< number of planes
+REAL,ALLOCATABLE    :: PoyntingIntegral(:)    !< poyntingintegral of each plane
 !===================================================================================================================================
 LOGICAL           :: AnalyzeInitIsDone = .FALSE.
 END MODULE MOD_Analyze_Vars
