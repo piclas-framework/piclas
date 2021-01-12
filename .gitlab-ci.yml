@@ -312,7 +312,7 @@ NIG_piclas2vtk:
   <<: *defaults_nightly
   stage: reggie_tools_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_piclas2vtk -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_piclas2vtk ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_bgk_nightly": Build and run BGK-Flow examples on nightly (CURRENTLY NO NIGHTLY TEST FOR BGK)
