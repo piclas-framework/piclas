@@ -17,7 +17,7 @@ stages:
   - reggie_feature_checkin
   - reggie_DSMC_nightly
 #  - reggie_bgk_nightly
-  - reggie_superB_nightly
+  - reggie_tools_nightly
   - reggie_nightly
   - reggie_nightly_build_all
   - reggie_weekly
@@ -294,19 +294,25 @@ NIG_DSMC:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_DSMC ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_superB_nightly": Build and run superB examples on nightly
+# Stage "reggie_tools_nightly": Build and run superB and piclas2vtk examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 NIG_SuperB_piclas:
   <<: *defaults_nightly
-  stage: reggie_superB_nightly
+  stage: reggie_tools_nightly
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB -e ./bin/piclas ; fi
 
 NIG_SuperB_standalone:
   <<: *defaults_nightly
-  stage: reggie_superB_nightly
+  stage: reggie_tools_nightly
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB -e ./bin/superB ; fi
+
+NIG_piclas2vtk:
+  <<: *defaults_nightly
+  stage: reggie_tools_nightly
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_piclas2vtk -e ./bin/piclas ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_bgk_nightly": Build and run BGK-Flow examples on nightly (CURRENTLY NO NIGHTLY TEST FOR BGK)

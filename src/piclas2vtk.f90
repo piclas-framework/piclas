@@ -102,9 +102,7 @@ CALL prms%SetSection("piclas2vtk")
 CALL prms%CreateStringOption( 'NodeTypeVisu',"Node type of the visualization basis: "//&
                                              "VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO", 'VISU')
 CALL prms%CreateIntOption(    'NVisu',       "Number of points at which solution is sampled for visualization.")
-CALL prms%CreateLogicalOption('VisuSource',     "use DG_Source instead of DG_Solution.", '.FALSE.')
 CALL prms%CreateLogicalOption('VisuParticles',  "Visualize particles (velocity, species, internal energy).", '.FALSE.')
-CALL prms%CreateLogicalOption('writePartitionInfo',  "Write information about MPI partitions into a file.",'.FALSE.')
 CALL prms%CreateIntOption(    'TimeStampLength', 'Length of the floating number time stamp', '21')
 CALL DefineParametersIO()
 CALL DefineParametersMesh()
@@ -283,10 +281,7 @@ DO iArgs = iArgsStart,nArgs
   END IF
   ! Build connectivity for element/volume output
   IF(ElemDataExists.AND..NOT.ElemMeshInit) THEN
-#ifndef PARTICLES
-    CALL Abort(__STAMP__,&
-      'ERROR - Conversion of ElemData requires the compilation of piclas2vtk with PARTICLES set to ON!')
-#endif
+#ifdef PARTICLES
     CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
     CALL ReadAttribute(File_ID,'nUniqueNodes',1,IntegerScalar=nUniqueNodes)
     CALL CloseDataFile()
@@ -299,15 +294,22 @@ DO iArgs = iArgsStart,nArgs
       END DO
     END DO
     ElemMeshInit = .TRUE.
+#else
+    SWRITE(*,*) 'WARNING - Conversion of ElemData requires the compilation of piclas2vtk with PARTICLES set to ON!'
+    SWRITE(*,*) 'WARNING - File contains ElemData but output is skipped.'
+    ElemDataExists = .FALSE.
+#endif
   END IF
   ! Build connectivity for surface output
   IF(SurfaceDataExists.AND..NOT.SurfMeshInit) THEN
-#ifndef PARTICLES
-    CALL Abort(__STAMP__,&
-      'ERROR - Conversion of SurfaceData requires the compilation of piclas2vtk with PARTICLES set to ON!')
-#endif
+#ifdef PARTICLES
     CALL BuildSurfMeshConnectivity(InputStateFile)
     SurfMeshInit = .TRUE.
+#else
+    SWRITE(*,*) 'WARNING - Conversion of SurfaceData requires the compilation of piclas2vtk with PARTICLES set to ON!'
+    SWRITE(*,*) 'WARNING - File contains SurfaceData but output is skipped.'
+    SurfaceDataExists = .FALSE.
+#endif
   END IF
   ! === DG_Solution ================================================================================================================
   IF(DGSolutionExists) THEN
