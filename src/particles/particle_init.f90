@@ -519,10 +519,6 @@ CALL prms%CreateIntArrayOption( 'Part-Boundary[$]-SpeciesSwaps[$]'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Species to be changed at wall (out=: delete)', '0 , 0'&
                                 , numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Boundary[$]-UseForQCrit'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Flag to use Boundary for Q-Criterion', '.TRUE.', numberedmulti=.TRUE.)
-
 CALL prms%CreateIntOption(      'Part-nAuxBCs'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Number of auxillary BCs that are checked during tracing',  '0')
@@ -1751,8 +1747,6 @@ PartBound%Reactive = .FALSE.
 ALLOCATE(PartBound%Voltage(1:nPartBound))
 PartBound%Voltage = 0.
 DeprecatedVoltage = .FALSE.
-ALLOCATE(PartBound%UseForQCrit(1:nPartBound))
-PartBound%UseForQCrit = .FALSE.
 ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
 PartBound%NbrOfSpeciesSwaps = 0
 
@@ -1893,10 +1887,6 @@ DO iPartBound=1,nPartBound
         ,'Particle Boundary Condition does not exist')
   END SELECT
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
-  PartBound%UseForQCrit(iPartBound)     = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseForQCrit','.TRUE.')
-  IF(PartBound%UseForQCrit(iPartBound))THEN
-    SWRITE(*,*)"PartBound",iPartBound,"is used for the Q-Criterion"
-  END IF ! PartBound%UseForQCrit(iPartBound)
 
   ! Surface particle output to .h5
   PartBound%BoundaryParticleOutput(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
@@ -3136,7 +3126,6 @@ SDEALLOCATE(PartBound%RotAxi)
 SDEALLOCATE(PartBound%RotPeriodicDir)
 SDEALLOCATE(Adaptive_MacroVal)
 SDEALLOCATE(PartBound%Voltage)
-SDEALLOCATE(PartBound%UseForQCrit)
 SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
 SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
 SDEALLOCATE(PartBound%SpeciesSwaps)
