@@ -289,9 +289,6 @@ REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! M
                                                                              ! 12:  Static pressure [Pa]
                                                                              ! 13:  Integral pressure difference [Pa]
 INTEGER                                  :: nSpecies                         ! number of species
-INTEGER                                  :: nPointsMCVolumeEstimate          ! number of points seeded into one element for volume
-                                                                             ! portion (that is occupied) estimation
-                                                                             ! with a Monte Carlo method
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
 LOGICAL                                  :: PartMeshHasPeriodicBCs

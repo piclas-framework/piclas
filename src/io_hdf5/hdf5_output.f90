@@ -1937,8 +1937,6 @@ PartStateLost=0.
 END SUBROUTINE WriteLostParticlesToHDF5
 
 
-
-
 SUBROUTINE WriteAdaptiveInfoToHDF5(FileName)
 !===================================================================================================================================
 !> Subroutine that generates the adaptive boundary info and writes it out into State-File

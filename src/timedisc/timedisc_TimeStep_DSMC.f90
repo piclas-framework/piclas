@@ -45,7 +45,7 @@ USE MOD_DSMC_Vars                ,ONLY: DSMC_RHS, DSMC, CollisMode, AmbipolElecV
 USE MOD_DSMC                     ,ONLY: DSMC_main
 USE MOD_part_tools               ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission            ,ONLY: ParticleInserting
-USE MOD_surface_flux             ,ONLY: ParticleSurfaceflux
+USE MOD_Particle_SurfFlux        ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars   ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking        ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 USE MOD_SurfaceModel_Porous      ,ONLY: PorousBoundaryRemovalProb_Pressure

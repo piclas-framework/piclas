@@ -12,9 +12,9 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_surface_flux
+MODULE MOD_Particle_SurfFlux
 !===================================================================================================================================
-! module for particle emission
+!> Module for particle insertion through the surface flux
 !===================================================================================================================================
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -24,11 +24,91 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-
-!===================================================================================================================================
-PUBLIC         :: InitializeParticleSurfaceflux,ParticleSurfaceflux
+PUBLIC :: DefineParametersParticleSurfaceFlux, InitializeParticleSurfaceflux, ParticleSurfaceflux
 !===================================================================================================================================
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for particle surface flux
+!==================================================================================================================================
+SUBROUTINE DefineParametersParticleSurfaceFlux()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Particle Surface Flux")
+
+CALL prms%CreateIntOption(      'Part-Species[$]-nSurfacefluxBCs'&
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'Number of SF emissions', '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-BC' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'PartBound to be emitted from', '0', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Part-Species[$]-Surfaceflux[$]-velocityDistribution' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'Specifying keyword for velocity distribution' , 'constant'&
+, numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-VeloIC' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'Velocity for inital Data', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-VeloIsNormal' &
+                                , 'TODO-DEFINE-PARAMETER VeloIC is in Surf-Normal instead of VeloVecIC' &
+                                , '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-VeloVecIC' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'Normalized velocity vector' , '0.0 , 0.0 , 0.0', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-CircularInflow' &
+                                , 'Enables the utilization of a circular region as a surface flux on the selected boundary. '//&
+                                  'Only possible on surfaces, which are in xy, xz, and yz-planes.' &
+                                , '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-axialDir' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'Axial direction of coordinates in polar system', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-origin' &
+                                , 'TODO-DEFINE-PARAMETER Origin in orth(ogonal?) coordinates of polar system' , '0.0 , 0.0'&
+                                ,  numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmax' &
+                                , 'TODO-DEFINE-PARAMETER Max radius of to-be inserted particles', '1e21', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmin' &
+                                , 'TODO-DEFINE-PARAMETER Min radius of to-be inserted particles', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-MWTemperatureIC' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'Temperature for Maxwell Distribution', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-PartDensity' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'PartDensity (real particles per m^3) or  (vpi_)cub./cyl. as alternative  to'//&
+                                  ' Part.Emis. in Type1'  , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-ReduceNoise' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'Reduce stat. noise by global calc. of PartIns', '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-AcceptReject' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  ' Perform ARM for skewness of RefMap-positioning', '.TRUE.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-ARM_DmaxSampleN' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'Number of sample intervals in xi/eta for Dmax-calc.', '1', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'DoForceFreeSurfaceFlux' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'Flag if the stage reconstruction uses a force' , '.FALSE.')
+! Parameters for adaptive boundary conditions
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-Adaptive' &
+                                      , 'Flag for the definition of adaptive boundary conditions', '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-Adaptive-Type' &
+                                , 'Define the type of the adaptive boundary condition. Options:\n' //&
+                                  '(1) Const. static pressure inlet after Farbar & Boyd 2014 (Type 1)\n' //&
+                                  '(2) Const. static pressure outlet after Farbar & Boyd 2014 (Type 1)\n' //&
+                                  '(3) Const. massflow inlet after Farbar & Boyd 2014 (Type 2): Number of particles for regular '//&
+                                  'surface flux is calculated with velocity and given mass flow. Requires an open BC.' //&
+                                  '(4) Const. massflow inlet after Lei 2017 (cf_3): N_in = N_mdot + N_out (counting particles, '//&
+                                  'which exist the domain through the adaptive BC).' &
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-Adaptive-Pressure' &
+                                , 'Static pressure in [Pa] for the adaptive boundary conditions of type 1 and 2.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-Adaptive-Massflow' &
+                                , 'Massflow in [kg/s] for the adaptive boundary conditions of type 3 and 4.', numberedmulti=.TRUE.)
+
+END SUBROUTINE DefineParametersParticleSurfaceFlux
+
 
 SUBROUTINE ReadInAndPrepareSurfaceFlux(MaxSurfacefluxBCs, nDataBC)
 !===================================================================================================================================
@@ -356,12 +436,10 @@ INTEGER               :: countDataBC,iBC,BCSideID,currentBC,iSF,iCount,iLocSide,
 INTEGER               :: ElemID,CNElemID,GlobalElemID
 INTEGER               :: iSample,jSample,iSpec,iSub
 REAL, ALLOCATABLE     :: areasLoc(:),areasGlob(:)
-LOGICAL               :: OutputSurfaceFluxLinked
 REAL                  :: ymax,ymin,yMaxTemp,yMinTemp
 !===================================================================================================================================
 !-- 2.: create Side lists for applicable BCs
 !--- 2a: temporary (linked) lists
-OutputSurfaceFluxLinked=GETLOGICAL('OutputSurfaceFluxLinked','.FALSE.')
 TmpMapToBC = 0; TmpSideStart = 0; TmpSideNumber = 0; TmpSideEnd = 0; TmpSideNext = 0
 countDataBC=0
 DO iBC=1,nPartBound
@@ -503,9 +581,9 @@ __STAMP__&
 __STAMP__&
 ,'Someting is wrong with TmpSideNumber of iBC',iBC,999.)
       ELSE
-        IF(OutputSurfaceFluxLinked)THEN
-          IPWRITE(*,'(I4,I7,A53,I0)') iCount,' Sides have been found for Surfaceflux-linked PartBC ',TmpMapToBC(iBC)
-        END IF
+#ifdef CODE_ANALYZE
+        IPWRITE(*,'(I4,I7,A53,I0)') iCount,' Sides have been found for Surfaceflux-linked PartBC ',TmpMapToBC(iBC)
+#endif /*CODE_ANALYZE*/
         DoSurfaceFlux=.TRUE.
         EXIT
       END IF
@@ -2689,4 +2767,4 @@ END DO
 END SUBROUTINE CalcConstMassflowWeightForZeroMassFlow
 
 
-END MODULE MOD_surface_flux
+END MODULE MOD_Particle_SurfFlux
