@@ -55,10 +55,12 @@ END INTERFACE
 
 PUBLIC::DefineParametersParticleMesh
 PUBLIC::InitParticleMesh
+PUBLIC::InitParticleGeometry
 PUBLIC::FinalizeParticleMesh
 PUBLIC::MapRegionToElem
 PUBLIC::MarkAuxBCElems
 PUBLIC::GetMeshMinMax
+PUBLIC::InitElemNodeIDs
 !===================================================================================================================================
 
 CONTAINS
