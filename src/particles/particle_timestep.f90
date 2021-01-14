@@ -493,6 +493,7 @@ IF (VarTimeStep%Direction(1).GT.0.0) THEN
   END DO
 ELSE
   DO iElem = 1, nElems
+    CNElemID = GetCNElemID(iElem + offsetElem)
     IF (ElemMidPoint_Shared(1,CNElemID).GT.VarTimeStep%StartPoint(1)) THEN
       VarTimeStep%ElemFac(iElem)=1.0
     ELSE IF (VarTimeStep%EndPoint(1).EQ.-99999.) THEN
