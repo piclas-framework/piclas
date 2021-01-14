@@ -208,11 +208,11 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
 
   !------------------SpaceIC-cases: start-----------------------------------------------------------!
   SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC))
-  CASE ('point')
+  CASE('point')
     CALL SetParticlePositionPoint(FractNbr,iInit,chunkSize,particle_positions)
-  CASE ('line_with_equidistant_distribution')
+  CASE('line_with_equidistant_distribution')
     CALL SetParticlePositionEquidistLine(FractNbr,iInit,chunkSize,particle_positions)
-  CASE ('line')
+  CASE('line')
     CALL SetParticlePositionLine(FractNbr,iInit,chunkSize,particle_positions)
   CASE('disc')
     CALL SetParticlePositionDisk(FractNbr,iInit,chunkSize,particle_positions)
@@ -226,7 +226,7 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
     CALL SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions)
   CASE('sin_deviation')
     CALL SetParticlePositionSinDeviation(FractNbr,iInit,particle_positions)
-  CASE('photon_SEE_disc') ! disc case for surface disribution
+  CASE('photon_SEE_disc') ! disc case for surface distribution
     CALL SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize,particle_positions)
   CASE('photon_cylinder') ! cylinder case for photonionization
     CALL SetParticlePositionPhotonCylinder(FractNbr,iInit,chunkSize,particle_positions)

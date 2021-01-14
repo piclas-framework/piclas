@@ -47,17 +47,18 @@ CALL prms%CreateIntOption(      'Part-Species[$]-nInits'  &
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Reset'  &
                                 , 'Flag for resetting species distribution with init during restart' &
                                 , '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-ChargeIC'  &
-                                , '[TODO-DEFINE-PARAMETER]\n'//&
-                                  'Particle Charge (without MPF) of species[$] dim' &
+CALL prms%CreateRealOption(     'Part-Species[$]-ChargeIC' &
+                                , 'Particle charge of species [$], multiple of an elementary charge [C]' &
                                 , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MassIC'  &
-                                , 'Particle Mass (without MPF) of species [$] [kg]', numberedmulti=.TRUE.)
+                                , 'Atomic mass of species [$] [kg]', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MacroParticleFactor' &
-                                , 'Number of Microparticle per Macroparticle for species [$]', '1.', numberedmulti=.TRUE.)
+                                , 'Particle weighting factor: number of simulation particles per real particle for species [$]' &
+                                , '1.', numberedmulti=.TRUE.)
+#if defined(IMPA)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Flag if specific particle is implicit', '.FALSE.', numberedmulti=.TRUE.)
+                                , 'Flag if specific particle species is implicit', '.FALSE.', numberedmulti=.TRUE.)
+#endif
 CALL prms%CreateLogicalOption(  'Part-Species[$]-IsIMDSpecies' &
                                 , 'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
 
@@ -249,10 +250,10 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iSpec, iInit, iExclude
-CHARACTER(32)         :: hilf , hilf2, hilf3
+INTEGER               :: iSpec, iInit
+CHARACTER(32)         :: hilf, hilf2
 LOGICAL               :: PartDens_OnlyInit
-REAL                  :: lineVector(3), v_drift_line, A_ins, factor
+REAL                  :: lineVector(3), v_drift_line, A_ins
 !===================================================================================================================================
 BGGas%NumberOfSpecies = 0
 ALLOCATE(BGGas%BackgroundSpecies(nSpecies))
@@ -301,42 +302,52 @@ DO iSpec = 1, nSpecies
     !-------------------------------------------------------------------------------------------------------------------------------
     Species(iSpec)%Init(iInit)%velocityDistribution  = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution'&
       ,'maxwell_lpn'))
-   IF(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'photon_SEE_energy')THEN
-      Species(iSpec)%Init(iInit)%WorkFunctionSEE  = GETREAL('Part-Species'//TRIM(hilf2)//'-WorkFunctionSEE')
+    Species(iSpec)%Init(iInit)%VeloIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-VeloIC')
+    Species(iSpec)%Init(iInit)%VeloVecIC             = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-VeloVecIC',3)
+    Species(iSpec)%Init(iInit)%MWTemperatureIC       = GETREAL('Part-Species'//TRIM(hilf2)//'-MWTemperatureIC')
+    Species(iSpec)%Init(iInit)%PartDensity           = GETREAL('Part-Species'//TRIM(hilf2)//'-PartDensity')
+    ! Space-ICs requiring basic geometry information and other options (all excluding cell_local and background)
+    IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local').AND. &
+       (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'background')) THEN
+      Species(iSpec)%Init(iInit)%initialParticleNumber  = GETINT('Part-Species'//TRIM(hilf2)//'-initialParticleNumber')
+      Species(iSpec)%Init(iInit)%NormalIC               = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-NormalIC',3)
+      Species(iSpec)%Init(iInit)%BasePointIC            = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BasePointIC',3)
+      Species(iSpec)%Init(iInit)%BaseVector1IC          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector1IC',3)
+      Species(iSpec)%Init(iInit)%BaseVector2IC          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector2IC',3)
+      Species(iSpec)%Init(iInit)%CalcHeightFromDt       = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-CalcHeightFromDt')
+      Species(iSpec)%Init(iInit)%InflowRiseTime         = GETREAL('Part-Species'//TRIM(hilf2)//'-InflowRiseTime')
+      Species(iSpec)%Init(iInit)%NumberOfExcludeRegions = GETINT('Part-Species'//TRIM(hilf2)//'-NumberOfExcludeRegions')
+    ELSE
+      Species(iSpec)%Init(iInit)%initialParticleNumber  = 0
+      Species(iSpec)%Init(iInit)%CalcHeightFromDt       = .FALSE.
+      Species(iSpec)%Init(iInit)%InflowRiseTime         = 0.
+      Species(iSpec)%Init(iInit)%NumberOfExcludeRegions = 0
     END IF
-    Species(iSpec)%Init(iInit)%InflowRiseTime        = GETREAL('Part-Species'//TRIM(hilf2)//'-InflowRiseTime','0.')
-    Species(iSpec)%Init(iInit)%initialParticleNumber = GETINT('Part-Species'//TRIM(hilf2)//'-initialParticleNumber','0')
-    Species(iSpec)%Init(iInit)%RadiusIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC','1.')
-    Species(iSpec)%Init(iInit)%Radius2IC             = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC','0.')
-    Species(iSpec)%Init(iInit)%RadiusICGyro          = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusICGyro','1.')
-    Species(iSpec)%Init(iInit)%NormalIC              = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-NormalIC',3,'0. , 0. , 1.')
-    Species(iSpec)%Init(iInit)%BasePointIC           = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BasePointIC',3,'0. , 0. , 0.')
-    Species(iSpec)%Init(iInit)%BaseVector1IC         = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector1IC',3,'1. , 0. , 0.')
-    Species(iSpec)%Init(iInit)%BaseVector2IC         = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector2IC',3,'0. , 1. , 0.')
-    Species(iSpec)%Init(iInit)%CuboidHeightIC        = GETREAL('Part-Species'//TRIM(hilf2)//'-CuboidHeightIC','1.')
-    Species(iSpec)%Init(iInit)%CylinderHeightIC      = GETREAL('Part-Species'//TRIM(hilf2)//'-CylinderHeightIC','1.')
-    Species(iSpec)%Init(iInit)%CalcHeightFromDt      = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-CalcHeightFromDt','.FALSE.')
-    Species(iSpec)%Init(iInit)%VeloIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-VeloIC','0.')
-    Species(iSpec)%Init(iInit)%VeloVecIC             = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-VeloVecIC',3,'0. , 0. , 0.')
-    Species(iSpec)%Init(iInit)%Amplitude             = GETREAL('Part-Species'//TRIM(hilf2)//'-Amplitude','0.01')
-    Species(iSpec)%Init(iInit)%WaveNumber            = GETREAL('Part-Species'//TRIM(hilf2)//'-WaveNumber','2.')
-    Species(iSpec)%Init(iInit)%maxParticleNumberX    = GETINT('Part-Species'//TRIM(hilf2)//'-maxParticleNumber-x','0')
-    Species(iSpec)%Init(iInit)%maxParticleNumberY    = GETINT('Part-Species'//TRIM(hilf2)//'-maxParticleNumber-y','0')
-    Species(iSpec)%Init(iInit)%maxParticleNumberZ    = GETINT('Part-Species'//TRIM(hilf2)//'-maxParticleNumber-z','0')
-    Species(iSpec)%Init(iInit)%Alpha                 = GETREAL('Part-Species'//TRIM(hilf2)//'-Alpha','0.')
-    Species(iSpec)%Init(iInit)%MWTemperatureIC       = GETREAL('Part-Species'//TRIM(hilf2)//'-MWTemperatureIC','0.')
-    Species(iSpec)%Init(iInit)%PartDensity           = GETREAL('Part-Species'//TRIM(hilf2)//'-PartDensity','0.')
-    ! Background gas definition
-    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'background') THEN
-      IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN
-        BGGas%NumberOfSpecies = BGGas%NumberOfSpecies + 1
-        BGGas%BackgroundSpecies(iSpec)  = .TRUE.
-        BGGas%NumberDensity(iSpec)      = Species(iSpec)%Init(iInit)%PartDensity
-      ELSE
-        CALL abort(__STAMP__&
-            ,'ERROR: Only one background definition per species is allowed!')
-      END IF
+    ! Additional read-in for circular/cuboid cases
+    SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+    CASE('disc','circle','circle_equidistant','gyrotron_circle','cylinder','sphere')
+      Species(iSpec)%Init(iInit)%RadiusIC               = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC','1.')
+      Species(iSpec)%Init(iInit)%Radius2IC              = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC','0.')
+      Species(iSpec)%Init(iInit)%RadiusICGyro           = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusICGyro','1.')
+      Species(iSpec)%Init(iInit)%CylinderHeightIC       = GETREAL('Part-Species'//TRIM(hilf2)//'-CylinderHeightIC','1.')
+    CASE('cuboid')
+      Species(iSpec)%Init(iInit)%CuboidHeightIC         = GETREAL('Part-Species'//TRIM(hilf2)//'-CuboidHeightIC','1.')
+    END SELECT
+    ! Additional read-in for specific cases
+    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sin_deviation') THEN
+      Species(iSpec)%Init(iInit)%Amplitude              = GETREAL('Part-Species'//TRIM(hilf2)//'-Amplitude','0.01')
+      Species(iSpec)%Init(iInit)%WaveNumber             = GETREAL('Part-Species'//TRIM(hilf2)//'-WaveNumber','2.')
+      Species(iSpec)%Init(iInit)%maxParticleNumberX     = GETINT('Part-Species'//TRIM(hilf2)//'-maxParticleNumber-x','0')
+      Species(iSpec)%Init(iInit)%maxParticleNumberY     = GETINT('Part-Species'//TRIM(hilf2)//'-maxParticleNumber-y','0')
+      Species(iSpec)%Init(iInit)%maxParticleNumberZ     = GETINT('Part-Species'//TRIM(hilf2)//'-maxParticleNumber-z','0')
     END IF
+    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'gyrotron_circle') THEN
+      Species(iSpec)%Init(iInit)%Alpha                  = GETREAL('Part-Species'//TRIM(hilf2)//'-Alpha','0.')
+    END IF
+    IF(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'photon_SEE_energy')THEN
+      Species(iSpec)%Init(iInit)%WorkFunctionSEE        = GETREAL('Part-Species'//TRIM(hilf2)//'-WorkFunctionSEE')
+    END IF
+    ! Read-in of type and particle number for emission per iteration
     IF (Species(iSpec)%Init(iInit)%UseForEmission) THEN
       Species(iSpec)%Init(iInit)%ParticleEmissionType  = GETINT('Part-Species'//TRIM(hilf2)//'-ParticleEmissionType','2')
       Species(iSpec)%Init(iInit)%ParticleEmission      = GETREAL('Part-Species'//TRIM(hilf2)//'-ParticleEmission','0.')
@@ -344,123 +355,15 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%ParticleEmissionType  = 0 !dummy
       Species(iSpec)%Init(iInit)%ParticleEmission      = 0. !dummy
     END IF
-    ! Photoionization in cylinderical volume (modelling a laser pulse) and SEE based on photon impact on a surface
-    IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_SEE_disc')          &
-   .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder')) THEN
-      Species(iSpec)%Init(iInit)%ParticleEmissionType = 7
-      Species(iSpec)%Init(iInit)%UseForEmission = .TRUE.
-      ! Check coordinate system of normal vector and two tangential vectors (they must form an orthogonal basis)
-      ASSOCIATE( v1 => UNITVECTOR(Species(iSpec)%Init(iInit)%NormalIC)      ,&
-                 v2 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC) ,&
-                 v3 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC))
-        IF(DOT_PRODUCT(v1,v2).GT.1e-4) CALL abort(&
-            __STAMP__&
-            ,'NormalIC and BaseVector1IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(v1,v2))
-        IF(DOT_PRODUCT(v1,v3).GT.1e-4) CALL abort(&
-            __STAMP__&
-            ,'NormalIC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(v1,v3))
-        IF(DOT_PRODUCT(v2,v3).GT.1e-4) CALL abort(&
-            __STAMP__&
-            ,'BaseVector1IC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(v2,v3))
-      END ASSOCIATE
-
-      Species(iSpec)%Init(iInit)%FirstQuadrantOnly = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-FirstQuadrantOnly')
-
-      Species(iSpec)%Init(iInit)%PulseDuration      = GETREAL('Part-Species'//TRIM(hilf2)//'-PulseDuration')
-      Species(iSpec)%Init(iInit)%tShift = SQRT(8.0) * Species(iSpec)%Init(iInit)%PulseDuration
-      Species(iSpec)%Init(iInit)%WaistRadius        = GETREAL('Part-Species'//TRIM(hilf2)//'-WaistRadius')
-      Species(iSpec)%Init(iInit)%WaveLength         = GETREAL('Part-Species'//TRIM(hilf2)//'-WaveLength')
-      Species(iSpec)%Init(iInit)%NbrOfPulses        = GETINT('Part-Species'//TRIM(hilf2)//'-NbrOfPulses')
-      Species(iSpec)%Init(iInit)%NINT_Correction    = 0.0
-
-      Species(iSpec)%Init(iInit)%Power              = GETREAL('Part-Species'//TRIM(hilf2)//'-Power')
-      Species(iSpec)%Init(iInit)%Energy             = GETREAL('Part-Species'//TRIM(hilf2)//'-Energy')
-      Species(iSpec)%Init(iInit)%IntensityAmplitude = GETREAL('Part-Species'//TRIM(hilf2)//'-IntensityAmplitude')
-
-      ! Set dummy value as it might not be read
-      Species(iSpec)%Init(iInit)%RepetitionRate = -1.0
-
-      IF(Species(iSpec)%Init(iInit)%Power.GT.0.0)THEN
-        Species(iSpec)%Init(iInit)%RepetitionRate = GETREAL('Part-Species'//TRIM(hilf2)//'-RepetitionRate')
-        Species(iSpec)%Init(iInit)%Period = 1./Species(iSpec)%Init(iInit)%RepetitionRate
-        SWRITE(*,*) 'Photoionization in cylinderical volume: Selecting mode [RepetitionRate and Power]'
-
-        Species(iSpec)%Init(iInit)%Energy = Species(iSpec)%Init(iInit)%Power / Species(iSpec)%Init(iInit)%RepetitionRate
-        CALL PrintOption('Single pulse energy: Part-Species'//TRIM(hilf2)//'-Energy [J]','CALCUL.',&
-                         RealOpt=Species(iSpec)%Init(iInit)%Energy)
-
-        Species(iSpec)%Init(iInit)%IntensityAmplitude = Species(iSpec)%Init(iInit)%Energy / &
-          (Species(iSpec)%Init(iInit)%WaistRadius**2 * Species(iSpec)%Init(iInit)%PulseDuration * PI**(3.0/2.0))
-
-        CALL PrintOption('Intensity amplitude: I0 [W/m^2]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%IntensityAmplitude)
-      ELSEIF(Species(iSpec)%Init(iInit)%Energy.GT.0.0)THEN
-        ! Check if more than one pulse is required
-        IF(Species(iSpec)%Init(iInit)%NbrOfPulses.GT.1)THEN
-          Species(iSpec)%Init(iInit)%RepetitionRate     = GETREAL('Part-Species'//TRIM(hilf2)//'-RepetitionRate')
-          Species(iSpec)%Init(iInit)%Period = 1./Species(iSpec)%Init(iInit)%RepetitionRate
-        ELSE
-          Species(iSpec)%Init(iInit)%Period = 2.0 * Species(iSpec)%Init(iInit)%tShift
-        END IF ! Species(iSpec)%Init(iInit)%NbrOfPulses
-        SWRITE(*,*) 'Photoionization in cylinderical volume: Selecting mode [Energy]'
-
-        Species(iSpec)%Init(iInit)%IntensityAmplitude = Species(iSpec)%Init(iInit)%Energy / &
-          (Species(iSpec)%Init(iInit)%WaistRadius**2 * Species(iSpec)%Init(iInit)%PulseDuration * PI**(3.0/2.0))
-
-        CALL PrintOption('Intensity amplitude: I0 [W/m^2]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%IntensityAmplitude)
-      ELSEIF(Species(iSpec)%Init(iInit)%IntensityAmplitude.GT.0.0)THEN
-        ! Check if more than one pulse is required
-        IF(Species(iSpec)%Init(iInit)%NbrOfPulses.GT.1)THEN
-          Species(iSpec)%Init(iInit)%RepetitionRate     = GETREAL('Part-Species'//TRIM(hilf2)//'-RepetitionRate')
-          Species(iSpec)%Init(iInit)%Period = 1./Species(iSpec)%Init(iInit)%RepetitionRate
-        ELSE
-          Species(iSpec)%Init(iInit)%Period = 2.0 * Species(iSpec)%Init(iInit)%tShift
-        END IF ! Species(iSpec)%Init(iInit)%NbrOfPulses
-        SWRITE(*,*) 'Photoionization in cylinderical volume: Selecting mode [IntensityAmplitude]'
-
-        ! Calculate energy: E = I0*w_b**2*tau*PI**(3.0/2.0)
-        Species(iSpec)%Init(iInit)%Energy = Species(iSpec)%Init(iInit)%IntensityAmplitude*Species(iSpec)%Init(iInit)%WaistRadius**2&
-                                            *Species(iSpec)%Init(iInit)%PulseDuration*PI**(3.0/2.0)
-        CALL PrintOption('Single pulse energy: Part-Species'//TRIM(hilf2)//'-Energy [J]','CALCUL.',&
-                         RealOpt=Species(iSpec)%Init(iInit)%Energy)
-      ELSE
-        CALL abort(&
-          __STAMP__&
-          ,'Photoionization in cylinderical volume: Supply either power P and repetition rate f, or energy E or intensity maximum I0!')
-      END IF ! use RepetitionRate and Power
-
-      ! Sanity check: overlapping of pulses is not implemented (use multiple emissions for this)
-      IF(2.0*Species(iSpec)%Init(iInit)%tShift.GT.Species(iSpec)%Init(iInit)%Period) CALL abort(&
-        __STAMP__&
-        ,'Pulse length (2*tShift) is greater than the pulse period. This is not implemented!')
-
-      ! Calculate the corrected intensity amplitude (due to temporal "-tShift to tShift" and spatial cut-off "0 to R")
-      factor = PI**(3.0/2.0) * Species(iSpec)%Init(iInit)%WaistRadius**2 * Species(iSpec)%Init(iInit)%PulseDuration * &
-          (1.0-EXP(-Species(iSpec)%Init(iInit)%RadiusIC**2/(Species(iSpec)%Init(iInit)%WaistRadius**2)))*&
-          ERF(Species(iSpec)%Init(iInit)%tShift/Species(iSpec)%Init(iInit)%PulseDuration)
-      Species(iSpec)%Init(iInit)%IntensityAmplitude = Species(iSpec)%Init(iInit)%Energy / factor
-      CALL PrintOption('Corrected Intensity amplitude: I0_corr [W/m^2]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%IntensityAmplitude)
-
-      CALL PrintOption('Pulse period (Time between maximum of two pulses) [s]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%Period)
-
-      CALL PrintOption('Temporal pulse width (pulse time) [s]','CALCUL.',RealOpt=2.0*Species(iSpec)%Init(iInit)%tShift)
-      Species(iSpec)%Init(iInit)%tActive = REAL(Species(iSpec)%Init(iInit)%NbrOfPulses - 1)*Species(iSpec)%Init(iInit)%Period &
-                                             + 2.0*Species(iSpec)%Init(iInit)%tShift
-      CALL PrintOption('Pulse will end at tActive (pulse final time) [s]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%tActive)
-
-      IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder') THEN
-        Species(iSpec)%Init(iInit)%EffectiveIntensityFactor = GETREAL('Part-Species'//TRIM(hilf2)//'-EffectiveIntensityFactor')
-      ELSE
-        Species(iSpec)%Init(iInit)%YieldSEE           = GETREAL('Part-Species'//TRIM(hilf2)//'-YieldSEE')
-      END IF
+    ! Photoionization in cylindrical volume and SEE based on photon impact on a surface
+    IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_SEE_disc').OR. &
+       (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder')) THEN
+      CALL InitializeVariablesPhotoIonization(iSpec,iInit,hilf2)
     END IF
-    Species(iSpec)%Init(iInit)%NumberOfExcludeRegions= GETINT('Part-Species'//TRIM(hilf2)//'-NumberOfExcludeRegions','0')
     Species(iSpec)%Init(iInit)%InsertedParticle      = 0
     Species(iSpec)%Init(iInit)%InsertedParticleSurplus = 0
-
     !----------- various checks/calculations after read-in of Species(i)%Init(iInit)%-data ----------------------------------!
     !--- Check if Initial ParticleInserting is really used
-    !IF ( ((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.1).OR.(Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2)) &
-    !  .AND.
     IF (Species(iSpec)%Init(iInit)%UseForInit) THEN
       IF ( (Species(iSpec)%Init(iInit)%initialParticleNumber.EQ.0) .AND. (Species(iSpec)%Init(iInit)%PartDensity.EQ.0.)) THEN
         Species(iSpec)%Init(iInit)%UseForInit=.FALSE.
@@ -484,30 +387,23 @@ DO iSpec = 1, nSpecies
     END IF
     IF (Species(iSpec)%Init(iInit)%CalcHeightFromDt) THEN
       IF ( (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.1) .AND. (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.2) ) &
-        CALL abort(&
-__STAMP__&
+        CALL abort(__STAMP__&
           ,' Calculating height from v and dt is only supported for EmiType1 or EmiType2(=default)!')
       IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cuboid')        .AND.&
           (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cylinder'))          &
-        CALL abort(&
-__STAMP__&
+        CALL abort(__STAMP__&
           ,' Calculating height from v and dt is only supported for cuboid or cylinder!')
       IF (Species(iSpec)%Init(iInit)%UseForInit) &
-        CALL abort(&
-__STAMP__&
+        CALL abort(__STAMP__&
           ,' Calculating height from v and dt is not supported for initial ParticleInserting!')
     END IF
     ! 1D Simulation with cuboid-SpaceIC
     IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid').AND.Symmetry%Order.EQ.1) THEN
-      IF(Species(iSpec)%Init(iInit)%BasePointIC(2).NE.-0.5 &
-         .AND.Species(iSpec)%Init(iInit)%BasePointIC(3).NE.-0.5 &
-         .AND.Species(iSpec)%Init(iInit)%BaseVector1IC(2).NE.1 &
-         .AND.Species(iSpec)%Init(iInit)%BaseVector1IC(3).NE.0 &
-         .AND.Species(iSpec)%Init(iInit)%BaseVector2IC(1).NE.0 &
-         .AND.Species(iSpec)%Init(iInit)%BaseVector2IC(2).NE.0 &
-         .AND.Species(iSpec)%Init(iInit)%BaseVector1IC(1).NE.0 &
-         .AND.Species(iSpec)%Init(iInit)%BaseVector2IC(3).NE.1 ) THEN
-        SWRITE(*,*) 'For 1D Simulation with SpaceIC cuboid, the vectors have to be defined in the following from:'
+      IF(Species(iSpec)%Init(iInit)%BasePointIC(2).NE.-0.5.AND.Species(iSpec)%Init(iInit)%BasePointIC(3).NE.-0.5 &
+         .AND.Species(iSpec)%Init(iInit)%BaseVector1IC(2).NE.1 .AND.Species(iSpec)%Init(iInit)%BaseVector1IC(3).NE.0 &
+         .AND.Species(iSpec)%Init(iInit)%BaseVector2IC(1).NE.0 .AND.Species(iSpec)%Init(iInit)%BaseVector2IC(2).NE.0 &
+         .AND.Species(iSpec)%Init(iInit)%BaseVector1IC(1).NE.0 .AND.Species(iSpec)%Init(iInit)%BaseVector2IC(3).NE.1 ) THEN
+        SWRITE(*,*) 'For 1D simulations with SpaceIC=cuboid, the vectors have to be defined in the following form:'
         SWRITE(*,*) 'Part-Species[$]-Init[$]-BasePointIC=(/x,-0.5,-0.5/), with x as the basepoint in x direction'
         SWRITE(*,*) 'Part-Species[$]-Init[$]-BaseVector1IC=(/0.,1.,0/)'
         SWRITE(*,*) 'Part-Species[$]-Init[$]-BaseVector2IC=(/0.,0.,1/)'
@@ -519,128 +415,37 @@ __STAMP__&
     !--- integer check for ParticleEmissionType 2
     IF((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2).AND. &
          (ABS(Species(iSpec)%Init(iInit)%ParticleEmission-INT(Species(iSpec)%Init(iInit)%ParticleEmission,8)).GT.0.0)) THEN
-       CALL abort(&
-__STAMP__&
-       ,' If ParticleEmissionType = 2 (parts per iteration), ParticleEmission has to be an integer number')
+      CALL abort(__STAMP__&
+        ,' If ParticleEmissionType = 2 (parts per iteration), ParticleEmission has to be an integer number')
     END IF
     !--- normalize VeloVecIC and NormalIC (and BaseVector 1 & 2 IC for cylinder) for Inits
-    IF (.NOT. ALL(Species(iSpec)%Init(iInit)%VeloVecIC(:).eq.0.)) THEN
-      Species(iSpec)%Init(iInit)%VeloVecIC = Species(iSpec)%Init(iInit)%VeloVecIC            / &
-        SQRT(Species(iSpec)%Init(iInit)%VeloVecIC(1)*Species(iSpec)%Init(iInit)%VeloVecIC(1) + &
-        Species(iSpec)%Init(iInit)%VeloVecIC(2)*Species(iSpec)%Init(iInit)%VeloVecIC(2)      + &
-        Species(iSpec)%Init(iInit)%VeloVecIC(3)*Species(iSpec)%Init(iInit)%VeloVecIC(3))
+    IF (.NOT.ALL(Species(iSpec)%Init(iInit)%VeloVecIC(:).EQ.0.)) THEN
+      Species(iSpec)%Init(iInit)%VeloVecIC = Species(iSpec)%Init(iInit)%VeloVecIC / VECNORM(Species(iSpec)%Init(iInit)%VeloVecIC)
     END IF
-    Species(iSpec)%Init(iInit)%NormalIC = Species(iSpec)%Init(iInit)%NormalIC /                 &
-      SQRT(Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1) + &
-      Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2) + &
-      Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
-    IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder')&
-        .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere')) THEN
-        Species(iSpec)%Init(iInit)%BaseVector1IC =&
-                  Species(iSpec)%Init(iInit)%RadiusIC * Species(iSpec)%Init(iInit)%BaseVector1IC /     &
-        SQRT(Species(iSpec)%Init(iInit)%BaseVector1IC(1)*Species(iSpec)%Init(iInit)%BaseVector1IC(1) + &
-        Species(iSpec)%Init(iInit)%BaseVector1IC(2)*Species(iSpec)%Init(iInit)%BaseVector1IC(2) + &
-        Species(iSpec)%Init(iInit)%BaseVector1IC(3)*Species(iSpec)%Init(iInit)%BaseVector1IC(3))
-        Species(iSpec)%Init(iInit)%BaseVector2IC =&
-                   Species(iSpec)%Init(iInit)%RadiusIC * Species(iSpec)%Init(iInit)%BaseVector2IC /    &
-        SQRT(Species(iSpec)%Init(iInit)%BaseVector2IC(1)*Species(iSpec)%Init(iInit)%BaseVector2IC(1) + &
-        Species(iSpec)%Init(iInit)%BaseVector2IC(2)*Species(iSpec)%Init(iInit)%BaseVector2IC(2)      + &
-        Species(iSpec)%Init(iInit)%BaseVector2IC(3)*Species(iSpec)%Init(iInit)%BaseVector2IC(3))
+    Species(iSpec)%Init(iInit)%NormalIC = Species(iSpec)%Init(iInit)%NormalIC / VECNORM(Species(iSpec)%Init(iInit)%NormalIC)
+    IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder').OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere')) THEN
+      Species(iSpec)%Init(iInit)%BaseVector1IC = Species(iSpec)%Init(iInit)%RadiusIC * Species(iSpec)%Init(iInit)%BaseVector1IC &
+                                                  / VECNORM(Species(iSpec)%Init(iInit)%BaseVector1IC)
+      Species(iSpec)%Init(iInit)%BaseVector2IC = Species(iSpec)%Init(iInit)%RadiusIC * Species(iSpec)%Init(iInit)%BaseVector2IC &
+                                                  / VECNORM(Species(iSpec)%Init(iInit)%BaseVector2IC)
     END IF
     IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere')) THEN
-        Species(iSpec)%Init(iInit)%NormalIC =&
-                  Species(iSpec)%Init(iInit)%RadiusIC * Species(iSpec)%Init(iInit)%NormalIC /     &
-        SQRT(Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1) + &
-        Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2) + &
-        Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
+      Species(iSpec)%Init(iInit)%NormalIC = Species(iSpec)%Init(iInit)%RadiusIC * Species(iSpec)%Init(iInit)%NormalIC &
+                                            / VECNORM(Species(iSpec)%Init(iInit)%NormalIC)
     END IF
     !--- read stuff for ExcludeRegions and normalize/calculate corresponding vectors
     IF (Species(iSpec)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
-      ALLOCATE(Species(iSpec)%Init(iInit)%ExcludeRegion(1:Species(iSpec)%Init(iInit)%NumberOfExcludeRegions))
-      IF (((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid') &
-      .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder') &
-      .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere'))) THEN
-        DO iExclude=1,Species(iSpec)%Init(iInit)%NumberOfExcludeRegions
-          WRITE(UNIT=hilf3,FMT='(I0)') iExclude
-          hilf3=TRIM(hilf2)//'-ExcludeRegion'//TRIM(hilf3)
-          Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC             &
-            = TRIM(GETSTR('Part-Species'//TRIM(hilf3)//'-SpaceIC','cuboid'))
-          Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%RadiusIC             &
-            = GETREAL('Part-Species'//TRIM(hilf3)//'-RadiusIC','1.')
-          Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%Radius2IC            &
-            = GETREAL('Part-Species'//TRIM(hilf3)//'-Radius2IC','0.')
-          Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC             &
-            = GETREALARRAY('Part-Species'//TRIM(hilf3)//'-NormalIC',3,'0. , 0. , 1.')
-          Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BasePointIC          &
-            = GETREALARRAY('Part-Species'//TRIM(hilf3)//'-BasePointIC',3,'0. , 0. , 0.')
-          Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC        &
-            = GETREALARRAY('Part-Species'//TRIM(hilf3)//'-BaseVector1IC',3,'1. , 0. , 0.')
-          Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC        &
-            = GETREALARRAY('Part-Species'//TRIM(hilf3)//'-BaseVector2IC',3,'0. , 1. , 0.')
-          Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%CuboidHeightIC       &
-            = GETREAL('Part-Species'//TRIM(hilf3)//'-CuboidHeightIC','1.')
-          Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%CylinderHeightIC     &
-            = GETREAL('Part-Species'//TRIM(hilf3)//'-CylinderHeightIC','1.')
-          !--normalize and stuff
-          IF((TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).EQ.'cuboid') .OR. &
-               ((((.NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(1),1.) &
-              .OR. .NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(2),0.)) &
-              .OR. .NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(3),0.)) &
-            .OR. ((.NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(1),0.) &
-              .OR. .NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(2),1.)) &
-              .OR. .NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(3),0.))) &
-            .AND. (((ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(1),0.)) &
-              .AND. (ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(2),0.))) &
-              .AND. (ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(3),1.))))) THEN
-            !-- cuboid; or BV are non-default and NormalIC is default: calc. NormalIC for ExcludeRegions from BV1/2
-            !   (for def. BV and non-def. NormalIC; or all def. or non-def.: Use User-defined NormalIC when ExclRegion is cylinder)
-            Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(1) &
-              = Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(2) &
-              * Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(3) &
-              - Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(3) &
-              * Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(2)
-            Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(2) &
-              = Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(3) &
-              * Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(1) &
-              - Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(1) &
-              * Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(3)
-            Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(3) &
-              = Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(1) &
-              * Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(2) &
-              - Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(2) &
-              * Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(1)
-          ELSE IF ( (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cuboid')        .AND. &
-                    (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cylinder') )THEN
-            CALL abort(&
-__STAMP__&
-,'Error in ParticleInit, ExcludeRegions must be cuboid or cylinder!')
-          END IF
-          IF (Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(1)**2 + &
-              Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(2)**2 + &
-              Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(3)**2 .GT. 0.) THEN
-            Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC &
-              = Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC &
-              / SQRT(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(1)**2 &
-              + Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(2)**2 &
-              + Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(3)**2)
-            Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%ExcludeBV_lenghts(1) &
-              = SQRT(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(1)**2 &
-              + Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(2)**2 &
-              + Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(3)**2)
-            Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%ExcludeBV_lenghts(2) &
-              = SQRT(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(1)**2 &
-              + Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(2)**2 &
-              + Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(3)**2)
-          ELSE
-            CALL abort(&
-__STAMP__&
-,'Error in ParticleInit, NormalIC Vector must not be zero!')
-          END IF
-        END DO !iExclude
+      CALL InitializeVariablesExcludeRegions(iSpec,iInit,hilf2)
+    END IF
+    ! Background gas definition
+    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'background') THEN
+      IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN
+        BGGas%NumberOfSpecies = BGGas%NumberOfSpecies + 1
+        BGGas%BackgroundSpecies(iSpec)  = .TRUE.
+        BGGas%NumberDensity(iSpec)      = Species(iSpec)%Init(iInit)%PartDensity
       ELSE
-        CALL abort(&
-__STAMP__&
-,'Error in ParticleInit, ExcludeRegions are currently only implemented for the SpaceIC cuboid, sphere or cylinder!')
+        CALL abort(__STAMP__&
+            ,'ERROR: Only one background definition per species is allowed!')
       END IF
     END IF
     !--- stuff for calculating ParticleEmission/InitialParticleNumber from PartDensity
@@ -651,16 +456,14 @@ __STAMP__&
             .AND. (Species(iSpec)%Init(iInit)%UseForInit) ) THEN
           PartDens_OnlyInit=.TRUE.
         ELSE
-          CALL abort(&
-            __STAMP__&
+          CALL abort(__STAMP__&
             , 'PartDensity is only supported for EmiType1 or initial ParticleInserting with EmiType1/2!')
         END IF
       END IF
-      IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid').OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder') &
-          .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere')) THEN
-        IF  ((((TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
-          .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell') ) &
-          .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') ) ) THEN
+      SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+      CASE('cuboid','sphere','cylinder')
+        SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution))
+        CASE('constant','maxwell''maxwell_lpn')
           IF (Species(iSpec)%Init(iInit)%ParticleEmission .GT. 0.) THEN
             CALL abort(&
               __STAMP__&
@@ -721,16 +524,14 @@ __STAMP__&
               END IF
             END IF
           ELSE
-            CALL abort(&
-              __STAMP__&
+            CALL abort(__STAMP__&
               ,'BaseVectors are parallel or zero!')
           END IF
-        ELSE
-          CALL abort(&
-            __STAMP__&
+        CASE DEFAULT
+          CALL abort(__STAMP__&
             ,'Only const. or maxwell(_lpn) is supported as velocityDistr. for PartDensity!')
-        END IF
-      ELSE IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cell_local')) THEN
+        END SELECT ! Species(iSpec)%Init(iInit)%SpaceIC
+      CASE('cell_local')
         IF( (TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
            .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell') &
            .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') &
@@ -760,14 +561,12 @@ __STAMP__&
             __STAMP__&
             ,'Only const. or maxwell_lpn is supported as velocityDistr. using cell_local inserting with PartDensity!')
         END IF
-      ELSE IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'background') THEN
+      CASE('background')
         ! do nothing
-      ELSE
+      CASE DEFAULT
         SWRITE(*,*) 'SpaceIC is: ', TRIM(Species(iSpec)%Init(iInit)%SpaceIC)
-        CALL abort(&
-          __STAMP__&
-          ,'ERROR: Unknown SpaceIC for species: ', iSpec)
-      END IF
+        CALL abort(__STAMP__,'ERROR: Unknown SpaceIC for species: ', iSpec)
+      END SELECT
     END IF
     IF(Species(iSpec)%Init(iInit)%InflowRiseTime.GT.0.)THEN
       IF(.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow)  CALL CollectiveStop(&
@@ -930,5 +729,212 @@ END IF
 SWRITE(UNIT_stdOut,'(A)') ' ...DONE '
 
 END SUBROUTINE InitializeParticleEmission
+
+
+SUBROUTINE InitializeVariablesExcludeRegions(iSpec,iInit,hilf2)
+!===================================================================================================================================
+!> Exclude regions allow to skip particle initialization in a defined region
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_Particle_Vars   ,ONLY: Species
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER                 :: iSpec, iInit
+CHARACTER(32)           :: hilf2
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: iEx
+CHARACTER(32)           :: hilf3
+!===================================================================================================================================
+ASSOCIATE(SpecInit => Species(iSpec)%Init(iInit))
+ALLOCATE(SpecInit%ExcludeRegion(1:SpecInit%NumberOfExcludeRegions))
+IF (((TRIM(SpecInit%SpaceIC).EQ.'cuboid').OR.(TRIM(SpecInit%SpaceIC).EQ.'cylinder').OR.(TRIM(SpecInit%SpaceIC).EQ.'sphere'))) THEN
+  DO iEx=1,SpecInit%NumberOfExcludeRegions
+    WRITE(UNIT=hilf3,FMT='(I0)') iEx
+    hilf3=TRIM(hilf2)//'-ExcludeRegion'//TRIM(hilf3)
+    SpecInit%ExcludeRegion(iEx)%SpaceIC = TRIM(GETSTR('Part-Species'//TRIM(hilf3)//'-SpaceIC','cuboid'))
+    SpecInit%ExcludeRegion(iEx)%RadiusIC = GETREAL('Part-Species'//TRIM(hilf3)//'-RadiusIC','1.')
+    SpecInit%ExcludeRegion(iEx)%Radius2IC = GETREAL('Part-Species'//TRIM(hilf3)//'-Radius2IC','0.')
+    SpecInit%ExcludeRegion(iEx)%NormalIC = GETREALARRAY('Part-Species'//TRIM(hilf3)//'-NormalIC',3,'0. , 0. , 1.')
+    SpecInit%ExcludeRegion(iEx)%BasePointIC = GETREALARRAY('Part-Species'//TRIM(hilf3)//'-BasePointIC',3,'0. , 0. , 0.')
+    SpecInit%ExcludeRegion(iEx)%BaseVector1IC = GETREALARRAY('Part-Species'//TRIM(hilf3)//'-BaseVector1IC',3,'1. , 0. , 0.')
+    SpecInit%ExcludeRegion(iEx)%BaseVector2IC = GETREALARRAY('Part-Species'//TRIM(hilf3)//'-BaseVector2IC',3,'0. , 1. , 0.')
+    SpecInit%ExcludeRegion(iEx)%CuboidHeightIC = GETREAL('Part-Species'//TRIM(hilf3)//'-CuboidHeightIC','1.')
+    SpecInit%ExcludeRegion(iEx)%CylinderHeightIC = GETREAL('Part-Species'//TRIM(hilf3)//'-CylinderHeightIC','1.')
+    !--normalize and stuff
+    IF((TRIM(SpecInit%ExcludeRegion(iEx)%SpaceIC).EQ.'cuboid') .OR. &
+          ((((.NOT.ALMOSTEQUAL(SpecInit%ExcludeRegion(iEx)%BaseVector1IC(1),1.) &
+        .OR. .NOT.ALMOSTEQUAL(SpecInit%ExcludeRegion(iEx)%BaseVector1IC(2),0.)) &
+        .OR. .NOT.ALMOSTEQUAL(SpecInit%ExcludeRegion(iEx)%BaseVector1IC(3),0.)) &
+      .OR. ((.NOT.ALMOSTEQUAL(SpecInit%ExcludeRegion(iEx)%BaseVector2IC(1),0.) &
+        .OR. .NOT.ALMOSTEQUAL(SpecInit%ExcludeRegion(iEx)%BaseVector2IC(2),1.)) &
+        .OR. .NOT.ALMOSTEQUAL(SpecInit%ExcludeRegion(iEx)%BaseVector2IC(3),0.))) &
+      .AND. (((ALMOSTEQUAL(SpecInit%ExcludeRegion(iEx)%NormalIC(1),0.)) &
+        .AND. (ALMOSTEQUAL(SpecInit%ExcludeRegion(iEx)%NormalIC(2),0.))) &
+        .AND. (ALMOSTEQUAL(SpecInit%ExcludeRegion(iEx)%NormalIC(3),1.))))) THEN
+      !-- cuboid; or BV are non-default and NormalIC is default: calc. NormalIC for ExcludeRegions from BV1/2
+      !   (for def. BV and non-def. NormalIC; or all def. or non-def.: Use User-defined NormalIC when ExclRegion is cylinder)
+      SpecInit%ExcludeRegion(iEx)%NormalIC(1) &
+        = SpecInit%ExcludeRegion(iEx)%BaseVector1IC(2) * SpecInit%ExcludeRegion(iEx)%BaseVector2IC(3) &
+        - SpecInit%ExcludeRegion(iEx)%BaseVector1IC(3) * SpecInit%ExcludeRegion(iEx)%BaseVector2IC(2)
+      SpecInit%ExcludeRegion(iEx)%NormalIC(2) &
+        = SpecInit%ExcludeRegion(iEx)%BaseVector1IC(3) * SpecInit%ExcludeRegion(iEx)%BaseVector2IC(1) &
+        - SpecInit%ExcludeRegion(iEx)%BaseVector1IC(1) * SpecInit%ExcludeRegion(iEx)%BaseVector2IC(3)
+      SpecInit%ExcludeRegion(iEx)%NormalIC(3) &
+        = SpecInit%ExcludeRegion(iEx)%BaseVector1IC(1) * SpecInit%ExcludeRegion(iEx)%BaseVector2IC(2) &
+        - SpecInit%ExcludeRegion(iEx)%BaseVector1IC(2) * SpecInit%ExcludeRegion(iEx)%BaseVector2IC(1)
+    ELSE IF ( (TRIM(SpecInit%ExcludeRegion(iEx)%SpaceIC).NE.'cuboid').AND. &
+              (TRIM(SpecInit%ExcludeRegion(iEx)%SpaceIC).NE.'cylinder') )THEN
+      CALL abort(__STAMP__&
+        ,'Error in ParticleInit, ExcludeRegions must be cuboid or cylinder!')
+    END IF
+    IF (DOTPRODUCT(SpecInit%ExcludeRegion(iEx)%NormalIC(1:3)).GT.0.) THEN
+      SpecInit%ExcludeRegion(iEx)%NormalIC = SpecInit%ExcludeRegion(iEx)%NormalIC / VECNORM(SpecInit%ExcludeRegion(iEx)%NormalIC)
+      SpecInit%ExcludeRegion(iEx)%ExcludeBV_lenghts(1) = VECNORM(SpecInit%ExcludeRegion(iEx)%BaseVector1IC)
+      SpecInit%ExcludeRegion(iEx)%ExcludeBV_lenghts(2) = VECNORM(SpecInit%ExcludeRegion(iEx)%BaseVector2IC)
+    ELSE
+      CALL abort(__STAMP__&
+        ,'Error in ParticleInit, NormalIC Vector must not be zero!')
+    END IF
+  END DO !iEx
+ELSE
+  CALL abort(__STAMP__&
+    ,'Error in ParticleInit, ExcludeRegions are currently only implemented for the SpaceIC cuboid, sphere or cylinder!')
+END IF
+END ASSOCIATE
+
+END SUBROUTINE InitializeVariablesExcludeRegions
+
+
+SUBROUTINE InitializeVariablesPhotoIonization(iSpec,iInit,hilf2)
+!===================================================================================================================================
+!> Read-in and initialize variables for the case of photo-ionization in a volume (cylinder) and SEE at a surface (disc)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars    ,ONLY: PI
+USE MOD_ReadInTools
+USE MOD_Particle_Vars   ,ONLY: Species
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER                 :: iSpec, iInit
+CHARACTER(32)           :: hilf2
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                    :: factor
+!===================================================================================================================================
+Species(iSpec)%Init(iInit)%ParticleEmissionType = 7
+Species(iSpec)%Init(iInit)%UseForEmission = .TRUE.
+! Check coordinate system of normal vector and two tangential vectors (they must form an orthogonal basis)
+ASSOCIATE( v1 => UNITVECTOR(Species(iSpec)%Init(iInit)%NormalIC)      ,&
+            v2 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC) ,&
+            v3 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC))
+  IF(DOT_PRODUCT(v1,v2).GT.1e-4) CALL abort(&
+      __STAMP__&
+      ,'NormalIC and BaseVector1IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(v1,v2))
+  IF(DOT_PRODUCT(v1,v3).GT.1e-4) CALL abort(&
+      __STAMP__&
+      ,'NormalIC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(v1,v3))
+  IF(DOT_PRODUCT(v2,v3).GT.1e-4) CALL abort(&
+      __STAMP__&
+      ,'BaseVector1IC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(v2,v3))
+END ASSOCIATE
+Species(iSpec)%Init(iInit)%FirstQuadrantOnly = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-FirstQuadrantOnly')
+Species(iSpec)%Init(iInit)%PulseDuration      = GETREAL('Part-Species'//TRIM(hilf2)//'-PulseDuration')
+Species(iSpec)%Init(iInit)%tShift = SQRT(8.0) * Species(iSpec)%Init(iInit)%PulseDuration
+Species(iSpec)%Init(iInit)%WaistRadius        = GETREAL('Part-Species'//TRIM(hilf2)//'-WaistRadius')
+Species(iSpec)%Init(iInit)%WaveLength         = GETREAL('Part-Species'//TRIM(hilf2)//'-WaveLength')
+Species(iSpec)%Init(iInit)%NbrOfPulses        = GETINT('Part-Species'//TRIM(hilf2)//'-NbrOfPulses')
+Species(iSpec)%Init(iInit)%NINT_Correction    = 0.0
+Species(iSpec)%Init(iInit)%Power              = GETREAL('Part-Species'//TRIM(hilf2)//'-Power')
+Species(iSpec)%Init(iInit)%Energy             = GETREAL('Part-Species'//TRIM(hilf2)//'-Energy')
+Species(iSpec)%Init(iInit)%IntensityAmplitude = GETREAL('Part-Species'//TRIM(hilf2)//'-IntensityAmplitude')
+! Set dummy value as it might not be read
+Species(iSpec)%Init(iInit)%RepetitionRate = -1.0
+IF(Species(iSpec)%Init(iInit)%Power.GT.0.0)THEN
+  Species(iSpec)%Init(iInit)%RepetitionRate = GETREAL('Part-Species'//TRIM(hilf2)//'-RepetitionRate')
+  Species(iSpec)%Init(iInit)%Period = 1./Species(iSpec)%Init(iInit)%RepetitionRate
+  SWRITE(*,*) 'Photoionization in cylindrical volume: Selecting mode [RepetitionRate and Power]'
+
+  Species(iSpec)%Init(iInit)%Energy = Species(iSpec)%Init(iInit)%Power / Species(iSpec)%Init(iInit)%RepetitionRate
+  CALL PrintOption('Single pulse energy: Part-Species'//TRIM(hilf2)//'-Energy [J]','CALCUL.',&
+                    RealOpt=Species(iSpec)%Init(iInit)%Energy)
+
+  Species(iSpec)%Init(iInit)%IntensityAmplitude = Species(iSpec)%Init(iInit)%Energy / &
+    (Species(iSpec)%Init(iInit)%WaistRadius**2 * Species(iSpec)%Init(iInit)%PulseDuration * PI**(3.0/2.0))
+
+  CALL PrintOption('Intensity amplitude: I0 [W/m^2]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%IntensityAmplitude)
+ELSEIF(Species(iSpec)%Init(iInit)%Energy.GT.0.0)THEN
+  ! Check if more than one pulse is required
+  IF(Species(iSpec)%Init(iInit)%NbrOfPulses.GT.1)THEN
+    Species(iSpec)%Init(iInit)%RepetitionRate     = GETREAL('Part-Species'//TRIM(hilf2)//'-RepetitionRate')
+    Species(iSpec)%Init(iInit)%Period = 1./Species(iSpec)%Init(iInit)%RepetitionRate
+  ELSE
+    Species(iSpec)%Init(iInit)%Period = 2.0 * Species(iSpec)%Init(iInit)%tShift
+  END IF ! Species(iSpec)%Init(iInit)%NbrOfPulses
+  SWRITE(*,*) 'Photoionization in cylindrical volume: Selecting mode [Energy]'
+
+  Species(iSpec)%Init(iInit)%IntensityAmplitude = Species(iSpec)%Init(iInit)%Energy / &
+    (Species(iSpec)%Init(iInit)%WaistRadius**2 * Species(iSpec)%Init(iInit)%PulseDuration * PI**(3.0/2.0))
+
+  CALL PrintOption('Intensity amplitude: I0 [W/m^2]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%IntensityAmplitude)
+ELSEIF(Species(iSpec)%Init(iInit)%IntensityAmplitude.GT.0.0)THEN
+  ! Check if more than one pulse is required
+  IF(Species(iSpec)%Init(iInit)%NbrOfPulses.GT.1)THEN
+    Species(iSpec)%Init(iInit)%RepetitionRate     = GETREAL('Part-Species'//TRIM(hilf2)//'-RepetitionRate')
+    Species(iSpec)%Init(iInit)%Period = 1./Species(iSpec)%Init(iInit)%RepetitionRate
+  ELSE
+    Species(iSpec)%Init(iInit)%Period = 2.0 * Species(iSpec)%Init(iInit)%tShift
+  END IF ! Species(iSpec)%Init(iInit)%NbrOfPulses
+  SWRITE(*,*) 'Photoionization in cylindrical volume: Selecting mode [IntensityAmplitude]'
+
+  ! Calculate energy: E = I0*w_b**2*tau*PI**(3.0/2.0)
+  Species(iSpec)%Init(iInit)%Energy = Species(iSpec)%Init(iInit)%IntensityAmplitude*Species(iSpec)%Init(iInit)%WaistRadius**2&
+                                      *Species(iSpec)%Init(iInit)%PulseDuration*PI**(3.0/2.0)
+  CALL PrintOption('Single pulse energy: Part-Species'//TRIM(hilf2)//'-Energy [J]','CALCUL.',&
+                    RealOpt=Species(iSpec)%Init(iInit)%Energy)
+ELSE
+  CALL abort(&
+    __STAMP__&
+    ,'Photoionization in cylindrical volume: Supply either power P and repetition rate f, or energy E or intensity maximum I0!')
+END IF ! use RepetitionRate and Power
+
+! Sanity check: overlapping of pulses is not implemented (use multiple emissions for this)
+IF(2.0*Species(iSpec)%Init(iInit)%tShift.GT.Species(iSpec)%Init(iInit)%Period) CALL abort(&
+  __STAMP__&
+  ,'Pulse length (2*tShift) is greater than the pulse period. This is not implemented!')
+
+! Calculate the corrected intensity amplitude (due to temporal "-tShift to tShift" and spatial cut-off "0 to R")
+factor = PI**(3.0/2.0) * Species(iSpec)%Init(iInit)%WaistRadius**2 * Species(iSpec)%Init(iInit)%PulseDuration * &
+    (1.0-EXP(-Species(iSpec)%Init(iInit)%RadiusIC**2/(Species(iSpec)%Init(iInit)%WaistRadius**2)))*&
+    ERF(Species(iSpec)%Init(iInit)%tShift/Species(iSpec)%Init(iInit)%PulseDuration)
+Species(iSpec)%Init(iInit)%IntensityAmplitude = Species(iSpec)%Init(iInit)%Energy / factor
+CALL PrintOption('Corrected Intensity amplitude: I0_corr [W/m^2]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%IntensityAmplitude)
+
+CALL PrintOption('Pulse period (Time between maximum of two pulses) [s]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%Period)
+
+CALL PrintOption('Temporal pulse width (pulse time) [s]','CALCUL.',RealOpt=2.0*Species(iSpec)%Init(iInit)%tShift)
+Species(iSpec)%Init(iInit)%tActive = REAL(Species(iSpec)%Init(iInit)%NbrOfPulses - 1)*Species(iSpec)%Init(iInit)%Period &
+                                        + 2.0*Species(iSpec)%Init(iInit)%tShift
+CALL PrintOption('Pulse will end at tActive (pulse final time) [s]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%tActive)
+
+IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder') THEN
+  Species(iSpec)%Init(iInit)%EffectiveIntensityFactor = GETREAL('Part-Species'//TRIM(hilf2)//'-EffectiveIntensityFactor')
+ELSE
+  Species(iSpec)%Init(iInit)%YieldSEE           = GETREAL('Part-Species'//TRIM(hilf2)//'-YieldSEE')
+END IF
+
+END SUBROUTINE InitializeVariablesPhotoIonization
+
 
 END MODULE MOD_Particle_Emission_Init
