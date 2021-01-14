@@ -90,6 +90,7 @@ USE MOD_HDG_vars
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_ReadInTools        ,ONLY: GETREALARRAY,GETREAL,GETINT,CountOption
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
+USE MOD_Mesh_Vars          ,ONLY: BoundaryName,BoundaryType,nBCs
 USE MOD_Mesh_Vars          ,ONLY: nSides
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -99,9 +100,12 @@ USE MOD_Mesh_Vars          ,ONLY: nSides
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                         :: chitensValue,chitensRadius  ! Deprecated variables, remove in future (by the end of 2017)
-INTEGER                      :: chitensWhichField           ! Deprecated variables, remove in future (by the end of 2017)
-INTEGER                      :: iState                      ! i-th RefState
+REAL               :: chitensValue,chitensRadius ! Deprecated variables, remove in future (by the end of 2017)
+INTEGER            :: chitensWhichField          ! Deprecated variables, remove in future (by the end of 2017)
+INTEGER            :: iState                     ! i-th RefState
+INTEGER            :: i,BCType,BCState
+CHARACTER(LEN=255) :: BCName
+INTEGER            :: nRefStateMax
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
    SWRITE(*,*) "InitPoisson not ready to be called or already called."
@@ -113,8 +117,38 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT POISSON...'
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
 
+! Sanity Check BCs
+nRefStateMax = 0
+DO i=1,nBCs
+  BCType  = BoundaryType(i,BC_TYPE)
+  BCState = BoundaryType(i,BC_STATE)
+  BCName  = BoundaryName(i)
+  IF(BCType.EQ.5.AND.BCState.LE.0) THEN
+    SWRITE(*,'(A)') "Error found for the following boundary condition"
+    SWRITE(*,'(A,I0)') "   BC: ",i
+    SWRITE(*,'(A,I0)') " Type: ",BCType
+    SWRITE(*,'(A,I0)') "State: ",BCState
+    SWRITE(*,'(A)')    " Name: "//TRIM(BCName)
+    CALL abort(&
+        __STAMP__&
+        ,'BCState is <= 0 for BCType=5 is not allowed! Set a positive integer for the n-th RefState')
+  ELSEIF(BCType.EQ.5.AND.BCState.GT.0)THEN
+    nRefStateMax = MAX(nRefStateMax,BCState)
+  END IF
+END DO
+
 ! Read Boundary information / RefStates / perform sanity check
 nRefState=CountOption('RefState')
+IF(nRefStateMax.GT.nRefState)THEN
+  SWRITE(*,'(A,I0)') "nRefStateMax: ",nRefStateMax
+  SWRITE(*,'(A,I0,A)') "   nRefState: ",nRefState," (number of times RefState = (/x,x,x/) occurs in the parameter file)"
+  CALL abort(&
+      __STAMP__&
+      ,'nRefStateMax > nRefState: The given RefState number for boundary type 5 is larger than the supplied RefStates. '//&
+       'Define the correct number of RefStates via, e.g., \n\n  RefState = (/100.0 , 13.56E6 , -1.57079632679/) '//&
+       '! RefState Nbr 1: Voltage, Frequency and Phase shift\n  RefState = (/ 50.0 , 13.56E6 ,  1.57079632679/) '//&
+       '! RefState Nbr 2: Voltage, Frequency and Phase shift\n')
+END IF ! nRefStateMax.GT.nRefState
 
 IF(nRefState .GT. 0)THEN
   ALLOCATE(RefState(3,nRefState))
