@@ -314,7 +314,7 @@ IF(CollisMode.GT.1) THEN
   END IF
   IF(DSMC%ElectronicModel.GT.0) THEN
     IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-      PartStateIntEn(3,iPart) = CalcEElec_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TELEC))
+      PartStateIntEn(3,iPart) = CalcEElec_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TELEC), iPart)
     ELSE
       PartStateIntEn(3,iPart) = 0.0
     END IF
@@ -462,47 +462,67 @@ RETURN
 END FUNCTION CalcERot_particle
 
 
-REAL FUNCTION CalcEElec_particle(iSpec,TempElec)
+REAL FUNCTION CalcEElec_particle(iSpec,TempElec, iPart)
 !===================================================================================================================================
 !
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars         ,ONLY: SpecDSMC
+USE MOD_DSMC_Vars         ,ONLY: SpecDSMC, DSMC, ElectronicDistriPart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)       :: iSpec
-REAL, INTENT(IN)          :: TempElec
+INTEGER, INTENT(IN)           :: iSpec, iPart
+REAL, INTENT(IN)              :: TempElec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                   :: iQua
-REAL                      :: iRan, ElectronicPartition, ElectronicPartitionTemp
+REAL                      :: iRan, ElectronicPartition, ElectronicPartitionTemp, tmpExp
 !===================================================================================================================================
-
 ElectronicPartition  = 0.
-ElectronicPartitionTemp = 0.
-IF(TempElec.GT.0.0) THEN
-  ! calculate sum over all energy levels == partition function for temperature Telec
+IF (DSMC%ElectronicModel.EQ.2) THEN
+  IF(ALLOCATED(ElectronicDistriPart(iPart)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(iPart)%DistriFunc)
+  ALLOCATE(ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(iSpec)%MaxElecQuant))
+  CalcEElec_particle = 0.0
   DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
-    ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua)/TempElec)
-    IF ( ElectronicPartitionTemp .GT. ElectronicPartition ) THEN
-      ElectronicPartition = ElectronicPartitionTemp
-    END IF
+    tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TempElec
+    IF (CHECKEXP(tmpExp)) &
+      ElectronicPartition = ElectronicPartition + SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-tmpExp)
   END DO
-  ElectronicPartitionTemp = 0.
-  ! select level
-  CALL RANDOM_NUMBER(iRan)
-  DO WHILE ( iRan .GE. ElectronicPartitionTemp / ElectronicPartition )
-    CALL RANDOM_NUMBER(iRan)
-    iQua = int( ( SpecDSMC(iSpec)%MaxElecQuant ) * iRan)
-    ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua)/TempElec)
-    CALL RANDOM_NUMBER(iRan)
+  DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
+    tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TempElec
+    IF (CHECKEXP(tmpExp)) THEN
+      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = SpecDSMC(iSpec)%ElectronicState(1,iQua)*EXP(-tmpExp)/ElectronicPartition
+    ELSE
+      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = 0.0
+    END IF
+    CalcEElec_particle = CalcEElec_particle + &
+        ElectronicDistriPart(iPart)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
   END DO
 ELSE
-  iQua = 0
+  ElectronicPartitionTemp = 0.
+  IF(TempElec.GT.0.0) THEN
+    ! calculate sum over all energy levels == partition function for temperature Telec
+    DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
+      ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua)/TempElec)
+      IF ( ElectronicPartitionTemp .GT. ElectronicPartition ) THEN
+        ElectronicPartition = ElectronicPartitionTemp
+      END IF
+    END DO
+    ElectronicPartitionTemp = 0.
+    ! select level
+    CALL RANDOM_NUMBER(iRan)
+    DO WHILE ( iRan .GE. ElectronicPartitionTemp / ElectronicPartition )
+      CALL RANDOM_NUMBER(iRan)
+      iQua = int( ( SpecDSMC(iSpec)%MaxElecQuant ) * iRan)
+      ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua)/TempElec)
+      CALL RANDOM_NUMBER(iRan)
+    END DO
+  ELSE
+    iQua = 0
+  END IF
 END IF
 CalcEElec_particle = BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
 

@@ -1629,7 +1629,7 @@ DO iProd = 1, NumProd
   END IF
   IF(DSMC%ElectronicModel.GT.0) THEN
     IF(.NOT.SpecDSMC(iSpec)%FullyIonized) THEN
-      PartStateIntEn(3,iPart) = CalcEElec_particle(iSpec,Temp_Elec)
+      PartStateIntEn(3,iPart) = CalcEElec_particle(iSpec,Temp_Elec,iPart)
     ELSE
       PartStateIntEn(3,iPart) = 0.0
     END IF
