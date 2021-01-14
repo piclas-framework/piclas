@@ -1280,7 +1280,7 @@ INTEGER                 :: i, j
 
      ! 1. determine the z-position in order to get the interpolated curved B-field
      CALL RANDOM_NUMBER(iRan)
-     IF (NbrOfParticle.EQ.Species(FractNbr)%Init(iInit)%initialParticleNumber) THEN
+     IF (NbrOfParticle.EQ.Species(FractNbr)%Init(iInit)%ParticleNumber) THEN
        particle_positions(i*3  ) = Species(FractNbr)%Init(iInit)%BasePointIC(3) &
                                        + iRan * Species(FractNbr)%Init(iInit)%CuboidHeightIC
      ELSE
@@ -1357,11 +1357,7 @@ LOGICAL                 :: insideExcludeRegion
       CALL RANDOM_NUMBER(RandVal)
       Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + Species(FractNbr)%Init(iInit)%BaseVector1IC * RandVal(1)
       Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BaseVector2IC * RandVal(2)
-      IF (Species(FractNbr)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
-        Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%VeloIC * dt*RKdtFrac * RandVal(3)
-      ELSE
-        Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal(3)
-      END IF
+      Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal(3)
       IF(Symmetry%Order.EQ.1) Particle_pos(2:3) = 0.
     CASE ('cylinder')
       radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1.
@@ -1374,11 +1370,7 @@ LOGICAL                 :: insideExcludeRegion
                         Particle_pos(3) * Particle_pos(3) )
       END DO
       Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BasePointIC
-      IF (Species(FractNbr)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
-        Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%VeloIC * dt*RKdtFrac * RandVal(3)
-      ELSE
-        Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CylinderHeightIC * RandVal(3)
-      END IF
+      Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CylinderHeightIC * RandVal(3)
     END SELECT
     IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
       CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
@@ -1466,7 +1458,7 @@ REAL, INTENT(OUT)       :: particle_positions(:)
 REAL                    :: xlen, ylen, zlen, pilen, x_step, y_step, z_step, x_pos, y_pos
 INTEGER                 :: i, iPart, j, k
 !===================================================================================================================================
-  IF(Species(FractNbr)%Init(iInit)%initialParticleNumber.NE. &
+  IF(Species(FractNbr)%Init(iInit)%ParticleNumber.NE. &
       (Species(FractNbr)%Init(iInit)%maxParticleNumberX * Species(FractNbr)%Init(iInit)%maxParticleNumberY &
       * Species(FractNbr)%Init(iInit)%maxParticleNumberZ)) THEN
    SWRITE(*,*) 'for species ',FractNbr,' does not match number of particles in each direction!'

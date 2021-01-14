@@ -91,13 +91,13 @@ DO i=1,nSpecies
     ! Cycle background species (particles are inserted during the pairing step)
     IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'background') CYCLE
     ! Only use inits defined for emission (every time step)
-    IF (Species(i)%Init(iInit)%UseForEmission) THEN ! no constant density in cell type, + to be used for init
+    IF (Species(i)%Init(iInit)%ParticleEmissionType.GT.0) THEN
       SELECT CASE(Species(i)%Init(iInit)%ParticleEmissionType)
       CASE(1) ! Emission Type: Particles per !!!!!SECOND!!!!!!!! (not per ns)
         IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
-          PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac  ! emitted particles during time-slab
+          PartIns=Species(i)%Init(iInit)%ParticleNumber * dt*RKdtFrac  ! emitted particles during time-slab
           inserted_Particle_iter = INT(PartIns,8)                                     ! number of particles to be inserted
-          PartIns=Species(i)%Init(iInit)%ParticleEmission * (Time + dt*RKdtFracTotal) ! total number of emitted particle over
+          PartIns=Species(i)%Init(iInit)%ParticleNumber * (Time + dt*RKdtFracTotal) ! total number of emitted particle over
                                                                                       ! simulation
           !-- random-round the inserted_Particle_time for preventing periodicity
           ! PO & SC: why, sometimes we do not want this add, TB is bad!
@@ -138,7 +138,7 @@ DO i=1,nSpecies
           ELSE
             RiseFactor=1.
           EnD IF
-          PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac * RiseFactor  ! emitted particles during time-slab
+          PartIns=Species(i)%Init(iInit)%ParticleNumber * dt*RKdtFrac * RiseFactor  ! emitted particles during time-slab
           CALL RANDOM_NUMBER(RandVal1)
           IF (EXP(-PartIns).LE.TINY(PartIns)) THEN
             IPWRITE(*,*)'WARNING: target is too large for poisson sampling: switching now to Random rounding...'
@@ -160,7 +160,7 @@ DO i=1,nSpecies
             RiseFactor=1.
           EnD IF
           ! emitted particles during time-slab
-          PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac * RiseFactor &
+          PartIns=Species(i)%Init(iInit)%ParticleNumber * dt*RKdtFrac * RiseFactor &
                   + Species(i)%Init(iInit)%InsertedParticleMisMatch
           CALL RANDOM_NUMBER(RandVal1)
           NbrOfParticle = INT(PartIns + RandVal1)
@@ -180,7 +180,7 @@ DO i=1,nSpecies
         Species(i)%Init(iInit)%InsertedParticle = Species(i)%Init(iInit)%InsertedParticle + INT(NbrOfParticle,8)
       CASE(2)    ! Emission Type: Particles per Iteration
         IF (RKdtFracTotal .EQ. 1.) THEN !insert in last stage only, so that no reconstruction is nec. and number/iter matches
-          NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission)
+          NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleNumber)
         ELSE
           NbrOfParticle = 0
         END IF
@@ -295,7 +295,7 @@ DO i=1,nSpecies
         END IF ! PartMPI%iProc.EQ.0
       END IF
 #endif
-    END IF ! UseForEmission
+    END IF ! Species(iSpec)%Init(iInit)%ParticleEmissionType.GT.0
   END DO  ! iInit
 END DO  ! i=1,nSpecies
 

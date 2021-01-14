@@ -78,8 +78,8 @@ INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:)
   DoExactPartNumInsert =  .FALSE.
   ! check if particle inserting during simulation or initial inserting and also if via partdensity or exact particle number
   ! nbrOfParticles is set for initial inserting if initialPartNum or partdensity is set in ini
-  ! ParticleEmission and Partdensity not working together
-  IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleEmission.EQ.0)) RETURN
+  ! ParticleNumber and PartDensity not working together
+  IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleNumber.EQ.0)) RETURN
   IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) THEN
     DoExactPartNumInsert =  .TRUE.
     IF(Symmetry%Axisymmetric) CALL abort(&

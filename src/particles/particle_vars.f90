@@ -126,11 +126,8 @@ END TYPE
 
 TYPE tInit                                                                   ! Particle Data for each init emission for each species
   !Specific Emission/Init values
-  LOGICAL                                :: UseForInit                       ! Use Init/Emission for init.?
-  LOGICAL                                :: UseForEmission                   ! Use Init/Emission for emission?
   CHARACTER(40)                          :: SpaceIC                          ! specifying Keyword for Particle Space condition
   CHARACTER(30)                          :: velocityDistribution             ! specifying keyword for velocity distribution
-  INTEGER(8)                             :: initialParticleNumber            ! Number of Particles at time 0.0
   REAL                                   :: RadiusIC                         ! Radius for IC circle
   REAL                                   :: Radius2IC                        ! Radius2 for IC cylinder (ring)
   REAL                                   :: RadiusICGyro                     ! Radius for Gyrotron gyro radius
@@ -146,7 +143,6 @@ TYPE tInit                                                                   ! P
   REAL                                   :: CylinderHeightIC                 ! third measure of cylinder
                                                                              ! (set 0 for flat rectangle),
                                                                              ! negative value = opposite direction
-  LOGICAL                                :: CalcHeightFromDt                 ! Calc. cuboid/cylinder height from v and dt?
   REAL                                   :: VeloIC                           ! velocity for inital Data
   REAL                                   :: VeloVecIC(3)                     ! normalized velocity vector
   REAL                                   :: Amplitude                        ! Amplitude for sin-deviation initiation.
@@ -157,9 +153,10 @@ TYPE tInit                                                                   ! P
   REAL                                   :: Alpha                            ! WaveNumber for sin-deviation initiation.
   REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
   REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3)
-  INTEGER                                :: ParticleEmissionType             ! Emission Type 1 = emission rate in 1/s,
+  INTEGER                                :: ParticleEmissionType             ! Emission Type 0 = only initial,
+                                                                             !               1 = emission rate in 1/s,
                                                                              !               2 = emission rate 1/iteration
-  REAL                                   :: ParticleEmission                 ! Emission in [1/s] or [1/Iteration]
+  REAL                                   :: ParticleNumber                   ! Initial, Emission in [1/s] or [1/Iteration]
   INTEGER(KIND=8)                        :: InsertedParticle                 ! Number of all already inserted Particles
   INTEGER(KIND=8)                        :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
   INTEGER(KIND=4)                        :: InsertedParticleMisMatch=0       ! error in number of inserted particles of last step
