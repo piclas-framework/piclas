@@ -523,8 +523,8 @@ ELSE
   ELSE
     iQua = 0
   END IF
+  CalcEElec_particle = BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
 END IF
-CalcEElec_particle = BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
 
 RETURN
 
