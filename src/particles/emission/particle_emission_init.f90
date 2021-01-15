@@ -26,7 +26,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DefineParametersParticleEmission, InitializeVariablesSpeciesInits, InitialParticleInsertion
+PUBLIC :: DefineParametersParticleEmission, InitializeVariablesSpeciesInits, InitialParticleInserting
 !===================================================================================================================================
 
 CONTAINS
@@ -303,7 +303,7 @@ DO iSpec = 1, nSpecies
     END IF
     ! Additional read-in for circular/cuboid cases
     SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
-    CASE('disc','circle','circle_equidistant','gyrotron_circle','cylinder','sphere')
+    CASE('disc','circle','circle_equidistant','gyrotron_circle','cylinder','sphere','photon_cylinder','photon_SEE_disc')
       Species(iSpec)%Init(iInit)%RadiusIC               = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC')
       Species(iSpec)%Init(iInit)%Radius2IC              = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC')
       Species(iSpec)%Init(iInit)%CylinderHeightIC       = GETREAL('Part-Species'//TRIM(hilf2)//'-CylinderHeightIC')
@@ -386,6 +386,7 @@ DO iSpec = 1, nSpecies
         BGGas%NumberOfSpecies = BGGas%NumberOfSpecies + 1
         BGGas%BackgroundSpecies(iSpec)  = .TRUE.
         BGGas%NumberDensity(iSpec)      = Species(iSpec)%Init(iInit)%PartDensity
+        Species(iSpec)%Init(iInit)%ParticleEmissionType = -1
       ELSE
         CALL abort(__STAMP__, &
           'ERROR: Only one background definition per species is allowed!')
@@ -415,7 +416,7 @@ END IF !useDSMC
 END SUBROUTINE InitializeVariablesSpeciesInits
 
 
-SUBROUTINE InitialParticleInsertion()
+SUBROUTINE InitialParticleInserting()
 !===================================================================================================================================
 !> Insert initial particles
 !===================================================================================================================================
@@ -468,19 +469,19 @@ DO iSpec = 1,nSpecies
         IF (DSMC%DoAmbipolarDiff) CALL AD_SetInitElectronVelo(iSpec,iInit,NbrOfParticle)
         DO iPart = 1, NbrOfParticle
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-          IF (PositionNbr .ne. 0) THEN
+          IF (PositionNbr .NE. 0) THEN
             PDM%PartInit(PositionNbr) = iInit
           ELSE
             CALL abort(__STAMP__,&
-              'ERROR in InitialParticleInsertion: No free particle index - maximum nbr of particles reached?')
+              'ERROR in InitialParticleInserting: No free particle index - maximum nbr of particles reached?')
           END IF
         END DO
       END IF
       PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
       CALL UpdateNextFreePosition()
-    END IF ! not Emissiontype 4
-  END DO !inits
-END DO ! species
+    END IF  ! Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0
+  END DO    ! Species(iSpec)%NumberOfInits
+END DO      ! nSpecies
 
 !--- set last element to current element (needed when ParticlePush is not executed, e.g. "delay")
 DO iPart = 1,PDM%ParticleVecLength
@@ -501,7 +502,7 @@ END IF
 
 SWRITE(UNIT_stdOut,'(A)') ' ...DONE '
 
-END SUBROUTINE InitialParticleInsertion
+END SUBROUTINE InitialParticleInserting
 
 
 SUBROUTINE InitializeVariablesExcludeRegions(iSpec,iInit,hilf2)

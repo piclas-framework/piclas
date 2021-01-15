@@ -40,7 +40,7 @@ CONTAINS
 
 SUBROUTINE ParticleInserting()
 !===================================================================================================================================
-! Particle Inserting
+!> Particle emission at every iteration (ParticleEmissionType.GT.0)
 !===================================================================================================================================
 ! Modules
 #if USE_MPI
@@ -88,8 +88,6 @@ DO i=1,nSpecies
   DO iInit = 1, Species(i)%NumberOfInits
     ! Reset the number of particles per species AND init region
     NbrOfParticle = 0
-    ! Cycle background species (particles are inserted during the pairing step)
-    IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'background') CYCLE
     ! Only use inits defined for emission (every time step)
     IF (Species(i)%Init(iInit)%ParticleEmissionType.GT.0) THEN
       SELECT CASE(Species(i)%Init(iInit)%ParticleEmissionType)

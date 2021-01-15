@@ -305,7 +305,7 @@ USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
 USE MOD_PICInterpolation_Vars      ,ONLY: useBGField
 USE MOD_Restart_Vars               ,ONLY: DoRestart
-USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInsertion
+USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
 USE MOD_Particle_SurfFlux          ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
 USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
@@ -357,7 +357,7 @@ IF(useBGField) CALL InitializeBackgroundField()
 !#endif
 
 ! Insert the initial particles
-CALL InitialParticleInsertion()
+CALL InitialParticleInserting()
 ! Initialize particle surface flux to be performed per iteration
 CALL InitializeParticleSurfaceflux()
 
