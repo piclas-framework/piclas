@@ -250,8 +250,8 @@ IF (PartMPI%MPIRoot) THEN
         DO iPartBound = 1, BPO%NPartBoundaries
           DO iSpec = 1, BPO%NSpecies
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A19,I3.3,A1,A,A5)',ADVANCE='NO') OutputCounter,'-nRealPartOut-Spec-', BPO%Species(iSpec),'-',&
-                TRIM(PartBound%SourceBoundName(BPO%PartBoundaries(iPartBound))),' '
+            WRITE(unit_index,'(I3.3,A19,I3.3,A1,A)',ADVANCE='NO') OutputCounter,'-nRealPartOut-Spec-', BPO%Species(iSpec),'-',&
+                TRIM(PartBound%SourceBoundName(BPO%PartBoundaries(iPartBound)))
             OutputCounter = OutputCounter + 1
           END DO
         END DO
