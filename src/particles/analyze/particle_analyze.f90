@@ -176,8 +176,8 @@ CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'    , 'TODO-DEFINE-PARAME
 CALL prms%CreateLogicalOption(  'IsRestart'                , 'TODO-DEFINE-PARAMETER\n'//&
                                                              'Flag, if the current calculation is a restart. '&
                                                            , '.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , ' Calculate output of Power that is coupled into plasma' , '.FALSE.')
-CALL prms%CreateLogicalOption(  'DisplayCoupledPower'      , ' Display coupled power in UNIT_stdOut' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , 'Calculate output of Power that is coupled into plasma' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'DisplayCoupledPower'      , 'Display coupled power in UNIT_stdOut' , '.FALSE.')
 
 END SUBROUTINE DefineParametersParticleAnalyze
 
@@ -510,6 +510,7 @@ ELSE
   nSpecAnalyze = 1
 END IF
 
+!-- Coupled Power
 CalcCoupledPower = GETLOGICAL('CalcCoupledPower')
 
 IF(CalcCoupledPower) THEN
@@ -532,6 +533,7 @@ IF(CalcCoupledPower) THEN
   END DO ! iSpec = 1, nSpecies
 END IF
 
+!-- PartBalance
 ! compute number of entering and leaving particles and their energy
 CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
 IF (CalcPartBalance) THEN
@@ -590,7 +592,8 @@ IF(CalcReacRates) THEN
 END IF
 
 IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcMassflowRate.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
-! compute transversal or thermal velocity of whole computational domain
+
+!-- Compute transversal or thermal velocity of whole computational domain
 CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
 IF (CalcVelos) THEN
   IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
@@ -617,7 +620,8 @@ IF (CalcVelos) THEN
       ,'No VelocityDirections set in CalcVelos!')
   END IF
 END IF
-! Shape function efficiency
+
+!-- Shape function efficiency
 CalcShapeEfficiency = GETLOGICAL('CalcShapeEfficiency','.FALSE.')
 IF (CalcShapeEfficiency) THEN
   DoPartAnalyze = .TRUE.
@@ -630,10 +634,10 @@ IF (CalcShapeEfficiency) THEN
     CALL abort(&
         __STAMP__&
         , ' CalcShapeEfficiencyMethod not implemented: ')
-
   END SELECT
 END IF
-! check if total energy should be computed
+
+!-- check if total energy should be computed
 IF(DoPartAnalyze)THEN
   CalcEtot = GETLOGICAL('CalcTotalEnergy','.FALSE.')
 END IF
@@ -4149,7 +4153,6 @@ SDEALLOCATE(PartEkinIn)
 SDEALLOCATE(PartEkinOut)
 SDEALLOCATE(MassflowRate)
 
-
 IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)THEN
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
@@ -4162,7 +4165,6 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)TH
   ADEALLOCATE(ElemCharLengthY_Shared)
   ADEALLOCATE(ElemCharLengthZ_Shared)
 END IF
-
 
 END SUBROUTINE FinalizeParticleAnalyze
 #endif /*PARTICLES*/
