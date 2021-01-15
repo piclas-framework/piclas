@@ -122,6 +122,13 @@ SDEALLOCATE(SurfModResultSpec)
 SDEALLOCATE(SurfAnalyzeCount)
 SDEALLOCATE(SurfAnalyzeNumOfAds)
 SDEALLOCATE(SurfAnalyzeNumOfDes)
+IF(CalcBoundaryParticleOutput)THEN
+  SDEALLOCATE(BPO%PartOut)
+  SDEALLOCATE(BPO%PartBoundaries)
+  SDEALLOCATE(BPO%BCIDToBPOBCID)
+  SDEALLOCATE(BPO%Species)
+  SDEALLOCATE(BPO%SpecIDToBPOSpecID)
+END IF ! CalcBoundaryParticleOutput
 
 END SUBROUTINE FinalizeSurfaceModel
 

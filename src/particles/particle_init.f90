@@ -1104,9 +1104,7 @@ IF (NbrOfRegions .GT. 0) THEN
     WRITE(UNIT=hilf2,FMT='(I0)') iRegions
     RegionBounds(1:6,iRegions) = GETREALARRAY('RegionBounds'//TRIM(hilf2),6,'0. , 0. , 0. , 0. , 0. , 0.')
   END DO
-END IF
 
-IF (NbrOfRegions .GT. 0) THEN
   CALL MapRegionToElem()
   ALLOCATE(RegionElectronRef(1:3,1:NbrOfRegions))
   DO iRegions=1,NbrOfRegions
@@ -1675,7 +1673,7 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutput,PartStateBoundary
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
@@ -1774,9 +1772,9 @@ ALLOCATE(PartBound%Dielectric(1:nPartBound))
 PartBound%Dielectric=.FALSE.
 DoDielectricSurfaceCharge=.FALSE.
 ! Surface particle output to .h5
-ALLOCATE(PartBound%BoundaryParticleOutput(1:nPartBound))
-PartBound%BoundaryParticleOutput=.FALSE.
-DoBoundaryParticleOutput=.FALSE.
+ALLOCATE(PartBound%BoundaryParticleOutputHDF5(1:nPartBound))
+PartBound%BoundaryParticleOutputHDF5=.FALSE.
+DoBoundaryParticleOutputHDF5=.FALSE.
 
 PartMeshHasPeriodicBCs=.FALSE.
 GEO%RotPeriodicBC =.FALSE.
@@ -1899,10 +1897,10 @@ DO iPartBound=1,nPartBound
   END IF ! PartBound%UseForQCrit(iPartBound)
 
   ! Surface particle output to .h5
-  PartBound%BoundaryParticleOutput(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
-  IF(PartBound%BoundaryParticleOutput(iPartBound))THEN
-    DoBoundaryParticleOutput=.TRUE.
-  END IF ! PartBound%BoundaryParticleOutput(iPartBound)
+  PartBound%BoundaryParticleOutputHDF5(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
+  IF(PartBound%BoundaryParticleOutputHDF5(iPartBound))THEN
+    DoBoundaryParticleOutputHDF5=.TRUE.
+  END IF ! PartBound%BoundaryParticleOutputHDF5(iPartBound)
 END DO
 
 IF(GEO%RotPeriodicBC) THEN
@@ -1917,7 +1915,7 @@ IF(GEO%RotPeriodicBC) THEN
 END IF
 
 ! Surface particle output to .h5
-IF(DoBoundaryParticleOutput)THEN
+IF(DoBoundaryParticleOutputHDF5)THEN
   ALLOCATE(PartStateBoundary(1:10,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
@@ -3144,7 +3142,7 @@ SDEALLOCATE(PartBound%MapToPartBC)
 SDEALLOCATE(PartBound%SurfaceModel)
 SDEALLOCATE(PartBound%Reactive)
 SDEALLOCATE(PartBound%Dielectric)
-SDEALLOCATE(PartBound%BoundaryParticleOutput)
+SDEALLOCATE(PartBound%BoundaryParticleOutputHDF5)
 SDEALLOCATE(PartStateBoundary)
 SDEALLOCATE(PEM%GlobalElemID)
 SDEALLOCATE(PEM%LastGlobalElemID)
