@@ -39,7 +39,6 @@ CONTAINS
 SUBROUTINE DefineParametersPIC()
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools               ,ONLY: prms
 USE MOD_PICDepo_Method            ,ONLY: DefineParametersDepositionMethod
 USE MOD_PICInterpolation          ,ONLY: DefineParametersPICInterpolation
 USE MOD_PICDepo                   ,ONLY: DefineParametersPICDeposition

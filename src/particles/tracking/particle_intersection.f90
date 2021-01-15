@@ -2021,8 +2021,8 @@ IF((alphaNorm.LE.1.0).AND.(alphaNorm.GT.-epsilontol))THEN
     IPWRITE(UNIT_stdout,'(I0,A,I0)') ' SideID ', SideID
     IPWRITE(UNIT_stdout,'(I0,A,E24.12)') ' BezierClipTolerance  ', BezierClipTolerance
     IPWRITE(UNIT_stdout,'(I0,A,E24.12)') ' BezierClipLocalTol ', BezierClipLocalTol
-    IPWRITE(UNIT_stdout,'(I0,A,E18.12,x,E18.12)') ' critical error! ',alpha,alphaNorm
-    IPWRITE(UNIT_stdout,'(I0,A,E18.12,x,E18.12)') ' critical error! ',alpha,alphaNorm
+    IPWRITE(UNIT_stdout,'(I0,A,E18.12,1X,E18.12)') ' critical error! ',alpha,alphaNorm
+    IPWRITE(UNIT_stdout,'(I0,A,E18.12,1X,E18.12)') ' critical error! ',alpha,alphaNorm
     IPWRITE(UNIT_stdout,'(I0,A)') ' locAlpha, locXi,locEta ' !/ lengthPartTrajectory '
     DO iInter=1,nInterSections
       WRITE(UNIT_stdout,'(I0,3(1X,E18.12))') iInter,locAlpha(iInter),locXi(iInter),locEta(iInter)

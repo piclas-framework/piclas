@@ -320,12 +320,10 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
 USE MOD_DSMC_Vars              ,ONLY: DSMC,SpecDSMC, useDSMC, PolyatomMolDSMC
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIExchange,PartTargetProc
 USE MOD_Particle_MPI_Vars,      ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc, halo_eps_velo
-USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
-USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,PEM,PDM,Species,PartPosRef
+USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,PEM,PDM,Species
 ! variables for parallel deposition
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
