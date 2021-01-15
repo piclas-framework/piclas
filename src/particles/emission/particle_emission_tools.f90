@@ -1280,12 +1280,12 @@ DO i=1,chunkSize
 
   ! 1. determine the z-position in order to get the interpolated curved B-field
   CALL RANDOM_NUMBER(iRan)
-  IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) THEN
-    ! Initial particle inserting: random position in cuboid
+  IF (Species(FractNbr)%Init(iInit)%ParticleEmissionType.EQ.0) THEN
+    ! Initial particle inserting: random position in cylinder
     particle_positions(i*3  ) = Species(FractNbr)%Init(iInit)%BasePointIC(3) &
                                     + iRan * Species(FractNbr)%Init(iInit)%CylinderHeightIC
   ELSE
-    ! Particle inserting per time step
+    ! Particle inserting per time step: random position along velocity vector
     particle_positions(i*3  ) = Species(FractNbr)%Init(iInit)%BasePointIC(3) &
                                     + iRan * dt*RKdtFrac &
                                     * Species(FractNbr)%Init(iInit)%VeloIC/Species(FractNbr)%Init(iInit)%alpha
@@ -1323,7 +1323,6 @@ SUBROUTINE SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_p
 ! modules
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
-USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac, dt
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
