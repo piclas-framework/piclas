@@ -133,5 +133,21 @@ REAL                          :: printDiffTime                       !< TODO
 REAL                          :: printDiffVec(6)                     !< TODO
 REAL                          :: ChemEnergySum                       !< TODO
 REAL,ALLOCATABLE              :: MassflowRate(:,:)
+! --- BoundaryParticleOutput = BPO
+LOGICAL                       :: CalcBoundaryParticleOutput          !< Flag for activating this output
+
+TYPE tBoundaryParticleOutput
+  REAL,ALLOCATABLE              :: PartOut(:,:)                     !< Number of particles exiting on boundary X with species X
+
+  INTEGER                       :: NPartBoundaries                  !< Total number of boundaries where the particles are counted
+  INTEGER,ALLOCATABLE           :: PartBoundaries(:)                !< Part-boundary number on which the particles are counted
+  INTEGER,ALLOCATABLE           :: BCIDToBPOBCID(:)                 !< Mapping BCID to BPOBCID (1:BpoNSpecies)
+
+  INTEGER                       :: NSpecies                         !< Total number of species which are considered for counting
+  INTEGER,ALLOCATABLE           :: Species(:)                       !< Species IDs which are considered for counting
+  INTEGER,ALLOCATABLE           :: SpecIDToBPOSpecID(:)             !< Mapping SpecID to BPOSpecID (1:BpoNSpecies)
+END TYPE
+
+TYPE(tBoundaryParticleOutput)   :: BPO
 !===================================================================================================================================
 END MODULE MOD_Particle_Analyze_Vars
