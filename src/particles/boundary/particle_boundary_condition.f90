@@ -59,7 +59,7 @@ USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangB
 USE MOD_Particle_Vars            ,ONLY: PartSpecies
 USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutput
+USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
 USE MOD_SurfaceModel             ,ONLY: SurfaceModel, PerfectReflection
 #if defined(IMPA)
@@ -152,7 +152,7 @@ END IF
 
 ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
   ! Surface particle output to .h5
-  IF(DoBoundaryParticleOutput.AND.PartBound%BoundaryParticleOutput(iBC))THEN
+  IF(DoBoundaryParticleOutputHDF5.AND.PartBound%BoundaryParticleOutput(iBC))THEN
     CALL StoreBoundaryParticleProperties(iPart,PartSpecies(iPart),LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,PartTrajectory(1:3),n_loc,mode=1)
   END IF
 

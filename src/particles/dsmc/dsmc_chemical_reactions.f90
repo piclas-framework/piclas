@@ -1471,7 +1471,7 @@ USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_Macro_Restart           ,ONLY: CalcERot_particle, CalcEVib_particle, CalcEElec_particle
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
-USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutput
+USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1659,7 +1659,7 @@ DO iProd = 1, NumProd
       ! Rotate the resulting vector in the b3-NormalIC-plane
       PartState(4:6,iPart) = GetRotatedVector(PartState(4:6,iPart),Species(InitSpec)%Init(iInit)%NormalIC)
       ! Store the particle information in PartStateBoundary.h5
-      IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),&
+      IF(DoBoundaryParticleOutputHDF5) CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),&
                                         UNITVECTOR(PartState(4:6,iPart)),Species(InitSpec)%Init(iInit)%NormalIC,mode=2,&
                                         usevMPF_optIN=.FALSE.)
     END ASSOCIATE
