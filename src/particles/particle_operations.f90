@@ -130,16 +130,16 @@ SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 !>  !!!NOTE!!! This routine is inside particle analyze because of circular definition of modules (CalcEkinPart)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, Species, UseAdaptive, PartMPF, usevMPF
-USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcMassflowRate
-USE MOD_Particle_Analyze_Vars   ,ONLY: CalcBoundaryParticleOutput,BPO
+USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, UseAdaptive, PartMPF, usevMPF
+USE MOD_Particle_Analyze_Vars     ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcMassflowRate
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput,BPO
 #if defined(IMPA)
-USE MOD_Particle_Vars           ,ONLY: PartIsImplicit
-USE MOD_Particle_Vars           ,ONLY: DoPartInNewton
+USE MOD_Particle_Vars             ,ONLY: PartIsImplicit
+USE MOD_Particle_Vars             ,ONLY: DoPartInNewton
 #endif /*IMPA*/
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
-USE MOD_part_tools              ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars               ,ONLY: CollInf
+USE MOD_Particle_Analyze_Tools    ,ONLY: CalcEkinPart
+USE MOD_part_tools                ,ONLY: GetParticleWeight
+USE MOD_DSMC_Vars                 ,ONLY: CollInf
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES

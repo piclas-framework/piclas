@@ -178,12 +178,6 @@ CALL prms%CreateLogicalOption(  'IsRestart'                , 'TODO-DEFINE-PARAME
                                                            , '.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , 'Calculate output of Power that is coupled into plasma' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'DisplayCoupledPower'      , 'Display coupled power in UNIT_stdOut' , '.FALSE.')
-!-- BoundaryParticleOutput
-CALL prms%CreateLogicalOption(  'CalcBoundaryParticleOutput', 'Count number of particles exiting for species X on boundary X' , '.FALSE.')
-CALL prms%CreateIntOption(      'BPO-NPartBoundaries'       , 'Number of boundaries used for CalcBoundaryParticleOutput')
-CALL prms%CreateIntArrayOption( 'BPO-PartBoundaries'        , 'Vector (length BPO-NPartBoundaries) with the numbers of each Part-Boundary')
-CALL prms%CreateIntOption(      'BPO-NSpecies'              , 'Number of species used for CalcBoundaryParticleOutput')
-CALL prms%CreateIntArrayOption( 'BPO-Species'               , 'Vector (length BPO-NSpecies) with the corresponding Species IDs')
 
 END SUBROUTINE DefineParametersParticleAnalyze
 
@@ -222,7 +216,6 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared_Win
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared_Win
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared_Win
 #endif /*USE_MPI*/
-USE MOD_Particle_Boundary_Vars,ONLY: nPartBound,PartBound
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -239,7 +232,6 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #else
 INTEGER       :: ALLOCSTAT
 #endif
-INTEGER       :: iPartBound
 !===================================================================================================================================
 IF (ParticleAnalyzeInitIsDone) THEN
 CALL abort(__STAMP__,&
@@ -645,57 +637,6 @@ IF (CalcShapeEfficiency) THEN
   END SELECT
 END IF
 
-!-- BoundaryParticleOutput (after mapping of PartBound on FieldBound and determination of PartBound types = open, reflective etc.)
-CalcBoundaryParticleOutput = GETLOGICAL('CalcBoundaryParticleOutput')
-IF(CalcBoundaryParticleOutput)THEN
-  DoPartAnalyze = .TRUE.
-  BPO%NPartBoundaries = GETINT('BPO-NPartBoundaries')
-  BPO%PartBoundaries  = GETINTARRAY('BPO-PartBoundaries',BPO%NPartBoundaries)
-  BPO%NSpecies        = GETINT('BPO-NSpecies')
-  BPO%Species         = GETINTARRAY('BPO-Species',BPO%NSpecies)
-  IF(BPO%NPartBoundaries.EQ.0.OR.BPO%NSpecies.EQ.0)THEN
-    CALL abort(&
-    __STAMP__&
-    ,'BPO-NPartBoundaries or BPO-NSpecies is zero, which is not allowed')
-  END IF ! BPO%NPartBoundaries.EQ.0.OR.BPO%NSpecies.EQ.0
-  ALLOCATE(BPO%PartOut(1:BPO%NPartBoundaries,1:BPO%NSpecies))
-  BPO%PartOut = 0.
-
-  ALLOCATE(BPO%SpecIDToBPOSpecID(1:nSPecies))
-  BPO%SpecIDToBPOSpecID = -1
-  DO iSpec = 1, BPO%NSpecies
-    BPO%SpecIDToBPOSpecID(BPO%Species(iSpec)) = iSpec
-  END DO ! iSpec = 1, BPO%NSpecies
-
-  ALLOCATE(BPO%BCIDToBPOBCID(1:nPartBound))
-  BPO%BCIDToBPOBCID     = -1
-  DO iPartBound = 1, BPO%NPartBoundaries
-    BPO%BCIDToBPOBCID(BPO%PartBoundaries(iPartBound)) = iPartBound
-    ! Sanity check BC types: BPO%PartBoundaries(iPartBound) = 1 (open)
-    ! Add more BCs to the vector if required
-    IF(.NOT.ANY(PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)).EQ.(/1/)))THEN
-      SWRITE(UNIT_stdOut,'(A)')'\nError for CalcBoundaryParticleOutput=T\n'
-      SWRITE(UNIT_stdOut,'(A,I0)')'  iPartBound = ',BPO%PartBoundaries(iPartBound)
-      SWRITE(UNIT_stdOut,'(A,A)') '  SourceName = ',TRIM(PartBound%SourceBoundName(BPO%PartBoundaries(iPartBound)))
-      SWRITE(UNIT_stdOut,'(A,I0)')'   Condition = ',PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound))
-      SWRITE(UNIT_stdOut,'(A)')'\n  Conditions are'//&
-          '  OpenBC          = 1  \n'//&
-          '                  ReflectiveBC    = 2  \n'//&
-          '                  PeriodicBC      = 3  \n'//&
-          '                  SimpleAnodeBC   = 4  \n'//&
-          '                  SimpleCathodeBC = 5  \n'//&
-          '                  RotPeriodicBC   = 6  \n'//&
-          '                  SymmetryBC      = 10 \n'//&
-          '                  SymmetryAxis    = 11 '
-      CALL abort(&
-          __STAMP__&
-          ,'PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)) is not implemented for CalcBoundaryParticleOutput',&
-          IntInfoOpt=PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)))
-    END IF
-  END DO
-
-END IF ! CalcBoundaryParticleOutput
-
 !-- check if total energy should be computed
 IF(DoPartAnalyze)THEN
   CalcEtot = GETLOGICAL('CalcTotalEnergy','.FALSE.')
@@ -746,7 +687,6 @@ USE MOD_DSMC_Vars              ,ONLY: BGGas
 #if (PP_TimeDiscMethod==42)
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, XSec_Relaxation, SpecXSec
 #endif
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -786,8 +726,7 @@ INTEGER             :: ii, iunit
 #endif
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
-INTEGER             :: dir,iPartBound
-REAL                :: SendBuf(1:BPO%NPartBoundaries*BPO%NSpecies)
+INTEGER             :: dir
 !===================================================================================================================================
   IF ( DoRestart ) THEN
     isRestart = .true.
@@ -867,16 +806,6 @@ REAL                :: SendBuf(1:BPO%NPartBoundaries*BPO%NSpecies)
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A15,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPartOut-Spec-',iSpec,' '
             OutputCounter = OutputCounter + 1
-          END DO
-        END IF
-        IF (CalcBoundaryParticleOutput) THEN
-          DO iPartBound = 1, BPO%NPartBoundaries
-            DO iSpec = 1, BPO%NSpecies
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A19,I3.3,A1,A,A5)',ADVANCE='NO') OutputCounter,'-nRealPartOut-Spec-', BPO%Species(iSpec),'-',&
-                  TRIM(PartBound%SourceBoundName(BPO%PartBoundaries(iPartBound))),' '
-              OutputCounter = OutputCounter + 1
-            END DO
           END DO
         END IF
         IF (CalcEkin) THEN ! calculate kinetic energy
@@ -1226,13 +1155,6 @@ REAL                :: SendBuf(1:BPO%NPartBoundaries*BPO%NSpecies)
       CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(1:nSpecAnalyze) ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(1:nSpecAnalyze),nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
-    IF(CalcBoundaryParticleOutput)THEN
-      ! Map 2D array to vector for sending via MPI
-      SendBuf = RESHAPE(BPO%PartOut,(/BPO%NPartBoundaries*BPO%NSpecies/))
-      CALL MPI_REDUCE(MPI_IN_PLACE,SendBuf(1:BPO%NPartBoundaries*BPO%NSpecies),BPO%NPartBoundaries*BPO%NSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      ! MAP vector back to 2D array
-      BPO%PartOut = RESHAPE(SendBuf,(/BPO%NPartBoundaries,BPO%NSpecies/))
-    END IF ! CalcBoundaryParticleOutput
     IF(CalcMassflowRate) THEN
       MaxSurfaceFluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
       CALL MPI_REDUCE(MPI_IN_PLACE,MassflowRate(1:nSpecAnalyze,1:MaxSurfaceFluxBCs),nSpecAnalyze*MaxSurfaceFluxBCs,&
@@ -1276,11 +1198,6 @@ REAL                :: SendBuf(1:BPO%NPartBoundaries*BPO%NSpecies)
       CALL MPI_REDUCE(PartEkinIn ,0,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(PartEkinOut,0,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
-    IF(CalcBoundaryParticleOutput)THEN
-      ! Map 2D array to vector for sending via MPI
-      SendBuf = RESHAPE(BPO%PartOut,(/BPO%NPartBoundaries*BPO%NSpecies/))
-      CALL MPI_REDUCE(SendBuf(1:BPO%NPartBoundaries*BPO%NSpecies),0,BPO%NPartBoundaries*BPO%NSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-    END IF ! CalcBoundaryParticleOutput
     IF(CalcMassflowRate) THEN
       MaxSurfaceFluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
       CALL MPI_REDUCE(MassflowRate,MassflowRate,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -1408,14 +1325,6 @@ IF (PartMPI%MPIROOT) THEN
       DO iSpec=1, nSpecAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(nPartOut(iSpec))
-      END DO
-    END IF
-    IF (CalcBoundaryParticleOutput) THEN
-      DO iPartBound = 1, BPO%NPartBoundaries
-        DO iSpec = 1, BPO%NSpecies
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') BPO%PartOut(iPartBound,iSpec)
-        END DO
       END DO
     END IF
     IF (CalcEkin) THEN
@@ -4244,15 +4153,6 @@ SDEALLOCATE(PartEkinIn)
 SDEALLOCATE(PartEkinOut)
 SDEALLOCATE(MassflowRate)
 
-IF(CalcBoundaryParticleOutput)THEN
-  SDEALLOCATE(BPO%PartOut)
-  SDEALLOCATE(BPO%PartBoundaries)
-  SDEALLOCATE(BPO%BCIDToBPOBCID)
-  SDEALLOCATE(BPO%Species)
-  SDEALLOCATE(BPO%SpecIDToBPOSpecID)
-END IF ! CalcBoundaryParticleOutput
-
-
 IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)THEN
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
@@ -4265,7 +4165,6 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)TH
   ADEALLOCATE(ElemCharLengthY_Shared)
   ADEALLOCATE(ElemCharLengthZ_Shared)
 END IF
-
 
 END SUBROUTINE FinalizeParticleAnalyze
 #endif /*PARTICLES*/
