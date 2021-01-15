@@ -4224,6 +4224,14 @@ SDEALLOCATE(PartEkinIn)
 SDEALLOCATE(PartEkinOut)
 SDEALLOCATE(MassflowRate)
 
+IF(CalcBoundaryParticleOutput)THEN
+  SDEALLOCATE(BPO%PartOut)
+  SDEALLOCATE(BPO%PartBoundaries)
+  SDEALLOCATE(BPO%BCIDToBPOBCID)
+  SDEALLOCATE(BPO%Species)
+  SDEALLOCATE(BPO%SpecIDToBPOSpecID)
+END IF ! CalcBoundaryParticleOutput
+
 
 IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)THEN
 #if USE_MPI
