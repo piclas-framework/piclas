@@ -118,6 +118,14 @@ if [ -f "$4" ]; then
   echo "$PICLAS_MAJOR_VERSION.$PICLAS_MINOR_VERSION.$PICLAS_MATCH_VERSION" >> $1/userblock.txt
 fi
 
+# write cpu info to userblock
+if [ -f "/proc/cpuinfo" ]; then
+  echo "{[( CPU INFO )]}" >> $1/userblock.txt
+  THREADS=$(grep -c ^processor /proc/cpuinfo)
+  echo "Total number of processors/threads given in /proc/cpuinfo: ${THREADS}" >> $1/userblock.txt
+  sed '/^$/Q' /proc/cpuinfo | sed -e 's/\t//g' >> $1/userblock.txt
+fi
+
 cd "$1" # go back to the runtime output directory
 # Compress the userblock
 tar cJf userblock.tar.xz userblock.txt
