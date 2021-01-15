@@ -86,7 +86,7 @@ USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PartSource
 USE MOD_Particle_Vars          ,ONLY: UseAdaptive
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
-USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutput
+USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts,NbrOfLostParticlesTotal
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
@@ -584,7 +584,7 @@ END ASSOCIATE
 
 #ifdef PARTICLES
 CALL WriteParticleToHDF5(FileName)
-IF(DoBoundaryParticleOutput) THEN
+IF(DoBoundaryParticleOutputHDF5) THEN
   IF (usePreviousTime_loc) THEN
     CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc,PreviousTime_loc)
   ELSE
