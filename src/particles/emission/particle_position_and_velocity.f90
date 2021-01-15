@@ -219,7 +219,7 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
   CASE('circle', 'circle_equidistant')
     CALL SetParticlePositionCircle(FractNbr,iInit,chunkSize,particle_positions)
   CASE('gyrotron_circle')
-    CALL SetParticlePositionGyrotronCircle(FractNbr,iInit,chunkSize,particle_positions, NbrOfParticle)
+    CALL SetParticlePositionGyrotronCircle(FractNbr,iInit,chunkSize,particle_positions)
   CASE('cuboid','cylinder')
     CALL SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_positions)
   CASE('sphere')
