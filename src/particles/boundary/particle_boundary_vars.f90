@@ -252,7 +252,7 @@ TYPE tPartBoundary
 !                                                                         ! a non-dielectric or a between to different dielectrics
 !                                                                         ! [.TRUE.] or not [.FALSE.] (requires reflective BC)
 !                                                                         ! (Default=FALSE.)
-  LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutput(:)     ! Save particle position, velocity and species to
+  LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutputHDF5(:) ! Save particle position, velocity and species to
 !                                                                         ! PartDataBoundary container for writing to .h5 later
 END TYPE
 

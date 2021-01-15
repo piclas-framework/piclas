@@ -152,7 +152,7 @@ END IF
 
 ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
   ! Surface particle output to .h5
-  IF(DoBoundaryParticleOutputHDF5.AND.PartBound%BoundaryParticleOutput(iBC))THEN
+  IF(DoBoundaryParticleOutputHDF5.AND.PartBound%BoundaryParticleOutputHDF5(iBC))THEN
     CALL StoreBoundaryParticleProperties(iPart,PartSpecies(iPart),LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,PartTrajectory(1:3),n_loc,mode=1)
   END IF
 

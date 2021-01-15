@@ -1772,8 +1772,8 @@ ALLOCATE(PartBound%Dielectric(1:nPartBound))
 PartBound%Dielectric=.FALSE.
 DoDielectricSurfaceCharge=.FALSE.
 ! Surface particle output to .h5
-ALLOCATE(PartBound%BoundaryParticleOutput(1:nPartBound))
-PartBound%BoundaryParticleOutput=.FALSE.
+ALLOCATE(PartBound%BoundaryParticleOutputHDF5(1:nPartBound))
+PartBound%BoundaryParticleOutputHDF5=.FALSE.
 DoBoundaryParticleOutputHDF5=.FALSE.
 
 PartMeshHasPeriodicBCs=.FALSE.
@@ -1897,10 +1897,10 @@ DO iPartBound=1,nPartBound
   END IF ! PartBound%UseForQCrit(iPartBound)
 
   ! Surface particle output to .h5
-  PartBound%BoundaryParticleOutput(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
-  IF(PartBound%BoundaryParticleOutput(iPartBound))THEN
+  PartBound%BoundaryParticleOutputHDF5(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
+  IF(PartBound%BoundaryParticleOutputHDF5(iPartBound))THEN
     DoBoundaryParticleOutputHDF5=.TRUE.
-  END IF ! PartBound%BoundaryParticleOutput(iPartBound)
+  END IF ! PartBound%BoundaryParticleOutputHDF5(iPartBound)
 END DO
 
 IF(GEO%RotPeriodicBC) THEN
@@ -3142,7 +3142,7 @@ SDEALLOCATE(PartBound%MapToPartBC)
 SDEALLOCATE(PartBound%SurfaceModel)
 SDEALLOCATE(PartBound%Reactive)
 SDEALLOCATE(PartBound%Dielectric)
-SDEALLOCATE(PartBound%BoundaryParticleOutput)
+SDEALLOCATE(PartBound%BoundaryParticleOutputHDF5)
 SDEALLOCATE(PartStateBoundary)
 SDEALLOCATE(PEM%GlobalElemID)
 SDEALLOCATE(PEM%LastGlobalElemID)
