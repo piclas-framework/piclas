@@ -222,7 +222,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared_Win
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared_Win
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared_Win
 #endif /*USE_MPI*/
-USE MOD_Particle_Boundary_Vars,ONLY: nPartBound
+USE MOD_Particle_Boundary_Vars,ONLY: nPartBound,PartBound
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -670,9 +670,29 @@ IF(CalcBoundaryParticleOutput)THEN
   ALLOCATE(BPO%BCIDToBPOBCID(1:nPartBound))
   BPO%BCIDToBPOBCID     = -1
   DO iPartBound = 1, BPO%NPartBoundaries
-    !WRITE (*,*) "PartBound%SourceBoundName(BPO%PartBoundaries(iPartBound)) =", PartBound%SourceBoundName(BPO%PartBoundaries(iPartBound))
     BPO%BCIDToBPOBCID(BPO%PartBoundaries(iPartBound)) = iPartBound
-  END DO ! iPartBound = 1, BPO%NPartBoundaries
+    ! Sanity check BC types: BPO%PartBoundaries(iPartBound) = 1 (open)
+    ! Add more BCs to the vector if required
+    IF(.NOT.ANY(PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)).EQ.(/1/)))THEN
+      SWRITE(UNIT_stdOut,'(A)')'\nError for CalcBoundaryParticleOutput=T\n'
+      SWRITE(UNIT_stdOut,'(A,I0)')'  iPartBound = ',BPO%PartBoundaries(iPartBound)
+      SWRITE(UNIT_stdOut,'(A,A)') '  SourceName = ',TRIM(PartBound%SourceBoundName(BPO%PartBoundaries(iPartBound)))
+      SWRITE(UNIT_stdOut,'(A,I0)')'   Condition = ',PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound))
+      SWRITE(UNIT_stdOut,'(A)')'\n  Conditions are'//&
+          '  OpenBC          = 1  \n'//&
+          '                  ReflectiveBC    = 2  \n'//&
+          '                  PeriodicBC      = 3  \n'//&
+          '                  SimpleAnodeBC   = 4  \n'//&
+          '                  SimpleCathodeBC = 5  \n'//&
+          '                  RotPeriodicBC   = 6  \n'//&
+          '                  SymmetryBC      = 10 \n'//&
+          '                  SymmetryAxis    = 11 '
+      CALL abort(&
+          __STAMP__&
+          ,'PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)) is not implemented for CalcBoundaryParticleOutput',&
+          IntInfoOpt=PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)))
+    END IF
+  END DO
 
 END IF ! CalcBoundaryParticleOutput
 
