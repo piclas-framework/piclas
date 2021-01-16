@@ -302,7 +302,7 @@ USE MOD_Particle_Vars
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, CalcVelocity_taylorgreenvortex, CalcVelocity_FromWorkFuncSEE
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_gyrotroncircle
-USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutput
+USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_FPFlow_Init             ,ONLY: FP_BuildTransGaussNums
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -384,7 +384,7 @@ CASE('photon_SEE_energy')
         CALL CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit=iInit)
         PartState(4:6,PositionNbr) = Vec3D(1:3)
         ! Store the particle information in PartStateBoundary.h5
-        IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(PositionNbr,FractNbr,PartState(1:3,PositionNbr),&
+        IF(DoBoundaryParticleOutputHDF5) CALL StoreBoundaryParticleProperties(PositionNbr,FractNbr,PartState(1:3,PositionNbr),&
                                           UNITVECTOR(PartState(4:6,PositionNbr)),Species(FractNbr)%Init(iInit)%NormalIC,mode=2,&
                                           usevMPF_optIN=.FALSE.)
     END IF

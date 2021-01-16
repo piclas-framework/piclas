@@ -755,7 +755,6 @@ USE MOD_AnalyzeField              ,ONLY: AnalyzeField
 #ifdef PARTICLES
 USE MOD_Mesh_Vars                 ,ONLY: MeshFile
 USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum
-USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles,CalculatePartElemData,WriteParticleTrackingData
 USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep,DoPartAnalyze,TrackParticlePosition
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfaceAnalyzeStep
@@ -1015,9 +1014,7 @@ END IF
 IF (DoPartAnalyze) THEN
   IF(DoPerformPartAnalyze)    CALL AnalyzeParticles(OutputTime)
 END IF
-IF (DoSurfModelAnalyze) THEN
-  IF(DoPerformSurfaceAnalyze) CALL AnalyzeSurface(OutputTime)
-END IF
+IF(DoPerformSurfaceAnalyze) CALL AnalyzeSurface(OutputTime)
 IF(TrackParticlePosition) THEN
   IF(DoPerformPartAnalyze) CALL WriteParticleTrackingData(OutputTime,iter) ! new function
 END IF
