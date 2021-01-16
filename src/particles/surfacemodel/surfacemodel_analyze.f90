@@ -134,8 +134,8 @@ IF(CalcBoundaryParticleOutput)THEN
     __STAMP__&
     ,'BPO-NPartBoundaries or BPO-NSpecies is zero, which is not allowed')
   END IF ! BPO%NPartBoundaries.EQ.0.OR.BPO%NSpecies.EQ.0
-  ALLOCATE(BPO%PartOut(1:BPO%NPartBoundaries,1:BPO%NSpecies))
-  BPO%PartOut = 0.
+  ALLOCATE(BPO%RealPartOut(1:BPO%NPartBoundaries,1:BPO%NSpecies))
+  BPO%RealPartOut = 0.
 
   ALLOCATE(BPO%SpecIDToBPOSpecID(1:nSPecies))
   BPO%SpecIDToBPOSpecID = -1
@@ -290,7 +290,9 @@ IF (PartMPI%MPIRoot) THEN
   IF (CalcBoundaryParticleOutput) THEN
     DO iPartBound = 1, BPO%NPartBoundaries
       DO iSpec = 1, BPO%NSpecies
-        CALL WriteDataInfo(unit_index,1,RealArray=(/BPO%PartOut(iPartBound,iSpec)/))
+        CALL WriteDataInfo(unit_index,1,RealArray=(/BPO%RealPartOut(iPartBound,iSpec)/))
+        ! Reset counters
+        BPO%RealPartOut(iPartBound,iSpec) = 0.
       END DO
     END DO
   END IF
@@ -514,19 +516,21 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL :: SendBuf(1:BPO%NPartBoundaries*BPO%NSpecies)
+REAL    :: SendBuf(1:BPO%NPartBoundaries*BPO%NSpecies)
+INTEGER :: SendBufSize
 !===================================================================================================================================
 #if USE_MPI
+SendBufSize = BPO%NPartBoundaries*BPO%NSpecies
 IF (PartMPI%MPIRoot) THEN
   ! Map 2D array to vector for sending via MPI
-  SendBuf = RESHAPE(BPO%PartOut,(/BPO%NPartBoundaries*BPO%NSpecies/))
-  CALL MPI_REDUCE(MPI_IN_PLACE,SendBuf(1:BPO%NPartBoundaries*BPO%NSpecies),BPO%NPartBoundaries*BPO%NSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  SendBuf = RESHAPE(BPO%RealPartOut,(/SendBufSize/))
+  CALL MPI_REDUCE(MPI_IN_PLACE,SendBuf(1:SendBufSize),SendBufSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   ! MAP vector back to 2D array
-  BPO%PartOut = RESHAPE(SendBuf,(/BPO%NPartBoundaries,BPO%NSpecies/))
+  BPO%RealPartOut = RESHAPE(SendBuf,(/BPO%NPartBoundaries,BPO%NSpecies/))
 ELSE
   ! Map 2D array to vector for sending via MPI
-  SendBuf = RESHAPE(BPO%PartOut,(/BPO%NPartBoundaries*BPO%NSpecies/))
-  CALL MPI_REDUCE(SendBuf(1:BPO%NPartBoundaries*BPO%NSpecies),0,BPO%NPartBoundaries*BPO%NSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  SendBuf = RESHAPE(BPO%RealPartOut,(/SendBufSize/))
+  CALL MPI_REDUCE(SendBuf(1:SendBufSize),0,SendBufSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
 END IF
 #endif /*USE_MPI*/
 

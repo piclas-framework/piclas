@@ -123,7 +123,7 @@ SDEALLOCATE(SurfAnalyzeCount)
 SDEALLOCATE(SurfAnalyzeNumOfAds)
 SDEALLOCATE(SurfAnalyzeNumOfDes)
 IF(CalcBoundaryParticleOutput)THEN
-  SDEALLOCATE(BPO%PartOut)
+  SDEALLOCATE(BPO%RealPartOut)
   SDEALLOCATE(BPO%PartBoundaries)
   SDEALLOCATE(BPO%BCIDToBPOBCID)
   SDEALLOCATE(BPO%Species)
