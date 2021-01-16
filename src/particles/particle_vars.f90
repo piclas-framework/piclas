@@ -403,6 +403,7 @@ TYPE tVariableTimeStep
   LOGICAL                              :: UseVariableTimeStep
   LOGICAL                              :: UseLinearScaling
   LOGICAL                              :: UseDistribution
+  LOGICAL                              :: OnlyDecreaseDt
   REAL, ALLOCATABLE                    :: ParticleTimeStep(:)
   REAL, ALLOCATABLE                    :: ElemFac(:)
   REAL, ALLOCATABLE                    :: ElemWeight(:)
