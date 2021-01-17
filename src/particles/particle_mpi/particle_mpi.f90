@@ -1433,7 +1433,7 @@ DO iSpec=1,nSpecies
       ylen=Radius
       zlen=Species(iSpec)%Init(iInit)%RadiusIC * &
            SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
-      IF(Species(iSpec)%Init(iInit)%initialParticleNumber.NE.0)THEN
+      IF(Species(iSpec)%Init(iInit)%ParticleNumber.NE.0)THEN
         lineVector(1:3)=(/0.,0.,Species(iSpec)%Init(iInit)%CuboidHeightIC/)
       ELSE
 #if !(USE_HDG)
@@ -1489,11 +1489,7 @@ DO iSpec=1,nSpecies
       xCoords(1:3,4)=Species(iSpec)%Init(iInit)%BasePointIC+Species(iSpec)%Init(iInit)%BaseVector1IC&
                                                            +Species(iSpec)%Init(iInit)%BaseVector2IC
 
-      IF (Species(iSpec)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
-        height = halo_eps
-      ELSE
-        height= Species(iSpec)%Init(iInit)%CuboidHeightIC
-      END IF
+      height= Species(iSpec)%Init(iInit)%CuboidHeightIC
       DO iNode=1,4
         xCoords(1:3,iNode+4)=xCoords(1:3,iNode)+lineVector*height
       END DO ! iNode
@@ -1537,11 +1533,7 @@ DO iSpec=1,nSpecies
       xCoords(1:3,4)=xCoords(1:3,1)+2.0*Species(iSpec)%Init(iInit)%BaseVector1IC&
                                    +2.0*Species(iSpec)%Init(iInit)%BaseVector2IC
 
-      IF (Species(iSpec)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
-        height = halo_eps
-      ELSE
-        height= Species(iSpec)%Init(iInit)%CylinderHeightIC
-      END IF
+      height= Species(iSpec)%Init(iInit)%CylinderHeightIC
       DO iNode=1,4
         xCoords(1:3,iNode+4)=xCoords(1:3,iNode)+lineVector*height
       END DO ! iNode
@@ -1609,7 +1601,7 @@ DO iSpec=1,nSpecies
        xCoords(1:3,8) = xCoords(1:3,5) + (/xlen,ylen,0./)
        RegionOnProc=BoxInProc(xCoords,8)
     CASE('sin_deviation')
-       IF(Species(iSpec)%Init(iInit)%initialParticleNumber.NE. &
+       IF(Species(iSpec)%Init(iInit)%ParticleNumber.NE. &
             (Species(iSpec)%Init(iInit)%maxParticleNumberX * Species(iSpec)%Init(iInit)%maxParticleNumberY &
             * Species(iSpec)%Init(iInit)%maxParticleNumberZ)) THEN
          SWRITE(*,*) 'for species ',iSpec,' does not match number of particles in each direction!'

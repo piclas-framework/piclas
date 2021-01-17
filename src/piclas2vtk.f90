@@ -65,8 +65,8 @@ USE MOD_Interpolation         ,ONLY: DefineParametersInterpolation,InitInterpola
 USE MOD_Mesh                  ,ONLY: DefineParametersMesh,InitMesh
 #ifdef PARTICLES
 USE MOD_Particle_Mesh         ,ONLY: InitParticleGeometry, InitElemNodeIDs
-#endif /*PARTICLES*/
 USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemNodeID_Shared, NodeInfo_Shared
+#endif /*PARTICLES*/
 USE MOD_Mesh_Tools            ,ONLY: InitGetCNElemID, InitGetGlobalElemID
 #if USE_MPI
 USE MOD_MPI_Shared
@@ -77,20 +77,17 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                           :: Time                              ! Used to track computation time
-CHARACTER(LEN=255)             :: NodeTypeVisuOut                   ! Stores user selected type of visualization nodes
-INTEGER                        :: NVisu                             ! Polynomial degree of visualization
-INTEGER                        :: iArgs, iElem, iNode, iExt         ! Loop counters
-CHARACTER(LEN=255)             :: InputStateFile
-CHARACTER(LEN=255)             :: MeshFile
+CHARACTER(LEN=255)             :: NodeTypeVisuOut, InputStateFile, MeshFile
+INTEGER                        :: NVisu, iArgs, iArgsStart, TimeStampLength, iExt
 LOGICAL                        :: CmdLineMode, NVisuDefault         ! In command line mode only NVisu is specified directly,
                                                                     ! otherwise a parameter file is needed
 CHARACTER(LEN=2)               :: NVisuString                       ! String containing NVisu from command line option
 CHARACTER(LEN=20)              :: fmtString                         ! String containing options for formatted write
-LOGICAL                        :: DGSolutionExists, ElemDataExists, SurfaceDataExists
-INTEGER                        :: iArgsStart
+LOGICAL                        :: DGSolutionExists, ElemDataExists, SurfaceDataExists, VisuParticles, PartDataExists, BGFieldExists
 LOGICAL                        :: ReadMeshFinished, ElemMeshInit, SurfMeshInit
-LOGICAL                        :: VisuParticles, PartDataExists, BGFieldExists
-INTEGER                        :: TimeStampLength
+#ifdef PARTICLES
+INTEGER                        :: iElem, iNode
+#endif /*PARTICLES*/
 !===================================================================================================================================
 CALL SetStackSizeUnlimited()
 CALL InitMPI()

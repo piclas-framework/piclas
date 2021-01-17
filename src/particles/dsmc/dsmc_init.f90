@@ -108,12 +108,6 @@ CALL prms%CreateStringOption(   'Particles-DSMCElectronicDatabase'&
                                           ' Database', 'none')
 CALL prms%CreateRealOption(     'EpsMergeElectronicState'&
                                          , 'Percentage parameter of electronic energy level merging.' , '1E-4')
-CALL prms%CreateLogicalOption(  'Particles-DSMC-UseQCrit'&
-                                         , 'Set [TRUE] to enable steady state detection and sampling start using Q-criterion'//&
-                                           ' (Burt/Boyd).', '.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-DSMC-UseSSD'&
-                                         , 'Set [TRUE] to enable steady state detection and sampling start using 3SD routines.' &
-                                         , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-PolyRelaxSingleMode'&
                                          , 'Set [TRUE] for separate relaxation of each vibrational mode of a polyatomic in a '//&
                                            'loop over all vibrational modes.\n'//&
@@ -314,7 +308,6 @@ USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Symmetry, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
-USE MOD_DSMC_SteadyState       ,ONLY: DSMC_SteadyStateInit
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly
 USE MOD_DSMC_SpecXSec          ,ONLY: MCC_Init
@@ -396,14 +389,7 @@ ELSEIF(DSMC%ElectronicModel.GT.0) THEN
       'ERROR: Electronic model requires a electronic levels database and CollisMode > 1!')
 END IF
 DSMC%NumPolyatomMolecs = 0
-! Steady - State Detection: Use Q-Criterion or SSD-Alogrithm?
 SamplingActive = .FALSE.
-UseQCrit = GETLOGICAL('Particles-DSMC-UseQCrit','.FALSE.')
-UseSSD = GETLOGICAL('Particles-DSMC-UseSSD','.FALSE.')
-IF(UseQCrit.OR.UseSSD) CALL DSMC_SteadyStateInit()
-
-ALLOCATE(HValue(nElems))
-HValue(1:nElems) = 0.0
 
 IF(DSMC%CalcQualityFactors) THEN
   ! 1: Maximal collision probability per cell/subcells (octree)
@@ -1475,7 +1461,6 @@ SDEALLOCATE(CollInf%alphaVSS)
 SDEALLOCATE(CollInf%omega)
 SDEALLOCATE(CollInf%dref)
 SDEALLOCATE(CollInf%Tref)
-SDEALLOCATE(HValue)
 !SDEALLOCATE(SampWall)
 SDEALLOCATE(MacroSurfaceVal)
 !SDEALLOCATE(VibQuantsPar)
