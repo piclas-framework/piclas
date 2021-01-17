@@ -724,9 +724,7 @@ IF (NbrOfRegions .GT. 0) THEN
     WRITE(UNIT=hilf2,FMT='(I0)') iRegions
     RegionBounds(1:6,iRegions) = GETREALARRAY('RegionBounds'//TRIM(hilf2),6,'0. , 0. , 0. , 0. , 0. , 0.')
   END DO
-END IF
 
-IF (NbrOfRegions .GT. 0) THEN
   CALL MapRegionToElem()
   ALLOCATE(RegionElectronRef(1:3,1:NbrOfRegions))
   DO iRegions=1,NbrOfRegions

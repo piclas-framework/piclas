@@ -251,7 +251,7 @@ TYPE tPartBoundary
 !                                                                         ! a non-dielectric or a between to different dielectrics
 !                                                                         ! [.TRUE.] or not [.FALSE.] (requires reflective BC)
 !                                                                         ! (Default=FALSE.)
-  LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutput(:)     ! Save particle position, velocity and species to
+  LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutputHDF5(:) ! Save particle position, velocity and species to
 !                                                                         ! PartDataBoundary container for writing to .h5 later
 END TYPE
 
@@ -324,7 +324,7 @@ END TYPE
 TYPE(tPartAuxBC)        :: PartAuxBC             ! auxBC Data for Particles
 
 ! Boundary particle output
-LOGICAL              :: DoBoundaryParticleOutput   ! Flag set automatically if particles crossing specific
+LOGICAL              :: DoBoundaryParticleOutputHDF5   ! Flag set automatically if particles crossing specific
 !                                                  ! boundaries are to be saved to .h5 (position of intersection,
 !                                                  ! velocity, species, internal energies)
 REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:10,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle

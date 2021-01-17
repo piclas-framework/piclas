@@ -39,5 +39,22 @@ REAL,ALLOCATABLE              :: PorousBCOutput(:,:)  ! 1: Counter of impinged p
                                                       ! 3: Pumping speed [m3/s] used to calculate the removal prob.
                                                       ! 4: Removal probability [0-1]
                                                       ! 5: Pressure at the BC normalized with the user-given pressure
+
+! --- BoundaryParticleOutput = BPO
+LOGICAL                       :: CalcBoundaryParticleOutput !< Flag for activating this output
+
+TYPE tBoundaryParticleOutput
+  REAL,ALLOCATABLE              :: RealPartOut(:,:)         !< Number of particles exiting on boundary X with species X
+
+  INTEGER                       :: NPartBoundaries          !< Total number of boundaries where the particles are counted
+  INTEGER,ALLOCATABLE           :: PartBoundaries(:)        !< Part-boundary number on which the particles are counted
+  INTEGER,ALLOCATABLE           :: BCIDToBPOBCID(:)         !< Mapping BCID to BPOBCID (1:BpoNSpecies)
+
+  INTEGER                       :: NSpecies                 !< Total number of species which are considered for counting
+  INTEGER,ALLOCATABLE           :: Species(:)               !< Species IDs which are considered for counting
+  INTEGER,ALLOCATABLE           :: SpecIDToBPOSpecID(:)     !< Mapping SpecID to BPOSpecID (1:BpoNSpecies)
+END TYPE
+
+TYPE(tBoundaryParticleOutput)   :: BPO
 !===================================================================================================================================
 END MODULE MOD_SurfaceModel_Analyze_Vars
