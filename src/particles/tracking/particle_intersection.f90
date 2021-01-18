@@ -350,6 +350,7 @@ USE MOD_Globals                ,ONLY: myRank
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_Globals                ,ONLY: Cross,abort,UNIT_stdOut,CROSSNORM,UNITVECTOR
 USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Mesh_Tools             ,ONLY: GetCNSideID
 USE MOD_Particle_Vars          ,ONLY: LastPartPos
 USE MOD_Particle_Surfaces_Vars ,ONLY: SideNormVec,SideSlabNormals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
@@ -375,7 +376,7 @@ LOGICAL,INTENT(OUT),OPTIONAL             :: opt_CriticalParllelInSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                     :: n1(3),n2(3)
-INTEGER                                  :: nInterSections,p,q
+INTEGER                                  :: CNSideID,nInterSections,p,q
 REAL                                     :: BezierControlPoints2D(2,0:NGeo,0:NGeo)
 LOGICAL                                  :: CriticalParallelInSide
 REAL                                     :: XiNewton(2)
