@@ -348,7 +348,8 @@ DO ilocSide = 1,6
   IF(alpha.GT.-1)THEN
     SELECT CASE(SideType(CNSideID))
       CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-        NormVec=SideNormVec(1:3,SideID)
+        CNSideID = GetCNSideID(SideID)
+        NormVec  = SideNormVec(1:3,CNSideID)
       CASE(BILINEAR)
         CALL CalcNormAndTangBilinear(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
       CASE(CURVED)

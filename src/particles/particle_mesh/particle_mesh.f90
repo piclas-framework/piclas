@@ -2092,14 +2092,14 @@ ALLOCATE(ElemCurved(1:nComputeNodeElems))
 ! sides
 #if USE_MPI
 MPISharedSize = INT((nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),SideType_Shared_Win,SideType_Shared)
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),  SideType_Shared_Win,    SideType_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideType_Shared_Win,IERROR)
 SideType => SideType_Shared
-CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),SideDistance_Shared_Win,SideDistance_Shared)
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),  SideDistance_Shared_Win,SideDistance_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideDistance_Shared_Win,IERROR)
 SideDistance => SideDistance_Shared
-MPISharedSize = INT((3*nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/3,nNonUniqueGlobalSides/),SideNormVec_Shared_Win,SideNormVec_Shared)
+MPISharedSize = INT((3*nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalSides/),SideNormVec_Shared_Win, SideNormVec_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideNormVec_Shared_Win,IERROR)
 SideNormVec => SideNormVec_Shared
 #else
@@ -2182,7 +2182,7 @@ DO iElem=firstElem,lastElem
 
         v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
             +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
-        SideNormVec(:,SideID) = CROSSNORM(v1,v2)
+        SideNormVec(:,CNSideID) = CROSSNORM(v1,v2)
         v1=0.25*(BezierControlPoints_loc(:,0,0      )     &
                 +BezierControlPoints_loc(:,NGeo,0   )  &
                 +BezierControlPoints_loc(:,0,NGeo   )  &
@@ -2190,11 +2190,11 @@ DO iElem=firstElem,lastElem
         ! check if normal vector points outwards
         v2=v1-ElemBaryNGeo(:,iElem)
         IF(flip.EQ.0)THEN
-          IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).LT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
+          IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).LT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
         ELSE
-          IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).GT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
+          IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).GT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
         END IF
-        SideDistance(CNSideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
+        SideDistance(CNSideID)=DOT_PRODUCT(v1,SideNormVec(:,CNSideID))
         ! check if it is rectangular
         isRectangular=.TRUE.
         v1=UNITVECTOR(BezierControlPoints_loc(:,0   ,NGeo)-BezierControlPoints_loc(:,0   ,0   ))
@@ -2217,7 +2217,7 @@ DO iElem=firstElem,lastElem
             -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
         v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
             +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
-        SideNormVec(:,SideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
+        SideNormVec(:,CNSideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
         SideType(CNSideID)=BILINEAR
       END IF
     ELSE
@@ -2252,7 +2252,7 @@ DO iElem=firstElem,lastElem
 
           v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
               +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
-          SideNormVec(:,SideID) = CROSSNORM(v1,v2)
+          SideNormVec(:,CNSideID) = CROSSNORM(v1,v2)
           v1=0.25*(BezierControlPoints_loc(:,0,0   )  &
                   +BezierControlPoints_loc(:,NGeo,0)  &
                   +BezierControlPoints_loc(:,0,NGeo)  &
@@ -2260,11 +2260,11 @@ DO iElem=firstElem,lastElem
           ! check if normal vector points outwards
           v2=v1-ElemBaryNGeo(:,iElem)
           IF(flip.EQ.0)THEN
-            IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).LT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
+            IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).LT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
           ELSE
-            IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).GT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
+            IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).GT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
           END IF
-          SideDistance(CNSideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
+          SideDistance(CNSideID)=DOT_PRODUCT(v1,SideNormVec(:,CNSideID))
         ELSE
           SideType(CNSideID)=CURVED
         END IF
@@ -2275,7 +2275,7 @@ DO iElem=firstElem,lastElem
 
           v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
               +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
-          SideNormVec(:,SideID) = CROSSNORM(v1,v2)
+          SideNormVec(:,CNSideID) = CROSSNORM(v1,v2)
           v1=0.25*(BezierControlPoints_loc(:,0,0)     &
                   +BezierControlPoints_loc(:,NGeo,0)  &
                   +BezierControlPoints_loc(:,0,NGeo)  &
@@ -2283,11 +2283,11 @@ DO iElem=firstElem,lastElem
           ! check if normal vector points outwards
           v2=v1-ElemBaryNGeo(:,iElem)
           IF(flip.EQ.0)THEN
-            IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).LT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
+            IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).LT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
           ELSE
-            IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).GT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
+            IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).GT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
           END IF
-          SideDistance(CNSideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
+          SideDistance(CNSideID)=DOT_PRODUCT(v1,SideNormVec(:,CNSideID))
           ! check if it is rectangular
           isRectangular=.TRUE.
           v1=UNITVECTOR(BezierControlPoints_loc(:,0   ,NGeo)-BezierControlPoints_loc(:,0   ,0   ))
@@ -2314,7 +2314,7 @@ DO iElem=firstElem,lastElem
               -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo))
           v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
               +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo))
-          SideNormVec(:,SideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
+          SideNormVec(:,CNSideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
           SideType(CNSideID)=BILINEAR
         END IF
       END IF

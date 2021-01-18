@@ -108,7 +108,7 @@ CASE(REFMAPPING,TRACING)
 
   SELECT CASE(SideType(CNSideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-      n_loc=SideNormVec(1:3,SideID)
+      n_loc = SideNormVec(1:3,CNSideID)
     CASE(BILINEAR)
       CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
     CASE(CURVED)
