@@ -509,11 +509,12 @@ SUBROUTINE ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory
 ! MODULES
 USE MOD_Globals
 USE MOD_Utils                  ,ONLY: QuadraticSolver
+USE MOD_Mesh_Tools             ,ONLY: GetCNSideID
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 USE MOD_Particle_Surfaces_Vars ,ONLY: BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,SideNormVec,epsilonTol!,BaseVectorsScale
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBilinear
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos!,PEM
+USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos!,PEM
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
@@ -541,7 +542,7 @@ REAL,DIMENSION(4)                 :: a1,a2
 REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff,NormalCoeff
 REAL                              :: A,B,C,alphaNorm
 REAL                              :: xi(2),eta(2),t(2),scaleFac
-INTEGER                           :: InterType,nRoot
+INTEGER                           :: CNSideID,InterType,nRoot
 LOGICAL                           :: ElemCheck
 !===================================================================================================================================
 
@@ -1186,13 +1187,13 @@ SELECT CASE(nInterSections)
           isInter   = iInter
         END IF
       END DO ! iInter=2,nInterSections
-  #ifdef CODE_ANALYZE
+#ifdef CODE_ANALYZE
        IF (PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank) THEN
          IF (PartID.EQ.PARTOUT) THEN
            IPWRITE(UNIT_stdout,*) ' realnInter ',realnInter
          END IF
        END IF
-  #endif /*CODE_ANALYZE*/
+#endif /*CODE_ANALYZE*/
       IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
         IF (PRESENT(ElemCheck_Opt)) THEN
           IF (ElemCheck_Opt) THEN
