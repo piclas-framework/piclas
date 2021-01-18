@@ -868,7 +868,7 @@ DO iPart=1,PDM%ParticleVecLength
             + (PartStateIntEn(1,iPart) - SpecDSMC(iSpec)%EZeroPoint)*partWeight
           DSMC_Solution(9,iElem, iSpec) = DSMC_Solution(9,iElem, iSpec)+PartStateIntEn(2,iPart)*partWeight
         END IF
-        IF (DSMC%ElectronicModel) THEN
+        IF (DSMC%ElectronicModel.GT.0) THEN
           IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
             DSMC_Solution(10,iElem,iSpec)=DSMC_Solution(10,iElem,iSpec)+PartStateIntEn(3,iPart)*partWeight
           END IF
@@ -1023,7 +1023,7 @@ DO iElem = 1, nElems ! element/cell main loop
                   Total_TempRot  = Total_TempRot  + Macro_TempRot*Macro_PartNum
                 END IF
               END IF
-              IF (DSMC%ElectronicModel) THEN
+              IF (DSMC%ElectronicModel.GT.0) THEN
                 IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
                   Macro_TempElec = CalcTelec(PartEelec/PartNum, iSpec)
                   HeavyPartNum = HeavyPartNum + Macro_PartNum
@@ -1046,7 +1046,7 @@ DO iElem = 1, nElems ! element/cell main loop
             Total_TempVib = Total_TempVib / MolecPartNum
             Total_TempRot = Total_TempRot / MolecPartNum
           END IF
-          IF ( DSMC%ElectronicModel .AND.(HeavyPartNum.GT. 0)) THEN
+          IF ((DSMC%ElectronicModel.GT.0).AND.(HeavyPartNum.GT.0)) THEN
             Total_TempElec = Total_TempElec / HeavyPartNum
           END IF
         END IF
@@ -1531,14 +1531,12 @@ SUBROUTINE DSMCMacroSampling()
 !> Check if sampling should be activated and perform sampling
 !===================================================================================================================================
 ! MODULES
-USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
 USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: DSMC
-USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_Mesh_Vars             ,ONLY: MeshFile
-USE MOD_TimeDisc_Vars         ,ONLY: iter
-USE MOD_DSMC_Vars             ,ONLY: UseQCrit, SamplingActive, QCritTestStep, QCritLastTest, UseSSD
+USE MOD_TimeDisc_Vars         ,ONLY: iter, time, TEnd
+USE MOD_DSMC_Vars             ,ONLY: SamplingActive
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1555,40 +1553,11 @@ INTEGER           :: nOutput
 IF (DSMC%ReservoirSimu) RETURN
 #endif
 
-IF(UseQCrit) THEN
-  ! Use QCriterion (Burt,Boyd) for steady - state detection
-  IF((.NOT.SamplingActive).AND.(iter-QCritLastTest.EQ.QCritTestStep)) THEN
-    CALL QCrit_evaluation()
-    QCritLastTest=iter
-    IF(SamplingActive) THEN
-      SWRITE(*,*)'Sampling active'
-      ! Set TimeFracSamp and DeltaTimeOutput -> correct number of outputs
-      DSMC%TimeFracSamp = (TEnd-Time)/TEnd
-      DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
-    ENDIF
-  ENDIF
-ELSEIF(UseSSD) THEN
-  ! Use SSD for steady - state detection
-  IF((.NOT.SamplingActive)) THEN
-    CALL SteadyStateDetection_main()
-    IF(SamplingActive) THEN
-      SWRITE(*,*)'Sampling active'
-      ! Set TimeFracSamp and DeltaTimeOutput -> correct number of outputs
-      DSMC%TimeFracSamp = (TEnd-Time)/TEnd
-      DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
-    ENDIF
-  ENDIF
-ELSE
-  ! Use user given TimeFracSamp
-  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN
-    SamplingActive=.TRUE.
-    SWRITE(*,*)'Sampling active'
-  ENDIF
+! Use user given TimeFracSamp
+IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN
+  SamplingActive=.TRUE.
+  SWRITE(*,*)'Sampling active'
 ENDIF
-!
-! Calculate Entropy using Theorem of Boltzmann
-!CALL EntropyCalculation()
-!
 
 IF(SamplingActive) THEN
   CALL DSMC_data_sampling()

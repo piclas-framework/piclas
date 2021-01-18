@@ -231,7 +231,7 @@ SELECT CASE (init_or_sf)
     ,'Neither iInit nor SurfaceFlux defined as reference!')
 END SELECT
 
-IF (DSMC%ElectronicModel) THEN
+IF (DSMC%ElectronicModel.GT.0) THEN
   CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
 ENDIF
 
@@ -313,7 +313,7 @@ SELECT CASE (init_or_sf)
     ,'Neither iInit nor SurfaceFlux defined as reference!')
 END SELECT
 
-IF (DSMC%ElectronicModel) THEN
+IF (DSMC%ElectronicModel.GT.0) THEN
   CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
 ENDIF
 
@@ -417,7 +417,7 @@ ElemID = PEM%LocalElemID(iPart)
       ,'Neither iInit nor SurfaceFlux defined as reference!')
   END SELECT
 
-  IF (DSMC%ElectronicModel) THEN
+  IF (DSMC%ElectronicModel.GT.0) THEN
     CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
   ENDIF
 
@@ -522,7 +522,7 @@ SELECT CASE (init_or_sf)
     ,'Neither iInit nor SurfaceFlux defined as reference!')
 END SELECT
 
-IF (DSMC%ElectronicModel) THEN
+IF (DSMC%ElectronicModel.GT.0) THEN
   CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
 ENDIF
 

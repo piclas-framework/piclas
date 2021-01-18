@@ -281,6 +281,7 @@ USE MOD_Particle_Mesh              ,ONLY: FinalizeParticleMesh
 USE MOD_Particle_Analyze           ,ONLY: FinalizeParticleAnalyze
 USE MOD_PICDepo                    ,ONLY: FinalizeDeposition
 USE MOD_ParticleInit               ,ONLY: FinalizeParticles
+USE MOD_Particle_Boundary_Init     ,ONLY: FinalizeParticleBoundary
 USE MOD_TTMInit                    ,ONLY: FinalizeTTM
 USE MOD_DSMC_Init                  ,ONLY: FinalizeDSMC
 USE MOD_SurfaceModel_Porous        ,ONLY: FinalizePorousBoundaryCondition
@@ -352,6 +353,7 @@ CALL FinalizeFPFlow()
 CALL FinalizeBGK()
 #endif
 CALL FinalizeParticles()
+CALL FinalizeParticleBoundary()
 CALL FinalizeBackGroundField()
 CALL FinalizeSuperB()
 #endif /*PARTICLES*/

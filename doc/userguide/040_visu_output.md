@@ -18,18 +18,6 @@ NVisu                         1   Number of points at which solution is sampled 
 VisuParticles               OFF   Converts the particle data (positions, velocity, species, internal energies)
 
 NodeTypeVisu               VISU   Node type of the visualization basis: VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO
-
-CalcDiffError                 F   Use first state file as reference state for L2 error calculation with the following state files
-
-AllowChangedMesh              F   Neglect mesh changes, use inits of first mesh (ElemID must match!).
-
-CalcDiffSigma                 F   Use last state file as state for L2 sigma calculation.
-
-CalcAverage                   F   Calculate and write arithmetic mean of all state files.
-
-VisuSource                    F   Use DG_Source instead of DG_Solution.
-
-NAnalyze                    2*N   Polynomial degree at which analysis is performed (e.g. for L2 errors, required for CalcDiffError).
 -----------------------------------------------------------------------------------------------
 
 In the following, the parameters enabling the different output variables are described. It should be noted that these parameters are part of the `parameter.ini` required by **PICLas**.
@@ -42,7 +30,7 @@ To sample the particles impinging on a certain surface between `Analyze_dt` outp
 
     Part-Boundary1-BoundaryParticleOutput = T
 
-The particle data will then be written to `*_PartStateBoundary_*.h5` and includes besides the position, velocity vector and kinetic energy (in eV), additionally the impact obliqueness angle between particle trajectory and surface normal vector, e.g. an impact vector perpendicular to the surface corresponds to an impact angle of $0^{\circ}$.
+The particle data will then be written to `*_PartStateBoundary_*.h5` and includes besides the position, velocity vector and kinetic energy (in eV), additionally the impact obliqueness angle between particle trajectory and surface normal vector, e.g. an impact vector perpendicular to the surface corresponds to an impact angle of $0^{\circ}$. This allows you to create a histogram of the particle impacts in the post-processing.
 
 The output of lost particles in a separate `*_PartStateLost*.h5` file can be enabled by
 
@@ -81,11 +69,11 @@ Output and sampling on surfaces can be enabled by
 
     Particles-DSMC-CalcSurfaceVal = T
 
-By default this will include the impact counter, the force per area in $x$, $y$, and $z$ and the heat flux. The output of the surface-sampled data is written to `*_DSMCSurfState_*.h5`. Additional surface values can be sampled by using
+By default this will include the species-specific impact counter per iteration of simulation particles, the force per area in $x$, $y$, and $z$ and the heat flux. The output of the surface-sampled data is written to `*_DSMCSurfState_*.h5`. Additional surface values can be sampled by using
 
     CalcSurfaceImpact = T
 
-which calculates the species-dependent averaged impact energy (trans, rot, vib), impact vector, impact obliqueness angle (between particle trajectory and surface normal vector, e.g. an impact vector perpendicular to the surface corresponds to an impact angle of $0^{\circ}$) and number of impacts due to particle-surface collisions. 
+which calculates the species-dependent averaged impact energy (trans, rot, vib), impact vector, impact obliqueness angle (between particle trajectory and surface normal vector, e.g. an impact vector perpendicular to the surface corresponds to an impact angle of $0^{\circ}$) and number of real particle impacts over the sampling duration. 
 
 ## Integral Variables
 
@@ -101,17 +89,7 @@ determined by using
     CalcCoupledPower = T
 
 which calculates the time-averaged power (moving average) coupled to the particles in each cell (average power per cubic metre)
-and stores it in `PCouplDensityAvgElem` for each species separately. Furthermore, the accumulated power over all particles of the same species is displayed in STD-out via
-
-     Averaged coupled power per species [W]
-     1     :    0.0000000000000000
-     2     :    2.6614384806763068E-003
-     3     :    2.6837037798108634E-006
-     4     :    0.0000000000000000
-     5     :    8.8039637450978475E-006
-     Total :    2.6729261482012156E-003
-
-for the time-averaged (moving average) power. Additionally, the properties `PCoupl` (instantaneous) and a time-averaged (moving average) value
+and stores it in `PCouplDensityAvgElem` for each species separately. Additionally, the properties `PCoupl` (instantaneous) and a time-averaged (moving average) value
 `PCoupledMoAv` are stored in the `ParticleAnalyze.csv` output file. 
 
 **Plasma Frequency**

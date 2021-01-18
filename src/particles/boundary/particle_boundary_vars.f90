@@ -245,14 +245,13 @@ TYPE tPartBoundary
                                                                             ! 6 SEE (secondary e- emission) by Pagonakis2016
                                                                             !   (originally from Harrower1956)
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
-  LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                ! Use Boundary for Q-Criterion ?
-  LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibirum Distribution with reflection
+  LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibrium Distribution with reflection
   LOGICAL , ALLOCATABLE                  :: Dielectric(:)                 ! Define if particle boundary [$] is a dielectric
 !                                                                         ! interface, i.e. an interface between a dielectric and
 !                                                                         ! a non-dielectric or a between to different dielectrics
 !                                                                         ! [.TRUE.] or not [.FALSE.] (requires reflective BC)
 !                                                                         ! (Default=FALSE.)
-  LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutput(:)     ! Save particle position, velocity and species to
+  LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutputHDF5(:) ! Save particle position, velocity and species to
 !                                                                         ! PartDataBoundary container for writing to .h5 later
 END TYPE
 
@@ -325,7 +324,7 @@ END TYPE
 TYPE(tPartAuxBC)        :: PartAuxBC             ! auxBC Data for Particles
 
 ! Boundary particle output
-LOGICAL              :: DoBoundaryParticleOutput   ! Flag set automatically if particles crossing specific
+LOGICAL              :: DoBoundaryParticleOutputHDF5   ! Flag set automatically if particles crossing specific
 !                                                  ! boundaries are to be saved to .h5 (position of intersection,
 !                                                  ! velocity, species, internal energies)
 REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:10,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle

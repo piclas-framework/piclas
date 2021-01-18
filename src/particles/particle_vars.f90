@@ -126,11 +126,8 @@ END TYPE
 
 TYPE tInit                                                                   ! Particle Data for each init emission for each species
   !Specific Emission/Init values
-  LOGICAL                                :: UseForInit                       ! Use Init/Emission for init.?
-  LOGICAL                                :: UseForEmission                   ! Use Init/Emission for emission?
   CHARACTER(40)                          :: SpaceIC                          ! specifying Keyword for Particle Space condition
   CHARACTER(30)                          :: velocityDistribution             ! specifying keyword for velocity distribution
-  INTEGER(8)                             :: initialParticleNumber            ! Number of Particles at time 0.0
   REAL                                   :: RadiusIC                         ! Radius for IC circle
   REAL                                   :: Radius2IC                        ! Radius2 for IC cylinder (ring)
   REAL                                   :: RadiusICGyro                     ! Radius for Gyrotron gyro radius
@@ -146,7 +143,6 @@ TYPE tInit                                                                   ! P
   REAL                                   :: CylinderHeightIC                 ! third measure of cylinder
                                                                              ! (set 0 for flat rectangle),
                                                                              ! negative value = opposite direction
-  LOGICAL                                :: CalcHeightFromDt                 ! Calc. cuboid/cylinder height from v and dt?
   REAL                                   :: VeloIC                           ! velocity for inital Data
   REAL                                   :: VeloVecIC(3)                     ! normalized velocity vector
   REAL                                   :: Amplitude                        ! Amplitude for sin-deviation initiation.
@@ -157,9 +153,10 @@ TYPE tInit                                                                   ! P
   REAL                                   :: Alpha                            ! WaveNumber for sin-deviation initiation.
   REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
   REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3)
-  INTEGER                                :: ParticleEmissionType             ! Emission Type 1 = emission rate in 1/s,
+  INTEGER                                :: ParticleEmissionType             ! Emission Type 0 = only initial,
+                                                                             !               1 = emission rate in 1/s,
                                                                              !               2 = emission rate 1/iteration
-  REAL                                   :: ParticleEmission                 ! Emission in [1/s] or [1/Iteration]
+  REAL                                   :: ParticleNumber                   ! Initial, Emission in [1/s] or [1/Iteration]
   INTEGER(KIND=8)                        :: InsertedParticle                 ! Number of all already inserted Particles
   INTEGER(KIND=8)                        :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
   INTEGER(KIND=4)                        :: InsertedParticleMisMatch=0       ! error in number of inserted particles of last step
@@ -208,12 +205,6 @@ TYPE tSurfFluxSubSideData
                                                                              ! (1:2,0:NGeo,0:NGeo)
 END TYPE tSurfFluxSubSideData
 
-TYPE tSurfFluxLink
-  INTEGER                                :: PartIdx
-  INTEGER,ALLOCATABLE                    :: SideInfo(:)
-  TYPE(tSurfFluxLink), POINTER           :: next => null()
-END TYPE tSurfFluxLink
-
 TYPE typeSurfaceflux
   INTEGER                                :: BC                               ! PartBound to be emitted from
   CHARACTER(30)                          :: velocityDistribution             ! specifying keyword for velocity distribution
@@ -241,11 +232,6 @@ TYPE typeSurfaceflux
   REAL                                   :: rmax                             ! max radius of to-be inserted particles
   REAL                                   :: rmin                             ! min radius of to-be inserted particles
   INTEGER, ALLOCATABLE                   :: SurfFluxSideRejectType(:)        ! Type if parts in side can be rejected (1:SideNumber)
-  REAL                                   :: PressureFraction
-  TYPE(tSurfFluxLink), POINTER           :: firstSurfFluxPart => null()      ! pointer to first particle inserted for iSurfaceFlux
-                                                                             ! used for linked list during sampling
-  TYPE(tSurfFluxLink), POINTER           :: lastSurfFluxPart => null()       ! pointer to last particle inserted for iSurfaceFlux
-                                                                             ! used for abort criterion in do while during sampling
   LOGICAL                                :: Adaptive                         ! Is the surface flux an adaptive boundary?
   INTEGER                                :: AdaptiveType                     ! Chose the adaptive type, description in DefineParams
   REAL                                   :: AdaptiveMassflow                 ! Mass flow [kg/s], which is held constant
@@ -275,9 +261,12 @@ TYPE tSpecies                                                                ! P
 #endif
 END TYPE
 
-LOGICAL                                  :: UseCircularInflow                !
-INTEGER, ALLOCATABLE                     :: CountCircInflowType(:,:,:)
-LOGICAL                                  :: UseAdaptive                 !
+LOGICAL                                  :: UseCircularInflow                ! Flag is set if the circular inflow feature is used:
+                                                                             ! Particle insertion only in the defined circular area
+                                                                             ! on the surface of a surface flux
+INTEGER, ALLOCATABLE                     :: CountCircInflowType(:,:,:)       ! Counter whether cells are inside/partially inside or
+                                                                             ! outside of circular region (only with CODE_ANALYZE)
+LOGICAL                                  :: UseAdaptive                      ! Flag is set if an adaptive boundary is present
 REAL                                     :: AdaptiveWeightFac                ! weighting factor theta for weighting of average
                                                                              ! instantaneous values with those
                                                                              ! of previous iterations
@@ -297,9 +286,6 @@ REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! M
                                                                              ! 12:  Static pressure [Pa]
                                                                              ! 13:  Integral pressure difference [Pa]
 INTEGER                                  :: nSpecies                         ! number of species
-INTEGER                                  :: nPointsMCVolumeEstimate          ! number of points seeded into one element for volume
-                                                                             ! portion (that is occupied) estimation
-                                                                             ! with a Monte Carlo method
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
 LOGICAL                                  :: PartMeshHasPeriodicBCs
@@ -411,6 +397,7 @@ TYPE tVariableTimeStep
   LOGICAL                              :: UseVariableTimeStep
   LOGICAL                              :: UseLinearScaling
   LOGICAL                              :: UseDistribution
+  LOGICAL                              :: OnlyDecreaseDt
   REAL, ALLOCATABLE                    :: ParticleTimeStep(:)
   REAL, ALLOCATABLE                    :: ElemFac(:)
   REAL, ALLOCATABLE                    :: ElemWeight(:)

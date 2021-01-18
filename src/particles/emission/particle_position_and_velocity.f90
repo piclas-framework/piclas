@@ -78,8 +78,8 @@ INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:)
   DoExactPartNumInsert =  .FALSE.
   ! check if particle inserting during simulation or initial inserting and also if via partdensity or exact particle number
   ! nbrOfParticles is set for initial inserting if initialPartNum or partdensity is set in ini
-  ! ParticleEmission and Partdensity not working together
-  IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleEmission.EQ.0)) RETURN
+  ! ParticleNumber and PartDensity not working together
+  IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleNumber.EQ.0)) RETURN
   IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) THEN
     DoExactPartNumInsert =  .TRUE.
     IF(Symmetry%Axisymmetric) CALL abort(&
@@ -208,25 +208,25 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
 
   !------------------SpaceIC-cases: start-----------------------------------------------------------!
   SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC))
-  CASE ('point')
+  CASE('point')
     CALL SetParticlePositionPoint(FractNbr,iInit,chunkSize,particle_positions)
-  CASE ('line_with_equidistant_distribution')
+  CASE('line_with_equidistant_distribution')
     CALL SetParticlePositionEquidistLine(FractNbr,iInit,chunkSize,particle_positions)
-  CASE ('line')
+  CASE('line')
     CALL SetParticlePositionLine(FractNbr,iInit,chunkSize,particle_positions)
   CASE('disc')
     CALL SetParticlePositionDisk(FractNbr,iInit,chunkSize,particle_positions)
   CASE('circle', 'circle_equidistant')
     CALL SetParticlePositionCircle(FractNbr,iInit,chunkSize,particle_positions)
   CASE('gyrotron_circle')
-    CALL SetParticlePositionGyrotronCircle(FractNbr,iInit,chunkSize,particle_positions, NbrOfParticle)
+    CALL SetParticlePositionGyrotronCircle(FractNbr,iInit,chunkSize,particle_positions)
   CASE('cuboid','cylinder')
     CALL SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_positions)
   CASE('sphere')
     CALL SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions)
   CASE('sin_deviation')
     CALL SetParticlePositionSinDeviation(FractNbr,iInit,particle_positions)
-  CASE('photon_SEE_disc') ! disc case for surface disribution
+  CASE('photon_SEE_disc') ! disc case for surface distribution
     CALL SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize,particle_positions)
   CASE('photon_cylinder') ! cylinder case for photonionization
     CALL SetParticlePositionPhotonCylinder(FractNbr,iInit,chunkSize,particle_positions)
@@ -302,7 +302,7 @@ USE MOD_Particle_Vars
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, CalcVelocity_taylorgreenvortex, CalcVelocity_FromWorkFuncSEE
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_gyrotroncircle
-USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutput
+USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_FPFlow_Init             ,ONLY: FP_BuildTransGaussNums
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -384,7 +384,7 @@ CASE('photon_SEE_energy')
         CALL CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit=iInit)
         PartState(4:6,PositionNbr) = Vec3D(1:3)
         ! Store the particle information in PartStateBoundary.h5
-        IF(DoBoundaryParticleOutput) CALL StoreBoundaryParticleProperties(PositionNbr,FractNbr,PartState(1:3,PositionNbr),&
+        IF(DoBoundaryParticleOutputHDF5) CALL StoreBoundaryParticleProperties(PositionNbr,FractNbr,PartState(1:3,PositionNbr),&
                                           UNITVECTOR(PartState(4:6,PositionNbr)),Species(FractNbr)%Init(iInit)%NormalIC,mode=2,&
                                           usevMPF_optIN=.FALSE.)
     END IF

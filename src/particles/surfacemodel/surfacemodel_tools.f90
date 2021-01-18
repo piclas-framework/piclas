@@ -25,23 +25,19 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: SurfaceModel_ParticleEmission, SurfaceModel_EnergyAccommodation, GetWallTemperature, CalcRotWallVelo
+PUBLIC :: SurfaceModel_ParticleEmission, SurfaceModel_EnergyAccommodation, GetWallTemperature, CalcPostWallCollVelo, CalcRotWallVelo
 !===================================================================================================================================
 
 CONTAINS
 
-SUBROUTINE SurfaceModel_ParticleEmission(PartTrajectory, LengthPartTrajectory, alpha, n_loc, PartID, SideID, p, q, &
-            ProductSpec, ProductSpecNbr, TempErgy)
+SUBROUTINE SurfaceModel_ParticleEmission(PartTrajectory, alpha, n_loc, PartID, SideID, p, q, ProductSpec, ProductSpecNbr, TempErgy)
 !===================================================================================================================================
 !> Routine for the particle emission at a surface
 !===================================================================================================================================
-USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec
-USE MOD_Globals_Vars              ,ONLY: PI
+USE MOD_Globals                   ,ONLY: OrthoNormVec
 USE MOD_Part_Tools                ,ONLY: VeloFromDistribution
-USE MOD_part_operations           ,ONLY: CreateParticle, RemoveParticle
-USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies,WriteMacroSurfaceValues
-USE MOD_Globals_Vars              ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars             ,ONLY: LastPartPos, PEM
+USE MOD_part_operations           ,ONLY: CreateParticle
+USE MOD_Particle_Vars             ,ONLY: WriteMacroSurfaceValues, LastPartPos, PEM
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
@@ -51,7 +47,7 @@ USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT-OUTPUT VARIABLES
-REAL,INTENT(INOUT)          :: PartTrajectory(1:3), LengthPartTrajectory, alpha
+REAL,INTENT(INOUT)          :: PartTrajectory(1:3), alpha
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)             :: n_loc(1:3)
@@ -67,16 +63,8 @@ REAL,INTENT(IN)             :: TempErgy(2)               !< temperature, energy 
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: NewPartID
-REAL                             :: tang1(1:3),tang2(1:3)
-INTEGER                          :: SurfSideID
-! variables for Energy sampling
-INTEGER                          :: locBCID
-REAL                             :: WallVelo(1:3), WallTemp
-! Polyatomic Molecules
-REAL                             :: NewVelo(3)
-REAL                             :: POI_vec(3)
-INTEGER                          :: iNewPart ! particle counter for newly created particles
+INTEGER                          :: iNewPart, NewPartID, locBCID, SurfSideID
+REAL                             :: tang1(1:3), tang2(1:3), WallVelo(1:3), WallTemp, NewVelo(3), POI_vec(3)
 !===================================================================================================================================
 locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
@@ -232,7 +220,7 @@ IF (useDSMC) THEN
 #endif
     END IF
 
-    IF (DSMC%ElectronicModel) THEN
+    IF (DSMC%ElectronicModel.GT.0) THEN
       IF((SpecDSMC(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
         CALL RANDOM_NUMBER(RanNum)
         IF (RanNum.LT.ElecACC) THEN
@@ -282,6 +270,45 @@ ELSE
 END IF
 
 END FUNCTION GetWallTemperature
+
+
+FUNCTION CalcPostWallCollVelo(SpecID,VeloSquare,WallTemp,TransACC)
+!===================================================================================================================================
+!> Calculate the new velocity vector for the reflected particle based on the wall temperature and accommodation coefficient
+!===================================================================================================================================
+USE MOD_Globals                 ,ONLY: DOTPRODUCT
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, PI
+USE MOD_Particle_Vars           ,ONLY: Species
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: SpecID
+REAL, INTENT(IN)                :: VeloSquare, WallTemp, TransACC
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                            :: CalcPostWallCollVelo(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: RanNum, VeloCrad, VeloCz, Fak_D, EtraOld, EtraNew, Cmr, Phi
+!-----------------------------------------------------------------------------------------------------------------------------------
+
+EtraOld     = 0.5 * Species(SpecID)%MassIC * VeloSquare
+CALL RANDOM_NUMBER(RanNum)
+VeloCrad    = SQRT(-LOG(RanNum))
+CALL RANDOM_NUMBER(RanNum)
+VeloCz      = SQRT(-LOG(RanNum))
+Fak_D       = VeloCrad**2 + VeloCz**2
+
+EtraNew     = EtraOld + TransACC * (BoltzmannConst * WallTemp * Fak_D - EtraOld)
+Cmr         = SQRT(2.0 * EtraNew / (Species(SpecID)%MassIC * Fak_D))
+CALL RANDOM_NUMBER(RanNum)
+Phi     = 2.0 * PI * RanNum
+
+CalcPostWallCollVelo(1)  = Cmr * VeloCrad * COS(Phi) ! tang1
+CalcPostWallCollVelo(2)  = Cmr * VeloCrad * SIN(Phi) ! tang2
+CalcPostWallCollVelo(3)  = Cmr * VeloCz
+
+END FUNCTION CalcPostWallCollVelo
 
 
 SUBROUTINE CalcRotWallVelo(locBCID,POI,WallVelo)

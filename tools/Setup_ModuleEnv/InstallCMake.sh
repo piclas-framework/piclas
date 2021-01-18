@@ -48,10 +48,10 @@ if [ ! -e "${MODULEFILE}" ]; then
   fi
   cd ${SOURCESDIR}/cmake-${CMAKEVERSION}/build
   ../bootstrap --prefix=${CMAKEDIR}
-  make -j 2 2>&1 | tee make.out
+  make -j 2>&1 | tee make.out
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo " "
-    echo "Failed: [make -j 2 2>&1 | tee make.out]"
+    echo "Failed: [make -j 2>&1 | tee make.out]"
     exit
   else
     make install 2>&1 | tee install.out

@@ -755,13 +755,12 @@ USE MOD_AnalyzeField              ,ONLY: AnalyzeField
 #ifdef PARTICLES
 USE MOD_Mesh_Vars                 ,ONLY: MeshFile
 USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum
-USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles,CalculatePartElemData,WriteParticleTrackingData
 USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep,DoPartAnalyze,TrackParticlePosition
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfaceAnalyzeStep
 USE MOD_SurfaceModel_Analyze      ,ONLY: AnalyzeSurface
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
-USE MOD_DSMC_Vars                 ,ONLY: DSMC_Solution, DSMC_VolumeSample
+USE MOD_DSMC_Vars                 ,ONLY: DSMC_Solution
 USE MOD_Particle_Tracking_vars    ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
 USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep
 USE MOD_BGK_Vars                  ,ONLY: BGKInitDone, BGK_QualityFacSamp
@@ -1015,9 +1014,7 @@ END IF
 IF (DoPartAnalyze) THEN
   IF(DoPerformPartAnalyze)    CALL AnalyzeParticles(OutputTime)
 END IF
-IF (DoSurfModelAnalyze) THEN
-  IF(DoPerformSurfaceAnalyze) CALL AnalyzeSurface(OutputTime)
-END IF
+IF(DoPerformSurfaceAnalyze) CALL AnalyzeSurface(OutputTime)
 IF(TrackParticlePosition) THEN
   IF(DoPerformPartAnalyze) CALL WriteParticleTrackingData(OutputTime,iter) ! new function
 END IF
@@ -1048,7 +1045,6 @@ IF ((WriteMacroVolumeValues).AND.(.NOT.OutputHDF5))THEN
     iter_macvalout = 0
     DSMC%SampNum = 0
     DSMC_Solution = 0.0
-    DSMC_VolumeSample = 0.0
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%QualityFacSamp(:,:) = 0.
       IF(BGKInitDone) BGK_QualityFacSamp(:,:) = 0.
@@ -1098,7 +1094,6 @@ IF(OutPutHDF5)THEN
         iter_macvalout = 0
         DSMC%SampNum = 0
         DSMC_Solution = 0.0
-        DSMC_VolumeSample = 0.0
       END IF
     END IF
     ! surface data

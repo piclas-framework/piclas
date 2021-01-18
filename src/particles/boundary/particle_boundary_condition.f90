@@ -14,8 +14,8 @@
 
 MODULE MOD_Particle_Boundary_Condition
 !===================================================================================================================================
-! Determines how particles interact with a given boundary condition. This routine is used by MOD_Part_Tools, hence, it cannot be
-! used here due to circular definitions!
+!> Determines how particles interact with a given boundary condition. This routine is used by MOD_Part_Tools, hence, it cannot be
+!> used here due to circular definitions!
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -35,10 +35,6 @@ INTERFACE GetBoundaryInteractionAuxBC
   MODULE PROCEDURE GetBoundaryInteractionAuxBC
 END INTERFACE
 
-!INTERFACE PartSwitchElement
-!  MODULE PROCEDURE PartSwitchElement
-!END INTERFACE
-
 PUBLIC :: GetBoundaryInteraction
 PUBLIC :: GetBoundaryInteractionAuxBC
 !PUBLIC :: PartSwitchElement
@@ -49,13 +45,10 @@ CONTAINS
 SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,ElemID,crossedBC&
                                   ,TriNum,locSideID)
 !===================================================================================================================================
-! Computes the post boundary state of a particle that interacts with a boundary condition
-!  OpenBC                  = 1
-!  ReflectiveBC            = 2
-!  PeriodicBC              = 3
-!  SimpleAnodeBC           = 4
-!  SimpleCathodeBC         = 5
-!  MPINeighborhoodBC       = 6
+!> Determines the post boundary state of a particle that interacts with a boundary condition
+!> * Open: Particle is removed
+!> * Reflective: Further treatment as part of the surface modelling (`src/particles/surfacemodel/`)
+!> * Periodic (+ Rotational periodic): Further treatment in the specific routines
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -66,7 +59,7 @@ USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangB
 USE MOD_Particle_Vars            ,ONLY: PartSpecies
 USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutput
+USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
 USE MOD_SurfaceModel             ,ONLY: SurfaceModel, PerfectReflection
 #if defined(IMPA)
@@ -159,7 +152,7 @@ END IF
 
 ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
   ! Surface particle output to .h5
-  IF(DoBoundaryParticleOutput.AND.PartBound%BoundaryParticleOutput(iBC))THEN
+  IF(DoBoundaryParticleOutputHDF5.AND.PartBound%BoundaryParticleOutputHDF5(iBC))THEN
     CALL StoreBoundaryParticleProperties(iPart,PartSpecies(iPart),LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,PartTrajectory(1:3),n_loc,mode=1)
   END IF
 

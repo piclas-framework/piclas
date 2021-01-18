@@ -127,10 +127,6 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   REAL                        :: dref                      ! collision model: reference diameter        , ini_2
   REAL                        :: omega                     ! collision model: temperature exponent      , ini_2
   REAL                        :: alphaVSS                  ! collision model: scattering exponent(VSS)  , ini_2
-  INTEGER                     :: NumOfPro                  ! Number of Protons, ini_2
-  REAL                        :: Eion_eV                   ! Energy of Ionisation in eV, ini_2
-  REAL                        :: RelPolarizability         ! relative polarizability, ini_2
-  INTEGER                     :: NumEquivElecOutShell      ! number of equivalent electrons in outer shell, ini2
   INTEGER                     :: Xi_Rot                    ! Rotational DOF
   REAL                        :: GammaVib                  ! GammaVib = Xi_Vib(T_t)² * exp(CharaTVib/T_t) / 2 -> correction fact
                                                            ! for vib relaxation -> see 'Vibrational relaxation rates
@@ -262,8 +258,10 @@ TYPE tDSMC
                                                             !     2: Instantanious maximal vib relax prob
   INTEGER, ALLOCATABLE          :: QualityFacSampVibSamp(:,:,:)!Sample size for QualityFacSampVib
   REAL, ALLOCATABLE             :: QualityFacSampRelaxSize(:,:)! Samplie size of quality relax factors (nElem,nSpec+1)
-  LOGICAL                       :: ElectronicModel          ! Flag for Electronic State of atoms and molecules
-  LOGICAL                       :: ElectronicDistrModel     ! Flag for Electronic State of atoms and molecules
+  INTEGER                       :: ElectronicModel          ! Model selection for electronic state of atoms and molecules
+                                                            !     0: No electronic energy relaxation
+                                                            !     1: Liechty, each particle has a specific electronic state
+                                                            !     2: Burt, each particle has an electronic distribution function
   CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file
   INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules
   REAL                          :: RotRelaxProb             ! Model for calculation of rotational relaxation probability, ini_1
@@ -399,9 +397,12 @@ TYPE tArbDiss
 END TYPE
 
 TYPE tChemReactions
+  LOGICAL                         :: AnyQKReaction          ! Defines if any QK reaction present
   INTEGER                         :: NumOfReact             ! Number of possible reactions
+  INTEGER                         :: NumOfReactWOBackward   ! Number of possible reactions w/o automatic backward reactions
   TYPE(tArbDiss), ALLOCATABLE     :: ArbDiss(:)             ! Construct to allow the definition of a list of non-reactive educts
-  LOGICAL, ALLOCATABLE            :: QKProcedure(:)         ! Defines if QK Procedure is selected
+  LOGICAL, ALLOCATABLE            :: BackwardReac(:)        ! Defines if backward reaction is calculated
+  INTEGER, ALLOCATABLE            :: BackwardReacForwardIndx(:)
   REAL, ALLOCATABLE               :: QKRColl(:)             ! Collision factor in QK model
   REAL, ALLOCATABLE               :: QKTCollCorrFac(:)      ! Correction factor for collision temperature due to averaging over T^b
   REAL, ALLOCATABLE               :: NumReac(:)             ! Number of occurred reactions for each reaction number
@@ -409,11 +410,15 @@ TYPE tChemReactions
                                                             ! coefficient based on the reaction probabilities
   REAL, ALLOCATABLE               :: ReacCollMean(:)        ! Mean collision probability for each collision pair
   CHARACTER(LEN=5),ALLOCATABLE    :: ReactType(:)           ! Type of Reaction (reaction num)
-                                                            !    i (electron impact ionization)
+                                                            !    I (electron impact ionization)
                                                             !    R (molecular recombination
                                                             !    D (molecular dissociation)
                                                             !    E (molecular exchange reaction)
-                                                            !    x (simple charge exchange reaction)
+  CHARACTER(LEN=5),ALLOCATABLE    :: ReactModel(:)          ! Model of Reaction (reaction num)
+                                                            !    TCE (total collision energy)
+                                                            !    QK (quantum kinetic)
+                                                            !    phIon (photon-ionization)
+                                                            !    XSec (based on cross-section data)
   INTEGER, ALLOCATABLE            :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
   INTEGER, ALLOCATABLE            :: Products(:,:)          ! Products: indices of the species resulting from the reaction [NumOfReact,4]
   INTEGER, ALLOCATABLE            :: ReactCase(:)           ! Case/pair of the reaction (1:NumOfReact)
@@ -447,7 +452,7 @@ TYPE tChemReactions
   REAL, ALLOCATABLE               :: CrossSection(:)        ! Cross-section of the given photo-ionization reaction
   TYPE(tCollCaseInfo), ALLOCATABLE:: CollCaseInfo(:)        ! Information of collision cases (nCase)
   ! XSec Chemistry
-  LOGICAL, ALLOCATABLE            :: XSec_Procedure(:)      ! Defines if reaction is based on cross-section data
+  LOGICAL                         :: AnyXSecReaction          ! Defines if any QK reaction present
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac
@@ -516,19 +521,7 @@ REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)! Macrovalues
 ! MacValout and MacroVolSample have to be separated due to autoinitialrestart
 INTEGER(KIND=8)                  :: iter_macvalout             ! iterations since last macro volume output
 INTEGER(KIND=8)                  :: iter_macsurfvalout         ! iterations since last macro surface output
-!----------------------------------------------convergence criteria-------------------------------------------------
 LOGICAL                          :: SamplingActive             ! Identifier if DSMC Sampling is activated
-LOGICAL                          :: UseQCrit                   ! Identifier if Q-Criterion (Burt,Boyd) for
-                                                               ! Sampling Start is used
-INTEGER                          :: QCritTestStep              ! Time Steps between Q criterion evaluations
-                                                               ! (=Length of Analyze Interval)
-INTEGER(KIND=8)                  :: QCritLastTest              ! Time Step of last Q criterion evaluation
-REAL                             :: QCritEpsilon               ! Steady State if Q < 1 + Qepsilon
-INTEGER, ALLOCATABLE             :: QCritCounter(:,:)          ! Exit / Wall Collision Counter for
-                                                               ! each boundary side (Side, Interval)
-REAL, ALLOCATABLE                :: QLocal(:)                  ! Intermediate Criterion (per cell)
-LOGICAL                          :: UseSSD                     ! Identifier if Steady-State-Detection
-                                                               ! for Sampling Start is used (only  if UseQCrit=FALSE)
 INTEGER                          :: ReactionProbGTUnityCounter ! Count the number of ReactionProb>1 (turn off the warning after
 !                                                              ! reaching 1000 outputs of said warning
 
@@ -541,40 +534,8 @@ TYPE tSampler ! DSMC sampling for Steady-State Detection       ! DSMC sampling f
   REAL                           :: EElec                      ! Energy of Cell (Electronic State)
 END TYPE
 
-TYPE (tSampler), ALLOCATABLE     :: Sampler(:,:)               ! DSMC sample array (number of Elements, number of Species)
-TYPE (tSampler), ALLOCATABLE     :: History(:,:,:)             ! History of Averaged Values (number of Elements,
-                                                               ! number of Species, number of Samples)
-INTEGER                          :: iSamplingIters             ! Counter for Sampling Iteration
-INTEGER                          :: nSamplingIters             ! Number of Iterations for one Sampled Value (Sampling Period)
-INTEGER                          :: HistTime                   ! Counter for Sampled Values in History
-INTEGER                          :: nTime                      ! Length of History of Sampled Values
-                                                               ! (Determines Sample Size for Statistical Tests)
-REAL, ALLOCATABLE                :: CheckHistory(:,:)          ! History Array for Detection Algorithm
-                                                               ! (number of Elements, number of Samples)
-INTEGER, ALLOCATABLE             :: SteadyIdentGlobal(:,:)     ! Identifier if Domain ist stationary (number of Species, Value)
-INTEGER, ALLOCATABLE             :: SteadyIdent(:,:,:)         ! Identifier if Cell is stationary
-                                                               ! (number of Elements, number of Species, Value)
-REAL                             :: Critical(2)                ! Critical Values for the Von-Neumann-Ratio
-REAL, ALLOCATABLE                :: RValue(:)                  ! Von-Neumann-Ratio (number of Elements)
-REAL                             :: Epsilon1, Epsilon2         ! Parameters for the Critical Values of
-                                                               ! the Euclidean Distance method
-REAL, ALLOCATABLE                :: ED_Delta(:)                ! Offset of Euclidian Distance Statistic to stationary
-                                                               ! value (number of Elements)
-REAL                             :: StudCrit                   ! Critical Value for the Student-t Test
-REAL, ALLOCATABLE                :: Stud_Indicator(:)          ! Stationary Index of the Student-t Test
-                                                               ! (0...1, 1 = steady  state) (number of Elements)
-REAL                             :: PITCrit                    ! Critical Value for the Polynomial Interpolation Test
-REAL, ALLOCATABLE                :: ConvCoeff(:)               ! Convolution Coefficients (Savizky-Golay-Filter)
-                                                               ! for the Polynomial Interpolation Test
-REAL, ALLOCATABLE                :: PIT_Drift(:)               ! Relative Filtered Trend Index (<1 = steady state) (number of elements)
-REAL, ALLOCATABLE                :: MK_Trend(:)                ! Normalized Trend Parameter for the Mann - Kendall - Test
-                                                               ! (-1<x<1 = steady state) (number of Elements)
-REAL, ALLOCATABLE                :: HValue(:)                  ! Entropy Parameter (Boltzmann's H-Theorem) (number of Elements)
-!-----------------------------------------------convergence criteria-------------------------------------------------
-
 INTEGER, ALLOCATABLE      :: SymmetrySide(:,:)
 REAL,ALLOCATABLE          :: DSMC_Solution(:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evib, 9 erot, 10 eelec
-REAL,ALLOCATABLE          :: DSMC_VolumeSample(:)         !sampnum samples of volume in element
 
 TYPE tTreeNode
 !  TYPE (tTreeNode), POINTER       :: One, Two, Three, Four, Five, Six, Seven, Eight !8 Childnodes of Octree Treenode

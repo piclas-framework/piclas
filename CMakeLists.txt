@@ -219,74 +219,96 @@ ENDIF(PICLAS_CODE_ANALYZE)
 SET(PICLAS_IMPLICIT OFF)
 IF(PICLAS_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
   IF(PICLAS_HDG)
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoisson.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=500)
   ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Boris-Leapfrog")
   IF(PICLAS_HDG)
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoissonByBorisLeapfrog.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=508)
   ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Leapfrog")
   IF(PICLAS_HDG)
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoisson.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=509)
   ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK3")
   IF(PICLAS_HDG)
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoissonByLSERK.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=501 -DLSERK)
   ELSE()
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByLSERK.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=1 -DLSERK)
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK4")
   IF(PICLAS_HDG)
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoissonByLSERK.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=502 -DLSERK)
   ELSE()
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByLSERK.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=2 -DLSERK)
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK14")
   IF(PICLAS_HDG)
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoissonByLSERK.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=506 -DLSERK)
   ELSE()
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByLSERK.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=6 -DLSERK)
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=4)
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_DSMC.f90)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=4)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=42)
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_DSMC_Debug.f90)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=42)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "CN")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=120 -DIMPA)
-   SET(PICLAS_IMPLICIT ON)
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByImplicitRK.f90)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=120 -DIMPA)
+  SET(PICLAS_IMPLICIT ON)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ImplicitO3")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=121 -DIMPA)
-   SET(PICLAS_IMPLICIT ON)
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByImplicitRK.f90)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=121 -DIMPA)
+  SET(PICLAS_IMPLICIT ON)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ImplicitO4")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=122 -DIMPA)
-   SET(PICLAS_IMPLICIT ON)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Ascher3")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=123 -DIMPA)
-   SET(PICLAS_IMPLICIT ON)
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByImplicitRK.f90)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=122 -DIMPA)
+  SET(PICLAS_IMPLICIT ON)
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Ascher3")
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByImplicitRK.f90)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=123 -DIMPA)
+  SET(PICLAS_IMPLICIT ON)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS2")
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByRosenbrock.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=130 -DROS)
   SET(PICLAS_IMPLICIT ON)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS3")
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByRosenbrock.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=131 -DROS)
   SET(PICLAS_IMPLICIT ON)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS4")
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS4")
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByRosenbrock.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=132 -DROS)
   SET(PICLAS_IMPLICIT ON)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS46")
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS46")
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByRosenbrock.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=133 -DROS)
   SET(PICLAS_IMPLICIT ON)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS6")
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS6")
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByRosenbrock.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=134 -DROS)
   SET(PICLAS_IMPLICIT ON)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
+   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_FPFlow.f90)
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=300)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
+   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_BGK.f90)
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=400)
 ELSE()
    MESSAGE(SEND_ERROR "Unknown time discretization method.")
@@ -351,20 +373,24 @@ endfunction()
 SET(configuration ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake)
 FILE(WRITE ${configuration} "")
 GETLISTOFVARSSTARTINGWITH("PICLAS_" piclasVars)
-FOREACH (_var IN LISTS piclasVars)
+GETLISTOFVARSSTARTINGWITH("HDF5_"   piclasVars2)
+GETLISTOFVARSSTARTINGWITH("CMAKE_"  piclasVars3)
+GETLISTOFVARSSTARTINGWITH("POSTI_"  piclasVars4)
+FOREACH (_var IN LISTS piclasVars piclasVars2 piclasVars3 piclasVars4)
   GET_PROPERTY(currentHelpString CACHE "${_var}" PROPERTY HELPSTRING)
-  SET(boolian (${${_var}} STREQUAL "ON" OR ${${_var}} STREQUAL "OFF"))
-  IF(${boolian})
-    FILE(APPEND ${configuration} "OPTION(${_var} \"${currentHelpString}\" ${${_var}})\n")
-  ELSE()
-    IF(${_var})
-      STRING(REPLACE "\\" "\\\\" ${_var} ${${_var}})
+  # Skip empty variables
+  IF(NOT ${${_var}} STREQUAL "")
+    SET(boolian (${${_var}} STREQUAL "ON" OR ${${_var}} STREQUAL "OFF"))
+    IF(${boolian})
+      FILE(APPEND ${configuration} "OPTION(${_var} \"${currentHelpString}\" ${${_var}})\n")
+    ELSE()
+      IF(${_var})
+        STRING(REPLACE "\\" "\\\\" ${_var} ${${_var}})
+      ENDIF()
+      FILE(APPEND ${configuration} "SET(${_var} \"${${_var}}\" CACHE STRING \"${currentHelpString}\")\n")
     ENDIF()
-    FILE(APPEND ${configuration} "SET(${_var} \"${${_var}}\" CACHE STRING \"${currentHelpString}\")\n")
   ENDIF()
 ENDFOREACH()
-
-
 # =========================================================================
 # Build type
 # =========================================================================
@@ -650,26 +676,32 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 # collect all F90 files needed for libpiclasstatic
 FILE(GLOB_RECURSE piclasF90 ./src/init/*.f90
                             ./src/readIMD/*.f90
-                                ./src/analyze/*.f90
-                                ./src/filter/*.f90
-                                ./src/globals/*.f90
-                                ./src/mortar/*.f90
-                                ./src/interpolation/basis.f90
-                                ./src/interpolation/interpolation.f90
-                                ./src/interpolation/interpolation_vars.f90
-                                ./src/interpolation/changeBasis.f90
-                                ./src/io_hdf5/*.f90
-                                ./src/loadbalance/*.f90
-                                ./src/mesh/*.f90
-                                ./src/interfaces/*.f90
-                                ./src/dielectric/*.f90
-                                ./src/mpi/*.f90
-                                ./src/output/*.f90
-                                ./src/readintools/*.f90
-                                ./src/recordpoints/*.f90
-                                ./src/restart/*.f90
-                                ./src/timedisc/*.f90
-                                ./src/utils/*.f90 )
+                            ./src/analyze/*.f90
+                            ./src/filter/*.f90
+                            ./src/globals/*.f90
+                            ./src/mortar/*.f90
+                            ./src/interpolation/basis.f90
+                            ./src/interpolation/interpolation.f90
+                            ./src/interpolation/interpolation_vars.f90
+                            ./src/interpolation/changeBasis.f90
+                            ./src/io_hdf5/*.f90
+                            ./src/loadbalance/*.f90
+                            ./src/mesh/*.f90
+                            ./src/interfaces/*.f90
+                            ./src/dielectric/*.f90
+                            ./src/mpi/*.f90
+                            ./src/output/*.f90
+                            ./src/readintools/*.f90
+                            ./src/recordpoints/*.f90
+                            ./src/restart/*.f90
+                            ./src/utils/*.f90 )
+
+LIST(APPEND timediscF90 ${timediscF90}
+                        ./src/timedisc/timedisc.f90
+                        ./src/timedisc/timedisc_init.f90
+                        ./src/timedisc/timedisc_vars.f90)
+
+LIST(APPEND piclasF90 ${timediscF90})
 
 FILE(GLOB_RECURSE dgF90 ./src/dg/*.f90
                         ./src/interpolation/prolongtoface.f90

@@ -90,7 +90,7 @@ END IF ! TrackingMethod.EQ.REFMAPPING
 IF (useDSMC.AND.(CollisMode.GT.1)) THEN
   PartStateIntEn(1,newParticleID) = VibEnergy
   PartStateIntEn(2,newParticleID) = RotEnergy
-  IF (DSMC%ElectronicModel) THEN
+  IF (DSMC%ElectronicModel.GT.0) THEN
     PartStateIntEn(3,newParticleID) = ElecEnergy
   ENDIF
   IF (DSMC%DoAmbipolarDiff) THEN
@@ -130,15 +130,16 @@ SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 !>  !!!NOTE!!! This routine is inside particle analyze because of circular definition of modules (CalcEkinPart)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, Species, UseAdaptive
-USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcMassflowRate
+USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, UseAdaptive, PartMPF, usevMPF
+USE MOD_Particle_Analyze_Vars     ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcMassflowRate
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput,BPO
 #if defined(IMPA)
-USE MOD_Particle_Vars           ,ONLY: PartIsImplicit
-USE MOD_Particle_Vars           ,ONLY: DoPartInNewton
+USE MOD_Particle_Vars             ,ONLY: PartIsImplicit
+USE MOD_Particle_Vars             ,ONLY: DoPartInNewton
 #endif /*IMPA*/
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
-USE MOD_part_tools              ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars               ,ONLY: CollInf
+USE MOD_Particle_Analyze_Tools    ,ONLY: CalcEkinPart
+USE MOD_part_tools                ,ONLY: GetParticleWeight
+USE MOD_DSMC_Vars                 ,ONLY: CollInf
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -149,6 +150,7 @@ LOGICAL, INTENT(OUT),OPTIONAL :: crossedBC               !< optional flag is nee
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec, iSF
+REAL                          :: MPF
 !===================================================================================================================================
 
 PDM%ParticleInside(PartID) = .FALSE.
@@ -177,6 +179,20 @@ IF(PRESENT(BCID)) THEN
       END IF
     END DO
   END IF ! UseAdaptive.OR.CalcMassflowRate
+
+  IF(CalcBoundaryParticleOutput)THEN
+    IF(usevMPF)THEN
+      MPF = PartMPF(PartID)
+    ELSE
+      MPF = Species(iSpec)%MacroParticleFactor
+    END IF
+    ASSOCIATE( iBPOBC   => BPO%BCIDToBPOBCID(BCID),&
+               iBPOSpec => BPO%SpecIDToBPOSpecID(iSpec))
+      IF(iBPOBC.GT.0.AND.iBPOSpec.GT.0)THEN! count this species on this BC
+        BPO%RealPartOut(iBPOBC,iBPOSpec) = BPO%RealPartOut(iBPOBC,iBPOSpec) + MPF
+      END IF ! iBPOBC.GT.0.AND.iBPOSpec.GT.0
+    END ASSOCIATE
+  END IF ! CalcBoundaryParticleOutput
 END IF ! PRESENT(BCID)
 
 ! Tracking-relevant variables (not required if a particle is removed within the domain, e.g. removal due to radial weighting)

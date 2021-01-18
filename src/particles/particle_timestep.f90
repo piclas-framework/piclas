@@ -81,6 +81,9 @@ CALL prms%CreateRealArrayOption('Part-VariableTimeStep-EndPoint'  , &
 CALL prms%CreateLogicalOption('Part-VariableTimeStep-Use2DFunction', &
                               'Only 2D/Axi simulations: Enables the scaling of the time step in the x-direction towards and '//&
                               'away from a user-given stagnation point', '.FALSE.')
+CALL prms%CreateLogicalOption('Part-VariableTimeStep-OnlyDecreaseDt', &
+                              'Only 2D/Axi simulations: Enables the scaling of the time step in the x-direction towards and '//&
+                              'away from a user-given stagnation point', '.FALSE.')
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-StagnationPoint', &
                               'Defines the point on the x-axis, towards which the time step is decreased with the factor '//&
                               'ScaleFactor2DFront and away from which the time step is increased with the factor ScaleFactor2DBack')
@@ -143,6 +146,7 @@ IF(VarTimeStep%UseDistribution) THEN
   ! Particle time step is utilized for this purpose, although element-wise time step is stored in VarTimeStep%ElemFacs
   ! Flag if the time step distribution should be adapted (else read-in, if array does not exist: abort)
   VarTimeStep%AdaptDistribution = GETLOGICAL('Part-VariableTimeStep-Distribution-Adapt')
+  VarTimeStep%OnlyDecreaseDt = GETLOGICAL('Part-VariableTimeStep-OnlyDecreaseDt')
   VarTimeStep%TargetMCSoverMFP = GETREAL('Part-VariableTimeStep-Distribution-TargetMCSoverMFP')
   VarTimeStep%TargetMaxCollProb = GETREAL('Part-VariableTimeStep-Distribution-TargetMaxCollProb')
   ! Read of maximal time factor to avoid too large time steps and problems with halo region/particle cloning
@@ -186,7 +190,7 @@ LOGICAL                           :: TimeStepExists, QualityExists, TimeStepModi
 REAL, ALLOCATABLE                 :: DSMCQualityFactors(:,:), PartNum(:)
 REAL                              :: TimeFracTemp
 CHARACTER(LEN=255),ALLOCATABLE    :: VarNames_tmp(:)
-INTEGER                           :: nVar_HDF5, N_HDF5, nVar_MaxCollProb, nVar_MCSoverMFP, nVar_TotalPartNum
+INTEGER                           :: nVar_HDF5, N_HDF5, nVar_MaxCollProb, nVar_MCSoverMFP, nVar_TotalPartNum, nVar_TimeStep
 REAL, ALLOCATABLE                 :: ElemData_HDF5(:,:)
 #if (PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400)
 INTEGER                           :: nVar_MaxRelaxFac
@@ -198,6 +202,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT VARIABLE TIME STEP DISTRIBUTION...'
 
 TimeStepExists = .FALSE.
 QualityExists = .FALSE.
+nVar_TimeStep = 0
 
 IF(DoRestart) THEN
 ! Try to get the time step factor distribution directly from state file
@@ -260,6 +265,7 @@ IF(VarTimeStep%AdaptDistribution) THEN
     'ERROR: Number of variables in the ElemData array appears to be zero!')
   END IF
 
+  ! Get the variable names from the DSMC state and find the position of required quality factors
   ALLOCATE(VarNames_tmp(1:nVar_HDF5))
   CALL ReadAttribute(File_ID,'VarNamesAdd',nVar_HDF5,StrArray=VarNames_tmp(1:nVar_HDF5))
 
@@ -272,6 +278,10 @@ IF(VarTimeStep%AdaptDistribution) THEN
     END IF
     IF (STRICMP(VarNames_tmp(iVar),"Total_SimPartNum")) THEN
       nVar_TotalPartNum = iVar
+    END IF
+    ! Check if a time step distribution was written out in the DSMC state file
+    IF (STRICMP(VarNames_tmp(iVar),"VariableTimeStep")) THEN
+      nVar_TimeStep = iVar
     END IF
 #if (PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400)
     IF (STRICMP(VarNames_tmp(iVar),"BGK_MaxRelaxationFactor").OR.STRICMP(VarNames_tmp(iVar),"FP_MaxRelaxationFactor")) THEN
@@ -291,6 +301,8 @@ IF(VarTimeStep%AdaptDistribution) THEN
   DSMCQualityFactors(:,1) = ElemData_HDF5(nVar_MaxCollProb,:)
   DSMCQualityFactors(:,2) = ElemData_HDF5(nVar_MCSoverMFP,:)
   PartNum(:)              = ElemData_HDF5(nVar_TotalPartNum,:)
+  ! Check if a time step distribution is available in the DSMC state file and use that instead of the read-in from the state file
+  IF(nVar_TimeStep.GT.0) VarTimeStep%ElemFac(:) = ElemData_HDF5(nVar_TimeStep,:)
 #if (PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400)
   ALLOCATE(MaxRelaxFactor(nGlobalElems))
   MaxRelaxFactor(:) = ElemData_HDF5(nVar_MaxRelaxFac,:)
@@ -359,6 +371,9 @@ IF(VarTimeStep%AdaptDistribution) THEN
       IF(VarTimeStep%DistributionMinPartNum.GT.0) THEN
         TimeFracTemp = MIN(TimeFracTemp,PartNum(iElem)/VarTimeStep%DistributionMinPartNum*VarTimeStep%ElemFac(iElem))
       END IF
+    END IF
+    IF (VarTimeStep%OnlyDecreaseDt) THEN
+      IF(TimeFracTemp.GT.VarTimeStep%ElemFac(iElem)) TimeFracTemp = VarTimeStep%ElemFac(iElem)
     END IF
     ! Finally, limiting the maximal time step factor to the given value and saving it to the right variable
     VarTimeStep%ElemFac(iElem) = MIN(TimeFracTemp,VarTimeStep%DistributionMaxTimeFactor)
@@ -485,6 +500,7 @@ IF (VarTimeStep%Direction(1).GT.0.0) THEN
   END DO
 ELSE
   DO iElem = 1, nElems
+    CNElemID = GetCNElemID(iElem + offsetElem)
     IF (ElemMidPoint_Shared(1,CNElemID).GT.VarTimeStep%StartPoint(1)) THEN
       VarTimeStep%ElemFac(iElem)=1.0
     ELSE IF (VarTimeStep%EndPoint(1).EQ.-99999.) THEN
