@@ -1497,7 +1497,9 @@ AverageElectricPotentialFaces=nAverageElecPotSides
 #endif /*USE_MPI*/
 SWRITE(UNIT_stdOut,'(A,I10,A)') 'A total of',AverageElectricPotentialFaces,' surfaces for the average electric potential calculation are found.'
 SWRITE(UNIT_stdOut,'(A)') ' ... AVERAGE ELECTRIC POTENTIAL INITIALIZATION DONE.'
+#if USE_MPI
 IF(MPIRoot)THEN
+#endif /*USE_MPI*/
   IF(AverageElectricPotentialFaces.EQ.0)THEN
     SWRITE(UNIT_stdOut,*) 'ERROR with: PosAverageElectricPotential = ',PosAverageElectricPotential
     CALL abort(&
@@ -1505,7 +1507,9 @@ IF(MPIRoot)THEN
     ,'Found zero faces for averaging the electric potentialPlease make sure \nthat the x-coordinate coincides with element'//&
     ' interfaces. Planes cutting through elements in currently not implemented.')
   END IF ! AverageElectricPotentialFaces.EQ.0
+#if USE_MPI
 END IF ! MPIRoot
+#endif /*USE_MPI*/
 
 END SUBROUTINE GetAverageElectricPotentialPlane
 
