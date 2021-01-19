@@ -44,7 +44,7 @@ REAL,ALLOCATABLE              :: PorousBCOutput(:,:)  ! 1: Counter of impinged p
 LOGICAL                       :: CalcBoundaryParticleOutput !< Flag for activating this output
 
 TYPE tBoundaryParticleOutput
-  REAL,ALLOCATABLE              :: PartOut(:,:)             !< Number of particles exiting on boundary X with species X
+  REAL,ALLOCATABLE              :: RealPartOut(:,:)         !< Number of particles exiting on boundary X with species X
 
   INTEGER                       :: NPartBoundaries          !< Total number of boundaries where the particles are counted
   INTEGER,ALLOCATABLE           :: PartBoundaries(:)        !< Part-boundary number on which the particles are counted

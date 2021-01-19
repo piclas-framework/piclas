@@ -189,7 +189,7 @@ IF(PRESENT(BCID)) THEN
     ASSOCIATE( iBPOBC   => BPO%BCIDToBPOBCID(BCID),&
                iBPOSpec => BPO%SpecIDToBPOSpecID(iSpec))
       IF(iBPOBC.GT.0.AND.iBPOSpec.GT.0)THEN! count this species on this BC
-        BPO%PartOut(iBPOBC,iBPOSpec) = BPO%PartOut(iBPOBC,iBPOSpec) + MPF
+        BPO%RealPartOut(iBPOBC,iBPOSpec) = BPO%RealPartOut(iBPOBC,iBPOSpec) + MPF
       END IF ! iBPOBC.GT.0.AND.iBPOSpec.GT.0
     END ASSOCIATE
   END IF ! CalcBoundaryParticleOutput

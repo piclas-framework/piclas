@@ -1224,7 +1224,7 @@ INTEGER                 :: i
 END SUBROUTINE SetParticlePositionCircle
 
 
-SUBROUTINE SetParticlePositionGyrotronCircle(FractNbr,iInit,chunkSize,particle_positions, NbrOfParticle)
+SUBROUTINE SetParticlePositionGyrotronCircle(FractNbr,iInit,chunkSize,particle_positions)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
@@ -1242,7 +1242,7 @@ USE MOD_Globals_Vars           ,ONLY: c_inv
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize, NbrOfParticle
+INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)       :: particle_positions(:)
@@ -1252,64 +1252,67 @@ REAL                    :: Particle_pos(3), iRan, lineVector(3), lineVector2(3),
 REAL                    :: JJ(3,3), II(3,3), NN(3,3), rgyrate, Bintpol
 INTEGER                 :: i, j
 !===================================================================================================================================
-  CALL FindLinIndependentVectors(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
-  CALL GramSchmidtAlgo(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
-  radius = Species(FractNbr)%Init(iInit)%RadiusIC
-  DO i=1,chunkSize
-     CALL RANDOM_NUMBER(iRan)
-     Phi = 2.*Pi*iRan
-     Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + (linevector * COS(Phi) + linevector2 * SIN(Phi)) * radius
-     ! Change position of particle on the small gyro circle
-     ! take normal vecotr of the circle
-     n(1:3) = Species(FractNbr)%Init(iInit)%NormalIC(1:3)
-     ! generate radius vector (later it will be multiplied by the length of the
-     ! gyro circles. For now we just need the vector)
-     radius_vec(1) = Particle_pos(1) - Species(FractNbr)%Init(iInit)%BasePointIC(1)
-     radius_vec(2) = Particle_pos(2) - Species(FractNbr)%Init(iInit)%BasePointIC(2)
-     radius_vec(3) = Particle_pos(3) - Species(FractNbr)%Init(iInit)%BasePointIC(3)
-     !rotate radius vector with random angle
-     CALL RANDOM_NUMBER(iRan)
-     Phi=2.*Pi*iRan
-     JJ(1,1:3) = (/   0.,-n(3), n(2)/)
-     JJ(2,1:3) = (/ n(3),   0.,-n(1)/)
-     JJ(3,1:3) = (/-n(2), n(1),   0./)
-     II(1,1:3) = (/1.,0.,0./)
-     II(2,1:3) = (/0.,1.,0./)
-     II(3,1:3) = (/0.,0.,1./)
-     FORALL(j=1:3) NN(:,j) = n(:)*n(j)
+CALL FindLinIndependentVectors(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
+CALL GramSchmidtAlgo(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
+radius = Species(FractNbr)%Init(iInit)%RadiusIC
+DO i=1,chunkSize
+  CALL RANDOM_NUMBER(iRan)
+  Phi = 2.*Pi*iRan
+  Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + (linevector * COS(Phi) + linevector2 * SIN(Phi)) * radius
+  ! Change position of particle on the small gyro circle
+  ! take normal vecotr of the circle
+  n(1:3) = Species(FractNbr)%Init(iInit)%NormalIC(1:3)
+  ! generate radius vector (later it will be multiplied by the length of the
+  ! gyro circles. For now we just need the vector)
+  radius_vec(1) = Particle_pos(1) - Species(FractNbr)%Init(iInit)%BasePointIC(1)
+  radius_vec(2) = Particle_pos(2) - Species(FractNbr)%Init(iInit)%BasePointIC(2)
+  radius_vec(3) = Particle_pos(3) - Species(FractNbr)%Init(iInit)%BasePointIC(3)
+  !rotate radius vector with random angle
+  CALL RANDOM_NUMBER(iRan)
+  Phi=2.*Pi*iRan
+  JJ(1,1:3) = (/   0.,-n(3), n(2)/)
+  JJ(2,1:3) = (/ n(3),   0.,-n(1)/)
+  JJ(3,1:3) = (/-n(2), n(1),   0./)
+  II(1,1:3) = (/1.,0.,0./)
+  II(2,1:3) = (/0.,1.,0./)
+  II(3,1:3) = (/0.,0.,1./)
+  FORALL(j=1:3) NN(:,j) = n(:)*n(j)
 
-     ! 1. determine the z-position in order to get the interpolated curved B-field
-     CALL RANDOM_NUMBER(iRan)
-     IF (NbrOfParticle.EQ.Species(FractNbr)%Init(iInit)%initialParticleNumber) THEN
-       particle_positions(i*3  ) = Species(FractNbr)%Init(iInit)%BasePointIC(3) &
-                                       + iRan * Species(FractNbr)%Init(iInit)%CuboidHeightIC
-     ELSE
-       particle_positions(i*3  ) = Species(FractNbr)%Init(iInit)%BasePointIC(3) &
-                                       + iRan * dt*RKdtFrac &
-                                       * Species(FractNbr)%Init(iInit)%VeloIC/Species(FractNbr)%Init(iInit)%alpha
-     END IF
+  ! 1. determine the z-position in order to get the interpolated curved B-field
+  CALL RANDOM_NUMBER(iRan)
+  IF (Species(FractNbr)%Init(iInit)%ParticleEmissionType.EQ.0) THEN
+    ! Initial particle inserting: random position in cylinder
+    particle_positions(i*3  ) = Species(FractNbr)%Init(iInit)%BasePointIC(3) &
+                                    + iRan * Species(FractNbr)%Init(iInit)%CylinderHeightIC
+  ELSE
+    ! Particle inserting per time step: random position along velocity vector
+    particle_positions(i*3  ) = Species(FractNbr)%Init(iInit)%BasePointIC(3) &
+                                    + iRan * dt*RKdtFrac &
+                                    * Species(FractNbr)%Init(iInit)%VeloIC/Species(FractNbr)%Init(iInit)%alpha
+  END IF
 
-     ! 2. calculate curved B-field at z-position in order to determine size of gyro radius
-     IF (useVariableExternalField) THEN
-        IF(particle_positions(i*3).LT.VariableExternalField(1,1))THEN ! assume particles travel in positive z-direction
-          CALL abort(__STAMP__,'SetParticlePosition: particle_positions(i*3) cannot be smaller than VariableExternalField(1,1). Fix *.csv data or emission!')
-        END IF
-        Bintpol = InterpolateVariableExternalField(particle_positions(i*3))
-        rgyrate = 1./ SQRT ( 1. - (Species(FractNbr)%Init(iInit)%VeloIC**2 * (1. + 1./Species(FractNbr)%Init(iInit)%alpha**2)) &
-                            * c_inv * c_inv ) * Species(FractNbr)%MassIC * Species(FractNbr)%Init(iInit)%VeloIC / &
-                  ( Bintpol * abs( Species(FractNbr)%ChargeIC) )
-     ELSE
-       rgyrate =  Species(FractNbr)%Init(iInit)%RadiusICGyro
-     END IF
+  ! 2. calculate curved B-field at z-position in order to determine size of gyro radius
+  IF (useVariableExternalField) THEN
+    IF(particle_positions(i*3).LT.VariableExternalField(1,1))THEN ! assume particles travel in positive z-direction
+      CALL abort(__STAMP__,'SetParticlePosition: particle_positions(i*3) cannot be smaller than VariableExternalField(1,1). Fix *.csv data or emission!')
+    END IF
+    Bintpol = InterpolateVariableExternalField(particle_positions(i*3))
+    rgyrate = 1./ SQRT ( 1. - (Species(FractNbr)%Init(iInit)%VeloIC**2 * (1. + 1./Species(FractNbr)%Init(iInit)%alpha**2)) &
+                        * c_inv * c_inv ) * Species(FractNbr)%MassIC * Species(FractNbr)%Init(iInit)%VeloIC / &
+              ( Bintpol * abs( Species(FractNbr)%ChargeIC) )
+  ELSE
+    rgyrate =  Species(FractNbr)%Init(iInit)%RadiusICGyro
+  END IF
 
-     radius_vec = MATMUL( NN+cos(Phi)*(II-NN)+sin(Phi)*JJ , radius_vec )
-     radius_vec(1:3) = radius_vec(1:3) / SQRT(radius_vec(1)**2+radius_vec(2)**2+radius_vec(3)**2) &
-                   * rgyrate !Species(1)%RadiusICGyro
-     ! Set new particles position:
-     particle_positions(i*3-2) = Particle_pos(1) + radius_vec(1)
-     particle_positions(i*3-1) = Particle_pos(2) + radius_vec(2)
-     !particle_positions(i*3  )=0.
-  END DO
+  radius_vec = MATMUL( NN+cos(Phi)*(II-NN)+sin(Phi)*JJ , radius_vec )
+  radius_vec(1:3) = radius_vec(1:3) / SQRT(radius_vec(1)**2+radius_vec(2)**2+radius_vec(3)**2) &
+                * rgyrate !Species(1)%RadiusICGyro
+  ! Set new particles position:
+  particle_positions(i*3-2) = Particle_pos(1) + radius_vec(1)
+  particle_positions(i*3-1) = Particle_pos(2) + radius_vec(2)
+  !particle_positions(i*3  )=0.
+END DO
+
 END SUBROUTINE SetParticlePositionGyrotronCircle
 
 
@@ -1320,7 +1323,6 @@ SUBROUTINE SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_p
 ! modules
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
-USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac, dt
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1357,11 +1359,7 @@ LOGICAL                 :: insideExcludeRegion
       CALL RANDOM_NUMBER(RandVal)
       Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + Species(FractNbr)%Init(iInit)%BaseVector1IC * RandVal(1)
       Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BaseVector2IC * RandVal(2)
-      IF (Species(FractNbr)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
-        Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%VeloIC * dt*RKdtFrac * RandVal(3)
-      ELSE
-        Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal(3)
-      END IF
+      Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal(3)
       IF(Symmetry%Order.EQ.1) Particle_pos(2:3) = 0.
     CASE ('cylinder')
       radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1.
@@ -1374,11 +1372,7 @@ LOGICAL                 :: insideExcludeRegion
                         Particle_pos(3) * Particle_pos(3) )
       END DO
       Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BasePointIC
-      IF (Species(FractNbr)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
-        Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%VeloIC * dt*RKdtFrac * RandVal(3)
-      ELSE
-        Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CylinderHeightIC * RandVal(3)
-      END IF
+      Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CylinderHeightIC * RandVal(3)
     END SELECT
     IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
       CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
@@ -1466,7 +1460,7 @@ REAL, INTENT(OUT)       :: particle_positions(:)
 REAL                    :: xlen, ylen, zlen, pilen, x_step, y_step, z_step, x_pos, y_pos
 INTEGER                 :: i, iPart, j, k
 !===================================================================================================================================
-  IF(Species(FractNbr)%Init(iInit)%initialParticleNumber.NE. &
+  IF(Species(FractNbr)%Init(iInit)%ParticleNumber.NE. &
       (Species(FractNbr)%Init(iInit)%maxParticleNumberX * Species(FractNbr)%Init(iInit)%maxParticleNumberY &
       * Species(FractNbr)%Init(iInit)%maxParticleNumberZ)) THEN
    SWRITE(*,*) 'for species ',FractNbr,' does not match number of particles in each direction!'

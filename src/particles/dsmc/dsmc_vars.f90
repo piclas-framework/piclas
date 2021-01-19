@@ -521,19 +521,7 @@ REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)! Macrovalues
 ! MacValout and MacroVolSample have to be separated due to autoinitialrestart
 INTEGER(KIND=8)                  :: iter_macvalout             ! iterations since last macro volume output
 INTEGER(KIND=8)                  :: iter_macsurfvalout         ! iterations since last macro surface output
-!----------------------------------------------convergence criteria-------------------------------------------------
 LOGICAL                          :: SamplingActive             ! Identifier if DSMC Sampling is activated
-LOGICAL                          :: UseQCrit                   ! Identifier if Q-Criterion (Burt,Boyd) for
-                                                               ! Sampling Start is used
-INTEGER                          :: QCritTestStep              ! Time Steps between Q criterion evaluations
-                                                               ! (=Length of Analyze Interval)
-INTEGER(KIND=8)                  :: QCritLastTest              ! Time Step of last Q criterion evaluation
-REAL                             :: QCritEpsilon               ! Steady State if Q < 1 + Qepsilon
-INTEGER, ALLOCATABLE             :: QCritCounter(:,:)          ! Exit / Wall Collision Counter for
-                                                               ! each boundary side (Side, Interval)
-REAL, ALLOCATABLE                :: QLocal(:)                  ! Intermediate Criterion (per cell)
-LOGICAL                          :: UseSSD                     ! Identifier if Steady-State-Detection
-                                                               ! for Sampling Start is used (only  if UseQCrit=FALSE)
 INTEGER                          :: ReactionProbGTUnityCounter ! Count the number of ReactionProb>1 (turn off the warning after
 !                                                              ! reaching 1000 outputs of said warning
 
@@ -545,37 +533,6 @@ TYPE tSampler ! DSMC sampling for Steady-State Detection       ! DSMC sampling f
   REAL                           :: EVib                       ! Energy of Cell (Vibration)
   REAL                           :: EElec                      ! Energy of Cell (Electronic State)
 END TYPE
-
-TYPE (tSampler), ALLOCATABLE     :: Sampler(:,:)               ! DSMC sample array (number of Elements, number of Species)
-TYPE (tSampler), ALLOCATABLE     :: History(:,:,:)             ! History of Averaged Values (number of Elements,
-                                                               ! number of Species, number of Samples)
-INTEGER                          :: iSamplingIters             ! Counter for Sampling Iteration
-INTEGER                          :: nSamplingIters             ! Number of Iterations for one Sampled Value (Sampling Period)
-INTEGER                          :: HistTime                   ! Counter for Sampled Values in History
-INTEGER                          :: nTime                      ! Length of History of Sampled Values
-                                                               ! (Determines Sample Size for Statistical Tests)
-REAL, ALLOCATABLE                :: CheckHistory(:,:)          ! History Array for Detection Algorithm
-                                                               ! (number of Elements, number of Samples)
-INTEGER, ALLOCATABLE             :: SteadyIdentGlobal(:,:)     ! Identifier if Domain ist stationary (number of Species, Value)
-INTEGER, ALLOCATABLE             :: SteadyIdent(:,:,:)         ! Identifier if Cell is stationary
-                                                               ! (number of Elements, number of Species, Value)
-REAL                             :: Critical(2)                ! Critical Values for the Von-Neumann-Ratio
-REAL, ALLOCATABLE                :: RValue(:)                  ! Von-Neumann-Ratio (number of Elements)
-REAL                             :: Epsilon1, Epsilon2         ! Parameters for the Critical Values of
-                                                               ! the Euclidean Distance method
-REAL, ALLOCATABLE                :: ED_Delta(:)                ! Offset of Euclidian Distance Statistic to stationary
-                                                               ! value (number of Elements)
-REAL                             :: StudCrit                   ! Critical Value for the Student-t Test
-REAL, ALLOCATABLE                :: Stud_Indicator(:)          ! Stationary Index of the Student-t Test
-                                                               ! (0...1, 1 = steady  state) (number of Elements)
-REAL                             :: PITCrit                    ! Critical Value for the Polynomial Interpolation Test
-REAL, ALLOCATABLE                :: ConvCoeff(:)               ! Convolution Coefficients (Savizky-Golay-Filter)
-                                                               ! for the Polynomial Interpolation Test
-REAL, ALLOCATABLE                :: PIT_Drift(:)               ! Relative Filtered Trend Index (<1 = steady state) (number of elements)
-REAL, ALLOCATABLE                :: MK_Trend(:)                ! Normalized Trend Parameter for the Mann - Kendall - Test
-                                                               ! (-1<x<1 = steady state) (number of Elements)
-REAL, ALLOCATABLE                :: HValue(:)                  ! Entropy Parameter (Boltzmann's H-Theorem) (number of Elements)
-!-----------------------------------------------convergence criteria-------------------------------------------------
 
 INTEGER, ALLOCATABLE      :: SymmetrySide(:,:)
 REAL,ALLOCATABLE          :: DSMC_Solution(:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evib, 9 erot, 10 eelec

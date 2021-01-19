@@ -18,18 +18,6 @@ NVisu                         1   Number of points at which solution is sampled 
 VisuParticles               OFF   Converts the particle data (positions, velocity, species, internal energies)
 
 NodeTypeVisu               VISU   Node type of the visualization basis: VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO
-
-CalcDiffError                 F   Use first state file as reference state for L2 error calculation with the following state files
-
-AllowChangedMesh              F   Neglect mesh changes, use inits of first mesh (ElemID must match!).
-
-CalcDiffSigma                 F   Use last state file as state for L2 sigma calculation.
-
-CalcAverage                   F   Calculate and write arithmetic mean of all state files.
-
-VisuSource                    F   Use DG_Source instead of DG_Solution.
-
-NAnalyze                    2*N   Polynomial degree at which analysis is performed (e.g. for L2 errors, required for CalcDiffError).
 -----------------------------------------------------------------------------------------------
 
 In the following, the parameters enabling the different output variables are described. It should be noted that these parameters are part of the `parameter.ini` required by **PICLas**.

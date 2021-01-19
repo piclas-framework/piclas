@@ -47,7 +47,7 @@ USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_part_pos_and_velo      ,ONLY: SetParticleVelocity
-USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
+USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 #if USE_MPI
