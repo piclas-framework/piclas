@@ -501,7 +501,7 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 
 ! 2/2 Add the global, synchronized surface charge contribution (considers the charge contribution from restart files) from 
 ! NodeSourceExt. The container NodeSourceExt is updated when it is written to .h5, where, additionally, the container
-! NodeSourceExtTmp is nulled
+! NodeSourceExtTmp is nullified
 IF(DoDielectricSurfaceCharge)THEN
   DO iNode=firstNode, lastNode
     NodeSource(4,iNode) = NodeSource(4,iNode) + NodeSourceExt(iNode)

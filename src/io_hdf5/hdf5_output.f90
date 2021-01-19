@@ -3295,6 +3295,9 @@ IF(iter.NE.0)THEN
 #if USE_MPI
   CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
   CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#else
+  ! Reset local surface charge
+  NodeSourceExtTmp = 0.
 #endif
 
 end if ! iter.NE.0
