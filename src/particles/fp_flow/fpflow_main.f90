@@ -143,18 +143,17 @@ SUBROUTINE FPFlow_main()
 ! MODULES
 USE MOD_Globals
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
-USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile, offsetElem
+USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
 USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
-USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, SamplingActive
+USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
-USE MOD_DSMC_Analyze        ,ONLY: DSMC_data_sampling,WriteDSMCToHDF5,CalcSurfaceValues
-USE MOD_Restart_Vars        ,ONLY: RestartTime
 USE MOD_FPFlow_Vars         ,ONLY: FP_QualityFacSamp, FP_PrandtlNumber
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
+USE MOD_DSMC_Analyze        ,ONLY: DSMCMacroSampling
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -163,7 +162,7 @@ USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iElem, nPart, iPart, iLoop, nOutput, CNElemID
+INTEGER                     :: iElem, nPart, iPart, iLoop, CNElemID
 INTEGER, ALLOCATABLE        :: iPartIndx_Node(:)
 !===================================================================================================================================
 DSMC_RHS = 0.0
@@ -207,26 +206,10 @@ ELSE
   END DO
 END IF
 
-IF((.NOT.WriteMacroVolumeValues) .AND. (.NOT.WriteMacroSurfaceValues)) THEN
-  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN
-    SamplingActive=.TRUE.
-    SWRITE(*,*)'Sampling active'
-  END IF
-END IF
-
-IF(SamplingActive) THEN
-  CALL DSMC_data_sampling()
-  IF(DSMC%NumOutput.NE.0) THEN
-    nOutput = INT((DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput)-DSMC%NumOutput + 1
-    IF(Time.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
-      DSMC%NumOutput = DSMC%NumOutput - 1
-      ! Skipping outputs immediately after the first few iterations
-      IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN
-        CALL WriteDSMCToHDF5(TRIM(MeshFile),time)
-        IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(during_dt_opt=.TRUE.)
-      END IF
-    END IF
-  END IF
+! Sampling of macroscopic values
+! (here for a continuous average; average over N iterations is performed in src/analyze/analyze.f90)
+IF (.NOT.WriteMacroVolumeValues .AND. .NOT.WriteMacroSurfaceValues) THEN
+  CALL DSMCMacroSampling()
 END IF
 
 END SUBROUTINE FPFlow_main
