@@ -818,14 +818,14 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT ELEMENT GEOMETRY INFORMATION ...'
 
-#if USE_MPI
+#if USE_MPI && defined(PARTICLES)
 ! J_N is only build for local DG elements. Therefore, array is only filled for elements on the same compute node
 offsetElemCNProc = offsetElem - offsetComputeNodeElem
 #else
 offsetElemCNProc = 0
-#endif  /*USE_MPI*/
+#endif  /*USE_MPI && defined(PARTICLES)*/
 
-#if USE_MPI
+#if USE_MPI && defined(PARTICLES)
 MPISharedSize = INT(nComputeNodeElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemVolume_Shared_Win,ElemVolume_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemVolume_Shared_Win,IERROR)
@@ -845,7 +845,7 @@ ALLOCATE(ElemVolume_Shared(nElems))
 ALLOCATE(ElemCharLength_Shared(nElems))
 ElemVolume_Shared(:)     = 0.
 ElemCharLength_Shared(:) = 0.
-#endif  /*USE_MPI*/
+#endif  /*USE_MPI && defined(PARTICLES)*/
 
 ! Calculate element volumes and characteristic lengths
 DO iElem = 1,nElems
@@ -858,11 +858,11 @@ DO iElem = 1,nElems
   ElemCharLength_Shared(iElem+offsetElemCNProc) = ElemVolume_Shared(iElem+offsetElemCNProc)**(1./3.)
 END DO
 
-#if USE_MPI
+#if USE_MPI && defined(PARTICLES)
 CALL MPI_WIN_SYNC(ElemVolume_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
-#endif
+#endif /*USE_MPI && defined(PARTICLES)*/
 
 LocalVolume = SUM(ElemVolume_Shared(offsetElemCNProc+1:offsetElemCNProc+nElems))
 MeshVolume  = SUM(ElemVolume_Shared(:))
