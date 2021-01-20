@@ -2095,7 +2095,7 @@ MPISharedSize = INT((nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/nNonUniqueGlobalSides/),SideType_Shared_Win,SideType_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideType_Shared_Win,IERROR)
 SideType => SideType_Shared
-CALL Allocate_Shared(MPISharedSize,(/nNonUniqueGlobalSides/),SideDistance_Shared_Win,SideDistance_Shared)
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),SideDistance_Shared_Win,SideDistance_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideDistance_Shared_Win,IERROR)
 SideDistance => SideDistance_Shared
 MPISharedSize = INT((3*nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
@@ -2194,7 +2194,7 @@ DO iElem=firstElem,lastElem
         ELSE
           IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).GT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
         END IF
-        SideDistance(SideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
+        SideDistance(CNSideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
         ! check if it is rectangular
         isRectangular=.TRUE.
         v1=UNITVECTOR(BezierControlPoints_loc(:,0   ,NGeo)-BezierControlPoints_loc(:,0   ,0   ))
@@ -2264,7 +2264,7 @@ DO iElem=firstElem,lastElem
           ELSE
             IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).GT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
           END IF
-          SideDistance(SideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
+          SideDistance(CNSideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
         ELSE
           SideType(CNSideID)=CURVED
         END IF
@@ -2287,7 +2287,7 @@ DO iElem=firstElem,lastElem
           ELSE
             IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).GT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
           END IF
-          SideDistance(SideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
+          SideDistance(CNSideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
           ! check if it is rectangular
           isRectangular=.TRUE.
           v1=UNITVECTOR(BezierControlPoints_loc(:,0   ,NGeo)-BezierControlPoints_loc(:,0   ,0   ))
@@ -2582,7 +2582,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides,SideBCMetrics
 USE MOD_Particle_Mesh_Vars     ,ONLY: BCSide2SideID,SideID2BCSide,BCSideMetrics
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo,ElemRadiusNGeo
-USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides,nUniqueBCSides
+USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueBCSides
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID,GetCNElemID
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
@@ -2667,8 +2667,6 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
-firstSide = 1
-lastSide  = nNonUniqueGlobalSides
 ALLOCATE(ElemToBCSidesProc(1:2,1:nComputeNodeTotalElems))
 
 ! if running on one node, halo_eps is meaningless. Get a representative BC_halo_eps for BC side identification
@@ -2741,8 +2739,6 @@ fullMesh = .TRUE.
 
 firstElem = 1
 lastElem  = nElems
-firstSide = 1
-lastSide  = nNonUniqueGlobalSides
 ALLOCATE(ElemToBCSidesProc(1:2,1:nElems))
 #endif /*USE_MPI*/
 
