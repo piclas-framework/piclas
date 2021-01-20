@@ -81,6 +81,9 @@ CALL prms%CreateRealArrayOption('Part-VariableTimeStep-EndPoint'  , &
 CALL prms%CreateLogicalOption('Part-VariableTimeStep-Use2DFunction', &
                               'Only 2D/Axi simulations: Enables the scaling of the time step in the x-direction towards and '//&
                               'away from a user-given stagnation point', '.FALSE.')
+CALL prms%CreateLogicalOption('Part-VariableTimeStep-OnlyDecreaseDt', &
+                              'Only 2D/Axi simulations: Enables the scaling of the time step in the x-direction towards and '//&
+                              'away from a user-given stagnation point', '.FALSE.')
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-StagnationPoint', &
                               'Defines the point on the x-axis, towards which the time step is decreased with the factor '//&
                               'ScaleFactor2DFront and away from which the time step is increased with the factor ScaleFactor2DBack')
@@ -143,6 +146,7 @@ IF(VarTimeStep%UseDistribution) THEN
   ! Particle time step is utilized for this purpose, although element-wise time step is stored in VarTimeStep%ElemFacs
   ! Flag if the time step distribution should be adapted (else read-in, if array does not exist: abort)
   VarTimeStep%AdaptDistribution = GETLOGICAL('Part-VariableTimeStep-Distribution-Adapt')
+  VarTimeStep%OnlyDecreaseDt = GETLOGICAL('Part-VariableTimeStep-OnlyDecreaseDt')
   VarTimeStep%TargetMCSoverMFP = GETREAL('Part-VariableTimeStep-Distribution-TargetMCSoverMFP')
   VarTimeStep%TargetMaxCollProb = GETREAL('Part-VariableTimeStep-Distribution-TargetMaxCollProb')
   ! Read of maximal time factor to avoid too large time steps and problems with halo region/particle cloning
@@ -367,6 +371,9 @@ IF(VarTimeStep%AdaptDistribution) THEN
       IF(VarTimeStep%DistributionMinPartNum.GT.0) THEN
         TimeFracTemp = MIN(TimeFracTemp,PartNum(iElem)/VarTimeStep%DistributionMinPartNum*VarTimeStep%ElemFac(iElem))
       END IF
+    END IF
+    IF (VarTimeStep%OnlyDecreaseDt) THEN
+      IF(TimeFracTemp.GT.VarTimeStep%ElemFac(iElem)) TimeFracTemp = VarTimeStep%ElemFac(iElem)
     END IF
     ! Finally, limiting the maximal time step factor to the given value and saving it to the right variable
     VarTimeStep%ElemFac(iElem) = MIN(TimeFracTemp,VarTimeStep%DistributionMaxTimeFactor)

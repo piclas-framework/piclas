@@ -78,8 +78,8 @@ INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:)
   DoExactPartNumInsert =  .FALSE.
   ! check if particle inserting during simulation or initial inserting and also if via partdensity or exact particle number
   ! nbrOfParticles is set for initial inserting if initialPartNum or partdensity is set in ini
-  ! ParticleEmission and Partdensity not working together
-  IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleEmission.EQ.0)) RETURN
+  ! ParticleNumber and PartDensity not working together
+  IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleNumber.EQ.0)) RETURN
   IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) THEN
     DoExactPartNumInsert =  .TRUE.
     IF(Symmetry%Axisymmetric) CALL abort(&
@@ -209,18 +209,18 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
 
   !------------------SpaceIC-cases: start-----------------------------------------------------------!
   SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC))
-  CASE ('point')
+  CASE('point')
     CALL SetParticlePositionPoint(FractNbr,iInit,chunkSize,particle_positions)
-  CASE ('line_with_equidistant_distribution')
+  CASE('line_with_equidistant_distribution')
     CALL SetParticlePositionEquidistLine(FractNbr,iInit,chunkSize,particle_positions)
-  CASE ('line')
+  CASE('line')
     CALL SetParticlePositionLine(FractNbr,iInit,chunkSize,particle_positions)
   CASE('disc')
     CALL SetParticlePositionDisk(FractNbr,iInit,chunkSize,particle_positions)
   CASE('circle', 'circle_equidistant')
     CALL SetParticlePositionCircle(FractNbr,iInit,chunkSize,particle_positions)
   CASE('gyrotron_circle')
-    CALL SetParticlePositionGyrotronCircle(FractNbr,iInit,chunkSize,particle_positions, NbrOfParticle)
+    CALL SetParticlePositionGyrotronCircle(FractNbr,iInit,chunkSize,particle_positions)
   CASE('cuboid','cylinder')
     CALL SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_positions)
   CASE('sphere')

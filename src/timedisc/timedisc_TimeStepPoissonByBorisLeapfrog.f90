@@ -57,7 +57,7 @@ USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
 USE MOD_part_RHS               ,ONLY: CalcPartRHS, CalcPartRHSSingleParticle
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_part_emission          ,ONLY: ParticleInserting
-USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
+USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge

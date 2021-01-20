@@ -24,11 +24,6 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-
-INTERFACE InitializeParticleEmission
-  MODULE PROCEDURE InitializeParticleEmission
-END INTERFACE
-
 INTERFACE ParticleInserting
   MODULE PROCEDURE ParticleInserting
 END INTERFACE
@@ -39,237 +34,13 @@ END INTERFACE
 
 !----------------------------------------------------------------------------------------------------------------------------------
 
-PUBLIC::InitializeParticleEmission,ParticleInserting,AdaptiveBCAnalyze
+PUBLIC:: ParticleInserting, AdaptiveBCAnalyze
 !===================================================================================================================================
-PUBLIC::DefineParametersParticleEmission
 CONTAINS
-
-!==================================================================================================================================
-!> Define parameters for particle emission (surface flux)
-!==================================================================================================================================
-SUBROUTINE DefineParametersParticleEmission()
-! MODULES
-USE MOD_Globals
-USE MOD_ReadInTools ,ONLY: prms
-IMPLICIT NONE
-!==================================================================================================================================
-CALL prms%SetSection("Particle Emission")
-
-CALL prms%CreateIntOption(      'Part-Species[$]-nSurfacefluxBCs'&
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Number of SF emissions', '0', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-BC' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'PartBound to be emitted from', '0', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Part-Species[$]-Surfaceflux[$]-velocityDistribution' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Specifying keyword for velocity distribution' , 'constant'&
-, numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-VeloIC' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Velocity for inital Data', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-VeloIsNormal' &
-                                , 'TODO-DEFINE-PARAMETER VeloIC is in Surf-Normal instead of VeloVecIC' &
-                                , '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-VeloVecIC' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Normalized velocity vector' , '0.0 , 0.0 , 0.0', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-CircularInflow' &
-                                , 'Enables the utilization of a circular region as a surface flux on the selected boundary. '//&
-                                  'Only possible on surfaces, which are in xy, xz, and yz-planes.' &
-                                , '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-axialDir' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Axial direction of coordinates in polar system', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-origin' &
-                                , 'TODO-DEFINE-PARAMETER Origin in orth(ogonal?) coordinates of polar system' , '0.0 , 0.0'&
-                                ,  numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmax' &
-                                , 'TODO-DEFINE-PARAMETER Max radius of to-be inserted particles', '1e21', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmin' &
-                                , 'TODO-DEFINE-PARAMETER Min radius of to-be inserted particles', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-MWTemperatureIC' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Temperature for Maxwell Distribution', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-PartDensity' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'PartDensity (real particles per m^3) or  (vpi_)cub./cyl. as alternative  to'//&
-                                  ' Part.Emis. in Type1'  , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-ReduceNoise' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Reduce stat. noise by global calc. of PartIns', '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-AcceptReject' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  ' Perform ARM for skewness of RefMap-positioning', '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-ARM_DmaxSampleN' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Number of sample intervals in xi/eta for Dmax-calc.', '1', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'DoForceFreeSurfaceFlux' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Flag if the stage reconstruction uses a force' , '.FALSE.')
-
-CALL prms%CreateLogicalOption(  'OutputSurfaceFluxLinked' &
-                                , 'Flag to print the SurfaceFlux-linked Info' , '.FALSE.')
-! Parameters for adaptive boundary conditions
-CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-Adaptive' &
-                                      , 'Flag for the definition of adaptive boundary conditions', '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-Adaptive-Type' &
-                                , 'Define the type of the adaptive boundary condition. Options:\n' //&
-                                  '(1) Const. static pressure inlet after Farbar & Boyd 2014 (Type 1)\n' //&
-                                  '(2) Const. static pressure outlet after Farbar & Boyd 2014 (Type 1)\n' //&
-                                  '(3) Const. massflow inlet after Farbar & Boyd 2014 (Type 2): Number of particles for regular '//&
-                                  'surface flux is calculated with velocity and given mass flow. Requires an open BC.' //&
-                                  '(4) Const. massflow inlet after Lei 2017 (cf_3): N_in = N_mdot + N_out (counting particles, '//&
-                                  'which exist the domain through the adaptive BC).' &
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-Adaptive-Pressure' &
-                                , 'Static pressure in [Pa] for the adaptive boundary conditions of type 1 and 2.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-Adaptive-Massflow' &
-                                , 'Massflow in [kg/s] for the adaptive boundary conditions of type 3 and 4.', numberedmulti=.TRUE.)
-
-END SUBROUTINE DefineParametersParticleEmission
-
-SUBROUTINE InitializeParticleEmission()
-!===================================================================================================================================
-! Initialize particles / Insert initial particles
-!===================================================================================================================================
-! MODULES
-#if USE_MPI
-USE MOD_Particle_MPI_Vars   ,ONLY: PartMPI
-#endif /*USE_MPI*/
-USE MOD_Globals
-USE MOD_Dielectric_Vars     ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
-USE MOD_DSMC_Vars           ,ONLY: useDSMC, RadialWeighting, DSMC
-USE MOD_Part_Emission_Tools ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
-USE MOD_Part_Pos_and_Velo   ,ONLY: SetParticlePosition,SetParticleVelocity, AD_SetInitElectronVelo
-USE MOD_Part_Tools          ,ONLY: UpdateNextFreePosition
-USE MOD_Particle_Mesh_Vars  ,ONLY: LocalVolume
-USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, Symmetry, VarTimeStep
-USE MOD_ReadInTools
-USE MOD_Restart_Vars        ,ONLY: DoRestart
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER               :: i, NbrOfParticle,iInit,iPart,PositionNbr
-INTEGER(KIND=8)       :: insertParticles
-!===================================================================================================================================
-
-SWRITE(UNIT_stdOut,'(A)') ' Initial particle inserting... '
-
-CALL UpdateNextFreePosition()
-
-! Do sanity check of max. particle number compared to the number that is to be inserted for certain insertion types
-insertParticles = 0
-DO i=1,nSpecies
-  IF (DSMC%DoAmbipolarDiff) THEN
-    IF (i.EQ.DSMC%AmbiDiffElecSpec) CYCLE
-  END IF
-  IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
-  DO iInit = 1, Species(i)%NumberOfInits
-    IF (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
-      IF(Symmetry%Order.LE.2) THEN
-        ! The correct 2D/axisymmetric LocalVolume could only be calculated after the symmetry axis was defined (through the boundary
-        ! conditions). However, the initialParticleNumber was already determined before the 2D volume calculation was performed.
-        ! This can lead to initialParticleNumbers of 0, thus skipping the insertion entirely.
-        Species(i)%Init(iInit)%initialParticleNumber &
-                  = NINT(Species(i)%Init(iInit)%PartDensity / Species(i)%MacroParticleFactor * LocalVolume)
-        ! The radial scaling of the weighting factor has to be considered
-        IF(RadialWeighting%DoRadialWeighting) Species(i)%Init(iInit)%initialParticleNumber = &
-                                    INT(Species(i)%Init(iInit)%initialParticleNumber * 2. / (RadialWeighting%PartScaleFactor),8)
-      END IF
-#if USE_MPI
-      insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs,8)
-#else
-      insertParticles = insertParticles + INT(Species(i)%Init(iInit)%initialParticleNumber,8)
-#endif
-    ELSE IF ((TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cuboid') &
-         .OR.(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cylinder')) THEN
-#if USE_MPI
-      insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs,8)
-#else
-      insertParticles = insertParticles + INT(Species(i)%Init(iInit)%initialParticleNumber,8)
-#endif
-    END IF
-  END DO
-END DO
-IF (insertParticles.GT.PDM%maxParticleNumber) THEN
-  IPWRITE(UNIT_stdOut,*)' Maximum particle number : ',PDM%maxParticleNumber
-  IPWRITE(UNIT_stdOut,*)' To be inserted particles: ',INT(insertParticles,4)
-  CALL abort(&
-__STAMP__&
-,'Number of to be inserted particles per init-proc exceeds max. particle number! ')
-END IF
-DO i = 1,nSpecies
-  IF (DSMC%DoAmbipolarDiff) THEN
-    IF (i.EQ.DSMC%AmbiDiffElecSpec) CYCLE
-  END IF
-  IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
-  DO iInit = 1, Species(i)%NumberOfInits
-    IF (Species(i)%Init(iInit)%UseForInit) THEN ! no special emissiontype to be used
-      IF(Species(i)%Init(iInit)%initialParticleNumber.GT.HUGE(1)) CALL abort(&
-__STAMP__&
-,' Integer of initial particle number larger than max integer size: ',HUGE(1))
-      NbrOfParticle = INT(Species(i)%Init(iInit)%initialParticleNumber,4)
-      SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle position for species ',i,' ... '
-      CALL SetParticlePosition(i,iInit,NbrOfParticle)
-      SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle velocities for species ',i,' ... '
-      CALL SetParticleVelocity(i,iInit,NbrOfParticle)
-      SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle charge and mass for species ',i,' ... '
-      CALL SetParticleChargeAndMass(i,NbrOfParticle)
-      IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
-      IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
-      IF (useDSMC) THEN
-        IF (DSMC%DoAmbipolarDiff) CALL AD_SetInitElectronVelo(i,iInit,NbrOfParticle)
-        iPart = 1
-        DO WHILE (iPart .le. NbrOfParticle)
-          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-          IF (PositionNbr .ne. 0) THEN
-            PDM%PartInit(PositionNbr) = iInit
-          ELSE
-            CALL abort(&
-            __STAMP__&
-            ,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
-          END IF
-          iPart = iPart + 1
-        END DO
-      END IF
-      !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
-      PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-      CALL UpdateNextFreePosition()
-    END IF ! not Emissiontype 4
-  END DO !inits
-END DO ! species
-
-!--- set last element to current element (needed when ParticlePush is not executed, e.g. "delay")
-DO i = 1,PDM%ParticleVecLength
-  PEM%LastGlobalElemID(i) = PEM%GlobalElemID(i)
-END DO
-
-!--- Remove particles from dielectric regions if DielectricNoParticles=.TRUE.
-IF(DoDielectric)THEN
-  IF(DielectricNoParticles)THEN
-    DO i = 1,PDM%ParticleVecLength
-      ! Remove particles in dielectric elements
-      IF(isDielectricElem(PEM%LocalElemID(i)))THEN
-        PDM%ParticleInside(i) = .FALSE.
-      END IF
-    END DO
-  END IF
-END IF
-
-SWRITE(UNIT_stdOut,'(A)') ' ...DONE '
-
-END SUBROUTINE InitializeParticleEmission
-
 
 SUBROUTINE ParticleInserting()
 !===================================================================================================================================
-! Particle Inserting
+!> Particle emission at every iteration (ParticleEmissionType.GT.0)
 !===================================================================================================================================
 ! Modules
 #if USE_MPI
@@ -314,21 +85,19 @@ INTEGER                          :: InitGroup
 REAL                             :: NbrOfReactions,NbrOfParticlesReal
 !===================================================================================================================================
 
-!---  Emission at time step (initial emission see particle_init.f90: InitializeParticleEmission)
+!---  Emission at time step
 DO i=1,nSpecies
   DO iInit = 1, Species(i)%NumberOfInits
     ! Reset the number of particles per species AND init region
     NbrOfParticle = 0
-    ! Cycle background species (particles are inserted during the pairing step)
-    IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'background') CYCLE
     ! Only use inits defined for emission (every time step)
-    IF (Species(i)%Init(iInit)%UseForEmission) THEN ! no constant density in cell type, + to be used for init
+    IF (Species(i)%Init(iInit)%ParticleEmissionType.GT.0) THEN
       SELECT CASE(Species(i)%Init(iInit)%ParticleEmissionType)
       CASE(1) ! Emission Type: Particles per !!!!!SECOND!!!!!!!! (not per ns)
         IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
-          PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac  ! emitted particles during time-slab
+          PartIns=Species(i)%Init(iInit)%ParticleNumber * dt*RKdtFrac  ! emitted particles during time-slab
           inserted_Particle_iter = INT(PartIns,8)                                     ! number of particles to be inserted
-          PartIns=Species(i)%Init(iInit)%ParticleEmission * (Time + dt*RKdtFracTotal) ! total number of emitted particle over
+          PartIns=Species(i)%Init(iInit)%ParticleNumber * (Time + dt*RKdtFracTotal) ! total number of emitted particle over
                                                                                       ! simulation
           !-- random-round the inserted_Particle_time for preventing periodicity
           ! PO & SC: why, sometimes we do not want this add, TB is bad!
@@ -369,7 +138,7 @@ DO i=1,nSpecies
           ELSE
             RiseFactor=1.
           EnD IF
-          PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac * RiseFactor  ! emitted particles during time-slab
+          PartIns=Species(i)%Init(iInit)%ParticleNumber * dt*RKdtFrac * RiseFactor  ! emitted particles during time-slab
           CALL RANDOM_NUMBER(RandVal1)
           IF (EXP(-PartIns).LE.TINY(PartIns)) THEN
             IPWRITE(*,*)'WARNING: target is too large for poisson sampling: switching now to Random rounding...'
@@ -391,7 +160,7 @@ DO i=1,nSpecies
             RiseFactor=1.
           EnD IF
           ! emitted particles during time-slab
-          PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac * RiseFactor &
+          PartIns=Species(i)%Init(iInit)%ParticleNumber * dt*RKdtFrac * RiseFactor &
                   + Species(i)%Init(iInit)%InsertedParticleMisMatch
           CALL RANDOM_NUMBER(RandVal1)
           NbrOfParticle = INT(PartIns + RandVal1)
@@ -411,7 +180,7 @@ DO i=1,nSpecies
         Species(i)%Init(iInit)%InsertedParticle = Species(i)%Init(iInit)%InsertedParticle + INT(NbrOfParticle,8)
       CASE(2)    ! Emission Type: Particles per Iteration
         IF (RKdtFracTotal .EQ. 1.) THEN !insert in last stage only, so that no reconstruction is nec. and number/iter matches
-          NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission)
+          NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleNumber)
         ELSE
           NbrOfParticle = 0
         END IF
@@ -581,7 +350,7 @@ DO i=1,nSpecies
         END IF ! PartMPI%iProc.EQ.0
       END IF
 #endif
-    END IF ! UseForEmission
+    END IF ! Species(iSpec)%Init(iInit)%ParticleEmissionType.GT.0
   END DO  ! iInit
 END DO  ! i=1,nSpecies
 
@@ -831,6 +600,5 @@ DO AdaptiveElemID = 1,nElems
 END DO
 
 END SUBROUTINE AdaptiveBCAnalyze
-
 
 END MODULE MOD_part_emission
