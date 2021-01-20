@@ -739,10 +739,10 @@ LOGICAL            :: SideIsCritical
 ! 1.) slab normal vectors
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! n_1=V_1+V_2 (V: corner vectors in xi-direction)
-SideSlabNormals(:,1)=BezierControlPoints3D(:,NGeoElevated,0)              &
-                    -BezierControlPoints3D(:,0,0)                         &
-                    +BezierControlPoints3D(:,NGeoElevated,NGeoElevated)   &
-                    -BezierControlPoints3D(:,0,NGeoElevated)
+SideSlabNormals(:,1) = BezierControlPoints3D(:,NGeoElevated,0)              &
+                     - BezierControlPoints3D(:,0,0)                         &
+                     + BezierControlPoints3D(:,NGeoElevated,NGeoElevated)   &
+                     - BezierControlPoints3D(:,0,NGeoElevated)
 
 IF (ALL(SideSlabNormals(:,1).EQ.0)) &
   CALL ABORT(__STAMP__,             &
@@ -903,7 +903,8 @@ SUBROUTINE GetSideBoundingBox(SideID, BoundingBox)
 ! computes the 8 corners of bounding box of bezier basis surface (based on values from GetSideSlabNormalsAndIntervals)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D,SideSlabIntervals,SideSlabNormals
+USE MOD_Mesh_Tools,                 ONLY: GetCNSideID
+USE MOD_Particle_Surfaces_Vars,     ONLY: BezierControlPoints3D,SideSlabIntervals,SideSlabNormals
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -915,16 +916,20 @@ INTEGER,INTENT(IN)  :: SideID
 REAL,INTENT(OUT)   :: BoundingBox(1:3,1:8)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iDir1, iDir2, iDir3
+INTEGER            :: CNSideID
+INTEGER            :: iDir1,iDir2,iDir3
 !===================================================================================================================================
 
-DO iDir1=0,1
-  DO iDir2=0,1
-      DO iDir3=0,1
+CNSideID = GetCNSideID(SideID)
+
+! BezierControlPoints are always on nonUniqueGlobalSide
+DO iDir1 = 0,1
+  DO iDir2 = 0,1
+      DO iDir3 = 0,1
         BoundingBox(1:3,iDir1*4 + iDir2*2 + iDir3+1) = BezierControlPoints3D(:,0,0,SideID) &
-          + SideSlabNormals(:,1,SideID)*SideSlabIntervals(2*1-iDir1,SideID) &
-          + SideSlabNormals(:,2,SideID)*SideSlabIntervals(2*2-iDir2,SideID) &
-          + SideSlabNormals(:,3,SideID)*SideSlabIntervals(2*3-iDir3,SideID)
+          + SideSlabNormals(:,1,CNSideID)*SideSlabIntervals(2*1-iDir1,CNSideID) &
+          + SideSlabNormals(:,2,CNSideID)*SideSlabIntervals(2*2-iDir2,CNSideID) &
+          + SideSlabNormals(:,3,CNSideID)*SideSlabIntervals(2*3-iDir3,CNSideID)
       END DO
   END DO
 END DO

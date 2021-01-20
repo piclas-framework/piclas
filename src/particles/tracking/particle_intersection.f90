@@ -456,8 +456,9 @@ CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D,PartTrajectory,leng
 ! write Xinewton to locXi and locEta
 locXi (1) = XiNewton(1)
 locEta(1) = XiNewton(2)
+
 IF (failed) THEN
-  PartFaceAngle = ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
+  PartFaceAngle = ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,CNSideID))))
   IPWRITE(UNIT_stdout,*) ' Intersection-angle-of-BezierNetwon: ',PartFaceAngle*180./PI
 
   iClipIter   = 0
@@ -959,7 +960,7 @@ rBoundingBoxChecks = rBoundingBoxChecks + 1.
 #endif /*CODE_ANALYZE*/
 
 CriticalParallelInSide = .FALSE.
-IF (BoundingBoxIsEmpty(SideID)) THEN
+IF (BoundingBoxIsEmpty(CNSideID)) THEN
   IF (TrackingMethod.EQ.REFMAPPING) THEN
     IF (DOT_PRODUCT(SideNormVec(1:3,CNSideID),PartTrajectory).LT.0.) RETURN
   ELSE
@@ -987,7 +988,7 @@ ELSE
 END IF
 
 ! check angle to boundingbox (height normal vector)
-PartFaceAngle = ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
+PartFaceAngle = ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,CNSideID))))
 IF (ALMOSTZERO(PartFaceAngle*180/ACOS(-1.))) THEN
   n1 = n1 ! +epsilontol
 END IF
@@ -1634,7 +1635,8 @@ FUNCTION InsideBoundingBox(ParticlePosition,SideID)
 ! check is the particles is inside the bounding box, return TRUE/FALSE
 !================================================================================================================================
 USE MOD_Globals_Vars
-USE MOD_Particle_Surfaces_Vars,  ONLY:SideSlabNormals,SideSlabIntervals,BezierControlPoints3D
+USE MOD_Mesh_Tools,              ONLY: GetCNSideID
+USE MOD_Particle_Surfaces_Vars,  ONLY: SideSlabNormals,SideSlabIntervals,BezierControlPoints3D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -1646,28 +1648,34 @@ INTEGER,INTENT(IN)                   :: SideID
 LOGICAL                              :: InsideBoundingBox
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                              :: CNSideID
 REAL                                 :: x,y,z,P(3)
 !================================================================================================================================
-P=ParticlePosition-BezierControlPoints3D(1:3,0,0,SideID)
+
+CNSideID = GetCNSideID(SideID)
+P = ParticlePosition - BezierControlPoints3D(1:3,0,0,SideID)
+
 ! y is perpendicular to xi & eta directions --> check first, smallest interval
-y=DOT_PRODUCT(P,SideSlabNormals(:,2,SideID))
-IF((y.LT.SideSlabIntervals(3,SideID)-100.*epsMach).OR.(y.GT.SideSlabIntervals(4,SideID)+100.*epsMach))THEN
-  InsideBoundingBox=.FALSE.
+y = DOT_PRODUCT(P,SideSlabNormals(:,2,CNSideID))
+IF ((y.LT.SideSlabIntervals(3,CNSideID)-100.*epsMach).OR.(y.GT.SideSlabIntervals(4,CNSideID)+100.*epsMach)) THEN
+  InsideBoundingBox = .FALSE.
   RETURN
 END IF
 ! than xi
-x=DOT_PRODUCT(P,SideSlabNormals(:,1,SideID))
-IF((x.LT.SideSlabIntervals(1,SideID)-100.*epsMach).OR.(x.GT.SideSlabIntervals(2,SideID)+100.*epsMach))THEN
-  InsideBoundingBox=.FALSE.
+x = DOT_PRODUCT(P,SideSlabNormals(:,1,CNSideID))
+IF ((x.LT.SideSlabIntervals(1,CNSideID)-100.*epsMach).OR.(x.GT.SideSlabIntervals(2,CNSideID)+100.*epsMach)) THEN
+  InsideBoundingBox = .FALSE.
   RETURN
 END IF
 ! than eta
-z=DOT_PRODUCT(P,SideSlabNormals(:,3,SideID))
-IF((z.LT.SideSlabIntervals(5,SideID)-100.*epsMach).OR.(z.GT.SideSlabIntervals(6,SideID)+100.*epsMach))THEN
-  InsideBoundingBox=.FALSE.
+z = DOT_PRODUCT(P,SideSlabNormals(:,3,CNSideID))
+IF ((z.LT.SideSlabIntervals(5,CNSideID)-100.*epsMach).OR.(z.GT.SideSlabIntervals(6,CNSideID)+100.*epsMach)) THEN
+  InsideBoundingBox = .FALSE.
   RETURN
 END IF
-InsideBoundingBox=.TRUE.
+
+InsideBoundingBox = .TRUE.
+
 END FUNCTION InsideBoundingBox
 
 
@@ -1675,10 +1683,11 @@ FUNCTION BoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,PartID,Side
 !================================================================================================================================
 ! check if the particle trajectory penetrates the bounding box, return TRUE/FALSE
 !================================================================================================================================
+USE MOD_Globals,                 ONLY: ABORT
 USE MOD_Globals_Vars
-USE MOD_Globals,                  ONLY:abort
-USE MOD_Particle_Vars,            ONLY:LastPartPos
-USE MOD_Particle_Surfaces_Vars,   ONLY:SideSlabNormals,SideSlabIntervals,BezierControlPoints3D
+USE MOD_Mesh_Tools,              ONLY: GetCNSideID
+USE MOD_Particle_Surfaces_Vars,  ONLY: SideSlabNormals,SideSlabIntervals,BezierControlPoints3D
+USE MOD_Particle_Vars,           ONLY: LastPartPos
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -1693,28 +1702,33 @@ LOGICAL                              :: BoundingBoxIntersection
 ! LOCAL VARIABLES
 REAL                                 :: dnk,alpha(2,3)
 REAL                                 :: maxvalue,minvalue
+INTEGER                              :: CNSideID
 INTEGER                              :: i
 !================================================================================================================================
+
+CNSideID = GetCNSideID(SideID)
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 1.) Calculate the projection of the PartTrajectory onto the SideSlabNormals and sort accoring to the sign of T*n
 !-----------------------------------------------------------------------------------------------------------------------------------
 DO i=1,3!x,y,z direction
-  !dnk=DOT_PRODUCT(PartTrajectory,SideSlabNormals(i,:,SideID))
-  dnk=DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,i,SideID))
+  dnk=DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,i,CNSideID))
+
   !IF(ABS(dnk).LT.epsilontol)THEN
   IF(ABS(dnk).LT.100.*epsMach)THEN
     dnk=100.*epsMach ! ÜBERPRÜFEN OB SIGN sinn macht
   END IF
+
   IF(dnk.LT.0.)THEN
-    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
-                                                                              +SideSlabIntervals(2*i  ,SideID) )/dnk!t_max
-    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
-                                                                              +SideSlabIntervals(2*i-1,SideID) )/dnk!t_min
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,CNSideID))&
+                                                                                    +SideSlabIntervals(  2*i,CNSideID))/dnk!t_max
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,CNSideID))&
+                                                                                    +SideSlabIntervals(2*i-1,CNSideID))/dnk!t_min
   ELSE
-    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
-                                                                              +SideSlabIntervals(2*i-1,SideID) )/dnk!t_min
-    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
-                                                                              +SideSlabIntervals(2*i  ,SideID) )/dnk!t_max
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,CNSideID))&
+                                                                                    +SideSlabIntervals(2*i-1,CNSideID))/dnk!t_min
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,CNSideID))&
+                                                                                    +SideSlabIntervals(  2*i,CNSideID))/dnk!t_max
   END IF
 END DO!i
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1742,8 +1756,9 @@ FUNCTION FlatBoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,PartID,
 ! check if the particle trajectory penetrates the bounding box, return TRUE/FALSE
 !================================================================================================================================
 USE MOD_Globals_Vars
-USE MOD_Particle_Vars,            ONLY:LastPartPos
-USE MOD_Particle_Surfaces_Vars,   ONLY:SideSlabNormals,SideSlabIntervals,BezierControlPoints3D
+USE MOD_Mesh_Tools,              ONLY: GetCNSideID
+USE MOD_Particle_Surfaces_Vars,  ONLY:SideSlabNormals,SideSlabIntervals,BezierControlPoints3D
+USE MOD_Particle_Vars,           ONLY:LastPartPos
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -1758,13 +1773,17 @@ LOGICAL                              :: FlatBoundingBoxIntersection
 ! LOCAL VARIABLES
 REAL                                 :: dnk,alpha(2,3)! alpha(2,2): dummy because we are lazy
 REAL                                 :: maxvalue,minvalue
+INTEGER                              :: CNSideID
 INTEGER                              :: i
 !================================================================================================================================
+
+CNSideID = GetCNSideID(SideID)
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 1.) Calculate the projection of the PartTrajectory onto the SideSlabNormals and sort accoring to the sign of T*n
 !-----------------------------------------------------------------------------------------------------------------------------------
-i=1
-dnk=DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,i,SideID))
+i   = 1
+dnk = DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,i,CNSideID))
 
 IF(ABS(dnk).LT.100.*epsMach)THEN
   dnk=0. ! ÜBERPRÜFEN OB SIGN sinn macht
@@ -1772,19 +1791,19 @@ IF(ABS(dnk).LT.100.*epsMach)THEN
   alpha(2,1) =  HUGE(1.0)
 ELSE
   IF(dnk.LT.0.)THEN
-    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
-                                                                              +SideSlabIntervals(2*i  ,SideID) )/dnk!t_max
-    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
-                                                                              +SideSlabIntervals(2*i-1,SideID) )/dnk!t_min
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,CNSideID))&
+                                                                                    +SideSlabIntervals(  2*i,CNSideID))/dnk!t_max
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,CNSideID))&
+                                                                                    +SideSlabIntervals(2*i-1,CNSideID))/dnk!t_min
   ELSE
-    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
-                                                                              +SideSlabIntervals(2*i-1,SideID) )/dnk!t_min
-    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
-                                                                              +SideSlabIntervals(2*i  ,SideID) )/dnk!t_max
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,CNSideID))&
+                                                                                    +SideSlabIntervals(2*i-1,CNSideID))/dnk!t_min
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,CNSideID))&
+                                                                                    +SideSlabIntervals(  2*i,CNSideID))/dnk!t_max
   END IF
 END IF
 i=3
-dnk=DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,i,SideID))
+dnk=DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,i,CNSideID))
 
 IF(ABS(dnk).LT.100.*epsMach)THEN
   dnk=0.
@@ -1792,15 +1811,15 @@ IF(ABS(dnk).LT.100.*epsMach)THEN
   alpha(2,3) =  HUGE(1.0)
 ELSE
   IF(dnk.LT.0.)THEN
-    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
-                                                                              +SideSlabIntervals(2*i  ,SideID) )/dnk!t_max
-    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
-                                                                              +SideSlabIntervals(2*i-1,SideID) )/dnk!t_min
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,CNSideID))&
+                                                                                    +SideSlabIntervals(  2*i,CNSideID))/dnk!t_max
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,CNSideID))&
+                                                                                    +SideSlabIntervals(2*i-1,CNSideID))/dnk!t_min
   ELSE
-    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
-                                                                              +SideSlabIntervals(2*i-1,SideID) )/dnk!t_min
-    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
-                                                                              +SideSlabIntervals(2*i  ,SideID) )/dnk!t_max
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,CNSideID))&
+                                                                                    +SideSlabIntervals(2*i-1,CNSideID))/dnk!t_min
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,CNSideID))&
+                                                                                    +SideSlabIntervals(  2*i,CNSideID))/dnk!t_max
   END IF
 END IF
 

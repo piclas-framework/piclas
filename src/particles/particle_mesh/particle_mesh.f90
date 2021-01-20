@@ -175,7 +175,7 @@ SUBROUTINE InitParticleMesh()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalElemID,InitGetCNElemID,GetCNElemID
-USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID
+USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID,GetGlobalSideID
 USE MOD_Mesh_Vars              ,ONLY: deleteMeshPointer,NodeCoords
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
 USE MOD_Mesh_Vars              ,ONLY: useCurveds
@@ -220,7 +220,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER          :: RefMappingGuessProposal
 INTEGER          :: iSample
-INTEGER          :: firstSide,lastSide,iSide
+INTEGER          :: firstSide,lastSide,iSide,SideID
 CHARACTER(LEN=2) :: tmpStr
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
@@ -369,17 +369,17 @@ CASE(TRACING,REFMAPPING)
 !    CALL CalcBezierControlPoints()
 
 #if USE_MPI
-    MPISharedSize = INT((3**2*nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-    CALL Allocate_Shared(MPISharedSize,(/3,3,nNonUniqueGlobalSides/),SideSlabNormals_Shared_Win,SideSlabNormals_Shared)
+    MPISharedSize = INT((3**2*nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+    CALL Allocate_Shared(MPISharedSize,(/3,3,nComputeNodeTotalSides/),SideSlabNormals_Shared_Win,SideSlabNormals_Shared)
     CALL MPI_WIN_LOCK_ALL(0,SideSlabNormals_Shared_Win,IERROR)
-    MPISharedSize = INT((6*nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-    CALL Allocate_Shared(MPISharedSize,(/6,nNonUniqueGlobalSides/),SideSlabIntervals_Shared_Win,SideSlabIntervals_Shared)
+    MPISharedSize = INT((6*nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+    CALL Allocate_Shared(MPISharedSize,(/6,nComputeNodeTotalSides/),SideSlabIntervals_Shared_Win,SideSlabIntervals_Shared)
     CALL MPI_WIN_LOCK_ALL(0,SideSlabIntervals_Shared_Win,IERROR)
-    MPISharedSize = INT((nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-    CALL Allocate_Shared(MPISharedSize,(/nNonUniqueGlobalSides/),BoundingBoxIsEmpty_Shared_Win,BoundingBoxIsEmpty_Shared)
+    MPISharedSize = INT((nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+    CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),BoundingBoxIsEmpty_Shared_Win,BoundingBoxIsEmpty_Shared)
     CALL MPI_WIN_LOCK_ALL(0,BoundingBoxIsEmpty_Shared_Win,IERROR)
-    firstSide = INT(REAL (myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
-    lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+    firstSide = INT(REAL (myComputeNodeRank   *nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))+1
+    lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))
     SideSlabNormals    => SideSlabNormals_Shared
     SideSlabIntervals  => SideSlabIntervals_Shared
     BoundingBoxIsEmpty => BoundingBoxIsEmpty_Shared
@@ -398,29 +398,35 @@ CASE(TRACING,REFMAPPING)
 #endif /*CODE_ANALYZE*/
 
     IF (BezierElevation.GT.0) THEN
-      DO iSide=firstSide,LastSide
+      DO iSide = firstSide,LastSide
         ! ignore sides that are not on the compute node
-        IF (GetCNElemID(SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.-1) CYCLE
+        ! IF (GetCNElemID(SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.-1) CYCLE
+
+        SideID = GetGlobalSideID(iSide)
 
         ! Ignore small mortar sides attached to big mortar sides
-        IF (SideInfo_Shared(SIDE_LOCALID,iSide).LT.1 .OR. SideInfo_Shared(SIDE_LOCALID,iSide).GT.6) CYCLE
+        IF (SideInfo_Shared(SIDE_LOCALID,SideID).LT.1 .OR. SideInfo_Shared(SIDE_LOCALID,SideID).GT.6) CYCLE
 
-        CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide)     &
-                                           ,SideSlabNormals(   1:3,1:3,iSide)                          &
-                                           ,SideSlabInterVals( 1:6    ,iSide)                          &
+        ! BezierControlPoints are always on nonUniqueGlobalSide
+        CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,SideID) &
+                                           ,SideSlabNormals(   1:3,1:3,iSide)                                       &
+                                           ,SideSlabInterVals( 1:6    ,iSide)                                       &
                                            ,BoundingBoxIsEmpty(iSide))
       END DO
     ELSE
       DO iSide=firstSide,LastSide
         ! ignore sides that are not on the compute node
-        IF (GetCNElemID(SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.-1) CYCLE
+        ! IF (GetCNElemID(SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.-1) CYCLE
+
+        SideID = GetGlobalSideID(iSide)
 
         ! Ignore small mortar sides attached to big mortar sides
-        IF (SideInfo_Shared(SIDE_LOCALID,iSide).LT.1 .OR. SideInfo_Shared(SIDE_LOCALID,iSide).GT.6) CYCLE
+        IF (SideInfo_Shared(SIDE_LOCALID,SideID).LT.1 .OR. SideInfo_Shared(SIDE_LOCALID,SideID).GT.6) CYCLE
 
-        CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)             &
-                                           ,SideSlabNormals(   1:3,1:3,iSide)                          &
-                                           ,SideSlabInterVals( 1:6    ,iSide)                          &
+        ! BezierControlPoints are always on nonUniqueGlobalSide
+        CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID)                         &
+                                           ,SideSlabNormals(   1:3,1:3,iSide)                                       &
+                                           ,SideSlabInterVals( 1:6    ,iSide)                                       &
                                            ,BoundingBoxIsEmpty(iSide))
       END DO
   END IF
@@ -2176,7 +2182,7 @@ DO iElem=firstElem,lastElem
     IF(.NOT.ElemCurved(iElem))THEN
       BezierControlPoints_loc(1:3,0:NGeo,0:NGeo) = BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID)
       ! linear element
-      IF(BoundingBoxIsEmpty(SideID))THEN
+      IF(BoundingBoxIsEmpty(CNSideID))THEN
         v1=(-BezierControlPoints_loc(:,0,0   )+BezierControlPoints_loc(:,NGeo,0   )   &
             -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
 
@@ -2245,7 +2251,7 @@ DO iElem=firstElem,lastElem
       END SELECT
       CALL PointsEqual(NGeo2,XCL_NGeoSideNew,XCL_NGeoSideOld,isCurvedSide)
       IF(isCurvedSide)THEn
-        IF(BoundingBoxIsEmpty(SideID))THEN
+        IF(BoundingBoxIsEmpty(CNSideID))THEN
           SideType(CNSideID)=PLANAR_CURVED
           v1=(-BezierControlPoints_loc(:,0,0   )+BezierControlPoints_loc(:,NGeo,0   )   &
               -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
@@ -2269,7 +2275,7 @@ DO iElem=firstElem,lastElem
           SideType(CNSideID)=CURVED
         END IF
       ELSE
-        IF (BoundingBoxIsEmpty(SideID)) THEN
+        IF (BoundingBoxIsEmpty(CNSideID)) THEN
           v1=(-BezierControlPoints_loc(:,0,0   )+BezierControlPoints_loc(:,NGeo,0   )   &
               -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
 
@@ -2322,6 +2328,8 @@ DO iElem=firstElem,lastElem
     SideIsDone(SideID)=.TRUE.
   END DO ! ilocSide=1,6
 END DO ! iElem=1,nTotalElems
+
+DEALLOCATE(SideIsDone)
 
 #if USE_MPI
 CALL MPI_WIN_SYNC(ElemCurved_Shared_Win,IERROR)
