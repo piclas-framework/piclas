@@ -302,14 +302,14 @@ IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
 #if USE_MPI
   halo_eps2 = 0.
 ELSE
-  IF (ManualTimeStep.EQ.0.0) THEN
+  IF (ManualTimeStep.LE.0.0) THEN
 #if !(USE_HDG)
     CALL DGTimeDerivative_weakForm(time,time,0,doSource=.TRUE.)
     deltaT = CalcTimeStep()
 #else
      CALL abort(&
   __STAMP__&
-  , 'ManualTimeStep.EQ.0.0 -> ManualTimeStep is not defined correctly! ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
+  , 'ManualTimeStep.LLE0.0 -> ManualTimeStep is not defined correctly! ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
 #endif /*USE_HDG*/
   ELSE
     deltaT=ManualTimeStep
@@ -355,6 +355,11 @@ ELSE
 
   halo_eps2=halo_eps*halo_eps
   CALL PrintOption('halo distance','CALCUL.',RealOpt=halo_eps)
+  IF(halo_eps.LT.0.)THEN
+    CALL abort(&
+    __STAMP__&
+    ,'halo_eps cannot be negative!')
+  END IF ! halo_eps.LT.0.
 END IF
 
 ! find radius of largest cell
