@@ -304,7 +304,6 @@ IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
 ELSE
   IF (ManualTimeStep.LE.0.0) THEN
 #if !(USE_HDG)
-    CALL DGTimeDerivative_weakForm(time,time,0,doSource=.TRUE.)
     deltaT = CalcTimeStep()
 #else
      CALL abort(&
