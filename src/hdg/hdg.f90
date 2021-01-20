@@ -105,6 +105,9 @@ USE MOD_Mesh_Vars          ,ONLY: DoSwapMesh
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_Basis              ,ONLY: InitializeVandermonde,LegendreGaussNodesAndWeights,BarycentricWeights
 USE MOD_FillMortar_HDG     ,ONLY: InitMortar_HDG
+USE MOD_Mesh_Vars          ,ONLY: BoundaryName,BoundaryType,nBCs
+USE MOD_Mesh_Vars    ,  ONLY:nSides,Face_xGP
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -116,6 +119,7 @@ IMPLICIT NONE
 INTEGER           :: i,j,k,r,iElem,SideID
 INTEGER           :: BCType,BCState,RegionID
 REAL              :: D(0:PP_N,0:PP_N)
+INTEGER           :: iBC
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
    SWRITE(*,*) "InitHDG already called."
@@ -204,6 +208,7 @@ CALL InitMortar_HDG()
 nDirichletBCsides=0
 nNeumannBCsides  =0
 DO SideID=1,nBCSides
+  WRITE (*,*) "SIDEID =", SIDEID
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
@@ -217,6 +222,30 @@ DO SideID=1,nBCSides
     ,' unknown BC Type in hdg.f90!',BCType,999.)
   END SELECT ! BCType
 END DO
+
+
+ZeroPotentialSideID=0
+!DO iBC=1,nBCs
+  !WRITE (*,*) "iBC =", iBC
+  !WRITE (*,*) "BoundaryName(iBC) =", BoundaryName(iBC)
+  DO SideID=1,nSides
+  BCType =BoundaryType(BC(SideID),BC_TYPE)
+  BCState=BoundaryType(BC(SideID),BC_STATE)
+    !WRITE (*,*) "SIDEID,BC(SideID),BCType,BCState =", SIDEID,BC(SideID),BCType,BCState
+    !WRITE (*,*) "BoundaryType(BC(SideID),3) =", BoundaryType(BC(SideID),3)
+    !WRITE (*,*) "BoundaryType(BC(SideID),:) =", BoundaryType(BC(SideID),:)
+    IF(ABS(BoundaryType(BC(SideID),BC_ALPHA)).eq.1)THEN
+      !PVID = BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_ALPHA)
+      !IPWRITE (*,*) "SideInfo_Shared(SIDE_BCID,SideID),BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_ALPHA) =", SideInfo_Shared(SIDE_BCID,SideID),BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_ALPHA)
+      IPWRITE (*,*) "SIDEID,BC(SideID),BCType,BCState =", SIDEID,BC(SideID),BCType,BCState
+      IPWRITE (*,*) "BoundaryType(BC(SideID),:) =", BoundaryType(BC(SideID),:)
+      IPWRITE (*,*) "Face_xGP(1,:,:,SideID) =", Face_xGP(1,0,:,SideID)
+      ZeroPotentialSideID = SideID
+    END IF ! BoundaryType(BC(SideID),1).eq.1
+  END DO
+  !read*
+
+!END DO
 
 IF(nDirichletBCsides.GT.0)ALLOCATE(DirichletBC(nDirichletBCsides))
 IF(nNeumannBCsides  .GT.0)THEN
@@ -503,6 +532,10 @@ DO iVar = 1, PP_nVar
   END IF
 #endif
 
+
+  IF(ZeroPotentialSideID.gt.0)THEN
+    lambda(iVar,:,ZeroPotentialSideID) = 1000.
+  END IF ! Zero
 END DO
 
 !volume source (volume RHS of u system)
@@ -1220,7 +1253,7 @@ SUBROUTINE EvalResidual(RHS,lambda,R,iVar)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_HDG_Vars           ,ONLY: nGP_face,nDirichletBCSides,DirichletBC
+USE MOD_HDG_Vars           ,ONLY: nGP_face,nDirichletBCSides,DirichletBC,ZeroPotentialSideID
 USE MOD_Mesh_Vars          ,ONLY: nSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1252,6 +1285,9 @@ IF (iVar.EQ.4) THEN
 DO BCsideID=1,nDirichletBCSides
   R(:,DirichletBC(BCsideID))=0.
 END DO ! SideID=1,nSides
+IF(ZeroPotentialSideID.gt.0)THEN
+  R(:,ZeroPotentialSideID)=0.
+END IF ! ZeroPotentialSideID.gt.0
 #if (PP_nVar!=1)
 END IF
 #endif
@@ -1272,7 +1308,7 @@ SUBROUTINE MatVec(lambda, mv, iVar)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_HDG_Vars          ,ONLY: Smat,nGP_face,nDirichletBCSides,DirichletBC
+USE MOD_HDG_Vars          ,ONLY: Smat,nGP_face,nDirichletBCSides,DirichletBC,ZeroPotentialSideID
 USE MOD_Mesh_Vars         ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR
 USE MOD_FillMortar_HDG    ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
 #if USE_MPI
@@ -1413,6 +1449,9 @@ IF (iVar.EQ.4) THEN
 DO BCsideID=1,nDirichletBCSides
   mv(:,DirichletBC(BCsideID))=0.
 END DO ! SideID=1,nSides
+IF(ZeroPotentialSideID.gt.0)THEN
+  mv(:,ZeroPotentialSideID)=0.
+END IF ! ZeroPotentialSideID.gt.0
 #if (PP_nVar!=1)
 END IF
 #endif

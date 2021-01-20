@@ -44,6 +44,7 @@ REAL,ALLOCATABLE    :: InvPrecondDiag(:,:)  ! 1/diagonal of Precond
 REAL,ALLOCATABLE    :: qn_face(:,:,:)         ! for Neumann BC
 REAL,ALLOCATABLE    :: qn_face_MagStat(:,:,:)         ! for Neumann BC
 INTEGER             :: nDirichletBCsides
+INTEGER             :: ZeroPotentialSideID
 INTEGER             :: nNeumannBCsides
 INTEGER,ALLOCATABLE :: DirichletBC(:)
 INTEGER,ALLOCATABLE :: NeumannBC(:)
