@@ -122,10 +122,18 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           ROS46
                                                           ROS6)
 
-SET(PICLAS_SHARED_MEMORY "OMPI_COMM_TYPE_CORE" CACHE STRING "Split type for creating new communicators based on colors and keys (requires MPI 3 or higher). Options with the prefix OMPI_ are specific to Open MPI.")
+# Get env variable
+SET(PICLAS_SPLIT_TYPE "$ENV{PICLAS_SPLIT_TYPE}")
+IF("${PICLAS_SPLIT_TYPE}" STREQUAL "")
+  SET(PICLAS_SPLIT_TYPE "OMPI_COMM_TYPE_CORE")
+ELSE()
+  IF("${PICLAS_SPLIT_TYPE}" STREQUAL "${PICLAS_SHARED_MEMORY}")
+    MESSAGE(STATUS "Using user-defined environment variable PICLAS_SPLIT_TYPE=${PICLAS_SPLIT_TYPE} for shared memory communicator splitting of variale PICLAS_SHARED_MEMORY")
+    ENDIF()
+ENDIF()
+SET(PICLAS_SHARED_MEMORY "${PICLAS_SPLIT_TYPE}" CACHE STRING "Split type for creating new communicators based on colors and keys (requires MPI 3 or higher). Options with the prefix OMPI_ are specific to Open MPI.")
 SET_PROPERTY(CACHE PICLAS_SHARED_MEMORY PROPERTY STRINGS MPI_COMM_TYPE_SHARED
-                                                          OMPI_COMM_TYPE_CORE)
-                                                          
+                                                         OMPI_COMM_TYPE_CORE)
 
 OPTION(PICLAS_BUILD_POSTI "Build POSTI toolset" ON)
 OPTION(PICLAS_MPI "Compile SINGLE or MPI version" ON)
@@ -370,7 +378,7 @@ ADD_DEFINITIONS(-DSharedMemoryMethod=${PICLAS_SHARED_MEMORY})
 IF(PICLAS_SHARED_MEMORY STREQUAL "MPI_COMM_TYPE_SHARED")
   MESSAGE(STATUS "Shared memory split type for subcommunicators set to node-level")
 ELSEIF(PICLAS_SHARED_MEMORY STREQUAL "OMPI_COMM_TYPE_CORE")
-  MESSAGE(STATUS "Shared memory split type for subcommunicators set to the same core/processing unit")
+  MESSAGE(STATUS "Shared memory split type for subcommunicators set to core-level")
 ENDIF()
 
 
