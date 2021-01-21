@@ -175,8 +175,8 @@ CALL LowCase(name,testname)
 DO WHILE(ind.GT.0)
   ind2 = INDEX(TRIM(testname), TRIM(thisname(1:ind-1)))
   IF(ind2.GT.0)THEN
-    thisname = TRIM(thisname(MIN(ind+1   ,LEN(thisname)):))
-    testname = TRIM(testname(MIN(ind+ind2,LEN(testname)):))
+    thisname = TRIM(thisname(MIN(ind+1   ,LEN(TRIM(thisname))+1,255):))! ind+1 is after $ and thisname+1 is $+1
+    testname = TRIM(testname(MIN(ind+ind2,LEN(TRIM(testname))):))
     ind = INDEX(TRIM(thisname),"$")
     IF(ind.EQ.0)THEN
       IF(TRIM(thisname).EQ."")THEN
@@ -184,11 +184,16 @@ DO WHILE(ind.GT.0)
         DO i = 1, LEN(TRIM(testname))
           ind3=INDEX('0123456789',testname(i:i))
           IF(ind3.LE.0) NAMEEQUALSNUMBERED=.FALSE.
-        END DO ! i = 1, LEN(testname)
+        END DO ! i = 1, LEN(TRIM(testname))
       ELSE
         ind2 = INDEX(TRIM(testname), TRIM(thisname))
-        testname = TRIM(testname(MIN(ind2,LEN(testname)):))
-        NAMEEQUALSNUMBERED = STRICMP(thisname, testname)
+        IF(ind2.GT.0)THEN
+          testname = TRIM(testname(MIN(ind2,LEN(TRIM(testname)) ):))
+          NAMEEQUALSNUMBERED = STRICMP(thisname, testname)
+        ELSE! if thisname if not in testname, e.g., Part-Boundary3-SourceName and Part-Boundary3-Condition
+          ind=0
+          NAMEEQUALSNUMBERED=.FALSE.
+        END IF ! ind2.GT.0
       END IF ! TRIM(thisname).EQ.""
     END IF ! ind.EQ.0
   ELSE
