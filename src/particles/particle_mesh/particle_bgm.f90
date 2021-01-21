@@ -302,14 +302,13 @@ IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
 #if USE_MPI
   halo_eps2 = 0.
 ELSE
-  IF (ManualTimeStep.EQ.0.0) THEN
+  IF (ManualTimeStep.LE.0.0) THEN
 #if !(USE_HDG)
-    CALL DGTimeDerivative_weakForm(time,time,0,doSource=.TRUE.)
     deltaT = CalcTimeStep()
 #else
      CALL abort(&
   __STAMP__&
-  , 'ManualTimeStep.EQ.0.0 -> ManualTimeStep is not defined correctly! ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
+  , 'ManualTimeStep.LLE0.0 -> ManualTimeStep is not defined correctly! ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
 #endif /*USE_HDG*/
   ELSE
     deltaT=ManualTimeStep
@@ -355,6 +354,11 @@ ELSE
 
   halo_eps2=halo_eps*halo_eps
   CALL PrintOption('halo distance','CALCUL.',RealOpt=halo_eps)
+  IF(halo_eps.LT.0.)THEN
+    CALL abort(&
+    __STAMP__&
+    ,'halo_eps cannot be negative!')
+  END IF ! halo_eps.LT.0.
 END IF
 
 ! find radius of largest cell
@@ -867,13 +871,16 @@ IF (myRank.EQ.0) THEN
 END IF
 
 IF (myComputeNodeRank.EQ.0) THEN
-  CALL MPI_GATHER((/ SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)  ,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.1),  &
-                     SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)/2,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.2),  &
-                     SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)/3,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.3)/) &
-                 , 3 , MPI_INTEGER                                                                        &
-                 , NumberOfElements                                                                       &
-                 , 3 , MPI_INTEGER                                                                        &
-                 , 0 , MPI_COMM_LEADERS_SHARED ,iError)
+  ASSOCIATE( sendBuf => (/ &
+        SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)  ,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.1),  &
+        SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)/2,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.2),  &
+        SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)/3,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.3)/) )
+    IF (myRank.EQ.0) THEN
+      CALL MPI_GATHER(sendBuf , 3 , MPI_INTEGER , NumberOfElements , 3 , MPI_INTEGER , 0 , MPI_COMM_LEADERS_SHARED , iError)
+    ELSE
+      CALL MPI_GATHER(sendBuf , 3 , MPI_INTEGER , MPI_IN_PLACE     , 3 , MPI_INTEGER , 0 , MPI_COMM_LEADERS_SHARED , iError)
+    END IF
+  END ASSOCIATE
 END IF
 
 IF (myRank.EQ.0) THEN

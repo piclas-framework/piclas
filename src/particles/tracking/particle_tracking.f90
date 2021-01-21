@@ -406,6 +406,8 @@ DO i = 1,PDM%ParticleVecLength
         CNElemID = GetCNElemID(ElemID)
 
         IF (CNElemID.LT.1) THEN
+          IPWRITE(UNIT_StdOut,*) "           ElemID: ", ElemID
+          IPWRITE(UNIT_StdOut,*) "         CNElemID: ", CNElemID
           IPWRITE(UNIT_stdout,*) 'Particle Velocity: ',SQRT(DOTPRODUCT(PartState(4:6,i)))
           CALL abort(&
            __STAMP__ &

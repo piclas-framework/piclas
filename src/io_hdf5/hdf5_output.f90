@@ -1181,20 +1181,6 @@ ALLOCATE(PartData(INT(PartDataSize,IK),offsetnPart+1_IK:offsetnPart+locnPart), S
 IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
     ,'ERROR in hdf5_output.f90: Cannot allocate PartData array for writing particle data to .h5!')
-IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-  ALLOCATE(VibQuantData(MaxQuantNum,offsetnPart+1_IK:offsetnPart+locnPart))
-  VibQuantData = 0
-  !+1 is real number of necessary vib quants for the particle
-END IF
-IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
-  ALLOCATE(ElecDistriData(MaxElecQuant,offsetnPart+1_IK:offsetnPart+locnPart))
-  ElecDistriData = 0
-  !+1 is real number of necessary vib quants for the particle
-END IF
-IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
-  ALLOCATE(AD_Data(3,offsetnPart+1_IK:offsetnPart+locnPart))
-  AD_Data = 0.0
-END IF
 !!! Kleiner Hack von JN (Teil 1/2):
 
 IF (.NOT.(useDSMC.OR.usevMPF)) THEN
@@ -1264,36 +1250,6 @@ DO iElem_loc=1,PP_nElems
       ELSE IF (usevMPF) THEN
           PartData(8,iPart)=PartMPF(pcount)
       END IF
-      !PartData(8,iPart)=Species(PartSpecies(pcount))%ChargeIC*Species(PartSpecies(pcount))%MacroParticleFactor
-      !PartData(9,iPart)=Species(PartSpecies(pcount))%MassIC*Species(PartSpecies(pcount))%MacroParticleFactor
-
-      IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-        IF (SpecDSMC(PartSpecies(pcount))%PolyatomicMol) THEN
-          iPolyatMole = SpecDSMC(PartSpecies(pcount))%SpecToPolyArray
-          VibQuantData(1:PolyatomMolDSMC(iPolyatMole)%VibDOF,iPart) = &
-            VibQuantsPar(pcount)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
-        ELSE
-           VibQuantData(:,iPart) = 0
-        END IF
-      END IF
-
-      IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2)) THEN
-        IF (.NOT.((SpecDSMC(PartSpecies(pcount))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(pcount))%FullyIonized)) THEN
-          ElecDistriData(1:SpecDSMC(PartSpecies(pcount))%MaxElecQuant,iPart) = &
-            ElectronicDistriPart(pcount)%DistriFunc(1:SpecDSMC(PartSpecies(pcount))%MaxElecQuant)
-        ELSE
-           ElecDistriData(:,iPart) = 0
-        END IF
-      END IF
-
-      IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
-        IF (Species(PartSpecies(pcount))%ChargeIC.GT.0.0) THEN
-          AD_Data(1:3,iPart) = AmbipolElecVelo(pcount)%ElecVelo(1:3)
-        ELSE
-          AD_Data(1:3,iPart) = 0
-        END IF
-      END IF
-
       pcount = PEM%pNext(pcount)
     END DO
     iPart = PartInt(iElem_glob,2)
@@ -1331,8 +1287,6 @@ ASSOCIATE (&
       nVar                  => INT(nVar,IK)                  ,&
       PP_nElems             => INT(PP_nElems,IK)             ,&
       offsetElem            => INT(offsetElem,IK)            ,&
-      MaxQuantNum           => INT(MaxQuantNum,IK)           ,&
-      MaxElecQuant          => INT(MaxElecQuant,IK)           ,&
       PartDataSize          => INT(PartDataSize,IK)          )
       
   CALL GatheredWriteArray(FileName                         , create = .FALSE.            , &
@@ -1410,38 +1364,6 @@ ASSOCIATE (&
                              offset       = (/0_IK         , offsetnPart/)  , &
                              collective   = .FALSE.        , offSetDim= 2   , &
                              communicator = PartMPI%COMM   , RealArray= PartData)
-  IF (withDSMC) THEN
-    IF (DSMC%NumPolyatomMolecs.GT.0) THEN
-      CALL DistributedWriteArray(FileName , &
-                                DataSetName ='VibQuantData', rank=2           , &
-                                nValGlobal  =(/MaxQuantNum , nGlobalNbrOfParticles  /)   , &
-                                nVal        =(/MaxQuantNum , locnPart    /)   , &
-                                offset      =(/0_IK        , offsetnPart /)   , &
-                                collective  =.FALSE.       , offSetDim=2      , &
-                                communicator=PartMPI%COMM  , IntegerArray_i4=VibQuantData)
-      DEALLOCATE(VibQuantData)
-    END IF
-    IF (DSMC%ElectronicModel.EQ.2) THEN
-      CALL DistributedWriteArray(FileName , &
-                                DataSetName ='ElecDistriData', rank=2           , &
-                                nValGlobal  =(/MaxElecQuant  , nGlobalNbrOfParticles  /)   , &
-                                nVal        =(/MaxElecQuant  , locnPart    /)   , &
-                                offset      =(/0_IK          , offsetnPart /)   , &
-                                collective  =.FALSE.         , offSetDim=2      , &
-                                communicator=PartMPI%COMM    , RealArray=ElecDistriData)
-      DEALLOCATE(ElecDistriData)
-    END IF
-    IF (DSMC%DoAmbipolarDiff) THEN
-      CALL DistributedWriteArray(FileName , &
-                                DataSetName ='ADVeloData'  , rank=2           , &
-                                nValGlobal  =(/3_IK        , nGlobalNbrOfParticles  /)   , &
-                                nVal        =(/3_IK        , locnPart    /)   , &
-                                offset      =(/0_IK        , offsetnPart /)   , &
-                                collective  =.FALSE.       , offSetDim=2      , &
-                                communicator=PartMPI%COMM  , RealArray=AD_Data)
-      DEALLOCATE(AD_Data)
-    END IF
-  END IF
   ! Output of the element-wise time step as a separate container in state file
   IF(VarTimeStep%UseDistribution) THEN
     CALL DistributedWriteArray(FileName , &
@@ -1459,32 +1381,6 @@ ASSOCIATE (&
                         nVal        = (/PartDataSize , locnPart   /)  , &
                         offset      = (/0_IK         , offsetnPart/)  , &
                         collective  = .TRUE.         , RealArray = PartData)
-  IF (withDSMC) THEN
-    IF (DSMC%NumPolyatomMolecs.GT.0) THEN
-      CALL WriteArrayToHDF5(DataSetName = 'VibQuantData' , rank = 2             , &
-                            nValGlobal  = (/ MaxQuantNum , nGlobalNbrOfParticles   /)      , &
-                            nVal        = (/ MaxQuantNum , locnPart     /)      , &
-                            offset      = (/ 0_IK        , offsetnPart  /)      , &
-                            collective  = .TRUE.         , IntegerArray_i4 = VibQuantData)
-      DEALLOCATE(VibQuantData)
-    END IF
-    IF (DSMC%ElectronicModel.EQ.2) THEN
-      CALL WriteArrayToHDF5(DataSetName = 'ElecDistriData' , rank = 2             , &
-                            nValGlobal  = (/ MaxElecQuant  , nGlobalNbrOfParticles   /)      , &
-                            nVal        = (/ MaxElecQuant  , locnPart     /)      , &
-                            offset      = (/ 0_IK          , offsetnPart  /)      , &
-                            collective  = .TRUE.           , RealArray = ElecDistriData)
-      DEALLOCATE(ElecDistriData)
-    END IF
-    IF (DSMC%DoAmbipolarDiff) THEN
-      CALL WriteArrayToHDF5(DataSetName = 'ADVeloData'   , rank = 2             , &
-                            nValGlobal  = (/ 3_IK        , nGlobalNbrOfParticles   /)      , &
-                            nVal        = (/ 3_IK        , locnPart     /)      , &
-                            offset      = (/ 0_IK        , offsetnPart  /)      , &
-                            collective  = .TRUE.         , RealArray = AD_Data)
-      DEALLOCATE(AD_Data)
-    END IF
-  END IF
     ! Output of the element-wise time step as a separate container in state file
   IF(VarTimeStep%UseDistribution) THEN
     CALL WriteArrayToHDF5(DataSetName = 'PartTimeStep'  , rank=2, &
@@ -1495,16 +1391,173 @@ ASSOCIATE (&
   END IF
   CALL CloseDataFile()
 #endif /*USE_MPI*/
-
 END ASSOCIATE
 
+DEALLOCATE(StrVarNames)
+DEALLOCATE(PartData)
+
+IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+  ALLOCATE(VibQuantData(MaxQuantNum,offsetnPart+1_IK:offsetnPart+locnPart))
+  VibQuantData = 0
+  !+1 is real number of necessary vib quants for the particle
+  iPart=offsetnPart
+  DO iElem_loc=1,PP_nElems
+    iElem_glob = iElem_loc + offsetElem
+    PartInt(iElem_glob,1)=iPart
+    IF (ALLOCATED(PEM%pNumber)) THEN
+      nPartsPerElem(iElem_loc) = INT(PEM%pNumber(iElem_loc),IK)
+      PartInt(iElem_glob,2) = PartInt(iElem_glob,1) + INT(PEM%pNumber(iElem_loc),IK)
+      pcount = PEM%pStart(iElem_loc)
+      DO iPart=PartInt(iElem_glob,1)+1_IK,PartInt(iElem_glob,2)
+        IF (SpecDSMC(PartSpecies(pcount))%PolyatomicMol) THEN
+          iPolyatMole = SpecDSMC(PartSpecies(pcount))%SpecToPolyArray
+          VibQuantData(1:PolyatomMolDSMC(iPolyatMole)%VibDOF,iPart) = &
+            VibQuantsPar(pcount)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
+        ELSE
+           VibQuantData(:,iPart) = 0
+        END IF
+        pcount = PEM%pNext(pcount)
+      END DO
+      iPart = PartInt(iElem_glob,2)
+    ELSE
+      CALL abort(&
+      __STAMP__&
+      , " Particle HDF5-Output method not supported! PEM%pNumber not associated")
+    END IF
+    PartInt(iElem_glob,2)=iPart
+  END DO
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (MaxQuantNum           => INT(MaxQuantNum,IK))
+#if USE_MPI
+    CALL DistributedWriteArray(FileName , &
+                              DataSetName ='VibQuantData', rank=2           , &
+                              nValGlobal  =(/MaxQuantNum , nGlobalNbrOfParticles  /)   , &
+                              nVal        =(/MaxQuantNum , locnPart    /)   , &
+                              offset      =(/0_IK        , offsetnPart /)   , &
+                              collective  =.FALSE.       , offSetDim=2      , &
+                              communicator=PartMPI%COMM  , IntegerArray_i4=VibQuantData)
+    DEALLOCATE(VibQuantData)
+#else
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    CALL WriteArrayToHDF5(DataSetName = 'VibQuantData' , rank = 2             , &
+                          nValGlobal  = (/ MaxQuantNum , nGlobalNbrOfParticles   /)      , &
+                          nVal        = (/ MaxQuantNum , locnPart     /)      , &
+                          offset      = (/ 0_IK        , offsetnPart  /)      , &
+                          collective  = .TRUE.         , IntegerArray_i4 = VibQuantData)
+    DEALLOCATE(VibQuantData)
+    CALL CloseDataFile()
+#endif /*USE_MPI*/
+  END ASSOCIATE
+END IF
+
+IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
+  ALLOCATE(ElecDistriData(MaxElecQuant,offsetnPart+1_IK:offsetnPart+locnPart))
+  ElecDistriData = 0
+  !+1 is real number of necessary vib quants for the particle
+  iPart=offsetnPart
+  DO iElem_loc=1,PP_nElems
+    iElem_glob = iElem_loc + offsetElem
+    PartInt(iElem_glob,1)=iPart
+    IF (ALLOCATED(PEM%pNumber)) THEN
+      nPartsPerElem(iElem_loc) = INT(PEM%pNumber(iElem_loc),IK)
+      PartInt(iElem_glob,2) = PartInt(iElem_glob,1) + INT(PEM%pNumber(iElem_loc),IK)
+      pcount = PEM%pStart(iElem_loc)
+      DO iPart=PartInt(iElem_glob,1)+1_IK,PartInt(iElem_glob,2)
+        IF (.NOT.((SpecDSMC(PartSpecies(pcount))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(pcount))%FullyIonized)) THEN
+          ElecDistriData(1:SpecDSMC(PartSpecies(pcount))%MaxElecQuant,iPart) = &
+            ElectronicDistriPart(pcount)%DistriFunc(1:SpecDSMC(PartSpecies(pcount))%MaxElecQuant)
+        ELSE
+           ElecDistriData(:,iPart) = 0
+        END IF
+        pcount = PEM%pNext(pcount)
+      END DO
+      iPart = PartInt(iElem_glob,2)
+    ELSE
+      CALL abort(&
+      __STAMP__&
+      , " Particle HDF5-Output method not supported! PEM%pNumber not associated")
+    END IF
+    PartInt(iElem_glob,2)=iPart
+  END DO
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (MaxElecQuant          => INT(MaxElecQuant,IK))
+#if USE_MPI
+    CALL DistributedWriteArray(FileName , &
+                              DataSetName ='ElecDistriData', rank=2           , &
+                              nValGlobal  =(/MaxElecQuant  , nGlobalNbrOfParticles  /)   , &
+                              nVal        =(/MaxElecQuant  , locnPart    /)   , &
+                              offset      =(/0_IK          , offsetnPart /)   , &
+                              collective  =.FALSE.         , offSetDim=2      , &
+                              communicator=PartMPI%COMM    , RealArray=ElecDistriData)
+    DEALLOCATE(ElecDistriData)
+#else
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    CALL WriteArrayToHDF5(DataSetName = 'ElecDistriData' , rank = 2             , &
+                          nValGlobal  = (/ MaxElecQuant  , nGlobalNbrOfParticles   /)      , &
+                          nVal        = (/ MaxElecQuant  , locnPart     /)      , &
+                          offset      = (/ 0_IK          , offsetnPart  /)      , &
+                          collective  = .TRUE.           , RealArray = ElecDistriData)
+    DEALLOCATE(ElecDistriData)
+    CALL CloseDataFile()
+#endif /*USE_MPI*/
+  END ASSOCIATE
+END IF
+
+IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
+  ALLOCATE(AD_Data(3,offsetnPart+1_IK:offsetnPart+locnPart))
+  AD_Data = 0.0
+  !+1 is real number of necessary vib quants for the particle
+  iPart=offsetnPart
+  DO iElem_loc=1,PP_nElems
+    iElem_glob = iElem_loc + offsetElem
+    PartInt(iElem_glob,1)=iPart
+    IF (ALLOCATED(PEM%pNumber)) THEN
+      nPartsPerElem(iElem_loc) = INT(PEM%pNumber(iElem_loc),IK)
+      PartInt(iElem_glob,2) = PartInt(iElem_glob,1) + INT(PEM%pNumber(iElem_loc),IK)
+      pcount = PEM%pStart(iElem_loc)
+      DO iPart=PartInt(iElem_glob,1)+1_IK,PartInt(iElem_glob,2)
+        IF (Species(PartSpecies(pcount))%ChargeIC.GT.0.0) THEN
+          AD_Data(1:3,iPart) = AmbipolElecVelo(pcount)%ElecVelo(1:3)
+        ELSE
+          AD_Data(1:3,iPart) = 0
+        END IF
+        pcount = PEM%pNext(pcount)
+      END DO
+      iPart = PartInt(iElem_glob,2)
+    ELSE
+      CALL abort(&
+      __STAMP__&
+      , " Particle HDF5-Output method not supported! PEM%pNumber not associated")
+    END IF
+    PartInt(iElem_glob,2)=iPart
+  END DO
+
+#if USE_MPI
+    CALL DistributedWriteArray(FileName , &
+                              DataSetName ='ADVeloData'  , rank=2           , &
+                              nValGlobal  =(/3_IK        , nGlobalNbrOfParticles  /)   , &
+                              nVal        =(/3_IK        , locnPart    /)   , &
+                              offset      =(/0_IK        , offsetnPart /)   , &
+                              collective  =.FALSE.       , offSetDim=2      , &
+                              communicator=PartMPI%COMM  , RealArray=AD_Data)
+    DEALLOCATE(AD_Data)
+#else
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    CALL WriteArrayToHDF5(DataSetName = 'ADVeloData'   , rank = 2             , &
+                          nValGlobal  = (/ 3_IK        , nGlobalNbrOfParticles   /)      , &
+                          nVal        = (/ 3_IK        , locnPart     /)      , &
+                          offset      = (/ 0_IK        , offsetnPart  /)      , &
+                          collective  = .TRUE.         , RealArray = AD_Data)
+    DEALLOCATE(AD_Data)
+    CALL CloseDataFile()
+#endif /*USE_MPI*/
+END IF
+
+DEALLOCATE(PartInt)
 ! reswitch
 IF(reSwitch) gatheredWrite=.TRUE.
-
-
-DEALLOCATE(StrVarNames)
-DEALLOCATE(PartInt)
-DEALLOCATE(PartData)
 
 !!! Kleiner Hack von JN (Teil 2/2):
 useDSMC=withDSMC
