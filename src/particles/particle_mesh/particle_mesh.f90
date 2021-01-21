@@ -352,7 +352,7 @@ SELECT CASE(TrackingMethod)
 
     ! Interpolation needs coordinates in reference system
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
-    IF (DoInterpolation) THEN
+    IF (DoInterpolation.OR.DoDeposition) THEN
       CALL CalcParticleMeshMetrics()
 
       CALL BuildElemTypeAndBasisTria()
@@ -2091,8 +2091,8 @@ ALLOCATE(ElemCurved(1:nComputeNodeElems))
 
 ! sides
 #if USE_MPI
-MPISharedSize = INT((nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),SideType_Shared_Win,SideType_Shared)
+MPISharedSize = INT((nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nNonUniqueGlobalSides/),SideType_Shared_Win,SideType_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideType_Shared_Win,IERROR)
 SideType => SideType_Shared
 CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),SideDistance_Shared_Win,SideDistance_Shared)
@@ -3221,7 +3221,9 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #else
 ElemsJ => sJ
 #endif /* USE_MPI*/
+
 IF (TrackingMethod.EQ.TRIATRACKING) RETURN
+
 ! allocate epsOneCell
 #if USE_MPI
 MPISharedSize = INT((nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
@@ -4079,7 +4081,7 @@ SELECT CASE (TrackingMethod)
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
-    ! GetBCSidesAndOrgin
+    ! GetBCSidesAndOrgin()
     IF (TrackingMethod.EQ.REFMAPPING) THEN
       CALL UNLOCK_AND_FREE(BCSide2SideID_Shared_Win)
       CALL UNLOCK_AND_FREE(SideID2BCSide_Shared_Win)
@@ -4089,39 +4091,39 @@ SELECT CASE (TrackingMethod)
 #if USE_LOADBALANCE
     IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
-      ! CalcParticleMeshMetrics
+      ! CalcParticleMeshMetrics()
       CALL UNLOCK_AND_FREE(XCL_NGeo_Shared_Win)
       CALL UNLOCK_AND_FREE(Elem_xGP_Shared_Win)
       CALL UNLOCK_AND_FREE(dXCL_NGeo_Shared_Win)
 
-      ! CalcBezierControlPoints
+      ! CalcBezierControlPoints()
       CALL UNLOCK_AND_FREE(BezierControlPoints3D_Shared_Win)
       IF (BezierElevation.GT.0) CALL UNLOCK_AND_FREE(BezierControlPoints3DElevated_Shared_Win)
 #if USE_LOADBALANCE
     END IF !PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
-    ! GetSideSlabNormalsAndIntervals (allocated in particle_mesh.f90)
+    ! GetSideSlabNormalsAndIntervals() (allocated in particle_mesh.f90)
     CALL UNLOCK_AND_FREE(SideSlabNormals_Shared_Win)
     CALL UNLOCK_AND_FREE(SideSlabIntervals_Shared_Win)
     CALL UNLOCK_AND_FREE(BoundingBoxIsEmpty_Shared_Win)
 
-    ! BuildElementOriginShared
+    ! BuildElementOriginShared()
     CALL UNLOCK_AND_FREE(ElemBaryNGeo_Shared_Win)
 
-    ! IdentifyElemAndSideType
+    ! IdentifyElemAndSideType()
     CALL UNLOCK_AND_FREE(ElemCurved_Shared_Win)
     CALL UNLOCK_AND_FREE(SideType_Shared_Win)
     CALL UNLOCK_AND_FREE(SideDistance_Shared_Win)
     CALL UNLOCK_AND_FREE(SideNormVec_Shared_Win)
 
-    ! BuildElementBasisAndRadius
+    ! BuildElementBasisAndRadius()
     CALL UNLOCK_AND_FREE(ElemRadiusNGeo_Shared_Win)
     CALL UNLOCK_AND_FREE(ElemRadius2NGeo_Shared_Win)
     CALL UNLOCK_AND_FREE(XiEtaZetaBasis_Shared_Win)
     CALL UNLOCK_AND_FREE(slenXiEtaZetaBasis_Shared_Win)
 
-    ! GetLinearSideBaseVectors
+    ! GetLinearSideBaseVectors()
     CALL UNLOCK_AND_FREE(BaseVectors0_Shared_Win)
     CALL UNLOCK_AND_FREE(BaseVectors1_Shared_Win)
     CALL UNLOCK_AND_FREE(BaseVectors2_Shared_Win)
@@ -4134,7 +4136,7 @@ SELECT CASE (TrackingMethod)
       CALL UNLOCK_AND_FREE(SideBCMetrics_Shared_Win)
     END IF
 
-    ! BuildEpsOneCell
+    ! BuildEpsOneCell()
     CALL UNLOCK_AND_FREE(ElemEpsOneCell_Shared_Win)
     CALL UNLOCK_AND_FREE(ElemsJ_Shared_Win)
 
@@ -4142,7 +4144,7 @@ SELECT CASE (TrackingMethod)
 #endif /*USE_MPI*/
 
     ! Then, free the pointers or arrays
-    ! GetBCSidesAndOrgin
+    ! GetBCSidesAndOrgin()
     IF (TrackingMethod.EQ.REFMAPPING) THEN
       ADEALLOCATE(BCSide2SideID_Shared)
       ADEALLOCATE(SideID2BCSide_Shared)
@@ -4155,7 +4157,7 @@ SELECT CASE (TrackingMethod)
 #if USE_LOADBALANCE
     IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
-      ! CalcParticleMeshMetrics
+      ! CalcParticleMeshMetrics()
       ADEALLOCATE(XCL_NGeo_Array)
       ADEALLOCATE(Elem_xGP_Array)
       ADEALLOCATE(dXCL_NGeo_Array)
@@ -4163,48 +4165,48 @@ SELECT CASE (TrackingMethod)
       IF(ASSOCIATED(Elem_xGP_Shared))  NULLIFY(Elem_xGP_Shared)
       IF(ASSOCIATED(dXCL_NGeo_Shared)) NULLIFY(dXCL_NGeo_Shared)
 
-      ! CalcBezierControlPoints
+      ! CalcBezierControlPoints()
       ADEALLOCATE(BezierControlPoints3D_Shared)
       ADEALLOCATE(BezierControlPoints3DElevated_Shared)
 #if USE_LOADBALANCE
     END IF !PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
-    ! GetSideSlabNormalsAndIntervals (allocated in particle_mesh.f90)
+    ! GetSideSlabNormalsAndIntervals() (allocated in particle_mesh.f90)
     ADEALLOCATE(SideSlabNormals_Shared)
     ADEALLOCATE(SideSlabIntervals_Shared)
     ADEALLOCATE(BoundingBoxIsEmpty_Shared)
 
-    ! BuildElementOriginShared
+    ! BuildElementOriginShared()
     ADEALLOCATE(ElemBaryNGeo_Shared)
 
-    ! IdentifyElemAndSideType
+    ! IdentifyElemAndSideType()
     ADEALLOCATE(ElemCurved)
     ADEALLOCATE(ElemCurved_Shared)
     ADEALLOCATE(SideType_Shared)
     ADEALLOCATE(SideDistance_Shared)
     ADEALLOCATE(SideNormVec_Shared)
 
-    ! BuildElementBasisAndRadius
+    ! BuildElementBasisAndRadius()
     ADEALLOCATE(ElemRadiusNGeo_Shared)
     ADEALLOCATE(ElemRadius2NGeo_Shared)
     ADEALLOCATE(XiEtaZetaBasis_Shared)
     ADEALLOCATE(slenXiEtaZetaBasis_Shared)
 
-    ! GetLinearSideBaseVectors
+    ! GetLinearSideBaseVectors()
     ADEALLOCATE(BaseVectors0_Shared)
     ADEALLOCATE(BaseVectors1_Shared)
     ADEALLOCATE(BaseVectors2_Shared)
     ADEALLOCATE(BaseVectors3_Shared)
     ADEALLOCATE(BaseVectorsScale_Shared)
 
-    ! BuildBCElemDistance
+    ! BuildBCElemDistance()
     IF (TrackingMethod.EQ.1) THEN
       ADEALLOCATE(ElemToBCSides_Shared)
       ADEALLOCATE(SideBCMetrics_Shared)
     END IF
 
-    ! BuildEpsOneCell
+    ! BuildEpsOneCell()
     ADEALLOCATE(ElemsJ_Shared)
     ADEALLOCATE(ElemEpsOneCell_Shared)
 
@@ -4216,12 +4218,22 @@ SELECT CASE (TrackingMethod)
     ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+
+    ! InitParticleGeometry()
+    CALL UNLOCK_AND_FREE(ConcaveElemSide_Shared_Win)
+    CALL UNLOCK_AND_FREE(ElemSideNodeID_Shared_Win)
+    CALL UNLOCK_AND_FREE(ElemMidPoint_Shared_Win)
+
+    ! BuildElementRadiusTria()
+    CALL UNLOCK_AND_FREE(ElemBaryNGeo_Shared_Win)
+    CALL UNLOCK_AND_FREE(ElemRadius2NGeo_Shared_Win)
+
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
-    IF (DoInterpolation) THEN
+    IF (DoInterpolation.OR.DoDeposition) THEN
 #if USE_LOADBALANCE
       IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
-        ! CalcParticleMeshMetrics
+        ! CalcParticleMeshMetrics()
         CALL UNLOCK_AND_FREE(XCL_NGeo_Shared_Win)
         CALL UNLOCK_AND_FREE(Elem_xGP_Shared_Win)
         CALL UNLOCK_AND_FREE(dXCL_NGeo_Shared_Win)
@@ -4229,22 +4241,13 @@ SELECT CASE (TrackingMethod)
       END IF !PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
-      ! BuildElemTypeAndBasisTria
+      ! BuildElemTypeAndBasisTria()
       CALL UNLOCK_AND_FREE(ElemCurved_Shared_Win)
       CALL UNLOCK_AND_FREE(XiEtaZetaBasis_Shared_Win)
       CALL UNLOCK_AND_FREE(slenXiEtaZetaBasis_Shared_Win)
     END IF ! DoInterpolation
 
-    ! InitParticleGeometry
-    CALL UNLOCK_AND_FREE(ConcaveElemSide_Shared_Win)
-    CALL UNLOCK_AND_FREE(ElemSideNodeID_Shared_Win)
-    CALL UNLOCK_AND_FREE(ElemMidPoint_Shared_Win)
-
-    ! BuildElementRadiusTria
-    CALL UNLOCK_AND_FREE(ElemBaryNGeo_Shared_Win)
-    CALL UNLOCK_AND_FREE(ElemRadius2NGeo_Shared_Win)
-
-    ! BuildEpsOneCell
+    ! BuildEpsOneCell()
     IF (DoDeposition) CALL UNLOCK_AND_FREE(ElemsJ_Shared_Win)
 
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
