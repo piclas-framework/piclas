@@ -72,6 +72,9 @@ CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Defin
 CALL prms%CreateRealOption(     'Part-Boundary[$]-Voltage'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Voltage on boundary [$]', '1.0e20', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(     'Part-Boundary[$]-UseAdaptedWallTemp'  &
+                                , 'TODO-DEFINE-PARAMETER'//&
+                                  'Adapt wall temperature from RestartFile', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp'  &
                                 , 'Wall temperature (in [K]) of reflective particle boundary [$].' &
                                 , '0.', numberedmulti=.TRUE.)
@@ -362,6 +365,7 @@ DO iPartBound=1,nPartBound
     PartBound%RotFreq(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotFreq')
     PartBound%RotOrg(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotOrg',3)
     PartBound%RotAxi(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotAxi',3)
+    PartBound%UseAdaptedWallTemp(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseAdaptedWallTemp')
     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
     IF(ABS(PartBound%Voltage(iPartBound)).LT.1e20) DeprecatedVoltage=.TRUE.
     PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
@@ -522,8 +526,71 @@ IF(DeprecatedVoltage) CALL abort(&
   __STAMP__&
   ,'Part-Boundary-Voltage is no longer supported. Use corresponding RefState parameter as described in the user guide.')
 
+CALL InitAdaptiveWallTemp()
+
 END SUBROUTINE InitializeVariablesPartBoundary
 
+
+SUBROUTINE InitAdaptiveWallTemp()
+!===================================================================================================================================
+!> Initialize surface model variables
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars             ,ONLY: nSpecies
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nComputeNodeSurfTotalSides, BoundaryWallTemp, SurfSide2GlobalSide,nSurfSample
+USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_SHARED, myComputeNodeRank, nComputeNodeProcessors
+USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp_Shared, BoundaryWallTemp_Shared_Win
+#endif
+!-----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: firstSide, lastSide, iSide, SideID, iBC
+INTEGER(KIND=MPI_ADDRESS_KIND)    :: MPISharedSize
+!===================================================================================================================================
+IF (.NOT.(ANY(PartBound%UseAdaptedWallTemp))) RETURN
+
+#if USE_MPI
+!> Then shared arrays for boundary sampling
+MPISharedSize = INT((nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),BoundaryWallTemp_Shared_Win,BoundaryWallTemp_Shared)
+CALL MPI_WIN_LOCK_ALL(0,BoundaryWallTemp_Shared_Win,IERROR)
+IF (myComputeNodeRank.EQ.0) THEN
+  BoundaryWallTemp_Shared = 0.
+END IF
+BoundaryWallTemp => BoundaryWallTemp_Shared
+CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
+firstSide = INT(REAL( myComputeNodeRank   *nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
+#else
+ALLOCATE(BoundaryWallTemp(nSurfSample,nSurfSample,1:nComputeNodeSurfTotalSides))
+BoundaryWallTemp = 0.
+firstSide = 1
+lastSide  = nSurfTotalSides
+#endif /*USE_MPI*/
+
+DO iSide = firstSide,LastSide
+  ! get global SideID. This contains only nonUniqueSide, no special mortar treatment required
+  SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+  iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+  IF (PartBound%MomentumACC(iBC).GT.0.0) BoundaryWallTemp(:,:,iSide) = PartBound%WallTemp(iBC)
+END DO 
+
+#if USE_MPI
+CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif /*USE_MPI*/
+
+END SUBROUTINE InitAdaptiveWallTemp
 
 SUBROUTINE InitializeVariablesAuxBC()
 !===================================================================================================================================
