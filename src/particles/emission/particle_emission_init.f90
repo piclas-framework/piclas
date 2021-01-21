@@ -75,12 +75,8 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-InflowRiseTime' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Time to ramp the number of inflow particles linearly from zero to unity'&
                                 , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-RadiusIC'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Radius for IC circle', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-Radius2IC' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Radius2 for IC cylinder (ring)', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-RadiusIC'  , 'Radius for IC circle'                 , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-Radius2IC' , 'Radius2 for IC cylinder (ring)' , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-RadiusICGyro','Radius for Gyrotron gyro radius','1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-NormalIC'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
@@ -285,7 +281,7 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%BasePointIC            = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BasePointIC',3)
       Species(iSpec)%Init(iInit)%BaseVector1IC          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector1IC',3)
       Species(iSpec)%Init(iInit)%BaseVector2IC          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector2IC',3)
-      !--- Normalize NormalIC (and BaseVector 1 & 2 IC for cylinder/sphere) for Inits
+      !--- Normalize NormalIC (and BaseVector 1 & 3 IC for cylinder/sphere) for Inits
       Species(iSpec)%Init(iInit)%NormalIC = Species(iSpec)%Init(iInit)%NormalIC / VECNORM(Species(iSpec)%Init(iInit)%NormalIC)
       IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder').OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere')) THEN
         Species(iSpec)%Init(iInit)%BaseVector1IC = Species(iSpec)%Init(iInit)%RadiusIC * Species(iSpec)%Init(iInit)%BaseVector1IC &

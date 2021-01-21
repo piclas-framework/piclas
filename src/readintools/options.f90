@@ -156,7 +156,7 @@ END FUNCTION NAMEEQUALS
 !==================================================================================================================================
 FUNCTION NAMEEQUALSNUMBERED(this, name)
 ! MODULES
-USE MOD_StringTools ,ONLY: STRICMP
+USE MOD_StringTools ,ONLY: STRICMP,LowCase
 USE MOD_ISO_VARYING_STRING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -166,34 +166,36 @@ CHARACTER(LEN=*),INTENT(IN) :: name !< incoming name, which is compared with the
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL               :: NAMEEQUALSNUMBERED
-TYPE(Varying_String)  :: aStr,bStr
-CHARACTER(LEN=255)    :: reducedopt
-CHARACTER(LEN=255)    :: reducedname
-CHARACTER(LEN=3)      :: number
-INTEGER               :: i
+INTEGER               :: i,ind,ind2,ind3
+CHARACTER(LEN=255)    :: thisname,testname
 !==================================================================================================================================
-!Transform this name into varying string
-aStr=Var_Str(this%name)
-! Remove numberedmulti flag "[$]" from aStr
-aStr=Replace(aStr,"[]"  ,"",Every=.true.)
-aStr=Replace(aStr,"[$]" ,"",Every=.true.)
-aStr=Replace(aStr,"[$$]","",Every=.true.)
-! Remove numbers from aStr
-DO i=0,9
-  WRITE(UNIT=number,FMT='(I0)') i
-  aStr=Replace(aStr,TRIM(number),"",Every=.true.)
+ind      = INDEX(TRIM(this%name),"$")
+thisname = this%name ! this is already lower case
+CALL LowCase(name,testname)
+DO WHILE(ind.GT.0)
+  ind2 = INDEX(TRIM(testname), TRIM(thisname(1:ind-1)))
+  IF(ind2.GT.0)THEN
+    thisname = TRIM(thisname(MIN(ind+1   ,LEN(thisname)):))
+    testname = TRIM(testname(MIN(ind+ind2,LEN(testname)):))
+    ind = INDEX(TRIM(thisname),"$")
+    IF(ind.EQ.0)THEN
+      IF(TRIM(thisname).EQ."")THEN
+        NAMEEQUALSNUMBERED = .TRUE.
+        DO i = 1, LEN(TRIM(testname))
+          ind3=INDEX('0123456789',testname(i:i))
+          IF(ind3.LE.0) NAMEEQUALSNUMBERED=.FALSE.
+        END DO ! i = 1, LEN(testname)
+      ELSE
+        ind2 = INDEX(TRIM(testname), TRIM(thisname))
+        testname = TRIM(testname(MIN(ind2,LEN(testname)):))
+        NAMEEQUALSNUMBERED = STRICMP(thisname, testname)
+      END IF ! TRIM(thisname).EQ.""
+    END IF ! ind.EQ.0
+  ELSE
+    ind=0
+    NAMEEQUALSNUMBERED=.FALSE.
+  END IF ! ind2.NE.0
 END DO
-!Transform name into varying string
-bStr=Var_Str(name)
-! Remove numbers from bStr
-DO i=0,9
-  WRITE(UNIT=number,FMT='(I0)') i
-  bStr=Replace(bStr,TRIM(number),"",Every=.true.)
-END DO
-
-reducedopt  = CHAR(aStr)
-reducedname = CHAR(bStr)
-NAMEEQUALSNUMBERED = STRICMP(reducedopt, reducedname)
 END FUNCTION NAMEEQUALSNUMBERED
 
 !==================================================================================================================================
