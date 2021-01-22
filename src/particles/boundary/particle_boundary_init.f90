@@ -72,9 +72,9 @@ CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Defin
 CALL prms%CreateRealOption(     'Part-Boundary[$]-Voltage'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Voltage on boundary [$]', '1.0e20', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(     'Part-Boundary[$]-UseAdaptedWallTemp'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Adapt wall temperature from RestartFile', '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Boundary[$]-UseAdaptedWallTemp', &
+                                'Calculate the wall temperature assuming a radiative equilibrium from RestartFile', &
+                                '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp'  &
                                 , 'Wall temperature (in [K]) of reflective particle boundary [$].' &
                                 , '0.', numberedmulti=.TRUE.)
@@ -311,6 +311,8 @@ PartBound%Voltage = 0.
 DeprecatedVoltage = .FALSE.
 ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
 PartBound%NbrOfSpeciesSwaps = 0
+ALLOCATE(PartBound%UseAdaptedWallTemp(1:nPartBound))
+PartBound%UseAdaptedWallTemp = .FALSE.
 
 !--determine MaxNbrOfSpeciesSwaps for correct allocation
 MaxNbrOfSpeciesSwaps=0
