@@ -3180,8 +3180,8 @@ END IF
 CALL MPI_WIN_SYNC(ElemsJ_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem = 1
 lastElem  = nElems
@@ -3258,6 +3258,11 @@ DO iElem = firstElem,lastElem
   ElemepsOneCell(iElem) = 1.0 + SQRT(3.0*scaleJ*RefMappingEps)
   maxScaleJ  =MAX(scaleJ,maxScaleJ)
 END DO ! iElem = firstElem,lastElem
+
+#if USE_MPI
+CALL MPI_WIN_SYNC(ElemEpsOneCell_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#endif /* USE_MPI*/
 
 !IF(CalcMeshInfo)THEN
 !  CALL AddToElemData(ElementOut,'epsOneCell',RealArray=epsOneCell(1:nElems))
