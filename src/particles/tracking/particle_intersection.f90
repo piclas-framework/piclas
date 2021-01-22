@@ -179,6 +179,7 @@ SUBROUTINE ComputePlanarRectIntersection(isHit                       &
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,            ONLY:epsMach
+USE MOD_Mesh_Tools,              ONLY:GetCNSideID
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,epsilontol,SideDistance
 USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2
@@ -210,6 +211,7 @@ REAL                              :: coeffA,locSideDistance
 REAL                              :: sdet
 REAL                              :: epsLoc
 LOGICAL                           :: CriticalParallelInSide
+INTEGER                           :: CNSideID
 !INTEGER                           :: flip
 !===================================================================================================================================
 
@@ -228,18 +230,19 @@ LOGICAL                           :: CriticalParallelInSide
 #endif /*CODE_ANALYZE*/
 
 ! set alpha to minus 1, assume no intersection
-alpha = -1.0
-xi    = -2.
-eta   = -2.
-isHit = .FALSE.
+alpha    = -1.0
+xi       = -2.
+eta      = -2.
+isHit    = .FALSE.
+CNSideID = GetCNSideID(SideID)
 
 ! new with flip
 IF(flip.EQ.0)THEN
-  NormVec     = SideNormVec(1:3,SideID)
-  locDistance = SideDistance(SideID)
+  NormVec     =  SideNormVec(1:3,SideID)
+  locDistance =  SideDistance(CNSideID)
 ELSE
   NormVec     = -SideNormVec(1:3,SideID)
-  locDistance = -SideDistance(SideID)
+  locDistance = -SideDistance(CNSideID)
 END IF
 
 coeffA=DOT_PRODUCT(NormVec,PartTrajectory)
@@ -347,6 +350,7 @@ USE MOD_Globals                ,ONLY: myRank
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_Globals                ,ONLY: Cross,abort,UNIT_stdOut,CROSSNORM,UNITVECTOR
 USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Mesh_Tools             ,ONLY: GetCNSideID
 USE MOD_Particle_Vars          ,ONLY: LastPartPos
 USE MOD_Particle_Surfaces_Vars ,ONLY: SideNormVec,SideSlabNormals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
@@ -372,7 +376,7 @@ LOGICAL,INTENT(OUT),OPTIONAL             :: opt_CriticalParllelInSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                     :: n1(3),n2(3)
-INTEGER                                  :: nInterSections,p,q
+INTEGER                                  :: CNSideID,nInterSections,p,q
 REAL                                     :: BezierControlPoints2D(2,0:NGeo,0:NGeo)
 LOGICAL                                  :: CriticalParallelInSide
 REAL                                     :: XiNewton(2)
@@ -386,13 +390,14 @@ REAL                                     :: PartFaceAngle
 !===================================================================================================================================
 
 ! set alpha to minus 1, assume no intersection
-alpha =-1.0
-xi    = 2.0
-eta   = 2.0
-isHit=.FALSE.
+alpha    = -1.0
+xi       = 2.0
+eta      = 2.0
+isHit    = .FALSE.
+CNSideID = GetCNSideID(SideID)
 
 #ifdef CODE_ANALYZE
-rBoundingBoxChecks=rBoundingBoxChecks+1.
+rBoundingBoxChecks = rBoundingBoxChecks+1.
 #endif /*CODE_ANALYZE*/
 
 CriticalParallelInSide=.FALSE.
@@ -402,24 +407,24 @@ CriticalParallelInSide=.FALSE.
 !> 2) difference between SideDistance (distance from origin to sice) and the dot product is the distance of the particle to the side
 !> 3) check if distance from particle to side is longer than the particle vector, no intersection
 IF(TrackingMethod.EQ.REFMAPPING)THEN
-  coeffA=DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory)
-  IF(coeffA.LE.0.)RETURN
-  locSideDistance=SideDistance(SideID)-DOT_PRODUCT(LastPartPos(1:3,PartID),SideNormVec(1:3,SideID))
-  locSideDistance=locSideDistance/coeffA
-  IF(locSideDistance.GT.lengthPartTrajectory) RETURN
+  coeffA = DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory)
+  IF (coeffA.LE.0.) RETURN
+  locSideDistance = SideDistance(CNSideID) - DOT_PRODUCT(LastPartPos(1:3,PartID),SideNormVec(1:3,SideID))
+  locSideDistance = locSideDistance/coeffA
+  IF (locSideDistance.GT.lengthPartTrajectory) RETURN
 ! no refmapping
 ELSE
   coeffA=DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory)
-  IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
-  IF(flip.EQ.0)THEN
-    IF(coeffA.LE.0.)RETURN
-    locSideDistance=SideDistance(SideID)-DOT_PRODUCT(LastPartPos(1:3,PartID),SideNormVec(1:3,SideID))
-    locSideDistance=locSideDistance/coeffA
-    IF(locSideDistance.GT.lengthPartTrajectory) RETURN
+  IF (ALMOSTZERO(coeffA)) CriticalParallelInSide = .TRUE.
+  IF (flip.EQ.0) THEN
+    IF (coeffA.LE.0.) RETURN
+    locSideDistance = SideDistance(CNSideID) - DOT_PRODUCT(LastPartPos(1:3,PartID),SideNormVec(1:3,SideID))
+    locSideDistance = locSideDistance/coeffA
+    IF (locSideDistance.GT.lengthPartTrajectory) RETURN
   ELSE
-    IF(coeffA.GE.0.)RETURN
-    locSideDistance=-SideDistance(SideID)+DOT_PRODUCT(LastPartPos(1:3,PartID),SideNormVec(1:3,SideID))
-    locSideDistance=locSideDistance/coeffA
+    IF (coeffA.GE.0.) RETURN
+    locSideDistance = -SideDistance(CNSideID) + DOT_PRODUCT(LastPartPos(1:3,PartID),SideNormVec(1:3,SideID))
+    locSideDistance = locSideDistance/coeffA
     IF(locSideDistance.GT.lengthPartTrajectory) RETURN
   END IF
 END IF
@@ -430,49 +435,48 @@ IF(.NOT.FlatBoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,PartID,S
 ! 2.) Bezier intersection: transformation of bezier patch 3D->2D
 !PartTrajectory = PartTrajectoryOrig + epsilontol !move minimal in arb. dir. for preventing collapsing BezierControlPoints2D
 IF(ABS(PartTrajectory(3)).LT.0.)THEN
-  n1=(/ -PartTrajectory(2)-PartTrajectory(3)  , PartTrajectory(1) ,PartTrajectory(1) /)
+  n1 = (/ -PartTrajectory(2) - PartTrajectory(3),  PartTrajectory(1),  PartTrajectory(1) /)
 ELSE
-  n1=(/ PartTrajectory(3) , PartTrajectory(3) , -PartTrajectory(1)-PartTrajectory(2) /)
+  n1 = (/  PartTrajectory(3),  PartTrajectory(3), -PartTrajectory(1) - PartTrajectory(2) /)
 END IF
 
-n1=UNITVECTOR(n1)
-n2=CROSSNORM(PartTrajectory,n1)
+n1 = UNITVECTOR(n1)
+n2 = CROSSNORM(PartTrajectory,n1)
 
-DO q=0,NGeo
-  DO p=0,NGeo
-    BezierControlPoints2D(1,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(1:3,PartID),n1)
-    BezierControlPoints2D(2,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(1:3,PartID),n2)
+DO q = 0,NGeo
+  DO p = 0,NGeo
+    BezierControlPoints2D(1,p,q) = DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(1:3,PartID),n1)
+    BezierControlPoints2D(2,p,q) = DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(1:3,PartID),n2)
   END DO
 END DO
 
 XiNewton=0.
 CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,PartID,SideID,failed)
 ! write Xinewton to locXi and locEta
-locXi (1)=XiNewton(1)
-locEta(1)=XiNewton(2)
-IF(failed)THEN
-  PartFaceAngle=ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
+locXi (1) = XiNewton(1)
+locEta(1) = XiNewton(2)
+IF (failed) THEN
+  PartFaceAngle = ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
   IPWRITE(UNIT_stdout,*) ' Intersection-angle-of-BezierNetwon: ',PartFaceAngle*180./PI
-  iClipIter=0
-  nXiClip=0
-  nEtaClip=0
-  nInterSections=0
-  ClipMode=1
-  LineNormVec=0.
-  CALL BezierClipRecursive(ClipMode,BezierControlPoints2D,LineNormVec,PartTrajectory,lengthPartTrajectory&
+
+  iClipIter   = 0
+  nXiClip     = 0
+  nEtaClip    = 0
+  nInterSections = 0
+  ClipMode    = 1
+  LineNormVec = 0.
+  CALL BezierClipRecursive(ClipMode,BezierControlPoints2D,LineNormVec,PartTrajectory,lengthPartTrajectory &
                 ,iClipIter,nXiClip,nEtaClip,nInterSections,PartID,SideID)
-  IF(nInterSections.GT.1)THEN
-    nInterSections=1
-  END IF
+  IF (nInterSections.GT.1) nInterSections = 1
 END IF
 
-nInterSections=0
-IF(locAlpha(1).GT.-1) nInterSections=1
+nInterSections = 0
+IF (locAlpha(1).GT.-1) nInterSections = 1
 
-IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
-IF(CriticalParallelInSide)THEN
-  IF(ALMOSTZERO(locAlpha(1))) THEN
-    IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
+IF (PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide = .FALSE.
+IF (CriticalParallelInSide) THEN
+  IF (ALMOSTZERO(locAlpha(1))) THEN
+    IF (PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide = .TRUE.
   END IF
 END IF
 
@@ -480,15 +484,13 @@ SELECT CASE(nInterSections)
 CASE(0)
   RETURN
 CASE(1)
-  alpha=locAlpha(1)
-  xi =locXi (1)
-  eta=loceta(1)
-  isHit=.TRUE.
+  alpha = locAlpha(1)
+  xi    = locXi (1)
+  eta   = loceta(1)
+  isHit = .TRUE.
   RETURN
 CASE DEFAULT
-  CALL abort(&
-__STAMP__&
-,' The code should never go here')
+  CALL abort(__STAMP__,' The code should never go here')
 END SELECT
 
 
@@ -559,14 +561,14 @@ BiLinearCoeff(:,4) = 0.25*BaseVectors0(:,SideID)
     IF(PartID.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(110("-"))')
       WRITE(UNIT_stdout,'(A)') '     | Output of bilinear intersection equation constants: '
-      WRITE(UNIT_stdout,'(A,3(X,G0))') '     | SideNormVec  : ',SideNormVec(1:3,SideID)
-      WRITE(UNIT_stdout,'(A,4(X,G0))') '     | BilinearCoeff: ',BilinearCoeff(1,1:4)
-      WRITE(UNIT_stdout,'(A,4(X,G0))') '     | BilinearCoeff: ',BilinearCoeff(2,1:4)
-      WRITE(UNIT_stdout,'(A,4(X,G0))') '     | BilinearCoeff: ',BilinearCoeff(3,1:4)
-      WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Beziercontrolpoint1: ',BezierControlPoints3D(:,0,0,SideID)
-      WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Beziercontrolpoint2: ',BezierControlPoints3D(:,NGeo,0,SideID)
-      WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Beziercontrolpoint3: ',BezierControlPoints3D(:,0,NGeo,SideID)
-      WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Beziercontrolpoint4: ',BezierControlPoints3D(:,NGeo,NGeo,SideID)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | SideNormVec  : ',SideNormVec(1:3,SideID)
+      WRITE(UNIT_stdout,'(A,4(1X,G0))') '     | BilinearCoeff: ',BilinearCoeff(1,1:4)
+      WRITE(UNIT_stdout,'(A,4(1X,G0))') '     | BilinearCoeff: ',BilinearCoeff(2,1:4)
+      WRITE(UNIT_stdout,'(A,4(1X,G0))') '     | BilinearCoeff: ',BilinearCoeff(3,1:4)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | Beziercontrolpoint1: ',BezierControlPoints3D(:,0,0,SideID)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | Beziercontrolpoint2: ',BezierControlPoints3D(:,NGeo,0,SideID)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | Beziercontrolpoint3: ',BezierControlPoints3D(:,0,NGeo,SideID)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | Beziercontrolpoint4: ',BezierControlPoints3D(:,NGeo,NGeo,SideID)
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
