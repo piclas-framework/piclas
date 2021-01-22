@@ -923,6 +923,7 @@ SDEALLOCATE(PartBound%SurfaceModel)
 SDEALLOCATE(PartBound%Reactive)
 SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutputHDF5)
+SDEALLOCATE(PartBound%UseAdaptedWallTemp)
 SDEALLOCATE(PartStateBoundary)
 END SUBROUTINE FinalizeParticleBoundary
 
