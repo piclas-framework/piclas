@@ -72,9 +72,9 @@ CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Defin
 CALL prms%CreateRealOption(     'Part-Boundary[$]-Voltage'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Voltage on boundary [$]', '1.0e20', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(     'Part-Boundary[$]-UseAdaptedWallTemp'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Adapt wall temperature from RestartFile', '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Boundary[$]-UseAdaptedWallTemp', &
+                                'Calculate the wall temperature assuming a radiative equilibrium from RestartFile', &
+                                '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-RadiatingEmissivity'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Radiative Emissivity of the Boundary', '1.', numberedmulti=.TRUE.)
@@ -318,6 +318,8 @@ PartBound%Voltage = 0.
 DeprecatedVoltage = .FALSE.
 ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
 PartBound%NbrOfSpeciesSwaps = 0
+ALLOCATE(PartBound%UseAdaptedWallTemp(1:nPartBound))
+PartBound%UseAdaptedWallTemp = .FALSE.
 
 !--determine MaxNbrOfSpeciesSwaps for correct allocation
 MaxNbrOfSpeciesSwaps=0
@@ -563,7 +565,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                           :: firstSide, lastSide, iSide, SideID, iBC
+#if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND)    :: MPISharedSize
+#endif
 !===================================================================================================================================
 IF (.NOT.(ANY(PartBound%UseAdaptedWallTemp))) RETURN
 
@@ -583,7 +587,7 @@ lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeSurfTotalSides)/REAL(nCom
 ALLOCATE(BoundaryWallTemp(nSurfSample,nSurfSample,1:nComputeNodeSurfTotalSides))
 BoundaryWallTemp = 0.
 firstSide = 1
-lastSide  = nSurfTotalSides
+lastSide  = nComputeNodeSurfTotalSides
 #endif /*USE_MPI*/
 
 DO iSide = firstSide,LastSide
@@ -929,6 +933,7 @@ SDEALLOCATE(PartBound%SurfaceModel)
 SDEALLOCATE(PartBound%Reactive)
 SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutputHDF5)
+SDEALLOCATE(PartBound%UseAdaptedWallTemp)
 SDEALLOCATE(PartStateBoundary)
 END SUBROUTINE FinalizeParticleBoundary
 

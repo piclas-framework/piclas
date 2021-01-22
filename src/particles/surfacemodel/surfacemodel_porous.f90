@@ -377,7 +377,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION DONE!'
 
 END SUBROUTINE InitPorousBoundaryCondition
 
-SUBROUTINE PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,ElasticReflectionAtPorousBC)
+SUBROUTINE PorousBoundaryTreatment(iPart,SideID,ElasticReflectionAtPorousBC)
 !===================================================================================================================================
 ! Treatment of particles impinging on the porous boundary
 ! 1) (Optional) When using regions on the BC, it is determined whether the particle hit the porous BC region or only the regular BC
@@ -394,15 +394,14 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, GlobalSide2SurfSide
 USE MOD_part_operations         ,ONLY: RemoveParticle
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: iPart, SideID
-REAL, INTENT(IN)              :: PartTrajectory(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)            :: alpha
 LOGICAL,INTENT(INOUT)         :: ElasticReflectionAtPorousBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -421,7 +420,7 @@ IF(pBCSideID.GT.0) THEN
   IF(PorousBC(iPBC)%UsingRegion) THEN
     IF(PorousBCInfo_Shared(3,pBCSideID).EQ.1) THEN
       ! Side is partially inside the porous region (check if its within bounds)
-      intersectionPoint(1:3) = LastPartPos(1:3,iPart) + alpha*PartTrajectory(1:3)
+      intersectionPoint(1:3) = LastPartPos(1:3,iPart) + TrackInfo%alpha*TrackInfo%PartTrajectory(1:3)
       point(1)=intersectionPoint(PorousBC(iPBC)%dir(2))-PorousBC(iPBC)%origin(1)
       point(2)=intersectionPoint(PorousBC(iPBC)%dir(3))-PorousBC(iPBC)%origin(2)
       radius=SQRT( (point(1))**2+(point(2))**2 )
@@ -444,7 +443,7 @@ IF(pBCSideID.GT.0) THEN
         IF(iRan.LE.PorousBCProperties_Shared(1,pBCSideID)) THEN
           ! Counting particles that leave the domain through the porous BC (required for the calculation of the pumping capacity)
           PorousBCSampWall(2,pBCSideID) = PorousBCSampWall(2,pBCSideID) + GetParticleWeight(iPart)
-          CALL RemoveParticle(iPart,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)),alpha=alpha)
+          CALL RemoveParticle(iPart,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
         END IF
         ! Treat the pump as a perfect reflection (particle is not removed and keeps its temperature)
         ElasticReflectionAtPorousBC = .TRUE.

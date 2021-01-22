@@ -49,18 +49,20 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: c
 USE MOD_Preproc
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
-USE MOD_MPI_Vars                ,ONLY: offsetElemMPI
-USE MOD_MPI_Shared_Vars
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
+USE MOD_MPI_Shared_Vars
+USE MOD_MPI_Vars                ,ONLY: offsetElemMPI
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_MPI_Vars       ,ONLY: SafetyFactor,halo_eps,halo_eps_velo
 USE MOD_Particle_MPI_Vars       ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc
-USE MOD_TimeDisc_Vars           ,ONLY: ManualTimeStep
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_PICDepo_Vars            ,ONLY: DepositionType
 USE MOD_PICDepo_Vars            ,ONLY: nSendShapeElems,SendShapeElemID, SendElemShapeID
 USE MOD_PICDepo_Vars            ,ONLY: ShapeMapping,CNShapeMapping
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_TimeDisc_Vars           ,ONLY: ManualTimeStep
 #if ! (USE_HDG)
 USE MOD_CalcTimeStep            ,ONLY: CalcTimeStep
 #endif
@@ -76,7 +78,7 @@ INTEGER                        :: iPeriodicVector,jPeriodicVector,iPeriodicDir,j
 INTEGER,DIMENSION(2)           :: DirPeriodicVector = [-1,1]
 REAL,DIMENSION(6)              :: xCoordsProc,xCoordsOrigin
 INTEGER                        :: iElem,ElemID,firstElem,lastElem,NbElemID
-INTEGER                        :: iSide,SideID,iLocSide
+INTEGER                        :: iSide,SideID,firstSide,lastSide,iLocSide
 !INTEGER                        :: firstSide,lastSide
 INTEGER                        :: iMortar,nMortarElems,NbSideID
 INTEGER                        :: iProc,HaloProc
@@ -390,18 +392,34 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
           firstElem = offsetElemMPI(HaloProc)+1
           lastElem  = offsetElemMPI(HaloProc +1)
 
-          xCoordsOrigin(1) = MINVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                       :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-          xCoordsOrigin(2) = MAXVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                       :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-          xCoordsOrigin(3) = MINVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                       :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-          xCoordsOrigin(4) = MAXVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                       :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-          xCoordsOrigin(5) = MINVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                       :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-          xCoordsOrigin(6) = MAXVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                       :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+          SELECT CASE(TrackingMethod)
+            ! Build mesh min/max on BezierControlPoints for possibly curved elements
+            CASE(REFMAPPING,TRACING)
+              firstSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,firstElem)+1
+              lastSide  = ElemInfo_Shared(ELEM_LASTSIDEIND ,lastElem)
+
+              xCoordsOrigin(1) = MINVAL(BezierControlPoints3D(1,:,:,firstSide:lastSide))
+              xCoordsOrigin(2) = MAXVAL(BezierControlPoints3D(1,:,:,firstSide:lastSide))
+              xCoordsOrigin(3) = MINVAL(BezierControlPoints3D(2,:,:,firstSide:lastSide))
+              xCoordsOrigin(4) = MAXVAL(BezierControlPoints3D(2,:,:,firstSide:lastSide))
+              xCoordsOrigin(5) = MINVAL(BezierControlPoints3D(3,:,:,firstSide:lastSide))
+              xCoordsOrigin(6) = MAXVAL(BezierControlPoints3D(3,:,:,firstSide:lastSide))
+
+            ! TriaTracking does not have curved elements, nodeCoords are sufficient
+            CASE(TRIATRACKING)
+              xCoordsOrigin(1) = MINVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                           :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+              xCoordsOrigin(2) = MAXVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                           :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+              xCoordsOrigin(3) = MINVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                           :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+              xCoordsOrigin(4) = MAXVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                           :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+              xCoordsOrigin(5) = MINVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                           :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+              xCoordsOrigin(6) = MAXVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                           :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+          END SELECT
 
           ! Check if proc is in range
           IF (.NOT.HaloBoxInProc(xCoordsOrigin,xCoordsProc,MPI_halo_eps,GEO%nPeriodicVectors,GEO%PeriodicVectors)) THEN

@@ -30,7 +30,7 @@ PUBLIC :: SurfaceModel_ParticleEmission, SurfaceModel_EnergyAccommodation, GetWa
 
 CONTAINS
 
-SUBROUTINE SurfaceModel_ParticleEmission(PartTrajectory, alpha, n_loc, PartID, SideID, p, q, ProductSpec, ProductSpecNbr, TempErgy)
+SUBROUTINE SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy)
 !===================================================================================================================================
 !> Routine for the particle emission at a surface
 !===================================================================================================================================
@@ -43,15 +43,13 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfModEnergyDistribution
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT-OUTPUT VARIABLES
-REAL,INTENT(INOUT)          :: PartTrajectory(1:3), alpha
-!-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)             :: n_loc(1:3)
-INTEGER,INTENT(IN)          :: PartID, SideID, p, q
+INTEGER,INTENT(IN)          :: PartID, SideID
 INTEGER,INTENT(IN)          :: ProductSpec(2)   !< 1: product species of incident particle (also used for simple reflection)
                                                 !< 2: additional species added or removed from surface
                                                 !< If productSpec is negative, then the respective particles are adsorbed
@@ -72,7 +70,7 @@ WallTemp = PartBound%WallTemp(locBCID)
 WallVelo = PartBound%WallVelo(1:3,locBCID)
 
 IF(PartBound%RotVelo(locBCID)) THEN
-  POI_vec(1:3) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
+  POI_vec(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
   CALL CalcRotWallVelo(locBCID,POI_vec,WallVelo)
 END IF
 
@@ -91,7 +89,7 @@ DO iNewPart = 1, ProductSpecNbr
   CALL SurfaceModel_EnergyAccommodation(NewPartID,locBCID,WallTemp)
   ! Sampling of newly created particles
   IF((DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) &
-    CALL CalcWallSample(NewPartID,SurfSideID,p,q,'new',PartTrajectory_opt=PartTrajectory,SurfaceNormal_opt=n_loc)
+    CALL CalcWallSample(NewPartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
 END DO ! iNewPart = 1, ProductSpecNbr
 
 END SUBROUTINE SurfaceModel_ParticleEmission
@@ -234,18 +232,18 @@ END IF ! useDSMC
 END SUBROUTINE SurfaceModel_EnergyAccommodation
 
 
-REAL FUNCTION GetWallTemperature(PartID,locBCID,PartTrajectory,alpha)
+REAL FUNCTION GetWallTemperature(PartID,locBCID)
 !===================================================================================================================================
 !> Determine the wall temperature, current options: determine a temperature based on an imposed gradient or use a fixed temperature
 !===================================================================================================================================
 USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Vars           ,ONLY: LastPartPos
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)             :: locBCID, PartID
-REAL, INTENT(IN)                :: PartTrajectory(3), alpha
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -253,7 +251,7 @@ REAL, INTENT(IN)                :: PartTrajectory(3), alpha
 REAL                            :: TempGradLength, POI(3), POI_projected(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 IF(PartBound%WallTemp2(locBCID).GT.0.0) THEN
-  POI(1:3) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
+  POI(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
   POI_projected(1:3) = PartBound%TempGradStart(1:3,locBCID) &
                       + DOT_PRODUCT((POI(1:3) - PartBound%TempGradStart(1:3,locBCID)),PartBound%TempGradVec(1:3,locBCID)) &
                         / DOTPRODUCT(PartBound%TempGradVec(1:3,locBCID)) * PartBound%TempGradVec(1:3,locBCID)

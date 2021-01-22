@@ -61,6 +61,8 @@ TYPE tTrackingInfo
   REAL                :: alpha
   REAL                :: PartTrajectory(1:3)
   REAL                :: LengthPartTrajectory
+  INTEGER             :: p
+  INTEGER             :: q
 END TYPE
 
 TYPE(tTrackingInfo)   :: TrackInfo

@@ -24,10 +24,6 @@ PRIVATE
 INTERFACE CreateParticle
   MODULE PROCEDURE CreateParticle
 END INTERFACE
-
-INTERFACE RemoveParticle
-  MODULE PROCEDURE RemoveParticle
-END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -123,7 +119,7 @@ IF (PRESENT(NewPartID)) NewPartID=newParticleID
 END SUBROUTINE CreateParticle
 
 
-SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
+SUBROUTINE RemoveParticle(PartID,BCID,crossedBC)
 !===================================================================================================================================
 !> Removes a single particle "PartID" by setting the required variables.
 !> If CalcPartBalance/UseAdaptive/CalcMassflowRate = T: adds/substracts the particle to/from the respective counter
@@ -140,12 +136,12 @@ USE MOD_Particle_Vars             ,ONLY: DoPartInNewton
 USE MOD_Particle_Analyze_Tools    ,ONLY: CalcEkinPart
 USE MOD_part_tools                ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars                 ,ONLY: CollInf
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 INTEGER, INTENT(IN)           :: PartID
 INTEGER, INTENT(IN),OPTIONAL  :: BCID                    !< ID of the boundary the particle crossed
-REAL, INTENT(OUT),OPTIONAL    :: alpha                   !< if removed during tracking optional alpha can be set to -1
 LOGICAL, INTENT(OUT),OPTIONAL :: crossedBC               !< optional flag is needed if particle removed on BC interaction
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
@@ -196,7 +192,7 @@ IF(PRESENT(BCID)) THEN
 END IF ! PRESENT(BCID)
 
 ! Tracking-relevant variables (not required if a particle is removed within the domain, e.g. removal due to radial weighting)
-IF (PRESENT(alpha)) alpha=-1.
+TrackInfo%alpha=-1.
 IF (PRESENT(crossedBC)) crossedBC=.TRUE.
 
 ! DSMC: Delete the old collision partner index
