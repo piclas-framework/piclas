@@ -3253,6 +3253,11 @@ DO iElem = firstElem,lastElem
   maxScaleJ  =MAX(scaleJ,maxScaleJ)
 END DO ! iElem = firstElem,lastElem
 
+#if USE_MPI
+CALL MPI_WIN_SYNC(ElemEpsOneCell_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#endif /* USE_MPI*/
+
 !IF(CalcMeshInfo)THEN
 !  CALL AddToElemData(ElementOut,'epsOneCell',RealArray=epsOneCell(1:nElems))
 !END IF
