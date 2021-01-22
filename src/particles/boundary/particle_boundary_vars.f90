@@ -251,6 +251,7 @@ TYPE tPartBoundary
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibrium Distribution with reflection
   LOGICAL , ALLOCATABLE                  :: UseAdaptedWallTemp(:)         
+  REAL    , ALLOCATABLE                  :: RadiatingEmissivity(:)
   LOGICAL , ALLOCATABLE                  :: Dielectric(:)                 ! Define if particle boundary [$] is a dielectric
 !                                                                         ! interface, i.e. an interface between a dielectric and
 !                                                                         ! a non-dielectric or a between to different dielectrics

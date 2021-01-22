@@ -75,6 +75,9 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-Voltage'  &
 CALL prms%CreateLogicalOption(     'Part-Boundary[$]-UseAdaptedWallTemp'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Adapt wall temperature from RestartFile', '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-RadiatingEmissivity'  &
+                                , 'TODO-DEFINE-PARAMETER'//&
+                                  'Radiative Emissivity of the Boundary', '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp'  &
                                 , 'Wall temperature (in [K]) of reflective particle boundary [$].' &
                                 , '0.', numberedmulti=.TRUE.)
@@ -266,6 +269,10 @@ ALLOCATE(PartBound%SourceBoundName(  1:nPartBound))
 PartBound%SourceBoundName = ''
 ALLOCATE(PartBound%TargetBoundCond(  1:nPartBound))
 PartBound%TargetBoundCond = -1
+ALLOCATE(PartBound%UseAdaptedWallTemp(1:nPartBound))
+PartBound%UseAdaptedWallTemp = .FALSE.
+ALLOCATE(PartBound%RadiatingEmissivity(1:nPartBound))
+PartBound%RadiatingEmissivity = 1.
 ALLOCATE(PartBound%MomentumACC(      1:nPartBound))
 PartBound%MomentumACC = -1
 ALLOCATE(PartBound%WallTemp(         1:nPartBound))
@@ -366,6 +373,7 @@ DO iPartBound=1,nPartBound
     PartBound%RotOrg(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotOrg',3)
     PartBound%RotAxi(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotAxi',3)
     PartBound%UseAdaptedWallTemp(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseAdaptedWallTemp')
+    PartBound%RadiatingEmissivity(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RadiatingEmissivity')
     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
     IF(ABS(PartBound%Voltage(iPartBound)).LT.1e20) DeprecatedVoltage=.TRUE.
     PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')

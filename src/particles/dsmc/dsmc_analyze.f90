@@ -84,14 +84,15 @@ SUBROUTINE CalcSurfaceValues(during_dt_opt)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars               ,ONLY: StefanBoltzmannConst
 USE MOD_DSMC_Vars                  ,ONLY: MacroSurfaceVal,DSMC,MacroSurfaceSpecVal
 USE MOD_Mesh_Vars                  ,ONLY: MeshFile
 USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfOnNode
 USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample,CalcSurfaceImpact
-USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide
-USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfOutputSides
+USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide, PartBound
+USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfOutputSides, BoundaryWallTemp
 USE MOD_Particle_Boundary_Vars     ,ONLY: PorousBCInfo_Shared,MapSurfSideToPorousSide_Shared
 USE MOD_Particle_Mesh_Vars         ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry
@@ -123,7 +124,7 @@ LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during t
 INTEGER                            :: iSpec,iSurfSide,p,q, nVar, nVarSpec, iPBC, nVarCount, OutputCounter
 REAL                               :: TimeSample, ActualTime, TimeSampleTemp, CounterSum, nImpacts
 LOGICAL                            :: during_dt
-INTEGER                            :: idx, GlobalSideID, SurfSideNb
+INTEGER                            :: idx, GlobalSideID, SurfSideNb, iBC
 !===================================================================================================================================
 
 IF (PRESENT(during_dt_opt)) THEN
@@ -166,6 +167,9 @@ nVarSpec = nVarSpec + 9
 
 IF(nPorousBC.GT.0) THEN
   nVar = nVar + nPorousBC
+END IF
+IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
+  nVar = nVar + 1
 END IF
 ! Allocate the output container
 ALLOCATE(MacroSurfaceVal(1:nVar         , 1:nSurfSample , 1:nSurfSample , nComputeNodeSurfOutputSides))
@@ -276,6 +280,16 @@ DO iSurfSide = 1,nComputeNodeSurfSides
           END IF ! nImpacts.GT.0.
         END IF ! CalcSurfaceImpact
       END DO ! iSpec=1,nSpecies
+      
+      IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
+        IF (MacroSurfaceVal(4,p,q,OutputCounter).GT.0.0) THEN
+          iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
+          BoundaryWallTemp(p,q,iSurfSide) = (MacroSurfaceVal(4,p,q,OutputCounter) &
+              /(StefanBoltzmannConst*PartBound%RadiatingEmissivity(iBC)))**(1./4.)
+        END IF
+        MacroSurfaceVal(nVar + nPorousBC + 1,p,q,OutputCounter) = BoundaryWallTemp(p,q,iSurfSide)
+      END IF
+     
     END DO ! q=1,nSurfSample
   END DO ! p=1,nSurfSample
 END DO ! iSurfSide=1,nComputeNodeSurfSides
