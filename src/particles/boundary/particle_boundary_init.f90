@@ -557,7 +557,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                           :: firstSide, lastSide, iSide, SideID, iBC
+#if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND)    :: MPISharedSize
+#endif
 !===================================================================================================================================
 IF (.NOT.(ANY(PartBound%UseAdaptedWallTemp))) RETURN
 
@@ -577,7 +579,7 @@ lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeSurfTotalSides)/REAL(nCom
 ALLOCATE(BoundaryWallTemp(nSurfSample,nSurfSample,1:nComputeNodeSurfTotalSides))
 BoundaryWallTemp = 0.
 firstSide = 1
-lastSide  = nSurfTotalSides
+lastSide  = nComputeNodeSurfTotalSides
 #endif /*USE_MPI*/
 
 DO iSide = firstSide,LastSide
