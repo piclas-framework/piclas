@@ -27,14 +27,6 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE GetBoundaryInteraction
-  MODULE PROCEDURE GetBoundaryInteraction
-END INTERFACE
-
-INTERFACE GetBoundaryInteractionAuxBC
-  MODULE PROCEDURE GetBoundaryInteractionAuxBC
-END INTERFACE
-
 PUBLIC :: GetBoundaryInteraction
 PUBLIC :: GetBoundaryInteractionAuxBC
 !PUBLIC :: PartSwitchElement
@@ -42,8 +34,7 @@ PUBLIC :: GetBoundaryInteractionAuxBC
 
 CONTAINS
 
-SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,ElemID,crossedBC&
-                                  ,TriNum,locSideID)
+SUBROUTINE GetBoundaryInteraction(iPart,SideID,flip,ElemID,crossedBC,TriNum)
 !===================================================================================================================================
 !> Determines the post boundary state of a particle that interacts with a boundary condition
 !> * Open: Particle is removed
@@ -57,11 +48,11 @@ USE MOD_Mesh_Tools               ,ONLY: GetCNSideID
 USE MOD_Part_Operations          ,ONLY: RemoveParticle
 USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars            ,ONLY: PartSpecies
-USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod
+USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
-USE MOD_SurfaceModel             ,ONLY: SurfaceModel, PerfectReflection
+USE MOD_SurfaceModel             ,ONLY: SurfaceModel_main, PerfectReflection
 #if defined(IMPA)
 USE MOD_Particle_Vars            ,ONLY: PartIsImplicit
 USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
@@ -80,13 +71,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                   :: iPart,SideID,flip
-REAL,INTENT(IN)                      :: xi,eta
 INTEGER,INTENT(IN),OPTIONAL          :: TriNum
-INTEGER,INTENT(IN),OPTIONAL          :: locSideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 INTEGER,INTENT(INOUT)                :: ElemID
-REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTrajectory
 LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -110,9 +98,9 @@ CASE(REFMAPPING,TRACING)
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
       n_loc=SideNormVec(1:3,SideID)
     CASE(BILINEAR)
-      CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+      CALL CalcNormAndTangBilinear(nVec=n_loc,xi=TrackInfo%xi,eta=TrackInfo%eta,SideID=SideID)
     CASE(CURVED)
-      CALL CalcNormAndTangBezier(  nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+      CALL CalcNormAndTangBezier(  nVec=n_loc,xi=TrackInfo%xi,eta=TrackInfo%eta,SideID=SideID)
   END SELECT
 
   IF(flip.NE.0) n_loc=-n_loc
@@ -136,7 +124,7 @@ CASE(REFMAPPING,TRACING)
   ! boundary (first if) than the normal vector is compared with the trajectory. If the particle is entering the domain from outside
   ! it was inserted during surface flux and this routine shall not performed.
   ! Comparing the normal vector with the particle trajectory, if the particle trajectory is pointing inside the domain
-  IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
+  IF(DOT_PRODUCT(n_loc,TrackInfo%PartTrajectory).LE.0.) RETURN
 
 CASE(TRIATRACKING)
   CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=SideID)
@@ -153,7 +141,8 @@ END IF
 ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
   ! Surface particle output to .h5
   IF(DoBoundaryParticleOutputHDF5.AND.PartBound%BoundaryParticleOutputHDF5(iBC))THEN
-    CALL StoreBoundaryParticleProperties(iPart,PartSpecies(iPart),LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,PartTrajectory(1:3),n_loc,mode=1)
+    CALL StoreBoundaryParticleProperties(iPart,PartSpecies(iPart), &
+            LastPartPos(1:3,iPart)+TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha,TrackInfo%PartTrajectory(1:3),n_loc,mode=1)
   END IF
 
   ! Select the corresponding boundary condition and calculate particle treatment
@@ -161,16 +150,16 @@ ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(1) !PartBound%OpenBC)
   !----------------------------------------------------------------------------------------------------------------------------------
-    CALL RemoveParticle(iPart,BCID=iBC,alpha=alpha)
+    CALL RemoveParticle(iPart,BCID=iBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(2) !PartBound%ReflectiveBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! Decide which interaction (specular/diffuse reflection, species swap, SEE)
-    CALL SurfaceModel(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID,n_loc)
+    CALL SurfaceModel_main(iPart,SideID,ElemID,n_loc)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(3) !PartBound%PeriodicBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
-    CALL PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,iPart,SideID,ElemID)
+    CALL PeriodicBC(iPart,SideID,ElemID)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(4) !PartBound%SimpleAnodeBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -186,11 +175,11 @@ ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(6) !PartBound%rot_periodic)
   !-----------------------------------------------------------------------------------------------------------------------------------
-    CALL RotPeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,iPart,SideID,ElemID)
+    CALL RotPeriodicBC(iPart,SideID,ElemID)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(10,11) !PartBound%SymmetryBC
   !-----------------------------------------------------------------------------------------------------------------------------------
-    CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,iPart,SideID,n_loc,opt_Symmetry=.TRUE.)
+    CALL PerfectReflection(iPart,SideID,n_loc,opt_Symmetry=.TRUE.)
   CASE DEFAULT
     CALL abort(&
       __STAMP__&
@@ -201,7 +190,7 @@ END ASSOCIATE
 END SUBROUTINE GetBoundaryInteraction
 
 
-SUBROUTINE GetBoundaryInteractionAuxBC(PartTrajectory,lengthPartTrajectory,alpha,iPart,AuxBCIdx,crossedBC)
+SUBROUTINE GetBoundaryInteractionAuxBC(iPart,AuxBCIdx,crossedBC)
 !===================================================================================================================================
 ! Computes the post boundary state of a particle that interacts with an auxBC
 !  OpenBC                  = 1
@@ -216,6 +205,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartAuxBC
 USE MOD_Particle_Boundary_Vars ,ONLY: AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
 USE MOD_Particle_Vars          ,ONLY: LastPartPos
 USE MOD_part_operations        ,ONLY: RemoveParticle
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -223,7 +213,6 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)                   :: iPart,AuxBCIdx
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTrajectory
 LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -237,20 +226,20 @@ SELECT CASE (TRIM(AuxBCType(AuxBCIdx)))
 CASE ('plane')
   n_loc = AuxBC_plane(AuxBCMap(AuxBCIdx))%n_vec
 CASE ('cylinder')
-  intersec = LastPartPos(1:3,iPart) + alpha*PartTrajectory
+  intersec = LastPartPos(1:3,iPart) + TrackInfo%alpha*TrackInfo%PartTrajectory
   r_vec = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%r_vec
   axis  = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%axis
   n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) ) )
   IF (.NOT.AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
 CASE ('cone')
-  intersec = LastPartPos(1:3,iPart) + alpha*PartTrajectory
+  intersec = LastPartPos(1:3,iPart) + TrackInfo%alpha*TrackInfo%PartTrajectory
   r_vec = AuxBC_cone(AuxBCMap(AuxBCIdx))%r_vec
   axis  = AuxBC_cone(AuxBCMap(AuxBCIdx))%axis
   cos2inv = 1./COS(AuxBC_cone(AuxBCMap(AuxBCIdx))%halfangle)**2
   n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis)*cos2inv ) )
   IF (.NOT.AuxBC_cone(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
 CASE ('parabol')
-  intersec = LastPartPos(1:3,iPart) + alpha*PartTrajectory
+  intersec = LastPartPos(1:3,iPart) + TrackInfo%alpha*TrackInfo%PartTrajectory
   r_vec = AuxBC_parabol(AuxBCMap(AuxBCIdx))%r_vec
   axis  = AuxBC_parabol(AuxBCMap(AuxBCIdx))%axis
   n_loc = UNITVECTOR( intersec - ( r_vec + axis*(DOT_PRODUCT(intersec-r_vec,axis)+0.5*AuxBC_parabol(AuxBCMap(AuxBCIdx))%zfac) ) )
@@ -260,13 +249,13 @@ CASE DEFAULT
     __STAMP__&
     ,'AuxBC does not exist')
 END SELECT
-IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
+IF(DOT_PRODUCT(n_loc,TrackInfo%PartTrajectory).LT.0.)  THEN
   crossedBC=.FALSE.
   !RETURN
   CALL abort(&
     __STAMP__&
     ,'Error in GetBoundaryInteractionAuxBC: Particle coming from outside!')
-ELSE IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0.)  THEN
+ELSE IF(DOT_PRODUCT(n_loc,TrackInfo%PartTrajectory).GT.0.)  THEN
   crossedBC=.TRUE.
 ELSE
   CALL abort(&
@@ -278,7 +267,7 @@ SELECT CASE(PartAuxBC%TargetBoundCond(AuxBCIdx))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1) !PartAuxBC%OpenBC
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL RemoveParticle(iPart,alpha=alpha)
+  CALL RemoveParticle(iPart)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartAuxBC%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -289,9 +278,9 @@ CASE(2) !PartAuxBC%ReflectiveBC)
 !print*,iPart,alpha,LastPartPos(1:3,iPart),PartState(4:6,iPart)
   IF (PartAuxBC%NbrOfSpeciesSwaps(AuxBCIdx).gt.0) THEN
 #ifndef IMPA
-    CALL SpeciesSwap(alpha,PartID=iPart,SideID=-1,AuxBCIdx=AuxBCIdx)
+    CALL SpeciesSwap(PartID=iPart,SideID=-1,AuxBCIdx=AuxBCIdx)
 #else
-    CALL SpeciesSwap(alpha,PartID=iPart,SideID=-1)
+    CALL SpeciesSwap(PartID=iPart,SideID=-1)
 #endif /*NOT IMPA*/
   END IF
   IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
@@ -299,9 +288,9 @@ CASE(2) !PartAuxBC%ReflectiveBC)
       CALL RANDOM_NUMBER(RanNum)
       IF(RanNum.GE.PartAuxBC%MomentumACC(AuxBCIdx)) THEN
         ! perfectly reflecting, specular re-emission
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,PartID=iPart,SideID=-1,n_loc=n_loc,AuxBCIdx=AuxBCIdx)
+        CALL PerfectReflection(PartID=iPart,SideID=-1,n_loc=n_loc,AuxBCIdx=AuxBCIdx)
       ELSE
-        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,PartID=iPart,SideID=-1,n_loc=n_loc,AuxBCIdx=AuxBCIdx)
+        CALL DiffuseReflection(PartID=iPart,SideID=-1,n_loc=n_loc,AuxBCIdx=AuxBCIdx)
       END IF
   END IF
 !print*,iPart,alpha,LastPartPos(1:3,iPart),PartState(1:3,iPart)
@@ -321,17 +310,17 @@ WRITE(*,*) 'AuxBCIdx', AuxBCIdx
 END SUBROUTINE GetBoundaryInteractionAuxBC
 
 
-SUBROUTINE PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,PartID,SideID,ElemID)
+SUBROUTINE PeriodicBC(PartID,SideID,ElemID)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the perfect reflection in 3D
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Mesh_Vars              ,ONLY: BoundaryType
-!USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO!,SidePeriodicType
-USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos
+USE MOD_Mesh_Vars               ,ONLY: BoundaryType
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 #if defined(ROS) || defined(IMPA)
 USE MOD_Particle_Vars          ,ONLY: PEM
 #endif
@@ -350,7 +339,6 @@ USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
-REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
 INTEGER,INTENT(IN)                :: PartID, SideID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
@@ -375,12 +363,12 @@ END IF
 #endif /*CODE_ANALYZE*/
 
 ! set last particle position on face
-LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
+LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
 ! perform the periodic movement
 LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + SIGN( GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
 ! update particle positon after periodic BC
-PartState(1:3,PartID) = LastPartPos(1:3,PartID) + (lengthPartTrajectory-alpha)*PartTrajectory
-lengthPartTrajectory  = lengthPartTrajectory - alpha
+PartState(1:3,PartID) = LastPartPos(1:3,PartID) + (TrackInfo%lengthPartTrajectory-TrackInfo%alpha)*TrackInfo%PartTrajectory
+TrackInfo%lengthPartTrajectory  = TrackInfo%lengthPartTrajectory - TrackInfo%alpha
 
 #ifdef CODE_ANALYZE
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -420,7 +408,7 @@ ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
 END SUBROUTINE PeriodicBC
 
 
-SUBROUTINE RotPeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,PartID,SideID,ElemID)
+SUBROUTINE RotPeriodicBC(PartID,SideID,ElemID)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Execution of the rotation periodic boundary condition:
 ! (1) rotate POI and velocity vector
@@ -440,7 +428,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeig
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_part_operations        ,ONLY: RemoveParticle
 USE MOD_part_tools             ,ONLY: StoreLostParticleProperties
-USE MOD_Particle_Tracking_vars ,ONLY: NbrOfLostParticles
+USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles, TrackInfo
 USE MOD_DSMC_Vars              ,ONLY: DSMC, AmbipolElecVelo
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
@@ -449,7 +437,6 @@ USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
-REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
 INTEGER,INTENT(IN)                :: PartID, SideID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
@@ -480,7 +467,7 @@ ELSE
 END IF
 
 ! set last particle position on face (POI)
-LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
+LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
 LastPartPos_old(1:3) = LastPartPos(1:3,PartID)
 Velo_old(1:3) = PartState(4:6,PartID)
 IF (DSMC%DoAmbipolarDiff) THEN
@@ -525,17 +512,15 @@ ASSOCIATE( rot_alpha => REAL(PartBound%RotPeriodicDir(SideInfo_Shared(SIDE_BCID,
   END SELECT
 END ASSOCIATE
 ! (2) update particle positon after periodic BC
-PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac &
+PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory) * dt*RKdtFrac &
                         * PartState(4:6,PartID) * adaptTimeStep
 ! compute moved particle || rest of movement
-PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
-IF(ALMOSTZERO(VECNORM(PartTrajectory)))THEN
-  lengthPartTrajectory= 0.0
+TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
+IF(ALMOSTZERO(VECNORM(TrackInfo%PartTrajectory)))THEN
+  TrackInfo%lengthPartTrajectory= 0.0
 ELSE
-  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                           +PartTrajectory(2)*PartTrajectory(2) &
-                           +PartTrajectory(3)*PartTrajectory(3) )
-  PartTrajectory=PartTrajectory/lengthPartTrajectory
+  TrackInfo%lengthPartTrajectory= VECNORM(TrackInfo%PartTrajectory)
+  TrackInfo%PartTrajectory=TrackInfo%PartTrajectory/TrackInfo%lengthPartTrajectory
 END IF
 #ifdef CODE_ANALYZE
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -561,7 +546,7 @@ END DO
 IF(.NOT.FoundInElem) THEN
   CALL StoreLostParticleProperties(PartID,ElemID)
   NbrOfLostParticles=NbrOfLostParticles+1
-  CALL RemoveParticle(PartID,BCID=SideInfo_Shared(SIDE_BCID,SideID),alpha=alpha)
+  CALL RemoveParticle(PartID,BCID=SideInfo_Shared(SIDE_BCID,SideID))
 END IF
 
 END SUBROUTINE RotPeriodicBC
