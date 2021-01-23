@@ -120,7 +120,7 @@ DO i=1,nSpecies
           inserted_Particle_diff = inserted_Particle_time - Species(i)%Init(iInit)%InsertedParticle &
             - inserted_Particle_iter - Species(i)%Init(iInit)%InsertedParticleSurplus &
             + Species(i)%Init(iInit)%InsertedParticleMisMatch
-          Species(i)%Init(iInit)%InsertedParticleSurplus = ABS(MIN(inserted_Particle_iter + inserted_Particle_diff,0))
+          Species(i)%Init(iInit)%InsertedParticleSurplus = ABS(MIN(inserted_Particle_iter + inserted_Particle_diff,0_8))
           NbrOfParticle = MAX(INT(inserted_Particle_iter + inserted_Particle_diff,4),0)
           !-- if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
           IF (TRIM(Species(i)%Init(iInit)%velocityDistribution).EQ.'maxwell') THEN
@@ -506,7 +506,7 @@ DO AdaptiveElemID = 1,nElems
         PorousBCMacroVal(7,AdaptiveElemID,iSpec) = PorousBCMacroVal(7,AdaptiveElemID,iSpec) + Source(11,AdaptiveElemID,iSpec)
         ! Sampling the number of simulation particles
         PorousBCMacroVal(8,AdaptiveElemID,iSpec) = PorousBCMacroVal(8,AdaptiveElemID,iSpec) + Source(7,AdaptiveElemID,iSpec)
-        IF(MOD(iter,SamplingIteration).EQ.0) THEN
+        IF(MOD(iter,INT(SamplingIteration,8)).EQ.0_8) THEN
           IF(PorousBCMacroVal(8,AdaptiveElemID,iSpec).GT.1) THEN
             ! number density
             IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
