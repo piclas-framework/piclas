@@ -108,6 +108,8 @@ PUBLIC :: CalcNbrOfPhotons, CalcPhotonEnergy
 PUBLIC :: CalcIntensity_Gaussian
 PUBLIC :: CalcVelocity_FromWorkFuncSEE, DSMC_SetInternalEnr_LauxVFD
 PUBLIC :: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
+PUBLIC :: SetParticlePositionLandmark
+PUBLIC :: SetParticlePositionLandmarkNeutralization
 #ifdef CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
@@ -1950,6 +1952,99 @@ DO i=1,chunkSize
   particle_positions(i*3  ) = Particle_pos(3)
 END DO
 END SUBROUTINE SetParticlePositionPhotonCylinder
+
+
+SUBROUTINE SetParticlePositionLandmark(FractNbr,iInit,chunkSize,particle_positions,mode)
+!===================================================================================================================================
+! Set particle position
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Globals_Vars       ,ONLY: PI
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Particle_Vars      ,ONLY: PartPosLandmark,NbrOfParticleLandmarkMax
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize, mode
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)       :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                    :: Particle_pos(3)
+INTEGER                 :: i
+REAL                    :: RandVal(2)
+!===================================================================================================================================
+IF(NbrOfParticleLandmarkMax.LT.chunkSize) THEN
+  IPWRITE(UNIT_StdOut,*) "NbrOfParticleLandmarkMax,chunkSize =", NbrOfParticleLandmarkMax,chunkSize
+  CALL abort(&
+      __STAMP__&
+      ,'NbrOfParticleLandmarkMax.LT.chunkSize is not allowed! Allocate PartPosLandmark to the appropriate size.')
+END IF
+
+IF(mode.EQ.1)THEN!Create new position and store them
+  DO i=1,chunkSize
+    CALL RANDOM_NUMBER(RandVal)
+      ASSOCIATE( x2 => 1.0e-2                           ,& ! m
+                 x1 => 0.25e-2                          ,& ! m
+                 Ly => 1.28e-2                          ,& ! m
+                 z  => (GEO%zmaxglob+GEO%zminglob)/2.0 )   ! m
+      particle_positions(i*3-2) = (x2+x1)/2.0 + ASIN(2.0*RandVal(1)-1.0)*(x2-x1)/PI
+      particle_positions(i*3-1) = RandVal(2) * Ly
+      particle_positions(i*3  ) = z
+      ! Store particle positions for re-using them when placing the opposite charged particles (mode=2)
+      PartPosLandmark(1,i) = particle_positions(i*3-2)
+      PartPosLandmark(2,i) = particle_positions(i*3-1)
+      PartPosLandmark(3,i) = particle_positions(i*3  )
+    END ASSOCIATE
+  END DO
+ELSEIF(mode.EQ.2)THEN!Re-use previously created positions
+  DO i=1,chunkSize
+    particle_positions(i*3-2) = PartPosLandmark(1,i)
+    particle_positions(i*3-1) = PartPosLandmark(2,i)
+    particle_positions(i*3  ) = PartPosLandmark(3,i)
+  END DO
+END IF ! mode.EQ.1
+END SUBROUTINE SetParticlePositionLandmark
+
+
+SUBROUTINE SetParticlePositionLandmarkNeutralization(FractNbr,iInit,chunkSize,particle_positions)
+!===================================================================================================================================
+! Set particle position
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Globals_Vars       ,ONLY: PI
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Particle_Vars      ,ONLY: PartPosLandmark,NbrOfParticleLandmarkMax
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)       :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                    :: Particle_pos(3)
+INTEGER                 :: i
+REAL                    :: RandVal
+!===================================================================================================================================
+DO i=1,chunkSize
+  CALL RANDOM_NUMBER(RandVal)
+  ASSOCIATE( Ly => 1.28e-2                          ,& ! m
+             z  => (GEO%zmaxglob+GEO%zminglob)/2.0 )   ! m
+    particle_positions(i*3-2) = 2.4e-2
+    particle_positions(i*3-1) = RandVal * Ly
+    particle_positions(i*3  ) = z
+  END ASSOCIATE
+END DO
+END SUBROUTINE SetParticlePositionLandmarkNeutralization
 
 
 END MODULE MOD_part_emission_tools

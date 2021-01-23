@@ -44,13 +44,14 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("PIC Background Field")
 
-CALL prms%CreateLogicalOption(  'PIC-BG-Field'                , 'Activates the usage of a background field, read-in from file '//&
-                                                                '(PIC-BGFileName=BGField.h5) or calculated from parameters', &
-                                                                '.FALSE.')
-CALL prms%CreateStringOption(   'PIC-BGFileName'              , 'File name for the background field ([character].h5)','none')
-CALL prms%CreateIntOption(      'PIC-NBG'                     , 'Polynomial degree that shall be used for the background field '//&
-                                                                'during simulation (can be different to the read-in file)')
-CALL prms%CreateRealOption(     'PIC-BGFieldScaling'          , 'Scaling of the read-in background field','1.')
+! -- external field 5
+CALL prms%CreateLogicalOption('PIC-BG-Field'      , 'Method 5 of 5: Activates the usage of a background field, read-in from file '//&
+                                                    '(PIC-BGFileName=BGField.h5) or calculated from parameters', &
+                                                    '.FALSE.')
+CALL prms%CreateStringOption( 'PIC-BGFileName'    , 'File name for the background field ([character].h5)','none')
+CALL prms%CreateIntOption(    'PIC-NBG'           , 'Polynomial degree that shall be used for the background field '//&
+                                                    'during simulation (can be different to the read-in file)')
+CALL prms%CreateRealOption(   'PIC-BGFieldScaling', 'Scaling of the read-in background field','1.')
 END SUBROUTINE DefineParametersBGField
 
 

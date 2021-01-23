@@ -135,7 +135,7 @@ INTEGER                                :: iSide,firstSide,lastSide,iSurfSide,Glo
 INTEGER                                :: nSurfSidesProc,nSurfSidesTmp
 INTEGER                                :: offsetSurfTotalSidesProc
 INTEGER,ALLOCATABLE                    :: GlobalSide2SurfSideProc(:,:)
-INTEGER,ALLOCATABLE                    :: SurfSide2GlobalSideProc(:,:)
+!INTEGER,ALLOCATABLE                    :: SurfSide2GlobalSideProc(:,:)
 CHARACTER(20)                          :: hilf
 CHARACTER(LEN=255),ALLOCATABLE         :: BCName(:)
 ! surface area
@@ -665,7 +665,6 @@ USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides, nOutputSides
-USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfSides,offsetComputeNodeSurfSide
 USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName
 USE MOD_Particle_Vars           ,ONLY: nSpecies

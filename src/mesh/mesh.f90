@@ -78,9 +78,6 @@ CALL prms%CreateRealOption(    'meshScale',           "Scale the mesh by this fa
                                                       '1.0')
 CALL prms%CreateLogicalOption( 'meshdeform',          "Apply simple sine-shaped deformation on cartesion mesh (for testing).",&
                                                       '.FALSE.')
-CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"TODO-DEFINE-PARAMETER\nCalculate pointing vector integral "//&
-                                                         "| only perpendicular to z axis",&
-                                                      '.FALSE.')
 CALL prms%CreateLogicalOption( 'CalcMeshInfo',        'Calculate and output elem data for myrank, ElemID and tracking info to '//&
                                                       'ElemData',&
                                                       '.FALSE.')
@@ -122,7 +119,7 @@ USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Metrics                ,ONLY: BuildCoords,CalcMetrics
-USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,CalcMeshInfo
+USE MOD_Analyze_Vars           ,ONLY: CalcMeshInfo
 USE MOD_Mappings               ,ONLY: InitMappings
 #if USE_MPI
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
@@ -347,8 +344,6 @@ IF (meshMode.GT.1) THEN
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
 
-  ! PoyntingVecIntegral
-  CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral')
 
 ! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
 ! assign 1/detJ (sJ)
@@ -819,7 +814,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT ELEMENT GEOMETRY INFORMATION ...'
 
 #if USE_MPI && defined(PARTICLES)
-! J_N is only build for local DG elements. Therefore, array is only filled for elements on the same compute node
+! J_N is only built for local DG elements. Therefore, array is only filled for elements on the same compute node
 offsetElemCNProc = offsetElem - offsetComputeNodeElem
 #else
 offsetElemCNProc = 0
@@ -834,8 +829,8 @@ CALL MPI_WIN_LOCK_ALL(0,ElemCharLength_Shared_Win,IERROR)
 
 ! Only root nullifies
 IF (myComputeNodeRank.EQ.0) THEN
-  ElemVolume_Shared(:)          = 0.
-  ElemCharLength_Shared(:)      = 0.
+  ElemVolume_Shared(:)     = 0.
+  ElemCharLength_Shared(:) = 0.
 END IF
 CALL MPI_WIN_SYNC(ElemVolume_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
@@ -864,8 +859,18 @@ CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif /*USE_MPI && defined(PARTICLES)*/
 
+
 LocalVolume = SUM(ElemVolume_Shared(offsetElemCNProc+1:offsetElemCNProc+nElems))
-MeshVolume  = SUM(ElemVolume_Shared(:))
+
+#if USE_MPI
+#ifdef PARTICLES
+MeshVolume = SUM(ElemVolume_Shared(:))
+#else
+CALL MPI_ALLREDUCE(LocalVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
+#endif /*PARTICLES*/
+#else
+MeshVolume = LocalVolume
+#endif /*USE_MPI*/
 
 !ALLOCATE(GEO%CharLength(nElems),STAT=ALLOCSTAT)
 !IF (ALLOCSTAT.NE.0) THEN
@@ -893,7 +898,6 @@ MeshVolume  = SUM(ElemVolume_Shared(:))
 !#endif /*USE_MPI*/
 
 SWRITE(UNIT_StdOut,'(A,E18.8)') ' |              Total MESH Volume |                ', MeshVolume
-
 SWRITE(UNIT_stdOut,'(A)')' INIT ELEMENT GEOMETRY INFORMATION DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitElemVolumes

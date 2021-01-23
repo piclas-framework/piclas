@@ -67,7 +67,6 @@ USE MOD_Particle_Mesh              ,ONLY: DefineparametersParticleMesh
 USE MOD_Particle_Analyze           ,ONLY: DefineParametersParticleAnalyze
 USE MOD_TTMInit                    ,ONLY: DefineParametersTTM
 USE MOD_PICInit                    ,ONLY: DefineParametersPIC
-USE MOD_InitializeBackgroundField  ,ONLY: DefineParametersBGField
 USE MOD_DSMC_Init                  ,ONLY: DefineParametersDSMC
 USE MOD_DSMC_ChemInit              ,ONLY: DefineParametersChemistry
 USE MOD_SurfaceModel_Init          ,ONLY: DefineParametersSurfModel
@@ -131,7 +130,6 @@ CALL DefineParametersParticleBGM()
 CALL DefineParametersParticleAnalyze()
 CALL DefineParametersTTM()
 CALL DefineParametersPIC()
-CALL DefineParametersBGField()
 CALL DefineParametersDSMC()
 CALL DefineParametersChemistry()
 #if (PP_TimeDiscMethod==300)

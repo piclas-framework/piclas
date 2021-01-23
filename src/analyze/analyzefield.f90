@@ -29,32 +29,27 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 !----------------------------------------------------------------------------------------------------------------------------------
 
-INTERFACE GetPoyntingIntPlane
-  MODULE PROCEDURE GetPoyntingIntPlane
-END INTERFACE
-
-INTERFACE FinalizePoyntingInt
-  MODULE PROCEDURE FinalizePoyntingInt
-END INTERFACE
-
 #if (PP_nVar>=6)
 INTERFACE CalcPoyntingIntegral
   MODULE PROCEDURE CalcPoyntingIntegral
 END INTERFACE
+
+PUBLIC:: CalcPoyntingIntegral,GetPoyntingIntPlane,FinalizePoyntingInt
 #endif
 
 INTERFACE CalcPotentialEnergy
   MODULE PROCEDURE CalcPotentialEnergy
 END INTERFACE
+
 INTERFACE CalcPotentialEnergy_Dielectric
   MODULE PROCEDURE CalcPotentialEnergy_Dielectric
 END INTERFACE
 
-PUBLIC:: GetPoyntingIntPlane,FinalizePoyntingInt,CalcPotentialEnergy,CalcPotentialEnergy_Dielectric
-#if (PP_nVar>=6)
-PUBLIC:: CalcPoyntingIntegral
-#endif
+PUBLIC:: CalcPotentialEnergy,CalcPotentialEnergy_Dielectric
 PUBLIC:: AnalyzeField
+#if USE_HDG
+PUBLIC:: GetAverageElectricPotentialPlane,CalculateAverageElectricPotential,FinalizeAverageElectricPotential
+#endif /*USE_HDG*/
 !===================================================================================================================================
 
 CONTAINS
@@ -66,16 +61,23 @@ SUBROUTINE AnalyzeField(Time)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars         ,ONLY: DoFieldAnalyze,CalcEpot,CalcPoyntingInt,nPoyntingIntPlanes,PosPoyntingInt,WEl
+USE MOD_Analyze_Vars          ,ONLY: DoFieldAnalyze,CalcEpot,WEl
+#if (PP_nVar>=6)
+USE MOD_Analyze_Vars          ,ONLY: CalcPoyntingInt,nPoyntingIntPlanes,PosPoyntingInt
+#endif /*PP_nVar>=6*/
 #if (PP_nVar==8)
-USE MOD_Analyze_Vars         ,ONLY: WMag,WPhi,WPsi
+USE MOD_Analyze_Vars          ,ONLY: WMag,WPhi,WPsi
 #endif /*PP_nVar=8*/
-USE MOD_Particle_Analyze_Vars,ONLY: IsRestart
-USE MOD_Restart_Vars         ,ONLY: DoRestart
-USE MOD_Dielectric_Vars      ,ONLY: DoDielectric
+USE MOD_Particle_Analyze_Vars ,ONLY: IsRestart
+USE MOD_Restart_Vars          ,ONLY: DoRestart
+USE MOD_Dielectric_Vars       ,ONLY: DoDielectric
 #if USE_HDG
-USE MOD_HDG_Vars          ,ONLY: HDGNorm,iteration,Runtime,RunTimePerIteration
+USE MOD_HDG_Vars              ,ONLY: HDGNorm,iteration,Runtime,RunTimePerIteration
+USE MOD_Analyze_Vars          ,ONLY: AverageElectricPotential,CalcAverageElectricPotential
 #endif /*USE_HDG*/
+#ifdef PARTICLES
+USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolation
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -87,8 +89,12 @@ REAL,INTENT(IN)     :: Time
 ! LOCAL VARIABLES
 LOGICAL            :: isOpen
 CHARACTER(LEN=350) :: outfile
-INTEGER            :: unit_index, nOutputVarTotal,iPlane
+INTEGER            :: unit_index, nOutputVarTotal
+#if (PP_nVar>=6)
+INTEGER            :: iPlane
 REAL               :: PoyntingIntegral(1:nPoyntingIntPlanes)
+CHARACTER(LEN=255) :: StrVarNameTmp
+#endif /*PP_nVar>=6*/
 CHARACTER(LEN=150) :: formatStr
 #if (PP_nVar==8)
 INTEGER,PARAMETER  :: helpInt=4
@@ -121,7 +127,6 @@ CHARACTER(LEN=255),ALLOCATABLE :: tmpStr(:) ! needed because PerformAnalyze is c
 CHARACTER(LEN=1000)            :: tmpStr2
 CHARACTER(LEN=1),PARAMETER     :: delimiter=","
 INTEGER                        :: I
-CHARACTER(LEN=255)             :: StrVarNameTmp
 !===================================================================================================================================
 IF ( DoRestart ) THEN
   isRestart = .true.
@@ -143,8 +148,15 @@ IF(MPIROOT)THEN
       !--- insert header
 
       ! Set the header line content
+#if (PP_nVar>=6)
       nPoyntingIntPlanes=MERGE(nPoyntingIntPlanes,0,CalcPoyntingInt) ! set to zero if the flag is false (otherwise not initialized)
       nOutputVarTotal = nOutputVar + nPoyntingIntPlanes
+#else
+      nOutputVarTotal = nOutputVar
+#endif /*PP_nVar>=6*/
+#if USE_HDG
+      IF(CalcAverageElectricPotential) nOutputVarTotal = nOutputVarTotal + 1
+#endif /*USE_HDG*/
 #if (PP_nVar==8)
       IF(.NOT.CalcEpot) nOutputVarTotal = nOutputVarTotal - 5
 #else
@@ -165,6 +177,8 @@ IF(MPIROOT)THEN
         WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNames(I))//'"'
       END DO
 
+#if (PP_nVar>=6)
+      ! Add Poynting vector integral (integrated energy density through plane)
       IF(CalcPoyntingInt)THEN
         DO iPlane=1,nPoyntingIntPlanes
           nOutputVarTotal = nOutputVarTotal + 1
@@ -172,6 +186,15 @@ IF(MPIROOT)THEN
           WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
         END DO
       END IF
+#endif /*PP_nVar>=6*/
+
+#if USE_HDG
+      ! Add averaged electric field (integrated and averaged along y-z-direction)
+      IF(CalcAverageElectricPotential)THEN
+        nOutputVarTotal = nOutputVarTotal + 1
+        WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-AverageElectricPotential"'
+      END IF ! CalcAverageElectricPotential
+#endif /*USE_HDG*/
 
       ! Set the format
       WRITE(formatStr,'(A1)')'('
@@ -212,7 +235,18 @@ IF(CalcEpot)THEN
 END IF
 #if (PP_nVar>=6)
 IF(CalcPoyntingInt) CALL CalcPoyntingIntegral(PoyntingIntegral,doProlong=.TRUE.)
-#endif
+#endif /*PP_nVar>=6*/
+
+#ifdef PARTICLES
+IF(.NOT.DoInterpolation)THEN
+#endif /*PARTICLES*/
+#if USE_HDG
+  !1.2 Calculate external E-field
+  IF(CalcAverageElectricPotential) CALL CalculateAverageElectricPotential()
+#endif /*USE_HDG*/
+#ifdef PARTICLES
+END IF ! .NOT.DoInterpolation
+#endif /*PARTICLES*/
 
 IF(MPIROOT)THEN
   WRITE(unit_index,'(E23.16E3)',ADVANCE='NO') Time
@@ -225,38 +259,46 @@ IF(MPIROOT)THEN
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', WEl + WMag + WPhi + WPsi
 #endif /*PP_nVar=8*/
   END IF
-  IF(CalcPoyntingInt)THEN
-    DO iPlane=1,nPoyntingIntPlanes
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',PoyntingIntegral(iPlane)
-    END DO
-  END IF
 #if USE_HDG
   WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(iteration)
   WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', Runtime
   WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RunTimePerIteration
   WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', HDGNorm
 #endif /*USE_HDG*/
+#if (PP_nVar>=6)
+  ! Add Poynting vector integral (integrated energy density through plane)
+  IF(CalcPoyntingInt)THEN
+    DO iPlane=1,nPoyntingIntPlanes
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',PoyntingIntegral(iPlane)
+    END DO
+  END IF
+#endif /*PP_nVar>=6*/
+#if USE_HDG
+  ! Add averaged electric field (integrated and averaged along y-z-direction)
+  IF(CalcAverageElectricPotential)THEN
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',AverageElectricPotential
+  END IF ! CalcAverageElectricPotential
+#endif /*USE_HDG*/
   write(unit_index,'(A)') '' ! write 'newline' to file to finish the current line
 END IF
-
 
 END SUBROUTINE AnalyzeField
 
 #if (PP_nVar>=6)
 SUBROUTINE CalcPoyntingIntegral(PoyntingIntegral,doProlong)
 !===================================================================================================================================
-! Calculation of Poynting Integral with its own Prolong to face // check if Gauss-Labatto or Gaus Points is used is missing ... ups
+! Calculation of Poynting Integral with its own Prolong to face // check if Gauss-Lobatto or Gauss Points is used is missing ... ups
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars          ,ONLY: isPoyntingIntSide,nElems, SurfElem, NormVec,whichPoyntingPlane
-USE MOD_Mesh_Vars          ,ONLY: ElemToSide,PoyntingMainDir
-USE MOD_Analyze_Vars       ,ONLY: nPoyntingIntPlanes,S
+USE MOD_Mesh_Vars          ,ONLY: nElems, SurfElem, NormVec
+USE MOD_Mesh_Vars          ,ONLY: ElemToSide
+USE MOD_Analyze_Vars       ,ONLY: nPoyntingIntPlanes,S,isPoyntingIntSide,SideIDToPoyntingSide,PoyntingMainDir
 USE MOD_Interpolation_Vars ,ONLY: L_Minus,L_Plus,wGPSurf
 USE MOD_DG_Vars            ,ONLY: U,U_master
 USE MOD_Globals_Vars       ,ONLY: smu0
 USE MOD_Dielectric_Vars    ,ONLY: isDielectricFace,PoyntingUseMuR_Inv,Dielectric_MuR_Master_inv,DoDielectric
 #if USE_MPI
-  USE MOD_Globals
+USE MOD_Globals
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -404,27 +446,27 @@ DO iELEM = 1, nElems
           CALL PoyntingVector(Uface(:,:,:),S(:,:,:,iPoyntingSide))
         END IF
 
-        IF ( NormVec(PoyntingMainDir,0,0,SideID) .GT. 0 ) THEN
-          SIP(:,:) = S(1,:,:,iPoyntingSide) * NormVec(1,:,:,SideID) &
-                   + S(2,:,:,iPoyntingSide) * NormVec(2,:,:,SideID) &
-                   + S(3,:,:,iPoyntingSide) * NormVec(3,:,:,SideID)
+        IF ( NormVec(PoyntingMainDir,0,0,SideID) .GT. 0.0 ) THEN
+          SIP(:,:) =   S(1,:,:,iPoyntingSide) * NormVec(1,:,:,SideID) &
+                     + S(2,:,:,iPoyntingSide) * NormVec(2,:,:,SideID) &
+                     + S(3,:,:,iPoyntingSide) * NormVec(3,:,:,SideID)
         ELSE ! NormVec(PoyntingMainDir,:,:,iPoyningSide) < 0
-          SIP(:,:) =-S(1,:,:,iPoyntingSide) * NormVec(1,:,:,SideID) &
-                   - S(2,:,:,iPoyntingSide) * NormVec(2,:,:,SideID) &
-                   - S(3,:,:,iPoyntingSide) * NormVec(3,:,:,SideID)
+          SIP(:,:) = - S(1,:,:,iPoyntingSide) * NormVec(1,:,:,SideID) &
+                     - S(2,:,:,iPoyntingSide) * NormVec(2,:,:,SideID) &
+                     - S(3,:,:,iPoyntingSide) * NormVec(3,:,:,SideID)
         END IF ! NormVec(PoyntingMainDir,:,:,iPoyntingSide)
-        ! multiplied by surface element and  Gaus Points
+        ! multiplied by surface element and  Gauss Points
         SIP(:,:) = SIP(:,:) * SurfElem(:,:,SideID) * wGPSurf(:,:)
 
         ! total flux through each plane
-        PoyntingIntegral(whichPoyntingPlane(SideID)) = PoyntingIntegral(whichPoyntingPlane(SideID)) + smu0* SUM(SIP(:,:))
+        PoyntingIntegral(SideIDToPoyntingSide(SideID)) = PoyntingIntegral(SideIDToPoyntingSide(SideID)) + smu0* SUM(SIP(:,:))
     END IF ! flip =0
   END DO ! iSides
 END DO ! iElems
 
 #if USE_MPI
-  CALL MPI_REDUCE   (PoyntingIntegral(:) , sumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION ,MPI_SUM, 0, MPI_COMM_WORLD,IERROR)
-  PoyntingIntegral(:) = sumSabs(:)
+  CALL MPI_REDUCE   (PoyntingIntegral(:) , SumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION ,MPI_SUM, 0, MPI_COMM_WORLD,IERROR)
+  PoyntingIntegral(:) = SumSabs(:)
 #endif /*USE_MPI*/
 
 END SUBROUTINE CalcPoyntingIntegral
@@ -500,7 +542,7 @@ DO p = 0,PP_N
 END DO  ! p - PP_N
 
 END SUBROUTINE PoyntingVectorDielectric
-#endif
+
 
 SUBROUTINE GetPoyntingIntPlane()
 !===================================================================================================================================
@@ -508,9 +550,10 @@ SUBROUTINE GetPoyntingIntPlane()
 !> with a defined Poynting vector integral plane.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars       ,ONLY: nPoyntingIntSides,isPoyntingIntSide,nSides,nElems,Face_xGP,whichPoyntingPlane
-USE MOD_Mesh_Vars       ,ONLY: ElemToSide,normvec,PoyntingMainDir
-USE MOD_Analyze_Vars    ,ONLY: PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoyntingInt,S,STEM,PoyntingIntPlaneFactor
+USE MOD_Mesh_Vars       ,ONLY: nSides,nElems,Face_xGP
+USE MOD_Mesh_Vars       ,ONLY: ElemToSide,normvec
+USE MOD_Analyze_Vars    ,ONLY: PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoyntingInt,S,STEM
+USE MOD_Analyze_Vars    ,ONLY: isPoyntingIntSide,SideIDToPoyntingSide,PoyntingMainDir
 USE MOD_ReadInTools     ,ONLY: GETINT,GETREAL
 USE MOD_Dielectric_Vars ,ONLY: DoDielectric,nDielectricElems,DielectricMu,ElemToDielectric,isDielectricInterFace
 USE MOD_Dielectric_Vars ,ONLY: isDielectricFace,PoyntingUseMuR_Inv
@@ -535,6 +578,7 @@ INTEGER,ALLOCATABLE :: sumFaces(:)
 INTEGER             :: sumAllfaces
 LOGICAL             :: CheckDielectricSides
 INTEGER             :: PoyntingNormalDir1,PoyntingNormalDir2
+INTEGER             :: nPoyntingIntSides    !< Sides for the calculation of the Poynting vector integral
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' GET PLANES TO CALCULATE POYNTING VECTOR INTEGRAL ...'
@@ -545,8 +589,8 @@ ALLOCATE(isPoyntingIntSide(1:nSides))
 isPoyntingIntSide = .FALSE.
 
 ! Get the number of Poynting planes and coordinates
-nPoyntingIntPlanes = GETINT('PoyntingVecInt-Planes','0')
-PoyntingMainDir = GETINT('PoyntingMainDir','3') ! default "3" is z-direction
+nPoyntingIntPlanes = GETINT('PoyntingVecInt-Planes')
+PoyntingMainDir = GETINT('PoyntingMainDir') ! default "3" is z-direction
 SELECT CASE (PoyntingMainDir)
   CASE (1) ! poynting vector integral in x-direction
     PoyntingNormalDir1=2
@@ -563,9 +607,9 @@ SELECT CASE (PoyntingMainDir)
     ,'Poynting vector itnegral currently only in x,y,z!')
 END SELECT
 ALLOCATE(PosPoyntingInt(nPoyntingIntPlanes))
-ALLOCATE(whichPoyntingPlane(nSides))
+ALLOCATE(SideIDToPoyntingSide(nSides))
 ALLOCATE(nFaces(nPoyntingIntPlanes))
-whichPoyntingPlane = -1
+SideIDToPoyntingSide = -1
 nFaces(:) = 0
 
 ! Get z-coordinates and factors for every Poynting plane
@@ -573,15 +617,14 @@ DO iPlane=1,nPoyntingIntPlanes
  WRITE(UNIT=index_plane,FMT='(I2.2)') iPlane
  SELECT CASE (PoyntingMainDir)
     CASE (1)
-      PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-x-coord','0.')
+      PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-x-coord')
     CASE (2)
-      PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-y-coord','0.')
+      PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-y-coord')
     CASE (3)
-      PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-z-coord','0.')
+      PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-z-coord')
   END SELECT
-  PoyntingIntPlaneFactor= GETREAL('Plane-'//TRIM(index_plane)//'-factor','1.')
 END DO
-PoyntingIntCoordErr=GETREAL('Plane-Tolerance','1E-5')
+PoyntingIntCoordErr=GETREAL('Plane-Tolerance')
 
 ! Dielectric Sides:
 ! 1.) check if a dielectric region (only permeability, NOT permittivity is important) coincides with a Poynting vector
@@ -616,7 +659,7 @@ DO iPlane = 1, nPoyntingIntPlanes
               IF (diff < PoyntingIntCoordErr) THEN
                 IF (.NOT.isPoyntingIntSide(SideID)) THEN
                   nPoyntingIntSides = nPoyntingIntSides +1
-                  whichPoyntingPlane(SideID) = iPlane
+                  SideIDToPoyntingSide(SideID) = iPlane
                   isPoyntingIntSide(SideID) = .TRUE.
                   nFaces(iPlane) = nFaces(iPlane) + 1
 
@@ -699,13 +742,13 @@ SWRITE(UNIT_stdOut,'(A)') ' ... POYNTING VECTOR INTEGRAL INITIALIZATION DONE.'
 
 END SUBROUTINE GetPoyntingIntPlane
 
+
 SUBROUTINE FinalizePoyntingInt()
 !===================================================================================================================================
 ! Finalize Poynting Integral
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars         ,ONLY:isPoyntingIntSide,whichPoyntingPlane
-USE MOD_Analyze_Vars      ,ONLY:PosPoyntingInt, S, STEM
+USE MOD_Analyze_Vars ,ONLY:PosPoyntingInt,S,STEM,isPoyntingIntSide,SideIDToPoyntingSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -718,11 +761,12 @@ IMPLICIT NONE
 ! DEALLOCATE ALL
 SDEALLOCATE(isPoyntingIntSide)
 SDEALLOCATE(PosPoyntingInt)
-SDEALLOCATE(whichPoyntingPlane)
+SDEALLOCATE(SideIDToPoyntingSide)
 SDEALLOCATE(S)
 SDEALLOCATE(STEM)
 
 END SUBROUTINE FinalizePoyntingInt
+#endif /*PP_nVar>=6*/
 
 
 #if (PP_nVar==8)
@@ -1209,5 +1253,285 @@ IF(MINVAL(Dielectric_MuR_Master_inv).LE.0.0)THEN
 END IF
 END SUBROUTINE SetDielectricFaceProfileForPoynting
 #endif /*(PP_nVar>=6)*/
+
+
+#if USE_HDG
+SUBROUTINE CalculateAverageElectricPotential()
+!===================================================================================================================================
+! Calculation of the average electric potential with its own Prolong to face // check if Gauss-Lobatto or Gauss Points is used is 
+! missing ... ups
+!===================================================================================================================================
+! MODULES
+USE MOD_Mesh_Vars          ,ONLY: nElems, SurfElem
+USE MOD_Mesh_Vars          ,ONLY: ElemToSide
+USE MOD_Analyze_Vars       ,ONLY: isAverageElecPotSide,AverageElectricPotential,AverageElectricPotentialFaces
+USE MOD_Interpolation_Vars ,ONLY: L_Minus,L_Plus,wGPSurf
+USE MOD_DG_Vars            ,ONLY: U,U_master
+#if USE_MPI
+USE MOD_Globals
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER          :: iElem, SideID,ilocSide
+INTEGER          :: p,q,l
+REAL             :: Uface(PP_nVar,0:PP_N,0:PP_N)
+!REAL             :: SIP(0:PP_N,0:PP_N)
+LOGICAL,PARAMETER:: Prolong=.TRUE.
+REAL             :: AverageElectricPotentialProc
+REAL             :: area_loc,integral_loc
+!===================================================================================================================================
+
+!IF(PRESENT(doProlong))THEN
+  !Prolong=doProlong
+!ELSE
+  !Prolong=.TRUE.
+!ENDIF
+
+AverageElectricPotentialProc = 0.
+
+DO iELEM = 1, nElems
+  Do ilocSide = 1, 6
+    IF(ElemToSide(E2S_FLIP,ilocSide,iElem)==0)THEN ! only master sides
+      SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+      IF(.NOT.isAverageElecPotSide(SideID)) CYCLE
+      IF(Prolong)THEN
+#if (PP_NodeType==1) /* for Gauss-points*/
+        SELECT CASE(ilocSide)
+        CASE(XI_MINUS)
+          DO q=0,PP_N
+            DO p=0,PP_N
+              Uface(:,q,p)=U(:,0,p,q,iElem)*L_Minus(0)
+              DO l=1,PP_N
+                ! switch to right hand system
+                Uface(:,q,p)=Uface(:,q,p)+U(:,l,p,q,iElem)*L_Minus(l)
+              END DO ! l
+            END DO ! p
+          END DO ! q
+        CASE(ETA_MINUS)
+          DO q=0,PP_N
+            DO p=0,PP_N
+              Uface(:,p,q)=U(:,p,0,q,iElem)*L_Minus(0)
+              DO l=1,PP_N
+                Uface(:,p,q)=Uface(:,p,q)+U(:,p,l,q,iElem)*L_Minus(l)
+              END DO ! l
+            END DO ! p
+          END DO ! q
+        CASE(ZETA_MINUS)
+          DO q=0,PP_N
+            DO p=0,PP_N
+              Uface(:,q,p)=U(:,p,q,0,iElem)*L_Minus(0)
+              DO l=1,PP_N
+                ! switch to right hand system
+                Uface(:,q,p)=Uface(:,q,p)+U(:,p,q,l,iElem)*L_Minus(l)
+              END DO ! l
+            END DO ! p
+          END DO ! qfirst stuff
+        CASE(XI_PLUS)
+          DO q=0,PP_N
+            DO p=0,PP_N
+              Uface(:,p,q)=U(:,0,p,q,iElem)*L_Plus(0)
+              DO l=1,PP_N
+                Uface(:,p,q)=Uface(:,p,q)+U(:,l,p,q,iElem)*L_Plus(l)
+              END DO ! l
+            END DO ! p
+          END DO ! q
+        CASE(ETA_PLUS)
+          DO q=0,PP_N
+            DO p=0,PP_N
+              Uface(:,PP_N-p,q)=U(:,p,0,q,iElem)*L_Plus(0)
+              DO l=1,PP_N
+                ! switch to right hand system
+                Uface(:,PP_N-p,q)=Uface(:,PP_N-p,q)+U(:,p,l,q,iElem)*L_Plus(l)
+              END DO ! l
+            END DO ! p
+          END DO ! q
+        CASE(ZETA_PLUS)
+          DO q=0,PP_N
+            DO p=0,PP_N
+              Uface(:,p,q)=U(:,p,q,0,iElem)*L_Plus(0)
+              DO l=1,PP_N
+                Uface(:,p,q)=Uface(:,p,q)+U(:,p,q,l,iElem)*L_Plus(l)
+              END DO ! l
+            END DO ! p
+          END DO ! q
+        END SELECT
+#else /* for Gauss-Lobatto-points*/
+        SELECT CASE(ilocSide)
+        CASE(XI_MINUS)
+          DO q=0,PP_N
+            DO p=0,PP_N
+              Uface(:,q,p)=U(:,0,p,q,iElem)
+            END DO ! p
+          END DO ! q
+        CASE(ETA_MINUS)
+          Uface(:,:,:)=U(:,:,0,:,iElem)
+        CASE(ZETA_MINUS)
+          DO q=0,PP_N
+            DO p=0,PP_N
+              Uface(:,q,p)=U(:,p,q,0,iElem)
+            END DO ! p
+          END DO ! q
+        CASE(XI_PLUS)
+          Uface(:,:,:)=U(:,PP_N,:,:,iElem)
+        CASE(ETA_PLUS)
+          DO q=0,PP_N
+            DO p=0,PP_N
+              Uface(:,PP_N-p,q)=U(:,p,PP_N,q,iElem)
+            END DO ! p
+          END DO ! q
+        CASE(ZETA_PLUS)
+          DO q=0,PP_N
+            DO p=0,PP_N
+              Uface(:,p,q)=U(:,p,q,PP_N,iElem)
+            END DO ! p
+          END DO ! q
+        END SELECT
+#endif
+        ELSE ! no prolonge to face
+          Uface=U_master(:,:,:,SideID)
+        END IF ! Prolong
+
+        ! multiplied by surface element and  Gauss Points
+        area_loc     = SUM(SurfElem(:,:,SideID) * wGPSurf(:,:))
+        integral_loc = SUM(Uface(1,:,:) * SurfElem(:,:,SideID) * wGPSurf(:,:))
+        AverageElectricPotentialProc = AverageElectricPotentialProc + integral_loc/area_loc
+    END IF ! flip =0
+  END DO ! iSides
+END DO ! iElems
+!AverageElectricPotentialProc = AverageElectricPotentialProc / (1e-4 * 1.28e-2)
+
+#if USE_MPI
+  CALL MPI_ALLREDUCE(AverageElectricPotentialProc , AverageElectricPotential , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_WORLD , IERROR)
+#else
+  AverageElectricPotential = AverageElectricPotentialProc
+#endif /*USE_MPI*/
+
+! Get global average value
+AverageElectricPotential = AverageElectricPotential / AverageElectricPotentialFaces
+
+END SUBROUTINE CalculateAverageElectricPotential
+
+
+SUBROUTINE GetAverageElectricPotentialPlane()
+!===================================================================================================================================
+!> Initializes Poynting vector integral variables and check every side: set "isPoyntingIntSide(SideID) = .TRUE." if a side coincides
+!> with a defined Poynting vector integral plane.
+!===================================================================================================================================
+! MODULES
+USE MOD_Mesh_Vars    ,ONLY: nSides,nElems,Face_xGP
+USE MOD_Mesh_Vars    ,ONLY: ElemToSide,normvec
+USE MOD_Analyze_Vars ,ONLY: isAverageElecPotSide,AverageElectricPotentialCoordErr,PosAverageElectricPotential
+USE MOD_ReadInTools  ,ONLY: GETINT,GETREAL
+USE MOD_Globals      ,ONLY: abort
+#if USE_MPI
+USE MOD_Globals
+#endif
+USE MOD_Analyze_Vars ,ONLY: AverageElectricPotential,AverageElectricPotentialFaces
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: iElem, iSide, SideID
+INTEGER             :: nAverageElecPotSides
+REAL                :: diff
+INTEGER             :: p,q
+INTEGER             :: sumAllfaces
+!===================================================================================================================================
+
+AverageElectricPotentialCoordErr = GETREAL('AvgPotential-Plane-Tolerance')
+SWRITE(UNIT_stdOut,'(A)') ' GET PLANE TO CALCULATE AVERAGE ELECTRIC POTENTIAL ...'
+
+! Initialize number of Poynting plane sides zero and set all sides to false
+ALLOCATE(isAverageElecPotSide(1:nSides))
+isAverageElecPotSide = .FALSE.
+
+! Counter
+AverageElectricPotential=0. ! initialize
+nAverageElecPotSides = 0
+
+! Loop over all elements
+DO iElem=1,nElems
+  ! Loop over all local sides
+  DO iSide=1,6
+    IF(ElemToSide(E2S_FLIP,iSide,iElem)==0)THEN ! only master sides
+      SideID=ElemToSide(E2S_SIDE_ID,iSide,iElem)
+      ASSOCIATE( AverageElecPotNormalDir1 => 2 ,&
+                 AverageElecPotNormalDir2 => 3 ,&
+                 AverageElecPotMainDir    => 1 )
+        ! First search only planes with normal vector parallel to direction of "MainDir"
+        IF((     NormVec(AverageElecPotNormalDir1,0,0,SideID)  < AverageElectricPotentialCoordErr) .AND. &
+           (     NormVec(AverageElecPotNormalDir2,0,0,SideID)  < AverageElectricPotentialCoordErr) .AND. &
+           ( ABS(NormVec(AverageElecPotMainDir   ,0,0,SideID)) > AverageElectricPotentialCoordErr))THEN
+        ! Loop over all Points on Face
+          DO q=0,PP_N
+            DO p=0,PP_N
+              diff = ABS(Face_xGP(AverageElecPotMainDir,p,q,SideID) - PosAverageElectricPotential)
+              IF (diff < AverageElectricPotentialCoordErr) THEN
+                IF (.NOT.isAverageElecPotSide(SideID)) THEN
+                  nAverageElecPotSides = nAverageElecPotSides +1
+                  isAverageElecPotSide(SideID) = .TRUE.
+                END IF
+              END IF ! diff < eps
+            END DO !p
+          END DO !q
+        END IF
+      END ASSOCIATE
+    END IF ! flip = 0 master side
+  END DO ! iSides
+END DO !iElem=1,nElems
+
+#if USE_MPI
+CALL MPI_ALLREDUCE(nAverageElecPotSides , AverageElectricPotentialFaces , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
+#else
+AverageElectricPotentialFaces=nAverageElecPotSides
+#endif /*USE_MPI*/
+SWRITE(UNIT_stdOut,'(A,I10,A)') 'A total of',AverageElectricPotentialFaces,' surfaces for the average electric potential calculation are found.'
+SWRITE(UNIT_stdOut,'(A)') ' ... AVERAGE ELECTRIC POTENTIAL INITIALIZATION DONE.'
+#if USE_MPI
+IF(MPIRoot)THEN
+#endif /*USE_MPI*/
+  IF(AverageElectricPotentialFaces.EQ.0)THEN
+    SWRITE(UNIT_stdOut,*) 'ERROR with: PosAverageElectricPotential = ',PosAverageElectricPotential
+    CALL abort(&
+    __STAMP__&
+    ,'Found zero faces for averaging the electric potentialPlease make sure \nthat the x-coordinate coincides with element'//&
+    ' interfaces. Planes cutting through elements in currently not implemented.')
+  END IF ! AverageElectricPotentialFaces.EQ.0
+#if USE_MPI
+END IF ! MPIRoot
+#endif /*USE_MPI*/
+
+END SUBROUTINE GetAverageElectricPotentialPlane
+
+
+SUBROUTINE FinalizeAverageElectricPotential()
+!===================================================================================================================================
+! Finalize Poynting Integral
+!===================================================================================================================================
+! MODULES
+USE MOD_Analyze_Vars ,ONLY:isAverageElecPotSide
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+! DEALLOCATE ALL
+SDEALLOCATE(isAverageElecPotSide)
+END SUBROUTINE FinalizeAverageElectricPotential
+#endif /*USE_HDG*/
 
 END MODULE MOD_AnalyzeField

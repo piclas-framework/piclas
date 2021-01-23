@@ -220,11 +220,11 @@ INTEGER                           :: CNSideID
     IF(PartID.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(110("-"))')
       WRITE(UNIT_stdout,'(A,I0)')      '     | Output of planar face constants for Side: ',SideID
-      WRITE(UNIT_stdout,'(A,3(X,G0))') '     | SideNormVec  : ',SideNormVec(1:3,SideID)
-      WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Beziercontrolpoint1: ',BezierControlPoints3D(:,0,0,SideID)
-      WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Beziercontrolpoint2: ',BezierControlPoints3D(:,NGeo,0,SideID)
-      WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Beziercontrolpoint3: ',BezierControlPoints3D(:,0,NGeo,SideID)
-      WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Beziercontrolpoint4: ',BezierControlPoints3D(:,NGeo,NGeo,SideID)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | SideNormVec  : ',SideNormVec(1:3,SideID)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | Beziercontrolpoint1: ',BezierControlPoints3D(:,0,0,SideID)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | Beziercontrolpoint2: ',BezierControlPoints3D(:,NGeo,0,SideID)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | Beziercontrolpoint3: ',BezierControlPoints3D(:,0,NGeo,SideID)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | Beziercontrolpoint4: ',BezierControlPoints3D(:,NGeo,NGeo,SideID)
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
@@ -639,8 +639,8 @@ SELECT CASE(nRoot)
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' PartID:             ', PartID
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global SideID:      ', SideID
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global ElemID:      ', SideInfo_Shared(SIDE_ELEMID,SideID)
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.17E3))') ' LastPartPos:   ', LastPartPos(1:3,PartID)
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.17E3))') ' PartPos:       ', PartState  (1:3,PartID)
+        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' LastPartPos:   ', LastPartPos(1:3,PartID)
+        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' PartPos:       ', PartState  (1:3,PartID)
         CALL ABORT(__STAMP__,'Invalid intersection with bilinear side!',SideID)
       END IF
 
@@ -709,8 +709,8 @@ SELECT CASE(nRoot)
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' PartID:             ', PartID
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global SideID:      ', SideID
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global ElemID:      ', SideInfo_Shared(SIDE_ELEMID,SideID)
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.17E3))') ' LastPartPos:   ', LastPartPos(1:3,PartID)
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.17E3))') ' PartPos:       ', PartState  (1:3,PartID)
+        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' LastPartPos:   ', LastPartPos(1:3,PartID)
+        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' PartPos:       ', PartState  (1:3,PartID)
         CALL ABORT(__STAMP__,'Invalid intersection with bilinear side!',SideID)
       END IF
 
@@ -766,8 +766,8 @@ SELECT CASE(nRoot)
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' PartID:             ', PartID
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global SideID:      ', SideID
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global ElemID:      ', SideInfo_Shared(SIDE_ELEMID,SideID)
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.17E3))') ' LastPartPos:   ', LastPartPos(1:3,PartID)
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.17E3))') ' PartPos:       ', PartState  (1:3,PartID)
+        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' LastPartPos:   ', LastPartPos(1:3,PartID)
+        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' PartPos:       ', PartState  (1:3,PartID)
         CALL ABORT(__STAMP__,'Invalid intersection with bilinear side!',SideID)
       END IF
 
@@ -2023,11 +2023,11 @@ IF((alphaNorm.LE.1.0).AND.(alphaNorm.GT.-epsilontol))THEN
     IPWRITE(UNIT_stdout,'(I0,A,I0)') ' SideID ', SideID
     IPWRITE(UNIT_stdout,'(I0,A,E24.12)') ' BezierClipTolerance  ', BezierClipTolerance
     IPWRITE(UNIT_stdout,'(I0,A,E24.12)') ' BezierClipLocalTol ', BezierClipLocalTol
-    IPWRITE(UNIT_stdout,'(I0,A,E18.12,x,E18.12)') ' critical error! ',alpha,alphaNorm
-    IPWRITE(UNIT_stdout,'(I0,A,E18.12,x,E18.12)') ' critical error! ',alpha,alphaNorm
+    IPWRITE(UNIT_stdout,'(I0,A,E18.12,1X,E18.12)') ' critical error! ',alpha,alphaNorm
+    IPWRITE(UNIT_stdout,'(I0,A,E18.12,1X,E18.12)') ' critical error! ',alpha,alphaNorm
     IPWRITE(UNIT_stdout,'(I0,A)') ' locAlpha, locXi,locEta ' !/ lengthPartTrajectory '
     DO iInter=1,nInterSections
-      WRITE(UNIT_stdout,'(I0,3(X,E18.12))') iInter,locAlpha(iInter),locXi(iInter),locEta(iInter)
+      WRITE(UNIT_stdout,'(I0,3(1X,E18.12))') iInter,locAlpha(iInter),locXi(iInter),locEta(iInter)
     END DO
     STOP
     RETURN
