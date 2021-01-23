@@ -92,6 +92,7 @@ USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
+USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,MPI_COMM_LEADERS_SHARED
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -102,7 +103,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shar
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: SideID, iLocSide, iNode, BCSideID, locElemID, CNElemID
-REAL                            :: radius, triarea(2)
+REAL                            :: radius, triarea(2), CNVolume
 LOGICAL                         :: SymmetryBCExists
 INTEGER                         :: firstElem,lastElem
 !===================================================================================================================================
@@ -187,8 +188,17 @@ LocalVolume = SUM(ElemVolume_Shared(FirstElem:LastElem))
 CALL MPI_WIN_SYNC(ElemVolume_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+! Compute-node mesh volume
+CNVolume = SUM(ElemVolume_Shared(:))
+IF (myComputeNodeRank.EQ.0) THEN
+  ! All-reduce between node leaders
+  CALL MPI_ALLREDUCE(CNVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,IERROR)
+END IF
+! Broadcast from node leaders to other processors on the same node
+CALL MPI_BCAST(MeshVolume,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iERROR)
+#else
+MeshVolume = LocalVolume
 #endif /*USE_MPI*/
-MeshVolume = SUM(ElemVolume_Shared)
 
 END SUBROUTINE DSMC_2D_InitVolumes
 

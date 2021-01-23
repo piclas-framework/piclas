@@ -721,7 +721,7 @@ IF (myComputeNodeRank.EQ.0) THEN
     IF (iProc.EQ.myLeaderGroupRank) CYCLE
 
     IF (CNShapeMapping(iProc)%nRecvShapeElems.NE.0) THEN
-      CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(RecvRequestCN(iProc),MPIStatus,IERROR)
       IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     END IF
 

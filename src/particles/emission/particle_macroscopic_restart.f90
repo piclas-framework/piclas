@@ -46,6 +46,7 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Particle_Localization   ,ONLY: PartInElemCheck
 USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemEpsOneCell
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Vars           ,ONLY: Species, PDM, nSpecies, PartState, Symmetry, VarTimeStep
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared
@@ -101,7 +102,7 @@ DO iElem = 1, nElems
               RandomPos(3) = 0.0
               IF (DoRefMapping) THEN
                 CALL GetPositionInRefElem(RandomPos,RefPos,GlobalElemID)
-                IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(iElem)) InsideFlag=.TRUE.
+                IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(GetCNElemID(GlobalElemID))) InsideFlag=.TRUE.
               ELSE
                 IF (TriaTracking) THEN
                   CALL ParticleInsideQuad3D(RandomPos,GlobalElemID,InsideFlag,Det)
@@ -137,7 +138,7 @@ DO iElem = 1, nElems
               RandomPos(3) = 0.0
               IF (DoRefMapping) THEN
                 CALL GetPositionInRefElem(RandomPos,RefPos,GlobalElemID)
-                IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(iElem)) InsideFlag=.TRUE.
+                IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(GetCNElemID(GlobalElemID))) InsideFlag=.TRUE.
               ELSE
                 IF (TriaTracking) THEN
                   CALL ParticleInsideQuad3D(RandomPos,GlobalElemID,InsideFlag,Det)
@@ -171,7 +172,7 @@ DO iElem = 1, nElems
           RandomPos(3) = 0.0
           IF (DoRefMapping) THEN
             CALL GetPositionInRefElem(RandomPos,RefPos,GlobalElemID)
-            IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(iElem)) InsideFlag=.TRUE.
+            IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(GetCNElemID(GlobalElemID))) InsideFlag=.TRUE.
           ELSE
             IF (TriaTracking) THEN
               CALL ParticleInsideQuad3D(RandomPos,GlobalElemID,InsideFlag,Det)
@@ -206,7 +207,7 @@ DO iElem = 1, nElems
           RandomPos(3) = 0.0
           IF (DoRefMapping) THEN
             CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-            IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(iElem)) InsideFlag=.TRUE.
+            IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(GetCNElemID(GlobalElemID))) InsideFlag=.TRUE.
           ELSE
             IF (TriaTracking) THEN
               CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
@@ -240,7 +241,7 @@ DO iElem = 1, nElems
           RandomPos(1:3) = Bounds(1,1:3) + RandomPos(1:3)*(Bounds(2,1:3)-Bounds(1,1:3))
           IF (DoRefMapping) THEN
             CALL GetPositionInRefElem(RandomPos,RefPos,GlobalElemID)
-            IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(iElem)) InsideFlag=.TRUE.
+            IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(GetCNElemID(GlobalElemID))) InsideFlag=.TRUE.
           ELSE
             IF (TriaTracking) THEN
               CALL ParticleInsideQuad3D(RandomPos,GlobalElemID,InsideFlag,Det)
