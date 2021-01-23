@@ -3172,8 +3172,8 @@ END IF
 CALL MPI_WIN_SYNC(ElemsJ_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem = 1
 lastElem  = nElems
@@ -3249,7 +3249,7 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 maxScaleJ = 0.
 DO iElem = firstElem,lastElem
   scaleJ = MAXVAL(ElemsJ(:,:,:,iElem))/MINVAL(ElemsJ(:,:,:,iElem))
-  ElemepsOneCell(iElem) = 1.0 + SQRT(3.0*scaleJ*RefMappingEps)
+  ElemEpsOneCell(iElem) = 1.0 + SQRT(3.0*scaleJ*RefMappingEps)
   maxScaleJ  =MAX(scaleJ,maxScaleJ)
 END DO ! iElem = firstElem,lastElem
 

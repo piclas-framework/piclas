@@ -465,7 +465,7 @@ USE MOD_TimeDisc_Vars      ,ONLY: iter
 IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)               :: N_In
-INTEGER,INTENT(IN)               :: ElemID                   !> ElemID on compute node, not global ID
+INTEGER,INTENT(IN)               :: ElemID                   !> global ID
 INTEGER,INTENT(IN)               :: Mode
 INTEGER,INTENT(IN),OPTIONAL      :: PartID
 REAL,INTENT(IN)                  :: X_in(3)                  !> position in physical space
@@ -540,7 +540,7 @@ DO WHILE((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
       IPWRITE(UNIT_stdOut,*) ' Newton-Iter ', NewtonIter
       IPWRITE(UNIT_stdOut,*) ' xi          ', xi(1:3)
       IPWRITE(UNIT_stdOut,*) ' PartPos     ', X_in
-      IPWRITE(UNIT_stdOut,*) ' ElemID      ', ElemID
+      IPWRITE(UNIT_stdOut,*) ' GlobalElemID', ElemID
     CALL abort(&
 __STAMP__&
 , 'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sdetJac)
@@ -598,8 +598,8 @@ __STAMP__&
       IPWRITE(UNIT_stdOut,*) ' Newton-Iter      ', NewtonIter
       IPWRITE(UNIT_stdOut,*) ' xi               ', xi(1:3)
       IPWRITE(UNIT_stdOut,*) ' PartPos          ', X_in
-      IPWRITE(UNIT_stdOut,*) ' ElemID           ', ElemID
-      IPWRITE(UNIT_stdOut,*) ' ElemID+offSetElem', ElemID+offSetElem
+      IPWRITE(UNIT_stdOut,*) ' GlobalElemID     ', ElemID
+      !IPWRITE(UNIT_stdOut,*) ' ElemID+offSetElem', ElemID+offSetElem
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
 #if defined(IMPA)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartisImplicit(PartID)
@@ -610,7 +610,7 @@ __STAMP__&
 #endif /*IMPA or ROS*/
         CALL abort(&
   __STAMP__&
-  ,'Particle Not inSide of Element, ElemID,',ElemID)
+  ,'Particle Not inSide of Element, GlobalElemID,',ElemID)
     ELSE
       EXIT
     END IF

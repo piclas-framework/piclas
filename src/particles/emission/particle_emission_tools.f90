@@ -632,13 +632,13 @@ REAL                 :: NormalIC(1:3), RadiusIC, RadiusICGyro, Alpha, GyroVecDir
   Vec3D(1:3) = (tan_vec(1:3) + n_vec(1:3)) * VeloIC
 
   IF (ABS(SQRT(Vec3D(1)*Vec3D(1) + Vec3D(2)*Vec3D(2))- VeloIC) .GT. 10.) THEN
-    SWRITE(*,'(A,3(E21.14,X))') 'Velocity=', PartState(4:6,iPart)
+    SWRITE(*,'(A,3(E21.14,1X))') 'Velocity=', PartState(4:6,iPart)
     CALL abort(&
     __STAMP__&
     ,'ERROR in gyrotron_circle spaceIC!',iPart)
   END If
-  IF (Vec3D(1).NE.Vec3D(1).OR.Vec3D(2).NE.Vec3D(2).OR.Vec3D(3).NE.Vec3D(3)) THEN
-    SWRITE(*,'(A,3(E21.14,X))') 'WARNING:! NaN: Velocity=', Vec3D(1:3)
+  IF(ISNAN(VECNORM(Vec3D)))THEN
+    SWRITE(*,'(A,3(E21.14,1X))') 'WARNING:! NaN: Velocity=', Vec3D(1:3)
   END If
 
 END SUBROUTINE CalcVelocity_gyrotroncircle
@@ -949,6 +949,7 @@ REAL                             :: RefPos(1:3)
 INTEGER                          :: CellChunkSize(1+offsetElem:nElems+offsetElem)
 INTEGER                          :: chunkSize_tmp, ParticleIndexNbr
 REAL                             :: adaptTimestep
+INTEGER                          :: CNElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF (UseExactPartNum) THEN
     IF(chunkSize.GE.PDM%maxParticleNumber) THEN
@@ -973,19 +974,20 @@ __STAMP__,&
   ichunkSize = 1
   ParticleIndexNbr = 1
   DO iElem = 1+offsetElem, nElems+offsetElem
+    CNElemID = GetCNElemID(iElem)
     ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
       IF (UseExactPartNum) THEN
         nPart = CellChunkSize(iElem)
       ELSE
         IF(RadialWeighting%DoRadialWeighting) THEN
-          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,GetCNElemID(iElem)), iSpec)
+          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec)
         END IF
         CALL RANDOM_NUMBER(iRan)
         IF(VarTimeStep%UseVariableTimeStep) THEN
-          adaptTimestep = CalcVarTimeStep(ElemMidPoint_Shared(1,GetCNElemID(iElem)), ElemMidPoint_Shared(2,GetCNElemID(iElem)), iElem)
-          nPart = INT(PartDens / adaptTimestep * ElemVolume_Shared(GetCNElemID(iElem)) + iRan)
+          adaptTimestep = CalcVarTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), iElem)
+          nPart = INT(PartDens / adaptTimestep * ElemVolume_Shared(CNElemID) + iRan)
         ELSE
-          nPart = INT(PartDens * ElemVolume_Shared(GetCNElemID(iElem)) + iRan)
+          nPart = INT(PartDens * ElemVolume_Shared(CNElemID) + iRan)
         END IF
       END IF
       DO iPart = 1, nPart
@@ -1013,7 +1015,7 @@ __STAMP__,&
 
               CASE(REFMAPPING)
                 CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-                IF (MAXVAL(ABS(RefPos)).LE.ElemEpsOneCell(iElem)) InsideFlag=.TRUE.
+                IF (MAXVAL(ABS(RefPos)).LE.ElemEpsOneCell(CNElemID)) InsideFlag=.TRUE.
             END SELECT
           END DO
           PartState(1:3,ParticleIndexNbr) = RandomPos(1:3)

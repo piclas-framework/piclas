@@ -162,7 +162,7 @@ firstElem = offsetElem+1
 lastElem  = offsetElem+nElems
 
 IF(StringBeginsWith(DepositionType,'shape_function'))THEN
-  ALLOCATE(FlagShapeElem(1:nComputeNodeElems))
+  ALLOCATE(FlagShapeElem(1:nComputeNodeTotalElems))
   FlagShapeElem = .FALSE.
 END IF
 
@@ -778,7 +778,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     END DO
 
     ! Second stage of communication, identify and send inter-compute-node information
-    IF (nLeaderGroupProcs.EQ.1) THEN
+    IF (nLeaderGroupProcs.GT.1) THEN
       DEALLOCATE(RecvRequest)
       ALLOCATE(CNShapeMapping(0:nLeaderGroupProcs-1), &
                SendRequest   (0:nLeaderGroupProcs-1), &
@@ -872,7 +872,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
 
         IF (CNShapeMapping(iProc)%nSendShapeElems.EQ.0) CYCLE
 
-        ALLOCATE(CNShapeMapping(iProc)%SendShapeElemID(CNShapeMapping(iProc)%nSendShapeElems))
+        !ALLOCATE(CNShapeMapping(iProc)%SendShapeElemID(CNShapeMapping(iProc)%nSendShapeElems))
         ALLOCATE(CNShapeMapping(iProc)%SendBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,CNShapeMapping(iProc)%nSendShapeElems))
 
         CALL MPI_ISEND( CNShapeMapping(iProc)%SendShapeElemID   &

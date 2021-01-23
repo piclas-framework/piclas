@@ -777,8 +777,7 @@ SUBROUTINE InitElemVolumes()
 ! Calculate Element volumes for later use in particle routines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals            ,ONLY: UNIT_StdOut
-!USE MOD_Globals            ,ONLY: ,MPI_COMM_WORLD,ABORT
+USE MOD_Globals            ,ONLY: UNIT_StdOut,myrank
 USE MOD_PreProc
 USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem,sJ
@@ -789,7 +788,7 @@ USE MOD_ReadInTools
 USE MPI
 USE MOD_Globals            ,ONLY: IERROR,MPIRoot
 USE MOD_MPI_Shared!        ,ONLY: Allocate_Shared
-USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED,myComputeNodeRank
+USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED,myComputeNodeRank,MPI_COMM_LEADERS_SHARED
 USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems,offsetComputeNodeElem
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
 #endif /*USE_MPI*/
@@ -801,10 +800,11 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Wi
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem
+INTEGER           :: iElem,CNElemID
 INTEGER           :: i,j,k
 !INTEGER           :: ALLOCSTAT
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+REAL              :: CNVolume                       ! Total CN volume
 INTEGER           :: offsetElemCNProc
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
@@ -844,13 +844,14 @@ ElemCharLength_Shared(:) = 0.
 
 ! Calculate element volumes and characteristic lengths
 DO iElem = 1,nElems
+  CNElemID=iElem+offsetElemCNProc
   !--- Calculate and save volume of element iElem
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    ElemVolume_Shared(iElem+offsetElemCNProc) = ElemVolume_Shared(iElem+offsetElemCNProc) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
+    ElemVolume_Shared(CNElemID) = ElemVolume_Shared(CNElemID) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
   END DO; END DO; END DO
   !---- Calculate characteristic cell length: V^(1/3)
-  ElemCharLength_Shared(iElem+offsetElemCNProc) = ElemVolume_Shared(iElem+offsetElemCNProc)**(1./3.)
+  ElemCharLength_Shared(CNElemID) = ElemVolume_Shared(CNElemID)**(1./3.)
 END DO
 
 #if USE_MPI && defined(PARTICLES)
@@ -859,13 +860,21 @@ CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif /*USE_MPI && defined(PARTICLES)*/
 
-
+! Proc-local mesh volume
 LocalVolume = SUM(ElemVolume_Shared(offsetElemCNProc+1:offsetElemCNProc+nElems))
 
 #if USE_MPI
 #ifdef PARTICLES
-MeshVolume = SUM(ElemVolume_Shared(:))
+! Compute-node mesh volume
+CNVolume = SUM(ElemVolume_Shared(:))
+IF (myComputeNodeRank.EQ.0) THEN
+  ! All-reduce between node leaders
+  CALL MPI_ALLREDUCE(CNVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,IERROR)
+END IF
+! Broadcast from node leaders to other processors on the same node
+CALL MPI_BCAST(MeshVolume,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iERROR)
 #else
+! In this case, no shared array is created and all arrays are processor-local
 CALL MPI_ALLREDUCE(LocalVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
 #endif /*PARTICLES*/
 #else

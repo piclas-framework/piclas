@@ -1733,7 +1733,8 @@ PartTrajectory       = PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 lengthPartTrajectory = VECNORM(PartTrajectory(1:3))
 
 ! Check if the particle moved at all. If not, tracking is done
-IF (.NOT.PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo(ElemID))) THEN
+CNElemID = GetCNElemID(ElemID)
+IF (.NOT.PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo(CNElemID))) THEN
   PEM%GlobalElemID(PartID) = ElemID
   PartisDone               = .TRUE.
   RETURN
@@ -1882,7 +1883,7 @@ DO WHILE(DoTracing)
                                    ,ElemID,reflected)
 
         ! particle moved to a new element in boundary interaction
-        IF(ElemID.NE.OldElemID )THEN
+        IF(ElemID.NE.OldElemID)THEN
           ! Try to recursively calculate the intersection 1000 times. Threshold might be changed...
           IF (iCount.GE.1000 .AND. MOD(iCount,1000).EQ.0) THEN
             IPWRITE(*,'(I4,A,I0,A,3(1X,I0))') ' WARNING: proc has called BCTracking ',iCount &
