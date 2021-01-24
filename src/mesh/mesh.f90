@@ -777,7 +777,7 @@ SUBROUTINE InitElemVolumes()
 ! Calculate Element volumes for later use in particle routines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals            ,ONLY: UNIT_StdOut,myrank
+USE MOD_Globals            ,ONLY: UNIT_StdOut
 USE MOD_PreProc
 USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem,sJ

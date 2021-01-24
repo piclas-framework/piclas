@@ -453,7 +453,6 @@ USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
 USE MOD_Particle_Mesh_Vars ,ONLY: RefMappingEps
-USE MOD_Mesh_Vars          ,ONLY: offsetElem
 #if defined(IMPA)
 USE MOD_Particle_Vars      ,ONLY: PartIsImplicit
 #endif

@@ -1320,7 +1320,6 @@ USE MOD_Particle_Mesh_Vars,     ONLY:GEO
 #if !(USE_HDG)
 USE MOD_CalcTimeStep,           ONLY:CalcTimeStep
 #endif /*USE_HDG*/
-USE MOD_Particle_MPI_Vars,      ONLY:halo_eps
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1496,7 +1495,7 @@ DO iSpec=1,nSpecies
       zlen=Species(iSpec)%Init(iInit)%RadiusIC * &
            SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
       IF(Species(iSpec)%Init(iInit)%ParticleNumber.NE.0)THEN
-        lineVector(1:3)=(/0.,0.,Species(iSpec)%Init(iInit)%CuboidHeightIC/)
+        lineVector(1:3)=(/0.,0.,Species(iSpec)%Init(iInit)%CylinderHeightIC/)
       ELSE
 #if !(USE_HDG)
         dt = CALCTIMESTEP()

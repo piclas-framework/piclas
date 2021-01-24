@@ -2019,9 +2019,7 @@ SUBROUTINE SetParticlePositionLandmarkNeutralization(FractNbr,iInit,chunkSize,pa
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
-USE MOD_Particle_Vars      ,ONLY: PartPosLandmark,NbrOfParticleLandmarkMax
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2033,7 +2031,6 @@ INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
 REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                    :: Particle_pos(3)
 INTEGER                 :: i
 REAL                    :: RandVal
 !===================================================================================================================================

@@ -3106,17 +3106,16 @@ SUBROUTINE BuildEpsOneCell()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_ChangeBasis              ,ONLY: ChangeBasis3D
-USE MOD_Interpolation            ,ONLY: GetVandermonde
-USE MOD_Interpolation_Vars       ,ONLY: NodeTypeCL,NodeType
-USE MOD_Mesh_Vars                ,ONLY: NGeo,NGeoRef
-USE MOD_Mesh_Vars                ,ONLY: sJ
-USE MOD_Mesh_Vars                ,ONLY: nElems
-USE MOD_Particle_Mesh_Vars       ,ONLY: nComputeNodeElems
-USE MOD_Particle_Mesh_Vars       ,ONLY: ElemsJ,ElemEpsOneCell
-USE MOD_Particle_Mesh_Vars       ,ONLY: RefMappingEps
-USE MOD_Mesh_Tools               ,ONLY: GetGlobalElemID
-USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
+USE MOD_Interpolation          ,ONLY: GetVandermonde
+USE MOD_Interpolation_Vars     ,ONLY: NodeTypeCL,NodeType
+USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoRef
+USE MOD_Mesh_Vars              ,ONLY: sJ
+USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemsJ,ElemEpsOneCell
+USE MOD_Particle_Mesh_Vars     ,ONLY: RefMappingEps
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 #if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoRef
@@ -3127,6 +3126,8 @@ USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars     ,ONLY: dXCL_NGeo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemsJ_Shared,ElemEpsOneCell_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemsJ_Shared_Win,ElemEpsOneCell_Shared_Win
+#else
+USE MOD_Particle_Mesh_Vars     ,ONLY: nComputeNodeElems
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
