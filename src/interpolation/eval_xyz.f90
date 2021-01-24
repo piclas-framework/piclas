@@ -457,7 +457,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: RefMappingEps
 USE MOD_Particle_Vars      ,ONLY: PartIsImplicit
 #endif
 #if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Vars      ,ONLY: PEM,LastPartPos
+USE MOD_Particle_Vars      ,ONLY: LastPartPos
 #endif /*IMPA or ROS*/
 USE MOD_TimeDisc_Vars      ,ONLY: iter
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -598,15 +598,11 @@ __STAMP__&
       IPWRITE(UNIT_stdOut,*) ' xi               ', xi(1:3)
       IPWRITE(UNIT_stdOut,*) ' PartPos          ', X_in
       IPWRITE(UNIT_stdOut,*) ' GlobalElemID     ', ElemID
-      !IPWRITE(UNIT_stdOut,*) ' ElemID+offSetElem', ElemID+offSetElem
+      IPWRITE(UNIT_stdOut,*) ' LastPartPos      ', LastPartPos
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
 #if defined(IMPA)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartisImplicit(PartID)
 #endif
-#if defined(IMPA) || defined(ROS)
-      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' last?', LastPartPos(1:3,PartID)
-      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' ElemID-N', PEM%GlobalElemID(PartID)+offSetElem
-#endif /*IMPA or ROS*/
         CALL abort(&
   __STAMP__&
   ,'Particle Not inSide of Element, GlobalElemID,',ElemID)
