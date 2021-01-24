@@ -99,7 +99,6 @@ USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c
 #if ! (USE_HDG)
 USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
 USE MOD_CalcTimeStep           ,ONLY: CalcTimeStep
-USE MOD_TimeDisc_Vars          ,ONLY: time
 #endif /*USE_HDG*/
 #if USE_MPI
 USE MOD_MPI_Shared_Vars
@@ -467,6 +466,7 @@ ELSE
     END IF
   END DO
   ALLOCATE(offsetCNHalo2GlobalElem(1:nHaloElems))
+  offsetCNHalo2GlobalElem=-1
   nHaloElems = 0
   DO iElem = 1, nGlobalElems
     IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.2) THEN
