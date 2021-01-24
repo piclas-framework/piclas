@@ -456,9 +456,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: RefMappingEps
 #if defined(IMPA)
 USE MOD_Particle_Vars      ,ONLY: PartIsImplicit
 #endif
-#if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Vars      ,ONLY: LastPartPos
-#endif /*IMPA or ROS*/
 USE MOD_TimeDisc_Vars      ,ONLY: iter
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -601,7 +599,7 @@ __STAMP__&
       IPWRITE(UNIT_stdOut,*) ' LastPartPos      ', LastPartPos
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
 #if defined(IMPA)
-      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartisImplicit(PartID)
+      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartIsImplicit(PartID)
 #endif
         CALL abort(&
   __STAMP__&
