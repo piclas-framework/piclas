@@ -12,7 +12,7 @@ before_script:
       echo " PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE\nSplitting shared memory domains on processor-level!";
       export PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE;
     else 
-      echo "Set variable DO_CORE_SPLIT=T to force core-level shared memory splitting for all regression tests";
+      echo "Splitting shared memory domains on node-level! Set variable DO_CORE_SPLIT=T to force core-level shared memory splitting for all regression tests.";
     fi
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stages
