@@ -103,8 +103,9 @@ stages:
       - build_maxwell
     policy: pull
   allow_failure: true
-  only:
-    - pushes
+  rules:
+    - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
 
 .template: &defaults_poisson
   tags:
@@ -123,8 +124,9 @@ stages:
       - build_poisson_debug
     policy: pull
   allow_failure: true
-  only:
-    - pushes
+  rules:
+    - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
     
 .template: &defaults_poisson_nightly
   tags:
@@ -220,24 +222,18 @@ build_poisson:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 default:
   <<: *defaults
-  tags:
-    - withmodules-concurrent
   stage: reggie_checkin
   script:
     - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/run_basic/maxwell -e ./bin/piclas
 
 maxwell:
   <<: *defaults_maxwell
-  tags:
-    - withmodules-concurrent
   stage: reggie_checkin
   script:
     - cd build_maxwell ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_maxwell/maxwell -e ./bin/piclas
 
 poisson:
   <<: *defaults_poisson
-  tags:
-    - withmodules-concurrent
   stage: reggie_checkin
   script:
     - cd build_poisson_release ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
