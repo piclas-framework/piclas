@@ -48,8 +48,9 @@ stages:
       - build
     policy: pull
   allow_failure: true
-  only:
-    - pushes
+  rules:
+    - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
 
 .template: &defaults_nightly
   tags:
