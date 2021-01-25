@@ -765,18 +765,14 @@ USE MOD_Particle_Tracking_vars    ,ONLY: ntracks,tTracking,tLocalization,Measure
 USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep
 USE MOD_BGK_Vars                  ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_FPFlow_Vars               ,ONLY: FPInitDone, FP_QualityFacSamp
-#if !defined(LSERK)
 USE MOD_DSMC_Vars                 ,ONLY: useDSMC
-#endif
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides, CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,SampWallImpactEnergy,SampWallImpactVector
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallPumpCapacity,SampWallImpactAngle,SampWallImpactNumber
 USE MOD_DSMC_Analyze              ,ONLY: DSMC_data_sampling, WriteDSMCToHDF5
 USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
-#if (PP_TimeDiscMethod!=42) && !defined(LSERK)
 USE MOD_Particle_Vars             ,ONLY: DelayTime
-#endif /*PP_TimeDiscMethod!=42 && !defined(LSERK)*/
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
 USE MOD_Particle_Analyze          ,ONLY: AnalyticParticleMovement
@@ -1075,40 +1071,8 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
   END IF
 END IF
 
+! Output of macroscopic variables sampled with TimeFracForSampling, which is performed after each DSMC time step
 IF(OutPutHDF5)THEN
-#if (PP_TimeDiscMethod==42)
-  IF((LastIter).AND.(useDSMC).AND.(.NOT.DSMC%ReservoirSimu)) THEN
-    IF (DSMC%NumOutput.GT.0) THEN
-      CALL WriteDSMCToHDF5(TRIM(MeshFile),OutputTime)
-      IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
-    END IF
-  END IF
-#elif defined(LSERK)
-  !additional output after push of final dt (for LSERK output is normally before first stage-push, i.e. actually for previous dt)
-  IF(LastIter)THEN
-    ! volume data
-    IF(WriteMacroVolumeValues)THEN
-      iter_macvalout = iter_macvalout + 1
-      IF (MacroValSamplIterNum.LE.iter_macvalout) THEN
-        CALL WriteDSMCToHDF5(TRIM(MeshFile),OutputTime)
-        iter_macvalout = 0
-        DSMC%SampNum = 0
-        DSMC_Solution = 0.0
-      END IF
-    END IF
-    ! surface data
-    IF (WriteMacroSurfaceValues) THEN
-      iter_macsurfvalout = iter_macsurfvalout + 1
-      IF (MacroValSamplIterNum.LE.iter_macsurfvalout) THEN
-        CALL CalcSurfaceValues
-        DO iSide=1,nComputeNodeSurfTotalSides
-          SampWallState(:,:,:,iSide)=0.
-        END DO
-        iter_macsurfvalout = 0
-      END IF
-    END IF
-  END IF
-#else
   IF((LastIter).AND.(useDSMC).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
     IF (DSMC%NumOutput.GT.0) THEN
       CALL WriteDSMCToHDF5(TRIM(MeshFile),OutputTime)
@@ -1117,7 +1081,6 @@ IF(OutPutHDF5)THEN
       IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
     END IF
   END IF
-#endif
 END IF
 
 ! Measure tracking time for particles // no MPI barrier MPI Wall-time but local CPU time

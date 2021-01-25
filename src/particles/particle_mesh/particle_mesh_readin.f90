@@ -133,7 +133,7 @@ IF (PerformLoadBalance) THEN
 ELSE
 #endif /*USE_LOADBALANCE*/
   ! allocate shared array for ElemInfo
-  MPISharedSize = INT((ELEM_HALOFLAG)*nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  MPISharedSize = INT((ELEMINFOSIZE)*nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
   CALL Allocate_Shared(MPISharedSize,(/ELEMINFOSIZE,nGlobalElems/),ElemInfo_Shared_Win,ElemInfo_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemInfo_Shared_Win,IERROR)
 

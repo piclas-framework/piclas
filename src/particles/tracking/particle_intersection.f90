@@ -565,14 +565,14 @@ BiLinearCoeff(:,4) = 0.25*BaseVectors0(:,SideID)
     IF(PartID.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(110("-"))')
       WRITE(UNIT_stdout,'(A)') '     | Output of bilinear intersection equation constants: '
-      WRITE(UNIT_stdout,'(A,3(X,G0))') '     | SideNormVec  : ',SideNormVec(1:3,CNSideID)
-      WRITE(UNIT_stdout,'(A,4(X,G0))') '     | BilinearCoeff: ',BilinearCoeff(1,1:4)
-      WRITE(UNIT_stdout,'(A,4(X,G0))') '     | BilinearCoeff: ',BilinearCoeff(2,1:4)
-      WRITE(UNIT_stdout,'(A,4(X,G0))') '     | BilinearCoeff: ',BilinearCoeff(3,1:4)
-      WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Beziercontrolpoint1: ',BezierControlPoints3D(:,0,0,SideID)
-      WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Beziercontrolpoint2: ',BezierControlPoints3D(:,NGeo,0,SideID)
-      WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Beziercontrolpoint3: ',BezierControlPoints3D(:,0,NGeo,SideID)
-      WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Beziercontrolpoint4: ',BezierControlPoints3D(:,NGeo,NGeo,SideID)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | SideNormVec  : ',SideNormVec(1:3,SideID)
+      WRITE(UNIT_stdout,'(A,4(1X,G0))') '     | BilinearCoeff: ',BilinearCoeff(1,1:4)
+      WRITE(UNIT_stdout,'(A,4(1X,G0))') '     | BilinearCoeff: ',BilinearCoeff(2,1:4)
+      WRITE(UNIT_stdout,'(A,4(1X,G0))') '     | BilinearCoeff: ',BilinearCoeff(3,1:4)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | Beziercontrolpoint1: ',BezierControlPoints3D(:,0,0,SideID)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | Beziercontrolpoint2: ',BezierControlPoints3D(:,NGeo,0,SideID)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | Beziercontrolpoint3: ',BezierControlPoints3D(:,0,NGeo,SideID)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | Beziercontrolpoint4: ',BezierControlPoints3D(:,NGeo,NGeo,SideID)
     END IF
   END IF
 #endif /*CODE_ANALYZE*/

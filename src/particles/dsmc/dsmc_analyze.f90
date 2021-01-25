@@ -21,50 +21,6 @@ MODULE MOD_DSMC_Analyze
 IMPLICIT NONE
 PRIVATE
 
-INTERFACE WriteDSMCToHDF5
-  MODULE PROCEDURE WriteDSMCToHDF5
-END INTERFACE
-
-INTERFACE CalcSurfaceValues
-  MODULE PROCEDURE CalcSurfaceValues
-END INTERFACE
-
-INTERFACE CalcTelec
-  MODULE PROCEDURE CalcTelec
-END INTERFACE
-
-INTERFACE CalcTVibPoly
-  MODULE PROCEDURE CalcTVibPoly
-END INTERFACE
-
-INTERFACE CalcMeanFreePath
-  MODULE PROCEDURE CalcMeanFreePath
-END INTERFACE
-
-INTERFACE CalcGammaVib
-  MODULE PROCEDURE CalcGammaVib
-END INTERFACE
-
-INTERFACE CalcInstantTransTemp
-  MODULE PROCEDURE CalcInstantTransTemp
-END INTERFACE
-
-INTERFACE SummarizeQualityFactors
-  MODULE PROCEDURE SummarizeQualityFactors
-END INTERFACE
-
-INTERFACE DSMCMacroSampling
-  MODULE PROCEDURE DSMCMacroSampling
-END INTERFACE
-
-INTERFACE SamplingRotVibRelaxProb
-  MODULE PROCEDURE SamplingRotVibRelaxProb
-END INTERFACE
-
-INTERFACE CalcInstantElecTempXi
-  MODULE PROCEDURE CalcInstantElecTempXi
-END INTERFACE
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
