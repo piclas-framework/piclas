@@ -43,7 +43,7 @@ SUBROUTINE SurfaceModel_main(PartID,SideID,ElemID,n_Loc)
 USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec
 USE MOD_Particle_Vars             ,ONLY: PartSpecies, WriteMacroSurfaceValues
 USE MOD_Particle_Tracking_Vars    ,ONLY: TriaTracking, TrackInfo
-USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide, dXiEQ_SurfSample
+USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide, dXiEQ_SurfSample, PartBound
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos
@@ -113,7 +113,7 @@ TempErgy(1:2)=PartBound%WallTemp(locBCID)
 IF(CalcSurfCollCounter) SurfAnalyzeCount(SpecID) = SurfAnalyzeCount(SpecID) + 1
 ! Sampling
 DoSample = (DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)
-IF(DoSample) THEN
+IF(DoSample.OR.ANY(PartBound%UseAdaptedWallTemp)) THEN
   IF (TriaTracking) THEN
     TrackInfo%p = 1 ; TrackInfo%q = 1
   ELSE
@@ -422,10 +422,11 @@ SUBROUTINE DiffuseReflection(PartID,SideID,n_loc,AuxBCIdx)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
 USE MOD_Globals                 ,ONLY: ABORT, OrthoNormVec, VECNORM, DOTPRODUCT
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_SurfaceModel_Tools      ,ONLY: GetWallTemperature, CalcRotWallVelo
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,PartAuxBC
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,PartAuxBC, GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,Symmetry
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep
@@ -475,7 +476,7 @@ ELSE
   locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
   ! get BC values
   WallVelo   = PartBound%WallVelo(1:3,locBCID)
-  WallTemp   = GetWallTemperature(PartID,locBCID)
+  WallTemp   = GetWallTemperature(PartID,locBCID,SideID)
   TransACC   = PartBound%TransACC(locBCID)
   VibACC     = PartBound%VibACC(locBCID)
   RotACC     = PartBound%RotACC(locBCID)

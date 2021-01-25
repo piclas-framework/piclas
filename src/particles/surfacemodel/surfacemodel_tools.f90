@@ -232,18 +232,18 @@ END IF ! useDSMC
 END SUBROUTINE SurfaceModel_EnergyAccommodation
 
 
-REAL FUNCTION GetWallTemperature(PartID,locBCID)
+REAL FUNCTION GetWallTemperature(PartID,locBCID, SideID)
 !===================================================================================================================================
 !> Determine the wall temperature, current options: determine a temperature based on an imposed gradient or use a fixed temperature
 !===================================================================================================================================
 USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, BoundaryWallTemp, GlobalSide2SurfSide
 USE MOD_Particle_Vars           ,ONLY: LastPartPos
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)             :: locBCID, PartID
+INTEGER, INTENT(IN)             :: locBCID, PartID, SideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -263,6 +263,8 @@ IF(PartBound%WallTemp2(locBCID).GT.0.0) THEN
   ELSE
     GetWallTemperature = PartBound%WallTemp(locBCID) + TempGradLength * PartBound%WallTempDelta(locBCID)
   END IF
+ELSE IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
+  GetWallTemperature = BoundaryWallTemp(TrackInfo%p,TrackInfo%q,GlobalSide2SurfSide(SURF_SIDEID,SideID))
 ELSE
   GetWallTemperature = PartBound%WallTemp(locBCID)
 END IF

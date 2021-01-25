@@ -317,6 +317,7 @@ USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,NbrOfLostParticles, NbrOfLostParticlesTotal
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 #if !(USE_MPI)
 USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts
 #endif /*!(USE_MPI)*/
@@ -379,7 +380,7 @@ INTEGER,PARAMETER                  :: ELEM_LastPartInd=2
 REAL,ALLOCATABLE                   :: PartData(:,:)
 REAL                               :: xi(3)
 LOGICAL                            :: InElementCheck,PartIntExists,PartDataExists,VibQuantDataExists,changedVars,DGSourceExists
-LOGICAL                            :: ElecDistriDataExists, AD_DataExists
+LOGICAL                            :: ElecDistriDataExists, AD_DataExists, AdaptiveWallTempExists
 REAL                               :: det(6,2)
 INTEGER                            :: NbrOfMissingParticles, CounterPoly
 INTEGER, ALLOCATABLE               :: VibQuantData(:,:)
@@ -1331,7 +1332,9 @@ IF(DoRestart)THEN
     CALL MacroscopicRestart()
     CALL UpdateNextFreePosition()
   END IF ! .NOT.DoMacroscopicRestart
-
+  CALL DatasetExists(File_ID,'AdaptiveBoundaryWallTemp',AdaptiveWallTempExists)
+  IF (AdaptiveWallTempExists) CALL DatasetExists(File_ID,'AdaptiveBoundaryGlobalSideIndx',AdaptiveWallTempExists)
+  IF (ANY(PartBound%UseAdaptedWallTemp).AND.AdaptiveWallTempExists) CALL RestartAdaptiveWallTemp()
 #endif /*PARTICLES*/
 
 CALL CloseDataFile()
@@ -1532,6 +1535,71 @@ IMPLICIT NONE
 
 END SUBROUTINE RestartClones
 
+
+SUBROUTINE RestartAdaptiveWallTemp()
+!===================================================================================================================================
+! Axisymmetric 2D simulation with particle weighting: Read-in of clone particles saved during output of particle data
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_HDF5_input
+USE MOD_io_hdf5
+USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, nSurfTotalSides
+USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp, GlobalSide2SurfSide
+#if USE_MPI
+USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
+USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp_Shared_Win
+USE MOD_MPI_Shared
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER, ALLOCATABLE      :: tmpGlobalSideInx(:)
+  REAL, ALLOCATABLE         :: tmpWallTemp(:,:,:)
+  INTEGER                   :: iSide, tmpSide, iSurfSide
+!===================================================================================================================================
+IF (nSurfTotalSides.EQ.0) RETURN
+
+ALLOCATE(tmpGlobalSideInx(nSurfTotalSides), &
+      tmpWallTemp(nSurfSample,nSurfSample,nSurfTotalSides))
+! Associate construct for integer KIND=8 possibility
+#if USE_MPI
+! Return if not a sampling leader
+IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
+#endif
+  ASSOCIATE (&
+        nSurfSample          => INT(nSurfSample,IK)                     , &
+        nGlobalSides         => INT(nSurfTotalSides,IK))
+    CALL ReadArray('AdaptiveBoundaryGlobalSideIndx',1,(/nGlobalSides/),0_IK,1,IntegerArray=tmpGlobalSideInx)
+    CALL ReadArray('AdaptiveBoundaryWallTemp',3,(/nSurfSample, nSurfSample, nGlobalSides/),0_IK,1,RealArray=tmpWallTemp)
+  END ASSOCIATE
+
+  DO iSide = 1, nSurfTotalSides
+    tmpSide = tmpGlobalSideInx(iSide)
+    IF (GlobalSide2SurfSide(SURF_SIDEID,tmpSide).EQ.-1) CYCLE
+    iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,tmpSide)
+    BoundaryWallTemp(:,:,iSurfSide) = tmpWallTemp(:,:,iSide)
+  END DO
+#if USE_MPI
+ELSE
+  ASSOCIATE (&
+        nSurfSample          => INT(0,IK)                     , &
+        nGlobalSides         => INT(0,IK))
+    CALL ReadArray('AdaptiveBoundaryGlobalSideIndx',1,(/nGlobalSides/),0_IK,1,IntegerArray=tmpGlobalSideInx)
+    CALL ReadArray('AdaptiveBoundaryWallTemp',3,(/nSurfSample, nSurfSample, nGlobalSides/),0_IK,1,RealArray=tmpWallTemp)
+  END ASSOCIATE
+END IF
+
+CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif
+
+END SUBROUTINE RestartAdaptiveWallTemp
 
 SUBROUTINE MacroscopicRestart()
 !===================================================================================================================================

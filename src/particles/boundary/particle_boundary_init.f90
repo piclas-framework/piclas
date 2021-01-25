@@ -27,6 +27,7 @@ PRIVATE
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DefineParametersParticleBoundary, InitializeVariablesPartBoundary, InitializeVariablesAuxBC, FinalizeParticleBoundary
+PUBLIC :: InitAdaptiveWallTemp
 !===================================================================================================================================
 
 CONTAINS
@@ -269,10 +270,6 @@ ALLOCATE(PartBound%SourceBoundName(  1:nPartBound))
 PartBound%SourceBoundName = ''
 ALLOCATE(PartBound%TargetBoundCond(  1:nPartBound))
 PartBound%TargetBoundCond = -1
-ALLOCATE(PartBound%UseAdaptedWallTemp(1:nPartBound))
-PartBound%UseAdaptedWallTemp = .FALSE.
-ALLOCATE(PartBound%RadiatingEmissivity(1:nPartBound))
-PartBound%RadiatingEmissivity = 1.
 ALLOCATE(PartBound%MomentumACC(      1:nPartBound))
 PartBound%MomentumACC = -1
 ALLOCATE(PartBound%WallTemp(         1:nPartBound))
@@ -320,6 +317,8 @@ ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
 PartBound%NbrOfSpeciesSwaps = 0
 ALLOCATE(PartBound%UseAdaptedWallTemp(1:nPartBound))
 PartBound%UseAdaptedWallTemp = .FALSE.
+ALLOCATE(PartBound%RadiatingEmissivity(1:nPartBound))
+PartBound%RadiatingEmissivity = 1.
 
 !--determine MaxNbrOfSpeciesSwaps for correct allocation
 MaxNbrOfSpeciesSwaps=0
@@ -536,8 +535,6 @@ IF(DeprecatedVoltage) CALL abort(&
   __STAMP__&
   ,'Part-Boundary-Voltage is no longer supported. Use corresponding RefState parameter as described in the user guide.')
 
-CALL InitAdaptiveWallTemp()
-
 END SUBROUTINE InitializeVariablesPartBoundary
 
 
@@ -581,6 +578,7 @@ IF (myComputeNodeRank.EQ.0) THEN
 END IF
 BoundaryWallTemp => BoundaryWallTemp_Shared
 CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 firstSide = INT(REAL( myComputeNodeRank   *nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
 lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
 #else

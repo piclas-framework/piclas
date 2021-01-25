@@ -56,12 +56,13 @@ USE MOD_Restart_Vars               ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
 USE MOD_Timedisc_Vars              ,ONLY: time,dt
 #if USE_MPI
-USE MOD_MPI_Shared_Vars            ,ONLY: MPI_COMM_LEADERS_SURF
+USE MOD_MPI_Shared_Vars            ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
 USE MOD_Particle_Boundary_Vars     ,ONLY: SampWallPumpCapacity_Shared
 USE MOD_Particle_Boundary_vars     ,ONLY: SampWallState_Shared,SampWallImpactNumber_Shared,SampWallImpactEnergy_Shared
 USE MOD_Particle_Boundary_vars     ,ONLY: SampWallImpactVector_Shared,SampWallImpactAngle_Shared
 USE MOD_Particle_Boundary_vars     ,ONLY: SurfSideArea_Shared
 USE MOD_Particle_MPI_Boundary_Sampling,ONLY: ExchangeSurfData
+USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp_Shared_Win
 #else
 USE MOD_Particle_Boundary_Vars     ,ONLY: SampWallPumpCapacity
 USE MOD_Particle_Boundary_vars     ,ONLY: SampWallState,SampWallImpactNumber,SampWallImpactEnergy
@@ -111,7 +112,13 @@ IF(.NOT.SurfOnNode) RETURN
 CALL ExchangeSurfData()
 
 ! Only surface sampling leaders take part in the remainder of this routine
-IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) RETURN
+IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) THEN
+  IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
+    CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
+    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+  END IF
+  RETURN
+END IF
 #endif /*USE_MPI*/
 
 ! Determine the number of variables
@@ -243,7 +250,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
           BoundaryWallTemp(p,q,iSurfSide) = (MacroSurfaceVal(4,p,q,OutputCounter) &
               /(StefanBoltzmannConst*PartBound%RadiatingEmissivity(iBC)))**(1./4.)
         END IF
-        MacroSurfaceVal(nVar + nPorousBC + 1,p,q,OutputCounter) = BoundaryWallTemp(p,q,iSurfSide)
+        MacroSurfaceVal(nVar,p,q,OutputCounter) = BoundaryWallTemp(p,q,iSurfSide)
       END IF
      
     END DO ! q=1,nSurfSample
@@ -252,6 +259,10 @@ END DO ! iSurfSide=1,nComputeNodeSurfSides
 
 #if USE_MPI
 END ASSOCIATE
+IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
+  CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+END IF
 #endif /*USE_MPI*/
 
 CALL WriteSurfSampleToHDF5(TRIM(MeshFile),ActualTime)

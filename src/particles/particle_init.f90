@@ -311,6 +311,7 @@ USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
 USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
 USE MOD_Particle_Mesh_Vars         ,ONLY: GEO
 USE MOD_Part_Emission              ,ONLY: AdaptiveBCAnalyze
+USE MOD_Particle_Boundary_Init     ,ONLY: InitAdaptiveWallTemp
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
 !USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
@@ -373,6 +374,7 @@ END IF
 IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0).OR.GEO%RotPeriodicBC) THEN
   CALL InitParticleBoundarySampling()
   CALL InitParticleBoundaryRotPeriodic()
+  CALL InitAdaptiveWallTemp()
 END IF
 
 ! Initialize porous boundary condition (requires BCdata_auxSF and SurfMesh from InitParticleBoundarySampling)
