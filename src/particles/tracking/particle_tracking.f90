@@ -1630,6 +1630,7 @@ DO iPart=1,PDM%ParticleVecLength
 #endif
 #if USE_MPI
               inelem=PEM%GlobalElemID(ipart)
+              IPWRITE(UNIT_stdout,'(I0,A,L1)') ' inelem.LE.PP_nElems = ',inelem.LE.PP_nElems
               IF(inelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
                 IPWRITE(UNIT_stdout,'(I0,A,I0)') ' elemid               ', inelem+offsetelem
@@ -1638,6 +1639,7 @@ DO iPart=1,PDM%ParticleVecLength
 !                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' elemid         ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
 !                                                                 + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
               END IF
+              IPWRITE(UNIT_stdout,'(I0,A,L1)') ' testelem.LE.PP_nElems = ',testelem.LE.PP_nElems
               IF(testelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
                 IPWRITE(UNIT_stdout,'(I0,A,I0)') ' testelem             ', testelem+offsetelem
