@@ -94,7 +94,7 @@ USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID_Shared
 USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient
-USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D,BezierSampleN
+USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
 USE MOD_Particle_Vars           ,ONLY: nSpecies,VarTimeStep
 USE MOD_Particle_Vars           ,ONLY: Symmetry
@@ -163,14 +163,6 @@ nSurfSample = GETINT('DSMC-nSurfSample',TRIM(hilf))
 
 IF((nSurfSample.GT.1).AND.(TriaTracking)) &
   CALL abort(__STAMP__,'nSurfSample cannot be >1 if TriaTracking=T')
-
-IF (ANY(PartBound%Reactive)) THEN
-  IF (nSurfSample.NE.BezierSampleN) THEN
-    SWRITE (*,*) "nSurfSample   =", nSurfSample
-    SWRITE (*,*) "BezierSampleN =", BezierSampleN
-    CALL abort(__STAMP__,'Error: nSurfSample not equal to BezierSampleN. Problem for Desorption + Surfflux')
-  END IF
-END IF
 
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 CalcSurfaceImpact = GETLOGICAL('CalcSurfaceImpact')
