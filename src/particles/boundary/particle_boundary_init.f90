@@ -894,6 +894,10 @@ SUBROUTINE FinalizeParticleBoundary()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars
+#if USE_MPI
+USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -931,8 +935,19 @@ SDEALLOCATE(PartBound%SurfaceModel)
 SDEALLOCATE(PartBound%Reactive)
 SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutputHDF5)
-SDEALLOCATE(PartBound%UseAdaptedWallTemp)
+SDEALLOCATE(PartBound%RadiatingEmissivity)
 SDEALLOCATE(PartStateBoundary)
+IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
+#if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+  CALL UNLOCK_AND_FREE(BoundaryWallTemp_Shared_Win)
+  ADEALLOCATE(BoundaryWallTemp_Shared)
+  ADEALLOCATE(BoundaryWallTemp)
+#else
+  SDEALLOCATE(BoundaryWallTemp)
+#endif
+END IF
+SDEALLOCATE(PartBound%UseAdaptedWallTemp)
 END SUBROUTINE FinalizeParticleBoundary
 
 END MODULE MOD_Particle_Boundary_Init

@@ -113,7 +113,7 @@ TempErgy(1:2)=PartBound%WallTemp(locBCID)
 IF(CalcSurfCollCounter) SurfAnalyzeCount(SpecID) = SurfAnalyzeCount(SpecID) + 1
 ! Sampling
 DoSample = (DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)
-IF(DoSample.OR.ANY(PartBound%UseAdaptedWallTemp)) THEN
+IF(DoSample) THEN
   IF (TriaTracking) THEN
     TrackInfo%p = 1 ; TrackInfo%q = 1
   ELSE
