@@ -9,7 +9,7 @@ before_script:
   - module load openmpi/3.1.6/gcc/9.2.0
   - module load hdf5/1.10.6/gcc/9.2.0/openmpi/3.1.6
   - if [ -n "${DO_CORE_SPLIT}" ]; then 
-      echo " PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE\nSplitting shared memory domains on processor-level!";
+      echo " PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE. Splitting shared memory domains on processor-level!";
       export PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE;
     else 
       echo "Splitting shared memory domains on node-level! Set variable DO_CORE_SPLIT=T to force core-level shared memory splitting for all regression tests.";

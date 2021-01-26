@@ -88,7 +88,7 @@ CALL prms%SetSection("Output")
 !CALL prms%CreateIntOption(          'NOut',        "Polynomial degree at which solution is written. -1: NOut=N, >0: NOut", '-1')
 CALL prms%CreateStringOption(       'ProjectName', "Name of the current simulation (mandatory).")
 CALL prms%CreateLogicalOption(      'Logging',     "Write log files containing debug output.", '.FALSE.')
-CALL prms%CreateLogicalOption(      'WriteErrorFiles',  "Write error files containing error output.", '.TRUE.')
+CALL prms%CreateLogicalOption(      'WriteErrorFiles',  "Write error files containing error output.", '.FALSE.')
 CALL prms%CreateIntFromStringOption('OutputFormat',"File format for visualization: None, Tecplot, TecplotASCII, ParaView. "//&
                                                  " Note: Tecplot output is currently unavailable due to licensing issues.", 'None')
 CALL addStrListEntry('OutputFormat','none',        OUTPUTFORMAT_NONE)
