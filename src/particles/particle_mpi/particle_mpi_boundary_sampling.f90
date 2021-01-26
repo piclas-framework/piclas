@@ -49,7 +49,7 @@ SUBROUTINE InitSurfCommunication()
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_SURF
-!USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors
+USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_MPI_Shared_Vars         ,ONLY: MPIRankSharedLeader,MPIRankSurfLeader
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank,nSurfLeaders!,nSurfCommProc
@@ -62,6 +62,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetCompute
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide
 USE MOD_Particle_MPI_Vars       ,ONLY: SurfSendBuf,SurfRecvBuf
 USE MOD_Particle_Vars           ,ONLY: nSpecies
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared, SideInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -79,6 +80,7 @@ INTEGER                       :: nRecvSurfSidesTmp(0:nLeaderGroupProcs-1)
 INTEGER                       :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
 INTEGER                       :: SendSurfGlobalID(0:nLeaderGroupProcs-1,1:nComputeNodeSurfTotalSides)
 INTEGER                       :: SampSizeAllocate
+INTEGER                       :: NbGlobalElemID, GlobalSideID, NbGlobalSideID, NbElemRank, NbLeaderID, GlobalElemID, ElemRank
 !===================================================================================================================================
 
 nRecvSurfSidesTmp = 0
@@ -100,11 +102,54 @@ END DO
 !--- count all surf sides per other compute-node which get sampling data from current leader
 nSendSurfSidesTmp = 0
 
-DO iSide = 1,nComputeNodeSurfTotalSides
+DO iSide = 1,nComputeNodeSurfSides
   ! count surf sides per compute node
   LeaderID = SurfSide2GlobalSide(SURF_LEADER,iSide)
   nSendSurfSidesTmp(LeaderID) = nSendSurfSidesTmp(LeaderID) + 1
-  SendSurfGlobalID(LeaderID,nSendSurfSidesTmp(LeaderID)) = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+  GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+  SendSurfGlobalID(LeaderID,nSendSurfSidesTmp(LeaderID)) = GlobalSideID
+  ! Check if the side has a neighbour side and is thus an inner BC
+  IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+    ! Only add sides that are NOT part of the halo region
+    NbGlobalSideID = SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)
+    ! Skip sides with the smaller global side index as those are on the receiving end
+    IF(GlobalSideID.LT.NbGlobalSideID) CYCLE
+    NbGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NbGlobalSideID)
+    NbElemRank = ElemInfo_Shared(ELEM_RANK,NbGlobalElemID)
+    NbLeaderID = INT(NbElemRank/nComputeNodeProcessors)
+    IF(NbLeaderID.NE.LeaderID) THEN
+      nSendSurfSidesTmp(NbLeaderID) = nSendSurfSidesTmp(NbLeaderID) + 1
+      SendSurfGlobalID(NbLeaderID,nSendSurfSidesTmp(NbLeaderID)) = NbGlobalSideID
+    END IF
+  END IF
+END DO
+
+DO iSide = nComputeNodeSurfSides+1,nComputeNodeSurfTotalSides
+  ! Check if the side has a neighbour side and is thus an inner BC
+  GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+  IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+    NbGlobalSideID = SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)
+    ! Skip sides with the smaller global side index as those are on the receiving end
+    IF(GlobalSideID.GT.NbGlobalSideID) THEN
+      NbGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NbGlobalSideID)
+      NbElemRank = ElemInfo_Shared(ELEM_RANK,NbGlobalElemID)
+      NbLeaderID = INT(NbElemRank/nComputeNodeProcessors)
+      nSendSurfSidesTmp(NbLeaderID) = nSendSurfSidesTmp(NbLeaderID) + 1
+      SendSurfGlobalID(NbLeaderID,nSendSurfSidesTmp(NbLeaderID)) = NbGlobalSideID
+    ELSE
+      GlobalElemID = SideInfo_Shared(SIDE_ELEMID,GlobalSideID)
+      ElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
+      LeaderID = INT(ElemRank/nComputeNodeProcessors)
+      nSendSurfSidesTmp(LeaderID) = nSendSurfSidesTmp(LeaderID) + 1
+      SendSurfGlobalID(LeaderID,nSendSurfSidesTmp(LeaderID)) = GlobalSideID
+    END IF
+  ELSE
+    ! Count regular halo sampling on surf sides per compute node
+    LeaderID = SurfSide2GlobalSide(SURF_LEADER,iSide)
+    nSendSurfSidesTmp(LeaderID) = nSendSurfSidesTmp(LeaderID) + 1
+    GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+    SendSurfGlobalID(LeaderID,nSendSurfSidesTmp(LeaderID)) = GlobalSideID
+  END IF
 END DO
 
 !--- send all other leaders the number of sampling sides coming from current node
@@ -245,6 +290,69 @@ DO iProc = 0,nLeaderGroupProcs-1
     CALL MPI_WAIT(RecvRequest(MPIRankSurfLeader(iProc)),msg_status(:),IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END IF
+END DO
+
+
+nSendSurfSidesTmp = 0
+
+DO iSide = 1,nComputeNodeSurfSides
+  ! count surf sides per compute node
+  LeaderID = SurfSide2GlobalSide(SURF_LEADER,iSide)
+  nSendSurfSidesTmp(LeaderID) = nSendSurfSidesTmp(LeaderID) + 1
+  GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+  SendSurfGlobalID(LeaderID,nSendSurfSidesTmp(LeaderID)) = GlobalSideID
+  ! Check if the side has a neighbour side and is thus an inner BC
+  IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+    ! Only add sides that are NOT part of the halo region
+    NbGlobalSideID = SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)
+    ! Skip sides with the smaller global side index as those are on the receiving end
+    IF(GlobalSideID.LT.NbGlobalSideID) CYCLE
+    NbGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NbGlobalSideID)
+    NbElemRank = ElemInfo_Shared(ELEM_RANK,NbGlobalElemID)
+    NbLeaderID = INT(NbElemRank/nComputeNodeProcessors)
+    IF(NbLeaderID.NE.LeaderID) THEN
+      nSendSurfSidesTmp(NbLeaderID) = nSendSurfSidesTmp(NbLeaderID) + 1
+      SendSurfGlobalID(NbLeaderID,nSendSurfSidesTmp(NbLeaderID)) = GlobalSideID
+    END IF
+  END IF
+END DO
+
+DO iSide = nComputeNodeSurfSides+1,nComputeNodeSurfTotalSides
+  ! Check if the side has a neighbour side and is thus an inner BC
+  GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+  IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+    NbGlobalSideID = SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)
+    ! Skip sides with the smaller global side index as those are on the receiving end
+    IF(GlobalSideID.GT.NbGlobalSideID) THEN
+      NbGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NbGlobalSideID)
+      NbElemRank = ElemInfo_Shared(ELEM_RANK,NbGlobalElemID)
+      NbLeaderID = INT(NbElemRank/nComputeNodeProcessors)
+      nSendSurfSidesTmp(NbLeaderID) = nSendSurfSidesTmp(NbLeaderID) + 1
+      SendSurfGlobalID(NbLeaderID,nSendSurfSidesTmp(NbLeaderID)) = GlobalSideID
+    ELSE
+      GlobalElemID = SideInfo_Shared(SIDE_ELEMID,GlobalSideID)
+      ElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
+      LeaderID = INT(ElemRank/nComputeNodeProcessors)
+      nSendSurfSidesTmp(LeaderID) = nSendSurfSidesTmp(LeaderID) + 1
+      SendSurfGlobalID(LeaderID,nSendSurfSidesTmp(LeaderID)) = GlobalSideID
+    END IF
+  ELSE
+    ! Count regular halo sampling on surf sides per compute node
+    LeaderID = SurfSide2GlobalSide(SURF_LEADER,iSide)
+    nSendSurfSidesTmp(LeaderID) = nSendSurfSidesTmp(LeaderID) + 1
+  END IF
+END DO
+
+DO iProc = 0,nLeaderGroupProcs-1
+  ! Ignore procs not on surface communicator
+  IF (MPIRankSurfLeader(iProc).EQ.MPI_UNDEFINED) CYCLE
+  ! Ignore myself
+  IF (iProc .EQ. myLeaderGroupRank) CYCLE
+
+  ! Only open send buffer if we are expecting sides from this leader node
+  IF (nSendSurfSidesTmp(iProc).EQ.0) CYCLE
+
+  SurfMapping(MPIRankSurfLeader(iProc))%SendSurfGlobalID = SendSurfGlobalID(iProc,1:nSendSurfSidesTmp(iProc))
 END DO
 
 !--- Allocate send and recv buffer for each surf leader
