@@ -59,7 +59,7 @@ USE MOD_Piclas_Init                ,ONLY: DefineParametersPiclas
 #ifdef PARTICLES
 USE MOD_ParticleInit               ,ONLY: DefineParametersParticles
 USE MOD_Particle_Emission_Init     ,ONLY: DefineParametersParticleEmission
-USE MOD_Particle_SurfFlux          ,ONLY: DefineParametersParticleSurfaceFlux
+USE MOD_Particle_SurfFlux_Init     ,ONLY: DefineParametersParticleSurfaceFlux
 USE MOD_Particle_Boundary_Init     ,ONLY: DefineParametersParticleBoundary
 USE MOD_Particle_Boundary_Sampling ,ONLY: DefineParametersParticleBoundarySampling
 USE MOD_Particle_BGM               ,ONLY: DefineparametersParticleBGM
