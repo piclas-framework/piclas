@@ -49,7 +49,7 @@ USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide, PartBound
 USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfOutputSides, BoundaryWallTemp
-USE MOD_Particle_Boundary_Vars     ,ONLY: PorousBCInfo_Shared,MapSurfSideToPorousSide_Shared
+USE MOD_Particle_Boundary_Vars     ,ONLY: PorousBCInfo_Shared,MapSurfSideToPorousSide_Shared, AdaptWallTemp
 USE MOD_Particle_Mesh_Vars         ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry
 USE MOD_Restart_Vars               ,ONLY: RestartTime
@@ -245,8 +245,8 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       END DO ! iSpec=1,nSpecies
       
       IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
-        IF (MacroSurfaceVal(4,p,q,OutputCounter).GT.0.0) THEN
-          iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
+        IF ((MacroSurfaceVal(4,p,q,OutputCounter).GT.0.0).AND.AdaptWallTemp) THEN
+          iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))          
           BoundaryWallTemp(p,q,iSurfSide) = (MacroSurfaceVal(4,p,q,OutputCounter) &
               /(StefanBoltzmannConst*PartBound%RadiatingEmissivity(iBC)))**(1./4.)
         END IF

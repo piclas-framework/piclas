@@ -343,6 +343,7 @@ USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,Finis
 #if defined(PARTICLES) || (USE_HDG)
 USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists,nDims,HSize
 #endif
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1049,7 +1050,7 @@ IF(DoRestart)THEN
           DO i = 1,PDM%ParticleVecLength
             ! Check if particle is inside the correct element
             CALL GetPositionInRefElem(PartState(1:3,i),Xi,PEM%GlobalElemID(i))
-            IF (ALL(ABS(Xi).LE.ElemEpsOneCell(PEM%GlobalElemID(i)))) THEN ! particle inside
+            IF (ALL(ABS(Xi).LE.ElemEpsOneCell(GetCNElemID(PEM%GlobalElemID(i))))) THEN ! particle inside
               InElementCheck    = .TRUE.
               PartPosRef(1:3,i) = Xi
             ELSE

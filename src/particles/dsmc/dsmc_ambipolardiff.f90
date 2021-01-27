@@ -92,6 +92,7 @@ USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, Species,
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Localization  ,ONLY: PartInElemCheck
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 ! IMPLICIT VARIABLE HANDLING
@@ -155,7 +156,7 @@ __STAMP__&
         CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
       CASE(REFMAPPING)
         CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-        IF (MAXVAL(ABS(RefPos)).LE.ElemEpsOneCell(iElem)) InsideFlag=.TRUE.
+        IF (MAXVAL(ABS(RefPos)).LE.ElemEpsOneCell(GetCNElemID(iElem))) InsideFlag=.TRUE.
     END SELECT
   END DO
   PartState(1:3,PositionNbr) = RandomPos(1:3)

@@ -293,7 +293,6 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
 USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution
-USE MOD_InitializeBackgroundField  ,ONLY: InitializeBackgroundField
 USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
 USE MOD_Mesh_Vars                  ,ONLY: nElems
@@ -303,10 +302,9 @@ USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
-USE MOD_PICInterpolation_Vars      ,ONLY: useBGField
 USE MOD_Restart_Vars               ,ONLY: DoRestart
 USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
-USE MOD_Particle_SurfFlux          ,ONLY: InitializeParticleSurfaceflux
+USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
 USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
 USE MOD_Particle_Mesh_Vars         ,ONLY: GEO
@@ -351,7 +349,6 @@ IF(.NOT.ALLOCATED(nPartsPerElem))THEN
 END IF
 
 CALL InitializeVariables()
-IF(useBGField) CALL InitializeBackgroundField()
 
 !#if USE_MPI
 !CALL InitEmissionParticlesToProcs()
@@ -1353,8 +1350,8 @@ SUBROUTINE InitParticleBoundaryRotPeriodic()
 !                                                     RotPeriodicSide -> SideID2
 ! (1) counting rotational periodic sides and build mapping from SurfSideID -> RotPeriodicSide
 ! (2) find Side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
-!     counting potentional rotational periodic sides (for not conform meshes)
-! (3) reallocate array due to number of potentional rotational periodic sides
+!     counting potential rotational periodic sides (for not conform meshes)
+! (3) reallocate array due to number of potential rotational periodic sides
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1396,8 +1393,8 @@ END DO
 
 ALLOCATE(RotPeriodicSide2GlobalSide(nRotPeriodicSides))
 ALLOCATE(NumRotPeriodicNeigh(nRotPeriodicSides))
-! number of potentional rotational periodic sides is unknown => allocate mapping array with fixed number of 1000
-! and reallocate at the end of subroutin
+! number of potential rotational periodic sides is unknown => allocate mapping array with fixed number of 1000
+! and reallocate at the end of subroutine
 ALLOCATE(RotPeriodicSideMapping_temp(nRotPeriodicSides,1000))
 
 DO iSide=1, nRotPeriodicSides
@@ -1423,7 +1420,7 @@ SELECT CASE(GEO%RotPeriodicAxi)
     m = 2
 END SELECT
 ! (2) find Side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
-!     counting potentional rotational periodic sides (for not conform meshes)
+!     counting potential rotational periodic sides (for not conform meshes)
 DO iSide=1, nRotPeriodicSides
   SideID    = RotPeriodicSide2GlobalSide(iSide)
   CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
@@ -1503,7 +1500,7 @@ DO iSide=1, nRotPeriodicSides
         ,' ERROR: One rot periodic side did not find a corresponding side.')
   END IF
 END DO
-! (3) reallocate array due to number of potentional rotational periodic sides
+! (3) reallocate array due to number of potential rotational periodic sides
 MaxNumRotPeriodicNeigh = MAXVAL(NumRotPeriodicNeigh)
 ALLOCATE(RotPeriodicSideMapping(nRotPeriodicSides,MaxNumRotPeriodicNeigh))
 DO iSide=1, nRotPeriodicSides
@@ -1601,6 +1598,7 @@ SDEALLOCATE(PEM%pNext)
 SDEALLOCATE(seeds)
 SDEALLOCATE(RegionBounds)
 SDEALLOCATE(RegionElectronRef)
+SDEALLOCATE(PartPosLandmark)
 #if USE_MPI
 SDEALLOCATE(SendShapeElemID)
 SDEALLOCATE(SendElemShapeID)

@@ -263,7 +263,7 @@ IF(PartBound%WallTemp2(locBCID).GT.0.0) THEN
   ELSE
     GetWallTemperature = PartBound%WallTemp(locBCID) + TempGradLength * PartBound%WallTempDelta(locBCID)
   END IF
-ELSE IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
+ELSE IF (PartBound%UseAdaptedWallTemp(locBCID)) THEN
   GetWallTemperature = BoundaryWallTemp(TrackInfo%p,TrackInfo%q,GlobalSide2SurfSide(SURF_SIDEID,SideID))
 ELSE
   GetWallTemperature = PartBound%WallTemp(locBCID)

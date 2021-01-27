@@ -453,19 +453,16 @@ USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
 USE MOD_Particle_Mesh_Vars ,ONLY: RefMappingEps
-USE MOD_Mesh_Vars          ,ONLY: offsetElem
 #if defined(IMPA)
 USE MOD_Particle_Vars      ,ONLY: PartIsImplicit
 #endif
-#if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Vars      ,ONLY: PEM,LastPartPos
-#endif /*IMPA or ROS*/
+USE MOD_Particle_Vars      ,ONLY: LastPartPos
 USE MOD_TimeDisc_Vars      ,ONLY: iter
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)               :: N_In
-INTEGER,INTENT(IN)               :: ElemID                   !> ElemID on compute node, not global ID
+INTEGER,INTENT(IN)               :: ElemID                   !> global ID
 INTEGER,INTENT(IN)               :: Mode
 INTEGER,INTENT(IN),OPTIONAL      :: PartID
 REAL,INTENT(IN)                  :: X_in(3)                  !> position in physical space
@@ -540,7 +537,7 @@ DO WHILE((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
       IPWRITE(UNIT_stdOut,*) ' Newton-Iter ', NewtonIter
       IPWRITE(UNIT_stdOut,*) ' xi          ', xi(1:3)
       IPWRITE(UNIT_stdOut,*) ' PartPos     ', X_in
-      IPWRITE(UNIT_stdOut,*) ' ElemID      ', ElemID
+      IPWRITE(UNIT_stdOut,*) ' GlobalElemID', ElemID
     CALL abort(&
 __STAMP__&
 , 'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sdetJac)
@@ -598,19 +595,15 @@ __STAMP__&
       IPWRITE(UNIT_stdOut,*) ' Newton-Iter      ', NewtonIter
       IPWRITE(UNIT_stdOut,*) ' xi               ', xi(1:3)
       IPWRITE(UNIT_stdOut,*) ' PartPos          ', X_in
-      IPWRITE(UNIT_stdOut,*) ' ElemID           ', ElemID
-      IPWRITE(UNIT_stdOut,*) ' ElemID+offSetElem', ElemID+offSetElem
+      IPWRITE(UNIT_stdOut,*) ' GlobalElemID     ', ElemID
+      IPWRITE(UNIT_stdOut,*) ' LastPartPos      ', LastPartPos
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
 #if defined(IMPA)
-      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartisImplicit(PartID)
+      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartIsImplicit(PartID)
 #endif
-#if defined(IMPA) || defined(ROS)
-      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' last?', LastPartPos(1:3,PartID)
-      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' ElemID-N', PEM%GlobalElemID(PartID)+offSetElem
-#endif /*IMPA or ROS*/
         CALL abort(&
   __STAMP__&
-  ,'Particle Not inSide of Element, ElemID,',ElemID)
+  ,'Particle Not inSide of Element, GlobalElemID,',ElemID)
     ELSE
       EXIT
     END IF

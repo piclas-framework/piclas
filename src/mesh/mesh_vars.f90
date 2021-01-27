@@ -192,14 +192,6 @@ CHARACTER(LEN=255)               :: MeshFile        !< name of hdf5 meshfile (wr
 LOGICAL          :: useCurveds
 LOGICAL          :: CrossProductMetrics=.FALSE.
 !-----------------------------------------------------------------------------------------------------------------------------------
-!< PoyntingVectorIntegral variables
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER             :: nPoyntingIntSides=0   !< Sides for the calculation of the Poynting vector integral
-INTEGER             :: PoyntingMainDir       !< direction in which the Poynting vector integral is to be computed
-LOGICAL,ALLOCATABLE :: isPoyntingIntSide(:)  !< number of all PoyntingInt sides
-INTEGER,ALLOCATABLE :: whichPoyntingPlane(:) !< plane number used for calculation of Poynting vector
-!-----------------------------------------------------------------------------------------------------------------------------------
-!-----------------------------------------------------------------------------------------------------------------------------------
 ! USER DEFINED TYPES
 
 TYPE tNodePtr

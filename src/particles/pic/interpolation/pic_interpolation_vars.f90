@@ -28,13 +28,19 @@ REAL,ALLOCATABLE        :: FieldAtParticle(:,:)          !< 1st index: Ex,Ey,Ez,
 CHARACTER(LEN=256)      :: InterpolationType             !< Type of Interpolation-Method
 LOGICAL                 :: InterpolationElemLoop         !< Interpolate with outer iElem-loop (not for many elements per processor!)
 REAL                    :: externalField(6)              !< ext field is added to the maxwell-solver-field
-LOGICAL                 :: DoInterpolation               !< Flag for interpolation
+LOGICAL                 :: DoInterpolation               !< Flag for PIC interpolation
 LOGICAL                 :: useBGField                    !< Flag for background field BGField via h5-File
-LOGICAL                 :: CalcBField                    !< Calculate the background field BGField from parameters defined in the 
+LOGICAL                 :: CalcBField                    !< Calculate the background field BGField from parameters defined in the
                                                          !< input file
 
-CHARACTER(LEN=256)      :: FileNameVariableExternalField !< filename containing the external field csv table
-LOGICAL                 :: useVariableExternalField      !< use given external field. only for Bz variation in z
+CHARACTER(LEN=256)      :: FileNameVariableExternalField !< Filename containing the external field csv table
+LOGICAL                 :: useVariableExternalField      !< Use given external field. Only for Bz variation in z
+LOGICAL                 :: useAlgebraicExternalField     !< Use given algebraic expression for the external e and B field
+INTEGER                 :: AlgebraicExternalField        !< External E and B field from algebraic expression that is
+                                                         !< interpolated to the particle position:
+                                                         !< 1: Axial B(x) and E(x) field 
+                                                         !<    from T. Charoy, 2D axial-azimuthal particle-in-cell
+                                                         !<    benchmark for low-temperature partially magnetized plasmas (2019)
 REAL,ALLOCATABLE        :: VariableExternalField(:,:)    !< z - Pos , Bz
 REAL                    :: DeltaExternalField            !< equidistant z-spacing for the VariableExternalField (fast computation)
 INTEGER                 :: nIntPoints                    !< number of all interpolation points external field

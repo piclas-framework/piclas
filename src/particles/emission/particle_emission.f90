@@ -47,7 +47,7 @@ SUBROUTINE ParticleInserting()
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: c
+USE MOD_Globals_Vars           ,ONLY: c,PI
 USE MOD_Timedisc_Vars          ,ONLY: dt,time
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
 USE MOD_Particle_Vars
@@ -62,6 +62,8 @@ USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,Sa
 USE MOD_part_pos_and_velo      ,ONLY: SetParticlePosition,SetParticleVelocity
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_PhotoIonization
 USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_ReadInTools            ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -80,7 +82,7 @@ REAL                             :: RiseFactor, RiseTime,NbrOfPhotons
 #if USE_MPI
 INTEGER                          :: InitGroup
 #endif
-REAL                             :: NbrOfReactions
+REAL                             :: NbrOfReactions,NbrOfParticlesReal
 !===================================================================================================================================
 
 !---  Emission at time step
@@ -118,7 +120,7 @@ DO i=1,nSpecies
           inserted_Particle_diff = inserted_Particle_time - Species(i)%Init(iInit)%InsertedParticle &
             - inserted_Particle_iter - Species(i)%Init(iInit)%InsertedParticleSurplus &
             + Species(i)%Init(iInit)%InsertedParticleMisMatch
-          Species(i)%Init(iInit)%InsertedParticleSurplus = ABS(MIN(inserted_Particle_iter + inserted_Particle_diff,0))
+          Species(i)%Init(iInit)%InsertedParticleSurplus = ABS(MIN(inserted_Particle_iter + inserted_Particle_diff,0_8))
           NbrOfParticle = MAX(INT(inserted_Particle_iter + inserted_Particle_diff,4),0)
           !-- if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
           IF (TRIM(Species(i)%Init(iInit)%velocityDistribution).EQ.'maxwell') THEN
@@ -222,6 +224,61 @@ DO i=1,nSpecies
             NbrOfParticle = 0
           END IF ! Time.LE.Species(i)%Init(iInit)%tActive
         END ASSOCIATE
+      CASE(8) ! SpaceIC='2D_landmark','2D_landmark_copy'
+              ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
+              ! for low-temperature partially magnetized plasmas (2019)
+       ASSOCIATE( x2 => 1.0e-2  ,& ! m
+                  x1 => 0.25e-2 ,& ! m
+                  Ly => 1.28e-2 ,& ! m
+                  S0 => 5.23e23 )  ! m^-3 s^-1
+         NbrOfParticlesReal = Ly*dt*S0*2.0*(x2-x1)/PI ! yields 1.60E+08 m^-1 (i.e. per metre in z-direction)
+         NbrOfParticlesReal = NbrOfParticlesReal*(GEO%zmaxglob-GEO%zminglob)/Species(i)%MacroParticleFactor &
+                              + Species(i)%Init(iInit)%NINT_Correction
+         NbrOfParticle = NINT(NbrOfParticlesReal)
+         Species(i)%Init(iInit)%NINT_Correction = NbrOfParticlesReal - REAL(NbrOfParticle)
+         IF(.NOT.ALLOCATED(PartPosLandmark))THEN
+           NbrOfParticleLandmarkMax = MAX(10,NINT(NbrOfParticlesReal*1.2)) ! Add 20% safety
+           CALL PrintOption('Landmark volume emission allocation size NbrOfParticleLandmarkMax' , 'CALCUL.' , IntOpt=NbrOfParticleLandmarkMax)
+           ALLOCATE(PartPosLandmark(1:3,1:NbrOfParticleLandmarkMax))
+           PartPosLandmark=HUGE(1.)
+           IF(NbrOfParticleLandmarkMax.LE.0)THEN
+             IPWRITE(UNIT_StdOut,*) "NbrOfParticleLandmarkMax =", NbrOfParticleLandmarkMax
+             CALL abort(&
+                 __STAMP__&
+                 ,'NbrOfParticleLandmarkMax.LE.0')
+           END IF
+         ELSE
+           IF(NbrOfParticleLandmarkMax.LT.NbrOfParticle)THEN
+             IPWRITE(UNIT_StdOut,*) "NbrOfParticleLandmarkMax,NbrOfParticle =", NbrOfParticleLandmarkMax,NbrOfParticle
+             CALL abort(&
+             __STAMP__&
+             ,'NbrOfParticleLandmarkMax.LT.NbrOfParticle is not allowed! Allocate PartPosLandmark to the appropriate size.')
+           END IF ! NbrOfParticleLandmarkMax.LE.NbrOfParticle
+         END IF ! .NOT.ALLOCATED()
+       END ASSOCIATE
+     CASE(9) ! '2D_landmark_neutralization'
+#if USE_MPI
+       ! Communicate number of particles with all procs in the same init group
+       InitGroup=Species(i)%Init(iInit)%InitCOMM
+       IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
+         ! Only processors which are part of group take part in the communication
+         CALL MPI_ALLREDUCE(NeutralizationBalance,NeutralizationBalanceGlobal,1,MPI_INTEGER,MPI_SUM,PartMPI%InitGroup(InitGroup)%COMM,IERROR)
+       ELSE
+         NeutralizationBalanceGlobal=0
+       END IF
+#else
+       NeutralizationBalanceGlobal = NeutralizationBalance
+#endif
+       ! Insert electrons only when the number is greater than zero
+       IF(NeutralizationBalanceGlobal.GT.0)THEN
+         ! Insert only when positive
+         NbrOfParticle = NeutralizationBalanceGlobal
+         ! Reset the counter
+         NeutralizationBalance = 0
+       ELSE
+         NbrOfParticle = 0
+       END IF ! NeutralizationBalance.GT.0
+
       CASE DEFAULT
         NbrOfParticle = 0
       END SELECT
@@ -449,7 +506,7 @@ DO AdaptiveElemID = 1,nElems
         PorousBCMacroVal(7,AdaptiveElemID,iSpec) = PorousBCMacroVal(7,AdaptiveElemID,iSpec) + Source(11,AdaptiveElemID,iSpec)
         ! Sampling the number of simulation particles
         PorousBCMacroVal(8,AdaptiveElemID,iSpec) = PorousBCMacroVal(8,AdaptiveElemID,iSpec) + Source(7,AdaptiveElemID,iSpec)
-        IF(MOD(iter,SamplingIteration).EQ.0) THEN
+        IF(MOD(iter,INT(SamplingIteration,8)).EQ.0_8) THEN
           IF(PorousBCMacroVal(8,AdaptiveElemID,iSpec).GT.1) THEN
             ! number density
             IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN

@@ -26,8 +26,6 @@ SAVE
 
 LOGICAL                                 :: SurfOnNode
 INTEGER                                 :: SurfSampSize                  !> Energy + Force + nSpecies
-INTEGER                                 :: SurfSampSizeReactive          !> additional sample size on the surface due to use of
-                                                                         !> reactive surface modelling (reactions, liquid, etc.)
 REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: SurfSideArea                  !> Area of supersampled surface side
 REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: BoundaryWallTemp              !> Wall Temperature for Adaptive Case
 ! ====================================================================

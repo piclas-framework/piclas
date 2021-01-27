@@ -221,6 +221,8 @@ CALL prms%CreateRealOption(     'Part-AuxBC[$]-halfangle'  &
                                 , 'TODO-DEFINE-PARAMETER',  '45.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
                                 , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-AdaptWallTemp'     , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Perform wall temperature adaptation.', '.TRUE.')
 
 END SUBROUTINE DefineParametersParticleBoundary
 
@@ -237,7 +239,7 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary, AdaptWallTemp
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
@@ -466,6 +468,7 @@ DO iPartBound=1,nPartBound
     DoBoundaryParticleOutputHDF5=.TRUE.
   END IF ! PartBound%BoundaryParticleOutputHDF5(iPartBound)
 END DO
+AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
 IF(GEO%RotPeriodicBC) THEN
   GEO%RotPeriodicAxi   = GETINT('Part-RotPeriodicAxi')

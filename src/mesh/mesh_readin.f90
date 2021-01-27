@@ -273,8 +273,11 @@ CALL ReadAttribute(File_ID,'nUniqueSides',1,IntegerScalar=nGlobalUniqueSidesFrom
 CALL ReadAttribute(File_ID,'nSides',1,IntegerScalar=nNonUniqueGlobalSides)
 CALL ReadAttribute(File_ID,'nNodes',1,IntegerScalar=nNonUniqueGlobalNodes)
 CALL CloseDataFile()
+! INTEGER KIND=4 check for number of elements
 CHECKSAFEINT(HSize(2),4)
 nGlobalElems=INT(HSize(2),4) !global number of elements
+! INTEGER KIND=4 check for number of nodes
+CHECKSAFEINT(8_8*INT(nGlobalElems,8),4)
 DEALLOCATE(HSize)
 IF(MPIRoot.AND.(nGlobalElems.LT.nProcessors))CALL abort(__STAMP__&
     ,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))
