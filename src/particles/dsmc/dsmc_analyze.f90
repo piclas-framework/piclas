@@ -1072,16 +1072,20 @@ IF (DSMC%CalcQualityFactors) THEN
       IF(BGK_QualityFacSamp(2,iElem).GT.0) THEN
         ! Mean relaxation factor (mean over all octree subcells)
         DSMC_MacroVal(nVarCount+1,iElem) = BGK_QualityFacSamp(1,iElem) / BGK_QualityFacSamp(2,iElem)
+        ! Mean Prandtl number
+        DSMC_MacroVal(nVarCount+2,iElem) = BGK_QualityFacSamp(6,iElem) / BGK_QualityFacSamp(2,iElem)
+        ! Mean expected Prandtl number
+        DSMC_MacroVal(nVarCount+3,iElem) = BGK_QualityFacSamp(7,iElem) / BGK_QualityFacSamp(2,iElem)
       END IF
       IF(BGK_QualityFacSamp(4,iElem).GT.0) THEN
         ! Max relaxation factor (maximal value of all octree subcells)
-        DSMC_MacroVal(nVarCount+2,iElem) = BGK_QualityFacSamp(3,iElem) / BGK_QualityFacSamp(4,iElem)
+        DSMC_MacroVal(nVarCount+4,iElem) = BGK_QualityFacSamp(3,iElem) / BGK_QualityFacSamp(4,iElem)
         ! Max rotational relaxation factor
-        DSMC_MacroVal(nVarCount+3,iElem) = BGK_QualityFacSamp(5,iElem) / BGK_QualityFacSamp(4,iElem)
+        DSMC_MacroVal(nVarCount+5,iElem) = BGK_QualityFacSamp(5,iElem) / BGK_QualityFacSamp(4,iElem)
       END IF
       ! Ratio between BGK and DSMC usage per cell
-      DSMC_MacroVal(nVarCount+4,iElem) = BGK_QualityFacSamp(4,iElem) / iter_loc
-      nVarCount = nVarCount + 4
+      DSMC_MacroVal(nVarCount+6,iElem) = BGK_QualityFacSamp(4,iElem) / iter_loc
+      nVarCount = nVarCount + 6
     END IF
     ! variable rotation and vibration relaxation
     IF(Collismode.GT.1) THEN
@@ -1491,7 +1495,7 @@ USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: DSMC
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_Mesh_Vars             ,ONLY: MeshFile
-USE MOD_TimeDisc_Vars         ,ONLY: iter, time, TEnd
+USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
 USE MOD_DSMC_Vars             ,ONLY: SamplingActive
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE

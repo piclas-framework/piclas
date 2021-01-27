@@ -131,7 +131,7 @@ jBGM = MAX(MIN(GEO%FIBGMjmax,jBGM),GEO%FIBGMjmin)
 kBGM = CEILING((Pos3D(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
 kBGM = MAX(MIN(GEO%FIBGMkmax,kBGM),GEO%FIBGMkmin)
 
-!--- check all cells associated with this beckground mesh cell
+!--- check all cells associated with this background mesh cell
 nBGMElems = FIBGM_nElems(iBGM,jBGM,kBGM)
 
 ! get closest element barycenter
@@ -175,6 +175,7 @@ DO iBGMElem = 1,nBGMElems
       IF (MAXVAL(ABS(RefPos)).LE.1.0) InElementCheck = .TRUE.
 
     CASE(REFMAPPING)
+      CNElemID = GetCNElemID(ElemID)
       CALL GetPositionInRefElem(Pos3D(1:3),RefPos,ElemID)
       IF (MAXVAL(ABS(RefPos)).LE.ElemEpsOneCell(CNElemID)) InElementCheck = .TRUE.
 

@@ -1630,6 +1630,7 @@ DO iPart=1,PDM%ParticleVecLength
 #endif
 #if USE_MPI
               inelem=PEM%GlobalElemID(ipart)
+              IPWRITE(UNIT_stdout,'(I0,A,L1)') ' inelem.LE.PP_nElems = ',inelem.LE.PP_nElems
               IF(inelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
                 IPWRITE(UNIT_stdout,'(I0,A,I0)') ' elemid               ', inelem+offsetelem
@@ -1638,6 +1639,7 @@ DO iPart=1,PDM%ParticleVecLength
 !                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' elemid         ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
 !                                                                 + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
               END IF
+              IPWRITE(UNIT_stdout,'(I0,A,L1)') ' testelem.LE.PP_nElems = ',testelem.LE.PP_nElems
               IF(testelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
                 IPWRITE(UNIT_stdout,'(I0,A,I0)') ' testelem             ', testelem+offsetelem
@@ -1733,7 +1735,8 @@ PartTrajectory       = PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 lengthPartTrajectory = VECNORM(PartTrajectory(1:3))
 
 ! Check if the particle moved at all. If not, tracking is done
-IF (.NOT.PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo(ElemID))) THEN
+CNElemID = GetCNElemID(ElemID)
+IF (.NOT.PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo(CNElemID))) THEN
   PEM%GlobalElemID(PartID) = ElemID
   PartisDone               = .TRUE.
   RETURN
@@ -1882,7 +1885,7 @@ DO WHILE(DoTracing)
                                    ,ElemID,reflected)
 
         ! particle moved to a new element in boundary interaction
-        IF(ElemID.NE.OldElemID )THEN
+        IF(ElemID.NE.OldElemID)THEN
           ! Try to recursively calculate the intersection 1000 times. Threshold might be changed...
           IF (iCount.GE.1000 .AND. MOD(iCount,1000).EQ.0) THEN
             IPWRITE(*,'(I4,A,I0,A,3(1X,I0))') ' WARNING: proc has called BCTracking ',iCount &

@@ -67,6 +67,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !==================================================================================================================================
+CALL prms%SetSection("PIC Deposition")
 CALL prms%CreateLogicalOption('PIC-DoDeposition', 'Switch deposition of charge (and current density) on/off', '.TRUE.')
 
 CALL prms%CreateIntFromStringOption('PIC-Deposition-Type', "Type/Method used in the deposition step: \n"           //&
@@ -500,7 +501,7 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 
 ! 2/2 Add the global, synchronized surface charge contribution (considers the charge contribution from restart files) from 
 ! NodeSourceExt. The container NodeSourceExt is updated when it is written to .h5, where, additionally, the container
-! NodeSourceExtTmp is nulled
+! NodeSourceExtTmp is nullified
 IF(DoDielectricSurfaceCharge)THEN
   DO iNode=firstNode, lastNode
     NodeSource(4,iNode) = NodeSource(4,iNode) + NodeSourceExt(iNode)
@@ -720,7 +721,7 @@ IF (myComputeNodeRank.EQ.0) THEN
     IF (iProc.EQ.myLeaderGroupRank) CYCLE
 
     IF (CNShapeMapping(iProc)%nRecvShapeElems.NE.0) THEN
-      CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(RecvRequestCN(iProc),MPIStatus,IERROR)
       IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     END IF
 

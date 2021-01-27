@@ -99,7 +99,6 @@ USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c
 #if ! (USE_HDG)
 USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
 USE MOD_CalcTimeStep           ,ONLY: CalcTimeStep
-USE MOD_TimeDisc_Vars          ,ONLY: time
 #endif /*USE_HDG*/
 #if USE_MPI
 USE MOD_MPI_Shared_Vars
@@ -467,6 +466,7 @@ ELSE
     END IF
   END DO
   ALLOCATE(offsetCNHalo2GlobalElem(1:nHaloElems))
+  offsetCNHalo2GlobalElem=-1
   nHaloElems = 0
   DO iElem = 1, nGlobalElems
     IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.2) THEN
@@ -1510,6 +1510,8 @@ REAL                           :: BoundsOfElemCenter(1:4)
 REAL                           :: RotBoundsOfElemCenter(3)
 REAL,ALLOCATABLE               :: PeriodicSideBoundsOfElemCenter(:,:)
 REAL,ALLOCATABLE               :: PeriodicSideAngle(:)
+INTEGER,DIMENSION(2)           :: DirPeriodicVector = [-1,1]
+INTEGER                        :: iPeriodicDir
 !===================================================================================================================================
 
 firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
@@ -1548,6 +1550,7 @@ nPeriodicElems = 0
 ! this loop, three communications steps would be required. First the offset of the periodic elements must be communicated, then a
 ! shared array holding the metrics of the periodic elements must be allocated and filled. Finally, the shared array must be
 ! synchronized. The communication overhead would most likely exceed the calculation effort.
+
 DO iElem = 1,nGlobalElems
   ! only consider elements within the DG or halo region
   IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.0) CYCLE
@@ -1565,7 +1568,6 @@ DO iElem = 1,nGlobalElems
           nPeriodicElems = nPeriodicElems + 1
           hasPeriodic    = .TRUE.
         END IF
-        PeriodicSideAngle(nPeriodicElems) = REAL(PartBound%RotPeriodicDir(SideInfo_Shared(SIDE_BCID,iSide)))*GEO%RotPeriodicAngle
       END IF
     END IF
   END DO
@@ -1599,31 +1601,32 @@ DO iElem = firstElem,lastElem
   DO iPeriodicElem = 1,nPeriodicElems
     ! element might be already added back
     IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).NE.0) EXIT
-
-    ASSOCIATE( alpha => PeriodicSideAngle(iPeriodicElem) )
-      SELECT CASE(GEO%RotPeriodicAxi)
-        CASE(1) ! x-rotation axis
-          RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
-          RotBoundsOfElemCenter(2) = COS(alpha)*BoundsOfElemCenter(2) - SIN(alpha)*BoundsOfElemCenter(3)
-          RotBoundsOfElemCenter(3) = SIN(alpha)*BoundsOfElemCenter(2) + COS(alpha)*BoundsOfElemCenter(3)
-        CASE(2) ! x-rotation axis
-          RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) + SIN(alpha)*BoundsOfElemCenter(3)
-          RotBoundsOfElemCenter(2) = BoundsOfElemCenter(2)
-          RotBoundsOfElemCenter(3) =-SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(3)
-        CASE(3) ! x-rotation axis
-          RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) - SIN(alpha)*BoundsOfElemCenter(2)
-          RotBoundsOfElemCenter(2) = SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(2)
-          RotBoundsOfElemCenter(3) = BoundsOfElemCenter(3)
-      END SELECT
-    END ASSOCIATE
-    ! check if element is within halo_eps of rotationally displaced element
-    IF (VECNORM( RotBoundsOfElemCenter(1:3)                                                                            &
-               - PeriodicSideBoundsOfElemCenter(1:3,iPeriodicElem))                                                    &
-            .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem) ) THEN
-      ! add element back to halo region
-      ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-!          CALL AddElementToFIBGM(iElem)
-    END IF
+    DO iPeriodicDir = 1,2
+      ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
+        SELECT CASE(GEO%RotPeriodicAxi)
+          CASE(1) ! x-rotation axis
+            RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
+            RotBoundsOfElemCenter(2) = COS(alpha)*BoundsOfElemCenter(2) - SIN(alpha)*BoundsOfElemCenter(3)
+            RotBoundsOfElemCenter(3) = SIN(alpha)*BoundsOfElemCenter(2) + COS(alpha)*BoundsOfElemCenter(3)
+          CASE(2) ! x-rotation axis
+            RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) + SIN(alpha)*BoundsOfElemCenter(3)
+            RotBoundsOfElemCenter(2) = BoundsOfElemCenter(2)
+            RotBoundsOfElemCenter(3) =-SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(3)
+          CASE(3) ! x-rotation axis
+            RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) - SIN(alpha)*BoundsOfElemCenter(2)
+            RotBoundsOfElemCenter(2) = SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(2)
+            RotBoundsOfElemCenter(3) = BoundsOfElemCenter(3)
+        END SELECT
+      END ASSOCIATE
+      ! check if element is within halo_eps of rotationally displaced element
+      IF (VECNORM( RotBoundsOfElemCenter(1:3)                                                                            &
+                 - PeriodicSideBoundsOfElemCenter(1:3,iPeriodicElem))                                                    &
+              .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem) ) THEN
+        ! add element back to halo region
+        ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
+  !          CALL AddElementToFIBGM(iElem)
+      END IF
+    END DO
   END DO
 END DO
 

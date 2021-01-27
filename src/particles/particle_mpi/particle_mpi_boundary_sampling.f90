@@ -318,10 +318,10 @@ USE MOD_Globals
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: nSurfLeaders,myComputeNodeRank,mySurfRank
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSampSize,SurfSampSizeReactive,nSurfSample
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSampSize,nSurfSample
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping,PartBound,CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState,SampWallState_Shared,SampWallState_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallPumpCapacity,SampWallPumpCapacity_Shared,SampWallPumpCapacity_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactEnergy,SampWallImpactEnergy_Shared,SampWallImpactEnergy_Shared_Win
@@ -342,7 +342,7 @@ IMPLICIT NONE
 INTEGER                         :: iProc,SideID
 INTEGER                         :: iPos,p,q
 INTEGER                         :: MessageSize,iSurfSide,SurfSideID
-INTEGER                         :: nValues,nReactiveValues
+INTEGER                         :: nValues
 INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !INTEGER                         :: iPos,p,q,iProc,iReact
 !INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
@@ -402,11 +402,6 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 ! prepare buffers for surf leader communication
 IF (myComputeNodeRank.EQ.0) THEN
   nValues = SurfSampSize*nSurfSample**2
-  ! additional array entries for Coverage, Accomodation and recombination coefficient
-  IF(ANY(PartBound%Reactive)) THEN
-    nReactiveValues = SurfSampSizeReactive*(nSurfSample)**2
-    nValues         = nValues+nReactiveValues
-  END IF
   ! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle and number: Add 9*nSpecies
   ! to the buffer length
   IF(CalcSurfaceImpact) nValues=nValues+9*nSpecies

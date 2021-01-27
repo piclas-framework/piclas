@@ -103,7 +103,6 @@ LOGICAL,ALLOCATABLE            :: GlobalProcToRecvProc(:)
 LOGICAL,ALLOCATABLE            :: CommFlag(:)
 INTEGER                        :: nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob
 INTEGER                        :: nExchangeProcessorsGlobal
-REAL,ALLOCATABLE               :: MPISideAngle(:)
 REAL,ALLOCATABLE               :: RotBoundsOfElemCenter(:)
 !=================================================================================================================================
 
@@ -163,7 +162,7 @@ firstElem = offsetElem+1
 lastElem  = offsetElem+nElems
 
 IF(StringBeginsWith(DepositionType,'shape_function'))THEN
-  ALLOCATE(FlagShapeElem(1:nComputeNodeElems))
+  ALLOCATE(FlagShapeElem(1:nComputeNodeTotalElems))
   FlagShapeElem = .FALSE.
 END IF
 
@@ -267,8 +266,6 @@ END DO
 !> Build metrics for all MPI sides on current proc
 ALLOCATE(BoundsOfElemCenter(1:4))
 ALLOCATE(MPISideBoundsOfElemCenter(1:4,1:nExchangeSides))
-ALLOCATE(MPISideAngle(1:nExchangeSides))
-MPISideAngle(1:nExchangeSides) = 0.
 ALLOCATE(RotBoundsOfElemCenter(1:4))
 
 DO iSide = 1, nExchangeSides
@@ -280,13 +277,6 @@ DO iSide = 1, nExchangeSides
   MPISideBoundsOfElemCenter(4,iSide) = VECNORM ((/BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
                                                   BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                                   BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
-  IF(GEO%RotPeriodicBC) THEN
-    IF(SideInfo_Shared(SIDE_BCID,SideID).GT. 0) THEN
-      IF (PartBound%TargetBoundCond(SideInfo_Shared(SIDE_BCID,SideID)).EQ.6) THEN
-        MPISideAngle(iSide) = REAL(PartBound%RotPeriodicDir(SideInfo_Shared(SIDE_BCID,SideID)))
-      END IF
-    END IF
-  END IF
 END DO
 
 !> Check all elements in the CN halo region against local MPI sides. Check is identical to particle_bgm.f90
@@ -589,7 +579,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
           CALL ABORT(__STAMP__,'Invalid number of periodic vectors in particle_mpi_halo.f90')
       END SELECT
       ! Check rot periodic Elems and if iSide is on rot periodic BC
-      IF(GEO%RotPeriodicBC.AND.(MPISideAngle(iSide).NE.0)) THEN
+      IF(GEO%RotPeriodicBC) THEN
         DO iPeriodicDir = 1,2
           ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
             SELECT CASE(GEO%RotPeriodicAxi)
@@ -677,7 +667,6 @@ DO iProc = 0,nProcessors_Global-1
   ! Found a previously missing proc
   GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc) = 2
   GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,iProc) = nExchangeProcessors
-
   nNonSymmetricExchangeProcs = nNonSymmetricExchangeProcs + 1
   nExchangeProcessors        = nExchangeProcessors + 1
 END DO
@@ -789,7 +778,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     END DO
 
     ! Second stage of communication, identify and send inter-compute-node information
-    IF (nLeaderGroupProcs.EQ.1) THEN
+    IF (nLeaderGroupProcs.GT.1) THEN
       DEALLOCATE(RecvRequest)
       ALLOCATE(CNShapeMapping(0:nLeaderGroupProcs-1), &
                SendRequest   (0:nLeaderGroupProcs-1), &
@@ -883,7 +872,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
 
         IF (CNShapeMapping(iProc)%nSendShapeElems.EQ.0) CYCLE
 
-        ALLOCATE(CNShapeMapping(iProc)%SendShapeElemID(CNShapeMapping(iProc)%nSendShapeElems))
+        !ALLOCATE(CNShapeMapping(iProc)%SendShapeElemID(CNShapeMapping(iProc)%nSendShapeElems))
         ALLOCATE(CNShapeMapping(iProc)%SendBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,CNShapeMapping(iProc)%nSendShapeElems))
 
         CALL MPI_ISEND( CNShapeMapping(iProc)%SendShapeElemID   &

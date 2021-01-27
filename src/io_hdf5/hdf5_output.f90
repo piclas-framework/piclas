@@ -76,11 +76,11 @@ SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_DG_Vars                 ,ONLY: U
-USE MOD_Globals_Vars            ,ONLY: ProjectName
-USE MOD_Mesh_Vars               ,ONLY: offsetElem,nGlobalElems,nGlobalUniqueSides,nUniqueSides,offsetSide
-USE MOD_Equation_Vars           ,ONLY: StrVarNames
-USE MOD_Restart_Vars            ,ONLY: RestartFile
+USE MOD_DG_Vars                ,ONLY: U
+USE MOD_Globals_Vars           ,ONLY: ProjectName
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems,nGlobalUniqueSides,nUniqueSides,offsetSide
+USE MOD_Equation_Vars          ,ONLY: StrVarNames
+USE MOD_Restart_Vars           ,ONLY: RestartFile
 #ifdef PARTICLES
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PartSource
@@ -94,34 +94,40 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: nSpecAnalyze
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
 #endif /*PARTICLES*/
 #ifdef PP_POIS
-USE MOD_Equation_Vars           ,ONLY: E,Phi
+USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #if USE_HDG
-USE MOD_HDG_Vars                ,ONLY: lambda, nGP_face
+USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face
 #if PP_nVar==1
-USE MOD_Equation_Vars           ,ONLY: E
+USE MOD_Equation_Vars          ,ONLY: E
 #elif PP_nVar==3
-USE MOD_Equation_Vars           ,ONLY: B
+USE MOD_Equation_Vars          ,ONLY: B
 #else
-USE MOD_Equation_Vars           ,ONLY: E,B
+USE MOD_Equation_Vars          ,ONLY: E,B
 #endif /*PP_nVar*/
-USE MOD_Mesh_Vars               ,ONLY: nSides
-USE MOD_Utils                   ,ONLY: QuickSortTwoArrays
-USE MOD_Mesh_Vars               ,ONLY: MortarType,SideToElem,MortarInfo
-USE MOD_Mesh_Vars               ,ONLY: firstMortarInnerSide,lastMortarInnerSide
-USE MOD_Mesh_Vars               ,ONLY: lastMPISide_MINE,lastInnerSide
-USE MOD_Mappings                ,ONLY: CGNS_SideToVol2
-USE MOD_Utils                   ,ONLY: Qsort1DoubleInt1PInt
+USE MOD_Mesh_Vars              ,ONLY: nSides
+USE MOD_Utils                  ,ONLY: QuickSortTwoArrays
+USE MOD_Mesh_Vars              ,ONLY: MortarType,SideToElem,MortarInfo
+USE MOD_Mesh_Vars              ,ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mesh_Vars              ,ONLY: lastMPISide_MINE,lastInnerSide
+USE MOD_Mappings               ,ONLY: CGNS_SideToVol2
+USE MOD_Utils                  ,ONLY: Qsort1DoubleInt1PInt
 #if USE_MPI
-USE MOD_MPI_Vars                ,ONLY: OffsetMPISides_rec,nNbProcs,nMPISides_rec,nbProc,RecRequest_U,SendRequest_U
-USE MOD_MPI                     ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI_Vars               ,ONLY: OffsetMPISides_rec,nNbProcs,nMPISides_rec,nbProc,RecRequest_U,SendRequest_U
+USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
-USE MOD_Mesh_Vars               ,ONLY: GlobalUniqueSideID
+USE MOD_Mesh_Vars              ,ONLY: GlobalUniqueSideID
+USE MOD_Analyze_Vars           ,ONLY: CalcAverageElectricPotential,PosAverageElectricPotential
+#ifdef PARTICLES
+USE MOD_PICInterpolation_Vars  ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
+USE MOD_Analyze_Vars           ,ONLY: AverageElectricPotential
+USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
+#endif /*PARTICLES*/
 #endif /*USE_HDG*/
-USE MOD_Analyze_Vars            ,ONLY: OutputTimeFixed
-USE MOD_Mesh_Vars               ,ONLY: DoWriteStateToHDF5
-USE MOD_StringTools             ,ONLY: set_formatting,clear_formatting
-USE MOD_HDF5_Input              ,ONLY: ReadArray
+USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
+USE MOD_Mesh_Vars              ,ONLY: DoWriteStateToHDF5
+USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
+USE MOD_HDF5_Input             ,ONLY: ReadArray
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -170,6 +176,9 @@ REAL,ALLOCATABLE               :: SortedLambda(:,:,:)          ! lambda, ((PP_N+
 INTEGER                        :: SortedOffset,SortedStart,SortedEnd,p,q,r,rr,pq(1:2)
 INTEGER                        :: SideID_start, SideID_end,iNbProc,SendID
 REAL,ALLOCATABLE               :: iLocSides(:,:,:)          ! iLocSides, ((PP_N+1)^2,nSides) 
+#ifdef PARTICLES
+INTEGER                        :: i,j,k,iElem
+#endif /*PARTICLES*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
 ! set local variables for output and previous times
@@ -505,8 +514,28 @@ ASSOCIATE (&
       offset=    (/0_IK       , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
       collective=.TRUE., RealArray=U)
 #if (PP_nVar==1)
-  Utemp(1,:,:,:,:)=U(1,:,:,:,:)
-  Utemp(2:4,:,:,:,:)=E(1:3,:,:,:,:)
+
+#ifdef PARTICLES
+  IF(useAlgebraicExternalField.AND.AlgebraicExternalField.EQ.1)THEN
+    DO iElem=1,PP_nElems
+      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+        ASSOCIATE( Ue => AverageElectricPotential ,&
+              xe => 2.4e-2                        ,&
+              x  => Elem_xGP(1,i,j,k,iElem))
+          Utemp(1,i,j,k,iElem) = U(1,i,j,k,iElem) - x * Ue / xe
+          Utemp(2,i,j,k,iElem) = E(1,i,j,k,iElem) + Ue / xe
+        END ASSOCIATE
+      END DO; END DO; END DO !i,j,k
+    END DO !iElem
+    Utemp(3:4,:,:,:,:) = E(2:3,:,:,:,:)
+  ELSE
+#endif /*PARTICLES*/
+    Utemp(1,:,:,:,:)   = U(1,:,:,:,:)
+    Utemp(2:4,:,:,:,:) = E(1:3,:,:,:,:)
+#ifdef PARTICLES
+  END IF
+#endif /*PARTICLES*/
+
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_Solution', rank=5,&
       nValGlobal=(/4_IK , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
@@ -3317,6 +3346,9 @@ IF(iter.NE.0)THEN
 #if USE_MPI
   CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
   CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#else
+  ! Reset local surface charge
+  NodeSourceExtTmp = 0.
 #endif
 
 end if ! iter.NE.0
