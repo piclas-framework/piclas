@@ -255,7 +255,9 @@ USE MOD_Particle_Vars          ,ONLY: PartQ,F_PartX0,F_PartXk,Norm_F_PartX0,Norm
                                      ,PartState, Pt, LastPartPos, PEM, PDM, PartLorentzType,PartDeltaX,PartDtFrac,PartStateN  &
                                      ,PartMeshHasReflectiveBCs
 USE MOD_LinearOperator         ,ONLY: PartVectorDotProduct
-USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
+USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
+USE MOD_Particle_TriaTracking  ,ONLY: ParticleTriaTracking
 USE MOD_Part_RHS               ,ONLY: CalcPartRHS
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -695,7 +697,9 @@ USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 USE MOD_Globals_Vars           ,ONLY: c2_inv
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
-USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
+USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
+USE MOD_Particle_TriaTracking  ,ONLY: ParticleTriaTracking
 USE MOD_LinearSolver_Vars      ,ONLY: DoFullNewton!,PartNewtonRelaxation
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles

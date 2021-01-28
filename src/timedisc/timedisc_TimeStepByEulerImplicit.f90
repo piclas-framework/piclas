@@ -54,6 +54,8 @@ USE MOD_DSMC                  ,ONLY: DSMC_main
 USE MOD_DSMC_Vars             ,ONLY: useDSMC, DSMC_RHS, DSMC
 USE MOD_part_tools            ,ONLY: UpdateNextFreePosition
 #endif
+USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
+USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
