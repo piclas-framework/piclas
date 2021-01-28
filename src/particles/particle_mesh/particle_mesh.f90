@@ -2775,7 +2775,7 @@ IF (fullMesh) THEN
       BCElemID = SideInfo_Shared(SIDE_ELEMID,BCSideID)
 
       ! Ignore the same element
-      IF (BCElemID.EQ.iElem) CYCLE
+      IF (BCElemID.EQ.ElemID) CYCLE
 
       nBCSidesElem = nBCSidesElem + 1
       nBCSidesProc = nBCSidesProc + 1
@@ -2944,7 +2944,7 @@ IF (fullMesh) THEN
       BCElemID = SideInfo_Shared(SIDE_ELEMID,BCSideID)
 
       ! Ignore the same element
-      IF (BCElemID.EQ.iElem) CYCLE
+      IF (BCElemID.EQ.ElemID) CYCLE
 
       nBCSidesProc = nBCSidesProc + 1
       SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(BCSideID)
