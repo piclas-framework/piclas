@@ -549,16 +549,10 @@ IF (CalcPartBalance) THEN
 END IF
 TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
 IF(TrackParticlePosition)THEN
-  IF(nProcessors.GT.1)THEN
-    CALL abort(&
-        __STAMP__&
-        ,'Part-TrackPosition=T is currently not supported in combination with more than 1 proc!')
-  ELSE
-    IF(PDM%ParticleVecLength.GT.1)THEN
-    CALL abort(&
-        __STAMP__&
-        ,'Part-TrackPosition=T is currently not supported in combination with more than 1 particle!')
-    END IF
+  IF(PDM%ParticleVecLength.GT.1)THEN
+  CALL abort(&
+      __STAMP__&
+      ,'Part-TrackPosition=T is currently not supported in combination with more than 1 particle!')
   END IF
   printDiff=GETLOGICAL('printDiff','.FALSE.')
   IF(printDiff)THEN
@@ -2795,7 +2789,7 @@ REAL                                     :: diffPos,diffVelo
 INTEGER                                  :: iPartState
 !===================================================================================================================================
 ! only the root shall write this file
-IF(.NOT.MPIRoot)RETURN
+!IF(.NOT.MPIRoot)RETURN
 
 ! check if file is to be created
 CreateFile=.TRUE.

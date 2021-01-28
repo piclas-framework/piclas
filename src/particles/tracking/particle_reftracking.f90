@@ -277,7 +277,7 @@ DO iPart=1,PDM%ParticleVecLength
     ! loop through sorted list and start by closest element
     DO iBGMElem=1,nBGMElems
       ! ignore old element and elements out of range
-      IF (ALMOSTEQUAL(Distance(iBGMELem),-1.0)) CYCLE
+      IF(Distance(iBGMELem).LT.0.) CYCLE
 
       ElemID = ListDistance(iBGMElem)
 #if USE_LOADBALANCE
@@ -464,7 +464,7 @@ DO iPart=1,PDM%ParticleVecLength
               inelem=PEM%GlobalElemID(ipart)
               IF(inelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = F'
-                IPWRITE(UNIT_stdout,'(I0,A,I0)') ' elemid-N               ', inelem+offsetelem
+                IPWRITE(UNIT_stdout,'(I0,A,I0)') ' elemid-N               ', inelem
               ELSE
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = T'
 !                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' elemid-N         ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
@@ -472,17 +472,16 @@ DO iPart=1,PDM%ParticleVecLength
               END IF
               IF(testelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = F'
-                IPWRITE(UNIT_stdout,'(I0,A,I0)') ' testelem-N            ', testelem+offsetelem
+                IPWRITE(UNIT_stdout,'(I0,A,I0)') ' testelem-N            ', testelem
               ELSE
 !                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = T'
 !                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' testelem-N       ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,testelem)) &
                                                                !+ PartHaloElemToProc(NATIVE_ELEM_ID,testelem)
               END IF
 
-#else
-              IPWRITE(UNIt_stdOut,'(I0,A,I0)') ' elemid-N                 ', PEM%GlobalElemID(ipart)+offsetelem
 #endif
 #endif /*ROS or IMPA*/
+              IPWRITE(UNIT_StdOut,*) "PEM%GlobalElemID(ipart) =", PEM%GlobalElemID(ipart)
 #if defined(IMPA)
               IPWRITE(UNIT_stdOut,'(I0,A,1X,L1)') ' Implicit               ', PartIsImplicit(iPart)
 #endif
@@ -491,24 +490,19 @@ DO iPart=1,PDM%ParticleVecLength
               IPWRITE(UNIT_stdout,'(I0,A,L1)') ' inelem.LE.PP_nElems = ',inelem.LE.PP_nElems
               IF(inelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
-                IPWRITE(UNIT_stdout,'(I0,A,I0)') ' elemid               ', inelem+offsetelem
               ELSE
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = T'
-!                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' elemid         ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
-!                                                                 + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
               END IF
               IPWRITE(UNIT_stdout,'(I0,A,L1)') ' testelem.LE.PP_nElems = ',testelem.LE.PP_nElems
               IF(testelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
-                IPWRITE(UNIT_stdout,'(I0,A,I0)') ' testelem             ', testelem+offsetelem
+                IPWRITE(UNIT_stdout,'(I0,A,I0)') ' testelem             ', testelem
               ELSE
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = T'
 !                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' testelem         ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,testelem)) &
 !                                                               + PartHaloElemToProc(NATIVE_ELEM_ID,testelem)
               END IF
 
-#else
-              IPWRITE(UNIt_stdOut,'(I0,A,I0)') ' elemid                 ', PEM%GlobalElemID(ipart)+offsetelem
 #endif
               IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' PartSpecies  ', PartSpecies(iPart)
               CALL abort(&
