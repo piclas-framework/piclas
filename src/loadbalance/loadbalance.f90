@@ -355,7 +355,7 @@ USE MOD_Particle_MPI     ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleR
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
 #endif /*PARTICLES*/
 USE MOD_LoadBalance_Vars ,ONLY: CurrentImbalance, MaxWeight, MinWeight
-USE MOD_LoadBalance_Vars ,ONLY: Currentimbalance, PerformLoadBalance
+USE MOD_LoadBalance_Vars ,ONLY: Currentimbalance, PerformLoadBalance,LoadBalanceMaxSteps
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimeField
 USE MOD_StringTools      ,ONLY: set_formatting,clear_formatting
 ! IMPLICIT VARIABLE HANDLING
@@ -383,13 +383,13 @@ END IF
 SWRITE(UNIT_StdOut,'(1X)')
 SWRITE(UNIT_StdOut,'(1X)')
 SWRITE(UNIT_StdOut,'(132("="))')
+nLoadBalanceSteps=nLoadBalanceSteps+1
 CALL set_formatting("green")
-SWRITE(UNIT_stdOut,'(A)') ' PERFORMING LOAD BALANCE ...'
+SWRITE(UNIT_stdOut,'(A,I0,A,I0,A)') ' PERFORMING LOAD BALANCE ',nLoadBalanceSteps,' of ',LoadBalanceMaxSteps,' ...'
 CALL clear_formatting()
 ! Measure init duration
 LB_StartTime=PICLASTIME()
 
-nLoadBalanceSteps=nLoadBalanceSteps+1
 ! Finalize all arrays
 CALL FinalizePiclas(IsLoadBalance=.TRUE.)
 ! reallocate
