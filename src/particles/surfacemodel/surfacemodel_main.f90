@@ -357,10 +357,10 @@ TrackInfo%PartTrajectory(1:3)     = TrackInfo%PartTrajectory(1:3)-2.*DOT_PRODUCT
 ! compute moved particle || rest of movement
 TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 
-IF(ALMOSTZERO(VECNORM(TrackInfo%PartTrajectory)))THEN
+TrackInfo%lengthPartTrajectory = VECNORM(TrackInfo%PartTrajectory)
+IF(ALMOSTZERO(TrackInfo%lengthPartTrajectory)) THEN
   TrackInfo%lengthPartTrajectory= 0.0
 ELSE
-  TrackInfo%lengthPartTrajectory= VECNORM(TrackInfo%PartTrajectory)
   TrackInfo%PartTrajectory=TrackInfo%PartTrajectory/TrackInfo%lengthPartTrajectory
 END IF
 ! #endif

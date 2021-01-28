@@ -225,7 +225,7 @@ CALL prms%CreateRealOption(     'Part-TimeFracForSampling'&
   'Can not be enabled together with Part-WriteMacroValues.' , '0.0')
 CALL prms%CreateIntOption(      'Particles-NumberForDSMCOutputs'&
   , 'Give the number of outputs for time fraction sampling.\n'//&
-  'Default value is 1 if Part-TimeFracForSampling is enabled.', '0')
+  'Default value is 1 if Part-TimeFracForSampling is enabled.', '1')
 
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
   , 'Set [T] to activate sampling, analyze and h5 output for surfaces. Therefore either time fraction or iteration sampling'//&
@@ -867,6 +867,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd
+USE MOD_Particle_Boundary_Vars ,ONLY: AdaptWallTemp
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -876,7 +877,9 @@ USE MOD_TimeDisc_Vars          ,ONLY: TEnd
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-! output of macroscopic values
+! Include surface values in the macroscopic output
+DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal','.FALSE.')
+! Sampling for and output every given number of iterations (sample is reset after an output)
 WriteMacroValues = GETLOGICAL('Part-WriteMacroValues','.FALSE.')
 IF(WriteMacroValues)THEN
   WriteMacroVolumeValues = GETLOGICAL('Part-WriteMacroVolumeValues','.TRUE.')
@@ -894,22 +897,34 @@ ELSE
   END IF
 END IF
 MacroValSamplIterNum = GETINT('Part-IterationForMacroVal','1')
-DSMC%TimeFracSamp = GETREAL('Part-TimeFracForSampling','0.0')
-DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal','.FALSE.')
-IF(WriteMacroVolumeValues.OR.WriteMacroSurfaceValues)THEN
-  IF(DSMC%TimeFracSamp.GT.0.0) CALL abort(&
-__STAMP__&
-    ,'ERROR: Init Macrosampling: WriteMacroValues and Time fraction sampling enabled at the same time')
-  IF(WriteMacroSurfaceValues.AND.(.NOT.DSMC%CalcSurfaceVal)) DSMC%CalcSurfaceVal = .TRUE.
-END IF
-DSMC%NumOutput = GETINT('Particles-NumberForDSMCOutputs','0')
-IF((DSMC%TimeFracSamp.GT.0.0).AND.(DSMC%NumOutput.EQ.0)) DSMC%NumOutput = 1
-IF (DSMC%NumOutput.NE.0) THEN
-  IF (DSMC%TimeFracSamp.GT.0.0) THEN
+IF(WriteMacroSurfaceValues.AND.(.NOT.DSMC%CalcSurfaceVal)) DSMC%CalcSurfaceVal = .TRUE.
+
+! Continuous sampling with multiple outputs (sample is not reset after an output)
+DSMC%TimeFracSamp = GETREAL('Part-TimeFracForSampling')
+IF(DSMC%TimeFracSamp.GT.0.0) THEN
+  IF(WriteMacroVolumeValues.OR.WriteMacroSurfaceValues)THEN
+    CALL abort(__STAMP__, &
+      'ERROR Init Macrosampling: WriteMacroValues and Time fraction sampling enabled at the same time')
+  END IF
+  DSMC%NumOutput = GETINT('Particles-NumberForDSMCOutputs')
+  IF(DSMC%NumOutput.NE.0) THEN
     DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
   ELSE
-    DSMC%NumOutput=0
-    SWRITE(UNIT_STDOUT,*)'DSMC_NumOutput was set to 0 because timefracsamp is 0.0'
+    CALL abort(__STAMP__,&
+      'ERROR Init Macrosampling: Please define a number of outputs (Particles-NumberForDSMCOutputs) greater than zero!')
+  END IF
+ELSE
+  IF(DSMC%NumOutput.NE.0) THEN
+    SWRITE(UNIT_STDOUT,*)'WARNING: NumberForDSMCOutputs was set to 0 because TimeFracForSampling is 0.0'
+  END IF
+  DSMC%NumOutput = 0
+END IF
+
+! Adaptive wall temperature should not be used with continuous sampling with multiple outputs as the sample is not reset
+IF(AdaptWallTemp) THEN
+  IF (DSMC%NumOutput.GT.1) THEN
+    CALL abort(__STAMP__, &
+      'ERROR: Enabled adaptation of the wall temperature and multiple outputs during a continuous sample is not supported!')
   END IF
 END IF
 

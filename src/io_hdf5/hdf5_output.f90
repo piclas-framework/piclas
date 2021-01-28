@@ -2112,7 +2112,7 @@ END SUBROUTINE WriteAdaptiveInfoToHDF5
 
 SUBROUTINE WriteAdaptiveWallTempToHDF5(FileName)
 !===================================================================================================================================
-!> Subroutine that generates the adaptive boundary info and writes it out into State-File
+!> Output of the adaptive cell-local wall temperature and the corresponding global side index
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -2151,8 +2151,8 @@ CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,commun
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-      nSurfSample          => INT(nSurfSample,IK)                     , &
-      nGlobalSides         => INT(nSurfTotalSides,IK)                    , &
+      nSurfSample          => INT(nSurfSample,IK)               , &
+      nGlobalSides         => INT(nSurfTotalSides,IK)           , &
       nLocalSides          => INT(nComputeNodeSurfSides,IK)     , &
       offsetSurfSide       => INT(offsetComputeNodeSurfSide,IK))
   CALL WriteArrayToHDF5(DataSetName = H5_Name , rank = 3                   , &
@@ -2164,7 +2164,7 @@ ASSOCIATE (&
                         nValGlobal  = (/nGlobalSides/) , &
                         nVal        = (/nLocalSides/) , &
                         offset      = (/offsetSurfSide  /) , &
-                        collective  = .FALSE.  , IntegerArray = SurfSide2GlobalSide(SURF_SIDEID,1:nComputeNodeSurfSides))
+                        collective  = .FALSE.  , IntegerArray_i4 = SurfSide2GlobalSide(SURF_SIDEID,1:nComputeNodeSurfSides))
 END ASSOCIATE
 CALL CloseDataFile()
 

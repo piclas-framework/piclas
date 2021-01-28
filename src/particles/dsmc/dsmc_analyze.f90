@@ -246,9 +246,9 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       
       IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
         IF ((MacroSurfaceVal(4,p,q,OutputCounter).GT.0.0).AND.AdaptWallTemp) THEN
-          iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))          
+          iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
           BoundaryWallTemp(p,q,iSurfSide) = (MacroSurfaceVal(4,p,q,OutputCounter) &
-              /(StefanBoltzmannConst*PartBound%RadiatingEmissivity(iBC)))**(1./4.)
+              /(StefanBoltzmannConst*PartBound%RadiativeEmissivity(iBC)))**(1./4.)
         END IF
         MacroSurfaceVal(nVar,p,q,OutputCounter) = BoundaryWallTemp(p,q,iSurfSide)
       END IF

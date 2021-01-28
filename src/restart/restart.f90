@@ -71,10 +71,11 @@ CALL prms%CreateLogicalOption( 'RestartNullifySolution', &
                                "Set the DG solution to zero (ignore the DG solution in the state file)",&
                                '.FALSE.')
 CALL prms%CreateLogicalOption('Particles-MacroscopicRestart', &
-                              "TO-DO",&
+                              'Utilize a macroscopic result to restart the simulation. Particles are inserted based on the '//&
+                              'cell local species-specific number density, temperature and velocity from a DSMCState file.', &
                               '.FALSE.')
 CALL prms%CreateStringOption( 'Particles-MacroscopicRestart-Filename', &
-                              'TO-DO')
+                              'File name of the DSMCState to be utilized as the input for the particle insertion.')
 END SUBROUTINE DefineParametersRestart
 
 
@@ -381,14 +382,12 @@ INTEGER,PARAMETER                  :: ELEM_LastPartInd=2
 REAL,ALLOCATABLE                   :: PartData(:,:)
 REAL                               :: xi(3)
 LOGICAL                            :: InElementCheck,PartIntExists,PartDataExists,VibQuantDataExists,changedVars,DGSourceExists
-LOGICAL                            :: ElecDistriDataExists, AD_DataExists, AdaptiveWallTempExists
+LOGICAL                            :: ElecDistriDataExists, AD_DataExists
 REAL                               :: det(6,2)
 INTEGER                            :: NbrOfMissingParticles, CounterPoly
 INTEGER, ALLOCATABLE               :: VibQuantData(:,:)
 REAL, ALLOCATABLE                  :: ElecDistriData(:,:), AD_Data(:,:)
 INTEGER                            :: MaxQuantNum, iPolyatMole, iSpec, iPart, iVar, MaxElecQuant, CounterElec, CounterAmbi
-! 2D Symmetry RadialWeighting
-LOGICAL                            :: CloneExists
 #if USE_MPI
 REAL, ALLOCATABLE                  :: SendBuff(:), RecBuff(:)
 INTEGER                            :: TotalNbrOfMissingParticles(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
@@ -1312,19 +1311,8 @@ IF(DoRestart)THEN
 
       CALL UpdateNextFreePosition()
 
-      IF (RadialWeighting%PerformCloning) THEN
-        CALL DatasetExists(File_ID,'CloneData',CloneExists)
-        IF(CloneExists) THEN
-          CALL RestartClones()
-        ELSE
-          SWRITE(*,*) 'No clone data found! Restart without cloning.'
-          IF(RadialWeighting%CloneMode.EQ.1) THEN
-            RadialWeighting%CloneDelayDiff = 1
-          ELSEIF (RadialWeighting%CloneMode.EQ.2) THEN
-            RadialWeighting%CloneDelayDiff = 0
-          END IF ! RadialWeighting%CloneMode.EQ.1
-        END IF ! CloneExists
-      END IF ! RadialWeighting%PerformCloning
+      ! Read-in the stored cloned particles
+      IF (RadialWeighting%PerformCloning) CALL RestartClones()
     ELSE ! not PartIntExists
       SWRITE(UNIT_stdOut,*)'PartInt does not exists in restart file'
     END IF ! PartIntExists
@@ -1333,9 +1321,8 @@ IF(DoRestart)THEN
     CALL MacroscopicRestart()
     CALL UpdateNextFreePosition()
   END IF ! .NOT.DoMacroscopicRestart
-  CALL DatasetExists(File_ID,'AdaptiveBoundaryWallTemp',AdaptiveWallTempExists)
-  IF (AdaptiveWallTempExists) CALL DatasetExists(File_ID,'AdaptiveBoundaryGlobalSideIndx',AdaptiveWallTempExists)
-  IF (ANY(PartBound%UseAdaptedWallTemp).AND.AdaptiveWallTempExists) CALL RestartAdaptiveWallTemp()
+  ! Read-in the cell-local wall temperature
+  IF (ANY(PartBound%UseAdaptedWallTemp)) CALL RestartAdaptiveWallTemp()
 #endif /*PARTICLES*/
 
 CALL CloseDataFile()
@@ -1374,10 +1361,10 @@ SUBROUTINE RestartClones()
 USE MOD_Globals
 USE MOD_HDF5_input
 USE MOD_io_hdf5
-USE MOD_Mesh_Vars,                ONLY : offsetElem, nElems
-USE MOD_DSMC_Vars,                ONLY : UseDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
-USE MOD_DSMC_Vars,                ONLY : RadialWeighting, ClonedParticles
-USE MOD_Particle_Vars,            ONLY : nSpecies, usevMPF, Species
+USE MOD_Mesh_Vars         ,ONLY: offsetElem, nElems
+USE MOD_DSMC_Vars         ,ONLY: UseDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
+USE MOD_DSMC_Vars         ,ONLY: RadialWeighting, ClonedParticles
+USE MOD_Particle_Vars     ,ONLY: nSpecies, usevMPF, Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1386,160 +1373,172 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                           :: nDimsClone, CloneDataSize, ClonePartNum, iPart, iDelay, maxDelay, iElem, tempDelay
-  INTEGER(HSIZE_T), POINTER         :: SizeClone(:)
-  REAL,ALLOCATABLE                  :: CloneData(:,:)
-  INTEGER                           :: iPolyatmole, MaxQuantNum, iSpec, compareDelay, MaxElecQuant
-  INTEGER,ALLOCATABLE               :: pcount(:), VibQuantData(:,:)
-  REAL, ALLOCATABLE                 :: ElecDistriData(:,:), AD_Data(:,:)
+INTEGER                   :: nDimsClone, CloneDataSize, ClonePartNum, iPart, iDelay, maxDelay, iElem, tempDelay
+INTEGER(HSIZE_T), POINTER :: SizeClone(:)
+REAL,ALLOCATABLE          :: CloneData(:,:)
+INTEGER                   :: iPolyatmole, MaxQuantNum, iSpec, compareDelay, MaxElecQuant
+INTEGER,ALLOCATABLE       :: pcount(:), VibQuantData(:,:)
+REAL, ALLOCATABLE         :: ElecDistriData(:,:), AD_Data(:,:)
+LOGICAL                   :: CloneExists
 !===================================================================================================================================
 
-  CALL GetDataSize(File_ID,'CloneData',nDimsClone,SizeClone)
+CALL DatasetExists(File_ID,'CloneData',CloneExists)
+IF(.NOT.CloneExists) THEN
+  SWRITE(*,*) 'No clone data found! Restart without cloning.'
+  IF(RadialWeighting%CloneMode.EQ.1) THEN
+    RadialWeighting%CloneDelayDiff = 1
+  ELSEIF (RadialWeighting%CloneMode.EQ.2) THEN
+    RadialWeighting%CloneDelayDiff = 0
+  END IF ! RadialWeighting%CloneMode.EQ.1
+  RETURN
+END IF ! CloneExists
 
-  CloneDataSize = INT(SizeClone(1),4)
-  ClonePartNum = INT(SizeClone(2),4)
-  DEALLOCATE(SizeClone)
+CALL GetDataSize(File_ID,'CloneData',nDimsClone,SizeClone)
 
-  IF(ClonePartNum.GT.0) THEN
-    ALLOCATE(CloneData(1:CloneDataSize,1:ClonePartNum))
-    ASSOCIATE(ClonePartNum  => INT(ClonePartNum,IK)  ,&
-              CloneDataSize => INT(CloneDataSize,IK) )
-      CALL ReadArray('CloneData',2,(/CloneDataSize,ClonePartNum/),0_IK,2,RealArray=CloneData)
+CloneDataSize = INT(SizeClone(1),4)
+ClonePartNum = INT(SizeClone(2),4)
+DEALLOCATE(SizeClone)
+
+IF(ClonePartNum.GT.0) THEN
+  ALLOCATE(CloneData(1:CloneDataSize,1:ClonePartNum))
+  ASSOCIATE(ClonePartNum  => INT(ClonePartNum,IK)  ,&
+            CloneDataSize => INT(CloneDataSize,IK) )
+    CALL ReadArray('CloneData',2,(/CloneDataSize,ClonePartNum/),0_IK,2,RealArray=CloneData)
+  END ASSOCIATE
+  SWRITE(*,*) 'Read-in of cloned particles complete. Total clone number: ', ClonePartNum
+  ! Determing the old clone delay
+  maxDelay = INT(MAXVAL(CloneData(9,:)))
+  IF(RadialWeighting%CloneMode.EQ.1) THEN
+    ! Array is allocated from 0 to maxDelay
+    compareDelay = maxDelay + 1
+  ELSE
+    compareDelay = maxDelay
+  END IF
+  IF(compareDelay.GT.RadialWeighting%CloneInputDelay) THEN
+    SWRITE(*,*) 'Old clone delay is greater than the new delay. Old delay:', compareDelay
+    RadialWeighting%CloneDelayDiff = RadialWeighting%CloneInputDelay + 1
+  ELSEIF(compareDelay.EQ.RadialWeighting%CloneInputDelay) THEN
+    SWRITE(*,*) 'The clone delay has not been changed.'
+    RadialWeighting%CloneDelayDiff = RadialWeighting%CloneInputDelay + 1
+  ELSE
+    SWRITE(*,*) 'New clone delay is greater than the old delay. Old delay:', compareDelay
+    RadialWeighting%CloneDelayDiff = compareDelay + 1
+  END IF
+  IF(RadialWeighting%CloneMode.EQ.1) THEN
+    tempDelay = RadialWeighting%CloneInputDelay - 1
+  ELSE
+    tempDelay = RadialWeighting%CloneInputDelay
+  END IF
+  ALLOCATE(pcount(0:tempDelay))
+  pcount(0:tempDelay) = 0
+  ! Polyatomic clones: determining the size of the VibQuant array
+  IF (UseDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+    MaxQuantNum = 0
+    DO iSpec = 1, nSpecies
+      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+        IF (PolyatomMolDSMC(iPolyatMole)%VibDOF.GT.MaxQuantNum) MaxQuantNum = PolyatomMolDSMC(iPolyatMole)%VibDOF
+      END IF
+    END DO
+    ALLOCATE(VibQuantData(1:MaxQuantNum,1:ClonePartNum))
+    ASSOCIATE(ClonePartNum => INT(ClonePartNum,IK),MaxQuantNum => INT(MaxQuantNum,IK))
+      CALL ReadArray('CloneVibQuantData',2,(/MaxQuantNum,ClonePartNum/),0_IK,2,IntegerArray_i4=VibQuantData)
     END ASSOCIATE
-    SWRITE(*,*) 'Read-in of cloned particles complete. Total clone number: ', ClonePartNum
-    ! Determing the old clone delay
-    maxDelay = INT(MAXVAL(CloneData(9,:)))
-    IF(RadialWeighting%CloneMode.EQ.1) THEN
-      ! Array is allocated from 0 to maxDelay
-      compareDelay = maxDelay + 1
-    ELSE
-      compareDelay = maxDelay
-    END IF
-    IF(compareDelay.GT.RadialWeighting%CloneInputDelay) THEN
-      SWRITE(*,*) 'Old clone delay is greater than the new delay. Old delay:', compareDelay
-      RadialWeighting%CloneDelayDiff = RadialWeighting%CloneInputDelay + 1
-    ELSEIF(compareDelay.EQ.RadialWeighting%CloneInputDelay) THEN
-      SWRITE(*,*) 'The clone delay has not been changed.'
-      RadialWeighting%CloneDelayDiff = RadialWeighting%CloneInputDelay + 1
-    ELSE
-      SWRITE(*,*) 'New clone delay is greater than the old delay. Old delay:', compareDelay
-      RadialWeighting%CloneDelayDiff = compareDelay + 1
-    END IF
-    IF(RadialWeighting%CloneMode.EQ.1) THEN
-      tempDelay = RadialWeighting%CloneInputDelay - 1
-    ELSE
-      tempDelay = RadialWeighting%CloneInputDelay
-    END IF
-    ALLOCATE(pcount(0:tempDelay))
-    pcount(0:tempDelay) = 0
-    ! Polyatomic clones: determining the size of the VibQuant array
-    IF (UseDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-      MaxQuantNum = 0
-      DO iSpec = 1, nSpecies
-        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-          iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-          IF (PolyatomMolDSMC(iPolyatMole)%VibDOF.GT.MaxQuantNum) MaxQuantNum = PolyatomMolDSMC(iPolyatMole)%VibDOF
-        END IF
-      END DO
-      ALLOCATE(VibQuantData(1:MaxQuantNum,1:ClonePartNum))
-      ASSOCIATE(ClonePartNum => INT(ClonePartNum,IK),MaxQuantNum => INT(MaxQuantNum,IK))
-        CALL ReadArray('CloneVibQuantData',2,(/MaxQuantNum,ClonePartNum/),0_IK,2,IntegerArray_i4=VibQuantData)
-      END ASSOCIATE
-    END IF
-    IF (UseDSMC.AND.(DSMC%ElectronicModel.EQ.2)) THEN
-      MaxElecQuant = 0
-      DO iSpec = 1, nSpecies
-        IF (.NOT.((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized)) THEN
-          IF (SpecDSMC(iSpec)%MaxElecQuant.GT.MaxElecQuant) MaxElecQuant = SpecDSMC(iSpec)%MaxElecQuant
-        END IF
-      END DO
-      ALLOCATE(ElecDistriData(1:MaxElecQuant,1:ClonePartNum))
-      ASSOCIATE(ClonePartNum => INT(ClonePartNum,IK),MaxElecQuant => INT(MaxElecQuant,IK))
-        CALL ReadArray('CloneElecDistriData',2,(/MaxElecQuant,ClonePartNum/),0_IK,2,RealArray=ElecDistriData)
-      END ASSOCIATE
-    END IF
-    IF (UseDSMC.AND.DSMC%DoAmbipolarDiff) THEN
-      ALLOCATE(AD_Data(1:3,1:ClonePartNum))
-      ASSOCIATE(ClonePartNum => INT(ClonePartNum,IK))
-        CALL ReadArray('CloneADVeloData',2,(/INT(3,IK),ClonePartNum/),0_IK,2,RealArray=AD_Data)
-      END ASSOCIATE
-    END IF
-    ! Copying particles into ClonedParticles array
-    DO iPart = 1, ClonePartNum
-      iDelay = INT(CloneData(9,iPart))
-      iElem = INT(CloneData(8,iPart)) - offsetElem
-      IF((iElem.LE.nElems).AND.(iElem.GT.0)) THEN
-        IF(iDelay.LE.tempDelay) THEN
-          pcount(iDelay) = pcount(iDelay) + 1
-          RadialWeighting%ClonePartNum(iDelay) = pcount(iDelay)
-          ClonedParticles(pcount(iDelay),iDelay)%PartState(1) = CloneData(1,iPart)
-          ClonedParticles(pcount(iDelay),iDelay)%PartState(2) = CloneData(2,iPart)
-          ClonedParticles(pcount(iDelay),iDelay)%PartState(3) = CloneData(3,iPart)
-          ClonedParticles(pcount(iDelay),iDelay)%PartState(4) = CloneData(4,iPart)
-          ClonedParticles(pcount(iDelay),iDelay)%PartState(5) = CloneData(5,iPart)
-          ClonedParticles(pcount(iDelay),iDelay)%PartState(6) = CloneData(6,iPart)
-          ClonedParticles(pcount(iDelay),iDelay)%Species = INT(CloneData(7,iPart))
-          ClonedParticles(pcount(iDelay),iDelay)%Element = INT(CloneData(8,iPart))
-          ClonedParticles(pcount(iDelay),iDelay)%lastPartPos(1:3) = CloneData(1:3,iPart)
-          IF (UseDSMC) THEN
-            IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel.GT.0) ) THEN
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(10,iPart)
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(11,iPart)
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(3) = CloneData(12,iPart)
-              ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor   = CloneData(13,iPart)
-            ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(10,iPart)
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(11,iPart)
-              ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor   = CloneData(12,iPart)
-            ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel.GT.0) ) THEN
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(10,iPart)
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(11,iPart)
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(3) = CloneData(12,iPart)
-            ELSE IF (CollisMode.GT.1) THEN
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(10,iPart)
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(11,iPart)
-            ELSE IF (usevMPF) THEN
-              ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor = CloneData(10,iPart)
-            END IF
+  END IF
+  IF (UseDSMC.AND.(DSMC%ElectronicModel.EQ.2)) THEN
+    MaxElecQuant = 0
+    DO iSpec = 1, nSpecies
+      IF (.NOT.((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized)) THEN
+        IF (SpecDSMC(iSpec)%MaxElecQuant.GT.MaxElecQuant) MaxElecQuant = SpecDSMC(iSpec)%MaxElecQuant
+      END IF
+    END DO
+    ALLOCATE(ElecDistriData(1:MaxElecQuant,1:ClonePartNum))
+    ASSOCIATE(ClonePartNum => INT(ClonePartNum,IK),MaxElecQuant => INT(MaxElecQuant,IK))
+      CALL ReadArray('CloneElecDistriData',2,(/MaxElecQuant,ClonePartNum/),0_IK,2,RealArray=ElecDistriData)
+    END ASSOCIATE
+  END IF
+  IF (UseDSMC.AND.DSMC%DoAmbipolarDiff) THEN
+    ALLOCATE(AD_Data(1:3,1:ClonePartNum))
+    ASSOCIATE(ClonePartNum => INT(ClonePartNum,IK))
+      CALL ReadArray('CloneADVeloData',2,(/INT(3,IK),ClonePartNum/),0_IK,2,RealArray=AD_Data)
+    END ASSOCIATE
+  END IF
+  ! Copying particles into ClonedParticles array
+  DO iPart = 1, ClonePartNum
+    iDelay = INT(CloneData(9,iPart))
+    iElem = INT(CloneData(8,iPart)) - offsetElem
+    IF((iElem.LE.nElems).AND.(iElem.GT.0)) THEN
+      IF(iDelay.LE.tempDelay) THEN
+        pcount(iDelay) = pcount(iDelay) + 1
+        RadialWeighting%ClonePartNum(iDelay) = pcount(iDelay)
+        ClonedParticles(pcount(iDelay),iDelay)%PartState(1) = CloneData(1,iPart)
+        ClonedParticles(pcount(iDelay),iDelay)%PartState(2) = CloneData(2,iPart)
+        ClonedParticles(pcount(iDelay),iDelay)%PartState(3) = CloneData(3,iPart)
+        ClonedParticles(pcount(iDelay),iDelay)%PartState(4) = CloneData(4,iPart)
+        ClonedParticles(pcount(iDelay),iDelay)%PartState(5) = CloneData(5,iPart)
+        ClonedParticles(pcount(iDelay),iDelay)%PartState(6) = CloneData(6,iPart)
+        ClonedParticles(pcount(iDelay),iDelay)%Species = INT(CloneData(7,iPart))
+        ClonedParticles(pcount(iDelay),iDelay)%Element = INT(CloneData(8,iPart))
+        ClonedParticles(pcount(iDelay),iDelay)%lastPartPos(1:3) = CloneData(1:3,iPart)
+        IF (UseDSMC) THEN
+          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel.GT.0) ) THEN
+            ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(10,iPart)
+            ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(11,iPart)
+            ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(3) = CloneData(12,iPart)
+            ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor   = CloneData(13,iPart)
+          ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
+            ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(10,iPart)
+            ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(11,iPart)
+            ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor   = CloneData(12,iPart)
+          ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel.GT.0) ) THEN
+            ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(10,iPart)
+            ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(11,iPart)
+            ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(3) = CloneData(12,iPart)
+          ELSE IF (CollisMode.GT.1) THEN
+            ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(10,iPart)
+            ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(11,iPart)
           ELSE IF (usevMPF) THEN
-              ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor = CloneData(10,iPart)
+            ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor = CloneData(10,iPart)
           END IF
-          IF (UseDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-            IF (SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%PolyatomicMol) THEN
-              iPolyatMole = SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%SpecToPolyArray
-              ALLOCATE(ClonedParticles(pcount(iDelay),iDelay)%VibQuants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
-              ClonedParticles(pcount(iDelay),iDelay)%VibQuants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF) &
-                = VibQuantData(1:PolyatomMolDSMC(iPolyatMole)%VibDOF,iPart)
-            END IF
+        ELSE IF (usevMPF) THEN
+            ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor = CloneData(10,iPart)
+        END IF
+        IF (UseDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+          IF (SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%PolyatomicMol) THEN
+            iPolyatMole = SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%SpecToPolyArray
+            ALLOCATE(ClonedParticles(pcount(iDelay),iDelay)%VibQuants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
+            ClonedParticles(pcount(iDelay),iDelay)%VibQuants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF) &
+              = VibQuantData(1:PolyatomMolDSMC(iPolyatMole)%VibDOF,iPart)
           END IF
-          IF (UseDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
-            IF (.NOT.((SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%InterID.EQ.4) &
-                .OR.SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%FullyIonized)) THEN 
-              ALLOCATE(ClonedParticles(pcount(iDelay),iDelay)%DistriFunc( &
-                      1:SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%MaxElecQuant))
-              ClonedParticles(pcount(iDelay),iDelay)%DistriFunc(1:SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%MaxElecQuant) &
-                = ElecDistriData(1:SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%MaxElecQuant,iPart)
-            END IF
+        END IF
+        IF (UseDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
+          IF (.NOT.((SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%InterID.EQ.4) &
+              .OR.SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%FullyIonized)) THEN 
+            ALLOCATE(ClonedParticles(pcount(iDelay),iDelay)%DistriFunc( &
+                    1:SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%MaxElecQuant))
+            ClonedParticles(pcount(iDelay),iDelay)%DistriFunc(1:SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%MaxElecQuant) &
+              = ElecDistriData(1:SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%MaxElecQuant,iPart)
           END IF
-          IF (UseDSMC.AND.DSMC%DoAmbipolarDiff)  THEN
-            IF (Species(ClonedParticles(pcount(iDelay),iDelay)%Species)%ChargeIC.GT.0.0) THEN      
-              ALLOCATE(ClonedParticles(pcount(iDelay),iDelay)%AmbiPolVelo(1:3))
-              ClonedParticles(pcount(iDelay),iDelay)%AmbiPolVelo(1:3) = AD_Data(1:3,iPart)
-            END IF
+        END IF
+        IF (UseDSMC.AND.DSMC%DoAmbipolarDiff)  THEN
+          IF (Species(ClonedParticles(pcount(iDelay),iDelay)%Species)%ChargeIC.GT.0.0) THEN      
+            ALLOCATE(ClonedParticles(pcount(iDelay),iDelay)%AmbiPolVelo(1:3))
+            ClonedParticles(pcount(iDelay),iDelay)%AmbiPolVelo(1:3) = AD_Data(1:3,iPart)
           END IF
         END IF
       END IF
-    END DO
-  ELSE
-    SWRITE(*,*) 'Read-in of cloned particles complete. No clones detected.'
-  END IF
+    END IF
+  END DO
+ELSE
+  SWRITE(*,*) 'Read-in of cloned particles complete. No clones detected.'
+END IF
 
 END SUBROUTINE RestartClones
 
 
 SUBROUTINE RestartAdaptiveWallTemp()
 !===================================================================================================================================
-! Axisymmetric 2D simulation with particle weighting: Read-in of clone particles saved during output of particle data
+!> Read-in of the adaptive side-local wall temperature and the corresponding global side index
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1560,10 +1559,24 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER, ALLOCATABLE      :: tmpGlobalSideInx(:)
-  REAL, ALLOCATABLE         :: tmpWallTemp(:,:,:)
-  INTEGER                   :: iSide, tmpSide, iSurfSide
+INTEGER, ALLOCATABLE      :: tmpGlobalSideInx(:)
+REAL, ALLOCATABLE         :: tmpWallTemp(:,:,:)
+INTEGER                   :: iSide, tmpSide, iSurfSide
+LOGICAL                   :: AdaptiveWallTempExists
 !===================================================================================================================================
+
+CALL DatasetExists(File_ID,'AdaptiveBoundaryWallTemp',AdaptiveWallTempExists)
+IF (.NOT.AdaptiveWallTempExists) THEN
+  SWRITE(*,*) 'No side-local temperature found. The wall temperature will be adapted during the next macroscopic output.'
+  RETURN
+END IF
+
+CALL DatasetExists(File_ID,'AdaptiveBoundaryGlobalSideIndx',AdaptiveWallTempExists)
+IF (.NOT.AdaptiveWallTempExists) THEN
+  CALL Abort(__STAMP__,&
+    'ERROR during Restart: AdaptiveBoundaryWallTemp was found in the restart file but not the GlobalSideIndx array!')
+END IF
+
 IF (nSurfTotalSides.EQ.0) RETURN
 
 ALLOCATE(tmpGlobalSideInx(nSurfTotalSides), &
@@ -1576,7 +1589,7 @@ IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
   ASSOCIATE (&
         nSurfSample          => INT(nSurfSample,IK)                     , &
         nGlobalSides         => INT(nSurfTotalSides,IK))
-    CALL ReadArray('AdaptiveBoundaryGlobalSideIndx',1,(/nGlobalSides/),0_IK,1,IntegerArray=tmpGlobalSideInx)
+    CALL ReadArray('AdaptiveBoundaryGlobalSideIndx',1,(/nGlobalSides/),0_IK,1,IntegerArray_i4=tmpGlobalSideInx)
     CALL ReadArray('AdaptiveBoundaryWallTemp',3,(/nSurfSample, nSurfSample, nGlobalSides/),0_IK,1,RealArray=tmpWallTemp)
   END ASSOCIATE
 
@@ -1591,7 +1604,7 @@ ELSE
   ASSOCIATE (&
         nSurfSample          => INT(0,IK)                     , &
         nGlobalSides         => INT(0,IK))
-    CALL ReadArray('AdaptiveBoundaryGlobalSideIndx',1,(/nGlobalSides/),0_IK,1,IntegerArray=tmpGlobalSideInx)
+    CALL ReadArray('AdaptiveBoundaryGlobalSideIndx',1,(/nGlobalSides/),0_IK,1,IntegerArray_i4=tmpGlobalSideInx)
     CALL ReadArray('AdaptiveBoundaryWallTemp',3,(/nSurfSample, nSurfSample, nGlobalSides/),0_IK,1,RealArray=tmpWallTemp)
   END ASSOCIATE
 END IF
@@ -1604,7 +1617,7 @@ END SUBROUTINE RestartAdaptiveWallTemp
 
 SUBROUTINE MacroscopicRestart()
 !===================================================================================================================================
-!>
+!> Read-in of the element data from a DSMC state and insertion of particles based on the macroscopic values
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
