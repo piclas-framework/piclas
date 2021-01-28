@@ -49,7 +49,9 @@ USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_part_pos_and_velo      ,ONLY: SetParticleVelocity
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
-USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
+USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
+USE MOD_Particle_TriaTracking  ,ONLY: ParticleTriaTracking
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/

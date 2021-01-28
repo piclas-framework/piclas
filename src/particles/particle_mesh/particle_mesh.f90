@@ -2817,7 +2817,7 @@ ELSE
       IF (BCCNElemID.EQ.-1) CYCLE
 
       ! Ignore the same element
-      IF (BCElemID.EQ.iElem) CYCLE
+      IF (BCElemID.EQ.ElemID) CYCLE
 
       ! Check if barycenter of element is in range
       IF (VECNORM(ElemBaryNGeo(:,iElem) - ElemBaryNGeo(:,BCCNElemID)) &
@@ -2982,7 +2982,7 @@ ELSE
       IF (BCCNElemID.EQ.-1) CYCLE
 
       ! Ignore the same element
-      IF (BCElemID.EQ.iElem) CYCLE
+      IF (BCElemID.EQ.ElemID) CYCLE
 
       ! Check if barycenter of element is in range
       IF (VECNORM(ElemBaryNGeo(:,iElem) - ElemBaryNGeo(:,BCCNElemID)) &

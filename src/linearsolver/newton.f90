@@ -215,7 +215,9 @@ USE MOD_LinearSolver_Vars      ,ONLY: FullEisenstatWalker,FullgammaEW,DoPrintCon
 #ifdef PARTICLES
 USE MOD_LinearSolver_Vars      ,ONLY: DoFullNewton,DoFieldUpdate,PartNewtonLinTolerance
 USE MOD_LinearSolver_Vars      ,ONLY: PartRelaxationFac,PartRelaxationFac0,DoPartRelaxation,AdaptIterRelaxation0
-USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
+USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
+USE MOD_Particle_TriaTracking  ,ONLY: ParticleTriaTracking
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_LinearSolver_Vars      ,ONLY: Eps2PartNewton,UpdateInIter
 USE MOD_Particle_Vars          ,ONLY: PartIsImplicit

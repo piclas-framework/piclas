@@ -81,7 +81,9 @@ USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
-USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
+USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
+USE MOD_Particle_TriaTracking  ,ONLY: ParticleTriaTracking
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_ParticleSolver         ,ONLY: ParticleNewton, SelectImplicitParticles
 USE MOD_Part_RHS               ,ONLY: PartRHS
