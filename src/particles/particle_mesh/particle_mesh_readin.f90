@@ -194,13 +194,14 @@ nSideIDs     = ElemInfo(ELEM_LASTSIDEIND ,LastElemInd)-ElemInfo(ELEM_FIRSTSIDEIN
 ALLOCATE(SideInfo_Shared_tmp(offsetSideID+1:offsetSideID+nSideIDs))
 SideInfo_Shared_tmp = 0
 
+#if USE_MPI
+! all procs on my compute-node communicate the number of non-unique sides
+CALL MPI_ALLREDUCE(nSideIDs,nComputeNodeSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
+
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) RETURN
 #endif /*USE_LOADBALANCE*/
 
-#if USE_MPI
-! all procs on my compute-node communicate the number of non-unique sides
-CALL MPI_ALLREDUCE(nSideIDs,nComputeNodeSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
 MPISharedSize = INT((SIDEINFOSIZE+1)*nNonUniqueGlobalSides,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/SIDEINFOSIZE+1,nNonUniqueGlobalSides/),SideInfo_Shared_Win,SideInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideInfo_Shared_Win,IERROR)
