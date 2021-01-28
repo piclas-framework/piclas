@@ -2603,7 +2603,7 @@ USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides_Shared,SideBCMetrics_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides_Shared_Win,SideBCMetrics_Shared_Win
-USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps,halo_eps_velo
+USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps,halo_eps_velo,SafetyFactor
 #if ! (USE_HDG)
 USE MOD_CalcTimeStep           ,ONLY: CalcTimeStep
 #endif
@@ -2704,9 +2704,9 @@ IF (halo_eps.EQ.0) THEN
     BC_halo_eps = MAX(BC_halo_eps,RK_c(iStage+1)-RK_c(iStage))
   END DO
   BC_halo_eps = MAX(BC_halo_eps,1.-RK_c(nRKStages))
-  BC_halo_eps = BC_halo_eps*BC_halo_eps_velo*deltaT
+  BC_halo_eps = BC_halo_eps*BC_halo_eps_velo*deltaT*SafetyFactor
 #else
-  BC_halo_eps = BC_halo_eps_velo*deltaT
+  BC_halo_eps = BC_halo_eps_velo*deltaT*SafetyFactor
 #endif
 
   vec(1)   = GEO%xmaxglob-GEO%xminglob
