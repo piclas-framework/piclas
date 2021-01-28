@@ -8,10 +8,10 @@ before_script:
   - module load gcc/9.2.0
   - module load openmpi/3.1.6/gcc/9.2.0
   - module load hdf5/1.10.6/gcc/9.2.0/openmpi/3.1.6
-  - if [ -n "${DO_CORE_SPLIT}" ]; then 
+  - if [ -n "${DO_CORE_SPLIT}" ]; then
       echo " PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE. Splitting shared memory domains on processor-level!";
       export PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE;
-    else 
+    else
       echo "Splitting shared memory domains on node-level! Set variable DO_CORE_SPLIT=T to force core-level shared memory splitting for all regression tests.";
     fi
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -127,7 +127,7 @@ stages:
   rules:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
-    
+
 .template: &defaults_poisson_nightly
   tags:
     - withmodules-concurrent
@@ -170,6 +170,12 @@ build:
     - mkdir -p build ; cd build
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
     - cmake .. -DPICLAS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; make -j all
+    - if [ -n "${DO_NIGHTLY}" ]; then
+        git clone https://github.com/flexi-framework/hopr.git hopr;
+        cd hopr ; mkdir -p build ; cd build;
+        echo `pwd`;
+        cmake .. -DHOPR_BUILD_HDF5=OFF ; make -j all;
+      fi
 
 build_maxwell:
   tags:
@@ -431,7 +437,7 @@ NIG_maxwell_dipole_dielectric:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_dipole_dielectric/ ; fi
 
-      # Commented out 07/12/2020 - to be fixed: 
+      # Commented out 07/12/2020 - to be fixed:
       # this reggie has two examples:
       #  - imexfluid (fails): differnces as compared with the ref. files because particles are lost
       #  - surface_flux (works): no problems detected
