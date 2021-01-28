@@ -60,7 +60,9 @@ USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, Delay
 USE MOD_PICModels              ,ONLY: FieldIonization
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
-USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
+USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
+USE MOD_Particle_TriaTracking  ,ONLY: ParticleTriaTracking
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS

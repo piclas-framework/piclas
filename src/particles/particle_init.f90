@@ -1373,7 +1373,7 @@ SUBROUTINE InitParticleBoundaryRotPeriodic()
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSide2GlobalSide,nComputeNodeSurfTotalSides,SurfSide2GlobalSide,PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide
-USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared, GEO
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared, GEO, ElemInfo_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -1510,9 +1510,11 @@ DO iSide=1, nRotPeriodicSides
     END DO
   END DO
   IF(.NOT.SideIsMapped) THEN
-    CALL abort(&
-        __STAMP__&
-        ,' ERROR: One rot periodic side did not find a corresponding side.')
+    IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).NE.3) THEN
+      CALL abort(&
+          __STAMP__&
+          ,' ERROR: One rot periodic side did not find a corresponding side.')
+    END IF
   END IF
 END DO
 ! (3) reallocate array due to number of potential rotational periodic sides
