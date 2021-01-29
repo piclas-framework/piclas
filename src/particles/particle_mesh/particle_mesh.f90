@@ -2628,7 +2628,6 @@ INTEGER                        :: nComputeNodeBCSides
 INTEGER                        :: nBCSidesElem,nBCSidesProc,offsetBCSidesProc,offsetBCSides
 INTEGER                        :: iBCSide,BCElemID,BCSideID
 INTEGER                        :: CNElemID,BCCNElemID
-INTEGER,ALLOCATABLE            :: ElemToBCSidesProc(:,:)
 REAL                           :: origin(1:3),vec(1:3)
 REAL                           :: BC_halo_eps
 LOGICAL                        :: fullMesh
@@ -2671,7 +2670,6 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
-ALLOCATE(ElemToBCSidesProc(1:2,1:nComputeNodeTotalElems))
 
 ! if running on one node, halo_eps is meaningless. Get a representative BC_halo_eps for BC side identification
 fullMesh = .FALSE.
