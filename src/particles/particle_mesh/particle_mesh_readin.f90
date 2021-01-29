@@ -470,8 +470,6 @@ CALL MPI_WIN_SYNC(NodeInfo_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif  /*USE_MPI*/
 
-nUniqueGlobalNodes = MAXVAL(NodeInfo_Shared)
-
 #if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
 #endif /*USE_MPI*/
@@ -806,6 +804,8 @@ CALL MPI_WIN_SYNC(NodeCoords_Shared_Win,IERROR)
 
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif  /*USE_MPI*/
+
+nUniqueGlobalNodes = MAXVAL(NodeInfo_Shared)
 
 END SUBROUTINE FinishCommunicateMeshReadin
 

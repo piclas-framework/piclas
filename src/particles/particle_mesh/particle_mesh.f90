@@ -476,8 +476,15 @@ CASE(TRACING,REFMAPPING)
 END SELECT
 
 ! Build mappings UniqueNodeID->CN Element IDs and CN Element ID -> CN Element IDs
-FindNeighbourElems = .FALSE.
-IF(FindNeighbourElems.OR.TRIM(DepositionType).EQ.'shape_function_adaptive') CALL BuildNodeNeighbourhood()
+SELECT CASE(TRIM(DepositionType))
+  CASE('cell_volweight_mean')
+    FindNeighbourElems = .TRUE.
+  CASE('shape_function_adaptive')
+    FindNeighbourElems = .TRUE.
+  CASE DEFAULT
+    FindNeighbourElems = .TRUE.
+END SELECT
+IF(FindNeighbourElems) CALL BuildNodeNeighbourhood()
 
 ! BezierAreaSample stuff:
 IF (TriaSurfaceFlux) THEN
@@ -4239,19 +4246,19 @@ IF(TRIM(DepositionType).EQ.'shape_function_adaptive'.OR.TrackingMethod.EQ.TRIATR
 
   !FindNeighbourElems = .FALSE. ! THIS IS SET TO FALSE CURRENTLY in InitParticleMesh()
   ! TODO: fix when FindNeighbourElems is not always set false
-  IF(FindNeighbourElems.OR.TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
+  IF(FindNeighbourElems)THEN
     ! From BuildNodeNeighbourhood
     CALL UNLOCK_AND_FREE(NodeToElemMapping_Shared_Win)
     CALL UNLOCK_AND_FREE(NodeToElemInfo_Shared_Win)
     CALL UNLOCK_AND_FREE(ElemToElemMapping_Shared_Win)
     CALL UNLOCK_AND_FREE(ElemToElemInfo_Shared_Win)
-  END IF ! FindNeighbourElems.OR.TRIM(DepositionType).EQ.'shape_function_adaptive'
+  END IF ! FindNeighbourElems
 
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #endif /*USE_MPI*/
 
   ADEALLOCATE(ElemNodeID_Shared)
-  IF(FindNeighbourElems.OR.TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
+  IF(FindNeighbourElems)THEN
     ADEALLOCATE(NodeToElemMapping_Shared)
     ADEALLOCATE(NodeToElemInfo_Shared)
     ADEALLOCATE(ElemToElemMapping_Shared)
