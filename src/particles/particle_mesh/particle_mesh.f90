@@ -2980,7 +2980,6 @@ DO iSide = firstSide,lastSide
   origin(1:3) = ElemBaryNGeo(1:3,CNElemID)
   vec(1:3)    = origin(1:3) - BCSideMetrics(1:3,BCSideID)
   SideBCMetrics(BCSIDE_DISTANCE,iSide) = SQRT(DOT_PRODUCT(vec,vec))-ElemRadiusNGeo(CNElemID)-BCSideMetrics(4,BCSideID)
-  ElemID = GetGlobalElemID(CNElemID)
 END DO ! iSide
 
 #if USE_MPI
