@@ -44,8 +44,12 @@ INTERFACE ReadMeshNodes
   MODULE PROCEDURE ReadMeshNodes
 END INTERFACE
 
-INTERFACE CommunicateMeshReadin
-  MODULE PROCEDURE CommunicateMeshReadin
+INTERFACE StartCommunicateMeshReadin
+  MODULE PROCEDURE StartCommunicateMeshReadin
+END INTERFACE
+
+INTERFACE FinishCommunicateMeshReadin
+  MODULE PROCEDURE FinishCommunicateMeshReadin
 END INTERFACE
 
 INTERFACE FinalizeMeshReadin
@@ -57,7 +61,8 @@ PUBLIC :: ReadMeshElems
 PUBLIC :: ReadMeshSides
 PUBLIC :: ReadMeshSideNeighbors
 PUBLIC :: ReadMeshNodes
-PUBLIC :: CommunicateMeshReadin
+PUBLIC :: StartCommunicateMeshReadin
+PUBLIC :: FinishCommunicateMeshReadin
 PUBLIC :: FinalizeMeshReadin
 !===================================================================================================================================
 
@@ -125,6 +130,7 @@ IF (PerformLoadBalance) THEN
   ! Only update the mapping of element to rank
   ElemInfo_Shared(ELEM_RANK        ,offsetElem+1:offsetElem+nElems) = myRank
   CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 ELSE
 #endif /*USE_LOADBALANCE*/
   ! allocate shared array for ElemInfo
@@ -135,6 +141,7 @@ ELSE
   ElemInfo_Shared(1:ELEMINFOSIZE_H5,offsetElem+1:offsetElem+nElems) = ElemInfo(:,:)
   ElemInfo_Shared(ELEM_RANK        ,offsetElem+1:offsetElem+nElems) = myRank
   CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #if USE_LOADBALANCE
 END IF
 #endif /*USE_LOADBALANCE*/
@@ -189,13 +196,14 @@ nSideIDs     = ElemInfo(ELEM_LASTSIDEIND ,LastElemInd)-ElemInfo(ELEM_FIRSTSIDEIN
 ALLOCATE(SideInfo_Shared_tmp(offsetSideID+1:offsetSideID+nSideIDs))
 SideInfo_Shared_tmp = 0
 
+#if USE_MPI
+! all procs on my compute-node communicate the number of non-unique sides
+CALL MPI_ALLREDUCE(nSideIDs,nComputeNodeSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
+
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) RETURN
 #endif /*USE_LOADBALANCE*/
 
-#if USE_MPI
-! all procs on my compute-node communicate the number of non-unique sides
-CALL MPI_ALLREDUCE(nSideIDs,nComputeNodeSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
 MPISharedSize = INT((SIDEINFOSIZE+1)*nNonUniqueGlobalSides,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/SIDEINFOSIZE+1,nNonUniqueGlobalSides/),SideInfo_Shared_Win,SideInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideInfo_Shared_Win,IERROR)
@@ -456,6 +464,7 @@ IF (ABS(meshScale-1.).GT.1e-14) THEN
 END IF
 
 #if USE_MPI
+CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(NodeCoords_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(NodeInfo_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
@@ -475,7 +484,7 @@ DEALLOCATE(NodeCoords_indx)
 END SUBROUTINE ReadMeshNodes
 
 
-SUBROUTINE CommunicateMeshReadin()
+SUBROUTINE StartCommunicateMeshReadin()
 !===================================================================================================================================
 ! Communicates the readin mesh between MPI leaders
 !===================================================================================================================================
@@ -496,15 +505,11 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!INTEGER                        :: FirstElem,LastElem
 INTEGER                        :: FirstElemInd,LastElemInd
 INTEGER                        :: nSideIDs,offsetSideID
-INTEGER                        :: iElem,NbElemID
-INTEGER                        :: iSide,sideCount
-INTEGER                        :: iLocSide,jLocSide,nlocSides,nlocSidesNb,NbSideID
 #if USE_MPI
 INTEGER                        :: iProc
-INTEGER                        :: nNodeIDs,offsetNodeID
+INTEGER                        :: offsetNodeID!,nNodeIDs
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
@@ -517,12 +522,12 @@ LastElemInd  = offsetElem+nElems
 offsetSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
 nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND ,LastElemInd) - ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd)
 offsetNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
-nNodeIDs     = ElemInfo_Shared(ELEM_LASTNODEIND,LastElemInd)-ElemInfo_Shared(ELEM_FIRSTNODEIND,FirstElemind)
+! nNodeIDs     = ElemInfo_Shared(ELEM_LASTNODEIND,LastElemInd)-ElemInfo_Shared(ELEM_FIRSTNODEIND,FirstElemind)
 #else
 FirstElemInd = 1
 LastElemInd  = nElems
 offsetSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
-nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd)
+nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd)
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
@@ -562,6 +567,12 @@ IF (PerformLoadBalance) THEN
     END DO
     recvcountSide(nLeaderGroupProcs-1) = nNonUniqueGlobalSides - displsSide(nLeaderGroupProcs-1)
 
+    ! Gather mesh information in a non-blocking way
+    ! ALLOCATE(MPI_COMM_LEADERS_REQUEST(1:2))
+    ! CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared(ELEM_RANK,:),recvcountElem  &
+    !                     ,displsElem,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(1),IERROR)
+    ! CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared(SIDEINFOSIZE+1,:),recvcountSide  &
+    !                     ,displsSide,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(2),IERROR)
     CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared(ELEM_RANK,:),recvcountElem  &
                         ,displsElem,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
     CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared(SIDEINFOSIZE+1,:),recvcountSide  &
@@ -571,11 +582,6 @@ IF (PerformLoadBalance) THEN
   ! Broadcast compute node node offset on node
   offsetComputeNodeNode=offsetNodeID
   CALL MPI_BCAST(offsetComputeNodeNode,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
-
-  ! final sync of all mesh shared arrays
-  CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
-  CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
   RETURN
 END IF
@@ -629,22 +635,102 @@ IF (myComputeNodeRank.EQ.0) THEN
 END IF
 
 IF (myComputeNodeRank.EQ.0) THEN
-  ! Arrays for the compute node to hold the node offsets
+  ! Gather mesh information in a non-blocking way
+  ! ALLOCATE(MPI_COMM_LEADERS_REQUEST(1:4))
+  ! CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared,ELEMINFOSIZE    *recvcountElem  &
+  !     ,ELEMINFOSIZE*displsElem     ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(1),IERROR)
+  ! CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared,(SIDEINFOSIZE+1)*recvcountSide  &
+  !     ,(SIDEINFOSIZE+1)*displsSide ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(2),IERROR)
+  ! CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeInfo_Shared,                 recvcountNode  &
+  !     ,displsNode                  ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(3),IERROR)
+  ! CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeCoords_Shared,3             *recvcountNode  &
+  !     ,3*displsNode                ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(4),IERROR)
   CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared,ELEMINFOSIZE    *recvcountElem  &
-      ,ELEMINFOSIZE*displsElem    ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
+      ,ELEMINFOSIZE*displsElem     ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
   CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared,(SIDEINFOSIZE+1)*recvcountSide  &
-      ,(SIDEINFOSIZE+1)*displsSide,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
+      ,(SIDEINFOSIZE+1)*displsSide ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
   CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeInfo_Shared,                 recvcountNode  &
-      ,displsNode                 ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
+      ,displsNode                  ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
   CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeCoords_Shared,3             *recvcountNode  &
-      ,3*displsNode               ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
+      ,3*displsNode                ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
 END IF
+#endif /*USE_MPI*/
+
+END SUBROUTINE StartCommunicateMeshReadin
+
+
+SUBROUTINE FinishCommunicateMeshReadin()
+!===================================================================================================================================
+! Communicates the readin mesh between MPI leaders
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars
+USE MOD_Particle_Mesh_Vars
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars
+#endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!INTEGER                        :: FirstElem,LastElem
+INTEGER                        :: FirstElemInd,LastElemInd
+INTEGER                        :: iElem,NbElemID
+INTEGER                        :: nSideIDs,offsetSideID
+INTEGER                        :: iSide,sideCount
+INTEGER                        :: iLocSide,jLocSide,nlocSides,nlocSidesNb,NbSideID
+!===================================================================================================================================
+
+
+#if USE_LOADBALANCE
+IF (PerformLoadBalance) THEN
+  ! ! Finish non-blocking mesh communication
+  ! IF (myComputeNodeRank.EQ.0) THEN
+  !   CALL MPI_WAITALL(2,MPI_COMM_LEADERS_REQUEST,MPI_STATUSES_IGNORE,IERROR)
+  !   DEALLOCATE(MPI_COMM_LEADERS_REQUEST)
+  ! END IF
+
+  ! final sync of all mesh shared arrays
+  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+  CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
+  CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+
+  RETURN
+END IF
+#endif  /*USE_LOADBALANCE*/
+
+#if USE_MPI
+! Finish non-blocking mesh communication
+! IF (myComputeNodeRank.EQ.0) THEN
+!   CALL MPI_WAITALL(4,MPI_COMM_LEADERS_REQUEST,MPI_STATUSES_IGNORE,IERROR)
+!   DEALLOCATE(MPI_COMM_LEADERS_REQUEST)
+! END IF
 
 ! Ensure communication for determination of SIDE_LOCALID
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
-#endif  /*USE_MPI*/
+
+! calculate all offsets
+FirstElemInd = offsetElem+1
+LastElemInd  = offsetElem+nElems
+offsetSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND ,LastElemInd) - ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd)
+#else
+FirstElemInd = 1
+LastElemInd  = nElems
+offsetSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd)
+#endif /*USE_MPI*/
 
 ! fill the SIDE_LOCALID. Basically, this array contains the 1:6 local sides of an element. ! If an element has hanging nodes (i.e.
 ! has a big mortar side), the big side has negative index (-1,-2 or -3) and the next 2 (-2, -3) or 4 (-1) sides are the subsides.
@@ -721,7 +807,7 @@ CALL MPI_WIN_SYNC(NodeCoords_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif  /*USE_MPI*/
 
-END SUBROUTINE CommunicateMeshReadin
+END SUBROUTINE FinishCommunicateMeshReadin
 
 
 SUBROUTINE FinalizeMeshReadin()

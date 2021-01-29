@@ -175,7 +175,7 @@ SUBROUTINE InitParticleMesh()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalElemID,InitGetCNElemID,GetCNElemID
-USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID
+USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID,GetGlobalSideID
 USE MOD_Mesh_Vars              ,ONLY: deleteMeshPointer,NodeCoords
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
 USE MOD_Mesh_Vars              ,ONLY: useCurveds
@@ -220,7 +220,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER          :: RefMappingGuessProposal
 INTEGER          :: iSample
-INTEGER          :: firstSide,lastSide,iSide
+INTEGER          :: firstSide,lastSide,iSide,SideID
 CHARACTER(LEN=2) :: tmpStr
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
@@ -369,17 +369,17 @@ CASE(TRACING,REFMAPPING)
 !    CALL CalcBezierControlPoints()
 
 #if USE_MPI
-    MPISharedSize = INT((3**2*nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-    CALL Allocate_Shared(MPISharedSize,(/3,3,nNonUniqueGlobalSides/),SideSlabNormals_Shared_Win,SideSlabNormals_Shared)
+    MPISharedSize = INT((3**2*nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+    CALL Allocate_Shared(MPISharedSize,(/3,3,nComputeNodeTotalSides/),SideSlabNormals_Shared_Win,SideSlabNormals_Shared)
     CALL MPI_WIN_LOCK_ALL(0,SideSlabNormals_Shared_Win,IERROR)
-    MPISharedSize = INT((6*nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-    CALL Allocate_Shared(MPISharedSize,(/6,nNonUniqueGlobalSides/),SideSlabIntervals_Shared_Win,SideSlabIntervals_Shared)
+    MPISharedSize = INT((6*nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+    CALL Allocate_Shared(MPISharedSize,(/6,nComputeNodeTotalSides/),SideSlabIntervals_Shared_Win,SideSlabIntervals_Shared)
     CALL MPI_WIN_LOCK_ALL(0,SideSlabIntervals_Shared_Win,IERROR)
-    MPISharedSize = INT((nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-    CALL Allocate_Shared(MPISharedSize,(/nNonUniqueGlobalSides/),BoundingBoxIsEmpty_Shared_Win,BoundingBoxIsEmpty_Shared)
+    MPISharedSize = INT((nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+    CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),BoundingBoxIsEmpty_Shared_Win,BoundingBoxIsEmpty_Shared)
     CALL MPI_WIN_LOCK_ALL(0,BoundingBoxIsEmpty_Shared_Win,IERROR)
-    firstSide = INT(REAL (myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
-    lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+    firstSide = INT(REAL (myComputeNodeRank   *nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))+1
+    lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))
     SideSlabNormals    => SideSlabNormals_Shared
     SideSlabIntervals  => SideSlabIntervals_Shared
     BoundingBoxIsEmpty => BoundingBoxIsEmpty_Shared
@@ -398,29 +398,35 @@ CASE(TRACING,REFMAPPING)
 #endif /*CODE_ANALYZE*/
 
     IF (BezierElevation.GT.0) THEN
-      DO iSide=firstSide,LastSide
+      DO iSide = firstSide,LastSide
         ! ignore sides that are not on the compute node
-        IF (GetCNElemID(SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.-1) CYCLE
+        ! IF (GetCNElemID(SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.-1) CYCLE
+
+        SideID = GetGlobalSideID(iSide)
 
         ! Ignore small mortar sides attached to big mortar sides
-        IF (SideInfo_Shared(SIDE_LOCALID,iSide).LT.1 .OR. SideInfo_Shared(SIDE_LOCALID,iSide).GT.6) CYCLE
+        IF (SideInfo_Shared(SIDE_LOCALID,SideID).LT.1 .OR. SideInfo_Shared(SIDE_LOCALID,SideID).GT.6) CYCLE
 
-        CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide)     &
-                                           ,SideSlabNormals(   1:3,1:3,iSide)                          &
-                                           ,SideSlabInterVals( 1:6    ,iSide)                          &
+        ! BezierControlPoints are always on nonUniqueGlobalSide
+        CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,SideID) &
+                                           ,SideSlabNormals(   1:3,1:3,iSide)                                       &
+                                           ,SideSlabInterVals( 1:6    ,iSide)                                       &
                                            ,BoundingBoxIsEmpty(iSide))
       END DO
     ELSE
       DO iSide=firstSide,LastSide
         ! ignore sides that are not on the compute node
-        IF (GetCNElemID(SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.-1) CYCLE
+        ! IF (GetCNElemID(SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.-1) CYCLE
+
+        SideID = GetGlobalSideID(iSide)
 
         ! Ignore small mortar sides attached to big mortar sides
-        IF (SideInfo_Shared(SIDE_LOCALID,iSide).LT.1 .OR. SideInfo_Shared(SIDE_LOCALID,iSide).GT.6) CYCLE
+        IF (SideInfo_Shared(SIDE_LOCALID,SideID).LT.1 .OR. SideInfo_Shared(SIDE_LOCALID,SideID).GT.6) CYCLE
 
-        CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)             &
-                                           ,SideSlabNormals(   1:3,1:3,iSide)                          &
-                                           ,SideSlabInterVals( 1:6    ,iSide)                          &
+        ! BezierControlPoints are always on nonUniqueGlobalSide
+        CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID)                         &
+                                           ,SideSlabNormals(   1:3,1:3,iSide)                                       &
+                                           ,SideSlabInterVals( 1:6    ,iSide)                                       &
                                            ,BoundingBoxIsEmpty(iSide))
       END DO
   END IF
@@ -2091,15 +2097,15 @@ ALLOCATE(ElemCurved(1:nComputeNodeElems))
 
 ! sides
 #if USE_MPI
-MPISharedSize = INT((nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/nNonUniqueGlobalSides/),SideType_Shared_Win,SideType_Shared)
+MPISharedSize = INT((nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),  SideType_Shared_Win,    SideType_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideType_Shared_Win,IERROR)
 SideType => SideType_Shared
-CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),SideDistance_Shared_Win,SideDistance_Shared)
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),  SideDistance_Shared_Win,SideDistance_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideDistance_Shared_Win,IERROR)
 SideDistance => SideDistance_Shared
-MPISharedSize = INT((3*nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/3,nNonUniqueGlobalSides/),SideNormVec_Shared_Win,SideNormVec_Shared)
+MPISharedSize = INT((3*nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalSides/),SideNormVec_Shared_Win, SideNormVec_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideNormVec_Shared_Win,IERROR)
 SideNormVec => SideNormVec_Shared
 #else
@@ -2176,13 +2182,13 @@ DO iElem=firstElem,lastElem
     IF(.NOT.ElemCurved(iElem))THEN
       BezierControlPoints_loc(1:3,0:NGeo,0:NGeo) = BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID)
       ! linear element
-      IF(BoundingBoxIsEmpty(SideID))THEN
+      IF(BoundingBoxIsEmpty(CNSideID))THEN
         v1=(-BezierControlPoints_loc(:,0,0   )+BezierControlPoints_loc(:,NGeo,0   )   &
             -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
 
         v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
             +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
-        SideNormVec(:,SideID) = CROSSNORM(v1,v2)
+        SideNormVec(:,CNSideID) = CROSSNORM(v1,v2)
         v1=0.25*(BezierControlPoints_loc(:,0,0      )     &
                 +BezierControlPoints_loc(:,NGeo,0   )  &
                 +BezierControlPoints_loc(:,0,NGeo   )  &
@@ -2190,11 +2196,11 @@ DO iElem=firstElem,lastElem
         ! check if normal vector points outwards
         v2=v1-ElemBaryNGeo(:,iElem)
         IF(flip.EQ.0)THEN
-          IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).LT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
+          IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).LT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
         ELSE
-          IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).GT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
+          IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).GT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
         END IF
-        SideDistance(CNSideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
+        SideDistance(CNSideID)=DOT_PRODUCT(v1,SideNormVec(:,CNSideID))
         ! check if it is rectangular
         isRectangular=.TRUE.
         v1=UNITVECTOR(BezierControlPoints_loc(:,0   ,NGeo)-BezierControlPoints_loc(:,0   ,0   ))
@@ -2217,7 +2223,7 @@ DO iElem=firstElem,lastElem
             -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
         v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
             +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
-        SideNormVec(:,SideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
+        SideNormVec(:,CNSideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
         SideType(CNSideID)=BILINEAR
       END IF
     ELSE
@@ -2245,14 +2251,14 @@ DO iElem=firstElem,lastElem
       END SELECT
       CALL PointsEqual(NGeo2,XCL_NGeoSideNew,XCL_NGeoSideOld,isCurvedSide)
       IF(isCurvedSide)THEn
-        IF(BoundingBoxIsEmpty(SideID))THEN
+        IF(BoundingBoxIsEmpty(CNSideID))THEN
           SideType(CNSideID)=PLANAR_CURVED
           v1=(-BezierControlPoints_loc(:,0,0   )+BezierControlPoints_loc(:,NGeo,0   )   &
               -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
 
           v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
               +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
-          SideNormVec(:,SideID) = CROSSNORM(v1,v2)
+          SideNormVec(:,CNSideID) = CROSSNORM(v1,v2)
           v1=0.25*(BezierControlPoints_loc(:,0,0   )  &
                   +BezierControlPoints_loc(:,NGeo,0)  &
                   +BezierControlPoints_loc(:,0,NGeo)  &
@@ -2260,22 +2266,22 @@ DO iElem=firstElem,lastElem
           ! check if normal vector points outwards
           v2=v1-ElemBaryNGeo(:,iElem)
           IF(flip.EQ.0)THEN
-            IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).LT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
+            IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).LT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
           ELSE
-            IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).GT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
+            IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).GT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
           END IF
-          SideDistance(CNSideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
+          SideDistance(CNSideID)=DOT_PRODUCT(v1,SideNormVec(:,CNSideID))
         ELSE
           SideType(CNSideID)=CURVED
         END IF
       ELSE
-        IF (BoundingBoxIsEmpty(SideID)) THEN
+        IF (BoundingBoxIsEmpty(CNSideID)) THEN
           v1=(-BezierControlPoints_loc(:,0,0   )+BezierControlPoints_loc(:,NGeo,0   )   &
               -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
 
           v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
               +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
-          SideNormVec(:,SideID) = CROSSNORM(v1,v2)
+          SideNormVec(:,CNSideID) = CROSSNORM(v1,v2)
           v1=0.25*(BezierControlPoints_loc(:,0,0)     &
                   +BezierControlPoints_loc(:,NGeo,0)  &
                   +BezierControlPoints_loc(:,0,NGeo)  &
@@ -2283,11 +2289,11 @@ DO iElem=firstElem,lastElem
           ! check if normal vector points outwards
           v2=v1-ElemBaryNGeo(:,iElem)
           IF(flip.EQ.0)THEN
-            IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).LT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
+            IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).LT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
           ELSE
-            IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).GT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
+            IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).GT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
           END IF
-          SideDistance(CNSideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
+          SideDistance(CNSideID)=DOT_PRODUCT(v1,SideNormVec(:,CNSideID))
           ! check if it is rectangular
           isRectangular=.TRUE.
           v1=UNITVECTOR(BezierControlPoints_loc(:,0   ,NGeo)-BezierControlPoints_loc(:,0   ,0   ))
@@ -2314,7 +2320,7 @@ DO iElem=firstElem,lastElem
               -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo))
           v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
               +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo))
-          SideNormVec(:,SideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
+          SideNormVec(:,CNSideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
           SideType(CNSideID)=BILINEAR
         END IF
       END IF
@@ -2322,6 +2328,8 @@ DO iElem=firstElem,lastElem
     SideIsDone(SideID)=.TRUE.
   END DO ! ilocSide=1,6
 END DO ! iElem=1,nTotalElems
+
+DEALLOCATE(SideIsDone)
 
 #if USE_MPI
 CALL MPI_WIN_SYNC(ElemCurved_Shared_Win,IERROR)
@@ -2576,7 +2584,6 @@ SUBROUTINE BuildBCElemDistance()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: c
-USE MOD_Mesh_Vars              ,ONLY: NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides,SideBCMetrics
@@ -2585,7 +2592,6 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo,ElemRadiusNGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueBCSides
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID,GetCNElemID
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
 USE MOD_Utils                  ,ONLY: InsertionSort
 #if USE_MPI
@@ -2595,7 +2601,7 @@ USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides_Shared,SideBCMetrics_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides_Shared_Win,SideBCMetrics_Shared_Win
-USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps,halo_eps_velo
+USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps,halo_eps_velo,SafetyFactor
 #if ! (USE_HDG)
 USE MOD_CalcTimeStep           ,ONLY: CalcTimeStep
 #endif
@@ -2614,17 +2620,14 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: p,q,r,s
-INTEGER                        :: firstBezierPoint,lastBezierPoint
+INTEGER                        :: p
 INTEGER                        :: ElemID,SideID
 INTEGER                        :: iElem,firstElem,lastElem
-INTEGER                        :: iSide,firstSide,lastSide,iLocSide
+INTEGER                        :: iSide,firstSide,lastSide
 INTEGER                        :: nComputeNodeBCSides
 INTEGER                        :: nBCSidesElem,nBCSidesProc,offsetBCSidesProc,offsetBCSides
 INTEGER                        :: iBCSide,BCElemID,BCSideID
 INTEGER                        :: CNElemID,BCCNElemID
-INTEGER,ALLOCATABLE            :: ElemToBCSidesProc(:,:)
-REAL                           :: dX,dY,dZ
 REAL                           :: origin(1:3),vec(1:3)
 REAL                           :: BC_halo_eps
 LOGICAL                        :: fullMesh
@@ -2667,7 +2670,6 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
-ALLOCATE(ElemToBCSidesProc(1:2,1:nComputeNodeTotalElems))
 
 ! if running on one node, halo_eps is meaningless. Get a representative BC_halo_eps for BC side identification
 fullMesh = .FALSE.
@@ -2696,9 +2698,9 @@ IF (halo_eps.EQ.0) THEN
     BC_halo_eps = MAX(BC_halo_eps,RK_c(iStage+1)-RK_c(iStage))
   END DO
   BC_halo_eps = MAX(BC_halo_eps,1.-RK_c(nRKStages))
-  BC_halo_eps = BC_halo_eps*BC_halo_eps_velo*deltaT
+  BC_halo_eps = BC_halo_eps*BC_halo_eps_velo*deltaT*SafetyFactor
 #else
-  BC_halo_eps = BC_halo_eps_velo*deltaT
+  BC_halo_eps = BC_halo_eps_velo*deltaT*SafetyFactor
 #endif
 
   vec(1)   = GEO%xmaxglob-GEO%xminglob
@@ -2739,10 +2741,8 @@ fullMesh = .TRUE.
 
 firstElem = 1
 lastElem  = nElems
-ALLOCATE(ElemToBCSidesProc(1:2,1:nElems))
 #endif /*USE_MPI*/
 
-ElemToBCSidesProc = -1
 nBCSidesProc      = 0
 offsetBCSides     = 0
 
@@ -2775,12 +2775,12 @@ IF (fullMesh) THEN
 
     ! Write local mapping from Elem to BC sides. The number is already correct, the offset must be corrected later
     IF (nBCSidesElem.GT.0) THEN
-      ElemToBCSidesProc(ELEM_NBR_BCSIDES ,iElem) = nBCSidesElem
-      ElemToBCSidesProc(ELEM_FIRST_BCSIDE,iElem) = offsetBCSides
+      ElemToBCSides(ELEM_NBR_BCSIDES ,iElem) = nBCSidesElem
+      ElemToBCSides(ELEM_FIRST_BCSIDE,iElem) = offsetBCSides
     END IF
-  END DO ! iElem
 
-  offsetBCSides = nBCSidesProc
+    offsetBCSides = nBCSidesProc
+  END DO ! iElem
 
 ! .NOT. fullMesh
 ELSE
@@ -2815,52 +2815,18 @@ ELSE
       IF (VECNORM(ElemBaryNGeo(:,iElem) - ElemBaryNGeo(:,BCCNElemID)) &
         .GT. (BC_halo_eps + ElemRadiusNGeo(iElem) + ElemRadiusNGeo(BCCNElemID))) CYCLE
 
-      ! loop over all local sides of the element. Use a named loop so the entire element can be cycled
-Check1: DO ilocSide = 1,6
-      SideID = GetGlobalNonUniqueSideID(ElemID,ilocSide)
-
-        ! compare all nodes between local and BC side to check if within BC_halo_eps. Once one node pair is in range, flag the entire
-        ! side and stop checking. First, get BezierControlPoints for local side. BezierControlPoints3D available for ALL sides in shared memory
-        SELECT CASE(ilocSide)
-          CASE(XI_MINUS,XI_PLUS)
-            firstBezierPoint = 0
-            lastBezierPoint  = NGeo
-          CASE DEFAULT
-            firstBezierPoint = 1
-            lastBezierPoint  = NGeo-1
-        END SELECT
-
-        ! finally compare the node coords
-        DO q = firstBezierPoint,lastBezierPoint
-          DO p = firstBezierPoint,lastBezierPoint
-  !           ! get all nodes for BC side
-  !           NodeBCSide(:) = BezierControlPoints3D(:,p,q,BCSideID)
-            ! finally compare the node coords
-            DO s = firstBezierPoint,lastBezierPoint
-              DO r = firstBezierPoint,lastBezierPoint
-                dX = ABS(BezierControlPoints3D(1,r,s,SideID)-BezierControlPoints3D(1,p,q,BCSideID))
-                IF (dX.GT.BC_halo_eps) CYCLE
-                dY = ABS(BezierControlPoints3D(2,r,s,SideID)-BezierControlPoints3D(2,p,q,BCSideID))
-                IF (dY.GT.BC_halo_eps) CYCLE
-                dZ = ABS(BezierControlPoints3D(3,r,s,SideID)-BezierControlPoints3D(3,p,q,BCSideID))
-                IF (dZ.GT.BC_halo_eps) CYCLE
-
-                IF (SQRT(dX*dX+dY*dY+dZ*dZ).LE.BC_halo_eps) THEN
-                  nBCSidesElem = nBCSidesElem + 1
-                  nBCSidesProc = nBCSidesProc + 1
-                  EXIT Check1
-                END IF
-              END DO ! r
-            END DO ! s
-          END DO ! p
-        END DO ! q
-      END DO Check1 ! ilocSide
+!      ! loop over all local sides of the element
+       IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
+         .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
+            nBCSidesElem = nBCSidesElem + 1
+            nBCSidesProc = nBCSidesProc + 1
+       END IF
     END DO ! iBCSide
 
     ! Write local mapping from Elem to BC sides. The number is already correct, the offset must be corrected later
     IF (nBCSidesElem.GT.0) THEN
-      ElemToBCSidesProc(ELEM_NBR_BCSIDES ,iElem) = nBCSidesElem
-      ElemToBCSidesProc(ELEM_FIRST_BCSIDE,iElem) = offsetBCSides
+      ElemToBCSides(ELEM_NBR_BCSIDES ,iElem) = nBCSidesElem
+      ElemToBCSides(ELEM_FIRST_BCSIDE,iElem) = offsetBCSides
     END IF
 
     offsetBCSides = nBCSidesProc
@@ -2878,15 +2844,11 @@ sendbuf = offsetBCSidesProc + nBCSidesProc
 CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
 nComputeNodeBCSides = sendbuf
 
-ElemToBCSides(ELEM_NBR_BCSIDES ,firstElem:lastElem) = ElemToBCSidesProc(ELEM_NBR_BCSIDES ,firstElem:lastElem)
-ElemToBCSides(ELEM_FIRST_BCSIDE,firstElem:lastElem) = ElemToBCSidesProc(ELEM_FIRST_BCSIDE,firstElem:lastElem) + offsetBCSidesProc
+ElemToBCSides(ELEM_FIRST_BCSIDE,firstElem:lastElem) = ElemToBCSides(ELEM_FIRST_BCSIDE,firstElem:lastElem) + offsetBCSidesProc
 #else
 offsetBCSidesProc   = 0
 nComputeNodeBCSides = nBCSidesProc
-
-ElemToBCSides(:,firstElem:lastElem) = ElemToBCSidesProc(:,firstElem:lastElem)
 #endif /*USE_MPI*/
-DEALLOCATE(ElemToBCSidesProc)
 
 ! Allocate shared array for BC sides
 #if USE_MPI
@@ -2928,7 +2890,7 @@ IF (fullMesh) THEN
 
       nBCSidesProc = nBCSidesProc + 1
       SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(iSide)
-      SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(iElem)
+      SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(ElemID)
     END DO
 
     DO iBCSide = 1,nUniqueBCSides
@@ -2940,7 +2902,7 @@ IF (fullMesh) THEN
 
       nBCSidesProc = nBCSidesProc + 1
       SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(BCSideID)
-      SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(BCElemID)
+      SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(ElemID)
     END DO ! iBCSide
   END DO ! iElem
 
@@ -2980,47 +2942,13 @@ ELSE
       IF (VECNORM(ElemBaryNGeo(:,iElem) - ElemBaryNGeo(:,BCCNElemID)) &
         .GT. (BC_halo_eps + ElemRadiusNGeo(iElem) + ElemRadiusNGeo(BCCNElemID))) CYCLE
 
-      ! loop over all local sides of the element. Use a named loop so the entire element can be cycled
-Check2: DO ilocSide = 1,6
-        SideID = GetGlobalNonUniqueSideID(ElemID,ilocSide)
-
-        ! compare all nodes between local and BC side to check if within BC_halo_eps. Once one node pair is in range, flag the entire
-        ! side and stop checking. First, get BezierControlPoints for local side. BezierControlPoints3D available for ALL sides in shared memory
-        SELECT CASE(ilocSide)
-          CASE(XI_MINUS,XI_PLUS)
-            firstBezierPoint = 0
-            lastBezierPoint  = NGeo
-          CASE DEFAULT
-            firstBezierPoint = 1
-            lastBezierPoint  = NGeo-1
-        END SELECT
-
-        ! finally compare the node coords
-        DO q = firstBezierPoint,lastBezierPoint
-          DO p = firstBezierPoint,lastBezierPoint
-!           ! get all nodes for BC side
-!           NodeBCSide(:) = BezierControlPoints3D(:,p,q,BCSideID)
-            ! finally compare the node coords
-            DO s = firstBezierPoint,lastBezierPoint
-              DO r = firstBezierPoint,lastBezierPoint
-                dX = ABS(BezierControlPoints3D(1,r,s,SideID)-BezierControlPoints3D(1,p,q,BCSideID))
-                IF (dX.GT.BC_halo_eps) CYCLE
-                dY = ABS(BezierControlPoints3D(2,r,s,SideID)-BezierControlPoints3D(2,p,q,BCSideID))
-                IF (dY.GT.BC_halo_eps) CYCLE
-                dZ = ABS(BezierControlPoints3D(3,r,s,SideID)-BezierControlPoints3D(3,p,q,BCSideID))
-                IF (dZ.GT.BC_halo_eps) CYCLE
-
-                IF (SQRT(dX*dX+dY*dY+dZ*dZ).LE.BC_halo_eps) THEN
-                  nBCSidesProc = nBCSidesProc + 1
-                  SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(BCSideID)
-                  SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(BCElemID)
-                  EXIT Check2
-                END IF
-              END DO ! r
-            END DO ! s
-          END DO ! p
-        END DO ! q
-      END DO Check2 ! ilocSide
+!      ! loop over all local sides of the element
+       IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
+         .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
+           nBCSidesProc = nBCSidesProc + 1
+           SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(BCSideID)
+           SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(ElemID)
+       END IF
     END DO ! iBCSide
   END DO ! iElem
 END IF ! fullMesh
@@ -3048,8 +2976,8 @@ DO iSide = firstSide,lastSide
 
   !> build side distance
   origin(1:3) = ElemBaryNGeo(1:3,CNElemID)
-  vec(1:3)    = origin(1:3) - SideBCMetrics(5:7,iSide)
-  SideBCMetrics(BCSIDE_DISTANCE,iSide) = SQRT(DOT_PRODUCT(vec,vec))-ElemRadiusNGeo(CNElemID)-SideBCMetrics(BCSIDE_RADIUS,iSide)
+  vec(1:3)    = origin(1:3) - BCSideMetrics(1:3,BCSideID)
+  SideBCMetrics(BCSIDE_DISTANCE,iSide) = SQRT(DOT_PRODUCT(vec,vec))-ElemRadiusNGeo(CNElemID)-BCSideMetrics(4,BCSideID)
 END DO ! iSide
 
 #if USE_MPI

@@ -239,7 +239,7 @@ DO iPart=1,PDM%ParticleVecLength
 
     ! Multiple potential cells found in BGM. Get closest element barycenter by looping over all elements in BGMcell
     IF (nBGMElems.GT.1) THEN
-      Distance     = -1.
+      Distance     = -HUGE(1.)
       ListDistance = -1
       DO iBGMElem = 1,nBGMElems
         ElemID   = FIBGM_Element(FIBGM_offsetElem(CellX,CellY,CellZ)+iBGMElem)
@@ -252,13 +252,13 @@ DO iPart=1,PDM%ParticleVecLength
 
         ! oldElemID was previously checked and particle not found inside
         IF (ElemID.EQ.OldElemID) THEN
-          Distance(iBGMElem) = -1.0
+          Distance(iBGMElem) = -HUGE(1.)
         ELSE
           Distance(iBGMElem) = SUM((PartState(1:3,iPart)-ElemBaryNGeo(1:3,CNElemID))**2)
 
           ! Do not consider the element if it is too far away
           IF(Distance(iBGMElem).GT.ElemRadius2NGeo(CNElemID))THEN
-            Distance(iBGMElem) = -1.0
+            Distance(iBGMElem) = -HUGE(1.)
           END IF
         END IF
       END DO ! nBGMElems
@@ -277,7 +277,7 @@ DO iPart=1,PDM%ParticleVecLength
     ! loop through sorted list and start by closest element
     DO iBGMElem=1,nBGMElems
       ! ignore old element and elements out of range
-      IF(Distance(iBGMELem).LT.0.) CYCLE
+      IF(Distance(iBGMELem).EQ.-HUGE(1.)) CYCLE
 
       ElemID = ListDistance(iBGMElem)
 #if USE_LOADBALANCE
