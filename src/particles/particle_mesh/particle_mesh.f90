@@ -2584,7 +2584,6 @@ SUBROUTINE BuildBCElemDistance()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: c
-USE MOD_Mesh_Vars              ,ONLY: NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides,SideBCMetrics
@@ -2593,7 +2592,6 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo,ElemRadiusNGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueBCSides
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID,GetCNElemID
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
 USE MOD_Utils                  ,ONLY: InsertionSort
 #if USE_MPI
@@ -2622,17 +2620,15 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: p,q,r,s
-INTEGER                        :: firstBezierPoint,lastBezierPoint
+INTEGER                        :: p
 INTEGER                        :: ElemID,SideID
 INTEGER                        :: iElem,firstElem,lastElem
-INTEGER                        :: iSide,firstSide,lastSide,iLocSide
+INTEGER                        :: iSide,firstSide,lastSide
 INTEGER                        :: nComputeNodeBCSides
 INTEGER                        :: nBCSidesElem,nBCSidesProc,offsetBCSidesProc,offsetBCSides
 INTEGER                        :: iBCSide,BCElemID,BCSideID
 INTEGER                        :: CNElemID,BCCNElemID
 INTEGER,ALLOCATABLE            :: ElemToBCSidesProc(:,:)
-REAL                           :: dX,dY,dZ
 REAL                           :: origin(1:3),vec(1:3)
 REAL                           :: BC_halo_eps
 LOGICAL                        :: fullMesh
