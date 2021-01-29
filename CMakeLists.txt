@@ -122,7 +122,7 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           ROS46
                                                           ROS6)
 
-# Get env variable
+# Get environment variable
 SET(PICLAS_SPLIT_TYPE "$ENV{PICLAS_SPLIT_TYPE}")
 IF("${PICLAS_SPLIT_TYPE}" STREQUAL "")
   SET(PICLAS_SPLIT_TYPE "MPI_COMM_TYPE_SHARED")
@@ -376,8 +376,10 @@ ENDIF(PICLAS_HDG)
 # =========================================================================
 ADD_DEFINITIONS(-DSharedMemoryMethod=${PICLAS_SHARED_MEMORY})
 IF(PICLAS_SHARED_MEMORY STREQUAL "MPI_COMM_TYPE_SHARED")
+  ADD_DEFINITIONS(-DUSE_CORE_SPLIT=0)
   MESSAGE(STATUS "Shared memory split type for subcommunicators set to node-level")
 ELSEIF(PICLAS_SHARED_MEMORY STREQUAL "OMPI_COMM_TYPE_CORE")
+  ADD_DEFINITIONS(-DUSE_CORE_SPLIT=1)
   MESSAGE(STATUS "Shared memory split type for subcommunicators set to core-level")
 ENDIF()
 
