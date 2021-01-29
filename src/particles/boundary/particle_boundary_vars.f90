@@ -123,6 +123,7 @@ CHARACTER(LEN=255),ALLOCATABLE          :: SurfBCName(:)                 ! names
 #if USE_MPI
 INTEGER,ALLOCATABLE                     :: OffSetSurfSideMPI(:)          ! integer offset for particle boundary sampling
 INTEGER,ALLOCATABLE                     :: OffSetInnerSurfSideMPI(:)     ! integer offset for particle boundary sampling (innerBC)
+INTEGER                                 :: nComputeNodeInnerBCs          ! Number of inner BCs with a larger global side ID on node
 #endif /*USE_MPI*/
 
 #if USE_MPI
