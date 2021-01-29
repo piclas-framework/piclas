@@ -117,6 +117,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactVector_Shared,SampWallImpac
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactAngle_Shared,SampWallImpactAngle_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber_Shared,SampWallImpactNumber_Shared_Win
 USE MOD_Particle_MPI_Boundary_Sampling,ONLY: InitSurfCommunication
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeInnerBCs
 #else
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
 USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
@@ -153,6 +154,7 @@ INTEGER                                :: GlobalElemID,GlobalElemRank
 INTEGER(KIND=MPI_ADDRESS_KIND)         :: MPISharedSize
 INTEGER                                :: sendbuf,recvbuf
 #endif /*USE_MPI*/
+INTEGER                                :: NbGlobalElemID, NbGlobalSideID, NbElemRank, NbLeaderID
 !===================================================================================================================================
 
 ! Get input parameters
@@ -380,6 +382,7 @@ END DO
 ! Determine the number of surface output sides (inner BCs are not counted twice)
 #if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
+  nComputeNodeInnerBCs = 0
 #endif /*USE_MPI*/
   nComputeNodeSurfOutputSides = 0
   DO iSurfSide = 1,nComputeNodeSurfSides
@@ -387,11 +390,40 @@ IF (myComputeNodeRank.EQ.0) THEN
     ! Check if the surface side has a neighbor (and is therefore an inner BCs)
     IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
       ! Only add the side with the smaller index
-      IF(GlobalSideID.GT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)) CYCLE
+      NbGlobalSideID = SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)
+      IF(GlobalSideID.GT.NbGlobalSideID)THEN
+#if USE_MPI
+        !--- switcheroo check 1 of 2: Non-HALO sides
+        ! Only required for sampling on the larger NonUniqueGlobalSideID of the two sides of the inner BC
+        ! Count larger inner BCs as these may have to be sent to a different leader processor
+        NbGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NbGlobalSideID)
+        NbElemRank = ElemInfo_Shared(ELEM_RANK,NbGlobalElemID)
+        NbLeaderID = INT(NbElemRank/nComputeNodeProcessors)
+        !IF(NbLeaderID.NE.SurfSide2GlobalSide(SURF_LEADER,iSide))THEN
+        IF(NbLeaderID.NE.myrank)THEN
+          nComputeNodeInnerBCs = nComputeNodeInnerBCs + 1
+        END IF ! NbLeaderID.NE.SurfSide2GlobalSide(SURF_LEADER,iSide)
+#endif
+        CYCLE! Skip sides with the larger index
+      END IF
     END IF
     nComputeNodeSurfOutputSides = nComputeNodeSurfOutputSides + 1
   END DO
 #if USE_MPI
+  !--- switcheroo check 2 of 2: HALO sides
+  ! Count number of inner BC in halo region
+  ! Only required for sampling on the larger NonUniqueGlobalSideID of the two sides of the inner BC
+  DO iSurfSide = nComputeNodeSurfSides+1, nComputeNodeSurfTotalSides
+    GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+    ! Check if the surface side has a neighbor (and is therefore an inner BCs)
+    IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+      ! Only add the side with the smaller index
+      IF(GlobalSideID.GT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))THEN
+        ! Count larger inner BCs as these may have to be sent to a different leader processor
+        nComputeNodeInnerBCs = nComputeNodeInnerBCs + 1
+      END IF
+    END IF
+  END DO ! iSurfSide = nComputeNodeSurfSides+1, nComputeNodeSurfTotalSides
 END IF
 #endif
 
