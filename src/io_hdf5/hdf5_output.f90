@@ -2147,7 +2147,12 @@ IF (nSurfTotalSides      .EQ.0) RETURN
 
 WRITE(H5_Name,'(A)') 'AdaptiveBoundaryWallTemp'
 WRITE(H5_Name2,'(A)') 'AdaptiveBoundaryGlobalSideIndx'
+
+#if USE_MPI
 CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_LEADERS_SURF)
+#else
+CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#endif
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
