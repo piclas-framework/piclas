@@ -362,11 +362,12 @@ ELSE ! do not calculate current density
   doCalculateCurrentDensity=.FALSE.
   SourceDim=4
 END IF
-#endif
 
 ! Quick-fix for multi-node
 doCalculateCurrentDensity=.TRUE.
 SourceDim=1
+#endif
+
 
 
 #if USE_MPI
