@@ -362,7 +362,7 @@ SELECT CASE(TrackingMethod)
 
 CASE(TRACING,REFMAPPING)
     IF(TriaSurfaceFlux) CALL InitParticleGeometry()
-    IF(TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitElemNodeIDs()
+    IF(FindNeighbourElems) CALL InitElemNodeIDs()
 
 !    CALL CalcParticleMeshMetrics()
 
@@ -482,7 +482,7 @@ SELECT CASE(TRIM(DepositionType))
   CASE('shape_function_adaptive')
     FindNeighbourElems = .TRUE.
   CASE DEFAULT
-    FindNeighbourElems = .TRUE.
+    FindNeighbourElems = .FALSE.
 END SELECT
 IF(FindNeighbourElems) CALL BuildNodeNeighbourhood()
 
@@ -4238,7 +4238,7 @@ SELECT CASE (TrackingMethod)
     ADEALLOCATE(ElemsJ_Shared)
 END SELECT
 
-IF(TRIM(DepositionType).EQ.'shape_function_adaptive'.OR.TrackingMethod.EQ.TRIATRACKING)THEN
+IF(FindNeighbourElems.OR.TrackingMethod.EQ.TRIATRACKING)THEN
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
   ! From InitElemNodeIDs
