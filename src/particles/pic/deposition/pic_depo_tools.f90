@@ -186,20 +186,16 @@ NodeVolume => NodeVolume_Shared
 firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 NodeVolumeLoc = 0.
+! only CN root nullifies
+IF (myComputeNodeRank.EQ.0) THEN
+  NodeVolume = 0.0
+END IF
 #else
 ALLOCATE(NodeVolume(1:nUniqueGlobalNodes))
+NodeVolume = 0.0
 firstElem = 1
 lastElem  = nElems
 #endif /*USE_MPI*/
-
-! only CN root nullifies
-#if USE_MPI
-IF (myComputeNodeRank.EQ.0) THEN
-#endif /* USE_MPI*/
-  NodeVolume = 0.0
-#if USE_MPI
-END IF
-#endif /* USE_MPI*/
 
 IF (PP_N.NE.1) THEN
   xGP_loc(0) = -0.5
@@ -223,6 +219,7 @@ DO iElem = firstElem, lastElem
 #if USE_MPI
   ASSOCIATE( NodeVolume => NodeVolumeLoc )
 #endif /*USE_MPI*/
+    ! Get UniqueNodeIDs
     NodeID = NodeInfo_Shared(ElemNodeID_Shared(1:8,iElem))
     NodeVolume(NodeID(1)) = NodeVolume(NodeID(1)) + DetJac(1,0,0,0)
     NodeVolume(NodeID(2)) = NodeVolume(NodeID(2)) + DetJac(1,1,0,0)
@@ -232,7 +229,6 @@ DO iElem = firstElem, lastElem
     NodeVolume(NodeID(6)) = NodeVolume(NodeID(6)) + DetJac(1,1,0,1)
     NodeVolume(NodeID(7)) = NodeVolume(NodeID(7)) + DetJac(1,1,1,1)
     NodeVolume(NodeID(8)) = NodeVolume(NodeID(8)) + DetJac(1,0,1,1)
-
 #if USE_MPI
   END ASSOCIATE
 #endif /*USE_MPI*/
@@ -240,7 +236,7 @@ END DO
 
 #if USE_MPI
 ! collect the information from the proc-local shadow arrays in the compute-node shared array
-MessageSize =  nUniqueGlobalNodes
+MessageSize = nUniqueGlobalNodes
 IF (myComputeNodeRank.EQ.0) THEN
   CALL MPI_REDUCE(NodeVolumeLoc,NodeVolume,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
 ELSE
@@ -250,14 +246,17 @@ CALL MPI_WIN_SYNC(NodeVolume_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
 #if USE_DEBUG
-! Sanity Check
-DO I = 1, nUniqueGlobalNodes
-  IF(NodeVolume(I).LE.0.0)THEN
-    IPWRITE(UNIT_StdOut,*) "NodeVolume(",I,") =", NodeVolume(I)
-    CALL abort(&
-        __STAMP__&
-        ,'NodeVolume(I) <= 0.0 for I = ',IntInfoOpt=I)
-  END IF ! NodeVolume(NodeID(1)).LE.0.0
+! Sanity Check: Only check UniqueGlobalNodes that are on the compute node (total)
+DO iElem = firstElem, lastElem
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(1:8,iElem))
+  DO I = 1, 8
+    IF(NodeVolume(NodeID(I)).LE.0.0)THEN
+      IPWRITE(UNIT_StdOut,'(I0,A,I0,A,ES25.17E3)') " NodeVolume(NodeID(",I,")) =", NodeVolume(NodeID(I))
+      CALL abort(&
+          __STAMP__&
+          ,'NodeVolume(NodeID(I)) <= 0.0 for NodeID(I) = ',IntInfoOpt=NodeID(I))
+    END IF ! NodeVolume(NodeID(1)).LE.0.0
+  END DO
 END DO ! I = 1, nUniqueGlobalNodes
 #endif /*USE_DEBUG*/
 #endif /*USE_MPI*/

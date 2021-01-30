@@ -368,8 +368,6 @@ doCalculateCurrentDensity=.TRUE.
 SourceDim=1
 #endif
 
-
-
 #if USE_MPI
 ASSOCIATE(NodeSource       => NodeSourceLoc       ,&
           NodeSourceExtTmp => NodeSourceExtTmpLoc )
@@ -490,7 +488,6 @@ IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
     END IF
   END DO
 
-
   ! 2) Send/Receive current density
   IF(doCalculateCurrentDensity)THEN
 
@@ -538,9 +535,6 @@ IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
     END DO
   END IF ! doCalculateCurrentDensity
 
-
-
-
   ! 3) Extract messages
     IF(doCalculateCurrentDensity)THEN! SourceDim=1
       DO iProc = 0, nLeaderGroupProcs - 1
@@ -548,7 +542,7 @@ IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
         IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
           DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
             ASSOCIATE( NS => NodeSource(SourceDim:4,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)))
-              NS = NS + (/NodeMapping(iProc)%RecvNodeSourceCharge(iNode), NodeMapping(iProc)%RecvNodeSourceCurrent(1:3,iNode)/)
+              NS = NS + (/NodeMapping(iProc)%RecvNodeSourceCurrent(1:3,iNode), NodeMapping(iProc)%RecvNodeSourceCharge(iNode)/)
             END ASSOCIATE
           END DO
         END IF
@@ -558,7 +552,7 @@ IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
         IF (iProc.EQ.myLeaderGroupRank) CYCLE
         IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
           DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
-            ASSOCIATE( NS => NodeSource(SourceDim:4,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)))
+            ASSOCIATE( NS => NodeSource(4,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)))
               NS = NS + NodeMapping(iProc)%RecvNodeSourceCharge(iNode)
             END ASSOCIATE
           END DO
@@ -569,9 +563,6 @@ END IF
 CALL MPI_WIN_SYNC(NodeSource_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif
-
-
-
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
@@ -586,19 +577,15 @@ IF(DoDielectricSurfaceCharge)THEN
   END DO
 END IF ! DoDielectricSurfaceCharge
 
-
-
-
 ! Currently also "Nodes" are included in time measurement that is averaged across all elements. Can this be improved?
 DO iNode=firstNode, lastNode
-  NodeSource(SourceDim:4,iNode) = NodeSource(SourceDim:4,iNode)/NodeVolume(iNode)
+  IF(NodeVolume(iNode).GT.0.)THEN
+    NodeSource(SourceDim:4,iNode) = NodeSource(SourceDim:4,iNode)/NodeVolume(iNode)
+  END IF ! NodeVolume(iNode).GT.0.
 END DO
 #if USE_LOADBALANCE
 CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 #endif /*USE_LOADBALANCE*/
-
-
-
 
 #if USE_MPI
 CALL MPI_WIN_SYNC(NodeSource_Shared_Win,IERROR)
@@ -609,8 +596,6 @@ lastElem  = offSetElem+nElems
 firstElem = 1
 lastElem = nElems
 #endif
-
-
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
@@ -623,6 +608,7 @@ DO iElem = firstElem, lastElem
         alpha1 = CellVolWeightFac(kk)
         alpha2 = CellVolWeightFac(ll)
         alpha3 = CellVolWeightFac(mm)
+        ! Get UniqueNodeID from NonUniqueNodeID = ElemNodeID_Shared(:,GetCNElemID(iElem))
         NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem)))
         Partsource(SourceDim:4,kk,ll,mm,GetCNElemID(iElem)) = &
              NodeSource(SourceDim:4,NodeID(1)) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
