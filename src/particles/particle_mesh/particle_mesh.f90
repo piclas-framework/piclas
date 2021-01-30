@@ -343,6 +343,16 @@ IF (Symmetry%Order.LE.2) THEN
   TriaSurfaceFlux = .TRUE.
 END IF
 
+! Set logical for building node neighbourhood
+SELECT CASE(TRIM(DepositionType))
+  CASE('cell_volweight_mean')
+    FindNeighbourElems = .TRUE.
+  CASE('shape_function_adaptive')
+    FindNeighbourElems = .TRUE.
+  CASE DEFAULT
+    FindNeighbourElems = .FALSE.
+END SELECT
+
 SELECT CASE(TrackingMethod)
   CASE(TRIATRACKING)
     CALL InitParticleGeometry()
@@ -476,14 +486,6 @@ CASE(TRACING,REFMAPPING)
 END SELECT
 
 ! Build mappings UniqueNodeID->CN Element IDs and CN Element ID -> CN Element IDs
-SELECT CASE(TRIM(DepositionType))
-  CASE('cell_volweight_mean')
-    FindNeighbourElems = .TRUE.
-  CASE('shape_function_adaptive')
-    FindNeighbourElems = .TRUE.
-  CASE DEFAULT
-    FindNeighbourElems = .FALSE.
-END SELECT
 IF(FindNeighbourElems) CALL BuildNodeNeighbourhood()
 
 ! BezierAreaSample stuff:
@@ -3988,7 +3990,6 @@ USE MOD_Particle_BGM           ,ONLY: FinalizeBGM
 USE MOD_Particle_Mesh_Readin   ,ONLY: FinalizeMeshReadin
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,Distance,ListDistance,PartStateLost
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
-USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #if USE_MPI
 USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
