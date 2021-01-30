@@ -442,35 +442,42 @@ ELSE
 END IF ! myrank.eq.0
 CALL MPI_WIN_SYNC(NodeSource_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+
+! Multi-node communication
 IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
+
+  ! 1) Send/Receive charge density
   DO iProc = 0, nLeaderGroupProcs - 1
     IF (iProc.EQ.myLeaderGroupRank) CYCLE
+
+    ! Open receive buffer
     IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-      CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSource(SourceDim:4,:)        &
-                , (5-SourceDim)*NodeMapping(iProc)%nRecvUniqueNodes           &
-                , MPI_DOUBLE_PRECISION                                        &
-                , iProc                                                       &
-                , 666                                                         &
-                , MPI_COMM_LEADERS_SHARED                                     &
-                , RecvRequest(iProc)                                          &
+      CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSourceCharge(:) &
+                , NodeMapping(iProc)%nRecvUniqueNodes            &
+                , MPI_DOUBLE_PRECISION                           &
+                , iProc                                          &
+                , 666                                            &
+                , MPI_COMM_LEADERS_SHARED                        &
+                , RecvRequest(iProc)                             &
                 , IERROR)
     END IF
+    ! Send message (non-blocking)
     IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
       DO iNode = 1, NodeMapping(iProc)%nSendUniqueNodes
-        NodeMapping(iProc)%SendNodeSource(SourceDim:4,iNode) = &
-              NodeSource(SourceDim:4,NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
+        NodeMapping(iProc)%SendNodeSourceCharge(iNode) = NodeSource(4,NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
       END DO
-      CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSource(SourceDim:4,:)            &
-                    , (5-SourceDim)*NodeMapping(iProc)%nSendUniqueNodes           &
-                    , MPI_DOUBLE_PRECISION                                        &
-                    , iProc                                                       &
-                    , 666                                                         &
-                    , MPI_COMM_LEADERS_SHARED                                     &
-                    , SendRequest(iProc)                                          &
+      CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSourceCharge(:) &
+                    , NodeMapping(iProc)%nSendUniqueNodes        &
+                    , MPI_DOUBLE_PRECISION                       &
+                    , iProc                                      &
+                    , 666                                        &
+                    , MPI_COMM_LEADERS_SHARED                    &
+                    , SendRequest(iProc)                         &
                     , IERROR)
     END IF
   END DO
 
+  ! Finish communication
   DO iProc = 0,nLeaderGroupProcs-1
     IF (iProc.EQ.myLeaderGroupRank) CYCLE
     IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
@@ -483,16 +490,81 @@ IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
     END IF
   END DO
 
-  DO iProc = 0, nLeaderGroupProcs - 1
-    IF (iProc.EQ.myLeaderGroupRank) CYCLE
-    IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-      DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
-        NodeSource(SourceDim:4,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)) = &
-          NodeSource(SourceDim:4,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)) + &
-          NodeMapping(iProc)%RecvNodeSource(SourceDim:4,iNode)
+
+  ! 2) Send/Receive current density
+  IF(doCalculateCurrentDensity)THEN
+
+    DO iProc = 0, nLeaderGroupProcs - 1
+      IF (iProc.EQ.myLeaderGroupRank) CYCLE
+
+      ! Open receive buffer
+      IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
+        CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSourceCurrent(1:3,:) &
+            , 3*NodeMapping(iProc)%nRecvUniqueNodes                     &
+            , MPI_DOUBLE_PRECISION                                      &
+            , iProc                                                     &
+            , 666                                                       &
+            , MPI_COMM_LEADERS_SHARED                                   &
+            , RecvRequest(iProc)                                        &
+            , IERROR)
+      END IF
+      ! Send message (non-blocking)
+      IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
+        DO iNode = 1, NodeMapping(iProc)%nSendUniqueNodes
+          NodeMapping(iProc)%SendNodeSourceCurrent(1:3,iNode) = NodeSource(1:3,NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
+        END DO
+        CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSourceCurrent(1:3,:) &
+            , 3*NodeMapping(iProc)%nSendUniqueNodes                     &
+            , MPI_DOUBLE_PRECISION                                      &
+            , iProc                                                     &
+            , 666                                                       &
+            , MPI_COMM_LEADERS_SHARED                                   &
+            , SendRequest(iProc)                                        &
+            , IERROR)
+      END IF
+    END DO
+
+    ! Finish communication
+    DO iProc = 0,nLeaderGroupProcs-1
+      IF (iProc.EQ.myLeaderGroupRank) CYCLE
+      IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
+        CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+        IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+      END IF
+      IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
+        CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+        IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+      END IF
+    END DO
+  END IF ! doCalculateCurrentDensity
+
+
+
+
+  ! 3) Extract messages
+    IF(doCalculateCurrentDensity)THEN! SourceDim=1
+      DO iProc = 0, nLeaderGroupProcs - 1
+        IF (iProc.EQ.myLeaderGroupRank) CYCLE
+        IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
+          DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
+            ASSOCIATE( NS => NodeSource(SourceDim:4,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)))
+              NS = NS + (/NodeMapping(iProc)%RecvNodeSourceCharge(iNode), NodeMapping(iProc)%RecvNodeSourceCurrent(1:3,iNode)/)
+            END ASSOCIATE
+          END DO
+        END IF
       END DO
-    END IF
-  END DO
+    ELSE
+      DO iProc = 0, nLeaderGroupProcs - 1
+        IF (iProc.EQ.myLeaderGroupRank) CYCLE
+        IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
+          DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
+            ASSOCIATE( NS => NodeSource(SourceDim:4,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)))
+              NS = NS + NodeMapping(iProc)%RecvNodeSourceCharge(iNode)
+            END ASSOCIATE
+          END DO
+        END IF
+      END DO
+    END IF ! doCalculateCurrentDensity
 END IF
 CALL MPI_WIN_SYNC(NodeSource_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
