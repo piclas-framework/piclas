@@ -419,7 +419,6 @@ USE MOD_Particle_Vars
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_1D_InitVolumes, DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Part_RHS               ,ONLY: InitPartRHS
-USE MOD_Particle_Mesh          ,ONLY: GetMeshMinMax
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesInits
 USE MOD_Particle_Boundary_Init ,ONLY: InitializeVariablesPartBoundary, InitializeVariablesAuxBC
@@ -699,8 +698,8 @@ SUBROUTINE InitializeVariablesElectronFluidRegions()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
-USE MOD_Particle_Mesh          ,ONLY: MapRegionToElem
-USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds
+USE MOD_Particle_Mesh_Tools ,ONLY: MapRegionToElem
+USE MOD_Particle_Mesh_Vars  ,ONLY: NbrOfRegions,RegionBounds
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
