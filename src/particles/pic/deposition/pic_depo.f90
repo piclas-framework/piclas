@@ -368,7 +368,7 @@ CASE('cell_volweight_mean')
                       , MPI_INTEGER                                                 &
                       , iProc                                                       &
                       , 666                                                         &
-                      , MPI_COMM_LEADERS_SHARED                                       &
+                      , MPI_COMM_LEADERS_SHARED                                     &
                       , RecvRequest(iProc)                                          &
                       , IERROR)
       END IF
@@ -388,7 +388,7 @@ CASE('cell_volweight_mean')
                       , MPI_INTEGER                                                 &
                       , iProc                                                       &
                       , 666                                                         &
-                      , MPI_COMM_LEADERS_SHARED                                       &
+                      , MPI_COMM_LEADERS_SHARED                                     &
                       , SendRequest(iProc)                                          &
                       , IERROR)
       END IF
@@ -434,7 +434,7 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   r_sf     = GETREAL('PIC-shapefunction-radius')
   alpha_sf = GETINT('PIC-shapefunction-alpha')
   dim_sf   = GETINT('PIC-shapefunction-dimension')
-  ! Get shape function direction for 1D (the direction in which the charge will be distributed) and 2D (the direction in which the 
+  ! Get shape function direction for 1D (the direction in which the charge will be distributed) and 2D (the direction in which the
   ! charge will be constant)
   dim_sf_dir = GETINT('PIC-shapefunction-direction')
   ! Distribute the charge over the volume (3D) or line (1D)/area (2D): default is TRUE

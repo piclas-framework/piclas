@@ -96,7 +96,7 @@ CASE(REFMAPPING,TRACING)
 
   SELECT CASE(SideType(CNSideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-      n_loc=SideNormVec(1:3,SideID)
+      n_loc = SideNormVec(1:3,CNSideID)
     CASE(BILINEAR)
       CALL CalcNormAndTangBilinear(nVec=n_loc,xi=TrackInfo%xi,eta=TrackInfo%eta,SideID=SideID)
     CASE(CURVED)
@@ -535,6 +535,11 @@ END IF
 RotSideID = SurfSide2RotPeriodicSide((GlobalSide2SurfSide(SURF_SIDEID,SideID)))
 DO iNeigh=1,NumRotPeriodicNeigh(RotSideID)
   SideID2 = RotPeriodicSideMapping(RotSideID,iNeigh)
+  IF(SideID2.EQ.-1) THEN
+    CALL abort(&
+        __STAMP__&
+        ,' ERROR: Halo-rot-periodic side has no corresponding side.')
+  END IF
   ElemID2 = SideInfo_Shared(SIDE_ELEMID,SideID2)
   ! find rotational periodic SideID2 through localization in all potentional rotational periodic sides
   CALL ParticleInsideQuad3D(LastPartPos(1:3,PartID),ElemID2,FoundInElem,Det)

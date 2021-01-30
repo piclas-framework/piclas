@@ -1514,6 +1514,9 @@ DO iSide=1, nRotPeriodicSides
       CALL abort(&
           __STAMP__&
           ,' ERROR: One rot periodic side did not find a corresponding side.')
+    ELSE
+      NumRotPeriodicNeigh(iSide) = 1
+      RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = -1
     END IF
   END IF
 END DO

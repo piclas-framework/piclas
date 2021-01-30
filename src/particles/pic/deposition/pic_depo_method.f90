@@ -364,6 +364,11 @@ ELSE ! do not calculate current density
 END IF
 #endif
 
+! Quick-fix for multi-node
+doCalculateCurrentDensity=.TRUE.
+SourceDim=1
+
+
 #if USE_MPI
 ASSOCIATE(NodeSource       => NodeSourceLoc       ,&
           NodeSourceExtTmp => NodeSourceExtTmpLoc )
@@ -417,7 +422,7 @@ ASSOCIATE(NodeSource       => NodeSourceLoc       ,&
   CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
   ! 1/2 Add the local non-synchronized surface charge contribution (does not consider the charge contribution from restart files) from
-  ! NodeSourceExtTmp. This contribution accumulates over time, but remains locally to each processor as it is communicated via the 
+  ! NodeSourceExtTmp. This contribution accumulates over time, but remains locally to each processor as it is communicated via the
   ! normal NodeSource container. The synchronized part is added after communication.
   IF(DoDielectricSurfaceCharge)THEN
       NodeSource(4,:) = NodeSource(4,:) + NodeSourceExtTmp(:)
@@ -499,7 +504,7 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 
-! 2/2 Add the global, synchronized surface charge contribution (considers the charge contribution from restart files) from 
+! 2/2 Add the global, synchronized surface charge contribution (considers the charge contribution from restart files) from
 ! NodeSourceExt. The container NodeSourceExt is updated when it is written to .h5, where, additionally, the container
 ! NodeSourceExtTmp is nullified
 IF(DoDielectricSurfaceCharge)THEN
