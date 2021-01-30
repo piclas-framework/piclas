@@ -364,6 +364,11 @@ ELSE ! do not calculate current density
 END IF
 #endif
 
+! Quick-fix for multi-node
+doCalculateCurrentDensity=.TRUE.
+SourceDim=1
+
+
 #if USE_MPI
 ASSOCIATE(NodeSource       => NodeSourceLoc       ,&
           NodeSourceExtTmp => NodeSourceExtTmpLoc )
