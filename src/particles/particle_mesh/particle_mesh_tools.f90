@@ -43,11 +43,9 @@ INTERFACE GetSideBoundingBoxTria
   MODULE PROCEDURE GetSideBoundingBoxTria
 END INTERFACE
 
-PUBLIC :: ParticleInsideQuad3D
-PUBLIC :: InitPEM_LocalElemID
-PUBLIC :: InitPEM_CNElemID
-PUBLIC :: GetGlobalNonUniqueSideID
-PUBLIC :: GetSideBoundingBoxTria
+PUBLIC :: ParticleInsideQuad3D, InitPEM_LocalElemID, InitPEM_CNElemID, GetGlobalNonUniqueSideID, GetSideBoundingBoxTria
+PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, MapRegionToElem, WeirdElementCheck, CalcParticleMeshMetrics, InitElemNodeIDs
+PUBLIC :: CalcBezierControlPoints, InitParticleGeometry
 !===================================================================================================================================
 CONTAINS
 
@@ -570,6 +568,1556 @@ BoundingBox(1:3,7) = (/xMax,yMax,zMax/)
 BoundingBox(1:3,8) = (/xMin,yMax,zMax/)
 
 END SUBROUTINE GetSideBoundingBoxTria
+
+
+SUBROUTINE GetMeshMinMax()
+!===================================================================================================================================
+! computes the minimum and maximum value of the mesh
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Mesh_Vars               ,ONLY: offsetElem,nElems
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,NodeCoords_Shared
+USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
+#if USE_MPI
+USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeSide,nComputeNodeSides
+USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeNode,nComputeNodeNodes
+#endif /*USE_MPI*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: offsetLocalSide,nLocalSides
+INTEGER                        :: offsetLocalNode,nLocalNodes
+!===================================================================================================================================
+
+SELECT CASE(TrackingMethod)
+  ! Build mesh min/max on BezierControlPoints for possibly curved elements
+  CASE(REFMAPPING,TRACING)
+    ! calculate all offsets
+    offsetLocalSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1)
+    nLocalSides     = ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElem+nElems)-ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1)
+
+    ! proc local
+    GEO%xmin     = MINVAL(BezierControlPoints3D(1,:,:,offsetLocalSide+1:offsetLocalSide+nLocalSides))
+    GEO%xmax     = MAXVAL(BezierControlPoints3D(1,:,:,offsetLocalSide+1:offsetLocalSide+nLocalSides))
+    GEO%ymin     = MINVAL(BezierControlPoints3D(2,:,:,offsetLocalSide+1:offsetLocalSide+nLocalSides))
+    GEO%ymax     = MAXVAL(BezierControlPoints3D(2,:,:,offsetLocalSide+1:offsetLocalSide+nLocalSides))
+    GEO%zmin     = MINVAL(BezierControlPoints3D(3,:,:,offsetLocalSide+1:offsetLocalSide+nLocalSides))
+    GEO%zmax     = MAXVAL(BezierControlPoints3D(3,:,:,offsetLocalSide+1:offsetLocalSide+nLocalSides))
+
+#if USE_MPI
+    ! compute-node local
+    GEO%CNxmin   = MINVAL(BezierControlPoints3D(1,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
+    GEO%CNxmax   = MAXVAL(BezierControlPoints3D(1,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
+    GEO%CNymin   = MINVAL(BezierControlPoints3D(2,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
+    GEO%CNymax   = MAXVAL(BezierControlPoints3D(2,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
+    GEO%CNzmin   = MINVAL(BezierControlPoints3D(3,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
+    GEO%CNzmax   = MAXVAL(BezierControlPoints3D(3,:,:,offsetComputeNodeSide+1:offsetComputeNodeSide+nComputeNodeSides))
+
+    ! global
+    GEO%xminglob = MINVAL(BezierControlPoints3D(1,:,:,:))
+    GEO%xmaxglob = MAXVAL(BezierControlPoints3D(1,:,:,:))
+    GEO%yminglob = MINVAL(BezierControlPoints3D(2,:,:,:))
+    GEO%ymaxglob = MAXVAL(BezierControlPoints3D(2,:,:,:))
+    GEO%zminglob = MINVAL(BezierControlPoints3D(3,:,:,:))
+    GEO%zmaxglob = MAXVAL(BezierControlPoints3D(3,:,:,:))
+#endif /*USE_MPI*/
+  ! TriaTracking does not have curved elements, nodeCoords are sufficient
+  CASE(TRIATRACKING)
+    ! calculate all offsets
+    offsetLocalNode = ElemInfo_Shared(ELEM_FIRSTNODEIND,offsetElem+1)
+    nLocalNodes     = ElemInfo_Shared(ELEM_LASTNODEIND ,offsetElem+nElems)-ElemInfo_Shared(ELEM_FIRSTNODEIND,offsetElem+1)
+
+    ! proc local
+    GEO%xmin     = MINVAL(NodeCoords_Shared(1,offsetLocalNode+1:offsetLocalNode+nLocalNodes))
+    GEO%xmax     = MAXVAL(NodeCoords_Shared(1,offsetLocalNode+1:offsetLocalNode+nLocalNodes))
+    GEO%ymin     = MINVAL(NodeCoords_Shared(2,offsetLocalNode+1:offsetLocalNode+nLocalNodes))
+    GEO%ymax     = MAXVAL(NodeCoords_Shared(2,offsetLocalNode+1:offsetLocalNode+nLocalNodes))
+    GEO%zmin     = MINVAL(NodeCoords_Shared(3,offsetLocalNode+1:offsetLocalNode+nLocalNodes))
+    GEO%zmax     = MAXVAL(NodeCoords_Shared(3,offsetLocalNode+1:offsetLocalNode+nLocalNodes))
+
+#if USE_MPI
+    ! compute-node local
+    GEO%CNxmin   = MINVAL(NodeCoords_Shared(1,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+    GEO%CNxmax   = MAXVAL(NodeCoords_Shared(1,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+    GEO%CNymin   = MINVAL(NodeCoords_Shared(2,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+    GEO%CNymax   = MAXVAL(NodeCoords_Shared(2,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+    GEO%CNzmin   = MINVAL(NodeCoords_Shared(3,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+    GEO%CNzmax   = MAXVAL(NodeCoords_Shared(3,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+
+    ! global
+    GEO%xminglob = MINVAL(NodeCoords_Shared(1,:))
+    GEO%xmaxglob = MAXVAL(NodeCoords_Shared(1,:))
+    GEO%yminglob = MINVAL(NodeCoords_Shared(2,:))
+    GEO%ymaxglob = MAXVAL(NodeCoords_Shared(2,:))
+    GEO%zminglob = MINVAL(NodeCoords_Shared(3,:))
+    GEO%zmaxglob = MAXVAL(NodeCoords_Shared(3,:))
+#endif /*USE_MPI*/
+END SELECT
+
+#if !USE_MPI
+! compute-node local (dummy)
+GEO%CNxmin   = GEO%xmin
+GEO%CNxmax   = GEO%xmax
+GEO%CNymin   = GEO%ymin
+GEO%CNymax   = GEO%ymax
+GEO%CNzmin   = GEO%zmin
+GEO%CNzmax   = GEO%zmax
+
+! global (dummy)
+GEO%xminglob = GEO%xmin
+GEO%xmaxglob = GEO%xmax
+GEO%yminglob = GEO%ymin
+GEO%ymaxglob = GEO%ymax
+GEO%zminglob = GEO%zmin
+GEO%zmaxglob = GEO%zmax
+#endif /*USE_MPI*/
+
+END SUBROUTINE GetMeshMinMax
+
+
+SUBROUTINE IdentifyElemAndSideType()
+!===================================================================================================================================
+!> get the element and side type of each element
+!> 1) Get Elem Type (curved_elem)
+!> 2) Get Side Type (planar_rect, planar_nonrect, bilineard, curved, planar_curved)
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_ChangeBasis            ,ONLY: changeBasis3D
+USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Mesh_Tools             ,ONLY: GetCNSideID
+USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides
+USE MOD_Mesh_Vars              ,ONLY: Vdm_CLNGeo1_CLNGeo,NGeo,Vdm_CLNGeo1_CLNGeo
+USE MOD_Particle_Mesh_Vars     ,ONLY: XCL_NGeo_Shared,ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared,ElemCurved
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID,GetCNElemID
+USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,SideType,SideNormVec,SideDistance
+#if USE_MPI
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeTotalSides
+USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemCurved_Shared,ElemCurved_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideDistance_Shared,SideDistance_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideType_Shared,SideType_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideNormVec_Shared,SideNormVec_Shared_Win
+#else
+USE MOD_Particle_Mesh_Vars     ,ONLY: nComputeNodeElems
+#endif /* USE_MPI */
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                  :: ilocSide,SideID,CNSideID,flip
+INTEGER                                  :: iElem,firstElem,lastElem,ElemID
+REAL,DIMENSION(1:3)                      :: v1,v2,v3
+LOGICAL,ALLOCATABLE                      :: SideIsDone(:)
+REAL                                     :: XCL_NGeo1(1:3,0:1,0:1,0:1)
+REAL                                     :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo)
+REAL                                     :: XCL_NGeoLoc(1:3,0:NGeo,0:NGeo,0:NGeo)
+REAL                                     :: BezierControlPoints_loc(1:3,0:NGeo,0:NGeo)
+INTEGER                                  :: NGeo3,NGeo2
+REAL                                     :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo)
+REAL                                     :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo)
+LOGICAL                                  :: isCurvedSide,isRectangular
+#if USE_MPI
+INTEGER(KIND=MPI_ADDRESS_KIND)           :: MPISharedSize
+#endif /* USE_MPI */
+! output and sanity check
+INTEGER                                  :: nPlanarRectangular,   nPlanarNonRectangular,   nPlanarCurved,   nBilinear,   nCurved
+INTEGER                                  :: nPlanarRectangularTot,nPlanarNonRectangularTot,nPlanarCurvedTot,nBilinearTot,nCurvedTot
+INTEGER                                  :: nLinearElems,   nCurvedElems
+INTEGER                                  :: nLinearElemsTot,nCurvedElemsTot
+!#if USE_MPI
+!INTEGER                                  :: nDummy
+!#endif /* USE_MPI */
+!===================================================================================================================================
+
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are curved ...'
+
+! elements
+#if USE_MPI
+MPISharedSize = INT((nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalElems/),ElemCurved_Shared_Win,ElemCurved_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemCurved_Shared_Win,IERROR)
+ElemCurved => ElemCurved_Shared
+#else
+ALLOCATE(ElemCurved(1:nComputeNodeElems))
+#endif /*USE_MPI*/
+
+! sides
+#if USE_MPI
+MPISharedSize = INT((nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),  SideType_Shared_Win,    SideType_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideType_Shared_Win,IERROR)
+SideType => SideType_Shared
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),  SideDistance_Shared_Win,SideDistance_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideDistance_Shared_Win,IERROR)
+SideDistance => SideDistance_Shared
+MPISharedSize = INT((3*nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalSides/),SideNormVec_Shared_Win, SideNormVec_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideNormVec_Shared_Win,IERROR)
+SideNormVec => SideNormVec_Shared
+#else
+ALLOCATE(SideType(       nNonUniqueGlobalSides))
+ALLOCATE(SideDistance(   nNonUniqueGlobalSides))
+ALLOCATE(SideNormVec(1:3,nNonUniqueGlobalSides))
+#endif /*USE_MPI*/
+
+! only CN root nullifies
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif /* USE_MPI*/
+  ElemCurved   = .FALSE.
+  SideType     = -1
+  SideDistance = -0.
+  SideNormVec  = 0.
+#if USE_MPI
+END IF
+
+CALL MPI_WIN_SYNC(ElemCurved_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(SideType_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(SideDistance_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(SideNormVec_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#endif /* USE_MPI*/
+
+ALLOCATE(SideIsDone(nNonUniqueGlobalSides))
+SideIsDone = .FALSE.
+
+NGeo2 = (NGeo+1)*(NGeo+1)
+NGeo3 = NGeo2   *(NGeo+1)
+
+! decide if element is (bi-)linear or curved
+! decide if sides are planar-rect, planar-nonrect, planar-curved, bilinear or curved
+#if USE_MPI
+firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+#else
+firstElem = 1
+lastElem  = nElems
+#endif
+
+DO iElem=firstElem,lastElem
+  ElemID = GetGlobalElemID(iElem)
+
+  XCL_NGeoLoc = XCL_NGeo_Shared(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID)
+  ! 1) check if elem is curved
+  !   a) get the coordinates of the eight nodes of the hexahedral
+  XCL_NGeo1(1:3,0,0,0) = XCL_NGeoLoc(1:3, 0  , 0  , 0  )
+  XCL_NGeo1(1:3,1,0,0) = XCL_NGeoLoc(1:3,NGeo, 0  , 0  )
+  XCL_NGeo1(1:3,0,1,0) = XCL_NGeoLoc(1:3, 0  ,NGeo, 0  )
+  XCL_NGeo1(1:3,1,1,0) = XCL_NGeoLoc(1:3,NGeo,NGeo, 0  )
+  XCL_NGeo1(1:3,0,0,1) = XCL_NGeoLoc(1:3, 0  , 0  ,NGeo)
+  XCL_NGeo1(1:3,1,0,1) = XCL_NGeoLoc(1:3,NGeo, 0  ,NGeo)
+  XCL_NGeo1(1:3,0,1,1) = XCL_NGeoLoc(1:3, 0  ,NGeo,NGeo)
+  XCL_NGeo1(1:3,1,1,1) = XCL_NGeoLoc(1:3,NGeo,NGeo,NGeo)
+
+  !  b) interpolate from the nodes to NGeo
+  !     Compare the bi-linear mapping with the used mapping
+  !     For NGeo=1, this should always be true, because the mappings are identical
+  CALL ChangeBasis3D(3,1,NGeo,Vdm_CLNGeo1_CLNGeo,XCL_NGeo1,XCL_NGeoNew)
+  ! check the coordinates of all Chebychev-Lobatto geometry points between the bi-linear and used mapping
+  CALL PointsEqual(NGeo3,XCL_NGeoNew,XCL_NGeoLoc(1:3,0:NGeo,0:NGeo,0:NGeo),ElemCurved(iElem))
+
+  ! 2) check sides
+  ! loop over all 6 sides of element
+  ! a) check if the sides are straight
+  ! b) use curved information to decide side type
+  DO ilocSide=1,6
+    SideID   = GetGlobalNonUniqueSideID(ElemID,iLocSide)
+    CNSideID = GetCNSideID(SideID)
+    flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
+
+    IF(.NOT.ElemCurved(iElem))THEN
+      BezierControlPoints_loc(1:3,0:NGeo,0:NGeo) = BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID)
+      ! linear element
+      IF(BoundingBoxIsEmpty(CNSideID))THEN
+        v1=(-BezierControlPoints_loc(:,0,0   )+BezierControlPoints_loc(:,NGeo,0   )   &
+            -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
+
+        v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
+            +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
+        SideNormVec(:,CNSideID) = CROSSNORM(v1,v2)
+        v1=0.25*(BezierControlPoints_loc(:,0,0      )     &
+                +BezierControlPoints_loc(:,NGeo,0   )  &
+                +BezierControlPoints_loc(:,0,NGeo   )  &
+                +BezierControlPoints_loc(:,NGeo,NGeo))
+        ! check if normal vector points outwards
+        v2=v1-ElemBaryNGeo(:,iElem)
+        IF(flip.EQ.0)THEN
+          IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).LT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
+        ELSE
+          IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).GT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
+        END IF
+        SideDistance(CNSideID)=DOT_PRODUCT(v1,SideNormVec(:,CNSideID))
+        ! check if it is rectangular
+        isRectangular=.TRUE.
+        v1=UNITVECTOR(BezierControlPoints_loc(:,0   ,NGeo)-BezierControlPoints_loc(:,0   ,0   ))
+        v2=UNITVECTOR(BezierControlPoints_loc(:,NGeo,0   )-BezierControlPoints_loc(:,0   ,0   ))
+        v3=UNITVECTOR(BezierControlPoints_loc(:,NGeo,NGeo)-BezierControlPoints_loc(:,0   ,NGeo))
+        IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+        IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+        IF(isRectangular)THEN
+          v1=UNITVECTOR(BezierControlPoints_loc(:,NGeo,NGeo)-BezierControlPoints_loc(:,NGeo,0))
+          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+        END IF
+        IF(isRectangular)THEN
+          SideType(CNSideID)=PLANAR_RECT
+        ELSE
+          SideType(CNSideID)=PLANAR_NONRECT
+        END IF
+      ELSE
+        v1=(-BezierControlPoints_loc(:,0,0   )+BezierControlPoints_loc(:,NGeo,0   )   &
+            -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
+        v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
+            +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
+        SideNormVec(:,CNSideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
+        SideType(CNSideID)=BILINEAR
+      END IF
+    ELSE
+      BezierControlPoints_loc(1:3,0:NGeo,0:NGeo) = BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID)
+      ! possible curved face
+      SELECT CASE(ilocSide)
+      CASE(XI_MINUS)
+        XCL_NGeoSideOld=XCL_NGeoLoc(1:3,0,0:NGeo,0:NGeo)
+        XCL_NGeoSideNew=XCL_NGeoNew(1:3,0,0:NGeo,0:NGeo)
+      CASE(XI_PLUS)
+        XCL_NGeoSideOld=XCL_NGeoLoc(1:3,NGeo,0:NGeo,0:NGeo)
+        XCL_NGeoSideNew=XCL_NGeoNew(1:3,NGeo,0:NGeo,0:NGeo)
+      CASE(ETA_MINUS)
+        XCL_NGeoSideOld=XCL_NGeoLoc(1:3,0:NGeo,0,0:NGeo)
+        XCL_NGeoSideNew=XCL_NGeoNew(1:3,0:NGeo,0,0:NGeo)
+      CASE(ETA_PLUS)
+        XCL_NGeoSideOld=XCL_NGeoLoc(1:3,0:NGeo,NGeo,0:NGeo)
+        XCL_NGeoSideNew=XCL_NGeoNew(1:3,0:NGeo,NGeo,0:NGeo)
+      CASE(ZETA_MINUS)
+        XCL_NGeoSideOld=XCL_NGeoLoc(1:3,0:NGeo,0:NGeo,0)
+        XCL_NGeoSideNew=XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0)
+      CASE(ZETA_PLUS)
+        XCL_NGeoSideOld=XCL_NGeoLoc(1:3,0:NGeo,0:NGeo,NGeo)
+        XCL_NGeoSideNew=XCL_NGeoNEw(1:3,0:NGeo,0:NGeo,NGeo)
+      END SELECT
+      CALL PointsEqual(NGeo2,XCL_NGeoSideNew,XCL_NGeoSideOld,isCurvedSide)
+      IF(isCurvedSide)THEn
+        IF(BoundingBoxIsEmpty(CNSideID))THEN
+          SideType(CNSideID)=PLANAR_CURVED
+          v1=(-BezierControlPoints_loc(:,0,0   )+BezierControlPoints_loc(:,NGeo,0   )   &
+              -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
+
+          v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
+              +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
+          SideNormVec(:,CNSideID) = CROSSNORM(v1,v2)
+          v1=0.25*(BezierControlPoints_loc(:,0,0   )  &
+                  +BezierControlPoints_loc(:,NGeo,0)  &
+                  +BezierControlPoints_loc(:,0,NGeo)  &
+                  +BezierControlPoints_loc(:,NGeo,NGeo))
+          ! check if normal vector points outwards
+          v2=v1-ElemBaryNGeo(:,iElem)
+          IF(flip.EQ.0)THEN
+            IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).LT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
+          ELSE
+            IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).GT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
+          END IF
+          SideDistance(CNSideID)=DOT_PRODUCT(v1,SideNormVec(:,CNSideID))
+        ELSE
+          SideType(CNSideID)=CURVED
+        END IF
+      ELSE
+        IF (BoundingBoxIsEmpty(CNSideID)) THEN
+          v1=(-BezierControlPoints_loc(:,0,0   )+BezierControlPoints_loc(:,NGeo,0   )   &
+              -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
+
+          v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
+              +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
+          SideNormVec(:,CNSideID) = CROSSNORM(v1,v2)
+          v1=0.25*(BezierControlPoints_loc(:,0,0)     &
+                  +BezierControlPoints_loc(:,NGeo,0)  &
+                  +BezierControlPoints_loc(:,0,NGeo)  &
+                  +BezierControlPoints_loc(:,NGeo,NGeo))
+          ! check if normal vector points outwards
+          v2=v1-ElemBaryNGeo(:,iElem)
+          IF(flip.EQ.0)THEN
+            IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).LT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
+          ELSE
+            IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).GT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
+          END IF
+          SideDistance(CNSideID)=DOT_PRODUCT(v1,SideNormVec(:,CNSideID))
+          ! check if it is rectangular
+          isRectangular=.TRUE.
+          v1=UNITVECTOR(BezierControlPoints_loc(:,0   ,NGeo)-BezierControlPoints_loc(:,0   ,0   ))
+          v2=UNITVECTOR(BezierControlPoints_loc(:,NGeo,0   )-BezierControlPoints_loc(:,0   ,0   ))
+          v3=UNITVECTOR(BezierControlPoints_loc(:,NGeo,NGeo)-BezierControlPoints_loc(:,0   ,NGeo))
+!          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+!          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+          IF(DOT_PRODUCT(v1,v2).GT.1E-14) isRectangular=.FALSE.
+          IF(DOT_PRODUCT(v1,v3).GT.1E-14) isRectangular=.FALSE.
+          IF(isRectangular)THEN
+            v1=UNITVECTOR(BezierControlPoints_loc(:,NGeo,NGeo)-BezierControlPoints_loc(:,NGeo,0))
+!            IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+!            IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+            IF(DOT_PRODUCT(v1,v2).GT.1E-14) isRectangular=.FALSE.
+            IF(DOT_PRODUCT(v1,v3).GT.1E-14) isRectangular=.FALSE.
+          END IF
+          IF(isRectangular)THEN
+            SideType(CNSideID)=PLANAR_RECT
+          ELSE
+            SideType(CNSideID)=PLANAR_NONRECT
+          END IF
+        ELSE
+          v1=(-BezierControlPoints_loc(:,0,0   )+BezierControlPoints_loc(:,NGeo,0   )   &
+              -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo))
+          v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
+              +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo))
+          SideNormVec(:,CNSideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
+          SideType(CNSideID)=BILINEAR
+        END IF
+      END IF
+    END IF
+    SideIsDone(SideID)=.TRUE.
+  END DO ! ilocSide=1,6
+END DO ! iElem=1,nTotalElems
+
+DEALLOCATE(SideIsDone)
+
+#if USE_MPI
+CALL MPI_WIN_SYNC(ElemCurved_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#endif /* USE_MPI */
+
+! zero counter for side types
+nPlanarRectangular         = 0
+nPlanarNonRectangular      = 0
+nPlanarCurved              = 0
+nBilinear                  = 0
+nCurved                    = 0
+! zero counter for elem types
+nCurvedElems               = 0
+nLinearElems               = 0
+
+#if USE_MPI
+firstElem = offsetElem + 1
+lastElem  = offsetElem + nElems
+#else
+firstElem = 1
+lastElem  = nElems
+#endif
+
+
+DO iElem = firstElem,lastElem
+  ElemID = GetCNElemID(iElem)
+  IF (ElemCurved(ElemID)) THEN
+    nCurvedElems = nCurvedElems+1
+  ELSE
+    nLinearElems = nLinearElems+1
+  END IF
+
+  DO ilocSide = 1,6
+    ! ignore small mortar sides attached to big mortar sides
+    SideID   = GetGlobalNonUniqueSideID(iElem,ilocSide)
+    CNSideID = GetCNSideID(SideID)
+    SELECT CASE(SideType(CNSideID))
+      CASE (PLANAR_RECT)
+        nPlanarRectangular    = nPlanarRectangular   +1
+      CASE (PLANAR_NONRECT)
+        nPlanarNonRectangular = nPlanarNonRectangular+1
+      CASE (BILINEAR)
+        nBilinear             = nBilinear            +1
+      CASE (PLANAR_CURVED)
+        nPlanarCurved         = nPlanarCurved        +1
+      CASE (CURVED)
+        nCurved               = nCurved              +1
+    END SELECT
+  END DO
+END DO
+
+#if USE_MPI
+CALL MPI_REDUCE(nPlanarRectangular   ,nPlanarRectangularTot   ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+CALL MPI_REDUCE(nPlanarNonRectangular,nPlanarNonRectangularTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+CALL MPI_REDUCE(nBilinear            ,nBilinearTot            ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+CALL MPI_REDUCE(nPlanarCurved        ,nPlanarCurvedTot        ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+CALL MPI_REDUCE(nCurved              ,nCurvedTot              ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+CALL MPI_REDUCE(nLinearElems         ,nLinearElemsTot         ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+CALL MPI_REDUCE(nCurvedElems         ,nCurvedElemsTot         ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+#else
+nPlanarRectangularTot    = nPlanarRectangular
+nPlanarNonRectangularTot = nPlanarNonRectangular
+nBilinearTot             = nBilinear
+nPlanarCurvedTot         = nPlanarCurved
+nCurvedTot               = nCurved
+nLinearElemsTot          = nLinearElems
+nCurvedElemsTot          = nCurvedElems
+#endif /* USE_MPI */
+
+! sanity check
+! This only works if the full mesh is built on one node!
+!#if USE_MPI
+!IF (myComputeNodeRank.EQ.0) THEN
+!#endif /* USE_MPI */
+!  IF ((nComputeNodeTotalElems-nCurvedElemsTot).NE.nLinearElemsTot) &
+!    CALL ABORT(__STAMP__, 'Error in particle mesh: lost elements while trying to dermine if elements are curved')
+!#if USE_MPI
+!END IF
+!#endif /* USE_MPI */
+
+SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-rectangular     faces: ', nPlanarRectangulartot
+SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-non-rectangular faces: ', nPlanarNonRectangulartot
+SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of bi-linear              faces: ', nBilineartot
+SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-curved          faces: ', nPlanarCurvedtot
+SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of curved                 faces: ', nCurvedtot
+SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of (bi-)linear            elems: ', nLinearElemsTot
+SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of curved                 elems: ', nCurvedElemsTot
+
+END SUBROUTINE IdentifyElemAndSideType
+
+
+SUBROUTINE PointsEqual(N,Points1,Points2,IsNotEqual)
+!===================================================================================================================================
+! compute the distance between two data sets
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES
+INTEGER,INTENT(IN)        :: N
+REAL,INTENT(IN)           :: Points1(1:3,1:N)
+REAL,INTENT(IN)           :: Points2(1:3,1:N)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+LOGICAL                   :: IsNotEqual
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                   :: i
+!===================================================================================================================================
+
+IsNotEqual=.FALSE.
+
+DO i=1,N
+  IF( ABS(Points1(1,i)-Points2(1,i)).GT.1e-14 .OR. &
+      ABS(Points1(2,i)-Points2(2,i)).GT.1e-14 .OR. &
+      ABS(Points1(3,i)-Points2(3,i)).GT.1e-14 ) THEN
+    IsNotEqual=.TRUE.
+    RETURN
+  END IF
+END DO ! i=0,N
+
+END SUBROUTINE PointsEqual
+
+
+SUBROUTINE MapRegionToElem()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! map a particle region to element
+! check only element barycenter, nothing else
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Mesh_Vars ,ONLY: NbrOfRegions, RegionBounds,GEO
+USE MOD_Mesh_Vars          ,ONLY: ElemBaryNGeo
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+ INTEGER                :: iElem, iRegions
+!===================================================================================================================================
+SDEALLOCATE(GEO%ElemToRegion)
+ALLOCATE(GEO%ElemToRegion(1:PP_nElems))
+GEO%ElemToRegion=0
+
+DO iElem=1,PP_nElems
+  DO iRegions=1,NbrOfRegions
+    IF ((ElemBaryNGeo(1,iElem).LT.RegionBounds(1,iRegions)).OR.(ElemBaryNGEO(1,iElem).GE.RegionBounds(2,iRegions))) CYCLE
+    IF ((ElemBaryNGeo(2,iElem).LT.RegionBounds(3,iRegions)).OR.(ElemBaryNGEO(2,iElem).GE.RegionBounds(4,iRegions))) CYCLE
+    IF ((ElemBaryNGeo(3,iElem).LT.RegionBounds(5,iRegions)).OR.(ElemBaryNGEO(3,iElem).GE.RegionBounds(6,iRegions))) CYCLE
+    IF (GEO%ElemToRegion(iElem).EQ.0) THEN
+      GEO%ElemToRegion(iElem)=iRegions
+    ELSE
+      CALL ABORT(__STAMP__,'Defined regions are overlapping')
+    END IF
+  END DO ! iRegions=1,NbrOfRegions
+END DO ! iElem=1,PP_nElems
+END SUBROUTINE MapRegionToElem
+
+
+SUBROUTINE WeirdElementCheck()
+!===================================================================================================================================
+! Calculate whether element edges intersect other sides
+! If this is the case it means that part of the element is turned inside-out
+! which results in a warning so the user can decide whether it is a problem that
+! necessitates a new mesh.
+! Fixing the problem would involve defining the bilinear edge between nodes 2 and 4
+! (instead of 1 and 3). This information would need to be stored and used throughout
+! the particle treatment. Additionally, since the edge would need to be changed
+! for both neighboring elements, it is possible that both element might have the problem
+! hence no solution exists.
+! tl;dr: Hard/maybe impossible to fix, hence only a warning is given so the user can decide
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ConcaveElemSide_Shared,ElemSideNodeID_Shared
+USE MOD_Particle_Mesh_Vars        ,ONLY: WeirdElems
+USE MOD_Mesh_Tools                ,ONLY: GetGlobalElemID
+#if USE_MPI
+USE MOD_MPI_Shared_Vars           ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
+#else
+USE MOD_Mesh_Vars                 ,ONLY: nElems
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: iElem, iLocSide, kLocSide, iNode
+INTEGER,ALLOCATABLE :: WeirdElemNbrs(:)
+REAL              :: vec(1:3), Node(1:3,1:4),det(1:3)
+LOGICAL           :: WEIRD, TRICHECK, TRIABSCHECK
+INTEGER           :: firstElem,lastElem
+!===================================================================================================================================
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)') ' CHECKING FOR WEIRD ELEMENTS...'
+
+#if USE_MPI
+firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+#else
+firstElem = 1
+lastElem  = nElems
+#endif
+
+ALLOCATE(WeirdElemNbrs(1:lastElem-firstElem+1))
+
+WeirdElems = 0
+
+! go through all CN elements
+DO iElem = firstElem,lastElem
+  WEIRD = .FALSE.
+  DO iLocSide = 1,5  ! go through local sides
+    IF (.not.WEIRD) THEN  ! if one is found there is no need to continue
+      IF (ConcaveElemSide_Shared(iLocSide,iElem)) THEN  ! only concave elements need to be checked
+        ! build vector from node 1 to node 3
+        vec(:) = NodeCoords_Shared(:,ElemSideNodeID_Shared(3,iLocSide,iElem)+1) &
+               - NodeCoords_Shared(:,ElemSideNodeID_Shared(1,iLocSide,iElem)+1)
+        ! check all other sides
+        DO kLocSide = iLocSide + 1, 6
+          IF (ConcaveElemSide_Shared(kLocSide,iElem)) THEN  ! only concave elements need to be checked
+            ! build 4 vectors from point 1 of edge to 4 nodes of kLocSide
+            DO iNode = 1,4
+              Node(:,iNode) = NodeCoords_Shared(:,ElemSideNodeID_Shared(1    ,iLocSide,iElem)+1) &
+                            - NodeCoords_Shared(:,ElemSideNodeID_Shared(iNode,kLocSide,iElem)+1)
+            END DO
+            ! Compute whether any of the triangle intersects with the vector vec:
+            ! If all three volumes built by the vector vec and the vectors Node
+            ! are either positive or negative then there is an intersection
+
+            ! Triangle 1 (Nodes 1,2,3)
+            ! Only check this if neither point of vec is part of the triangle.
+            ! If points of vec correspont to point 1 or 3 or triangle then both
+            ! triangles can be skipped (triabscheck = true), else point 4 needs to be checked
+            ! separately for triangle 2 (see below)
+            TRICHECK = .FALSE.
+            TRIABSCHECK = .FALSE.
+            DO iNode = 1,3
+              det(:) = NodeCoords_Shared(:,ElemSideNodeID_Shared(1    ,iLocSide,iElem)+1) &
+                     - NodeCoords_Shared(:,ElemSideNodeID_Shared(iNode,kLocSide,iElem)+1)
+              IF (SUM(abs(det(:))).EQ.0) THEN
+                TRICHECK = .TRUE.
+                IF(iNode.NE.2)TRIABSCHECK = .TRUE.
+              END IF
+              det(:) = NodeCoords_Shared(:,ElemSideNodeID_Shared(3    ,iLocSide,iElem)+1) &
+                     - NodeCoords_Shared(:,ElemSideNodeID_Shared(iNode,kLocSide,iElem)+1)
+              IF (SUM(abs(det(:))).EQ.0) THEN
+                TRICHECK = .TRUE.
+                IF(iNode.NE.2)TRIABSCHECK = .TRUE.
+              END IF
+            END DO
+            IF (.not.TRICHECK) THEN
+              det(1) = ((Node(2,1) * Node(3,2) - Node(3,1) * Node(2,2)) * vec(1)  + &
+                        (Node(3,1) * Node(1,2) - Node(1,1) * Node(3,2)) * vec(2)  + &
+                        (Node(1,1) * Node(2,2) - Node(2,1) * Node(1,2)) * vec(3))
+              det(2) = ((Node(2,2) * Node(3,3) - Node(3,2) * Node(2,3)) * vec(1)  + &
+                        (Node(3,2) * Node(1,3) - Node(1,2) * Node(3,3)) * vec(2)  + &
+                        (Node(1,2) * Node(2,3) - Node(2,2) * Node(1,3)) * vec(3))
+              det(3) = ((Node(2,3) * Node(3,1) - Node(3,3) * Node(2,1)) * vec(1)  + &
+                        (Node(3,3) * Node(1,1) - Node(1,3) * Node(3,1)) * vec(2)  + &
+                        (Node(1,3) * Node(2,1) - Node(2,3) * Node(1,1)) * vec(3))
+              IF ((det(1).LT.0).AND.(det(2).LT.0).AND.(det(3).LT.0)) WEIRD = .TRUE.
+              IF ((det(1).GT.0).AND.(det(2).GT.0).AND.(det(3).GT.0)) WEIRD = .TRUE.
+            END IF
+
+            ! Triangle 2 (Nodes 1,3,4)
+            TRICHECK = .FALSE.
+            IF (.not.TRIABSCHECK) THEN
+              ! Node 4 needs to be checked separately (see above)
+              det(:) = NodeCoords_Shared(:,ElemSideNodeID_Shared(1,iLocSide,iElem)+1) &
+                     - NodeCoords_Shared(:,ElemSideNodeID_Shared(4,kLocSide,iElem)+1)
+              IF (SUM(abs(det(:))).EQ.0) TRICHECK = .TRUE.
+              det(:) = NodeCoords_Shared(:,ElemSideNodeID_Shared(3,iLocSide,iElem)+1) &
+                     - NodeCoords_Shared(:,ElemSideNodeID_Shared(4,kLocSide,iElem)+1)
+              IF (SUM(abs(det(:))).EQ.0) TRICHECK = .TRUE.
+              IF (.not.TRICHECK) THEN
+                det(1) = ((Node(2,1) * Node(3,3) - Node(3,1) * Node(2,3)) * vec(1)  + &
+                          (Node(3,1) * Node(1,3) - Node(1,1) * Node(3,3)) * vec(2)  + &
+                          (Node(1,1) * Node(2,3) - Node(2,1) * Node(1,3)) * vec(3))
+                det(2) = ((Node(2,3) * Node(3,4) - Node(3,3) * Node(2,4)) * vec(1)  + &
+                          (Node(3,3) * Node(1,4) - Node(1,3) * Node(3,4)) * vec(2)  + &
+                          (Node(1,3) * Node(2,4) - Node(2,3) * Node(1,4)) * vec(3))
+                det(3) = ((Node(2,4) * Node(3,1) - Node(3,4) * Node(2,1)) * vec(1)  + &
+                          (Node(3,4) * Node(1,1) - Node(1,4) * Node(3,1)) * vec(2)  + &
+                          (Node(1,4) * Node(2,1) - Node(2,4) * Node(1,1)) * vec(3))
+                IF ((det(1).LT.0).AND.(det(2).LT.0).AND.(det(3).LT.0)) WEIRD = .TRUE.
+                IF ((det(1).GT.0).AND.(det(2).GT.0).AND.(det(3).GT.0)) WEIRD = .TRUE.
+              END IF
+            END IF
+          END IF
+        END DO
+      END IF
+    END IF
+  END DO
+  IF (WEIRD) THEN
+    WeirdElems = WeirdElems + 1
+    WeirdElemNbrs(WeirdElems) = GetGlobalElemID(iElem)
+  END IF
+END DO
+
+IF(WeirdElems.GT.0) THEN
+  IPWRITE(UNIT_stdOut,*)' FOUND', WeirdElems, 'ELEMENTS!'
+  IPWRITE(UNIT_stdOut,*)' WEIRD ELEM NUMBERS:'
+  DO iElem = 1,WeirdElems
+    IPWRITE(UNIT_stdOut,*) WeirdElemNbrs(iElem)
+  END DO
+END IF
+
+SWRITE(UNIT_stdOut,'(A)')' CHECKING FOR WEIRD ELEMENTS DONE!'
+
+DEALLOCATE(WeirdElemNbrs)
+
+SWRITE(UNIT_StdOut,'(132("-"))')
+END SUBROUTINE WeirdElementCheck
+
+
+!SUBROUTINE WriteTriaDataToVTK(nSides,nElems,Coord,FileString)
+!!===================================================================================================================================
+!!> Routine writing data to VTK Triangles (cell type = 5)
+!!===================================================================================================================================
+!! MODULES                                                                                                                          !
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!USE MOD_Globals
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!IMPLICIT NONE
+!! INPUT / OUTPUT VARIABLES
+!INTEGER,INTENT(IN)          :: nSides               !< Number of sides per element
+!INTEGER,INTENT(IN)          :: nElems               !< Number of elements
+!REAL   ,INTENT(IN)          :: Coord(1:3,1:4,1:nSides,1:nElems)
+!CHARACTER(LEN=*),INTENT(IN) :: FileString           ! < Output file name
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! LOCAL VARIABLES
+!INTEGER            :: iElem,nVTKElems,nVTKCells,ivtk=44,iSide!,iVal,iVar,str_len
+!INTEGER(KIND=8)    :: Offset, nBytes
+!INTEGER            :: IntegerType
+!INTEGER            :: Vertex(3,nSides*nElems*2)
+!INTEGER            :: NodeID,CellID,CellType
+!CHARACTER(LEN=35)  :: StrOffset,TempStr1,TempStr2
+!CHARACTER(LEN=200) :: Buffer
+!CHARACTER(LEN=1)   :: lf!,components_string
+!!CHARACTER(LEN=255) :: VarNameString
+!REAL(KIND=4)       :: FloatType
+!!===================================================================================================================================
+!SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE TRIA DATA TO VTX XML BINARY (VTU) FILE..."
+!IF(nSides.LT.1)THEN
+!  SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
+!  RETURN
+!END IF
+!
+!! Line feed character
+!lf = char(10)
+!
+!! Write file
+!OPEN(UNIT=ivtk,FILE=TRIM(FileString),ACCESS='STREAM')
+!! Write header
+!Buffer='<?xml version="1.0"?>'//lf;WRITE(ivtk) TRIM(Buffer)
+!Buffer='<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">'//lf;WRITE(ivtk) TRIM(Buffer)
+!nVTKElems=nSides*nElems*4 ! number of Nodes
+!nVTKCells=nSides*2*nElems ! number of Triangles
+!
+!Buffer='  <UnstructuredGrid>'//lf;WRITE(ivtk) TRIM(Buffer)
+!WRITE(TempStr1,'(I16)')nVTKElems
+!WRITE(TempStr2,'(I16)')nVTKCells
+!Buffer='    <Piece NumberOfPoints="'//TRIM(ADJUSTL(TempStr1))//&
+!'" NumberOfCells="'//TRIM(ADJUSTL(TempStr2))//'">'//lf;WRITE(ivtk) TRIM(Buffer)
+!! Specify point data
+!Buffer='      <PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
+!Offset=0
+!WRITE(StrOffset,'(I16)')Offset
+!!IF (nVal .GT.0)THEN
+!!  DO iVar=1,nVal
+!!    IF (VarNamePartCombine(iVar).EQ.0) THEN
+!!      Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNamePartVisu(iVar))//&
+!!      '" NumberOfComponents="1" format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+!!      Offset=Offset+SIZEOF(IntegerType)+nVTKElems*SIZEOF(FloatType)
+!!      WRITE(StrOffset,'(I16)')Offset
+!!    ELSE IF (VarNamePartCombine(iVar).EQ.1) THEN
+!!      str_len = LEN_TRIM(VarNamePartVisu(iVar))
+!!      write(components_string,'(I1)') VarNamePartCombineLen(iVar)
+!!      !IF(FileType.EQ.'DSMCHOState')THEN
+!!      !  VarNameString = VarNamePartVisu(iVar)(1:str_len-4)//VarNamePartVisu(iVar)(str_len-2:str_len)
+!!      !ELSE
+!!        VarNameString = VarNamePartVisu(iVar)(1:str_len-1)
+!!      !END IF
+!!      Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNameString)//&
+!!      '" NumberOfComponents="'//components_string//'" format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf
+!!      WRITE(ivtk) TRIM(Buffer)
+!!      Offset=Offset+SIZEOF(IntegerType)+nVTKElems*SIZEOF(FloatType)*VarNamePartCombineLen(iVar)
+!!      WRITE(StrOffset,'(I16)')Offset
+!!    END IF
+!!  END DO
+!!END IF
+!Buffer='      </PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
+!! Specify cell data
+!Buffer='      <CellData> </CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
+!! Specify coordinate data
+!Buffer='      <Points>'//lf;WRITE(ivtk) TRIM(Buffer)
+!Buffer='        <DataArray type="Float32" Name="Coordinates" NumberOfComponents="3" format="appended"'// &
+!       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+!Offset=Offset+SIZEOF(IntegerType)+3*nVTKElems*SIZEOF(FloatType)
+!WRITE(StrOffset,'(I16)')Offset
+!Buffer='      </Points>'//lf;WRITE(ivtk) TRIM(Buffer)
+!! Specify necessary cell data
+!Buffer='      <Cells>'//lf;WRITE(ivtk) TRIM(Buffer)
+!! Connectivity
+!Buffer='        <DataArray type="Int32" Name="connectivity" format="appended"'// &
+!       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+!Offset=Offset+SIZEOF(IntegerType)+nVTKCells*3*SIZEOF(IntegerType)
+!WRITE(StrOffset,'(I16)')Offset
+!! Offsets
+!Buffer='        <DataArray type="Int32" Name="offsets" format="appended"'// &
+!       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+!Offset=Offset+SIZEOF(IntegerType)+nVTKCells*SIZEOF(IntegerType)
+!WRITE(StrOffset,'(I16)')Offset
+!! Elem types
+!Buffer='        <DataArray type="Int32" Name="types" format="appended"'// &
+!       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+!Buffer='      </Cells>'//lf;WRITE(ivtk) TRIM(Buffer)
+!Buffer='    </Piece>'//lf;WRITE(ivtk) TRIM(Buffer)
+!Buffer='  </UnstructuredGrid>'//lf;WRITE(ivtk) TRIM(Buffer)
+!! Prepare append section
+!Buffer='  <AppendedData encoding="raw">'//lf;WRITE(ivtk) TRIM(Buffer)
+!! Write leading data underscore
+!Buffer='_';WRITE(ivtk) TRIM(Buffer)
+!
+!! Write binary raw data into append section
+!! Point data
+!nBytes = nVTKElems*SIZEOF(FloatType)
+!!DO iVal=1,nVal
+!!  IF (VarNamePartCombine(iVal).EQ.0) THEN
+!!    WRITE(ivtk) nBytes,REAL(Value(1:nParts,iVal),4)
+!!  ELSEIF(VarNamePartCombine(iVal).EQ.1) THEN
+!!    WRITE(ivtk) nBytes*VarNamePartCombineLen(iVal),REAL(Value(1:nParts,iVal:iVal+VarNamePartCombineLen(iVal)-1),4)
+!!  ENDIF
+!!END DO
+!! Points
+!nBytes = nBytes * 3
+!WRITE(ivtk) nBytes
+!WRITE(ivtk) REAL(Coord,4)
+!! Connectivity
+!NodeID = -1
+!CellID = 1
+!DO iElem=1,nElems
+!  DO iSide=1,6
+!    ! nodes 1,2,3 and nodes 1,3,4 forming one triangle
+!    ! nodes indexes start with 0 in vtk
+!    Vertex(:,CellID) = (/NodeID+1,NodeID+2,NodeID+3/)
+!    Vertex(:,CellID+1) = (/NodeID+1,NodeID+3,NodeID+4/)
+!    CellID=CellID+2
+!    NodeID=NodeID+4
+!  END DO
+!END DO
+!nBytes = 3*nVTKCells*SIZEOF(IntegerType)
+!WRITE(ivtk) nBytes
+!WRITE(ivtk) Vertex(:,:)
+!! Offset
+!nBytes = nVTKCells*SIZEOF(IntegerType)
+!WRITE(ivtk) nBytes
+!WRITE(ivtk) (Offset,Offset=3,3*nVTKCells,3)
+!! Cell type
+!CellType = 5  ! VTK_TRIANGLE
+!!CellType = 6  ! VTK_TRIANGLE_STRIP
+!WRITE(ivtk) nBytes
+!WRITE(ivtk) (CellType,iElem=1,nVTKCells)
+!! Write footer
+!Buffer=lf//'  </AppendedData>'//lf;WRITE(ivtk) TRIM(Buffer)
+!Buffer='</VTKFile>'//lf;WRITE(ivtk) TRIM(Buffer)
+!CLOSE(ivtk)
+!SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
+!
+!END SUBROUTINE WriteTriaDataToVTK
+
+
+SUBROUTINE CalcParticleMeshMetrics()
+!===================================================================================================================================
+!> calculates XCL_Ngeo and dXCL_Ngeo for global mesh
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Basis                  ,ONLY: BuildBezierVdm,BuildBezierDMat
+USE MOD_Basis                  ,ONLY: BarycentricWeights,ChebyGaussLobNodesAndWeights,InitializeVandermonde
+!USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
+!USE MOD_Interpolation          ,ONLY: GetDerivativeMatrix
+!USE MOD_Interpolation          ,ONLY: GetVandermonde
+!USE MOD_Interpolation_Vars     ,ONLY: NodeType,NodeTypeCL,NodeTypeVISU
+!USE MOD_Mesh_Vars              ,ONLY: useCurveds
+USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
+USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo,dXCL_NGeo,Xi_NGeo
+USE MOD_Mesh_Vars              ,ONLY: wBaryCL_NGeo1,Vdm_CLNGeo1_CLNGeo,XiCL_NGeo1,nElems
+!USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetGlobalElemID
+USE MOD_Particle_Mesh_Vars
+USE MOD_Particle_Surfaces_Vars ,ONLY: Vdm_Bezier,sVdm_Bezier,D_Bezier
+#if USE_MPI
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared_Vars
+#endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+INTEGER                        :: iElem
+REAL                           :: Vdm_NGeo_CLNGeo(0:NGeo,0:NGeo)
+#if USE_MPI
+INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
+#endif /*USE_MPI*/
+!===================================================================================================================================
+
+! small wBaryCL_NGEO
+ALLOCATE( wBaryCL_NGeo1(            0:1)    ,&
+          XiCL_NGeo1(               0:1)    ,&
+          Vdm_CLNGeo1_CLNGeo(0:NGeo,0:1)    ,&
+! new for curved particle sides
+          Vdm_Bezier(        0:NGeo,0:NGeo) ,&
+          sVdm_Bezier(       0:NGeo,0:NGeo) ,&
+          D_Bezier(          0:NGeo,0:NGeo))
+
+CALL ChebyGaussLobNodesAndWeights(1,XiCL_NGeo1)
+CALL BarycentricWeights(1,XiCL_NGeo1,wBaryCL_NGeo1)
+CALL InitializeVandermonde(1, NGeo,wBaryCL_NGeo1,XiCL_NGeo1,XiCL_NGeo ,Vdm_CLNGeo1_CLNGeo)
+! initialize Vandermonde for Bezier basis surface representation (particle tracking with curved elements)
+CALL BuildBezierVdm(NGeo,XiCL_NGeo,Vdm_Bezier,sVdm_Bezier) !CHANGETAG
+CALL BuildBezierDMat(NGeo,Xi_NGeo,D_Bezier)
+CALL InitializeVandermonde(NGeo,NGeo,wBaryCL_NGeo,Xi_NGeo,XiCL_NGeo,Vdm_NGeo_CLNGeo)
+
+#if USE_LOADBALANCE
+! XCL and dXCL are global and do not change during load balance, return
+IF (PerformLoadBalance) RETURN
+#endif
+
+#if USE_MPI
+! This is a trick. Allocate as 1D array and then set a pointer with the proper array bounds
+MPISharedSize = INT((3*(NGeo+1)**3*nGlobalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/3*  (NGeo+1)*(NGeo+1)*(NGeo+1)*nGlobalElems/), XCL_NGeo_Shared_Win,XCL_NGeo_Array)
+MPISharedSize = INT((3*(PP_N+1)**3*nGlobalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/3*  (PP_N+1)*(PP_N+1)*(PP_N+1)*nGlobalElems/), Elem_xGP_Shared_Win,Elem_xGP_Array)
+MPISharedSize = INT((3*3*(NGeo+1)**3*nGlobalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/3*3*(NGeo+1)*(NGeo+1)*(NGeo+1)*nGlobalElems/),dXCL_NGeo_Shared_Win,dXCL_NGeo_Array)
+CALL MPI_WIN_LOCK_ALL(0,XCL_NGeo_Shared_Win,IERROR)
+CALL MPI_WIN_LOCK_ALL(0,Elem_xGP_Shared_Win,IERROR)
+CALL MPI_WIN_LOCK_ALL(0,dXCL_NGeo_Shared_Win,IERROR)
+XCL_NGeo_Shared (1:3    ,0:NGeo,0:NGeo,0:NGeo,1:nGlobalElems) => XCL_NGeo_Array
+Elem_xGP_Shared (1:3    ,0:PP_N,0:PP_N,0:PP_N,1:nGlobalElems) => Elem_xGP_Array
+dXCL_NGeo_Shared(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nGlobalElems) => dXCL_NGeo_Array
+
+! Copy local XCL and dXCL into shared memory
+!IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
+  DO iElem = 1,nElems
+    XCL_NGeo_Shared (:  ,:,:,:,offsetElem+iElem) = XCL_NGeo (:  ,:,:,:,iElem)
+    Elem_xGP_Shared (:  ,:,:,:,offsetElem+iElem) = Elem_xGP (:  ,:,:,:,iElem)
+    dXCL_NGeo_Shared(:,:,:,:,:,offsetElem+iElem) = dXCL_NGeo(:,:,:,:,:,iElem)
+  END DO ! iElem = 1, nElems
+!ELSE
+!  DO iElem = 1, nElems
+!    XCL_NGeo_Shared (:,  :,:,:,offsetElem+iElem) = XCL_NGeo (:,  :,:,:,iElem)
+!    Elem_xGP_Shared (:,  :,:,:,offsetElem+iElem) = Elem_xGP (:,  :,:,:,iElem)
+!    dXCL_NGeo_Shared(:,:,:,:,:,offsetElem+iElem) = dXCL_NGeo(:,:,:,:,:,iElem)
+!  END DO ! iElem = 1, nElems
+!END IF
+
+! Communicate XCL and dXCL between compute node roots instead of calculating globally
+CALL MPI_WIN_SYNC(XCL_NGeo_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(Elem_xGP_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(dXCL_NGeo_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+
+IF (nComputeNodeProcessors.NE.nProcessors_Global .AND. myComputeNodeRank.EQ.0) THEN
+  CALL MPI_ALLGATHERV( MPI_IN_PLACE                  &
+                     , 0                             &
+                     , MPI_DATATYPE_NULL             &
+                     , XCL_NGeo_Shared               &
+                     , 3*(NGeo+1)**3*recvcountElem   &
+                     , 3*(NGeo+1)**3*displsElem      &
+                     , MPI_DOUBLE_PRECISION          &
+                     , MPI_COMM_LEADERS_SHARED       &
+                     , IERROR)
+
+  CALL MPI_ALLGATHERV( MPI_IN_PLACE                  &
+                     , 0                             &
+                     , MPI_DATATYPE_NULL             &
+                     , Elem_xGP_Shared               &
+                     , 3*(PP_N+1)**3*recvcountElem   &
+                     , 3*(PP_N+1)**3*displsElem      &
+                     , MPI_DOUBLE_PRECISION          &
+                     , MPI_COMM_LEADERS_SHARED       &
+                     , IERROR)
+
+  CALL MPI_ALLGATHERV( MPI_IN_PLACE                  &
+                     , 0                             &
+                     , MPI_DATATYPE_NULL             &
+                     , dXCL_NGeo_Shared              &
+                     , 3*3*(NGeo+1)**3*recvcountElem &
+                     , 3*3*(NGeo+1)**3*displsElem    &
+                     , MPI_DOUBLE_PRECISION          &
+                     , MPI_COMM_LEADERS_SHARED       &
+                     , IERROR)
+END IF
+
+!nComputeNodeHaloElems = nComputeNodeTotalElems - nComputeNodeElems
+!IF (nComputeNodeHaloElems.GT.nComputeNodeProcessors) THEN
+!  firstHaloElem = INT(REAL( myComputeNodeRank   *nComputeNodeHaloElems)/REAL(nComputeNodeProcessors))+1
+!  lastHaloElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeHaloElems)/REAL(nComputeNodeProcessors))
+!ELSE
+!  firstHaloElem = myComputeNodeRank + 1
+!  IF (myComputeNodeRank.LT.nComputeNodeHaloElems) THEN
+!    lastHaloElem = myComputeNodeRank + 1
+!  ELSE
+!    lastHaloElem = 0
+!  END IF
+!END IF
+!
+!! NOTE: Transform intermediately to CL points, to be consistent with metrics being built with CL
+!!       Important for curved meshes if NGeo<N, no effect for N>=NGeo
+!CALL GetVandermonde(    NGeo, NodeTypeVISU, PP_N, NodeTypeCL, Vdm_EQNGeo_CLN,  modal=.FALSE.)
+!CALL GetVandermonde(    PP_N, NodeTypeCL  , PP_N, NodeType  , Vdm_CLNloc_N,    modal=.FALSE.)
+!
+!!Transform from EQUI_NGeo to solution points on Nloc
+!Vdm_EQNGeo_CLN = MATMUL(Vdm_CLNloc_N,Vdm_EQNGeo_CLN)
+!
+!! Build XCL and dXCL for compute node halo region (each proc of compute-node build only its fair share)
+!  CALL GetDerivativeMatrix(NGeo  , NodeTypeCL  , DCL_Ngeo)
+!
+!  DO iElem = firstHaloElem, lastHaloElem
+!    ElemID = GetGlobalElemID(nComputeNodeElems+iElem)
+!!    firstNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+1
+!    firstNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)
+!!    nodeID = 0
+!    nodeID = 1
+!    IF (useCurveds) THEN
+!      DO k = 0, NGeo; DO j = 0, NGeo; DO i = 0, NGeo
+!        NodeCoordstmp(:,i,j,k) = NodeCoords_Shared(:,firstNodeID+NodeID)
+!        nodeID = nodeID + 1
+!      END DO; END DO; END DO ! i = 0, NGeo
+!    ELSE
+!      NodeCoordstmp(:,0,0,0) = NodeCoords_Shared(:,firstNodeID+1)
+!      NodeCoordstmp(:,1,0,0) = NodeCoords_Shared(:,firstNodeID+2)
+!      NodeCoordstmp(:,0,1,0) = NodeCoords_Shared(:,firstNodeID+3)
+!      NodeCoordstmp(:,1,1,0) = NodeCoords_Shared(:,firstNodeID+4)
+!      NodeCoordstmp(:,0,0,1) = NodeCoords_Shared(:,firstNodeID+5)
+!      NodeCoordstmp(:,1,0,1) = NodeCoords_Shared(:,firstNodeID+6)
+!      NodeCoordstmp(:,0,1,1) = NodeCoords_Shared(:,firstNodeID+7)
+!      NodeCoordstmp(:,1,1,1) = NodeCoords_Shared(:,firstNodeID+8)
+!    END IF
+!    CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_NGeo_CLNGeo,NodeCoordstmp,XCL_NGeo_Shared(:,:,:,:,nComputeNodeElems+iElem))
+!    CALL ChangeBasis3D(3,NGeo,PP_N,Vdm_EQNGeo_CLN ,NodeCoordstmp,Elem_xGP_Shared(:,:,:,:,nComputeNodeElems+iElem))
+!
+!    DO k=0,NGeo; DO j=0,NGeo; DO i=0,NGeo
+!      ! Matrix-vector multiplication
+!      DO ll=0,Ngeo
+!        dXCL_NGeo_Shared(1,:,i,j,k,nComputeNodeElems+iElem) = dXCL_NGeo_Shared(1,:,i,j,k,nComputeNodeElems+iElem) + DCL_NGeo(i,ll) &
+!                                                            *  XCL_NGeo_Shared(: ,ll,j,k,nComputeNodeElems+iElem)
+!        dXCL_NGeo_Shared(2,:,i,j,k,nComputeNodeElems+iElem) = dXCL_NGeo_Shared(2,:,i,j,k,nComputeNodeElems+iElem) + DCL_NGeo(j,ll) &
+!                                                            *  XCL_NGeo_Shared(: ,i,ll,k,nComputeNodeElems+iElem)
+!        dXCL_NGeo_Shared(3,:,i,j,k,nComputeNodeElems+iElem) = dXCL_NGeo_Shared(3,:,i,j,k,nComputeNodeElems+iElem) + DCL_NGeo(k,ll) &
+!                                                            *  XCL_NGeo_Shared(: ,i,j,ll,nComputeNodeElems+iElem)
+!      END DO
+!    END DO; END DO; END DO !i,j,k=0,Ngeo
+!    END DO ! iElem = firstHaloElem, lastHaloElem
+
+CALL MPI_WIN_SYNC(XCL_NGeo_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(Elem_xGP_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(dXCL_NGeo_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#else
+XCL_NGeo_Shared  => XCL_NGeo
+Elem_xGP_Shared  => Elem_xGP
+dXCL_NGeo_Shared => dXCL_NGeo
+#endif /*USE_MPI*/
+
+END SUBROUTINE CalcParticleMeshMetrics
+
+
+SUBROUTINE CalcBezierControlPoints()
+!===================================================================================================================================
+!> calculate the Bezier control point (+elevated) for shared compute-node mesh
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis2D
+USE MOD_Mappings               ,ONLY: CGNS_SideToVol2
+USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
+USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides,SideInfo_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: XCL_NGeo_Shared
+!USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
+USE MOD_Particle_Surfaces      ,ONLY: GetBezierControlPoints3DElevated
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,sVdm_Bezier
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3DElevated,BezierElevation
+#if USE_MPI
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: BezierControlPoints3D_Shared,BezierControlPoints3D_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: BezierControlPoints3DElevated_Shared,BezierControlPoints3DElevated_Shared_Win
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
+!USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
+USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,nComputeNodeProcessors
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
+#else
+USE MOD_Mesh_Vars              ,ONLY: nElems
+#endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: iElem,iSide,ilocSide
+INTEGER                        :: SideID
+INTEGER                        :: firstElem,lastElem,firstSide,lastSide
+INTEGER                        :: p,q,pq(2)
+REAL                           :: tmp(3,0:NGeo,0:NGeo)
+REAL                           :: tmp2(3,0:NGeo,0:NGeo)
+#if USE_MPI
+INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
+#else
+INTEGER                        :: ALLOCSTAT
+#endif /*USE_MPI*/
+!===================================================================================================================================
+
+#if USE_LOADBALANCE
+! BezierControlPoints are global and do not change during load balance, return
+IF (PerformLoadBalance) RETURN
+#endif
+
+SWRITE(UNIT_stdOut,'(A)') ' CALCULATING BezierControlPoints ...'
+
+! Build BezierControlPoints3D (compute-node local+halo)
+#if USE_MPI
+MPISharedSize = INT((3*(NGeo+1)**2*nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+! This is a trick. Allocate as 1D array and then set a pointer with the proper array bounds
+CALL Allocate_Shared(MPISharedSize,(/3*(NGeo+1)*(NGeo+1)*nNonUniqueGlobalSides/),BezierControlPoints3D_Shared_Win,BezierControlPoints3D_Shared)
+CALL MPI_WIN_LOCK_ALL(0,BezierControlPoints3D_Shared_Win,IERROR)
+BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nNonUniqueGlobalSides) => BezierControlPoints3D_Shared
+IF (myComputeNodeRank.EQ.0) THEN
+  BezierControlPoints3D         = 0.
+END IF
+IF (BezierElevation.GT.0) THEN
+  MPISharedSize = INT((3*(NGeoElevated+1)**2*nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/3*(NGeoElevated+1)*(NGeoElevated+1)*nNonUniqueGlobalSides/),BezierControlPoints3DElevated_Shared_Win,BezierControlPoints3DElevated_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,BezierControlPoints3DElevated_Shared_Win,IERROR)
+  BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nNonUniqueGlobalSides) => BezierControlPoints3DElevated_Shared
+  IF (myComputeNodeRank.EQ.0) THEN
+    BezierControlPoints3DElevated = 0.
+  END IF
+END IF
+#else
+ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nNonUniqueGlobalSides) &
+        ,STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,'  Cannot allocate BezierControlPoints3D!')
+BezierControlPoints3D         = 0.
+
+IF (BezierElevation.GT.0) THEN
+  ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nNonUniqueGlobalSides) &
+          ,STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,'  Cannot allocate BezierControlPoints3DElevated!')
+  BezierControlPoints3DElevated = 0.
+END IF
+#endif /*USE_MPI*/
+
+#if USE_MPI
+CALL MPI_WIN_SYNC(BezierControlPoints3D_Shared_Win,IERROR)
+IF (BezierElevation.GT.0) THEN
+  CALL MPI_WIN_SYNC(BezierControlPoints3DElevated_Shared_Win,IERROR)
+END IF
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+
+firstElem = INT(REAL( myComputeNodeRank*   nGlobalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
+!firstSide = INT(REAL (myComputeNodeRank   *nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))+1
+!lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))
+firstSide = INT(REAL (myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+#else
+firstElem = 1
+lastElem  = nElems
+firstSide = 1
+lastSide  = nNonUniqueGlobalSides
+#endif /*USE_MPI*/
+
+! iElem is CN elem
+DO iElem = firstElem,lastElem
+  DO ilocSide=1,6
+    SELECT CASE(iLocSide)
+    CASE(XI_MINUS)
+      tmp=XCL_NGeo_Shared(1:3 , 0    , :    , :   ,iElem )
+    CASE(XI_PLUS)
+      tmp=XCL_NGeo_Shared(1:3 , NGeo , :    , :   ,iElem )
+    CASE(ETA_MINUS)
+      tmp=XCL_NGeo_Shared(1:3 , :    , 0    , :   ,iElem )
+    CASE(ETA_PLUS)
+      tmp=XCL_NGeo_Shared(1:3 , :    , NGeo , :   ,iElem )
+    CASE(ZETA_MINUS)
+      tmp=XCL_NGeo_Shared(1:3 , :    , :    , 0   ,iElem )
+    CASE(ZETA_PLUS)
+      tmp=XCL_NGeo_Shared(1:3 , :    , :    , NGeo,iElem )
+    END SELECT
+    CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,tmp,tmp2)
+
+    ! get global SideID of local side
+    SideID = GetGlobalNonUniqueSideID(iElem,iLocSide)
+
+    DO q=0,NGeo; DO p=0,NGeo
+      ! turn into right hand system of side
+      pq = CGNS_SideToVol2(NGeo,p,q,iLocSide)
+      BezierControlPoints3D(1:3,p,q,SideID) = tmp2(1:3,pq(1),pq(2))
+    END DO; END DO ! p,q
+  END DO ! ilocSide=1,6
+END DO ! iElem = firstElem, lastElem
+
+#if USE_MPI
+CALL MPI_WIN_SYNC(BezierControlPoints3D_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#endif /*USE_MPI*/
+
+! Calculate elevated BezierControlPoints
+IF (BezierElevation.GT.0) THEN
+  DO iSide=firstSide,LastSide
+    ! Ignore small mortar sides attached to big mortar sides
+    IF (SideInfo_Shared(SIDE_LOCALID,iSide).LT.1 .OR. SideInfo_Shared(SIDE_LOCALID,iSide).GT.6) CYCLE
+    ! Indices in shared arrays are shifted by 1
+    CALL GetBezierControlPoints3DElevated( NGeo,NGeoElevated                                                       &
+                                         , BezierControlPoints3D        (1:3,0:NGeo        ,0:NGeo        ,iSide)  &
+                                         , BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide))
+  END DO
+
+#if USE_MPI
+CALL MPI_WIN_SYNC(BezierControlPoints3DElevated_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#endif /*USE_MPI*/
+END IF
+
+END SUBROUTINE CalcBezierControlPoints
+
+
+SUBROUTINE InitParticleGeometry()
+!===================================================================================================================================
+! Subroutine for particle geometry initialization (GEO container)
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_ReadInTools
+USE MOD_Globals
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Particle_Mesh_Vars
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
+#if USE_MPI
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared_Vars
+#else
+USE MOD_Mesh_Vars              ,ONLY: nElems
+#endif
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: iElem,FirstElem,LastElem,GlobalElemID
+INTEGER            :: GlobalSideID,nlocSides,localSideID,iLocSide
+INTEGER            :: iNode
+INTEGER            :: nStart, NodeNum
+INTEGER            :: NodeMap(4,6)
+REAL               :: A(3,3),detcon
+#if USE_MPI
+INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
+#endif
+INTEGER            :: CornerNodeIDswitch(8)
+!===================================================================================================================================
+
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION...'
+
+! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
+CornerNodeIDswitch(1)=1
+CornerNodeIDswitch(2)=(Ngeo+1)
+CornerNodeIDswitch(3)=(Ngeo+1)**2
+CornerNodeIDswitch(4)=(Ngeo+1)*Ngeo+1
+CornerNodeIDswitch(5)=(Ngeo+1)**2*Ngeo+1
+CornerNodeIDswitch(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
+CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
+CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
+
+! New crazy corner node switch (philipesque)
+ASSOCIATE(CNS => CornerNodeIDswitch )
+  ! CGNS Mapping
+  NodeMap(:,1)=(/CNS(1),CNS(4),CNS(3),CNS(2)/)
+  NodeMap(:,2)=(/CNS(1),CNS(2),CNS(6),CNS(5)/)
+  NodeMap(:,3)=(/CNS(2),CNS(3),CNS(7),CNS(6)/)
+  NodeMap(:,4)=(/CNS(3),CNS(4),CNS(8),CNS(7)/)
+  NodeMap(:,5)=(/CNS(1),CNS(5),CNS(8),CNS(4)/)
+  NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
+
+#if USE_MPI
+  MPISharedSize = INT(6*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/6,nComputeNodeTotalElems/),ConcaveElemSide_Shared_Win,ConcaveElemSide_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,ConcaveElemSide_Shared_Win,IERROR)
+  firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+  lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+
+  MPISharedSize = INT(4*6*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/4,6,nComputeNodeTotalElems/),ElemSideNodeID_Shared_Win,ElemSideNodeID_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,ElemSideNodeID_Shared_Win,IERROR)
+
+  MPISharedSize = INT(3*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalElems/),ElemMidPoint_Shared_Win,ElemMidPoint_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,ElemMidPoint_Shared_Win,IERROR)
+#else
+  ALLOCATE(ConcaveElemSide_Shared(   1:6,1:nElems))
+  ALLOCATE(ElemSideNodeID_Shared(1:4,1:6,1:nElems))
+  ALLOCATE(ElemMidPoint_Shared(      1:3,1:nElems))
+  firstElem = 1
+  lastElem  = nElems
+#endif  /*USE_MPI*/
+
+#if USE_MPI
+  IF (myComputeNodeRank.EQ.0) THEN
+#endif
+    ElemSideNodeID_Shared  = 0
+    ConcaveElemSide_Shared = .FALSE.
+#if USE_MPI
+  END IF
+  CALL MPI_WIN_SYNC(ElemSideNodeID_Shared_Win,IERROR)
+  CALL MPI_WIN_SYNC(ConcaveElemSide_Shared_Win,IERROR)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif
+
+  ! iElem is CNElemID
+  DO iElem = firstElem,lastElem
+    GlobalElemID = GetGlobalElemID(iElem)
+
+    nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,GlobalElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID)
+    DO iLocSide = 1,nlocSides
+      ! Get global SideID
+      GlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
+
+      IF (SideInfo_Shared(SIDE_LOCALID,GlobalSideID).LE.0) CYCLE
+      localSideID = SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
+      ! Find start of CGNS mapping from flip
+      IF (SideInfo_Shared(SIDE_ID,GlobalSideID).GT.0) THEN
+        nStart = 0
+      ELSE
+        nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,GlobalSideID),10)-1)
+      END IF
+      ! Shared memory array starts at 1, but NodeID at 0
+      ElemSideNodeID_Shared(1:4,localSideID,iElem) = (/ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart  ,4)+1,localSideID)-1, &
+          ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+1,4)+1,localSideID)-1, &
+          ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+2,4)+1,localSideID)-1, &
+          ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+3,4)+1,localSideID)-1/)
+
+    END DO
+  END DO
+
+END ASSOCIATE
+#if USE_MPI
+CALL MPI_WIN_SYNC(ElemSideNodeID_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif
+
+!--- Save whether Side is concave or convex
+DO iElem = firstElem,lastElem
+  ! iElem is CNElemID
+  GlobalElemID = GetGlobalElemID(iElem)
+
+  nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,GlobalElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID)
+  DO iLocSide = 1,nlocSides
+    !--- Check whether the bilinear side is concave
+    !--- Node Number 4 and triangle 1-2-3
+    GlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
+    IF (SideInfo_Shared(SIDE_LOCALID,GlobalSideID).LE.0) CYCLE
+    localSideID = SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
+    DO NodeNum = 1,3               ! for all 3 nodes of triangle
+       A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,localSideID,iElem)+1) &
+                    - NodeCoords_Shared(:,ElemSideNodeID_Shared(4      ,localSideID,iElem)+1)
+    END DO
+    !--- concave if detcon < 0:
+    detcon = ((A(2,1) * A(3,2) - A(3,1) * A(2,2)) * A(1,3) +     &
+              (A(3,1) * A(1,2) - A(1,1) * A(3,2)) * A(2,3) +     &
+              (A(1,1) * A(2,2) - A(2,1) * A(1,2)) * A(3,3))
+    IF (detcon.LT.0) THEN
+      ConcaveElemSide_Shared(localSideID,iElem) = .TRUE.
+    ELSE IF (detcon.EQ.0.0) THEN
+      IF (GlobalSideID.LT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)) ConcaveElemSide_Shared(localSideID,iElem) = .TRUE.
+    END IF
+  END DO
+END DO
+
+!-- write debug-mesh
+! IF (WriteTriaDebugMesh) THEN
+!   nSides=6
+!   WRITE(UNIT=hilf,FMT='(I4.4)') myRank
+!   FileString='TRIA-DebugMesh_PROC'//TRIM(hilf)//'.vtu'
+!   ALLOCATE(Coords(1:3,1:4,1:nSides,1:nElems))
+!   DO iElem = 1,nElems ; DO iLocSide = 1,nSides ; DO iNode = 1,4
+!     Coords(:,iNode,iLocSide,iElem)=GEO%NodeCoords(:,GEO%ElemSideNodeID(iNode,iLocSide,iElem))
+!   END DO ; END DO ; END DO
+!   CALL WriteTriaDataToVTK(nSides,nElems,Coords(1:3,1:4,1:6,1:nElems),FileString)
+!   SDEALLOCATE(Coords)
+! END IF !WriteTriaDebugMesh
+
+DO iElem = firstElem,lastElem
+  ! iElem is CNElemID
+  GlobalElemID = GetGlobalElemID(iElem)
+
+  ElemMidPoint_Shared(:,iElem) = 0.
+  DO iNode = 1,8
+    ElemMidPoint_Shared(1:3,iElem) = ElemMidPoint_Shared(1:3,iElem) + NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+iNode)
+  END DO
+  ElemMidPoint_Shared(1:3,iElem) = ElemMidPoint_Shared(1:3,iElem) / 8.
+END DO
+
+#if USE_MPI
+CALL MPI_WIN_SYNC(ConcaveElemSide_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(ElemMidPoint_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif
+
+!--- check for elements with intersecting sides (e.g. very flat elements)
+CALL WeirdElementCheck()
+
+SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION DONE!'
+SWRITE(UNIT_StdOut,'(132("-"))')
+END SUBROUTINE InitParticleGeometry
+
+
+SUBROUTINE InitElemNodeIDs()
+!===================================================================================================================================
+! Subroutine for particle geometry initialization (GEO container)
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_ReadInTools
+USE MOD_Globals
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Particle_Mesh_Vars
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
+#if USE_MPI
+USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared_Vars
+#else
+USE MOD_Mesh_Vars              ,ONLY: nElems
+#endif
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: iElem,firstElem,lastElem,GlobalElemID
+INTEGER            :: iNode
+#if USE_MPI
+INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
+#endif
+INTEGER            :: CornerNodeIDswitch(8)
+!===================================================================================================================================
+
+! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
+CornerNodeIDswitch(1)=1
+CornerNodeIDswitch(2)=(Ngeo+1)
+CornerNodeIDswitch(3)=(Ngeo+1)**2
+CornerNodeIDswitch(4)=(Ngeo+1)*Ngeo+1
+CornerNodeIDswitch(5)=(Ngeo+1)**2*Ngeo+1
+CornerNodeIDswitch(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
+CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
+CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
+
+! New crazy corner node switch (philipesque)
+ASSOCIATE(CNS => CornerNodeIDswitch )
+#if USE_MPI
+  firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+  lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+  MPISharedSize = INT(8*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/8,nComputeNodeTotalElems/),ElemNodeID_Shared_Win,ElemNodeID_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,ElemNodeID_Shared_Win,IERROR)
+#else
+  ALLOCATE(ElemNodeID_Shared(1:8,1:nElems))
+  firstElem = 1
+  lastElem  = nElems
+#endif  /*USE_MPI*/
+
+#if USE_MPI
+  IF (myComputeNodeRank.EQ.0) THEN
+#endif
+    ElemNodeID_Shared = 0
+#if USE_MPI
+  END IF
+  CALL MPI_WIN_SYNC(ElemNodeID_Shared_Win,IERROR)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif
+
+  ! iElem is CNElemID
+  DO iElem = firstElem,lastElem
+    GlobalElemID = GetGlobalElemID(iElem)
+    DO iNode = 1,8
+      ElemNodeID_Shared(iNode,iElem) = ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID) + CNS(iNode)
+    END DO
+  END DO
+END ASSOCIATE
+#if USE_MPI
+CALL MPI_WIN_SYNC(ElemNodeID_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif
+END SUBROUTINE InitElemNodeIDs
 
 
 END MODULE MOD_Particle_Mesh_Tools
