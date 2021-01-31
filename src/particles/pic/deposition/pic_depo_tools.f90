@@ -190,6 +190,10 @@ NodeVolumeLoc = 0.
 IF (myComputeNodeRank.EQ.0) THEN
   NodeVolume = 0.0
 END IF
+! This sync/barrier is required as it cannot be guaranteed that the zeros have been written to memory by the time the MPI_REDUCE
+! is executed (see MPI specification). Until the Sync is complete, the status is undefined, i.e., old or new value or utter nonsense.
+CALL MPI_WIN_SYNC(NodeVolume_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #else
 ALLOCATE(NodeVolume(1:nUniqueGlobalNodes))
 NodeVolume = 0.0
