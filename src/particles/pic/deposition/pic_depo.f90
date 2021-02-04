@@ -736,6 +736,7 @@ SDEALLOCATE(CellVolWeight_Volumes)
 #if USE_MPI
 SDEALLOCATE(NodeSourceLoc)
 SDEALLOCATE(PartSourceProc)
+SDEALLOCATE(NodeMapping)
 
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)

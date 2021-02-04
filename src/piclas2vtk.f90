@@ -970,6 +970,7 @@ ALLOCATE(NonUnique2UniqueSide(1:nSides))
 NonUnique2UniqueSide(1:nSides) = -1
 ! if side is surface (BC_reflective defined in State file) then map respective surface side number
 nSurfSides = 0
+nUniqueSurfSide = 0
 DO iSide = 1,nSides
   IF(SideInfo_Shared(SIDE_BCID,iSide).EQ.0) CYCLE
   DO iBC=1,nSurfBC_HDF5

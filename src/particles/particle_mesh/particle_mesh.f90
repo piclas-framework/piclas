@@ -245,9 +245,7 @@ CALL BuildBGMAndIdentifyHaloRegion()
 
 #if USE_MPI
 CalcHaloInfo = GETLOGICAL('CalcHaloInfo')
-IF (CalcHaloInfo) THEN
-  CALL WriteHaloInfo
-END IF
+IF (CalcHaloInfo) CALL WriteHaloInfo
 #endif /*USE_MPI*/
 
 ! Initialize mapping function: GetGlobalElemID(1:nComputeNodeTotalElems)

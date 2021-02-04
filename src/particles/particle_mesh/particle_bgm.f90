@@ -1212,6 +1212,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHaloID
 USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHaloInfo_Array,ElemHaloInfo_Shared,ElemHaloInfo_Shared_Win
 ! IMPLICIT VARIABLE HANDLING
@@ -1232,6 +1233,8 @@ CALL UNLOCK_AND_FREE(ElemHaloInfo_Shared_Win)
 ! Then, free the pointers or arrays
 ADEALLOCATE(ElemHaloInfo_Shared)
 ADEALLOCATE(ElemHaloInfo_Array)
+
+SDEALLOCATE(ElemHaloID)
 
 END SUBROUTINE FinalizeHaloInfo
 #endif /*USE_MPI*/
