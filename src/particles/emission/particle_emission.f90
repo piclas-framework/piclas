@@ -367,6 +367,7 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Analyze           ,ONLY: CalcTVibPoly,CalcTelec
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, DSMC, CollisMode, SpecDSMC, useDSMC, RadialWeighting
 USE MOD_Mesh_Vars              ,ONLY: nElems, offsetElem
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Part_Tools             ,ONLY: GetParticleWeight
 USE MOD_SurfaceModel_Vars      ,ONLY: PorousBCSampIter, PorousBCMacroVal
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared, SideInfo_Shared
@@ -394,7 +395,7 @@ LOGICAL                         :: initSampling, isBCElem
 #if USE_LOADBALANCE
 REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
-INTEGER                         :: nlocSides, GlobalSideID, GlobalElemID, iLocSide
+INTEGER                         :: nlocSides, GlobalSideID, CNElemID, GlobalElemID, iLocSide
 !===================================================================================================================================
 ALLOCATE(Source(1:11,1:nElems,1:nSpecies))
 Source=0.0
@@ -464,6 +465,7 @@ END IF
 
 DO AdaptiveElemID = 1,nElems
   GlobalElemID = AdaptiveElemID + offsetElem
+  CNElemID = GetCNElemID(GlobalElemID)
   ! not a BC element
   ! IF (ElemToBCSides(ELEM_NBR_BCSIDES,AdaptiveElemID).EQ.-1) CYCLE
   ! ======================================
@@ -511,10 +513,10 @@ DO AdaptiveElemID = 1,nElems
             ! number density
             IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
               Adaptive_MacroVal(7,AdaptiveElemID,iSpec)=PorousBCMacroVal(7,AdaptiveElemID,iSpec)/SamplingIteration   &
-                                                        /ElemVolume_Shared(GlobalElemID)
+                                                        /ElemVolume_Shared(CNElemID)
             ELSE
               Adaptive_MacroVal(7,AdaptiveElemID,iSpec)=PorousBCMacroVal(7,AdaptiveElemID,iSpec)/SamplingIteration   &
-                                                        /ElemVolume_Shared(GlobalElemID) * Species(iSpec)%MacroParticleFactor
+                                                        /ElemVolume_Shared(CNElemID) * Species(iSpec)%MacroParticleFactor
             END IF
             ! instantaneous temperature WITHOUT 1/BoltzmannConst
             PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) = PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) &
@@ -546,18 +548,18 @@ DO AdaptiveElemID = 1,nElems
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
           ! compute density
           Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
-            + RelaxationFactor*Source(11,AdaptiveElemID,iSpec) /ElemVolume_Shared(GlobalElemID)
+            + RelaxationFactor*Source(11,AdaptiveElemID,iSpec) /ElemVolume_Shared(CNElemID)
           ! Pressure with relaxation factor
           Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
-          +RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/ElemVolume_Shared(GlobalElemID)*TTrans_TempFac
+          +RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/ElemVolume_Shared(CNElemID)*TTrans_TempFac
         ELSE
           ! compute density
           Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
-            + RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/ElemVolume_Shared(GlobalElemID)*Species(iSpec)%MacroParticleFactor
+            + RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/ElemVolume_Shared(CNElemID)*Species(iSpec)%MacroParticleFactor
           ! Pressure with relaxation factor
           Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
                                                       + RelaxationFactor*Source(11,AdaptiveElemID,iSpec)  &
-                                                      / ElemVolume_Shared(GlobalElemID)*Species(iSpec)%MacroParticleFactor*TTrans_TempFac
+                                                      / ElemVolume_Shared(CNElemID)*Species(iSpec)%MacroParticleFactor*TTrans_TempFac
         END IF
       END IF
       ! !==================================================================================================

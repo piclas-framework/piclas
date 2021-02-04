@@ -361,7 +361,8 @@ CASE('cell_volweight_mean')
       IF (iProc.EQ.myLeaderGroupRank) CYCLE
       IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
         ALLOCATE(NodeMapping(iProc)%RecvNodeUniqueGlobalID(1:NodeMapping(iProc)%nRecvUniqueNodes))
-        ALLOCATE(NodeMapping(iProc)%RecvNodeSource(1:4,1:NodeMapping(iProc)%nRecvUniqueNodes))
+        ALLOCATE(NodeMapping(iProc)%RecvNodeSourceCharge(1:NodeMapping(iProc)%nRecvUniqueNodes))
+        ALLOCATE(NodeMapping(iProc)%RecvNodeSourceCurrent(1:3,1:NodeMapping(iProc)%nRecvUniqueNodes))
         IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMapping(iProc)%RecvNodeSourceExt(1:NodeMapping(iProc)%nRecvUniqueNodes))
         CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeUniqueGlobalID                   &
                       , NodeMapping(iProc)%nRecvUniqueNodes                         &
@@ -374,7 +375,8 @@ CASE('cell_volweight_mean')
       END IF
       IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
         ALLOCATE(NodeMapping(iProc)%SendNodeUniqueGlobalID(1:NodeMapping(iProc)%nSendUniqueNodes))
-        ALLOCATE(NodeMapping(iProc)%SendNodeSource(1:4,1:NodeMapping(iProc)%nSendUniqueNodes))
+        ALLOCATE(NodeMapping(iProc)%SendNodeSourceCharge(1:NodeMapping(iProc)%nSendUniqueNodes))
+        ALLOCATE(NodeMapping(iProc)%SendNodeSourceCurrent(1:3,1:NodeMapping(iProc)%nSendUniqueNodes))
         IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMapping(iProc)%SendNodeSourceExt(1:NodeMapping(iProc)%nSendUniqueNodes))
         SendNodeCount = 0
         DO iNode = 1, nUniqueGlobalNodes

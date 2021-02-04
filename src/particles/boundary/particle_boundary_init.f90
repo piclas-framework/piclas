@@ -610,7 +610,7 @@ USE MOD_ReadInTools
 USE MOD_Globals_Vars           ,ONLY: Pi
 USE MOD_Particle_Boundary_Vars ,ONLY: PartAuxBC
 USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
-USE MOD_Particle_Mesh          ,ONLY: MarkAuxBCElems
+USE MOD_Particle_Boundary_Tools,ONLY: MarkAuxBCElems
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

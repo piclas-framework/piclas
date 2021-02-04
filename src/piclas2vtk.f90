@@ -64,7 +64,7 @@ USE MOD_Mesh_Vars             ,ONLY: nGlobalElems
 USE MOD_Interpolation         ,ONLY: DefineParametersInterpolation,InitInterpolation
 USE MOD_Mesh                  ,ONLY: DefineParametersMesh,InitMesh
 #ifdef PARTICLES
-USE MOD_Particle_Mesh         ,ONLY: InitParticleGeometry, InitElemNodeIDs
+USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleGeometry, InitElemNodeIDs
 USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemNodeID_Shared, NodeInfo_Shared
 #endif /*PARTICLES*/
 USE MOD_Mesh_Tools            ,ONLY: InitGetCNElemID, InitGetGlobalElemID
