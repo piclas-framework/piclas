@@ -165,6 +165,11 @@ USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if ((USE_HDG) && (PP_nVar==1))
 USE MOD_TimeDisc_Vars          ,ONLY: dt,tAnalyzeDiff,tEndDiff
 #endif
+#if USE_MPI
+USE MOD_PICDepo_Vars       ,ONLY: PartSource_Shared_Win
+USE MOD_Globals            ,ONLY: IERROR
+USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -286,6 +291,10 @@ END DO ! iElem
 CALL LBElemSplitTime_avg(tLBStart) ! Average over the number of elems (and Start again)
 #endif /*USE_LOADBALANCE*/
 DEALLOCATE(BGMSourceCellVol)
+#if USE_MPI
+CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
+#endif /*USE_MPI*/
 END SUBROUTINE DepositionMethod_CVW
 
 
@@ -311,6 +320,7 @@ USE MOD_PICDepo_Vars       ,ONLY: NodeSourceLoc, NodeMapping, NodeSource_Shared_
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myLeaderGroupRank
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors, nLeaderGroupProcs
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmpLoc
+USE MOD_PICDepo_Vars       ,ONLY: PartSource_Shared_Win
 #else
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
 #endif  /*USE_MPI*/
@@ -626,6 +636,10 @@ END DO !iEle
 #if USE_LOADBALANCE
 CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
+#endif /*USE_MPI*/
 END SUBROUTINE DepositionMethod_CVWM
 
 

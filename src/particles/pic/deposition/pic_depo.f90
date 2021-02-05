@@ -375,8 +375,11 @@ CASE('cell_volweight_mean')
       END IF
       IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
         ALLOCATE(NodeMapping(iProc)%SendNodeUniqueGlobalID(1:NodeMapping(iProc)%nSendUniqueNodes))
+        NodeMapping(iProc)%SendNodeUniqueGlobalID=-1
         ALLOCATE(NodeMapping(iProc)%SendNodeSourceCharge(1:NodeMapping(iProc)%nSendUniqueNodes))
+        NodeMapping(iProc)%SendNodeSourceCharge=0.
         ALLOCATE(NodeMapping(iProc)%SendNodeSourceCurrent(1:3,1:NodeMapping(iProc)%nSendUniqueNodes))
+        NodeMapping(iProc)%SendNodeSourceCurrent=0.
         IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMapping(iProc)%SendNodeSourceExt(1:NodeMapping(iProc)%nSendUniqueNodes))
         SendNodeCount = 0
         DO iNode = 1, nUniqueGlobalNodes
