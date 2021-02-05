@@ -40,27 +40,29 @@ SUBROUTINE CalcSurfaceValues(during_dt_opt)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars               ,ONLY: StefanBoltzmannConst
 USE MOD_DSMC_Vars                  ,ONLY: MacroSurfaceVal,DSMC,MacroSurfaceSpecVal
 USE MOD_Mesh_Vars                  ,ONLY: MeshFile
 USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfOnNode
 USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample,CalcSurfaceImpact
-USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide
-USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfOutputSides
-USE MOD_Particle_Boundary_Vars     ,ONLY: PorousBCInfo_Shared,MapSurfSideToPorousSide_Shared
+USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide, PartBound
+USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfOutputSides, BoundaryWallTemp
+USE MOD_Particle_Boundary_Vars     ,ONLY: PorousBCInfo_Shared,MapSurfSideToPorousSide_Shared, AdaptWallTemp
 USE MOD_Particle_Mesh_Vars         ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry
 USE MOD_Restart_Vars               ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
 USE MOD_Timedisc_Vars              ,ONLY: time,dt
 #if USE_MPI
-USE MOD_MPI_Shared_Vars            ,ONLY: MPI_COMM_LEADERS_SURF
+USE MOD_MPI_Shared_Vars            ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
 USE MOD_Particle_Boundary_Vars     ,ONLY: SampWallPumpCapacity_Shared
 USE MOD_Particle_Boundary_vars     ,ONLY: SampWallState_Shared,SampWallImpactNumber_Shared,SampWallImpactEnergy_Shared
 USE MOD_Particle_Boundary_vars     ,ONLY: SampWallImpactVector_Shared,SampWallImpactAngle_Shared
 USE MOD_Particle_Boundary_vars     ,ONLY: SurfSideArea_Shared
 USE MOD_Particle_MPI_Boundary_Sampling,ONLY: ExchangeSurfData
+USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp_Shared_Win
 #else
 USE MOD_Particle_Boundary_Vars     ,ONLY: SampWallPumpCapacity
 USE MOD_Particle_Boundary_vars     ,ONLY: SampWallState,SampWallImpactNumber,SampWallImpactEnergy
@@ -79,7 +81,7 @@ LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during t
 INTEGER                            :: iSpec,iSurfSide,p,q, nVar, nVarSpec, iPBC, nVarCount, OutputCounter
 REAL                               :: TimeSample, ActualTime, TimeSampleTemp, CounterSum, nImpacts
 LOGICAL                            :: during_dt
-INTEGER                            :: idx, GlobalSideID, SurfSideNb
+INTEGER                            :: idx, GlobalSideID, SurfSideNb, iBC
 !===================================================================================================================================
 
 IF (PRESENT(during_dt_opt)) THEN
@@ -110,7 +112,13 @@ IF(.NOT.SurfOnNode) RETURN
 CALL ExchangeSurfData()
 
 ! Only surface sampling leaders take part in the remainder of this routine
-IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) RETURN
+IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) THEN
+  IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
+    CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
+    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+  END IF
+  RETURN
+END IF
 #endif /*USE_MPI*/
 
 ! Determine the number of variables
@@ -122,6 +130,9 @@ nVarSpec = nVarSpec + 9
 
 IF(nPorousBC.GT.0) THEN
   nVar = nVar + nPorousBC
+END IF
+IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
+  nVar = nVar + 1
 END IF
 ! Allocate the output container
 ALLOCATE(MacroSurfaceVal(1:nVar         , 1:nSurfSample , 1:nSurfSample , nComputeNodeSurfOutputSides))
@@ -232,12 +243,26 @@ DO iSurfSide = 1,nComputeNodeSurfSides
           END IF ! nImpacts.GT.0.
         END IF ! CalcSurfaceImpact
       END DO ! iSpec=1,nSpecies
+      
+      IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
+        IF ((MacroSurfaceVal(4,p,q,OutputCounter).GT.0.0).AND.AdaptWallTemp) THEN
+          iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
+          BoundaryWallTemp(p,q,iSurfSide) = (MacroSurfaceVal(4,p,q,OutputCounter) &
+              /(StefanBoltzmannConst*PartBound%RadiativeEmissivity(iBC)))**(1./4.)
+        END IF
+        MacroSurfaceVal(nVar,p,q,OutputCounter) = BoundaryWallTemp(p,q,iSurfSide)
+      END IF
+     
     END DO ! q=1,nSurfSample
   END DO ! p=1,nSurfSample
 END DO ! iSurfSide=1,nComputeNodeSurfSides
 
 #if USE_MPI
 END ASSOCIATE
+IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
+  CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+END IF
 #endif /*USE_MPI*/
 
 CALL WriteSurfSampleToHDF5(TRIM(MeshFile),ActualTime)

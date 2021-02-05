@@ -86,7 +86,7 @@ USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PartSource
 USE MOD_Particle_Vars          ,ONLY: UseAdaptive
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
-USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5
+USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5, PartBound
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts,NbrOfLostParticlesTotal
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
@@ -623,6 +623,7 @@ END IF
 IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteVibProbInfoToHDF5(FileName)
 IF(RadialWeighting%PerformCloning) CALL WriteClonesToHDF5(FileName)
+IF (ANY(PartBound%UseAdaptedWallTemp)) CALL WriteAdaptiveWallTempToHDF5(FileName)
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
@@ -2108,6 +2109,71 @@ SDEALLOCATE(AdaptiveData)
 
 END SUBROUTINE WriteAdaptiveInfoToHDF5
 
+
+SUBROUTINE WriteAdaptiveWallTempToHDF5(FileName)
+!===================================================================================================================================
+!> Output of the adaptive cell-local wall temperature and the corresponding global side index
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_IO_HDF5
+USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, nSurfTotalSides, nComputeNodeSurfSides, offsetComputeNodeSurfSide
+USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp, SurfSide2GlobalSide
+#if USE_MPI
+USE MOD_MPI_Shared_Vars                ,ONLY: MPI_COMM_LEADERS_SURF
+USE MOD_MPI_Shared
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)  :: FileName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)             :: H5_Name, H5_Name2
+!===================================================================================================================================
+
+#if USE_MPI
+! Return if not a sampling leader
+IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) RETURN
+CALL MPI_BARRIER(MPI_COMM_LEADERS_SURF,iERROR)
+
+! Return if no sampling sides
+IF (nSurfTotalSides      .EQ.0) RETURN
+#endif
+
+WRITE(H5_Name,'(A)') 'AdaptiveBoundaryWallTemp'
+WRITE(H5_Name2,'(A)') 'AdaptiveBoundaryGlobalSideIndx'
+
+#if USE_MPI
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_LEADERS_SURF)
+#else
+CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#endif
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      nSurfSample          => INT(nSurfSample,IK)               , &
+      nGlobalSides         => INT(nSurfTotalSides,IK)           , &
+      nLocalSides          => INT(nComputeNodeSurfSides,IK)     , &
+      offsetSurfSide       => INT(offsetComputeNodeSurfSide,IK))
+  CALL WriteArrayToHDF5(DataSetName = H5_Name , rank = 3                   , &
+                        nValGlobal  = (/nSurfSample  , nSurfSample  , nGlobalSides/) , &
+                        nVal        = (/nSurfSample  , nSurfSample  , nLocalSides      /) , &
+                        offset      = (/0_IK  , 0_IK      , offsetSurfSide  /) , &
+                        collective  = .FALSE.  , RealArray = BoundaryWallTemp(:,:,1:nComputeNodeSurfSides))
+  CALL WriteArrayToHDF5(DataSetName = H5_Name2 , rank = 1                  , &
+                        nValGlobal  = (/nGlobalSides/) , &
+                        nVal        = (/nLocalSides/) , &
+                        offset      = (/offsetSurfSide  /) , &
+                        collective  = .FALSE.  , IntegerArray_i4 = SurfSide2GlobalSide(SURF_SIDEID,1:nComputeNodeSurfSides))
+END ASSOCIATE
+CALL CloseDataFile()
+
+END SUBROUTINE WriteAdaptiveWallTempToHDF5
 
 SUBROUTINE WriteVibProbInfoToHDF5(FileName)
 !===================================================================================================================================

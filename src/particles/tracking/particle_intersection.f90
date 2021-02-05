@@ -22,10 +22,6 @@ IMPLICIT NONE
 PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
 
-INTERFACE IntersectionWithWall
-  MODULE PROCEDURE IntersectionWithWall
-END INTERFACE
-
 INTERFACE ComputePlanarCurvedIntersection
   MODULE PROCEDURE ComputePlanarCurvedIntersection
 END INTERFACE
@@ -68,14 +64,15 @@ PUBLIC :: OutputTrajectory
 CONTAINS
 
 
-SUBROUTINE IntersectionWithWall(PartTrajectory,alpha,iPart,iLocSide,Element,TriNum)!, IntersectionPos)
+SUBROUTINE IntersectionWithWall(iPart,iLocSide,Element,TriNum)
 !===================================================================================================================================
 ! Compute the Intersection with bilinear surface by approximating the surface with two triangles
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars,          ONLY : lastPartPos,PartState
 USE MOD_Particle_Mesh_Vars
-USE MOD_Mesh_Tools         ,    ONLY : GetCNElemID
+USE MOD_Particle_Vars           ,ONLY: lastPartPos, PartState
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -84,15 +81,13 @@ INTEGER,INTENT(IN)               :: iPart
 INTEGER,INTENT(IN)               :: iLocSide
 INTEGER,INTENT(IN)               :: Element
 INTEGER,INTENT(IN)               :: TriNum
-REAL, INTENT(IN)                 :: PartTrajectory(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)               :: alpha
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                          :: CNElemID
 INTEGER                          :: Node1,Node2
-REAL                             :: PoldX, PoldY, PoldZ, PnewX, PnewY, PnewZ, nx, ny, nz, nVal
+REAL                             :: PoldX, PoldY, PoldZ, nx, ny, nz, nVal
 REAL                             :: bx,by,bz,ax,ay,az,dist
 REAL                             :: xNod, yNod, zNod
 REAL                             :: Vector1(1:3),Vector2(1:3)
@@ -103,9 +98,6 @@ CNElemID = GetCNElemID(Element)
 PoldX = LastPartPos(1,iPart)
 PoldY = LastPartPos(2,iPart)
 PoldZ = LastPartPos(3,iPart)
-PnewX = PartState(1,iPart)
-PnewY = PartState(2,iPart)
-PnewZ = PartState(3,iPart)
 
 xNod = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
 yNod = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
@@ -152,8 +144,8 @@ dist = SQRT(((ay * bz - az * by) * (ay * bz - az * by) +   &
 ! dist is then simply length of vector b instead of |axb|/|a|
 IF (dist.NE.dist) dist = SQRT(bx*bx+by*by+bz*bz)
 
-alpha = PartTrajectory(1) * nx + PartTrajectory(2) * ny + PartTrajectory(3) * nz
-IF(ABS(alpha).GT.0.) alpha = dist / alpha
+TrackInfo%alpha = TrackInfo%PartTrajectory(1) * nx + TrackInfo%PartTrajectory(2) * ny + TrackInfo%PartTrajectory(3) * nz
+IF(ABS(TrackInfo%alpha).GT.0.) TrackInfo%alpha = dist / TrackInfo%alpha
 
 RETURN
 

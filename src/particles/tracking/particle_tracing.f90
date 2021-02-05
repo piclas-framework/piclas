@@ -81,6 +81,7 @@ USE MOD_Particle_Mesh_Vars          ,ONLY: ElemRadiusNGeo,ElemHasAuxBCs
 USE MOD_Particle_Boundary_Vars      ,ONLY: nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteractionAuxBC
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbrOfLostParts, NbrOfLostParticles, DisplayLostParticles
+USE MOD_Particle_Tracking_Vars      ,ONLY: TrackInfo
 USE MOD_Particle_Tracking           ,ONLY: PARTHASMOVED
 USE MOD_Mesh_Tools                  ,ONLY: GetGlobalElemID,GetCNElemID,GetCNSideID
 USE MOD_Particle_Mesh_Tools         ,ONLY: GetGlobalNonUniqueSideID
@@ -477,6 +478,11 @@ DO iPart=1,PDM%ParticleVecLength
           PEM%GlobalElemID(iPart)=ElemID
           PartisDone=.TRUE.
         ELSE
+          TrackInfo%PartTrajectory(1:3)  = PartTrajectory
+          TrackInfo%lengthPartTrajectory = lengthPartTrajectory
+          TrackInfo%alpha = currentIntersect%alpha
+          TrackInfo%xi    = currentIntersect%xi
+          TrackInfo%eta   = currentIntersect%eta
           SELECT CASE(currentIntersect%IntersectCase)
           !------------------------------------
           CASE(1) ! intersection with cell side
@@ -490,12 +496,10 @@ DO iPart=1,PDM%ParticleVecLength
                                        , crossedBC                    &
                                        , doLocSide                    &
                                        , flip                         &
-                                       , currentIntersect%Side        &
                                        , PartTrajectory               &
                                        , lengthPartTrajectory         &
                                        , currentIntersect%xi          &
                                        , currentIntersect%eta         &
-                                       , currentIntersect%alpha       &
                                        , iPart                        &
                                        , SideID                       &
                                        , SideType(CNSideID)           &
@@ -507,15 +511,17 @@ DO iPart=1,PDM%ParticleVecLength
           !------------------------------------
           CASE(2) ! AuxBC intersection
           !------------------------------------
-            CALL GetBoundaryInteractionAuxBC( PartTrajectory          &
-                                            , lengthPartTrajectory    &
-                                            , currentIntersect%alpha  &
-                                            , iPart                   &
+            CALL GetBoundaryInteractionAuxBC( iPart                   &
                                             , currentIntersect%Side   &
                                             , crossedBC)
             IF (.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
             dolocSide=.TRUE. !important when in previously traced portion an elemchange occured, check all sides again!
           END SELECT
+          PartTrajectory         = TrackInfo%PartTrajectory(1:3)
+          lengthPartTrajectory   = TrackInfo%lengthPartTrajectory
+          currentIntersect%alpha = TrackInfo%alpha
+          currentIntersect%xi    = TrackInfo%xi
+          currentIntersect%eta   = TrackInfo%eta
 #ifdef CODE_ANALYZE
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
           IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN ; IF(iPart.EQ.PARTOUT)THEN
@@ -782,8 +788,8 @@ END DO
 END SUBROUTINE AssignListPosition
 
 
-SUBROUTINE SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,PartTrajectory,lengthPartTrajectory &
-                               ,xi,eta,alpha,PartID,SideID,hitSideType,ElemID)
+SUBROUTINE SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,PartTrajectory,lengthPartTrajectory &
+                               ,xi,eta,PartID,SideID,hitSideType,ElemID)
 !===================================================================================================================================
 !> Use only for TrackingMethod = TRACING or TracingElement with RefMapping
 !> Checks which type of interaction (BC,Periodic,innerSide) has to be applied for the face on the traced particle path
@@ -822,12 +828,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,INTENT(IN)                :: PartID                   !< Index of Considered Particle
 INTEGER,INTENT(IN)                :: SideID                   !< SideID particle intersected with
-INTEGER,INTENT(IN)                :: hitlocSide               !< local side of considered element where intersection occured
 INTEGER,INTENT(IN)                :: hitSideType              !< type of SideID (planar,bilinear,...)
 INTEGER,INTENT(IN)                :: flip                     !< flip of SideID
 REAL,INTENT(INOUT)                :: Xi                       !<
 REAL,INTENT(INOUT)                :: Eta                      !<
-REAL,INTENT(INOUT)                :: Alpha                    !< portion of PartTrajectory until hit with face
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(INOUT)             :: PartIsDone               !< Flag indicating if tracking of PartID is finished
@@ -851,8 +855,7 @@ REAL                              :: v1(3),v2(3)
 !===================================================================================================================================
 ! Side is a boundary side
 IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
-  CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,ElemID,crossedBC &
-                                                                 ,locSideID=hitLocSide)
+  CALL GetBoundaryInteraction(PartID,SideID,flip,ElemID,crossedBC)
   TrackInfo%CurrElem = ElemID
   IF (.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
   dolocSide = .TRUE.

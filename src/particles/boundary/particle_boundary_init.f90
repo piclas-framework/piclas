@@ -27,6 +27,7 @@ PRIVATE
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DefineParametersParticleBoundary, InitializeVariablesPartBoundary, InitializeVariablesAuxBC, FinalizeParticleBoundary
+PUBLIC :: InitAdaptiveWallTemp
 !===================================================================================================================================
 
 CONTAINS
@@ -41,24 +42,19 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Particle Boundaries")
 
-CALL prms%CreateIntOption(      'Part-nBounds'     , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Number of particle boundaries.', '1')
-CALL prms%CreateStringOption(   'Part-Boundary[$]-SourceName'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
+CALL prms%CreateIntOption(      'Part-nBounds', 'Number of particle boundaries.', '1')
+CALL prms%CreateStringOption(   'Part-Boundary[$]-SourceName', &
                                   'No Default. Source Name of Boundary[i]. Has to be selected for all'//&
                                   'nBounds. Has to be same name as defined in preproc tool', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Part-Boundary[$]-Condition'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Used boundary condition for boundary[$].\n'//&
+CALL prms%CreateStringOption(   'Part-Boundary[$]-Condition', &
+                                  'Possible conditions for boundary[$] are:\n'//&
                                   '- open\n'//&
                                   '- reflective\n'//&
                                   '- periodic\n'//&
                                   '- simple_anode\n'//&
                                   '- simple_cathode.\n'//&
                                   '- rot_periodic.\n'//&
-                                 'If condition=open, the following parameters are'//&
-                                  ' used: (Part-Boundary[$]-=PB) PB-Voltage\n'//&
-                                 'If condition=reflective: PB-MomentumACC,PB-WallTemp,PB-TransACC,PB-VibACC,PB-RotACC,'//&
+                                  'If condition=reflective (Part-Boundary[$]-=PB): PB-MomentumACC,PB-WallTemp,PB-TransACC,PB-VibACC,PB-RotACC,'//&
                                   'PB-WallVelo,Voltage,SpeciesSwaps.If condition=periodic:Part-nPeriodicVectors,'//&
                                   'Part-PeriodicVector[$]', 'open', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption('Part-Boundary[$]-Dielectric' , 'Define if particle boundary [$] is a '//&
@@ -69,9 +65,15 @@ CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Defin
                               'boundary [$] are to be stored in an additional .h5 file for post-processing analysis [.TRUE.] '//&
                               'or not [.FALSE.].'&
                               , '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-Voltage'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Voltage on boundary [$]', '1.0e20', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-Voltage', &
+                                  'Deprecated parameter, do not utilize!', '1.0e20', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Boundary[$]-UseAdaptedWallTemp', &
+                                'Use an adapted wall temperature, calculated if Part-AdaptWallTemp = T, otherwise read-in '//&
+                                'from the restart file','.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-RadiativeEmissivity',  &
+                                'Radiative emissivity of the boundary used to determine the wall temperature assuming a '//&
+                                'radiative equilibrium at the wall, Part-Boundary1-UseAdaptedWallTemp = T and ' //&
+                                'Part-AdaptWallTemp = T must be set', '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp'  &
                                 , 'Wall temperature (in [K]) of reflective particle boundary [$].' &
                                 , '0.', numberedmulti=.TRUE.)
@@ -90,13 +92,12 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-RotACC'  &
 CALL prms%CreateRealOption(     'Part-Boundary[$]-ElecACC '  &
                                 , 'Electronic accommodation coefficient of reflective particle boundary [$].' &
                                 , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Resample'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Resample Equilibrum Distribution with reflection', '.FALSE.'&
+CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Resample', &
+                                  'Sample particle properties from equilibrium distribution after reflection', '.FALSE.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Boundary[$]-WallVelo'  &
                                 , 'Velocity (global x,y,z in [m/s]) of reflective particle boundary [$].' &
-                                , '0. , 0. , 0.', numberedmulti=.TRUE.)                                
+                                , '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-RotVelo'  &
                                 , 'Flag for rotating walls:'//&
                                   ' Particles will be accelerated additionaly to the boundary interaction'//&
@@ -214,6 +215,7 @@ CALL prms%CreateRealOption(     'Part-AuxBC[$]-halfangle'  &
                                 , 'TODO-DEFINE-PARAMETER',  '45.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
                                 , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-AdaptWallTemp','Perform wall temperature adaptation at every macroscopic output.', '.TRUE.')
 
 END SUBROUTINE DefineParametersParticleBoundary
 
@@ -230,7 +232,7 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary, AdaptWallTemp
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
@@ -308,6 +310,10 @@ PartBound%Voltage = 0.
 DeprecatedVoltage = .FALSE.
 ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
 PartBound%NbrOfSpeciesSwaps = 0
+ALLOCATE(PartBound%UseAdaptedWallTemp(1:nPartBound))
+PartBound%UseAdaptedWallTemp = .FALSE.
+ALLOCATE(PartBound%RadiativeEmissivity(1:nPartBound))
+PartBound%RadiativeEmissivity = 1.
 
 !--determine MaxNbrOfSpeciesSwaps for correct allocation
 MaxNbrOfSpeciesSwaps=0
@@ -359,9 +365,13 @@ DO iPartBound=1,nPartBound
     PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample')
     PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
     PartBound%RotVelo(iPartBound)         = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-RotVelo')
-    PartBound%RotFreq(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotFreq')
-    PartBound%RotOrg(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotOrg',3)
-    PartBound%RotAxi(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotAxi',3)
+    IF(PartBound%RotVelo(iPartBound)) THEN
+      PartBound%RotFreq(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotFreq')
+      PartBound%RotOrg(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotOrg',3)
+      PartBound%RotAxi(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotAxi',3)
+    END IF
+    PartBound%UseAdaptedWallTemp(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseAdaptedWallTemp')
+    PartBound%RadiativeEmissivity(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RadiativeEmissivity')
     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
     IF(ABS(PartBound%Voltage(iPartBound)).LT.1e20) DeprecatedVoltage=.TRUE.
     PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
@@ -453,6 +463,7 @@ DO iPartBound=1,nPartBound
     DoBoundaryParticleOutputHDF5=.TRUE.
   END IF ! PartBound%BoundaryParticleOutputHDF5(iPartBound)
 END DO
+AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
 IF(GEO%RotPeriodicBC) THEN
   GEO%RotPeriodicAxi   = GETINT('Part-RotPeriodicAxi')
@@ -524,6 +535,70 @@ IF(DeprecatedVoltage) CALL abort(&
 
 END SUBROUTINE InitializeVariablesPartBoundary
 
+
+SUBROUTINE InitAdaptiveWallTemp()
+!===================================================================================================================================
+!> Initialize surface model variables
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars             ,ONLY: nSpecies
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nComputeNodeSurfTotalSides, BoundaryWallTemp, SurfSide2GlobalSide,nSurfSample
+USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_SHARED, myComputeNodeRank, nComputeNodeProcessors
+USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp_Shared, BoundaryWallTemp_Shared_Win
+#endif
+!-----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: firstSide, lastSide, iSide, SideID, iBC
+#if USE_MPI
+INTEGER(KIND=MPI_ADDRESS_KIND)    :: MPISharedSize
+#endif
+!===================================================================================================================================
+IF (.NOT.(ANY(PartBound%UseAdaptedWallTemp))) RETURN
+
+#if USE_MPI
+!> Then shared arrays for boundary sampling
+MPISharedSize = INT((nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),BoundaryWallTemp_Shared_Win,BoundaryWallTemp_Shared)
+CALL MPI_WIN_LOCK_ALL(0,BoundaryWallTemp_Shared_Win,IERROR)
+IF (myComputeNodeRank.EQ.0) THEN
+  BoundaryWallTemp_Shared = 0.
+END IF
+BoundaryWallTemp => BoundaryWallTemp_Shared
+CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+firstSide = INT(REAL( myComputeNodeRank   *nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
+#else
+ALLOCATE(BoundaryWallTemp(nSurfSample,nSurfSample,1:nComputeNodeSurfTotalSides))
+BoundaryWallTemp = 0.
+firstSide = 1
+lastSide  = nComputeNodeSurfTotalSides
+#endif /*USE_MPI*/
+
+DO iSide = firstSide,LastSide
+  ! get global SideID. This contains only nonUniqueSide, no special mortar treatment required
+  SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+  iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+  IF (PartBound%MomentumACC(iBC).GT.0.0) BoundaryWallTemp(:,:,iSide) = PartBound%WallTemp(iBC)
+END DO 
+
+#if USE_MPI
+CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif /*USE_MPI*/
+
+END SUBROUTINE InitAdaptiveWallTemp
 
 SUBROUTINE InitializeVariablesAuxBC()
 !===================================================================================================================================
@@ -817,6 +892,10 @@ SUBROUTINE FinalizeParticleBoundary()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars
+#if USE_MPI
+USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -854,7 +933,19 @@ SDEALLOCATE(PartBound%SurfaceModel)
 SDEALLOCATE(PartBound%Reactive)
 SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutputHDF5)
+SDEALLOCATE(PartBound%RadiativeEmissivity)
 SDEALLOCATE(PartStateBoundary)
+IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
+#if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+  CALL UNLOCK_AND_FREE(BoundaryWallTemp_Shared_Win)
+  ADEALLOCATE(BoundaryWallTemp_Shared)
+  ADEALLOCATE(BoundaryWallTemp)
+#else
+  SDEALLOCATE(BoundaryWallTemp)
+#endif
+END IF
+SDEALLOCATE(PartBound%UseAdaptedWallTemp)
 END SUBROUTINE FinalizeParticleBoundary
 
 END MODULE MOD_Particle_Boundary_Init
