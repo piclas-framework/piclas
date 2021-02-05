@@ -44,7 +44,7 @@ WIP
 
 ## Flow Field and Surface Variables \label{sec:visu_flowfield}
 
-Flow field and surface outputs are available when the DSMC, BGK and FP methods are utilized (standalone or coupled with PIC) and stored in `*_DSMCHOState_*.h5`. A sampling over a certain number of iterations is performed to calculate the average macroscopic values such as number density, bulk velocity and temperature from the microscopic particle information. Two variants are available in PICLas, allowing to sample a certain amount of the simulation duration or to sample continuously during the simulation and output the result after the given number of iterations.
+Flow field and surface outputs are available when the DSMC, BGK and FP methods are utilized (standalone or coupled with PIC) and stored in `*_DSMCState_*.h5`. A sampling over a certain number of iterations is performed to calculate the average macroscopic values such as number density, bulk velocity and temperature from the microscopic particle information. Two variants are available in PICLas, allowing to sample a certain amount of the simulation duration or to sample continuously during the simulation and output the result after the given number of iterations.
 
 The first variant is usually utilized to sample at the end of a simulation, when the steady state condition is reached. The first parameter `Part-TimeFracForSampling` defines the percentage that shall be sampled relative to the simulation end time $T_\mathrm{end}$ (Parameter: `TEnd`)
 

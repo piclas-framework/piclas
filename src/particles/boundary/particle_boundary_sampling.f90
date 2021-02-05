@@ -690,7 +690,7 @@ USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides, nOutputSides
 USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName, PartBound
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 #if USE_MPI
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF
@@ -739,6 +739,8 @@ nVar2D_Spec = 1
 IF (CalcSurfaceImpact) nVar2D_Spec = nVar2D_Spec + 8
 
 IF (nPorousBC.GT.0)    nVar2D = nVar2D + nPorousBC
+
+IF (ANY(PartBound%UseAdaptedWallTemp)) nVar2D = nVar2D + 1
 
 nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
 
@@ -798,6 +800,8 @@ IF (mySurfRank.EQ.0) THEN
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'PorousBC'//TRIM(PBCID)//'_PumpCapacity')
     END DO
   END IF
+
+  IF (ANY(PartBound%UseAdaptedWallTemp)) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Wall_Temperature')
 
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
 

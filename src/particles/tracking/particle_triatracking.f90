@@ -94,15 +94,7 @@ INTEGER                          :: DoneLastElem(1:4,1:6) ! 1:3: 1=Element,2=Loc
 LOGICAL                          :: ThroughSide, InElementCheck,PartisDone
 LOGICAL                          :: crossedBC, oldElemIsMortar, isMortarSideTemp(1:6), doCheckSide
 REAL                             :: det(6,2),detM,ratio,minRatio, detPartPos
-REAL                             :: PartTrajectory(1:3),lengthPartTrajectory
-REAL                             :: xi = -1. , eta = -1. , alpha = -1.
 REAL, PARAMETER                  :: eps = 0
-!-----------------------------------------------------------------------------------------------------------------------------------
-! variabes necessary for tracking with macroparticles inside domain
-!LOGICAL                          :: sphereHitExists, sideHitExists
-!REAL                             :: alphaPart, alphaPartTria
-!REAL                             :: locAlphaPart
-!INTEGER                          :: hitSideNbr
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
@@ -154,11 +146,10 @@ DO i = 1,PDM%ParticleVecLength
         TriNumTemp(:) = 0
         GlobSideTemp = 0
         isMortarSideTemp = .FALSE.
-        PartTrajectory=PartState(1:3,i) - LastPartPos(1:3,i)
-        lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                                 +PartTrajectory(2)*PartTrajectory(2) &
-                                 +PartTrajectory(3)*PartTrajectory(3) )
-        IF(ABS(lengthPartTrajectory).GT.0.) PartTrajectory=PartTrajectory/lengthPartTrajectory
+        TrackInfo%PartTrajectory(1:3)=PartState(1:3,i) - LastPartPos(1:3,i)
+        TrackInfo%lengthPartTrajectory=VECNORM(TrackInfo%PartTrajectory(1:3))
+        IF(ABS(TrackInfo%lengthPartTrajectory).GT.0.) TrackInfo%PartTrajectory = TrackInfo%PartTrajectory &
+                                                                                  / TrackInfo%lengthPartTrajectory
         nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
         DO iLocSide=1,nlocSides
           TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
@@ -180,7 +171,7 @@ DO i = 1,PDM%ParticleVecLength
               NblocSideID =  SideInfo_Shared(SIDE_LOCALID,nbSideID)
               DO TriNum = 1,2
                 ThroughSide = .FALSE.
-                CALL ParticleThroughSideCheck3DFast(i,PartTrajectory,NblocSideID,NbElemID,ThroughSide,TriNum,.TRUE.)
+                CALL ParticleThroughSideCheck3DFast(i,NblocSideID,NbElemID,ThroughSide,TriNum,.TRUE.)
                 IF (ThroughSide) THEN
                   ! Store the information for this side for future checks, if this side was already treated
                   oldElemIsMortar = .TRUE.
@@ -198,7 +189,7 @@ DO i = 1,PDM%ParticleVecLength
             DO TriNum = 1,2
               IF (det(localSideID,TriNum).LE.-eps) THEN
                 ThroughSide = .FALSE.
-                CALL ParticleThroughSideCheck3DFast(i,PartTrajectory,localSideID,ElemID,ThroughSide,TriNum)
+                CALL ParticleThroughSideCheck3DFast(i,localSideID,ElemID,ThroughSide,TriNum)
                 IF (ThroughSide) THEN
                   NrOfThroughSides = NrOfThroughSides + 1
                   LocSidesTemp(NrOfThroughSides) = localSideID
@@ -339,11 +330,9 @@ DO i = 1,PDM%ParticleVecLength
         IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
           OldElemID=ElemID
           BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
-          IF(BCType.NE.1) CALL IntersectionWithWall(PartTrajectory,alpha,i,LocalSide,ElemID,TriNum)
-          CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
-                                                                       ,xi    &
-                                                                       ,eta   ,i,SideID,flip,ElemID,crossedBC&
-                                                                       ,TriNum=TriNum,LocSideID=LocalSide)
+          ! Calculate the intersection with the wall and determine alpha (= fraction of trajectory to the intersection)
+          IF(BCType.NE.1) CALL IntersectionWithWall(i,LocalSide,ElemID,TriNum)
+          CALL GetBoundaryInteraction(i,SideID,flip,ElemID,crossedBC,TriNum=TriNum)
           IF(.NOT.PDM%ParticleInside(i)) PartisDone = .TRUE.
 #if USE_LOADBALANCE
           IF (OldElemID.GE.offsetElem+1.AND.OldElemID.LE.offsetElem+PP_nElems) CALL LBElemSplitTime(OldElemID-offsetElem,tLBStart)
@@ -403,7 +392,7 @@ END DO ! i = 1,PDM%ParticleVecLength
 END SUBROUTINE ParticleTriaTracking
 
 
-SUBROUTINE ParticleThroughSideCheck3DFast(PartID,PartTrajectory,iLocSide,Element,ThroughSide,TriNum, IsMortar)
+SUBROUTINE ParticleThroughSideCheck3DFast(PartID,iLocSide,Element,ThroughSide,TriNum, IsMortar)
 !===================================================================================================================================
 !> Routine to check whether a particle crossed the given triangle of a side. The determinant between the normalized trajectory
 !> vector and the vectors from two of the three nodes to the old particle position is calculated. If the determinants for the three
@@ -413,8 +402,9 @@ SUBROUTINE ParticleThroughSideCheck3DFast(PartID,PartTrajectory,iLocSide,Element
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars
-USE MOD_Mesh_Tools         ,         ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -423,7 +413,6 @@ INTEGER,INTENT(IN)               :: PartID
 INTEGER,INTENT(IN)               :: iLocSide
 INTEGER,INTENT(IN)               :: Element
 INTEGER,INTENT(IN)               :: TriNum
-REAL,   INTENT(IN)               :: PartTrajectory(1:3)
 LOGICAL, INTENT(IN), OPTIONAL    :: IsMortar
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -447,9 +436,9 @@ Py = lastPartPos(2,PartID)
 Pz = lastPartPos(3,PartID)
 
 ! Normalized particle trajectory (PartPos - lastPartPos)/ABS(PartPos - lastPartPos)
-Vx = PartTrajectory(1)
-Vy = PartTrajectory(2)
-Vz = PartTrajectory(3)
+Vx = TrackInfo%PartTrajectory(1)
+Vy = TrackInfo%PartTrajectory(2)
+Vz = TrackInfo%PartTrajectory(3)
 
 ! Get the coordinates of the first node and the vector from the particle position to the node
 xNode(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
@@ -597,6 +586,5 @@ END IF
 RETURN
 
 END SUBROUTINE ParticleThroughSideLastPosCheck
-
 
 END MODULE MOD_Particle_TriaTracking

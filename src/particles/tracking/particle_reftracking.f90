@@ -542,7 +542,7 @@ USE MOD_Particle_Mesh_Vars          ,ONLY: SideBCMetrics,ElemToBCSides
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
 USE MOD_Particle_Mesh_Vars          ,ONLY: GEO,ElemRadiusNGeo
 USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
-USE MOD_Particle_Tracking_Vars      ,ONLY: CartesianPeriodic
+USE MOD_Particle_Tracking_Vars      ,ONLY: CartesianPeriodic, TrackInfo
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Utils                       ,ONLY: InsertionSort
@@ -733,9 +733,18 @@ DO WHILE(DoTracing)
         SideID     = INT(SideBCMetrics(BCSIDE_SIDEID,hitlocSide))
         flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
         OldElemID = ElemID
-        CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                   ,xi(hitlocSide),eta(hitlocSide),PartId,SideID,flip      &
-                                   ,ElemID,reflected)
+
+        TrackInfo%PartTrajectory(1:3)  = PartTrajectory
+        TrackInfo%lengthPartTrajectory = lengthPartTrajectory
+        TrackInfo%alpha = locAlpha(ilocSide)
+        TrackInfo%xi    = xi(hitlocSide)
+        TrackInfo%eta   = eta(hitlocSide)
+        CALL GetBoundaryInteraction(PartId,SideID,flip,ElemID,reflected)
+        PartTrajectory = TrackInfo%PartTrajectory(1:3)
+        lengthPartTrajectory = TrackInfo%lengthPartTrajectory
+        locAlpha(ilocSide) = TrackInfo%alpha
+        xi(hitlocSide) = TrackInfo%xi
+        eta(hitlocSide) = TrackInfo%eta
 
         ! particle moved to a new element in boundary interaction
         IF(ElemID.NE.OldElemID)THEN
