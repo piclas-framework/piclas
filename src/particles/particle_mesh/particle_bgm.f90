@@ -1331,7 +1331,7 @@ DO iElem = 1,nGlobalElems
 
         ASSOCIATE( BCType => BoundaryType(SideInfo_Shared(SIDE_BCID,iSide),BC_ALPHA) )
           IF(BCType.EQ.0) CALL abort(__STAMP__,'Found periodic side with BC ALPHA=0')
-          nPeriodicVectorsPerElem(ABS(BCType),nPeriodicElems) = SIGN(1, BCType)
+          nPeriodicVectorsPerElem(ABS(BCType),nPeriodicElems) = -SIGN(1, BCType)
         END ASSOCIATE
       END IF
     END IF

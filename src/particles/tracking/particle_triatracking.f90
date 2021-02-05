@@ -365,6 +365,10 @@ DO i = 1,PDM%ParticleVecLength
         CNElemID = GetCNElemID(ElemID)
 
         IF (CNElemID.LT.1) THEN
+          IPWRITE(UNIT_StdOut,*) "VECNORM(PartState(1:3,i)-LastPartPos(1:3,i)): ", VECNORM(PartState(1:3,i)-LastPartPos(1:3,i))
+          IPWRITE(UNIT_StdOut,*) " PartState(1:3,i)  : ", PartState(1:3,i)
+          IPWRITE(UNIT_StdOut,*) " LastPartPos(1:3,i): ", LastPartPos(1:3,i)
+          IPWRITE(UNIT_StdOut,*) " PartState(4:6,i)  : ", PartState(4:6,i)
           IPWRITE(UNIT_StdOut,*) "           ElemID: ", ElemID
           IPWRITE(UNIT_StdOut,*) "         CNElemID: ", CNElemID
           IPWRITE(UNIT_stdout,*) 'Particle Velocity: ',SQRT(DOTPRODUCT(PartState(4:6,i)))
