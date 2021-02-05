@@ -1290,7 +1290,7 @@ DO iElem = 1,nGlobalElems
     ! Side is a boundary side
     IF (SideInfo_Shared(SIDE_BCID,iSide).GT.0) THEN
       ! Boundary is a periodic boundary
-      IF (PartBound%TargetBoundCond(SideInfo_Shared(SIDE_BCID,iSide)).EQ.3) THEN
+      IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%PeriodicBC) THEN
         nPeriodicElems = nPeriodicElems + 1
         EXIT
       END IF
@@ -1323,26 +1323,26 @@ DO iElem = 1,nGlobalElems
     ! Side is a boundary side
     IF (SideInfo_Shared(SIDE_BCID,iSide).GT.0) THEN
     ! Boundary is a periodic boundary
-      IF (PartBound%TargetBoundCond(SideInfo_Shared(SIDE_BCID,iSide)).EQ.3) THEN
+      IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%PeriodicBC) THEN
         IF (.NOT.hasPeriodic) THEN
           nPeriodicElems = nPeriodicElems + 1
           hasPeriodic    = .TRUE.
         END IF
 
-        ! check the orientation of the periodic side and flip vector to point in the other direction
-        IF     (BoundaryType(SideInfo_Shared(SIDE_BCID,iSide),BC_ALPHA).GT.0) THEN
-          nPeriodicVectorsPerElem(    BoundaryType(SideInfo_Shared(SIDE_BCID,iSide),BC_ALPHA) ,nPeriodicElems) = -1
-        ELSEIF (BoundaryType(SideInfo_Shared(SIDE_BCID,iSide),BC_ALPHA).LT.0) THEN
-          nPeriodicVectorsPerElem(ABS(BoundaryType(SideInfo_Shared(SIDE_BCID,iSide),BC_ALPHA)),nPeriodicElems) = 1
-        END IF
+        ASSOCIATE( BCType => BoundaryType(SideInfo_Shared(SIDE_BCID,iSide),BC_ALPHA) )
+          IF(BCType.EQ.0) CALL abort(__STAMP__,'Found periodic side with BC ALPHA=0')
+          nPeriodicVectorsPerElem(ABS(BCType),nPeriodicElems) = SIGN(1, BCType)
+        END ASSOCIATE
       END IF
     END IF
   END DO
 
   IF (hasPeriodic) THEN
-    PeriodicSideBoundsOfElemCenter(1:3,nPeriodicElems) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),                         &
-                                                            SUM(BoundsOfElem_Shared(1:2,2,iElem)),                         &
+    ! Get centre
+    PeriodicSideBoundsOfElemCenter(1:3,nPeriodicElems) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)), &
+                                                            SUM(BoundsOfElem_Shared(1:2,2,iElem)), &
                                                             SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
+    ! Get radius
     PeriodicSideBoundsOfElemCenter(4,nPeriodicElems) = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
                                                                    BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
                                                                    BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
@@ -1473,6 +1473,9 @@ DO iElem = firstElem,lastElem
         END IF
 
       CASE DEFAULT
+        IPWRITE(UNIT_StdOut,'(I0,A,I0)') " iGlobalElem   = ", iElem
+        IPWRITE(UNIT_StdOut,'(I0,A,I0)') " iPeriodicElem = ", iPeriodicElem
+        IPWRITE(UNIT_StdOut,'(I0,A,3(I0))') " nPeriodicVectorsPerElem(:,iPeriodicElem) = ", nPeriodicVectorsPerElem(:,iPeriodicElem)
         CALL ABORT(__STAMP__,'Periodic vectors .LT.1 or .GT.3!')
       END SELECT
   END DO
@@ -1532,7 +1535,7 @@ DO iElem = 1,nGlobalElems
     ! Side is a boundary side
     IF (SideInfo_Shared(SIDE_BCID,iSide).GT.0) THEN
       ! Boundary is a periodic boundary
-      IF (PartBound%TargetBoundCond(SideInfo_Shared(SIDE_BCID,iSide)).EQ.6) THEN
+      IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%RotPeriodicBC) THEN
         nPeriodicElems = nPeriodicElems + 1
         EXIT
       END IF
@@ -1565,7 +1568,7 @@ DO iElem = 1,nGlobalElems
     ! Side is a boundary side
     IF (SideInfo_Shared(SIDE_BCID,iSide).GT.0) THEN
     ! Boundary is a rot periodic boundary
-      IF (PartBound%TargetBoundCond(SideInfo_Shared(SIDE_BCID,iSide)).EQ.6) THEN
+      IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%RotPeriodicBC) THEN
         IF (.NOT.hasPeriodic) THEN
           nPeriodicElems = nPeriodicElems + 1
           hasPeriodic    = .TRUE.

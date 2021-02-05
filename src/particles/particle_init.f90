@@ -1381,7 +1381,7 @@ nRotPeriodicSides=0
 ! (1) counting rotational periodic sides and build mapping from SurfSideID -> RotPeriodicSide
 DO iSide=1, nComputeNodeSurfTotalSides
   SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
-  IF(PartBound%TargetBoundCond(SideInfo_Shared(SIDE_BCID,SideID)).EQ.6) THEN
+  IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%RotPeriodicBC) THEN
     nRotPeriodicSides = nRotPeriodicSides + 1
     Rot2Glob_temp(nRotPeriodicSides) = SideID
     SurfSide2RotPeriodicSide(iSide) = nRotPeriodicSides
