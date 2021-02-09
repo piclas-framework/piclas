@@ -361,10 +361,10 @@ DO iElem = firstElem,lastElem
   ELSE
     detJac_Ref = 0.
     ! Compute Jacobian on NGeo and then interpolate:
-    ! required to guarantee conservativity when restarting with N<NGeo
-    CALL ChangeBasis3D(3,Ngeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo_Shared(:,1,:,:,:,iElem),dX_NGeoRef(:,1,:,:,:))
-    CALL ChangeBasis3D(3,Ngeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo_Shared(:,2,:,:,:,iElem),dX_NGeoRef(:,2,:,:,:))
-    CALL ChangeBasis3D(3,Ngeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo_Shared(:,3,:,:,:,iElem),dX_NGeoRef(:,3,:,:,:))
+    ! required to guarantee conservation when restarting with N<NGeo
+    CALL ChangeBasis3D(3,Ngeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo_Shared(:,1,:,:,:,ElemID),dX_NGeoRef(:,1,:,:,:))
+    CALL ChangeBasis3D(3,Ngeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo_Shared(:,2,:,:,:,ElemID),dX_NGeoRef(:,2,:,:,:))
+    CALL ChangeBasis3D(3,Ngeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo_Shared(:,3,:,:,:,ElemID),dX_NGeoRef(:,3,:,:,:))
     DO k=0,NGeoRef; DO j=0,NGeoRef; DO i=0,NGeoRef
       detJac_Ref(1,i,j,k)=detJac_Ref(1,i,j,k) &
         + dX_NGeoRef(1,1,i,j,k)*(dX_NGeoRef(2,2,i,j,k)*dX_NGeoRef(3,3,i,j,k) - dX_NGeoRef(3,2,i,j,k)*dX_NGeoRef(2,3,i,j,k))  &

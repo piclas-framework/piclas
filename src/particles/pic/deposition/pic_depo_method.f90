@@ -612,14 +612,14 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 ! Interpolate node source values to volume polynomial
 DO iElem = firstElem, lastElem
+  ! Get UniqueNodeID from NonUniqueNodeID = ElemNodeID_Shared(:,GetCNElemID(iElem))
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem)))
   DO kk = 0, PP_N
     DO ll = 0, PP_N
       DO mm = 0, PP_N
         alpha1 = CellVolWeightFac(kk)
         alpha2 = CellVolWeightFac(ll)
         alpha3 = CellVolWeightFac(mm)
-        ! Get UniqueNodeID from NonUniqueNodeID = ElemNodeID_Shared(:,GetCNElemID(iElem))
-        NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem)))
         Partsource(SourceDim:4,kk,ll,mm,GetCNElemID(iElem)) = &
              NodeSource(SourceDim:4,NodeID(1)) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
              NodeSource(SourceDim:4,NodeID(2)) * (alpha1)   * (1-alpha2) * (1-alpha3) + &

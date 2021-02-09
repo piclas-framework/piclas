@@ -46,7 +46,7 @@ USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
 USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Mesh_Vars              ,ONLY: Vdm_N_EQ,offsetElem
-USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetGlobalElemID
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes,NodeToElemMapping,NodeToElemInfo
 USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt,NodeVolume
 USE MOD_Restart_Vars           ,ONLY: N_Restart
@@ -68,7 +68,7 @@ LOGICAL                            :: DG_SourceExtExists
 REAL                               :: NodeSourceExtEqui(1,0:1,0:1,0:1)
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp,N_RestartTmp
 INTEGER                            :: iElem!,CNElemID
-INTEGER                            :: NodeID(1:8),firstNode,lastNode,firstElemID(1:8)
+INTEGER                            :: NodeID(1:8),firstNode,lastNode,firstGlobalElemID(1:8),iNode
 !===================================================================================================================================
 IF(.NOT.DoDielectric) RETURN
 
@@ -103,7 +103,9 @@ IF(DG_SourceExtExists)THEN
     ! Map the solution to the global nodes 'NodeSourceExt' and apply the volumes (charge density -> charge)
     ! Map non-unique to unique node ID
     NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
-    firstElemID(1:8) = NodeToElemInfo(NodeToElemMapping(1,NodeID) + 1)
+    DO iNode = 1, 8
+      firstGlobalElemID(iNode) = GetGlobalElemID(NodeToElemInfo(NodeToElemMapping(1,NodeID(iNode)) + 1))
+    END DO ! I = 1, 8
 
     ! method 1: Only change the nodes which are assigned to the proc
     !IF(firstNode.LE.NodeID(1).AND.NodeID(1).LE.lastNode) NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeID(1))
@@ -130,15 +132,14 @@ IF(DG_SourceExtExists)THEN
 
     ! method 3: check node ID
     ! Compare global Elem ID and only write the data for the first element
-    IF(iElem+OffsetElem.EQ.firstElemID(1)) NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeID(1))
-    IF(iElem+OffsetElem.EQ.firstElemID(2)) NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVolume(NodeID(2))
-    IF(iElem+OffsetElem.EQ.firstElemID(3)) NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVolume(NodeID(3))
-    IF(iElem+OffsetElem.EQ.firstElemID(4)) NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVolume(NodeID(4))
-    IF(iElem+OffsetElem.EQ.firstElemID(5)) NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVolume(NodeID(5))
-    IF(iElem+OffsetElem.EQ.firstElemID(6)) NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVolume(NodeID(6))
-    IF(iElem+OffsetElem.EQ.firstElemID(7)) NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVolume(NodeID(7))
-    IF(iElem+OffsetElem.EQ.firstElemID(8)) NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeID(8))
-
+    IF(iElem+OffsetElem.EQ.firstGlobalElemID(1)) NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeID(1))
+    IF(iElem+OffsetElem.EQ.firstGlobalElemID(2)) NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVolume(NodeID(2))
+    IF(iElem+OffsetElem.EQ.firstGlobalElemID(3)) NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVolume(NodeID(3))
+    IF(iElem+OffsetElem.EQ.firstGlobalElemID(4)) NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVolume(NodeID(4))
+    IF(iElem+OffsetElem.EQ.firstGlobalElemID(5)) NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVolume(NodeID(5))
+    IF(iElem+OffsetElem.EQ.firstGlobalElemID(6)) NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVolume(NodeID(6))
+    IF(iElem+OffsetElem.EQ.firstGlobalElemID(7)) NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVolume(NodeID(7))
+    IF(iElem+OffsetElem.EQ.firstGlobalElemID(8)) NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeID(8))
   END DO
 
 #if USE_MPI
