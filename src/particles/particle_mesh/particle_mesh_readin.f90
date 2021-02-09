@@ -741,6 +741,7 @@ DO iElem = FirstElemInd,LastElemInd
   DO iLocSide = 1,nlocSides
     iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) + iLocSide
     ! Big mortar side
+    ! 104:bilinear,204:curved
     IF (SideInfo_Shared(SIDE_TYPE,iSide).LE.100) THEN
       sideCount = sideCount + 1
       SideInfo_Shared(SIDE_LOCALID,iSide) = sideCount

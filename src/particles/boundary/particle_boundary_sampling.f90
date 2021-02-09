@@ -389,6 +389,18 @@ IF (myComputeNodeRank.EQ.0) THEN
     GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
     ! Check if the surface side has a neighbor (and is therefore an inner BCs)
     IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+      ! Abort inner BC + Mortar! (too complex and confusing to implement)
+      ! This test catches large Mortar sides, i.e.,  SideInfo_Shared(SIDE_NBELEMID,NonUniqueGlobalSideID) gives the 2 or 4
+      ! connecting small Mortar sides. It is assumed that inner BC result in being flagged as a "SurfSide" and therefore are checked
+      ! here.
+      IF(SideInfo_Shared(SIDE_LOCALID,GlobalSideID).EQ.-1)THEN
+        IPWRITE(UNIT_StdOut,'(I12,A,I0)')   " NonUniqueGlobalSideID                               = ",GlobalSideID
+        IPWRITE(UNIT_StdOut,'(I12,A,I0)')   " SideInfo_Shared(SIDE_LOCALID,NonUniqueGlobalSideID) = ",&
+            SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
+        IPWRITE(UNIT_StdOut,'(I12,A,I0,A)') " SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID)  = ",&
+            SideInfo_Shared(SIDE_ELEMID,GlobalSideID)," (GlobalElemID)"
+        CALL abort(__STAMP__,'Inner BC + Mortar is not implemented!')
+      END IF
       ! Only add the side with the smaller index
       NbGlobalSideID = SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)
       IF(GlobalSideID.GT.NbGlobalSideID)THEN
