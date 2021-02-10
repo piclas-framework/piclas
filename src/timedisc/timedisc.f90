@@ -478,7 +478,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: iter,dt_Min
 USE MOD_LinearSolver_Vars      ,ONLY: totalIterLinearSolver
 #endif /*IMPA || ROS*/
 #ifdef PARTICLES
-USE MOD_Particle_Tracking_vars ,ONLY: CountNbrOfLostParts,NbrOfLostParticles,NbrOfLostParticlesTotal
+USE MOD_Particle_Tracking_vars ,ONLY: CountNbrOfLostParts,NbrOfLostParticles,NbrOfLostParticlesTotal,NbrOfLostParticlesTotal_old
 #ifdef IMPA
 USE MOD_LinearSolver_vars      ,ONLY: nPartNewton
 USE MOD_LinearSolver_Vars      ,ONLY: totalFullNewtonIter
@@ -493,12 +493,16 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                      :: TimeArray(8)              ! Array for system time
+INTEGER             :: TimeArray(8)              ! Array for system time
+INTEGER             :: NbrOfLostParticlesTotal_old_tmp
 !===================================================================================================================================
 #ifdef PARTICLES
 IF(CountNbrOfLostParts)THEN
 #if USE_MPI
+  NbrOfLostParticlesTotal_old_tmp = NbrOfLostParticlesTotal ! keep old value
+  ! Allreduce is required because of the particle output to .h5 in which all processors must take place
   CALL MPI_ALLREDUCE(NbrOfLostParticles , NbrOfLostParticlesTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
+  NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + NbrOfLostParticlesTotal_old_tmp ! add old value
 #else
   NbrOfLostParticlesTotal=NbrOfLostParticles
 #endif /*USE_MPI*/
@@ -519,7 +523,11 @@ IF(MPIroot)THEN
   WRITE(UNIT_StdOut,'(A,ES16.7)')' Timestep  : ',dt_Min
   WRITE(UNIT_stdOut,'(A,ES16.7)')'#Timesteps : ',REAL(iter)
 #ifdef PARTICLES
-  IF(CountNbrOfLostParts.AND.(NbrOfLostParticlesTotal.GT.0)) WRITE(UNIT_stdOut,'(A,I22)')' Nuber of lost particles :',NbrOfLostParticlesTotal
+  IF(CountNbrOfLostParts.AND.(NbrOfLostParticlesTotal.GT.0))THEN
+    WRITE(UNIT_stdOut,'(A,I0,A,I0,A1)')' Total number of lost particles : ',NbrOfLostParticlesTotal,' (difference to last output: +',&
+        NbrOfLostParticlesTotal-NbrOfLostParticlesTotal_old,')'
+    NbrOfLostParticlesTotal_old = NbrOfLostParticlesTotal
+  END IF
 #endif /*PARICLES*/
 END IF !MPIroot
 #if defined(IMPA) || defined(ROS)

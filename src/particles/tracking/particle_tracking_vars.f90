@@ -25,51 +25,52 @@ SAVE
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
-INTEGER               :: TrackingMethod         ! Method that is used for tracking of particles
-LOGICAL               :: DoRefMapping           ! tracking by mapping particle into reference element
-LOGICAL               :: TriaTracking           ! tracking by using surface representation by triangles
-LOGICAL               :: WriteTriaDebugMesh     !
-REAL                  :: tTracking              ! Tracking time
-REAL                  :: tLocalization          ! localization time
-INTEGER               :: nTracks                ! number of tracked particles
-INTEGER               :: nCurrentParts          ! current number of particles
-LOGICAL               :: MeasureTrackTime       ! switch, if tracking time is measure
-LOGICAL               :: FastPeriodic           ! moves the particle along whole periodic vector,
-                                                ! neglecting possible reflexions
-LOGICAL               :: DisplayLostParticles   ! Display position, velocity, species and hots element of particles lost during 
-!                                               ! particle tracking (TrackingMethod = triatracking, tracing). Default=F
-LOGICAL               :: CountNbrOfLostParts    ! logical, to count the lost particles
-REAL, ALLOCATABLE     :: PartStateLost(:,:)     ! (1:14,1:NParts) 1st index: LastPartPos-X,LastPartPos-Y,LastPartPos-Z,vx,vy,vz,
-!                                               !                            SpecID,MPF,time,ElemID,iPart,x,y,z
-!                                               !                 2nd index: 1 to number of lost particles
-INTEGER               :: PartStateLostVecLength ! Number of lost particles for each process
-LOGICAL               :: CartesianPeriodic      ! old periodic for refmapping and ALL bcs periocic
-INTEGER               :: NbrOfLostParticles     ! Counter for lost particle per process
-INTEGER               :: NbrOfLostParticlesTotal! Counter for lost particles across all processes
-REAL,ALLOCATABLE      :: Distance(:)            ! list of distance between particle and element-origin
-                                                ! to all elements in the same background element
-INTEGER,ALLOCATABLE   :: ListDistance(:)        ! the corresponding element id
+INTEGER             :: TrackingMethod              ! Method that is used for tracking of particles
+LOGICAL             :: DoRefMapping                ! tracking by mapping particle into reference element
+LOGICAL             :: TriaTracking                ! tracking by using surface representation by triangles
+LOGICAL             :: WriteTriaDebugMesh          !
+REAL                :: tTracking                   ! Tracking time
+REAL                :: tLocalization               ! localization time
+INTEGER             :: nTracks                     ! number of tracked particles
+INTEGER             :: nCurrentParts               ! current number of particles
+LOGICAL             :: MeasureTrackTime            ! switch, if tracking time is measure
+LOGICAL             :: FastPeriodic                ! moves the particle along whole periodic vector,
+                                                   ! neglecting possible reflexions
+LOGICAL             :: DisplayLostParticles        ! Display position, velocity, species and hots element of particles lost during 
+!                                                  ! particle tracking (TrackingMethod = triatracking, tracing). Default=F
+LOGICAL             :: CountNbrOfLostParts         ! logical, to count the lost particles
+REAL, ALLOCATABLE   :: PartStateLost(:,:)          ! (1:14,1:NParts) 1st index: LastPartPos-X,LastPartPos-Y,LastPartPos-Z,vx,vy,vz,
+!                                                  !                            SpecID,MPF,time,ElemID,iPart,x,y,z
+!                                                  !                 2nd index: 1 to number of lost particles
+INTEGER             :: PartStateLostVecLength      ! Number of lost particles for each process
+LOGICAL             :: CartesianPeriodic           ! old periodic for refmapping and ALL bcs periocic
+INTEGER             :: NbrOfLostParticles          ! Counter for lost particle per process
+INTEGER             :: NbrOfLostParticlesTotal     ! Counter for lost particles across all processes
+INTEGER             :: NbrOfLostParticlesTotal_old ! Difference between two Analyze_dt steps
+REAL,ALLOCATABLE    :: Distance(:)                 ! list of distance between particle and element-origin
+                                                   ! to all elements in the same background element
+INTEGER,ALLOCATABLE :: ListDistance(:)             ! the corresponding element id
 
 TYPE tTrackingInfo
-  INTEGER             :: CurrElem
-  INTEGER             :: LocSide
-  INTEGER             :: GlobSide
-  INTEGER             :: flip
-  INTEGER             :: TriNum
-  REAL                :: xi
-  REAL                :: eta
-  REAL                :: alpha
-  REAL                :: PartTrajectory(1:3)
-  REAL                :: LengthPartTrajectory
-  INTEGER             :: p=1
-  INTEGER             :: q=1
+  INTEGER           :: CurrElem
+  INTEGER           :: LocSide
+  INTEGER           :: GlobSide
+  INTEGER           :: flip
+  INTEGER           :: TriNum
+  REAL              :: xi
+  REAL              :: eta
+  REAL              :: alpha
+  REAL              :: PartTrajectory(1:3)
+  REAL              :: LengthPartTrajectory
+  INTEGER           :: p=1
+  INTEGER           :: q=1
 END TYPE
 
-TYPE(tTrackingInfo)   :: TrackInfo
+TYPE(tTrackingInfo) :: TrackInfo
 
 #ifdef CODE_ANALYZE
-INTEGER               :: PartOut
-INTEGER               :: MPIRankOut
+INTEGER             :: PartOut
+INTEGER             :: MPIRankOut
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 

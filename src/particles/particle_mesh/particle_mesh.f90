@@ -173,7 +173,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierControlPoints3DElevated,SideSlabNormals,SideSlabIntervals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty
 USE MOD_Particle_Tracking_Vars ,ONLY: MeasureTrackTime,FastPeriodic,CountNbrOfLostParts,CartesianPeriodic
-USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles,NbrOfLostParticlesTotal
+USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles,NbrOfLostParticlesTotal,NbrOfLostParticlesTotal_old
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLostVecLength,PartStateLost
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, DisplayLostParticles
 !USE MOD_Particle_Tracking_Vars ,ONLY: WriteTriaDebugMesh
@@ -196,6 +196,9 @@ USE MOD_MPI_Shared_Vars
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildElementRadiusTria,BuildElemTypeAndBasisTria,BuildEpsOneCell,BuildBCElemDistance
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBaseVectors
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !USE MOD_DSMC_Vars              ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -277,7 +280,15 @@ IF(CountNbrOfLostParts)THEN
   PartStateLost=0.
 END IF ! CountNbrOfLostParts
 NbrOfLostParticles      = 0
-NbrOfLostParticlesTotal = 0
+#if USE_LOADBALANCE
+! Nullify only once at the beginning of a simulation (not during load balance steps!)
+IF(.NOT.PerformLoadBalance)THEN
+#endif
+  NbrOfLostParticlesTotal = 0
+  NbrOfLostParticlesTotal_old = 0
+#if USE_LOADBALANCE
+END IF
+#endif
 DisplayLostParticles    = GETLOGICAL('DisplayLostParticles')
 
 #ifdef CODE_ANALYZE

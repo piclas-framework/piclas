@@ -2008,11 +2008,9 @@ DEALLOCATE(PartData)
 
 ! Nullify and reset lost parts container after write out
 PartStateLostVecLength  = 0
-NbrOfLostParticles      = 0
-NbrOfLostParticlesTotal = 0 ! total across all procs
+NbrOfLostParticles      = 0 ! only reset local counter
 
-! Re-allocate PartStateLost for a small number of particles and double the array size each time the
-! maximum is reached
+! Re-allocate PartStateLost for a small number of particles and double the array size each time the maximum is reached
 DEALLOCATE(PartStateLost)
 ALLOCATE(PartStateLost(1:14,1:10))
 PartStateLost=0.

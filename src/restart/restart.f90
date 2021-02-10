@@ -1292,7 +1292,8 @@ IF(DoRestart)THEN
         PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfFoundParts
         ! Combine number of found particles to make sure none are lost completely
         CALL MPI_ALLREDUCE(NbrOfFoundParts, CompleteNbrOfFound, 1, MPI_INTEGER, MPI_SUM, PartMPI%COMM, IERROR)
-        NbrOfLostParticlesTotal = SUM(TotalNbrOfMissingParticles)-CompleteNbrOfFound
+        ! Add to NbrOfLostParticlesTotal (not nullified during load balance step + restart)
+        NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + SUM(TotalNbrOfMissingParticles)-CompleteNbrOfFound
         SWRITE(UNIT_stdOut,*) SUM(TotalNbrOfMissingParticles),'were not in the correct proc after restart.'
         SWRITE(UNIT_stdOut,*) CompleteNbrOfFound,'of these were found in other procs.'
         SWRITE(UNIT_stdOut,*) NbrOfLostParticlesTotal,'were not found and have been removed.'
@@ -1301,6 +1302,7 @@ IF(DoRestart)THEN
 !                             'it will therefore contain a mix of missing and lost particles.'
       END IF ! SUM(TotalNbrOfMissingParticles).GT.0
 #else /*not USE_MPI*/
+      ! Don't add to NbrOfLostParticlesTota because load balance step + restart is not possible for single execution
       NbrOfLostParticlesTotal=NbrOfLostParticles
       IF (NbrOfMissingParticles.NE.0) WRITE(*,*) NbrOfMissingParticles,'Particles are in different element after restart!'
       IF (NbrOfLostParticles   .NE.0) THEN
