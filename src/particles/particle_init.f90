@@ -700,8 +700,8 @@ SUBROUTINE InitializeVariablesElectronFluidRegions()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
-USE MOD_Particle_Mesh_Tools ,ONLY: MapRegionToElem
-USE MOD_Particle_Mesh_Vars  ,ONLY: NbrOfRegions,RegionBounds
+USE MOD_Particle_Mesh_Tools ,ONLY: MapBRRegionToElem
+USE MOD_Particle_Mesh_Vars  ,ONLY: NbrOfRegions,RegionBounds,UseBRElectronFluid
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -716,14 +716,16 @@ REAL                  :: phimax_tmp
 !===================================================================================================================================
 !-- Read parameters for region mapping
 NbrOfRegions = GETINT('NbrOfRegions','0')
+UseBRElectronFluid = .FALSE. ! Initialize
 IF (NbrOfRegions .GT. 0) THEN
+  UseBRElectronFluid = .TRUE.
   ALLOCATE(RegionBounds(1:6,1:NbrOfRegions))
   DO iRegions=1,NbrOfRegions
     WRITE(UNIT=hilf2,FMT='(I0)') iRegions
     RegionBounds(1:6,iRegions) = GETREALARRAY('RegionBounds'//TRIM(hilf2),6,'0. , 0. , 0. , 0. , 0. , 0.')
   END DO
 
-  CALL MapRegionToElem()
+  CALL MapBRRegionToElem()
   ALLOCATE(RegionElectronRef(1:3,1:NbrOfRegions))
   DO iRegions=1,NbrOfRegions
     WRITE(UNIT=hilf2,FMT='(I0)') iRegions

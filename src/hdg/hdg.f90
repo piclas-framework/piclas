@@ -97,7 +97,7 @@ USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETREAL,GETINT
 USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides,nSides
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCSides,nSides,BC
 USE MOD_Mesh_Vars          ,ONLY: nGlobalMortarSides,nMortarMPISides
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions,ElemToBRRegion
 USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
 USE MOD_Globals_Vars       ,ONLY: eps0
 USE MOD_Restart_Vars       ,ONLY: DoRestart
@@ -151,7 +151,7 @@ IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far 
     IF (DoRestart) AdaptNewtonStartValue=.false.
     ALLOCATE(NonlinVolumeFac(nGP_vol,PP_nElems))
     DO iElem=1,PP_nElems
-      RegionID=GEO%ElemToRegion(iElem)
+      RegionID=ElemToBRRegion(iElem)
       DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
         r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
         IF (AdaptNewtonStartValue) THEN
@@ -661,7 +661,7 @@ USE MOD_Equation_Vars          ,ONLY: chitens_face
 USE MOD_Mesh_Vars              ,ONLY: Face_xGP,BoundaryType,nSides,BC
 USE MOD_Mesh_Vars              ,ONLY: ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars     ,ONLY: wGP
-USE MOD_Particle_Vars          ,ONLY:  RegionElectronRef
+USE MOD_Particle_Vars          ,ONLY: RegionElectronRef
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Elem_Mat               ,ONLY: PostProcessGradient, Elem_Mat,BuildPrecond
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime
@@ -671,6 +671,7 @@ USE MOD_Equation_Vars          ,ONLY: E
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBRRegion
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -828,7 +829,7 @@ ELSE
   IF(AdaptNewtonStartValue) THEN
     IF ((.NOT.DoRestart.AND.ALMOSTEQUAL(time,0.)).OR.(DoRestart.AND.ALMOSTEQUAL(time,RestartTime))) THEN
       DO iElem=1,PP_nElems
-        RegionID=GEO%ElemToRegion(iElem)
+        RegionID=ElemToBRRegion(iElem)
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
           r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
           IF (NewtonExactApprox) THEN
@@ -854,7 +855,7 @@ ELSE
                                                  !removed second cond. to ensure fast convergence with very small AdaptIterNewton
         IF(MPIroot) WRITE(*,*) 'The linear way, baby !!!!!!!!!!!!'
         DO iElem=1,PP_nElems
-          RegionID=GEO%ElemToRegion(iElem)
+          RegionID=ElemToBRRegion(iElem)
           DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
             r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
             NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
@@ -870,7 +871,7 @@ ELSE
     IF (AdaptIterNewton.GT.0) THEN
       IF (MOD(iter,AdaptIterNewton).EQ.0) THEN
         DO iElem=1,PP_nElems
-          RegionID=GEO%ElemToRegion(iElem)
+          RegionID=ElemToBRRegion(iElem)
           DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
             r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
             IF (NewtonExactApprox) THEN
@@ -946,6 +947,9 @@ ELSE
 #endif
       EXIT
     ELSE IF (iter.EQ.MaxIterFixPoint) THEN
+      IPWRITE(UNIT_StdOut,*) "Norm_r2         =", Norm_r2
+      IPWRITE(UNIT_StdOut,*) "iter            =", iter
+      IPWRITE(UNIT_StdOut,*) "MaxIterFixPoint =", MaxIterFixPoint
       CALL abort(&
         __STAMP__&
         ,'HDGNewton: Newton Iteration has NOT converged!')

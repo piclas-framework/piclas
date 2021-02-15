@@ -524,7 +524,7 @@ END DO
 END SUBROUTINE DivCleaningDamping
 
 
-SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear)
+PURE SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear)
 !===================================================================================================================================
 ! Determine the right-hand-side of Poisson's equation (either by an analytic function or deposition of charge from particles)
 ! TODO: currently particles are enforced, which means that they over-write the exact function solution because
@@ -534,14 +534,14 @@ SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear)
 ! it is in the tensor "chitens"
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals            ,ONLY: Abort
+USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
 #ifdef PARTICLES
 USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO,ElemToBRRegion,UseBRElectronFluid
 USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
 USE MOD_Globals_Vars       ,ONLY: eps0
 #if IMPA
@@ -597,26 +597,30 @@ END SELECT ! ExactFunction
 IF(DoDeposition)THEN
   CNElemID = GetCNElemID(iElem+offSetElem)
   source_e=0.
-  IF (PRESENT(Phi)) THEN
-    RegionID=0
-    IF (NbrOfRegions .GT. 0) RegionID=GEO%ElemToRegion(iElem)
-    IF (RegionID .NE. 0) THEN
-      source_e = Phi-RegionElectronRef(2,RegionID)
-      IF (source_e .LT. 0.) THEN
-        source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
-            * EXP( (source_e) / RegionElectronRef(3,RegionID) )
-      ELSE
-        source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
-            * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
-        warning_linear = .TRUE.
+  IF(UseBRElectronFluid.AND.PRESENT(Phi))THEN
+    IF(ABS(PartSource(4,i,j,k,CNElemID)).GT.0.)THEN
+      RegionID=ElemToBRRegion(iElem)
+      IF (RegionID .NE. 0) THEN
+        source_e = Phi-RegionElectronRef(2,RegionID)
+        IF (source_e .LT. 0.) THEN
+          source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
+              * EXP( (source_e) / RegionElectronRef(3,RegionID) )
+        ELSE
+          source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
+              * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
+          warning_linear = .TRUE.
+        END IF
+        !source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
+        !* EXP( (Phi-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
       END IF
-      !source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
-      !* EXP( (Phi-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
-    END IF
-  END IF
+    ELSE ! set electron density to zero if the charge of the ions is zero at each DOF
+      source_e  = 0.
+    END IF ! PartSource(4,i,j,k,CNElemID).GT.0.
+  END IF ! UseBRElectronFluid
 #if IMPA
   resu(1)= - (PartSource(4,i,j,k,CNElemID)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
 #else
+  !IPWRITE(UNIT_StdOut,*) "Phi, PartSource(4,i,j,k,CNElemID),source_e =", Phi,PartSource(4,i,j,k,CNElemID),source_e
   resu(1)= - (PartSource(4,i,j,k,CNElemID)-source_e)/eps0
 #endif
 END IF

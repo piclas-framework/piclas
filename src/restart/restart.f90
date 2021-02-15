@@ -340,6 +340,7 @@ USE MOD_Mesh_Vars              ,ONLY: lastMPISide_MINE
 USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
 USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Vars     ,ONLY: UseBRElectronFluid
 #endif /*USE_HDG*/
 #if defined(PARTICLES) || (USE_HDG)
 USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists,nDims,HSize
@@ -1325,6 +1326,8 @@ IF(DoRestart)THEN
   END IF ! .NOT.DoMacroscopicRestart
   ! Read-in the cell-local wall temperature
   IF (ANY(PartBound%UseAdaptedWallTemp)) CALL RestartAdaptiveWallTemp()
+  ! Remove electron species when using BR electron fluid model
+  IF(UseBRElectronFluid) CALL RemoveAllElectrons()
 #endif /*PARTICLES*/
 
 CALL CloseDataFile()
@@ -1676,6 +1679,34 @@ DEALLOCATE(MacroRestartValues)
 DEALLOCATE(ElemData_HDF5)
 
 END SUBROUTINE MacroscopicRestart
+
+SUBROUTINE RemoveAllElectrons()
+!===================================================================================================================================
+!> Read-in of the element data from a DSMC state and insertion of particles based on the macroscopic values
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_part_operations  ,ONLY: RemoveParticle
+USE MOD_Particle_Analyze ,ONLY: PARTISELECTRON
+USE MOD_Particle_Vars    ,ONLY: PDM
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iPart
+!===================================================================================================================================
+
+SWRITE(UNIT_stdOut,*) 'Using BR electron fluid, removing all electrons from restart file.'
+
+DO iPart = 1,PDM%ParticleVecLength
+  IF(PARTISELECTRON(iPart)) CALL RemoveParticle(iPart)
+END DO
+
+END SUBROUTINE RemoveAllElectrons
 #endif /*PARTICLES*/
 
 

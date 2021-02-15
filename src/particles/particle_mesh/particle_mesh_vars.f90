@@ -431,7 +431,6 @@ TYPE tGeometry
   REAL, ALLOCATABLE                      :: CharLengthZ(:)                    ! Characteristic length in Z for each cell
 !  REAL                                   :: MeshVolume                        ! Total Volume of mesh
 !  REAL                                   :: LocalVolume                       ! Volume of proc
-  INTEGER, ALLOCATABLE                   :: ElemToRegion(:)                   ! ElemToRegion(1:nElems)
 
   LOGICAL                                :: SelfPeriodic                      ! does process have periodic bounds with itself?
   INTEGER, ALLOCATABLE                   :: ElemToNodeID(:,:)                 ! ElemToNodeID(1:nElemNodes,1:nElems)
@@ -457,6 +456,8 @@ END TYPE
 
 TYPE (tGeometry)                         :: GEO
 
+INTEGER, ALLOCATABLE                     :: ElemToBRRegion(:)                   ! ElemToBRRegion(1:nElems)
+
 INTEGER                                  :: WeirdElems                        ! Number of Weird Elements (=Elements which are folded
                                                                               ! into themselves)
 LOGICAL                                  :: FindNeighbourElems=.FALSE.        ! Flag defining if mapping for neighbour elements
@@ -473,6 +474,7 @@ LOGICAL                                  :: FindNeighbourElems=.FALSE.        ! 
 !TYPE (tBCElem),ALLOCATABLE               :: BCElem(:)
 
 INTEGER                                  :: NbrOfRegions      ! Nbr of regions to be mapped to Elems
+LOGICAL                                  :: UseBRElectronFluid! Nbr of regions to be mapped to Elems
 REAL, ALLOCATABLE                        :: RegionBounds(:,:) ! RegionBounds ((xmin,xmax,ymin,...)|1:NbrOfRegions)
 REAL,ALLOCATABLE                         :: ElemTolerance(:)
 INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id

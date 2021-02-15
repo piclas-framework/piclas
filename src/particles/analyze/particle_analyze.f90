@@ -3137,7 +3137,7 @@ SUBROUTINE CalculateElectronIonDensityCell()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY:ElementaryCharge
-USE MOD_Particle_Mesh_Vars     ,ONLY:GEO,NbrOfRegions
+USE MOD_Particle_Mesh_Vars     ,ONLY:GEO,UseBRElectronFluid
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
 USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,PEM,usevMPF
 USE MOD_Preproc
@@ -3147,6 +3147,7 @@ USE MOD_Part_Tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars              ,ONLY: offSetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBRRegion
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3193,9 +3194,9 @@ DO iPart=1,PDM%ParticleVecLength
     END ASSOCIATE
   END ASSOCIATE
 END DO ! iPart
-IF (NbrOfRegions .GT. 0) THEN !check for BR electrons
+IF (UseBRElectronFluid) THEN !check for BR electrons
   DO iElem=1,PP_nElems
-    RegionID=GEO%ElemToRegion(iElem)
+    RegionID=ElemToBRRegion(iElem)
     IF (RegionID.GT.0) THEN
       IF (ElectronDensityCell(iElem).NE.0.) CALL abort(&
 __STAMP__&
@@ -3222,13 +3223,14 @@ SUBROUTINE CalculateElectronTemperatureCell()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElectronMass,ElementaryCharge
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,NbrOfRegions
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,UseBRElectronFluid
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars  ,ONLY: ElectronTemperatureCell
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartState,RegionElectronRef
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_part_tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBRRegion
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3245,9 +3247,9 @@ REAL    :: MeanPartV_2(1:3)
 REAL    ::   TempDirec(1:3)
 REAL    :: WeightingFactor
 !===================================================================================================================================
-IF (NbrOfRegions .GT. 0) THEN ! check for BR electrons
+IF (UseBRElectronFluid) THEN ! check for BR electrons
   DO iElem=1,PP_nElems
-    RegionID=GEO%ElemToRegion(iElem)
+    RegionID=ElemToBRRegion(iElem)
     IF (RegionID.GT.0) THEN
       ElectronTemperatureCell(iElem) = RegionElectronRef(3,RegionID)*ElementaryCharge/BoltzmannConst ! convert eV to K
     END IF
