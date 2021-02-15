@@ -1326,8 +1326,10 @@ IF(DoRestart)THEN
   END IF ! .NOT.DoMacroscopicRestart
   ! Read-in the cell-local wall temperature
   IF (ANY(PartBound%UseAdaptedWallTemp)) CALL RestartAdaptiveWallTemp()
+#if USE_HDG
   ! Remove electron species when using BR electron fluid model
   IF(UseBRElectronFluid) CALL RemoveAllElectrons()
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 
 CALL CloseDataFile()
