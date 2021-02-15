@@ -614,9 +614,10 @@ IF(DoRestart)THEN
       DEALLOCATE(U_local)
 #endif
 #elif USE_HDG
-      CALL abort(&
-          __STAMP__&
-          ,' Restart with changed polynomial degree not implemented for HDG!')
+      lambda=0.
+      !CALL abort(&
+          !__STAMP__&
+          !,' Restart with changed polynomial degree not implemented for HDG!')
       !    ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
       !    CALL ReadArray('DG_SolutionLambda',5,(/PP_nVar,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),OffsetElem,5,RealArray=U_local)
       !    DO iElem=1,PP_nElems

@@ -707,7 +707,7 @@ CALL PrintOption('Corrected Intensity amplitude: I0_corr [W/m^2]','CALCUL.',Real
 
 CALL PrintOption('Pulse period (Time between maximum of two pulses) [s]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%Period)
 
-CALL PrintOption('Temporal pulse width (pulse time) [s]','CALCUL.',RealOpt=2.0*Species(iSpec)%Init(iInit)%tShift)
+CALL PrintOption('Temporal pulse width (pulse time 2x tShift) [s]','CALCUL.',RealOpt=2.0*Species(iSpec)%Init(iInit)%tShift)
 Species(iSpec)%Init(iInit)%tActive = REAL(Species(iSpec)%Init(iInit)%NbrOfPulses - 1)*Species(iSpec)%Init(iInit)%Period &
                                         + 2.0*Species(iSpec)%Init(iInit)%tShift
 CALL PrintOption('Pulse will end at tActive (pulse final time) [s]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%tActive)
