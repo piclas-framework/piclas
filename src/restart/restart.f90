@@ -317,7 +317,7 @@ USE MOD_Eval_XYZ               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,NbrOfLostParticles, NbrOfLostParticlesTotal
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,NbrOfLostParticles
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 #if !(USE_MPI)
 USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts
@@ -389,9 +389,11 @@ INTEGER, ALLOCATABLE               :: VibQuantData(:,:)
 REAL, ALLOCATABLE                  :: ElecDistriData(:,:), AD_Data(:,:)
 INTEGER                            :: MaxQuantNum, iPolyatMole, iSpec, iPart, iVar, MaxElecQuant, CounterElec, CounterAmbi
 #if USE_MPI
-REAL, ALLOCATABLE                  :: SendBuff(:), RecBuff(:)
+INTEGER,ALLOCATABLE                :: IndexOfFoundParticles(:),CompleteIndexOfFoundParticles(:)
+INTEGER                            :: CompleteNbrOfLost,CompleteNbrOfFound,CompleteNbrOfDuplicate
+REAL, ALLOCATABLE                  :: SendBuff(:,:), RecBuff(:,:)
 INTEGER                            :: TotalNbrOfMissingParticles(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
-INTEGER                            :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PartMPI%nProcs-1)
+INTEGER                            :: NbrOfFoundParts, RecCount(0:PartMPI%nProcs-1)
 INTEGER, ALLOCATABLE               :: SendBuffPoly(:), RecBuffPoly(:)
 REAL, ALLOCATABLE                  :: SendBuffAmbi(:), RecBuffAmbi(:), SendBuffElec(:), RecBuffElec(:)
 INTEGER                            :: LostPartsPoly(0:PartMPI%nProcs-1), DisplacePoly(0:PartMPI%nProcs-1)
@@ -904,7 +906,7 @@ IF(DoRestart)THEN
               ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant)= &
               ElecDistriData(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant,offsetnPart+iLoop)
             END IF
-          END IF 
+          END IF
 
           IF (useDSMC.AND.DSMC%DoAmbipolarDiff) THEN
             IF (Species(PartSpecies(iPart))%ChargeIC.GT.0.0) THEN
@@ -1097,61 +1099,64 @@ IF(DoRestart)THEN
       ! Step 2: All particles that are not found within MyProc need to be communicated to the others and located there
       ! Combine number of lost particles of all processes and allocate variables
       CALL MPI_ALLGATHER(NbrOfLostParticles, 1, MPI_INTEGER, TotalNbrOfMissingParticles, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
-      IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) CALL MPI_ALLGATHER(CounterPoly, 1, MPI_INTEGER, LostPartsPoly, 1, MPI_INTEGER, &
-                                                                       PartMPI%COMM, IERROR)
-      IF(useDSMC.AND.(DSMC%ElectronicModel.EQ.2)) &
-        CALL MPI_ALLGATHER(CounterElec, 1, MPI_INTEGER, LostPartsElec, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
-      IF(useDSMC.AND.DSMC%DoAmbipolarDiff) &
-        CALL MPI_ALLGATHER(CounterAmbi, 1, MPI_INTEGER, LostPartsAmbi, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
+      IF (useDSMC) THEN
+        IF (DSMC%NumPolyatomMolecs.GT.0) CALL MPI_ALLGATHER(CounterPoly, 1, MPI_INTEGER, LostPartsPoly, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
+        IF (DSMC%ElectronicModel.EQ.2)   CALL MPI_ALLGATHER(CounterElec, 1, MPI_INTEGER, LostPartsElec, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
+        IF (DSMC%DoAmbipolarDiff)        CALL MPI_ALLGATHER(CounterAmbi, 1, MPI_INTEGER, LostPartsAmbi, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
+      END IF
+
       ! Check total number of missing particles and start re-locating them on other procs
       IF (SUM(TotalNbrOfMissingParticles).GT.0) THEN
-        ALLOCATE(SendBuff(1:NbrOfLostParticles*PartDataSize))
-        ALLOCATE(RecBuff(1:SUM(TotalNbrOfMissingParticles)*PartDataSize))
-        IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-          ALLOCATE(SendBuffPoly(1:CounterPoly))
-          ALLOCATE(RecBuffPoly(1:SUM(LostPartsPoly)))
+        ALLOCATE(SendBuff(1:NbrOfLostParticles             ,PartDataSize))
+        ALLOCATE(RecBuff( 1:SUM(TotalNbrOfMissingParticles),PartDataSize))
+        IF (useDSMC) THEN
+          IF (DSMC%NumPolyatomMolecs.GT.0) THEN
+            ALLOCATE(SendBuffPoly(1:CounterPoly))
+            ALLOCATE(RecBuffPoly( 1:SUM(LostPartsPoly)))
+          END IF
+          IF (DSMC%ElectronicModel.EQ.2) THEN
+            ALLOCATE(SendBuffElec(1:CounterElec))
+            ALLOCATE(RecBuffElec( 1:SUM(LostPartsElec)))
+          END IF
+          IF (DSMC%DoAmbipolarDiff) THEN
+            ALLOCATE(SendBuffAmbi(1:CounterAmbi))
+            ALLOCATE(RecBuffAmbi( 1:SUM(LostPartsAmbi)))
+          END IF
         END IF
-        IF(useDSMC.AND.(DSMC%ElectronicModel.EQ.2)) THEN
-          ALLOCATE(SendBuffElec(1:CounterElec))
-          ALLOCATE(RecBuffElec(1:SUM(LostPartsElec)))
-        END IF
-        IF(useDSMC.AND.DSMC%DoAmbipolarDiff) THEN
-          ALLOCATE(SendBuffAmbi(1:CounterAmbi))
-          ALLOCATE(RecBuffAmbi(1:SUM(LostPartsAmbi)))
-        END IF
+
         ! Fill SendBuffer
-        NbrOfMissingParticles = 0
+        NbrOfMissingParticles = 1
         CounterPoly = 0
         CounterAmbi = 0
         CounterElec = 0
         DO i = 1, PDM%ParticleVecLength
           IF (.NOT.PDM%ParticleInside(i)) THEN
-            SendBuff(NbrOfMissingParticles+1:NbrOfMissingParticles+6) = PartState(1:6,i)
-            SendBuff(NbrOfMissingParticles+7)           = REAL(PartSpecies(i))
+            SendBuff(NbrOfMissingParticles,1:6) = PartState(1:6,i)
+            SendBuff(NbrOfMissingParticles,7)   = REAL(PartSpecies(i))
             IF (useDSMC) THEN
               IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel.GT.0)) THEN
-                SendBuff(NbrOfMissingParticles+8)  = PartStateIntEn(1,i)
-                SendBuff(NbrOfMissingParticles+9)  = PartStateIntEn(2,i)
-                SendBuff(NbrOfMissingParticles+10) = PartMPF(i)
-                SendBuff(NbrOfMissingParticles+11) = PartStateIntEn(3,i)
+                SendBuff(NbrOfMissingParticles,8)  = PartStateIntEn(1,i)
+                SendBuff(NbrOfMissingParticles,9)  = PartStateIntEn(2,i)
+                SendBuff(NbrOfMissingParticles,10) = PartMPF(i)
+                SendBuff(NbrOfMissingParticles,11) = PartStateIntEn(3,i)
               ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-                SendBuff(NbrOfMissingParticles+8)  = PartStateIntEn(1,i)
-                SendBuff(NbrOfMissingParticles+9)  = PartStateIntEn(2,i)
-                SendBuff(NbrOfMissingParticles+10) = PartMPF(i)
+                SendBuff(NbrOfMissingParticles,8)  = PartStateIntEn(1,i)
+                SendBuff(NbrOfMissingParticles,9)  = PartStateIntEn(2,i)
+                SendBuff(NbrOfMissingParticles,10) = PartMPF(i)
               ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel.GT.0)) THEN
-                SendBuff(NbrOfMissingParticles+8)  = PartStateIntEn(1,i)
-                SendBuff(NbrOfMissingParticles+9)  = PartStateIntEn(2,i)
-                SendBuff(NbrOfMissingParticles+10) = PartStateIntEn(3,i)
+                SendBuff(NbrOfMissingParticles,8)  = PartStateIntEn(1,i)
+                SendBuff(NbrOfMissingParticles,9)  = PartStateIntEn(2,i)
+                SendBuff(NbrOfMissingParticles,10) = PartStateIntEn(3,i)
               ELSE IF (CollisMode.GT.1) THEN
-                SendBuff(NbrOfMissingParticles+8)  = PartStateIntEn(1,i)
-                SendBuff(NbrOfMissingParticles+9)  = PartStateIntEn(2,i)
+                SendBuff(NbrOfMissingParticles,8)  = PartStateIntEn(1,i)
+                SendBuff(NbrOfMissingParticles,9)  = PartStateIntEn(2,i)
               ELSE IF (usevMPF) THEN
-                SendBuff(NbrOfMissingParticles+8) = PartMPF(i)
+                SendBuff(NbrOfMissingParticles,8)  = PartMPF(i)
               END IF
             ELSE IF (usevMPF) THEN
-              SendBuff(NbrOfMissingParticles+8) = PartMPF(i)
+              SendBuff(NbrOfMissingParticles,8) = PartMPF(i)
             END IF
-            NbrOfMissingParticles = NbrOfMissingParticles + PartDataSize
+            NbrOfMissingParticles = NbrOfMissingParticles + 1
 
             !--- receive the polyatomic vibquants per particle at the end of the message
             IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
@@ -1169,147 +1174,178 @@ IF(DoRestart)THEN
                     = ElectronicDistriPart(i)%DistriFunc(1:SpecDSMC(PartSpecies(i))%MaxElecQuant)
                 CounterElec = CounterElec + SpecDSMC(PartSpecies(i))%MaxElecQuant
               END IF !
-            END IF ! 
+            END IF !
             IF(useDSMC.AND.DSMC%DoAmbipolarDiff)  THEN
               IF (Species(PartSpecies(i))%ChargeIC.GT.0.0)  THEN
                 SendBuffAmbi(CounterAmbi+1:CounterAmbi+3) = AmbipolElecVelo(i)%ElecVelo(1:3)
                 CounterAmbi = CounterAmbi + 3
               END IF !
-            END IF ! 
+            END IF !
 
           END IF ! .NOT.PDM%ParticleInside(i)
         END DO ! i = 1, PDM%ParticleVecLength
+
         ! Distribute lost particles to all procs
         NbrOfMissingParticles = 0
         CounterPoly = 0
         CounterElec = 0
         CounterAmbi = 0
+
         DO i = 0, PartMPI%nProcs-1
-          RecCount(i) = TotalNbrOfMissingParticles(i) * PartDataSize
+          RecCount(i) = TotalNbrOfMissingParticles(i)
           Displace(i) = NbrOfMissingParticles
-          NbrOfMissingParticles = NbrOfMissingParticles + TotalNbrOfMissingParticles(i)*PartDataSize
-          IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-            DisplacePoly(i) = CounterPoly
-            CounterPoly = CounterPoly + LostPartsPoly(i)
-          END IF
-          IF(useDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
-            DisplaceElec(i) = CounterElec
-            CounterElec = CounterElec + LostPartsElec(i)
-          END IF
-          IF(useDSMC.AND.DSMC%DoAmbipolarDiff)  THEN
-            DisplaceAmbi(i) = CounterAmbi
-            CounterAmbi = CounterAmbi + LostPartsAmbi(i)
+          NbrOfMissingParticles = NbrOfMissingParticles + TotalNbrOfMissingParticles(i)
+          IF (useDSMC) THEN
+            IF (DSMC%NumPolyatomMolecs.GT.0) THEN
+              DisplacePoly(i) = CounterPoly
+              CounterPoly = CounterPoly + LostPartsPoly(i)
+            END IF
+            IF (DSMC%ElectronicModel.EQ.2) THEN
+              DisplaceElec(i) = CounterElec
+              CounterElec = CounterElec + LostPartsElec(i)
+            END IF
+            IF (DSMC%DoAmbipolarDiff) THEN
+              DisplaceAmbi(i) = CounterAmbi
+              CounterAmbi = CounterAmbi + LostPartsAmbi(i)
+            END IF
           END IF
         END DO ! i = 0, PartMPI%nProcs-1
-        CALL MPI_ALLGATHERV(SendBuff, PartDataSize*TotalNbrOfMissingParticles(PartMPI%MyRank), MPI_DOUBLE_PRECISION, &
-            RecBuff, RecCount, Displace, MPI_DOUBLE_PRECISION, PartMPI%COMM, IERROR)
-        IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) CALL MPI_ALLGATHERV(SendBuffPoly, LostPartsPoly(PartMPI%MyRank), MPI_INTEGER, &
-            RecBuffPoly, LostPartsPoly, DisplacePoly, MPI_INTEGER, PartMPI%COMM, IERROR)
-        IF(useDSMC.AND.(DSMC%ElectronicModel.EQ.2)) &
-         CALL MPI_ALLGATHERV(SendBuffElec, LostPartsElec(PartMPI%MyRank), MPI_INTEGER, & 
+
+        CALL MPI_ALLGATHERV(SendBuff,PartDataSize*TotalNbrOfMissingParticles(PartMPI%MyRank),MPI_DOUBLE_PRECISION, &
+            RecBuff,PartDataSize*RecCount,PartDataSize*Displace,MPI_DOUBLE_PRECISION, PartMPI%COMM, IERROR)
+        IF (useDSMC) THEN
+          IF (DSMC%NumPolyatomMolecs.GT.0) CALL MPI_ALLGATHERV(SendBuffPoly, LostPartsPoly(PartMPI%MyRank), MPI_INTEGER, &
+              RecBuffPoly, LostPartsPoly, DisplacePoly, MPI_INTEGER, PartMPI%COMM, IERROR)
+          IF (DSMC%ElectronicModel.EQ.2)   CALL MPI_ALLGATHERV(SendBuffElec, LostPartsElec(PartMPI%MyRank), MPI_INTEGER, &
               RecBuffElec, LostPartsElec, DisplaceElec, MPI_DOUBLE_PRECISION, PartMPI%COMM, IERROR)
-        IF(useDSMC.AND.DSMC%DoAmbipolarDiff) &
-         CALL MPI_ALLGATHERV(SendBuffAmbi, LostPartsAmbi(PartMPI%MyRank), MPI_INTEGER, & 
+          IF (DSMC%DoAmbipolarDiff)        CALL MPI_ALLGATHERV(SendBuffAmbi, LostPartsAmbi(PartMPI%MyRank), MPI_INTEGER, &
               RecBuffAmbi, LostPartsAmbi, DisplaceAmbi, MPI_DOUBLE_PRECISION, PartMPI%COMM, IERROR)
+        END IF
+
+        ! Keep track which particles are found on the current proc
+        ALLOCATE(IndexOfFoundParticles        (SUM(TotalNbrOfMissingParticles)))
+        IF (MPIRoot) THEN
+          ALLOCATE(CompleteIndexOfFoundParticles(SUM(TotalNbrOfMissingParticles)))
+        END IF ! MPIRoot
+        IndexOfFoundParticles = 0
+
         ! Add them to particle list and check if they are in MyProcs domain
         NbrOfFoundParts = 0
         CurrentPartNum  = PDM%ParticleVecLength+1
-        NbrOfMissingParticles = 0
         CounterPoly = 0
         CounterElec = 0
         CounterAmbi = 0
+
         DO i = 1, SUM(TotalNbrOfMissingParticles)
-          PartState(1:6,CurrentPartNum) = RecBuff(NbrOfMissingParticles+1:NbrOfMissingParticles+6)
+          PartState(1:6,CurrentPartNum) = RecBuff(i,1:6)
           PDM%ParticleInside(CurrentPartNum) = .true.
+
           CALL LocateParticleInElement(CurrentPartNum,doHALO=.FALSE.)
           IF (PDM%ParticleInside(CurrentPartNum)) THEN
             PEM%LastGlobalElemID(CurrentPartNum) = PEM%GlobalElemID(CurrentPartNum)
-!            NbrOfMissingParticles = NbrOfMissingParticles + 1
 
             ! Set particle properties (if the particle is lost, it's properties are written to a .h5 file)
-            PartSpecies(CurrentPartNum) = INT(RecBuff(NbrOfMissingParticles+7))
+            PartSpecies(CurrentPartNum) = INT(RecBuff(i,7))
             IF (useDSMC) THEN
               IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel.GT.0)) THEN
-                PartStateIntEn(1,CurrentPartNum) = RecBuff(NbrOfMissingParticles+8)
-                PartStateIntEn(2,CurrentPartNum) = RecBuff(NbrOfMissingParticles+9)
-                PartStateIntEn(3,CurrentPartNum) = RecBuff(NbrOfMissingParticles+11)
-                PartMPF(CurrentPartNum)          = RecBuff(NbrOfMissingParticles+10)
+                PartStateIntEn(1,CurrentPartNum) = RecBuff(i,8)
+                PartStateIntEn(2,CurrentPartNum) = RecBuff(i,9)
+                PartStateIntEn(3,CurrentPartNum) = RecBuff(i,11)
+                PartMPF(CurrentPartNum)          = RecBuff(i,10)
               ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-                PartStateIntEn(1,CurrentPartNum) = RecBuff(NbrOfMissingParticles+8)
-                PartStateIntEn(2,CurrentPartNum) = RecBuff(NbrOfMissingParticles+9)
-                PartMPF(CurrentPartNum)          = RecBuff(NbrOfMissingParticles+10)
+                PartStateIntEn(1,CurrentPartNum) = RecBuff(i,8)
+                PartStateIntEn(2,CurrentPartNum) = RecBuff(i,9)
+                PartMPF(CurrentPartNum)          = RecBuff(i,10)
               ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel.GT.0)) THEN
-                PartStateIntEn(1,CurrentPartNum) = RecBuff(NbrOfMissingParticles+8)
-                PartStateIntEn(2,CurrentPartNum) = RecBuff(NbrOfMissingParticles+9)
-                PartStateIntEn(3,CurrentPartNum) = RecBuff(NbrOfMissingParticles+10)
+                PartStateIntEn(1,CurrentPartNum) = RecBuff(i,8)
+                PartStateIntEn(2,CurrentPartNum) = RecBuff(i,9)
+                PartStateIntEn(3,CurrentPartNum) = RecBuff(i,10)
               ELSE IF (CollisMode.GT.1) THEN
-                PartStateIntEn(1,CurrentPartNum) = RecBuff(NbrOfMissingParticles+8)
-                PartStateIntEn(2,CurrentPartNum) = RecBuff(NbrOfMissingParticles+9)
+                PartStateIntEn(1,CurrentPartNum) = RecBuff(i,8)
+                PartStateIntEn(2,CurrentPartNum) = RecBuff(i,9)
               ELSE IF (usevMPF) THEN
-                PartMPF(CurrentPartNum)          = RecBuff(NbrOfMissingParticles+8)
+                PartMPF(CurrentPartNum)          = RecBuff(i,8)
               END IF
             ELSE IF (usevMPF) THEN
-              PartMPF(CurrentPartNum)          = RecBuff(NbrOfMissingParticles+8)
+              PartMPF(CurrentPartNum)          = RecBuff(i,8)
             END IF
             NbrOfFoundParts = NbrOfFoundParts + 1
+
             ! Check if particle was found inside of an element
-            IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-              IF(SpecDSMC(PartSpecies(CurrentPartNum))%PolyatomicMol) THEN
-                iPolyatMole = SpecDSMC(PartSpecies(CurrentPartNum))%SpecToPolyArray
-                IF(ALLOCATED(VibQuantsPar(CurrentPartNum)%Quants)) DEALLOCATE(VibQuantsPar(CurrentPartNum)%Quants)
-                ALLOCATE(VibQuantsPar(CurrentPartNum)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-                VibQuantsPar(CurrentPartNum)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF) &
-                    = RecBuffPoly(CounterPoly+1:CounterPoly+PolyatomMolDSMC(iPolyatMole)%VibDOF)
-                CounterPoly = CounterPoly + PolyatomMolDSMC(iPolyatMole)%VibDOF
+            IF (useDSMC) THEN
+              IF (DSMC%NumPolyatomMolecs.GT.0) THEN
+                IF(SpecDSMC(PartSpecies(CurrentPartNum))%PolyatomicMol) THEN
+                  iPolyatMole = SpecDSMC(PartSpecies(CurrentPartNum))%SpecToPolyArray
+                  SDEALLOCATE(VibQuantsPar(CurrentPartNum)%Quants)
+                  ALLOCATE(VibQuantsPar(CurrentPartNum)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+                  VibQuantsPar(CurrentPartNum)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF) &
+                      = RecBuffPoly(CounterPoly+1:CounterPoly+PolyatomMolDSMC(iPolyatMole)%VibDOF)
+                  CounterPoly = CounterPoly + PolyatomMolDSMC(iPolyatMole)%VibDOF
+                END IF
               END IF
-            END IF
-            IF(useDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
-              IF (.NOT.((SpecDSMC(PartSpecies(CurrentPartNum))%InterID.EQ.4) & 
-                  .OR.SpecDSMC(PartSpecies(CurrentPartNum))%FullyIonized)) THEN
-                IF(ALLOCATED(ElectronicDistriPart(CurrentPartNum)%DistriFunc)) &  
-                  DEALLOCATE(ElectronicDistriPart(CurrentPartNum)%DistriFunc)
-                ALLOCATE(ElectronicDistriPart(CurrentPartNum)%DistriFunc(1:SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant))
-                ElectronicDistriPart(CurrentPartNum)%DistriFunc(1:SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant)= &
-                  RecBuffElec(CounterElec+1:CounterElec+SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant)
-                CounterElec = CounterElec +SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant
+              IF (DSMC%ElectronicModel.EQ.2) THEN
+                IF (.NOT.((SpecDSMC(PartSpecies(CurrentPartNum))%InterID.EQ.4) &
+                    .OR.SpecDSMC(PartSpecies(CurrentPartNum))%FullyIonized)) THEN
+                  SDEALLOCATE(ElectronicDistriPart(CurrentPartNum)%DistriFunc)
+                  ALLOCATE(ElectronicDistriPart(CurrentPartNum)%DistriFunc(1:SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant))
+                  ElectronicDistriPart(CurrentPartNum)%DistriFunc(1:SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant)= &
+                    RecBuffElec(CounterElec+1:CounterElec+SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant)
+                  CounterElec = CounterElec +SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant
+                END IF
               END IF
-            END IF
-            IF(useDSMC.AND.DSMC%DoAmbipolarDiff)  THEN
-              IF (Species(PartSpecies(CurrentPartNum))%ChargeIC.GT.0.0) THEN
-                IF(ALLOCATED(AmbipolElecVelo(CurrentPartNum)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(CurrentPartNum)%ElecVelo)
-                ALLOCATE(AmbipolElecVelo(CurrentPartNum)%ElecVelo(1:3))
-                AmbipolElecVelo(CurrentPartNum)%ElecVelo(1:3)= RecBuffAmbi(CounterAmbi+1:CounterAmbi+3)
-                CounterAmbi = CounterAmbi + 3
+              IF (DSMC%DoAmbipolarDiff) THEN
+                IF (Species(PartSpecies(CurrentPartNum))%ChargeIC.GT.0.0) THEN
+                  SDEALLOCATE(AmbipolElecVelo(CurrentPartNum)%ElecVelo)
+                  ALLOCATE(AmbipolElecVelo(CurrentPartNum)%ElecVelo(1:3))
+                  AmbipolElecVelo(CurrentPartNum)%ElecVelo(1:3)= RecBuffAmbi(CounterAmbi+1:CounterAmbi+3)
+                  CounterAmbi = CounterAmbi + 3
+                END IF
               END IF
             END IF
             CurrentPartNum = CurrentPartNum + 1
-          ELSE ! Particle could not be found and is therefore lost
-            ! Save particle properties for writing to a .h5 file
-!             This call makes no sense here! EVERY proc gets the particle, so only one can find it in the first place
-!            IF(CountNbrOfLostParts) CALL StoreLostParticleProperties(CurrentPartNum, PEM%GlobalElemID(CurrentPartNum), UsePartState_opt=.TRUE.)
           END IF
-          NbrOfMissingParticles = NbrOfMissingParticles + PartDataSize
+          NbrOfMissingParticles = NbrOfMissingParticles + 1
         END DO ! i = 1, SUM(TotalNbrOfMissingParticles)
+
         PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfFoundParts
-        ! Combine number of found particles to make sure none are lost completely
-        CALL MPI_ALLREDUCE(NbrOfFoundParts, CompleteNbrOfFound, 1, MPI_INTEGER, MPI_SUM, PartMPI%COMM, IERROR)
-        ! Add to NbrOfLostParticlesTotal (not nullified during load balance step + restart)
-        NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + SUM(TotalNbrOfMissingParticles)-CompleteNbrOfFound
-        SWRITE(UNIT_stdOut,*) SUM(TotalNbrOfMissingParticles),'were not in the correct proc after restart.'
-        SWRITE(UNIT_stdOut,*) CompleteNbrOfFound,'of these were found in other procs.'
-        SWRITE(UNIT_stdOut,*) NbrOfLostParticlesTotal,'were not found and have been removed.'
-!        SWRITE(UNIT_stdOut,*)'The lost particles have been written to PartStateLost*.h5.'
-!        SWRITE(UNIT_stdOut,*)'Note that also missing particles will be written to that file and '//&
-!                             'it will therefore contain a mix of missing and lost particles.'
+
+        ! Combine number of found particles to make sure none are lost completely or found twice
+        IF(MPIroot)THEN
+          CALL MPI_REDUCE(IndexOfFoundParticles,CompleteIndexOfFoundParticles,SUM(TotalNbrOfMissingParticles),MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+        ELSE
+          CALL MPI_REDUCE(IndexOfFoundParticles,0                            ,SUM(TotalNbrOfMissingParticles),MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+        END IF
+
+        ! Check if particle are not found or found twice
+        CompleteNbrOfFound      = 0
+        CompleteNbrOfLost       = 0
+        CompleteNbrOfDuplicate  = 0
+        IF (MPIRoot) THEN
+          DO iPart = 1,SUM(TotalNbrOfMissingParticles)
+            IF    (CompleteIndexOfFoundParticles(iPart).EQ.0) THEN
+              CompleteNbrOfLost       = CompleteNbrOfLost      + 1
+            ELSEIF(CompleteIndexOfFoundParticles(iPart).EQ.0) THEN
+              CompleteNbrOfFound      = CompleteNbrOfFound     + 1
+            ELSE
+              CompleteNbrOfDuplicate  = CompleteNbrOfDuplicate + 1
+            END IF
+          END DO
+
+          WRITE(UNIT_stdOut,'(A,I0)') 'Particles initially lost during restart :',SUM(TotalNbrOfMissingParticles)
+          WRITE(UNIT_stdOut,'(A,I0)') 'Number of particles found on other procs:',CompleteNbrOfFound
+          WRITE(UNIT_stdOut,'(A,I0)') 'Number of particles permanently lost    :',CompleteNbrOfLost
+          WRITE(UNIT_stdOut,'(A,I0)') 'Number of particles found multiple times:',CompleteNbrOfDuplicate
+
+          DEALLOCATE(CompleteIndexOfFoundParticles)
+
+          ! Now root can write out the state of every initially missing particle
+          ! IF(CountNbrOfLostParts) CALL StoreLostParticleProperties(CurrentPartNum, PEM%GlobalElemID(CurrentPartNum), UsePartState_opt=.TRUE.)
+        END IF ! MPIRoot
+
       END IF ! SUM(TotalNbrOfMissingParticles).GT.0
 #else /*not USE_MPI*/
-      ! Don't add to NbrOfLostParticlesTota because load balance step + restart is not possible for single execution
-      NbrOfLostParticlesTotal=NbrOfLostParticles
-      IF (NbrOfMissingParticles.NE.0) WRITE(*,*) NbrOfMissingParticles,'Particles are in different element after restart!'
-      IF (NbrOfLostParticles   .NE.0) THEN
-        WRITE(UNIT_stdOut,*) NbrOfLostParticlesTotal,' could not be found and have been removed!.'
-        WRITE(UNIT_stdOut,*)'The lost particles have been written to PartStateLost*.h5.'
-      END IF ! NbrOfLostParticles.NE.0
+      WRITE(UNIT_stdOut,'(A,I0)') 'Particles initially lost during restart :',NbrOfMissingParticles
+      WRITE(UNIT_stdOut,'(A,I0)') 'Number of particles permanently lost    :',NbrOfLostParticles
 #endif /*USE_MPI*/
 
       CALL UpdateNextFreePosition()
@@ -1516,7 +1552,7 @@ IF(ClonePartNum.GT.0) THEN
         END IF
         IF (UseDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
           IF (.NOT.((SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%InterID.EQ.4) &
-              .OR.SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%FullyIonized)) THEN 
+              .OR.SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%FullyIonized)) THEN
             ALLOCATE(ClonedParticles(pcount(iDelay),iDelay)%DistriFunc( &
                     1:SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%MaxElecQuant))
             ClonedParticles(pcount(iDelay),iDelay)%DistriFunc(1:SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%MaxElecQuant) &
@@ -1524,7 +1560,7 @@ IF(ClonePartNum.GT.0) THEN
           END IF
         END IF
         IF (UseDSMC.AND.DSMC%DoAmbipolarDiff)  THEN
-          IF (Species(ClonedParticles(pcount(iDelay),iDelay)%Species)%ChargeIC.GT.0.0) THEN      
+          IF (Species(ClonedParticles(pcount(iDelay),iDelay)%Species)%ChargeIC.GT.0.0) THEN
             ALLOCATE(ClonedParticles(pcount(iDelay),iDelay)%AmbiPolVelo(1:3))
             ClonedParticles(pcount(iDelay),iDelay)%AmbiPolVelo(1:3) = AD_Data(1:3,iPart)
           END IF
