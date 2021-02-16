@@ -274,7 +274,7 @@ ELSE
         PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
       END IF
     ELSE
-          CALL ABORT(__STAMP__,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
+      CALL ABORT(__STAMP__,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
     END IF
   END DO
 #if USE_MPI
