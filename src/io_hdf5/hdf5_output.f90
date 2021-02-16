@@ -89,6 +89,7 @@ USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5, PartBound
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts,NbrOfLostParticlesTotal,TotalNbrOfMissingParticlesSum
+USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticlesTotal_old
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Analyze_Vars  ,ONLY: nSpecAnalyze
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
@@ -192,12 +193,13 @@ ELSE
 END IF
 
 #ifdef PARTICLES
-! Output lost particles
-IPWRITE(UNIT_StdOut,*) "CountNbrOfLostParts           =", CountNbrOfLostParts
-IPWRITE(UNIT_StdOut,*) "NbrOfLostParticlesTotal       =", NbrOfLostParticlesTotal
-IPWRITE(UNIT_StdOut,*) "TotalNbrOfMissingParticlesSum =", TotalNbrOfMissingParticlesSum
-IF(CountNbrOfLostParts.AND.(NbrOfLostParticlesTotal.GT.0.OR.TotalNbrOfMissingParticlesSum.GT.0)) &
+! Output lost particles if 1. lost during simulation     : NbrOfLostParticlesTotal-NbrOfLostParticlesTotal_old > 0
+!                          2. went missing during restart: TotalNbrOfMissingParticlesSum > 0
+IF(CountNbrOfLostParts)THEN
+  IF((NbrOfLostParticlesTotal-NbrOfLostParticlesTotal_old.GT.0).OR.(TotalNbrOfMissingParticlesSum.GT.0))THEN
    CALL WriteLostParticlesToHDF5(MeshFileName,OutputTime_loc)
+  END IF ! (NbrOfLostParticlesTotal-NbrOfLostParticlesTotal_old.GT.0).OR.(TotalNbrOfMissingParticlesSum.GT.0)
+END IF
 ! Output total number of particles here, if DoWriteStateToHDF5=F. Otherwise the info will be displayed at the end of this routine
 IF(.NOT.DoWriteStateToHDF5)THEN
   ! Check if the total number of particles has already been determined
@@ -1814,6 +1816,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartLostDataSize,PartStateLostVecLength,NbrOfLostParticles,NbrOfLostParticlesTotal
+USE MOD_Particle_Tracking_Vars ,ONLY: TotalNbrOfMissingParticlesSum
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart2
 #if USE_MPI
@@ -1920,6 +1923,12 @@ DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
   PartData(13,iPart)=PartStateLost(13,pcount)
   PartData(14,iPart)=PartStateLost(14,pcount)
 
+  ! myrank
+  PartData(15,iPart)=PartStateLost(15,pcount)
+
+  ! MissingType
+  PartData(16,iPart)=PartStateLost(16,pcount)
+
   pcount = pcount +1
 END DO ! iPart=offsetnPart+1_IK,offsetnPart+locnPart
 
@@ -1954,6 +1963,8 @@ ASSOCIATE (&
   StrVarNames2(12)  = 'ParticlePositionX'
   StrVarNames2(13)  = 'ParticlePositionY'
   StrVarNames2(14)  = 'ParticlePositionZ'
+  StrVarNames2(15)  = 'MyRank'
+  StrVarNames2(16)  = 'MissingType'
 
   IF(MPIRoot)THEN
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
@@ -1999,7 +2010,8 @@ DEALLOCATE(PartData)
 
 ! Nullify and reset lost parts container after write out
 PartStateLostVecLength  = 0
-NbrOfLostParticles      = 0 ! only reset local counter
+NbrOfLostParticles      = 0 ! only reset local counter but not the global counter (all procs)
+TotalNbrOfMissingParticlesSum = 0 ! reset missing particle counter (only required during restart) after writing to .h5
 
 ! Re-allocate PartStateLost for a small number of particles and double the array size each time the maximum is reached
 DEALLOCATE(PartStateLost)
