@@ -85,18 +85,21 @@ SUBROUTINE InitRestart()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars       ,ONLY: FileVersionHDF5
+USE MOD_Globals_Vars           ,ONLY: FileVersionHDF5
 USE MOD_PreProc
-USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETSTR
+USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR
 #if USE_LOADBALANCE
-USE MOD_ReadInTools        ,ONLY: GETINT
-USE MOD_LoadBalance_Vars   ,ONLY: LoadBalanceSample
-USE MOD_ReadInTools        ,ONLY: PrintOption
+USE MOD_ReadInTools            ,ONLY: GETINT
+USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample
+USE MOD_ReadInTools            ,ONLY: PrintOption
 #endif /*USE_LOADBALANCE*/
-USE MOD_Interpolation_Vars ,ONLY: xGP,InterpolationInitIsDone
+USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
 USE MOD_Restart_Vars
-USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
-USE MOD_HDF5_Input         ,ONLY: DatasetExists
+USE MOD_HDF5_Input             ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
+USE MOD_HDF5_Input             ,ONLY: DatasetExists
+#ifdef PARTICLES
+USE MOD_Particle_Tracking_Vars ,ONLY: TotalNbrOfMissingParticlesSum
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -122,6 +125,11 @@ END IF
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT RESTART...'
+
+#ifdef PARTICLES
+! Set counter for particle that go missing during restart (if they are not located within their host element during restart)
+TotalNbrOfMissingParticlesSum = 0
+#endif /*PARTICLES*/
 
 ! Set the DG solution to zero (ignore the DG solution in the state file)
 RestartNullifySolution = GETLOGICAL('RestartNullifySolution','F')
@@ -317,11 +325,9 @@ USE MOD_Eval_XYZ               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,NbrOfLostParticles
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,NbrOfLostParticles,CountNbrOfLostParts
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
-#if !(USE_MPI)
-USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts
-#endif /*!(USE_MPI)*/
+USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticlesTotal,TotalNbrOfMissingParticlesSum
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
@@ -1105,10 +1111,13 @@ IF(DoRestart)THEN
         IF (DSMC%DoAmbipolarDiff)        CALL MPI_ALLGATHER(CounterAmbi, 1, MPI_INTEGER, LostPartsAmbi, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
       END IF
 
+      !TotalNbrOfMissingParticlesSum = SUM(INT(TotalNbrOfMissingParticles,8))
+      TotalNbrOfMissingParticlesSum = SUM(TotalNbrOfMissingParticles)
+
       ! Check total number of missing particles and start re-locating them on other procs
-      IF (SUM(TotalNbrOfMissingParticles).GT.0) THEN
-        ALLOCATE(SendBuff(1:NbrOfLostParticles             ,PartDataSize))
-        ALLOCATE(RecBuff( 1:SUM(TotalNbrOfMissingParticles),PartDataSize))
+      IF (TotalNbrOfMissingParticlesSum.GT.0) THEN
+        ALLOCATE(SendBuff(1:NbrOfLostParticles           ,PartDataSize))
+        ALLOCATE(RecBuff( 1:TotalNbrOfMissingParticlesSum,PartDataSize))
         IF (useDSMC) THEN
           IF (DSMC%NumPolyatomMolecs.GT.0) THEN
             ALLOCATE(SendBuffPoly(1:CounterPoly))
@@ -1223,9 +1232,9 @@ IF(DoRestart)THEN
         END IF
 
         ! Keep track which particles are found on the current proc
-        ALLOCATE(IndexOfFoundParticles        (SUM(TotalNbrOfMissingParticles)))
+        ALLOCATE(IndexOfFoundParticles          (TotalNbrOfMissingParticlesSum))
         IF (MPIRoot) THEN
-          ALLOCATE(CompleteIndexOfFoundParticles(SUM(TotalNbrOfMissingParticles)))
+          ALLOCATE(CompleteIndexOfFoundParticles(TotalNbrOfMissingParticlesSum))
         END IF ! MPIRoot
         IndexOfFoundParticles = 0
 
@@ -1236,7 +1245,7 @@ IF(DoRestart)THEN
         CounterElec = 0
         CounterAmbi = 0
 
-        DO i = 1, SUM(TotalNbrOfMissingParticles)
+        DO i = 1, TotalNbrOfMissingParticlesSum
           PartState(1:6,CurrentPartNum) = RecBuff(i,1:6)
           PDM%ParticleInside(CurrentPartNum) = .true.
 
@@ -1302,48 +1311,67 @@ IF(DoRestart)THEN
                 END IF
               END IF
             END IF
+
             CurrentPartNum = CurrentPartNum + 1
           END IF
           NbrOfMissingParticles = NbrOfMissingParticles + 1
-        END DO ! i = 1, SUM(TotalNbrOfMissingParticles)
+        END DO ! i = 1, TotalNbrOfMissingParticlesSum
 
         PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfFoundParts
 
         ! Combine number of found particles to make sure none are lost completely or found twice
         IF(MPIroot)THEN
-          CALL MPI_REDUCE(IndexOfFoundParticles,CompleteIndexOfFoundParticles,SUM(TotalNbrOfMissingParticles),MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+          CALL MPI_REDUCE(IndexOfFoundParticles,CompleteIndexOfFoundParticles,TotalNbrOfMissingParticlesSum,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
         ELSE
-          CALL MPI_REDUCE(IndexOfFoundParticles,0                            ,SUM(TotalNbrOfMissingParticles),MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+          CALL MPI_REDUCE(IndexOfFoundParticles,0                            ,TotalNbrOfMissingParticlesSum,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
         END IF
 
-        ! Check if particle are not found or found twice
         CompleteNbrOfFound      = 0
         CompleteNbrOfLost       = 0
         CompleteNbrOfDuplicate  = 0
+        ! Only mpi root: Check if particle are not found or found twice
         IF (MPIRoot) THEN
-          DO iPart = 1,SUM(TotalNbrOfMissingParticles)
-            IF    (CompleteIndexOfFoundParticles(iPart).EQ.0) THEN
+          DO iPart = 1,TotalNbrOfMissingParticlesSum
+            IF    (CompleteIndexOfFoundParticles(iPart).EQ.0) THEN ! permanently lost
               CompleteNbrOfLost       = CompleteNbrOfLost      + 1
-            ELSEIF(CompleteIndexOfFoundParticles(iPart).EQ.0) THEN
+            ELSEIF(CompleteIndexOfFoundParticles(iPart).EQ.1) THEN ! lost and found on one other processor
               CompleteNbrOfFound      = CompleteNbrOfFound     + 1
-            ELSE
+            ELSE ! lost and found multiple times on other processors
               CompleteNbrOfDuplicate  = CompleteNbrOfDuplicate + 1
             END IF
+
+            ! Store the particle info
+            IF(CountNbrOfLostParts)THEN
+              CurrentPartNum = PDM%ParticleVecLength+1
+
+              ! Set properties of the "virtual" particle (only for using the routine StoreLostParticleProperties to store this info
+              ! in the .h5 container)
+              PartState(1:6,CurrentPartNum)        = RecBuff(i,1:6)
+              PartSpecies(CurrentPartNum)          = INT(RecBuff(i,7))
+              PEM%LastGlobalElemID(CurrentPartNum) = -1
+              PDM%ParticleInside(CurrentPartNum)   = .FALSE.
+              PartMPF(CurrentPartNum)              = RecBuff(i,8)
+
+              CALL StoreLostParticleProperties(CurrentPartNum, PEM%GlobalElemID(CurrentPartNum), &
+                                               UsePartState_opt=.TRUE., PartMissingType_opt=CompleteIndexOfFoundParticles(iPart))
+            END IF ! CountNbrOfLostParts
           END DO
 
-          WRITE(UNIT_stdOut,'(A,I0)') 'Particles initially lost during restart :',SUM(TotalNbrOfMissingParticles)
+          WRITE(UNIT_stdOut,'(A,I0)') 'Particles initially lost during restart :',TotalNbrOfMissingParticlesSum
           WRITE(UNIT_stdOut,'(A,I0)') 'Number of particles found on other procs:',CompleteNbrOfFound
           WRITE(UNIT_stdOut,'(A,I0)') 'Number of particles permanently lost    :',CompleteNbrOfLost
           WRITE(UNIT_stdOut,'(A,I0)') 'Number of particles found multiple times:',CompleteNbrOfDuplicate
+          NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + CompleteNbrOfLost
 
           DEALLOCATE(CompleteIndexOfFoundParticles)
 
-          ! Now root can write out the state of every initially missing particle
-          ! IF(CountNbrOfLostParts) CALL StoreLostParticleProperties(CurrentPartNum, PEM%GlobalElemID(CurrentPartNum), UsePartState_opt=.TRUE.)
         END IF ! MPIRoot
+        CALL MPI_BCAST(NbrOfLostParticlesTotal,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
 
-      END IF ! SUM(TotalNbrOfMissingParticles).GT.0
+      END IF ! TotalNbrOfMissingParticlesSum.GT.0
 #else /*not USE_MPI*/
+      NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + NbrOfLostParticles
+      TotalNbrOfMissingParticlesSum = NbrOfMissingParticles
       WRITE(UNIT_stdOut,'(A,I0)') 'Particles initially lost during restart :',NbrOfMissingParticles
       WRITE(UNIT_stdOut,'(A,I0)') 'Number of particles permanently lost    :',NbrOfLostParticles
 #endif /*USE_MPI*/

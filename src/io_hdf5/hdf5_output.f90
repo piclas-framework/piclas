@@ -88,7 +88,7 @@ USE MOD_Particle_Vars          ,ONLY: UseAdaptive
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5, PartBound
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts,NbrOfLostParticlesTotal
+USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts,NbrOfLostParticlesTotal,TotalNbrOfMissingParticlesSum
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Analyze_Vars  ,ONLY: nSpecAnalyze
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
@@ -193,7 +193,11 @@ END IF
 
 #ifdef PARTICLES
 ! Output lost particles
-IF(CountNbrOfLostParts.AND.(NbrOfLostParticlesTotal.GT.0)) CALL WriteLostParticlesToHDF5(MeshFileName,OutputTime_loc)
+IPWRITE(UNIT_StdOut,*) "CountNbrOfLostParts           =", CountNbrOfLostParts
+IPWRITE(UNIT_StdOut,*) "NbrOfLostParticlesTotal       =", NbrOfLostParticlesTotal
+IPWRITE(UNIT_StdOut,*) "TotalNbrOfMissingParticlesSum =", TotalNbrOfMissingParticlesSum
+IF(CountNbrOfLostParts.AND.(NbrOfLostParticlesTotal.GT.0.OR.TotalNbrOfMissingParticlesSum.GT.0)) &
+   CALL WriteLostParticlesToHDF5(MeshFileName,OutputTime_loc)
 ! Output total number of particles here, if DoWriteStateToHDF5=F. Otherwise the info will be displayed at the end of this routine
 IF(.NOT.DoWriteStateToHDF5)THEN
   ! Check if the total number of particles has already been determined
@@ -1809,7 +1813,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Globals_Vars           ,ONLY: ProjectName
-USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartStateLostVecLength,NbrOfLostParticles,NbrOfLostParticlesTotal
+USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartLostDataSize,PartStateLostVecLength,NbrOfLostParticles,NbrOfLostParticlesTotal
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart2
 #if USE_MPI
@@ -1836,7 +1840,6 @@ INTEGER                        :: pcount
 INTEGER(KIND=IK)               :: locnPart,offsetnPart
 INTEGER(KIND=IK)               :: iPart,nPart_glob
 REAL,ALLOCATABLE               :: PartData(:,:)
-INTEGER                        :: PartDataSize       !number of entries in each line of PartData
 INTEGER(KIND=IK)               :: locnPart_max
 CHARACTER(LEN=255)             :: FileName
 INTEGER                        :: ALLOCSTAT
@@ -1861,19 +1864,6 @@ IF(MPIRoot) CALL GenerateFileSkeleton('PartStateLost',PP_nVar,StrVarNames,MeshFi
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
 
-! 3xPos (LastPartPos) [m], 3xvelo [m/s], species [-]
-PartDataSize = 7
-! MPF [-]
-PartDataSize = PartDataSize + 1
-! time [s]
-PartDataSize = PartDataSize + 1
-! ElemID [-]
-PartDataSize = PartDataSize + 1
-! PartID [-]
-PartDataSize = PartDataSize + 1
-! PartPos/PartState [-]
-PartDataSize = PartDataSize + 3
-
 ! Set number of local particles
 locnPart = INT(PartStateLostVecLength,IK)
 
@@ -1894,7 +1884,8 @@ offsetnPart  = 0_IK
 nPart_glob   = locnPart
 locnPart_max = locnPart
 #endif
-ALLOCATE(PartData(INT(PartDataSize,IK),offsetnPart+1_IK:offsetnPart+locnPart), STAT=ALLOCSTAT)
+
+ALLOCATE(PartData(INT(PartLostDataSize,IK),offsetnPart+1_IK:offsetnPart+locnPart), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
     ,'ERROR in hdf5_output.f90: Cannot allocate PartData array for writing lost particle data to .h5!')
@@ -1942,13 +1933,13 @@ END IF
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-      nGlobalElems => INT(nGlobalElems,IK) ,&
-      nVar         => INT(nVar,IK)         ,&
-      PP_nElems    => INT(PP_nElems,IK)    ,&
-      offsetElem   => INT(offsetElem,IK)   ,&
-      PartDataSize => INT(PartDataSize,IK) )
+      nGlobalElems     => INT(nGlobalElems,IK) ,&
+      nVar             => INT(nVar,IK)         ,&
+      PP_nElems        => INT(PP_nElems,IK)    ,&
+      offsetElem       => INT(offsetElem,IK)   ,&
+      PartLostDataSize => INT(PartLostDataSize,IK) )
 
-  ALLOCATE(StrVarNames2(PartDataSize))
+  ALLOCATE(StrVarNames2(PartLostDataSize))
   StrVarNames2(1)  = 'LastPartPosX'
   StrVarNames2(2)  = 'LastPartPosY'
   StrVarNames2(3)  = 'LastPartPosZ'
@@ -1966,36 +1957,36 @@ ASSOCIATE (&
 
   IF(MPIRoot)THEN
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    CALL WriteAttributeToHDF5(File_ID,'VarNamesParticles',INT(PartDataSize,4),StrArray=StrVarNames2)
+    CALL WriteAttributeToHDF5(File_ID,'VarNamesParticles',INT(PartLostDataSize,4),StrArray=StrVarNames2)
     CALL CloseDataFile()
   END IF
 
   IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
     IF(MPIRoot)THEN ! only root writes the container
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-      CALL WriteArrayToHDF5(DataSetName='PartData'     , rank=2              , &
-                            nValGlobal=(/ PartDataSize , nPart_glob  /)      , &
-                            nVal=      (/ PartDataSize , locnPart    /)      , &
-                            offset=    (/ 0_IK         , offsetnPart /)      , &
-                            collective=.FALSE.         , RealArray=PartData)
+      CALL WriteArrayToHDF5(DataSetName='PartData'         , rank=2              , &
+                            nValGlobal=(/ PartLostDataSize , nPart_glob  /)      , &
+                            nVal=      (/ PartLostDataSize , locnPart    /)      , &
+                            offset=    (/ 0_IK             , offsetnPart /)      , &
+                            collective=.FALSE.             , RealArray=PartData)
       CALL CloseDataFile()
     END IF !MPIRoot
   END IF !locnPart_max.EQ.0
 #if USE_MPI
-  CALL DistributedWriteArray(FileName                       , &
-                             DataSetName  = 'PartData'      , rank = 2              , &
-                             nValGlobal   = (/ PartDataSize , nPart_glob  /)        , &
-                             nVal         = (/ PartDataSize , locnPart    /)        , &
-                             offset       = (/ 0_IK         , offsetnPart /)        , &
-                             collective   = .FALSE.         , offSetDim = 2         , &
-                             communicator = PartMPI%COMM    , RealArray = PartData)
+  CALL DistributedWriteArray(FileName                           , &
+                             DataSetName  = 'PartData'          , rank = 2              , &
+                             nValGlobal   = (/ PartLostDataSize , nPart_glob  /)        , &
+                             nVal         = (/ PartLostDataSize , locnPart    /)        , &
+                             offset       = (/ 0_IK             , offsetnPart /)        , &
+                             collective   = .FALSE.             , offSetDim = 2         , &
+                             communicator = PartMPI%COMM        , RealArray = PartData)
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   CALL WriteArrayToHDF5(DataSetName = 'PartData'      , rank = 2              , &
-                        nValGlobal  = (/ PartDataSize , nPart_glob  /)        , &
-                        nVal        = (/ PartDataSize , locnPart    /)        , &
-                        offset      = (/ 0_IK         , offsetnPart /)        , &
-                        collective  = .TRUE.          , RealArray = PartData)
+                        nValGlobal  = (/ PartLostDataSize , nPart_glob  /)        , &
+                        nVal        = (/ PartLostDataSize , locnPart    /)        , &
+                        offset      = (/ 0_IK             , offsetnPart /)        , &
+                        collective  = .TRUE.              , RealArray = PartData)
   CALL CloseDataFile()
 #endif /*USE_MPI*/
 
@@ -2012,7 +2003,7 @@ NbrOfLostParticles      = 0 ! only reset local counter
 
 ! Re-allocate PartStateLost for a small number of particles and double the array size each time the maximum is reached
 DEALLOCATE(PartStateLost)
-ALLOCATE(PartStateLost(1:14,1:10))
+ALLOCATE(PartStateLost(1:PartLostDataSize,1:10))
 PartStateLost=0.
 
 END SUBROUTINE WriteLostParticlesToHDF5

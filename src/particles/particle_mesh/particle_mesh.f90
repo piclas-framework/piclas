@@ -174,7 +174,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierControlPoints3
 USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty
 USE MOD_Particle_Tracking_Vars ,ONLY: MeasureTrackTime,FastPeriodic,CountNbrOfLostParts,CartesianPeriodic
 USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles,NbrOfLostParticlesTotal,NbrOfLostParticlesTotal_old
-USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLostVecLength,PartStateLost
+USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLostVecLength,PartStateLost,PartLostDataSize
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, DisplayLostParticles
 !USE MOD_Particle_Tracking_Vars ,ONLY: WriteTriaDebugMesh
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
@@ -276,7 +276,7 @@ IF(CountNbrOfLostParts)THEN
 
   ! Allocate PartStateLost for a small number of particles and double the array size each time the
   ! maximum is reached
-  ALLOCATE(PartStateLost(1:14,1:10))
+  ALLOCATE(PartStateLost(1:PartLostDataSize,1:10))
   PartStateLost=0.
 END IF ! CountNbrOfLostParts
 NbrOfLostParticles      = 0
