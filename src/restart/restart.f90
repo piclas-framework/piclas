@@ -1106,6 +1106,7 @@ IF(DoRestart)THEN
 #if USE_MPI
       ! Step 2: All particles that are not found within MyProc need to be communicated to the others and located there
       ! Combine number of lost particles of all processes and allocate variables
+      ! Note: Particles that are lost on MyProc are also searched for here again
       CALL MPI_ALLGATHER(NbrOfLostParticles, 1, MPI_INTEGER, TotalNbrOfMissingParticles, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
       IF (useDSMC) THEN
         IF (DSMC%NumPolyatomMolecs.GT.0) CALL MPI_ALLGATHER(CounterPoly, 1, MPI_INTEGER, LostPartsPoly, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
@@ -1252,9 +1253,9 @@ IF(DoRestart)THEN
         IF (MPIRoot) THEN
           ALLOCATE(CompleteIndexOfFoundParticles(TotalNbrOfMissingParticlesSum))
         END IF ! MPIRoot
-        IndexOfFoundParticles = 0
+        IndexOfFoundParticles = -1
 
-        ! Free lost particle positions in local array to make room for missing particles that are tested 
+        ! Free lost particle positions in local array to make room for missing particles that are tested
         CALL UpdateNextFreePosition()
 
         ! Add them to particle list and check if they are in MyProcs domain
@@ -1275,6 +1276,7 @@ IF(DoRestart)THEN
 
           CALL LocateParticleInElement(CurrentPartNum,doHALO=.FALSE.)
           IF (PDM%ParticleInside(CurrentPartNum)) THEN
+            IndexOfFoundParticles(iPart) = 1
             PEM%LastGlobalElemID(CurrentPartNum) = PEM%GlobalElemID(CurrentPartNum)
 
             ! Set particle properties (if the particle is lost, it's properties are written to a .h5 file)
@@ -1337,8 +1339,16 @@ IF(DoRestart)THEN
             END IF
 
             CurrentPartNum = CurrentPartNum + 1
+          ELSE ! Lost
+            IndexOfFoundParticles(iPart) = 0
           END IF
-          NbrOfMissingParticles = NbrOfMissingParticles + 1
+
+          ! Sanity Check
+          IF(IndexOfFoundParticles(iPart).EQ.-1)THEN
+            IPWRITE(UNIT_StdOut,'(I0,A,I0)') " iPart                        : ",  iPart
+            IPWRITE(UNIT_StdOut,'(I0,A,I0)') " IndexOfFoundParticles(iPart) : ",  IndexOfFoundParticles(iPart)
+            CALL abort(__STAMP__,'IndexOfFoundParticles(iPart) was not set correctly)')
+          END IF ! IndexOfFoundParticles(iPart)
         END DO ! iPart = 1, TotalNbrOfMissingParticlesSum
 
         PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfFoundParts
@@ -1381,10 +1391,10 @@ IF(DoRestart)THEN
             END IF ! CountNbrOfLostParts
           END DO
 
-          WRITE(UNIT_stdOut,'(A,I0)') ' Particles initially lost during restart  : ',TotalNbrOfMissingParticlesSum
-          WRITE(UNIT_stdOut,'(A,I0)') ' Number of particles found on other procs : ',CompleteNbrOfFound
-          WRITE(UNIT_stdOut,'(A,I0)') ' Number of particles permanently lost     : ',CompleteNbrOfLost
-          WRITE(UNIT_stdOut,'(A,I0)') ' Number of particles found multiple times : ',CompleteNbrOfDuplicate
+          WRITE(UNIT_stdOut,'(A,I0)') ' Particles initially lost during restart    : ',TotalNbrOfMissingParticlesSum
+          WRITE(UNIT_stdOut,'(A,I0)') ' Number of particles found on (other) procs : ',CompleteNbrOfFound
+          WRITE(UNIT_stdOut,'(A,I0)') ' Number of particles permanently lost       : ',CompleteNbrOfLost
+          WRITE(UNIT_stdOut,'(A,I0)') ' Number of particles found multiple times   : ',CompleteNbrOfDuplicate
           NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + CompleteNbrOfLost
 
           DEALLOCATE(CompleteIndexOfFoundParticles)
@@ -1395,12 +1405,14 @@ IF(DoRestart)THEN
 
       END IF ! TotalNbrOfMissingParticlesSum.GT.0
 #else /*not USE_MPI*/
-      NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + NbrOfLostParticles
-      TotalNbrOfMissingParticlesSum = NbrOfMissingParticles
-      NbrOfLostParticlesTotal_old = NbrOfLostParticlesTotal
-      WRITE(UNIT_stdOut,'(A,I0)') ' Particles initially lost during restart : ',NbrOfMissingParticles
-      WRITE(UNIT_stdOut,'(A,I0)') ' Number of particles permanently lost    : ',NbrOfLostParticles
-      WRITE(UNIT_stdOut,'(A,I0)') ' Number of particles relocated           : ',NbrOfMissingParticles-NbrOfLostParticles
+      IF(NbrOfMissingParticles.GT.0)THEN
+        NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + NbrOfLostParticles
+        TotalNbrOfMissingParticlesSum = NbrOfMissingParticles
+        NbrOfLostParticlesTotal_old = NbrOfLostParticlesTotal
+        WRITE(UNIT_stdOut,'(A,I0)') ' Particles initially lost during restart : ',NbrOfMissingParticles
+        WRITE(UNIT_stdOut,'(A,I0)') ' Number of particles permanently lost    : ',NbrOfLostParticles
+        WRITE(UNIT_stdOut,'(A,I0)') ' Number of particles relocated           : ',NbrOfMissingParticles-NbrOfLostParticles
+      END IF ! NbrOfMissingParticles.GT.0
 #endif /*USE_MPI*/
 
       CALL UpdateNextFreePosition()
