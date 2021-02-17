@@ -574,6 +574,8 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 IF (GEO%nPeriodicVectors.GT.0) CALL CheckPeriodicSides()
 IF (GEO%RotPeriodicBC) CALL CheckRotPeriodicSides()
+CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #else
 !ElemInfo_Shared(ELEM_HALOFLAG,:) = 1
 #endif  /*USE_MPI*/
@@ -730,15 +732,11 @@ END DO ! iBGM
 #if USE_MPI
 ! We might need to expand the halo BGM region
 IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
-  ! Only add non-peri halo elems
   DO iElem = firstHaloElem, lastHaloElem
     ElemID = offsetCNHalo2GlobalElem(iElem)
-    SELECT CASE(TrackingMethod)
-      CASE(TRIATRACKING,TRACING)
-        IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.2) CYCLE
-      CASE(REFMAPPING)
-        IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).LT.2) CYCLE
-    END SELECT
+
+    ! Only add non-peri halo elems
+    IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.2) CYCLE
 
     BGMCellXmin = MAX(ElemToBGM_Shared(1,ElemID),BGMimin)
     BGMCellXmax = MIN(ElemToBGM_Shared(2,ElemID),BGMimax)
@@ -759,6 +757,37 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
       END DO ! jBGM
     END DO ! iBGM
   END DO ! iElem = firstHaloElem, lastHaloElem
+
+  IF (TrackingMethod.EQ.REFMAPPING .AND. GEO%nPeriodicVectors.GT.0) THEN
+    firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
+    lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
+    DO ElemID = firstElem, lastElem
+      ! Only add peri halo elems
+      IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.3) CYCLE
+
+      BGMCellXmin = MAX(ElemToBGM_Shared(1,ElemID),BGMimin)
+      BGMCellXmax = MIN(ElemToBGM_Shared(2,ElemID),BGMimax)
+      BGMCellYmin = MAX(ElemToBGM_Shared(3,ElemID),BGMjmin)
+      BGMCellYmax = MIN(ElemToBGM_Shared(4,ElemID),BGMjmax)
+      BGMCellZmin = MAX(ElemToBGM_Shared(5,ElemID),BGMkmin)
+      BGMCellZmax = MIN(ElemToBGM_Shared(6,ElemID),BGMkmax)
+
+      ! add current Element to BGM-Elem
+      DO kBGM = BGMCellZmin,BGMCellZmax
+        DO jBGM = BGMCellYmin,BGMCellYmax
+          DO iBGM = BGMCellXmin,BGMCellXmax
+            GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
+            IF (FIBGM_Element( FIBGM_offsetElem    (iBGM,jBGM,kBGM)        & ! offset of BGM cell in 1D array
+                         + offsetElemsInBGMCell(iBGM,jBGM,kBGM)        & ! offset of BGM nElems in local proc
+                         + GEO%FIBGM           (iBGM,jBGM,kBGM)%nElem).NE.-1) CALL ABORT(__STAMP__,'Double access')
+            FIBGM_Element( FIBGM_offsetElem    (iBGM,jBGM,kBGM)        & ! offset of BGM cell in 1D array
+                         + offsetElemsInBGMCell(iBGM,jBGM,kBGM)        & ! offset of BGM nElems in local proc
+                         + GEO%FIBGM           (iBGM,jBGM,kBGM)%nElem) = ElemID
+          END DO ! kBGM
+        END DO ! jBGM
+      END DO ! iBGM
+    END DO ! iElem = firstHaloElem, lastHaloElem
+  END IF ! (TrackingMethod.EQ.REFMAPPING .AND. GEO%nPeriodicVectors.GT.0)
 END IF
 #endif  /*USE_MPI*/
 
