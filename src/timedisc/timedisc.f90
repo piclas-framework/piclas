@@ -504,10 +504,11 @@ IF(CountNbrOfLostParts)THEN
   CALL MPI_ALLREDUCE(NbrOfLostParticles , NbrOfLostParticlesTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
   NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + NbrOfLostParticlesTotal_old_tmp ! add old value
 #else
-  NbrOfLostParticlesTotal=NbrOfLostParticles
+  NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + NbrOfLostParticles
 #endif /*USE_MPI*/
 END IF
 #endif /*PARICLES*/
+
 IF(MPIroot)THEN
   ! simulation time per CPUh efficiency in [s]/[CPUh]
   !SimulationEfficiency = (time-RestartTime)/((WallTimeEnd-StartTime)*nProcessors/3600.) ! in [s] / [CPUh]

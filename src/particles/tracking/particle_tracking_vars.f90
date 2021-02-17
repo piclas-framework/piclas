@@ -40,13 +40,16 @@ LOGICAL             :: DisplayLostParticles        ! Display position, velocity,
 !                                                  ! particle tracking (TrackingMethod = triatracking, tracing). Default=F
 LOGICAL             :: CountNbrOfLostParts         ! logical, to count the lost particles
 REAL, ALLOCATABLE   :: PartStateLost(:,:)          ! (1:14,1:NParts) 1st index: LastPartPos-X,LastPartPos-Y,LastPartPos-Z,vx,vy,vz,
-!                                                  !                            SpecID,MPF,time,ElemID,iPart,x,y,z
+!                                                  !                            SpecID,MPF,time,ElemID,iPart,x,y,z,myrank,
+!                                                  !                            missing-type
 !                                                  !                 2nd index: 1 to number of lost particles
+INTEGER,PARAMETER   :: PartLostDataSize=16         ! Number of properties for lost particles
 INTEGER             :: PartStateLostVecLength      ! Number of lost particles for each process
 LOGICAL             :: CartesianPeriodic           ! old periodic for refmapping and ALL bcs periocic
 INTEGER             :: NbrOfLostParticles          ! Counter for lost particle per process
 INTEGER             :: NbrOfLostParticlesTotal     ! Counter for lost particles across all processes
 INTEGER             :: NbrOfLostParticlesTotal_old ! Difference between two Analyze_dt steps
+INTEGER             :: TotalNbrOfMissingParticlesSum ! Global number of missing particles across all processors (lost during restart)
 REAL,ALLOCATABLE    :: Distance(:)                 ! list of distance between particle and element-origin
                                                    ! to all elements in the same background element
 INTEGER,ALLOCATABLE :: ListDistance(:)             ! the corresponding element id
