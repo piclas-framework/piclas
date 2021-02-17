@@ -1266,11 +1266,23 @@ IF(DoRestart)THEN
         CounterAmbi = 0
 
         DO iPart = 1, TotalNbrOfMissingParticlesSum
+          ! Sanity check
           IF(CurrentPartNum.GT.PDM%maxParticleNumber)THEn
             IPWRITE(UNIT_StdOut,'(I0,A,I0)') " CurrentPartNum        = ",  CurrentPartNum
             IPWRITE(UNIT_StdOut,'(I0,A,I0)') " PDM%maxParticleNumber = ",  PDM%maxParticleNumber
             CALL abort(__STAMP__,'Missing particle ID > PDM%maxParticleNumber. Increase Part-MaxParticleNumber!')
           END IF !CurrentPartNum.GT.PDM%maxParticleNumber
+
+          ! Do not search particles twice: Skip my own particles, because these have already been searched for before they are
+          ! sent to all other procs
+          ASSOCIATE( myFirst => OffsetTotalNbrOfMissingParticles(PartMPI%MyRank) + 1 ,&
+                     myLast  => OffsetTotalNbrOfMissingParticles(PartMPI%MyRank) + TotalNbrOfMissingParticles(PartMPI%MyRank))
+            IF((iPart.GE.myFirst).AND.(iPart.LE.myLast))THEN
+              IndexOfFoundParticles(iPart) = 0
+              CYCLE
+            END IF
+          END ASSOCIATE
+
           PartState(1:6,CurrentPartNum) = RecBuff(1:6,iPart)
           PDM%ParticleInside(CurrentPartNum) = .true.
 
