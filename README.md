@@ -1,4 +1,4 @@
-<img src="doc/piclas.png" width="582" height="287">
+<img src="doc/logo.png" width="582" height="287">
 
 # Welcome to PICLas
 
