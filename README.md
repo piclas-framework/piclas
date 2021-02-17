@@ -1,3 +1,5 @@
+<img src="doc/piclas.png" width="582" height="287">
+
 # Welcome to PICLas
 
 The code is licensed under the GNU General Public License V3. The licence can be found in [LICENCE](LICENCE.md) and the list of contributors in [CONTRIBUTORS](CONTRIBUTORS.md).
