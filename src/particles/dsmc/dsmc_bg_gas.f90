@@ -674,6 +674,7 @@ USE MOD_Globals
 USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcMeanFreePath
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, PartStateIntEn, DSMC
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_Particle_Vars          ,ONLY: PEM, PDM, PartSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
 USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
@@ -682,6 +683,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
 USE MOD_part_emission_tools    ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
 USE MOD_DSMC_ChemReact         ,ONLY: PhotoIonization_InsertProducts
+USE MOD_DSMC_AmbipolarDiffusion,ONLY: AD_DeleteParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -701,6 +703,11 @@ NumPhotoIonization = 0
 
 IF(TotalNbrOfReactions.LE.0) RETURN
 TotalNbrOfReactionsTmp = TotalNbrOfReactions
+
+! Ambipolar diffusion (up to four new particles can be produced during a single photo-ionization event)
+newAmbiParts = 0
+IF (ALLOCATED(iPartIndx_NodeNewAmbi)) DEALLOCATE(iPartIndx_NodeNewAmbi)
+ALLOCATE(iPartIndx_NodeNewAmbi(4*TotalNbrOfReactions))
 
 !> 0.) Calculate sum of cross-sections for photoionization
 SumCrossSections = 0.
@@ -756,6 +763,10 @@ iNewPart = 0; iPair = 0
 DO iPart = 1, NbrOfParticle
   ! Loop over the particles with a set position (from SetParticlePosition)
   ParticleIndex = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+  IF (DSMC%DoAmbipolarDiff) THEN
+    newAmbiParts = newAmbiParts + 1
+    iPartIndx_NodeNewAmbi(newAmbiParts) = ParticleIndex
+  END IF
   iNewPart = iNewPart + 1
   ! Get a new index for the second product
   NewParticleIndex = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition+NbrOfParticle)
@@ -763,6 +774,10 @@ DO iPart = 1, NbrOfParticle
     CALL Abort(&
       __STAMP__&
       ,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
+  END IF
+  IF (DSMC%DoAmbipolarDiff) THEN
+    newAmbiParts = newAmbiParts + 1
+    iPartIndx_NodeNewAmbi(newAmbiParts) = NewParticleIndex
   END IF
   PartState(1:3,NewParticleIndex) = PartState(1:3,ParticleIndex)
   IF(DoRefMapping)THEN ! here Nearst-GP is missing
@@ -837,6 +852,11 @@ PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParti
 DSMCSumOfFormedParticles = 0
 
 DEALLOCATE(Coll_pData)
+
+IF (DSMC%DoAmbipolarDiff) THEN
+  ! Every particle created during photo-ionization is stored in the iPartIndx_NodeNewAmbi array, which is treated in the routine
+  CALL AD_DeleteParticles()
+END IF
 
 END SUBROUTINE BGGas_PhotoIonization
 

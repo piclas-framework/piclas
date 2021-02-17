@@ -434,13 +434,14 @@ SUBROUTINE InitialParticleInserting()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Dielectric_Vars     ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
-USE MOD_DSMC_Vars           ,ONLY: useDSMC, DSMC
-USE MOD_Part_Emission_Tools ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
-USE MOD_Part_Pos_and_Velo   ,ONLY: SetParticlePosition,SetParticleVelocity, AD_SetInitElectronVelo
-USE MOD_Part_Tools          ,ONLY: UpdateNextFreePosition
-USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, VarTimeStep
-USE MOD_Restart_Vars        ,ONLY: DoRestart
+USE MOD_Dielectric_Vars         ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, DSMC
+USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
+USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticlePosition,SetParticleVelocity
+USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetInitElectronVelo
+USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition
+USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, VarTimeStep
+USE MOD_Restart_Vars            ,ONLY: DoRestart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
