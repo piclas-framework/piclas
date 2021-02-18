@@ -89,6 +89,7 @@ USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5, PartBound
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts,NbrOfLostParticlesTotal,TotalNbrOfMissingParticlesSum
+USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfNewLostParticlesTotal
 USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticlesTotal_old
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Analyze_Vars  ,ONLY: nSpecAnalyze
@@ -193,12 +194,12 @@ ELSE
 END IF
 
 #ifdef PARTICLES
-! Output lost particles if 1. lost during simulation     : NbrOfLostParticlesTotal-NbrOfLostParticlesTotal_old > 0
+! Output lost particles if 1. lost during simulation     : NbrOfNewLostParticlesTotal > 0
 !                          2. went missing during restart: TotalNbrOfMissingParticlesSum > 0
 IF(CountNbrOfLostParts)THEN
-  IF((NbrOfLostParticlesTotal-NbrOfLostParticlesTotal_old.GT.0).OR.(TotalNbrOfMissingParticlesSum.GT.0))THEN
+  IF((NbrOfNewLostParticlesTotal.GT.0).OR.(TotalNbrOfMissingParticlesSum.GT.0))THEN
    CALL WriteLostParticlesToHDF5(MeshFileName,OutputTime_loc)
-  END IF ! (NbrOfLostParticlesTotal-NbrOfLostParticlesTotal_old.GT.0).OR.(TotalNbrOfMissingParticlesSum.GT.0)
+  END IF ! (NbrOfNewLostParticlesTotal.GT.0).OR.(TotalNbrOfMissingParticlesSum.GT.0)
 END IF
 ! Output total number of particles here, if DoWriteStateToHDF5=F. Otherwise the info will be displayed at the end of this routine
 IF(.NOT.DoWriteStateToHDF5)THEN

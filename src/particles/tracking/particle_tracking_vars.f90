@@ -49,6 +49,7 @@ LOGICAL             :: CartesianPeriodic           ! old periodic for refmapping
 INTEGER             :: NbrOfLostParticles          ! Counter for lost particle per process
 INTEGER             :: NbrOfLostParticlesTotal     ! Counter for lost particles across all processes
 INTEGER             :: NbrOfLostParticlesTotal_old ! Difference between two Analyze_dt steps
+INTEGER             :: NbrOfNewLostParticlesTotal  ! Difference between NbrOfLostParticlesTotal and NbrOfLostParticlesTotal_old
 INTEGER             :: TotalNbrOfMissingParticlesSum ! Global number of missing particles across all processors (lost during restart)
 REAL,ALLOCATABLE    :: Distance(:)                 ! list of distance between particle and element-origin
                                                    ! to all elements in the same background element

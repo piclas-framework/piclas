@@ -479,6 +479,7 @@ USE MOD_LinearSolver_Vars      ,ONLY: totalIterLinearSolver
 #endif /*IMPA || ROS*/
 #ifdef PARTICLES
 USE MOD_Particle_Tracking_vars ,ONLY: CountNbrOfLostParts,NbrOfLostParticles,NbrOfLostParticlesTotal,NbrOfLostParticlesTotal_old
+USE MOD_Particle_Tracking_vars ,ONLY: NbrOfNewLostParticlesTotal
 #ifdef IMPA
 USE MOD_LinearSolver_vars      ,ONLY: nPartNewton
 USE MOD_LinearSolver_Vars      ,ONLY: totalFullNewtonIter
@@ -506,6 +507,8 @@ IF(CountNbrOfLostParts)THEN
 #else
   NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + NbrOfLostParticles
 #endif /*USE_MPI*/
+  NbrOfNewLostParticlesTotal  = NbrOfLostParticlesTotal-NbrOfLostParticlesTotal_old
+  NbrOfLostParticlesTotal_old = NbrOfLostParticlesTotal
 END IF
 #endif /*PARICLES*/
 
@@ -526,16 +529,17 @@ IF(MPIroot)THEN
 #ifdef PARTICLES
   IF(CountNbrOfLostParts.AND.(NbrOfLostParticlesTotal.GT.0))THEN
     WRITE(UNIT_stdOut,'(A,I0,A,I0,A1)')' Total number of lost particles : ',NbrOfLostParticlesTotal,' (difference to last output: +',&
-        NbrOfLostParticlesTotal-NbrOfLostParticlesTotal_old,')'
-    NbrOfLostParticlesTotal_old = NbrOfLostParticlesTotal
+        NbrOfNewLostParticlesTotal,')'
   END IF
 #endif /*PARICLES*/
 END IF !MPIroot
+
 #if defined(IMPA) || defined(ROS)
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A32,I12)') ' Total iteration Linear Solver    ',totalIterLinearSolver
 TotalIterLinearSolver=0
 #endif /*IMPA && ROS*/
+
 #if defined(IMPA) && defined(PARTICLES)
 SWRITE(UNIT_stdOut,'(A32,I12)')  ' IMPLICIT PARTICLE TREATMENT    '
 SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration Newton         ',nPartNewton
@@ -552,12 +556,14 @@ totalFullNewtonIter=0
 #endif
 SWRITE(UNIT_stdOut,'(132("="))')
 #endif /*IMPA && PARTICLE*/
+
 #if defined(ROS) && defined(PARTICLES)
 SWRITE(UNIT_stdOut,'(A32,I12)')  ' IMPLICIT PARTICLE TREATMENT    '
 SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration GMRES          ',TotalPartIterLinearSolver
 TotalPartIterLinearSolver=0
 SWRITE(UNIT_stdOut,'(132("="))')
 #endif /*IMPA && PARTICLE*/
+
 END SUBROUTINE WriteInfoStdOut
 
 
