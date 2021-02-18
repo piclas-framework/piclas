@@ -85,6 +85,7 @@ INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemToElemInfo   , ElemToElemInfo_Sh
 
 ! FIBGM to proc mapping
 INTEGER,ALLOCPOINT,DIMENSION(:,:,:,:)    :: FIBGMToProc
+LOGICAL,ALLOCPOINT,DIMENSION(:,:,:,:)    :: FIBGMToProcFlag
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: FIBGMProcs
 
 ! Shared arrays containing information for complete mesh
@@ -114,6 +115,7 @@ INTEGER,ALLOCPOINT :: FIBGM_Element_Shared(:)              !> FastInitBackground
 INTEGER,ALLOCPOINT :: FIBGM_offsetElem_Shared(:)
 
 INTEGER,ALLOCPOINT :: FIBGMToProc_Shared(:,:,:,:)
+LOGICAL,ALLOCPOINT :: FIBGMToProcFlag_Shared(:)
 INTEGER,ALLOCPOINT :: FIBGMProcs_Shared(:)
 
 REAL,ALLOCPOINT    :: BoundsOfElem_Shared(:,:,:)           !> Cartesian bounding box around element
@@ -188,6 +190,7 @@ INTEGER         :: FIBGM_Element_Shared_Win
 INTEGER         :: FIBGM_offsetElem_Shared_Win
 
 INTEGER         :: FIBGMToProc_Shared_Win
+INTEGER         :: FIBGMToProcFlag_Shared_Win
 INTEGER         :: FIBGMProcs_Shared_Win
 
 INTEGER         :: BoundsOfElem_Shared_Win
