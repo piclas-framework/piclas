@@ -829,7 +829,13 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 ! volumes
 CALL UNLOCK_AND_FREE(ElemVolume_Shared_Win)
 CALL UNLOCK_AND_FREE(ElemCharLength_Shared_Win)
+#endif /*USE_MPI*/
 
+! Then, free the pointers or arrays
+ADEALLOCATE(ElemVolume_Shared)
+ADEALLOCATE(ElemCharLength_Shared)
+
+#if USE_MPI
 ! Free communication arrays
 SDEALLOCATE(displsElem)
 SDEALLOCATE(recvcountElem)
@@ -856,9 +862,6 @@ CALL UNLOCK_AND_FREE(NodeCoords_Shared_Win)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #endif /*USE_MPI*/
 
-! Then, free the pointers or arrays
-ADEALLOCATE(ElemVolume_Shared)
-ADEALLOCATE(ElemCharLength_Shared)
 ADEALLOCATE(ElemInfo_Shared)
 ADEALLOCATE(SideInfo_Shared)
 ADEALLOCATE(NodeInfo_Shared)
