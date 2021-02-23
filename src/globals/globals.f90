@@ -636,7 +636,7 @@ IF(ExistFile) THEN
           IF(temp(IndNum-1:IndNum-1).NE.' ')CYCLE   ! parameter, e.g., "timestep" within "fd_timestep" -> skip
         END IF
         temp2=TRIM(ADJUSTL(temp(IndNum+LEN(TRIM(ParameterName)):LEN(temp))))
-        IF(DelimiterSymbol.NE.'')THEN               ! demiliting symbol must not be empty
+        IF(DelimiterSymbol.NE.'')THEN               ! delimiting symbol must not be empty
           IndNum=INDEX(temp2,TRIM(DelimiterSymbol)) ! only use string FROM delimiting symbol +1
           IF(IndNum.GT.0)THEN
             temp3=TRIM(ADJUSTL(temp2(IndNum+1:LEN(temp2))))
@@ -679,7 +679,7 @@ END SUBROUTINE GetParameterFromFile
 
 
 !==================================================================================================================================
-!> Creates an integer stamp that will afterwards be given to the SOUBRUTINE timestamp
+!> Uses INQUIRE to check whether the file exists
 !==================================================================================================================================
 FUNCTION FILEEXISTS(filename)
 ! MODULES
@@ -697,7 +697,7 @@ END FUNCTION FILEEXISTS
 
 FUNCTION INTSTAMP(Nam,Num)
 !===================================================================================================================================
-! Creates an integer stamp that will afterwards be given to the SOUBRUTINE timestamp
+! Creates an integer stamp that will afterwards be given to the SUBROUTINE timestamp
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -719,7 +719,7 @@ END FUNCTION INTSTAMP
 
 FUNCTION TIMESTAMP(Filename,Time)
 !===================================================================================================================================
-! Creates a timestamp, consistent of a filename (project name + processor) and current time niveau
+! Creates a timestamp, consistent of a filename (project name + processor) and current time
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING

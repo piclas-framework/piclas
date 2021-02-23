@@ -299,26 +299,18 @@ offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at
 ! Re-allocate nPartsPerElem depending on new number of elements
 IF(.NOT.ALLOCATED(nPartsPerElem))THEN
   ALLOCATE(nPartsPerElem(1:nElems))
-ELSE
-  SDEALLOCATE(nPartsPerElem)
-  ALLOCATE(nPartsPerElem(1:nElems))
 END IF
 nPartsPerElem=0
 CALL AddToElemData(ElementOut,'nPartsPerElem',LongIntArray=nPartsPerElem(:))
 #if USE_LOADBALANCE
-SDEALLOCATE(nDeposPerElem)
 ALLOCATE(nDeposPerElem(1:nElems))
 nDeposPerElem=0
-SDEALLOCATE(nTracksPerElem)
 ALLOCATE(nTracksPerElem(1:nElems))
 nTracksPerElem=0
-SDEALLOCATE(nSurfacefluxPerElem)
 ALLOCATE(nSurfacefluxPerElem(1:nElems))
 nSurfacefluxPerElem=0
-SDEALLOCATE(nPartsPerBCElem)
 ALLOCATE(nPartsPerBCElem(1:nElems))
 nPartsPerBCElem=0
-SDEALLOCATE(nSurfacePartsPerElem)
 ALLOCATE(nSurfacePartsPerElem(1:nElems))
 nSurfacePartsPerElem=0
 #endif /*USE_LOADBALANCE*/

@@ -50,8 +50,6 @@ CALL prms%CreateLogicalOption(  'UseDSMC'        , "Flag for using DSMC in Calcu
 END SUBROUTINE DefineParametersPiclas
 
 
-
-
 SUBROUTINE InitPiclas(IsLoadBalance)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! init Piclas data structure
@@ -383,14 +381,8 @@ SDEALLOCATE(RP_Data)
 ! Measure simulation duration
 Time=PICLASTIME()
 SWRITE(UNIT_stdOut,'(132("="))')
+CALL FinalizeLoadBalance(IsLoadBalance)
 IF(.NOT.IsLoadBalance)THEN
-#if USE_LOADBALANCE
-  !! and additional required for restart with load balance
-  !ReadInDone=.FALSE.
-  !ParticleMPIInitIsDone=.FALSE.
-  !ParticlesInitIsDone=.FALSE.
-  CALL FinalizeLoadBalance()
-#endif /*USE_LOADBALANCE*/
   CALL DisplaySimulationTime(Time, StartTime, 'FINISHED')
 ELSE
   CALL DisplaySimulationTime(Time, StartTime, 'RUNNING')
@@ -400,8 +392,7 @@ SWRITE(UNIT_stdOut,'(132("="))')
 END SUBROUTINE FinalizePiclas
 
 
-#if USE_LOADBALANCE
-SUBROUTINE FinalizeLoadBalance()
+SUBROUTINE FinalizeLoadBalance(IsLoadBalance)
 !===================================================================================================================================
 ! Deallocate arrays
 !===================================================================================================================================
@@ -411,16 +402,34 @@ USE MOD_LoadBalance_Vars
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN)  :: IsLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SDEALLOCATE(tCurrent)
-InitLoadBalanceIsDone = .FALSE.
+SDEALLOCATE(nPartsPerElem)
+SDEALLOCATE(nDeposPerElem)
+SDEALLOCATE(nTracksPerElem)
+SDEALLOCATE(nSurfacefluxPerElem)
+SDEALLOCATE(nPartsPerBCElem)
+SDEALLOCATE(nSurfacePartsPerElem)
+
+SDEALLOCATE(LoadDistri)
+SDEALLOCATE(PartDistri)
+SDEALLOCATE(ElemGlobalTime)
+SDEALLOCATE(ElemHDGSides)
+SDEALLOCATE(ElemTime_tmp)
+SDEALLOCATE(ElemTime)
+
+IF(.NOT.IsLoadBalance) THEN
+#if USE_LOADBALANCE
+  SDEALLOCATE(tCurrent)
+  InitLoadBalanceIsDone = .FALSE.
+#endif /*USE_LOADBALANCE*/
+END IF
 
 END SUBROUTINE FinalizeLoadBalance
-#endif /*USE_LOADBALANCE*/
 
 
 SUBROUTINE FinalizeTimeDisc()

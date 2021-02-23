@@ -1146,9 +1146,9 @@ CALL UNLOCK_AND_FREE(ElemToBGM_Shared_Win)
 
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
+#endif /*USE_MPI*/
 ! Then, free the pointers or arrays
 ADEALLOCATE(ElemToBGM_Shared)
-#endif /*USE_MPI*/
 
 END SUBROUTINE BuildBGMAndIdentifyHaloRegion
 
@@ -1194,9 +1194,13 @@ SDEALLOCATE(GlobalSide2CNTotalSide)
 
 !ADEALLOCATE(ElemToBGM_Shared)
 ADEALLOCATE(BoundsOfElem_Shared)
+ADEALLOCATE(FIBGM_nTotalElems)
 ADEALLOCATE(FIBGM_nTotalElems_Shared)
+ADEALLOCATE(FIBGM_nElems)
 ADEALLOCATE(FIBGM_nElems_Shared)
+ADEALLOCATE(FIBGM_offsetElem)
 ADEALLOCATE(FIBGM_offsetElem_Shared)
+ADEALLOCATE(FIBGM_Element)
 ADEALLOCATE(FIBGM_Element_Shared)
 ADEALLOCATE(FIBGMToProc)
 ADEALLOCATE(FIBGMToProc_Shared)
