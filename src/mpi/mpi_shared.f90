@@ -108,7 +108,6 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i,worldGroup,sharedGroup
 INTEGER                         :: color
 !==================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -141,20 +140,6 @@ ELSE
                                                             nProcessors_Global/nComputeNodeProcessors,' nodes'
 END IF
 
-! Map global rank number into shared rank number. Returns MPI_UNDEFINED if not on the same node
-ALLOCATE(MPIRankGlobal(0:nProcessors-1))
-ALLOCATE(MPIRankShared(0:nProcessors-1))
-DO i=0,nProcessors-1
-  MPIRankGlobal(i) = i
-END DO
-
-! Get handles for each group
-CALL MPI_COMM_GROUP(MPI_COMM_WORLD , worldGroup,IERROR)
-CALL MPI_COMM_GROUP(MPI_COMM_SHARED,sharedGroup,IERROR)
-
-! Finally translate global rank to local rank
-CALL MPI_GROUP_TRANSLATE_RANKS(worldGroup,nProcessors,MPIRankGlobal,sharedGroup,MPIRankShared,IERROR)
-
 ! Send rank of compute node root to all procs on shared comm
 IF (myComputeNodeRank.EQ.0) ComputeNodeRootRank = myRank
 CALL MPI_BCAST(ComputeNodeRootRank,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
@@ -173,13 +158,6 @@ END IF
 ! leders inform every proc on their node about the leader group rank and group size
 CALL MPI_BCAST(myLeaderGroupRank,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
 CALL MPI_BCAST(nLeaderGroupProcs,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
-
-! communicate ranks for each leader rank
-ALLOCATE(MPIRankLeader(0:nLeaderGroupProcs-1))
-IF(myComputeNodeRank.EQ.0)THEN
-  CALL MPI_ALLGATHER(ComputeNodeRootRank,1,MPI_INTEGER,MPIRankLeader(0:nLeaderGroupProcs-1),1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
-END IF
-CALL MPI_BCAST(MPIRankLeader,nLeaderGroupProcs,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
 
 ! Create MPI_Info for shared memory windows
 CALL MPI_INFO_CREATE(MPI_INFO_SHARED_LOOSE,IERROR)
@@ -906,10 +884,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !==================================================================================================================================
 
-! Free arrays
-SDEALLOCATE(MPIRankGlobal)
-SDEALLOCATE(MPIRankShared)
-
 ! Free MPI_INFO objects
 CALL MPI_INFO_FREE(MPI_INFO_SHARED_LOOSE,IERROR)
 
@@ -921,4 +895,4 @@ MPISharedInitIsDone=.FALSE.
 END SUBROUTINE FinalizeMPIShared
 
 #endif /* USE_MPI */
-END MODULE
+END MODULE MOD_MPI_Shared

@@ -270,6 +270,7 @@ USE MOD_LinearSolver               ,ONLY: FinalizeLinearSolver
 #endif /*IMEX*/
 #if USE_MPI
 USE MOD_MPI                        ,ONLY: FinalizeMPI
+USE MOD_MPI_Shared                 ,ONLY: FinalizeMPIShared
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Surfaces          ,ONLY: FinalizeParticleSurfaces
@@ -384,6 +385,8 @@ SWRITE(UNIT_stdOut,'(132("="))')
 CALL FinalizeLoadBalance(IsLoadBalance)
 IF(.NOT.IsLoadBalance)THEN
   CALL DisplaySimulationTime(Time, StartTime, 'FINISHED')
+  ! Free the communicators!
+  CALL FinalizeMPIShared()
 ELSE
   CALL DisplaySimulationTime(Time, StartTime, 'RUNNING')
 END IF ! .NOT.IsLoadBalance
