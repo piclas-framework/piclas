@@ -170,7 +170,7 @@ IF(myComputeNodeRank.EQ.0)THEN
   CALL MPI_COMM_SIZE(MPI_COMM_LEADERS_SHARED,nLeaderGroupProcs,IERROR)
 END IF
 
-! leders inform every proc on their node about the leader group rank and group size
+! Leaders inform every processor on their node about the leader group rank and group size
 CALL MPI_BCAST(myLeaderGroupRank,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
 CALL MPI_BCAST(nLeaderGroupProcs,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
 
