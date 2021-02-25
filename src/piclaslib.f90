@@ -53,7 +53,6 @@ USE MOD_Mesh                   ,ONLY: SwapMesh
 #if USE_MPI
 USE MOD_MPI_Shared!            ,ONLY: InitMPIShared
 USE MOD_LoadBalance            ,ONLY: InitLoadBalance
-USE MOD_MPI                    ,ONLY: FinalizeMPI
 #endif /*USE_MPI*/
 USE MOD_Output                 ,ONLY: InitOutput
 USE MOD_Define_Parameters_Init ,ONLY: InitDefineParameters

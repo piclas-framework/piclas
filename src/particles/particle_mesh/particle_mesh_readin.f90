@@ -783,7 +783,6 @@ CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
 SideInfo_Shared(SIDE_NBELEMTYPE,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo_Shared_tmp
-DEALLOCATE(SideInfo_Shared_tmp)
 
 ! final sync of all mesh shared arrays
 CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
@@ -795,6 +794,7 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif  /*USE_MPI*/
 
 nUniqueGlobalNodes = MAXVAL(NodeInfo_Shared)
+SDEALLOCATE(SideInfo_Shared_tmp)
 
 END SUBROUTINE FinishCommunicateMeshReadin
 
@@ -829,11 +829,13 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 ! volumes
 CALL UNLOCK_AND_FREE(ElemVolume_Shared_Win)
 CALL UNLOCK_AND_FREE(ElemCharLength_Shared_Win)
+#endif /*USE_MPI*/
 
 ! Then, free the pointers or arrays
 ADEALLOCATE(ElemVolume_Shared)
 ADEALLOCATE(ElemCharLength_Shared)
 
+#if USE_MPI
 ! Free communication arrays
 SDEALLOCATE(displsElem)
 SDEALLOCATE(recvcountElem)
@@ -860,7 +862,6 @@ CALL UNLOCK_AND_FREE(NodeCoords_Shared_Win)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #endif /*USE_MPI*/
 
-! Then, free the pointers or arrays
 ADEALLOCATE(ElemInfo_Shared)
 ADEALLOCATE(SideInfo_Shared)
 ADEALLOCATE(NodeInfo_Shared)
