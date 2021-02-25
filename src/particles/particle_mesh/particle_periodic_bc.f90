@@ -53,7 +53,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!INTEGER                :: ind,ind2
 INTEGER                :: iVec,iBC
 CHARACTER(32)          :: hilf
 LOGICAL                :: hasPeriodic
@@ -73,8 +72,8 @@ IF (hasPeriodic .AND. GEO%nPeriodicVectors.EQ.0)      &
 IF (.NOT.hasPeriodic .AND. GEO%nPeriodicVectors.GT.0) &
   CALL abort(__STAMP__,' Periodic particle-BCs and non-periodic-field-BCs: not tested!')
 
-DO iVec = 1, SIZE(PartBound%TargetBoundCond)
-  IF ((PartBound%TargetBoundCond(iVec).EQ.PartBound%PeriodicBC).AND.(GEO%nPeriodicVectors.EQ.0)) &
+DO iBC = 1, SIZE(PartBound%TargetBoundCond)
+  IF ((PartBound%TargetBoundCond(iBC).EQ.PartBound%PeriodicBC).AND.(GEO%nPeriodicVectors.EQ.0)) &
     CALL abort(__STAMP__,'Part-PeriodicVectors need to be assigned in the ini file')
 END DO
 

@@ -130,8 +130,10 @@ REAL,ALLOCPOINT                 :: NodeSourceExtTmp_Shared(:)
 TYPE tNodeMapping
   INTEGER,ALLOCATABLE           :: RecvNodeUniqueGlobalID(:)
   INTEGER,ALLOCATABLE           :: SendNodeUniqueGlobalID(:)
-  REAL,ALLOCATABLE              :: RecvNodeSource(:,:)
-  REAL,ALLOCATABLE              :: SendNodeSource(:,:)
+  REAL,ALLOCATABLE              :: RecvNodeSourceCharge(:)
+  REAL,ALLOCATABLE              :: SendNodeSourceCharge(:)
+  REAL,ALLOCATABLE              :: RecvNodeSourceCurrent(:,:)
+  REAL,ALLOCATABLE              :: SendNodeSourceCurrent(:,:)
   REAL,ALLOCATABLE              :: RecvNodeSourceExt(:)
   REAL,ALLOCATABLE              :: SendNodeSourceExt(:)
   INTEGER                       :: nSendUniqueNodes

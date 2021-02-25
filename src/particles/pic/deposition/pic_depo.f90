@@ -31,10 +31,44 @@ INTERFACE FinalizeDeposition
   MODULE PROCEDURE FinalizeDeposition
 END INTERFACE
 
-PUBLIC:: Deposition, InitializeDeposition, FinalizeDeposition
+PUBLIC:: Deposition, InitializeDeposition, FinalizeDeposition, DefineParametersPICDeposition
 !===================================================================================================================================
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for PIC Deposition
+!==================================================================================================================================
+SUBROUTINE DefineParametersPICDeposition()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools      ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%CreateStringOption( 'PIC-TimeAverageFile'      , 'Read charge density from .h5 file and save to PartSource\n'//&
+                                                           'WARNING: Currently not correctly implemented for shared memory', 'none')
+CALL prms%CreateLogicalOption('PIC-RelaxDeposition'      , 'Relaxation of current PartSource with RelaxFac\n'//&
+                                                           'into PartSourceOld', '.FALSE.')
+CALL prms%CreateRealOption(   'PIC-RelaxFac'             , 'Relaxation factor of current PartSource with RelaxFac\n'//&
+                                                           'into PartSourceOld', '0.001')
+
+CALL prms%CreateLogicalOption('PIC-shapefunction-charge-conservation', 'Enable charge conservation.', '.FALSE.')
+CALL prms%CreateRealOption(   'PIC-shapefunction-radius'             , 'Radius of shape function'   , '1.')
+CALL prms%CreateIntOption(    'PIC-shapefunction-alpha'              , 'Exponent of shape function' , '2')
+CALL prms%CreateIntOption(    'PIC-shapefunction-dimension'          , '1D                          , 2D or 3D shape function', '3')
+CALL prms%CreateIntOption(    'PIC-shapefunction-direction'          , &
+    'Only required for PIC-shapefunction-dimension 1 or 2: Shape function direction for 1D (the direction in which the charge '//&
+    'will be distributed) and 2D (the direction in which the charge will be constant)', '1')
+CALL prms%CreateLogicalOption(  'PIC-shapefunction-3D-deposition' ,'Deposit the charge over volume (3D)\n'//&
+                                                                   ' or over a line (1D)/area(2D)\n'//&
+                                                                   '1D shape function: volume or line\n'//&
+                                                                   '2D shape function: volume or area', '.TRUE.')
+CALL prms%CreateRealOption(     'PIC-shapefunction-radius0', 'Minimum shape function radius (for cylindrical and spherical)', '1.')
+CALL prms%CreateRealOption(     'PIC-shapefunction-scale'  , 'Scaling factor of shape function radius '//&
+                                                             '(for cylindrical and spherical)', '0.')
+
+END SUBROUTINE DefineParametersPICDeposition
+
 
 SUBROUTINE InitializeDeposition
 !===================================================================================================================================
@@ -152,7 +186,7 @@ ELSE
   OutputSource = GETLOGICAL('PIC-OutputSource','F')
 END IF
 
-!--- check if chargedensity is computed from TimeAverageFile
+!--- check if charge density is computed from TimeAverageFile
 TimeAverageFile = GETSTR('PIC-TimeAverageFile','none')
 IF (TRIM(TimeAverageFile).NE.'none') THEN
   CALL abort(&
@@ -327,20 +361,25 @@ CASE('cell_volweight_mean')
       IF (iProc.EQ.myLeaderGroupRank) CYCLE
       IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
         ALLOCATE(NodeMapping(iProc)%RecvNodeUniqueGlobalID(1:NodeMapping(iProc)%nRecvUniqueNodes))
-        ALLOCATE(NodeMapping(iProc)%RecvNodeSource(1:4,1:NodeMapping(iProc)%nRecvUniqueNodes))
+        ALLOCATE(NodeMapping(iProc)%RecvNodeSourceCharge(1:NodeMapping(iProc)%nRecvUniqueNodes))
+        ALLOCATE(NodeMapping(iProc)%RecvNodeSourceCurrent(1:3,1:NodeMapping(iProc)%nRecvUniqueNodes))
         IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMapping(iProc)%RecvNodeSourceExt(1:NodeMapping(iProc)%nRecvUniqueNodes))
         CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeUniqueGlobalID                   &
                       , NodeMapping(iProc)%nRecvUniqueNodes                         &
                       , MPI_INTEGER                                                 &
                       , iProc                                                       &
                       , 666                                                         &
-                      , MPI_COMM_LEADERS_SHARED                                       &
+                      , MPI_COMM_LEADERS_SHARED                                     &
                       , RecvRequest(iProc)                                          &
                       , IERROR)
       END IF
       IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
         ALLOCATE(NodeMapping(iProc)%SendNodeUniqueGlobalID(1:NodeMapping(iProc)%nSendUniqueNodes))
-        ALLOCATE(NodeMapping(iProc)%SendNodeSource(1:4,1:NodeMapping(iProc)%nSendUniqueNodes))
+        NodeMapping(iProc)%SendNodeUniqueGlobalID=-1
+        ALLOCATE(NodeMapping(iProc)%SendNodeSourceCharge(1:NodeMapping(iProc)%nSendUniqueNodes))
+        NodeMapping(iProc)%SendNodeSourceCharge=0.
+        ALLOCATE(NodeMapping(iProc)%SendNodeSourceCurrent(1:3,1:NodeMapping(iProc)%nSendUniqueNodes))
+        NodeMapping(iProc)%SendNodeSourceCurrent=0.
         IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMapping(iProc)%SendNodeSourceExt(1:NodeMapping(iProc)%nSendUniqueNodes))
         SendNodeCount = 0
         DO iNode = 1, nUniqueGlobalNodes
@@ -354,7 +393,7 @@ CASE('cell_volweight_mean')
                       , MPI_INTEGER                                                 &
                       , iProc                                                       &
                       , 666                                                         &
-                      , MPI_COMM_LEADERS_SHARED                                       &
+                      , MPI_COMM_LEADERS_SHARED                                     &
                       , SendRequest(iProc)                                          &
                       , IERROR)
       END IF
@@ -400,7 +439,7 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   r_sf     = GETREAL('PIC-shapefunction-radius')
   alpha_sf = GETINT('PIC-shapefunction-alpha')
   dim_sf   = GETINT('PIC-shapefunction-dimension')
-  ! Get shape function direction for 1D (the direction in which the charge will be distributed) and 2D (the direction in which the 
+  ! Get shape function direction for 1D (the direction in which the charge will be distributed) and 2D (the direction in which the
   ! charge will be constant)
   dim_sf_dir = GETINT('PIC-shapefunction-direction')
   ! Distribute the charge over the volume (3D) or line (1D)/area (2D): default is TRUE
@@ -646,7 +685,7 @@ ELSE
   CALL DepositionMethod()
 END IF
 
-IF(MOD(iter,INT(PartAnalyzeStep,8)).EQ.0) THEN
+IF(MOD(iter,PartAnalyzeStep).EQ.0) THEN
   IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 END IF
 RETURN
@@ -700,6 +739,7 @@ SDEALLOCATE(CellVolWeight_Volumes)
 #if USE_MPI
 SDEALLOCATE(NodeSourceLoc)
 SDEALLOCATE(PartSourceProc)
+SDEALLOCATE(NodeMapping)
 
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)

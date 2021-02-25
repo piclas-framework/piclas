@@ -64,7 +64,7 @@ USE MOD_Mesh_Vars             ,ONLY: nGlobalElems
 USE MOD_Interpolation         ,ONLY: DefineParametersInterpolation,InitInterpolation
 USE MOD_Mesh                  ,ONLY: DefineParametersMesh,InitMesh
 #ifdef PARTICLES
-USE MOD_Particle_Mesh         ,ONLY: InitParticleGeometry, InitElemNodeIDs
+USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleGeometry, InitElemNodeIDs
 USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemNodeID_Shared, NodeInfo_Shared
 #endif /*PARTICLES*/
 USE MOD_Mesh_Tools            ,ONLY: InitGetCNElemID, InitGetGlobalElemID
@@ -970,6 +970,7 @@ ALLOCATE(NonUnique2UniqueSide(1:nSides))
 NonUnique2UniqueSide(1:nSides) = -1
 ! if side is surface (BC_reflective defined in State file) then map respective surface side number
 nSurfSides = 0
+nUniqueSurfSide = 0
 DO iSide = 1,nSides
   IF(SideInfo_Shared(SIDE_BCID,iSide).EQ.0) CYCLE
   DO iBC=1,nSurfBC_HDF5

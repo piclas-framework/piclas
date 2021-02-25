@@ -89,6 +89,7 @@ ELSE
 #endif
 END IF
 
+! --- Mean values
 ! Define variables to be averaged
 nMaxVarAvg=PP_nVar+6
 #ifdef PARTICLES
@@ -124,6 +125,7 @@ DO iSpec=1,nSpecies
 END DO
 #endif /*PARTICLES*/
 
+! --- Fluctuations
 nMaxVarFluc=PP_nVar+6
 #ifdef PARTICLES
 nMaxVarFluc=nMaxVarFluc+9*nSpecies
@@ -301,9 +303,9 @@ FUNCTION GETMAPBYNAME(VarName,VarNameList,nVarList)
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)             :: nVarList                !< length of list
 CHARACTER(LEN=*),INTENT(IN)    :: VarName                 !< string to be compared
 CHARACTER(LEN=*),INTENT(IN)    :: VarNameList(nVarList)   !< list of strings to be searched
-INTEGER,INTENT(IN)             :: nVarList                !< length of list
 INTEGER                        :: GETMAPBYNAME            !< index of VarName in VarNameList
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES

@@ -47,7 +47,7 @@ SUBROUTINE ParticleInserting()
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: c
+USE MOD_Globals_Vars           ,ONLY: c,PI
 USE MOD_Timedisc_Vars          ,ONLY: dt,time
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
 USE MOD_Particle_Vars
@@ -62,6 +62,8 @@ USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,Sa
 USE MOD_part_pos_and_velo      ,ONLY: SetParticlePosition,SetParticleVelocity
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_PhotoIonization
 USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_ReadInTools            ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -80,7 +82,7 @@ REAL                             :: RiseFactor, RiseTime,NbrOfPhotons
 #if USE_MPI
 INTEGER                          :: InitGroup
 #endif
-REAL                             :: NbrOfReactions
+REAL                             :: NbrOfReactions,NbrOfParticlesReal
 !===================================================================================================================================
 
 !---  Emission at time step
@@ -95,7 +97,7 @@ DO i=1,nSpecies
         IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
           PartIns=Species(i)%Init(iInit)%ParticleNumber * dt*RKdtFrac  ! emitted particles during time-slab
           inserted_Particle_iter = INT(PartIns,8)                                     ! number of particles to be inserted
-          PartIns=Species(i)%Init(iInit)%ParticleNumber * (Time + dt*RKdtFracTotal) ! total number of emitted particle over
+          PartIns=Species(i)%Init(iInit)%ParticleNumber * (time + dt*RKdtFracTotal) ! total number of emitted particle over
                                                                                       ! simulation
           !-- random-round the inserted_Particle_time for preventing periodicity
           ! PO & SC: why, sometimes we do not want this add, TB is bad!
@@ -118,7 +120,7 @@ DO i=1,nSpecies
           inserted_Particle_diff = inserted_Particle_time - Species(i)%Init(iInit)%InsertedParticle &
             - inserted_Particle_iter - Species(i)%Init(iInit)%InsertedParticleSurplus &
             + Species(i)%Init(iInit)%InsertedParticleMisMatch
-          Species(i)%Init(iInit)%InsertedParticleSurplus = ABS(MIN(inserted_Particle_iter + inserted_Particle_diff,0))
+          Species(i)%Init(iInit)%InsertedParticleSurplus = ABS(MIN(inserted_Particle_iter + inserted_Particle_diff,0_8))
           NbrOfParticle = MAX(INT(inserted_Particle_iter + inserted_Particle_diff,4),0)
           !-- if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
           IF (TRIM(Species(i)%Init(iInit)%velocityDistribution).EQ.'maxwell') THEN
@@ -128,7 +130,7 @@ DO i=1,nSpecies
           ! linear rise of inflow
           RiseTime=Species(i)%Init(iInit)%InflowRiseTime
           IF(RiseTime.GT.0.)THEN
-            IF(Time-DelayTime.LT.RiseTime)THEN
+            IF(time-DelayTime.LT.RiseTime)THEN
               RiseFactor=(time-DelayTime)/RiseTime
             ELSE
               RiseFactor=1.
@@ -149,7 +151,7 @@ DO i=1,nSpecies
           ! linear rise of inflow
           RiseTime=Species(i)%Init(iInit)%InflowRiseTime
           IF(RiseTime.GT.0.)THEN
-            IF(Time-DelayTime.LT.RiseTime)THEN
+            IF(time-DelayTime.LT.RiseTime)THEN
               RiseFactor=(time-DelayTime)/RiseTime
             ELSE
               RiseFactor=1.
@@ -185,9 +187,9 @@ DO i=1,nSpecies
       CASE(7) ! SEE based on photon impact and photo-ionization in the volume
         ASSOCIATE( tShift => Species(i)%Init(iInit)%tShift )
           ! Check if all pulses have terminated
-          IF(Time.LE.Species(i)%Init(iInit)%tActive)THEN
+          IF(time.LE.Species(i)%Init(iInit)%tActive)THEN
             ! Check if pulse is currently active of in between two pulses (in the latter case, do nothing)
-            IF(MOD(MERGE(Time-tShift, Time, Time.GE.tShift), Species(i)%Init(iInit)%Period).LE.2.0*tShift)THEN
+            IF(MOD(time, Species(i)%Init(iInit)%Period).LE.2.0*tShift)THEN
               ! Calculate the number of currently active photons (both surface SEE and volumetric emission)
               CALL CalcNbrOfPhotons(i, iInit, NbrOfPhotons)
 
@@ -217,11 +219,66 @@ DO i=1,nSpecies
               END IF
             ELSE
               NbrOfParticle = 0
-            END IF ! MOD(MERGE(Time-T0/2., Time, Time.GE.T0/2.), Period).GT.T0
+            END IF ! MOD(time, Period) .LE. 2x tShift
           ELSE
             NbrOfParticle = 0
-          END IF ! Time.LE.Species(i)%Init(iInit)%tActive
+          END IF ! time.LE.Species(i)%Init(iInit)%tActive
         END ASSOCIATE
+      CASE(8) ! SpaceIC='2D_landmark','2D_landmark_copy'
+              ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
+              ! for low-temperature partially magnetized plasmas (2019)
+       ASSOCIATE( x2 => 1.0e-2  ,& ! m
+                  x1 => 0.25e-2 ,& ! m
+                  Ly => 1.28e-2 ,& ! m
+                  S0 => 5.23e23 )  ! m^-3 s^-1
+         NbrOfParticlesReal = Ly*dt*S0*2.0*(x2-x1)/PI ! yields 1.60E+08 m^-1 (i.e. per metre in z-direction)
+         NbrOfParticlesReal = NbrOfParticlesReal*(GEO%zmaxglob-GEO%zminglob)/Species(i)%MacroParticleFactor &
+                              + Species(i)%Init(iInit)%NINT_Correction
+         NbrOfParticle = NINT(NbrOfParticlesReal)
+         Species(i)%Init(iInit)%NINT_Correction = NbrOfParticlesReal - REAL(NbrOfParticle)
+         IF(.NOT.ALLOCATED(PartPosLandmark))THEN
+           NbrOfParticleLandmarkMax = MAX(10,NINT(NbrOfParticlesReal*1.2)) ! Add 20% safety
+           CALL PrintOption('Landmark volume emission allocation size NbrOfParticleLandmarkMax' , 'CALCUL.' , IntOpt=NbrOfParticleLandmarkMax)
+           ALLOCATE(PartPosLandmark(1:3,1:NbrOfParticleLandmarkMax))
+           PartPosLandmark=HUGE(1.)
+           IF(NbrOfParticleLandmarkMax.LE.0)THEN
+             IPWRITE(UNIT_StdOut,*) "NbrOfParticleLandmarkMax =", NbrOfParticleLandmarkMax
+             CALL abort(&
+                 __STAMP__&
+                 ,'NbrOfParticleLandmarkMax.LE.0')
+           END IF
+         ELSE
+           IF(NbrOfParticleLandmarkMax.LT.NbrOfParticle)THEN
+             IPWRITE(UNIT_StdOut,*) "NbrOfParticleLandmarkMax,NbrOfParticle =", NbrOfParticleLandmarkMax,NbrOfParticle
+             CALL abort(&
+             __STAMP__&
+             ,'NbrOfParticleLandmarkMax.LT.NbrOfParticle is not allowed! Allocate PartPosLandmark to the appropriate size.')
+           END IF ! NbrOfParticleLandmarkMax.LE.NbrOfParticle
+         END IF ! .NOT.ALLOCATED()
+       END ASSOCIATE
+     CASE(9) ! '2D_landmark_neutralization'
+#if USE_MPI
+       ! Communicate number of particles with all procs in the same init group
+       InitGroup=Species(i)%Init(iInit)%InitCOMM
+       IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
+         ! Only processors which are part of group take part in the communication
+         CALL MPI_ALLREDUCE(NeutralizationBalance,NeutralizationBalanceGlobal,1,MPI_INTEGER,MPI_SUM,PartMPI%InitGroup(InitGroup)%COMM,IERROR)
+       ELSE
+         NeutralizationBalanceGlobal=0
+       END IF
+#else
+       NeutralizationBalanceGlobal = NeutralizationBalance
+#endif
+       ! Insert electrons only when the number is greater than zero
+       IF(NeutralizationBalanceGlobal.GT.0)THEN
+         ! Insert only when positive
+         NbrOfParticle = NeutralizationBalanceGlobal
+         ! Reset the counter
+         NeutralizationBalance = 0
+       ELSE
+         NbrOfParticle = 0
+       END IF ! NeutralizationBalance.GT.0
+
       CASE DEFAULT
         NbrOfParticle = 0
       END SELECT
@@ -310,6 +367,7 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Analyze           ,ONLY: CalcTVibPoly,CalcTelec
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, DSMC, CollisMode, SpecDSMC, useDSMC, RadialWeighting
 USE MOD_Mesh_Vars              ,ONLY: nElems, offsetElem
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Part_Tools             ,ONLY: GetParticleWeight
 USE MOD_SurfaceModel_Vars      ,ONLY: PorousBCSampIter, PorousBCMacroVal
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared, SideInfo_Shared
@@ -337,7 +395,7 @@ LOGICAL                         :: initSampling, isBCElem
 #if USE_LOADBALANCE
 REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
-INTEGER                         :: nlocSides, GlobalSideID, GlobalElemID, iLocSide
+INTEGER                         :: nlocSides, GlobalSideID, CNElemID, GlobalElemID, iLocSide
 !===================================================================================================================================
 ALLOCATE(Source(1:11,1:nElems,1:nSpecies))
 Source=0.0
@@ -407,6 +465,7 @@ END IF
 
 DO AdaptiveElemID = 1,nElems
   GlobalElemID = AdaptiveElemID + offsetElem
+  CNElemID = GetCNElemID(GlobalElemID)
   ! not a BC element
   ! IF (ElemToBCSides(ELEM_NBR_BCSIDES,AdaptiveElemID).EQ.-1) CYCLE
   ! ======================================
@@ -449,15 +508,15 @@ DO AdaptiveElemID = 1,nElems
         PorousBCMacroVal(7,AdaptiveElemID,iSpec) = PorousBCMacroVal(7,AdaptiveElemID,iSpec) + Source(11,AdaptiveElemID,iSpec)
         ! Sampling the number of simulation particles
         PorousBCMacroVal(8,AdaptiveElemID,iSpec) = PorousBCMacroVal(8,AdaptiveElemID,iSpec) + Source(7,AdaptiveElemID,iSpec)
-        IF(MOD(iter,SamplingIteration).EQ.0) THEN
+        IF(MOD(iter,INT(SamplingIteration,8)).EQ.0_8) THEN
           IF(PorousBCMacroVal(8,AdaptiveElemID,iSpec).GT.1) THEN
             ! number density
             IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
               Adaptive_MacroVal(7,AdaptiveElemID,iSpec)=PorousBCMacroVal(7,AdaptiveElemID,iSpec)/SamplingIteration   &
-                                                        /ElemVolume_Shared(GlobalElemID)
+                                                        /ElemVolume_Shared(CNElemID)
             ELSE
               Adaptive_MacroVal(7,AdaptiveElemID,iSpec)=PorousBCMacroVal(7,AdaptiveElemID,iSpec)/SamplingIteration   &
-                                                        /ElemVolume_Shared(GlobalElemID) * Species(iSpec)%MacroParticleFactor
+                                                        /ElemVolume_Shared(CNElemID) * Species(iSpec)%MacroParticleFactor
             END IF
             ! instantaneous temperature WITHOUT 1/BoltzmannConst
             PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) = PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) &
@@ -489,18 +548,18 @@ DO AdaptiveElemID = 1,nElems
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
           ! compute density
           Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
-            + RelaxationFactor*Source(11,AdaptiveElemID,iSpec) /ElemVolume_Shared(GlobalElemID)
+            + RelaxationFactor*Source(11,AdaptiveElemID,iSpec) /ElemVolume_Shared(CNElemID)
           ! Pressure with relaxation factor
           Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
-          +RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/ElemVolume_Shared(GlobalElemID)*TTrans_TempFac
+          +RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/ElemVolume_Shared(CNElemID)*TTrans_TempFac
         ELSE
           ! compute density
           Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
-            + RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/ElemVolume_Shared(GlobalElemID)*Species(iSpec)%MacroParticleFactor
+            + RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/ElemVolume_Shared(CNElemID)*Species(iSpec)%MacroParticleFactor
           ! Pressure with relaxation factor
           Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
                                                       + RelaxationFactor*Source(11,AdaptiveElemID,iSpec)  &
-                                                      / ElemVolume_Shared(GlobalElemID)*Species(iSpec)%MacroParticleFactor*TTrans_TempFac
+                                                      / ElemVolume_Shared(CNElemID)*Species(iSpec)%MacroParticleFactor*TTrans_TempFac
         END IF
       END IF
       ! !==================================================================================================

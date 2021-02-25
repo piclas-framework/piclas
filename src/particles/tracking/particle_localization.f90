@@ -82,7 +82,7 @@ END SUBROUTINE LocateParticleInElement
 !> This function maps a 3D point to an element
 !> returns elementID or -1 in case no element was found
 !===================================================================================================================================
-INTEGER FUNCTION SinglePointToElement(Pos3D,doHALO)
+INTEGER FUNCTION SinglePointToElement(Pos3D,doHALO,doEmission_opt)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
@@ -107,6 +107,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,INTENT(IN)    :: Pos3D(1:3)
 LOGICAL,INTENT(IN) :: doHalo
+LOGICAL,INTENT(IN),OPTIONAL :: doEmission_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -115,7 +116,7 @@ LOGICAL,INTENT(IN) :: doHalo
 INTEGER :: iBGMElem,nBGMElems,ElemID,CNElemID,iBGM,jBGM,kBGM
 REAL    :: Distance2, RefPos(1:3)
 REAL    :: Det(6,2)
-LOGICAL :: InElementCheck
+LOGICAL :: InElementCheck, doEmission
 !===================================================================================================================================
 #if USE_MPI
 ASSOCIATE(ElemBaryNGeo => ElemBaryNGeo_Shared)
@@ -131,7 +132,7 @@ jBGM = MAX(MIN(GEO%FIBGMjmax,jBGM),GEO%FIBGMjmin)
 kBGM = CEILING((Pos3D(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
 kBGM = MAX(MIN(GEO%FIBGMkmax,kBGM),GEO%FIBGMkmin)
 
-!--- check all cells associated with this beckground mesh cell
+!--- check all cells associated with this background mesh cell
 nBGMElems = FIBGM_nElems(iBGM,jBGM,kBGM)
 
 ! get closest element barycenter
@@ -175,9 +176,14 @@ DO iBGMElem = 1,nBGMElems
       IF (MAXVAL(ABS(RefPos)).LE.1.0) InElementCheck = .TRUE.
 
     CASE(REFMAPPING)
+      CNElemID = GetCNElemID(ElemID)
       CALL GetPositionInRefElem(Pos3D(1:3),RefPos,ElemID)
-      IF (MAXVAL(ABS(RefPos)).LE.ElemEpsOneCell(CNElemID)) InElementCheck = .TRUE.
-
+      doEmission = MERGE(doEmission_opt,.FALSE.,PRESENT(doEmission_opt))
+      IF(doEmission) THEN
+        IF (MAXVAL(ABS(RefPos)).LE.1.0) InElementCheck = .TRUE.
+      ELSE
+        IF (MAXVAL(ABS(RefPos)).LE.ElemEpsOneCell(CNElemID)) InElementCheck = .TRUE.
+      END IF
   END SELECT
 
   IF (InElementCheck) THEN
@@ -348,7 +354,8 @@ DO ilocSide = 1,6
   IF(alpha.GT.-1)THEN
     SELECT CASE(SideType(CNSideID))
       CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-        NormVec=SideNormVec(1:3,SideID)
+        CNSideID = GetCNSideID(SideID)
+        NormVec  = SideNormVec(1:3,CNSideID)
       CASE(BILINEAR)
         CALL CalcNormAndTangBilinear(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
       CASE(CURVED)

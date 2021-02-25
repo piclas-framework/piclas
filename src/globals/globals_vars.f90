@@ -46,6 +46,7 @@ REAL,PARAMETER             :: EuMas          = 0.577215664901533_8  !> Euler-Mas
 REAL,PARAMETER             :: PlanckConst    = 6.62606957e-34       !> Planck constant [J s] SI-Unit!
 REAL,PARAMETER             :: ElementaryCharge = 1.602176634e-19    !> redefinition of SI base units in 2018-2019,
                                                                     !> => negative charge of an electron, joule to eV, ...
+REAL,PARAMETER             :: StefanBoltzmannConst = 5.670374419E-8
 REAL,PARAMETER             :: ElectronMass   = 9.1093826e-31        !> mass of an electron
 CHARACTER(LEN=255)         :: ProjectName                           !> TODO-DEFINE-PARAMETER
 CHARACTER(LEN=255)         :: ParameterFile                         !> filename of the parameter file

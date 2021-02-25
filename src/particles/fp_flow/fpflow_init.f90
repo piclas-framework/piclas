@@ -20,21 +20,12 @@ MODULE MOD_FPFlow_Init
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
-
-INTERFACE InitFPFlow
-  MODULE PROCEDURE InitFPFlow
-END INTERFACE
-
-INTERFACE FinalizeFPFlow
-  MODULE PROCEDURE FinalizeFPFlow
-END INTERFACE
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: InitFPFlow, FP_BuildTransGaussNums, DefineParametersFPFlow, FinalizeFPFlow
+PUBLIC :: InitFPFlow, DefineParametersFPFlow, FinalizeFPFlow
 !===================================================================================================================================
 
 CONTAINS
@@ -135,47 +126,6 @@ FPInitDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)') ' INIT FP-FLOW DONE!'
 
 END SUBROUTINE InitFPFlow
-
-SUBROUTINE FP_BuildTransGaussNums(nPart, iRanPart)
-!===================================================================================================================================
-!> Builds random Gauss numbers with a zero mean and a variance of one
-!===================================================================================================================================
-! MODULES
-USE Ziggurat
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: nPart
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)             :: iRanPart(:,:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                           :: sumiRan(3), varianceiRan(3)
-INTEGER                        :: iLoop
-!===================================================================================================================================
-sumiRan(1:3) = 0.0
-varianceiRan(1:3) = 0.0
-DO iLoop = 1, nPart
-  iRanPart(1,iLoop) = rnor()
-  iRanPart(2,iLoop) = rnor()
-  iRanPart(3,iLoop) = rnor()
-  sumiRan(1:3) = sumiRan(1:3) + iRanPart(1:3,iLoop)
-END DO
-sumiRan(1:3) = sumiRan(1:3)/nPart
-DO iLoop = 1, nPart
-  iRanPart(1:3,iLoop) = iRanPart(1:3,iLoop)-sumiRan(1:3)
-  varianceiRan(1:3) = varianceiRan(1:3) + iRanPart(1:3,iLoop)*iRanPart(1:3,iLoop)
-END DO
-varianceiRan(1:3) = SQRT(varianceiRan(1:3)/nPart)
-
-DO iLoop = 1, nPart
-  iRanPart(1:3,iLoop) = iRanPart(1:3,iLoop)/varianceiRan(1:3)
-END DO
-
-END SUBROUTINE FP_BuildTransGaussNums
-
 
 SUBROUTINE FinalizeFPFlow()
 !===================================================================================================================================

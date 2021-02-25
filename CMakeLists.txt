@@ -122,6 +122,19 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           ROS46
                                                           ROS6)
 
+# Get environment variable
+SET(PICLAS_SPLIT_TYPE "$ENV{PICLAS_SPLIT_TYPE}")
+IF("${PICLAS_SPLIT_TYPE}" STREQUAL "")
+  SET(PICLAS_SPLIT_TYPE "MPI_COMM_TYPE_SHARED")
+ELSE()
+  IF("${PICLAS_SPLIT_TYPE}" STREQUAL "${PICLAS_SHARED_MEMORY}")
+    MESSAGE(STATUS "Using user-defined environment variable PICLAS_SPLIT_TYPE=${PICLAS_SPLIT_TYPE} for shared memory communicator splitting of variale PICLAS_SHARED_MEMORY")
+    ENDIF()
+ENDIF()
+SET(PICLAS_SHARED_MEMORY "${PICLAS_SPLIT_TYPE}" CACHE STRING "Split type for creating new communicators based on colors and keys (requires MPI 3 or higher). Options with the prefix OMPI_ are specific to Open MPI.")
+SET_PROPERTY(CACHE PICLAS_SHARED_MEMORY PROPERTY STRINGS MPI_COMM_TYPE_SHARED
+                                                         OMPI_COMM_TYPE_CORE)
+
 OPTION(PICLAS_BUILD_POSTI "Build POSTI toolset" ON)
 OPTION(PICLAS_MPI "Compile SINGLE or MPI version" ON)
 CMAKE_DEPENDENT_OPTION(PICLAS_LOADBALANCE "Use load balance time measurement" ON "PICLAS_MPI" OFF)
@@ -357,6 +370,19 @@ IF(PICLAS_HDG)
 ELSE()
   ADD_DEFINITIONS(-DUSE_HDG=0)
 ENDIF(PICLAS_HDG)
+
+# =========================================================================
+# Shared memory split type
+# =========================================================================
+ADD_DEFINITIONS(-DSharedMemoryMethod=${PICLAS_SHARED_MEMORY})
+IF(PICLAS_SHARED_MEMORY STREQUAL "MPI_COMM_TYPE_SHARED")
+  ADD_DEFINITIONS(-DUSE_CORE_SPLIT=0)
+  MESSAGE(STATUS "Shared memory split type for subcommunicators set to node-level")
+ELSEIF(PICLAS_SHARED_MEMORY STREQUAL "OMPI_COMM_TYPE_CORE")
+  ADD_DEFINITIONS(-DUSE_CORE_SPLIT=1)
+  MESSAGE(STATUS "Shared memory split type for subcommunicators set to core-level")
+ENDIF()
+
 
 # =========================================================================
 # USERBLOCK + Preproc_flags
@@ -658,7 +684,7 @@ endfunction()
 
 FUNCTION(add_lib_shared target)
   ADD_LIBRARY(${target} SHARED ${ARGN})
-  TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o libpiclasstatic userblocklib stacksizelib ${linkedlibs})
+  TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o libpiclasstatic userblocklib stacksizelib memusagelib ${linkedlibs})
   SET_TARGET_PROPERTIES(${target} PROPERTIES PREFIX ""
                                              COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}
                                              LINKER_LANGUAGE Fortran)
@@ -796,13 +822,16 @@ ADD_LIBRARY(stacksizelib STATIC ./src/globals/stacksize.c)
 SET_TARGET_PROPERTIES(stacksizelib PROPERTIES LINKER_LANGUAGE C
                                                COMPILE_FLAGS "-fPIC")
 
+ADD_LIBRARY(memusagelib STATIC ./src/globals/processmemusage.cxx)
+SET_TARGET_PROPERTIES(memusagelib PROPERTIES LINKER_LANGUAGE CXX
+                                           COMPILE_FLAGS "-fPIC")
 
 # we link the statically built libs
 add_lib_shared(libpiclasshared ./src/piclaslib.f90)
 SET_TARGET_PROPERTIES(libpiclasshared PROPERTIES OUTPUT_NAME "libpiclas")
-ADD_DEPENDENCIES(libpiclasshared libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
+ADD_DEPENDENCIES(libpiclasshared libpiclasstatic userblocklib stacksizelib memusagelib ${INTERNALLIBS})
 add_exec(piclas ./src/piclas.f90)
-ADD_DEPENDENCIES(piclas libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
+ADD_DEPENDENCIES(piclas libpiclasstatic userblocklib stacksizelib memusagelib ${INTERNALLIBS})
 
 # special compiler flags to avoid warnings for empty functions of testcase.f90 and overwrite of intrinsic abort in globals.f90
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")

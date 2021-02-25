@@ -59,9 +59,8 @@ LOGICAL                       :: ChargeCalcDone                      !< Check fl
 LOGICAL                       :: CalcShapeEfficiency                 !< Efficiency of shape function
 CHARACTER(LEN=256)            :: CalcShapeEfficiencyMethod           !< Explanations in particle_analyze.f90
 INTEGER                       :: ShapeEfficiencyNumber               !< Explanations in particle_analyze.f90
-INTEGER                       :: FieldAnalyzeStep                    !< Analyze is performed each Nth time step
 LOGICAL                       :: DoPartAnalyze                       !< perform analyze
-INTEGER                       :: PartAnalyzeStep                     !< Analyze is performed each Nth time step
+INTEGER(KIND=8)               :: PartAnalyzeStep                     !< Analyze is performed each Nth time step
 INTEGER,ALLOCATABLE           :: nPartIn(:)                          !< Number of entry and leaving particles
 INTEGER,ALLOCATABLE           :: nPartOut(:)                         !< Number of entry and leaving particles
 REAL,ALLOCATABLE              :: PartEkinIn(:)                       !< Energy and temperature of input particle

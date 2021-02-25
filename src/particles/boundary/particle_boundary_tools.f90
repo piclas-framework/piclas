@@ -28,11 +28,12 @@ PRIVATE
 PUBLIC :: CalcWallSample
 PUBLIC :: SampleImpactProperties
 PUBLIC :: StoreBoundaryParticleProperties
+PUBLIC :: MarkAuxBCElems
 !===================================================================================================================================
 
 CONTAINS
 
-SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,SampleType,PartTrajectory_opt,SurfaceNormal_opt)
+SUBROUTINE CalcWallSample(PartID,SurfSideID,SampleType,SurfaceNormal_opt)
 !===================================================================================================================================
 !> Sample the energy of particles before and after a wall interaction for the determination of macroscopic properties such as heat
 !> flux and force per area
@@ -44,25 +45,28 @@ USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC,useDSMC,PartStateIntEn,RadialW
 USE MOD_DSMC_Vars                 ,ONLY: CollisMode,DSMC,AmbipolElecVelo
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact
 USE MOD_part_tools                ,ONLY: GetParticleWeight
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)                 :: PartID,SurfSideID,p,q
+INTEGER,INTENT(IN)                 :: PartID,SurfSideID
 CHARACTER(*),INTENT(IN)            :: SampleType
-REAL,INTENT(IN),OPTIONAL           :: PartTrajectory_opt(1:3)
 REAL,INTENT(IN),OPTIONAL           :: SurfaceNormal_opt(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL            :: ETrans, ETransAmbi, ERot, EVib, EElec, MomArray(1:3), MassIC, MPF
-INTEGER         :: ETransID, ERotID, EVibID, EElecID, SpecID
+INTEGER         :: ETransID, ERotID, EVibID, EElecID, SpecID, SubP, SubQ
 !===================================================================================================================================
 MomArray(:)=0.
 EVib = 0.
 ERot = 0.
 EElec = 0.
+
+SubP = TrackInfo%p
+SubQ = TrackInfo%q
 
 SpecID = PartSpecies(PartID)
 
@@ -98,7 +102,7 @@ CASE ('old')
     END IF
   END IF
   ! Species-specific simulation particle impact counter
-  SampWallState(SAMPWALL_NVARS+SpecID,p,q,SurfSideID) = SampWallState(SAMPWALL_NVARS+SpecID,p,q,SurfSideID) + 1
+  SampWallState(SAMPWALL_NVARS+SpecID,SubP,SubQ,SurfSideID) = SampWallState(SAMPWALL_NVARS+SpecID,SubP,SubQ,SurfSideID) + 1
   ! Sampling of species-specific impact energies and angles
   IF(CalcSurfaceImpact) THEN
     IF (useDSMC) THEN
@@ -110,16 +114,16 @@ CASE ('old')
         END IF
       END IF
     END IF
-    CALL SampleImpactProperties(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,EElec,PartTrajectory_opt,SurfaceNormal_opt,p,q)
+    CALL SampleImpactProperties(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,EElec,TrackInfo%PartTrajectory,SurfaceNormal_opt)
     IF (DSMC%DoAmbipolarDiff) THEN
       IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
-        CALL SampleImpactProperties(SurfSideID,DSMC%AmbiDiffElecSpec,MPF,ETransAmbi,0.,0.,0.,PartTrajectory_opt,SurfaceNormal_opt,p,q)
+        CALL SampleImpactProperties(SurfSideID,DSMC%AmbiDiffElecSpec,MPF,ETransAmbi,0.,0.,0.,TrackInfo%PartTrajectory,SurfaceNormal_opt)
       END IF
     END IF
   END IF
   ! Sample the time step for the correct determination of the heat flux
   IF (VarTimeStep%UseVariableTimeStep) THEN
-    SampWallState(SAMPWALL_NVARS+nSpecies+1,p,q,SurfSideID) = SampWallState(SAMPWALL_NVARS+nSpecies+1,p,q,SurfSideID) &
+    SampWallState(SAMPWALL_NVARS+nSpecies+1,SubP,SubQ,SurfSideID) = SampWallState(SAMPWALL_NVARS+nSpecies+1,SubP,SubQ,SurfSideID) &
                                                               + VarTimeStep%ParticleTimeStep(PartID)
   END IF
 CASE ('new')
@@ -140,22 +144,22 @@ CASE DEFAULT
     ,'ERROR in CalcWallSample: wrong SampleType specified. Possible types -> ( old , new )')
 END SELECT
 !----  Sampling force at walls (correct sign is set above)
-SampWallState(SAMPWALL_DELTA_MOMENTUMX,p,q,SurfSideID) = SampWallState(SAMPWALL_DELTA_MOMENTUMX,p,q,SurfSideID) + MomArray(1)
-SampWallState(SAMPWALL_DELTA_MOMENTUMY,p,q,SurfSideID) = SampWallState(SAMPWALL_DELTA_MOMENTUMY,p,q,SurfSideID) + MomArray(2)
-SampWallState(SAMPWALL_DELTA_MOMENTUMZ,p,q,SurfSideID) = SampWallState(SAMPWALL_DELTA_MOMENTUMZ,p,q,SurfSideID) + MomArray(3)
+SampWallState(SAMPWALL_DELTA_MOMENTUMX,SubP,SubQ,SurfSideID) = SampWallState(SAMPWALL_DELTA_MOMENTUMX,SubP,SubQ,SurfSideID) + MomArray(1)
+SampWallState(SAMPWALL_DELTA_MOMENTUMY,SubP,SubQ,SurfSideID) = SampWallState(SAMPWALL_DELTA_MOMENTUMY,SubP,SubQ,SurfSideID) + MomArray(2)
+SampWallState(SAMPWALL_DELTA_MOMENTUMZ,SubP,SubQ,SurfSideID) = SampWallState(SAMPWALL_DELTA_MOMENTUMZ,SubP,SubQ,SurfSideID) + MomArray(3)
 !----  Sampling the energy (translation) accommodation at walls
-SampWallState(ETransID ,p,q,SurfSideID) = SampWallState(ETransID ,p,q,SurfSideID) + ETrans * MPF
+SampWallState(ETransID ,SubP,SubQ,SurfSideID) = SampWallState(ETransID ,SubP,SubQ,SurfSideID) + ETrans * MPF
 IF (useDSMC) THEN
   IF (CollisMode.GT.1) THEN
     IF ((SpecDSMC(SpecID)%InterID.EQ.2).OR.SpecDSMC(SpecID)%InterID.EQ.20) THEN
       !----  Sampling the internal (rotational) energy accommodation at walls
-      SampWallState(ERotID ,p,q,SurfSideID) = SampWallState(ERotID ,p,q,SurfSideID) + PartStateIntEn(2,PartID) * MPF
+      SampWallState(ERotID ,SubP,SubQ,SurfSideID) = SampWallState(ERotID ,SubP,SubQ,SurfSideID) + PartStateIntEn(2,PartID) * MPF
       !----  Sampling for internal (vibrational) energy accommodation at walls
-      SampWallState(EVibID ,p,q,SurfSideID) = SampWallState(EVibID ,p,q,SurfSideID) + PartStateIntEn(1,PartID) * MPF
+      SampWallState(EVibID ,SubP,SubQ,SurfSideID) = SampWallState(EVibID ,SubP,SubQ,SurfSideID) + PartStateIntEn(1,PartID) * MPF
     END IF
     IF(DSMC%ElectronicModel.GT.0) THEN
       !----  Sampling for internal (electronic) energy accommodation at walls
-      SampWallState(EElecID ,p,q,SurfSideID) = SampWallState(EElecID ,p,q,SurfSideID) + PartStateIntEn(3,PartID) * MPF
+      SampWallState(EElecID ,SubP,SubQ,SurfSideID) = SampWallState(EElecID ,SubP,SubQ,SurfSideID) + PartStateIntEn(3,PartID) * MPF
     END IF
   END IF
 END IF
@@ -163,7 +167,7 @@ END IF
 END SUBROUTINE CalcWallSample
 
 
-SUBROUTINE SampleImpactProperties(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,EElec,PartTrajectory,SurfaceNormal,p,q)
+SUBROUTINE SampleImpactProperties(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,EElec,PartTrajectory,SurfaceNormal)
 !===================================================================================================================================
 !> Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
 !>
@@ -172,6 +176,7 @@ SUBROUTINE SampleImpactProperties(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,EElec,P
 USE MOD_Particle_Boundary_Vars ,ONLY: SampWallImpactEnergy,SampWallImpactVector
 USE MOD_Particle_Boundary_Vars ,ONLY: SampWallImpactAngle ,SampWallImpactNumber
 USE MOD_Globals_Vars           ,ONLY: PI
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackInfo
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -184,31 +189,33 @@ REAL,INTENT(IN)    :: EVib                !< Vibrational energy of impacting par
 REAL,INTENT(IN)    :: EElec               !< Electronic energy of impacting particle
 REAL,INTENT(IN)    :: PartTrajectory(1:3) !< Particle trajectory vector (normalized)
 REAL,INTENT(IN)    :: SurfaceNormal(1:3)  !< Surface normal vector (normalized)
-INTEGER,INTENT(IN) :: p                 !< Surface sub-faces
-INTEGER,INTENT(IN) :: q                 !< Surface sub-faces
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER            :: SubP, SubQ
 !-----------------------------------------------------------------------------------------------------------------------------------
 
+SubP = TrackInfo%p
+SubQ = TrackInfo%q
+
 !----- Sampling of impact energy for each species (trans, rot, vib)
-SampWallImpactEnergy(SpecID,1,p,q,SurfSideID) = SampWallImpactEnergy(SpecID,1,p,q,SurfSideID) + ETrans * MPF
-SampWallImpactEnergy(SpecID,2,p,q,SurfSideID) = SampWallImpactEnergy(SpecID,2,p,q,SurfSideID) + ERot   * MPF
-SampWallImpactEnergy(SpecID,3,p,q,SurfSideID) = SampWallImpactEnergy(SpecID,3,p,q,SurfSideID) + EVib   * MPF
-SampWallImpactEnergy(SpecID,4,p,q,SurfSideID) = SampWallImpactEnergy(SpecID,4,p,q,SurfSideID) + EElec  * MPF
+SampWallImpactEnergy(SpecID,1,SubP,SubQ,SurfSideID) = SampWallImpactEnergy(SpecID,1,SubP,SubQ,SurfSideID) + ETrans * MPF
+SampWallImpactEnergy(SpecID,2,SubP,SubQ,SurfSideID) = SampWallImpactEnergy(SpecID,2,SubP,SubQ,SurfSideID) + ERot   * MPF
+SampWallImpactEnergy(SpecID,3,SubP,SubQ,SurfSideID) = SampWallImpactEnergy(SpecID,3,SubP,SubQ,SurfSideID) + EVib   * MPF
+SampWallImpactEnergy(SpecID,4,SubP,SubQ,SurfSideID) = SampWallImpactEnergy(SpecID,4,SubP,SubQ,SurfSideID) + EElec  * MPF
 
 !----- Sampling of impact vector ,SurfSideIDfor each species (x,y,z)
-SampWallImpactVector(SpecID,1,p,q,SurfSideID) = SampWallImpactVector(SpecID,1,p,q,SurfSideID) + PartTrajectory(1) * MPF
-SampWallImpactVector(SpecID,2,p,q,SurfSideID) = SampWallImpactVector(SpecID,2,p,q,SurfSideID) + PartTrajectory(2) * MPF
-SampWallImpactVector(SpecID,3,p,q,SurfSideID) = SampWallImpactVector(SpecID,3,p,q,SurfSideID) + PartTrajectory(3) * MPF
+SampWallImpactVector(SpecID,1,SubP,SubQ,SurfSideID) = SampWallImpactVector(SpecID,1,SubP,SubQ,SurfSideID) + PartTrajectory(1) * MPF
+SampWallImpactVector(SpecID,2,SubP,SubQ,SurfSideID) = SampWallImpactVector(SpecID,2,SubP,SubQ,SurfSideID) + PartTrajectory(2) * MPF
+SampWallImpactVector(SpecID,3,SubP,SubQ,SurfSideID) = SampWallImpactVector(SpecID,3,SubP,SubQ,SurfSideID) + PartTrajectory(3) * MPF
 
 !----- Sampling of impact angle for each species
-SampWallImpactAngle(SpecID,p,q,SurfSideID) = SampWallImpactAngle(SpecID,p,q,SurfSideID) + &
+SampWallImpactAngle(SpecID,SubP,SubQ,SurfSideID) = SampWallImpactAngle(SpecID,SubP,SubQ,SurfSideID) + &
     (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal)))) * MPF
 
 !----- Sampling of impact number for each species
-SampWallImpactNumber(SpecID,p,q,SurfSideID) = SampWallImpactNumber(SpecID,p,q,SurfSideID) + MPF
+SampWallImpactNumber(SpecID,SubP,SubQ,SurfSideID) = SampWallImpactNumber(SpecID,SubP,SubQ,SurfSideID) + MPF
 
 END SUBROUTINE SampleImpactProperties
 
@@ -306,5 +313,270 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
 END ASSOCIATE
 
 END SUBROUTINE StoreBoundaryParticleProperties
+
+
+SUBROUTINE MarkAuxBCElems()
+!===================================================================================================================================
+! check if auxBCs are inside BoundingBox of Elems
+! -- plane: use plane equation f=a1*x+a2*y+a3*z+a4=0 and insert corresponding intervals of box -> fmin and fmax
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHasAuxBCs
+USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared
+USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+#endif
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                  :: iElem,iAuxBC,icoord,dir(3),positiontype,positiontype_tmp
+REAL                     :: r_vec(3),n_vec(3),fmin,fmax,radius,BoundsBC(1:2,1:3)
+REAL                     :: lmin,lmax,deltamin,deltamax,origin(2),halfangle
+LOGICAL                  :: cartesian, backwards
+!===================================================================================================================================
+
+ALLOCATE(ElemHasAuxBCs(1:PP_nElems , 1:nAuxBCs))
+ElemHasAuxBCs=.FALSE.
+
+DO iAuxBC=1,nAuxBCs
+  SELECT CASE (TRIM(AuxBCType(iAuxBC)))
+  CASE ('plane')
+    r_vec=AuxBC_plane(AuxBCMap(iAuxBC))%r_vec
+    n_vec=AuxBC_plane(AuxBCMap(iAuxBC))%n_vec
+    radius=AuxBC_plane(AuxBCMap(iAuxBC))%radius
+    ! loop over all  elements
+    DO iElem=1,PP_nElems
+      ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+        fmin=-DOT_PRODUCT(r_vec,n_vec)
+        fmax=fmin
+        DO icoord=1,3
+          IF (n_vec(icoord).GE.0) THEN
+            fmin = fmin + n_vec(icoord)*Bounds(1,icoord)
+            fmax = fmax + n_vec(icoord)*Bounds(2,icoord)
+          ELSE
+            fmin = fmin + n_vec(icoord)*Bounds(2,icoord)
+            fmax = fmax + n_vec(icoord)*Bounds(1,icoord)
+          END IF
+        END DO
+        IF ((fmin.LE.0 .AND. fmax.GT.0).OR.(fmin.LT.0 .AND. fmax.GE.0)) THEN !plane intersects the box!
+          !radius check needs to be implemented (compute intersection polygon and minimum radii): would sort out further elements!!!
+          !quick, conservative solution: calculate bounding box of disc in space and compare with bb of element
+          ElemHasAuxBCs(iElem,iAuxBC)=.TRUE.
+          IF (radius .LT. 0.5*HUGE(radius)) THEN !huge was default
+            BoundsBC(1,1:3) = r_vec - radius * SQRT(1.-(n_vec*n_vec))
+            BoundsBC(2,1:3) = r_vec + radius * SQRT(1.-(n_vec*n_vec))
+            DO icoord=1,3
+              IF ( BoundsBC(2,icoord).LT.Bounds(1,icoord) .OR. BoundsBC(1,icoord).GT.Bounds(2,icoord) ) THEN
+                ElemHasAuxBCs(iElem,iAuxBC)=.FALSE.
+                EXIT
+              END IF
+            END DO
+          END IF
+        ELSE IF ((fmin.LT.0 .AND. fmax.LT.0).OR.(fmin.GT.0 .AND. fmax.GT.0)) THEN !plane does not intersect the box!
+          ElemHasAuxBCs(iElem,iAuxBC)=.FALSE.
+        ELSE !e.g. if elem has zero volume...
+          CALL abort(&
+            __STAMP__&
+            ,'Error in MarkAuxBCElems for AuxBC:',iAuxBC)
+        END IF
+      END ASSOCIATE
+    END DO
+  CASE ('cylinder','cone')
+    IF (TRIM(AuxBCType(iAuxBC)).EQ.'cylinder') THEN
+      r_vec=AuxBC_cylinder(AuxBCMap(iAuxBC))%r_vec
+      n_vec=AuxBC_cylinder(AuxBCMap(iAuxBC))%axis
+      radius=AuxBC_cylinder(AuxBCMap(iAuxBC))%radius
+      lmin=AuxBC_cylinder(AuxBCMap(iAuxBC))%lmin
+      lmax=AuxBC_cylinder(AuxBCMap(iAuxBC))%lmax
+    ELSE !cone
+      r_vec=AuxBC_cone(AuxBCMap(iAuxBC))%r_vec
+      n_vec=AuxBC_cone(AuxBCMap(iAuxBC))%axis
+      halfangle=AuxBC_cone(AuxBCMap(iAuxBC))%halfangle
+      lmin=AuxBC_cone(AuxBCMap(iAuxBC))%lmin
+      lmax=AuxBC_cone(AuxBCMap(iAuxBC))%lmax
+    END IF
+    cartesian=.TRUE.
+    backwards=.FALSE.
+    IF (ABS(n_vec(1)).EQ.1.) THEN
+      dir(1)=1
+      dir(2)=2
+      dir(3)=3
+      IF (n_vec(1).LT.0.) backwards=.TRUE.
+    ELSE IF (ABS(n_vec(2)).EQ.1.) THEN
+      dir(1)=2
+      dir(2)=3
+      dir(3)=1
+      IF (n_vec(2).LT.0.) backwards=.TRUE.
+    ELSE IF (ABS(n_vec(3)).EQ.1.) THEN
+      dir(1)=3
+      dir(2)=1
+      dir(3)=2
+      IF (n_vec(3).LT.0.) backwards=.TRUE.
+    ELSE
+      cartesian=.FALSE.
+      SWRITE(*,*) 'WARNING in MarkAuxBCElems: all Elems are set to ElemHasAuxBCs=.TRUE. for AuxBC:',iAuxBC
+      ElemHasAuxBCs(:,iAuxBC)=.TRUE. !actual intersection with box check to-be implemented!!!
+    END IF
+    IF (cartesian) THEN
+      IF (backwards) THEN
+        deltamin = -lmax
+        deltamax = -lmin
+      ELSE
+        deltamin = lmin
+        deltamax = lmax
+      END IF
+      origin(1) = r_vec(dir(2))
+      origin(2) = r_vec(dir(3))
+      ! loop over all  elements
+      DO iElem=1,PP_nElems
+        ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+          ! check for lmin and lmax
+          IF ( r_vec(dir(1))+deltamax.LT.Bounds(1,dir(1)) .OR. r_vec(dir(1))+deltamin.GT.Bounds(2,dir(1)) ) THEN
+            ElemHasAuxBCs(iElem,iAuxBC)=.FALSE.
+          ELSE !between lmin and lmax
+            IF (TRIM(AuxBCType(iAuxBC)).EQ.'cylinder') THEN
+              CALL CheckBoundsWithCartRadius(Bounds,dir,origin,radius,positiontype)
+            ELSE !cone
+              !local minimum radius
+              IF (backwards) THEN
+                radius = MAX(-Bounds(2,dir(1))+r_vec(dir(1)),lmin)*TAN(halfangle)
+              ELSE
+                radius = MAX(Bounds(1,dir(1))-r_vec(dir(1)),lmin)*TAN(halfangle)
+              END IF
+              CALL CheckBoundsWithCartRadius(Bounds,dir,origin,radius,positiontype_tmp)
+              !local maximum radius
+              IF (backwards) THEN
+                radius = MIN(-Bounds(1,dir(1))+r_vec(dir(1)),lmax)*TAN(halfangle)
+              ELSE
+                radius = MIN(Bounds(2,dir(1))-r_vec(dir(1)),lmax)*TAN(halfangle)
+              END IF
+              CALL CheckBoundsWithCartRadius(Bounds,dir,origin,radius,positiontype)
+              !if both are type 0 or both are type 1 than the "total" type is not 2:
+              IF ( .NOT.(positiontype_tmp.EQ.0 .AND. positiontype.EQ.0) &
+                .AND. .NOT.(positiontype_tmp.EQ.1 .AND. positiontype.EQ.1) ) THEN
+                positiontype=2
+              END IF
+            END IF
+            IF (positiontype.EQ.2) THEN
+              ElemHasAuxBCs(iElem,iAuxBC)=.TRUE.
+            ELSE
+              ElemHasAuxBCs(iElem,iAuxBC)=.FALSE.
+            END IF
+          END IF !check for lmin and lmax
+        END ASSOCIATE
+      END DO !iElem
+    END IF !cartesian
+  CASE('parabol')
+    ElemHasAuxBCs(:,iAuxBC)=.TRUE. ! to be implemented!!!
+  CASE DEFAULT
+    SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
+    CALL abort(&
+      __STAMP__&
+      ,'AuxBC does not exist')
+  END SELECT
+END DO
+
+END SUBROUTINE MarkAuxBCElems
+
+
+SUBROUTINE CheckBoundsWithCartRadius(Bounds,dir,origin,radius,positiontype)
+!===================================================================================================================================
+! checks how a cartesian bb is located with regard to a radius with cartesian axis (dir is cartesian axis and origin in orth. dirs)
+!- positiontype=0 : complete bb is inside of radius
+!- positiontype=1 : complete bb is outside of radius
+!- positiontype=2 : bb is partly inside of radius
+! (based on "check where the sides are located relative to rmax" in particle_emission for SimpleRadialVeloFit)
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+!
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+REAL,INTENT(IN)           :: Bounds(1:2,1:3), origin(2), radius
+INTEGER,INTENT(IN)        :: dir(3)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+INTEGER,INTENT(OUT)       :: positiontype
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                   :: iDir1, iDir2, iDir3, iPoint
+REAL                      :: BoundingBox(1:3,1:8), point(2), pointRadius
+LOGICAL                   :: done, insideBound
+!===================================================================================================================================
+!-- convert minmax-values to bb-points
+DO iDir1=0,1
+  DO iDir2=0,1
+      DO iDir3=0,1
+        BoundingBox(1,iDir1*4 + iDir2*2 + iDir3+1) = Bounds(iDir1+1,1)
+        BoundingBox(2,iDir1*4 + iDir2*2 + iDir3+1) = Bounds(iDir2+1,2)
+        BoundingBox(3,iDir1*4 + iDir2*2 + iDir3+1) = Bounds(iDir3+1,3)
+      END DO
+  END DO
+END DO
+
+!-- check where the points are located relative to radius
+done=.FALSE.
+DO iDir1=0,1
+  IF(done) EXIT
+  DO iDir2=0,1
+    IF(done) EXIT
+    DO iDir3=0,1
+      !-- coords orth. to axis of point:
+      iPoint=iDir1*4 + iDir2*2 + iDir3+1
+      point(1) = BoundingBox(dir(2),iPoint)-origin(1)
+      point(2) = BoundingBox(dir(3),iPoint)-origin(2)
+      pointRadius = SQRT( (point(1))**2+(point(2))**2 )
+      IF (iPoint.EQ.1) THEN
+        IF (pointRadius.LE.radius) THEN
+          insideBound=.TRUE.
+        ELSE !outside
+          insideBound=.FALSE.
+        END IF !in-/outside?
+      ELSE !iPoint.GT.1: type must be 2 if state of point if different from last point
+        IF (pointRadius.LE.radius) THEN
+          IF (.NOT.insideBound) THEN !different from last point
+            positiontype=2
+            done=.TRUE.
+            EXIT
+          END IF
+        ELSE !outside
+          IF (insideBound) THEN !different from last point
+            positiontype=2
+            done=.TRUE.
+            EXIT
+          END IF
+        END IF !in-/outside?
+      END IF !iPoint.EQ.1
+    END DO !iDir3
+  END DO !iDir2
+END DO !iDir1
+IF (.NOT.done) THEN
+  IF (insideBound) THEN
+    positiontype=0
+  ELSE
+    ! all points are outside of radius, but when radius is smaller than box, it can intersect it:
+    IF ( origin(1) + radius .GE. Bounds(1,dir(2)) .AND. &
+         origin(1) - radius .LE. Bounds(2,dir(2)) .AND. &
+         origin(2) + radius .GE. Bounds(1,dir(3)) .AND. &
+         origin(2) - radius .LE. Bounds(2,dir(3)) ) THEN !circle completely or partly inside box
+      positiontype=2
+    ELSE !points are really outside
+      positiontype=1
+    END IF
+  END IF
+END IF
+
+END SUBROUTINE CheckBoundsWithCartRadius
+
 
 END MODULE MOD_Particle_Boundary_Tools

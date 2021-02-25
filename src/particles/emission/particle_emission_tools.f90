@@ -108,6 +108,8 @@ PUBLIC :: CalcNbrOfPhotons, CalcPhotonEnergy
 PUBLIC :: CalcIntensity_Gaussian
 PUBLIC :: CalcVelocity_FromWorkFuncSEE, DSMC_SetInternalEnr_LauxVFD
 PUBLIC :: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
+PUBLIC :: SetParticlePositionLandmark
+PUBLIC :: SetParticlePositionLandmarkNeutralization
 #ifdef CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
@@ -630,13 +632,13 @@ REAL                 :: NormalIC(1:3), RadiusIC, RadiusICGyro, Alpha, GyroVecDir
   Vec3D(1:3) = (tan_vec(1:3) + n_vec(1:3)) * VeloIC
 
   IF (ABS(SQRT(Vec3D(1)*Vec3D(1) + Vec3D(2)*Vec3D(2))- VeloIC) .GT. 10.) THEN
-    SWRITE(*,'(A,3(E21.14,X))') 'Velocity=', PartState(4:6,iPart)
+    SWRITE(*,'(A,3(E21.14,1X))') 'Velocity=', PartState(4:6,iPart)
     CALL abort(&
     __STAMP__&
     ,'ERROR in gyrotron_circle spaceIC!',iPart)
   END If
-  IF (Vec3D(1).NE.Vec3D(1).OR.Vec3D(2).NE.Vec3D(2).OR.Vec3D(3).NE.Vec3D(3)) THEN
-    SWRITE(*,'(A,3(E21.14,X))') 'WARNING:! NaN: Velocity=', Vec3D(1:3)
+  IF(ISNAN(VECNORM(Vec3D)))THEN
+    SWRITE(*,'(A,3(E21.14,1X))') 'WARNING:! NaN: Velocity=', Vec3D(1:3)
   END If
 
 END SUBROUTINE CalcVelocity_gyrotroncircle
@@ -947,6 +949,7 @@ REAL                             :: RefPos(1:3)
 INTEGER                          :: CellChunkSize(1+offsetElem:nElems+offsetElem)
 INTEGER                          :: chunkSize_tmp, ParticleIndexNbr
 REAL                             :: adaptTimestep
+INTEGER                          :: CNElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF (UseExactPartNum) THEN
     IF(chunkSize.GE.PDM%maxParticleNumber) THEN
@@ -971,19 +974,20 @@ __STAMP__,&
   ichunkSize = 1
   ParticleIndexNbr = 1
   DO iElem = 1+offsetElem, nElems+offsetElem
+    CNElemID = GetCNElemID(iElem)
     ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
       IF (UseExactPartNum) THEN
         nPart = CellChunkSize(iElem)
       ELSE
         IF(RadialWeighting%DoRadialWeighting) THEN
-          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,GetCNElemID(iElem)), iSpec)
+          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec)
         END IF
         CALL RANDOM_NUMBER(iRan)
         IF(VarTimeStep%UseVariableTimeStep) THEN
-          adaptTimestep = CalcVarTimeStep(ElemMidPoint_Shared(1,GetCNElemID(iElem)), ElemMidPoint_Shared(2,GetCNElemID(iElem)), iElem)
-          nPart = INT(PartDens / adaptTimestep * ElemVolume_Shared(GetCNElemID(iElem)) + iRan)
+          adaptTimestep = CalcVarTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), iElem)
+          nPart = INT(PartDens / adaptTimestep * ElemVolume_Shared(CNElemID) + iRan)
         ELSE
-          nPart = INT(PartDens * ElemVolume_Shared(GetCNElemID(iElem)) + iRan)
+          nPart = INT(PartDens * ElemVolume_Shared(CNElemID) + iRan)
         END IF
       END IF
       DO iPart = 1, nPart
@@ -1011,7 +1015,7 @@ __STAMP__,&
 
               CASE(REFMAPPING)
                 CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-                IF (MAXVAL(ABS(RefPos)).LE.ElemEpsOneCell(iElem)) InsideFlag=.TRUE.
+                IF (MAXVAL(ABS(RefPos)).LE.ElemEpsOneCell(CNElemID)) InsideFlag=.TRUE.
             END SELECT
           END DO
           PartState(1:3,ParticleIndexNbr) = RandomPos(1:3)
@@ -1686,9 +1690,6 @@ ASSOCIATE( tau         => Species(i)%Init(iInit)%PulseDuration      ,&
            Period      => Species(i)%Init(iInit)%Period              &
           )
 
-! Calculate the current pulse
-NbrOfRepetitions = INT(Time/Period)
-
 ! Temporal bound of integration
 #ifdef LSERK
 IF (iStage.EQ.1) THEN
@@ -1707,11 +1708,15 @@ END IF
 t_1 = Time
 t_2 = Time + dt
 #endif
+
+! Calculate the current pulse
+NbrOfRepetitions = INT(Time/Period)
+
 ! Add arbitrary time shift (-4 sigma_t) so that I_max is not at t=0s
 ! Note that sigma_t = tau / sqrt(2)
-
 t_1 = t_1 - tShift - NbrOfRepetitions * Period
 t_2 = t_2 - tShift - NbrOfRepetitions * Period
+
 ! check if t_2 is outside of the pulse
 IF(t_2.GT.2.0*tShift) t_2 = 2.0*tShift
 
@@ -1950,6 +1955,96 @@ DO i=1,chunkSize
   particle_positions(i*3  ) = Particle_pos(3)
 END DO
 END SUBROUTINE SetParticlePositionPhotonCylinder
+
+
+SUBROUTINE SetParticlePositionLandmark(FractNbr,iInit,chunkSize,particle_positions,mode)
+!===================================================================================================================================
+! Set particle position
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Globals_Vars       ,ONLY: PI
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Particle_Vars      ,ONLY: PartPosLandmark,NbrOfParticleLandmarkMax
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize, mode
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)       :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                    :: Particle_pos(3)
+INTEGER                 :: i
+REAL                    :: RandVal(2)
+!===================================================================================================================================
+IF(NbrOfParticleLandmarkMax.LT.chunkSize) THEN
+  IPWRITE(UNIT_StdOut,*) "NbrOfParticleLandmarkMax,chunkSize =", NbrOfParticleLandmarkMax,chunkSize
+  CALL abort(&
+      __STAMP__&
+      ,'NbrOfParticleLandmarkMax.LT.chunkSize is not allowed! Allocate PartPosLandmark to the appropriate size.')
+END IF
+
+IF(mode.EQ.1)THEN!Create new position and store them
+  DO i=1,chunkSize
+    CALL RANDOM_NUMBER(RandVal)
+      ASSOCIATE( x2 => 1.0e-2                           ,& ! m
+                 x1 => 0.25e-2                          ,& ! m
+                 Ly => 1.28e-2                          ,& ! m
+                 z  => (GEO%zmaxglob+GEO%zminglob)/2.0 )   ! m
+      particle_positions(i*3-2) = (x2+x1)/2.0 + ASIN(2.0*RandVal(1)-1.0)*(x2-x1)/PI
+      particle_positions(i*3-1) = RandVal(2) * Ly
+      particle_positions(i*3  ) = z
+      ! Store particle positions for re-using them when placing the opposite charged particles (mode=2)
+      PartPosLandmark(1,i) = particle_positions(i*3-2)
+      PartPosLandmark(2,i) = particle_positions(i*3-1)
+      PartPosLandmark(3,i) = particle_positions(i*3  )
+    END ASSOCIATE
+  END DO
+ELSEIF(mode.EQ.2)THEN!Re-use previously created positions
+  DO i=1,chunkSize
+    particle_positions(i*3-2) = PartPosLandmark(1,i)
+    particle_positions(i*3-1) = PartPosLandmark(2,i)
+    particle_positions(i*3  ) = PartPosLandmark(3,i)
+  END DO
+END IF ! mode.EQ.1
+END SUBROUTINE SetParticlePositionLandmark
+
+
+SUBROUTINE SetParticlePositionLandmarkNeutralization(FractNbr,iInit,chunkSize,particle_positions)
+!===================================================================================================================================
+! Set particle position
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)       :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: i
+REAL                    :: RandVal
+!===================================================================================================================================
+DO i=1,chunkSize
+  CALL RANDOM_NUMBER(RandVal)
+  ASSOCIATE( Ly => 1.28e-2                          ,& ! m
+             z  => (GEO%zmaxglob+GEO%zminglob)/2.0 )   ! m
+    particle_positions(i*3-2) = 2.4e-2
+    particle_positions(i*3-1) = RandVal * Ly
+    particle_positions(i*3  ) = z
+  END ASSOCIATE
+END DO
+END SUBROUTINE SetParticlePositionLandmarkNeutralization
 
 
 END MODULE MOD_part_emission_tools

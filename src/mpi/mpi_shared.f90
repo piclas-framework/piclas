@@ -117,8 +117,14 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT MPI SHARED COMMUNICATION ...'
 ! Save the global number of procs
 nProcessors_Global = nProcessors
 
-! Split the node communicator (shared memory) from the global communicator
-CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, myRank, MPI_INFO_NULL, MPI_COMM_SHARED,IERROR)
+! Split the node communicator (shared memory) from the global communicator on physical processor or node level
+#if USE_CORE_SPLIT
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,myRank,0,MPI_COMM_SHARED,iError)
+#else
+  ! Note that using SharedMemoryMethod=OMPI_COMM_TYPE_CORE somehow does not work in every case (intel/amd processors)
+  ! Also note that OMPI_COMM_TYPE_CORE is undefined when not using OpenMPI
+  CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD, SharedMemoryMethod, myRank, MPI_INFO_NULL, MPI_COMM_SHARED,IERROR)
+#endif
 
 ! Find my rank on the shared communicator, comm size and proc name
 CALL MPI_COMM_RANK(MPI_COMM_SHARED, myComputeNodeRank,IERROR)
@@ -164,7 +170,7 @@ IF(myComputeNodeRank.EQ.0)THEN
   CALL MPI_COMM_SIZE(MPI_COMM_LEADERS_SHARED,nLeaderGroupProcs,IERROR)
 END IF
 
-! leders inform every proc on their node about the leader group rank and group size
+! Leaders inform every processor on their node about the leader group rank and group size
 CALL MPI_BCAST(myLeaderGroupRank,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
 CALL MPI_BCAST(nLeaderGroupProcs,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
 

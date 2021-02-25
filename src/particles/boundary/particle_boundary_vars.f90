@@ -26,9 +26,8 @@ SAVE
 
 LOGICAL                                 :: SurfOnNode
 INTEGER                                 :: SurfSampSize                  !> Energy + Force + nSpecies
-INTEGER                                 :: SurfSampSizeReactive          !> additional sample size on the surface due to use of
-                                                                         !> reactive surface modelling (reactions, liquid, etc.)
 REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: SurfSideArea                  !> Area of supersampled surface side
+REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: BoundaryWallTemp              !> Wall Temperature for Adaptive Case
 ! ====================================================================
 ! Mesh info
 INTEGER                                 :: nSurfTotalSides
@@ -61,6 +60,9 @@ INTEGER,ALLOCPOINT,DIMENSION(:,:)       :: GlobalSide2SurfSide_Shared
 INTEGER,ALLOCPOINT,DIMENSION(:,:)       :: SurfSide2GlobalSide_Shared
 
 #if USE_MPI
+REAL,POINTER,DIMENSION(:,:,:)           :: BoundaryWallTemp_Shared           !> Wall Temperature for Adaptive Case
+INTEGER                                 :: BoundaryWallTemp_Shared_Win
+
 REAL,POINTER,DIMENSION(:,:,:)           :: SurfSideArea_Shared           !> Area of supersampled surface side
 INTEGER                                 :: SurfSideArea_Shared_Win
 
@@ -125,6 +127,7 @@ CHARACTER(LEN=255),ALLOCATABLE          :: SurfBCName(:)                 ! names
 #if USE_MPI
 INTEGER,ALLOCATABLE                     :: OffSetSurfSideMPI(:)          ! integer offset for particle boundary sampling
 INTEGER,ALLOCATABLE                     :: OffSetInnerSurfSideMPI(:)     ! integer offset for particle boundary sampling (innerBC)
+INTEGER                                 :: nComputeNodeInnerBCs          ! Number of inner BCs with a larger global side ID on node
 #endif /*USE_MPI*/
 
 #if USE_MPI
@@ -246,6 +249,8 @@ TYPE tPartBoundary
                                                                             !   (originally from Harrower1956)
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibrium Distribution with reflection
+  LOGICAL , ALLOCATABLE                  :: UseAdaptedWallTemp(:)         
+  REAL    , ALLOCATABLE                  :: RadiativeEmissivity(:)
   LOGICAL , ALLOCATABLE                  :: Dielectric(:)                 ! Define if particle boundary [$] is a dielectric
 !                                                                         ! interface, i.e. an interface between a dielectric and
 !                                                                         ! a non-dielectric or a between to different dielectrics
@@ -257,6 +262,8 @@ END TYPE
 
 INTEGER                                  :: nPartBound                       ! number of particle boundaries
 TYPE(tPartBoundary)                      :: PartBound                         ! Boundary Data for Particles
+
+LOGICAL                                  :: AdaptWallTemp
 
 INTEGER                                  :: nAuxBCs                     ! number of aux. BCs that are checked during tracing
 LOGICAL                                  :: UseAuxBCs                     ! number of aux. BCs that are checked during tracing

@@ -291,7 +291,8 @@ IF (PartMPI%MPIRoot) THEN
     DO iPartBound = 1, BPO%NPartBoundaries
       DO iSpec = 1, BPO%NSpecies
         CALL WriteDataInfo(unit_index,1,RealArray=(/BPO%RealPartOut(iPartBound,iSpec)/))
-        ! Reset counters
+        ! Reset PartMPI%MPIRoot counters after writing the data to the file,
+        ! non-PartMPI%MPIRoot are reset in GetBoundaryParticleOutput()
         BPO%RealPartOut(iPartBound,iSpec) = 0.
       END DO
     END DO
@@ -531,6 +532,8 @@ ELSE
   ! Map 2D array to vector for sending via MPI
   SendBuf = RESHAPE(BPO%RealPartOut,(/SendBufSize/))
   CALL MPI_REDUCE(SendBuf(1:SendBufSize),0,SendBufSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  ! Reset non PartMPI%MPIRoot counters, PartMPI%MPIRoot counters are reset after writing the data to the file
+  BPO%RealPartOut = 0.
 END IF
 #endif /*USE_MPI*/
 

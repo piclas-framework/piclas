@@ -388,7 +388,7 @@ DO i = 1, chunkSize
   IF(InsideMyBGM(1,i))THEN
     ! We cannot call LocateParticleInElement because we do not know the final PartID yet. Locate the position and fill PartState
     ! manually if we got a hit
-    ElemID = SinglePointToElement(particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+3),doHALO=.TRUE.)
+    ElemID = SinglePointToElement(particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+3),doHALO=.TRUE.,doEmission_opt=.TRUE.)
     ! Checked every possible cell and didn't find it. Apparently, we emitted the particle outside the domain
     IF(ElemID.EQ.-1) CYCLE
 
@@ -552,7 +552,7 @@ TotalNbrOfRecvParts = SUM(PartMPIInsert%nPartsRecv(1,:))
 DO i = 1,TotalNbrOfRecvParts
   ! We cannot call LocateParticleInElement because we do not know the final PartID yet. Locate the position and fill PartState
   ! manually if we got a hit
-  ElemID = SinglePointToElement(recvPartPos(DimSend*(i-1)+1:DimSend*(i-1)+3),doHALO=.FALSE.)
+  ElemID = SinglePointToElement(recvPartPos(DimSend*(i-1)+1:DimSend*(i-1)+3),doHALO=.FALSE.,doEmission_opt=.TRUE.)
   ! Checked every possible cell and didn't find it. Apparently, we emitted the particle outside the domain
   IF(ElemID.EQ.-1) CYCLE
 

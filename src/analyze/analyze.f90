@@ -93,19 +93,29 @@ CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'Calculate Potential Ener
 CALL prms%CreateLogicalOption(  'CalcPointsPerWavelength', 'Flag to compute the points per wavelength in each cell','.FALSE.')
 
 CALL prms%SetSection("Analyzefield")
-CALL prms%CreateIntOption(    'PoyntingVecInt-Planes', 'Total number of Poynting vector integral planes for measuring the '//&
-                                                       'directed power flow (energy flux density: Density and direction of an '//&
-                                                       'electromagnetic field.', '0')
-CALL prms%CreateRealOption(   'Plane-Tolerance'      , 'Absolute tolerance for checking the Poynting vector integral plane '//&
-                                                       'coordinates and normal vectors of the corresponding sides for selecting '//&
-                                                       'relevant sides', '1E-5')
-CALL prms%CreateRealOption(   'Plane-[$]-x-coord'      , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(   'Plane-[$]-y-coord'      , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(   'Plane-[$]-z-coord'      , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(   'Plane-[$]-factor'       , 'TODO-DEFINE-PARAMETER', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(    'PoyntingMainDir'        , 'Direction in which the Poynting vector integral is to be measured. '//&
-                                                         '\n1: x \n2: y \n3: z (default)')
+CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"Calculate Poynting vector integral, which is the integrated energy density "//&
+                                                         "over a plane, perpendicular to PoyntingMainDir axis (default is z-direction)"//&
+                                                         ". The plane position must lie on an interface between two adjacent elements.",&
+                                                      '.FALSE.')
+CALL prms%CreateIntOption( 'PoyntingVecInt-Planes', 'Total number of Poynting vector integral planes for measuring the '//&
+                                                    'directed power flow (energy flux density: Density and direction of an '//&
+                                                    'electromagnetic field.', '0')
+CALL prms%CreateRealOption('Plane-Tolerance'  , 'Absolute tolerance for checking the Poynting vector integral plane '//&
+                                                'coordinates and normal vectors of the corresponding sides for selecting '//&
+                                                'relevant sides', '1E-5')
+CALL prms%CreateRealOption('Plane-[$]-x-coord', 'x-coordinate of the n-th Poynting vector plane (when PoyntingMainDir=1)', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Plane-[$]-y-coord', 'y-coordinate of the n-th Poynting vector plane (when PoyntingMainDir=2)', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Plane-[$]-z-coord', 'z-coordinate of the n-th Poynting vector plane (when PoyntingMainDir=3)', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption( 'PoyntingMainDir'  , 'Direction in which the Poynting vector integral is to be measured. '//&
+                                                   '\n1: x \n2: y \n3: z (default)','3')
 
+
+CALL prms%CreateLogicalOption( 'CalcAverageElectricPotential',"Calculate the averaged electric potential at a specific x-coordinate."//&
+                                                              " The plane position must lie on an interface between two adjacent elements",&
+                                                              '.FALSE.')
+CALL prms%CreateRealOption('AvgPotential-Plane-x-coord', 'x-coordinate of the averaged electric potential')
+CALL prms%CreateRealOption('AvgPotential-Plane-Tolerance', 'Absolute tolerance for checking the averaged electric potential plane '&
+                                                         , '1E-5')
 END SUBROUTINE DefineParametersAnalyze
 
 SUBROUTINE InitAnalyze()
@@ -115,8 +125,11 @@ SUBROUTINE InitAnalyze()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+#if PP_nVar>=6
 USE MOD_AnalyzeField          ,ONLY: GetPoyntingIntPlane
-USE MOD_Analyze_Vars          ,ONLY: AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
+USE MOD_Analyze_Vars          ,ONLY: CalcPoyntingInt
+#endif /*PP_nVar>=6*/
+USE MOD_Analyze_Vars          ,ONLY: AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms
 USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed,FieldAnalyzeStep
 USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_Analyze_Vars          ,ONLY: doFieldAnalyze,CalcEpot
@@ -134,6 +147,13 @@ USE MOD_Equation_vars         ,ONLY: Wavelength
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+#if USE_HDG
+USE MOD_Analyze_Vars          ,ONLY: CalcAverageElectricPotential,PosAverageElectricPotential
+USE MOD_AnalyzeField          ,ONLY: GetAverageElectricPotentialPlane
+#ifdef PARTICLES
+USE MOD_PICInterpolation_Vars ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
+#endif /*PARTICLES*/
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -172,7 +192,35 @@ IF (FieldAnalyzeStep.GT.0) DoFieldAnalyze = .TRUE.
 IF (FieldAnalyzeStep.EQ.0) FieldAnalyzeStep = HUGE(FieldAnalyzeStep)
 CalcEpot          = GETLOGICAL('CalcPotentialEnergy')
 IF(CalcEpot)        DoFieldAnalyze = .TRUE.
-IF(CalcPoyntingInt) DoFieldAnalyze = .TRUE.
+#if PP_nVar>=6
+CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral') ! PoyntingVecIntegral
+IF(CalcPoyntingInt)THEN
+  DoFieldAnalyze = .TRUE.
+  CALL GetPoyntingIntPlane()
+END IF
+#endif /*PP_nVar>=6*/
+
+!--- Get averaged electric potential
+#if USE_HDG
+CalcAverageElectricPotential=.FALSE. ! Initialize
+#ifdef PARTICLES
+IF(useAlgebraicExternalField.AND.AlgebraicExternalField.EQ.1)THEN
+  CalcAverageElectricPotential = .TRUE.
+  PosAverageElectricPotential  = 2.4e-2 ! automatic setting for this case
+  CALL PrintOption('AlgebraicExternalField.EQ.1, Setting CalcAverageElectricPotential','INFO',LogOpt=CalcAverageElectricPotential)
+  CALL PrintOption('AlgebraicExternalField.EQ.1, Setting PosAverageElectricPotential ','INFO',RealOpt=PosAverageElectricPotential)
+ELSE
+#endif /*PARTICLES*/
+  CalcAverageElectricPotential = GETLOGICAL('CalcAverageElectricPotential') ! user-defined activation
+  IF(CalcAverageElectricPotential) PosAverageElectricPotential = GETREAL('AvgPotential-Plane-x-coord')    ! user-required input
+#ifdef PARTICLES
+END IF
+#endif /*PARTICLES*/
+IF(CalcAverageElectricPotential)THEN
+  DoFieldAnalyze = .TRUE.
+  CALL GetAverageElectricPotentialPlane()
+END IF
+#endif /*USE_HDG*/
 
 ! Get logical for measurement of time spent in analyze routines
 DoMeasureAnalyzeTime = GETLOGICAL('DoMeasureAnalyzeTime')
@@ -183,9 +231,6 @@ AnalyzeTime  = 0.0
 AnalyzeInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
-
-! init Poynting-Integral
-IF(CalcPoyntingInt) CALL GetPoyntingIntPlane()
 
 ! Points Per Wavelength
 CalcPointsPerWavelength = GETLOGICAL('CalcPointsPerWavelength')
@@ -371,11 +416,11 @@ DO iElem=1,PP_nElems
 END DO ! iElem=1,PP_nElems
 #if USE_MPI
 IF(MPIroot)THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE     , L_2_PartSource   , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-  CALL MPI_REDUCE(MPI_IN_PLACE     , L_Inf_PartSource , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(MPI_IN_PLACE  , L_2_PartSource   , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(MPI_IN_PLACE  , L_Inf_PartSource , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
 ELSE
-  CALL MPI_REDUCE(L_2_PartSource   , 0                , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-  CALL MPI_REDUCE(L_Inf_PartSource , 0                , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(L_2_PartSource   , 0             , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(L_Inf_PartSource , 0             , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
   ! in this case the receive value is not relevant.
 END IF
 #endif /*USE_MPI*/
@@ -476,13 +521,13 @@ DO iElem=1,nElems
 END DO ! iElem=1,nElems
 #if USE_MPI
   IF(MPIroot)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,L_2_Error,nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE,volume,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE,L_Inf_Error,nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error   , nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , volume      , 1    , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error , nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
   ELSE
-    CALL MPI_REDUCE(L_2_Error,L_2_Error2,nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(volume,volume2,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(L_Inf_Error,L_Inf_Error2,nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(L_2_Error   , L_2_Error2   , nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(volume      , volume2      , 1    , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(L_Inf_Error , L_Inf_Error2 , nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
     ! in this case the receive value is not relevant.
   END IF
 #endif /*USE_MPI*/
@@ -581,13 +626,13 @@ DO iElem=1,nElems
 END DO ! iElem=1,nElems
 #if USE_MPI
   IF(MPIroot)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,L_2_Error,nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE,volume,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE,L_Inf_Error,nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error    , nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , volume       , 1    , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error  , nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
   ELSE
-    CALL MPI_REDUCE(L_2_Error,L_2_Error2,nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(volume,volume2,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(L_Inf_Error,L_Inf_Error2,nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(L_2_Error    , L_2_Error2   , nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(volume       , volume2      , 1    , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(L_Inf_Error  , L_Inf_Error2 , nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
     ! in this case the receive value is not relevant.
   END IF
 #endif /*USE_MPI*/
@@ -693,15 +738,23 @@ END DO
 WRITE(VARformatStr,'(A,A2)')TRIM(VARformatStr),'A)'
 END SUBROUTINE getVARformatStr
 
+
 SUBROUTINE FinalizeAnalyze()
 !===================================================================================================================================
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Analyze_Vars,     ONLY: CalcPoyntingInt,PPWCell,AnalyzeInitIsDone
+#if PP_nVar>=6
+USE MOD_Analyze_Vars,     ONLY: CalcPoyntingInt
 USE MOD_AnalyzeField,     ONLY: FinalizePoyntingInt
+#endif /*PP_nVar>=6*/
+USE MOD_Analyze_Vars,     ONLY: PPWCell,AnalyzeInitIsDone
 USE MOD_TimeAverage_Vars, ONLY: doCalcTimeAverage
 USE MOD_TimeAverage,      ONLY: FinalizeTimeAverage
+#if USE_HDG
+USE MOD_Analyze_Vars,     ONLY: CalcAverageElectricPotential
+USE MOD_AnalyzeField,     ONLY: FinalizeAverageElectricPotential
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLINGDGInitIsDone
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -709,7 +762,12 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+#if PP_nVar>=6
 IF(CalcPoyntingInt) CALL FinalizePoyntingInt()
+#endif /*PP_nVar>=6*/
+#if USE_HDG
+IF(CalcAverageElectricPotential) CALL FinalizeAverageElectricPotential()
+#endif /*USE_HDG*/
 IF(doCalcTimeAverage) CALL FinalizeTimeAverage
 SDEALLOCATE(PPWCell)
 AnalyzeInitIsDone = .FALSE.
@@ -762,21 +820,16 @@ USE MOD_SurfaceModel_Analyze      ,ONLY: AnalyzeSurface
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
 USE MOD_DSMC_Vars                 ,ONLY: DSMC_Solution
 USE MOD_Particle_Tracking_vars    ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
-USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep
 USE MOD_BGK_Vars                  ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_FPFlow_Vars               ,ONLY: FPInitDone, FP_QualityFacSamp
-#if !defined(LSERK)
 USE MOD_DSMC_Vars                 ,ONLY: useDSMC
-#endif
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides, CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,SampWallImpactEnergy,SampWallImpactVector
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallPumpCapacity,SampWallImpactAngle,SampWallImpactNumber
 USE MOD_DSMC_Analyze              ,ONLY: DSMC_data_sampling, WriteDSMCToHDF5
 USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
-#if (PP_TimeDiscMethod!=42) && !defined(LSERK)
 USE MOD_Particle_Vars             ,ONLY: DelayTime
-#endif /*PP_TimeDiscMethod!=42 && !defined(LSERK)*/
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
 USE MOD_Particle_Analyze          ,ONLY: AnalyticParticleMovement
@@ -850,7 +903,7 @@ REAL                          :: CurrentTime
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load balance: write header line
-CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter=iter)
+CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter_opt=iter)
 
 ! check if final/last iteration iteration
 LastIter=.FALSE.
@@ -894,9 +947,9 @@ END IF
 
 ! FieldAnalyzeStep
 ! 2) normal analyze at analyze step
-IF(MOD(iter,INT(FieldAnalyzeStep,8)).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformFieldAnalyze=.TRUE.
+IF(MOD(iter,FieldAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformFieldAnalyze=.TRUE.
 ! 3) + 4) force analyze during a write-state information and prevent duplicates
-IF(MOD(iter,INT(FieldAnalyzeStep,8)).NE.0 .AND. OutPutHDF5)       DoPerformFieldAnalyze=.TRUE.
+IF(MOD(iter,FieldAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformFieldAnalyze=.TRUE.
 ! Remove analyze during restart or load-balance step
 IF(DoRestart .AND. iter.EQ.0) DoPerformFieldAnalyze=.FALSE.
 ! BUT print analyze info for CODE_ANALYZE and USE_HDG to get the HDG solver statistics (number of iterations, runtime and norm)
@@ -1075,40 +1128,8 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
   END IF
 END IF
 
+! Output of macroscopic variables sampled with TimeFracForSampling, which is performed after each DSMC time step
 IF(OutPutHDF5)THEN
-#if (PP_TimeDiscMethod==42)
-  IF((LastIter).AND.(useDSMC).AND.(.NOT.DSMC%ReservoirSimu)) THEN
-    IF (DSMC%NumOutput.GT.0) THEN
-      CALL WriteDSMCToHDF5(TRIM(MeshFile),OutputTime)
-      IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
-    END IF
-  END IF
-#elif defined(LSERK)
-  !additional output after push of final dt (for LSERK output is normally before first stage-push, i.e. actually for previous dt)
-  IF(LastIter)THEN
-    ! volume data
-    IF(WriteMacroVolumeValues)THEN
-      iter_macvalout = iter_macvalout + 1
-      IF (MacroValSamplIterNum.LE.iter_macvalout) THEN
-        CALL WriteDSMCToHDF5(TRIM(MeshFile),OutputTime)
-        iter_macvalout = 0
-        DSMC%SampNum = 0
-        DSMC_Solution = 0.0
-      END IF
-    END IF
-    ! surface data
-    IF (WriteMacroSurfaceValues) THEN
-      iter_macsurfvalout = iter_macsurfvalout + 1
-      IF (MacroValSamplIterNum.LE.iter_macsurfvalout) THEN
-        CALL CalcSurfaceValues
-        DO iSide=1,nComputeNodeSurfTotalSides
-          SampWallState(:,:,:,iSide)=0.
-        END DO
-        iter_macsurfvalout = 0
-      END IF
-    END IF
-  END IF
-#else
   IF((LastIter).AND.(useDSMC).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
     IF (DSMC%NumOutput.GT.0) THEN
       CALL WriteDSMCToHDF5(TRIM(MeshFile),OutputTime)
@@ -1117,7 +1138,6 @@ IF(OutPutHDF5)THEN
       IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
     END IF
   END IF
-#endif
 END IF
 
 ! Measure tracking time for particles // no MPI barrier MPI Wall-time but local CPU time
@@ -1125,13 +1145,13 @@ END IF
 IF(OutPutHDF5 .AND. MeasureTrackTime)THEN
 #if USE_MPI
   IF(MPIRoot) THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,nTracks      , 1 ,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE,tTracking    , 1 ,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE,tLocalization, 1 ,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE  , nTracks       , 1 , MPI_INTEGER          , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE  , tTracking     , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE  , tLocalization , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
   ELSE ! no Root
-    CALL MPI_REDUCE(nTracks      ,RECI,1,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-    CALL MPI_REDUCE(tTracking    ,RECR,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-    CALL MPI_REDUCE(tLocalization,RECR,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+    CALL MPI_REDUCE(nTracks       , RECI          , 1 , MPI_INTEGER          , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(tTracking     , RECR          , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(tLocalization , RECR          , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
   END IF
 #endif /*USE_MPI*/
   SWRITE(UNIT_StdOut,'(132("-"))')
@@ -1163,9 +1183,9 @@ IF(TrackingMethod.NE.TRIATRACKING)THEN
       TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
 #if USE_MPI
       IF(MPIRoot) THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE,TotalSideBoundingBoxVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE, TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
       ELSE ! no Root
-        CALL MPI_REDUCE(TotalSideBoundingBoxVolume,0,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+        CALL MPI_REDUCE(TotalSideBoundingBoxVolume ,           0 , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
       END IF
 #endif /*USE_MPI*/
       SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
@@ -1293,13 +1313,13 @@ IF (DoPartAnalyze) THEN
  ! MPI Communication
 #if USE_MPI
   IF(MPIRoot) THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,rBoundingBoxChecks , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE,rPerformBezierClip, 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE,rPerformBezierNewton, 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE         , rBoundingBoxChecks   , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE         , rPerformBezierClip   , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE         , rPerformBezierNewton , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
   ELSE ! no Root
-    CALL MPI_REDUCE(rBoundingBoxChecks,rDummy  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
-    CALL MPI_REDUCE(rPerformBezierClip,rDummy,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
-    CALL MPI_REDUCE(rPerformBezierNewton,rDummy,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
+    CALL MPI_REDUCE(rBoundingBoxChecks   , rDummy               , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(rPerformBezierClip   , rDummy               , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(rPerformBezierNewton , rDummy               , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
   END IF
 #endif /*USE_MPI*/
 

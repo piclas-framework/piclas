@@ -39,90 +39,16 @@ CONTAINS
 SUBROUTINE DefineParametersPIC()
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools    ,ONLY: prms
-USE MOD_PICDepo_Method ,ONLY: DefineParametersDepositionMethod
+USE MOD_PICDepo_Method            ,ONLY: DefineParametersDepositionMethod
+USE MOD_PICInterpolation          ,ONLY: DefineParametersPICInterpolation
+USE MOD_PICDepo                   ,ONLY: DefineParametersPICDeposition
+USE MOD_InitializeBackgroundField ,ONLY: DefineParametersBGField
 IMPLICIT NONE
 !==================================================================================================================================
-CALL prms%SetSection("PIC")
-
-#ifdef CODE_ANALYZE
-CALL prms%CreateLogicalOption('PIC-DoInterpolationAnalytic'      , "Use an analytic/algebraic function for PIC interpolation "//&
-                                                                   "(ifdef CODE_ANALYZE)",&
-                                                                   '.FALSE.')
-
-CALL prms%CreateIntOption(    'PIC-AnalyticInterpolation-Type'   , "Type of AnalyticInterpolation-Method for calculating the "//&
-                                                                   "EM field's value for the particle (ifdef CODE_ANALYZE)",'0')
-
-CALL prms%CreateIntOption(    'PIC-AnalyticInterpolation-SubType', "SubType of AnalyticInterpolation-Method for calculating the "//&
-                                                                   "EM field's value for the particle (ifdef CODE_ANALYZE)",'0')
-
-CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationP'       , "parameter 'p' for AnalyticInterpolationType = 1", '1.')
-CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationPhase'   , "Phase shift angle phi that is used for cos(w*t + phi)", '0.')
-#endif /*CODE_ANALYZE*/
-
-CALL prms%CreateLogicalOption(  'PIC-DoInterpolation'         , "TODO-DEFINE-PARAMETER\n"//&
-                                                                "Compute the self field's influence "//&
-                                                                "on the Particle", '.TRUE.')
-CALL prms%CreateStringOption(   'PIC-Interpolation-Type'      , "Type of Interpolation-Method to calculate the electro(-magnetic)"//&
-                                                                " field's value for the particle", 'particle_position')
-CALL prms%CreateLogicalOption(  'PIC-InterpolationElemLoop'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Interpolate with outer iElem-loop (not'//&
-                                                                'for many Elems per proc!)', '.TRUE.')
-CALL prms%CreateRealArrayOption('PIC-externalField'           , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'External field is added to the'//&
-                                                                'maxwell-solver-field', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
-CALL prms%CreateRealOption(     'PIC-scaleexternalField'      , 'TODO-DEFINE-PARAMETER', '1.0')
-
-CALL prms%CreateStringOption(   'PIC-curvedexternalField'     , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'File to curved external field data.','none')
-CALL prms%CreateStringOption(   'PIC-variableexternalField'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'File containing the external '//&
-                                                                'field CSV table', 'none')
-
-CALL prms%CreateRealArrayOption('PIC-NormVecOfWall'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Normal vector for pushTimeStep', '1. , 0. , 0.')
-CALL prms%CreateIntOption(      'PIC-DeltaType'      , 'Basis function type.\n'//&
-                                                       '1: Lagrange-Polynomial\n'//&
-                                                       '2: Bernstein-Polynomial\n'//&
-                                                       '3: Uniform B-Spline', '1')
-CALL prms%CreateIntOption(      'PIC-DeltaType-N'    , 'Polynomial degree of the delta distribution basis function', '1')
-CALL prms%CreateRealArrayOption('PIC-BGMdeltas'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Dimensions of PIC background mesh', '0. , 0. , 0.')
-CALL prms%CreateRealArrayOption('PIC-FactorBGM'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Denominator of PIC-BGMdeltas', '1. , 1. , 1.')
-CALL prms%CreateLogicalOption(  'PIC-OutputSource'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Writes the source to hdf5', '.FALSE.')
-
-CALL prms%SetSection("PIC Deposition")
+CALL DefineParametersPICInterpolation() ! Get PIC Interpolation parameters
 CALL DefineParametersDepositionMethod() ! Get PIC-DoDeposition and PIC-Deposition-Type
-CALL prms%CreateStringOption(   'PIC-TimeAverageFile'      , 'TODO-DEFINE-PARAMETER', 'none')
-CALL prms%CreateLogicalOption(  'PIC-RelaxDeposition'      , 'Relaxation of current PartSource with RelaxFac\n'//&
-                                                             'into PartSourceOld', '.FALSE.')
-CALL prms%CreateRealOption(     'PIC-RelaxFac'             , 'Relaxation factor of current PartSource with RelaxFac\n'//&
-                                                             'into PartSourceOld', '0.001')
-
-CALL prms%CreateLogicalOption(  'PIC-shapefunction-charge-conservation'   , 'Enable charge conservation.' , '.FALSE.')
-CALL prms%CreateRealOption(     'PIC-shapefunction-radius' , 'Radius of shape function', '1.')
-CALL prms%CreateIntOption(      'PIC-shapefunction-alpha'  , 'Exponent of shape function', '2')
-CALL prms%CreateIntOption(      'PIC-shapefunction-dimension', '1D, 2D or 3D shape function', '3')
-CALL prms%CreateIntOption(      'PIC-shapefunction-direction',&
-    'Only required for PIC-shapefunction-dimension 1 or 2: Shape function direction for 1D (the direction in which the charge '//&
-    'will be distributed) and 2D (the direction in which the charge will be constant)', '1')
-!CALL prms%CreateLogicalOption(  'PIC-shapefunction-equi'   , 'Use equidistant points for shapefunction deposition' , '.FALSE.')
-!CALL prms%CreateLogicalOption(  'PIC-shapefunction-local-depo-BC', 'Do not use shape function deposition in elements where a '//&
-                                                                   !'boundary would truncate the shape function. Use a local '//&
-                                                                   !'deposition in these elements instead of the shape function.'&
-                                                                 !, '.FALSE.')
-!CALL prms%CreateIntOption(      'PIC-shapefunction1d-direction' ,'1D shape function: Deposition direction\n'//&
-                                                                 !'2D shape function: Perpendicular deposition')
-CALL prms%CreateLogicalOption(  'PIC-shapefunction-3D-deposition' ,'Deposit the charge over volume (3D)\n'//&
-                                                                   ' or over a line (1D)/area(2D)\n'//&
-                                                                   '1D shape function: volume or line\n'//&
-                                                                   '2D shape function: volume or area', '.TRUE.')
-CALL prms%CreateRealOption(     'PIC-shapefunction-radius0', 'Minimum shape function radius (for cylindrical and spherical)', '1.')
-CALL prms%CreateRealOption(     'PIC-shapefunction-scale'  , 'Scaling factor of shape function radius '//&
-                                                             '(for cylindrical and spherical)', '0.')
-
+CALL DefineParametersPICDeposition()    ! Get more PIC Deposition parameters
+CALL DefineParametersBGField()          ! Get PIC Background field parameters
 END SUBROUTINE DefineParametersPIC
 
 
@@ -132,9 +58,11 @@ SUBROUTINE InitPIC()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PICInterpolation       ,ONLY: InitializeParticleInterpolation
-USE MOD_PICDepo                ,ONLY: InitializeDeposition
-USE MOD_PIC_Vars ,              ONLY: PICInitIsDone
+USE MOD_PICInterpolation          ,ONLY: InitializeParticleInterpolation
+USE MOD_PICDepo                   ,ONLY: InitializeDeposition
+USE MOD_PIC_Vars                  ,ONLY: PICInitIsDone
+USE MOD_PICInterpolation_Vars     ,ONLY: useBGField
+USE MOD_InitializeBackgroundField ,ONLY: InitializeBackgroundField
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -153,6 +81,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PIC ...'
 
 CALL InitializeParticleInterpolation()
 CALL InitializeDeposition()
+IF(useBGField) CALL InitializeBackgroundField()
 
 PICInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PIC DONE!'

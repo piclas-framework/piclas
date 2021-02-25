@@ -57,7 +57,7 @@ SUBROUTINE setLocalSideIDs()
 !> * InnerSides      : normal inner sides
 !> * MPI_MINE sides  : MPI sides to be processed by the current processor (e.g. flux computation)
 !> * MPI_YOUR sides  : MPI sides to be processed by the neighbour processor
-!> * MPIMortars      : mortar interfaces to be comunicated
+!> * MPIMortars      : mortar interfaces to be communicated
 !>
 !> Each side can be accessed through its SideID defining its position in the processor local side list.
 !> The routine furthermore sets the MPI masters and slave sides.

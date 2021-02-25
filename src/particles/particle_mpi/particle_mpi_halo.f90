@@ -49,18 +49,20 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: c
 USE MOD_Preproc
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
-USE MOD_MPI_Vars                ,ONLY: offsetElemMPI
-USE MOD_MPI_Shared_Vars
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
+USE MOD_MPI_Shared_Vars
+USE MOD_MPI_Vars                ,ONLY: offsetElemMPI
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_MPI_Vars       ,ONLY: SafetyFactor,halo_eps,halo_eps_velo
 USE MOD_Particle_MPI_Vars       ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc
-USE MOD_TimeDisc_Vars           ,ONLY: ManualTimeStep
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_PICDepo_Vars            ,ONLY: DepositionType
 USE MOD_PICDepo_Vars            ,ONLY: nSendShapeElems,SendShapeElemID, SendElemShapeID
 USE MOD_PICDepo_Vars            ,ONLY: ShapeMapping,CNShapeMapping
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_TimeDisc_Vars           ,ONLY: ManualTimeStep
 #if ! (USE_HDG)
 USE MOD_CalcTimeStep            ,ONLY: CalcTimeStep
 #endif
@@ -76,7 +78,7 @@ INTEGER                        :: iPeriodicVector,jPeriodicVector,iPeriodicDir,j
 INTEGER,DIMENSION(2)           :: DirPeriodicVector = [-1,1]
 REAL,DIMENSION(6)              :: xCoordsProc,xCoordsOrigin
 INTEGER                        :: iElem,ElemID,firstElem,lastElem,NbElemID
-INTEGER                        :: iSide,SideID,iLocSide
+INTEGER                        :: iSide,SideID,firstSide,lastSide,iLocSide
 !INTEGER                        :: firstSide,lastSide
 INTEGER                        :: iMortar,nMortarElems,NbSideID
 INTEGER                        :: iProc,HaloProc
@@ -101,7 +103,6 @@ LOGICAL,ALLOCATABLE            :: GlobalProcToRecvProc(:)
 LOGICAL,ALLOCATABLE            :: CommFlag(:)
 INTEGER                        :: nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob
 INTEGER                        :: nExchangeProcessorsGlobal
-REAL,ALLOCATABLE               :: MPISideAngle(:)
 REAL,ALLOCATABLE               :: RotBoundsOfElemCenter(:)
 !=================================================================================================================================
 
@@ -161,7 +162,7 @@ firstElem = offsetElem+1
 lastElem  = offsetElem+nElems
 
 IF(StringBeginsWith(DepositionType,'shape_function'))THEN
-  ALLOCATE(FlagShapeElem(1:nComputeNodeElems))
+  ALLOCATE(FlagShapeElem(1:nComputeNodeTotalElems))
   FlagShapeElem = .FALSE.
 END IF
 
@@ -265,8 +266,6 @@ END DO
 !> Build metrics for all MPI sides on current proc
 ALLOCATE(BoundsOfElemCenter(1:4))
 ALLOCATE(MPISideBoundsOfElemCenter(1:4,1:nExchangeSides))
-ALLOCATE(MPISideAngle(1:nExchangeSides))
-MPISideAngle(1:nExchangeSides) = 0.
 ALLOCATE(RotBoundsOfElemCenter(1:4))
 
 DO iSide = 1, nExchangeSides
@@ -278,13 +277,6 @@ DO iSide = 1, nExchangeSides
   MPISideBoundsOfElemCenter(4,iSide) = VECNORM ((/BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
                                                   BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                                   BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
-  IF(GEO%RotPeriodicBC) THEN
-    IF(SideInfo_Shared(SIDE_BCID,SideID).GT. 0) THEN
-      IF (PartBound%TargetBoundCond(SideInfo_Shared(SIDE_BCID,SideID)).EQ.6) THEN
-        MPISideAngle(iSide) = REAL(PartBound%RotPeriodicDir(SideInfo_Shared(SIDE_BCID,SideID)))
-      END IF
-    END IF
-  END IF
 END DO
 
 !> Check all elements in the CN halo region against local MPI sides. Check is identical to particle_bgm.f90
@@ -390,18 +382,34 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
           firstElem = offsetElemMPI(HaloProc)+1
           lastElem  = offsetElemMPI(HaloProc +1)
 
-          xCoordsOrigin(1) = MINVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                       :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-          xCoordsOrigin(2) = MAXVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                       :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-          xCoordsOrigin(3) = MINVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                       :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-          xCoordsOrigin(4) = MAXVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                       :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-          xCoordsOrigin(5) = MINVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                       :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
-          xCoordsOrigin(6) = MAXVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
-                                                       :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+          SELECT CASE(TrackingMethod)
+            ! Build mesh min/max on BezierControlPoints for possibly curved elements
+            CASE(REFMAPPING,TRACING)
+              firstSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,firstElem)+1
+              lastSide  = ElemInfo_Shared(ELEM_LASTSIDEIND ,lastElem)
+
+              xCoordsOrigin(1) = MINVAL(BezierControlPoints3D(1,:,:,firstSide:lastSide))
+              xCoordsOrigin(2) = MAXVAL(BezierControlPoints3D(1,:,:,firstSide:lastSide))
+              xCoordsOrigin(3) = MINVAL(BezierControlPoints3D(2,:,:,firstSide:lastSide))
+              xCoordsOrigin(4) = MAXVAL(BezierControlPoints3D(2,:,:,firstSide:lastSide))
+              xCoordsOrigin(5) = MINVAL(BezierControlPoints3D(3,:,:,firstSide:lastSide))
+              xCoordsOrigin(6) = MAXVAL(BezierControlPoints3D(3,:,:,firstSide:lastSide))
+
+            ! TriaTracking does not have curved elements, nodeCoords are sufficient
+            CASE(TRIATRACKING)
+              xCoordsOrigin(1) = MINVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                           :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+              xCoordsOrigin(2) = MAXVAL(NodeCoords_Shared(1,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                           :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+              xCoordsOrigin(3) = MINVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                           :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+              xCoordsOrigin(4) = MAXVAL(NodeCoords_Shared(2,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                           :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+              xCoordsOrigin(5) = MINVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                           :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+              xCoordsOrigin(6) = MAXVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
+                                                           :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
+          END SELECT
 
           ! Check if proc is in range
           IF (.NOT.HaloBoxInProc(xCoordsOrigin,xCoordsProc,MPI_halo_eps,GEO%nPeriodicVectors,GEO%PeriodicVectors)) THEN
@@ -571,7 +579,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
           CALL ABORT(__STAMP__,'Invalid number of periodic vectors in particle_mpi_halo.f90')
       END SELECT
       ! Check rot periodic Elems and if iSide is on rot periodic BC
-      IF(GEO%RotPeriodicBC.AND.(MPISideAngle(iSide).NE.0)) THEN
+      IF(GEO%RotPeriodicBC) THEN
         DO iPeriodicDir = 1,2
           ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
             SELECT CASE(GEO%RotPeriodicAxi)
@@ -659,7 +667,6 @@ DO iProc = 0,nProcessors_Global-1
   ! Found a previously missing proc
   GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc) = 2
   GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,iProc) = nExchangeProcessors
-
   nNonSymmetricExchangeProcs = nNonSymmetricExchangeProcs + 1
   nExchangeProcessors        = nExchangeProcessors + 1
 END DO
@@ -771,7 +778,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     END DO
 
     ! Second stage of communication, identify and send inter-compute-node information
-    IF (nLeaderGroupProcs.EQ.1) THEN
+    IF (nLeaderGroupProcs.GT.1) THEN
       DEALLOCATE(RecvRequest)
       ALLOCATE(CNShapeMapping(0:nLeaderGroupProcs-1), &
                SendRequest   (0:nLeaderGroupProcs-1), &
@@ -865,7 +872,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
 
         IF (CNShapeMapping(iProc)%nSendShapeElems.EQ.0) CYCLE
 
-        ALLOCATE(CNShapeMapping(iProc)%SendShapeElemID(CNShapeMapping(iProc)%nSendShapeElems))
+        !ALLOCATE(CNShapeMapping(iProc)%SendShapeElemID(CNShapeMapping(iProc)%nSendShapeElems))
         ALLOCATE(CNShapeMapping(iProc)%SendBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,CNShapeMapping(iProc)%nSendShapeElems))
 
         CALL MPI_ISEND( CNShapeMapping(iProc)%SendShapeElemID   &

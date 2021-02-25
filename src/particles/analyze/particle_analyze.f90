@@ -549,16 +549,10 @@ IF (CalcPartBalance) THEN
 END IF
 TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
 IF(TrackParticlePosition)THEN
-  IF(nProcessors.GT.1)THEN
-    CALL abort(&
-        __STAMP__&
-        ,'Part-TrackPosition=T is currently not supported in combination with more than 1 proc!')
-  ELSE
-    IF(PDM%ParticleVecLength.GT.1)THEN
-    CALL abort(&
-        __STAMP__&
-        ,'Part-TrackPosition=T is currently not supported in combination with more than 1 particle!')
-    END IF
+  IF(PDM%ParticleVecLength.GT.1)THEN
+  CALL abort(&
+      __STAMP__&
+      ,'Part-TrackPosition=T is currently not supported in combination with more than 1 particle!')
   END IF
   printDiff=GETLOGICAL('printDiff','.FALSE.')
   IF(printDiff)THEN
@@ -2734,7 +2728,7 @@ IF(PartAnalyzeStep.GT.1)THEN
     END DO ! iReac=1, ChemReac%NumOfReact
   ELSE
     DO iReac=1, ChemReac%NumOfReact
-      RRate(iReac) = RRate(iReac) / MIN(PartAnalyzeStep,iter)
+      RRate(iReac) = RRate(iReac) / REAL(MIN(PartAnalyzeStep,iter))
     END DO ! iReac=1, ChemReac%NumOfReact
   END IF
 END IF
@@ -2795,7 +2789,7 @@ REAL                                     :: diffPos,diffVelo
 INTEGER                                  :: iPartState
 !===================================================================================================================================
 ! only the root shall write this file
-IF(.NOT.MPIRoot)RETURN
+!IF(.NOT.MPIRoot)RETURN
 
 ! check if file is to be created
 CreateFile=.TRUE.
@@ -2868,7 +2862,7 @@ IF (printDiff) THEN
       diffPos=diffPos+(printDiffVec(iPartState)-PartState(iPartState,1))**2
       diffVelo=diffVelo+(printDiffVec(iPartState+3)-PartState(iPartState+3,1))**2
     END DO
-    WRITE(*,'(A,e24.14,1x,e24.14)') 'L2-norm from printDiffVec: ',SQRT(diffPos),SQRT(diffVelo)
+    WRITE(*,'(A,e24.14,1X,e24.14)') 'L2-norm from printDiffVec: ',SQRT(diffPos),SQRT(diffVelo)
   END IF
 END IF
 END SUBROUTINE WriteParticleTrackingData

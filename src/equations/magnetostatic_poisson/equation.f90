@@ -280,7 +280,6 @@ USE MOD_Equation_Vars      ,ONLY: IniCenter,IniHalfwidth,IniAmplitude
 USE MOD_DG_Vars            ,ONLY: Ut,U
 USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
-USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

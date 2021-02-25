@@ -26,18 +26,6 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE InitPorousBoundaryCondition
-  MODULE PROCEDURE InitPorousBoundaryCondition
-END INTERFACE
-
-INTERFACE PorousBoundaryTreatment
-  MODULE PROCEDURE PorousBoundaryTreatment
-END INTERFACE
-
-INTERFACE PorousBoundaryRemovalProb_Pressure
-  MODULE PROCEDURE PorousBoundaryRemovalProb_Pressure
-END INTERFACE
-
 PUBLIC::DefineParametersPorousBC
 PUBLIC::InitPorousBoundaryCondition
 PUBLIC::PorousBoundaryTreatment
@@ -161,7 +149,7 @@ IF((Symmetry%Order.LE.2).AND.(.NOT.Symmetry%Axisymmetric)) THEN
 END IF
 
 ! 1) Read-in of parameters
-PorousBCSampIter = GETINT('Surf-PorousBC-IterationMacroVal', '0')
+PorousBCSampIter = GETINT('Surf-PorousBC-IterationMacroVal')
 IF(PorousBCSampIter.GT.0) THEN
   ALLOCATE(PorousBCMacroVal(1:8,1:nElems,1:nSpecies))
   PorousBCMacroVal = 0.0
@@ -314,7 +302,6 @@ IF (myComputeNodeRank.EQ.0) THEN
   PorousBCSampWall_Shared = 0.
 END IF
 ! This barrier MIGHT not be required
-CALL MPI_WIN_SYNC(MapSurfSideToPorousSide_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(PorousBCInfo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(PorousBCProperties_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(PorousBCSampWall_Shared_Win,IERROR)
@@ -377,7 +364,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION DONE!'
 
 END SUBROUTINE InitPorousBoundaryCondition
 
-SUBROUTINE PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,ElasticReflectionAtPorousBC)
+SUBROUTINE PorousBoundaryTreatment(iPart,SideID,ElasticReflectionAtPorousBC)
 !===================================================================================================================================
 ! Treatment of particles impinging on the porous boundary
 ! 1) (Optional) When using regions on the BC, it is determined whether the particle hit the porous BC region or only the regular BC
@@ -394,15 +381,14 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, GlobalSide2SurfSide
 USE MOD_part_operations         ,ONLY: RemoveParticle
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: iPart, SideID
-REAL, INTENT(IN)              :: PartTrajectory(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)            :: alpha
 LOGICAL,INTENT(INOUT)         :: ElasticReflectionAtPorousBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -421,7 +407,7 @@ IF(pBCSideID.GT.0) THEN
   IF(PorousBC(iPBC)%UsingRegion) THEN
     IF(PorousBCInfo_Shared(3,pBCSideID).EQ.1) THEN
       ! Side is partially inside the porous region (check if its within bounds)
-      intersectionPoint(1:3) = LastPartPos(1:3,iPart) + alpha*PartTrajectory(1:3)
+      intersectionPoint(1:3) = LastPartPos(1:3,iPart) + TrackInfo%alpha*TrackInfo%PartTrajectory(1:3)
       point(1)=intersectionPoint(PorousBC(iPBC)%dir(2))-PorousBC(iPBC)%origin(1)
       point(2)=intersectionPoint(PorousBC(iPBC)%dir(3))-PorousBC(iPBC)%origin(2)
       radius=SQRT( (point(1))**2+(point(2))**2 )
@@ -444,7 +430,7 @@ IF(pBCSideID.GT.0) THEN
         IF(iRan.LE.PorousBCProperties_Shared(1,pBCSideID)) THEN
           ! Counting particles that leave the domain through the porous BC (required for the calculation of the pumping capacity)
           PorousBCSampWall(2,pBCSideID) = PorousBCSampWall(2,pBCSideID) + GetParticleWeight(iPart)
-          CALL RemoveParticle(iPart,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)),alpha=alpha)
+          CALL RemoveParticle(iPart,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
         END IF
         ! Treat the pump as a perfect reflection (particle is not removed and keeps its temperature)
         ElasticReflectionAtPorousBC = .TRUE.
@@ -640,7 +626,9 @@ END SUBROUTINE PorousBoundaryRemovalProb_Pressure
 #if USE_MPI
 SUBROUTINE ExchangeImpingedPartPorousBC()
 !===================================================================================================================================
-!>
+!> Communication of particles impinged on halo sides, required for the calculation of the removal probability
+!> 1.) Collect the information from the proc-local shadow arrays in the compute-node shared array
+!> 2.) Internode communication between the surface leader processors of each compute node
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -670,7 +658,7 @@ INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:n
 IF (.NOT.SurfOnNode) RETURN
 
 nValues = 2
-! collect the information from the proc-local shadow arrays in the compute-node shared array
+! 1.) Collect the information from the proc-local shadow arrays in the compute-node shared array
 MessageSize = nValues*nPorousSides
 IF (myComputeNodeRank.EQ.0) THEN
   CALL MPI_REDUCE(PorousBCSampWall,PorousBCSampWall_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
@@ -680,7 +668,7 @@ END IF
 CALL MPI_WIN_SYNC(PorousBCSampWall_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
-! prepare buffers for surf leader communication
+! 2.) Internode communication between the surface leader processors of each compute node
 IF (myComputeNodeRank.EQ.0) THEN
   ! open receive buffer
   DO iProc = 0,nSurfLeaders-1
@@ -794,10 +782,14 @@ END SUBROUTINE ExchangeImpingedPartPorousBC
 
 SUBROUTINE ExchangeRemovalProbabilityPorousBC
 !===================================================================================================================================
-!>
+!> Routine that communicates the calculated removal probability to the halo sides (since the removal probability requires locally
+!> sampled values of the adjacent elements). The halo sides then have the correct removal probability when treating the impinging 
+!> particles. The sides that communicate the impinged particles, receive the calculated removal probability.
+!> Thus, the nSendPorousSides/PorousBCSendBuf variables are utilized for the RECEIVE buffer and nRecvPorousSides/PorousBCRecvBuf
+!> are utilized for the SEND buffer.
 !===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES
+!-----------------------------------------------------------------------------------------------------------------------------------
 USE MOD_Globals
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: nSurfLeaders,myComputeNodeRank,mySurfRank
@@ -805,11 +797,12 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping, MapSurfSideToPorousSide_Shared
 USE MOD_Particle_Boundary_Vars  ,ONLY: PorousBCProperties_Shared,PorousBCProperties_Shared_Win
+USE MOD_Particle_MPI_Vars       ,ONLY: PorousBCSendBuf,PorousBCRecvBuf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -817,45 +810,28 @@ INTEGER                             :: iProc,SideID,iPos
 INTEGER                             :: MessageSize,iSurfSide,SurfSideID,PorousSideID
 INTEGER                             :: nValues
 INTEGER                             :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
-TYPE tTempArrayProc
-  REAL, ALLOCATABLE                 :: SendMsg(:)
-  REAL, ALLOCATABLE                 :: RecvMsg(:)
-  INTEGER                           :: nRecvRemoveProbSides
-  INTEGER                           :: nSendRemoveProbSides
-END TYPE
-TYPE(tTempArrayProc), ALLOCATABLE   :: TempArrayProc(:)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
 IF (.NOT.SurfOnNode) RETURN
 
-! Synchronize the removal probability
+! 1) Synchronize the removal probability
 CALL MPI_WIN_SYNC(PorousBCProperties_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
 IF (myComputeNodeRank.EQ.0) THEN
-  ! 1) Communication of the removal probability to the halo cell of other procs (since the removal probability requires the locally
-  ! sampled values of the adjacent elems) for the case, when a particle leaves the local domain and hits the porous BC on a haloside
-  ALLOCATE(TempArrayProc(0:nSurfLeaders-1))
-  DO iProc=0, nSurfLeaders-1
-    TempArrayProc(iProc)%nRecvRemoveProbSides = SurfMapping(iProc)%nSendPorousSides
-    TempArrayProc(iProc)%nSendRemoveProbSides = SurfMapping(iProc)%nRecvPorousSides
-    ALLOCATE(TempArrayProc(iProc)%SendMsg(1:TempArrayProc(iProc)%nSendRemoveProbSides))
-    ALLOCATE(TempArrayProc(iProc)%RecvMsg(1:TempArrayProc(iProc)%nRecvRemoveProbSides))
-    TempArrayProc(iProc)%SendMsg(1:TempArrayProc(iProc)%nSendRemoveProbSides) = 0.
-    TempArrayProc(iProc)%RecvMsg(1:TempArrayProc(iProc)%nRecvRemoveProbSides) = 0.
-  END DO
-  nValues = 1
+  ! 2) Internode communication
+  nValues = 2
   ! open receive buffer
   DO iProc = 0,nSurfLeaders-1
     ! ignore myself
     IF (iProc.EQ.mySurfRank) CYCLE
 
     ! Only open recv buffer if we are expecting sides from this leader node
-    IF (TempArrayProc(iProc)%nRecvRemoveProbSides.EQ.0) CYCLE
+    IF (SurfMapping(iProc)%nSendPorousSides.EQ.0) CYCLE
 
     ! Message is sent on MPI_COMM_LEADERS_SURF, so rank is indeed iProc
-    MessageSize = TempArrayProc(iProc)%nRecvRemoveProbSides * nValues
-    CALL MPI_IRECV( TempArrayProc(iProc)%RecvMsg                   &
+    MessageSize = SurfMapping(iProc)%nSendPorousSides * nValues
+    CALL MPI_IRECV( PorousBCSendBuf(iProc)%content                   &
                   , MessageSize                                  &
                   , MPI_DOUBLE_PRECISION                         &
                   , iProc                                        &
@@ -871,21 +847,20 @@ IF (myComputeNodeRank.EQ.0) THEN
     IF (iProc .EQ. mySurfRank) CYCLE
 
     ! Only assemble message if we are expecting sides to send to this leader node
-    IF (TempArrayProc(iProc)%nSendRemoveProbSides.EQ.0) CYCLE
+    IF (SurfMapping(iProc)%nRecvPorousSides.EQ.0) CYCLE
 
     ! Nullify everything
     iPos = 0
 
-    DO iSurfSide = 1,TempArrayProc(iProc)%nSendRemoveProbSides
+    DO iSurfSide = 1,SurfMapping(iProc)%nRecvPorousSides
       ! Get the right side id through the receive global id mapping
       SideID     = SurfMapping(iProc)%RecvPorousGlobalID(iSurfSide)
       SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
       PorousSideID = MapSurfSideToPorousSide_Shared(SurfSideID)
       ! Assemble message
-      TempArrayProc(iProc)%SendMsg(iPos+1:iPos+nValues) = PorousBCProperties_Shared(1:nValues,PorousSideID)
+      PorousBCRecvBuf(iProc)%content(iPos+1:iPos+nValues) = PorousBCProperties_Shared(1:nValues,PorousSideID)
       iPos = iPos + nValues
-      PorousBCProperties_Shared(1:nValues,PorousSideID)=0.
-    END DO ! iSurfSide=1,TempArrayProc(iProc)%nSendRemoveProbSides
+    END DO ! iSurfSide=1,SurfMapping(iProc)%nRecvPorousSides
   END DO
 
   ! send message
@@ -894,11 +869,11 @@ IF (myComputeNodeRank.EQ.0) THEN
     IF (iProc.EQ.mySurfRank) CYCLE
 
     ! Only open recv buffer if we are expecting sides from this leader node
-    IF (TempArrayProc(iProc)%nSendRemoveProbSides.EQ.0) CYCLE
+    IF (SurfMapping(iProc)%nRecvPorousSides.EQ.0) CYCLE
 
     ! Message is sent on MPI_COMM_LEADERS_SURF, so rank is indeed iProc
-    MessageSize = TempArrayProc(iProc)%nSendRemoveProbSides * nValues
-    CALL MPI_ISEND( TempArrayProc(iProc)%SendMsg                 &
+    MessageSize = SurfMapping(iProc)%nRecvPorousSides * nValues
+    CALL MPI_ISEND( PorousBCRecvBuf(iProc)%content                 &
                   , MessageSize                                  &
                   , MPI_DOUBLE_PRECISION                         &
                   , iProc                                        &
@@ -913,12 +888,12 @@ IF (myComputeNodeRank.EQ.0) THEN
     ! ignore myself
     IF (iProc.EQ.mySurfRank) CYCLE
 
-    IF (TempArrayProc(iProc)%nSendRemoveProbSides.NE.0) THEN
+    IF (SurfMapping(iProc)%nRecvPorousSides.NE.0) THEN
       CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error',IERROR)
     END IF
 
-    IF (TempArrayProc(iProc)%nRecvRemoveProbSides.NE.0) THEN
+    IF (SurfMapping(iProc)%nSendPorousSides.NE.0) THEN
       CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error',IERROR)
     END IF
@@ -930,22 +905,20 @@ IF (myComputeNodeRank.EQ.0) THEN
     IF (iProc.EQ.mySurfRank) CYCLE
 
     ! Only open recv buffer if we are expecting sides from this leader node
-    IF (TempArrayProc(iProc)%nRecvRemoveProbSides.EQ.0) CYCLE
+    IF (SurfMapping(iProc)%nSendPorousSides.EQ.0) CYCLE
 
     iPos=0
-    DO iSurfSide = 1,TempArrayProc(iProc)%nRecvRemoveProbSides
+    DO iSurfSide = 1,SurfMapping(iProc)%nSendPorousSides
       SideID     = SurfMapping(iProc)%SendPorousGlobalID(iSurfSide)
       SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
       PorousSideID = MapSurfSideToPorousSide_Shared(SurfSideID)
-      PorousBCProperties_Shared(1:nValues,PorousSideID) = TempArrayProc(iProc)%RecvMsg(iPos+1:iPos+nValues)
+      PorousBCProperties_Shared(1:nValues,PorousSideID) = PorousBCSendBuf(iProc)%content(iPos+1:iPos+nValues)
       iPos = iPos + nValues
-    END DO ! iSurfSide = 1,TempArrayProc(iProc)%nRecvRemoveProbSides
+    END DO ! iSurfSide = 1,SurfMapping(iProc)%nSendPorousSides
 
      ! Nullify buffer
-    TempArrayProc(iProc)%RecvMsg = 0.
+    PorousBCSendBuf(iProc)%content = 0.
   END DO ! iProc
-
-  DEALLOCATE(TempArrayProc)
 END IF
 
 ! ensure synchronization on compute node
@@ -956,14 +929,15 @@ END SUBROUTINE ExchangeRemovalProbabilityPorousBC
 
 
 SUBROUTINE InitPorousCommunication()
-!----------------------------------------------------------------------------------------------------------------------------------!
-!
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
+!===================================================================================================================================
+!> Initialize the communication for the porous BCs: Impinging particles and removal probability.
+!===================================================================================================================================
+! MODULES
+!-----------------------------------------------------------------------------------------------------------------------------------
 USE MOD_Globals
-USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: MPIRankSurfLeader
-USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank,nSurfLeaders
+USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nSurfLeaders,nLeaderGroupProcs
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode,nComputeNodeSurfTotalSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide
@@ -971,7 +945,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: nPorousSides, PorousBCInfo_Shared
 USE MOD_Particle_MPI_Vars       ,ONLY: PorousBCSendBuf,PorousBCRecvBuf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -979,27 +953,25 @@ INTEGER                       :: msg_status(1:MPI_STATUS_SIZE)
 INTEGER                       :: iProc
 INTEGER                       :: LeaderID
 INTEGER                       :: iSide, iPorousSide
-INTEGER                       :: nSendPorousSidesTmp(0:nSurfLeaders-1)
-INTEGER                       :: nRecvPorousSidesTmp(0:nSurfLeaders-1)
-INTEGER                       :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
-INTEGER                       :: SendPorousGlobalID(0:nSurfLeaders-1,1:nComputeNodeSurfTotalSides)
+INTEGER                       :: nSendPorousSidesTmp(0:nLeaderGroupProcs-1)
+INTEGER                       :: nRecvPorousSidesTmp(0:nLeaderGroupProcs-1)
+INTEGER                       :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
+INTEGER                       :: SendPorousGlobalID(0:nLeaderGroupProcs-1,1:nComputeNodeSurfTotalSides)
 INTEGER                       :: SampSizeAllocate
 !===================================================================================================================================
-
-IF (.NOT.SurfOnNode) RETURN
 
 nRecvPorousSidesTmp = 0
 
 !--- Open receive buffer (number of sampling surfaces in other node's halo region)
-DO iProc = 0,nSurfLeaders-1
-  IF (iProc.EQ.mySurfRank) CYCLE
+DO iProc = 0,nLeaderGroupProcs-1
+  IF (iProc.EQ.myLeaderGroupRank) CYCLE
 
   CALL MPI_IRECV( nRecvPorousSidesTmp(iProc)                                    &
                 , 1                                                           &
                 , MPI_INTEGER                                                 &
                 , iProc                                                       &
-                , 1211                                                        &
-                , MPI_COMM_LEADERS_SURF                                     &
+                , 1213                                                        &
+                , MPI_COMM_LEADERS_SHARED                                     &
                 , RecvRequest(iProc)                                          &
                 , IERROR)
 END DO
@@ -1016,22 +988,22 @@ DO iPorousSide = 1, nPorousSides
 END DO
 
 !--- send all other leaders the number of sampling sides coming from current node
-DO iProc = 0,nSurfLeaders-1
-  IF (iProc.EQ.mySurfRank) CYCLE
+DO iProc = 0,nLeaderGroupProcs-1
+  IF (iProc.EQ.myLeaderGroupRank) CYCLE
 
   CALL MPI_ISEND( nSendPorousSidesTmp(iProc)                                    &
                 , 1                                                           &
                 , MPI_INTEGER                                                 &
                 , iProc                                                       &
-                , 1211                                                        &
-                , MPI_COMM_LEADERS_SURF                                     &
+                , 1213                                                        &
+                , MPI_COMM_LEADERS_SHARED                                     &
                 , SendRequest(iProc)                                          &
                 , IERROR)
 END DO
 
 !--- Finish communication
-DO iProc = 0,nSurfLeaders-1
-  IF (iProc.EQ.mySurfRank) CYCLE
+DO iProc = 0,nLeaderGroupProcs-1
+  IF (iProc.EQ.myLeaderGroupRank) CYCLE
 
   CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
@@ -1039,62 +1011,71 @@ DO iProc = 0,nSurfLeaders-1
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 
-DO iProc = 0,nSurfLeaders-1
+IF (.NOT.SurfOnNode) RETURN
+SurfMapping(:)%nRecvPorousSides = 0
+SurfMapping(:)%nSendPorousSides = 0
+
+DO iProc = 0,nLeaderGroupProcs-1
+  ! Ignore procs not on surface communicator
+  IF (MPIRankSurfLeader(iProc).EQ.MPI_UNDEFINED) CYCLE
   ! Ignore myself
-  IF (iProc .EQ. mySurfRank) CYCLE
+  IF (iProc .EQ. myLeaderGroupRank) CYCLE
 
   ! Save number of send and recv sides
-  SurfMapping(iProc)%nRecvPorousSides = nRecvPorousSidesTmp(MPIRankSurfLeader(iProc))
-  SurfMapping(iProc)%nSendPorousSides = nSendPorousSidesTmp(MPIRankSurfLeader(iProc))
+  SurfMapping(MPIRankSurfLeader(iProc))%nRecvPorousSides = nRecvPorousSidesTmp(iProc)
+  SurfMapping(MPIRankSurfLeader(iProc))%nSendPorousSides = nSendPorousSidesTmp(iProc)
 
   ! Only open recv buffer if we are expecting sides from this leader node
-  IF (nRecvPorousSidesTmp(MPIRankSurfLeader(iProc)).EQ.0) CYCLE
+  IF (nRecvPorousSidesTmp(iProc).EQ.0) CYCLE
+  ALLOCATE(SurfMapping(MPIRankSurfLeader(iProc))%RecvPorousGlobalID(1:nRecvPorousSidesTmp(iProc)))
 
-  ALLOCATE(SurfMapping(iProc)%RecvPorousGlobalID(1:nRecvPorousSidesTmp(MPIRankSurfLeader(iProc))))
-
-  CALL MPI_IRECV( SurfMapping(iProc)%RecvPorousGlobalID                         &
-                , nRecvPorousSidesTmp(MPIRankSurfLeader(iProc))                 &
+  CALL MPI_IRECV( SurfMapping(MPIRankSurfLeader(iProc))%RecvPorousGlobalID    &
+                , nRecvPorousSidesTmp(iProc)                                  &
                 , MPI_INTEGER                                                 &
-                , iProc                                                       &
-                , 1211                                                        &
+                , MPIRankSurfLeader(iProc)                                    &
+                , 1213                                                        &
                 , MPI_COMM_LEADERS_SURF                                       &
-                , RecvRequest(iProc)                                          &
+                , RecvRequest(MPIRankSurfLeader(iProc))                       &
                 , IERROR)
 END DO
 
-DO iProc = 0,nSurfLeaders-1
+DO iProc = 0,nLeaderGroupProcs-1
+  ! Ignore procs not on surface communicator
+  IF (MPIRankSurfLeader(iProc).EQ.MPI_UNDEFINED) CYCLE
   ! Ignore myself
-  IF (iProc .EQ. mySurfRank) CYCLE
+  IF (iProc .EQ. myLeaderGroupRank) CYCLE
 
   ! Only open send buffer if we are expecting sides from this leader node
-  IF (nSendPorousSidesTmp(MPIRankSurfLeader(iProc)).EQ.0) CYCLE
+  IF (nSendPorousSidesTmp(iProc).EQ.0) CYCLE
 
-  ALLOCATE(SurfMapping(iProc)%SendPorousGlobalID(1:nSendPorousSidesTmp(MPIRankSurfLeader(iProc))))
+  ALLOCATE(SurfMapping(MPIRankSurfLeader(iProc))%SendPorousGlobalID(1:nSendPorousSidesTmp(iProc)))
 
-  SurfMapping(iProc)%SendPorousGlobalID = SendPorousGlobalID(MPIRankSurfLeader(iProc),1:nSendPorousSidesTmp(MPIRankSurfLeader(iProc)))
+  SurfMapping(MPIRankSurfLeader(iProc))%SendPorousGlobalID = SendPorousGlobalID(iProc,1:nSendPorousSidesTmp(iProc))
 
-  CALL MPI_ISEND( SurfMapping(iProc)%SendPorousGlobalID                         &
-                , nSendPorousSidesTmp(MPIRankSurfLeader(iProc))                 &
+  CALL MPI_ISEND( SurfMapping(MPIRankSurfLeader(iProc))%SendPorousGlobalID                         &
+                , nSendPorousSidesTmp(iProc)                 &
                 , MPI_INTEGER                                                 &
-                , iProc                                                       &
-                , 1211                                                        &
+                , MPIRankSurfLeader(iProc)                                                       &
+                , 1213                                                        &
                 , MPI_COMM_LEADERS_SURF                                       &
-                , SendRequest(iProc)                                          &
+                , SendRequest(MPIRankSurfLeader(iProc))                                          &
                 , IERROR)
 END DO
 
 !--- Finish communication
-DO iProc = 0,nSurfLeaders-1
+DO iProc = 0,nLeaderGroupProcs-1
+  ! Ignore procs not on surface communicator
+  IF (MPIRankSurfLeader(iProc).EQ.MPI_UNDEFINED) CYCLE
   ! Ignore myself
-  IF (iProc .EQ. mySurfRank) CYCLE
+  IF (iProc .EQ. myLeaderGroupRank) CYCLE
 
-  IF (nSendPorousSidesTmp(MPIRankSurfLeader(iProc)).NE.0) THEN
-    CALL MPI_WAIT(SendRequest(iProc),msg_status(:),IERROR)
+  IF (nSendPorousSidesTmp(iProc).NE.0) THEN
+    CALL MPI_WAIT(SendRequest(MPIRankSurfLeader(iProc)),msg_status(:),IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END IF
 
-  IF (nRecvPorousSidesTmp(MPIRankSurfLeader(iProc)).NE.0) THEN
-    CALL MPI_WAIT(RecvRequest(iProc),msg_status(:),IERROR)
+  IF (nRecvPorousSidesTmp(iProc).NE.0) THEN
+    CALL MPI_WAIT(RecvRequest(MPIRankSurfLeader(iProc)),msg_status(:),IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END IF
 END DO

@@ -310,10 +310,11 @@ where $i$, $r$ and $w$ denote the incident, reflected and wall energy, respectiv
     Part-Boundary2-RotACC=1.
     Part-Boundary2-ElecACC=1.
 
-Additionally, a wall velocity [m/s] and voltage [V] can be given
+#### Wall movement (Linear & rotational)
+
+Additionally, a linear wall velocity [m/s] can be given
 
     Part-Boundary2-WallVelo=(/0,0,100/)
-    Part-Boundary2-Voltage=100
 
 In the case of rotating walls the `-RotVelo` flag, a rotation frequency [Hz], a origin of rotation axis (x, y, z coordinates) and the rotation axis vector must be set. Note that the definition of rotation direction is given by the rotation axis and the right-hand rule.
 
@@ -322,6 +323,8 @@ In the case of rotating walls the `-RotVelo` flag, a rotation frequency [Hz], a 
     Part-Boundary2-RotOrg = (/0.,0.,0./)
     Part-Boundary2-RotAxi = (/0.,0.,1./)
 
+#### Linear temperature gradient
+
 A linear temperature gradient across a boundary can be defined by supplying a second wall temperature and the start and end vector
 
     Part-Boundary2-WallTemp2=500.
@@ -329,6 +332,20 @@ A linear temperature gradient across a boundary can be defined by supplying a se
     Part-Boundary2-TemperatureGradientEnd=(/0.,0.,1./)
 
 Between these two points the temperature will be interpolated, where the start vector corresponds to the first wall temperature, whereas the end vector to the second wall temperature. Beyond these position values, the first and second temperature will be used as the constant wall temperature, respectively.
+
+#### Radiative equilibrium
+
+Another option is to adapt the wall temperature based on the heat flux assuming that the wall is in radiative equilibrium. The temperature is then calculated from 
+
+$$ q_w = \varepsilon \sigma T_w^4,$$
+
+where $\varepsilon$ is the radiative emissivity of the wall (default = 1) and $\sigma = \SI{5.67E-8}{\watt\per\square\meter\per\kelvin\tothe{4}}$ is the Stefan-Boltzmann constant. The adaptive boundary is enabled by
+
+    Part-AdaptWallTemp = T
+    Part-Boundary1-UseAdaptedWallTemp = T
+    Part-Boundary1-RadiativeEmissivity = 0.8
+
+If provided, the wall temperature will be adapted during the next output of macroscopic variables, where the heat flux calculated during the preceding sampling period is utilized to determine the side-local temperature. The temperature is included in the `State` file and thus available during a restart of the simulation. The surface output (in `DSMCSurfState`) will additionally include the temperature distribution in the `Wall_Temperature` variable (see Section \ref{sec:visu_flowfield}). To continue the simulation without further adapting the temperature, the first flag has to be disabled (`Part-AdaptWallTemp = F`). It should be noted that the the adaptation should be performed multiple times to achieve a converged temperature distribution.
 
 ### Rotational Periodicity
 
@@ -1219,11 +1236,11 @@ Specified product species can be deleted immediately after the reaction occurs, 
 
 #### Ambipolar Diffusion
 
-The ambipolar diffusion model can be enabled by
+A simple ambipolar diffusion model in order to be able to ignore the self-induced electric fields, e.g. for the application in hypersonic re-entry flows, where ionization reactions cannot be neglected, can be enabled by
 
     Particles-DSMC-AmbipolarDiffusion = T
 
-Electrons are now attached to and move with the ions, although, they still have their own velocity vector and are part of the pairing and collisional process (including chemical reactions).
+Electrons are now attached to and move with the ions, although, they still have their own velocity vector and are part of the pairing and collisional process (including chemical reactions). The velocity vector of the ion species is not additionally corrected to account for the acceleration due to the self-induced electric fields. The restart from a state file without previously enabled ambipolar diffusion is currently not supported. However, the simulation can be continued if a macroscopic output ist available with the macroscopic restart. In that case, the electrons are not inserted but paired with an ion and given the sampled velocity from the macroscopic restart file.
 
 ### Ensuring Physical Simulation Results \label{sec:dsmc_quality}
 

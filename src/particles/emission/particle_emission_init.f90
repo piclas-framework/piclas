@@ -75,15 +75,9 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-InflowRiseTime' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Time to ramp the number of inflow particles linearly from zero to unity'&
                                 , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-RadiusIC'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Radius for IC circle', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-Radius2IC' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Radius2 for IC cylinder (ring)', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-RadiusICGyro' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Radius for Gyrotron gyro radius', '1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-RadiusIC'  , 'Radius for IC circle'                 , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-Radius2IC' , 'Radius2 for IC cylinder (ring)' , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-RadiusICGyro','Radius for Gyrotron gyro radius','1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-NormalIC'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Normal / Orientation of circle', '0. , 0. , 1.', numberedmulti=.TRUE.)
@@ -182,6 +176,9 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-ExcludeRegion[$]-Cylind
                                   'Height of excluded cylinder, if'//&
                                   ' Part-Species[$]-Init[$]-ExcludeRegion[$]-SpaceIC=cylinder (set 0 for flat circle),'//&
                                   'negative value = opposite direction ', '1.', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-NeutralizationSource'  &
+                                , 'Name of the boundary used for calculating the charged particle balance used for thruster'//&
+                                  ' neutralization (no default).' ,numberedmulti=.TRUE.)
 ! ====================================== photoionization =================================================================
 CALL prms%CreateLogicalOption('Part-Species[$]-Init[$]-FirstQuadrantOnly','Only insert particles in the first quadrant that is'//&
                               ' spanned by the vectors x=BaseVector1IC and y=BaseVector2IC in the interval x,y in [0,R]',  '.FALSE.', numberedmulti=.TRUE.)
@@ -240,6 +237,7 @@ ALLOCATE(BGGas%NumberDensity(nSpecies))
 BGGas%NumberDensity = 0.
 ALLOCATE(SpecReset(1:nSpecies))
 SpecReset=.FALSE.
+UseNeutralization = .FALSE.
 
 DO iSpec = 1, nSpecies
   SWRITE (UNIT_stdOut,'(66(". "))')
@@ -283,7 +281,7 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%BasePointIC            = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BasePointIC',3)
       Species(iSpec)%Init(iInit)%BaseVector1IC          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector1IC',3)
       Species(iSpec)%Init(iInit)%BaseVector2IC          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector2IC',3)
-      !--- Normalize NormalIC (and BaseVector 1 & 2 IC for cylinder/sphere) for Inits
+      !--- Normalize NormalIC (and BaseVector 1 & 3 IC for cylinder/sphere) for Inits
       Species(iSpec)%Init(iInit)%NormalIC = Species(iSpec)%Init(iInit)%NormalIC / VECNORM(Species(iSpec)%Init(iInit)%NormalIC)
       IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder').OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere')) THEN
         Species(iSpec)%Init(iInit)%BaseVector1IC = Species(iSpec)%Init(iInit)%RadiusIC * Species(iSpec)%Init(iInit)%BaseVector1IC &
@@ -330,6 +328,19 @@ DO iSpec = 1, nSpecies
        (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder')) THEN
       CALL InitializeVariablesPhotoIonization(iSpec,iInit,hilf2)
     END IF
+    !--- Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
+    ! for low-temperature partially magnetized plasmas (2019)
+    SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+    CASE('2D_landmark','2D_landmark_copy')
+      Species(iSpec)%Init(iInit)%ParticleEmissionType = 8
+      Species(iSpec)%Init(iInit)%NINT_Correction      = 0.0
+    CASE('2D_landmark_neutralization')
+      Species(iSpec)%Init(iInit)%ParticleEmissionType = 9
+      NeutralizationSource = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-NeutralizationSource'))
+      NeutralizationBalance = 0
+      UseNeutralization = .TRUE.
+    END SELECT ! SpaceIC = '2D_landmark' or '2D_landmark_copy'
+    !---Inserted Particles
     Species(iSpec)%Init(iInit)%InsertedParticle         = 0
     Species(iSpec)%Init(iInit)%InsertedParticleSurplus  = 0
     !----------- various checks/calculations after read-in of Species(iSpec)%Init(iInit)%-data ----------------------------------!
@@ -423,13 +434,14 @@ SUBROUTINE InitialParticleInserting()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Dielectric_Vars     ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
-USE MOD_DSMC_Vars           ,ONLY: useDSMC, DSMC
-USE MOD_Part_Emission_Tools ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
-USE MOD_Part_Pos_and_Velo   ,ONLY: SetParticlePosition,SetParticleVelocity, AD_SetInitElectronVelo
-USE MOD_Part_Tools          ,ONLY: UpdateNextFreePosition
-USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, VarTimeStep
-USE MOD_Restart_Vars        ,ONLY: DoRestart
+USE MOD_Dielectric_Vars         ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, DSMC
+USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
+USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticlePosition,SetParticleVelocity
+USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetInitElectronVelo
+USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition
+USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, VarTimeStep
+USE MOD_Restart_Vars            ,ONLY: DoRestart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -696,7 +708,7 @@ CALL PrintOption('Corrected Intensity amplitude: I0_corr [W/m^2]','CALCUL.',Real
 
 CALL PrintOption('Pulse period (Time between maximum of two pulses) [s]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%Period)
 
-CALL PrintOption('Temporal pulse width (pulse time) [s]','CALCUL.',RealOpt=2.0*Species(iSpec)%Init(iInit)%tShift)
+CALL PrintOption('Temporal pulse width (pulse time 2x tShift) [s]','CALCUL.',RealOpt=2.0*Species(iSpec)%Init(iInit)%tShift)
 Species(iSpec)%Init(iInit)%tActive = REAL(Species(iSpec)%Init(iInit)%NbrOfPulses - 1)*Species(iSpec)%Init(iInit)%Period &
                                         + 2.0*Species(iSpec)%Init(iInit)%tShift
 CALL PrintOption('Pulse will end at tActive (pulse final time) [s]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%tActive)

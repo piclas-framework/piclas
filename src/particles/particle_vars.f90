@@ -393,6 +393,7 @@ LOGICAL                                  :: DoZigguratSampling                ! 
 INTEGER(8)                               :: nTotalPart
 INTEGER(8)                               :: nTotalHalfPart
 
+
 TYPE tVariableTimeStep
   LOGICAL                              :: UseVariableTimeStep
   LOGICAL                              :: UseLinearScaling
@@ -420,6 +421,17 @@ END TYPE
 TYPE(tVariableTimeStep)                :: VarTimeStep
 
 REAL                                   :: TriaEps !Machine precision for 1D, 0 for other
+
+! 2D Landmark
+REAL, ALLOCATABLE :: PartPosLandmark(:,:)        ! Store particle positions during emission for placing
+!                                                ! Electrons and ions at the exact same position
+INTEGER           :: NbrOfParticleLandmarkMax    ! Array maximum size for storing positions
+INTEGER           :: FractNbrOld,chunkSizeOld    ! Auxiliary integers for storing positions
+
+LOGICAL           :: UseNeutralization           ! Flag for counting the charged particles impinging on a surface
+CHARACTER(255)    :: NeutralizationSource        ! Name of the boundary for calculating the particle balance
+INTEGER           :: NeutralizationBalance       ! Counter for charged particles (processor local): Add +1 for electrons and -1 for ions
+INTEGER           :: NeutralizationBalanceGlobal ! Counter for charged particles (global): Add +1 for electrons and -1 for ions
 
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

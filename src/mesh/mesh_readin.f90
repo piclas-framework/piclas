@@ -216,7 +216,7 @@ USE MOD_MPI_Shared_Vars      ,ONLY: MPI_COMM_SHARED
 #ifdef PARTICLES
 USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshBasics
 USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshElems,ReadMeshSides,ReadMeshSideNeighbors
-USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshNodes,CommunicateMeshReadin
+USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshNodes,StartCommunicateMeshReadin,FinishCommunicateMeshReadin
 USE MOD_Particle_Vars        ,ONLY: VarTimeStep
 USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem
 #if USE_LOADBALANCE
@@ -273,8 +273,11 @@ CALL ReadAttribute(File_ID,'nUniqueSides',1,IntegerScalar=nGlobalUniqueSidesFrom
 CALL ReadAttribute(File_ID,'nSides',1,IntegerScalar=nNonUniqueGlobalSides)
 CALL ReadAttribute(File_ID,'nNodes',1,IntegerScalar=nNonUniqueGlobalNodes)
 CALL CloseDataFile()
+! INTEGER KIND=4 check for number of elements
 CHECKSAFEINT(HSize(2),4)
 nGlobalElems=INT(HSize(2),4) !global number of elements
+! INTEGER KIND=4 check for number of nodes
+CHECKSAFEINT(8_8*INT(nGlobalElems,8),4)
 DEALLOCATE(HSize)
 IF(MPIRoot.AND.(nGlobalElems.LT.nProcessors))CALL abort(__STAMP__&
     ,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))
@@ -599,7 +602,8 @@ ENDIF
 CALL CloseDataFile()
 
 #ifdef PARTICLES
-CALL CommunicateMeshReadin()
+! Start non-blocking communication of mesh information
+CALL StartCommunicateMeshReadin()
 #endif
 
 !DEALLOCATE(ElemInfo,SideInfo,NodeInfo,NodeMap)
@@ -719,6 +723,11 @@ ReduceData(8)=nAnalyzeSides
 ReduceData(9)=nMortarSides
 ReduceData(10)=nMPIPeriodics
 ReduceData(11)=nNodeIDs
+
+#ifdef PARTICLES
+! Finish non-blocking communication of mesh information
+CALL FinishCommunicateMeshReadin()
+#endif
 
 #if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,ReduceData,11,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)

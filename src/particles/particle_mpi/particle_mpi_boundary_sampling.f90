@@ -49,7 +49,7 @@ SUBROUTINE InitSurfCommunication()
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_SURF
-!USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors
+USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_MPI_Shared_Vars         ,ONLY: MPIRankSharedLeader,MPIRankSurfLeader
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank,nSurfLeaders!,nSurfCommProc
@@ -62,6 +62,8 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetCompute
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide
 USE MOD_Particle_MPI_Vars       ,ONLY: SurfSendBuf,SurfRecvBuf
 USE MOD_Particle_Vars           ,ONLY: nSpecies
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared, SideInfo_Shared
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeInnerBCs
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -79,6 +81,9 @@ INTEGER                       :: nRecvSurfSidesTmp(0:nLeaderGroupProcs-1)
 INTEGER                       :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
 INTEGER                       :: SendSurfGlobalID(0:nLeaderGroupProcs-1,1:nComputeNodeSurfTotalSides)
 INTEGER                       :: SampSizeAllocate
+INTEGER                       :: NbGlobalElemID, GlobalSideID, NbGlobalSideID, NbElemRank, NbLeaderID, GlobalElemID, ElemRank
+INTEGER                       :: TestCounter
+INTEGER                       :: SwitchGlobalSideID(1:3,1:nComputeNodeInnerBCs),nSideTmp
 !===================================================================================================================================
 
 nRecvSurfSidesTmp = 0
@@ -100,12 +105,78 @@ END DO
 !--- count all surf sides per other compute-node which get sampling data from current leader
 nSendSurfSidesTmp = 0
 
-DO iSide = 1,nComputeNodeSurfTotalSides
+TestCounter=0
+SwitchGlobalSideID = -1
+!--- Loop 1 of 2: Non-HALO sides
+! store the GlobalSideID of each sampling side on a different processor (node leader) to send each leader the number and IDs of all
+! sampling sides. Special treatment is required for inner BCs as these are only written to .h5 for the smaller GlobalSideID and
+! therefor, the processor that samples on the larger side ID must send this information to the leader of the smaller side in order
+! to store this information. The receiving leader is sent the smaller GlobalSideID but the larger ID is kept for local sampling and
+! is stored here in SwitchGlobalSideID, which is later applied after the message has been sent. In the first part, the local
+! (non-HALO) surf sides are considered and in a second step the HALO sides.
+DO iSide = 1,nComputeNodeSurfSides
   ! count surf sides per compute node
   LeaderID = SurfSide2GlobalSide(SURF_LEADER,iSide)
   nSendSurfSidesTmp(LeaderID) = nSendSurfSidesTmp(LeaderID) + 1
-  SendSurfGlobalID(LeaderID,nSendSurfSidesTmp(LeaderID)) = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+  GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+  SendSurfGlobalID(LeaderID,nSendSurfSidesTmp(LeaderID)) = GlobalSideID
+  ! Check if the side has a neighbour side and is thus an inner BC
+  IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+    ! Only add sides that are NOT part of the halo region
+    NbGlobalSideID = SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)
+    ! Skip sides with the smaller global side index as those are on the receiving end
+    IF(GlobalSideID.LT.NbGlobalSideID) CYCLE
+    NbGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NbGlobalSideID)
+    NbElemRank = ElemInfo_Shared(ELEM_RANK,NbGlobalElemID)
+    NbLeaderID = INT(NbElemRank/nComputeNodeProcessors)
+    IF(NbLeaderID.NE.LeaderID) THEN
+      nSendSurfSidesTmp(NbLeaderID) = nSendSurfSidesTmp(NbLeaderID) + 1
+      SendSurfGlobalID(NbLeaderID,nSendSurfSidesTmp(NbLeaderID)) = NbGlobalSideID
+      ! Store switcheroo information
+      TestCounter = TestCounter +1
+      SwitchGlobalSideID(1:3,TestCounter) = (/NbLeaderID,GlobalSideID,nSendSurfSidesTmp(NbLeaderID)/)
+    END IF
+  END IF
 END DO
+
+!--- Loop 2 of 2: HALO sides
+! Note that in this case three nodes might be involved
+DO iSide = nComputeNodeSurfSides+1,nComputeNodeSurfTotalSides
+  ! Check if the side has a neighbour side and is thus an inner BC
+  GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+  IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+    NbGlobalSideID = SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)
+    ! Skip sides with the smaller global side index as those are on the receiving end
+    IF(GlobalSideID.GT.NbGlobalSideID) THEN
+      NbGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NbGlobalSideID)
+      NbElemRank = ElemInfo_Shared(ELEM_RANK,NbGlobalElemID)
+      NbLeaderID = INT(NbElemRank/nComputeNodeProcessors)
+      nSendSurfSidesTmp(NbLeaderID) = nSendSurfSidesTmp(NbLeaderID) + 1
+      SendSurfGlobalID(NbLeaderID,nSendSurfSidesTmp(NbLeaderID)) = NbGlobalSideID
+      ! Store switcheroo information
+      TestCounter = TestCounter +1
+      SwitchGlobalSideID(1:3,TestCounter) = (/NbLeaderID,GlobalSideID,nSendSurfSidesTmp(NbLeaderID)/)
+    ELSE
+      GlobalElemID = SideInfo_Shared(SIDE_ELEMID,GlobalSideID)
+      ElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
+      LeaderID = INT(ElemRank/nComputeNodeProcessors)
+      nSendSurfSidesTmp(LeaderID) = nSendSurfSidesTmp(LeaderID) + 1
+      SendSurfGlobalID(LeaderID,nSendSurfSidesTmp(LeaderID)) = GlobalSideID
+    END IF
+  ELSE
+    ! Count regular halo sampling on surf sides per compute node
+    LeaderID = SurfSide2GlobalSide(SURF_LEADER,iSide)
+    nSendSurfSidesTmp(LeaderID) = nSendSurfSidesTmp(LeaderID) + 1
+    GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+    SendSurfGlobalID(LeaderID,nSendSurfSidesTmp(LeaderID)) = GlobalSideID
+  END IF
+END DO
+
+! Sanity check for switcheroo:
+! Compare the number of counted sides above with the number that was calculated in InitParticleBoundarySampling()
+IF(TestCounter.NE.nComputeNodeInnerBCs)THEN
+  CALL abort(__STAMP__,'InitSurfCommunication: The number of Inner BCs that are redirected to other procs do not match!')
+END IF ! TestCounter.ne.nComputeNodeInnerBCs
 
 !--- send all other leaders the number of sampling sides coming from current node
 DO iProc = 0,nLeaderGroupProcs-1
@@ -247,6 +318,16 @@ DO iProc = 0,nLeaderGroupProcs-1
   END IF
 END DO
 
+!--- Finish switcheroo
+DO TestCounter = 1, nComputeNodeInnerBCs
+  NbLeaderID   = SwitchGlobalSideID(1,TestCounter)
+  GlobalSideID = SwitchGlobalSideID(2,TestCounter)
+  nSideTmp     = SwitchGlobalSideID(3,TestCounter)
+  ! Note that you have to cycle yourself, but that halo sides might also have been changed to a different proc (i.e.  to yourself)
+  IF (NbLeaderID .EQ. myLeaderGroupRank) CYCLE
+  SurfMapping(MPIRankSurfLeader(NbLeaderID))%SendSurfGlobalID(nSideTmp) = GlobalSideID
+END DO ! iSide = 1, nComputeNodeInnerBCs
+
 !--- Allocate send and recv buffer for each surf leader
 ALLOCATE(SurfSendBuf(0:nSurfLeaders-1))
 ALLOCATE(SurfRecvBuf(0:nSurfLeaders-1))
@@ -318,10 +399,10 @@ USE MOD_Globals
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: nSurfLeaders,myComputeNodeRank,mySurfRank
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSampSize,SurfSampSizeReactive,nSurfSample
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSampSize,nSurfSample
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping,PartBound,CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState,SampWallState_Shared,SampWallState_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallPumpCapacity,SampWallPumpCapacity_Shared,SampWallPumpCapacity_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactEnergy,SampWallImpactEnergy_Shared,SampWallImpactEnergy_Shared_Win
@@ -342,7 +423,7 @@ IMPLICIT NONE
 INTEGER                         :: iProc,SideID
 INTEGER                         :: iPos,p,q
 INTEGER                         :: MessageSize,iSurfSide,SurfSideID
-INTEGER                         :: nValues,nReactiveValues
+INTEGER                         :: nValues
 INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !INTEGER                         :: iPos,p,q,iProc,iReact
 !INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
@@ -402,11 +483,6 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 ! prepare buffers for surf leader communication
 IF (myComputeNodeRank.EQ.0) THEN
   nValues = SurfSampSize*nSurfSample**2
-  ! additional array entries for Coverage, Accomodation and recombination coefficient
-  IF(ANY(PartBound%Reactive)) THEN
-    nReactiveValues = SurfSampSizeReactive*(nSurfSample)**2
-    nValues         = nValues+nReactiveValues
-  END IF
   ! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle and number: Add 9*nSpecies
   ! to the buffer length
   IF(CalcSurfaceImpact) nValues=nValues+9*nSpecies

@@ -94,7 +94,7 @@ USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID_Shared
 USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient
-USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D,BezierSampleN
+USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
 USE MOD_Particle_Vars           ,ONLY: nSpecies,VarTimeStep
 USE MOD_Particle_Vars           ,ONLY: Symmetry
@@ -117,6 +117,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactVector_Shared,SampWallImpac
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactAngle_Shared,SampWallImpactAngle_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber_Shared,SampWallImpactNumber_Shared_Win
 USE MOD_Particle_MPI_Boundary_Sampling,ONLY: InitSurfCommunication
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeInnerBCs
 #else
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
 USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
@@ -135,7 +136,7 @@ INTEGER                                :: iSide,firstSide,lastSide,iSurfSide,Glo
 INTEGER                                :: nSurfSidesProc,nSurfSidesTmp
 INTEGER                                :: offsetSurfTotalSidesProc
 INTEGER,ALLOCATABLE                    :: GlobalSide2SurfSideProc(:,:)
-INTEGER,ALLOCATABLE                    :: SurfSide2GlobalSideProc(:,:)
+!INTEGER,ALLOCATABLE                    :: SurfSide2GlobalSideProc(:,:)
 CHARACTER(20)                          :: hilf
 CHARACTER(LEN=255),ALLOCATABLE         :: BCName(:)
 ! surface area
@@ -153,6 +154,7 @@ INTEGER                                :: GlobalElemID,GlobalElemRank
 INTEGER(KIND=MPI_ADDRESS_KIND)         :: MPISharedSize
 INTEGER                                :: sendbuf,recvbuf
 #endif /*USE_MPI*/
+INTEGER                                :: NbGlobalElemID, NbGlobalSideID, NbElemRank, NbLeaderID
 !===================================================================================================================================
 
 ! Get input parameters
@@ -164,24 +166,8 @@ nSurfSample = GETINT('DSMC-nSurfSample',TRIM(hilf))
 IF((nSurfSample.GT.1).AND.(TriaTracking)) &
   CALL abort(__STAMP__,'nSurfSample cannot be >1 if TriaTracking=T')
 
-IF (ANY(PartBound%Reactive)) THEN
-  IF (nSurfSample.NE.BezierSampleN) THEN
-    SWRITE (*,*) "nSurfSample   =", nSurfSample
-    SWRITE (*,*) "BezierSampleN =", BezierSampleN
-    CALL abort(__STAMP__,'Error: nSurfSample not equal to BezierSampleN. Problem for Desorption + Surfflux')
-  END IF
-END IF
-
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 CalcSurfaceImpact = GETLOGICAL('CalcSurfaceImpact')
-
-! Calculate equidistant surface points
-ALLOCATE(XiEQ_SurfSample(0:nSurfSample))
-
-dXiEQ_SurfSample =2./REAL(nSurfSample)
-DO q=0,nSurfSample
-  XiEQ_SurfSample(q) = dXiEQ_SurfSample * REAL(q) - 1.
-END DO
 
 ! Allocate shared array for surf sides
 #if USE_MPI
@@ -204,32 +190,6 @@ END IF
 CALL MPI_WIN_SYNC(GlobalSide2SurfSide_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #endif /* USE_MPI*/
-
-! create boundary name mapping for surfaces SurfaceBC number mapping
-nSurfBC = 0
-ALLOCATE(BCName(1:nBCs))
-DO iBC=1,nBCs
-  BCName=''
-END DO
-DO iBC=1,nBCs
-  ! inner side (can be just in the name list from preproc although already sorted out)
-  IF (PartBound%MapToPartBC(iBC).EQ.-1) CYCLE
-
-  ! count number of reflective BCs
-  IF ( (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%ReflectiveBC).OR. &
-       (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%RotPeriodicBC)    ) THEN
-    nSurfBC         = nSurfBC + 1
-    BCName(nSurfBC) = BoundaryName(iBC)
-  END IF
-END DO
-
-IF (nSurfBC.GE.1) THEN
-ALLOCATE(SurfBCName(1:nSurfBC))
-  DO iBC=1,nSurfBC
-    SurfBCName(iBC) = BCName(iBC)
-  END DO
-END IF
-DEALLOCATE(BCName)
 
 ! get number of BC-Sides
 #if USE_MPI
@@ -388,18 +348,60 @@ END DO
 ! Determine the number of surface output sides (inner BCs are not counted twice)
 #if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
+  nComputeNodeInnerBCs = 0
 #endif /*USE_MPI*/
   nComputeNodeSurfOutputSides = 0
   DO iSurfSide = 1,nComputeNodeSurfSides
     GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
     ! Check if the surface side has a neighbor (and is therefore an inner BCs)
     IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+      ! Abort inner BC + Mortar! (too complex and confusing to implement)
+      ! This test catches large Mortar sides, i.e.,  SideInfo_Shared(SIDE_NBELEMID,NonUniqueGlobalSideID) gives the 2 or 4
+      ! connecting small Mortar sides. It is assumed that inner BC result in being flagged as a "SurfSide" and therefore are checked
+      ! here.
+      IF(SideInfo_Shared(SIDE_LOCALID,GlobalSideID).EQ.-1)THEN
+        IPWRITE(UNIT_StdOut,'(I12,A,I0)')   " NonUniqueGlobalSideID                               = ",GlobalSideID
+        IPWRITE(UNIT_StdOut,'(I12,A,I0)')   " SideInfo_Shared(SIDE_LOCALID,NonUniqueGlobalSideID) = ",&
+            SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
+        IPWRITE(UNIT_StdOut,'(I12,A,I0,A)') " SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID)  = ",&
+            SideInfo_Shared(SIDE_ELEMID,GlobalSideID)," (GlobalElemID)"
+        CALL abort(__STAMP__,'Inner BC + Mortar is not implemented!')
+      END IF
       ! Only add the side with the smaller index
-      IF(GlobalSideID.GT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)) CYCLE
+      NbGlobalSideID = SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)
+      IF(GlobalSideID.GT.NbGlobalSideID)THEN
+#if USE_MPI
+        !--- switcheroo check 1 of 2: Non-HALO sides
+        ! Only required for sampling on the larger NonUniqueGlobalSideID of the two sides of the inner BC
+        ! Count larger inner BCs as these may have to be sent to a different leader processor
+        NbGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NbGlobalSideID)
+        NbElemRank = ElemInfo_Shared(ELEM_RANK,NbGlobalElemID)
+        NbLeaderID = INT(NbElemRank/nComputeNodeProcessors)
+        !IF(NbLeaderID.NE.SurfSide2GlobalSide(SURF_LEADER,iSide))THEN
+        IF(NbLeaderID.NE.myrank)THEN
+          nComputeNodeInnerBCs = nComputeNodeInnerBCs + 1
+        END IF ! NbLeaderID.NE.SurfSide2GlobalSide(SURF_LEADER,iSide)
+#endif
+        CYCLE! Skip sides with the larger index
+      END IF
     END IF
     nComputeNodeSurfOutputSides = nComputeNodeSurfOutputSides + 1
   END DO
 #if USE_MPI
+  !--- switcheroo check 2 of 2: HALO sides
+  ! Count number of inner BC in halo region
+  ! Only required for sampling on the larger NonUniqueGlobalSideID of the two sides of the inner BC
+  DO iSurfSide = nComputeNodeSurfSides+1, nComputeNodeSurfTotalSides
+    GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+    ! Check if the surface side has a neighbor (and is therefore an inner BCs)
+    IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+      ! Only add the side with the smaller index
+      IF(GlobalSideID.GT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))THEN
+        ! Count larger inner BCs as these may have to be sent to a different leader processor
+        nComputeNodeInnerBCs = nComputeNodeInnerBCs + 1
+      END IF
+    END IF
+  END DO ! iSurfSide = nComputeNodeSurfSides+1, nComputeNodeSurfTotalSides
 END IF
 #endif
 
@@ -429,6 +431,32 @@ nOutputSides    = nComputeNodeSurfOutputSides
 
 ! surface sampling array do not need to be allocated if there are no sides within halo_eps range
 IF(.NOT.SurfOnNode) RETURN
+
+! create boundary name mapping for surfaces SurfaceBC number mapping
+nSurfBC = 0
+ALLOCATE(BCName(1:nBCs))
+DO iBC=1,nBCs
+  BCName=''
+END DO
+DO iBC=1,nBCs
+  ! inner side (can be just in the name list from preproc although already sorted out)
+  IF (PartBound%MapToPartBC(iBC).EQ.-1) CYCLE
+
+  ! count number of reflective BCs
+  IF ( (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%ReflectiveBC).OR. &
+       (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%RotPeriodicBC)    ) THEN
+    nSurfBC         = nSurfBC + 1
+    BCName(nSurfBC) = BoundaryName(iBC)
+  END IF
+END DO
+
+IF (nSurfBC.GE.1) THEN
+ALLOCATE(SurfBCName(1:nSurfBC))
+  DO iBC=1,nSurfBC
+    SurfBCName(iBC) = BCName(iBC)
+  END DO
+END IF
+DEALLOCATE(BCName)
 
 ! allocate everything. Caution: SideID is surfSideID, not global ID
 !> First local arrays for boundary sampling
@@ -535,6 +563,13 @@ END IF
 CALL MPI_WIN_SYNC(SurfSideArea_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif /*USE_MPI*/
+
+! Calculate equidistant surface points
+ALLOCATE(XiEQ_SurfSample(0:nSurfSample))
+dXiEQ_SurfSample =2./REAL(nSurfSample)
+DO q=0,nSurfSample
+  XiEQ_SurfSample(q) = dXiEQ_SurfSample * REAL(q) - 1.
+END DO
 
 ! get interpolation points and weights
 ALLOCATE( Xi_NGeo( 0:NGeo)  &
@@ -665,9 +700,8 @@ USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides, nOutputSides
-USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfSides,offsetComputeNodeSurfSide
 USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName, PartBound
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 #if USE_MPI
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF
@@ -716,6 +750,8 @@ nVar2D_Spec = 1
 IF (CalcSurfaceImpact) nVar2D_Spec = nVar2D_Spec + 8
 
 IF (nPorousBC.GT.0)    nVar2D = nVar2D + nPorousBC
+
+IF (ANY(PartBound%UseAdaptedWallTemp)) nVar2D = nVar2D + 1
 
 nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
 
@@ -775,6 +811,8 @@ IF (mySurfRank.EQ.0) THEN
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'PorousBC'//TRIM(PBCID)//'_PumpCapacity')
     END DO
   END IF
+
+  IF (ANY(PartBound%UseAdaptedWallTemp)) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Wall_Temperature')
 
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
 
@@ -874,14 +912,21 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!INTEGER :: iSurfSide
-!#if USE_MPI
-!INTEGER :: iProc
-!#endif /*USE_MPI*/
 !===================================================================================================================================
 
 ! Return if nothing was allocated
 IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive)).AND..NOT.(nPorousBC.GT.0)) RETURN
+
+! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+#if USE_MPI
+! Mapping arrays are allocated even if the node does not have sampling surfaces
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+CALL UNLOCK_AND_FREE(GlobalSide2SurfSide_Shared_Win)
+CALL UNLOCK_AND_FREE(SurfSide2GlobalSide_Shared_Win)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+ADEALLOCATE(GlobalSide2SurfSide_Shared)
+ADEALLOCATE(SurfSide2GlobalSide_Shared)
+#endif /*USE_MPI*/
 
 ! Return if no sampling surfaces on node
 IF (.NOT.SurfOnNode) RETURN
@@ -891,8 +936,6 @@ IF (.NOT.SurfOnNode) RETURN
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 CALL UNLOCK_AND_FREE(SampWallState_Shared_Win)
-CALL UNLOCK_AND_FREE(GlobalSide2SurfSide_Shared_Win)
-CALL UNLOCK_AND_FREE(SurfSide2GlobalSide_Shared_Win)
 CALL UNLOCK_AND_FREE(SurfSideArea_Shared_Win)
 IF(nPorousBC.GT.0) CALL UNLOCK_AND_FREE(SampWallPumpCapacity_Shared_Win)
 IF (CalcSurfaceImpact) THEN
@@ -918,8 +961,6 @@ ADEALLOCATE(SampWallImpactVector_Shared)
 ADEALLOCATE(SampWallImpactAngle_Shared)
 ADEALLOCATE(SampWallImpactNumber_Shared)
 ADEALLOCATE(SurfSideArea_Shared)
-ADEALLOCATE(GlobalSide2SurfSide_Shared)
-ADEALLOCATE(SurfSide2GlobalSide_Shared)
 #endif /*USE_MPI*/
 
 ! Then, free the pointers or arrays
@@ -934,59 +975,6 @@ SDEALLOCATE(SampWallImpactNumber)
 ADEALLOCATE(SurfSideArea)
 ADEALLOCATE(GlobalSide2SurfSide)
 ADEALLOCATE(SurfSide2GlobalSide)
-! Old stuff
-!SDEALLOCATE(XiEQ_SurfSample)
-!SDEALLOCATE(SurfMesh%SurfaceArea)
-!SDEALLOCATE(SurfMesh%SideIDToSurfID)
-!SDEALLOCATE(SurfMesh%SurfIDToSideID)
-!SDEALLOCATE(SurfMesh%innerBCSideToHaloMap)
-!SDEALLOCATE(SurfBCName)
-!#if USE_MPI
-!SDEALLOCATE(PartHaloSideToProc)
-!SDEALLOCATE(SurfExchange%nSidesSend)
-!SDEALLOCATE(SurfExchange%nSidesRecv)
-!SDEALLOCATE(SurfExchange%SendRequest)
-!SDEALLOCATE(SurfExchange%RecvRequest)
-!DO iProc=1,SurfCOMM%nMPINeighbors
-!  IF (ALLOCATED(SurfSendBuf))THEN
-!    SDEALLOCATE(SurfSendBuf(iProc)%content)
-!  END IF
-!  IF (ALLOCATED(SurfRecvBuf))THEN
-!    SDEALLOCATE(SurfRecvBuf(iProc)%content)
-!  END IF
-!  IF (ALLOCATED(SurfCOMM%MPINeighbor))THEN
-!    SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%SendList)
-!    SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%RecvList)
-!  END IF
-!END DO ! iProc=1,PartMPI%nMPINeighbors
-!SDEALLOCATE(SurfCOMM%MPINeighbor)
-!SDEALLOCATE(SurfSendBuf)
-!SDEALLOCATE(SurfRecvBuf)
-!SDEALLOCATE(OffSetSurfSideMPI)
-!SDEALLOCATE(OffSetInnerSurfSideMPI)
-!#endif /*USE_MPI*/
-!
-!! adjusted for new halo region
-!ADEALLOCATE(SurfSideArea)
-!ADEALLOCATE(GlobalSide2SurfSide)
-!ADEALLOCATE(SurfSide2GlobalSide)
-!ADEALLOCATE(GlobalSide2SurfSide_Shared)
-!ADEALLOCATE(SurfSide2GlobalSide_Shared)
-!#if USE_MPI
-!IF(MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_LEADERS_SURF,iERROR)
-!SDEALLOCATE(GlobalSide2SurfHaloSide)
-!SDEALLOCATE(SurfHaloSide2GlobalSide)
-!IF (ALLOCATED(SurfMapping)) THEN
-!  DO iProc = 0,nSurfLeaders-1
-!    SDEALLOCATE(SurfMapping(iProc)%RecvSurfGlobalID)
-!    SDEALLOCATE(SurfMapping(iProc)%SendSurfGlobalID)
-!  END DO
-!  SDEALLOCATE(SurfMapping)
-!END IF
-SDEALLOCATE(RotPeriodicSide2GlobalSide)
-SDEALLOCATE(NumRotPeriodicNeigh)
-SDEALLOCATE(RotPeriodicSideMapping)
-SDEALLOCATE(SurfSide2RotPeriodicSide)
 
 END SUBROUTINE FinalizeParticleBoundarySampling
 
