@@ -59,7 +59,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CalcRadWeightMPF, isChargedParticle
-PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties
+PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums
 !===================================================================================================================================
 
 CONTAINS
@@ -160,14 +160,14 @@ CALL LBPauseTime(LB_UNFP,tLBStart)
 END SUBROUTINE UpdateNextFreePosition
 
 
-SUBROUTINE StoreLostParticleProperties(iPart,ElemID,UsePartState_opt)
+SUBROUTINE StoreLostParticleProperties(iPart,ElemID,UsePartState_opt,PartMissingType_opt)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Store information of a lost particle (during restart and during the simulation)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
-USE MOD_Globals                ,ONLY: abort
+USE MOD_Globals                ,ONLY: abort,myrank
 USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,PartSpecies,Species,PartState,LastPartPos
-USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartStateLostVecLength
+USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartLostDataSize,PartStateLostVecLength
 USE MOD_TimeDisc_Vars          ,ONLY: time
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
@@ -177,6 +177,7 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)          :: iPart
 INTEGER,INTENT(IN)          :: ElemID ! Global element index
 LOGICAL,INTENT(IN),OPTIONAL :: UsePartState_opt
+INTEGER,INTENT(IN),OPTIONAL :: PartMissingType_opt ! 0: lost, 1: missing & found once, >1: missing & multiply found
 INTEGER                     :: dims(2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -208,49 +209,52 @@ ASSOCIATE( iMax => PartStateLostVecLength )
   IF(iMax.GT.dims(2))THEN
 
     ! --- PartStateLost ---
-    ALLOCATE(PartStateLost_tmp(1:14,1:dims(2)), STAT=ALLOCSTAT)
+    ALLOCATE(PartStateLost_tmp(1:PartLostDataSize,1:dims(2)), STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL abort(&
           __STAMP__&
           ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost_tmp temporary array!')
     ! Save old data
-    PartStateLost_tmp(1:14,1:dims(2)) = PartStateLost(1:14,1:dims(2))
+    PartStateLost_tmp(1:PartLostDataSize,1:dims(2)) = PartStateLost(1:PartLostDataSize,1:dims(2))
 
     ! Re-allocate PartStateLost to twice the size
     DEALLOCATE(PartStateLost)
-    ALLOCATE(PartStateLost(1:14,1:2*dims(2)), STAT=ALLOCSTAT)
+    ALLOCATE(PartStateLost(1:PartLostDataSize,1:2*dims(2)), STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL abort(&
           __STAMP__&
           ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost array!')
-    PartStateLost(1:14,        1:  dims(2)) = PartStateLost_tmp(1:14,1:dims(2))
-    PartStateLost(1:14,dims(2)+1:2*dims(2)) = 0.
+    PartStateLost(1:PartLostDataSize,        1:  dims(2)) = PartStateLost_tmp(1:PartLostDataSize,1:dims(2))
+    PartStateLost(1:PartLostDataSize,dims(2)+1:2*dims(2)) = 0.
 
   END IF
 
-  !ParticlePositionX,
-  !ParticlePositionY,
-  !ParticlePositionZ,
-  !VelocityX,
-  !VelocityY,
-  !VelocityZ,
-  !Species,
-  !ElementID,
-  !PartID,
-  !LastPos-X,
-  !LastPos-Y,
-  !LastPos-Z
-
+  ! 1-3: Particle position (last valid position)
   IF(UsePartState_loc)THEN
     PartStateLost(1:3,iMax) = PartState(1:3,iPart)
   ELSE
     PartStateLost(1:3,iMax) = LastPartPos(1:3,iPart)
   END IF ! UsePartState_loc
+  ! 4-6: Particle velocity
   PartStateLost(4:6  ,iMax) = PartState(4:6,iPart)
+  ! 7: SpeciesID
   PartStateLost(7    ,iMax) = REAL(PartSpecies(iPart))
+  ! 8: Macro particle factor
   PartStateLost(8    ,iMax) = MPF
+  ! 9: time of loss
   PartStateLost(9    ,iMax) = time
+  ! 10: Global element ID
   PartStateLost(10   ,iMax) = REAL(ElemID)
+  ! 11: Particle ID
   PartStateLost(11   ,iMax) = REAL(iPart)
+  ! 12-14: Particle position (position of loss)
   PartStateLost(12:14,iMax) = PartState(1:3,iPart)
+  ! 15: myrank
+  PartStateLost(15,iMax) = myrank
+  ! 16: missing type, i.e., 0: lost, 1: missing & found once, >1: missing & multiply found
+  IF(PRESENT(PartMissingType_opt))THEN ! when particles go missing during restart (maybe they are found on other procs or lost)
+    PartStateLost(16,iMax) = PartMissingType_opt
+  ELSE ! simply lost during the simulation
+    PartStateLost(16,iMax) = 0
+  END IF ! PRESENT(PartMissingType_opt)
 END ASSOCIATE
 
 END SUBROUTINE StoreLostParticleProperties
@@ -516,5 +520,46 @@ ELSE
   isInterpolateParticle = .FALSE.
 END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
 END FUNCTION isInterpolateParticle
+
+
+SUBROUTINE BuildTransGaussNums(nPart, iRanPart)
+!===================================================================================================================================
+!> Builds random Gauss numbers with a zero mean and a variance of one
+!===================================================================================================================================
+! MODULES
+USE Ziggurat
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: nPart
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)             :: iRanPart(:,:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                           :: sumiRan(3), varianceiRan(3)
+INTEGER                        :: iLoop
+!===================================================================================================================================
+sumiRan(1:3) = 0.0
+varianceiRan(1:3) = 0.0
+DO iLoop = 1, nPart
+  iRanPart(1,iLoop) = rnor()
+  iRanPart(2,iLoop) = rnor()
+  iRanPart(3,iLoop) = rnor()
+  sumiRan(1:3) = sumiRan(1:3) + iRanPart(1:3,iLoop)
+END DO
+sumiRan(1:3) = sumiRan(1:3)/nPart
+DO iLoop = 1, nPart
+  iRanPart(1:3,iLoop) = iRanPart(1:3,iLoop)-sumiRan(1:3)
+  varianceiRan(1:3) = varianceiRan(1:3) + iRanPart(1:3,iLoop)*iRanPart(1:3,iLoop)
+END DO
+varianceiRan(1:3) = SQRT(varianceiRan(1:3)/nPart)
+
+DO iLoop = 1, nPart
+  iRanPart(1:3,iLoop) = iRanPart(1:3,iLoop)/varianceiRan(1:3)
+END DO
+
+END SUBROUTINE BuildTransGaussNums
 
 END MODULE MOD_part_tools

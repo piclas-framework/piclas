@@ -33,12 +33,8 @@ INTERFACE SetParticleVelocity
   MODULE PROCEDURE SetParticleVelocity
 END INTERFACE
 
-INTERFACE AD_SetInitElectronVelo
-  MODULE PROCEDURE AD_SetInitElectronVelo
-END INTERFACE
-
 !===================================================================================================================================
-PUBLIC         :: SetParticleVelocity,SetParticlePosition, AD_SetInitElectronVelo
+PUBLIC         :: SetParticleVelocity, SetParticlePosition
 !===================================================================================================================================
 CONTAINS
 
@@ -274,7 +270,7 @@ ELSE
         PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
       END IF
     ELSE
-          CALL ABORT(__STAMP__,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
+      CALL ABORT(__STAMP__,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
     END IF
   END DO
 #if USE_MPI
@@ -319,7 +315,7 @@ USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, CalcVelocity_ta
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_gyrotroncircle
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
-USE MOD_FPFlow_Init             ,ONLY: FP_BuildTransGaussNums
+USE MOD_part_tools              ,ONLY: BuildTransGaussNums
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)              :: FractNbr,iInit
@@ -385,7 +381,7 @@ CASE('taylorgreenvortex')
     END IF
   END DO
 CASE('maxwell')
-  CALL FP_BuildTransGaussNums(NbrOfParticle, iRanPart)
+  CALL BuildTransGaussNums(NbrOfParticle, iRanPart)
   maxwellfac = SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(FractNbr)%MassIC)
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
@@ -413,87 +409,5 @@ __STAMP__&
 ,'wrong velo-distri!')
 END SELECT
 END SUBROUTINE SetParticleVelocity
-
-SUBROUTINE AD_SetInitElectronVelo(FractNbr,iInit,NbrOfParticle)
-!===================================================================================================================================
-! Deletes all background gas particles and updates the particle index list
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Particle_Vars
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_FPFlow_Init             ,ONLY: FP_BuildTransGaussNums
-USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)              :: FractNbr,iInit
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-INTEGER,INTENT(INOUT)           :: NbrOfParticle
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-! LOCAL VARIABLES
-INTEGER                         :: i, PositionNbr
-CHARACTER(30)                   :: velocityDistribution
-REAL                            :: VeloIC, VeloVecIC(3), maxwellfac, VeloVecNorm
-REAL                            :: iRanPart(3, NbrOfParticle), Vec3D(3)
-!===================================================================================================================================
-IF(NbrOfParticle.LT.1) RETURN
-IF(Species(FractNbr)%ChargeIC.LE.0.0) RETURN
-IF(NbrOfParticle.GT.PDM%maxParticleNumber)THEN
-     CALL abort(&
-__STAMP__&
-,'NbrOfParticle > PDM%maxParticleNumber!')
-END IF
-
-velocityDistribution=Species(FractNbr)%Init(iInit)%velocityDistribution
-VeloIC=Species(FractNbr)%Init(iInit)%VeloIC
-VeloVecIC=Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
-VeloVecNorm = VECNORM(VeloVecIC(1:3))
-IF (VeloVecNorm.GT.0.0) THEN
-  VeloVecIC(1:3) = VeloVecIC(1:3) / VECNORM(VeloVecIC(1:3))
-END IF
-
-SELECT CASE(TRIM(velocityDistribution))
-CASE('constant')
-  DO i = 1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-    IF (PositionNbr.GT.0) THEN
-      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
-      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
-      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloVecIC(1:3) * VeloIC 
-    END IF
-  END DO
-CASE('maxwell_lpn')
-  DO i = 1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-    IF (PositionNbr.GT.0) THEN
-      CALL CalcVelocity_maxwell_lpn(DSMC%AmbiDiffElecSpec, Vec3D, Temperature=Species(FractNbr)%Init(iInit)%MWTemperatureIC)
-      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
-      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
-      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloIC *VeloVecIC(1:3) + Vec3D(1:3)
-    END IF
-  END DO
-CASE('maxwell')
-  CALL FP_BuildTransGaussNums(NbrOfParticle, iRanPart)
-  maxwellfac = SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(DSMC%AmbiDiffElecSpec)%MassIC)
-  DO i = 1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-    IF (PositionNbr.GT.0) THEN
-      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
-      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
-      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloIC *VeloVecIC(1:3) + iRanPart(1:3,i)*maxwellfac
-    END IF
-  END DO
-CASE DEFAULT
-  CALL abort(&
-__STAMP__&
-,'Velo-Distri not implemented for ambipolar diffusion!')
-END SELECT
-
-END SUBROUTINE AD_SetInitElectronVelo
 
 END  MODULE MOD_part_pos_and_velo

@@ -1690,9 +1690,6 @@ ASSOCIATE( tau         => Species(i)%Init(iInit)%PulseDuration      ,&
            Period      => Species(i)%Init(iInit)%Period              &
           )
 
-! Calculate the current pulse
-NbrOfRepetitions = INT(Time/Period)
-
 ! Temporal bound of integration
 #ifdef LSERK
 IF (iStage.EQ.1) THEN
@@ -1711,11 +1708,15 @@ END IF
 t_1 = Time
 t_2 = Time + dt
 #endif
+
+! Calculate the current pulse
+NbrOfRepetitions = INT(Time/Period)
+
 ! Add arbitrary time shift (-4 sigma_t) so that I_max is not at t=0s
 ! Note that sigma_t = tau / sqrt(2)
-
 t_1 = t_1 - tShift - NbrOfRepetitions * Period
 t_2 = t_2 - tShift - NbrOfRepetitions * Period
+
 ! check if t_2 is outside of the pulse
 IF(t_2.GT.2.0*tShift) t_2 = 2.0*tShift
 

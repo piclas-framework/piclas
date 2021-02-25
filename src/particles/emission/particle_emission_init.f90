@@ -434,13 +434,14 @@ SUBROUTINE InitialParticleInserting()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Dielectric_Vars     ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
-USE MOD_DSMC_Vars           ,ONLY: useDSMC, DSMC
-USE MOD_Part_Emission_Tools ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
-USE MOD_Part_Pos_and_Velo   ,ONLY: SetParticlePosition,SetParticleVelocity, AD_SetInitElectronVelo
-USE MOD_Part_Tools          ,ONLY: UpdateNextFreePosition
-USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, VarTimeStep
-USE MOD_Restart_Vars        ,ONLY: DoRestart
+USE MOD_Dielectric_Vars         ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, DSMC
+USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
+USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticlePosition,SetParticleVelocity
+USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetInitElectronVelo
+USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition
+USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, VarTimeStep
+USE MOD_Restart_Vars            ,ONLY: DoRestart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -707,7 +708,7 @@ CALL PrintOption('Corrected Intensity amplitude: I0_corr [W/m^2]','CALCUL.',Real
 
 CALL PrintOption('Pulse period (Time between maximum of two pulses) [s]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%Period)
 
-CALL PrintOption('Temporal pulse width (pulse time) [s]','CALCUL.',RealOpt=2.0*Species(iSpec)%Init(iInit)%tShift)
+CALL PrintOption('Temporal pulse width (pulse time 2x tShift) [s]','CALCUL.',RealOpt=2.0*Species(iSpec)%Init(iInit)%tShift)
 Species(iSpec)%Init(iInit)%tActive = REAL(Species(iSpec)%Init(iInit)%NbrOfPulses - 1)*Species(iSpec)%Init(iInit)%Period &
                                         + 2.0*Species(iSpec)%Init(iInit)%tShift
 CALL PrintOption('Pulse will end at tActive (pulse final time) [s]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%tActive)

@@ -50,7 +50,6 @@ USE MOD_TimeDisc_Vars           ,ONLY: dt
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, DSMC_RHS, VibQuantsPar, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: CollInf, RadialWeighting
 USE Ziggurat
-USE MOD_FPFlow_Init             ,ONLY: FP_BuildTransGaussNums
 USE MOD_DSMC_Analyze            ,ONLY: CalcTVibPoly
 USE MOD_BGK_CollOperator        ,ONLY: CalcTEquiPoly, CalcTEqui
 USE MOD_part_tools              ,ONLY: GetParticleWeight
