@@ -75,6 +75,8 @@ INTEGER                         :: dim_sf_dir                ! Get shape functio
 !                                                            ! constant)
 INTEGER                         :: dim_sf_dir1               ! 1st perpendicular direction used in 2D shape function
 INTEGER                         :: dim_sf_dir2               ! 2nd perpendicular direction used in 2D shape function
+INTEGER                         :: dim_periodic_vec1         ! 1st periodic vector used in 2D shape function
+INTEGER                         :: dim_periodic_vec2         ! 2nd periodic vector used in 2D shape function (if available)
 REAL                            :: BGMdeltas(3)              ! Background mesh size in x,y,z
 REAL                            :: FactorBGM(3)              ! Divider for BGM (to allow real numbers)
 REAL                            :: BGMVolume                 ! Volume of a BGM Cell

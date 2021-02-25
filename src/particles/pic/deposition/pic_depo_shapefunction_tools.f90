@@ -33,9 +33,10 @@ SUBROUTINE calcSfSource(SourceSize_in,ChargeMPF,PartPos,PartID,PartVelo)
 ! deposit charges on DOFs via shapefunction including periodic displacements and mirroring
 !============================================================================================================================
 ! use MODULES
-USE MOD_PICDepo_Vars,           ONLY:DepositionType,dim_sf
 USE MOD_Globals
-!USE MOD_Particle_Mesh_Vars,     ONLY:casematrix,NbrOfCases
+USE MOD_PICDepo_Vars       ,ONLY: DepositionType,dim_sf,dim_sf_dir,dim_sf_dir1,dim_sf_dir2,dim_periodic_vec1,dim_periodic_vec2
+USE MOD_Particle_Mesh_Vars ,ONLY: PeriodicSFCaseMatrix,NbrOfPeriodicSFCases
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -52,23 +53,24 @@ REAL, INTENT(IN), OPTIONAL       :: PartVelo(3)
 !#if ((USE_HDG) && (PP_nVar==1))
 !yes, PartVelo and SourceSize_in are not used, but the subroutine-call and -head would be ugly with the preproc-flags...
 !INTEGER, PARAMETER               :: SourceSize=1
-!REAL                             :: Fac(4:4), Fac2(4:4)
+!REAL                             :: Fac(4:4)
 !#else
 INTEGER                          :: SourceSize
-REAL                             :: Fac(4-SourceSize_in+1:4), Fac2(4-SourceSize_in+1:4)
+REAL                             :: Fac(4-SourceSize_in+1:4)
 !#endif
-!INTEGER                          :: iCase, ind
+INTEGER           :: I,iCase
 !REAL                             :: ShiftedPart(1:3), caseShiftedPart(1:3), n_loc(1:3)
+REAL              :: PartPosShifted(1:3)
 !----------------------------------------------------------------------------------------------------------------------------------
 !#if !((USE_HDG) && (PP_nVar==1))
 SourceSize=SourceSize_in
 !#endif
 IF (SourceSize.EQ.1) THEN
-  Fac2= ChargeMPF
+  Fac= ChargeMPF
 !#if !((USE_HDG) && (PP_nVar==1))
 ELSE IF (SourceSize.EQ.4) THEN
-  Fac2(1:3) = PartVelo*ChargeMPF
-  Fac2(4)= ChargeMPF
+  Fac(1:3) = PartVelo*ChargeMPF
+  Fac(4)= ChargeMPF
 !#endif
 ELSE
   CALL abort(&
@@ -76,49 +78,88 @@ __STAMP__ &
 ,'SourceSize has to be either 1 or 4!',SourceSize)
 END IF
 
-!  DO iCase = 1, NbrOfCases
-!    DO ind = 1,3
-!      ShiftedPart(ind) = PartPos(ind) + casematrix(iCase,1)*Vec1(ind) + &
-!        casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
-!    END DO
-Fac = Fac2
-
+! Select dimension of shape function
 SELECT CASE (dim_sf)
 CASE (1)! 1D shape function
+
+  ! NbrOfPeriodicSFCases is either 1 (no periodic vectors: 0) or 3=2+1 (one periodic vector: -1 0 +1) cases
+  DO iCase = 1, NbrOfPeriodicSFCases
+    PartPosShifted = (/0., 0., 0./)
+    PartPosShifted(dim_sf_dir) = PartPos(dim_sf_dir) + PeriodicSFCaseMatrix(iCase,1)*GEO%PeriodicVectors(dim_sf_dir,dim_sf_dir)
+    !IPWRITE(UNIT_StdOut,*) "PartPosShifted =", PartPosShifted
     SELECT CASE(TRIM(DepositionType))
     CASE('shape_function')
-      CALL depoChargeOnDOFsSF1D(PartPos,SourceSize,Fac)
+      CALL depoChargeOnDOFsSF1D(PartPosShifted,SourceSize,Fac)
     CASE('shape_function_cc')
-      CALL depoChargeOnDOFsSFChargeCon1D(PartPos,SourceSize,Fac)
+      CALL depoChargeOnDOFsSFChargeCon1D(PartPosShifted,SourceSize,Fac)
     CASE('shape_function_adaptive')
-      CALL depoChargeOnDOFsSFAdaptive1D(PartPos,SourceSize,Fac,PartID)
-    END SELECT
-  CASE (2)! 2D shape function
+      CALL depoChargeOnDOFsSFAdaptive1D(PartPosShifted,SourceSize,Fac,PartID)
+    CASE DEFAULT
+      CALL CollectiveStop(__STAMP__,&
+          'Unknown ShapeFunction Method!')
+    END SELECT ! DepositionType
+  END DO ! iCase = 1, NbrOfPeriodicSFCases
+
+CASE (2)! 2D shape function
+  ! NbrOfPeriodicSFCases is either 1 (no periodic vectors: 0) or 9=8+1 (two periodic vectors) cases
+  DO iCase = 1, NbrOfPeriodicSFCases
+    ! Constant deposition direction
+    PartPosShifted(dim_sf_dir) = PartPos(dim_sf_dir)
+
+    ! 1st periodic vector
+    ! 1st deposition direction
+    PartPosShifted(dim_sf_dir1) = PartPos(dim_sf_dir1)&
+                                + PeriodicSFCaseMatrix(iCase,1)*GEO%PeriodicVectors(dim_sf_dir1,dim_periodic_vec1)
+    ! 2nd deposition direction
+    PartPosShifted(dim_sf_dir2) = PartPos(dim_sf_dir2)&
+                                + PeriodicSFCaseMatrix(iCase,1)*GEO%PeriodicVectors(dim_sf_dir2,dim_periodic_vec1)
+
+    ! 2nd periodic vector (if available)
+    IF(dim_periodic_vec2.GT.0)THEN
+      ! 1st deposition direction
+      PartPosShifted(dim_sf_dir1) = PartPosShifted(dim_sf_dir1)&
+                                  + PeriodicSFCaseMatrix(iCase,2)*GEO%PeriodicVectors(dim_sf_dir1,dim_periodic_vec2)
+      ! 2nd deposition direction
+      PartPosShifted(dim_sf_dir2) = PartPosShifted(dim_sf_dir2)&
+                                  + PeriodicSFCaseMatrix(iCase,2)*GEO%PeriodicVectors(dim_sf_dir2,dim_periodic_vec2)
+    END IF ! condition
+
     SELECT CASE(TRIM(DepositionType))
     CASE('shape_function')
-      CALL depoChargeOnDOFsSF2D(PartPos,SourceSize,Fac)
+      CALL depoChargeOnDOFsSF2D(PartPosShifted,SourceSize,Fac)
     CASE('shape_function_cc')
-      CALL depoChargeOnDOFsSFChargeCon2D(PartPos,SourceSize,Fac)
+      CALL depoChargeOnDOFsSFChargeCon2D(PartPosShifted,SourceSize,Fac)
     CASE('shape_function_adaptive')
       CALL abort(&
-      __STAMP__&
-      ,'Not implemented')
+          __STAMP__&
+          ,'Not implemented [shape_function_adaptive] for 2D.')
     CASE DEFAULT
       CALL CollectiveStop(__STAMP__,&
           'Unknown ShapeFunction Method!')
-    END SELECT
-  CASE DEFAULT!CASE(3) Standard 3D shape function
+    END SELECT ! DepositionType
+  END DO ! iCase = 1, NbrOfPeriodicSFCases
+
+CASE DEFAULT!CASE(3) Standard 3D shape function
+  ! NbrOfPeriodicSFCases is either 1 (no periodic vectors: 0) or 27=26+1 (three periodic vectors) cases
+  DO iCase = 1, NbrOfPeriodicSFCases
+    DO I = 1,3
+      PartPosShifted(I) = PartPos(I)&
+          + PeriodicSFCaseMatrix(iCase,1)*GEO%PeriodicVectors(I,1)&
+          + PeriodicSFCaseMatrix(iCase,2)*GEO%PeriodicVectors(I,2)&
+          + PeriodicSFCaseMatrix(iCase,3)*GEO%PeriodicVectors(I,3)
+    END DO
     SELECT CASE(TRIM(DepositionType))
     CASE('shape_function')
-      CALL depoChargeOnDOFsSF(PartPos,SourceSize,Fac)
+      CALL depoChargeOnDOFsSF(PartPosShifted,SourceSize,Fac)
     CASE('shape_function_cc')
-      CALL depoChargeOnDOFsSFChargeCon(PartPos,SourceSize,Fac)
+      CALL depoChargeOnDOFsSFChargeCon(PartPosShifted,SourceSize,Fac)
     CASE('shape_function_adaptive')
-      CALL depoChargeOnDOFsSFAdaptive(PartPos,SourceSize,Fac,PartID)
+      CALL depoChargeOnDOFsSFAdaptive(PartPosShifted,SourceSize,Fac,PartID)
     CASE DEFAULT
       CALL CollectiveStop(__STAMP__,&
           'Unknown ShapeFunction Method!')
-    END SELECT
+    END SELECT ! DepositionType
+  END DO ! iCase = 1, NbrOfPeriodicSFCases
 END SELECT 
 
 
