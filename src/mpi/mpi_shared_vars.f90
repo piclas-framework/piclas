@@ -35,9 +35,6 @@ LOGICAL            :: MPISharedInitIsDone=.FALSE.
 INTEGER            :: ComputeNodeRootRank                   !> Rank of compute-node root in global comm
 INTEGER            :: myComputeNodeRank                     !> Rank of current proc on current compute-node
 INTEGER            :: myLeaderGroupRank                     !> Rank of compute-node root in compute-node-root comm
-INTEGER,ALLOCATABLE:: MPIRankGlobal(:)                      !> Array of size nProcessors holding the global rank of each proc
-INTEGER,ALLOCATABLE:: MPIRankShared(:)                      !> Array of size nProcessors holding the shared rank of each proc
-INTEGER,ALLOCATABLE:: MPIRankLeader(:)                      !> Array of size nLeaderGroupProcs holding the global rank of each proc
 INTEGER            :: nComputeNodeProcessors                !> Number of procs on current compute-node
 INTEGER            :: nLeaderGroupProcs                     !> Number of nodes
 INTEGER            :: nProcessors_Global                    !> Number of total procs
