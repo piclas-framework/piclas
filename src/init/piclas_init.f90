@@ -385,8 +385,10 @@ SWRITE(UNIT_stdOut,'(132("="))')
 CALL FinalizeLoadBalance(IsLoadBalance)
 IF(.NOT.IsLoadBalance)THEN
   CALL DisplaySimulationTime(Time, StartTime, 'FINISHED')
+#if USE_MPI
   ! Free the communicators!
   CALL FinalizeMPIShared()
+#endif /*USE_MPI*/
 ELSE
   CALL DisplaySimulationTime(Time, StartTime, 'RUNNING')
 END IF ! .NOT.IsLoadBalance
