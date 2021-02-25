@@ -242,9 +242,9 @@ END DO
 ! collect the information from the proc-local shadow arrays in the compute-node shared array
 MessageSize = nUniqueGlobalNodes
 IF (myComputeNodeRank.EQ.0) THEN
-  CALL MPI_REDUCE(NodeVolumeLoc,NodeVolume,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+  CALL MPI_REDUCE(NodeVolumeLoc , NodeVolume , MessageSize , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
 ELSE
-  CALL MPI_REDUCE(NodeVolumeLoc,0         ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+  CALL MPI_REDUCE(NodeVolumeLoc , 0          , MessageSize , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
 END IF
 CALL MPI_WIN_SYNC(NodeVolume_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
