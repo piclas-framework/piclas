@@ -420,8 +420,6 @@ TYPE tVariableTimeStep
 END TYPE
 TYPE(tVariableTimeStep)                :: VarTimeStep
 
-REAL                                   :: TriaEps !Machine precision for 1D, 0 for other
-
 ! 2D Landmark
 REAL, ALLOCATABLE :: PartPosLandmark(:,:)        ! Store particle positions during emission for placing
 !                                                ! Electrons and ions at the exact same position
