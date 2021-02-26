@@ -750,7 +750,7 @@ ELSE
   IF (nSendShapeElems.GT.1) THEN
     CALL MPI_ISEND( PartSourceProc                         &
                   , nSendShapeElems*4*(PP_N+1)**3          &
-                  , MPI_DOUBLE_PRECISION                            &
+                  , MPI_DOUBLE_PRECISION                   &
                   , 0                                      &
                   , 2001                                   &
                   , MPI_COMM_SHARED                        &
@@ -773,11 +773,11 @@ IF (myComputeNodeRank.EQ.0) THEN
 
     CALL MPI_IRECV( CNShapeMapping(iProc)%RecvBuffer   &
                   , CNShapeMapping(iProc)%nRecvShapeElems*4*(PP_N+1)**3   &
-                  , MPI_DOUBLE_PRECISION                             &
-                  , iProc                                   &
-                  , 2002                                    &
-                  , MPI_COMM_LEADERS_SHARED                 &
-                  , RecvRequestCN(iProc)                      &
+                  , MPI_DOUBLE_PRECISION                                  &
+                  , iProc                                                 &
+                  , 2002                                                  &
+                  , MPI_COMM_LEADERS_SHARED                               &
+                  , RecvRequestCN(iProc)                                  &
                   , IERROR)
   END DO
 
@@ -792,11 +792,11 @@ IF (myComputeNodeRank.EQ.0) THEN
 
     CALL MPI_ISEND( CNShapeMapping(iProc)%SendBuffer   &
                   , CNShapeMapping(iProc)%nSendShapeElems*4*(PP_N+1)**3   &
-                  , MPI_DOUBLE_PRECISION                             &
-                  , iProc                                   &
-                  , 2002                                    &
-                  , MPI_COMM_LEADERS_SHARED                 &
-                  , SendRequestCN(iProc)                      &
+                  , MPI_DOUBLE_PRECISION                                  &
+                  , iProc                                                 &
+                  , 2002                                                  &
+                  , MPI_COMM_LEADERS_SHARED                               &
+                  , SendRequestCN(iProc)                                  &
                   , IERROR)
   END DO
 
