@@ -1299,6 +1299,7 @@ SDEALLOCATE( NodeExchange%RecvRequest)
 SDEALLOCATE( NodeExchange%SendRequest)
 SDEALLOCATE( ExchangeProcToGlobalProc)
 SDEALLOCATE( GlobalProcToExchangeProc)
+SDEALLOCATE( PartShiftVector)
 
 ! and for communication
 SDEALLOCATE( PartTargetProc )

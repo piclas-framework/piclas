@@ -405,8 +405,9 @@ SUBROUTINE ParticleThroughSideCheck3DFast(PartID,iLocSide,Element,ThroughSide,Tr
 !> is reversed.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars
-USE MOD_Particle_Mesh_Vars
+USE MOD_Globals_Vars              ,ONLY: EpsMach
+USE MOD_Particle_Vars             ,ONLY: lastPartPos
+USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
 USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 ! IMPLICIT VARIABLE HANDLING
@@ -485,20 +486,12 @@ ELSE
 END IF
 !--- check whether v and the vectors from the particle to the two edge nodes build
 !--- a right-hand-system. If yes for all edges: vector goes potentially through side
-det(1) = ((Ay(1) * Vz - Az(1) * Vy) * Ax(3)  + &
-          (Az(1) * Vx - Ax(1) * Vz) * Ay(3)  + &
-          (Ax(1) * Vy - Ay(1) * Vx) * Az(3))
+det(1) = (Ay(1) * Vz - Az(1) * Vy) * Ax(3)  + (Az(1) * Vx - Ax(1) * Vz) * Ay(3)  + (Ax(1) * Vy - Ay(1) * Vx) * Az(3)
+det(2) = (Ay(2) * Vz - Az(2) * Vy) * Ax(1)  + (Az(2) * Vx - Ax(2) * Vz) * Ay(1)  + (Ax(2) * Vy - Ay(2) * Vx) * Az(1)
+det(3) = (Ay(3) * Vz - Az(3) * Vy) * Ax(2)  + (Az(3) * Vx - Ax(3) * Vz) * Ay(2)  + (Ax(3) * Vy - Ay(3) * Vx) * Az(2)
 
-det(2) = ((Ay(2) * Vz - Az(2) * Vy) * Ax(1)  + &
-          (Az(2) * Vx - Ax(2) * Vz) * Ay(1)  + &
-          (Ax(2) * Vy - Ay(2) * Vx) * Az(1))
-
-det(3) = ((Ay(3) * Vz - Az(3) * Vy) * Ax(2)  + &
-          (Az(3) * Vx - Ax(3) * Vz) * Ay(2)  + &
-          (Ax(3) * Vy - Ay(3) * Vx) * Az(2))
-
-! Comparison of the determinants with eps, where a zero is stored (due to machine precision)
-IF ((det(1).ge.-TriaEps).AND.(det(2).ge.-TriaEps).AND.(det(3).ge.-TriaEps)) THEN
+! Comparison of the determinants with eps due to machine precision
+IF ((det(1).ge.-epsMach).AND.(det(2).ge.-epsMach).AND.(det(3).ge.-epsMach)) THEN
   ThroughSide = .TRUE.
 END IF
 
