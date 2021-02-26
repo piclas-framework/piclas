@@ -714,8 +714,11 @@ DO iPart=1,PDM%ParticleVecLength
   CALL calcSfSource(4,Charge*w_sf,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
 END DO
 #if USE_MPI
+! Communication
 CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
+
+! 1 of 2: Inner-Node Communication
 IF (myComputeNodeRank.EQ.0) THEN
   DO iProc = 1,nComputeNodeProcessors-1
       IF (ShapeMapping(iProc)%nRecvShapeElems.EQ.0) CYCLE
@@ -761,6 +764,8 @@ END IF
 !CALL MPI_WIN_FLUSH(0,PartSource_Shared_Win, IERROR)
 CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
+
+! 2 of 2: Multi-node communication
 IF (myComputeNodeRank.EQ.0) THEN
   DO iProc = 0,nLeaderGroupProcs-1
     IF (iProc.EQ.myLeaderGroupRank) CYCLE

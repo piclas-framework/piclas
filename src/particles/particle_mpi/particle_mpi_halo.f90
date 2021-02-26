@@ -801,7 +801,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
       ! Count number of elems per CN
       DO iElem = nComputeNodeElems+1,nComputeNodeTotalElems
         GlobalElemID = GetGlobalElemID(iElem)
-        IF (ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).EQ.2) THEN
+        IF (ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).GE.2) THEN
           GlobalElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
           GlobalLeaderRank = INT(GlobalElemRank/nComputeNodeProcessors)
           CNShapeMapping(GlobalLeaderRank)%nSendShapeElems = CNShapeMapping(GlobalLeaderRank)%nSendShapeElems + 1
@@ -858,7 +858,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
 
       DO iElem = nComputeNodeElems+1,nComputeNodeTotalElems
         GlobalElemID = GetGlobalElemID(iElem)
-        IF (ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).EQ.2) THEN
+        IF (ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).GE.2) THEN
           GlobalElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
           GlobalLeaderRank = INT(GlobalElemRank/nComputeNodeProcessors)
 
