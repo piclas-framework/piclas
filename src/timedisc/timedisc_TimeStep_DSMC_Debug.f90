@@ -38,7 +38,6 @@ SUBROUTINE TimeStep_DSMC_Debug()
 ! MODULES
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt
-USE MOD_Filter                 ,ONLY: Filter
 #ifdef PARTICLES
 USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM,PEM

@@ -44,18 +44,9 @@ INTEGER,ALLOCATABLE:: MPI_COMM_LEADERS_REQUEST(:)           !> Request handle fo
 
 ! Mesh
 !> Counters
-!INTEGER            :: nNonUniqueGlobalSides                 !> total nb. of non-unique sides of mesh (hexahedral: 6*nElems)
-!INTEGER            :: nNonUniqueGlobalNodes                 !> total nb. of non-unique nodes of mesh (hexahedral: 8**NGeo * nElems)
-!INTEGER            :: nUniqueMasterMortarSides              !> total nb. of master mortar sides in the mesh
-!INTEGER            :: nComputeNodeElems                     !> Number of elems on current compute-node
-!INTEGER            :: nComputeNodeSides                     !> Number of sides on current compute-node
-!INTEGER            :: nComputeNodeNodes                     !> Number of nodes on current compute-node
 INTEGER            :: nComputeNodeTotalElems                !> Number of elems on current compute-node (including halo region)
 INTEGER            :: nComputeNodeTotalSides                !> Number of sides on current compute-node (including halo region)
 INTEGER            :: nComputeNodeTotalNodes                !> Number of nodes on current compute-node (including halo region)
-!INTEGER            :: offsetComputeNodeElem                 !> elem offset of compute-node root
-!INTEGER            :: offsetComputeNodeSide                 !> side offset of compute-node root
-!INTEGER            :: offsetComputeNodeNode                 !> node offset of compute-node root
 
 ! Offsets for MPI_ALLGATHERV
 INTEGER,ALLOCATABLE:: displsElem(:),recvcountElem(:)
@@ -70,7 +61,6 @@ INTEGER,ALLOCATABLE:: MPIRankSharedLeader(:)                !> Array of size nLe
 INTEGER,ALLOCATABLE:: MPIRankSurfLeader(:)                  !> Array of size nLeaderGroupProcs holding the surf rank of each proc
 INTEGER            :: MPI_COMM_LEADERS_SURF=MPI_COMM_NULL   !> Communicator compute-node roots on surface communicator (my_rank_shared=0)
 INTEGER            :: nSurfLeaders                          !> compute-node leaders on MPI_COMM_LEADERS_SURF
-!INTEGER            :: nSurfCommProc                         !> compute-nodes which send or receive sides from us
 
 INTEGER,ALLOCATABLE,DIMENSION(:,:):: nSurfSidesLeader       !> number of surf sides per leader proc
                                                             !> 1 - sides from local leader to other leader
@@ -82,7 +72,6 @@ INTEGER, ALLOCATABLE :: CNTotalSide2GlobalSide(:)           !> Compute Nodes map
 INTEGER, ALLOCATABLE :: GlobalSide2CNTotalSide(:)           !> Reverse Mapping
 
 INTEGER            :: MPI_INFO_SHARED_LOOSE                 !> MPI_INFO object allowing for re-ordering of same origin atomic RMA operations
-!INTEGER            :: MPI_INFO_SHARED_STRICT                !> MPI_INFO object not allowing for re-ordering of same origin atomic RMA operations
 
 !> Other variables in particle_mesh_vars.f90
 #endif /*USE_MPI*/

@@ -390,10 +390,6 @@ LOGICAL                                  :: DoPoissonRounding                 ! 
 LOGICAL                                  :: DoTimeDepInflow                   ! Insertion and SurfaceFlux w simple random rounding
 LOGICAL                                  :: DoZigguratSampling                ! Sample normal randoms with Ziggurat method
 
-INTEGER(8)                               :: nTotalPart
-INTEGER(8)                               :: nTotalHalfPart
-
-
 TYPE tVariableTimeStep
   LOGICAL                              :: UseVariableTimeStep
   LOGICAL                              :: UseLinearScaling

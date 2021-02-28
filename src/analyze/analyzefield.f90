@@ -1445,7 +1445,6 @@ INTEGER             :: iElem, iSide, SideID
 INTEGER             :: nAverageElecPotSides
 REAL                :: diff
 INTEGER             :: p,q
-INTEGER             :: sumAllfaces
 !===================================================================================================================================
 
 AverageElectricPotentialCoordErr = GETREAL('AvgPotential-Plane-Tolerance')

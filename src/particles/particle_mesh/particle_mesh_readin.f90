@@ -718,21 +718,6 @@ offsetSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array star
 nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd)
 #endif /*USE_MPI*/
 
-! fill the SIDE_LOCALID. Basically, this array contains the 1:6 local sides of an element. ! If an element has hanging nodes (i.e.
-! has a big mortar side), the big side has negative index (-1,-2 or -3) and the next 2 (-2, -3) or 4 (-1) sides are the subsides.
-! Consequently, a hexahedral element can have more than 6 non-unique sides. If we find a small mortar side in the small element,
-! the SIDE_LOCALID points to the global ID of the big mortar side, indicated by negative sign
-!
-! This step has to be done after ElemInfo and SideInfo are communicated as some side might be missing on the current node otherwise
-!#if USE_MPI
-!firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
-!lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
-!#else
-!firstElem = 1
-!lastElem  = nElems
-!#endif
-
-!DO iElem = FirstElem,LastElem
 DO iElem = FirstElemInd,LastElemInd
   iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)
   SideInfo_Shared(SIDE_ELEMID,iSide+1:ElemInfo_Shared(ELEM_LASTSIDEIND,iElem)) = iElem

@@ -73,7 +73,6 @@ USE MOD_Mortar               ,ONLY: InitMortar
 USE MOD_PML                  ,ONLY: InitPML
 #endif /*USE_HDG*/
 USE MOD_Dielectric           ,ONLY: InitDielectric
-USE MOD_Filter               ,ONLY: InitFilter
 USE MOD_Analyze              ,ONLY: InitAnalyze
 USE MOD_RecordPoints         ,ONLY: InitRecordPoints
 #if defined(ROS) || defined(IMPA)
@@ -184,7 +183,6 @@ CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing l
 #endif /*USE_HDG*/
 CALL InitDielectric() ! Dielectric media
 CALL InitDG()
-CALL InitFilter()
 #if defined(ROS) || defined(IMPA)
 CALL InitLinearSolver()
 #endif /*ROS /IMEX*/
@@ -261,7 +259,6 @@ USE MOD_PML                        ,ONLY: FinalizePML
 #else
 USE MOD_HDG                        ,ONLY: FinalizeHDG
 #endif /*USE_HDG*/
-USE MOD_Filter                     ,ONLY: FinalizeFilter
 USE MOD_Analyze                    ,ONLY: FinalizeAnalyze
 USE MOD_RecordPoints               ,ONLY: FinalizeRecordPoints
 USE MOD_RecordPoints_Vars          ,ONLY: RP_Data
@@ -332,7 +329,6 @@ IF(.NOT.IsLoadBalance) CALL FinalizeInterpolation()
 CALL FinalizeRestart()
 CALL FinalizeMesh()
 CALL FinalizeMortar()
-CALL FinalizeFilter()
 #ifdef PARTICLES
 CALL FinalizeSurfaceModel()
 CALL FinalizeParticleBoundarySampling()

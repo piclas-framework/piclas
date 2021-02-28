@@ -27,8 +27,6 @@ USE MOD_HDF5_Input
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
-!INTEGER,ALLOCATABLE  :: NodeInfo(:)
-!INTEGER,ALLOCATABLE  :: NodeMap(:)
 INTEGER              :: nNodeIDs
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -582,15 +580,6 @@ ELSE
   NGeo=1 ! linear mesh; set polynomial degree of geometry to 1
 ENDIF
 
-!! IJK SORTING --------------------------------------------
-!!read local ElemInfo from data file
-!CALL DatasetExists(File_ID,'nElems_IJK',DExist)
-!IF(DExist)THEN
-!  CALL ReadArray('nElems_IJK',1,(/3/),0,1,IntegerArray=nElems_IJK)
-!  ALLOCATE(Elem_IJK(3,nLocalElems))
-!  CALL ReadArray('Elem_IJK',2,(/3,nElems/),offsetElem,2,IntegerArray=Elem_IJK)
-!END IF
-
 CALL CloseDataFile()
 
 #ifdef PARTICLES
@@ -598,7 +587,6 @@ CALL CloseDataFile()
 CALL StartCommunicateMeshReadin()
 #endif
 
-!DEALLOCATE(ElemInfo,SideInfo,NodeInfo,NodeMap)
 DEALLOCATE(ElemInfo,SideInfo)
 ! Readin of mesh is now finished
 
@@ -748,46 +736,6 @@ END IF
 LOGWRITE_BARRIER
 SWRITE(UNIT_stdOut,'(132("."))')
 END SUBROUTINE ReadMesh
-
-
-!SUBROUTINE GetNodeMap()
-!!===================================================================================================================================
-!! take NodeInfo array, sort it, eliminate mulitple IDs and return the Mapping 1->NodeID1, 2->NodeID2, ...
-!! this is useful if the NodeID list of the mesh are not contiguous, essentially occuring when using domain decomposition (MPI)
-!!===================================================================================================================================
-!! MODULES
-!USE MOD_mesh_vars,ONLY:nNodes
-!! IMPLICIT VARIABLE HANDLING
-!IMPLICIT NONE
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! INPUT VARIABLES
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! OUTPUT VARIABLES
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-!INTEGER                            :: temp(nNodeIDs+1),i,nullpos
-!!===================================================================================================================================
-!temp(1)=0
-!temp(2:nNodeIDs+1)=NodeInfo
-!!sort
-!CALL Qsort1Int(temp)
-!nullpos=INVMAP(0,nNodeIDs+1,temp)
-!!count unique entries
-!nNodes=1
-!DO i=nullpos+2,nNodeIDs+1
-!  IF(temp(i).NE.temp(i-1)) nNodes = nNodes+1
-!END DO
-!!associate unique entries
-!ALLOCATE(NodeMap(nNodes))
-!nNodes=1
-!NodeMap(1)=temp(nullpos+1)
-!DO i=nullpos+2,nNodeIDs+1
-!  IF(temp(i).NE.temp(i-1)) THEN
-!    nNodes = nNodes+1
-!    NodeMap(nNodes)=temp(i)
-!  END IF
-!END DO
-!END SUBROUTINE GetNodeMap
 
 
 FUNCTION INVMAP(ID,nIDs,ArrID)
