@@ -84,8 +84,12 @@ CASE (1)! 1D shape function
 
   ! NbrOfPeriodicSFCases is either 1 (no periodic vectors: 0) or 3=2+1 (one periodic vector: -1 0 +1) cases
   DO iCase = 1, NbrOfPeriodicSFCases
-    PartPosShifted = (/0., 0., 0./)
-    PartPosShifted(dim_sf_dir) = PartPos(dim_sf_dir) + PeriodicSFCaseMatrix(iCase,1)*GEO%PeriodicVectors(dim_sf_dir,dim_sf_dir)
+    IF(NbrOfPeriodicSFCases.GT.1)THEN
+      PartPosShifted = (/0., 0., 0./)
+      PartPosShifted(dim_sf_dir) = PartPos(dim_sf_dir) + PeriodicSFCaseMatrix(iCase,1)*GEO%PeriodicVectors(dim_sf_dir,dim_sf_dir)
+    ELSE
+      PartPosShifted(1:3) = PartPos(1:3)
+    END IF ! NbrOfPeriodicSFCases.EQ.1
     !IPWRITE(UNIT_StdOut,*) "PartPosShifted =", PartPosShifted
     SELECT CASE(TRIM(DepositionType))
     CASE('shape_function')
@@ -103,26 +107,31 @@ CASE (1)! 1D shape function
 CASE (2)! 2D shape function
   ! NbrOfPeriodicSFCases is either 1 (no periodic vectors: 0) or 9=8+1 (two periodic vectors) cases
   DO iCase = 1, NbrOfPeriodicSFCases
-    ! Constant deposition direction
-    PartPosShifted(dim_sf_dir) = PartPos(dim_sf_dir)
+    ! Check if periodic sides are present
+    IF(NbrOfPeriodicSFCases.GT.1)THEN
+      ! Constant deposition direction
+      PartPosShifted(dim_sf_dir) = PartPos(dim_sf_dir)
 
-    ! 1st periodic vector
-    ! 1st deposition direction
-    PartPosShifted(dim_sf_dir1) = PartPos(dim_sf_dir1)&
-                                + PeriodicSFCaseMatrix(iCase,1)*GEO%PeriodicVectors(dim_sf_dir1,dim_periodic_vec1)
-    ! 2nd deposition direction
-    PartPosShifted(dim_sf_dir2) = PartPos(dim_sf_dir2)&
-                                + PeriodicSFCaseMatrix(iCase,1)*GEO%PeriodicVectors(dim_sf_dir2,dim_periodic_vec1)
-
-    ! 2nd periodic vector (if available)
-    IF(dim_periodic_vec2.GT.0)THEN
+      ! 1st periodic vector
       ! 1st deposition direction
-      PartPosShifted(dim_sf_dir1) = PartPosShifted(dim_sf_dir1)&
-                                  + PeriodicSFCaseMatrix(iCase,2)*GEO%PeriodicVectors(dim_sf_dir1,dim_periodic_vec2)
+      PartPosShifted(dim_sf_dir1) = PartPos(dim_sf_dir1)&
+                                  + PeriodicSFCaseMatrix(iCase,1)*GEO%PeriodicVectors(dim_sf_dir1,dim_periodic_vec1)
       ! 2nd deposition direction
-      PartPosShifted(dim_sf_dir2) = PartPosShifted(dim_sf_dir2)&
-                                  + PeriodicSFCaseMatrix(iCase,2)*GEO%PeriodicVectors(dim_sf_dir2,dim_periodic_vec2)
-    END IF ! condition
+      PartPosShifted(dim_sf_dir2) = PartPos(dim_sf_dir2)&
+                                  + PeriodicSFCaseMatrix(iCase,1)*GEO%PeriodicVectors(dim_sf_dir2,dim_periodic_vec1)
+
+      ! 2nd periodic vector (if available)
+      IF(dim_periodic_vec2.GT.0)THEN
+        ! 1st deposition direction
+        PartPosShifted(dim_sf_dir1) = PartPosShifted(dim_sf_dir1)&
+                                    + PeriodicSFCaseMatrix(iCase,2)*GEO%PeriodicVectors(dim_sf_dir1,dim_periodic_vec2)
+        ! 2nd deposition direction
+        PartPosShifted(dim_sf_dir2) = PartPosShifted(dim_sf_dir2)&
+                                    + PeriodicSFCaseMatrix(iCase,2)*GEO%PeriodicVectors(dim_sf_dir2,dim_periodic_vec2)
+      END IF ! dim_periodic_vec2.GT.0
+    ELSE
+      PartPosShifted(1:3) = PartPos(1:3)
+    END IF ! NbrOfPeriodicSFCases.EQ.1
 
     SELECT CASE(TRIM(DepositionType))
     CASE('shape_function')
@@ -142,12 +151,18 @@ CASE (2)! 2D shape function
 CASE DEFAULT!CASE(3) Standard 3D shape function
   ! NbrOfPeriodicSFCases is either 1 (no periodic vectors: 0) or 27=26+1 (three periodic vectors) cases
   DO iCase = 1, NbrOfPeriodicSFCases
-    DO I = 1,3
-      PartPosShifted(I) = PartPos(I)&
-          + PeriodicSFCaseMatrix(iCase,1)*GEO%PeriodicVectors(I,1)&
-          + PeriodicSFCaseMatrix(iCase,2)*GEO%PeriodicVectors(I,2)&
-          + PeriodicSFCaseMatrix(iCase,3)*GEO%PeriodicVectors(I,3)
-    END DO
+    ! Check if periodic sides are present
+    IF(NbrOfPeriodicSFCases.GT.1)THEN
+      DO I = 1,3
+        PartPosShifted(I) = PartPos(I)&
+            + PeriodicSFCaseMatrix(iCase,1)*GEO%PeriodicVectors(I,1)&
+            + PeriodicSFCaseMatrix(iCase,2)*GEO%PeriodicVectors(I,2)&
+            + PeriodicSFCaseMatrix(iCase,3)*GEO%PeriodicVectors(I,3)
+      END DO
+    ELSE
+      PartPosShifted(1:3) = PartPos(1:3)
+    END IF ! NbrOfPeriodicSFCases.EQ.1
+    ! Select deposition type
     SELECT CASE(TRIM(DepositionType))
     CASE('shape_function')
       CALL depoChargeOnDOFsSF(PartPosShifted,SourceSize,Fac)
@@ -338,7 +353,7 @@ INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
 INTEGER                          :: kk, ll, mm, ppp
 INTEGER                          :: globElemID, CNElemID
 REAL                             :: radius2, S, S1
-INTEGER                          :: expo, nUsedElems
+INTEGER                          :: expo, nUsedElems,I
 #if USE_MPI
 LOGICAL                          :: chargedone(1:nComputeNodeTotalElems)
 !INTEGER                          :: usedElems(   nComputeNodeTotalElems)
@@ -347,6 +362,7 @@ LOGICAL                          :: chargedone(1:nElems)
 !INTEGER                          :: usedElems(   nElems)
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------
+I=5-SourceSize
 chargedone(:) = .FALSE.
 nUsedElems = 0
 !-- determine which background mesh cells (and interpolation points within) need to be considered
@@ -393,24 +409,16 @@ DO kk = kmin,kmax
 #if USE_MPI
             IF (((globElemID-offSetElem).GE.1).AND.(globElemID-offSetElem).LE.nElems) THEN
 #endif /*USE_MPI*/
-              IF (SourceSize.EQ.1) THEN
-                PartSource(4,k,l,m, CNElemID) = PartSource(4,k,l,m, CNElemID) + Fac(4) * S1
+              PartSource(I:4,k,l,m, CNElemID) = PartSource(I:4,k,l,m, CNElemID) + Fac(4) * S1
   !#if !((USE_HDG) && (PP_nVar==1))
-              ELSE IF (SourceSize.EQ.4) THEN
-                PartSource(1:4,k,l,m, CNElemID) = PartSource(1:4,k,l,m, CNElemID) + Fac(1:4) * S1
   !#endif
-              END IF
 #if USE_MPI
             ELSE
-              IF (SourceSize.EQ.1) THEN
-                PartSourceProc(4,k,l,m, SendElemShapeID(CNElemID)) =  &
-                    PartSourceProc(4,k,l,m, SendElemShapeID(CNElemID)) + Fac(4) * S1
+              ASSOCIATE( ShapeID => SendElemShapeID(CNElemID))
+                PartSourceProc(I:4,k,l,m, ShapeID) = PartSourceProc(I:4,k,l,m, ShapeID) + Fac(4) * S1
+              END ASSOCIATE
   !#if !((USE_HDG) && (PP_nVar==1))
-              ELSE IF (SourceSize.EQ.4) THEN
-                PartSourceProc(1:4,k,l,m, SendElemShapeID(CNElemID)) = &
-                    PartSourceProc(1:4,k,l,m, SendElemShapeID(CNElemID)) + Fac(1:4) * S1
   !#endif
-              END IF
             END IF
 #endif /*USE_MPI*/
           END IF
@@ -715,7 +723,7 @@ REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                          :: firstElem,elemDone
-INTEGER                          :: k, l, m
+INTEGER                          :: k, l, m,I
 INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
 INTEGER                          :: kk, ll, mm, ppp
 INTEGER                          :: globElemID, CNElemID
@@ -736,6 +744,7 @@ END TYPE
 TYPE (SPElem), POINTER :: first => null()
 TYPE (SPElem), POINTER :: element
 !----------------------------------------------------------------------------------------------------------------------------------
+I=5-SourceSize
 chargedone(:) = .FALSE.
 firstElem = .TRUE.
 
@@ -827,20 +836,12 @@ IF (nUsedElems.GT.0) THEN
 #if USE_MPI
     IF (((localElem).GE.1).AND.(localElem).LE.nElems) THEN
 #endif /*USE_MPI*/
-      IF (SourceSize.EQ.1) THEN
-        PartSource(4,:,:,:, CNElemID) = PartSource(4,:,:,:, CNElemID) + alpha*element%PartSourceLoc(4,:,:,:)
-      ELSE IF (SourceSize.EQ.4) THEN
-        PartSource(1:4,:,:,:, CNElemID) = PartSource(1:4,:,:,:, CNElemID) + alpha*element%PartSourceLoc(1:4,:,:,:)
-      END IF
+      PartSource(I:4,:,:,:, CNElemID) = PartSource(I:4,:,:,:, CNElemID) + alpha*element%PartSourceLoc(I:4,:,:,:)
 #if USE_MPI
     ELSE
-      IF (SourceSize.EQ.1) THEN
-        PartSourceProc(4,:,:,:, SendElemShapeID(CNElemID)) =  &
-            PartSourceProc(4,:,:,:, SendElemShapeID(CNElemID)) + alpha * element%PartSourceLoc(4,:,:,:)
-      ELSE IF (SourceSize.EQ.4) THEN
-        PartSourceProc(1:4,:,:,:, SendElemShapeID(CNElemID)) = &
-            PartSourceProc(1:4,:,:,:, SendElemShapeID(CNElemID)) + alpha * element%PartSourceLoc(1:4,:,:,:)
-      END IF
+      ASSOCIATE( ShapeID => SendElemShapeID(CNElemID) )
+        PartSourceProc(I:4,:,:,:, ShapeID) = PartSourceProc(I:4,:,:,:, ShapeID) + alpha * element%PartSourceLoc(I:4,:,:,:)
+      END ASSOCIATE
     END IF
 #endif /*USE_MPI*/
     first => first%next

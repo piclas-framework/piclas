@@ -706,14 +706,14 @@ SUBROUTINE Deposition(doParticle_In)
 ! USE MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Particle_Analyze_Vars       ,ONLY: DoVerifyCharge,PartAnalyzeStep
+USE MOD_Particle_Analyze_Vars ,ONLY: DoVerifyCharge,PartAnalyzeStep
 USE MOD_Particle_Vars
 USE MOD_PICDepo_Vars
-USE MOD_PICDepo_Method              ,ONLY: DepositionMethod
-USE MOD_PIC_Analyze                 ,ONLY: VerifyDepositedCharge
-USE MOD_TimeDisc_Vars               ,ONLY: iter
+USE MOD_PICDepo_Method        ,ONLY: DepositionMethod
+USE MOD_PIC_Analyze           ,ONLY: VerifyDepositedCharge
+USE MOD_TimeDisc_Vars         ,ONLY: iter
 #if USE_MPI
-USE MOD_MPI_Shared_Vars             ,ONLY: myComputeNodeRank,MPI_COMM_SHARED
+USE MOD_MPI_Shared_Vars       ,ONLY: myComputeNodeRank,MPI_COMM_SHARED
 #endif  /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
