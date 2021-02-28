@@ -499,7 +499,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: TimeArray(8)              ! Array for system time
+#if USE_MPI && defined(PARTICLES)
 INTEGER             :: NbrOfLostParticlesTotal_old_tmp
+#endif /*USE_MPI && defined(PARTICLES)*/
 !===================================================================================================================================
 #ifdef PARTICLES
 IF(CountNbrOfLostParts)THEN

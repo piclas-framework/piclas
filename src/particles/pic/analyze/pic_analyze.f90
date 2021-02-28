@@ -21,10 +21,6 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE VerifyDepositedCharge
-  MODULE PROCEDURE VerifyDepositedCharge
-END INTERFACE
-
 INTERFACE CalcDepositedCharge
   MODULE PROCEDURE CalcDepositedCharge
 END INTERFACE
@@ -41,7 +37,7 @@ CONTAINS
 
 SUBROUTINE VerifyDepositedCharge()
 !===================================================================================================================================
-! calcs the deposited chrages
+! Calculate the deposited charges
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -69,9 +65,6 @@ INTEGER           :: iElem, ElemID
 INTEGER           :: i,j,k
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: ChargeNumerical, ChargeLoc, ChargeAnalytical
-#if USE_MPI
-REAL              :: ChargeAnalytical_sum, ChargeNumerical_sum
-#endif
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' PERFORMING CHARGE DEPOSITION PLAUSIBILITY CHECK...'
@@ -92,7 +85,6 @@ DO iElem=1,nElems
   ChargeNumerical = ChargeNumerical + ChargeLoc
 END DO
 
-
 ChargeAnalytical=0.
 DO i=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
@@ -105,10 +97,8 @@ DO i=1,PDM%ParticleVecLength
 END DO
 
 #if USE_MPI
-   CALL MPI_ALLREDUCE(ChargeAnalytical, ChargeAnalytical_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, PartMPI%COMM, IERROR)
-   CALL MPI_ALLREDUCE(ChargeNumerical, ChargeNumerical_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, PartMPI%COMM, IERROR)
-   ChargeAnalytical = ChargeAnalytical_sum
-   ChargeNumerical = ChargeNumerical_sum
+   CALL MPI_ALLREDUCE(MPI_IN_PLACE , ChargeAnalytical, 1 , MPI_DOUBLE_PRECISION , MPI_SUM , PartMPI%COMM , IERROR)
+   CALL MPI_ALLREDUCE(MPI_IN_PLACE  , ChargeNumerical, 1 , MPI_DOUBLE_PRECISION , MPI_SUM , PartMPI%COMM , IERROR)
 #endif
 SWRITE(*,*) "On the grid deposited charge (numerical) : ", ChargeNumerical
 SWRITE(*,*) "Charge by the particles (analytical)     : ", ChargeAnalytical

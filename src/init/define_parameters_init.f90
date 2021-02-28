@@ -54,7 +54,6 @@ USE mod_readIMD                    ,ONLY: DefineParametersReadIMDdata
 USE MOD_HDG                        ,ONLY: DefineParametersHDG
 #endif /*USE_HDG*/
 USE MOD_Dielectric                 ,ONLY: DefineParametersDielectric
-USE MOD_Filter                     ,ONLY: DefineParametersFilter
 USE MOD_Piclas_Init                ,ONLY: DefineParametersPiclas
 #ifdef PARTICLES
 USE MOD_ParticleInit               ,ONLY: DefineParametersParticles
@@ -112,7 +111,6 @@ CALL DefineParametersPML()
 CALL DefineParametersHDG()
 #endif /*USE_HDG*/
 CALL DefineParametersDielectric()
-CALL DefineParametersFilter()
 CALL DefineParametersAnalyze()
 CALL DefineParametersRecordPoints()
 #ifdef PARTICLES

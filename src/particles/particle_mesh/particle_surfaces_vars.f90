@@ -56,12 +56,7 @@ INTEGER,ALLOCPOINT,DIMENSION(:)        :: SideType                     ! integer
 REAL,ALLOCPOINT,DIMENSION(:,:)         :: SideNormVec                  ! normal Vector of planar sides
 REAL,ALLOCPOINT,DIMENSION(:)           :: SideDistance                 ! distance of planar base from origin
 
-INTEGER,ALLOCATABLE,DIMENSION(:)        :: gElemBCSides                 ! number of BC-Sides of element
-REAL                                    :: BezierHitEpsBi               ! epsilon tolerance for bi-linear faces
 REAL                                    :: epsilontol                   ! epsilon for setting the tolerance
-REAL                                    :: OneMinusEps                  ! 1 - eps: epsilontol
-REAL                                    :: OnePlusEps                   ! 1 + eps: epsilontol for setting the boundary tolerance
-REAL                                    :: MinusEps                     ! - eps: epsilontol
 LOGICAL                                 :: ParticleSurfaceInitIsDone=.FALSE.
 ! settings for Bezier-Clipping and definition of maximal number of intersections
 REAL                                    :: BezierNewtonAngle            ! switch for intersection with bezier newton algorithm

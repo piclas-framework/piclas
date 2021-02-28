@@ -745,9 +745,6 @@ REAL                  :: RandVac(3), ProbPos,  iRan,  bandwidth, MaxProb, MaxPro
 !===================================================================================================================================
 bandwidth = 0.03 !0.03
 PosFailed=.false.
-!DO iNode = 1,8
-!  P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
-!END DO
 
 IF(vMPF_velocityDistribution.EQ.'DENSEST') ALLOCATE(vMPF_NewPosRefElem(FinPartNum,3))
 

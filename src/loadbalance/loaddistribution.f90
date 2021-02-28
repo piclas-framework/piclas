@@ -1165,7 +1165,6 @@ REAL                       :: memoryGlobal(1:3) ! Globally used, available (only
 #if USE_MPI
 REAL                       :: ProcMemoryUsed    ! Used memory on a single proc
 REAL                       :: NodeMemoryUsed    ! Sum of used memory across one compute node
-INTEGER                    :: RecvRequest,SendRequest
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
