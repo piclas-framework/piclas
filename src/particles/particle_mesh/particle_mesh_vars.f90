@@ -474,7 +474,8 @@ LOGICAL                                  :: FindNeighbourElems=.FALSE.        ! 
 !TYPE (tBCElem),ALLOCATABLE               :: BCElem(:)
 
 INTEGER                                  :: NbrOfRegions      ! Nbr of regions to be mapped to Elems
-LOGICAL                                  :: UseBRElectronFluid! Nbr of regions to be mapped to Elems
+LOGICAL                                  :: UseBRElectronFluid! Indicates usage of BR electron fluid model
+LOGICAL                                  :: BRElectronsRemoved! True if electrons were removed during restart (only BR electrons)
 REAL, ALLOCATABLE                        :: RegionBounds(:,:) ! RegionBounds ((xmin,xmax,ymin,...)|1:NbrOfRegions)
 REAL,ALLOCATABLE                         :: ElemTolerance(:)
 INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id

@@ -598,24 +598,21 @@ IF(DoDeposition)THEN
   CNElemID = GetCNElemID(iElem+offSetElem)
   source_e=0.
   IF(UseBRElectronFluid.AND.PRESENT(Phi))THEN
-    IF(ABS(PartSource(4,i,j,k,CNElemID)).GT.0.)THEN
-      RegionID=ElemToBRRegion(iElem)
-      IF (RegionID .NE. 0) THEN
-        source_e = Phi-RegionElectronRef(2,RegionID)
-        IF (source_e .LT. 0.) THEN
-          source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
-              * EXP( (source_e) / RegionElectronRef(3,RegionID) )
-        ELSE
-          source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
-              * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
-          warning_linear = .TRUE.
-        END IF
-        !source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
-        !* EXP( (Phi-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
+    RegionID=ElemToBRRegion(iElem)
+    IF (RegionID .NE. 0) THEN
+      source_e = Phi-RegionElectronRef(2,RegionID)
+      IF (source_e .LT. 0.) THEN
+        source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
+            * EXP( (source_e) / RegionElectronRef(3,RegionID) )
+      ELSE
+        ! Linear approximation from Taylor expansion O(1)
+        source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
+            * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
+        warning_linear = .TRUE.
       END IF
-    ELSE ! set electron density to zero if the charge of the ions is zero at each DOF
-      source_e  = 0.
-    END IF ! PartSource(4,i,j,k,CNElemID).GT.0.
+      !source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
+      !* EXP( (Phi-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
+    END IF
   END IF ! UseBRElectronFluid
 #if IMPA
   resu(1)= - (PartSource(4,i,j,k,CNElemID)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0

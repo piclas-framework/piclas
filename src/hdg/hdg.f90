@@ -338,7 +338,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitHDG
 
 
-SUBROUTINE HDG(t,U_out,iter)
+SUBROUTINE HDG(t,U_out,iter,ForceCGSolverIteration_opt)
 !===================================================================================================================================
 !===================================================================================================================================
 ! MODULES
@@ -354,6 +354,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)     :: t !time
 INTEGER(KIND=8),INTENT(IN)  :: iter
+LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in first step (only BR electron fluid)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
@@ -374,7 +375,11 @@ IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
 END IF
 IF(nonlinear) THEN
   IF (NonLinSolver.EQ.1) THEN
-    CALL HDGNewton(t, U_out, iter)
+    IF(PRESENT(ForceCGSolverIteration_opt))THEN
+      CALL HDGNewton(t, U_out, iter, ForceCGSolverIteration_opt)
+    ELSE
+      CALL HDGNewton(t, U_out, iter)
+    END IF ! PRESENT(ForceCGSolverIteration)
   ELSE
     CALL abort(&
 __STAMP__&
@@ -641,7 +646,7 @@ CALL LBPauseTime(LB_DG,tLBStart)
 END SUBROUTINE HDGLinear
 
 
-SUBROUTINE HDGNewton(time,U_out,td_iter)
+SUBROUTINE HDGNewton(time,U_out,td_iter,ForceCGSolverIteration_opt)
 !===================================================================================================================================
 ! HDG non-linear solver via Newton's method
 !===================================================================================================================================
@@ -671,13 +676,14 @@ USE MOD_Equation_Vars          ,ONLY: E
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBRRegion
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBRRegion,UseBRElectronFluid
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)     :: time !time
 INTEGER(KIND=8),INTENT(IN)  :: td_iter
+LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in first step (only BR electron fluid)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
@@ -800,10 +806,17 @@ CALL LBSplitTime(LB_DGCOMM,tLBStart)
 
 ! SOLVE
 CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
+IF(PRESENT(ForceCGSolverIteration_opt))THEN
+  IF(ForceCGSolverIteration_opt)THEN
+    ! Due to the removal of electrons during restart
+    converged=.false.
+    SWRITE(UNIT_StdOut,*) "Force initial CG solver iteration by setting converged=F (Norm_r2=",Norm_r2,")"
+  END IF ! ForceCGSolverIteration_opt
+END IF ! ForceCGSolverIteration_opt
 IF (converged) THEN
 #if defined(IMPA) || defined(ROS)
   IF(DoPrintConvInfo)THEN
-    SWRITE(*,*) 'HDGNewton: Newton Iteration has converged in 0 steps...'
+    SWRITE(*,*) 'IMPA || ROS - HDGNewton: Newton Iteration has converged in 0 steps...'
   END IF
 #else
   SWRITE(*,*) 'HDGNewton: Newton Iteration has converged in 0 steps...'

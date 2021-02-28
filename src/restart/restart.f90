@@ -1682,15 +1682,17 @@ DEALLOCATE(ElemData_HDF5)
 
 END SUBROUTINE MacroscopicRestart
 
+
 SUBROUTINE RemoveAllElectrons()
 !===================================================================================================================================
 !> Read-in of the element data from a DSMC state and insertion of particles based on the macroscopic values
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_part_operations  ,ONLY: RemoveParticle
-USE MOD_Particle_Analyze ,ONLY: PARTISELECTRON
-USE MOD_Particle_Vars    ,ONLY: PDM
+USE MOD_part_operations    ,ONLY: RemoveParticle
+USE MOD_Particle_Analyze   ,ONLY: PARTISELECTRON
+USE MOD_Particle_Vars      ,ONLY: PDM
+USE MOD_Particle_Mesh_Vars ,ONLY: BRElectronsRemoved
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1704,9 +1706,17 @@ INTEGER :: iPart
 
 SWRITE(UNIT_stdOut,*) 'Using BR electron fluid, removing all electrons from restart file.'
 
+BRElectronsRemoved=.FALSE.
 DO iPart = 1,PDM%ParticleVecLength
-  IF(PARTISELECTRON(iPart)) CALL RemoveParticle(iPart)
+  IF(PARTISELECTRON(iPart))THEN
+    CALL RemoveParticle(iPart)
+    BRElectronsRemoved=.TRUE.
+  END IF
 END DO
+
+#if USE_MPI
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,BRElectronsRemoved,1,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,iError)
+#endif /*USE_MPI*/
 
 END SUBROUTINE RemoveAllElectrons
 #endif /*PARTICLES*/
@@ -1719,14 +1729,15 @@ SUBROUTINE RecomputeLambda(t)
 ! a change in the load-distribution, number of used cores, etc,... lambda has to be recomputed ONCE
 !===================================================================================================================================
 ! MODULES
-USE MOD_DG_Vars,                 ONLY: U
+USE MOD_DG_Vars            ,ONLY: U
 USE MOD_PreProc
-USE MOD_HDG,                     ONLY: HDG
-USE MOD_TimeDisc_Vars,           ONLY: iter
+USE MOD_HDG                ,ONLY: HDG
+USE MOD_TimeDisc_Vars      ,ONLY: iter
 #ifdef PARTICLES
-USE MOD_PICDepo,                 ONLY: Deposition
+USE MOD_PICDepo            ,ONLY: Deposition
+USE MOD_Particle_Mesh_Vars ,ONLY: UseBRElectronFluid,BRElectronsRemoved
 #if USE_MPI
-USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI       ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
@@ -1745,7 +1756,16 @@ CALL Deposition()
 
 ! recompute fields
 ! EM field
-CALL HDG(t,U,iter)
+#ifdef PARTICLES
+IF(UseBRElectronFluid.AND.BRElectronsRemoved)THEN
+  ! When using BR electron fluid model, all electrons are removed from the restart file
+  CALL HDG(t,U,iter,ForceCGSolverIteration_opt=.TRUE.)
+ELSE
+#endif /*PARTICLES*/
+  CALL HDG(t,U,iter)
+#ifdef PARTICLES
+END IF ! UseBRElectronFluid
+#endif /*PARTICLES*/
 
 END SUBROUTINE RecomputeLambda
 #endif /*USE_HDG*/
