@@ -50,8 +50,6 @@ CALL prms%CreateLogicalOption(  'UseDSMC'        , "Flag for using DSMC in Calcu
 END SUBROUTINE DefineParametersPiclas
 
 
-
-
 SUBROUTINE InitPiclas(IsLoadBalance)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! init Piclas data structure
@@ -75,7 +73,6 @@ USE MOD_Mortar               ,ONLY: InitMortar
 USE MOD_PML                  ,ONLY: InitPML
 #endif /*USE_HDG*/
 USE MOD_Dielectric           ,ONLY: InitDielectric
-USE MOD_Filter               ,ONLY: InitFilter
 USE MOD_Analyze              ,ONLY: InitAnalyze
 USE MOD_RecordPoints         ,ONLY: InitRecordPoints
 #if defined(ROS) || defined(IMPA)
@@ -186,7 +183,6 @@ CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing l
 #endif /*USE_HDG*/
 CALL InitDielectric() ! Dielectric media
 CALL InitDG()
-CALL InitFilter()
 #if defined(ROS) || defined(IMPA)
 CALL InitLinearSolver()
 #endif /*ROS /IMEX*/
@@ -263,7 +259,6 @@ USE MOD_PML                        ,ONLY: FinalizePML
 #else
 USE MOD_HDG                        ,ONLY: FinalizeHDG
 #endif /*USE_HDG*/
-USE MOD_Filter                     ,ONLY: FinalizeFilter
 USE MOD_Analyze                    ,ONLY: FinalizeAnalyze
 USE MOD_RecordPoints               ,ONLY: FinalizeRecordPoints
 USE MOD_RecordPoints_Vars          ,ONLY: RP_Data
@@ -272,6 +267,7 @@ USE MOD_LinearSolver               ,ONLY: FinalizeLinearSolver
 #endif /*IMEX*/
 #if USE_MPI
 USE MOD_MPI                        ,ONLY: FinalizeMPI
+USE MOD_MPI_Shared                 ,ONLY: FinalizeMPIShared
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Surfaces          ,ONLY: FinalizeParticleSurfaces
@@ -333,7 +329,6 @@ IF(.NOT.IsLoadBalance) CALL FinalizeInterpolation()
 CALL FinalizeRestart()
 CALL FinalizeMesh()
 CALL FinalizeMortar()
-CALL FinalizeFilter()
 #ifdef PARTICLES
 CALL FinalizeSurfaceModel()
 CALL FinalizeParticleBoundarySampling()
@@ -383,15 +378,13 @@ SDEALLOCATE(RP_Data)
 ! Measure simulation duration
 Time=PICLASTIME()
 SWRITE(UNIT_stdOut,'(132("="))')
+CALL FinalizeLoadBalance(IsLoadBalance)
 IF(.NOT.IsLoadBalance)THEN
-#if USE_LOADBALANCE
-  !! and additional required for restart with load balance
-  !ReadInDone=.FALSE.
-  !ParticleMPIInitIsDone=.FALSE.
-  !ParticlesInitIsDone=.FALSE.
-  CALL FinalizeLoadBalance()
-#endif /*USE_LOADBALANCE*/
   CALL DisplaySimulationTime(Time, StartTime, 'FINISHED')
+#if USE_MPI
+  ! Free the communicators!
+  CALL FinalizeMPIShared()
+#endif /*USE_MPI*/
 ELSE
   CALL DisplaySimulationTime(Time, StartTime, 'RUNNING')
 END IF ! .NOT.IsLoadBalance
@@ -400,8 +393,7 @@ SWRITE(UNIT_stdOut,'(132("="))')
 END SUBROUTINE FinalizePiclas
 
 
-#if USE_LOADBALANCE
-SUBROUTINE FinalizeLoadBalance()
+SUBROUTINE FinalizeLoadBalance(IsLoadBalance)
 !===================================================================================================================================
 ! Deallocate arrays
 !===================================================================================================================================
@@ -411,16 +403,34 @@ USE MOD_LoadBalance_Vars
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN)  :: IsLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SDEALLOCATE(tCurrent)
-InitLoadBalanceIsDone = .FALSE.
+SDEALLOCATE(nPartsPerElem)
+SDEALLOCATE(nDeposPerElem)
+SDEALLOCATE(nTracksPerElem)
+SDEALLOCATE(nSurfacefluxPerElem)
+SDEALLOCATE(nPartsPerBCElem)
+SDEALLOCATE(nSurfacePartsPerElem)
+
+SDEALLOCATE(LoadDistri)
+SDEALLOCATE(PartDistri)
+SDEALLOCATE(ElemGlobalTime)
+SDEALLOCATE(ElemHDGSides)
+SDEALLOCATE(ElemTime_tmp)
+SDEALLOCATE(ElemTime)
+
+IF(.NOT.IsLoadBalance) THEN
+#if USE_LOADBALANCE
+  SDEALLOCATE(tCurrent)
+  InitLoadBalanceIsDone = .FALSE.
+#endif /*USE_LOADBALANCE*/
+END IF
 
 END SUBROUTINE FinalizeLoadBalance
-#endif /*USE_LOADBALANCE*/
 
 
 SUBROUTINE FinalizeTimeDisc()

@@ -441,10 +441,10 @@ END IF
            'Part-Species'//TRIM(hilf)//'-(InterID * Tref * dref * alphaVSS) .EQ. 0'//&
            ' - but must not be 0')
         END IF ! (Tref * dref * alphaVSS) .EQ. 0
-        IF ((SpecDSMC(iSpec)%alphaVSS.LT.1) .OR. (SpecDSMC(iSpec)%alphaVSS.GT.2)) THEN
+        IF ((SpecDSMC(iSpec)%alphaVSS.LT.0.0) .OR. (SpecDSMC(iSpec)%alphaVSS.GT.2.0)) THEN
           CALL Abort(&
           __STAMP__&
-          ,'ERROR: Check set parameter Part-Species'//TRIM(hilf)//'-alphaVSS must not be lower 1 or greater 2')
+          ,'ERROR: Check set parameter Part-Species'//TRIM(hilf)//'-alphaVSS must not be lower 0 or greater 2')
         END IF ! alphaVSS parameter check
       END IF ! averagedCollisionParameters
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
@@ -553,7 +553,7 @@ END IF
     PostCollPointerSet = .FALSE.
     DO iSpec = 1 , nSpecies
       DO jSpec = iSpec , nSpecies
-        IF ( CollInf%alphaVSS(iSpec,jSpec).GT.1 ) THEN
+        IF ( CollInf%alphaVSS(iSpec,jSpec).NE.1.0 ) THEN
           PostCollVec => DiceDeflectedVelocityVector4Coll
           PostCollPointerSet = .TRUE.
           EXIT

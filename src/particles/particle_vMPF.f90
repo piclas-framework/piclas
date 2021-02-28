@@ -286,6 +286,7 @@ END DO
 
 END SUBROUTINE MergeParticles
 
+#ifdef WIP
 SUBROUTINE CalculateDistMoments(iPartIndx_Node, nPart, vBulk, Vtherm2, PressTens, HeatVec, Energy)
 !===================================================================================================================================
 !> Calculation of distribution moments
@@ -350,5 +351,6 @@ PressTens(3,2)=PressTens(2,3)
 PressTens = PressTens/totalWeight
 
 END SUBROUTINE CalculateDistMoments
+#endif /*WIP*/
 
 END MODULE MOD_vMPF

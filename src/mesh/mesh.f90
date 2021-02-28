@@ -113,7 +113,6 @@ USE MOD_Mesh_Vars
 USE MOD_HDF5_Input
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
-!-----------------------------------------------------------------------------------------------------------------------------------                                                                                             ! -----------------------------------------------------------------------------------------------------------------------------------
 USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
@@ -777,20 +776,23 @@ SUBROUTINE InitElemVolumes()
 ! Calculate Element volumes for later use in particle routines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals            ,ONLY: UNIT_StdOut
 USE MOD_PreProc
+USE MOD_Globals            ,ONLY: UNIT_StdOut
 USE MOD_Interpolation_Vars ,ONLY: wGP
-USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem,sJ
+USE MOD_Mesh_Vars          ,ONLY: nElems,sJ
 USE MOD_Particle_Mesh_Vars ,ONLY: LocalVolume,MeshVolume
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_ReadInTools
 #if USE_MPI
 USE MPI
+USE MOD_MPI_Shared
 USE MOD_Globals            ,ONLY: IERROR,MPIRoot
-USE MOD_MPI_Shared!        ,ONLY: Allocate_Shared
-USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED,myComputeNodeRank,MPI_COMM_LEADERS_SHARED
+#ifdef PARTICLES
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems,offsetComputeNodeElem
+USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED,myComputeNodeRank,MPI_COMM_LEADERS_SHARED
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
+#endif /*PARTICLES*/
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -800,15 +802,16 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Wi
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem,CNElemID
-INTEGER           :: i,j,k
-!INTEGER           :: ALLOCSTAT
-REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
-REAL              :: CNVolume                       ! Total CN volume
-INTEGER           :: offsetElemCNProc
+INTEGER                         :: iElem,CNElemID
+INTEGER                         :: i,j,k
+REAL                            :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+INTEGER                         :: offsetElemCNProc
 #if USE_MPI
-INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
-#endif
+#ifdef PARTICLES
+INTEGER(KIND=MPI_ADDRESS_KIND)  :: MPISharedSize
+REAL                            :: CNVolume                       ! Total CN volume
+#endif /*PARTICLES*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT ELEMENT GEOMETRY INFORMATION ...'
@@ -880,31 +883,6 @@ CALL MPI_ALLREDUCE(LocalVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COM
 #else
 MeshVolume = LocalVolume
 #endif /*USE_MPI*/
-
-!ALLOCATE(GEO%CharLength(nElems),STAT=ALLOCSTAT)
-!IF (ALLOCSTAT.NE.0) THEN
-!  CALL abort(&
-!      __STAMP__&
-!      ,'ERROR in InitElemGeometry: Cannot allocate GEO%CharLength!')
-!END IF
-!
-!! Calculate element volumes and characteristic lengths
-!DO iElem=1,nElems
-!  !--- Calculate and save volume of element iElem
-!  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-!  GEO%Volume(iElem) = 0.
-!  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-!    GEO%Volume(iElem)   = GEO%Volume(iElem) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
-!  END DO; END DO; END DO
-!  GEO%CharLength(iElem) = GEO%Volume(iElem)**(1./3.) ! Calculate characteristic cell length: V^(1/3)
-!END DO
-!
-!GEO%LocalVolume=SUM(GEO%Volume)
-!#if USE_MPI
-!CALL MPI_ALLREDUCE(GEO%LocalVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
-!#else
-!MeshVolume=GEO%LocalVolume
-!#endif /*USE_MPI*/
 
 SWRITE(UNIT_StdOut,'(A,E18.8)') ' |              Total MESH Volume |                ', MeshVolume
 SWRITE(UNIT_stdOut,'(A)')' INIT ELEMENT GEOMETRY INFORMATION DONE!'

@@ -97,7 +97,7 @@ DO i=1,nSpecies
         IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
           PartIns=Species(i)%Init(iInit)%ParticleNumber * dt*RKdtFrac  ! emitted particles during time-slab
           inserted_Particle_iter = INT(PartIns,8)                                     ! number of particles to be inserted
-          PartIns=Species(i)%Init(iInit)%ParticleNumber * (Time + dt*RKdtFracTotal) ! total number of emitted particle over
+          PartIns=Species(i)%Init(iInit)%ParticleNumber * (time + dt*RKdtFracTotal) ! total number of emitted particle over
                                                                                       ! simulation
           !-- random-round the inserted_Particle_time for preventing periodicity
           ! PO & SC: why, sometimes we do not want this add, TB is bad!
@@ -130,7 +130,7 @@ DO i=1,nSpecies
           ! linear rise of inflow
           RiseTime=Species(i)%Init(iInit)%InflowRiseTime
           IF(RiseTime.GT.0.)THEN
-            IF(Time-DelayTime.LT.RiseTime)THEN
+            IF(time-DelayTime.LT.RiseTime)THEN
               RiseFactor=(time-DelayTime)/RiseTime
             ELSE
               RiseFactor=1.
@@ -151,7 +151,7 @@ DO i=1,nSpecies
           ! linear rise of inflow
           RiseTime=Species(i)%Init(iInit)%InflowRiseTime
           IF(RiseTime.GT.0.)THEN
-            IF(Time-DelayTime.LT.RiseTime)THEN
+            IF(time-DelayTime.LT.RiseTime)THEN
               RiseFactor=(time-DelayTime)/RiseTime
             ELSE
               RiseFactor=1.
@@ -187,9 +187,9 @@ DO i=1,nSpecies
       CASE(7) ! SEE based on photon impact and photo-ionization in the volume
         ASSOCIATE( tShift => Species(i)%Init(iInit)%tShift )
           ! Check if all pulses have terminated
-          IF(Time.LE.Species(i)%Init(iInit)%tActive)THEN
+          IF(time.LE.Species(i)%Init(iInit)%tActive)THEN
             ! Check if pulse is currently active of in between two pulses (in the latter case, do nothing)
-            IF(MOD(MERGE(Time-tShift, Time, Time.GE.tShift), Species(i)%Init(iInit)%Period).LE.2.0*tShift)THEN
+            IF(MOD(time, Species(i)%Init(iInit)%Period).LE.2.0*tShift)THEN
               ! Calculate the number of currently active photons (both surface SEE and volumetric emission)
               CALL CalcNbrOfPhotons(i, iInit, NbrOfPhotons)
 
@@ -219,10 +219,10 @@ DO i=1,nSpecies
               END IF
             ELSE
               NbrOfParticle = 0
-            END IF ! MOD(MERGE(Time-T0/2., Time, Time.GE.T0/2.), Period).GT.T0
+            END IF ! MOD(time, Period) .LE. 2x tShift
           ELSE
             NbrOfParticle = 0
-          END IF ! Time.LE.Species(i)%Init(iInit)%tActive
+          END IF ! time.LE.Species(i)%Init(iInit)%tActive
         END ASSOCIATE
       CASE(8) ! SpaceIC='2D_landmark','2D_landmark_copy'
               ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark

@@ -56,7 +56,6 @@ USE MOD_SEE                       ,ONLY: SecondaryElectronEmission
 USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_PICDepo_Tools             ,ONLY: DepositParticleOnNodes
-USE MOD_Part_Tools                ,ONLY: VeloFromDistribution
 USE MOD_part_operations           ,ONLY: CreateParticle, RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -423,11 +422,11 @@ SUBROUTINE DiffuseReflection(PartID,SideID,n_loc,AuxBCIdx)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Particle_Mesh_Vars
 USE MOD_Globals                 ,ONLY: ABORT, OrthoNormVec, VECNORM, DOTPRODUCT
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_SurfaceModel_Tools      ,ONLY: GetWallTemperature, CalcRotWallVelo
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,PartAuxBC, GlobalSide2SurfSide
-USE MOD_Particle_Mesh_Vars
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,PartAuxBC
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,Symmetry
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac

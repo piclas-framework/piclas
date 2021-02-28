@@ -390,10 +390,6 @@ LOGICAL                                  :: DoPoissonRounding                 ! 
 LOGICAL                                  :: DoTimeDepInflow                   ! Insertion and SurfaceFlux w simple random rounding
 LOGICAL                                  :: DoZigguratSampling                ! Sample normal randoms with Ziggurat method
 
-INTEGER(8)                               :: nTotalPart
-INTEGER(8)                               :: nTotalHalfPart
-
-
 TYPE tVariableTimeStep
   LOGICAL                              :: UseVariableTimeStep
   LOGICAL                              :: UseLinearScaling
@@ -419,8 +415,6 @@ TYPE tVariableTimeStep
   REAL                                 :: TargetMaxRelaxFactor
 END TYPE
 TYPE(tVariableTimeStep)                :: VarTimeStep
-
-REAL                                   :: TriaEps !Machine precision for 1D, 0 for other
 
 ! 2D Landmark
 REAL, ALLOCATABLE :: PartPosLandmark(:,:)        ! Store particle positions during emission for placing

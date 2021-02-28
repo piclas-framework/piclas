@@ -82,9 +82,9 @@ echo $PARENTCOMMIT                 >> userblock.txt
 # Also store binary changes in diff
 echo "{[( GIT DIFF )]}"            >> userblock.txt
 # commited changes
-git diff -p $PARENTCOMMIT..HEAD    >> userblock.txt
+git diff -p $PARENTCOMMIT..HEAD | head -n 1000   >> userblock.txt
 # uncommited changes
-git diff -p                        >> userblock.txt
+git diff -p | head -n 1000                       >> userblock.txt
 
 echo "{[( GIT URL )]}"             >> userblock.txt
 git config --get remote.origin.url >> userblock.txt

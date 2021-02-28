@@ -31,8 +31,8 @@ REAL               :: meshScale
 LOGICAL            :: MeshWasCurved      =.FALSE.
 ! ====================================================================
 ! Mesh info
-REAL                                     :: MeshVolume         ! total Volume of mesh
-REAL                                     :: LocalVolume        ! volume of proc
+REAL               :: MeshVolume                            !> total Volume of mesh
+REAL               :: LocalVolume                           !> volume of proc
 INTEGER            :: nNonUniqueGlobalSides                 !> total nb. of non-unique sides of mesh (hexahedral: 6*nElems)
 INTEGER            :: nNonUniqueGlobalNodes                 !> total nb. of non-unique nodes of mesh (hexahedral: 8**NGeo * nElems)
 INTEGER            :: nUniqueMasterMortarSides              !> total nb. of master mortar sides in the mesh
@@ -85,6 +85,7 @@ INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemToElemInfo   , ElemToElemInfo_Sh
 
 ! FIBGM to proc mapping
 INTEGER,ALLOCPOINT,DIMENSION(:,:,:,:)    :: FIBGMToProc
+LOGICAL,ALLOCPOINT,DIMENSION(:,:,:,:)    :: FIBGMToProcFlag
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: FIBGMProcs
 
 ! Shared arrays containing information for complete mesh
@@ -114,6 +115,7 @@ INTEGER,ALLOCPOINT :: FIBGM_Element_Shared(:)              !> FastInitBackground
 INTEGER,ALLOCPOINT :: FIBGM_offsetElem_Shared(:)
 
 INTEGER,ALLOCPOINT :: FIBGMToProc_Shared(:,:,:,:)
+LOGICAL,ALLOCPOINT :: FIBGMToProcFlag_Shared(:)
 INTEGER,ALLOCPOINT :: FIBGMProcs_Shared(:)
 
 REAL,ALLOCPOINT    :: BoundsOfElem_Shared(:,:,:)           !> Cartesian bounding box around element
@@ -188,6 +190,7 @@ INTEGER         :: FIBGM_Element_Shared_Win
 INTEGER         :: FIBGM_offsetElem_Shared_Win
 
 INTEGER         :: FIBGMToProc_Shared_Win
+INTEGER         :: FIBGMToProcFlag_Shared_Win
 INTEGER         :: FIBGMProcs_Shared_Win
 
 INTEGER         :: BoundsOfElem_Shared_Win
@@ -245,75 +248,11 @@ INTEGER,ALLOCATABLE                      :: ElemHaloID(:)
 ! ====================================================================
 !
 ! periodic case
-INTEGER,ALLOCATABLE                      :: casematrix(:,:)   ! matrix to compute periodic cases
-INTEGER                                  :: NbrOfCases        ! Number of periodic cases
+INTEGER,ALLOCATABLE                      :: PeriodicSFCaseMatrix(:,:)   ! matrix to compute periodic cases
+INTEGER                                  :: NbrOfPeriodicSFCases        ! Number of periodic cases
 ! Still required for PIC depo, should be remove later
-
-!! general: periodic sides have to be Cartesian
-!INTEGER,ALLOCATABLE :: SidePeriodicType(:)                    ! 1:nTotalSides, periodic type of side
-!                                                              ! 0 - normal or BC side
-!                                                              ! >0 type of periodic displacement
-!REAL,ALLOCATABLE    :: SidePeriodicDisplacement(:,:)          ! displacement vector
-!
 !! ====================================================================
-!INTEGER,ALLOCATABLE :: PartElemToSide(:,:,:)                  ! extended list: 1:2,1:6,1:nTotalElems
-!                                                              ! ElemToSide: my geometry + halo
-!                                                              ! geometry + halo information
-!! -> this information is now in ElemInfo_Shared
-!! ====================================================================
-!
-!
-!! ====================================================================
-INTEGER,ALLOCATABLE :: PartSideToElem(:,:)                    ! extended list: 1:5,1:6,1:nTotalSides
-                                                              ! SideToElem: my geometry + halo
-                                                              ! geometry + halo information
-!! -> this information is now in SideInfo_Shared
-!! ====================================================================
-!
-!
-!! ====================================================================
-!INTEGER(KIND=8),ALLOCATABLE :: PartElemToElemGlob(:,:,:)          ! Mapping from ElemToElem
-!                                                              ! 1:4,1:6,1:nTotalElems
-!                                                              ! now in global-elem-ids !!!
-!INTEGER(KIND=4),ALLOCATABLE :: PartElemToElemAndSide(:,:,:)   ! Mapping from ElemToElem
-!                                                              ! 1:8,1:6,1:nTotalElems
-!                                                              ! [1]1:4 - MortarNeighborElemID
-!                                                              ! [1]5:8 -       Neighbor locSideID
-!                                                              ! [2]1:6 - locSideID
-!                                                              ! [3]    - nTotalElems
-!                                                              ! now in global-elem-ids !!!
-!! -> this information is now deprecated
-!! ====================================================================
-!
-!
-!! ====================================================================
-!INTEGER             :: nPartSides                             ! nPartSides - nSides+nPartPeriodicSides
-!INTEGER             :: nTotalSides                            ! total nb. of sides (my+halo)
-!INTEGER             :: nPartPeriodicSides                     ! total nb. of sides (my+halo)
-!INTEGER             :: nTotalElems                            ! total nb. of elems (my+halo)
-!INTEGER             :: nTotalNodes                            ! total nb. of nodes (my+halo)
-!! -> this information is now shared (nComputeNodeSides)
-!! ====================================================================
-!
-!INTEGER,ALLOCATABLE :: TracingBCInnerSides(:)                 ! number of local element boundary faces
-!                                                              ! used for tracing (connected to element)
-!INTEGER,ALLOCATABLE :: TracingBCTotalSides(:)                 ! total number of element boundary faces
-!                                                              ! used for tracing (loc faces + other
-!                                                              ! element faces that are possibly reached)
-!TYPE tElemHaloInfo
-!  INTEGER,ALLOCATABLE            :: ElemHaloInfo(:)           !< Contains information regarding the halo region of each rank
-!                                                              !< ElemHaloInfo = 0                           : element not in list
-!                                                              !<              = -nTotalElems to -PP_nElems  : halo elements (negative numbers)
-!                                                              !<              = 1 to PP_nElems              : local elements
-!                                                              !< the default value of this variable is FALSE
-!END TYPE
-!TYPE(tElemHaloInfo),ALLOCATABLE      :: ElemHaloInfoProc(:)   ! ElemHaloInfo array for each rank
-!
-!INTEGER,ALLOCATABLE :: ElemType(:)              !< Type of Element 1: only planar side, 2: one bilinear side 3. one curved side
 LOGICAL,ALLOCATABLE :: ElemHasAuxBCs(:,:)
-!INTEGER             :: nTotalBCSides                          ! total number of BC sides (my+halo) -> RefMapping
-!INTEGER             :: nTotalBCElems                          ! total number of bc elems (my+halo) -> RefMapping
-INTEGER,ALLOCATABLE :: PartBCSideList(:)                      ! mapping from SideID to BCSideID    -> RefMapping
 ! Still required for PIC depo, should be remove later
 ! ====================================================================
 INTEGER                                 :: RefMappingGuess    ! select guess for mapping into reference
@@ -325,20 +264,6 @@ INTEGER                                 :: RefMappingGuess    ! select guess for
 REAL                                    :: RefMappingEps      ! tolerance for Netwton to get xi from X
 REAL                                    :: epsInCell          ! tolerance for eps for particle
                                                               ! inside of ref element
-!
-!! ====================================================================
-!
-!
-!! ====================================================================
-!LOGICAL,ALLOCATABLE                     :: PartElemIsMortar(:)! Flag is true if element has at least one side with mortar elements,
-!                                                              ! required in TriaTracking for an additional check in which element
-!                                                              ! the particle ended up after the MPI comm of particles (1:nElems)
-!! -> deprecated with new HALO region?
-!! ====================================================================
-!-----------------------------------------------------------------------------------------------------------------------------------
-
-
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! ====================================================================
 TYPE tFastInitBGM
@@ -351,20 +276,11 @@ TYPE tFastInitBGM
                                                               ! following: PaddingProcs
   INTEGER, ALLOCATABLE                   :: SharedProcs(:)    ! first Entry: Number of Sharedprocs,
                                                               ! following: SharedProcs
-  !INTEGER                                :: nBCSides         ! number BC sides in BGM cell
 #endif
 END TYPE
 
 INTEGER                                  :: FIBGMCellPadding(1:3)
-! -> this is now shared and correct (large enough halo region)
 ! ====================================================================
-
-!! ====================================================================
-TYPE tNodeToElem
-  INTEGER, ALLOCATABLE                   :: ElemID(:)
-END TYPE
-!! -> this should be replaced with NodeInfo_Shared
-!! ====================================================================
 TYPE tGeometry
   LOGICAL                                :: RotPeriodicBC            ! Flag for rotational periodicity
   INTEGER                                :: RotPeriodicAxi           ! Axis of rotational periodicity
@@ -390,7 +306,6 @@ TYPE tGeometry
   ! periodic
   INTEGER                                :: nPeriodicVectors         ! Number of periodic Vectors
   REAL, ALLOCATABLE                      :: PeriodicVectors(:,:)     ! PeriodicVectors(1:3,1:nPeriodicVectors), 1:3=x,y,z
-!  REAL, ALLOCATABLE                      :: PeriodicVectorsLength(:) ! PeriodicVectorsLength(1:nPeriodicVectors)
   INTEGER,ALLOCATABLE                    :: DirPeriodicVectors(:)    ! direction of periodic vectors
   LOGICAL                                :: directions(3)            ! flag for direction
   ! required for cartesian BGM for desposition
@@ -422,34 +337,11 @@ TYPE tGeometry
   INTEGER                                :: TFIBGMkmin                        ! smallest index of FastInitBGM (z)
   INTEGER                                :: TFIBGMkmax                        ! biggest index of FastInitBGM (z)
 
-  INTEGER,ALLOCATABLE                    :: ElemToFIBGM(:,:)                  ! range of FIGMB cells per element
-                                                                              ! 1:6,1:nTotalElems, xmin,max,yminmax,...
-!  REAL, ALLOCATABLE                      :: Volume(:)                         ! Volume(nElems) for nearest_blurrycenter
-!  REAL, ALLOCATABLE                      :: CharLength(:)                     ! Characteristic length for each cell: L=V^(1/3)
   REAL, ALLOCATABLE                      :: CharLengthX(:)                    ! Characteristic length in X for each cell
   REAL, ALLOCATABLE                      :: CharLengthY(:)                    ! Characteristic length in Y for each cell
   REAL, ALLOCATABLE                      :: CharLengthZ(:)                    ! Characteristic length in Z for each cell
-!  REAL                                   :: MeshVolume                        ! Total Volume of mesh
-!  REAL                                   :: LocalVolume                       ! Volume of proc
 
   LOGICAL                                :: SelfPeriodic                      ! does process have periodic bounds with itself?
-  INTEGER, ALLOCATABLE                   :: ElemToNodeID(:,:)                 ! ElemToNodeID(1:nElemNodes,1:nElems)
-!  INTEGER, ALLOCATABLE                   :: ElemToNodeIDGlobal(:,:)           ! ElemToNodeID(1:nElemNodes,1:nElems)
-!  INTEGER, ALLOCATABLE                   :: ElemSideNodeID(:,:,:)             ! ElemSideNodeID(1:nSideNodes,1:nLocSides,1:nElems)
-                                                                              ! From element sides to node IDs
-!  INTEGER, ALLOCATABLE                   :: ElemsOnNode(:)                    ! number of elements on proc global node
-!  TYPE(tNodeToElem), ALLOCATABLE         :: NodeToElem(:)                     ! mapping of elements per node
-  INTEGER, ALLOCATABLE                   :: NeighNodesOnNode(:)               ! number of neighbour nodes on proc global node
-  TYPE(tNodeToElem), ALLOCATABLE         :: NodeToNeighNode(:)                ! mapping of neighbour nodes per proc global node
-!  INTEGER, ALLOCATABLE                   :: NumNeighborElems(:)               ! number of elements per element
-  TYPE(tNodeToElem), ALLOCATABLE         :: ElemToNeighElems(:)               ! mapping of neighbour elements per element
-                                                                              ! From element sides to node IDs
-!  INTEGER, ALLOCATABLE                   :: PeriodicElemSide(:,:)             ! 0=not periodic side, others=PeriodicVectorsNum
-!  LOGICAL, ALLOCATABLE                   :: ConcaveElemSide(:,:)              ! Whether LocalSide of Element is concave side
-!  REAL, ALLOCATABLE                      :: NodeCoords(:,:)                   ! Node Coordinates (1:nDim,1:nNodes)
-!  REAL, ALLOCATABLE                      :: ElemMidPoint(:,:)
-!  REAL, ALLOCATABLE                      :: BoundsOfElem(:,:,:)               ! Bounding box of each element (computed from Bezier
-                                                                              ! control points
   REAL, ALLOCATABLE                      :: XMinMax(:,:)                      ! Minimum (1) and maximum (2) xValue of the Element
                                                                               ! Used for 1D (2,nELems)
 END TYPE
@@ -462,17 +354,6 @@ INTEGER                                  :: WeirdElems                        ! 
                                                                               ! into themselves)
 LOGICAL                                  :: FindNeighbourElems=.FALSE.        ! Flag defining if mapping for neighbour elements
                                                                               ! is built via nodes
-
-!TYPE tBCElem
-!  INTEGER                                :: nInnerSides                       ! Number of BC-Sides of Element
-!  INTEGER                                :: lastSide                          ! total number of BC-Sides in eps-vicinity of element
-!  INTEGER, ALLOCATABLE                   :: BCSideID(:)                       ! List of elements in BGM cell
-!  REAL,ALLOCATABLE                       :: ElemToSideDistance(:)             ! stores the distance between each element and the
-!                                                                              ! sides associated with this element
-!END TYPE
-!
-!TYPE (tBCElem),ALLOCATABLE               :: BCElem(:)
-
 INTEGER                                  :: NbrOfRegions      ! Nbr of regions to be mapped to Elems
 LOGICAL                                  :: UseBRElectronFluid! Indicates usage of BR electron fluid model
 LOGICAL                                  :: BRElectronsRemoved! True if electrons were removed during restart (only BR electrons)
@@ -480,6 +361,5 @@ REAL, ALLOCATABLE                        :: RegionBounds(:,:) ! RegionBounds ((x
 REAL,ALLOCATABLE                         :: ElemTolerance(:)
 INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id
 !===================================================================================================================================
-
 
 END MODULE MOD_Particle_Mesh_Vars

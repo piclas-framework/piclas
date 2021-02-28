@@ -72,6 +72,8 @@ USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformL
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample,IAR_PerformPartWeightLB
 USE MOD_LoadBalance_Vars       ,ONLY: ElemTimeField
 #endif /*USE_LOADBALANCE*/
+#else
+USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime
@@ -394,6 +396,8 @@ DO !iter_t=0,MaxIter
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
 #endif /*USE_LOADBALANCE*/
+#else
+CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
@@ -479,6 +483,7 @@ USE MOD_LinearSolver_Vars      ,ONLY: totalIterLinearSolver
 #endif /*IMPA || ROS*/
 #ifdef PARTICLES
 USE MOD_Particle_Tracking_vars ,ONLY: CountNbrOfLostParts,NbrOfLostParticles,NbrOfLostParticlesTotal,NbrOfLostParticlesTotal_old
+USE MOD_Particle_Tracking_vars ,ONLY: NbrOfNewLostParticlesTotal
 #ifdef IMPA
 USE MOD_LinearSolver_vars      ,ONLY: nPartNewton
 USE MOD_LinearSolver_Vars      ,ONLY: totalFullNewtonIter
@@ -494,7 +499,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: TimeArray(8)              ! Array for system time
+#if USE_MPI && defined(PARTICLES)
 INTEGER             :: NbrOfLostParticlesTotal_old_tmp
+#endif /*USE_MPI && defined(PARTICLES)*/
 !===================================================================================================================================
 #ifdef PARTICLES
 IF(CountNbrOfLostParts)THEN
@@ -504,10 +511,13 @@ IF(CountNbrOfLostParts)THEN
   CALL MPI_ALLREDUCE(NbrOfLostParticles , NbrOfLostParticlesTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
   NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + NbrOfLostParticlesTotal_old_tmp ! add old value
 #else
-  NbrOfLostParticlesTotal=NbrOfLostParticles
+  NbrOfLostParticlesTotal = NbrOfLostParticlesTotal + NbrOfLostParticles
 #endif /*USE_MPI*/
+  NbrOfNewLostParticlesTotal  = NbrOfLostParticlesTotal-NbrOfLostParticlesTotal_old
+  NbrOfLostParticlesTotal_old = NbrOfLostParticlesTotal
 END IF
 #endif /*PARICLES*/
+
 IF(MPIroot)THEN
   ! simulation time per CPUh efficiency in [s]/[CPUh]
   !SimulationEfficiency = (time-RestartTime)/((WallTimeEnd-StartTime)*nProcessors/3600.) ! in [s] / [CPUh]
@@ -525,16 +535,17 @@ IF(MPIroot)THEN
 #ifdef PARTICLES
   IF(CountNbrOfLostParts.AND.(NbrOfLostParticlesTotal.GT.0))THEN
     WRITE(UNIT_stdOut,'(A,I0,A,I0,A1)')' Total number of lost particles : ',NbrOfLostParticlesTotal,' (difference to last output: +',&
-        NbrOfLostParticlesTotal-NbrOfLostParticlesTotal_old,')'
-    NbrOfLostParticlesTotal_old = NbrOfLostParticlesTotal
+        NbrOfNewLostParticlesTotal,')'
   END IF
 #endif /*PARICLES*/
 END IF !MPIroot
+
 #if defined(IMPA) || defined(ROS)
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A32,I12)') ' Total iteration Linear Solver    ',totalIterLinearSolver
 TotalIterLinearSolver=0
 #endif /*IMPA && ROS*/
+
 #if defined(IMPA) && defined(PARTICLES)
 SWRITE(UNIT_stdOut,'(A32,I12)')  ' IMPLICIT PARTICLE TREATMENT    '
 SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration Newton         ',nPartNewton
@@ -551,12 +562,14 @@ totalFullNewtonIter=0
 #endif
 SWRITE(UNIT_stdOut,'(132("="))')
 #endif /*IMPA && PARTICLE*/
+
 #if defined(ROS) && defined(PARTICLES)
 SWRITE(UNIT_stdOut,'(A32,I12)')  ' IMPLICIT PARTICLE TREATMENT    '
 SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration GMRES          ',TotalPartIterLinearSolver
 TotalPartIterLinearSolver=0
 SWRITE(UNIT_stdOut,'(132("="))')
 #endif /*IMPA && PARTICLE*/
+
 END SUBROUTINE WriteInfoStdOut
 
 

@@ -319,7 +319,7 @@ END IF
 CALL ComputeImbalance()
 
 ! Fill .csv file for performance analysis and load balance: write data line
-CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time=time)
+CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
 
 ! only check if imbalance is > a given threshold
 PerformLoadBalance=.FALSE.

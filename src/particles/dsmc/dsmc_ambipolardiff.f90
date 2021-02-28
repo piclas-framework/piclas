@@ -21,21 +21,12 @@ MODULE MOD_DSMC_AmbipolarDiffusion
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
-
-INTERFACE AD_InsertParticles
-  MODULE PROCEDURE AD_InsertParticles
-END INTERFACE
-
-INTERFACE AD_DeleteParticles
-  MODULE PROCEDURE AD_DeleteParticles
-END INTERFACE
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: InitializeVariablesAmbipolarDiff, AD_InsertParticles, AD_DeleteParticles
+PUBLIC :: InitializeVariablesAmbipolarDiff, AD_SetInitElectronVelo, AD_InsertParticles, AD_DeleteParticles
 !===================================================================================================================================
 
 CONTAINS
@@ -80,9 +71,92 @@ END IF
 END SUBROUTINE InitializeVariablesAmbipolarDiff
 
 
+SUBROUTINE AD_SetInitElectronVelo(FractNbr,iInit,NbrOfParticle)
+!===================================================================================================================================
+!> Initialize the electron velocity vector during the initial particle insertion
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_part_tools              ,ONLY: BuildTransGaussNums
+USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)              :: FractNbr,iInit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,INTENT(INOUT)           :: NbrOfParticle
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+! LOCAL VARIABLES
+INTEGER                         :: i, PositionNbr
+CHARACTER(30)                   :: velocityDistribution
+REAL                            :: VeloIC, VeloVecIC(3), maxwellfac, VeloVecNorm
+REAL                            :: iRanPart(3, NbrOfParticle), Vec3D(3)
+!===================================================================================================================================
+IF(NbrOfParticle.LT.1) RETURN
+IF(Species(FractNbr)%ChargeIC.LE.0.0) RETURN
+IF(NbrOfParticle.GT.PDM%maxParticleNumber)THEN
+     CALL abort(&
+__STAMP__&
+,'NbrOfParticle > PDM%maxParticleNumber!')
+END IF
+
+velocityDistribution=Species(FractNbr)%Init(iInit)%velocityDistribution
+VeloIC=Species(FractNbr)%Init(iInit)%VeloIC
+VeloVecIC=Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
+VeloVecNorm = VECNORM(VeloVecIC(1:3))
+IF (VeloVecNorm.GT.0.0) THEN
+  VeloVecIC(1:3) = VeloVecIC(1:3) / VECNORM(VeloVecIC(1:3))
+END IF
+
+SELECT CASE(TRIM(velocityDistribution))
+CASE('constant')
+  DO i = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr.GT.0) THEN
+      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
+      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
+      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloVecIC(1:3) * VeloIC 
+    END IF
+  END DO
+CASE('maxwell_lpn')
+  DO i = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr.GT.0) THEN
+      CALL CalcVelocity_maxwell_lpn(DSMC%AmbiDiffElecSpec, Vec3D, Temperature=Species(FractNbr)%Init(iInit)%MWTemperatureIC)
+      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
+      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
+      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloIC *VeloVecIC(1:3) + Vec3D(1:3)
+    END IF
+  END DO
+CASE('maxwell')
+  CALL BuildTransGaussNums(NbrOfParticle, iRanPart)
+  maxwellfac = SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(DSMC%AmbiDiffElecSpec)%MassIC)
+  DO i = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr.GT.0) THEN
+      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
+      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
+      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = VeloIC *VeloVecIC(1:3) + iRanPart(1:3,i)*maxwellfac
+    END IF
+  END DO
+CASE DEFAULT
+  CALL abort(&
+__STAMP__&
+,'Velo-Distri not implemented for ambipolar diffusion!')
+END SELECT
+
+END SUBROUTINE AD_SetInitElectronVelo
+
+
 SUBROUTINE AD_InsertParticles(iPartIndx_Node, nPart, iPartIndx_NodeTotalAmbi, TotalPartNum)
 !===================================================================================================================================
-!> Creating electrons for each actual ion simulation particle
+!> Creating electrons for each actual ion simulation particle, using the stored velocity vector for the electron
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                
@@ -189,28 +263,41 @@ ALLOCATE(iPartIndx_NodeNewAmbi(PartNum))
 END SUBROUTINE AD_InsertParticles
 
 
-SUBROUTINE AD_DeleteParticles(iPartIndx_Node, nPart)
+SUBROUTINE AD_DeleteParticles(iPartIndx_Node, nPart_opt)
 !===================================================================================================================================
-!> Deletes all electron created for the collision process
+!> Deletes all electron created for the collision process and saves their velocity vector to the ion they are attached to
+!> 1) Counting the ions/electrons within particles that already existed within the cell (but may have changed their species)
+!> 2) Counting the ions/electrons within particles that were newly created during the time step
+!> 3) Assinging each ion an electron, saving its velocity vector and deleting it
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PARTICLE_Vars,      ONLY : PDM, PartSpecies, Species, PartState, PEM
-USE MOD_Particle_Analyze,   ONLY : PARTISELECTRON
-USE MOD_DSMC_Vars,          ONLY : AmbipolElecVelo, newAmbiParts, iPartIndx_NodeNewAmbi, DSMC_RHS
+USE MOD_PARTICLE_Vars       ,ONLY: PDM, PartSpecies, Species, PartState, PEM
+USE MOD_Particle_Analyze    ,ONLY: PARTISELECTRON
+USE MOD_DSMC_Vars           ,ONLY: AmbipolElecVelo, newAmbiParts, iPartIndx_NodeNewAmbi, DSMC_RHS
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(INOUT)       :: iPartIndx_Node(:), nPart
+INTEGER,INTENT(IN),OPTIONAL :: iPartIndx_Node(:), nPart_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iPart, iLoop, nElectron, nIon
-INTEGER                     :: ElecIndx(2*nPart), IonIndX(2*nPart)
+INTEGER                     :: iPart, iLoop, nElectron, nIon, nPart
+INTEGER, ALLOCATABLE        :: ElecIndx(:), IonIndX(:)
 !===================================================================================================================================
 nElectron =0; nIon = 0
+
+IF(PRESENT(nPart_opt)) THEN
+  ALLOCATE(ElecIndx(2*nPart_opt), IonIndX(2*nPart_opt))
+  nPart = nPart_opt
+ELSE
+  ALLOCATE(ElecIndx(newAmbiParts), IonIndX(newAmbiParts))
+  nPart = 0
+END IF
+
+! 1) Treating the particles that already existed within the cell (but may have changed their species)
 DO iLoop = 1, nPart
   iPart = iPartIndx_Node(iLoop)
   IF (PDM%ParticleInside(iPart)) THEN
@@ -224,6 +311,7 @@ DO iLoop = 1, nPart
     END IF
   END IF
 END DO
+! 2) Treating particles that were newly created during the time step
 DO iLoop = 1, newAmbiParts
   iPart = iPartIndx_NodeNewAmbi(iLoop)
   IF (PDM%ParticleInside(iPart)) THEN
@@ -237,23 +325,25 @@ DO iLoop = 1, newAmbiParts
     END IF
   END IF
 END DO
-
+! Sanity check: number of electrons and ions has to be identical
 IF(nIon.NE.nElectron) THEN
-  IPWRITE(*,*) 'nPart', nPart, 'newAmbiParts', newAmbiParts
+  IPWRITE(*,*) 'Initial number of particles:', nPart, 'Number of new particles', newAmbiParts
   DO iLoop = 1, nPart
     iPart = iPartIndx_Node(iLoop)
-    IPWRITE(*,*) 'inside', iPart, PDM%ParticleInside(iPart), PartSpecies(iPart), Species(PartSpecies(iPart))%ChargeIC, PEM%GlobalElemID(iPart)
+    IPWRITE(*,*) 'Index, Element ID, Particle Inside?:', iPart, PDM%ParticleInside(iPart), PEM%GlobalElemID(iPart)
+    IPWRITE(*,*) 'Species, Charge:', PartSpecies(iPart), Species(PartSpecies(iPart))%ChargeIC
   END DO
-  IPWRITE(*,*) 'newParts!!!!!'
+  IPWRITE(*,*) 'List of new particles:'
   DO iLoop = 1, newAmbiParts
     iPart = iPartIndx_NodeNewAmbi(iLoop)
-    IPWRITE(*,*) 'inside', iPart, PDM%ParticleInside(iPart), PartSpecies(iPart), Species(PartSpecies(iPart))%ChargeIC, PEM%GlobalElemID(iPart)
+    IPWRITE(*,*) 'Index, Element ID, Particle Inside?:', iPart, PDM%ParticleInside(iPart), PEM%GlobalElemID(iPart)
+    IPWRITE(*,*) 'Species, Charge:', PartSpecies(iPart), Species(PartSpecies(iPart))%ChargeIC
   END DO
-  CALL abort(__STAMP__&
-      ,'ERROR: Number of electrons and ions is not equal for ambipolar diffusion: ' &
-      ,IntInfoOpt=nIon-nElectron)
+  CALL abort(__STAMP__,&
+      'ERROR: Number of electrons and ions is not equal for ambipolar diffusion: ',IntInfoOpt=nIon-nElectron)
 END IF
 
+! 3) Assinging each ion an electron, saving its velocity vector and deleting it
 DO iLoop = 1, nElectron
   IF (ALLOCATED(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo)
   ALLOCATE(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(3))

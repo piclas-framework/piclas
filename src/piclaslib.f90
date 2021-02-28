@@ -32,9 +32,9 @@ CONTAINS
 !===================================================================================================================================
 SUBROUTINE InitializePiclas()
 ! MODULES
-USE MOD_Globals_vars           ,ONLY: InitializationWallTime,MajorVersion,MinorVersion,PatchVersion
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: ParameterFile,ParameterDSMCFile
+USE MOD_Globals_Vars           ,ONLY: InitializationWallTime,MajorVersion,MinorVersion,PatchVersion
 USE MOD_Commandline_Arguments
 USE MOD_Globals                ,ONLY: iError,Logging,MPIroot,StartTime,UNIT_stdOut,PiclasTime,doPrintHelp,abort
 USE MOD_Globals                ,ONLY: SetStackSizeUnlimited,CollectiveStop,ReOpenLogFile
@@ -53,7 +53,6 @@ USE MOD_Mesh                   ,ONLY: SwapMesh
 #if USE_MPI
 USE MOD_MPI_Shared!            ,ONLY: InitMPIShared
 USE MOD_LoadBalance            ,ONLY: InitLoadBalance
-USE MOD_MPI                    ,ONLY: FinalizeMPI
 #endif /*USE_MPI*/
 USE MOD_Output                 ,ONLY: InitOutput
 USE MOD_Define_Parameters_Init ,ONLY: InitDefineParameters

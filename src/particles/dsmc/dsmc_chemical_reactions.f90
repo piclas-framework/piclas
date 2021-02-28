@@ -1463,6 +1463,7 @@ SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, iInit, InitSpec)
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, PartStateIntEn, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefmapping
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
@@ -1553,6 +1554,10 @@ IF(EductReac(3).EQ.0) THEN
     Weight(3) = Weight(1)
     NumProd = 3
     SumWeightProd = SumWeightProd + Weight(3)
+    IF (DSMC%DoAmbipolarDiff) THEN
+      newAmbiParts = newAmbiParts + 1
+      iPartIndx_NodeNewAmbi(newAmbiParts) = ReactInx(3)
+    END IF
   END IF
 END IF
 
@@ -1583,6 +1588,10 @@ IF(ProductReac(4).NE.0) THEN
   Weight(4) = Weight(1)
   NumProd = 4
   SumWeightProd = SumWeightProd + Weight(4)
+  IF (DSMC%DoAmbipolarDiff) THEN
+    newAmbiParts = newAmbiParts + 1
+    iPartIndx_NodeNewAmbi(newAmbiParts) = ReactInx(4)
+  END IF
 END IF
 
 ! Only consider the remaining energy from the photo-ionization

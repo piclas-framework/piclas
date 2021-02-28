@@ -57,6 +57,7 @@ REAL                            :: r_sf_scale                ! scaling of shape 
 REAL                            :: BetaFac                   ! betafactor of shape-function || integral =1
 INTEGER                         :: sf1d_dir                  ! direction of 1D shape function
 LOGICAL                         :: sfDepo3D                  ! when using 1D or 2D deposition, the charge can be deposited over the
+LOGICAL,ALLOCATABLE             :: ChargeSFDone(:)           ! Element flag for cycling already completed elements
 LOGICAL                         :: DoSFChargeCons
 !                                                            ! volume (3D) or line (1D) / area (2D)
 INTEGER                         :: NDepo                     ! polynomial degree of delta distribution
@@ -75,6 +76,8 @@ INTEGER                         :: dim_sf_dir                ! Get shape functio
 !                                                            ! constant)
 INTEGER                         :: dim_sf_dir1               ! 1st perpendicular direction used in 2D shape function
 INTEGER                         :: dim_sf_dir2               ! 2nd perpendicular direction used in 2D shape function
+INTEGER                         :: dim_periodic_vec1         ! 1st periodic vector used in 2D shape function
+INTEGER                         :: dim_periodic_vec2         ! 2nd periodic vector used in 2D shape function (if available)
 REAL                            :: BGMdeltas(3)              ! Background mesh size in x,y,z
 REAL                            :: FactorBGM(3)              ! Divider for BGM (to allow real numbers)
 REAL                            :: BGMVolume                 ! Volume of a BGM Cell

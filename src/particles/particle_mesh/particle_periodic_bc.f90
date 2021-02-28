@@ -36,14 +36,13 @@ SUBROUTINE InitPeriodicBC()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools,            ONLY: GETINT,GETREALARRAY
-USE MOD_Particle_Mesh_Vars,     ONLY: GEO
-!USE MOD_Particle_Mesh_Vars,     ONLY: NbrOfCases,casematrix
-USE MOD_Particle_Boundary_Vars, ONLY: PartBound
-USE MOD_Mesh_Vars,              ONLY: BoundaryType,nBCs
+USE MOD_ReadInTools            ,ONLY: GETINT,GETREALARRAY
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Mesh_Vars              ,ONLY: BoundaryType,nBCs
 #if USE_MPI
-USE MOD_Particle_Vars,          ONLY: PDM
-USE MOD_Particle_MPI_Vars,      ONLY: PartShiftVector
+USE MOD_Particle_Vars          ,ONLY: PDM
+USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -53,7 +52,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                :: iVec,iBC
+INTEGER                :: iVec,iBC,I,J
 CHARACTER(32)          :: hilf
 LOGICAL                :: hasPeriodic
 !===================================================================================================================================
@@ -85,44 +84,6 @@ DO iVec = 1, GEO%nPeriodicVectors
 END DO
 
 CALL GetPeriodicVectors()
-
-!! build periodic case matrix for shape-function-deposition
-!IF (GEO%nPeriodicVectors.GT.0) THEN
-!  ! build case matrix
-!  NbrOfCases = 3**GEO%nPeriodicVectors
-!  SDEALLOCATE(casematrix)
-!  ALLOCATE(casematrix(1:NbrOfCases,1:3))
-!  casematrix(:,:) = 0
-!  IF (GEO%nPeriodicVectors.EQ.1) THEN
-!    casematrix(1,1) = 1
-!    casematrix(3,1) = -1
-!  END IF
-!  IF (GEO%nPeriodicVectors.EQ.2) THEN
-!    casematrix(1:3,1) = 1
-!    casematrix(7:9,1) = -1
-!    DO ind = 1,3
-!      casematrix(ind*3-2,2) = 1
-!      casematrix(ind*3,2) = -1
-!    END DO
-!  END IF
-!  IF (GEO%nPeriodicVectors.EQ.3) THEN
-!    casematrix(1:9,1) = 1
-!    casematrix(19:27,1) = -1
-!    DO ind = 1,3
-!      casematrix(ind*9-8:ind*9-6,2) = 1
-!      casematrix(ind*9-2:ind*9,2) = -1
-!      DO ind2 = 1,3
-!        casematrix((ind2*3-2)+(ind-1)*9,3) = 1
-!        casematrix((ind2*3)+(ind-1)*9,3) = -1
-!      END DO
-!    END DO
-!  END IF
-!ELSE
-!  NbrOfCases = 1
-!  SDEALLOCATE(casematrix)
-!  ALLOCATE(casematrix(1:1,1:3))
-!  casematrix(:,:) = 0
-!END IF
 
 #if USE_MPI
 SDEALLOCATE(PartShiftVector)

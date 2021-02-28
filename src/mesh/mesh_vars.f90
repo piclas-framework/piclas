@@ -122,15 +122,6 @@ INTEGER,ALLOCATABLE :: AnalyzeSide(:)    !< Marks, wheter a side belongs to a gr
 INTEGER,PARAMETER :: NormalDirs(6) = (/ 3 , 2 , 1 , 2 , 1 , 3 /) !< normal vector direction for element local side
 INTEGER,PARAMETER :: TangDirs(6)   = (/ 1 , 3 , 2 , 3 , 2 , 1 /) !< first tangential vector direction for element local side
 REAL   ,PARAMETER :: NormalSigns(6)= (/-1.,-1., 1., 1.,-1., 1./) !< normal vector sign for element local side
-!----------------------------------------------------------------------------------------------------------------------------------
-! Volume/Side mappings filled by mappings.f90 - not all available there are currently used!
-!----------------------------------------------------------------------------------------------------------------------------------
-!INTEGER,ALLOCATABLE :: V2S(:,:,:,:,:,:)  !< volume to side mapping
-!INTEGER,ALLOCATABLE :: V2S2(:,:,:,:,:)   !< volume to side mapping 2
-!INTEGER,ALLOCATABLE :: S2V(:,:,:,:,:,:)  !< side to volume
-!INTEGER,ALLOCATABLE :: S2V2(:,:,:,:,:)   !< side to volume 2
-!INTEGER,ALLOCATABLE :: S2V3(:,:,:,:,:)   !< side to volume 3
-!INTEGER,ALLOCATABLE :: CS2V2(:,:,:,:)    !< CGNS side to volume 2
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER          :: nGlobalElems=0          !< number of elements in mesh
 INTEGER          :: nElems=0                !< number of local elements

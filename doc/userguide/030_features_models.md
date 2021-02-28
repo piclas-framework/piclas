@@ -1236,11 +1236,11 @@ Specified product species can be deleted immediately after the reaction occurs, 
 
 #### Ambipolar Diffusion
 
-The ambipolar diffusion model can be enabled by
+A simple ambipolar diffusion model in order to be able to ignore the self-induced electric fields, e.g. for the application in hypersonic re-entry flows, where ionization reactions cannot be neglected, can be enabled by
 
     Particles-DSMC-AmbipolarDiffusion = T
 
-Electrons are now attached to and move with the ions, although, they still have their own velocity vector and are part of the pairing and collisional process (including chemical reactions).
+Electrons are now attached to and move with the ions, although, they still have their own velocity vector and are part of the pairing and collisional process (including chemical reactions). The velocity vector of the ion species is not additionally corrected to account for the acceleration due to the self-induced electric fields. The restart from a state file without previously enabled ambipolar diffusion is currently not supported. However, the simulation can be continued if a macroscopic output ist available with the macroscopic restart. In that case, the electrons are not inserted but paired with an ion and given the sampled velocity from the macroscopic restart file.
 
 ### Ensuring Physical Simulation Results \label{sec:dsmc_quality}
 

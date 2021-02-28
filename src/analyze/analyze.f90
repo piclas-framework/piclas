@@ -416,11 +416,11 @@ DO iElem=1,PP_nElems
 END DO ! iElem=1,PP_nElems
 #if USE_MPI
 IF(MPIroot)THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE     , L_2_PartSource   , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-  CALL MPI_REDUCE(MPI_IN_PLACE     , L_Inf_PartSource , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(MPI_IN_PLACE  , L_2_PartSource   , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(MPI_IN_PLACE  , L_Inf_PartSource , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
 ELSE
-  CALL MPI_REDUCE(L_2_PartSource   , 0                , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-  CALL MPI_REDUCE(L_Inf_PartSource , 0                , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(L_2_PartSource   , 0             , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(L_Inf_PartSource , 0             , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
   ! in this case the receive value is not relevant.
 END IF
 #endif /*USE_MPI*/
@@ -521,13 +521,13 @@ DO iElem=1,nElems
 END DO ! iElem=1,nElems
 #if USE_MPI
   IF(MPIroot)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,L_2_Error,nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE,volume,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE,L_Inf_Error,nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error   , nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , volume      , 1    , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error , nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
   ELSE
-    CALL MPI_REDUCE(L_2_Error,L_2_Error2,nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(volume,volume2,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(L_Inf_Error,L_Inf_Error2,nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(L_2_Error   , L_2_Error2   , nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(volume      , volume2      , 1    , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(L_Inf_Error , L_Inf_Error2 , nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
     ! in this case the receive value is not relevant.
   END IF
 #endif /*USE_MPI*/
@@ -626,13 +626,13 @@ DO iElem=1,nElems
 END DO ! iElem=1,nElems
 #if USE_MPI
   IF(MPIroot)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,L_2_Error,nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE,volume,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE,L_Inf_Error,nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error    , nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , volume       , 1    , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error  , nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
   ELSE
-    CALL MPI_REDUCE(L_2_Error,L_2_Error2,nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(volume,volume2,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(L_Inf_Error,L_Inf_Error2,nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(L_2_Error    , L_2_Error2   , nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(volume       , volume2      , 1    , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(L_Inf_Error  , L_Inf_Error2 , nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
     ! in this case the receive value is not relevant.
   END IF
 #endif /*USE_MPI*/
@@ -903,7 +903,7 @@ REAL                          :: CurrentTime
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load balance: write header line
-CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter=iter)
+CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter_opt=iter)
 
 ! check if final/last iteration iteration
 LastIter=.FALSE.
@@ -1145,13 +1145,13 @@ END IF
 IF(OutPutHDF5 .AND. MeasureTrackTime)THEN
 #if USE_MPI
   IF(MPIRoot) THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,nTracks      , 1 ,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE,tTracking    , 1 ,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE,tLocalization, 1 ,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE  , nTracks       , 1 , MPI_INTEGER          , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE  , tTracking     , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE  , tLocalization , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
   ELSE ! no Root
-    CALL MPI_REDUCE(nTracks      ,RECI,1,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-    CALL MPI_REDUCE(tTracking    ,RECR,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-    CALL MPI_REDUCE(tLocalization,RECR,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+    CALL MPI_REDUCE(nTracks       , RECI          , 1 , MPI_INTEGER          , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(tTracking     , RECR          , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(tLocalization , RECR          , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
   END IF
 #endif /*USE_MPI*/
   SWRITE(UNIT_StdOut,'(132("-"))')
@@ -1183,9 +1183,9 @@ IF(TrackingMethod.NE.TRIATRACKING)THEN
       TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
 #if USE_MPI
       IF(MPIRoot) THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE,TotalSideBoundingBoxVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE, TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
       ELSE ! no Root
-        CALL MPI_REDUCE(TotalSideBoundingBoxVolume,0,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+        CALL MPI_REDUCE(TotalSideBoundingBoxVolume ,           0 , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
       END IF
 #endif /*USE_MPI*/
       SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
@@ -1313,13 +1313,13 @@ IF (DoPartAnalyze) THEN
  ! MPI Communication
 #if USE_MPI
   IF(MPIRoot) THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,rBoundingBoxChecks , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE,rPerformBezierClip, 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE,rPerformBezierNewton, 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE         , rBoundingBoxChecks   , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE         , rPerformBezierClip   , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE         , rPerformBezierNewton , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
   ELSE ! no Root
-    CALL MPI_REDUCE(rBoundingBoxChecks,rDummy  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
-    CALL MPI_REDUCE(rPerformBezierClip,rDummy,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
-    CALL MPI_REDUCE(rPerformBezierNewton,rDummy,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
+    CALL MPI_REDUCE(rBoundingBoxChecks   , rDummy               , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(rPerformBezierClip   , rDummy               , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(rPerformBezierNewton , rDummy               , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
   END IF
 #endif /*USE_MPI*/
 

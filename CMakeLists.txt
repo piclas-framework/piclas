@@ -684,7 +684,7 @@ endfunction()
 
 FUNCTION(add_lib_shared target)
   ADD_LIBRARY(${target} SHARED ${ARGN})
-  TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o libpiclasstatic userblocklib stacksizelib ${linkedlibs})
+  TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o libpiclasstatic userblocklib stacksizelib memusagelib ${linkedlibs})
   SET_TARGET_PROPERTIES(${target} PROPERTIES PREFIX ""
                                              COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}
                                              LINKER_LANGUAGE Fortran)
@@ -822,13 +822,16 @@ ADD_LIBRARY(stacksizelib STATIC ./src/globals/stacksize.c)
 SET_TARGET_PROPERTIES(stacksizelib PROPERTIES LINKER_LANGUAGE C
                                                COMPILE_FLAGS "-fPIC")
 
+ADD_LIBRARY(memusagelib STATIC ./src/globals/processmemusage.cxx)
+SET_TARGET_PROPERTIES(memusagelib PROPERTIES LINKER_LANGUAGE CXX
+                                           COMPILE_FLAGS "-fPIC")
 
 # we link the statically built libs
 add_lib_shared(libpiclasshared ./src/piclaslib.f90)
 SET_TARGET_PROPERTIES(libpiclasshared PROPERTIES OUTPUT_NAME "libpiclas")
-ADD_DEPENDENCIES(libpiclasshared libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
+ADD_DEPENDENCIES(libpiclasshared libpiclasstatic userblocklib stacksizelib memusagelib ${INTERNALLIBS})
 add_exec(piclas ./src/piclas.f90)
-ADD_DEPENDENCIES(piclas libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
+ADD_DEPENDENCIES(piclas libpiclasstatic userblocklib stacksizelib memusagelib ${INTERNALLIBS})
 
 # special compiler flags to avoid warnings for empty functions of testcase.f90 and overwrite of intrinsic abort in globals.f90
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")

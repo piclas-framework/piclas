@@ -115,20 +115,11 @@ CALL prms%CreateIntOption(     'BezierSampleN'&
   , 'TODO-DEFINE-PARAMETER\n'//&
     'Default value: NGeo equidistant sampling of bezier surface for emission','0')
 
-
-! Background mesh init variables
-!CALL prms%CreateLogicalOption( 'printMPINeighborWarnings'&
-    !,  ' Print warning if the MPI-Halo-region between to procs are not overlapping. Only one proc find the other in halo ' &
-    !,'.FALSE.')
 CALL prms%CreateLogicalOption( 'CalcHaloInfo',         'Output halo element information to ElemData for each processor'//&
                                                        ' "MyRank_ElemHaloInfo"\n'//&
                                                        ' ElemHaloInfo = -1            : element not in list\n'//&
                                                        '              = 0             : halo elements\n'//&
                                                        '              = 1 to PP_nElems: local elements','.FALSE.')
-CALL prms%CreateLogicalOption( 'printBezierControlPointsWarnings'&
-    ,  ' Print warning if MINVAL(BezierControlPoints3D(iDir,:,:,newSideID)) and global boundaries are too close ' &
-    ,'.FALSE.')
-
 CALL prms%CreateRealOption(    'BezierNewtonAngle'      , ' BoundingBox intersection angle for switching between '//&
 'Bezierclipping and BezierNewton.' , '1.570796326')
 CALL prms%CreateRealOption(    'BezierClipTolerance'    , ' Tolerance for BezierClipping' , '1e-8')
@@ -174,7 +165,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierControlPoints3
 USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty
 USE MOD_Particle_Tracking_Vars ,ONLY: MeasureTrackTime,FastPeriodic,CountNbrOfLostParts,CartesianPeriodic
 USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles,NbrOfLostParticlesTotal,NbrOfLostParticlesTotal_old
-USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLostVecLength,PartStateLost
+USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLostVecLength,PartStateLost,PartLostDataSize
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, DisplayLostParticles
 !USE MOD_Particle_Tracking_Vars ,ONLY: WriteTriaDebugMesh
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
@@ -276,7 +267,7 @@ IF(CountNbrOfLostParts)THEN
 
   ! Allocate PartStateLost for a small number of particles and double the array size each time the
   ! maximum is reached
-  ALLOCATE(PartStateLost(1:14,1:10))
+  ALLOCATE(PartStateLost(1:PartLostDataSize,1:10))
   PartStateLost=0.
 END IF ! CountNbrOfLostParts
 NbrOfLostParticles      = 0
@@ -798,13 +789,14 @@ IF(FindNeighbourElems.OR.TrackingMethod.EQ.TRIATRACKING)THEN
     ADEALLOCATE(ElemToElemInfo_Shared)
   END IF
 END IF
-
+SDEALLOCATE(GEO%DirPeriodicVectors)
 SDEALLOCATE(GEO%PeriodicVectors)
 SDEALLOCATE(GEO%FIBGM)
 SDEALLOCATE(GEO%TFIBGM)
 
 ADEALLOCATE(XiEtaZetaBasis)
 ADEALLOCATE(slenXiEtaZetaBasis)
+ADEALLOCATE(ElemBaryNGeo)
 ADEALLOCATE(ElemRadiusNGeo)
 ADEALLOCATE(ElemRadius2NGeo)
 ADEALLOCATE(ElemEpsOneCell)
