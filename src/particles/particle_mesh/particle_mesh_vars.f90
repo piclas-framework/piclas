@@ -348,18 +348,24 @@ END TYPE
 
 TYPE (tGeometry)                         :: GEO
 
-INTEGER, ALLOCATABLE                     :: ElemToBRRegion(:)                   ! ElemToBRRegion(1:nElems)
 
 INTEGER                                  :: WeirdElems                        ! Number of Weird Elements (=Elements which are folded
                                                                               ! into themselves)
 LOGICAL                                  :: FindNeighbourElems=.FALSE.        ! Flag defining if mapping for neighbour elements
-                                                                              ! is built via nodes
-INTEGER                                  :: NbrOfRegions      ! Nbr of regions to be mapped to Elems
-LOGICAL                                  :: UseBRElectronFluid! Indicates usage of BR electron fluid model
-LOGICAL                                  :: BRElectronsRemoved! True if electrons were removed during restart (only BR electrons)
-REAL, ALLOCATABLE                        :: RegionBounds(:,:) ! RegionBounds ((xmin,xmax,ymin,...)|1:NbrOfRegions)
+
 REAL,ALLOCATABLE                         :: ElemTolerance(:)
 INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id
+                                                                              ! is built via nodes
+
+! --- Boltzmann relation (BR) electron fluid
+INTEGER, ALLOCATABLE  :: ElemToBRRegion(:)         ! ElemToBRRegion(1:nElems)
+INTEGER               :: NbrOfRegions              ! Nbr of regions to be mapped to Elems
+LOGICAL               :: UseBRElectronFluid        ! Indicates usage of BR electron fluid model
+LOGICAL               :: BRConvertElectronsToFluid ! User variable for removing all electrons and using BR instead
+LOGICAL               :: BRConvertFluidToElectrons ! User variable for creating particles from BR electron fluid (uses
+!                                                  ! and ElectronDensityCell ElectronTemperatureCell from .h5 state file)
+LOGICAL               :: BRElectronsRemoved        ! True if electrons were removed during restart (only BR electrons)
+REAL, ALLOCATABLE     :: RegionBounds(:,:)         ! RegionBounds ((xmin,xmax,ymin,...)|1:NbrOfRegions)
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Mesh_Vars

@@ -99,6 +99,7 @@ USE MOD_HDF5_Input             ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,Re
 USE MOD_HDF5_Input             ,ONLY: DatasetExists
 #ifdef PARTICLES
 USE MOD_Particle_Tracking_Vars ,ONLY: TotalNbrOfMissingParticlesSum
+USE MOD_Particle_Mesh_Vars     ,ONLY: BRConvertElectronsToFluid,BRConvertFluidToElectrons
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -129,6 +130,9 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT RESTART...'
 #ifdef PARTICLES
 ! Set counter for particle that go missing during restart (if they are not located within their host element during restart)
 TotalNbrOfMissingParticlesSum = 0
+! Set possibility of either converting kinetic electrons to BR fluid or vice versa
+BRConvertElectronsToFluid = GETLOGICAL('BRConvertElectronsToFluid')! default is FALSE
+BRConvertFluidToElectrons = GETLOGICAL('BRConvertFluidToElectrons')! default is FALSE
 #endif /*PARTICLES*/
 
 ! Set the DG solution to zero (ignore the DG solution in the state file)
@@ -346,7 +350,8 @@ USE MOD_Mesh_Vars              ,ONLY: lastMPISide_MINE
 USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
 USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
-USE MOD_Particle_Mesh_Vars     ,ONLY: UseBRElectronFluid
+USE MOD_Particle_Mesh_Vars     ,ONLY: UseBRElectronFluid,BRConvertElectronsToFluid,BRConvertFluidToElectrons
+USE MOD_ParticleInit           ,ONLY: CreateElectronsFromBRFluid
 #endif /*USE_HDG*/
 #if defined(PARTICLES) || (USE_HDG)
 USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists,nDims,HSize
@@ -1443,11 +1448,19 @@ IF(DoRestart)THEN
   IF (ANY(PartBound%UseAdaptedWallTemp)) CALL RestartAdaptiveWallTemp()
 #if USE_HDG
   ! Remove electron species when using BR electron fluid model
-  IF(UseBRElectronFluid) CALL RemoveAllElectrons()
+  IF(UseBRElectronFluid.AND.BRConvertElectronsToFluid) CALL RemoveAllElectrons()
+
 #endif /*USE_HDG*/
 #endif /*PARTICLES*/
 
 CALL CloseDataFile()
+
+#ifdef PARTICLES
+#if USE_HDG
+  ! Create electrons from BR fluid properties
+  IF(BRConvertFluidToElectrons) CALL CreateElectronsFromBRFluid()
+#endif /*USE_HDG*/
+#endif /*PARTICLES*/
 
 #if USE_HDG
   iter=0
@@ -1890,7 +1903,8 @@ SUBROUTINE FinalizeRestart()
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Restart_Vars,ONLY:Vdm_GaussNRestart_GaussN,RestartInitIsDone,DoMacroscopicRestart
+USE MOD_Restart_Vars       ,ONLY: Vdm_GaussNRestart_GaussN,RestartInitIsDone,DoMacroscopicRestart
+USE MOD_Particle_Mesh_Vars ,ONLY: BRConvertFluidToElectrons,BRConvertElectronsToFluid
 ! IMPLICIT VARIABLE HANDLINGDGInitIsDone
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1902,6 +1916,9 @@ SDEALLOCATE(Vdm_GaussNRestart_GaussN)
 RestartInitIsDone = .FALSE.
 ! Avoid performing a macroscopic restart during an automatic load balance restart
 DoMacroscopicRestart = .FALSE.
+! Avoid converting BR electron fluid to actual particles or vice versa during an automatic load balance restart
+BRConvertFluidToElectrons = .FALSE.
+BRConvertElectronsToFluid = .FALSE.
 END SUBROUTINE FinalizeRestart
 
 END MODULE MOD_Restart
