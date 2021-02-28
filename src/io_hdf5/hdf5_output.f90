@@ -3503,6 +3503,7 @@ SUBROUTINE AddBRElectronFluidToPartSource()
 ! Add BR electron fluid density to PartSource for output to state.h5
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals            ,ONLY: abort
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_PreProc            ,ONLY: PP_N
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemToBRRegion
