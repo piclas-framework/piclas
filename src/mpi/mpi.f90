@@ -36,16 +36,6 @@ INTERFACE InitMPIvars
   MODULE PROCEDURE InitMPIvars
 END INTERFACE
 
-! don't create an interface because some vectors are mapped to arrays
-!INTERFACE StartReceiveMPIData
-!  MODULE PROCEDURE StartReceiveMPIData
-!END INTERFACE
-
-!INTERFACE StartSendMPIData
-!  MODULE PROCEDURE StartSendMPIData
-!END INTERFACE
-
-
 INTERFACE FinishExchangeMPIData
   MODULE PROCEDURE FinishExchangeMPIData
 END INTERFACE
@@ -189,22 +179,6 @@ RecRequest_gradUz(nNbProcs)  = MPI_REQUEST_NULL
 SendRequest_Geo(nNbProcs)    = MPI_REQUEST_NULL
 RecRequest_Geo(nNbProcs)     = MPI_REQUEST_NULL
 DataSizeSide  =(PP_N+1)*(PP_N+1)
-! currenlty allocated in prepare_mesh
-!ALLOCATE(nMPISides_send(       nNbProcs,2))
-!ALLOCATE(OffsetMPISides_send(0:nNbProcs,2))
-!ALLOCATE(nMPISides_rec(        nNbProcs,2))
-!ALLOCATE(OffsetMPISides_rec( 0:nNbProcs,2))
-! Set number of sides and offset for SEND MINE - RECEIVE YOUR case
-!nMPISides_send(:,1)     =nMPISides_MINE_Proc
-!OffsetMPISides_send(:,1)=OffsetMPISides_MINE
-!nMPISides_rec(:,1)      =nMPISides_YOUR_Proc
-!OffsetMPISides_rec(:,1) =OffsetMPISides_YOUR
-!! Set number of sides and offset for SEND YOUR - RECEIVE MINE case
-!nMPISides_send(:,2)     =nMPISides_YOUR_Proc
-!OffsetMPISides_send(:,2)=OffsetMPISides_YOUR
-!nMPISides_rec(:,2)      =nMPISides_MINE_Proc
-!OffsetMPISides_rec(:,2) =OffsetMPISides_MINE
-
 
 ! split communicator into smaller groups (e.g. for local nodes)
 GroupSize=GETINT('GroupSize','0')
@@ -214,17 +188,6 @@ IF(GroupSize.LT.1)THEN ! group procs by node
   CALL MPI_INFO_CREATE(info,iError)
   CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD,MPI_COMM_TYPE_SHARED,myRank,info,MPI_COMM_NODE,iError)
 #else
-  ! TODO: Build own node communicator
-  !CALL MPI_Get_processor_name(procname,length,iError)
-  ! Now generate hash from string
-  ! TODO: find good hash function, but beware hash collisions may occur!
-  ! Maybe use two different hash functions and check if resulting groups are identical
-  !CALL GetHashesFromString(procname,color1,color2) ! beware, hash collisions may occur, check results TODO: find good hash function
-  !CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color1,myRank,MPI_COMM_NODE1,iError)
-  !CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color2,myRank,MPI_COMM_NODE2,iError)
-  ! Compare ...
-
-  ! Fallback:
   CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,myRank,myRank,MPI_COMM_NODE,iError)
 #endif
 ELSE ! use groupsize

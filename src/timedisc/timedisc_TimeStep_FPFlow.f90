@@ -35,7 +35,6 @@ SUBROUTINE TimeStep_FPFlow()
 ! MODULES
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
-USE MOD_Filter                 ,ONLY: Filter
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep, Symmetry
