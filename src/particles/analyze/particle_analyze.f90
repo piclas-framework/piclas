@@ -3199,8 +3199,8 @@ IF (UseBRElectronFluid) THEN !check for BR electrons
     RegionID=ElemToBRRegion(iElem)
     IF (RegionID.GT.0) THEN
       IF (ElectronDensityCell(iElem).NE.0.) CALL abort(&
-__STAMP__&
-,'Mixed BR and kinetic electrons are not implemented in CalculateElectronIonDensityCell yet!')
+        __STAMP__&
+        ,'Mixed BR and kinetic electrons are not implemented in CalculateElectronIonDensityCell yet!')
       CALL CalculateBRElectronsPerCell(iElem,RegionID,ElectronDensityCell(iElem))
     END IF
   END DO ! iElem=1,PP_nElems

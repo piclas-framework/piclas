@@ -123,6 +123,9 @@ USE MOD_Analyze_Vars           ,ONLY: AverageElectricPotential
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
+#ifdef PARTICLES
+USE MOD_Particle_Mesh_Vars     ,ONLY: UseBRElectronFluid
+#endif /*PARTICLES*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
 USE MOD_Mesh_Vars              ,ONLY: DoWriteStateToHDF5
 USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
@@ -585,6 +588,8 @@ ASSOCIATE (&
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
   IF(OutPutSource) THEN
+    ! Add BR electron fluid density to PartSource for output to state.h5
+    IF(UseBRElectronFluid) CALL AddBRElectronFluidToPartSource()
     ! output of pure current and density
     ! not scaled with epsilon0 and c_corr
     nVar=4_IK
@@ -638,6 +643,14 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElemTime')
 #endif /*USE_LOADBALANCE*/
 
+#ifdef PARTICLES
+! Write 'ElectronDensityCell' and 'ElectronTemperatureCell' to a separate container in the state.h5 file
+! (for special read-in and conversion to kinetic electrons)
+IF(UseBRElectronFluid) THEN
+  CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElectronDensityCell')
+  CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElectronTemperatureCell')
+END IF
+#endif /*PARTICLES*/
 
 ! Adjust values before WriteAdditionalElemData() is called
 CALL ModifyElemData(mode=1)
@@ -3483,6 +3496,62 @@ END DO ! i = 1, 2
 SDEALLOCATE(NodeSourceExtGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteNodeSourceExtToHDF5
+
+
+SUBROUTINE AddBRElectronFluidToPartSource()
+!===================================================================================================================================
+! Add BR electron fluid density to PartSource for output to state.h5
+!===================================================================================================================================
+! MODULES
+USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_PreProc            ,ONLY: PP_N
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemToBRRegion
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_DG_Vars            ,ONLY: U
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
+USE MOD_PICDepo_Vars       ,ONLY: PartSource
+USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iElem,RegionID,CNElemID
+INTEGER :: i,j,k
+REAL    :: source_e
+!===================================================================================================================================
+! Loop over all elements and all DOF and add the contribution of the BR electron density to PartSource
+DO iElem=1,nElems
+  ! BR electron fluid region
+  RegionID=ElemToBRRegion(iElem)
+  IF (RegionID.GT.0) THEN
+    ! CN element ID
+    CNElemID = GetCNElemID(iElem+offSetElem) ! = GetCNElemID(globElemID)
+
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+#if ((USE_HDG) && (PP_nVar==1))
+      source_e = U(1,i,j,k,iElem)-RegionElectronRef(2,RegionID)
+#else
+      CALL abort(&
+          __STAMP__&
+          ,' CalculateBRElectronsPerCell only implemented for electrostatic HDG!')
+#endif
+      IF (source_e .LT. 0.) THEN
+        source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
+            * EXP( (source_e) / RegionElectronRef(3,RegionID) )
+      ELSE
+        source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
+            * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
+      END IF
+      PartSource(:,:,:,:,CNElemID) = PartSource(:,:,:,:,CNElemID) - source_e
+    END DO; END DO; END DO
+  END IF
+END DO ! iElem=1,PP_nElems
+
+END SUBROUTINE AddBRElectronFluidToPartSource
 #endif /*PARTICLES*/
 
 
