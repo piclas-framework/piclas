@@ -614,7 +614,7 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 
   CALL PrintOption('Average DOFs in Shape-Function','CALCUL.',RealOpt=REAL(nTotalDOF)*VolumeShapeFunction/MeshVolume)
 
-  ! build periodic case matrix for shape-function-deposition
+  ! --- build periodic case matrix for shape-function-deposition
   IF (GEO%nPeriodicVectors.GT.0) THEN
 
     ! Build case matrix:
@@ -674,6 +674,13 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
     ALLOCATE(PeriodicSFCaseMatrix(1:1,1:3))
     PeriodicSFCaseMatrix(:,:) = 0
   END IF
+
+  ! --- Set element flag for cycling already completed elements
+#if USE_MPI
+  ALLOCATE(ChargeSFDone(1:nComputeNodeTotalElems))
+#else
+  ALLOCATE(ChargeSFDone(1:nElems))
+#endif /*USE_MPI*/
 
 CASE DEFAULT
   CALL abort(&
@@ -849,6 +856,8 @@ SELECT CASE(TRIM(DepositionType))
     ADEALLOCATE(SFElemr2_Shared)
 END SELECT
 
+! Deallocate element flag used for shape function deposition
+SDEALLOCATE(ChargeSFDone)
 
 END SUBROUTINE FinalizeDeposition
 
