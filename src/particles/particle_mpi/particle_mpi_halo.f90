@@ -668,18 +668,18 @@ SWRITE(UNIT_stdOut,'(A,I0,A)') ' | Started particle exchange communication with 
                                  nExchangeProcessorsGlobal/nProcessors_Global            , &
                                  ' partners per proc'
 
-! Build shapeFunction mapping
+! Build shape function mapping
 IF(StringBeginsWith(DepositionType,'shape_function'))THEN
+  ! 1st loop to determine the number of nSendShapeElems
   nSendShapeElems = 0
   DO iELem = 1,nComputeNodeTotalElems
     IF (FlagShapeElem(iElem)) nSendShapeElems = nSendShapeElems + 1
   END DO
-!  nSendShapeElems = SUM(FlagShapeElem)
 
   ALLOCATE(SendShapeElemID(1:nSendShapeElems), SendElemShapeID(1:nComputeNodeTotalElems))
-
   SendShapeElemID = -1
 
+  ! 2nd loop to fill the array of size nSendShapeElems
   nSendShapeElems = 0
   DO iELem = 1,nComputeNodeTotalElems
     IF (FlagShapeElem(iElem)) THEN
@@ -689,6 +689,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     END IF
   END DO
 
+  ! 1 of 2: Inner-Node Communication
   IF (myComputeNodeRank.EQ.0) THEN
     ALLOCATE(ShapeMapping(1:nComputeNodeProcessors-1), &
              RecvRequest (1:nComputeNodeProcessors-1))
@@ -730,6 +731,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
       IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     END DO
 
+    ! 2 of 2: Multi-node communication
     ! Second stage of communication, identify and send inter-compute-node information
     IF (nLeaderGroupProcs.GT.1) THEN
       DEALLOCATE(RecvRequest)
@@ -754,7 +756,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
       ! Count number of elems per CN
       DO iElem = nComputeNodeElems+1,nComputeNodeTotalElems
         GlobalElemID = GetGlobalElemID(iElem)
-        IF (ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).EQ.2) THEN
+        IF (ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).GE.2) THEN
           GlobalElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
           GlobalLeaderRank = INT(GlobalElemRank/nComputeNodeProcessors)
           CNShapeMapping(GlobalLeaderRank)%nSendShapeElems = CNShapeMapping(GlobalLeaderRank)%nSendShapeElems + 1
@@ -811,7 +813,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
 
       DO iElem = nComputeNodeElems+1,nComputeNodeTotalElems
         GlobalElemID = GetGlobalElemID(iElem)
-        IF (ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).EQ.2) THEN
+        IF (ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).GE.2) THEN
           GlobalElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
           GlobalLeaderRank = INT(GlobalElemRank/nComputeNodeProcessors)
 

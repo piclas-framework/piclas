@@ -248,8 +248,8 @@ INTEGER,ALLOCATABLE                      :: ElemHaloID(:)
 ! ====================================================================
 !
 ! periodic case
-INTEGER,ALLOCATABLE                      :: casematrix(:,:)   ! matrix to compute periodic cases
-INTEGER                                  :: NbrOfCases        ! Number of periodic cases
+INTEGER,ALLOCATABLE                      :: PeriodicSFCaseMatrix(:,:)   ! matrix to compute periodic cases
+INTEGER                                  :: NbrOfPeriodicSFCases        ! Number of periodic cases
 ! Still required for PIC depo, should be remove later
 !! ====================================================================
 LOGICAL,ALLOCATABLE :: ElemHasAuxBCs(:,:)

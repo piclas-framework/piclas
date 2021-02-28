@@ -88,6 +88,7 @@ USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,MeshVolume
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes,NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,NodeToElemInfo,NodeToElemMapping
+USE MOD_Particle_Mesh_Vars     ,ONLY: PeriodicSFCaseMatrix,NbrOfPeriodicSFCases
 USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
 USE MOD_PICDepo_Vars
 USE MOD_PICDepo_Tools          ,ONLY: CalcCellLocNodeVolumes,ReadTimeAverage,beta
@@ -101,7 +102,6 @@ USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcess
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
-USE MOD_PICDepo_MPI            ,ONLY: MPIBackgroundMeshInit
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -614,6 +614,74 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 
   CALL PrintOption('Average DOFs in Shape-Function','CALCUL.',RealOpt=REAL(nTotalDOF)*VolumeShapeFunction/MeshVolume)
 
+  ! --- build periodic case matrix for shape-function-deposition
+  IF (GEO%nPeriodicVectors.GT.0) THEN
+
+    ! Build case matrix:
+    ! Particles may move in more periodic directions than their charge is deposited, e.g., fully periodic in combination with
+    ! 1D shape function
+    NbrOfPeriodicSFCases = 3**dim_sf
+
+    SDEALLOCATE(PeriodicSFCaseMatrix)
+    ALLOCATE(PeriodicSFCaseMatrix(1:NbrOfPeriodicSFCases,1:3))
+    PeriodicSFCaseMatrix(:,:) = 0
+    IF (dim_sf.EQ.1) THEN
+      PeriodicSFCaseMatrix(1,1) = 1
+      PeriodicSFCaseMatrix(3,1) = -1
+    END IF
+    IF (dim_sf.EQ.2) THEN
+      PeriodicSFCaseMatrix(1:3,1) = 1
+      PeriodicSFCaseMatrix(7:9,1) = -1
+      DO I = 1,3
+        PeriodicSFCaseMatrix(I*3-2,2) = 1
+        PeriodicSFCaseMatrix(I*3,2) = -1
+      END DO
+    END IF
+    IF (dim_sf.EQ.3) THEN
+      PeriodicSFCaseMatrix(1:9,1) = 1
+      PeriodicSFCaseMatrix(19:27,1) = -1
+      DO I = 1,3
+        PeriodicSFCaseMatrix(I*9-8:I*9-6,2) = 1
+        PeriodicSFCaseMatrix(I*9-2:I*9,2) = -1
+        DO J = 1,3
+          PeriodicSFCaseMatrix((J*3-2)+(I-1)*9,3) = 1
+          PeriodicSFCaseMatrix((J*3)+(I-1)*9,3) = -1
+        END DO
+      END DO
+    END IF
+
+    ! Define which of the periodic vectors are used for 2D shape function and display info
+    IF(dim_sf.EQ.2)THEN
+      IF(GEO%nPeriodicVectors.EQ.1)THEN
+        dim_periodic_vec1 = 1
+        dim_periodic_vec2 = 0
+      ELSEIF(GEO%nPeriodicVectors.EQ.2)THEN
+        dim_periodic_vec1 = 1
+        dim_periodic_vec2 = 2
+      ELSEIF(GEO%nPeriodicVectors.EQ.3)THEN
+        dim_periodic_vec1 = dim_sf_dir1
+        dim_periodic_vec2 = dim_sf_dir2
+      END IF ! GEO%nPeriodicVectors.EQ.1
+      CALL PrintOption('Dimension of 1st periodic vector for 2D shape function','INFO',IntOpt=dim_periodic_vec1)
+      SWRITE(UNIT_StdOut,*) "1st PeriodicVector =", GEO%PeriodicVectors(1:3,dim_periodic_vec1)
+      CALL PrintOption('Dimension of 2nd periodic vector for 2D shape function','INFO',IntOpt=dim_periodic_vec2)
+      SWRITE(UNIT_StdOut,*) "1st PeriodicVector =", GEO%PeriodicVectors(1:3,dim_periodic_vec2)
+    END IF ! dim_sf.EQ.2
+
+  ELSE
+    NbrOfPeriodicSFCases = 1
+    SDEALLOCATE(PeriodicSFCaseMatrix)
+    ALLOCATE(PeriodicSFCaseMatrix(1:1,1:3))
+    PeriodicSFCaseMatrix(:,:) = 0
+  END IF
+
+  ! --- Set element flag for cycling already completed elements
+#if USE_MPI
+  ALLOCATE(ChargeSFDone(1:nComputeNodeTotalElems))
+#else
+  ALLOCATE(ChargeSFDone(1:nElems))
+#endif /*USE_MPI*/
+
 CASE DEFAULT
   CALL abort(&
   __STAMP__&
@@ -645,14 +713,14 @@ SUBROUTINE Deposition(doParticle_In)
 ! USE MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Particle_Analyze_Vars       ,ONLY: DoVerifyCharge,PartAnalyzeStep
+USE MOD_Particle_Analyze_Vars ,ONLY: DoVerifyCharge,PartAnalyzeStep
 USE MOD_Particle_Vars
 USE MOD_PICDepo_Vars
-USE MOD_PICDepo_Method              ,ONLY: DepositionMethod
-USE MOD_PIC_Analyze                 ,ONLY: VerifyDepositedCharge
-USE MOD_TimeDisc_Vars               ,ONLY: iter
+USE MOD_PICDepo_Method        ,ONLY: DepositionMethod
+USE MOD_PIC_Analyze           ,ONLY: VerifyDepositedCharge
+USE MOD_TimeDisc_Vars         ,ONLY: iter
 #if USE_MPI
-USE MOD_MPI_Shared_Vars             ,ONLY: myComputeNodeRank,MPI_COMM_SHARED
+USE MOD_MPI_Shared_Vars       ,ONLY: myComputeNodeRank,MPI_COMM_SHARED
 #endif  /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -788,6 +856,8 @@ SELECT CASE(TRIM(DepositionType))
     ADEALLOCATE(SFElemr2_Shared)
 END SELECT
 
+! Deallocate element flag used for shape function deposition
+SDEALLOCATE(ChargeSFDone)
 
 END SUBROUTINE FinalizeDeposition
 

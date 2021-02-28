@@ -452,82 +452,37 @@ CALL MPI_WIN_SYNC(NodeSource_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
 ! Multi-node communication
-IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
+IF(nLeaderGroupProcs.GT.1)THEN
+  IF(myComputeNodeRank.EQ.0)THEN
 
-  ! 1) Send/Receive charge density
-  DO iProc = 0, nLeaderGroupProcs - 1
-    IF (iProc.EQ.myLeaderGroupRank) CYCLE
-
-    ! Open receive buffer
-    IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-      CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSourceCharge(:) &
-                , NodeMapping(iProc)%nRecvUniqueNodes            &
-                , MPI_DOUBLE_PRECISION                           &
-                , iProc                                          &
-                , 666                                            &
-                , MPI_COMM_LEADERS_SHARED                        &
-                , RecvRequest(iProc)                             &
-                , IERROR)
-    END IF
-    ! Send message (non-blocking)
-    IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
-      DO iNode = 1, NodeMapping(iProc)%nSendUniqueNodes
-        NodeMapping(iProc)%SendNodeSourceCharge(iNode) = NodeSource(4,NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
-      END DO
-      CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSourceCharge(:) &
-                    , NodeMapping(iProc)%nSendUniqueNodes        &
-                    , MPI_DOUBLE_PRECISION                       &
-                    , iProc                                      &
-                    , 666                                        &
-                    , MPI_COMM_LEADERS_SHARED                    &
-                    , SendRequest(iProc)                         &
-                    , IERROR)
-    END IF
-  END DO
-
-  ! Finish communication
-  DO iProc = 0,nLeaderGroupProcs-1
-    IF (iProc.EQ.myLeaderGroupRank) CYCLE
-    IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
-      CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
-      IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-    END IF
-    IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-      CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
-      IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-    END IF
-  END DO
-
-  ! 2) Send/Receive current density
-  IF(doCalculateCurrentDensity)THEN
-
+    ! 1) Send/Receive charge density
     DO iProc = 0, nLeaderGroupProcs - 1
       IF (iProc.EQ.myLeaderGroupRank) CYCLE
 
       ! Open receive buffer
       IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-        CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSourceCurrent(1:3,:) &
-            , 3*NodeMapping(iProc)%nRecvUniqueNodes                     &
-            , MPI_DOUBLE_PRECISION                                      &
-            , iProc                                                     &
-            , 666                                                       &
-            , MPI_COMM_LEADERS_SHARED                                   &
-            , RecvRequest(iProc)                                        &
-            , IERROR)
+        CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSourceCharge(:) &
+                  , NodeMapping(iProc)%nRecvUniqueNodes            &
+                  , MPI_DOUBLE_PRECISION                           &
+                  , iProc                                          &
+                  , 666                                            &
+                  , MPI_COMM_LEADERS_SHARED                        &
+                  , RecvRequest(iProc)                             &
+                  , IERROR)
       END IF
       ! Send message (non-blocking)
       IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
         DO iNode = 1, NodeMapping(iProc)%nSendUniqueNodes
-          NodeMapping(iProc)%SendNodeSourceCurrent(1:3,iNode) = NodeSource(1:3,NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
+          NodeMapping(iProc)%SendNodeSourceCharge(iNode) = NodeSource(4,NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
         END DO
-        CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSourceCurrent(1:3,:) &
-            , 3*NodeMapping(iProc)%nSendUniqueNodes                     &
-            , MPI_DOUBLE_PRECISION                                      &
-            , iProc                                                     &
-            , 666                                                       &
-            , MPI_COMM_LEADERS_SHARED                                   &
-            , SendRequest(iProc)                                        &
-            , IERROR)
+        CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSourceCharge(:) &
+                      , NodeMapping(iProc)%nSendUniqueNodes        &
+                      , MPI_DOUBLE_PRECISION                       &
+                      , iProc                                      &
+                      , 666                                        &
+                      , MPI_COMM_LEADERS_SHARED                    &
+                      , SendRequest(iProc)                         &
+                      , IERROR)
       END IF
     END DO
 
@@ -543,9 +498,55 @@ IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
         IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
       END IF
     END DO
-  END IF ! doCalculateCurrentDensity
 
-  ! 3) Extract messages
+    ! 2) Send/Receive current density
+    IF(doCalculateCurrentDensity)THEN
+
+      DO iProc = 0, nLeaderGroupProcs - 1
+        IF (iProc.EQ.myLeaderGroupRank) CYCLE
+
+        ! Open receive buffer
+        IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
+          CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSourceCurrent(1:3,:) &
+              , 3*NodeMapping(iProc)%nRecvUniqueNodes                     &
+              , MPI_DOUBLE_PRECISION                                      &
+              , iProc                                                     &
+              , 666                                                       &
+              , MPI_COMM_LEADERS_SHARED                                   &
+              , RecvRequest(iProc)                                        &
+              , IERROR)
+        END IF
+        ! Send message (non-blocking)
+        IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
+          DO iNode = 1, NodeMapping(iProc)%nSendUniqueNodes
+            NodeMapping(iProc)%SendNodeSourceCurrent(1:3,iNode) = NodeSource(1:3,NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
+          END DO
+          CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSourceCurrent(1:3,:) &
+              , 3*NodeMapping(iProc)%nSendUniqueNodes                     &
+              , MPI_DOUBLE_PRECISION                                      &
+              , iProc                                                     &
+              , 666                                                       &
+              , MPI_COMM_LEADERS_SHARED                                   &
+              , SendRequest(iProc)                                        &
+              , IERROR)
+        END IF
+      END DO
+
+      ! Finish communication
+      DO iProc = 0,nLeaderGroupProcs-1
+        IF (iProc.EQ.myLeaderGroupRank) CYCLE
+        IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
+          CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+          IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+        END IF
+        IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
+          CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+          IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+        END IF
+      END DO
+    END IF ! doCalculateCurrentDensity
+
+    ! 3) Extract messages
     IF(doCalculateCurrentDensity)THEN! SourceDim=1
       DO iProc = 0, nLeaderGroupProcs - 1
         IF (iProc.EQ.myLeaderGroupRank) CYCLE
@@ -569,9 +570,10 @@ IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
         END IF
       END DO
     END IF ! doCalculateCurrentDensity
-END IF
-CALL MPI_WIN_SYNC(NodeSource_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+  END IF ! myComputeNodeRank.EQ.0
+  CALL MPI_WIN_SYNC(NodeSource_Shared_Win,IERROR)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+END IF ! nLeaderGroupProcs.GT.1
 #endif
 
 #if USE_LOADBALANCE
@@ -711,11 +713,15 @@ DO iPart=1,PDM%ParticleVecLength
   ELSE
     Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
   END IF
+  ! Fill PartSourceProc and deposit charge in local part of PartSource(CNElem(1:nElems + offset))
   CALL calcSfSource(4,Charge*w_sf,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
 END DO
 #if USE_MPI
+! Communication
 CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
+
+! 1 of 2: Inner-Node Communication
 IF (myComputeNodeRank.EQ.0) THEN
   DO iProc = 1,nComputeNodeProcessors-1
       IF (ShapeMapping(iProc)%nRecvShapeElems.EQ.0) CYCLE
@@ -729,25 +735,27 @@ IF (myComputeNodeRank.EQ.0) THEN
                     , IERROR)
   END DO
 
+  ! Add contributions of node slaves
   DO iProc = 1,nComputeNodeProcessors-1
     IF (ShapeMapping(iProc)%nRecvShapeElems.EQ.0) CYCLE
     CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     DO iElem = 1, ShapeMapping(iProc)%nRecvShapeElems
-      PartSource(:,:,:,:,ShapeMapping(iProc)%RecvShapeElemID(iElem)) = PartSource(:,:,:,:,ShapeMapping(iProc)%RecvShapeElemID(iElem))&
-          + ShapeMapping(iProc)%RecvBuffer(:,:,:,:,iElem)
+      ASSOCIATE( ShapeID => ShapeMapping(iProc)%RecvShapeElemID(iElem))
+        PartSource(:,:,:,:,ShapeID) = PartSource(:,:,:,:,ShapeID) + ShapeMapping(iProc)%RecvBuffer(:,:,:,:,iElem)
+      END ASSOCIATE
     END DO
   END DO
 
+  ! Add contribution of node root
   DO iElem = 1, nSendShapeElems
-    PartSource(:,:,:,:,SendShapeElemID(iElem)) = PartSource(:,:,:,:,SendShapeElemID(iElem))&
-              + PartSourceProc(:,:,:,:,iElem)
+    PartSource(:,:,:,:,SendShapeElemID(iElem)) = PartSource(:,:,:,:,SendShapeElemID(iElem)) + PartSourceProc(:,:,:,:,iElem)
   END DO
 ELSE
   IF (nSendShapeElems.GT.1) THEN
     CALL MPI_ISEND( PartSourceProc                         &
                   , nSendShapeElems*4*(PP_N+1)**3          &
-                  , MPI_DOUBLE_PRECISION                            &
+                  , MPI_DOUBLE_PRECISION                   &
                   , 0                                      &
                   , 2001                                   &
                   , MPI_COMM_SHARED                        &
@@ -761,65 +769,69 @@ END IF
 !CALL MPI_WIN_FLUSH(0,PartSource_Shared_Win, IERROR)
 CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
-IF (myComputeNodeRank.EQ.0) THEN
-  DO iProc = 0,nLeaderGroupProcs-1
-    IF (iProc.EQ.myLeaderGroupRank) CYCLE
-    IF (CNShapeMapping(iProc)%nRecvShapeElems.EQ.0) CYCLE
 
-    CALL MPI_IRECV( CNShapeMapping(iProc)%RecvBuffer   &
-                  , CNShapeMapping(iProc)%nRecvShapeElems*4*(PP_N+1)**3   &
-                  , MPI_DOUBLE_PRECISION                             &
-                  , iProc                                   &
-                  , 2002                                    &
-                  , MPI_COMM_LEADERS_SHARED                 &
-                  , RecvRequestCN(iProc)                      &
-                  , IERROR)
-  END DO
+! 2 of 2: Multi-node communication
+IF(nLeaderGroupProcs.GT.1)THEN
+  IF(myComputeNodeRank.EQ.0)THEN
+    DO iProc = 0,nLeaderGroupProcs-1
+      IF (iProc.EQ.myLeaderGroupRank) CYCLE
+      IF (CNShapeMapping(iProc)%nRecvShapeElems.EQ.0) CYCLE
 
-  DO iProc = 0,nLeaderGroupProcs-1
-    IF (iProc.EQ.myLeaderGroupRank) CYCLE
-    IF (CNShapeMapping(iProc)%nSendShapeElems.EQ.0) CYCLE
-
-    DO iElem=1, CNShapeMapping(iProc)%nSendShapeElems
-      CNElemID = GetCNElemID(CNShapeMapping(iProc)%SendShapeElemID(iElem))
-      CNShapeMapping(iProc)%SendBuffer(:,:,:,:,iElem) = PartSource(:,:,:,:,CNElemID)
+      CALL MPI_IRECV( CNShapeMapping(iProc)%RecvBuffer   &
+                    , CNShapeMapping(iProc)%nRecvShapeElems*4*(PP_N+1)**3   &
+                    , MPI_DOUBLE_PRECISION                                  &
+                    , iProc                                                 &
+                    , 2002                                                  &
+                    , MPI_COMM_LEADERS_SHARED                               &
+                    , RecvRequestCN(iProc)                                  &
+                    , IERROR)
     END DO
 
-    CALL MPI_ISEND( CNShapeMapping(iProc)%SendBuffer   &
-                  , CNShapeMapping(iProc)%nSendShapeElems*4*(PP_N+1)**3   &
-                  , MPI_DOUBLE_PRECISION                             &
-                  , iProc                                   &
-                  , 2002                                    &
-                  , MPI_COMM_LEADERS_SHARED                 &
-                  , SendRequestCN(iProc)                      &
-                  , IERROR)
-  END DO
+    DO iProc = 0,nLeaderGroupProcs-1
+      IF (iProc.EQ.myLeaderGroupRank) CYCLE
+      IF (CNShapeMapping(iProc)%nSendShapeElems.EQ.0) CYCLE
 
-  DO iProc = 0,nLeaderGroupProcs-1
-    IF (iProc.EQ.myLeaderGroupRank) CYCLE
+      DO iElem=1, CNShapeMapping(iProc)%nSendShapeElems
+        CNElemID = GetCNElemID(CNShapeMapping(iProc)%SendShapeElemID(iElem))
+        CNShapeMapping(iProc)%SendBuffer(:,:,:,:,iElem) = PartSource(:,:,:,:,CNElemID)
+      END DO
 
-    IF (CNShapeMapping(iProc)%nRecvShapeElems.NE.0) THEN
-      CALL MPI_WAIT(RecvRequestCN(iProc),MPIStatus,IERROR)
-      IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-    END IF
-
-    IF (CNShapeMapping(iProc)%nSendShapeElems.NE.0) THEN
-      CALL MPI_WAIT(SendRequestCN(iProc),MPIStatus,IERROR)
-      IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-    END IF
-  END DO
-
-  DO iProc = 0,nLeaderGroupProcs-1
-    IF (iProc.EQ.myLeaderGroupRank) CYCLE
-    IF (CNShapeMapping(iProc)%nRecvShapeElems.EQ.0) CYCLE
-    DO iElem=1, CNShapeMapping(iProc)%nRecvShapeElems
-      CNElemID = GetCNElemID(CNShapeMapping(iProc)%RecvShapeElemID(iElem))
-      PartSource(:,:,:,:,CNElemID) = PartSource(:,:,:,:,CNElemID) + CNShapeMapping(iProc)%RecvBuffer(:,:,:,:,iElem)
+      CALL MPI_ISEND( CNShapeMapping(iProc)%SendBuffer   &
+                    , CNShapeMapping(iProc)%nSendShapeElems*4*(PP_N+1)**3   &
+                    , MPI_DOUBLE_PRECISION                                  &
+                    , iProc                                                 &
+                    , 2002                                                  &
+                    , MPI_COMM_LEADERS_SHARED                               &
+                    , SendRequestCN(iProc)                                  &
+                    , IERROR)
     END DO
-  END DO
-END IF
-CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
+
+    DO iProc = 0,nLeaderGroupProcs-1
+      IF (iProc.EQ.myLeaderGroupRank) CYCLE
+
+      IF (CNShapeMapping(iProc)%nRecvShapeElems.NE.0) THEN
+        CALL MPI_WAIT(RecvRequestCN(iProc),MPIStatus,IERROR)
+        IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+      END IF
+
+      IF (CNShapeMapping(iProc)%nSendShapeElems.NE.0) THEN
+        CALL MPI_WAIT(SendRequestCN(iProc),MPIStatus,IERROR)
+        IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+      END IF
+    END DO
+
+    DO iProc = 0,nLeaderGroupProcs-1
+      IF (iProc.EQ.myLeaderGroupRank) CYCLE
+      IF (CNShapeMapping(iProc)%nRecvShapeElems.EQ.0) CYCLE
+      DO iElem=1, CNShapeMapping(iProc)%nRecvShapeElems
+        CNElemID = GetCNElemID(CNShapeMapping(iProc)%RecvShapeElemID(iElem))
+        PartSource(:,:,:,:,CNElemID) = PartSource(:,:,:,:,CNElemID) + CNShapeMapping(iProc)%RecvBuffer(:,:,:,:,iElem)
+      END DO
+    END DO
+  END IF ! myComputeNodeRank.EQ.0
+  CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
+  CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
+END IF ! nLeaderGroupProcs.GT.1
 #endif
 END SUBROUTINE DepositionMethod_SF
 
