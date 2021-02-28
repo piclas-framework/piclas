@@ -992,11 +992,12 @@ USE MOD_Equation_Vars     ,ONLY: c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
 USE MOD_PICDepo_Vars      ,ONLY: PartSource,DoDeposition
 USE MOD_Mesh_Tools        ,ONLY: GetCNElemID
 USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps,ElemToDielectric
+USE MOD_Mesh_Vars         ,ONLY: offSetElem
 #if IMPA
 USE MOD_LinearSolver_Vars ,ONLY: ExplicitPartSource
 #endif
 #endif /*PARTICLES*/
-USE MOD_Mesh_Vars         ,ONLY: Elem_xGP, offSetElem
+USE MOD_Mesh_Vars         ,ONLY: Elem_xGP
 #if defined(LSERK) || defined(IMPA) || defined(ROS)
 USE MOD_Equation_Vars     ,ONLY: DoParabolicDamping,fDamping
 USE MOD_TimeDisc_Vars     ,ONLY: sdtCFLOne
@@ -1012,11 +1013,12 @@ REAL,INTENT(IN)                 :: t,coeff
 REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i,j,k,iElem,CNElemID
+INTEGER                         :: i,j,k,iElem
 REAL                            :: eps0inv, x(1:3)
 REAL                            :: r           ! for Dipole
 REAL,PARAMETER                  :: Q=1, d=1    ! for Dipole
 #ifdef PARTICLES
+INTEGER                         :: CNElemID
 REAL                            :: PartSourceLoc(1:4)
 #endif
 REAL                            :: coeff_loc

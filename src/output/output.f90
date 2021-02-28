@@ -22,17 +22,8 @@ USE ISO_C_BINDING
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,PARAMETER :: OUTPUTFORMAT_NONE         = 0
-INTEGER,PARAMETER :: OUTPUTFORMAT_TECPLOT      = 1
-INTEGER,PARAMETER :: OUTPUTFORMAT_TECPLOTASCII = 2
-INTEGER,PARAMETER :: OUTPUTFORMAT_PARAVIEW     = 3
-
-! Output format for ASCII data files
-INTEGER,PARAMETER :: ASCIIOUTPUTFORMAT_CSV     = 0
-INTEGER,PARAMETER :: ASCIIOUTPUTFORMAT_TECPLOT = 1
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-
 INTERFACE
   FUNCTION get_userblock_size()
       INTEGER :: get_userblock_size
@@ -64,11 +55,7 @@ INTERFACE PrintStatusLine
   MODULE PROCEDURE PrintStatusLine
 END INTERFACE
 
-INTERFACE FinalizeOutput
-  MODULE PROCEDURE FinalizeOutput
-END INTERFACE
-
-PUBLIC:: InitOutput,FinalizeOutput
+PUBLIC:: InitOutput
 PUBLIC:: PrintStatusLine
 PUBLIC:: DefineParametersOutput
 !===================================================================================================================================
@@ -84,24 +71,10 @@ USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Output")
-!CALL prms%CreateIntOption(          'NVisu',       "Polynomial degree at which solution is sampled for visualization.")
-!CALL prms%CreateIntOption(          'NOut',        "Polynomial degree at which solution is written. -1: NOut=N, >0: NOut", '-1')
 CALL prms%CreateStringOption(       'ProjectName', "Name of the current simulation (mandatory).")
 CALL prms%CreateLogicalOption(      'Logging',     "Write log files containing debug output.", '.FALSE.')
 CALL prms%CreateLogicalOption(      'WriteErrorFiles',  "Write error files containing error output.", '.FALSE.')
-CALL prms%CreateIntFromStringOption('OutputFormat',"File format for visualization: None, Tecplot, TecplotASCII, ParaView. "//&
-                                                 " Note: Tecplot output is currently unavailable due to licensing issues.", 'None')
-CALL addStrListEntry('OutputFormat','none',        OUTPUTFORMAT_NONE)
-CALL addStrListEntry('OutputFormat','tecplot',     OUTPUTFORMAT_TECPLOT)
-CALL addStrListEntry('OutputFormat','tecplotascii',OUTPUTFORMAT_TECPLOTASCII)
-CALL addStrListEntry('OutputFormat','paraview',    OUTPUTFORMAT_PARAVIEW)
-CALL prms%CreateIntFromStringOption('ASCIIOutputFormat',"File format for ASCII files, e.g. body forces: CSV, Tecplot."&
-                                                       , 'CSV')
-CALL addStrListEntry('ASCIIOutputFormat','csv',    ASCIIOUTPUTFORMAT_CSV)
-CALL addStrListEntry('ASCIIOutputFormat','tecplot',ASCIIOUTPUTFORMAT_TECPLOT)
 CALL prms%CreateLogicalOption(      'doPrintStatusLine','Print: percentage of time, ...', '.FALSE.')
-CALL prms%CreateLogicalOption(      'WriteStateFiles','Write HDF5 state files. Disable this only for debugging issues. \n'// &
-                                                      'NO SOLUTION WILL BE WRITTEN!', '.TRUE.')
 END SUBROUTINE DefineParametersOutput
 
 SUBROUTINE InitOutput()
@@ -139,7 +112,6 @@ ProjectName       = GETSTR('ProjectName')
 Logging           = GETLOGICAL('Logging')
 WriteErrorFiles   = GETLOGICAL('WriteErrorFiles')
 doPrintStatusLine = GETLOGICAL("doPrintStatusLine")
-OutputFormat      = GETINT('OutputFormat')
 
 IF(WriteErrorFiles)THEN
   ! Open file for error output
@@ -246,55 +218,5 @@ IF(MPIroot)THEN
 #endif
 END IF
 END SUBROUTINE PrintStatusLine
-
-
-
-SUBROUTINE InitOutputBasis(N_in,NVisu_in,xGP,wBary)
-!===================================================================================================================================
-! Initialize all output variables.
-!===================================================================================================================================
-! MODULES
-USE MOD_Output_Vars ,ONLY: Vdm_GaussN_NVisu
-USE MOD_Basis       ,ONLY: InitializeVandermonde
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)                  :: N_in,NVisu_in
-REAL,INTENT(IN),DIMENSION(0:N_in)   :: xGP,wBary
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL,DIMENSION(0:NVisu_in)  :: XiVisu
-INTEGER                     :: i
-!===================================================================================================================================
-!equidistant visu points
-DO i=0,NVisu_in
-  XiVisu(i) = 2./REAL(NVisu_in) * REAL(i) - 1.
-END DO
-! Gauss/Gl -> Visu : computation -> visualization
-ALLOCATE(Vdm_GaussN_NVisu(0:NVisu_in,0:N_in))
-CALL InitializeVandermonde(N_in,NVisu_in,wBary,xGP,XiVisu,Vdm_GaussN_NVisu)
-END SUBROUTINE InitOutputBasis
-
-
-
-SUBROUTINE FinalizeOutput()
-!===================================================================================================================================
-! Deallocate global variables
-!===================================================================================================================================
-! MODULES
-USE MOD_Output_Vars ,ONLY: Vdm_GaussN_NVisu,OutputInitIsDone
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-SDEALLOCATE(Vdm_GaussN_NVisu)
-OutputInitIsDone = .FALSE.
-END SUBROUTINE FinalizeOutput
 
 END MODULE MOD_Output

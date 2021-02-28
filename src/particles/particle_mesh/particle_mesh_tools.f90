@@ -1067,17 +1067,6 @@ nLinearElemsTot          = nLinearElems
 nCurvedElemsTot          = nCurvedElems
 #endif /* USE_MPI */
 
-! sanity check
-! This only works if the full mesh is built on one node!
-!#if USE_MPI
-!IF (myComputeNodeRank.EQ.0) THEN
-!#endif /* USE_MPI */
-!  IF ((nComputeNodeTotalElems-nCurvedElemsTot).NE.nLinearElemsTot) &
-!    CALL ABORT(__STAMP__, 'Error in particle mesh: lost elements while trying to dermine if elements are curved')
-!#if USE_MPI
-!END IF
-!#endif /* USE_MPI */
-
 SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-rectangular     faces: ', nPlanarRectangulartot
 SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-non-rectangular faces: ', nPlanarNonRectangulartot
 SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of bi-linear              faces: ', nBilineartot
@@ -1321,163 +1310,6 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE WeirdElementCheck
 
 
-!SUBROUTINE WriteTriaDataToVTK(nSides,nElems,Coord,FileString)
-!!===================================================================================================================================
-!!> Routine writing data to VTK Triangles (cell type = 5)
-!!===================================================================================================================================
-!! MODULES                                                                                                                          !
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!USE MOD_Globals
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!IMPLICIT NONE
-!! INPUT / OUTPUT VARIABLES
-!INTEGER,INTENT(IN)          :: nSides               !< Number of sides per element
-!INTEGER,INTENT(IN)          :: nElems               !< Number of elements
-!REAL   ,INTENT(IN)          :: Coord(1:3,1:4,1:nSides,1:nElems)
-!CHARACTER(LEN=*),INTENT(IN) :: FileString           ! < Output file name
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!! LOCAL VARIABLES
-!INTEGER            :: iElem,nVTKElems,nVTKCells,ivtk=44,iSide!,iVal,iVar,str_len
-!INTEGER(KIND=8)    :: Offset, nBytes
-!INTEGER            :: IntegerType
-!INTEGER            :: Vertex(3,nSides*nElems*2)
-!INTEGER            :: NodeID,CellID,CellType
-!CHARACTER(LEN=35)  :: StrOffset,TempStr1,TempStr2
-!CHARACTER(LEN=200) :: Buffer
-!CHARACTER(LEN=1)   :: lf!,components_string
-!!CHARACTER(LEN=255) :: VarNameString
-!REAL(KIND=4)       :: FloatType
-!!===================================================================================================================================
-!SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE TRIA DATA TO VTX XML BINARY (VTU) FILE..."
-!IF(nSides.LT.1)THEN
-!  SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
-!  RETURN
-!END IF
-!
-!! Line feed character
-!lf = char(10)
-!
-!! Write file
-!OPEN(UNIT=ivtk,FILE=TRIM(FileString),ACCESS='STREAM')
-!! Write header
-!Buffer='<?xml version="1.0"?>'//lf;WRITE(ivtk) TRIM(Buffer)
-!Buffer='<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">'//lf;WRITE(ivtk) TRIM(Buffer)
-!nVTKElems=nSides*nElems*4 ! number of Nodes
-!nVTKCells=nSides*2*nElems ! number of Triangles
-!
-!Buffer='  <UnstructuredGrid>'//lf;WRITE(ivtk) TRIM(Buffer)
-!WRITE(TempStr1,'(I16)')nVTKElems
-!WRITE(TempStr2,'(I16)')nVTKCells
-!Buffer='    <Piece NumberOfPoints="'//TRIM(ADJUSTL(TempStr1))//&
-!'" NumberOfCells="'//TRIM(ADJUSTL(TempStr2))//'">'//lf;WRITE(ivtk) TRIM(Buffer)
-!! Specify point data
-!Buffer='      <PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
-!Offset=0
-!WRITE(StrOffset,'(I16)')Offset
-!!IF (nVal .GT.0)THEN
-!!  DO iVar=1,nVal
-!!    IF (VarNamePartCombine(iVar).EQ.0) THEN
-!!      Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNamePartVisu(iVar))//&
-!!      '" NumberOfComponents="1" format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-!!      Offset=Offset+SIZEOF(IntegerType)+nVTKElems*SIZEOF(FloatType)
-!!      WRITE(StrOffset,'(I16)')Offset
-!!    ELSE IF (VarNamePartCombine(iVar).EQ.1) THEN
-!!      str_len = LEN_TRIM(VarNamePartVisu(iVar))
-!!      write(components_string,'(I1)') VarNamePartCombineLen(iVar)
-!!      !IF(FileType.EQ.'DSMCHOState')THEN
-!!      !  VarNameString = VarNamePartVisu(iVar)(1:str_len-4)//VarNamePartVisu(iVar)(str_len-2:str_len)
-!!      !ELSE
-!!        VarNameString = VarNamePartVisu(iVar)(1:str_len-1)
-!!      !END IF
-!!      Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNameString)//&
-!!      '" NumberOfComponents="'//components_string//'" format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf
-!!      WRITE(ivtk) TRIM(Buffer)
-!!      Offset=Offset+SIZEOF(IntegerType)+nVTKElems*SIZEOF(FloatType)*VarNamePartCombineLen(iVar)
-!!      WRITE(StrOffset,'(I16)')Offset
-!!    END IF
-!!  END DO
-!!END IF
-!Buffer='      </PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
-!! Specify cell data
-!Buffer='      <CellData> </CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
-!! Specify coordinate data
-!Buffer='      <Points>'//lf;WRITE(ivtk) TRIM(Buffer)
-!Buffer='        <DataArray type="Float32" Name="Coordinates" NumberOfComponents="3" format="appended"'// &
-!       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-!Offset=Offset+SIZEOF(IntegerType)+3*nVTKElems*SIZEOF(FloatType)
-!WRITE(StrOffset,'(I16)')Offset
-!Buffer='      </Points>'//lf;WRITE(ivtk) TRIM(Buffer)
-!! Specify necessary cell data
-!Buffer='      <Cells>'//lf;WRITE(ivtk) TRIM(Buffer)
-!! Connectivity
-!Buffer='        <DataArray type="Int32" Name="connectivity" format="appended"'// &
-!       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-!Offset=Offset+SIZEOF(IntegerType)+nVTKCells*3*SIZEOF(IntegerType)
-!WRITE(StrOffset,'(I16)')Offset
-!! Offsets
-!Buffer='        <DataArray type="Int32" Name="offsets" format="appended"'// &
-!       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-!Offset=Offset+SIZEOF(IntegerType)+nVTKCells*SIZEOF(IntegerType)
-!WRITE(StrOffset,'(I16)')Offset
-!! Elem types
-!Buffer='        <DataArray type="Int32" Name="types" format="appended"'// &
-!       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-!Buffer='      </Cells>'//lf;WRITE(ivtk) TRIM(Buffer)
-!Buffer='    </Piece>'//lf;WRITE(ivtk) TRIM(Buffer)
-!Buffer='  </UnstructuredGrid>'//lf;WRITE(ivtk) TRIM(Buffer)
-!! Prepare append section
-!Buffer='  <AppendedData encoding="raw">'//lf;WRITE(ivtk) TRIM(Buffer)
-!! Write leading data underscore
-!Buffer='_';WRITE(ivtk) TRIM(Buffer)
-!
-!! Write binary raw data into append section
-!! Point data
-!nBytes = nVTKElems*SIZEOF(FloatType)
-!!DO iVal=1,nVal
-!!  IF (VarNamePartCombine(iVal).EQ.0) THEN
-!!    WRITE(ivtk) nBytes,REAL(Value(1:nParts,iVal),4)
-!!  ELSEIF(VarNamePartCombine(iVal).EQ.1) THEN
-!!    WRITE(ivtk) nBytes*VarNamePartCombineLen(iVal),REAL(Value(1:nParts,iVal:iVal+VarNamePartCombineLen(iVal)-1),4)
-!!  ENDIF
-!!END DO
-!! Points
-!nBytes = nBytes * 3
-!WRITE(ivtk) nBytes
-!WRITE(ivtk) REAL(Coord,4)
-!! Connectivity
-!NodeID = -1
-!CellID = 1
-!DO iElem=1,nElems
-!  DO iSide=1,6
-!    ! nodes 1,2,3 and nodes 1,3,4 forming one triangle
-!    ! nodes indexes start with 0 in vtk
-!    Vertex(:,CellID) = (/NodeID+1,NodeID+2,NodeID+3/)
-!    Vertex(:,CellID+1) = (/NodeID+1,NodeID+3,NodeID+4/)
-!    CellID=CellID+2
-!    NodeID=NodeID+4
-!  END DO
-!END DO
-!nBytes = 3*nVTKCells*SIZEOF(IntegerType)
-!WRITE(ivtk) nBytes
-!WRITE(ivtk) Vertex(:,:)
-!! Offset
-!nBytes = nVTKCells*SIZEOF(IntegerType)
-!WRITE(ivtk) nBytes
-!WRITE(ivtk) (Offset,Offset=3,3*nVTKCells,3)
-!! Cell type
-!CellType = 5  ! VTK_TRIANGLE
-!!CellType = 6  ! VTK_TRIANGLE_STRIP
-!WRITE(ivtk) nBytes
-!WRITE(ivtk) (CellType,iElem=1,nVTKCells)
-!! Write footer
-!Buffer=lf//'  </AppendedData>'//lf;WRITE(ivtk) TRIM(Buffer)
-!Buffer='</VTKFile>'//lf;WRITE(ivtk) TRIM(Buffer)
-!CLOSE(ivtk)
-!SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
-!
-!END SUBROUTINE WriteTriaDataToVTK
-
-
 SUBROUTINE CalcParticleMeshMetrics()
 !===================================================================================================================================
 !> calculates XCL_Ngeo and dXCL_Ngeo for global mesh
@@ -1488,20 +1320,14 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Basis                  ,ONLY: BuildBezierVdm,BuildBezierDMat
 USE MOD_Basis                  ,ONLY: BarycentricWeights,ChebyGaussLobNodesAndWeights,InitializeVandermonde
-!USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-!USE MOD_Interpolation          ,ONLY: GetDerivativeMatrix
-!USE MOD_Interpolation          ,ONLY: GetVandermonde
-!USE MOD_Interpolation_Vars     ,ONLY: NodeType,NodeTypeCL,NodeTypeVISU
-!USE MOD_Mesh_Vars              ,ONLY: useCurveds
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo,dXCL_NGeo,Xi_NGeo
 USE MOD_Mesh_Vars              ,ONLY: wBaryCL_NGeo1,Vdm_CLNGeo1_CLNGeo,XiCL_NGeo1,nElems
-!USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetGlobalElemID
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars ,ONLY: Vdm_Bezier,sVdm_Bezier,D_Bezier
 #if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem
-USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 #endif
 #if USE_LOADBALANCE
@@ -1556,20 +1382,11 @@ XCL_NGeo_Shared (1:3    ,0:NGeo,0:NGeo,0:NGeo,1:nGlobalElems) => XCL_NGeo_Array
 Elem_xGP_Shared (1:3    ,0:PP_N,0:PP_N,0:PP_N,1:nGlobalElems) => Elem_xGP_Array
 dXCL_NGeo_Shared(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nGlobalElems) => dXCL_NGeo_Array
 
-! Copy local XCL and dXCL into shared memory
-!IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
-  DO iElem = 1,nElems
-    XCL_NGeo_Shared (:  ,:,:,:,offsetElem+iElem) = XCL_NGeo (:  ,:,:,:,iElem)
-    Elem_xGP_Shared (:  ,:,:,:,offsetElem+iElem) = Elem_xGP (:  ,:,:,:,iElem)
-    dXCL_NGeo_Shared(:,:,:,:,:,offsetElem+iElem) = dXCL_NGeo(:,:,:,:,:,iElem)
-  END DO ! iElem = 1, nElems
-!ELSE
-!  DO iElem = 1, nElems
-!    XCL_NGeo_Shared (:,  :,:,:,offsetElem+iElem) = XCL_NGeo (:,  :,:,:,iElem)
-!    Elem_xGP_Shared (:,  :,:,:,offsetElem+iElem) = Elem_xGP (:,  :,:,:,iElem)
-!    dXCL_NGeo_Shared(:,:,:,:,:,offsetElem+iElem) = dXCL_NGeo(:,:,:,:,:,iElem)
-!  END DO ! iElem = 1, nElems
-!END IF
+DO iElem = 1,nElems
+  XCL_NGeo_Shared (:  ,:,:,:,offsetElem+iElem) = XCL_NGeo (:  ,:,:,:,iElem)
+  Elem_xGP_Shared (:  ,:,:,:,offsetElem+iElem) = Elem_xGP (:  ,:,:,:,iElem)
+  dXCL_NGeo_Shared(:,:,:,:,:,offsetElem+iElem) = dXCL_NGeo(:,:,:,:,:,iElem)
+END DO ! iElem = 1, nElems
 
 ! Communicate XCL and dXCL between compute node roots instead of calculating globally
 CALL MPI_WIN_SYNC(XCL_NGeo_Shared_Win,IERROR)
@@ -1608,67 +1425,6 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global .AND. myComputeNodeRank.EQ.0) T
                      , MPI_COMM_LEADERS_SHARED       &
                      , IERROR)
 END IF
-
-!nComputeNodeHaloElems = nComputeNodeTotalElems - nComputeNodeElems
-!IF (nComputeNodeHaloElems.GT.nComputeNodeProcessors) THEN
-!  firstHaloElem = INT(REAL( myComputeNodeRank   *nComputeNodeHaloElems)/REAL(nComputeNodeProcessors))+1
-!  lastHaloElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeHaloElems)/REAL(nComputeNodeProcessors))
-!ELSE
-!  firstHaloElem = myComputeNodeRank + 1
-!  IF (myComputeNodeRank.LT.nComputeNodeHaloElems) THEN
-!    lastHaloElem = myComputeNodeRank + 1
-!  ELSE
-!    lastHaloElem = 0
-!  END IF
-!END IF
-!
-!! NOTE: Transform intermediately to CL points, to be consistent with metrics being built with CL
-!!       Important for curved meshes if NGeo<N, no effect for N>=NGeo
-!CALL GetVandermonde(    NGeo, NodeTypeVISU, PP_N, NodeTypeCL, Vdm_EQNGeo_CLN,  modal=.FALSE.)
-!CALL GetVandermonde(    PP_N, NodeTypeCL  , PP_N, NodeType  , Vdm_CLNloc_N,    modal=.FALSE.)
-!
-!!Transform from EQUI_NGeo to solution points on Nloc
-!Vdm_EQNGeo_CLN = MATMUL(Vdm_CLNloc_N,Vdm_EQNGeo_CLN)
-!
-!! Build XCL and dXCL for compute node halo region (each proc of compute-node build only its fair share)
-!  CALL GetDerivativeMatrix(NGeo  , NodeTypeCL  , DCL_Ngeo)
-!
-!  DO iElem = firstHaloElem, lastHaloElem
-!    ElemID = GetGlobalElemID(nComputeNodeElems+iElem)
-!!    firstNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+1
-!    firstNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)
-!!    nodeID = 0
-!    nodeID = 1
-!    IF (useCurveds) THEN
-!      DO k = 0, NGeo; DO j = 0, NGeo; DO i = 0, NGeo
-!        NodeCoordstmp(:,i,j,k) = NodeCoords_Shared(:,firstNodeID+NodeID)
-!        nodeID = nodeID + 1
-!      END DO; END DO; END DO ! i = 0, NGeo
-!    ELSE
-!      NodeCoordstmp(:,0,0,0) = NodeCoords_Shared(:,firstNodeID+1)
-!      NodeCoordstmp(:,1,0,0) = NodeCoords_Shared(:,firstNodeID+2)
-!      NodeCoordstmp(:,0,1,0) = NodeCoords_Shared(:,firstNodeID+3)
-!      NodeCoordstmp(:,1,1,0) = NodeCoords_Shared(:,firstNodeID+4)
-!      NodeCoordstmp(:,0,0,1) = NodeCoords_Shared(:,firstNodeID+5)
-!      NodeCoordstmp(:,1,0,1) = NodeCoords_Shared(:,firstNodeID+6)
-!      NodeCoordstmp(:,0,1,1) = NodeCoords_Shared(:,firstNodeID+7)
-!      NodeCoordstmp(:,1,1,1) = NodeCoords_Shared(:,firstNodeID+8)
-!    END IF
-!    CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_NGeo_CLNGeo,NodeCoordstmp,XCL_NGeo_Shared(:,:,:,:,nComputeNodeElems+iElem))
-!    CALL ChangeBasis3D(3,NGeo,PP_N,Vdm_EQNGeo_CLN ,NodeCoordstmp,Elem_xGP_Shared(:,:,:,:,nComputeNodeElems+iElem))
-!
-!    DO k=0,NGeo; DO j=0,NGeo; DO i=0,NGeo
-!      ! Matrix-vector multiplication
-!      DO ll=0,Ngeo
-!        dXCL_NGeo_Shared(1,:,i,j,k,nComputeNodeElems+iElem) = dXCL_NGeo_Shared(1,:,i,j,k,nComputeNodeElems+iElem) + DCL_NGeo(i,ll) &
-!                                                            *  XCL_NGeo_Shared(: ,ll,j,k,nComputeNodeElems+iElem)
-!        dXCL_NGeo_Shared(2,:,i,j,k,nComputeNodeElems+iElem) = dXCL_NGeo_Shared(2,:,i,j,k,nComputeNodeElems+iElem) + DCL_NGeo(j,ll) &
-!                                                            *  XCL_NGeo_Shared(: ,i,ll,k,nComputeNodeElems+iElem)
-!        dXCL_NGeo_Shared(3,:,i,j,k,nComputeNodeElems+iElem) = dXCL_NGeo_Shared(3,:,i,j,k,nComputeNodeElems+iElem) + DCL_NGeo(k,ll) &
-!                                                            *  XCL_NGeo_Shared(: ,i,j,ll,nComputeNodeElems+iElem)
-!      END DO
-!    END DO; END DO; END DO !i,j,k=0,Ngeo
-!    END DO ! iElem = firstHaloElem, lastHaloElem
 
 CALL MPI_WIN_SYNC(XCL_NGeo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(Elem_xGP_Shared_Win,IERROR)
@@ -1780,8 +1536,6 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 firstElem = INT(REAL( myComputeNodeRank*   nGlobalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
-!firstSide = INT(REAL (myComputeNodeRank   *nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))+1
-!lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))
 firstSide = INT(REAL (myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
 lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
 #else
@@ -2000,19 +1754,6 @@ DO iElem = firstElem,lastElem
   END DO
 END DO
 
-!-- write debug-mesh
-! IF (WriteTriaDebugMesh) THEN
-!   nSides=6
-!   WRITE(UNIT=hilf,FMT='(I4.4)') myRank
-!   FileString='TRIA-DebugMesh_PROC'//TRIM(hilf)//'.vtu'
-!   ALLOCATE(Coords(1:3,1:4,1:nSides,1:nElems))
-!   DO iElem = 1,nElems ; DO iLocSide = 1,nSides ; DO iNode = 1,4
-!     Coords(:,iNode,iLocSide,iElem)=GEO%NodeCoords(:,GEO%ElemSideNodeID(iNode,iLocSide,iElem))
-!   END DO ; END DO ; END DO
-!   CALL WriteTriaDataToVTK(nSides,nElems,Coords(1:3,1:4,1:6,1:nElems),FileString)
-!   SDEALLOCATE(Coords)
-! END IF !WriteTriaDebugMesh
-
 DO iElem = firstElem,lastElem
   ! iElem is CNElemID
   GlobalElemID = GetGlobalElemID(iElem)
@@ -2118,6 +1859,5 @@ CALL MPI_WIN_SYNC(ElemNodeID_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif
 END SUBROUTINE InitElemNodeIDs
-
 
 END MODULE MOD_Particle_Mesh_Tools

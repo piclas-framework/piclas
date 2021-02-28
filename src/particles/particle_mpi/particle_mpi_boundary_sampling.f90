@@ -52,13 +52,12 @@ USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_
 USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_MPI_Shared_Vars         ,ONLY: MPIRankSharedLeader,MPIRankSurfLeader
-USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank,nSurfLeaders!,nSurfCommProc
+USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank,nSurfLeaders
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,offsetComputeNodeSurfSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode,SurfSampSize,nSurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides, nOutputSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
-!USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide
 USE MOD_Particle_MPI_Vars       ,ONLY: SurfSendBuf,SurfRecvBuf
 USE MOD_Particle_Vars           ,ONLY: nSpecies
@@ -229,22 +228,6 @@ CALL MPI_COMM_GROUP(MPI_COMM_LEADERS_SURF  ,surfGroup   ,IERROR)
 ! Finally translate global rank to local rank
 CALL MPI_GROUP_TRANSLATE_RANKS(leadersGroup,nLeaderGroupProcs,MPIRankSharedLeader,surfGroup,MPIRankSurfLeader,IERROR)
 IF (mySurfRank.EQ.0) WRITE(UNIT_stdOUt,'(A,I0,A)') ' Starting surface communication between ', nSurfLeaders, ' compute nodes...'
-
-!!--- Count all communicated sides and build mapping for other leaders
-!ALLOCATE(nSurfSidesLeader(1:2,0:nSurfLeaders-1))
-!
-!nSurfCommProc = 0
-!DO iProc = 0,nLeaderGroupProcs-1
-!  ! a leader defines itself as if it has surf sides within its local domain. However, there might be procs which neither send nor
-!  ! receive sides from us. We can reduce nSurfLeaders to nSurfCommProc
-!  IF (MPIRankSurfLeader(iProc).EQ.MPI_UNDEFINED) CYCLE
-!!  IF ((nRecvSurfSidesTmp(iProc).EQ.0) .AND. (nSendSurfSidesTmp(iProc).EQ.0)) CYCLE
-!
-!  ! MPI ranks, start at 0
-!  nSurfSidesLeader(1,nSurfCommProc) = nSendSurfSidesTmp(iProc)
-!  nSurfSidesLeader(2,nSurfCommProc) = nRecvSurfSidesTmp(iProc)
-!  nSurfCommProc = nSurfCommProc + 1
-!END DO
 
 !--- Open receive buffer (mapping from message surface ID to global side ID)
 ALLOCATE(SurfMapping(0:nSurfLeaders-1))
@@ -575,7 +558,7 @@ IF (myComputeNodeRank.EQ.0) THEN
       IF(nPorousBC.GT.0) THEN
         SampWallPumpCapacity_Shared(SurfSideID) = 0.
       END IF
-    END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
+    END DO ! iSurfSide = 1,SurfMapping(iProc)%nSendSurfSides
   END DO
 
   ! send message

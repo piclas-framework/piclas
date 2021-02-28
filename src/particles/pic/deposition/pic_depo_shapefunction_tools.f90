@@ -182,7 +182,7 @@ END SELECT
 
 END SUBROUTINE calcSfSource
 
-
+#ifdef WIP
 SUBROUTINE depoChargeOnDOFsSF_RGetAccumulate(Position,SourceSize,Fac)
 !============================================================================================================================
 ! actual deposition of single charge on DOFs via shapefunction
@@ -305,7 +305,7 @@ DO kk = kmin,kmax
 END DO ! kk
 
 END SUBROUTINE depoChargeOnDOFsSF_RGetAccumulate
-
+#endif /*WIP*/
 
 SUBROUTINE depoChargeOnDOFsSF(Position,SourceSize,Fac)
 !============================================================================================================================

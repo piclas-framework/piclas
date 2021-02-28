@@ -42,7 +42,6 @@ USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars                ,ONLY: U,Ut
 USE MOD_PML_Vars               ,ONLY: U2,U2t,nPMLElems,DoPML,PMLnVar
 USE MOD_PML                    ,ONLY: PMLTimeDerivative,CalcPMLSource
-USE MOD_Filter                 ,ONLY: Filter
 USE MOD_Equation               ,ONLY: DivCleaningDamping
 USE MOD_Equation               ,ONLY: CalcSource
 USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm

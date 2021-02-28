@@ -70,7 +70,7 @@ SUBROUTINE IntersectionWithWall(iPart,iLocSide,Element,TriNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Vars           ,ONLY: lastPartPos, PartState
+USE MOD_Particle_Vars           ,ONLY: lastPartPos
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 ! IMPLICIT VARIABLE HANDLING
@@ -679,10 +679,10 @@ SELECT CASE(nRoot)
         END IF
       ELSE ! xi not in range
         RETURN
-      END IF ! xi .lt. OnePlusEps
+      END IF ! ABS(xi(1)).LE.1.0
     ELSE ! eta not in range
       RETURN
-    END IF ! eta .lt. OnePlusEps
+    END IF ! ABS(eta(1)).LE.1.0
 
   CASE(2)
 #ifdef CODE_ANALYZE
@@ -749,8 +749,8 @@ SELECT CASE(nRoot)
           END IF
 #endif /*CODE_ANALYZE*/
         END IF
-      END IF ! xi .lt. OnePlusEps
-    END IF ! eta .lt. OnePlusEps
+      END IF ! ABS(xi(1)).LE.1.0
+    END IF ! ABS(eta(1)).LE.1.0
 
     ! Check if eta(2) is valid
     IF (ABS(eta(2)).LE.1.0) THEN
@@ -806,8 +806,8 @@ SELECT CASE(nRoot)
           END IF
 #endif /*CODE_ANALYZE*/
         END IF
-      END IF ! xi .lt. OnePlusEps
-    END IF ! eta .lt. OnePlusEps
+      END IF ! ABS(xi(2)).LE.1.0
+    END IF ! ABS(eta(2)).LE.1.0
 
     SELECT CASE(InterType)
       ! No intersection found, return
@@ -1395,7 +1395,6 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:BezierNewtonTolerance2,BezierNewtonMaxIter
 USE MOD_Particle_Vars,           ONLY:LastPartPos!,PartState
 USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars,  ONLY:D_Bezier
-!USE MOD_Particle_Mesh_Vars,      ONLY:PartSideToElem
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierNewtonHit
 USE MOD_Globals,                 ONLY:MyRank,UNIT_stdOut

@@ -91,7 +91,6 @@ crossedBC    =.FALSE.
 SELECT CASE(TrackingMethod)
 CASE(REFMAPPING,TRACING)
   ! set BCSideID for normal vector calculation call with (curvi-)linear side description
-  ! IF (TrackingMethod.EQ.RefMapping) BCSideID=PartBCSideList(SideID)
   CNSideID = GetCNSideID(SideID)
 
   SELECT CASE(SideType(CNSideID))
@@ -325,7 +324,6 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_Particle_Vars          ,ONLY: PEM
 #endif
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
-!USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
 #if defined(IMPA)
 USE MOD_TimeDisc_Vars          ,ONLY: ESDIRK_a,ERK_a
 #endif /*IMPA */
@@ -349,7 +347,6 @@ INTEGER                              :: PVID
 !INTEGER                              :: moved(2),locSideID
 !===================================================================================================================================
 
-!PVID = SidePeriodicType(SideID)
 PVID = BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_ALPHA)
 
 #ifdef CODE_ANALYZE
@@ -387,23 +384,6 @@ PEM%PeriodicMoved(PartID)=.TRUE.
 ! refmapping and tracing
 ! move particle from old element to new element
 ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
-
-
-!locSideID = PartSideToElem(S2E_LOC_SIDE_ID,SideID)
-!Moved     = PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
-!ElemID    = Moved(1)
-!#if USE_MPI
-!IF(ElemID.EQ.-1)THEN
-!  CALL abort(&
-!__STAMP__&
-!,' Halo region to small. Neighbor element is missing!')
-!END IF
-!#endif /*USE_MPI*/
-!IF (TrackingMethod.EQ.REFMAPPING) PEM%LastGlobalElemID(PartID) = 0
-!
-!IF(1.EQ.2)THEN
-!  alpha=0.2
-!END IF
 
 END SUBROUTINE PeriodicBC
 

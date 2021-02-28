@@ -608,25 +608,6 @@ DO iElem = offsetElem+1, offsetElem+nElems
   END DO ! iBGM
 END DO ! iElem
 
-! alternative nElem count with cycles
-!DO iElem = firstElem, lastElem
-!  IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.0) CYCLE
-!  BGMCellXmin = ElemToBGM_Shared(1,iElem)
-!  BGMCellXmax = ElemToBGM_Shared(2,iElem)
-!  BGMCellYmin = ElemToBGM_Shared(3,iElem)
-!  BGMCellYmax = ElemToBGM_Shared(4,iElem)
-!  BGMCellZmin = ElemToBGM_Shared(5,iElem)
-!  BGMCellZmax = ElemToBGM_Shared(6,iElem)
-!  ! add current element to number of BGM-elems
-!  DO iBGM = BGMCellXmin,BGMCellXmax
-!    DO jBGM = BGMCellYmin,BGMCellYmax
-!      DO kBGM = BGMCellZmin,BGMCellZmax
-!        GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
-!      END DO ! kBGM
-!    END DO ! jBGM
-!  END DO ! iBGM
-!END DO ! iElem
-
 #if USE_MPI
 ALLOCATE(sendbuf(BGMimin:BGMimax,BGMjmin:BGMjmax,BGMkmin:BGMkmax))
 ALLOCATE(recvbuf(BGMimin:BGMimax,BGMjmin:BGMjmax,BGMkmin:BGMkmax))
@@ -826,30 +807,6 @@ DO iElem = offsetElem+1, offsetElem+nElems
   END DO ! iBGM
 END DO ! iElem
 
-!--- map elements to background cells
-! alternative if nElem is counted with cycles
-!DO iElem = firstElem, lastElem
-!  IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.0) CYCLE
-!  BGMCellXmin = ElemToBGM_Shared(1,iElem)
-!  BGMCellXmax = ElemToBGM_Shared(2,iElem)
-!  BGMCellYmin = ElemToBGM_Shared(3,iElem)
-!  BGMCellYmax = ElemToBGM_Shared(4,iElem)
-!  BGMCellZmin = ElemToBGM_Shared(5,iElem)
-!  BGMCellZmax = ElemToBGM_Shared(6,iElem)
-!  ! add current Element to BGM-Elem
-!  DO kBGM = BGMCellZmin,BGMCellZmax
-!    DO jBGM = BGMCellYmin,BGMCellYmax
-!      DO iBGM = BGMCellXmin,BGMCellXmax
-!        GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
-!        FIBGM_Element( FIBGM_offsetElem(iBGM,jBGM,kBGM) & ! offset of BGM cell in 1D array
-!#if USE_MPI
-!                       + offsetElemsInBGMCell(iBGM,jBGM,kBGM)    & ! offset of BGM nElems in local proc
-!#endif  /*USE_MPI*/
-!                       + GEO%FIBGM(iBGM,jBGM,kBGM)%nElem         ) = iElem
-!      END DO ! kBGM
-!    END DO ! jBGM
-!  END DO ! iBGM
-!END DO ! iElem
 #if USE_MPI
 DEALLOCATE(offsetElemsInBGMCell)
 

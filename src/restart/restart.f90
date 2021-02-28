@@ -378,7 +378,7 @@ INTEGER                            :: iElem
 #ifdef PARTICLES
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames_HDF5(:)
-INTEGER                            :: FirstElemInd,LastelemInd,j,k
+INTEGER                            :: FirstElemInd,LastelemInd,i,j,k
 INTEGER(KIND=IK),ALLOCATABLE       :: PartInt(:,:)
 INTEGER,PARAMETER                  :: PartIntSize=2                  ! number of entries in each line of PartInt
 INTEGER                            :: PartDataSize,PartDataSize_HDF5 ! number of entries in each line of PartData
@@ -412,7 +412,6 @@ LOGICAL                            :: implemented
 LOGICAL,ALLOCATABLE                :: readVarFromState(:)
 INTEGER                            :: iProc
 #endif
-INTEGER                            :: i
 INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
 #if USE_HDG
 INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID

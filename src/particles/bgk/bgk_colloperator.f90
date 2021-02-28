@@ -34,7 +34,8 @@ PUBLIC :: BGK_CollisionOperator, ARShakhov, CalcTEquiPoly, CalcTEqui
 
 CONTAINS
 
-SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, AveragingPara, CorrectStep)
+SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume)
+! SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, AveragingPara, CorrectStep)
 !===================================================================================================================================
 !> Subroutine for the cell-local BGK collision operator:
 !> 1.) Moment calculation: Summing up the relative velocities and their squares
@@ -53,7 +54,7 @@ USE MOD_Globals               ,ONLY: DOTPRODUCT
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, VarTimeStep
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, RadialWeighting, CollInf
 USE MOD_TimeDisc_Vars         ,ONLY: dt
-USE MOD_BGK_Vars              ,ONLY: SpecBGK, BGKMovingAverageLength, BGKDoVibRelaxation
+USE MOD_BGK_Vars              ,ONLY: SpecBGK, BGKDoVibRelaxation!, BGKMovingAverageLength
 USE MOD_BGK_Vars              ,ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor
 USE MOD_BGK_Vars              ,ONLY: BGK_PrandtlNumber
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -67,8 +68,8 @@ IMPLICIT NONE
 REAL, INTENT(IN)                        :: NodeVolume
 INTEGER, INTENT(INOUT)                  :: nPart
 INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
-REAL, INTENT(INOUT), OPTIONAL           :: AveragingPara(5,BGKMovingAverageLength)
-INTEGER, INTENT(INOUT), OPTIONAL        :: CorrectStep
+! REAL, INTENT(INOUT), OPTIONAL           :: AveragingPara(5,BGKMovingAverageLength)
+! INTEGER, INTENT(INOUT), OPTIONAL        :: CorrectStep
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -962,6 +963,7 @@ END IF ! BGKDoVibRelaxation
 
 END SUBROUTINE EnergyConsVib
 
+#ifdef WIP
 SUBROUTINE ARGrads13(nPart, iRanPart, Vtherm, HeatVec, PressTens)
 !===================================================================================================================================
 !> description
@@ -1093,6 +1095,7 @@ DO iPart = 1, nPart
 END DO
 
 END SUBROUTINE ARChapEnsk
+#endif /*WIP*/
 
 SUBROUTINE MetropolisES(nPart, iRanPart, A)
 !===================================================================================================================================

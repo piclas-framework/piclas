@@ -56,7 +56,6 @@ USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_MPI_Vars       ,ONLY: SafetyFactor,halo_eps,halo_eps_velo
 USE MOD_Particle_MPI_Vars       ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_PICDepo_Vars            ,ONLY: DepositionType
@@ -116,17 +115,6 @@ GlobalProcToExchangeProc(:,:) = -1
 ! Identify all procs on same node
 nExchangeProcessors = 0
 
-! This is generally not required, keep communication to a minimum
-!DO iProc = ComputeNodeRootRank,ComputeNodeRootRank+nComputeNodeProcessors-1
-!  ! Do not attempt to communicate with myself
-!  IF (iProc.EQ.myRank) CYCLE
-!
-!  ! Build mapping global to compute-node
-!  GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc) = 1
-!  GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,iProc) = nExchangeProcessors
-!  nExchangeProcessors = nExchangeProcessors + 1
-!END DO
-
 ! Communicate non-symmetric part exchange partners to catch non-symmetric proc identification due to inverse distance calculation
 ALLOCATE(GlobalProcToRecvProc(0:nProcessors_Global-1), &
          SendRequest         (0:nProcessors_Global-1), &
@@ -165,13 +153,6 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   ALLOCATE(FlagShapeElem(1:nComputeNodeTotalElems))
   FlagShapeElem = .FALSE.
 END IF
-
-! This approach does not work, we get only the MPI sides pointing into the compute-node halo region
-!DO iSide = firstSide,lastSide
-!  IF (SideInfo_Shared(SIDE_NBELEMTYPE,iSide).EQ.2) THEN
-!    nExchangeSides = nExchangeSides + 1
-!  END IF
-!END DO
 
 !>>> For all element, loop over the six sides and check if the neighbor element is on the current proc
 !>>> Special care for big mortar sides, here the SIDE_ELEMID must be used
@@ -218,14 +199,6 @@ IF (nComputeNodeProcessors.GT.1.AND.nExchangeSides.EQ.0) &
 ALLOCATE(ExchangeSides(1:nExchangeSides))
 
 nExchangeSides = 0
-
-! This approach does not work, we get only the MPI sides pointing into the compute-node halo region
-!DO iSide = firstSide,lastSide
-!  IF (SideInfo_Shared(SIDE_NBELEMTYPE,iSide).EQ.2) THEN
-!    nExchangeSides = nExchangeSides + 1
-!    ExchangeSides(nExchangeSides) = SideInfo_Shared(SIDE_ID,iSide)
-!  END IF
-!END DO
 
 DO iElem = firstElem,lastElem
   DO iLocSide = 1,6
@@ -357,19 +330,6 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
   HaloProc = ElemInfo_Shared(ELEM_RANK,ElemID)
 
   IF (HaloProc.EQ.myRank) CYCLE
-
-!#ifdef CODE_ANALYZE
-!    ! Sanity checks. Elems in halo region must have ELEM_HALOFLAG=2 and the proc must not be flagged yet
-!    IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.2) THEN
-!      IPWRITE(UNIT_stdOut,*) 'Element ID:',ElemID,'Halo Flag: ',ElemInfo_Shared(ELEM_HALOFLAG,ElemID)
-!      CALL ABORT(__STAMP__,  'Element found in range of halo elements while not flagged as such!')
-!    END IF
-!
-!    IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc).EQ.1) THEN
-!      IPWRITE(UNIT_stdOut,*) 'Element ID:',ElemID,'Halo Proc: ',HaloProc
-!      CALL ABORT(__STAMP__, 'Proc claimed to have elements both on compute node and in halo region!')
-!    END IF
-!#endif
 
   ! Skip if the proc is already flagged, only if the exact elements are not required (.NOT.shape_function)
     IF(.NOT.StringBeginsWith(DepositionType,'shape_function'))THEN
@@ -684,13 +644,6 @@ END IF
 !-- EXCHANGE_PROC_TYPE information is currently unused and either -1 (no communication) or 2 (communication). Can be used to
 !-- implement check if exchange partner is on the same compute node, so build it here
 ALLOCATE(ExchangeProcToGlobalProc(2,0:nExchangeProcessors-1))
-
-! Loop through all procs and build reverse mapping
-!DO iProc = 0,nComputeNodeProcessors-1
-!  ExchangeProcToGlobalProc(EXCHANGE_PROC_TYPE,iProc) = 1
-!  ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc) = iProc + ComputeNodeRootRank
-!END DO
-!nExchangeProcessors = nComputeNodeProcessors
 
 DO iProc = 0,nProcessors_Global-1
   IF (iProc.EQ.myRank) CYCLE

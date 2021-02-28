@@ -1957,7 +1957,7 @@ END DO
 END SUBROUTINE SetParticlePositionPhotonCylinder
 
 
-SUBROUTINE SetParticlePositionLandmark(FractNbr,iInit,chunkSize,particle_positions,mode)
+SUBROUTINE SetParticlePositionLandmark(chunkSize,particle_positions,mode)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
@@ -1971,13 +1971,12 @@ USE MOD_Particle_Vars      ,ONLY: PartPosLandmark,NbrOfParticleLandmarkMax
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize, mode
+INTEGER, INTENT(IN)     :: chunkSize, mode
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                    :: Particle_pos(3)
 INTEGER                 :: i
 REAL                    :: RandVal(2)
 !===================================================================================================================================
@@ -2014,7 +2013,7 @@ END IF ! mode.EQ.1
 END SUBROUTINE SetParticlePositionLandmark
 
 
-SUBROUTINE SetParticlePositionLandmarkNeutralization(FractNbr,iInit,chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionLandmarkNeutralization(chunkSize,particle_positions)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
@@ -2026,7 +2025,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
+INTEGER, INTENT(IN)     :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)       :: particle_positions(:)
@@ -2045,6 +2044,5 @@ DO i=1,chunkSize
   END ASSOCIATE
 END DO
 END SUBROUTINE SetParticlePositionLandmarkNeutralization
-
 
 END MODULE MOD_part_emission_tools
