@@ -733,6 +733,7 @@ CALL GetDataSize(File_ID,'PartData',nDims,HSize)
 ! First 3 entries are the particle positions, which are used as the coordinates for the output and not included as a variable
 nPartsVar=INT(HSize(1),4)-3
 nParts=INT(HSize(2),4)
+DEALLOCATE(HSize)
 ! Allocating the array for the variables and a temporary array since ParticlePositionX,Y,Z are included in the read-in
 ALLOCATE(VarNamesParticle(nPartsVar),tmpArray(nPartsVar+3))
 CALL ReadAttribute(File_ID,'VarNamesParticles',nPartsVar+3,StrArray=tmpArray)
@@ -802,6 +803,7 @@ CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
 CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
 CALL GetDataSize(File_ID,'ElemData',nDims,HSize)
 nVarAdd=INT(HSize(1),4)
+DEALLOCATE(HSize)
 
 IF (nVarAdd.GT.0) THEN
   ALLOCATE(VarNamesAdd(1:nVarAdd))

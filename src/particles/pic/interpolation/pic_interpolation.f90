@@ -27,6 +27,7 @@ PUBLIC :: InterpolateVariableExternalField
 PUBLIC :: InitAnalyticalParticleState
 #endif /*CODE_ANALYZE*/
 PUBLIC :: DefineParametersPICInterpolation
+PUBLIC :: FinalizePICInterpolation
 !===================================================================================================================================
 INTERFACE InterpolateVariableExternalField
   MODULE PROCEDURE InterpolateVariableExternalField
@@ -173,7 +174,6 @@ IF(.NOT.ANY(AlgebraicExternalField.EQ.(/0,1/))) CALL abort(&
   ,'Value for PIC-AlgebraicExternalField not defined',IntInfoOpt=AlgebraicExternalField)
 
 !--- Allocate arrays for interpolation of fields to particles
-SDEALLOCATE(FieldAtParticle)
 ALLOCATE(FieldAtParticle(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
@@ -830,6 +830,25 @@ DO iPart=1,PDM%ParticleVecLength
 END DO
 END SUBROUTINE InitAnalyticalParticleState
 #endif /*CODE_ANALYZE*/
+
+
+SUBROUTINE FinalizePICInterpolation()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! finalize pic interpolation
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+SDEALLOCATE(FieldAtParticle)
+END SUBROUTINE FinalizePICInterpolation
 
 
 END MODULE MOD_PICInterpolation

@@ -42,9 +42,9 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Piclas Initialization")
 
-CALL prms%CreateIntOption(      'TimeStampLength', 'Length of the floating number time stamp', '21')
+CALL prms%CreateIntOption(      'TimeStampLength' , 'Length of the floating number time stamp' , '21')
 #ifdef PARTICLES
-CALL prms%CreateLogicalOption(  'UseDSMC'        , "Flag for using DSMC in Calculation", '.FALSE.')
+CALL prms%CreateLogicalOption(  'UseDSMC'         , "Flag for using DSMC in Calculation"       , '.FALSE.')
 #endif
 
 END SUBROUTINE DefineParametersPiclas
@@ -132,7 +132,7 @@ WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 
 #ifdef PARTICLES
 ! DSMC handling:
-useDSMC=GETLOGICAL('UseDSMC','.FALSE.')
+useDSMC=GETLOGICAL('UseDSMC')
 
 CALL Init_Symmetry()
 
@@ -276,6 +276,7 @@ USE MOD_SuperB_Init                ,ONLY: FinalizeSuperB
 USE MOD_Particle_Mesh              ,ONLY: FinalizeParticleMesh
 USE MOD_Particle_Analyze           ,ONLY: FinalizeParticleAnalyze
 USE MOD_PICDepo                    ,ONLY: FinalizeDeposition
+USE MOD_PICInterpolation           ,ONLY: FinalizePICInterpolation
 USE MOD_ParticleInit               ,ONLY: FinalizeParticles
 USE MOD_Particle_Boundary_Init     ,ONLY: FinalizeParticleBoundary
 USE MOD_TTMInit                    ,ONLY: FinalizeTTM
@@ -337,6 +338,7 @@ CALL FinalizeParticleSurfaces()
 CALL FinalizeParticleMesh()
 CALL FinalizeParticleAnalyze()
 CALL FinalizeDeposition()
+CALL FinalizePICInterpolation()
 #if USE_MPI
 CALL FinalizeParticleMPI()
 #endif /*USE_MPI*/

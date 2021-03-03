@@ -161,6 +161,7 @@ DO iVar=nVarDep+1,nVarAll
         CALL GetDataSize(File_ID,TRIM(DatasetName),nDims,HSize)
         nVal   = INT(HSize(1))
         nSize  = INT(HSize(2))
+        DEALLOCATE(HSize)
         nSizeZ = nSize
         SDEALLOCATE(DataSetVarNames)
         CALL GetVarNames("VarNames_"//TRIM(DatasetName),DatasetVarNames,varnamesExist)

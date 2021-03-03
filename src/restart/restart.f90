@@ -778,6 +778,7 @@ IF(DoRestart)THEN
         ! Read in parameters from the State file
         CALL GetDataSize(File_ID,'VarNamesParticles',nDims,HSize,attrib=.TRUE.)
         PartDataSize_HDF5 = INT(HSize(1),4)
+        DEALLOCATE(HSize)
         ALLOCATE(StrVarNames_HDF5(PartDataSize_HDF5))
         CALL ReadAttribute(File_ID,'VarNamesParticles',PartDataSize_HDF5,StrArray=StrVarNames_HDF5)
         IF (PartDataSize_HDF5.NE.PartDataSize) THEN
@@ -1782,6 +1783,7 @@ CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.T
 
 CALL GetDataSize(File_ID,'ElemData',nDims,HSize,attrib=.FALSE.)
 nVar_HDF5=INT(HSize(1),4)
+DEALLOCATE(HSize)
 
 ALLOCATE(MacroRestartValues(1:nElems,1:nSpecies+1,1:DSMC_NVARS))
 MacroRestartValues = 0.

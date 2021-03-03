@@ -157,8 +157,8 @@ LOGICAL                        :: EnlargeBGM ! Flag used for enlarging the BGM i
 !===================================================================================================================================
 
 ! Read parameter for FastInitBackgroundMesh (FIBGM)
-GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
-GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
+GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3)
+GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3)
 GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
 ! Ensure BGM does not protrude beyond mesh when divisible by FIBGMdeltas
@@ -331,7 +331,7 @@ ELSE
     halo_eps = MAX(halo_eps,RK_c(iStage+1)-RK_c(iStage))
   END DO
   halo_eps = MAX(halo_eps,1.-RK_c(nRKStages))
-  CALL PrintOption('max. RKdtFrac','CALCUL.',RealOpt=halo_eps)
+  CALL PrintOption('halo_eps from max. RKdtFrac','CALCUL.',RealOpt=halo_eps)
   halo_eps = halo_eps*halo_eps_velo*deltaT*SafetyFactor !dt multiplied with maximum RKdtFrac
 #else
   halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
@@ -339,11 +339,9 @@ ELSE
 
   ! Check whether halo_eps is smaller than shape function radius e.g. 'shape_function'
   IF(StringBeginsWith(DepositionType,'shape_function'))THEN
-    IF(halo_eps.LT.r_sf)THEN
-      SWRITE(UNIT_stdOut,'(A)') ' halo_eps is smaller than shape function radius. Setting halo_eps=r_sf'
-      halo_eps = halo_eps + r_sf
-      CALL PrintOption('max. RKdtFrac','CALCUL.',RealOpt=halo_eps)
-    END IF
+    IF(r_sf.LE.0.) CALL abort(__STAMP__,'Shape function radius not read yet or set equal to zero! r_sf=',RealInfoOpt=r_sf)
+    halo_eps = halo_eps + r_sf
+    CALL PrintOption('halo_eps from shape function radius','CALCUL.',RealOpt=halo_eps)
   END IF
 
   ! limit halo_eps to diagonal of bounding box
