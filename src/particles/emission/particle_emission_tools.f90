@@ -958,8 +958,10 @@ __STAMP__,&
 'ERROR in SetCellLocalParticlePosition: Maximum particle number reached! max. particles needed: ',chunksize)
     END IF
     CellChunkSize(:)=0
-    CALL IntegerDivide(chunkSize,nElems,ElemVolume_Shared(1+offsetElem:nElems+offsetElem) &
-        ,CellChunkSize(1+offsetElem:nElems+offsetElem))
+    ASSOCIATE( start => GetCNElemID(1+offsetElem),&
+               end   => GetCNElemID(nElems+offsetElem))
+      CALL IntegerDivide(chunkSize,nElems,ElemVolume_Shared(start:end),CellChunkSize(:))
+    END ASSOCIATE
   ELSE
     PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
     IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
