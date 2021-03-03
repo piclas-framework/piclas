@@ -621,7 +621,6 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
     ! 1D shape function
     NbrOfPeriodicSFCases = 3**dim_sf
 
-    SDEALLOCATE(PeriodicSFCaseMatrix)
     ALLOCATE(PeriodicSFCaseMatrix(1:NbrOfPeriodicSFCases,1:3))
     PeriodicSFCaseMatrix(:,:) = 0
     IF (dim_sf.EQ.1) THEN
@@ -669,7 +668,6 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 
   ELSE
     NbrOfPeriodicSFCases = 1
-    SDEALLOCATE(PeriodicSFCaseMatrix)
     ALLOCATE(PeriodicSFCaseMatrix(1:1,1:3))
     PeriodicSFCaseMatrix(:,:) = 0
   END IF
@@ -767,7 +765,7 @@ SUBROUTINE FinalizeDeposition()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
-USE MOD_Particle_Mesh_Vars ,ONLY: Geo
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO,PeriodicSFCaseMatrix
 USE MOD_PICDepo_Vars
 #if USE_MPI
 USE MOD_MPI_Shared_vars    ,ONLY: MPI_COMM_SHARED
@@ -781,7 +779,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-
 SDEALLOCATE(PartSourceConst)
 SDEALLOCATE(PartSourceOld)
 SDEALLOCATE(GaussBorder)
@@ -802,6 +799,8 @@ SDEALLOCATE(NDepochooseK)
 SDEALLOCATE(tempcharge)
 SDEALLOCATE(CellVolWeightFac)
 SDEALLOCATE(CellVolWeight_Volumes)
+SDEALLOCATE(ChargeSFDone)
+SDEALLOCATE(PeriodicSFCaseMatrix)
 
 #if USE_MPI
 SDEALLOCATE(NodeSourceLoc)
@@ -854,9 +853,6 @@ SELECT CASE(TRIM(DepositionType))
   CASE('shape_function_adaptive')
     ADEALLOCATE(SFElemr2_Shared)
 END SELECT
-
-! Deallocate element flag used for shape function deposition
-SDEALLOCATE(ChargeSFDone)
 
 END SUBROUTINE FinalizeDeposition
 
