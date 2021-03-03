@@ -21,73 +21,10 @@ IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if USE_MPI
-
-!INTERFACE InitEmissionParticlesToProcs
-!  MODULE PROCEDURE InitEmissionParticlesToProcs
-!END INTERFACE
-
-INTERFACE SendEmissionParticlesToProcs
-  MODULE PROCEDURE SendEmissionParticlesToProcs
-END INTERFACE
-
-!INTERFACE FinalizeEmissionParticlesToProcs
-!  MODULE PROCEDURE FinalizeEmissionParticlesToProcs
-!END INTERFACE
-
 !===================================================================================================================================
-!PUBLIC :: InitEmissionParticlesToProcs
 PUBLIC :: SendEmissionParticlesToProcs
-!PUBLIC :: FinalizeEmissionParticlesToProcs
 !===================================================================================================================================
 CONTAINS
-
-
-!SUBROUTINE InitEmissionParticlesToProcs()
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!! Initializes the MPI communication during particle emission
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!! MODULES                                                                                                                          !
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!USE MOD_Globals
-!USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIInsert,PartMPILocate
-!USE MOD_Particle_MPI_Vars      ,ONLY: EmissionSendBuf,EmissionRecvBuf
-!USE MOD_Particle_Vars          ,ONLY: Species,nSpecies
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!IMPLICIT NONE
-!! INPUT / OUTPUT VARIABLES
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-!INTEGER                       :: i,iInit,InitGroup
-!INTEGER                       :: ALLOCSTAT
-!!===================================================================================================================================
-!DO i = 1,nSpecies
-!  DO iInit = 1, Species(i)%NumberOfInits
-!    InitGroup = Species(i)%Init(iInit)%InitCOMM
-!
-!    ! Arrays for communication of particles not located in final element
-!    ALLOCATE( PartMPIInsert%nPartsSend  (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-!            , PartMPIInsert%nPartsRecv  (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-!            , PartMPIInsert%SendRequest (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-!            , PartMPIInsert%RecvRequest (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-!            , PartMPIInsert%send_message(  0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-!            , STAT=ALLOCSTAT)
-!    IF (ALLOCSTAT.NE.0) &
-!      CALL ABORT(__STAMP__,' Cannot allocate particle emission MPI arrays! ALLOCSTAT',ALLOCSTAT)
-!
-!    ALLOCATE( PartMPILocate%nPartsSend (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-!            , PartMPILocate%nPartsRecv (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-!            , PartMPILocate%SendRequest(2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-!            , PartMPILocate%RecvRequest(2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-!            , EmissionRecvBuf          (  0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-!            , EmissionSendBuf          (  0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-!            , STAT=ALLOCSTAT)
-!    IF (ALLOCSTAT.NE.0) &
-!      CALL ABORT(__STAMP__,' Cannot allocate particle emission MPI arrays! ALLOCSTAT',ALLOCSTAT)
-!  END DO
-!END DO
-!
-!END SUBROUTINE InitEmissionParticlesToProcs
-
 
 SUBROUTINE SendEmissionParticlesToProcs(chunkSize,DimSend,FractNbr,iInit,mySumOfMatchedParticles,particle_positions)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -179,7 +116,7 @@ IF (ALLOCSTAT.NE.0) &
 
 chunkState = -1
 
-!--- 1/4 Open receive buffer (located and non-located particles)
+!--- 1/10 Open receive buffer (located and non-located particles)
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
 
@@ -275,7 +212,7 @@ DO i = 1, chunkSize
   END IF ! .NOT.InsideMyBGM(i)
 END DO ! i = 1, chunkSize
 
-!--- 2/4 Send number of non-located particles
+!--- 2/10 Send number of non-located particles
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
 
@@ -298,7 +235,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
 END DO
 
 
-!--- 3/4 Send actual non-located particles
+!--- 3/10 Send actual non-located particles
 PartMPIInsert%nPartsSend(2,:)=0
 DO i = 1, chunkSize
   IF(ANY(.NOT.InsideMyBGM(:,i))) THEN
@@ -338,7 +275,7 @@ DO i = 1, chunkSize
 END DO ! i = 1, chunkSize
 
 
-!--- 4/4 Receive actual non-located particles
+!--- 4/10 Receive actual non-located particles
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
 
@@ -412,10 +349,8 @@ DO i = 1, chunkSize
       chunkState(1:3,i) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+3)
       IF (TrackingMethod.EQ.REFMAPPING) THEN
         CALL GetPositionInRefElem(chunkState(1:3,i),chunkState(4:6,i),ElemID)
-!        chunkState(7,i) = Species(FractNbr)
         chunkState(7,i) = REAL(ElemID,KIND=8)
       ELSE
-!        chunkState(4,i) = Species(FractNbr)
         chunkState(4,i) = REAL(ElemID,KIND=8)
       END IF ! TrackingMethod.EQ.REFMAPPING
     ! Located particle on local proc.
@@ -461,7 +396,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   END IF
 END DO
 
-!--- 3/4 Send actual located particles. PartState is filled in LocateParticleInElement
+!--- 5/10 Send actual located particles. PartState is filled in LocateParticleInElement
 PartMPILocate%nPartsSend(2,:) = 0
 DO i = 1, chunkSize
   ElemID = INT(chunkState(PartCommSize,i))
@@ -483,7 +418,7 @@ DO i = 1, chunkSize
   END IF ! ProcID.NE.myRank
 END DO ! i = 1, chunkSize
 
-!--- 4/4 Receive actual non-located particles
+!--- 6/10 Receive actual non-located particles
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
 
@@ -533,7 +468,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   END IF
 END DO
 
-!--- 5/4 Finish communication of actual non-located particles
+!--- 7/10 Finish communication of actual non-located particles
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
 
@@ -547,7 +482,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   END IF
 END DO
 
-!--- 6/4 Try to locate received non-located particles
+!--- 8/10 Try to locate received non-located particles
 TotalNbrOfRecvParts = SUM(PartMPIInsert%nPartsRecv(1,:))
 DO i = 1,TotalNbrOfRecvParts
   ! We cannot call LocateParticleInElement because we do not know the final PartID yet. Locate the position and fill PartState
@@ -575,7 +510,7 @@ DO i = 1,TotalNbrOfRecvParts
   mySumOfMatchedParticles = mySumOfMatchedParticles + 1
 END DO
 
-!--- 7/4 Finish communication of actual non-located particles
+!--- 9/10 Finish communication of actual non-located particles
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
 
@@ -589,7 +524,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   END IF
 END DO
 
-!--- 8/4 Write located particles
+!--- 10/10 Write located particles
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
   IF (PartMPILocate%nPartsRecv(1,iProc).EQ.0) CYCLE
@@ -604,11 +539,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
         PartPosRef(1:3,ParticleIndexNbr) = EmissionRecvBuf(iProc)%content(PartCommSize*(i-1)+4:PartCommSize*(i-1)+6)
       END IF ! TrackingMethod.EQ.REFMAPPING
       PEM%GlobalElemID(ParticleIndexNbr)    = INT(EmissionRecvBuf(iProc)%content(PartCommSize*(i)),KIND=4)
-
       PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
-!      IF (TrackingMethod.EQ.REFMAPPING) THEN
-!        CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),PEM%GlobalElemID(ParticleIndexNbr))
-!      END IF ! TrackingMethod.EQ.REFMAPPING
     ELSE
       CALL ABORT(__STAMP__,'ERROR in ParticleMPIEmission:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
     END IF
@@ -637,46 +568,6 @@ SDEALLOCATE(EmissionRecvBuf)
 SDEALLOCATE(EmissionSendBuf)
 
 END SUBROUTINE SendEmissionParticlesToProcs
-
-
-!SUBROUTINE FinalizeEmissionParticlesToProcs()
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!! Finalizes the MPI communication during particle emission
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!! MODULES                                                                                                                          !
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!USE MOD_Globals
-!USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIInsert,PartMPILocate
-!USE MOD_Particle_MPI_Vars      ,ONLY: EmissionSendBuf,EmissionRecvBuf
-!USE MOD_Particle_Vars          ,ONLY: Species,nSpecies
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!IMPLICIT NONE
-!! INPUT / OUTPUT VARIABLES
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-!INTEGER                       :: i,iInit,InitGroup
-!!===================================================================================================================================
-!DO i = 1,nSpecies
-!  DO iInit = 1, Species(i)%NumberOfInits
-!    InitGroup = Species(i)%Init(iInit)%InitCOMM
-!
-!    ! Arrays for communication of particles not located in final element
-!    SDEALLOCATE(PartMPIInsert%nPartsSend)
-!    SDEALLOCATE(PartMPIInsert%nPartsRecv)
-!    SDEALLOCATE(PartMPIInsert%SendRequest)
-!    SDEALLOCATE(PartMPIInsert%RecvRequest)
-!    SDEALLOCATE(PartMPIInsert%send_message)
-!    SDEALLOCATE(PartMPILocate%nPartsSend)
-!    SDEALLOCATE(PartMPILocate%nPartsRecv)
-!    SDEALLOCATE(PartMPILocate%SendRequest)
-!    SDEALLOCATE(PartMPILocate%RecvRequest)
-!    SDEALLOCATE(EmissionRecvBuf)
-!    SDEALLOCATE(EmissionSendBuf)
-!  END DO
-!END DO
-!
-!END SUBROUTINE FinalizeEmissionParticlesToProcs
-
 #endif /*USE_MPI*/
 
 END MODULE MOD_Particle_MPI_Emission

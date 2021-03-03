@@ -153,11 +153,12 @@ REAL                           :: halo_eps
 #ifdef CODE_ANALYZE
 INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 #endif /*CODE_ANALYZE*/
+LOGICAL                        :: EnlargeBGM ! Flag used for enlarging the BGM if RefMapping and/or shape function is used
 !===================================================================================================================================
 
 ! Read parameter for FastInitBackgroundMesh (FIBGM)
-GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
-GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
+GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3)
+GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3)
 GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
 ! Ensure BGM does not protrude beyond mesh when divisible by FIBGMdeltas
@@ -199,7 +200,7 @@ lastElem  = nElems
 #endif  /*USE_MPI*/
 
 ! Use NodeCoords only for TriaTracking since Tracing and RefMapping have potentially curved elements, only BezierControlPoints form
-! convec hull
+! convex hull
 SELECT CASE(TrackingMethod)
   CASE(TRIATRACKING)
     DO iElem = firstElem, lastElem
@@ -330,7 +331,7 @@ ELSE
     halo_eps = MAX(halo_eps,RK_c(iStage+1)-RK_c(iStage))
   END DO
   halo_eps = MAX(halo_eps,1.-RK_c(nRKStages))
-  CALL PrintOption('max. RKdtFrac','CALCUL.',RealOpt=halo_eps)
+  CALL PrintOption('halo_eps from max. RKdtFrac','CALCUL.',RealOpt=halo_eps)
   halo_eps = halo_eps*halo_eps_velo*deltaT*SafetyFactor !dt multiplied with maximum RKdtFrac
 #else
   halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
@@ -338,11 +339,9 @@ ELSE
 
   ! Check whether halo_eps is smaller than shape function radius e.g. 'shape_function'
   IF(StringBeginsWith(DepositionType,'shape_function'))THEN
-    IF(halo_eps.LT.r_sf)THEN
-      SWRITE(UNIT_stdOut,'(A)') ' halo_eps is smaller than shape function radius. Setting halo_eps=r_sf'
-      halo_eps = halo_eps + r_sf
-      CALL PrintOption('max. RKdtFrac','CALCUL.',RealOpt=halo_eps)
-    END IF
+    IF(r_sf.LE.0.) CALL abort(__STAMP__,'Shape function radius not read yet or set equal to zero! r_sf=',RealInfoOpt=r_sf)
+    halo_eps = halo_eps + r_sf
+    CALL PrintOption('halo_eps from shape function radius','CALCUL.',RealOpt=halo_eps)
   END IF
 
   ! limit halo_eps to diagonal of bounding box
@@ -378,8 +377,17 @@ ELSE
   SWRITE(UNIT_stdOut,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', temporarily increasing radius for building halo BGM ...'
 END IF
 
-! ! enlarge BGM with halo region (all element outside of this region will be cut off)
-IF (GEO%nPeriodicVectors.GT.0 .AND. TrackingMethod.EQ.REFMAPPING) THEN
+! Check, whether the BGM must be enlarged. Periodic sides plus EITHER of the following
+! 1. RefMapping
+! 2. Shape function
+IF((GEO%nPeriodicVectors.GT.0).AND.((TrackingMethod.EQ.REFMAPPING).OR.(StringBeginsWith(DepositionType,'shape_function'))))THEN
+  EnlargeBGM = .TRUE.
+ELSE
+  EnlargeBGM = .FALSE.
+END IF
+
+! Enlarge BGM with halo region (all element outside of this region will be cut off)
+IF (EnlargeBGM) THEN
   PeriodicComponent = .FALSE.
   Do iPeriodicVector = 1,GEO%nPeriodicVectors
     DO iPeriodicComponent = 1,3
@@ -572,7 +580,7 @@ END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
 CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
-IF (GEO%nPeriodicVectors.GT.0) CALL CheckPeriodicSides()
+IF (GEO%nPeriodicVectors.GT.0) CALL CheckPeriodicSides(EnlargeBGM)
 IF (GEO%RotPeriodicBC) CALL CheckRotPeriodicSides()
 CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
@@ -597,25 +605,6 @@ DO iElem = offsetElem+1, offsetElem+nElems
     END DO ! jBGM
   END DO ! iBGM
 END DO ! iElem
-
-! alternative nElem count with cycles
-!DO iElem = firstElem, lastElem
-!  IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.0) CYCLE
-!  BGMCellXmin = ElemToBGM_Shared(1,iElem)
-!  BGMCellXmax = ElemToBGM_Shared(2,iElem)
-!  BGMCellYmin = ElemToBGM_Shared(3,iElem)
-!  BGMCellYmax = ElemToBGM_Shared(4,iElem)
-!  BGMCellZmin = ElemToBGM_Shared(5,iElem)
-!  BGMCellZmax = ElemToBGM_Shared(6,iElem)
-!  ! add current element to number of BGM-elems
-!  DO iBGM = BGMCellXmin,BGMCellXmax
-!    DO jBGM = BGMCellYmin,BGMCellYmax
-!      DO kBGM = BGMCellZmin,BGMCellZmax
-!        GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
-!      END DO ! kBGM
-!    END DO ! jBGM
-!  END DO ! iBGM
-!END DO ! iElem
 
 #if USE_MPI
 ALLOCATE(sendbuf(BGMimin:BGMimax,BGMjmin:BGMjmax,BGMkmin:BGMkmax))
@@ -758,7 +747,7 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
     END DO ! iBGM
   END DO ! iElem = firstHaloElem, lastHaloElem
 
-  IF (TrackingMethod.EQ.REFMAPPING .AND. GEO%nPeriodicVectors.GT.0) THEN
+  IF (EnlargeBGM) THEN
     firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
     lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
     DO ElemID = firstElem, lastElem
@@ -816,30 +805,6 @@ DO iElem = offsetElem+1, offsetElem+nElems
   END DO ! iBGM
 END DO ! iElem
 
-!--- map elements to background cells
-! alternative if nElem is counted with cycles
-!DO iElem = firstElem, lastElem
-!  IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.0) CYCLE
-!  BGMCellXmin = ElemToBGM_Shared(1,iElem)
-!  BGMCellXmax = ElemToBGM_Shared(2,iElem)
-!  BGMCellYmin = ElemToBGM_Shared(3,iElem)
-!  BGMCellYmax = ElemToBGM_Shared(4,iElem)
-!  BGMCellZmin = ElemToBGM_Shared(5,iElem)
-!  BGMCellZmax = ElemToBGM_Shared(6,iElem)
-!  ! add current Element to BGM-Elem
-!  DO kBGM = BGMCellZmin,BGMCellZmax
-!    DO jBGM = BGMCellYmin,BGMCellYmax
-!      DO iBGM = BGMCellXmin,BGMCellXmax
-!        GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
-!        FIBGM_Element( FIBGM_offsetElem(iBGM,jBGM,kBGM) & ! offset of BGM cell in 1D array
-!#if USE_MPI
-!                       + offsetElemsInBGMCell(iBGM,jBGM,kBGM)    & ! offset of BGM nElems in local proc
-!#endif  /*USE_MPI*/
-!                       + GEO%FIBGM(iBGM,jBGM,kBGM)%nElem         ) = iElem
-!      END DO ! kBGM
-!    END DO ! jBGM
-!  END DO ! iBGM
-!END DO ! iElem
 #if USE_MPI
 DEALLOCATE(offsetElemsInBGMCell)
 
@@ -847,7 +812,7 @@ CALL MPI_WIN_SYNC(FIBGM_Element_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 ! Abort if FIBGM_Element still contains unfilled entries
-IF (ANY(FIBGM_Element.EQ.-1)) CALL ABORT(__STAMP__,'Error while filling FIBGM element array')
+IF (ANY(FIBGM_Element.EQ.-1)) CALL ABORT(__STAMP__,'Error while filling FIBGM element array: ANY(FIBGM_Element.EQ.-1)')
 
 ! Locally sum up Number of all elements on current compute-node (including halo region)
 IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
@@ -1316,7 +1281,7 @@ END SUBROUTINE FinalizeHaloInfo
 
 
 #if USE_MPI
-SUBROUTINE CheckPeriodicSides()
+SUBROUTINE CheckPeriodicSides(EnlargeBGM)
 !===================================================================================================================================
 !> checks the elements against periodic distance
 !===================================================================================================================================
@@ -1335,6 +1300,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN)             :: EnlargeBGM ! Flag used for enlarging the BGM if RefMapping and/or shape function is used
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1460,7 +1426,7 @@ ElemLoop: DO iPeriodicElem = 1,nPeriodicElems
                 .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem) ) THEN
           ! add element back to halo region
           ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-          IF (TrackingMethod.EQ.REFMAPPING) CALL AddElementToFIBGM(iElem)
+          IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
           EXIT ElemLoop
         END IF
 
@@ -1480,7 +1446,7 @@ ElemLoop: DO iPeriodicElem = 1,nPeriodicElems
                     .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem) ) THEN
             ! add element back to halo region
             ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-            IF (TrackingMethod.EQ.REFMAPPING) CALL AddElementToFIBGM(iElem)
+            IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
             EXIT ElemLoop
           END IF
 
@@ -1496,7 +1462,7 @@ ElemLoop: DO iPeriodicElem = 1,nPeriodicElems
                     .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem) ) THEN
               ! add element back to halo region
               ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-              IF (TrackingMethod.EQ.REFMAPPING) CALL AddElementToFIBGM(iElem)
+              IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
               EXIT ElemLoop
             END IF
           END DO
@@ -1516,7 +1482,7 @@ ElemLoop: DO iPeriodicElem = 1,nPeriodicElems
                     .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem) ) THEN
             ! add element back to halo region
             ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-            IF (TrackingMethod.EQ.REFMAPPING) CALL AddElementToFIBGM(iElem)
+            IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
             EXIT ElemLoop
           END IF
 
@@ -1531,7 +1497,7 @@ ElemLoop: DO iPeriodicElem = 1,nPeriodicElems
                     .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem) ) THEN
               ! add element back to halo region
               ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-              IF (TrackingMethod.EQ.REFMAPPING) CALL AddElementToFIBGM(iElem)
+              IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
               EXIT ElemLoop
             END IF
 
@@ -1547,7 +1513,7 @@ ElemLoop: DO iPeriodicElem = 1,nPeriodicElems
                 .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem) ) THEN
           ! add element back to halo region
           ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-          IF (TrackingMethod.EQ.REFMAPPING) CALL AddElementToFIBGM(iElem)
+          IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
           EXIT ElemLoop
         END IF
 

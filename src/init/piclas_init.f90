@@ -42,9 +42,9 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Piclas Initialization")
 
-CALL prms%CreateIntOption(      'TimeStampLength', 'Length of the floating number time stamp', '21')
+CALL prms%CreateIntOption(      'TimeStampLength' , 'Length of the floating number time stamp' , '21')
 #ifdef PARTICLES
-CALL prms%CreateLogicalOption(  'UseDSMC'        , "Flag for using DSMC in Calculation", '.FALSE.')
+CALL prms%CreateLogicalOption(  'UseDSMC'         , "Flag for using DSMC in Calculation"       , '.FALSE.')
 #endif
 
 END SUBROUTINE DefineParametersPiclas
@@ -73,7 +73,6 @@ USE MOD_Mortar               ,ONLY: InitMortar
 USE MOD_PML                  ,ONLY: InitPML
 #endif /*USE_HDG*/
 USE MOD_Dielectric           ,ONLY: InitDielectric
-USE MOD_Filter               ,ONLY: InitFilter
 USE MOD_Analyze              ,ONLY: InitAnalyze
 USE MOD_RecordPoints         ,ONLY: InitRecordPoints
 #if defined(ROS) || defined(IMPA)
@@ -133,7 +132,7 @@ WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 
 #ifdef PARTICLES
 ! DSMC handling:
-useDSMC=GETLOGICAL('UseDSMC','.FALSE.')
+useDSMC=GETLOGICAL('UseDSMC')
 
 CALL Init_Symmetry()
 
@@ -184,7 +183,6 @@ CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing l
 #endif /*USE_HDG*/
 CALL InitDielectric() ! Dielectric media
 CALL InitDG()
-CALL InitFilter()
 #if defined(ROS) || defined(IMPA)
 CALL InitLinearSolver()
 #endif /*ROS /IMEX*/
@@ -261,7 +259,6 @@ USE MOD_PML                        ,ONLY: FinalizePML
 #else
 USE MOD_HDG                        ,ONLY: FinalizeHDG
 #endif /*USE_HDG*/
-USE MOD_Filter                     ,ONLY: FinalizeFilter
 USE MOD_Analyze                    ,ONLY: FinalizeAnalyze
 USE MOD_RecordPoints               ,ONLY: FinalizeRecordPoints
 USE MOD_RecordPoints_Vars          ,ONLY: RP_Data
@@ -279,6 +276,7 @@ USE MOD_SuperB_Init                ,ONLY: FinalizeSuperB
 USE MOD_Particle_Mesh              ,ONLY: FinalizeParticleMesh
 USE MOD_Particle_Analyze           ,ONLY: FinalizeParticleAnalyze
 USE MOD_PICDepo                    ,ONLY: FinalizeDeposition
+USE MOD_PICInterpolation           ,ONLY: FinalizePICInterpolation
 USE MOD_ParticleInit               ,ONLY: FinalizeParticles
 USE MOD_Particle_Boundary_Init     ,ONLY: FinalizeParticleBoundary
 USE MOD_TTMInit                    ,ONLY: FinalizeTTM
@@ -332,7 +330,6 @@ IF(.NOT.IsLoadBalance) CALL FinalizeInterpolation()
 CALL FinalizeRestart()
 CALL FinalizeMesh()
 CALL FinalizeMortar()
-CALL FinalizeFilter()
 #ifdef PARTICLES
 CALL FinalizeSurfaceModel()
 CALL FinalizeParticleBoundarySampling()
@@ -341,6 +338,7 @@ CALL FinalizeParticleSurfaces()
 CALL FinalizeParticleMesh()
 CALL FinalizeParticleAnalyze()
 CALL FinalizeDeposition()
+CALL FinalizePICInterpolation()
 #if USE_MPI
 CALL FinalizeParticleMPI()
 #endif /*USE_MPI*/

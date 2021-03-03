@@ -350,10 +350,6 @@ END IF
 
 CALL InitializeVariables()
 
-!#if USE_MPI
-!CALL InitEmissionParticlesToProcs()
-!#endif
-
 ! Insert the initial particles
 CALL InitialParticleInserting()
 ! Initialize particle surface flux to be performed per iteration

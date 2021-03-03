@@ -291,7 +291,8 @@ IMPLICIT NONE
 
 END FUNCTION DiceUnitVector
 
-FUNCTION VeloFromDistribution(distribution,specID,Tempergy)
+
+FUNCTION VeloFromDistribution(distribution,Tempergy)
 !===================================================================================================================================
 !> calculation of velocityvector (Vx,Vy,Vz) sampled from given distribution function
 !===================================================================================================================================
@@ -302,7 +303,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN) :: distribution !< specifying keyword for velocity distribution
-INTEGER,INTENT(IN)          :: specID       !< input species
 REAL,INTENT(IN)             :: Tempergy     !< input temperature [K] or energy [J] or velocity [m/s]
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -313,18 +313,6 @@ REAL            :: VeloFromDistribution(1:3)
 !-- set velocities
 SELECT CASE(TRIM(distribution))
 CASE('deltadistribution')
-  !Velosq = 2
-  !DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
-    !CALL RANDOM_NUMBER(RandVal)
-    !Velo1 = 2.*RandVal(1) - 1.
-    !Velo2 = 2.*RandVal(2) - 1.
-    !Velosq = Velo1**2 + Velo2**2
-  !END DO
-  !VeloFromDistribution(1) = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
-  !VeloFromDistribution(2) = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
-  !CALL RANDOM_NUMBER(RandVal)
-  !VeloFromDistribution(3) = SQRT(-2*LOG(RandVal(1)))
-
   ! Get random vector
   VeloFromDistribution = DiceUnitVector()
   ! Mirror z-component of velocity (particles are emitted from surface!)

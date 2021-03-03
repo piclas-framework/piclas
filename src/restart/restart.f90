@@ -378,7 +378,7 @@ INTEGER                            :: iElem
 #ifdef PARTICLES
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames_HDF5(:)
-INTEGER                            :: FirstElemInd,LastelemInd,j,k
+INTEGER                            :: FirstElemInd,LastelemInd,i,j,k
 INTEGER(KIND=IK),ALLOCATABLE       :: PartInt(:,:)
 INTEGER,PARAMETER                  :: PartIntSize=2                  ! number of entries in each line of PartInt
 INTEGER                            :: PartDataSize,PartDataSize_HDF5 ! number of entries in each line of PartData
@@ -412,7 +412,6 @@ LOGICAL                            :: implemented
 LOGICAL,ALLOCATABLE                :: readVarFromState(:)
 INTEGER                            :: iProc
 #endif
-INTEGER                            :: i
 INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
 #if USE_HDG
 INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID
@@ -773,6 +772,7 @@ IF(DoRestart)THEN
         ! Read in parameters from the State file
         CALL GetDataSize(File_ID,'VarNamesParticles',nDims,HSize,attrib=.TRUE.)
         PartDataSize_HDF5 = INT(HSize(1),4)
+        DEALLOCATE(HSize)
         ALLOCATE(StrVarNames_HDF5(PartDataSize_HDF5))
         CALL ReadAttribute(File_ID,'VarNamesParticles',PartDataSize_HDF5,StrArray=StrVarNames_HDF5)
         IF (PartDataSize_HDF5.NE.PartDataSize) THEN
@@ -1765,6 +1765,7 @@ CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.T
 
 CALL GetDataSize(File_ID,'ElemData',nDims,HSize,attrib=.FALSE.)
 nVar_HDF5=INT(HSize(1),4)
+DEALLOCATE(HSize)
 
 ALLOCATE(MacroRestartValues(1:nElems,1:nSpecies+1,1:DSMC_NVARS))
 MacroRestartValues = 0.

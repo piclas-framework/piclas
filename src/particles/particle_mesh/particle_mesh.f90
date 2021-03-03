@@ -115,20 +115,11 @@ CALL prms%CreateIntOption(     'BezierSampleN'&
   , 'TODO-DEFINE-PARAMETER\n'//&
     'Default value: NGeo equidistant sampling of bezier surface for emission','0')
 
-
-! Background mesh init variables
-!CALL prms%CreateLogicalOption( 'printMPINeighborWarnings'&
-    !,  ' Print warning if the MPI-Halo-region between to procs are not overlapping. Only one proc find the other in halo ' &
-    !,'.FALSE.')
 CALL prms%CreateLogicalOption( 'CalcHaloInfo',         'Output halo element information to ElemData for each processor'//&
                                                        ' "MyRank_ElemHaloInfo"\n'//&
                                                        ' ElemHaloInfo = -1            : element not in list\n'//&
                                                        '              = 0             : halo elements\n'//&
                                                        '              = 1 to PP_nElems: local elements','.FALSE.')
-CALL prms%CreateLogicalOption( 'printBezierControlPointsWarnings'&
-    ,  ' Print warning if MINVAL(BezierControlPoints3D(iDir,:,:,newSideID)) and global boundaries are too close ' &
-    ,'.FALSE.')
-
 CALL prms%CreateRealOption(    'BezierNewtonAngle'      , ' BoundingBox intersection angle for switching between '//&
 'Bezierclipping and BezierNewton.' , '1.570796326')
 CALL prms%CreateRealOption(    'BezierClipTolerance'    , ' Tolerance for BezierClipping' , '1e-8')

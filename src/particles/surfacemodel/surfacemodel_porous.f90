@@ -711,7 +711,7 @@ IF (myComputeNodeRank.EQ.0) THEN
       iPos = iPos + nValues
 
       PorousBCSampWall_Shared(:,PorousSideID)=0.
-    END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
+    END DO ! 1,SurfMapping(iProc)%nSendPorousSides
   END DO
 
   ! send message

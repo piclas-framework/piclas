@@ -233,14 +233,14 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
     IF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'2D_landmark')THEN
       FractNbrOld  = FractNbr
       chunkSizeOld = chunkSize
-      CALL SetParticlePositionLandmark(FractNbr,iInit,chunkSize,particle_positions,1)
+      CALL SetParticlePositionLandmark(chunkSize,particle_positions,1)
     ELSEIF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'2D_landmark_copy')THEN
-      CALL SetParticlePositionLandmark(FractNbrOld,iInit,chunkSizeOld,particle_positions,2)
+      CALL SetParticlePositionLandmark(chunkSizeOld,particle_positions,2)
     END IF ! TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'2D_landmark')
   CASE('2D_landmark_neutralization')
     ! Neutralization at const. x-position from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
     ! for low-temperature partially magnetized plasmas (2019)
-    CALL SetParticlePositionLandmarkNeutralization(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionLandmarkNeutralization(chunkSize,particle_positions)
   END SELECT
   !------------------SpaceIC-cases: end-------------------------------------------------------------------------------------------
 #if USE_MPI
