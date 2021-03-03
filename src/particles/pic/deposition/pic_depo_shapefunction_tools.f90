@@ -311,17 +311,12 @@ SUBROUTINE depoChargeOnDOFsSF(Position,SourceSize,Fac)
 !============================================================================================================================
 ! use MODULES
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:r_sf,r2_sf,r2_sf_inv,alpha_sf,PartSource,ChargeSFDone
+USE MOD_PICDepo_Vars,           ONLY:r_sf,r2_sf,r2_sf_inv,alpha_sf,ChargeSFDone
 USE MOD_Mesh_Vars,              ONLY:nElems,offSetElem
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,ElemBaryNgeo,FIBGM_offsetElem,FIBGM_nElems,FIBGM_Element,Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo
 USE MOD_Preproc
 USE MOD_Mesh_Tools,             ONLY:GetCNElemID
-#if USE_MPI
-USE MOD_MPI_Shared_Vars,        ONLY:nComputeNodeTotalElems
-USE MOD_PICDepo_Vars,           ONLY:PartSourceProc
-USE MOD_PICDepo_Vars,           ONLY:SendElemShapeID
-#endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
@@ -408,16 +403,12 @@ SUBROUTINE depoChargeOnDOFsSF1D(Position,SourceSize,Fac)
 !============================================================================================================================
 ! use MODULES
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:r_sf,r2_sf,r2_sf_inv,alpha_sf,PartSource,dim_sf_dir,ChargeSFDone
+USE MOD_PICDepo_Vars,           ONLY:r_sf,r2_sf,r2_sf_inv,alpha_sf,dim_sf_dir,ChargeSFDone
 USE MOD_Mesh_Vars,              ONLY:nElems,offSetElem
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,ElemBaryNgeo,FIBGM_offsetElem,FIBGM_nElems,FIBGM_Element,Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo
 USE MOD_Preproc
 USE MOD_Mesh_Tools,             ONLY:GetCNElemID
-#if USE_MPI
-USE MOD_MPI_Shared_Vars,        ONLY:nComputeNodeTotalElems
-USE MOD_PICDepo_Vars,           ONLY:PartSourceProc,SendElemShapeID
-#endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
@@ -504,16 +495,12 @@ SUBROUTINE depoChargeOnDOFsSF2D(Position,SourceSize,Fac)
 !============================================================================================================================
 ! use MODULES
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:r_sf,r2_sf,r2_sf_inv,alpha_sf,PartSource,dim_sf_dir1,dim_sf_dir2,ChargeSFDone
+USE MOD_PICDepo_Vars,           ONLY:r_sf,r2_sf,r2_sf_inv,alpha_sf,dim_sf_dir1,dim_sf_dir2,ChargeSFDone
 USE MOD_Mesh_Vars,              ONLY:nElems,offSetElem
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,ElemBaryNgeo,FIBGM_offsetElem,FIBGM_nElems,FIBGM_Element,Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo
 USE MOD_Preproc
 USE MOD_Mesh_Tools,             ONLY:GetCNElemID
-#if USE_MPI
-USE MOD_MPI_Shared_Vars,        ONLY:nComputeNodeTotalElems
-USE MOD_PICDepo_Vars,           ONLY:PartSourceProc,SendElemShapeID
-#endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
@@ -606,17 +593,13 @@ SUBROUTINE depoChargeOnDOFsSFChargeCon(Position,SourceSize,Fac)
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:r_sf, r2_sf, r2_sf_inv,alpha_sf,PartSource,w_sf,ChargeSFDone
+USE MOD_PICDepo_Vars,           ONLY:r_sf, r2_sf, r2_sf_inv,alpha_sf,w_sf,ChargeSFDone
 USE MOD_Mesh_Vars,              ONLY:nElems, offSetElem
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo, ElemsJ
 USE MOD_Preproc
 USE MOD_Mesh_Tools,             ONLY:GetCNElemID
 USE MOD_Interpolation_Vars,     ONLY:wGP
-#if USE_MPI
-USE MOD_MPI_Shared_Vars,        ONLY:nComputeNodeTotalElems
-USE MOD_PICDepo_Vars,           ONLY:SendElemShapeID,PartSourceProc
-#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
@@ -761,17 +744,13 @@ SUBROUTINE depoChargeOnDOFsSFChargeCon1D(Position,SourceSize,Fac)
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:r_sf, r2_sf, r2_sf_inv,alpha_sf,PartSource,w_sf,dim_sf_dir,ChargeSFDone
+USE MOD_PICDepo_Vars,           ONLY:r_sf, r2_sf, r2_sf_inv,alpha_sf,w_sf,dim_sf_dir,ChargeSFDone
 USE MOD_Mesh_Vars,              ONLY:nElems, offSetElem
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo, ElemsJ
 USE MOD_Preproc
 USE MOD_Mesh_Tools,             ONLY:GetCNElemID
 USE MOD_Interpolation_Vars,     ONLY:wGP
-#if USE_MPI
-USE MOD_MPI_Shared_Vars,        ONLY:nComputeNodeTotalElems
-USE MOD_PICDepo_Vars,           ONLY:SendElemShapeID,PartSourceProc
-#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
@@ -916,17 +895,13 @@ SUBROUTINE depoChargeOnDOFsSFChargeCon2D(Position,SourceSize,Fac)
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:r_sf, r2_sf, r2_sf_inv,alpha_sf,PartSource,w_sf,dim_sf_dir1,dim_sf_dir2,ChargeSFDone
+USE MOD_PICDepo_Vars,           ONLY:r_sf, r2_sf, r2_sf_inv,alpha_sf,w_sf,dim_sf_dir1,dim_sf_dir2,ChargeSFDone
 USE MOD_Mesh_Vars,              ONLY:nElems, offSetElem
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo, ElemsJ
 USE MOD_Preproc
 USE MOD_Mesh_Tools,             ONLY:GetCNElemID
 USE MOD_Interpolation_Vars,     ONLY:wGP
-#if USE_MPI
-USE MOD_MPI_Shared_Vars,        ONLY:nComputeNodeTotalElems
-USE MOD_PICDepo_Vars,           ONLY:SendElemShapeID,PartSourceProc
-#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
@@ -1075,7 +1050,7 @@ SUBROUTINE depoChargeOnDOFsSFAdaptive(Position,SourceSize,Fac,PartIdx)
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:alpha_sf,PartSource,w_sf,SFElemr2_Shared,ChargeSFDone
+USE MOD_PICDepo_Vars,           ONLY:alpha_sf,w_sf,SFElemr2_Shared,ChargeSFDone
 USE MOD_Mesh_Vars,              ONLY:nElems, offSetElem
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNgeo, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo, ElemsJ, ElemToElemMapping,ElemToElemInfo
@@ -1083,10 +1058,6 @@ USE MOD_Preproc
 USE MOD_Mesh_Tools,             ONLY:GetCNElemID, GetGlobalElemID
 USE MOD_Interpolation_Vars,     ONLY:wGP
 USE MOD_Particle_Vars,          ONLY:PEM
-#if USE_MPI
-USE MOD_MPI_Shared_Vars,        ONLY:nComputeNodeTotalElems
-USE MOD_PICDepo_Vars,           ONLY:SendElemShapeID,PartSourceProc
-#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
@@ -1219,7 +1190,7 @@ SUBROUTINE depoChargeOnDOFsSFAdaptive1D(Position,SourceSize,Fac,PartIdx)
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:alpha_sf,PartSource,w_sf,SFElemr2_Shared,dim_sf_dir,ChargeSFDone
+USE MOD_PICDepo_Vars,           ONLY:alpha_sf,w_sf,SFElemr2_Shared,dim_sf_dir,ChargeSFDone
 USE MOD_Mesh_Vars,              ONLY:nElems, offSetElem
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNgeo, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo, ElemsJ, ElemToElemMapping,ElemToElemInfo
@@ -1227,10 +1198,6 @@ USE MOD_Preproc
 USE MOD_Mesh_Tools,             ONLY:GetCNElemID, GetGlobalElemID
 USE MOD_Interpolation_Vars,     ONLY:wGP
 USE MOD_Particle_Vars,          ONLY:PEM
-#if USE_MPI
-USE MOD_MPI_Shared_Vars,        ONLY:nComputeNodeTotalElems
-USE MOD_PICDepo_Vars,           ONLY:SendElemShapeID,PartSourceProc
-#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
@@ -1363,7 +1330,7 @@ SUBROUTINE UpdatePartSource(dim1,k,l,m,globElemID,Source)
 !============================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Mesh_Vars    ,ONLY: offsetElem
+USE MOD_Globals
 USE MOD_PICDepo_Vars ,ONLY: PartSource
 USE MOD_Mesh_Tools   ,ONLY: GetCNElemID
 #if USE_MPI
@@ -1393,6 +1360,12 @@ IF (ElemOnMyProc(globElemID)) THEN
 #if USE_MPI
 ELSE
   ASSOCIATE( ShapeID => SendElemShapeID(CNElemID))
+    !IPWRITE(UNIT_StdOut,*) "globElemID,CNElemID, ShapeID =", globElemID,CNElemID, ShapeID
+    IF(ShapeID.EQ.-1)THEN
+      IPWRITE(UNIT_StdOut,*) "CNElemID   =", CNElemID
+      IPWRITE(UNIT_StdOut,*) "globElemID =", globElemID
+      CALL abort(__STAMP__,'SendElemShapeID(CNElemID)=-1 and therefore not correctly mapped. Increase Particles-HaloEpsVelo!')
+    END IF
     PartSourceProc(dim1:4,k,l,m, ShapeID) = PartSourceProc(dim1:4,k,l,m, ShapeID) + Source(dim1:4)
   END ASSOCIATE
 !#if !((USE_HDG) && (PP_nVar==1))
@@ -1420,7 +1393,7 @@ INTEGER, INTENT(IN) :: globElemID
 ! LOCAL VARIABLES
 INTEGER :: localElem
 !===================================================================================================================================
-localElem = globElemID-offSetElem
+localElem = globElemID-offsetElem
 
 IF ((localElem.GE.1).AND.(localElem.LE.nElems)) THEN
   ElemOnMyProc = .TRUE.

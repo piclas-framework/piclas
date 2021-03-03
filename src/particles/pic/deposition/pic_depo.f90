@@ -436,7 +436,6 @@ CASE('cell_volweight_mean')
 !    NodeSourceExtTmp = 0.0
 !  END IF ! DoDielectricSurfaceCharge
 CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
-  r_sf     = GETREAL('PIC-shapefunction-radius')
   alpha_sf = GETINT('PIC-shapefunction-alpha')
   dim_sf   = GETINT('PIC-shapefunction-dimension')
   ! Get shape function direction for 1D (the direction in which the charge will be distributed) and 2D (the direction in which the

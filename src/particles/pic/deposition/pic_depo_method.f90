@@ -93,8 +93,9 @@ SUBROUTINE InitDepositionMethod()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools            ,ONLY: GETINTFROMSTR
-USE MOD_PICDepo_Vars           ,ONLY: DepositionType
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
+USE MOD_ReadInTools            ,ONLY: GETREAL
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -102,6 +103,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                 :: DepositionType_loc
 !==================================================================================================================================
+r_sf=-1.0 ! default
 DepositionType_loc = GETINTFROMSTR('PIC-Deposition-Type')
 ! check for interpolation type incompatibilities (cannot be done at interpolation_init
 ! because DepositionType_loc is not known yet)
@@ -133,6 +135,11 @@ CASE DEFAULT
   CALL CollectiveStop(__STAMP__,&
       'Unknown DepositionMethod!' ,IntInfo=DepositionType_loc)
 END SELECT
+
+! If shape function is used, the radius must be read here as it is used for the BGM setup
+IF(StringBeginsWith(DepositionType,'shape_function'))THEN
+  r_sf = GETREAL('PIC-shapefunction-radius')
+END IF ! StringBeginsWith(DepositionType,'shape_function')
 
 ! Suppress compiler warnings
 RETURN

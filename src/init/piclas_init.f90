@@ -42,9 +42,9 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Piclas Initialization")
 
-CALL prms%CreateIntOption(      'TimeStampLength', 'Length of the floating number time stamp', '21')
+CALL prms%CreateIntOption(      'TimeStampLength' , 'Length of the floating number time stamp' , '21')
 #ifdef PARTICLES
-CALL prms%CreateLogicalOption(  'UseDSMC'        , "Flag for using DSMC in Calculation", '.FALSE.')
+CALL prms%CreateLogicalOption(  'UseDSMC'         , "Flag for using DSMC in Calculation"       , '.FALSE.')
 #endif
 
 END SUBROUTINE DefineParametersPiclas
@@ -132,7 +132,7 @@ WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 
 #ifdef PARTICLES
 ! DSMC handling:
-useDSMC=GETLOGICAL('UseDSMC','.FALSE.')
+useDSMC=GETLOGICAL('UseDSMC')
 
 CALL Init_Symmetry()
 

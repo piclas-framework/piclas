@@ -60,8 +60,9 @@ USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_PICDepo_Vars            ,ONLY: DepositionType
 USE MOD_PICDepo_Vars            ,ONLY: nSendShapeElems,SendShapeElemID, SendElemShapeID
-USE MOD_PICDepo_Vars            ,ONLY: ShapeMapping,CNShapeMapping
+USE MOD_PICDepo_Vars            ,ONLY: ShapeMapping,CNShapeMapping,r_sf
 USE MOD_TimeDisc_Vars           ,ONLY: ManualTimeStep
+USE MOD_ReadInTools             ,ONLY: PrintOption
 #if ! (USE_HDG)
 USE MOD_CalcTimeStep            ,ONLY: CalcTimeStep
 #endif
@@ -258,9 +259,9 @@ END DO
 
 ! if running on one node, halo_eps is meaningless. Get a representative MPI_halo_eps for MPI proc identification
 fullMesh = .FALSE.
-IF (halo_eps.EQ.0) THEN
+IF (halo_eps.LE.0.) THEN
   ! reconstruct halo_eps_velo
-  IF (halo_eps_velo.EQ.0) THEN
+  IF (halo_eps_velo.EQ.0.) THEN
     MPI_halo_eps_velo = c
   ELSE
     MPI_halo_eps_velo = halo_eps_velo
@@ -292,6 +293,13 @@ IF (halo_eps.EQ.0) THEN
   vec(2)   = GEO%ymaxglob-GEO%yminglob
   vec(3)   = GEO%zmaxglob-GEO%zminglob
   MPI_halo_diag = VECNORM(vec)
+
+  ! Check whether MPI_halo_eps is smaller than shape function radius e.g. 'shape_function'
+  IF(StringBeginsWith(DepositionType,'shape_function'))THEN
+    IF(r_sf.LE.0.) CALL abort(__STAMP__,'Shape function radius not read yet or set equal to zero! r_sf=',RealInfoOpt=r_sf)
+    MPI_halo_eps = MPI_halo_eps + r_sf
+    CALL PrintOption('MPI_halo_eps from shape function radius','CALCUL.',RealOpt=MPI_halo_eps)
+  END IF
 
   ! compare halo_eps against global diagonal and reduce if necessary
   IF (.NOT.ALMOSTZERO(MPI_halo_eps).AND.(MPI_halo_diag.GE.MPI_halo_eps)) THEN
@@ -332,7 +340,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
   IF (HaloProc.EQ.myRank) CYCLE
 
   ! Skip if the proc is already flagged, only if the exact elements are not required (.NOT.shape_function)
-    IF(.NOT.StringBeginsWith(DepositionType,'shape_function'))THEN
+  IF(.NOT.StringBeginsWith(DepositionType,'shape_function'))THEN
     SELECT CASE(GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc))
       ! Proc not previously encountered, check if possibly in range
       CASE(-1)
@@ -393,9 +401,10 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                                         BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                         BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
   DO iSide = 1, nExchangeSides
-      ! compare distance of centers with sum of element outer radii+halo_eps
+    ! compare distance of centers with sum of element outer radii+halo_eps
     IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter(1:3,iSide)) &
         .GT. MPI_halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide)) THEN
+
       ! Also check periodic directions. Only MPI sides of the local proc are
       ! taken into account, so do not perform additional case distinction
       SELECT CASE(GEO%nPeriodicVectors)
@@ -538,6 +547,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
         CASE DEFAULT
           CALL ABORT(__STAMP__,'Invalid number of periodic vectors in particle_mpi_halo.f90')
       END SELECT
+
       ! Check rot periodic Elems and if iSide is on rot periodic BC
       IF(GEO%RotPeriodicBC) THEN
         DO iPeriodicDir = 1,2
@@ -573,7 +583,8 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
           END IF
         END DO
         ! End check rot periodic Elems and if iSide is on rot periodic BC
-      END IF
+      END IF ! GEO%RotPeriodicBC
+
     ! Element is in range of not-periodically displaced MPI side
     ELSE
       IF(StringBeginsWith(DepositionType,'shape_function'))THEN
@@ -677,15 +688,17 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   END DO
 
   ALLOCATE(SendShapeElemID(1:nSendShapeElems), SendElemShapeID(1:nComputeNodeTotalElems))
+  ! Initialize
   SendShapeElemID = -1
+  SendElemShapeID = -1
 
   ! 2nd loop to fill the array of size nSendShapeElems
   nSendShapeElems = 0
   DO iELem = 1,nComputeNodeTotalElems
     IF (FlagShapeElem(iElem)) THEN
-      nSendShapeElems = nSendShapeElems + 1
+      nSendShapeElems                  = nSendShapeElems + 1
       SendShapeElemID(nSendShapeElems) = iElem
-      SendElemShapeID(iElem) = nSendShapeElems
+      SendElemShapeID(iElem)           = nSendShapeElems
     END IF
   END DO
 
