@@ -7,8 +7,11 @@ def get_numbers_from_filename(filename):
 
 directory = os.getcwd()
 
+varName_01 = '009-VibRelaxRate001+004'
+varName_02 = '010-VibRelaxRate002+004 '
+
 for filename in sorted(os.listdir(directory)):
     if filename.startswith("Database"):
         temp = get_numbers_from_filename(filename)
         df = pd.read_csv(filename)
-        print(temp,*df['012-VibRelaxPmean001+004'].tail(1).values,*df['018-VibRelaxPmean002+004'].tail(1).values, sep=",")
+        print(temp,*df[varName_01].tail(1).values,*df[varName_02].tail(1).values,sep=",")

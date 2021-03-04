@@ -44,13 +44,14 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("PIC Background Field")
 
-CALL prms%CreateLogicalOption(  'PIC-BG-Field'                , 'Activates the usage of a background field, read-in from file '//&
-                                                                '(PIC-BGFileName=BGField.h5) or calculated from parameters', &
-                                                                '.FALSE.')
-CALL prms%CreateStringOption(   'PIC-BGFileName'              , 'File name for the background field ([character].h5)','none')
-CALL prms%CreateIntOption(      'PIC-NBG'                     , 'Polynomial degree that shall be used for the background field '//&
-                                                                'during simulation (can be different to the read-in file)')
-CALL prms%CreateRealOption(     'PIC-BGFieldScaling'          , 'Scaling of the read-in background field','1.')
+! -- external field 5
+CALL prms%CreateLogicalOption('PIC-BG-Field'      , 'Method 5 of 5: Activates the usage of a background field, read-in from file '//&
+                                                    '(PIC-BGFileName=BGField.h5) or calculated from parameters', &
+                                                    '.FALSE.')
+CALL prms%CreateStringOption( 'PIC-BGFileName'    , 'File name for the background field ([character].h5)','none')
+CALL prms%CreateIntOption(    'PIC-NBG'           , 'Polynomial degree that shall be used for the background field '//&
+                                                    'during simulation (can be different to the read-in file)')
+CALL prms%CreateRealOption(   'PIC-BGFieldScaling', 'Scaling of the read-in background field','1.')
 END SUBROUTINE DefineParametersBGField
 
 
@@ -69,7 +70,7 @@ USE MOD_Mesh_Vars             ,ONLY: OffsetElem,nGlobalElems
 USE MOD_Preproc
 USE MOD_ReadInTools           ,ONLY: GETSTR,GETINT,GETREAL
 USE MOD_HDF5_Input            ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,File_ID,ReadArray,GetDataProps,DatasetExists
-USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType,CalcBField
+USE MOD_PICInterpolation_Vars ,ONLY: CalcBField
 USE MOD_Interpolation_Vars    ,ONLY: NBG,BGType,BGField
 USE MOD_Interpolation_Vars    ,ONLY: BGField_xGP,BGField_wBary,BGDataSize
 USE MOD_Interpolation_Vars    ,ONLY: NodeType
@@ -155,9 +156,6 @@ IF (CalcBField) THEN
   ! Calculate the background B-field via SuperB
   CALL SuperB()
 ELSE
-  IF(TRIM(InterpolationType).NE.'particle_position')  CALL abort(&
-    __STAMP__&
-    ,'InterpolationType has to be set to particle position!')
   SWRITE(UNIT_stdOut,'(A)')' Reading background field from file... '
   ALLOCATE(VarNames(nVar_BField))
   CALL ReadAttribute(File_ID,'VarNames',nVar_BField,StrArray=VarNames)

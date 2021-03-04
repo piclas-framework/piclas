@@ -82,9 +82,9 @@ echo $PARENTCOMMIT                 >> userblock.txt
 # Also store binary changes in diff
 echo "{[( GIT DIFF )]}"            >> userblock.txt
 # commited changes
-git diff -p $PARENTCOMMIT..HEAD    >> userblock.txt
+git diff -p $PARENTCOMMIT..HEAD | head -n 1000   >> userblock.txt
 # uncommited changes
-git diff -p                        >> userblock.txt
+git diff -p | head -n 1000                       >> userblock.txt
 
 echo "{[( GIT URL )]}"             >> userblock.txt
 git config --get remote.origin.url >> userblock.txt
@@ -116,6 +116,14 @@ if [ -f "$4" ]; then
   PICLAS_MINOR_VERSION=$(grep "INTEGER.*PARAMETER.*MinorVersion.*\=" "$4" | cut -d "=" -f2 | cut -f1 -d! | sed 's/[[:space:]]//g')
   PICLAS_MATCH_VERSION=$(grep "INTEGER.*PARAMETER.*PatchVersion.*\=" "$4" | cut -d "=" -f2 | cut -f1 -d! | sed 's/[[:space:]]//g')
   echo "$PICLAS_MAJOR_VERSION.$PICLAS_MINOR_VERSION.$PICLAS_MATCH_VERSION" >> $1/userblock.txt
+fi
+
+# write cpu info to userblock
+if [ -f "/proc/cpuinfo" ]; then
+  echo "{[( CPU INFO )]}" >> $1/userblock.txt
+  THREADS=$(grep -c ^processor /proc/cpuinfo)
+  echo "Total number of processors/threads given in /proc/cpuinfo: ${THREADS}" >> $1/userblock.txt
+  sed '/^$/Q' /proc/cpuinfo | sed -e 's/\t//g' >> $1/userblock.txt
 fi
 
 cd "$1" # go back to the runtime output directory

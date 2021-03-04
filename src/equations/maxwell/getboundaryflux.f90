@@ -155,19 +155,17 @@ SUBROUTINE GetBoundaryFlux(t,tDeriv, Flux, U_Minus, NormVec, TangVec1, TangVec2,
 ! Attention 2: U_FacePeriodic is only needed in the case of periodic boundary conditions
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,        ONLY:Abort,CROSS
+USE MOD_Globals         ,ONLY: Abort,CROSS
 USE MOD_PreProc
-USE MOD_Riemann,        ONLY:RiemannVacuum,RiemannPML
-USE MOD_Riemann,        ONLY:RiemannDielectric
-USE MOD_Equation,       ONLY:ExactFunc
-USE MOD_Equation_vars,  ONLY:c,c_inv
-USE MOD_Mesh_Vars    ,  ONLY:nBCSides,nBCs,BoundaryType
-USE MOD_Equation_Vars,  ONLY:nBCByType,BCSideID
-USE MOD_Equation_Vars,  ONLY:BCData,nBCByType
-USE MOD_PML_Vars,       ONLY:PMLnVar, DoPML
-USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann
-USE MOD_Dielectric_vars, ONLY:Dielectric_Master
-!USE MOD_Equation_Vars,  ONLY:IniExactFunc! richtig with particles???
+USE MOD_Riemann         ,ONLY: RiemannVacuum,RiemannPML
+USE MOD_Riemann         ,ONLY: RiemannDielectric
+USE MOD_Equation        ,ONLY: ExactFunc
+USE MOD_Globals_Vars    ,ONLY: c,c_inv
+USE MOD_Mesh_Vars       ,ONLY: nBCSides,nBCs,BoundaryType
+USE MOD_Equation_Vars   ,ONLY: nBCByType,BCSideID,BCData,nBCByType
+USE MOD_PML_Vars        ,ONLY: PMLnVar, DoPML
+USE MOD_Interfaces_Vars ,ONLY: InterfaceRiemann
+USE MOD_Dielectric_vars ,ONLY: Dielectric_Master
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

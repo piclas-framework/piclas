@@ -17,8 +17,10 @@ PROGRAM SuperB_standalone
 !> Standalone version of SuperB for the calculation of magnetic fields
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
 USE MOD_Commandline_Arguments
+!USE MOD_Globals               ,ONLY: doPrintHelp,iError,MPIRoot,StartTime,UNIT_stdOut,PiclasTime,SetStackSizeUnlimited
+USE MOD_Globals!               ,ONLY: CollectiveStop
+USE MOD_Globals_Init          ,ONLY: InitGlobals
 USE MOD_SuperB_Init           ,ONLY: DefineParametersSuperB, FinalizeSuperB
 USE MOD_SuperB                ,ONLY: SuperB
 USE MOD_Globals_Vars          ,ONLY: ParameterFile
@@ -35,9 +37,10 @@ USE MOD_Mesh                  ,ONLY: DefineParametersMesh,FinalizeMesh
 USE MOD_Equation              ,ONLY: DefineParametersEquation
 USE MOD_Interpolation_Vars    ,ONLY: BGField,BGFieldAnalytic
 USE MOD_Mesh                  ,ONLY: InitMesh
-#ifdef PARTICLES
-USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType
-#endif /*PARTICLES*/
+#if USE_MPI
+USE MOD_MPI_Shared
+#endif /*USE_MPI*/
+USE MOD_Globals_Init          ,ONLY: DefineParametersGlobals
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -84,6 +87,7 @@ END IF
 !CALL InitDefineParameters()
 
 CALL DefineParametersIO()
+CALL DefineParametersGlobals()
 CALL DefineParametersInterpolation()
 CALL DefineParametersOutput()
 CALL DefineParametersMesh()
@@ -110,6 +114,9 @@ CALL InitOutput()
 CALL InitIOHDF5()
 
 CALL InitGlobals()
+#if USE_MPI
+CALL InitMPIShared()
+#endif /*USE_MPI*/
 
 ! Initialization
 CALL InitInterpolation()
@@ -119,9 +126,6 @@ CALL InitMesh(3) ! 0: only read and build Elem_xGP,
                  ! 1: as 0 + build connectivity
                  ! 2: as 1 + calc metrics
                  ! 3: as 2 but skip InitParticleMesh
-#ifdef PARTICLES
-InterpolationType = 'particle_position'
-#endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate the background B-field via SuperB
 !-----------------------------------------------------------------------------------------------------------------------------------

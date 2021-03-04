@@ -165,12 +165,13 @@ BGKSplittingDens = GETREAL('Particles-BGK-SplittingDens')
 ! Moving Average
 BGKMovingAverage = GETLOGICAL('Particles-BGK-MovingAverage')
 IF(BGKMovingAverage) THEN
+  CALL abort(__STAMP__,&
+    ' ERROR BGK Init: Moving average is currently not implemented!')
   BGKMovingAverageLength = GETINT('Particles-BGK-MovingAverageLength')
   CALL BGK_init_MovingAverage()
   IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-    CALL abort(&
-__STAMP__&
-,' ERROR BGK Init: Moving average is neither implemented with radial weighting nor variable time step!')
+    CALL abort(__STAMP__,&
+      ' ERROR BGK Init: Moving average is neither implemented with radial weighting nor variable time step!')
   END IF
 END IF
 IF(MoleculePresent) THEN

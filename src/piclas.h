@@ -22,7 +22,17 @@
 #  define IEEE_IS_NAN ISNAN
 #endif
 
+! Calculate GCC version
+#define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
+
 #define SIZEOF_F(x) (STORAGE_SIZE(x)/8)
+
+#ifdef DEBUG_MEMORY
+#define Allocate_Shared(a,b,c,d)   Allocate_Shared_DEBUG(a,b,c,d,'c')
+#endif
+
+! Replace function with dummy function and additional argument
+#define UNLOCK_AND_FREE(a)   UNLOCK_AND_FREE_DUMMY(a,'a')
 
 #ifdef GNU
 #define CHECKSAFEINT(x,k)  IF(x>HUGE(1_  k).OR.x<-HUGE(1_  k))       CALL ABORT(__STAMP__,'Integer conversion failed: out of range!')
@@ -49,14 +59,25 @@
 #if USE_MPI
 #  define SWRITE IF(MPIRoot) WRITE
 #  define IPWRITE(a,b) WRITE(a,b)myRank,
+#  define LWRITE IF(myComputeNodeRank.EQ.0) WRITE
 #else
 #  define SWRITE WRITE
 #  define IPWRITE(a,b) WRITE(a,b)0,
+#  define LWRITE WRITE
 #endif
 #define ERRWRITE(a,b) WRITE(UNIT_errOut,b)
 #define LOGWRITE(a,b)  IF(Logging) WRITE(UNIT_logOut,b)
 #define LOGWRITE_BARRIER  IF(Logging) CALL ReOpenLogFile()
 #define SDEALLOCATE(A) IF(ALLOCATED(A)) DEALLOCATE(A)
+#define SNULLIFY(A)    IF(ASSOCIATED(A)) NULLIFY(A)
+
+#if USE_MPI
+#define ALLOCPOINT POINTER
+#define ADEALLOCATE(A) IF(ASSOCIATED(A)) NULLIFY(A)
+#else
+#define ALLOCPOINT ALLOCATABLE
+#define ADEALLOCATE(A) IF(ALLOCATED(A)) DEALLOCATE(A)
+#endif
 
 #ifdef OPTIMIZED
 #define PP_IJK     i,0,0
@@ -72,6 +93,40 @@
 #define MPI_INTEGER_INT_KIND MPI_INTEGER
 #endif
 
+! number of entry in each line of ElemInfo
+#define ELEMINFOSIZE_H5   6
+#if USE_MPI
+#define ELEMINFOSIZE      8
+#else
+#define ELEMINFOSIZE      6
+#endif /* USE_MPI*/
+! ElemInfo in H5 file
+#define ELEM_TYPE         1
+#define ELEM_ZONE         2
+#define ELEM_FIRSTSIDEIND 3
+#define ELEM_LASTSIDEIND  4
+#define ELEM_FIRSTNODEIND 5
+#define ELEM_LASTNODEIND  6
+! ElemInfo for shared array
+#define ELEM_RANK         7
+#define ELEM_HALOFLAG     8
+! number of entries in each line of SideInfo
+#define SIDEINFOSIZE_H5   5
+#define SIDEINFOSIZE      8
+#define SIDE_TYPE         1
+#define SIDE_ID           2
+#define SIDE_NBELEMID     3
+#define SIDE_FLIP         4
+#define SIDE_BCID         5
+#define SIDE_ELEMID       6
+#define SIDE_LOCALID      7
+#define SIDE_NBSIDEID     8
+#define SIDE_NBELEMTYPE   9
+! surface sampling entries
+#define SURF_SIDEID       1
+#define SURF_RANK         2
+#define SURF_LEADER       3
+
 ! Predefined "PARAMETER-like" variables
 #define XI_MINUS   5
 #define XI_PLUS    3
@@ -79,6 +134,23 @@
 #define ETA_PLUS   4
 #define ZETA_MINUS 1
 #define ZETA_PLUS  6
+
+! Entry position in ElemBCSides
+#define ELEM_NBR_BCSIDES   1
+#define ELEM_FIRST_BCSIDE  2
+
+! Entry position in FIBGMToProc
+#define FIBGM_FIRSTPROCIND 1
+#define FIBGM_NPROCS       2
+
+! Entry position in SideBCMetrics
+#define BCSIDE_SIDEID      1
+#define BCSIDE_ELEMID      2
+#define BCSIDE_DISTANCE    3
+#define BCSIDE_RADIUS      4
+#define BCSIDE_ORIGINX     5
+#define BCSIDE_ORIGINY     6
+#define BCSIDE_ORIGINZ     7
 
 ! Entry position in SideToElem
 #define S2E_ELEM_ID        1
@@ -118,6 +190,11 @@
 #define BILINEAR       2
 #define PLANAR_CURVED  3
 #define CURVED         4
+
+! entries for PartExchange
+#define EXCHANGE_PROC_SIZE 2
+#define EXCHANGE_PROC_TYPE 1
+#define EXCHANGE_PROC_RANK 2
 
 ! entries for PartHaloToProc
 #define NATIVE_ELEM_ID  1
@@ -185,19 +262,18 @@
 
 ! Sampwall_analyze indeces used in arrays
 #define SAMPWALL_ETRANSOLD        1
-#define SAMPWALL_ETRANSWALL       2
-#define SAMPWALL_ETRANSNEW        3
-#define SAMPWALL_EROTOLD          4
-#define SAMPWALL_EROTWALL         5
-#define SAMPWALL_EROTNEW          6
-#define SAMPWALL_EVIBOLD          7
-#define SAMPWALL_EVIBWALL         8
-#define SAMPWALL_EVIBNEW          9
-#define SAMPWALL_DELTA_MOMENTUMX  10
-#define SAMPWALL_DELTA_MOMENTUMY  11
-#define SAMPWALL_DELTA_MOMENTUMZ  12
+#define SAMPWALL_ETRANSNEW        2
+#define SAMPWALL_EROTOLD          3
+#define SAMPWALL_EROTNEW          4
+#define SAMPWALL_EVIBOLD          5
+#define SAMPWALL_EVIBNEW          6
+#define SAMPWALL_EELECOLD         7
+#define SAMPWALL_EELECNEW         8
+#define SAMPWALL_DELTA_MOMENTUMX  9
+#define SAMPWALL_DELTA_MOMENTUMY  10
+#define SAMPWALL_DELTA_MOMENTUMZ  11
 
-#define SAMPWALL_NVARS            12
+#define SAMPWALL_NVARS            11
 
 ! Tracking method
 #define REFMAPPING    1

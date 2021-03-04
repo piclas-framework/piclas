@@ -72,7 +72,7 @@ ELSE IF (NormalVector(3).NE.0) THEN
   Vector1(3) = (0 - NormalVector(1) - NormalVector(2)) / NormalVector(3)
 ELSE
   CALL abort(__STAMP__&
-      ,'The coil direction vector can not be (0,0,)')
+      ,'The normal direction vector can not be (0,0,0)')
 END IF
 
 ! Find the third vecord vector with the cross product
@@ -130,7 +130,7 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: Elem_xGP,sJ,Vdm_GL_N
 USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars ,ONLY: MeshVolume
 USE MOD_Interpolation_Vars ,ONLY: BGField,BGFieldAnalytic
 USE MOD_Interpolation      ,ONLY: GetVandermonde
 ! IMPLICIT VARIABLE HANDLING
@@ -200,7 +200,7 @@ END IF
 #endif /*USE_MPI*/
 
 ! We normalize the L_2 Error with the Volume of the domain and take into account that we have to use the square root
-L_2_Error = SQRT(L_2_Error/GEO%MeshVolume)
+L_2_Error = SQRT(L_2_Error/MeshVolume)
 
 END SUBROUTINE CalcErrorSuperB
 
@@ -208,7 +208,7 @@ END SUBROUTINE CalcErrorSuperB
 SUBROUTINE ExactFuncSuperB(ExactFunctionNumber,iCoilOrMagnet,x,resu)
 !===================================================================================================================================
 ! Calculates the (analytical) solution for a given magnetostatic problem (for subsequent initial conditions or error calculation)
-! 
+!
 ! ExactFunctionNumber corresponds to
 !   1X : Coils (and linear conductors)
 !   2X : Magnets
@@ -216,9 +216,8 @@ SUBROUTINE ExactFuncSuperB(ExactFunctionNumber,iCoilOrMagnet,x,resu)
 ! MODULES
 USE MOD_Globals       ,ONLY: Abort,VECNORM,OrthoNormVec,UNITVECTOR,CROSSNORM,DOTPRODUCT
 USE MOD_Globals       ,ONLY: SphericalCoordinates,TransformVectorFromSphericalCoordinates
-USE MOD_Globals_Vars  ,ONLY: Pi
+USE MOD_Globals_Vars  ,ONLY: Pi,mu0
 USE MOD_SuperB_Vars   ,ONLY: CoilInfo,PermanentMagnetInfo
-USE MOD_Equation_Vars ,ONLY: mu0
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -253,7 +252,7 @@ CASE(20) ! Spherical hard magnet
   ! Calculate DOF vector "a" in local coordinate system
   ASSOCIATE( c1 => (mu0/3.)*VECNORM(PermanentMagnetInfo(1)%Magnetisation(1:3))*PermanentMagnetInfo(1)%Radius**3 ,&
               P => x(1:3) - PermanentMagnetInfo(1)%BasePoint(1:3)                                               )
-    
+
     ! Get spherical coordinates
     CALL SphericalCoordinates(P,r,theta,phi)
 

@@ -59,28 +59,13 @@ USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Equation")
-
-!CALL prms%CreateRealOption(     'c_corr'           , 'TODO-DEFINE-PARAMETER Multiplied with c0 results in the velocity of '//&
-!     'introduced artificial correcting waves (HDC)' , '1.')
-CALL prms%CreateRealOption(     'c0'               , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Velocity of light (in vacuum)' , '1.')
-CALL prms%CreateRealOption(     'eps'              , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Electric constant (vacuum permittivity)' , '1.')
-CALL prms%CreateRealOption(     'mu'               , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Magnetic constant (vacuum permeability = 4πE−7H/m)' &
-                                                   , '1.')
-!CALL prms%CreateRealOption(     'fDamping'         , 'TODO-DEFINE-PARAMETER Apply the damping factor also to PML source terms\n'//&
-!     ' but only to PML variables for Phi_E and Phi_B to prevent charge-related\n'//&
-!     ' instabilities (accumulation of divergence compensation over \n'//&
-!     'timeU2 = U2 * fDamping' , '0.999')
 CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Define exact function necessary for linear scalar advection')
+CALL prms%CreateRealArrayOption('RefState'         , 'State(s) for electric potential (amplitude, frequency and phase shift).', multiple=.TRUE.)
 CALL prms%CreateRealArrayOption('IniWavenumber'    , 'TODO-DEFINE-PARAMETER' , '1. , 1. , 1.')
 CALL prms%CreateRealArrayOption('IniCenter'        , 'TODO-DEFINE-PARAMETER' , '0. , 0. , 0.')
 CALL prms%CreateRealOption(     'IniAmplitude'     , 'TODO-DEFINE-PARAMETER' , '0.1')
 CALL prms%CreateRealOption(     'IniHalfwidth'     , 'TODO-DEFINE-PARAMETER' , '0.1')
-CALL prms%CreateRealOption(     'ACfrequency'      , 'TODO-DEFINE-PARAMETER' , '0.0')
-CALL prms%CreateRealOption(     'ACamplitude'      , 'TODO-DEFINE-PARAMETER' , '0.0')
 
 CALL prms%CreateIntOption(      'chitensWhichField', 'TODO-DEFINE-PARAMETER', '-1')
 CALL prms%CreateRealOption(     'chitensValue'     , 'TODO-DEFINE-PARAMETER', '-1.0')
@@ -98,13 +83,15 @@ SUBROUTINE InitEquation()
 ! Init Poisson euqation system
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
 USE MOD_Preproc
-USE MOD_ReadInTools,             ONLY:GETREALARRAY,GETREAL,GETINT
-USE MOD_Interpolation_Vars,      ONLY:InterpolationInitIsDone
+USE MOD_Globals
 USE MOD_Equation_Vars
 USE MOD_HDG_vars
-USE MOD_Mesh_Vars,               ONLY:nSides
+USE MOD_Globals_Vars       ,ONLY: PI
+USE MOD_ReadInTools        ,ONLY: GETREALARRAY,GETREAL,GETINT,CountOption
+USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
+USE MOD_Mesh_Vars          ,ONLY: BoundaryName,BoundaryType,nBCs
+USE MOD_Mesh_Vars          ,ONLY: nSides
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -113,8 +100,12 @@ USE MOD_Mesh_Vars,               ONLY:nSides
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                         :: chitensValue,chitensRadius  ! Deprecated variables, remove in future (by the end of 2017)
-INTEGER                      :: chitensWhichField           ! Deprecated variables, remove in future (by the end of 2017)
+REAL               :: chitensValue,chitensRadius ! Deprecated variables, remove in future (by the end of 2017)
+INTEGER            :: chitensWhichField          ! Deprecated variables, remove in future (by the end of 2017)
+INTEGER            :: iState                     ! i-th RefState
+INTEGER            :: i,BCType,BCState
+CHARACTER(LEN=255) :: BCName
+INTEGER            :: nRefStateMax
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
    SWRITE(*,*) "InitPoisson not ready to be called or already called."
@@ -123,23 +114,55 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT POISSON...'
 
-! Read the velocity vector from ini file
-Pi=ACOS(-1.)
-IniWavenumber     = GETREALARRAY('IniWavenumber',3,'1.,1.,1.')
-c                  = GETREAL('c0','1.')
-eps0               = GETREAL('eps','1.')
-mu0                = GETREAL('mu','1.')
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
-IniCenter    = GETREALARRAY('IniCenter',3,'0.,0.,0.')
-IniAmplitude = GETREAL('IniAmplitude','0.1')
-IniHalfwidth = GETREAL('IniHalfwidth','0.1')
-ACfrequency = GETREAL('ACfrequency','0.0')
-ACamplitude = GETREAL('ACamplitude','0.0')
-c_inv  = 1./c
-c2     = c*c
-smu0=1./mu0
-c2_inv = 1./c2
+
+! Sanity Check BCs
+nRefStateMax = 0
+DO i=1,nBCs
+  BCType  = BoundaryType(i,BC_TYPE)
+  BCState = BoundaryType(i,BC_STATE)
+  BCName  = BoundaryName(i)
+  IF(BCType.EQ.5.AND.BCState.LE.0) THEN
+    SWRITE(*,'(A)') "Error found for the following boundary condition"
+    SWRITE(*,'(A,I0)') "   BC: ",i
+    SWRITE(*,'(A,I0)') " Type: ",BCType
+    SWRITE(*,'(A,I0)') "State: ",BCState
+    SWRITE(*,'(A)')    " Name: "//TRIM(BCName)
+    CALL abort(&
+        __STAMP__&
+        ,'BCState is <= 0 for BCType=5 is not allowed! Set a positive integer for the n-th RefState')
+  ELSEIF(BCType.EQ.5.AND.BCState.GT.0)THEN
+    nRefStateMax = MAX(nRefStateMax,BCState)
+  END IF
+END DO
+
+! Read Boundary information / RefStates / perform sanity check
+nRefState=CountOption('RefState')
+IF(nRefStateMax.GT.nRefState)THEN
+  SWRITE(*,'(A,I0)') "nRefStateMax: ",nRefStateMax
+  SWRITE(*,'(A,I0,A)') "   nRefState: ",nRefState," (number of times RefState = (/x,x,x/) occurs in the parameter file)"
+  CALL abort(&
+      __STAMP__&
+      ,'nRefStateMax > nRefState: The given RefState number for boundary type 5 is larger than the supplied RefStates. '//&
+       'Define the correct number of RefStates via, e.g., \n\n  RefState = (/100.0 , 13.56E6 , -1.57079632679/) '//&
+       '! RefState Nbr 1: Voltage, Frequency and Phase shift\n  RefState = (/ 50.0 , 13.56E6 ,  1.57079632679/) '//&
+       '! RefState Nbr 2: Voltage, Frequency and Phase shift\n')
+END IF ! nRefStateMax.GT.nRefState
+
+IF(nRefState .GT. 0)THEN
+  ALLOCATE(RefState(3,nRefState))
+  DO iState=1,nRefState
+    RefState(1:3,iState) = GETREALARRAY('RefState',3)
+  END DO
+END IF
+
+
+! Read the velocity vector from ini file
+IniWavenumber = GETREALARRAY('IniWavenumber',3,'1.,1.,1.')
+IniCenter     = GETREALARRAY('IniCenter',3,'0.,0.,0.')
+IniAmplitude  = GETREAL('IniAmplitude','0.1')
+IniHalfwidth  = GETREAL('IniHalfwidth','0.1')
 
 chitensWhichField = GETINT( 'chitensWhichField','-1')
 chitensValue      = GETREAL('chitensValue','-1.0')
@@ -181,17 +204,16 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
 
-SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID)
+SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,         ONLY:Abort,mpiroot
-USE MOD_Equation_Vars,   ONLY:Pi
-USE MOD_Equation_Vars,   ONLY: IniCenter,IniHalfwidth,IniAmplitude
-USE MOD_Equation_Vars,   ONLY: ACfrequency,ACamplitude
-USE MOD_Dielectric_Vars, ONLY:DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
-USE MOD_Mesh_Vars,       ONLY:ElemBaryNGeo
+USE MOD_Globals         ,ONLY: Abort,mpiroot
+USE MOD_Globals_Vars    ,ONLY: PI
+USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState
+USE MOD_Dielectric_Vars ,ONLY: DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
+USE MOD_Mesh_Vars       ,ONLY: ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -199,47 +221,30 @@ IMPLICIT NONE
 REAL,INTENT(IN)                 :: x(3)
 INTEGER,INTENT(IN)              :: ExactFunction    ! determines the exact function
 INTEGER,INTENT(IN),OPTIONAL     :: ElemID           ! ElemID
-REAL,INTENT(IN),OPTIONAl        :: t ! time
+REAL,INTENT(IN),OPTIONAl        :: t                ! time
+INTEGER,INTENT(IN),OPTIONAL     :: iRefState        ! ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: Frequency,Amplitude,Omega
-REAL                            :: Cent(3)
+REAL                            :: Omega
 REAL                            :: r1,r2
 REAL                            :: r_2D,r_3D,r_bary
 REAL                            :: cos_theta
 REAL                            :: eps1,eps2
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
-CASE(0)
+CASE(-1) ! Amplitude, Frequency and Phase Shift supplied by RefState
+  ! RefState(1,iRefState): amplitude
+  ! RefState(2,iRefState): frequency
+  ! RefState(3,iRefState): phase shift
+  Omega   = 2.*PI*RefState(2,iRefState)
+  Resu(:) = RefState(1,iRefState)*COS(Omega*t+RefState(3,iRefState))
+CASE(0) !linear
     Resu(:)=0.
-CASE(1) !linear
-    Resu(:)=0.
-CASE(21) !linear
-    Resu(:)=10.+SUM(x)
-CASE(101) !constant
-    Resu(:)=7.7
 CASE(1001) ! linear in y-z
     Resu(:)=x(2)*2340 + x(3)*2340
-
-CASE(2) !sinus
-  Frequency=0.5
-  Amplitude=0.3
-  Omega=2.*Pi*Frequency
-  Resu(:)=1.+Amplitude*SIN(Omega*SUM(Cent))
-CASE(30) !sinus: shifted by PI into the future (ACamplitude -> -1*ACamplitude)
-  Omega=2.*Pi*ACfrequency
-  Resu(:)=-ACamplitude*SIN(Omega*t)
-CASE(31) !sinus
-  Omega=2.*Pi*ACfrequency
-  Resu(:)=ACamplitude*SIN(Omega*t)
-CASE(32) !sinus
-  resu=0.
-return
-  Omega=2.*Pi*ACfrequency
-  Resu(:)=ACamplitude*SIN(Omega*t-Pi)
 CASE(102) !linear: z=-1: 0, z=1, 1000
   resu(:)=(1+x(3))*1000.
 CASE(103) ! dipole
@@ -533,10 +538,12 @@ USE MOD_Globals            ,ONLY: Abort
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition,DepositionType
+USE MOD_Mesh_Vars          ,ONLY: offSetElem
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
 USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
-USE MOD_Equation_Vars      ,ONLY: eps0
+USE MOD_Globals_Vars       ,ONLY: eps0
 #if IMPA
 USE MOD_LinearSolver_Vars  ,ONLY: ExplicitPartSource
 #endif
@@ -556,10 +563,14 @@ REAL,INTENT(IN),OPTIONAL        :: Phi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                            :: x(3)
-REAL                            :: r1,r2, source_e
+REAL                            :: r1,r2
 REAL,DIMENSION(3)               :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
-INTEGER                         :: RegionID
+#ifdef PARTICLES
+REAL                            :: source_e
+INTEGER                         :: RegionID, CNElemID
+#endif /*PARTICLES*/
 !===================================================================================================================================
+IF(PRESENT(warning_linear)) warning_linear=.FALSE. ! Initialize
 ! Calculate IniExactFunc before particles are superimposed, because the IniExactFunc might be needed by the CalcError function
 SELECT CASE (IniExactFunc)
 CASE(0) ! Particles
@@ -583,7 +594,8 @@ CASE DEFAULT
 END SELECT ! ExactFunction
 
 #ifdef PARTICLES
-IF(DoDeposition .OR. (TRIM(DepositionType).EQ.'constant'))THEN
+IF(DoDeposition)THEN
+  CNElemID = GetCNElemID(iElem+offSetElem)
   source_e=0.
   IF (PRESENT(Phi)) THEN
     RegionID=0
@@ -603,9 +615,9 @@ IF(DoDeposition .OR. (TRIM(DepositionType).EQ.'constant'))THEN
     END IF
   END IF
 #if IMPA
-  resu(1)= - (PartSource(4,i,j,k,iElem)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
+  resu(1)= - (PartSource(4,i,j,k,CNElemID)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
 #else
-  resu(1)= - (PartSource(4,i,j,k,iElem)-source_e)/eps0
+  resu(1)= - (PartSource(4,i,j,k,CNElemID)-source_e)/eps0
 #endif
 END IF
 #endif /*PARTICLES*/
@@ -664,6 +676,7 @@ SDEALLOCATE(chitens)
 SDEALLOCATE(chitensInv)
 SDEALLOCATE(chitens_face)
 SDEALLOCATE(E)
+SDEALLOCATE(RefState)
 END SUBROUTINE FinalizeEquation
 
 END MODULE MOD_Equation

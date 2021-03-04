@@ -53,8 +53,7 @@ SUBROUTINE InitBC()
 USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Equation_Vars     ,ONLY: EquationInitIsDone
-USE MOD_Equation_Vars     ,ONLY: BCData,nBCByType,BCSideID!,nRefstate
-!USE MOD_Equation_Vars     ,ONLY: BCStateFile
+USE MOD_Equation_Vars     ,ONLY: BCData,nBCByType,BCSideID
 USE MOD_Interpolation_Vars,ONLY: InterpolationInitIsDone
 USE MOD_Mesh_Vars         ,ONLY: MeshInitIsDone,nBCSides,BC,BoundaryType,nBCs
 ! IMPLICIT VARIABLE HANDLING

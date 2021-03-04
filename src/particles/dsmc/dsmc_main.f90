@@ -41,17 +41,15 @@ SUBROUTINE DSMC_main(DoElement)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath
+USE MOD_DSMC_Analyze          ,ONLY: DSMC_data_sampling,CalcSurfaceValues, CalcGammaVib,SamplingRotVibRelaxProb
 USE MOD_DSMC_BGGas            ,ONLY: BGGas_InsertParticles, DSMC_pairing_bggas, MCC_pairing_bggas, BGGas_DeleteParticles
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
-USE MOD_DSMC_Vars             ,ONLY: ChemReac, UseMCC, XSec_Relaxation, SpecXSec
+USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode, UseMCC
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SummarizeQualityFactors, DSMCMacroSampling
-USE MOD_DSMC_Collis           ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
-USE MOD_Particle_Vars         ,ONLY: PDM, WriteMacroVolumeValues, Symmetry, PEM
-USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
-USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_octree, DSMC_pairing_standard, DSMC_pairing_quadtree, DSMC_pairing_dotree
-USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
-USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision
+USE MOD_DSMC_Relaxation       ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
+USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Symmetry
+USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_pairing_quadtree, DSMC_pairing_dotree
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
@@ -69,7 +67,6 @@ INTEGER           :: iElem, nPart
 #if USE_LOADBALANCE
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
-INTEGER           :: iCase
 !===================================================================================================================================
 
 ! Reset the right-hand side (DoElement: coupled BGK/FP-DSMC simulations, which might utilize the RHS)
@@ -97,14 +94,8 @@ DO iElem = 1, nElems ! element/cell main loop
     DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
     IF(DSMC%RotRelaxProb.GT.2) DSMC%CalcRotProb = 0.
     DSMC%CalcVibProb = 0.
-    IF(XSec_Relaxation) THEN
-      DO iCase=1,CollInf%NumCase
-        SpecXSec(iCase)%VibProb(1:2) = 0.
-      END DO
-    END IF
   END IF
   IF (CollisMode.NE.0) THEN
-    ChemReac%nPairForRec = 0
     CALL InitCalcVibRelaxProb
     IF(BGGas%NumberOfSpecies.GT.0) THEN
       IF(UseMCC) THEN
@@ -122,10 +113,10 @@ DO iElem = 1, nElems ! element/cell main loop
         ELSE
           CALL DSMC_pairing_dotree(iElem)
         END IF
-      ELSE
+      ELSE ! NOT DSMC%UseOctree
         ! Standard pairing of particles within a cell
         CALL DSMC_pairing_standard(iElem)
-      END IF
+      END IF ! DSMC%UseOctree
     ELSE ! less than 2 particles
       IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(PEM%pStart(iElem)) = 0
       CYCLE ! next element

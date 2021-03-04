@@ -27,7 +27,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_1D_InitVolumes, DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting, DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
-PUBLIC :: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea, CalcRadWeightMPF, DSMC_2D_CalcSymmetryAreaSubSides
+PUBLIC :: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 PUBLIC :: DefineParametersParticleSymmetry, Init_Symmetry, DSMC_2D_TreatIdenticalParticles
 !===================================================================================================================================
 
@@ -52,7 +52,7 @@ CALL prms%CreateLogicalOption('Particles-RadialWeighting', 'Activates a radial w
                               'simulation based on the particle position.', '.FALSE.')
 CALL prms%CreateRealOption(   'Particles-RadialWeighting-PartScaleFactor', 'Axisymmetric radial weighting factor, defining '//&
                               'the linear increase of the weighting factor (e.g. factor 2 means that the weighting factor will '//&
-                              'be twice as large at the outer radial domain boudary than at the rotational axis')
+                              'be twice as large at the outer radial domain boundary than at the rotational axis')
 CALL prms%CreateLogicalOption('Particles-RadialWeighting-CellLocalWeighting', 'Enables a cell-local radial weighting, '//&
                               'where every particle has the same weighting factor within a cell', '.FALSE.')
 CALL prms%CreateIntOption(    'Particles-RadialWeighting-CloneMode',  &
@@ -77,13 +77,23 @@ SUBROUTINE DSMC_2D_InitVolumes()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: Pi
-USE MOD_Preproc
-USE MOD_Mesh_Vars               ,ONLY: nElems, nBCSides, BC, SideToElem, SurfElem
-USE MOD_Interpolation_Vars      ,ONLY: wGP
+USE MOD_PreProc
+USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem,nBCSides,SideToElem
 USE MOD_Particle_Vars           ,ONLY: Symmetry
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
+#if USE_MPI
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
+USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
+USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,MPI_COMM_LEADERS_SHARED
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -92,10 +102,19 @@ USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: SideID, iLocSide, i, j, ElemID, iNode
-REAL                            :: radius
+INTEGER                         :: SideID, iLocSide, iNode, BCSideID, locElemID, CNElemID
+REAL                            :: radius, triarea(2), CNVolume
 LOGICAL                         :: SymmetryBCExists
+INTEGER                         :: firstElem,lastElem
 !===================================================================================================================================
+
+#if USE_MPI
+FirstElem = offsetElem - offsetComputeNodeElem + 1
+LastElem  = offsetElem - offsetComputeNodeElem + nElems
+#else
+firstElem = 1
+lastElem  = nElems
+#endif  /*USE_MPI*/
 
 SymmetryBCExists = .FALSE.
 ALLOCATE(SymmetrySide(1:nElems,1:2))                ! 1: GlobalSide, 2: LocalSide
@@ -109,46 +128,48 @@ IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
     ,'ERROR: Please orient your mesh with one cell in z-direction around 0, |z_min| = z_max !')
 END IF
 
-DO SideID=1,nBCSides
-  ! Get the SideID of the symmetry sides defined as symmetry BC ('symmetric')
-  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))).EQ.PartBound%SymmetryBC) THEN
-    ElemID = SideToElem(1,SideID)
-    IF (ElemID.LT.1) THEN
-      ElemID = SideToElem(2,SideID)
-      iLocSide = SideToElem(4,SideID)
-    ELSE
-      iLocSide = SideToElem(3,SideID)
-    END IF
+DO BCSideID=1,nBCSides
+  locElemID = SideToElem(1,BCSideID)
+  IF (locElemID.LT.1) THEN !not sure if necessary
+    locElemID = SideToElem(2,BCSideID)
+    iLocSide = SideToElem(4,BCSideID)
+  ELSE
+    iLocSide = SideToElem(3,BCSideID)
+  END IF
+  SideID=GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%SymmetryBC) THEN
+    CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
+    iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
     ! Exclude the symmetry axis (y=0)
-    IF(MAXVAL(GEO%NodeCoords(2,GEO%ElemSideNodeID(:,iLocSide,ElemID))).GT.0.0) THEN
+    IF(MAXVAL(NodeCoords_Shared(2,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1)).GT.0.0) THEN
       ! The z-plane with the positive z component is chosen
-      IF(MINVAL(GEO%NodeCoords(3,GEO%ElemSideNodeID(:,iLocSide,ElemID))).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
-        IF(SymmetrySide(ElemID,1).GT.0) THEN
+      IF(MINVAL(NodeCoords_Shared(3,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1)).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
+        IF(SymmetrySide(locElemID,1).GT.0) THEN
           CALL abort(__STAMP__&
             ,'ERROR: PICLas could not determine a unique symmetry surface for 2D/axisymmetric calculation!'//&
             ' Please orient your mesh with x as the symmetry axis and positive y as the second/radial direction!')
         END IF
-        SymmetrySide(ElemID,1) = SideID
-        SymmetrySide(ElemID,2) = iLocSide
+        SymmetrySide(locElemID,1) = BCSideID
+        SymmetrySide(locElemID,2) = iLocSide
         ! The volume calculated at this point (final volume for the 2D case) corresponds to the cell face area (z-dimension=1) in
         ! the xy-plane.
-        GEO%Volume(ElemID) = 0.0
-        DO j=0,PP_N; DO i=0,PP_N
-          GEO%Volume(ElemID) = GEO%Volume(ElemID) + wGP(i)*wGP(j)*SurfElem(i,j,SideID)
-        END DO; END DO
+        ElemVolume_Shared(CNElemID) = 0.0
+        CALL CalcNormAndTangTriangle(area=triarea(1),TriNum=1, SideID=SideID)
+        CALL CalcNormAndTangTriangle(area=triarea(2),TriNum=2, SideID=SideID)
+        ElemVolume_Shared(CNElemID) = triarea(1) + triarea(2)
         ! Characteristic length is compared to the mean free path as the condition to refine the mesh. For the 2D/axisymmetric case
         ! the third dimension is not considered as particle interaction occurs in the xy-plane, effectively reducing the refinement
         ! requirement.
-        GEO%CharLength(ElemID) = SQRT(GEO%Volume(ElemID))
+        ElemCharLength_Shared(CNElemID) = SQRT(ElemVolume_Shared(CNElemID))
         ! Axisymmetric case: The volume is multiplied by the circumference to get the volume of the ring. The cell face in the
         ! xy-plane is rotated around the x-axis. The radius is the middle point of the cell face.
         IF (Symmetry%Axisymmetric) THEN
           radius = 0.
           DO iNode = 1, 4
-            radius = radius + GEO%NodeCoords(2,GEO%ElemSideNodeID(iNode,iLocSide,ElemID))
+            radius = radius + NodeCoords_Shared(2,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)
           END DO
           radius = radius / 4.
-          GEO%Volume(ElemID) = GEO%Volume(ElemID) * 2. * Pi * radius
+          ElemVolume_Shared(CNElemID) = ElemVolume_Shared(CNElemID) * 2. * Pi * radius
         END IF
         SymmetryBCExists = .TRUE.
       END IF    ! y-coord greater 0.0
@@ -162,11 +183,21 @@ IF(.NOT.SymmetryBCExists) THEN
 END IF
 
 ! LocalVolume & MeshVolume: Recalculate the volume of the mesh of a single process and the total mesh volume
-GEO%LocalVolume = SUM(GEO%Volume)
+LocalVolume = SUM(ElemVolume_Shared(FirstElem:LastElem))
 #if USE_MPI
-CALL MPI_ALLREDUCE(GEO%LocalVolume,GEO%MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
+CALL MPI_WIN_SYNC(ElemVolume_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+! Compute-node mesh volume
+CNVolume = SUM(ElemVolume_Shared(:))
+IF (myComputeNodeRank.EQ.0) THEN
+  ! All-reduce between node leaders
+  CALL MPI_ALLREDUCE(CNVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,IERROR)
+END IF
+! Broadcast from node leaders to other processors on the same node
+CALL MPI_BCAST(MeshVolume,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iERROR)
 #else
-GEO%MeshVolume=GEO%LocalVolume
+MeshVolume = LocalVolume
 #endif /*USE_MPI*/
 
 END SUBROUTINE DSMC_2D_InitVolumes
@@ -180,9 +211,18 @@ SUBROUTINE DSMC_1D_InitVolumes()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars               ,ONLY: nElems, BC, ElemToSide
+USE MOD_Mesh_Vars               ,ONLY: nElems, offsetElem
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
+#if USE_MPI
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
+USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -191,10 +231,19 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iSide, iElem, SideID, iDim
-REAL                            :: X(2)
+INTEGER                         :: iLocSide, iElem, SideID, iDim, CNElemID
+REAL                            :: X(2), MaxCoord, MinCoord
 LOGICAL                         :: SideInPlane, X1Occupied
+INTEGER                         :: firstElem,lastElem
 !===================================================================================================================================
+
+#if USE_MPI
+firstElem = offsetElem - offsetComputeNodeElem + 1
+lastElem  = offsetElem - offsetComputeNodeElem + nElems
+#else
+firstElem = 1
+lastElem  = nElems
+#endif  /*USE_MPI*/
 
 ALLOCATE(GEO%XMinMax(2,nElems))
 
@@ -219,63 +268,56 @@ DO iElem = 1,nElems
   ! And determine xmin and xmax of the element
   X = 0
   X1Occupied = .FALSE.
-  DO iSide = 1,6
+  DO iLocSide = 1,6
     SideInPlane=.FALSE.
+    SideID = GetGlobalNonUniqueSideID(offsetElem+iElem,iLocSide)
+    CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
     DO iDim=1,3
-      IF(ALMOSTALMOSTEQUAL(MAXVAL(GEO%NodeCoords(iDim,GEO%ElemSideNodeID(:,iSide,iElem))),MINVAL(GEO%NodeCoords(iDim,GEO%ElemSideNodeID(:,iSide,iElem)))) &
-      .OR.(ALMOSTZERO(MAXVAL(GEO%NodeCoords(iDim,GEO%ElemSideNodeID(:,iSide,iElem)))).AND.ALMOSTZERO(MINVAL(GEO%NodeCoords(iDim,GEO%ElemSideNodeID(:,iSide,iElem)))))) THEN
+      MaxCoord = MAXVAL(NodeCoords_Shared(iDim,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1))
+      MinCoord = MINVAL(NodeCoords_Shared(iDim,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1))
+      IF(ALMOSTALMOSTEQUAL(MaxCoord,MinCoord).OR.(ALMOSTZERO(MaxCoord).AND.ALMOSTZERO(MinCoord))) THEN
         IF(SideInPlane) CALL abort(__STAMP__&
           ,'ERROR: Please orient your mesh with all element sides parallel to xy-,xz-,or yz-plane')
         SideInPlane=.TRUE.
-        SideID = ElemToSide(E2S_SIDE_ID,iSide,iElem)
         IF(iDim.GE.2)THEN
-          IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))).NE.PartBound%SymmetryBC) CALL abort(&
-            __STAMP__&
-            ,'ERROR: Sides parallel to xy-,and xz-plane has to be the symmetric boundary condition')
+          IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).NE.PartBound%SymmetryBC) &
+            CALL abort(__STAMP__,&
+              'ERROR: Sides parallel to xy-,and xz-plane has to be the symmetric boundary condition')
         END IF
         IF(iDim.EQ.1) THEN
           IF(X1Occupied) THEN
-            X(2) = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iSide,iElem))
+            X(2) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
           ELSE
-            X(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iSide,iElem))
+            X(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
             X1Occupied = .TRUE.
           END IF
         END IF !iDim.EQ.1
-      END IF !
+      END IF
     END DO !iDim=1,3
     IF(.NOT.SideInPlane) THEN
-      IPWRITE(*,*) 'ElemID:',iElem,'SideID:',iSide
+      IPWRITE(*,*) 'ElemID:',iElem,'SideID:',iLocSide
       DO iDim=1,4
-        IPWRITE(*,*) 'Node',iDim,'x:',GEO%NodeCoords(1,GEO%ElemSideNodeID(iDim,iSide,iElem)), &
-            'y:',GEO%NodeCoords(2,GEO%ElemSideNodeID(iDim,iSide,iElem)),'z:',GEO%NodeCoords(3,GEO%ElemSideNodeID(iDim,iSide,iElem))
+        IPWRITE(*,*) 'Node',iDim,'x:',NodeCoords_Shared(1,ElemSideNodeID_Shared(iDim,iLocSide,CNElemID)+1), &
+                                 'y:',NodeCoords_Shared(2,ElemSideNodeID_Shared(iDim,iLocSide,CNElemID)+1), &
+                                 'z:',NodeCoords_Shared(3,ElemSideNodeID_Shared(iDim,iLocSide,CNElemID)+1)
       END DO
       CALL abort(__STAMP__&
     ,'ERROR: Please orient your mesh with all element sides parallel to xy-,xz-,or yz-plane')
     END IF
-  END DO !iSide = 1,6
+  END DO ! iLocSide = 1,6
   GEO%XMinMax(1,iElem) = MINVAL(X)
   GEO%XMinMax(2,iElem) = MAXVAL(X)
-  ! IF((Symmetry%SphericalSymmetric.OR.Symmetry%Axisymmetric).AND.(MINVAL(X).LT.0.)) CALL abort(__STAMP__&
-  ! ,'ERROR: mesh has to start at x=0 and goes along positive x-direction in the axissymmetric and spherical symmetric case, respectively')
-  ! Volume calculation with dimension in y and z direction of 1, respectively
-  GEO%Volume(iElem) = ABS(X(1)-X(2))
-  GEO%CharLength(iElem) = GEO%Volume(iElem)
-  ! IF(Symmetry%Axisymmetric) THEN
-  !   ! Calulate the Volume of the ring
-  !   Radius = ABS(X(1)+X(2))*0.5
-  !   GEO%Volume(iElem) = GEO%Volume(iElem) * 2. * Pi * Radius
-  ! ELSE IF(Symmetry%SphericalSymmetric) THEN
-  !   ! Calculate the volume of the hollow sphere
-  !   GEO%Volume(iElem) = 4./3. * PI * ( MAXVAL(X)**3 - MINVAL(X)**3 )
-  ! END IF
+  ElemVolume_Shared(CNElemID) = ABS(X(1)-X(2))
+  ElemCharLength_Shared(CNElemID) = ElemVolume_Shared(CNElemID)
 END DO
 ! LocalVolume & MeshVolume: Recalculate the volume of the mesh of a single process and the total mesh volume
-GEO%LocalVolume = SUM(GEO%Volume)
+LocalVolume = SUM(ElemVolume_Shared(firstElem:lastElem))
 #if USE_MPI
-CALL MPI_ALLREDUCE(GEO%LocalVolume,GEO%MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
-#else
-GEO%MeshVolume=GEO%LocalVolume
+CALL MPI_WIN_SYNC(ElemVolume_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif /*USE_MPI*/
+MeshVolume = SUM(ElemVolume_Shared)
 
 END SUBROUTINE DSMC_1D_InitVolumes
 
@@ -359,11 +401,12 @@ SUBROUTINE DSMC_2D_RadialWeighting(iPart,iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, DSMC, PartStateIntEn, useDSMC, CollisMode
-USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, VibQuantsPar, SpecDSMC, PolyatomMolDSMC
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, DSMC, PartStateIntEn, useDSMC, CollisMode, AmbipolElecVelo
+USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, VibQuantsPar, SpecDSMC, PolyatomMolDSMC, ElectronicDistriPart
 USE MOD_Particle_Vars           ,ONLY: PartMPF, PartSpecies, PartState, Species, LastPartPos
 USE MOD_TimeDisc_Vars           ,ONLY: iter
 USE MOD_part_operations         ,ONLY: RemoveParticle
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
 USE Ziggurat
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -374,17 +417,18 @@ INTEGER, INTENT(IN)             :: iPart, iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iPolyatMole, cloneIndex, DelayCounter
+INTEGER                         :: SpecID, iPolyatMole, cloneIndex, DelayCounter
 REAL                            :: DeleteProb, iRan, NewMPF, CloneProb, OldMPF
 LOGICAL                         :: DoCloning
 !===================================================================================================================================
 DoCloning = .FALSE.
 DeleteProb = 0.
+SpecID = PartSpecies(iPart)
 
-IF (.NOT.(PartMPF(iPart).GT.Species(PartSpecies(iPart))%MacroParticleFactor)) RETURN
+IF (.NOT.(PartMPF(iPart).GT.Species(SpecID)%MacroParticleFactor)) RETURN
 
 ! 1.) Determine the new particle weight and decide whether to clone or to delete the particle
-NewMPF = CalcRadWeightMPF(PartState(2,iPart), PartSpecies(iPart),iPart)
+NewMPF = CalcRadWeightMPF(PartState(2,iPart),SpecID,iPart)
 OldMPF = PartMPF(iPart)
 CloneProb = (OldMPF/NewMPF)-INT(OldMPF/NewMPF)
 CALL RANDOM_NUMBER(iRan)
@@ -425,16 +469,30 @@ IF(DoCloning) THEN
   ClonedParticles(cloneIndex,DelayCounter)%PartState(1:6)= PartState(1:6,iPart)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
     ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(1:2) = PartStateIntEn(1:2,iPart)
-    IF(DSMC%ElectronicModel) ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(3) =   PartStateIntEn(3,iPart)
-    IF(SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
-      iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
+    IF(DSMC%ElectronicModel.GT.0) THEN
+      ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(3) =   PartStateIntEn(3,iPart)
+      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized))) THEN
+        IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)) &
+          DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)
+        ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(1:SpecDSMC(SpecID)%MaxElecQuant))
+        ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(:) = ElectronicDistriPart(iPart)%DistriFunc(:)
+      END IF
+    END IF
+    IF ((DSMC%DoAmbipolarDiff).AND.(Species(SpecID)%ChargeIC.GT.0.0)) THEN
+      IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo)) &
+        DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo)
+      ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo(1:3))
+      ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo(1:3) = AmbipolElecVelo(iPart)%ElecVelo(1:3)
+    END IF
+    IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
+      iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
       IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%VibQuants)) &
         DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%VibQuants)
       ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%VibQuants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
       ClonedParticles(cloneIndex,DelayCounter)%VibQuants(:) = VibQuantsPar(iPart)%Quants(:)
     END IF
   END IF
-  ClonedParticles(cloneIndex,DelayCounter)%Species = PartSpecies(iPart)
+  ClonedParticles(cloneIndex,DelayCounter)%Species = SpecID
   ClonedParticles(cloneIndex,DelayCounter)%Element = iElem
   ClonedParticles(cloneIndex,DelayCounter)%LastPartPos(1:3) = LastPartPos(1:3,iPart)
   ClonedParticles(cloneIndex,DelayCounter)%WeightingFactor = PartMPF(iPart)
@@ -472,8 +530,10 @@ SUBROUTINE DSMC_2D_SetInClones()
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, PartStateIntEn, useDSMC, CollisMode, DSMC, RadialWeighting
-USE MOD_DSMC_Vars               ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive
+USE MOD_DSMC_Vars               ,ONLY: AmbipolElecVelo
+USE MOD_DSMC_Vars               ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive, ElectronicDistriPart
 USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: Species
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: iter
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
@@ -485,7 +545,7 @@ USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iPart, PositionNbr, iPolyatMole, DelayCounter
+INTEGER                         :: iPart, PositionNbr, iPolyatMole, DelayCounter, locElemID
 REAL                            :: iRan
 !===================================================================================================================================
 
@@ -534,7 +594,21 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   PartState(6,PositionNbr) = - ClonedParticles(iPart,DelayCounter)%PartState(6)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
     PartStateIntEn(1:2,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
-    IF(DSMC%ElectronicModel) PartStateIntEn(3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
+    IF(DSMC%ElectronicModel.GT.0) THEN
+      PartStateIntEn(3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
+      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) & 
+          .OR.SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%FullyIonized))) THEN
+        IF(ALLOCATED(ElectronicDistriPart(PositionNbr)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc)
+        ALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc(1:SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%MaxElecQuant))
+        ElectronicDistriPart(PositionNbr)%DistriFunc(:) = ClonedParticles(iPart,DelayCounter)%DistriFunc(:)
+      END IF
+    END IF
+    IF ((DSMC%DoAmbipolarDiff).AND.(Species(ClonedParticles(iPart,DelayCounter)%Species)%ChargeIC.GT.0.0)) THEN
+      IF(ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
+      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(1:3))
+      AmbipolElecVelo(PositionNbr)%ElecVelo(1:2) = ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(1:2)
+      AmbipolElecVelo(PositionNbr)%ElecVelo(3) = -ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(3)
+    END IF
     IF(SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%SpecToPolyArray
       IF(ALLOCATED(VibQuantsPar(PositionNbr)%Quants)) DEALLOCATE(VibQuantsPar(PositionNbr)%Quants)
@@ -543,18 +617,18 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
     END IF
   END IF
   PartSpecies(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Species
-  PEM%Element(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
-  PEM%lastElement(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
+  ! Set the global element number with the offset
+  PEM%GlobalElemID(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
+  PEM%LastGlobalElemID(PositionNbr) = PEM%GlobalElemID(PositionNbr)
+  locElemID = PEM%LocalElemID(PositionNbr)
   LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
   IF (VarTimeStep%UseVariableTimeStep) THEN
-    VarTimeStep%ParticleTimeStep(PositionNbr) = CalcVarTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),&
-                                                                PEM%Element(PositionNbr))
+    VarTimeStep%ParticleTimeStep(PositionNbr) = CalcVarTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),locElemID)
   END IF
   ! Counting the number of clones per cell
   IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
-    IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(PEM%Element(PositionNbr),5) = &
-                                            DSMC%QualityFacSamp(PEM%Element(PositionNbr),5) + 1
+    IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(locElemID,5) = DSMC%QualityFacSamp(locElemID,5) + 1
   END IF
   IF(CalcPartBalance) THEN
     nPartIn(PartSpecies(PositionNbr))=nPartIn(PartSpecies(PositionNbr)) + 1
@@ -576,12 +650,12 @@ REAL FUNCTION DSMC_2D_CalcSymmetryArea(iLocSide,iElem, ymin, ymax)
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: Pi
 USE MOD_Particle_Vars         ,ONLY: Symmetry
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)            :: iElem,iLocSide
+INTEGER,INTENT(IN)            :: iElem,iLocSide           !> iElem is the compute-node element ID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL, OPTIONAL, INTENT(OUT)   :: ymax,ymin
@@ -595,7 +669,7 @@ Pmin = HUGE(Pmin)
 Pmax = -HUGE(Pmax)
 
 DO iNode = 1,4
-  P(1:2,iNode) = GEO%NodeCoords(1:2,GEO%ElemSideNodeID(iNode,iLocSide,iElem))
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,iLocSide,iElem)+1)
 END DO
 
 Pmax(1) = MAXVAL(P(1,:))
@@ -630,7 +704,7 @@ REAL FUNCTION DSMC_1D_CalcSymmetryArea(iLocSide,iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -641,8 +715,8 @@ INTEGER,INTENT(IN)            :: iElem,iLocSide
 REAL                          :: Pmin, Pmax, Length
 !===================================================================================================================================
 
-Pmax = MAXVAL(GEO%NodeCoords(1,GEO%ElemSideNodeID(:,iLocSide,iElem)))
-Pmin = MINVAL(GEO%NodeCoords(1,GEO%ElemSideNodeID(:,iLocSide,iElem)))
+Pmax = MAXVAL(NodeCoords_Shared(1,ElemSideNodeID_Shared(:,iLocSide,iElem)+1))
+Pmin = MINVAL(NodeCoords_Shared(1,ElemSideNodeID_Shared(:,iLocSide,iElem)+1))
 
 Length = ABS(Pmax-Pmin)
 
@@ -660,23 +734,22 @@ RETURN
 END FUNCTION DSMC_1D_CalcSymmetryArea
 
 
-FUNCTION DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,iElem)!,ymin,ymax)
+FUNCTION DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,iElem)
 !===================================================================================================================================
 !> Calculates the area of the subsides for the insertion with the surface flux
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars              ,ONLY: Pi
-USE MOD_Particle_Mesh_Vars        ,ONLY: GEO
 USE MOD_DSMC_Vars                 ,ONLY: RadialWeighting
+USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)                :: iLocSide,iElem
+INTEGER,INTENT(IN)                :: iLocSide,iElem           !> iElem is the compute-node element ID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-! REAL, INTENT(OUT)                 :: ymax(RadialWeighting%nSubSides),ymin(RadialWeighting%nSubSides)
 REAL                              :: DSMC_2D_CalcSymmetryAreaSubSides(RadialWeighting%nSubSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -688,7 +761,7 @@ Pmin = HUGE(Pmin)
 Pmax = -HUGE(Pmax)
 
 DO iNode = 1,4
-  P(1:2,iNode) = GEO%NodeCoords(1:2,GEO%ElemSideNodeID(iNode,iLocSide,iElem))
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,iLocSide,iElem)+1)
 END DO
 
 Pmax(1) = MAXVAL(P(1,:))
@@ -700,10 +773,6 @@ Length = SQRT((Pmax(1)-Pmin(1))**2 + (Pmax(2)-Pmin(2))**2)
 DO iNode = 1, RadialWeighting%nSubSides
   PminTemp = Pmin(2) + (Pmax(2) - Pmin(2))/RadialWeighting%nSubSides*(iNode-1.)
   PmaxTemp = Pmin(2) + (Pmax(2) - Pmin(2))/RadialWeighting%nSubSides*iNode
-  ! IF (PRESENT(ymax).AND.PRESENT(ymin)) THEN
-  !   ymin(iNode) = PminTemp
-  !   ymax(iNode) = PmaxTemp
-  ! END IF
   MidPoint = (PmaxTemp+PminTemp) / 2.
   DSMC_2D_CalcSymmetryAreaSubSides(iNode) = Length/RadialWeighting%nSubSides * MidPoint * Pi * 2.
 END DO
@@ -711,44 +780,6 @@ END DO
 RETURN
 
 END FUNCTION DSMC_2D_CalcSymmetryAreaSubSides
-
-
-PURE REAL FUNCTION CalcRadWeightMPF(yPos, iSpec, iPart)
-!===================================================================================================================================
-!> Determines the weighting factor when using an additional radial weighting for axisymmetric simulations. Linear increase from the
-!> rotational axis (y=0) to the outer domain boundary (y=ymax).
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_Particle_Vars           ,ONLY: Species, PEM
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)                :: yPos
-INTEGER, INTENT(IN)             :: iSpec
-INTEGER, OPTIONAL,INTENT(IN)    :: iPart
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-REAL                 :: yPosIn
-!===================================================================================================================================
-
-IF(RadialWeighting%CellLocalWeighting.AND.PRESENT(iPart)) THEN
-  yPosIn = GEO%ElemMidPoint(2,PEM%Element(iPart))
-ELSE
-  yPosIn = yPos
-END IF
-
-CalcRadWeightMPF = (1. + yPosIn/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
-
-RETURN
-
-END FUNCTION CalcRadWeightMPF
 
 
 SUBROUTINE Init_Symmetry()
@@ -828,7 +859,7 @@ INTEGER                       :: iPart_p1, iPart_p2, tempPart, cSpec1, cSpec2, i
 !===================================================================================================================================
 ! Two particles with the exact same velocities at the same positions -> clones that did not interact with other particles/walls
 IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
-  IF (nPart.EQ.1) THEN
+  IF ((CollisMode.LT.3).AND.(nPart.EQ.1)) THEN
     ! Uneven number of particles in the cell, a single particle is left without a pair
     ! Removing the pairs from the weighting factor and the case num sums
     CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
@@ -853,46 +884,61 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
                              + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
                              + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
   ELSE IF (iPair.LT.nPair) THEN
-  ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
-  ! are swapped
-    CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
-    CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
-      - 0.5 * (GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))
-    CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) - 1
-    CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
-      - 0.5 * (GetParticleWeight(Coll_pData(iPair+1)%iPart_p1) + GetParticleWeight(Coll_pData(iPair+1)%iPart_p2))
-    ! Breaking up the next pair and swapping partners
-    tempPart = Coll_pData(iPair)%iPart_p1
-    Coll_pData(iPair)%iPart_p1 = Coll_pData(iPair + 1)%iPart_p1
-    Coll_pData(iPair + 1)%iPart_p1 = tempPart
-    ! Increase the appropriate case number and set the right pair type
-    iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
-    cSpec1 = PartSpecies(iPart_p1); cSpec2 = PartSpecies(iPart_p2)
-    iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-    CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
-    Coll_pData(iPair)%PairType = iCase
-    ! Calculation of the relative velocity for the new first pair
-    Coll_pData(iPair)%CRela2 = (PartState(4,iPart_p1) - PartState(4,iPart_p2))**2 &
-                             + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
-                             + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
-    IF(Coll_pData(iPair)%CRela2.EQ.0.0) THEN
-      ! If the relative velocity is still zero, add the pair to the identical particles count
+    IF (.NOT.Coll_pData(iPair+1)%NeedForRec) THEN 
+    ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
+    ! are swapped
+      CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
+      CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
+        - 0.5 * (GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))
+      CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) - 1
+      CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
+        - 0.5 * (GetParticleWeight(Coll_pData(iPair+1)%iPart_p1) + GetParticleWeight(Coll_pData(iPair+1)%iPart_p2))
+      ! Breaking up the next pair and swapping partners
+      tempPart = Coll_pData(iPair)%iPart_p1
+      Coll_pData(iPair)%iPart_p1 = Coll_pData(iPair + 1)%iPart_p1
+      Coll_pData(iPair + 1)%iPart_p1 = tempPart
+      ! Increase the appropriate case number and set the right pair type
+      iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
+      cSpec1 = PartSpecies(iPart_p1); cSpec2 = PartSpecies(iPart_p2)
+      iCase = CollInf%Coll_Case(cSpec1, cSpec2)
+      CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
+      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
+      Coll_pData(iPair)%PairType = iCase
+      ! Calculation of the relative velocity for the new first pair
+      Coll_pData(iPair)%CRela2 = (PartState(4,iPart_p1) - PartState(4,iPart_p2))**2 &
+                               + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
+                               + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
+      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
+      IF(Coll_pData(iPair)%CRela2.EQ.0.0) THEN
+        ! If the relative velocity is still zero, add the pair to the identical particles count
+        IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
+          IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
+        END IF
+      END IF
+      ! Increase the appropriate case number and set the right pair type
+      iPart_p1 = Coll_pData(iPair+1)%iPart_p1; iPart_p2 = Coll_pData(iPair+1)%iPart_p2
+      cSpec1 = PartSpecies(iPart_p1); cSpec2 = PartSpecies(iPart_p2)
+      iCase = CollInf%Coll_Case(cSpec1, cSpec2)
+      CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
+      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
+      ! Calculation of the relative velocity for the new follow-up pair
+      Coll_pData(iPair+1)%CRela2 = (PartState(4,iPart_p1) - PartState(4,iPart_p2))**2 &
+                                 + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
+                                 + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
+      Coll_pData(iPair+1)%PairType = iCase
+      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
+    ELSE
+      ! For the last pair, only invert the velocity in z and calculate new relative velocity
+      iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
+      PartState(6,iPart_p1) = - PartState(6,iPart_p1)
+      Coll_pData(iPair)%CRela2 = (PartState(4,iPart_p1) - PartState(4,iPart_p2))**2 &
+                               + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
+                               + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
+      ! Add the pair to the number of identical particles output
       IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
         IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
       END IF
-    END IF
-    ! Increase the appropriate case number and set the right pair type
-    iPart_p1 = Coll_pData(iPair+1)%iPart_p1; iPart_p2 = Coll_pData(iPair+1)%iPart_p2
-    cSpec1 = PartSpecies(iPart_p1); cSpec2 = PartSpecies(iPart_p2)
-    iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-    CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
-    ! Calculation of the relative velocity for the new follow-up pair
-    Coll_pData(iPair+1)%CRela2 = (PartState(4,iPart_p1) - PartState(4,iPart_p2))**2 &
-                               + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
-                               + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
-    Coll_pData(iPair+1)%PairType = iCase
+    END IF  ! nPart.EQ.1/iPair.LT.nPair
   ELSE
     ! For the last pair, only invert the velocity in z and calculate new relative velocity
     iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2

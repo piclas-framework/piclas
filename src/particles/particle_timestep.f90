@@ -81,6 +81,9 @@ CALL prms%CreateRealArrayOption('Part-VariableTimeStep-EndPoint'  , &
 CALL prms%CreateLogicalOption('Part-VariableTimeStep-Use2DFunction', &
                               'Only 2D/Axi simulations: Enables the scaling of the time step in the x-direction towards and '//&
                               'away from a user-given stagnation point', '.FALSE.')
+CALL prms%CreateLogicalOption('Part-VariableTimeStep-OnlyDecreaseDt', &
+                              'Only 2D/Axi simulations: Enables the scaling of the time step in the x-direction towards and '//&
+                              'away from a user-given stagnation point', '.FALSE.')
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-StagnationPoint', &
                               'Defines the point on the x-axis, towards which the time step is decreased with the factor '//&
                               'ScaleFactor2DFront and away from which the time step is increased with the factor ScaleFactor2DBack')
@@ -126,7 +129,7 @@ IF(VarTimeStep%UseLinearScaling) THEN
       VarTimeStep%TimeScaleFac2DFront = GETREAL('Part-VariableTimeStep-ScaleFactor2DFront','1.0')
       VarTimeStep%TimeScaleFac2DBack = GETREAL('Part-VariableTimeStep-ScaleFactor2DBack','1.0')
     END IF
-  ELSE IF(Symmetry%Order.EQ.1) THEN 
+  ELSE IF(Symmetry%Order.EQ.1) THEN
     CALL abort(__STAMP__, &
     'ERROR: 1D and variable timestep is not implemented yet!')
   ELSE
@@ -143,6 +146,7 @@ IF(VarTimeStep%UseDistribution) THEN
   ! Particle time step is utilized for this purpose, although element-wise time step is stored in VarTimeStep%ElemFacs
   ! Flag if the time step distribution should be adapted (else read-in, if array does not exist: abort)
   VarTimeStep%AdaptDistribution = GETLOGICAL('Part-VariableTimeStep-Distribution-Adapt')
+  VarTimeStep%OnlyDecreaseDt = GETLOGICAL('Part-VariableTimeStep-OnlyDecreaseDt')
   VarTimeStep%TargetMCSoverMFP = GETREAL('Part-VariableTimeStep-Distribution-TargetMCSoverMFP')
   VarTimeStep%TargetMaxCollProb = GETREAL('Part-VariableTimeStep-Distribution-TargetMaxCollProb')
   ! Read of maximal time factor to avoid too large time steps and problems with halo region/particle cloning
@@ -163,8 +167,7 @@ SUBROUTINE VarTimeStep_InitDistribution()
 !> Calculates/determines the variable time step element-wise
 !>-------------------------------------------------------------
 !> Every proc does this for the whole domain, time factor is used in readMesh to determine the weight and distribute load
-!> accordingly. A smoothing (min-mean filter) is performed in InitParticle, after GEO%ElemToNeighElems are determined. If you want
-!> to perform the smoothing at this point, you would require the global neighbour elements.
+!> accordingly.
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -186,7 +189,7 @@ LOGICAL                           :: TimeStepExists, QualityExists, TimeStepModi
 REAL, ALLOCATABLE                 :: DSMCQualityFactors(:,:), PartNum(:)
 REAL                              :: TimeFracTemp
 CHARACTER(LEN=255),ALLOCATABLE    :: VarNames_tmp(:)
-INTEGER                           :: nVar_HDF5, N_HDF5, nVar_MaxCollProb, nVar_MCSoverMFP, nVar_TotalPartNum
+INTEGER                           :: nVar_HDF5, N_HDF5, nVar_MaxCollProb, nVar_MCSoverMFP, nVar_TotalPartNum, nVar_TimeStep
 REAL, ALLOCATABLE                 :: ElemData_HDF5(:,:)
 #if (PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400)
 INTEGER                           :: nVar_MaxRelaxFac
@@ -198,6 +201,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT VARIABLE TIME STEP DISTRIBUTION...'
 
 TimeStepExists = .FALSE.
 QualityExists = .FALSE.
+nVar_TimeStep = 0
 
 IF(DoRestart) THEN
 ! Try to get the time step factor distribution directly from state file
@@ -260,6 +264,7 @@ IF(VarTimeStep%AdaptDistribution) THEN
     'ERROR: Number of variables in the ElemData array appears to be zero!')
   END IF
 
+  ! Get the variable names from the DSMC state and find the position of required quality factors
   ALLOCATE(VarNames_tmp(1:nVar_HDF5))
   CALL ReadAttribute(File_ID,'VarNamesAdd',nVar_HDF5,StrArray=VarNames_tmp(1:nVar_HDF5))
 
@@ -272,6 +277,10 @@ IF(VarTimeStep%AdaptDistribution) THEN
     END IF
     IF (STRICMP(VarNames_tmp(iVar),"Total_SimPartNum")) THEN
       nVar_TotalPartNum = iVar
+    END IF
+    ! Check if a time step distribution was written out in the DSMC state file
+    IF (STRICMP(VarNames_tmp(iVar),"VariableTimeStep")) THEN
+      nVar_TimeStep = iVar
     END IF
 #if (PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400)
     IF (STRICMP(VarNames_tmp(iVar),"BGK_MaxRelaxationFactor").OR.STRICMP(VarNames_tmp(iVar),"FP_MaxRelaxationFactor")) THEN
@@ -291,6 +300,8 @@ IF(VarTimeStep%AdaptDistribution) THEN
   DSMCQualityFactors(:,1) = ElemData_HDF5(nVar_MaxCollProb,:)
   DSMCQualityFactors(:,2) = ElemData_HDF5(nVar_MCSoverMFP,:)
   PartNum(:)              = ElemData_HDF5(nVar_TotalPartNum,:)
+  ! Check if a time step distribution is available in the DSMC state file and use that instead of the read-in from the state file
+  IF(nVar_TimeStep.GT.0) VarTimeStep%ElemFac(:) = ElemData_HDF5(nVar_TimeStep,:)
 #if (PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400)
   ALLOCATE(MaxRelaxFactor(nGlobalElems))
   MaxRelaxFactor(:) = ElemData_HDF5(nVar_MaxRelaxFac,:)
@@ -359,6 +370,9 @@ IF(VarTimeStep%AdaptDistribution) THEN
       IF(VarTimeStep%DistributionMinPartNum.GT.0) THEN
         TimeFracTemp = MIN(TimeFracTemp,PartNum(iElem)/VarTimeStep%DistributionMinPartNum*VarTimeStep%ElemFac(iElem))
       END IF
+    END IF
+    IF (VarTimeStep%OnlyDecreaseDt) THEN
+      IF(TimeFracTemp.GT.VarTimeStep%ElemFac(iElem)) TimeFracTemp = VarTimeStep%ElemFac(iElem)
     END IF
     ! Finally, limiting the maximal time step factor to the given value and saving it to the right variable
     VarTimeStep%ElemFac(iElem) = MIN(TimeFracTemp,VarTimeStep%DistributionMaxTimeFactor)
@@ -451,244 +465,57 @@ SUBROUTINE VarTimeStep_CalcElemFacs()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER                   :: iElem
+INTEGER                   :: iElem,CNElemID
 !===================================================================================================================================
 
 ALLOCATE(VarTimeStep%ElemFac(nElems))
 VarTimeStep%ElemFac = 1.0
 IF (VarTimeStep%Direction(1).GT.0.0) THEN
   DO iElem = 1, nElems
-    IF (GEO%ElemMidPoint(1,iElem).LT.VarTimeStep%StartPoint(1)) THEN
+    CNElemID = GetCNElemID(iElem + offsetElem)
+    IF (ElemMidPoint_Shared(1,CNElemID).LT.VarTimeStep%StartPoint(1)) THEN
       VarTimeStep%ElemFac(iElem)=1.0
     ELSE IF (VarTimeStep%EndPoint(1).EQ.-99999.) THEN
       VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(GEO%xmaxglob-VarTimeStep%StartPoint(1)) &
-          * (GEO%ElemMidPoint(1,iElem)-VarTimeStep%StartPoint(1))
+          * (ElemMidPoint_Shared(1,CNElemID)-VarTimeStep%StartPoint(1))
     ELSE
-      IF (GEO%ElemMidPoint(1,iElem).GT.VarTimeStep%EndPoint(1)) THEN
+      IF (ElemMidPoint_Shared(1,CNElemID).GT.VarTimeStep%EndPoint(1)) THEN
         VarTimeStep%ElemFac(iElem)=VarTimeStep%ScaleFac
       ELSE
         VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(VarTimeStep%EndPoint(1)-VarTimeStep%StartPoint(1)) &
-            * (GEO%ElemMidPoint(1,iElem)-VarTimeStep%StartPoint(1))
+            * (ElemMidPoint_Shared(1,CNElemID)-VarTimeStep%StartPoint(1))
       END IF
     END IF
   END DO
 ELSE
   DO iElem = 1, nElems
-    IF (GEO%ElemMidPoint(1,iElem).GT.VarTimeStep%StartPoint(1)) THEN
+    CNElemID = GetCNElemID(iElem + offsetElem)
+    IF (ElemMidPoint_Shared(1,CNElemID).GT.VarTimeStep%StartPoint(1)) THEN
       VarTimeStep%ElemFac(iElem)=1.0
     ELSE IF (VarTimeStep%EndPoint(1).EQ.-99999.) THEN
       VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(VarTimeStep%StartPoint(1)-GEO%xminglob) &
-          * (VarTimeStep%StartPoint(1)-GEO%ElemMidPoint(1,iElem))
+          * (VarTimeStep%StartPoint(1)-ElemMidPoint_Shared(1,CNElemID))
     ELSE
-      IF (GEO%ElemMidPoint(1,iElem).LT.VarTimeStep%EndPoint(1)) THEN
+      IF (ElemMidPoint_Shared(1,CNElemID).LT.VarTimeStep%EndPoint(1)) THEN
         VarTimeStep%ElemFac(iElem)=VarTimeStep%ScaleFac
       ELSE
         VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(VarTimeStep%StartPoint(1)-VarTimeStep%EndPoint(1)) &
-            * (VarTimeStep%StartPoint(1)-GEO%ElemMidPoint(1,iElem))
+            * (VarTimeStep%StartPoint(1)-ElemMidPoint_Shared(1,CNElemID))
       END IF
     END IF
   END DO
 END IF
 
 END SUBROUTINE VarTimeStep_CalcElemFacs
-
-
-! SUBROUTINE VarTimeStep_SmoothDistribution(onlyMPIExchange)
-! !===================================================================================================================================
-! !
-! !===================================================================================================================================
-! ! MODULES
-! USE MOD_Particle_Vars           ,ONLY: VarTimeStep
-! USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-! USE MOD_Mesh_Vars               ,ONLY: nElems
-! USE MOD_Globals
-! #if USE_MPI
-! USE MOD_part_MPI_Vars           ,ONLY: MPIGEO, PMPIVAR
-! #endif
-! ! IMPLICIT VARIABLE HANDLING
-! IMPLICIT NONE
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! INPUT VARIABLES
-! LOGICAL, OPTIONAL,INTENT(IN)    :: onlyMPIExchange
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! OUTPUT VARIABLES
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! LOCAL VARIABLES
-! INTEGER                               :: iElem, jElem, ElemID
-! REAL                                  :: tempFact(nElems), tempMean(30), NumTotalElems
-! ! Filters
-! REAL                                  :: MeanTimeFactor
-! #if USE_MPI
-! INTEGER                               :: iProc
-! REAL, ALLOCATABLE                     :: MPIElemFac(:)
-! TYPE tTempArrayProc
-!   REAL, ALLOCATABLE                   :: SendMsg(:)
-!   REAL, ALLOCATABLE                   :: RecvMsg(:)
-! END TYPE
-! TYPE(tTempArrayProc), ALLOCATABLE     :: TempArrayProc(:)
-! !===================================================================================================================================
-! ALLOCATE(TempArrayProc(0:PMPIVAR%nProcs-1))
-! ALLOCATE(MPIElemFac(1:SIZE(MPIGEO%ElemMPIID,1)))
-! MPIElemFac = 1.0
-
-! DO iProc = 0, PMPIVAR%nProcs-1
-!   IF (PMPIVAR%iProc.NE.iProc) THEN
-!     IF (MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems.GT.0) THEN
-!       ALLOCATE(TempArrayProc(iProc)%SendMsg(MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems))
-!       DO iElem = 1, MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems
-!         TempArrayProc(iProc)%SendMsg(iElem) &
-!           = VarTimeStep%ElemFac(MPIGEO%MPIElemsToCommunicate(iProc)%SendElems(iElem))
-!       END DO
-!     END IF
-!     IF (MPIGEO%MPIElemsToCommunicate(iProc)%NumRecvElems.GT.0) THEN
-!       ALLOCATE(TempArrayProc(iProc)%RecvMsg(MPIGEO%MPIElemsToCommunicate(iProc)%NumRecvElems))
-!     END IF
-!   END IF
-! END DO
-
-! ! send/recv message length
-! DO iProc=0, PMPIVAR%nProcs-1
-!   IF (PMPIVAR%iProc.LT.iProc) THEN
-!     IF (MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems.GT.0) THEN
-!       CALL MPI_SEND(TempArrayProc(iProc)%SendMsg,MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems &
-!           ,MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,IERROR)
-!     END IF
-!     IF (MPIGEO%MPIElemsToCommunicate(iProc)%NumRecvElems.GT.0) THEN
-!       CALL MPI_RECV(TempArrayProc(iProc)%RecvMsg,MPIGEO%MPIElemsToCommunicate(iProc)%NumRecvElems &
-!           ,MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)
-!     END IF
-!   ELSE IF (PMPIVAR%iProc.GT.iProc) THEN
-!     IF (MPIGEO%MPIElemsToCommunicate(iProc)%NumRecvElems.GT.0) THEN
-!       CALL MPI_RECV(TempArrayProc(iProc)%RecvMsg,MPIGEO%MPIElemsToCommunicate(iProc)%NumRecvElems &
-!           ,MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)
-!     END IF
-!     IF (MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems.GT.0) THEN
-!       CALL MPI_SEND(TempArrayProc(iProc)%SendMsg,MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems &
-!           ,MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,IERROR)
-!     END IF
-!   END IF
-! END DO
-
-! ! Sort recv message
-! MPIElemFac = 0.0
-! DO iProc=0, PMPIVAR%nProcs-1
-!   IF (PMPIVAR%iProc.NE.iProc) THEN
-!     IF (MPIGEO%MPIElemsToCommunicate(iProc)%NumRecvElems.GT.0) THEN
-!       DO iElem = 1, MPIGEO%MPIElemsToCommunicate(iProc)%NumRecvElems
-!         MPIElemFac(MPIGEO%MPIElemsToCommunicate(iProc)%RecvElems(iElem)) &
-!           = TempArrayProc(iProc)%RecvMsg(iElem)
-!       END DO
-!     END IF
-!   END IF
-! END DO
-! DEALLOCATE(TempArrayProc)
-! #endif
-
-! IF (PRESENT(onlyMPIExchange)) RETURN
-! ! --------- min filter
-! tempFact(1:nElems) = VarTimeStep%ElemFac(1:nElems)
-! DO iElem =1, nElems
-!   tempMean(1) = tempFact(iElem)
-!   NumTotalElems = 1.
-!   DO jElem = 1, GEO%NumNeighborElems(iElem)
-!     ElemID = GEO%ElemToNeighElems(iElem)%ElemID(jElem)
-!     tempMean(1+jElem) = tempFact(ElemID)
-!     NumTotalElems = NumTotalElems + 1.
-!   END DO
-! #if USE_MPI
-!   DO jElem = 1, MPIGEO%NumNeighborElems(iElem)
-!     ElemID = MPIGEO%ElemToNeighElems(iElem)%ElemID(jElem)
-!     tempMean(1+GEO%NumNeighborElems(iElem)+jElem) = MPIElemFac(ElemID)
-!     NumTotalElems = NumTotalElems + 1.
-!   END DO
-! #endif
-!   IF (NumTotalElems.GT.1) THEN
-!     VarTimeStep%ElemFac(iELem) = MINVAL(tempMean(1:NINT(NumTotalElems)))
-!   END IF
-! END DO
-! ! --------- communication of the values from the min filter
-! #if USE_MPI
-! ALLOCATE(TempArrayProc(0:PMPIVAR%nProcs-1))
-! DO iProc = 0, PMPIVAR%nProcs-1
-!   IF (PMPIVAR%iProc.NE.iProc) THEN
-!     IF (MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems.GT.0) THEN
-!       ALLOCATE(TempArrayProc(iProc)%SendMsg(MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems))
-!       DO iElem = 1, MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems
-!         TempArrayProc(iProc)%SendMsg(iElem) &
-!           = VarTimeStep%ElemFac(MPIGEO%MPIElemsToCommunicate(iProc)%SendElems(iElem))
-!       END DO
-!     END IF
-!     IF (MPIGEO%MPIElemsToCommunicate(iProc)%NumRecvElems.GT.0) THEN
-!       ALLOCATE(TempArrayProc(iProc)%RecvMsg(MPIGEO%MPIElemsToCommunicate(iProc)%NumRecvElems))
-!     END IF
-!   END IF
-! END DO
-
-! ! send/recv message length
-! DO iProc=0, PMPIVAR%nProcs-1
-!   IF (PMPIVAR%iProc.LT.iProc) THEN
-!     IF (MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems.GT.0) THEN
-!       CALL MPI_SEND(TempArrayProc(iProc)%SendMsg,MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems &
-!           ,MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,IERROR)
-!     END IF
-!     IF (MPIGEO%MPIElemsToCommunicate(iProc)%NumRecvElems.GT.0) THEN
-!       CALL MPI_RECV(TempArrayProc(iProc)%RecvMsg,MPIGEO%MPIElemsToCommunicate(iProc)%NumRecvElems &
-!           ,MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)
-!     END IF
-!   ELSE IF (PMPIVAR%iProc.GT.iProc) THEN
-!     IF (MPIGEO%MPIElemsToCommunicate(iProc)%NumRecvElems.GT.0) THEN
-!       CALL MPI_RECV(TempArrayProc(iProc)%RecvMsg,MPIGEO%MPIElemsToCommunicate(iProc)%NumRecvElems &
-!           ,MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)
-!     END IF
-!     IF (MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems.GT.0) THEN
-!       CALL MPI_SEND(TempArrayProc(iProc)%SendMsg,MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems &
-!           ,MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,IERROR)
-!     END IF
-!   END IF
-! END DO
-
-! ! Sort recv message
-! MPIElemFac = 0.0
-! DO iProc=0, PMPIVAR%nProcs-1
-!   IF (PMPIVAR%iProc.NE.iProc) THEN
-!     IF (MPIGEO%MPIElemsToCommunicate(iProc)%NumRecvElems.GT.0) THEN
-!       DO iElem = 1, MPIGEO%MPIElemsToCommunicate(iProc)%NumRecvElems
-!         MPIElemFac(MPIGEO%MPIElemsToCommunicate(iProc)%RecvElems(iElem)) &
-!           = TempArrayProc(iProc)%RecvMsg(iElem)
-!       END DO
-!     END IF
-!   END IF
-! END DO
-! DEALLOCATE(TempArrayProc)
-! #endif
-! ! -----------------------
-! ! --------- mean filter
-! DO iElem =1, nElems
-!   MeanTimeFactor = VarTimeStep%ElemFac(iElem)
-!   NumTotalElems = 1.
-!   DO jElem = 1, GEO%NumNeighborElems(iElem)
-!     ElemID = GEO%ElemToNeighElems(iElem)%ElemID(jElem)
-!     MeanTimeFactor = MeanTimeFactor + VarTimeStep%ElemFac(ElemID)
-!     NumTotalElems = NumTotalElems + 1.
-!   END DO
-! #if USE_MPI
-!   DO jElem = 1, MPIGEO%NumNeighborElems(iElem)
-!     ElemID = MPIGEO%ElemToNeighElems(iElem)%ElemID(jElem)
-!     MeanTimeFactor = MeanTimeFactor + MPIElemFac(ElemID)
-!     NumTotalElems = NumTotalElems + 1.
-!   END DO
-! #endif
-!   IF(NumTotalElems.GT.0.0) VarTimeStep%ElemFac(iElem) = MeanTimeFactor/NumTotalElems
-! END DO
-
-! END SUBROUTINE VarTimeStep_SmoothDistribution
 
 END MODULE MOD_Particle_VarTimeStep

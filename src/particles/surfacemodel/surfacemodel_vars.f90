@@ -22,187 +22,32 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-LOGICAL                                  :: ModelERSpecular         ! Flag defining case for ER reflection (diffuse, specular)
-LOGICAL                                  :: BlockingNeigh(3,3)      ! defines which of neighbour sites can block current site
-                                                                    ! (nCurrentCoords,nNeighCoords) relevant for SMCR
-! definition of surfacmodel mean info container
-TYPE tMeanInfo
-  INTEGER                                :: WallCollCount           ! counter of wallcollisions
-  INTEGER                                :: NumOfAds                ! Number of Adsorptions on surfaces
-  INTEGER                                :: NumOfDes                ! Number of Desorptions on surfaces
-  REAL                                   :: MeanProbAds             ! mean adsorption probability
-  INTEGER                                :: MeanProbAdsCount        ! mean adsorption probability counter
-  REAL                                   :: MeanProbDes             ! mean desorption probability
-  INTEGER                                :: MeanProbDesCount        ! mean desorption probability counter
-#if (PP_TimeDiscMethod==42)
-  INTEGER                                :: WallSpecNumCount        ! counter of Particles on Surface
-  REAL                                   :: Accomodation            ! Accomodation coeffcient calculated from Hard-Cube-Model
-#endif
-END TYPE
+INTEGER , ALLOCATABLE                   :: SurfModResultSpec(:,:)       ! Resulting species after surface model treatment
+                                                                        ! (nPartBound,nSpecies)
+CHARACTER(LEN=50) , ALLOCATABLE         :: SurfModEnergyDistribution(:) ! Energy distribution of the reflected particles
 
-#if (PP_TimeDiscMethod==42)
-! definition of proper info container allocated for each reflective surface
-TYPE tProperInfo
-  REAL     , ALLOCATABLE                 :: NumAdsReact(:)          ! mean probability for reaction at surface collision
-  REAL     , ALLOCATABLE                 :: NumSurfReact(:)         ! mean probability for reaction on surface
-  REAL     , ALLOCATABLE                 :: MeanAdsActE(:)          ! mean activation energy of adsorption reaction
-  REAL     , ALLOCATABLE                 :: MeanAdsnu(:)            ! mean pre-exponential factor of desorption reaction
-  REAL     , ALLOCATABLE                 :: MeanSurfActE(:)         ! mean activation energy of desorption reaction
-  REAL     , ALLOCATABLE                 :: MeanSurfnu(:)           ! mean pre-exponential factor of desorption reaction
-  REAL     , ALLOCATABLE                 :: ProperAdsActE(:)        ! activation energy of accepted adsorption reaction
-  REAL     , ALLOCATABLE                 :: ProperAdsnu(:)          ! pre-exponential factor of accepted adsorption reaction
-  REAL     , ALLOCATABLE                 :: ProperSurfActE(:)       ! activation energy of accepted desorption reaction
-  REAL     , ALLOCATABLE                 :: ProperSurfnu(:)         ! pre-exponential factor accepted desorption reaction
-  INTEGER  , ALLOCATABLE                 :: AdsReactCount(:)        ! Number of reactive adsorption probability calculations
-  INTEGER  , ALLOCATABLE                 :: SurfReactCount(:)       ! Number of reactive desorption probability caluclations
-  INTEGER  , ALLOCATABLE                 :: ProperAdsReactCount(:)  ! Number of reactive adsorptions
-  INTEGER  , ALLOCATABLE                 :: ProperSurfReactCount(:) ! Number of reactive desorptions
-  REAL     , ALLOCATABLE                 :: HeatFlux(:)             ! heatflux on surface due to species reacting on surface
-                                                                    ! 1: adsorption process ; 2: desorption process
-  REAL     , ALLOCATABLE                 :: HeatFluxDesCount(:)     ! counter of heatflux on surface due to species reacting on surface
-  REAL     , ALLOCATABLE                 :: HeatFluxAdsCount(:)     ! counter of heatflux on surface due to species reacting on adsorption
-END TYPE
-#endif
+! === Porous BC ====================================================================================================================
+INTEGER                                 :: nPorousBC                          ! Number of porous BCs
 
-TYPE tSurfaceModel
-  TYPE(tMeanInfo), ALLOCATABLE           :: Info(:)                 ! surfacemodel info for species n (nSpecies)
-#if (PP_TimeDiscMethod==42)
-  TYPE(tProperInfo), ALLOCATABLE         :: ProperInfo(:)           ! proper surfacemodel info for species n (nSpecies)
-#endif
-  ! are all reset in updateSurfaceVars except SumEvapPart, which is reset in particle emission after particle inserting
-  INTEGER , ALLOCATABLE                  :: SumDesorbPart(:,:,:,:)  ! Number of Particles of Species iSpec desorbed from Surface
-                                                                    ! (nSurfSample,nSurfSample,nlocalSurfSide,nSpecies)
-  INTEGER , ALLOCATABLE                  :: SumAdsorbPart(:,:,:,:)  ! Number of Particles of Species iSpec absorbed by the Surface
-                                                                    ! (nSurfSample,nSurfSample,ntotalSurfSide,nSpecies)
-  INTEGER , ALLOCATABLE                  :: SumReactPart(:,:,:,:)   ! Number of Particles that reacted on the surface
-                                                                    ! (nSurfSample,nSurfSample,ntotalSurfSide,nSpecies)
-  INTEGER , ALLOCATABLE                  :: SumERDesorbed(:,:,:,:)  ! Number of Particles desorbed through ER-type-reaction
-                                                                    ! (nSurfSample,nSurfSample,ntotalSurfSide,nSpecies)
-  INTEGER , ALLOCATABLE                  :: SumEvapPart(:,:,:,:)    ! number of evaporated particles
-                                                                    ! (nSurfSample,nSurfSample,nlocalSurfSide,nSpecies)
-END TYPE
-TYPE(tSurfaceModel)                      :: SurfModel               ! SurfModel container
+INTEGER                                 :: PorousBCSampIter                   !
+REAL, ALLOCATABLE                       :: PorousBCMacroVal(:,:,:)            !
 
-TYPE tAdsorption
-#if (PP_TimeDiscMethod==42)
-  LOGICAL                                :: LateralInactive         ! Flag for deactivation of lateral interactions in Q_a
-  LOGICAL                                :: CoverageReduction       ! Flag for activating coverage reduction per iteration
-  INTEGER, ALLOCATABLE                   :: CovReductionStep(:)     ! Step size for coverage reduction
-  LOGICAL                                :: TPD                     ! Flag for TPD spectrum calculation
-  REAL                                   :: TPD_beta                ! temperature slope for TPD [K/s]
-  REAL                                   :: TPD_Temp                ! Walltemperature for TPD [K]
-#endif
-  INTEGER                                :: NumCovSamples           ! number of times coverage was sampled since last macrooutput
-  LOGICAL , ALLOCATABLE                  :: SurfaceSpec(:,:)        ! set species as species of the surface
-  REAL    , ALLOCATABLE                  :: Coverage(:,:,:,:)       ! coverage of surface i with species n
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
-  REAL    , ALLOCATABLE                  :: ProbAds(:,:,:,:)        ! Adsorption probability of surface n
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
-  REAL    , ALLOCATABLE                  :: ProbDes(:,:,:,:)        ! Desorption probability of surface n
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
-  REAL    , ALLOCATABLE                  :: DensSurfAtoms(:)        ! density of surfaceatoms
-  REAL    , ALLOCATABLE                  :: AreaIncrease(:)         ! Factor for increasing surface density
-  INTEGER , ALLOCATABLE                  :: CrystalIndx(:)          ! Number of binding atoms in hollow site
-
-  REAL    , ALLOCATABLE                  :: ReactCoeff(:,:)         ! Recaction coeffiecient (nPartBound,nSpecies)
-  INTEGER , ALLOCATABLE                  :: ResultSpec(:,:)         ! Resulting species after surfacemodel treatment (nPartBound,nSpecies)
-  REAL    , ALLOCATABLE                  :: ReactEnergy(:,:)        ! Reaction energy on surface (nPartBound,nSpecies)
-  REAL    , ALLOCATABLE                  :: ReactAccomodation(:,:)  ! Energy Accomodation coefficient (nPartBound,nSpecies)
-  ! parameters for Kisliuk and Polanyi Wigner model (surfacemodel=1)
-  REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)        ! maximum coverage of surface i with species n
-  REAL    , ALLOCATABLE                  :: InitStick(:,:)          ! initial sticking coefficient (S_0) for surface n
-  REAL    , ALLOCATABLE                  :: PrefactorStick(:,:)     ! prefactor of sticking coefficient for surface n
-  INTEGER , ALLOCATABLE                  :: Adsorbexp(:,:)          ! Adsorption exponent for surface n
-  REAL    , ALLOCATABLE                  :: Nu_a(:,:)               ! Nu exponent a for surface n
-  REAL    , ALLOCATABLE                  :: Nu_b(:,:)               ! Nu exponent b for surface n
-  REAL    , ALLOCATABLE                  :: DesorbEnergy(:,:)       ! Desorption energy (K) for surface n
-  REAL    , ALLOCATABLE                  :: Intensification(:,:)    ! Intensification energy (K) for surface n
-  ! parameters for UBI-QEP model (surfacemodel=3)
-  LOGICAL                                :: EnableAdsAttraction
-  LOGICAL                                :: NoDiffusion
-  REAL    , ALLOCATABLE                  :: HeatOfAdsZero(:,:)      ! heat of adsorption (K) on clear surfaces
-  INTEGER                                :: DissNum                 ! max number of dissociative surface reactions per species
-  INTEGER                                :: RecombNum               ! max number of associative surface reactions per species
-  INTEGER                                :: ReactNum                ! max number of diss/assoc surface reactions per species
-  INTEGER , ALLOCATABLE                  :: DissocReact(:,:,:)      ! Resulting species for given dissoc (2,MaxDissNum,nSpecies)
-  REAL    , ALLOCATABLE                  :: Diss_Prefactor(:,:)
-  REAL    , ALLOCATABLE                  :: Diss_Powerfactor(:,:)
-  REAL    , ALLOCATABLE                  :: ER_Prefactor(:,:)
-  REAL    , ALLOCATABLE                  :: ER_Powerfactor(:,:)
-  REAL    , ALLOCATABLE                  :: EDissBond(:,:)          ! Bond dissociation energy (K) for diss into resulting species
-                                                                    ! (ReactNum,nspecies)
-  REAL    , ALLOCATABLE                  :: EDissBondAdsorbPoly(:,:)! Bond dissociation energy (K) for diss into resulting species
-                                                                    ! (ReactNum,nspecies)
-  INTEGER , ALLOCATABLE                  :: RecombReact(:,:,:)      ! Partner/Result species for associative reaction (2,ReactNum,nSpecies)
-  INTEGER , ALLOCATABLE                  :: ChemReactant(:,:)
-  INTEGER , ALLOCATABLE                  :: ChemProduct(:,:)
-  REAL    , ALLOCATABLE                  :: Reactant_DissBond_K(:,:)
-  REAL    , ALLOCATABLE                  :: Product_DissBond_K(:,:)
-  INTEGER                                :: nDissocReactions
-  INTEGER                                :: nExchReactions
-  INTEGER , ALLOCATABLE                  :: Coordination(:,:)       ! site bound coordination (1=hollow 2=bridge 3=on-top)(nSpecies)
-  INTEGER , ALLOCATABLE                  :: DiCoord(:,:)            ! (1:nSpecies) bound via bridge bonding (=1) or chelating (=2)
-  REAL    , ALLOCATABLE                  :: Ads_Powerfactor(:)
-  REAL    , ALLOCATABLE                  :: Ads_Prefactor(:)
-  INTEGER                                :: NumOfDissocReact        ! sum of all possible dissociation reactions on surfaces
-  INTEGER                                :: NumOfRecombReact        ! sum of all possible recombination reactions on surfaces
-  INTEGER                                :: NumOfExchReact          ! sum of all possible exchange reactions on surfaces
-  ! TST Factor calculation variables
-  LOGICAL , ALLOCATABLE                  :: TST_Calc(:,:)           ! flag defining if reaction parameters are
-                                                                    ! 0: set in ini
-                                                                    ! 1: set in ini and calculated for unset parameters
-                                                                    ! 2: calculated
-  REAL    , ALLOCATABLE                  :: IncidentNormalVeloAtSurf(:,:,:,:) ! Mean normal velocity of incident particles
-  REAL    , ALLOCATABLE                  :: SurfaceNormalVelo(:,:,:,:)  ! sum array of incident velocities
-  INTEGER , ALLOCATABLE                  :: CollSpecPartNum(:,:,:,:) ! counter of collision per subsurface and species
-                                                                     ! used for calculation of mean normal incident velo
+TYPE tPorousBC
+  INTEGER                               :: BC                     ! Number of the reflective BC to be used as a porous BC
+  REAL                                  :: Pressure               ! Pressure at the BC [Pa], user-given
+  REAL                                  :: Temperature            ! Temperature at the BC [K], user-given
+  CHARACTER(LEN=50)                     :: Type
+  REAL                                  :: PumpingSpeed           ! Given/calculated pumping speed [m3/s]
+  REAL                                  :: DeltaPumpingSpeedKp    ! Proportional factor for the pumping speed controller
+  REAL                                  :: DeltaPumpingSpeedKi    ! Integral factor for the pumping speed controller
+  CHARACTER(LEN=50)                     :: Region                 ! Form of the porous BC: 'circular'
+  LOGICAL                               :: UsingRegion            ! Use only a smaller region on the BC as a porous BC (e.g. pump)
+  INTEGER                               :: dir(3)                 ! axial (1) and orth. coordinates (2,3) of polar system
+  REAL                                  :: origin(2)              ! origin in orth. coordinates of polar system
+  REAL                                  :: rmax                   ! max radius of to-be inserted particles
+  REAL                                  :: rmin                   ! min radius of to-be inserted particles
 END TYPE
-TYPE(tAdsorption)                        :: Adsorption              ! Adsorption-container
-
-TYPE tSpeciesSurface
-  REAL                                   :: ParamAntoine(1:3)       ! Parameter for Anointe Eq (vapor pressure)
-  INTEGER                                :: condensCase
-  REAL                                   :: liquidTkrit
-  REAL                                   :: liquidTmelt
-  REAL                                   :: liquidAlpha
-  REAL                                   :: liquidBeta
-  REAL                                   :: liquidBetaCoeff(1:6)
-END TYPE
-TYPE(tSpeciesSurface), ALLOCATABLE       :: SpecSurf(:)
-
-TYPE tAdsorbateMapping
-  INTEGER , ALLOCATABLE                  :: UsedSiteMap(:)          ! Mapping of adsorbateindex to surfposindex
-                                                                    ! (1:SitesRemain) --> free site positions
-                                                                    ! (SitesRemain+1:nSites) --> vacant site positions
-  INTEGER , ALLOCATABLE                  :: Species(:)              ! species of adsorbate on sitepos (1:nSites)
-  REAL    , ALLOCATABLE                  :: EVib(:)                 ! vibrational energy of adsorbate on sitepos (1:nSites)
-  INTEGER , ALLOCATABLE                  :: BondAtomIndx(:,:)       ! adjacent surfatoms index x (1:nSites,1:nInterAtom)
-  INTEGER , ALLOCATABLE                  :: BondAtomIndy(:,:)       ! adjacent surfatoms index y (1:nSites,1:nInterAtom)
-  INTEGER                                :: nInterAtom              ! number of adjacent surface atoms
-  INTEGER , ALLOCATABLE                  :: NeighPos(:,:)           ! pos of adjacent Neigbhour (1:nSites,1:nNeigbhours)
-  INTEGER , ALLOCATABLE                  :: NeighSite(:,:)          ! site of adjacent Neigbhour (1:nSites,1:nNeigbhours)
-  INTEGER                                :: nNeighbours             ! number of adjacent Neigbours sites
-                                                                    ! (all possible Coordinations incl.)
-  LOGICAL , ALLOCATABLE                  :: IsNearestNeigh(:,:)     ! Flag for defining nearest neighbour of binding site
-#if USE_MPI
-  LOGICAL , ALLOCATABLE                  :: Changed(:)              ! Flag if position changed during iteartion
-#endif /*USE_MPI*/
-END TYPE
-
-TYPE tSurfaceDistributionInfo
-  ! variables for surface distribution calculation
-  INTEGER , ALLOCATABLE                  :: nSites(:)               ! max number of sites for site coordination (1:nCoordination=3)
-  INTEGER , ALLOCATABLE                  :: SitesRemain(:)          ! number of empty sites for site coordination(1:nCoordination=3)
-  INTEGER , ALLOCATABLE                  :: SurfAtomBondOrder(:,:,:)! bond order of surface atoms ((1:nSpecies,1:nXPos,1:nYPos)
-                                                                    ! nXPos = nYPos = sqrt(nSites(3)) -> number of topsites
-                                                                    ! applies for fcc(100) or similar surfaces
-  REAL    , ALLOCATABLE                  :: desorbnum_tmp(:)
-  REAL    , ALLOCATABLE                  :: adsorbnum_tmp(:)
-  REAL    , ALLOCATABLE                  :: reactnum_tmp(:)
-  TYPE(tAdsorbateMapping), ALLOCATABLE   :: AdsMap(:)               ! Mapping for adsorbates, adjacent surfatoms and neighbours
-                                                                    ! (1:nCoordination)
-END TYPE
-TYPE(tSurfaceDistributionInfo),ALLOCATABLE   :: SurfDistInfo(:,:,:) ! Surface distribution tracking container
+TYPE(tPorousBC), ALLOCATABLE            :: PorousBC(:)            ! Container for the porous BC, allocated with nPorousBC
 
 !===================================================================================================================================
 END MODULE MOD_SurfaceModel_Vars

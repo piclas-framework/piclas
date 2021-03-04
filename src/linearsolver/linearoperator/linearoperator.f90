@@ -426,7 +426,7 @@ SUBROUTINE PartMatrixVector(t,Coeff,PartID,X,Y)
 USE MOD_PreProc
 USE MOD_Globals               ,ONLY: Abort
 USE MOD_LinearSolver_Vars     ,ONLY: reps0,PartXK,R_PartXK
-USE MOD_Equation_Vars         ,ONLY: c2_inv
+USE MOD_Globals_Vars          ,ONLY: c2_inv
 USE MOD_Particle_Vars         ,ONLY: PartState, PartLorentzType
 USE MOD_Part_RHS              ,ONLY: PartRHS
 USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle
@@ -476,7 +476,7 @@ END IF
 
 PartState(1:6,PartID) = PartXK(1:6,PartID)+EpsFD*X
 ! compute fields at particle position, if relaxation freez, therefore use fixed field and pt
-! CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),PEM%Element(PartID))
+! CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),PEM%GlobalElemID(PartID))
 ! CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle(1:6,PartID))
 !PartT(4:6)=Pt(1:3,PartID)
 IF(PartLorentzType.EQ.5)THEN

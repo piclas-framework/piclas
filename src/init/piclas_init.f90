@@ -42,14 +42,12 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Piclas Initialization")
 
-CALL prms%CreateIntOption(      'TimeStampLength', 'Length of the floating number time stamp', '21')
+CALL prms%CreateIntOption(      'TimeStampLength' , 'Length of the floating number time stamp' , '21')
 #ifdef PARTICLES
-CALL prms%CreateLogicalOption(  'UseDSMC'        , "Flag for using DSMC in Calculation", '.FALSE.')
+CALL prms%CreateLogicalOption(  'UseDSMC'         , "Flag for using DSMC in Calculation"       , '.FALSE.')
 #endif
 
 END SUBROUTINE DefineParametersPiclas
-
-
 
 
 SUBROUTINE InitPiclas(IsLoadBalance)
@@ -75,7 +73,6 @@ USE MOD_Mortar               ,ONLY: InitMortar
 USE MOD_PML                  ,ONLY: InitPML
 #endif /*USE_HDG*/
 USE MOD_Dielectric           ,ONLY: InitDielectric
-USE MOD_Filter               ,ONLY: InitFilter
 USE MOD_Analyze              ,ONLY: InitAnalyze
 USE MOD_RecordPoints         ,ONLY: InitRecordPoints
 #if defined(ROS) || defined(IMPA)
@@ -89,15 +86,14 @@ USE MOD_MPI                  ,ONLY: InitMPIvars
 USE MOD_DSMC_Vars            ,ONLY: UseDSMC
 USE MOD_Particle_Vars        ,ONLY: VarTimeStep
 USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_Init
-USE MOD_ParticleInit         ,ONLY: InitParticles
+USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles
 USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
 USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
-USE MOD_Particle_Surfaces    ,ONLY: InitParticleSurfaces
-USE MOD_Particle_Mesh        ,ONLY: InitParticleMesh, InitElemBoundingBox
 USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
 USE MOD_DSMC_Symmetry        ,ONLY: Init_Symmetry
+USE MOD_PICDepo_Method       ,ONLY: InitDepositionMethod
 #ifdef MPI
 USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
 #endif /* MPI */
@@ -109,9 +105,6 @@ USE MOD_ParticleSolver       ,ONLY: InitPartSolver
 USE MOD_HDG                  ,ONLY: InitHDG
 #endif
 USE MOD_Interfaces           ,ONLY: InitInterfaces
-#if USE_QDS_DG
-USE MOD_QDS                  ,ONLY: InitQDS
-#endif /*USE_QDS_DG*/
 USE MOD_ReadInTools          ,ONLY: GETLOGICAL,GETREALARRAY,GETINT
 USE MOD_TimeDisc_Vars        ,ONLY: TEnd
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -139,7 +132,7 @@ WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 
 #ifdef PARTICLES
 ! DSMC handling:
-useDSMC=GETLOGICAL('UseDSMC','.FALSE.')
+useDSMC=GETLOGICAL('UseDSMC')
 
 CALL Init_Symmetry()
 
@@ -172,20 +165,14 @@ IF (VarTimeStep%UseLinearScaling.OR.VarTimeStep%UseDistribution)  THEN
 ELSE
   VarTimeStep%UseVariableTimeStep = .FALSE.
 END IF
+CALL InitParticleGlobals()
+CALL InitDepositionMethod()
 #endif
 
 CALL InitMesh(2)
 #if USE_MPI
 CALL InitMPIVars()
 #endif /*USE_MPI*/
-#ifdef PARTICLES
-!#if USE_MPI
-CALL InitParticleMPI
-CALL InitElemBoundingBox()
-!#endif /*USE_MPI*/
-CALL InitParticleSurfaces()
-!CALL InitParticleMesh()
-#endif /*PARTICLES*/
 CALL InitEquation()
 CALL InitBC()
 !#ifdef PARTICLES
@@ -196,8 +183,6 @@ CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing l
 #endif /*USE_HDG*/
 CALL InitDielectric() ! Dielectric media
 CALL InitDG()
-CALL InitFilter()
-!CALL InitTimeDisc()
 #if defined(ROS) || defined(IMPA)
 CALL InitLinearSolver()
 #endif /*ROS /IMEX*/
@@ -205,6 +190,7 @@ CALL InitLinearSolver()
 !CALL InitCSR()
 !#endif /*IMEX*/
 #ifdef PARTICLES
+CALL InitParticleMPI
 CALL InitParticles()
 #if defined(IMPA) || defined(ROS)
 CALL InitPartSolver()
@@ -237,10 +223,6 @@ CALL read_IMD_results()
 
 CALL InitInterfaces() ! set Riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)
 
-#if USE_QDS_DG
-CALL InitQDS()
-#endif /*USE_QDS_DG*/
-
 ! do this last!
 !CALL IgnoredStrings()
 ! write out parameters that are not used and remove multiple and unused, that are not needed to do restart if no parameter.ini is
@@ -268,9 +250,6 @@ USE MOD_Interpolation              ,ONLY: FinalizeInterpolation
 USE MOD_Mesh                       ,ONLY: FinalizeMesh
 USE MOD_Equation                   ,ONLY: FinalizeEquation
 USE MOD_Interfaces                 ,ONLY: FinalizeInterfaces
-#if USE_QDS_DG
-USE MOD_QDS                        ,ONLY: FinalizeQDS
-#endif /*USE_QDS_DG*/
 USE MOD_GetBoundaryFlux            ,ONLY: FinalizeBC
 USE MOD_DG                         ,ONLY: FinalizeDG
 USE MOD_Mortar                     ,ONLY: FinalizeMortar
@@ -280,7 +259,6 @@ USE MOD_PML                        ,ONLY: FinalizePML
 #else
 USE MOD_HDG                        ,ONLY: FinalizeHDG
 #endif /*USE_HDG*/
-USE MOD_Filter                     ,ONLY: FinalizeFilter
 USE MOD_Analyze                    ,ONLY: FinalizeAnalyze
 USE MOD_RecordPoints               ,ONLY: FinalizeRecordPoints
 USE MOD_RecordPoints_Vars          ,ONLY: RP_Data
@@ -289,6 +267,7 @@ USE MOD_LinearSolver               ,ONLY: FinalizeLinearSolver
 #endif /*IMEX*/
 #if USE_MPI
 USE MOD_MPI                        ,ONLY: FinalizeMPI
+USE MOD_MPI_Shared                 ,ONLY: FinalizeMPIShared
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Surfaces          ,ONLY: FinalizeParticleSurfaces
@@ -297,11 +276,12 @@ USE MOD_SuperB_Init                ,ONLY: FinalizeSuperB
 USE MOD_Particle_Mesh              ,ONLY: FinalizeParticleMesh
 USE MOD_Particle_Analyze           ,ONLY: FinalizeParticleAnalyze
 USE MOD_PICDepo                    ,ONLY: FinalizeDeposition
+USE MOD_PICInterpolation           ,ONLY: FinalizePICInterpolation
 USE MOD_ParticleInit               ,ONLY: FinalizeParticles
+USE MOD_Particle_Boundary_Init     ,ONLY: FinalizeParticleBoundary
 USE MOD_TTMInit                    ,ONLY: FinalizeTTM
 USE MOD_DSMC_Init                  ,ONLY: FinalizeDSMC
-USE MOD_MacroBody_Init             ,ONLY:FinalizeMacroBody
-USE MOD_Particle_Boundary_Porous   ,ONLY:FinalizePorousBoundaryCondition
+USE MOD_SurfaceModel_Porous        ,ONLY: FinalizePorousBoundaryCondition
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: FinalizeFPFlow
 #endif
@@ -350,7 +330,6 @@ IF(.NOT.IsLoadBalance) CALL FinalizeInterpolation()
 CALL FinalizeRestart()
 CALL FinalizeMesh()
 CALL FinalizeMortar()
-CALL FinalizeFilter()
 #ifdef PARTICLES
 CALL FinalizeSurfaceModel()
 CALL FinalizeParticleBoundarySampling()
@@ -359,6 +338,7 @@ CALL FinalizeParticleSurfaces()
 CALL FinalizeParticleMesh()
 CALL FinalizeParticleAnalyze()
 CALL FinalizeDeposition()
+CALL FinalizePICInterpolation()
 #if USE_MPI
 CALL FinalizeParticleMPI()
 #endif /*USE_MPI*/
@@ -370,7 +350,7 @@ CALL FinalizeFPFlow()
 CALL FinalizeBGK()
 #endif
 CALL FinalizeParticles()
-CALL FinalizeMacroBody()
+CALL FinalizeParticleBoundary()
 CALL FinalizeBackGroundField()
 CALL FinalizeSuperB()
 #endif /*PARTICLES*/
@@ -389,9 +369,6 @@ CALL FinalizeTTM() ! FD grid based data from a Two-Temperature Model (TTM) from 
 #endif /*PARTICLES*/
 
 CALL FinalizeInterfaces()
-#if USE_QDS_DG
-CALL FinalizeQDS()
-#endif /*USE_QDS_DG*/
 CALL prms%finalize(IsLoadBalance) ! is the same as CALL FinalizeParameters(), but considers load balancing
 CALL FinalizeCommandlineArguments()
 
@@ -403,15 +380,13 @@ SDEALLOCATE(RP_Data)
 ! Measure simulation duration
 Time=PICLASTIME()
 SWRITE(UNIT_stdOut,'(132("="))')
+CALL FinalizeLoadBalance(IsLoadBalance)
 IF(.NOT.IsLoadBalance)THEN
-#if USE_LOADBALANCE
-  !! and additional required for restart with load balance
-  !ReadInDone=.FALSE.
-  !ParticleMPIInitIsDone=.FALSE.
-  !ParticlesInitIsDone=.FALSE.
-  CALL FinalizeLoadBalance()
-#endif /*USE_LOADBALANCE*/
   CALL DisplaySimulationTime(Time, StartTime, 'FINISHED')
+#if USE_MPI
+  ! Free the communicators!
+  CALL FinalizeMPIShared()
+#endif /*USE_MPI*/
 ELSE
   CALL DisplaySimulationTime(Time, StartTime, 'RUNNING')
 END IF ! .NOT.IsLoadBalance
@@ -420,8 +395,7 @@ SWRITE(UNIT_stdOut,'(132("="))')
 END SUBROUTINE FinalizePiclas
 
 
-#if USE_LOADBALANCE
-SUBROUTINE FinalizeLoadBalance()
+SUBROUTINE FinalizeLoadBalance(IsLoadBalance)
 !===================================================================================================================================
 ! Deallocate arrays
 !===================================================================================================================================
@@ -431,16 +405,34 @@ USE MOD_LoadBalance_Vars
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN)  :: IsLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SDEALLOCATE(tCurrent)
-InitLoadBalanceIsDone = .FALSE.
+SDEALLOCATE(nPartsPerElem)
+SDEALLOCATE(nDeposPerElem)
+SDEALLOCATE(nTracksPerElem)
+SDEALLOCATE(nSurfacefluxPerElem)
+SDEALLOCATE(nPartsPerBCElem)
+SDEALLOCATE(nSurfacePartsPerElem)
+
+SDEALLOCATE(LoadDistri)
+SDEALLOCATE(PartDistri)
+SDEALLOCATE(ElemGlobalTime)
+SDEALLOCATE(ElemHDGSides)
+SDEALLOCATE(ElemTime_tmp)
+SDEALLOCATE(ElemTime)
+
+IF(.NOT.IsLoadBalance) THEN
+#if USE_LOADBALANCE
+  SDEALLOCATE(tCurrent)
+  InitLoadBalanceIsDone = .FALSE.
+#endif /*USE_LOADBALANCE*/
+END IF
 
 END SUBROUTINE FinalizeLoadBalance
-#endif /*USE_LOADBALANCE*/
 
 
 SUBROUTINE FinalizeTimeDisc()

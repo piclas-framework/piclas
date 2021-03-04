@@ -29,6 +29,7 @@ Before remove operation all files and number of changes are shown and user is as
 
 A set of scripts given in `~/Flexi/piclas/tools/Setup_ModuleEnv/` can be used for setting up a
 module environment. The main steps are 
+
 ```
 These scripts help setting up an environment for development with piclas
 
@@ -51,6 +52,27 @@ Order of how to setup environment
 
 ------------------------------------------------------------
 all scripts (6-9) can be rerun with "-r" or "-rerun" argument
-  this cleans the created module file and build directory of the to-be-build version and rebuilds it
+
+this cleans the created module file and build directory of the to-be-built version and rebuilds it
 ```
-and are given in `~/Flexi/piclas/tools/Setup_ModuleEnv/README.txt`
+
+and are given in `./piclas/tools/Setup_ModuleEnv/README.txt`
+
+Global settings to the appearance of the module env list can be changed in `/etc/profile`, e.g., by
+adding (sudo required)
+
+```
+# -------------------------------------------------------------------------
+# Display module information in list form
+alias module='module -l'
+
+# -------------------------------------------------------------------------
+```
+
+### FAQ: Common Problems
+
+* After installing packages, cmake and GCC, the module environment is loaded by the script
+  `./InstallMPIallCOMPILERS.sh` the first time. This can fail even though the environment can be
+  loaded from a shell by hand (interactive shell).
+
+

@@ -89,6 +89,7 @@ ELSE
 #endif
 END IF
 
+! --- Mean values
 ! Define variables to be averaged
 nMaxVarAvg=PP_nVar+6
 #ifdef PARTICLES
@@ -124,6 +125,7 @@ DO iSpec=1,nSpecies
 END DO
 #endif /*PARTICLES*/
 
+! --- Fluctuations
 nMaxVarFluc=PP_nVar+6
 #ifdef PARTICLES
 nMaxVarFluc=nMaxVarFluc+9*nSpecies
@@ -301,9 +303,9 @@ FUNCTION GETMAPBYNAME(VarName,VarNameList,nVarList)
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)             :: nVarList                !< length of list
 CHARACTER(LEN=*),INTENT(IN)    :: VarName                 !< string to be compared
 CHARACTER(LEN=*),INTENT(IN)    :: VarNameList(nVarList)   !< list of strings to be searched
-INTEGER,INTENT(IN)             :: nVarList                !< length of list
 INTEGER                        :: GETMAPBYNAME            !< index of VarName in VarNameList
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -329,13 +331,13 @@ USE MOD_PreProc
 USE MOD_DG_Vars          ,ONLY: U
 USE MOD_Mesh_Vars        ,ONLY: MeshFile,nElems
 USE MOD_HDF5_Output      ,ONLY: WriteTimeAverage
-USE MOD_Equation_Vars    ,ONLY: smu0
+USE MOD_Globals_Vars     ,ONLY: smu0
 USE MOD_Timeaverage_Vars ,ONLY: UAvg,UFluc,CalcAvg,iAvg,FlucAvgMap,dtAvg,dtold,nVarAvg,nVarFluc,nVarFlucHasAvg &
                                ,VarnamesAvgOut,VarNamesFlucOut,DoPoyntingVectorAvg
 #ifdef PARTICLES
 USE MOD_Timeaverage_Vars ,ONLY: PowerDensity,DoPowerDensity
-USE MOD_Particle_Vars,    ONLY: nSpecies
-USE MOD_Particle_Analyze, ONLY: CalcPowerDensity
+USE MOD_Particle_Vars    ,ONLY: nSpecies
+USE MOD_Particle_Analyze ,ONLY: CalcPowerDensity
 #endif /*Particles*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

@@ -110,8 +110,8 @@ SUBROUTINE InitIOHDF5()
 ! Initialize HDF5 IO
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
-USE MOD_ReadInTools,ONLY:GETLOGICAL
+USE MOD_Globals     ,ONLY: nLeaderProcs,nProcessors,UNIT_stdOut,MPIRoot
+USE MOD_ReadInTools ,ONLY: GETLOGICAL
 #ifdef INTEL
 USE IFPORT
 #endif
@@ -124,10 +124,13 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)')' INIT IOHDF5 ...'
 gatheredWrite=.FALSE.
 IF(nLeaderProcs.LT.nProcessors) gatheredWrite=GETLOGICAL('gatheredWrite','.FALSE.')
 
 CALL InitMPIInfo()
+SWRITE(UNIT_stdOut,'(A)')' INIT DONE!'
 END SUBROUTINE InitIOHDF5
 
 
@@ -185,6 +188,7 @@ INTEGER,INTENT(IN),OPTIONAL  :: userblockSize   !< size of the file to be prepen
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HSIZE_T)               :: userblockSize_loc, tmp, tmp2
+INTEGER(HSIZE_T),PARAMETER     :: userblockSize_512=512 ! For correct type comparison
 !==================================================================================================================================
 LOGWRITE(*,'(A)')'  OPEN HDF5 FILE "'//TRIM(FileString)//'" ...'
 
@@ -218,8 +222,8 @@ END IF
 ! Open the file collectively.
 IF(create)THEN
   IF (userblockSize_loc > 0) THEN
-    tmp = userblockSize_loc/512
-    IF (MOD(userblockSize_loc,512).GT.0) tmp = tmp+1
+    tmp = userblockSize_loc/userblockSize_512
+    IF (MOD(userblockSize_loc,userblockSize_512).GT.0) tmp = tmp+1
     tmp2 = 512*2**CEILING(LOG(REAL(tmp))/LOG(2.))
     CALL H5PSET_USERBLOCK_F(Plist_File_ID, tmp2, iError)
   END IF

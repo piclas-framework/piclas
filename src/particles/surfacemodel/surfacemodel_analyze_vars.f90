@@ -23,29 +23,38 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                       :: SurfModelAnalyzeInitIsDone = .FALSE.
-INTEGER                       :: SurfaceAnalyzeStep                  ! Analyze of surface is performed each Nth time step
-LOGICAL                       :: CalcCollCounter                     ! Calculate the number of surface collision and number of
-                                                                     ! adsorbed particles per species
-LOGICAL                       :: CalcDesCounter                      ! Calculate the number of desorption particle per species
-LOGICAL                       :: CalcAdsProb                         ! Calculate the probability of adsorption per species
-LOGICAL                       :: CalcDesProb                         ! Calculate the probability of desorption per species
-LOGICAL                       :: CalcSurfNumSpec                     ! Calculate the number of simulated particles per species
-                                                                     ! on surfaces
-#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || PP_TimeDiscMethod==43
-LOGICAL                       :: CalcSurfCoverage                    ! Calculate the surface coverages for each species
-LOGICAL                       :: CalcAccomodation                    ! Calculate the surface accommodation coefficient
-#if (PP_TimeDiscMethod==42)
-LOGICAL                       :: CalcAdsorbRates                     ! Flag activating Analyze every refined rate data of gas-surface reactions
-LOGICAL                       :: CalcAdsorbProb                      ! Flag activating Analyze eaction probabilities per reaction and species
-LOGICAL                       :: CalcAdsorbnu                        ! Flag activating Analyze reaction frequencies (nu_r) per reaction and species'
-LOGICAL                       :: CalcAdsorbE                         ! Flag activating Analyze activation barriers per reaction and species
-LOGICAL                       :: CalcSurfRates                       ! Flag activating Analyze every refined rate data on the surfaces
-LOGICAL                       :: CalcSurfProb                        ! Flag activating Analyze eaction probabilities per reaction and species
-LOGICAL                       :: CalcSurfnu                          ! Flag activating Analyze reaction frequencies (nu_r) per reaction and species
-LOGICAL                       :: CalcSurfE                           ! Flag activating Analyze activation barriers per reaction and species
-LOGICAL                       :: CalcHeatflux                        ! Flag activating Analyze the the heat fluxes onto surface and corresponding
-                                                                     ! reaction counters per reaction
-#endif
-#endif
+INTEGER(KIND=8)               :: SurfaceAnalyzeStep       ! Analyze of surface is performed each Nth time step
+! Output flags
+LOGICAL                       :: CalcSurfCollCounter      ! Calculate the number of surface collision and number of
+                                                          ! adsorbed particles per species
+LOGICAL                       :: CalcPorousBCInfo         ! Calculate output for porous BCs (averaged over whole BC)
+
+! Output variables
+INTEGER,ALLOCATABLE           :: SurfAnalyzeCount(:)      ! Counter of surface collisions
+INTEGER,ALLOCATABLE           :: SurfAnalyzeNumOfAds(:)   ! Number of adsorptions on surfaces
+INTEGER,ALLOCATABLE           :: SurfAnalyzeNumOfDes(:)   ! Number of desorptions on surfaces
+
+REAL,ALLOCATABLE              :: PorousBCOutput(:,:)  ! 1: Counter of impinged particles on the BC
+                                                      ! 2: Measured pumping speed [m3/s] through # of deleted particles
+                                                      ! 3: Pumping speed [m3/s] used to calculate the removal prob.
+                                                      ! 4: Removal probability [0-1]
+                                                      ! 5: Pressure at the BC normalized with the user-given pressure
+
+! --- BoundaryParticleOutput = BPO
+LOGICAL                       :: CalcBoundaryParticleOutput !< Flag for activating this output
+
+TYPE tBoundaryParticleOutput
+  REAL,ALLOCATABLE              :: RealPartOut(:,:)         !< Number of particles exiting on boundary X with species X
+
+  INTEGER                       :: NPartBoundaries          !< Total number of boundaries where the particles are counted
+  INTEGER,ALLOCATABLE           :: PartBoundaries(:)        !< Part-boundary number on which the particles are counted
+  INTEGER,ALLOCATABLE           :: BCIDToBPOBCID(:)         !< Mapping BCID to BPOBCID (1:BpoNSpecies)
+
+  INTEGER                       :: NSpecies                 !< Total number of species which are considered for counting
+  INTEGER,ALLOCATABLE           :: Species(:)               !< Species IDs which are considered for counting
+  INTEGER,ALLOCATABLE           :: SpecIDToBPOSpecID(:)     !< Mapping SpecID to BPOSpecID (1:BpoNSpecies)
+END TYPE
+
+TYPE(tBoundaryParticleOutput)   :: BPO
 !===================================================================================================================================
 END MODULE MOD_SurfaceModel_Analyze_Vars

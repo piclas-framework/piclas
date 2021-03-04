@@ -98,7 +98,7 @@ iSpec2 = PartSpecies(iPart2)
 !alphaVSS= CollInf%alphaVSS(iSpec1,iSpec2)
 
 cRela = SQRT(Coll_pData(iPair)%cRela2)  ! absolute value of post-collision relative velocity
-IF (CollInf%alphaVSS(iSpec1,iSpec2).GT.1 .AND. .NOT.ForceUnitVector_loc) THEN ! VSS
+IF (CollInf%alphaVSS(iSpec1,iSpec2).NE.1.0 .AND. .NOT.ForceUnitVector_loc) THEN ! VSS
 
   CALL RANDOM_NUMBER(rRan) ! rRan = (b / d) ^ 2  : dice impact parameter b to distance d relation in y-direction
                            ! 0                   : frontal collision
@@ -170,7 +170,7 @@ LOGICAL,INTENT(IN),OPTIONAL :: ForceUnitVector
 ! LOCAL VARIABLES
 REAL                 :: VeloVec(3)
 !===================================================================================================================================
-VeloVec(:) = SQRT (Coll_pData(iPair)%cRela2) * DiceUnitVector()
+VeloVec(:) = SQRT(Coll_pData(iPair)%cRela2) * DiceUnitVector()
 RETURN
 IF(PRESENT(ForceUnitVector)) THEN
 END IF

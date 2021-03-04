@@ -35,6 +35,8 @@ LOGICAL                       :: CalcEint                            !< Compute 
 LOGICAL                       :: CalcTemp                            !< Computation of the temperature (trans, rot, vib, total)
 LOGICAL                       :: CalcCoupledPower                    !< Computation of the power that is coupled into plasma
 LOGICAL                       :: DisplayCoupledPower                 !< Display coupled power in UNIT_stdOut
+REAL                          :: EDiff                               !< Difference in kinetic energy before and after the particle
+                                                                     !< push (only charged particles)
 REAL                          :: PCoupl                              !< Power that is coupled into plasma in [W]
 REAL                          :: PCouplAverage                       !< Power that is coupled into plasma (moving average) in [W]
 TYPE tPCoupl
@@ -57,9 +59,8 @@ LOGICAL                       :: ChargeCalcDone                      !< Check fl
 LOGICAL                       :: CalcShapeEfficiency                 !< Efficiency of shape function
 CHARACTER(LEN=256)            :: CalcShapeEfficiencyMethod           !< Explanations in particle_analyze.f90
 INTEGER                       :: ShapeEfficiencyNumber               !< Explanations in particle_analyze.f90
-INTEGER                       :: FieldAnalyzeStep                    !< Analyze is performed each Nth time step
 LOGICAL                       :: DoPartAnalyze                       !< perform analyze
-INTEGER                       :: PartAnalyzeStep                     !< Analyze is performed each Nth time step
+INTEGER(KIND=8)               :: PartAnalyzeStep                     !< Analyze is performed each Nth time step
 INTEGER,ALLOCATABLE           :: nPartIn(:)                          !< Number of entry and leaving particles
 INTEGER,ALLOCATABLE           :: nPartOut(:)                         !< Number of entry and leaving particles
 REAL,ALLOCATABLE              :: PartEkinIn(:)                       !< Energy and temperature of input particle
@@ -130,7 +131,6 @@ LOGICAL                       :: printDiff                           !< TODO
 REAL                          :: printDiffTime                       !< TODO
 REAL                          :: printDiffVec(6)                     !< TODO
 REAL                          :: ChemEnergySum                       !< TODO
-LOGICAL                       :: CalcPorousBCInfo                    !< Calculate output for porous BCs (averaged over whole BC)
 REAL,ALLOCATABLE              :: MassflowRate(:,:)
 !===================================================================================================================================
 END MODULE MOD_Particle_Analyze_Vars

@@ -35,21 +35,13 @@ INTERFACE beta
   MODULE PROCEDURE beta
 END INTERFACE
 
-INTERFACE DeBoor
-  MODULE PROCEDURE DeBoor
-END INTERFACE
-
-INTERFACE DeBoorRef
-  MODULE PROCEDURE DeBoorRef
-END INTERFACE
-
-PUBLIC:: DepositParticleOnNodes,CalcCellLocNodeVolumes,ReadTimeAverage,beta,DeBoor,DeBoorRef
+PUBLIC:: DepositParticleOnNodes,CalcCellLocNodeVolumes,ReadTimeAverage,beta
 !===================================================================================================================================
 
 CONTAINS
 
 
-SUBROUTINE DepositParticleOnNodes(iPart,PartPos,ElemID)
+SUBROUTINE DepositParticleOnNodes(iPart,PartPos,GlobalElemID)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Deposit the charge of a single particle on the nodes corresponding to the deposition method 'cell_volweight_mean', where the
 ! charge is stored in NodeSourceExtTmp, which is added to NodeSource in the standard deposition procedure.
@@ -57,27 +49,56 @@ SUBROUTINE DepositParticleOnNodes(iPart,PartPos,ElemID)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Globals
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
+USE MOD_Particle_Vars      ,ONLY: PartSpecies,Species
+USE MOD_Particle_Vars      ,ONLY: usevMPF,PartMPF,PDM
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_part_tools         ,ONLY: isChargedParticle
 #if USE_LOADBALANCE
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
-USE MOD_Particle_Vars      ,ONLY: PartSpecies,Species
-USE MOD_Particle_Vars      ,ONLY: usevMPF,PartMPF
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared
+#if USE_MPI
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmpLoc
+#else
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)  :: iPart
-REAL,INTENT(IN)     :: PartPos(1:3)
-INTEGER,INTENT(IN)  :: ElemID
+INTEGER,INTENT(IN)               :: iPart
+REAL,INTENT(IN)                  :: PartPos(1:3)
+INTEGER,INTENT(IN)               :: GlobalElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3), Charge
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
+INTEGER                          :: NodeID(1:8)
 !===================================================================================================================================
+
+! Sanity checks
+IF(.NOT.PDM%ParticleInside(iPart))THEN
+  IPWRITE (*,*) "iPart         :", iPart
+  IPWRITE (*,*) "global ElemID :", GlobalElemID
+  CALL abort(&
+      __STAMP__&
+      ,'DepositParticleOnNodes(): Particle not inside element.')
+ELSEIF(PartSpecies(iPart).LT.0)THEN
+  IPWRITE (*,*) "iPart         :", iPart
+  IPWRITE (*,*) "global ElemID :", GlobalElemID
+  CALL abort(&
+      __STAMP__&
+      ,'DepositParticleOnNodes(): Negative speciesID')
+END IF ! PartSpecies(iPart)
+
+! Skip for neutral particles
+IF(.NOT.isChargedParticle(iPart)) RETURN
+
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
@@ -87,26 +108,31 @@ ELSE
   Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
 END IF
 
-CALL GetPositionInRefElem(PartPos,TempPartPos(1:3),ElemID,ForceMode=.TRUE.)
+CALL GetPositionInRefElem(PartPos,TempPartPos(1:3),GlobalElemID,ForceMode=.TRUE.)
 
 alpha1=0.5*(TempPartPos(1)+1.0)
 alpha2=0.5*(TempPartPos(2)+1.0)
 alpha3=0.5*(TempPartPos(3)+1.0)
 
-! Apply charge to nodes (note that the volumes are not accounted for yet here!)
-ASSOCIATE( NodeID => GEO%ElemToNodeID(:,ElemID) )
-  NodeSourceExtTmp(NodeID(1)) = NodeSourceExtTmp(NodeID(1))+(Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
-  NodeSourceExtTmp(NodeID(2)) = NodeSourceExtTmp(NodeID(2))+(Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
-  NodeSourceExtTmp(NodeID(3)) = NodeSourceExtTmp(NodeID(3))+(Charge*  (alpha1)*  (alpha2)*(1-alpha3))
-  NodeSourceExtTmp(NodeID(4)) = NodeSourceExtTmp(NodeID(4))+(Charge*(1-alpha1)*  (alpha2)*(1-alpha3))
-  NodeSourceExtTmp(NodeID(5)) = NodeSourceExtTmp(NodeID(5))+(Charge*(1-alpha1)*(1-alpha2)*  (alpha3))
-  NodeSourceExtTmp(NodeID(6)) = NodeSourceExtTmp(NodeID(6))+(Charge*  (alpha1)*(1-alpha2)*  (alpha3))
-  NodeSourceExtTmp(NodeID(7)) = NodeSourceExtTmp(NodeID(7))+(Charge*  (alpha1)*  (alpha2)*  (alpha3))
-  NodeSourceExtTmp(NodeID(8)) = NodeSourceExtTmp(NodeID(8))+(Charge*(1-alpha1)*  (alpha2)*  (alpha3))
+#if USE_MPI
+ASSOCIATE( NodeSourceExtTmp => NodeSourceExtTmpLoc )
+#endif
+  ! Apply charge to nodes (note that the volumes are not accounted for yet here!)
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
+  NodeSourceExtTmp(NodeID(1)) = NodeSourceExtTmp(NodeID(1)) + (Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
+  NodeSourceExtTmp(NodeID(2)) = NodeSourceExtTmp(NodeID(2)) + (Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
+  NodeSourceExtTmp(NodeID(3)) = NodeSourceExtTmp(NodeID(3)) + (Charge*  (alpha1)*  (alpha2)*(1-alpha3))
+  NodeSourceExtTmp(NodeID(4)) = NodeSourceExtTmp(NodeID(4)) + (Charge*(1-alpha1)*  (alpha2)*(1-alpha3))
+  NodeSourceExtTmp(NodeID(5)) = NodeSourceExtTmp(NodeID(5)) + (Charge*(1-alpha1)*(1-alpha2)*  (alpha3))
+  NodeSourceExtTmp(NodeID(6)) = NodeSourceExtTmp(NodeID(6)) + (Charge*  (alpha1)*(1-alpha2)*  (alpha3))
+  NodeSourceExtTmp(NodeID(7)) = NodeSourceExtTmp(NodeID(7)) + (Charge*  (alpha1)*  (alpha2)*  (alpha3))
+  NodeSourceExtTmp(NodeID(8)) = NodeSourceExtTmp(NodeID(8)) + (Charge*(1-alpha1)*  (alpha2)*  (alpha3))
+#if USE_MPI
 END ASSOCIATE
+#endif
 
 #if USE_LOADBALANCE
-CALL LBElemPauseTime(ElemID,tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to ElemID
+CALL LBElemPauseTime(GlobalElemID-offsetElem,tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to ElemID
 #endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE DepositParticleOnNodes
@@ -117,46 +143,88 @@ SUBROUTINE CalcCellLocNodeVolumes()
 !> Initialize sub-cell volumes around nodes
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars          ,ONLY: sJ, nElems
-USE MOD_Interpolation_Vars ,ONLY: wGP, xGP, wBary
-USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_Preproc
+USE MOD_Globals
+USE MOD_PreProc
 USE MOD_Basis              ,ONLY: InitializeVandermonde
-USE MOD_PICDepo_Vars       ,ONLY: CellLocNodes_Volumes
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_Interpolation_Vars ,ONLY: wGP, xGP, wBary
+#if USE_MPI
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems, nComputeNodeProcessors, myComputeNodeRank, MPI_COMM_SHARED
+USE MOD_MPI_Shared!        ,ONLY: Allocate_Shared
+USE MOD_PICDepo_Vars       ,ONLY: NodeVolume_Shared, NodeVolume_Shared_Win
+#else
+USE MOD_Mesh_Vars          ,ONLY: nElems
+#endif
+USE MOD_PICDepo_Vars       ,ONLY: NodeVolume
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemsJ, ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL    :: Vdm_loc(0:1,0:PP_N), wGP_loc, xGP_loc(0:1), DetJac(1,0:1,0:1,0:1)
-REAL    :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N)
-INTEGER :: j, k, l, iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL                             :: Vdm_loc(0:1,0:PP_N),wGP_loc,xGP_loc(0:1),DetJac(1,0:1,0:1,0:1)
+REAL                             :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N)
+INTEGER                          :: j,k,l,iElem, firstElem, lastElem
+#if USE_MPI
+INTEGER(KIND=MPI_ADDRESS_KIND)   :: MPISharedSize
+INTEGER                          :: MessageSize
+REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
+#endif
+#if USE_DEBUG
+INTEGER                          :: I
+#endif /*USE_DEBUG*/
+INTEGER                          :: NodeID(1:8)
 !===================================================================================================================================
-CellLocNodes_Volumes = 0.0
+#if USE_MPI
+MPISharedSize = INT((nUniqueGlobalNodes),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nUniqueGlobalNodes/),NodeVolume_Shared_Win,NodeVolume_Shared)
+CALL MPI_WIN_LOCK_ALL(0,NodeVolume_Shared_Win,IERROR)
+NodeVolume => NodeVolume_Shared
+firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+NodeVolumeLoc = 0.
+! only CN root nullifies
+IF (myComputeNodeRank.EQ.0) THEN
+  NodeVolume = 0.0
+END IF
+! This sync/barrier is required as it cannot be guaranteed that the zeros have been written to memory by the time the MPI_REDUCE
+! is executed (see MPI specification). Until the Sync is complete, the status is undefined, i.e., old or new value or utter nonsense.
+CALL MPI_WIN_SYNC(NodeVolume_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#else
+ALLOCATE(NodeVolume(1:nUniqueGlobalNodes))
+NodeVolume = 0.0
+firstElem = 1
+lastElem  = nElems
+#endif /*USE_MPI*/
+
 IF (PP_N.NE.1) THEN
   xGP_loc(0) = -0.5
   xGP_loc(1) = 0.5
   wGP_loc = 1.
   CALL InitializeVandermonde(PP_N,1,wBary,xGP,xGP_loc, Vdm_loc)
 END IF
-DO iElem = 1, nElems
+! ElemNodeID and ElemsJ use compute node elems
+DO iElem = firstElem, lastElem
   IF (PP_N.EQ.1) THEN
     wGP_loc = wGP(0)
     DO j=0, PP_N; DO k=0, PP_N; DO l=0, PP_N
-      DetJac(1,j,k,l)=1./sJ(j,k,l,iElem)
+      DetJac(1,j,k,l)=1./ElemsJ(j,k,l,iElem)
     END DO; END DO; END DO
   ELSE
     DO j=0, PP_N; DO k=0, PP_N; DO l=0, PP_N
-      DetLocal(1,j,k,l)=1./sJ(j,k,l,iElem)
+      DetLocal(1,j,k,l)=1./ElemsJ(j,k,l,iElem)
     END DO; END DO; END DO
     CALL ChangeBasis3D(1,PP_N, 1, Vdm_loc, DetLocal(:,:,:,:),DetJac(:,:,:,:))
   END IF
-  ASSOCIATE( NodeVolume => CellLocNodes_Volumes(:),  &
-             NodeID     => GEO%ElemToNodeID(:,iElem) )
+#if USE_MPI
+  ASSOCIATE( NodeVolume => NodeVolumeLoc )
+#endif /*USE_MPI*/
+    ! Get UniqueNodeIDs
+    NodeID = NodeInfo_Shared(ElemNodeID_Shared(1:8,iElem))
     NodeVolume(NodeID(1)) = NodeVolume(NodeID(1)) + DetJac(1,0,0,0)
     NodeVolume(NodeID(2)) = NodeVolume(NodeID(2)) + DetJac(1,1,0,0)
     NodeVolume(NodeID(3)) = NodeVolume(NodeID(3)) + DetJac(1,1,1,0)
@@ -165,8 +233,37 @@ DO iElem = 1, nElems
     NodeVolume(NodeID(6)) = NodeVolume(NodeID(6)) + DetJac(1,1,0,1)
     NodeVolume(NodeID(7)) = NodeVolume(NodeID(7)) + DetJac(1,1,1,1)
     NodeVolume(NodeID(8)) = NodeVolume(NodeID(8)) + DetJac(1,0,1,1)
+#if USE_MPI
   END ASSOCIATE
+#endif /*USE_MPI*/
 END DO
+
+#if USE_MPI
+! collect the information from the proc-local shadow arrays in the compute-node shared array
+MessageSize = nUniqueGlobalNodes
+IF (myComputeNodeRank.EQ.0) THEN
+  CALL MPI_REDUCE(NodeVolumeLoc , NodeVolume , MessageSize , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
+ELSE
+  CALL MPI_REDUCE(NodeVolumeLoc , 0          , MessageSize , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
+END IF
+CALL MPI_WIN_SYNC(NodeVolume_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+
+#if USE_DEBUG
+! Sanity Check: Only check UniqueGlobalNodes that are on the compute node (total)
+DO iElem = firstElem, lastElem
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(1:8,iElem))
+  DO I = 1, 8
+    IF(NodeVolume(NodeID(I)).LE.0.0)THEN
+      IPWRITE(UNIT_StdOut,'(I0,A,I0,A,ES25.17E3)') " NodeVolume(NodeID(",I,")) =", NodeVolume(NodeID(I))
+      CALL abort(&
+          __STAMP__&
+          ,'NodeVolume(NodeID(I)) <= 0.0 for NodeID(I) = ',IntInfoOpt=NodeID(I))
+    END IF ! NodeVolume(NodeID(1)).LE.0.0
+  END DO
+END DO ! I = 1, nUniqueGlobalNodes
+#endif /*USE_DEBUG*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE CalcCellLocNodeVolumes
 
@@ -306,117 +403,24 @@ REAL                     :: StartT,EndT
 END SUBROUTINE ReadTimeAverage
 
 
-SUBROUTINE DeBoor(PosInd, aux, coord, results, dir)
-!============================================================================================================================
-! recursive function for evaluating a b-spline basis function
-!============================================================================================================================
-! use MODULES
-USE MOD_PICDepo_Vars
-!-----------------------------------------------------------------------------------------------------------------------------------
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)                          :: PosInd, dir
-REAL, INTENT(IN)                             :: coord
-REAL, INTENT(INOUT)                          :: aux(0:3), results
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                          :: i,k,jL,jR
-REAL                              :: hlp1,hlp2
-!-----------------------------------------------------------------------------------------------------------------------------------
-DO i = 0, 2
-   DO k = 0, 2-i
-      jL = PosInd - k
-      jR = jL + 3 - i
-
-      hlp1 = jR * BGMdeltas(dir) - coord
-      hlp2 = coord - jL * BGMdeltas(dir)
-
-      aux(k) = (hlp1 * aux(k+1) + hlp2 * aux(k)) / (hlp1+hlp2)
-   ENDDO
-ENDDO
-results = aux(0)
-
-END SUBROUTINE DeBoor
-
-
-SUBROUTINE DeBoorRef(N_in,NKnots,Knots,Xi_in,UBspline)
-!===================================================================================================================================
-! DeBoor algorithms for uniform B-Splines
-! rule of DeBoor algorithm
-! N_i^0 (x) = 1 if x in [u_i, u_i+1); else 0
-! N_i^n (x) = (x-u_i) /(u_i+n-u_i) N_i^n-1(x) + (u_i+n+1 - x)/(u_i+n+1 - u_i+1) N_i+1^n-1(x)
-! this algorithm evaluates the complete 1D basis fuction, because certain knots can be reused
-!===================================================================================================================================
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/ OUTPUT VARIABLES
-INTEGER,INTENT(IN)      :: N_in,Nknots
-REAL,INTENT(IN)         :: Xi_in
-REAL,INTENT(OUT)        :: UBspline(0:N_in)
-REAL,INTENT(IN)         :: knots(0:Nknots) ! range of parameter
-!REAL,INTENT(IN)         :: DXi is 2 for [-1,1)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                 :: i,n, last!,first
-REAL                    :: tmpArray(0:NKnots-1,0:NKnots-1)
-REAL                    :: sDxiN!,DxiN1
-!===================================================================================================================================
-
-
-! init, first layer (constant)
-! zero order
-n=0
-tmpArray=0.
-last=nknots-1
-DO i=0,last
-  IF((knots(i).LE.Xi_in).AND.(Xi_in.LT.knots(i+1)))THEN
-    tmpArray(i,n)=1.0
-  END IF ! select
-END DO ! i
-
-DO n=1,N_in
-  last=last-1
-  DO i=0,last
-    ! standard
-!    tmpArray(i,n) = (Xi_in-knots(i))/(knots(i+n)-knots(i))*tmpArray(i,n-1) &
-!                  + (knots(i+n+1)-Xi_in)/(knots(i+n+1)-knots(i+1))*tmpArray(i+1,n-1)
-    ! optimized
-    sDxiN=0.5/REAL(n)
-    tmpArray(i,n) = sDxiN*( (Xi_in-knots(i) )*tmparray(i,n-1)+(knots(i+n+1)-Xi_in)*tmpArray(i+1,n-1))
-  END DO ! i
-END DO ! n
-
-! move back to correct range
-UBSpline(0:N_in)=tmpArray(0:N_in,N_in)
-
-END SUBROUTINE DeBoorRef
-
-
 FUNCTION beta(z,w)
 !============================================================================================================================
 ! calculates the beta function
 !============================================================================================================================
 ! use MODULES
 !-----------------------------------------------------------------------------------------------------------------------------------
-   IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-   REAL, INTENT(IN)                             :: w, z
+REAL, INTENT(IN)                             :: w, z
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-   REAL                                          :: beta
+REAL                                          :: beta
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
-   beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)
+beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)
 END FUNCTION beta
 
 

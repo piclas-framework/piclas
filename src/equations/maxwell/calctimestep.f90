@@ -38,12 +38,10 @@ FUNCTION CALCTIMESTEP()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars,     ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
-USE MOD_Equation_Vars, ONLY:c,c_corr
-USE MOD_TimeDisc_Vars, ONLY:CFLScale
-#if USE_QDS_DG
-USE MOD_QDS_DG_Vars,   ONLY:QDSMaxVelo,DoQDS
-#endif /*USE_QDS_DG*/
+USE MOD_Mesh_Vars     ,ONLY: sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
+USE MOD_Equation_Vars ,ONLY: c_corr
+USE MOD_Globals_Vars  ,ONLY: c
+USE MOD_TimeDisc_Vars ,ONLY: CFLScale
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -56,15 +54,8 @@ REAL                         :: CalcTimeStep
 INTEGER                      :: i,j,k,iElem
 REAL                         :: Max_Lambda1,Max_Lambda2,Max_Lambda3
 REAL                         :: TimeStepConv,locTimeStepConv
-#if USE_QDS_DG
-REAL                         :: Max_Lambda4,Max_Lambda5,Max_Lambda6
-REAL                         :: locTimeStepQDS
-#endif /*USE_QDS_DG*/
 !===================================================================================================================================
 locTimeStepConv=HUGE(1.)
-#if USE_QDS_DG
-locTimeStepQDS=HUGE(1.)
-#endif /*USE_QDS_DG*/
 DO iElem=1,PP_nElems
   Max_Lambda1=0.
   Max_Lambda2=0.
@@ -94,28 +85,6 @@ DO iElem=1,PP_nElems
     END DO ! j
   END DO ! k
 
-
-#if USE_QDS_DG
-  IF(DoQDS)THEN
-    Max_Lambda4=0.
-    Max_Lambda5=0.
-    Max_Lambda6=0.
-    DO k=0,PP_N
-      DO j=0,PP_N
-        DO i=0,PP_N
-    ! QDS
-          Max_Lambda4=MAX(Max_Lambda4,sJ(i,j,k,iElem)*(QDSMaxVelo &
-                          *SQRT(SUM(Metrics_fTilde(:,i,j,k,iElem)*Metrics_fTilde(:,i,j,k,iElem)))))
-          Max_Lambda5=MAX(Max_Lambda5,sJ(i,j,k,iElem)*(QDSMaxVelo &
-                          *SQRT(SUM(Metrics_gTilde(:,i,j,k,iElem)*Metrics_gTilde(:,i,j,k,iElem)))))
-          Max_Lambda6=MAX(Max_Lambda6,sJ(i,j,k,iElem)*(QDSMaxVelo &
-                          *SQRT(SUM(Metrics_hTilde(:,i,j,k,iElem)*Metrics_hTilde(:,i,j,k,iElem)))))
-        END DO ! i
-      END DO ! j
-    END DO ! k
-  locTimeStepQDS=MIN(locTimeStepQDS,CFLScale*2./(Max_Lambda4+Max_Lambda5+Max_Lambda6))
-  END IF
-#endif /*USE_QDS_DG*/
 ! VERSION 3: ---------------------------------
 !   locTimeStepConv=MIN(locTimeStepConv,CFLScale*2./(Max_Lambda1))
 ! --------------------------------------------
@@ -140,17 +109,6 @@ TimeStepConv=locTimeStepConv
 #endif /*USE_MPI*/
 CalcTimeStep=TimeStepConv
 
-
-#if USE_QDS_DG
-IF(DoQDS)THEN
-#if USE_MPI
-  CALL MPI_ALLREDUCE(locTimeStepQDS,TimeStepConv,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
-#else
-TimeStepConv=locTimeStepQDS
-#endif /*USE_MPI*/
-  CalcTimeStep=TimeStepConv
-END IF
-#endif /*USE_QDS_DG*/
 END FUNCTION CALCTIMESTEP
 
 END MODULE MOD_CalcTimeStep

@@ -57,10 +57,6 @@ INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
 
 INTEGER(KIND=IK)   :: nGlobalNbrOfParticles
 
-INTERFACE InitGlobals
-  MODULE PROCEDURE InitGlobals
-END INTERFACE
-
 INTERFACE ReOpenLogFile
   MODULE PROCEDURE ReOpenLogFile
 END INTERFACE
@@ -114,6 +110,15 @@ INTERFACE
   END SUBROUTINE setstacksizeunlimited
 END INTERFACE
 
+INTERFACE
+  SUBROUTINE processmemusage(memUsed,memAvail,memTotal) BIND(C, name='processmemusage')
+    USE ISO_C_BINDING,   ONLY : c_double
+    real(c_double) :: memUsed
+    real(c_double) :: memAvail
+    real(c_double) :: memTotal
+  END SUBROUTINE processmemusage
+END INTERFACE
+
 INTERFACE str2real
   MODULE PROCEDURE str2real
 END INTERFACE
@@ -151,67 +156,10 @@ INTERFACE TransformVectorFromSphericalCoordinates
 END INTERFACE
 
 PUBLIC :: setstacksizeunlimited
+PUBLIC :: processmemusage
 
 !===================================================================================================================================
 CONTAINS
-
-SUBROUTINE InitGlobals()
-!===================================================================================================================================
-! Pre-compute required constants
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars
-USE MOD_PreProc
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                        :: OpenStat
-CHARACTER(LEN=8)               :: StrDate
-CHARACTER(LEN=10)              :: StrTime
-LOGICAL                        :: LogIsOpen
-!===================================================================================================================================
-
-SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS ...'
-
-! PiclasVersionStr is stored in each hdf5 file with hdf5 header
-PiclasVersionStr = TRIM(int2strf(MajorVersion))//"."//TRIM(int2strf(MinorVersion))//"."//TRIM(int2strf(PatchVersion))
-
-PI=ACOS(-1.)
-sPI = 1./PI
-
-! get machine accuracy
-epsMach=EPSILON(0.0)
-TwoEpsMach=2.0d0*epsMach
-
-! Open file for logging
-IF(Logging)THEN
-  INQUIRE(UNIT=UNIT_LogOut,OPENED=LogIsOpen)
-  IF(.NOT.LogIsOpen)THEN
-    WRITE(LogFile,'(A,A1,I6.6,A4)')TRIM(ProjectName),'_',myRank,'.log'
-    OPEN(UNIT=UNIT_logOut,  &
-         FILE=LogFile,      &
-         STATUS='UNKNOWN',  &
-         ACTION='WRITE',    &
-         POSITION='APPEND', &
-         IOSTAT=OpenStat)
-    CALL DATE_AND_TIME(StrDate,StrTime)
-    WRITE(UNIT_logOut,*)
-    WRITE(UNIT_logOut,'(132("#"))')
-    WRITE(UNIT_logOut,*)
-    WRITE(UNIT_logOut,*)'STARTED LOGGING FOR PROC',myRank,' ON ',StrDate(7:8),'.',StrDate(5:6),'.',StrDate(1:4),' | ',&
-                        StrTime(1:2),':',StrTime(3:4),':',StrTime(5:10)
-  END IF !logIsOpen
-END IF  ! Logging
-
-SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
-END SUBROUTINE InitGlobals
-
 
 SUBROUTINE ReOpenLogFile()
 !===================================================================================================================================
@@ -538,48 +486,48 @@ READ(str,*,IOSTAT=stat)  int_number
 END SUBROUTINE str2int
 
 
-!==================================================================================================================================  
+!==================================================================================================================================
 !> Convert a String to an Integer
-!==================================================================================================================================  
+!==================================================================================================================================
 SUBROUTINE int2str(str,int_number,stat)
-!=================================================================================================================================== 
-!=================================================================================================================================== 
+!===================================================================================================================================
+!===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------- 
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------- 
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------- 
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(len=255),INTENT(OUT) :: str
 INTEGER,INTENT(IN)             :: int_number
 INTEGER,INTENT(OUT)            :: stat
-!=================================================================================================================================== 
+!===================================================================================================================================
 WRITE(str,'(I0)',IOSTAT=stat)  int_number
 END SUBROUTINE int2str
 
 
-!==================================================================================================================================  
+!==================================================================================================================================
 !> Convert an Integer to a String
-!==================================================================================================================================  
+!==================================================================================================================================
 !SUBROUTINE int2strf(str,int_number,stat)
 FUNCTION int2strf(int_number)
-!=================================================================================================================================== 
-!=================================================================================================================================== 
+!===================================================================================================================================
+!===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------- 
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------- 
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------- 
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(len=3) :: int2strf
 INTEGER,INTENT(IN) :: int_number
-!=================================================================================================================================== 
+!===================================================================================================================================
 WRITE(int2strf,'(I0)')  int_number
 int2strf = TRIM(ADJUSTL(int2strf))
 END FUNCTION
@@ -688,7 +636,7 @@ IF(ExistFile) THEN
           IF(temp(IndNum-1:IndNum-1).NE.' ')CYCLE   ! parameter, e.g., "timestep" within "fd_timestep" -> skip
         END IF
         temp2=TRIM(ADJUSTL(temp(IndNum+LEN(TRIM(ParameterName)):LEN(temp))))
-        IF(DelimiterSymbol.NE.'')THEN               ! demiliting symbol must not be empty
+        IF(DelimiterSymbol.NE.'')THEN               ! delimiting symbol must not be empty
           IndNum=INDEX(temp2,TRIM(DelimiterSymbol)) ! only use string FROM delimiting symbol +1
           IF(IndNum.GT.0)THEN
             temp3=TRIM(ADJUSTL(temp2(IndNum+1:LEN(temp2))))
@@ -731,7 +679,7 @@ END SUBROUTINE GetParameterFromFile
 
 
 !==================================================================================================================================
-!> Creates an integer stamp that will afterwards be given to the SOUBRUTINE timestamp
+!> Uses INQUIRE to check whether the file exists
 !==================================================================================================================================
 FUNCTION FILEEXISTS(filename)
 ! MODULES
@@ -749,7 +697,7 @@ END FUNCTION FILEEXISTS
 
 FUNCTION INTSTAMP(Nam,Num)
 !===================================================================================================================================
-! Creates an integer stamp that will afterwards be given to the SOUBRUTINE timestamp
+! Creates an integer stamp that will afterwards be given to the SUBROUTINE timestamp
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -771,7 +719,7 @@ END FUNCTION INTSTAMP
 
 FUNCTION TIMESTAMP(Filename,Time)
 !===================================================================================================================================
-! Creates a timestamp, consistent of a filename (project name + processor) and current time niveau
+! Creates a timestamp, consistent of a filename (project name + processor) and current time
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -1028,9 +976,9 @@ PURE SUBROUTINE SphericalCoordinates(X,r,theta,phi)
 !===================================================================================================================================
 !> Computes the spherical coordinates of a Cartesian Vector X
 !> r     : radial distance (Euclidean norm (length) of vector X)
-!> theta : polar angle (angle between the positive Z-axis and the vector X) 
+!> theta : polar angle (angle between the positive Z-axis and the vector X)
 !>         0 <= theta <= Pi
-!> phi   : azimuthal angle (angle between the projection of the vector onto the X-Y-plane and the positive X-axis) 
+!> phi   : azimuthal angle (angle between the projection of the vector onto the X-Y-plane and the positive X-axis)
 !>         0 <= phi < 2*Pi
 !===================================================================================================================================
 ! MODULES
@@ -1156,5 +1104,34 @@ WRITE(UNIT_stdOut,'(A,F16.2,A)',ADVANCE='NO')  ' PICLAS '//TRIM(Message)//'! [',
 WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),']'
 END SUBROUTINE DisplaySimulationTime
 
+
+PURE LOGICAL FUNCTION StringBeginsWith(MainString,SubString)
+!===================================================================================================================================
+! Check if the string MainString starts with the string SubString
+! Note that if one of the strings is of length zero, the result will be false and if both are zero the result will be true
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: MainString !< String in which the substring is looked for
+CHARACTER(LEN=*),INTENT(IN) :: SubString  !< String which might be in MainString
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: MainStringLength,SubStringLength
+!===================================================================================================================================
+MainStringLength = LEN(TRIM(ADJUSTL(MainString)))
+SubStringLength  = LEN(TRIM(ADJUSTL(SubString)))
+IF(SubStringLength.GT.0.AND.MainStringLength.GT.0)THEN
+  StringBeginsWith = TRIM(MainString(1:MIN(SubStringLength,LEN(TRIM(ADJUSTL(MainString)))))).EQ.TRIM(ADJUSTL(SubString))
+ELSEIF(SubStringLength.EQ.0.AND.MainStringLength.EQ.0)THEN
+  StringBeginsWith = .TRUE.
+ELSE
+  StringBeginsWith = .FALSE.
+END IF ! SubStringLength.GT.0.AND.MainStringLength.GT.0
+END FUNCTION StringBeginsWith
 
 END MODULE MOD_Globals

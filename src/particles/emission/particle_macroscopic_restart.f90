@@ -12,7 +12,7 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_macro_restart
+MODULE MOD_Macro_Restart
 !===================================================================================================================================
 ! module for particle emission
 !===================================================================================================================================
@@ -26,7 +26,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
 !----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC         :: MacroRestart_InsertParticles
+PUBLIC         :: MacroRestart_InsertParticles, CalcERot_particle, CalcEVib_particle, CalcEElec_particle
 !===================================================================================================================================
 CONTAINS
 
@@ -37,17 +37,19 @@ SUBROUTINE MacroRestart_InsertParticles()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: Pi
-USE MOD_Particle_Vars           ,ONLY: Species, PDM, nSpecies, PartState, Symmetry, VarTimeStep
-USE MOD_Mesh_Vars               ,ONLY: nElems
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry           ,ONLY: CalcRadWeightMPF
-USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, DSMC
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping, TriaTracking
-USE MOD_Particle_Mesh           ,ONLY: PartInElemCheck
+USE MOD_Particle_Localization   ,ONLY: PartInElemCheck
 USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, epsOneCell
-USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemEpsOneCell
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Particle_Vars           ,ONLY: Species, PDM, nSpecies, PartState, Symmetry, VarTimeStep
+USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -59,7 +61,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                             :: iElem, iSpec, iPart, nPart, locnPart, iHeight, yPartitions
+INTEGER                             :: iElem,iSpec,iPart,nPart,locnPart,iHeight,yPartitions,GlobalElemID
 REAL                                :: iRan, RandomPos(3), PartDens, TempMPF, MaxPosTemp, MinPosTemp
 REAL                                :: TempVol, Volume, Det(6,2), RefPos(1:3)
 LOGICAL                             :: InsideFlag
@@ -70,11 +72,15 @@ SWRITE(UNIT_stdOut,*) 'PERFORMING MACROSCOPIC RESTART...'
 locnPart = 1
 
 DO iElem = 1, nElems
-  ASSOCIATE( Bounds => GEO%BoundsOfElem(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+  GlobalElemID = iElem + offsetElem
+  ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z
 ! #################### 2D ##########################################################################################################
     IF (Symmetry%Axisymmetric) THEN
       IF (RadialWeighting%DoRadialWeighting) THEN
         DO iSpec = 1, nSpecies
+          IF (DSMC%DoAmbipolarDiff) THEN
+            IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+          END IF
           yPartitions = 6
           PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS)
           ! Particle weighting
@@ -95,13 +101,13 @@ DO iElem = 1, nElems
               RandomPos(2) = MinPosTemp + RandomPos(2)*(MaxPosTemp-MinPosTemp)
               RandomPos(3) = 0.0
               IF (DoRefMapping) THEN
-                CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-                IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+                CALL GetPositionInRefElem(RandomPos,RefPos,GlobalElemID)
+                IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(GetCNElemID(GlobalElemID))) InsideFlag=.TRUE.
               ELSE
                 IF (TriaTracking) THEN
-                  CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
+                  CALL ParticleInsideQuad3D(RandomPos,GlobalElemID,InsideFlag,Det)
                 ELSE
-                  CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
+                  CALL PartInElemCheck(RandomPos,iPart,GlobalElemID,InsideFlag)
                 END IF
               END IF
               IF (InsideFlag) THEN
@@ -114,12 +120,15 @@ DO iElem = 1, nElems
         END DO ! nSpecies
       ELSE ! No RadialWeighting
         DO iSpec = 1, nSpecies
+          IF (DSMC%DoAmbipolarDiff) THEN
+            IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+          END IF
           CALL RANDOM_NUMBER(iRan)
           TempMPF = Species(iSpec)%MacroParticleFactor
           IF(VarTimeStep%UseVariableTimeStep) THEN
             TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (Bounds(2,2)+Bounds(1,2))*0.5, iElem)
           END IF
-          nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * GEO%Volume(iElem) + iRan)
+          nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * ElemVolume_Shared(GlobalElemID) + iRan)
           DO iPart = 1, nPart
             InsideFlag=.FALSE.
             DO WHILE (.NOT.InsideFlag)
@@ -128,13 +137,13 @@ DO iElem = 1, nElems
               RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
               RandomPos(3) = 0.0
               IF (DoRefMapping) THEN
-                CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-                IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+                CALL GetPositionInRefElem(RandomPos,RefPos,GlobalElemID)
+                IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(GetCNElemID(GlobalElemID))) InsideFlag=.TRUE.
               ELSE
                 IF (TriaTracking) THEN
-                  CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
+                  CALL ParticleInsideQuad3D(RandomPos,GlobalElemID,InsideFlag,Det)
                 ELSE
-                  CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
+                  CALL PartInElemCheck(RandomPos,iPart,GlobalElemID,InsideFlag)
                 END IF
               END IF
             END DO
@@ -147,6 +156,9 @@ DO iElem = 1, nElems
     ELSE IF(Symmetry%Order.EQ.2) THEN
       Volume = (Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
       DO iSpec = 1, nSpecies
+        IF (DSMC%DoAmbipolarDiff) THEN
+          IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+        END IF
         CALL RANDOM_NUMBER(iRan)
         TempMPF = Species(iSpec)%MacroParticleFactor
         IF(VarTimeStep%UseVariableTimeStep) THEN
@@ -159,13 +171,13 @@ DO iElem = 1, nElems
           RandomPos(1:2) = Bounds(1,1:2) + RandomPos(1:2)*(Bounds(2,1:2)-Bounds(1,1:2))
           RandomPos(3) = 0.0
           IF (DoRefMapping) THEN
-            CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-            IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+            CALL GetPositionInRefElem(RandomPos,RefPos,GlobalElemID)
+            IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(GetCNElemID(GlobalElemID))) InsideFlag=.TRUE.
           ELSE
             IF (TriaTracking) THEN
-              CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
+              CALL ParticleInsideQuad3D(RandomPos,GlobalElemID,InsideFlag,Det)
             ELSE
-              CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
+              CALL PartInElemCheck(RandomPos,iPart,GlobalElemID,InsideFlag)
             END IF
           END IF
           IF (InsideFlag) THEN
@@ -178,6 +190,9 @@ DO iElem = 1, nElems
     ELSE IF(Symmetry%Order.EQ.1) THEN
       Volume = (Bounds(2,1) - Bounds(1,1))
       DO iSpec = 1, nSpecies
+        IF (DSMC%DoAmbipolarDiff) THEN
+          IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+        END IF
         CALL RANDOM_NUMBER(iRan)
         TempMPF = Species(iSpec)%MacroParticleFactor
         IF(VarTimeStep%UseVariableTimeStep) THEN
@@ -192,7 +207,7 @@ DO iElem = 1, nElems
           RandomPos(3) = 0.0
           IF (DoRefMapping) THEN
             CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-            IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+            IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(GetCNElemID(GlobalElemID))) InsideFlag=.TRUE.
           ELSE
             IF (TriaTracking) THEN
               CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
@@ -211,6 +226,9 @@ DO iElem = 1, nElems
 ! #################### 3D ##########################################################################################################
       Volume = (Bounds(2,3) - Bounds(1,3))*(Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
       DO iSpec = 1, nSpecies
+        IF (DSMC%DoAmbipolarDiff) THEN
+          IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+        END IF
         CALL RANDOM_NUMBER(iRan)
         TempMPF = Species(iSpec)%MacroParticleFactor
         IF(VarTimeStep%UseVariableTimeStep) THEN
@@ -222,13 +240,13 @@ DO iElem = 1, nElems
           CALL RANDOM_NUMBER(RandomPos)
           RandomPos(1:3) = Bounds(1,1:3) + RandomPos(1:3)*(Bounds(2,1:3)-Bounds(1,1:3))
           IF (DoRefMapping) THEN
-            CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-            IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+            CALL GetPositionInRefElem(RandomPos,RefPos,GlobalElemID)
+            IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(GetCNElemID(GlobalElemID))) InsideFlag=.TRUE.
           ELSE
             IF (TriaTracking) THEN
-              CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
+              CALL ParticleInsideQuad3D(RandomPos,GlobalElemID,InsideFlag,Det)
             ELSE
-              CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
+              CALL PartInElemCheck(RandomPos,iPart,GlobalElemID,InsideFlag)
             END IF
           END IF
           IF (InsideFlag) THEN
@@ -238,7 +256,7 @@ DO iElem = 1, nElems
           END IF
         END DO ! nPart
       END DO ! nSpecies
-    END IF ! Symmetry2D/Axisymmetric/3D
+    END IF ! 1D/2D/Axisymmetric/3D
   END ASSOCIATE
 END DO ! nElems
 
@@ -257,11 +275,12 @@ SUBROUTINE MacroRestart_InitializeParticle_Maxwell(iPart,iSpec,iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, VarTimeStep, PartMPF
-USE MOD_DSMC_Vars               ,ONLY: DSMC, PartStateIntEn, CollisMode, SpecDSMC, RadialWeighting
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
+USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, VarTimeStep, PartMPF, Species
+USE MOD_DSMC_Vars               ,ONLY: DSMC, PartStateIntEn, CollisMode, SpecDSMC, RadialWeighting, AmbipolElecVelo
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
-USE MOD_DSMC_Symmetry           ,ONLY: CalcRadWeightMPF
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -278,6 +297,14 @@ INTEGER, INTENT(IN)             :: iPart, iSpec, iElem
 PartState(4:6,iPart) = CalcVelocity_maxwell_particle(iSpec,MacroRestartValues(iElem,iSpec,4:6)) &
                           + MacroRestartValues(iElem,iSpec,1:3)
 
+IF (DSMC%DoAmbipolarDiff) THEN
+  IF(Species(iSpec)%ChargeIC.GT.0.0) THEN
+    IF (ALLOCATED(AmbipolElecVelo(iPart)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(iPart)%ElecVelo)
+    ALLOCATE(AmbipolElecVelo(iPart)%ElecVelo(3))
+    AmbipolElecVelo(iPart)%ElecVelo(1:3) = CalcVelocity_maxwell_particle(DSMC%AmbiDiffElecSpec, &
+          MacroRestartValues(iElem,DSMC%AmbiDiffElecSpec,4:6)) + MacroRestartValues(iElem,DSMC%AmbiDiffElecSpec,1:3)
+  END IF
+END IF
 ! 2) Set internal energies (rotational, vibrational, electronic)
 IF(CollisMode.GT.1) THEN
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
@@ -286,9 +313,9 @@ IF(CollisMode.GT.1) THEN
   ELSE
     PartStateIntEn(1:2,iPart) = 0.0
   END IF
-  IF(DSMC%ElectronicModel) THEN
+  IF(DSMC%ElectronicModel.GT.0) THEN
     IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-      PartStateIntEn(3,iPart) = CalcEElec_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TELEC))
+      PartStateIntEn(3,iPart) = CalcEElec_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TELEC), iPart)
     ELSE
       PartStateIntEn(3,iPart) = 0.0
     END IF
@@ -297,8 +324,8 @@ END IF
 
 ! 3) Set the species and element number
 PartSpecies(iPart) = iSpec
-PEM%Element(iPart) = iElem
-PEM%lastElement(iPart) = iElem
+PEM%GlobalElemID(iPart) = iElem+offSetElem
+PEM%LastGlobalElemID(iPart) = iElem+offSetElem
 PDM%ParticleInside(iPart) = .TRUE.
 
 ! 4) Set particle weights (if required)
@@ -436,53 +463,73 @@ RETURN
 END FUNCTION CalcERot_particle
 
 
-REAL FUNCTION CalcEElec_particle(iSpec,TempElec)
+REAL FUNCTION CalcEElec_particle(iSpec,TempElec, iPart)
 !===================================================================================================================================
 !
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars         ,ONLY: SpecDSMC
+USE MOD_DSMC_Vars         ,ONLY: SpecDSMC, DSMC, ElectronicDistriPart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)       :: iSpec
-REAL, INTENT(IN)          :: TempElec
+INTEGER, INTENT(IN)           :: iSpec, iPart
+REAL, INTENT(IN)              :: TempElec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                   :: iQua
-REAL                      :: iRan, ElectronicPartition, ElectronicPartitionTemp
+REAL                      :: iRan, ElectronicPartition, ElectronicPartitionTemp, tmpExp
 !===================================================================================================================================
-
 ElectronicPartition  = 0.
-ElectronicPartitionTemp = 0.
-IF(TempElec.GT.0.0) THEN
-  ! calculate sum over all energy levels == partition function for temperature Telec
+IF (DSMC%ElectronicModel.EQ.2) THEN
+  IF(ALLOCATED(ElectronicDistriPart(iPart)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(iPart)%DistriFunc)
+  ALLOCATE(ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(iSpec)%MaxElecQuant))
+  CalcEElec_particle = 0.0
   DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
-    ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua)/TempElec)
-    IF ( ElectronicPartitionTemp .GT. ElectronicPartition ) THEN
-      ElectronicPartition = ElectronicPartitionTemp
-    END IF
+    tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TempElec
+    IF (CHECKEXP(tmpExp)) &
+      ElectronicPartition = ElectronicPartition + SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-tmpExp)
   END DO
-  ElectronicPartitionTemp = 0.
-  ! select level
-  CALL RANDOM_NUMBER(iRan)
-  DO WHILE ( iRan .GE. ElectronicPartitionTemp / ElectronicPartition )
-    CALL RANDOM_NUMBER(iRan)
-    iQua = int( ( SpecDSMC(iSpec)%MaxElecQuant ) * iRan)
-    ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua)/TempElec)
-    CALL RANDOM_NUMBER(iRan)
+  DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
+    tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TempElec
+    IF (CHECKEXP(tmpExp)) THEN
+      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = SpecDSMC(iSpec)%ElectronicState(1,iQua)*EXP(-tmpExp)/ElectronicPartition
+    ELSE
+      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = 0.0
+    END IF
+    CalcEElec_particle = CalcEElec_particle + &
+        ElectronicDistriPart(iPart)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
   END DO
 ELSE
-  iQua = 0
+  ElectronicPartitionTemp = 0.
+  IF(TempElec.GT.0.0) THEN
+    ! calculate sum over all energy levels == partition function for temperature Telec
+    DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
+      ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua)/TempElec)
+      IF ( ElectronicPartitionTemp .GT. ElectronicPartition ) THEN
+        ElectronicPartition = ElectronicPartitionTemp
+      END IF
+    END DO
+    ElectronicPartitionTemp = 0.
+    ! select level
+    CALL RANDOM_NUMBER(iRan)
+    DO WHILE ( iRan .GE. ElectronicPartitionTemp / ElectronicPartition )
+      CALL RANDOM_NUMBER(iRan)
+      iQua = int( ( SpecDSMC(iSpec)%MaxElecQuant ) * iRan)
+      ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua)/TempElec)
+      CALL RANDOM_NUMBER(iRan)
+    END DO
+  ELSE
+    iQua = 0
+  END IF
+  CalcEElec_particle = BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
 END IF
-CalcEElec_particle = BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
 
 RETURN
 
 END FUNCTION CalcEElec_particle
 
 
-END MODULE MOD_macro_restart
+END MODULE MOD_Macro_Restart

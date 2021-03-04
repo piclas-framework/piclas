@@ -53,31 +53,18 @@ REAL,ALLOCATABLE :: DCL_N(:,:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! will be used in the future
 REAL,ALLOCATABLE,TARGET :: NodeCoords(:,:,:,:,:) !< XYZ positions (equidistant,NGeo) of element interpolation points from meshfile
-REAL,ALLOCATABLE :: Elem_xGP(:,:,:,:,:)          !< XYZ positions (first index 1:3) of the volume Gauss Point
+REAL,ALLOCATABLE,TARGET :: Elem_xGP(:,:,:,:,:)          !< XYZ positions (first index 1:3) of the volume Gauss Point
 REAL,ALLOCATABLE :: Face_xGP(:,:,:,:)            !< XYZ positions (first index 1:3) of the Boundary Face Gauss Point
 REAL,DIMENSION(6):: xyzMinMax                    !< from Face_xGP points determined maximum domain extension (min/max of domain)
 LOGICAL          :: GetMeshMinMaxBoundariesIsDone =.FALSE. !< don't call twice the calculation of xyzMinMax
 REAL,ALLOCATABLE,DIMENSION(:,:):: ElemBaryNGeo   !< element local basis: origin
-!----------------------------------------------------------------------------------------------------------------------------------
-! MORTAR DATA FOR NON-CONFORMING MESHES ORIGINATING FROM AN OCTREE BASIS (ONLY ALLOCATED IF isMortarMesh=.TRUE.!!!)
-!----------------------------------------------------------------------------------------------------------------------------------
-LOGICAL          :: isMortarMesh               !< Marker whether non-conforming data is present (false for conforming meshes)
-LOGICAL          :: interpolateFromTree        !< Switch whether to build metrics on tree level and interpolate to elements.
-                                               !< Only applicable if tree data is present in mesh file
-REAL,ALLOCATABLE,TARGET :: TreeCoords(:,:,:,:,:) !< XYZ positions (equidistant,NGeoTree) of tree interpolation points from meshfile
-REAL,ALLOCATABLE :: xiMinMax(:,:,:)            !< Position of the 2 bounding nodes of a quadrant in its tree
-INTEGER          :: NGeoTree                   !< Polynomial degree of trees geometric transformation
-INTEGER          :: nTrees                     !< Local number of trees in mesh
-INTEGER          :: nGlobalTrees               !< Global number of trees in mesh
-INTEGER          :: offsetTree                 !< Tree offset (for MPI)
-INTEGER,ALLOCATABLE :: ElemToTree(:)           !< Index of the tree corresponding to an element
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Metrics on GaussPoints
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE :: Metrics_fTilde(:,:,:,:,:) !< Metric Terms (first indices 3) on each GaussPoint
 REAL,ALLOCATABLE :: Metrics_gTilde(:,:,:,:,:)
 REAL,ALLOCATABLE :: Metrics_hTilde(:,:,:,:,:)
-REAL,ALLOCATABLE :: sJ(:,:,:,:)               !< 1/DetJac for each Gauss Point
+REAL,ALLOCATABLE,TARGET :: sJ(:,:,:,:)               !< 1/DetJac for each Gauss Point
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! PIC - for Newton localisation of particles in curved Elements
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -86,13 +73,12 @@ REAL,ALLOCATABLE    :: wBaryCL_NGeo(:)
 REAL,ALLOCATABLE    :: wBaryCL_NGeo1(:)
 REAL,ALLOCATABLE    :: XiCL_NGeo1(:)
 REAL,ALLOCATABLE    :: Vdm_CLNGeo1_CLNGeo(:,:)
-LOGICAL,ALLOCATABLE :: CurvedElem(:)
 !< #endif /*PARTICLES*/
-REAL,ALLOCATABLE    :: XiCL_NGeo(:)
-REAL,ALLOCATABLE    :: XCL_NGeo(:,:,:,:,:)
-REAL,ALLOCATABLE    :: dXCL_NGeo(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
-REAL,ALLOCATABLE    :: dXCL_N(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
-REAL,ALLOCATABLE    :: detJac_Ref(:,:,:,:,:)      !< determinant of the mesh Jacobian for each Gauss point at degree 3*NGeo
+REAL,ALLOCATABLE        :: XiCL_NGeo(:)
+REAL,ALLOCATABLE,TARGET :: XCL_NGeo(:,:,:,:,:)
+REAL,ALLOCATABLE,TARGET :: dXCL_NGeo(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
+REAL,ALLOCATABLE        :: dXCL_N(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
+REAL,ALLOCATABLE        :: detJac_Ref(:,:,:,:,:)      !< determinant of the mesh Jacobian for each Gauss point at degree 3*NGeo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! surface vectors
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -117,6 +103,10 @@ INTEGER,ALLOCATABLE :: FS2M(:,:,:,:)     !< flip slave side to master and revers
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! mapping from element to sides and sides to element
 !-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,ALLOCATABLE :: ElemInfo(:,:)           !< array containing the node and side connectivity of the elments as stored in the
+                                               !< mesh file
+INTEGER,ALLOCATABLE :: SideInfo(:,:)           !< array containing the connectivity, flip,... of the sides as stored in the
+                                               !< mesh file
 INTEGER,ALLOCATABLE :: ElemToSide(:,:,:) !< SideID    = ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem)
                                          !< flip      = ElemToSide(E2S_FLIP,ZETA_PLUS,iElem)
 INTEGER,ALLOCATABLE :: SideToElem(:,:)   !< ElemID    = SideToElem(S2E_ELEM_ID,SideID)
@@ -132,26 +122,6 @@ INTEGER,ALLOCATABLE :: AnalyzeSide(:)    !< Marks, wheter a side belongs to a gr
 INTEGER,PARAMETER :: NormalDirs(6) = (/ 3 , 2 , 1 , 2 , 1 , 3 /) !< normal vector direction for element local side
 INTEGER,PARAMETER :: TangDirs(6)   = (/ 1 , 3 , 2 , 3 , 2 , 1 /) !< first tangential vector direction for element local side
 REAL   ,PARAMETER :: NormalSigns(6)= (/-1.,-1., 1., 1.,-1., 1./) !< normal vector sign for element local side
-!----------------------------------------------------------------------------------------------------------------------------------
-! Mapping of nodes and surface sides, required for connectivity of elements for the posti/converter tool
-!----------------------------------------------------------------------------------------------------------------------------------
-TYPE tSurfaceConnect
-  INTEGER                         :: nSurfaceNode                 ! Number of Nodes on Surface (reflective)
-  INTEGER                         :: nSurfaceBCSides              ! Number of Sides on Surface (reflective)
-  INTEGER, ALLOCATABLE            :: BCSurfNodes(:)               ! Nodes on Surface (reflective) (nSurfaceNode)
-  INTEGER, ALLOCATABLE            :: SideSurfNodeMap(:,:)         ! Mapping from glob Side to SurfaceNodeNum (1:4, nSurfaceBCSides)
-END TYPE
-
-TYPE (tSurfaceConnect)               :: SurfConnect
-!----------------------------------------------------------------------------------------------------------------------------------
-! Volume/Side mappings filled by mappings.f90 - not all available there are currently used!
-!----------------------------------------------------------------------------------------------------------------------------------
-!INTEGER,ALLOCATABLE :: V2S(:,:,:,:,:,:)  !< volume to side mapping
-!INTEGER,ALLOCATABLE :: V2S2(:,:,:,:,:)   !< volume to side mapping 2
-!INTEGER,ALLOCATABLE :: S2V(:,:,:,:,:,:)  !< side to volume
-!INTEGER,ALLOCATABLE :: S2V2(:,:,:,:,:)   !< side to volume 2
-!INTEGER,ALLOCATABLE :: S2V3(:,:,:,:,:)   !< side to volume 3
-!INTEGER,ALLOCATABLE :: CS2V2(:,:,:,:)    !< CGNS side to volume 2
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER          :: nGlobalElems=0          !< number of elements in mesh
 INTEGER          :: nElems=0                !< number of local elements
@@ -212,14 +182,6 @@ CHARACTER(LEN=255)               :: MeshFile        !< name of hdf5 meshfile (wr
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL          :: useCurveds
 LOGICAL          :: CrossProductMetrics=.FALSE.
-!-----------------------------------------------------------------------------------------------------------------------------------
-!< PoyntingVectorIntegral variables
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER             :: nPoyntingIntSides=0   !< Sides for the calculation of the Poynting vector integral
-INTEGER             :: PoyntingMainDir       !< direction in which the Poynting vector integral is to be computed
-LOGICAL,ALLOCATABLE :: isPoyntingIntSide(:)  !< number of all PoyntingInt sides
-INTEGER,ALLOCATABLE :: whichPoyntingPlane(:) !< plane number used for calculation of Poynting vector
-!-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! USER DEFINED TYPES
 
@@ -451,7 +413,7 @@ DO iNode=1,nNodes
     DEALLOCATE(Nodes(iNode)%np)
   END IF
 END DO
-DEALLOCATE(Nodes)
+!DEALLOCATE(Nodes)
 END SUBROUTINE deleteMeshPointer
 
 

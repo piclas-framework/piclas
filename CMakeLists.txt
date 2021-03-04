@@ -1,7 +1,7 @@
 # =========================================================================
 # PICLas CMake configuration
 # =========================================================================
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.11)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
 # TODO: eventually require CMake 3.0 in future releases
 # Advantages: Possible to split string
 IF ("${CMAKE_VERSION}" VERSION_GREATER 3.11)
@@ -112,7 +112,6 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           RESERVOIR
                                                           FP-Flow
                                                           BGK-Flow
-                                                          MACROBODY
                                                           CN
                                                           ImplicitO3
                                                           ImplicitO4
@@ -123,7 +122,19 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           ROS46
                                                           ROS6)
 
-OPTION(PICLAS_QDS_DG "enable QDS method discretized by DGSEM" OFF)
+# Get environment variable
+SET(PICLAS_SPLIT_TYPE "$ENV{PICLAS_SPLIT_TYPE}")
+IF("${PICLAS_SPLIT_TYPE}" STREQUAL "")
+  SET(PICLAS_SPLIT_TYPE "MPI_COMM_TYPE_SHARED")
+ELSE()
+  IF("${PICLAS_SPLIT_TYPE}" STREQUAL "${PICLAS_SHARED_MEMORY}")
+    MESSAGE(STATUS "Using user-defined environment variable PICLAS_SPLIT_TYPE=${PICLAS_SPLIT_TYPE} for shared memory communicator splitting of variale PICLAS_SHARED_MEMORY")
+    ENDIF()
+ENDIF()
+SET(PICLAS_SHARED_MEMORY "${PICLAS_SPLIT_TYPE}" CACHE STRING "Split type for creating new communicators based on colors and keys (requires MPI 3 or higher). Options with the prefix OMPI_ are specific to Open MPI.")
+SET_PROPERTY(CACHE PICLAS_SHARED_MEMORY PROPERTY STRINGS MPI_COMM_TYPE_SHARED
+                                                         OMPI_COMM_TYPE_CORE)
+
 OPTION(PICLAS_BUILD_POSTI "Build POSTI toolset" ON)
 OPTION(PICLAS_MPI "Compile SINGLE or MPI version" ON)
 CMAKE_DEPENDENT_OPTION(PICLAS_LOADBALANCE "Use load balance time measurement" ON "PICLAS_MPI" OFF)
@@ -154,6 +165,13 @@ ADD_DEFINITIONS(-DPP_nElems=NELEMZ)
 # code development
 OPTION(PICLAS_CODE_ANALYZE "Code Analyze" OFF)
 OPTION(PICLAS_CTAGS "Use Ctags" ON)
+
+OPTION(PICLAS_READIN_CONSTANTS "Allow read-in of user-defined constants, such as the vacuum speed of light c0, permittivity eps and permeability mu." OFF)
+IF (PICLAS_READIN_CONSTANTS)
+  ADD_DEFINITIONS(-DUSE_READIN_CONSTANTS=1)
+ELSE()
+  ADD_DEFINITIONS(-DUSE_READIN_CONSTANTS=0)
+ENDIF()
 
 # =========================================================================
 # Equation system
@@ -193,8 +211,6 @@ ELSE()
     MESSAGE(SEND_ERROR "DSMC cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
     MESSAGE(SEND_ERROR "RESERVOIR cannot be used without particles.")
-  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "MACROBODY")
-    MESSAGE(SEND_ERROR "MACROBODY cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
     MESSAGE(SEND_ERROR "BGK-Flow cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
@@ -216,76 +232,96 @@ ENDIF(PICLAS_CODE_ANALYZE)
 SET(PICLAS_IMPLICIT OFF)
 IF(PICLAS_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
   IF(PICLAS_HDG)
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoisson.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=500)
   ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Boris-Leapfrog")
   IF(PICLAS_HDG)
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoissonByBorisLeapfrog.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=508)
   ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Leapfrog")
   IF(PICLAS_HDG)
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoisson.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=509)
   ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK3")
   IF(PICLAS_HDG)
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoissonByLSERK.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=501 -DLSERK)
   ELSE()
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByLSERK.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=1 -DLSERK)
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK4")
   IF(PICLAS_HDG)
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoissonByLSERK.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=502 -DLSERK)
   ELSE()
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByLSERK.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=2 -DLSERK)
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK14")
   IF(PICLAS_HDG)
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoissonByLSERK.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=506 -DLSERK)
   ELSE()
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByLSERK.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=6 -DLSERK)
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=4)
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_DSMC.f90)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=4)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=42)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "MACROBODY")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=43)
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_DSMC_Debug.f90)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=42)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "CN")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=120 -DIMPA)
-   SET(PICLAS_IMPLICIT ON)
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByImplicitRK.f90)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=120 -DIMPA)
+  SET(PICLAS_IMPLICIT ON)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ImplicitO3")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=121 -DIMPA)
-   SET(PICLAS_IMPLICIT ON)
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByImplicitRK.f90)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=121 -DIMPA)
+  SET(PICLAS_IMPLICIT ON)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ImplicitO4")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=122 -DIMPA)
-   SET(PICLAS_IMPLICIT ON)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Ascher3")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=123 -DIMPA)
-   SET(PICLAS_IMPLICIT ON)
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByImplicitRK.f90)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=122 -DIMPA)
+  SET(PICLAS_IMPLICIT ON)
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Ascher3")
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByImplicitRK.f90)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=123 -DIMPA)
+  SET(PICLAS_IMPLICIT ON)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS2")
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByRosenbrock.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=130 -DROS)
   SET(PICLAS_IMPLICIT ON)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS3")
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByRosenbrock.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=131 -DROS)
   SET(PICLAS_IMPLICIT ON)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS4")
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS4")
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByRosenbrock.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=132 -DROS)
   SET(PICLAS_IMPLICIT ON)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS46")
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS46")
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByRosenbrock.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=133 -DROS)
   SET(PICLAS_IMPLICIT ON)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS6")
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS6")
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByRosenbrock.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=134 -DROS)
   SET(PICLAS_IMPLICIT ON)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
+   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_FPFlow.f90)
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=300)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
+   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_BGK.f90)
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=400)
 ELSE()
    MESSAGE(SEND_ERROR "Unknown time discretization method.")
@@ -336,6 +372,19 @@ ELSE()
 ENDIF(PICLAS_HDG)
 
 # =========================================================================
+# Shared memory split type
+# =========================================================================
+ADD_DEFINITIONS(-DSharedMemoryMethod=${PICLAS_SHARED_MEMORY})
+IF(PICLAS_SHARED_MEMORY STREQUAL "MPI_COMM_TYPE_SHARED")
+  ADD_DEFINITIONS(-DUSE_CORE_SPLIT=0)
+  MESSAGE(STATUS "Shared memory split type for subcommunicators set to node-level")
+ELSEIF(PICLAS_SHARED_MEMORY STREQUAL "OMPI_COMM_TYPE_CORE")
+  ADD_DEFINITIONS(-DUSE_CORE_SPLIT=1)
+  MESSAGE(STATUS "Shared memory split type for subcommunicators set to core-level")
+ENDIF()
+
+
+# =========================================================================
 # USERBLOCK + Preproc_flags
 # =========================================================================
 
@@ -350,20 +399,24 @@ endfunction()
 SET(configuration ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake)
 FILE(WRITE ${configuration} "")
 GETLISTOFVARSSTARTINGWITH("PICLAS_" piclasVars)
-FOREACH (_var IN LISTS piclasVars)
+GETLISTOFVARSSTARTINGWITH("HDF5_"   piclasVars2)
+GETLISTOFVARSSTARTINGWITH("CMAKE_"  piclasVars3)
+GETLISTOFVARSSTARTINGWITH("POSTI_"  piclasVars4)
+FOREACH (_var IN LISTS piclasVars piclasVars2 piclasVars3 piclasVars4)
   GET_PROPERTY(currentHelpString CACHE "${_var}" PROPERTY HELPSTRING)
-  SET(boolian (${${_var}} STREQUAL "ON" OR ${${_var}} STREQUAL "OFF"))
-  IF(${boolian})
-    FILE(APPEND ${configuration} "OPTION(${_var} \"${currentHelpString}\" ${${_var}})\n")
-  ELSE()
-    IF(${_var})
-      STRING(REPLACE "\\" "\\\\" ${_var} ${${_var}})
+  # Skip empty variables
+  IF(NOT ${${_var}} STREQUAL "")
+    SET(boolian (${${_var}} STREQUAL "ON" OR ${${_var}} STREQUAL "OFF"))
+    IF(${boolian})
+      FILE(APPEND ${configuration} "OPTION(${_var} \"${currentHelpString}\" ${${_var}})\n")
+    ELSE()
+      IF(${_var})
+        STRING(REPLACE "\\" "\\\\" ${_var} ${${_var}})
+      ENDIF()
+      FILE(APPEND ${configuration} "SET(${_var} \"${${_var}}\" CACHE STRING \"${currentHelpString}\")\n")
     ENDIF()
-    FILE(APPEND ${configuration} "SET(${_var} \"${${_var}}\" CACHE STRING \"${currentHelpString}\")\n")
   ENDIF()
 ENDFOREACH()
-
-
 # =========================================================================
 # Build type
 # =========================================================================
@@ -416,8 +469,8 @@ IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -fdefault-real-8 -fdefault-double-8 -fbackslash -ffree-line-length-0 -DGNU")
   SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS}     -O3 ${PICLAS_INSTRUCTION} -finline-functions -fstack-arrays -finit-character=0")
   SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -pg -O0 ${PICLAS_INSTRUCTION} -finline-functions -fstack-arrays -finit-character=0")
-  SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -Wunused-parameter -fcheck=bounds,do,mem,pointer -finit-real=snan -finit-integer=snan -finit-logical=false -finit-character=0 -ffpe-trap=invalid,zero,overflow -fbacktrace -Wall")
-  SET (CMAKE_Fortran_FLAGS_SANI    "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -Wunused-parameter -fcheck=all -finit-real=snan -finit-integer=snan -finit-logical=false -finit-character=0 -ffpe-trap=invalid,zero,overflow -fbacktrace -Wall -fsanitize=address,undefined,leak -fno-omit-frame-pointer -Wc-binding-type -Wuninitialized")
+  SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -Wunused-parameter -fcheck=bounds,do,mem,pointer -finit-real=snan -finit-integer=snan -finit-logical=false -finit-character=0 -ffpe-trap=invalid,zero,overflow -fbacktrace -Wall -Wuninitialized -pedantic")
+  SET (CMAKE_Fortran_FLAGS_SANI    "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -Wunused-parameter -fcheck=all -finit-real=snan -finit-integer=snan -finit-logical=false -finit-character=0 -ffpe-trap=invalid,zero,overflow -fbacktrace -Wall -fsanitize=address,undefined,leak -fno-omit-frame-pointer -Wc-binding-type -Wuninitialized -pedantic")
   # add flags only for compiling not linking!
   SET (PICLAS_COMPILE_FLAGS "-xf95-cpp-input -fPIC")
 
@@ -605,16 +658,6 @@ ELSE()
 ENDIF()
 
 # =========================================================================
-# QDS with DGSEM
-# =========================================================================
-IF(PICLAS_QDS_DG)
-  MESSAGE(STATUS "Building PICLas with QDS-DGSEM")
-  ADD_DEFINITIONS(-DUSE_QDS_DG=1)
-ELSE()
-  ADD_DEFINITIONS(-DUSE_QDS_DG=0)
-ENDIF()
-
-# =========================================================================
 # Coffee Lib
 # =========================================================================
 OPTION(CMAKE_ANS_COFFEE "Enable coffee lib" OFF)
@@ -641,7 +684,7 @@ endfunction()
 
 FUNCTION(add_lib_shared target)
   ADD_LIBRARY(${target} SHARED ${ARGN})
-  TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o libpiclasstatic userblocklib stacksizelib ${linkedlibs})
+  TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o libpiclasstatic userblocklib stacksizelib memusagelib ${linkedlibs})
   SET_TARGET_PROPERTIES(${target} PROPERTIES PREFIX ""
                                              COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}
                                              LINKER_LANGUAGE Fortran)
@@ -659,26 +702,32 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 # collect all F90 files needed for libpiclasstatic
 FILE(GLOB_RECURSE piclasF90 ./src/init/*.f90
                             ./src/readIMD/*.f90
-                                ./src/analyze/*.f90
-                                ./src/filter/*.f90
-                                ./src/globals/*.f90
-                                ./src/mortar/*.f90
-                                ./src/interpolation/basis.f90
-                                ./src/interpolation/interpolation.f90
-                                ./src/interpolation/interpolation_vars.f90
-                                ./src/interpolation/changeBasis.f90
-                                ./src/io_hdf5/*.f90
-                                ./src/loadbalance/*.f90
-                                ./src/mesh/*.f90
-                                ./src/interfaces/*.f90
-                                ./src/dielectric/*.f90
-                                ./src/mpi/*.f90
-                                ./src/output/*.f90
-                                ./src/readintools/*.f90
-                                ./src/recordpoints/*.f90
-                                ./src/restart/*.f90
-                                ./src/timedisc/*.f90
-                                ./src/utils/*.f90 )
+                            ./src/analyze/*.f90
+                            ./src/filter/*.f90
+                            ./src/globals/*.f90
+                            ./src/mortar/*.f90
+                            ./src/interpolation/basis.f90
+                            ./src/interpolation/interpolation.f90
+                            ./src/interpolation/interpolation_vars.f90
+                            ./src/interpolation/changeBasis.f90
+                            ./src/io_hdf5/*.f90
+                            ./src/loadbalance/*.f90
+                            ./src/mesh/*.f90
+                            ./src/interfaces/*.f90
+                            ./src/dielectric/*.f90
+                            ./src/mpi/*.f90
+                            ./src/output/*.f90
+                            ./src/readintools/*.f90
+                            ./src/recordpoints/*.f90
+                            ./src/restart/*.f90
+                            ./src/utils/*.f90 )
+
+LIST(APPEND timediscF90 ${timediscF90}
+                        ./src/timedisc/timedisc.f90
+                        ./src/timedisc/timedisc_init.f90
+                        ./src/timedisc/timedisc_vars.f90)
+
+LIST(APPEND piclasF90 ${timediscF90})
 
 FILE(GLOB_RECURSE dgF90 ./src/dg/*.f90
                         ./src/interpolation/prolongtoface.f90
@@ -735,9 +784,6 @@ FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_vars.f90
                          ./src/particles/boundary/particle_boundary_vars.f90)
 
-FILE(GLOB_RECURSE QDSF90 ./src/qds/*.f90
-                         ./src/interpolation/prolongtoface.f90)
-
 IF(PICLAS_HDG)
   LIST(APPEND piclasF90 ${hdgF90})
   IF(PICLAS_IMPLICIT)
@@ -753,13 +799,10 @@ ENDIF(PICLAS_HDG)
 
 LIST(APPEND piclasF90 ${mainF90})
 IF (PICLAS_PARTICLES)
-   LIST(APPEND piclasF90 ${particlesF90})
- ELSE()
-   LIST(APPEND piclasF90 ${noparticlesF90})
- ENDIF(PICLAS_PARTICLES)
- IF(PICLAS_QDS_DG)
-  LIST(APPEND piclasF90 ${QDSF90})
-ENDIF()
+  LIST(APPEND piclasF90 ${particlesF90})
+ELSE()
+  LIST(APPEND piclasF90 ${noparticlesF90})
+ENDIF(PICLAS_PARTICLES)
 
 # define libs
 ADD_LIBRARY(libpiclasstaticF90 OBJECT ${piclasF90} )
@@ -779,13 +822,16 @@ ADD_LIBRARY(stacksizelib STATIC ./src/globals/stacksize.c)
 SET_TARGET_PROPERTIES(stacksizelib PROPERTIES LINKER_LANGUAGE C
                                                COMPILE_FLAGS "-fPIC")
 
+ADD_LIBRARY(memusagelib STATIC ./src/globals/processmemusage.cxx)
+SET_TARGET_PROPERTIES(memusagelib PROPERTIES LINKER_LANGUAGE CXX
+                                           COMPILE_FLAGS "-fPIC")
 
 # we link the statically built libs
 add_lib_shared(libpiclasshared ./src/piclaslib.f90)
 SET_TARGET_PROPERTIES(libpiclasshared PROPERTIES OUTPUT_NAME "libpiclas")
-ADD_DEPENDENCIES(libpiclasshared libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
+ADD_DEPENDENCIES(libpiclasshared libpiclasstatic userblocklib stacksizelib memusagelib ${INTERNALLIBS})
 add_exec(piclas ./src/piclas.f90)
-ADD_DEPENDENCIES(piclas libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
+ADD_DEPENDENCIES(piclas libpiclasstatic userblocklib stacksizelib memusagelib ${INTERNALLIBS})
 
 # special compiler flags to avoid warnings for empty functions of testcase.f90 and overwrite of intrinsic abort in globals.f90
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
@@ -803,10 +849,10 @@ ENDFOREACH()
 ADD_CUSTOM_TARGET(preproc_defines COMMAND echo ${comp_defs_str})
 
 # =========================================================================
-# Add H5piclas2VTK tool
+# Add piclas2vtk tool
 # =========================================================================
-add_exec(h5piclas2vtk ./src/h5piclas2vtk.f90)
-ADD_DEPENDENCIES(h5piclas2vtk libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
+add_exec(piclas2vtk ./src/piclas2vtk.f90)
+ADD_DEPENDENCIES(piclas2vtk libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
 
 # =========================================================================
 # Posti
@@ -864,3 +910,11 @@ IF(PICLAS_CTAGS)
       ADD_DEPENDENCIES(piclas tags)
   ENDIF(CTAGS_PATH)
 ENDIF(PICLAS_CTAGS)
+# =========================================================================
+# Shared memory debug flags
+# =========================================================================
+SET(PICLAS_DEBUG_MEMORY OFF CACHE BOOL "Output shared memory window sizes. 'USE MOD_MPI_Shared' cannot be used together with the 'ONLY:' statement in this case!")
+IF(PICLAS_DEBUG_MEMORY)
+  SET (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DDEBUG_MEMORY")
+ENDIF()
+

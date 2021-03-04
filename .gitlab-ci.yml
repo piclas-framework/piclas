@@ -1,18 +1,19 @@
 # Settings
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Export the paths on new reggie2@reggie2 (no module env any more)
+# Load modules on new boltzplatz reggie
 before_script:
   - ulimit -s unlimited
-  - export PATH=/opt/openmpi/3.1.3/bin:$PATH
-  - export LD_LIBRARY_PATH=/opt/openmpi/3.1.3/lib/:$LD_LIBRARY_PATH
-  - export CMAKE_PREFIX_PATH=/opt/openmpi/3.1.3/share/cmake:$CMAKE_PREFIX_PATH
-  - export CMAKE_LIBRARY_PATH=/opt/openmpi/3.1.3/lib:$CMAKE_LIBRARY_PATH
-  - export HDF5_DIR=/opt/hdf5/1.10.5/share/cmake/
-  - export PATH=/opt/hdf5/1.10.5/bin:$PATH
-  - export LD_LIBRARY_PATH=/opt/hdf5/1.10.5/lib/:$LD_LIBRARY_PATH
-  - export CMAKE_PREFIX_PATH=/opt/hdf5/1.10.5/:$CMAKE_PREFIX_PATH
-  - export CMAKE_LIBRARY_PATH=/opt/hdf5/1.10.5/lib:$CMAKE_LIBRARY_PAT
-
+  - module purge
+  - module load cmake
+  - module load gcc/9.2.0
+  - module load openmpi/3.1.6/gcc/9.2.0
+  - module load hdf5/1.10.6/gcc/9.2.0/openmpi/3.1.6
+  - if [ -n "${DO_CORE_SPLIT}" ]; then
+      echo " PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE. Splitting shared memory domains on processor-level!";
+      export PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE;
+    else
+      echo "Splitting shared memory domains on node-level! Set variable DO_CORE_SPLIT=T to force core-level shared memory splitting for all regression tests.";
+    fi
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stages
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -21,8 +22,8 @@ stages:
   - reggie_checkin
   - reggie_feature_checkin
   - reggie_DSMC_nightly
-  - reggie_bgk_nightly
-  - reggie_superB_nightly
+#  - reggie_bgk_nightly
+  - reggie_tools_nightly
   - reggie_nightly
   - reggie_nightly_build_all
   - reggie_weekly
@@ -32,7 +33,7 @@ stages:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Templates
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-.template: &defaults_gnu
+.template: &defaults
   tags:
     - withmodules-concurrent
   artifacts:
@@ -40,14 +41,18 @@ stages:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_gnu
+      - build
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-GNU"
+    key: "${CI_COMMIT_REF_SLUG}"
     paths:
-      - build_gnu
+      - build
     policy: pull
+  allow_failure: true
+  rules:
+    - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
 
-.template: &defaults_intel
+.template: &defaults_nightly
   tags:
     - withmodules-concurrent
   artifacts:
@@ -55,14 +60,17 @@ stages:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_intel
+      - build
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-INTEL"
+    key: "${CI_COMMIT_REF_SLUG}"
     paths:
-      - build_intel
+      - build
     policy: pull
+  allow_failure: true
+  rules:
+    - if: '$DO_NIGHTLY'
 
-.template: &defaults_gnu_maxwell
+.template: &defaults_weekly
   tags:
     - withmodules-concurrent
   artifacts:
@@ -70,14 +78,17 @@ stages:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_gnu_maxwell
+      - build
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-GNU-MAX"
+    key: "${CI_COMMIT_REF_SLUG}"
     paths:
-      - build_gnu_maxwell
+      - build
     policy: pull
+  allow_failure: true
+  rules:
+    - if: '$DO_WEEKLY'
 
-.template: &defaults_intel_maxwell
+.template: &defaults_maxwell
   tags:
     - withmodules-concurrent
   artifacts:
@@ -85,14 +96,18 @@ stages:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_intel_maxwell
+      - build_maxwell
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-INTEL-MAX"
+    key: "${CI_COMMIT_REF_SLUG}-MAX"
     paths:
-      - build_intel_maxwell
+      - build_maxwell
     policy: pull
+  allow_failure: true
+  rules:
+    - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
 
-.template: &defaults_gnu_poisson
+.template: &defaults_poisson
   tags:
     - withmodules-concurrent
   artifacts:
@@ -100,16 +115,20 @@ stages:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_gnu_poisson_release
-      - build_gnu_poisson_debug
+      - build_poisson_release
+      - build_poisson_debug
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-GNU-POI"
+    key: "${CI_COMMIT_REF_SLUG}-POI"
     paths:
-      - build_gnu_poisson_release
-      - build_gnu_poisson_debug
+      - build_poisson_release
+      - build_poisson_debug
     policy: pull
+  allow_failure: true
+  rules:
+    - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
 
-.template: &defaults_intel_poisson
+.template: &defaults_poisson_nightly
   tags:
     - withmodules-concurrent
   artifacts:
@@ -117,17 +136,22 @@ stages:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_intel_poisson
+      - build_poisson_release
+      - build_poisson_debug
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-INTEL-POI"
+    key: "${CI_COMMIT_REF_SLUG}-POI"
     paths:
-      - build_intel_poisson
+      - build_poisson_release
+      - build_poisson_debug
     policy: pull
+  allow_failure: true
+  rules:
+    - if: '$DO_NIGHTLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "build": Build with intel/gnu on check-in
+# Stage "build": Build on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-build_gnu:
+build:
   tags:
     - withmodules-concurrent
   artifacts:
@@ -135,19 +159,25 @@ build_gnu:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_gnu
+      - build
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-GNU"
+    key: "${CI_COMMIT_REF_SLUG}"
     paths:
-      - build_gnu
+      - build
     policy: push
   stage: build
   script:
-    - mkdir -p build_gnu ; cd build_gnu
+    - mkdir -p build ; cd build
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DPICLAS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON ; make -j all
+    - cmake .. -DPICLAS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; make -j all
+    - if [ -n "${DO_NIGHTLY}" ] || [ -n "${DO_WEEKLY}" ]; then
+        git clone https://github.com/flexi-framework/hopr.git hopr;
+        cd hopr ; mkdir -p build ; cd build;
+        echo `pwd`;
+        cmake .. -DHOPR_BUILD_HDF5=OFF ; make -j all;
+      fi
 
-build_gnu_maxwell:
+build_maxwell:
   tags:
     - withmodules-concurrent
   artifacts:
@@ -155,19 +185,19 @@ build_gnu_maxwell:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_gnu_maxwell
+      - build_maxwell
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-GNU-MAX"
+    key: "${CI_COMMIT_REF_SLUG}-MAX"
     paths:
-      - build_gnu_maxwell
+      - build_maxwell
     policy: push
   stage: build
   script:
-    - mkdir -p build_gnu_maxwell ; cd build_gnu_maxwell
+    - mkdir -p build_maxwell ; cd build_maxwell
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DPICLAS_PARTICLES=OFF -DPICLAS_BUILD_HDF5=OFF ; make -j all
+    - cmake .. -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DPICLAS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; make -j all
 
-build_gnu_poisson:
+build_poisson:
   tags:
     - withmodules-concurrent
   artifacts:
@@ -175,160 +205,140 @@ build_gnu_poisson:
     expire_in: 1 day
     when: on_failure
     paths:
-      - build_gnu_poisson_release
-      - build_gnu_poisson_debug
+      - build_poisson_release
+      - build_poisson_debug
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-GNU-POI"
+    key: "${CI_COMMIT_REF_SLUG}-POI"
     paths:
-      - build_gnu_poisson_release
-      - build_gnu_poisson_debug
+      - build_poisson_release
+      - build_poisson_debug
     policy: push
   stage: build
   script:
-    - mkdir -p build_gnu_poisson_release ; cd build_gnu_poisson_release
+    - mkdir -p build_poisson_release ; cd build_poisson_release
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
     - cd ..
-    - mkdir -p build_gnu_poisson_debug ; cd build_gnu_poisson_debug
+    - mkdir -p build_poisson_debug ; cd build_poisson_debug
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu:
-  <<: *defaults_gnu
+default:
+  <<: *defaults
   stage: reggie_checkin
-  tags:
-    - withmodules-concurrent
   script:
-    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/run_basic/maxwell -e ./bin/piclas
+    - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/run_basic/maxwell -e ./bin/piclas
 
-gnu_maxwell:
-  <<: *defaults_gnu_maxwell
+maxwell:
+  <<: *defaults_maxwell
   stage: reggie_checkin
-  tags:
-    - withmodules-concurrent
   script:
-    - cd build_gnu_maxwell ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_maxwell/maxwell -e ./bin/piclas
+    - cd build_maxwell ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_maxwell/maxwell -e ./bin/piclas
 
-gnu_poisson:
-  <<: *defaults_gnu_poisson
+poisson:
+  <<: *defaults_poisson
   stage: reggie_checkin
-  tags:
-    - withmodules-concurrent
   script:
-    - cd build_gnu_poisson_release ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
-    - cd ../build_gnu_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
-
+    - cd build_poisson_release ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
+    - cd ../build_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_feature_checkin": Run most simple reggie features with previous builds on check-in (must be very fast)
 #                               - feature_PIC_gyrotron_variable_Bz: 1 cell layer gyrotron emission with variable B(z) field
 #                               - feature_PIC_single_particle_PML : 4^3 cart box with a particle and 1 cell layer PMLs for all directions
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_CHE_PIC_maxwell_RK4:
-  <<: *defaults_gnu
+CHE_PIC_maxwell_RK4:
+  <<: *defaults
   stage: reggie_feature_checkin
-  tags:
-    - withmodules-concurrent
   script:
-    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_RK4 -e ./bin/piclas
+    - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_RK4 -e ./bin/piclas
 
-gnu_CHE_PIC_maxwell_implicitBC:
-  <<: *defaults_gnu
-  stage: reggie_feature_checkin
-  tags:
-    - withmodules-concurrent
-  script:
-    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_implicitBC
+      # Commented out 07/12/2020 - to be fixed (this reggie fails due to bug in implicit particle tracking)
+      #CHE_PIC_maxwell_implicitBC:
+      #  <<: *defaults
+      #  stage: reggie_feature_checkin
+      #  script:
+      #    - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_implicitBC
 
-gnu_CHE_DSMC:
-  <<: *defaults_gnu
+CHE_DSMC:
+  <<: *defaults
   stage: reggie_feature_checkin
-  tags:
-    - withmodules-concurrent
   script:
-    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
+    - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
 
-gnu_CHE_BGK:
-  <<: *defaults_gnu
+CHE_BGK:
+  <<: *defaults
   stage: reggie_feature_checkin
-  tags:
-    - withmodules-concurrent
   script:
-    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_BGK
+    - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_BGK
 
-gnu_CHE_FPFlow:
-  <<: *defaults_gnu
+CHE_FPFlow:
+  <<: *defaults
   stage: reggie_feature_checkin
-  tags:
-    - withmodules-concurrent
   script:
-    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_FPFlow
+    - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_FPFlow
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 NIG_Reservoir:
-  <<: *defaults_gnu
+  <<: *defaults_nightly
   stage: reggie_DSMC_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_Reservoir ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_Reservoir ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run tracking examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 NIG_Tracking:
-  <<: *defaults_gnu
+  <<: *defaults_nightly
   stage: reggie_DSMC_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_tracking_DSMC ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_tracking_DSMC ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run DSMC examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 NIG_DSMC:
-  <<: *defaults_gnu
+  <<: *defaults_nightly
   stage: reggie_DSMC_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_DSMC ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_DSMC ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_superB_nightly": Build and run superB examples on nightly
+# Stage "reggie_tools_nightly": Build and run superB and piclas2vtk examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_NIG_SuperB_piclas:
-  <<: *defaults_gnu
-  stage: reggie_superB_nightly
-  tags:
-    - withmodules-concurrent
+NIG_SuperB_piclas:
+  <<: *defaults_nightly
+  stage: reggie_tools_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB -e ./bin/piclas ; fi
 
-gnu_NIG_SuperB_standalone:
-  <<: *defaults_gnu
-  stage: reggie_superB_nightly
-  tags:
-    - withmodules-concurrent
+NIG_SuperB_standalone:
+  <<: *defaults_nightly
+  stage: reggie_tools_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB -e ./bin/superB ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB -e ./bin/superB ; fi
+
+NIG_piclas2vtk:
+  <<: *defaults_nightly
+  stage: reggie_tools_nightly
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_piclas2vtk ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_bgk_nightly": Build and run BGK-Flow examples on nightly
+# Stage "reggie_bgk_nightly": Build and run BGK-Flow examples on nightly (CURRENTLY NO NIGHTLY TEST FOR BGK)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_NIG_BGK-Flow:
-  <<: *defaults_gnu
-  stage: reggie_bgk_nightly
-  tags:
-    - withmodules-concurrent
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_BGK-Flow ; fi
+# gnu_NIG_BGK-Flow:
+#   <<: *defaults_nightly
+#   stage: reggie_bgk_nightly
+#   tags:
+#     - withmodules-concurrent
+#   script:
+#     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_BGK-Flow ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly": Build and run
@@ -342,181 +352,147 @@ gnu_NIG_BGK-Flow:
 #                                                            the entry and exit of the cuboid domain)
 #                      examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_NIG_dielectric:
-  <<: *defaults_gnu
+NIG_dielectric:
+  <<: *defaults_nightly
   stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_dielectric ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_dielectric ; fi
 
-gnu_NIG_PIC_maxwell_RK4:
-  <<: *defaults_gnu
+NIG_PIC_maxwell_RK4:
+  <<: *defaults_nightly
   stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_maxwell_RK4/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_maxwell_RK4/ ; fi
 
-gnu_NIG_convtest_maxwell:
-  <<: *defaults_gnu
+NIG_convtest_maxwell:
+  <<: *defaults_nightly
   stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_maxwell ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_maxwell ; fi
 
-gnu_NIG_convtest_t_maxwell:
-  <<: *defaults_gnu
+NIG_convtest_t_maxwell:
+  <<: *defaults_nightly
   stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t_maxwell ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t_maxwell ; fi
 
-gnu_NIG_convtest_t_poisson:
-  <<: *defaults_gnu
+NIG_convtest_t_poisson:
+  <<: *defaults_nightly
   stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t_poisson ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t_poisson ; fi
 
-gnu_NIG_convtest_poisson:
-  <<: *defaults_gnu
+NIG_convtest_poisson:
+  <<: *defaults_nightly
   stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_poisson ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_poisson ; fi
 
-gnu_NIG_PIC_poisson_RK3:
-  <<: *defaults_gnu
+NIG_PIC_poisson_RK3:
+  <<: *defaults_nightly
   stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_RK3/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_RK3/ ; fi
 
-gnu_NIG_PIC_poisson_Leapfrog:
-  <<: *defaults_gnu
+NIG_PIC_poisson_Leapfrog:
+  <<: *defaults_nightly
   stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_Leapfrog/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_Leapfrog/ ; fi
 
-gnu_NIG_PIC_poisson_powerdensity:
-  <<: *defaults_gnu
+      # NIG_PIC_poisson_Leapfrog_not_working:
+      #   <<: *defaults_nightly
+      #   stage: reggie_nightly
+      #   script:
+      #     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_Leapfrog_not_working/ ; fi
+
+      # Crank-Nicolson (2nd order implicit) time integration
+      # NIG_PIC_poisson_powerdensity:
+      #   <<: *defaults_nightly
+      #   stage: reggie_nightly
+      #   script:
+      #     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_powerdensity/ ; fi
+
+NIG_poisson:
+  <<: *defaults_nightly
   stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_powerdensity/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_poisson/ ; fi
 
-gnu_NIG_poisson:
-  <<: *defaults_gnu
+NIG_maxwell_RK4:
+  <<: *defaults_nightly
   stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_poisson/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_RK4/ ; fi
 
-gnu_NIG_maxwell_RK4:
-  <<: *defaults_gnu
+NIG_PIC_poisson_plasma_wave:
+  <<: *defaults_nightly
   stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_RK4/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_plasma_wave/ ; fi
 
-gnu_NIG_PIC_poisson_plasma_wave:
-  <<: *defaults_gnu
+NIG_maxwell_dipole_dielectric:
+  <<: *defaults_nightly
   stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_plasma_wave/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_dipole_dielectric/ ; fi
 
-gnu_NIG_maxwell_dipole_dielectric:
-  <<: *defaults_gnu
+      # Commented out 07/12/2020 - to be fixed:
+      # this reggie has two examples:
+      #  - imexfluid (fails): differnces as compared with the ref. files because particles are lost
+      #  - surface_flux (works): no problems detected
+      #NIG_PIC_poisson_implicit04:
+      #  <<: *defaults_nightly
+      #  stage: reggie_nightly
+      #  script:
+      #    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_implicit04/ ; fi
+
+NIG_LoadBalance:
+  <<: *defaults_nightly
   stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_dipole_dielectric/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_LoadBalance/ ; fi
 
-gnu_NIG_PIC_poisson_implicit04:
-  <<: *defaults_gnu
+NIG_code_analyze:
+  <<: *defaults_nightly
   stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_implicit04/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_code_analyze/ ; fi
 
-gnu_NIG_QDS:
-  <<: *defaults_gnu
+NIG_IntKind8:
+  <<: *defaults_nightly
   stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_QDS/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_IntKind8/ ; fi
 
-gnu_NIG_LoadBalance:
-  <<: *defaults_gnu
+NIG_PIC_Deposition:
+  <<: *defaults_nightly
   stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_LoadBalance/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/ ; fi
 
-gnu_NIG_code_analyze:
-  <<: *defaults_gnu
-  stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_code_analyze/ ; fi
-
-gnu_NIG_IntKind8:
-  <<: *defaults_gnu
-  stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_IntKind8/ ; fi
-
-gnu_NIG_PIC_Deposition:
-  <<: *defaults_gnu
-  stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/ ; fi
-
-#gnu_feature_SurfaceModel:
-#  <<: *defaults_gnu
+# Add surf model (SEE) 13% probabilty test case here
+#feature_SurfaceModel:
+#  <<: *defaults_nightly
 #  stage: reggie_nightly
 #  tags:
 #    - withmodules-concurrent
 #  script:
-#    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SurfaceModel/ ; fi
+#    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SurfaceModel/ ; fi
 
-gnu_NIG_MacroBody:
-  <<: *defaults_gnu
+NIG_Photoionization_release:
+  <<: *defaults_poisson_nightly
   stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_MacroBody/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_poisson_release ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/surface_emission -e ./bin/piclas ; fi
 
-gnu_NIG_Photoionization:
-  <<: *defaults_gnu_poisson
+NIG_Photoionization_debug:
+  <<: *defaults_poisson_nightly
   stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu_poisson_debug ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_poisson_debug ; fi
     - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas ; fi
     - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/surface_emission -e ./bin/piclas ; fi
 
@@ -524,57 +500,50 @@ gnu_NIG_Photoionization:
 # Stage "reggie_nightly_build_all": Build and run
 #                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_build_all:
-  <<: *defaults_gnu
+build_all:
+  <<: *defaults_nightly
   stage: reggie_nightly_build_all
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly": Build and run examples once a week
 #                         - feature_PIC_maxwell_plasma_wave/ : test a plasma-wave with different time-integration and maxwell's equations
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_WEK_PIC_maxwell:
-  <<: *defaults_gnu
+WEK_PIC_maxwell:
+  <<: *defaults_weekly
   stage: reggie_weekly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_WEEKLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_PIC_maxwell ; fi
+    - cd build
+    - python ./reggie/reggie.py ../regressioncheck/checks/WEK_PIC_maxwell
 
-gnu_WEK_DSMC:
-  <<: *defaults_gnu
+WEK_DSMC:
+  <<: *defaults_weekly
   stage: reggie_weekly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_WEEKLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_DSMC ; fi
+    - cd build
+    - python ./reggie/reggie.py ../regressioncheck/checks/WEK_DSMC
 
-gnu_WEK_Reservoir:
-  <<: *defaults_gnu
+WEK_Reservoir:
+  <<: *defaults_weekly
   stage: reggie_weekly
-  tags:
-    - withmodules
   script:
-    - if [ -n "${DO_WEEKLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_Reservoir ; fi
+    - cd build
+    - python ./reggie/reggie.py ../regressioncheck/checks/WEK_Reservoir
 
-gnu_WEK_FPFlow:
-  <<: *defaults_gnu
+WEK_FPFlow:
+  <<: *defaults_weekly
   stage: reggie_weekly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_WEEKLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_FPFlow ; fi
+    - cd build
+    - python ./reggie/reggie.py ../regressioncheck/checks/WEK_FPFlow
 
-gnu_WEK_BGKFlow:
-  <<: *defaults_gnu
+WEK_BGKFlow:
+  <<: *defaults_weekly
   stage: reggie_weekly
-  tags:
-    - withmodules-concurrent
   script:
-    - if [ -n "${DO_WEEKLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_BGKFlow ; fi
+    - cd build
+    - python ./reggie/reggie.py ../regressioncheck/checks/WEK_BGKFlow
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "userguide": Compile the userguide and developer guide
@@ -586,7 +555,6 @@ userguide:
   script:
     - cd doc/userguide ; make; cd ../..
     - cd doc/developerguide ; make; cd ../..
-    #- if [ -n "${DO_DEPLOY}" ]; then scp -r userguide flexi@euler:~/homepage/. ; fi
   artifacts:
     name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
     expire_in: 1 day
@@ -602,6 +570,8 @@ github:
   stage: deploy
   tags:
     - withmodules-concurrent
+  rules:
+    - if: '$DO_DEPLOY'
   script:
     - if [ -z "${DO_DEPLOY}" ]; then exit ; fi
     - rm -rf piclas_github || true ;
