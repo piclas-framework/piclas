@@ -101,39 +101,26 @@ CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'    , 'Number of Seeds
                                                                 '> 0    Debugging-friendly with numbers from ini. ', '0')
 CALL prms%CreateIntOption(      'Particles-RandomSeed[$]'     , 'Seed [$] for Random Number Generator', '1', numberedmulti=.TRUE.)
 
-CALL prms%CreateLogicalOption(  'Particles-DoPoissonRounding' , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Flag to perform Poisson sampling'//&
+CALL prms%CreateLogicalOption(  'Particles-DoPoissonRounding' , 'Flag to perform Poisson sampling'//&
                                                                 ' instead of random rounding', '.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-DoTimeDepInflow'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Insertion and SurfaceFlux with'//&
+CALL prms%CreateLogicalOption(  'Particles-DoTimeDepInflow'   , 'Insertion and SurfaceFlux with'//&
                                                                 ' simple random rounding. Linearly ramping of'//&
                                                                 ' inflow-number-of-particles is only possible with'//&
                                                                 ' PoissonRounding or DoTimeDepInflow', '.FALSE.')
 CALL prms%CreateIntOption(      'Part-RotPeriodicAxi'         , 'Axis of rotational periodicity:'//&
                                                                    'x=1, y=2, z=3', '1')
-CALL prms%CreateRealOption(     'Part-RotPeriodicAngle'       , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Angle for rotational periodicity [Grad]'&
-                                                              , '1.0')
-CALL prms%CreateIntOption(      'Part-nPeriodicVectors'       , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Number of the periodic vectors j=1,...,n.'//&
+CALL prms%CreateRealOption(     'Part-RotPeriodicAngle'       , 'Angle for rotational periodicity [deg]', '1.0')
+CALL prms%CreateIntOption(      'Part-nPeriodicVectors'       , 'Number of the periodic vectors j=1,...,n.'//&
                                                                    ' Value has to be the same as defined in preprog.ini', '0')
-CALL prms%CreateRealArrayOption('Part-PeriodicVector[$]'      , 'TODO-DEFINE-PARAMETER\nVector for periodic boundaries.'//&
+CALL prms%CreateRealArrayOption('Part-PeriodicVector[$]'      , 'Vector for periodic boundaries.'//&
                                                                    'Has to be the same as defined in preproc.ini in their'//&
                                                                    ' respective order. ', '1. , 0. , 0.', numberedmulti=.TRUE.)
 
-CALL prms%CreateRealOption(     'Part-DelayTime'              , "TODO-DEFINE-PARAMETER\n"//&
-                                                                "During delay time the particles,"//&
-                                                                    " won't be moved so the EM field can be evolved", '0.0')
+CALL prms%CreateRealOption(     'Part-DelayTime'              , "During delay time the particles,"//&
+                                                                " won't be moved so the EM field can be evolved", '0.0')
 
-CALL prms%CreateRealOption(     'Part-SafetyFactor'           , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Factor to scale the halo region with MPI'&
-                                                              , '1.0')
-CALL prms%CreateRealOption(     'Particles-HaloEpsVelo'       , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Halo region radius', '0.')
-
-CALL prms%CreateIntOption(      'NbrOfRegions'                , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Number of regions to be mapped to Elements', '0')
-CALL prms%CreateRealArrayOption('RegionBounds[$]'                , 'TODO-DEFINE-PARAMETER\nRegionBounds ((xmin,xmax,ymin,...)'//&
+CALL prms%CreateIntOption(      'NbrOfRegions'                , 'Number of regions to be mapped to Elements', '0')
+CALL prms%CreateRealArrayOption('RegionBounds[$]'             , 'RegionBounds ((xmin,xmax,ymin,...)'//&
                                                                 '|1:NbrOfRegions)'&
                                                                 , '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'rho_ref, phi_ref, and Te[eV] for Region#'&
