@@ -39,7 +39,7 @@ These combinations have been tested over a year ago. Thus, their applicability t
 ###############################################################################
 # pvconnect
 # --------------
-# The script opens a ssh-tunnel to a given compute node via a mom node and 
+# The script opens a ssh-tunnel to a given compute node via a mom node and
 # launches a paraview client with the correct -url option
 #
 # Developed by:
@@ -47,7 +47,7 @@ These combinations have been tested over a year ago. Thus, their applicability t
 # Ralf Schneider <schneider@hlrs.de>
 #
 # Last edited by Ralf Schneider - 22 April 2015
-# 
+#
 # Edited by Nico Krais - 15.10.2018:
 #   - Adopt to usage on a local machine, do not use virtualGL and do not
 #     require nettest to search for an open port

@@ -215,7 +215,9 @@ USE MOD_LinearSolver_Vars      ,ONLY: FullEisenstatWalker,FullgammaEW,DoPrintCon
 #ifdef PARTICLES
 USE MOD_LinearSolver_Vars      ,ONLY: DoFullNewton,DoFieldUpdate,PartNewtonLinTolerance
 USE MOD_LinearSolver_Vars      ,ONLY: PartRelaxationFac,PartRelaxationFac0,DoPartRelaxation,AdaptIterRelaxation0
-USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
+USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
+USE MOD_Particle_TriaTracking  ,ONLY: ParticleTriaTracking
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_LinearSolver_Vars      ,ONLY: Eps2PartNewton,UpdateInIter
 USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
@@ -224,8 +226,6 @@ USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, DelayTime, PEM, PD
 USE MOD_Part_RHS               ,ONLY: PartVeloToImp
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
 USE MOD_Part_MPFtools          ,ONLY: StartParticleMerge
-USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
-USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_ParticleSolver         ,ONLY: ParticleNewton
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
@@ -334,8 +334,7 @@ END IF
   CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
   ! compute particle source terms on field solver of implicit particles :)
-  CALL Deposition(DoInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-  CALL Deposition(DoInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+  CALL Deposition(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   ! map particle from v to gamma v
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_DEPOSITION,tLBStart)
@@ -480,9 +479,9 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
           !LastPartPos(1,iPart)=StagePartPos(iPart,1)
           !LastPartPos(2,iPart)=StagePartPos(iPart,2)
           !LastPartPos(3,iPart)=StagePartPos(iPart,3)
-          !PEM%lastElement(iPart)=PEM%StageElement(iPart)
+          !PEM%LastGlobalElemID(iPart)=PEM%StageElement(iPart)
           LastPartPos(1:3,iPart)=PartState(1:3,iPart)
-          PEM%lastElement(iPart)=PEM%Element(iPart)
+          PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
           tmpFac=(1.0-PartRelaxationFac)
           PartState(1:6,iPart) = PartRelaxationFac*PartState(1:6,iPart)+tmpFac*PartStateN(1:6,iPart)
           DO iCounter=1,iStage-1
@@ -542,9 +541,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 #if USE_LOADBALANCE
       CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
-      CALL Deposition(DoInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-      CALL Deposition(DoInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-      IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+      CALL Deposition(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       ! and map back
 #if USE_LOADBALANCE
       CALL LBSplitTime(LB_DEPOSITION,tLBStart)
@@ -709,9 +706,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
       ! compute particle source terms on field solver of implicit particles :)
-      CALL Deposition(DoInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-      CALL Deposition(DoInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-      IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+      CALL Deposition(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       ! and map back
 #if USE_LOADBALANCE
       CALL LBSplitTime(LB_DEPOSITION,tLBStart)

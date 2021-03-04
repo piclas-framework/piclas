@@ -11,13 +11,25 @@
 #               commands
 #==============================================================================
 
+# --------------------------------------------------------------------------------------------------
+# Colors
+# --------------------------------------------------------------------------------------------------
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+CYAN='\e[37;44m'
+NC='\033[0m' # No Color
+
+# --------------------------------------------------------------------------------------------------
+# Functions
+# --------------------------------------------------------------------------------------------------
 # Function for checking modules
 check_module () {
                  if [ -z "${2}" ]; then
                    echo "module for ${1} not found. Exit"
                    exit
                  else
-                   echo "${1}: ["${2}"]"
+                   echo "${1}: [${2}]"
                  fi
                 }
 
@@ -26,14 +38,17 @@ load_module () {
                  ERROR=$(module load "$1" 2>&1 | grep -in "ERROR")
                  if [ ! -z "$ERROR" ]; then
                    echo " "
-                   echo $ERROR
-                   echo "Failed: [module load $1]. Exit"
+                   echo -e "$RED$ERROR$NC"
+                   echo -e "$RED""Failed: [module load $1]. Exit$NC"
                    exit
                  else
                    module load "$1"
                  fi
                 }
 
+# --------------------------------------------------------------------------------------------------
+# Setup
+# --------------------------------------------------------------------------------------------------
 # Check command line arguments
 LOADMODULES=1
 for arg in "$@"
@@ -50,7 +65,8 @@ do
     # Set desired versions
     #CMAKEVERSION=3.15.3-d
     CMAKEVERSION=3.17.0-d
-    GCCVERSION=9.2.0
+    #GCCVERSION=9.2.0
+    GCCVERSION=10.1.0
     #GCCVERSION=10.2.0
     #OPENMPIVERSION=3.1.4
     #OPENMPIVERSION=4.0.1
@@ -78,7 +94,7 @@ MODULETEMPLATESDIR=/opt/Installsources/moduletemplates
 MODULETEMPLATENAME=paraview_temp
 
 if [ ! -d "${SOURCEDIR}" ]; then
-  mkdir -p ${SOURCEDIR}
+  mkdir -p "${SOURCEDIR}"
 fi
 
 # take the first gcc compiler installed with first compatible openmpi and hdf5
@@ -88,23 +104,23 @@ if [[ $LOADMODULES -eq 1 ]]; then
   GCCVERSION=$(ls ${MODULESDIR}/compilers/gcc/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   OPENMPIVERSION=$(ls ${MODULESDIR}/MPI/openmpi/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   HDF5VERSION=$(ls ${MODULESDIR}/libraries/hdf5/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-  echo "Modules found automatically (the combination might not be possible!):"
+  echo "Modules found automatically. The combination might not be possible!"
 else
-  echo "Modules defined by user (check if the combination is possible!):"
+  echo "Modules defined by user. Check if the combination is possible!"
 fi
 
-check_module "cmake" ${CMAKEVERSION}
-check_module "gcc  " ${GCCVERSION}
-check_module "mpi  " ${OPENMPIVERSION}
-check_module "hdf5 " ${HDF5VERSION}
+check_module "cmake" "${CMAKEVERSION}"
+check_module "gcc  " "${GCCVERSION}"
+check_module "mpi  " "${OPENMPIVERSION}"
+check_module "hdf5 " "${HDF5VERSION}"
 
 PARAVIEWMODULEFILEDIR=${MODULESDIR}/utilities/paraview/${PARAVIEWVERSION}/gcc/${GCCVERSION}/openmpi/${OPENMPIVERSION}/hdf5
 PARAVIEWMODULEFILE=${PARAVIEWMODULEFILEDIR}/${HDF5VERSION}
 
 # if no paraview module for this compiler found, install paraview and create module
 if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
-  echo "creating Paraview-${PARAVIEWVERSION} for GCC-${GCCVERSION} under"
-  echo "$PARAVIEWMODULEFILE"
+  echo -e "$GREEN""creating Paraview-${PARAVIEWVERSION} for GCC-${GCCVERSION} under$NC"
+  echo -e "$GREEN""$PARAVIEWMODULEFILE$NC"
   echo " "
   module purge
   load_module "cmake/${CMAKEVERSION}"
@@ -113,7 +129,7 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
   load_module "hdf5/${HDF5VERSION}/gcc/${GCCVERSION}/openmpi/${OPENMPIVERSION}"
   module list
   echo " "
-  echo "Important: If the compilation step fails, run the script again and if it still fails \n1) try compiling single, .i.e., remove -j from make -j or \n2) try make -j 2 (not all available threads)"
+  echo -e "$GREEN""Important: If the compilation step fails, run the script again and if it still fails \n1) try compiling single, .i.e., remove -j from make -j or \n2) try make -j 2 (not all available threads)$NC"
   echo " "
   read -p "Have the correct modules been loaded? If yes, press enter to continue!"
 
@@ -126,15 +142,15 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
     wget --output-document=paraview-${PARAVIEWVERSION}-source.tar.gz "https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v${PARAVIEWVERSION%.*}&type=source&os=Sources&downloadFile=ParaView-v${PARAVIEWVERSION}.tar.gz"
   fi
   if [ ! -e "${SOURCEDIR}/paraview-${PARAVIEWVERSION}-source.tar.gz" ]; then
-    echo "no source-file downloaded for Paraview-${PARAVIEWVERSION}"
-    echo "check if https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v${PARAVIEWVERSION%.*}&type=source&os=Sources&downloadFile=ParaView-v${PARAVIEWVERSION}-source.tar.gz"
+    echo -e "$RED""no source-file downloaded for Paraview-${PARAVIEWVERSION}$NC"
+    echo -e "$RED""check if https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v${PARAVIEWVERSION%.*}&type=source&os=Sources&downloadFile=ParaView-v${PARAVIEWVERSION}-source.tar.gz$NC"
     exit
   fi
   tar -xzf paraview-${PARAVIEWVERSION}-source.tar.gz
   ERRORCODE=$?
   if [ ${ERRORCODE} -ne 0 ]; then
     echo " "
-    echo "Failed: ["tar -xzf paraview-${PARAVIEWVERSION}-source.tar.gz paraview-${PARAVIEWVERSION}"]"
+    echo -e "$RED""Failed: [tar -xzf paraview-${PARAVIEWVERSION}-source.tar.gz paraview-${PARAVIEWVERSION}]$NC"
     exit
   else
     # Check if decompressed directory exists
@@ -152,9 +168,9 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
   fi
 
   if [ ! -e "${SOURCEDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION}" ]; then
-    mkdir -p ${SOURCEDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION}
+    mkdir -p "${SOURCEDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION}"
   fi
-  cd ${SOURCEDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION}
+  cd "${SOURCEDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION}"
 
   # CMAKE COMPILE FLAGS DEPEND ON THE CHOSEN PARAVIEW VERSION!
   if [ "$PARAVIEWVERSION" == "5.2.0" ] || [ "$PARAVIEWVERSION" == "5.3.0" ] || [ "$PARAVIEWVERSION" == "5.4.0" ]; then
@@ -176,13 +192,13 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
       -DCMAKE_INSTALL_PREFIX=${PARAVIEWINSTALLDIR} \
       ${SOURCEDIR}/paraview-${PARAVIEWVERSION}
   else
-    echo "ERROR: Set the correct cmake compile flags for the paraview version [$PARAVIEWVERSION]"
+    echo -e "$RED""ERROR: Set the correct cmake compile flags for the paraview version [$PARAVIEWVERSION]$NC"
     exit
   fi
   make -j 2>&1 | tee make.out
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo " "
-    echo "Failed: [make -j 2>&1 | tee make.out]"
+    echo -e "$RED""Failed: [make -j 2>&1 | tee make.out]$NC"
     exit
   else
     make install 2>&1 | tee install.out
@@ -201,9 +217,9 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
     sed -i 's/MPIVERSIONFLAG/'${OPENMPIVERSION}'/gI' ${PARAVIEWMODULEFILE}
     sed -i 's/HDF5VERSIONFLAG/'${HDF5VERSION}'/gI' ${PARAVIEWMODULEFILE}
   else
-    echo "No module file created for Paraview-${PARAVIEWVERSION} for GCC-${GCCVERSION}"
-    echo "no installation found in ${PARAVIEWINSTALLDIR}/bin"
+    echo -e "$RED""No module file created for Paraview-${PARAVIEWVERSION} for GCC-${GCCVERSION}$NC"
+    echo -e "$RED""no installation found in ${PARAVIEWINSTALLDIR}/bin$NC"
   fi
 else
-  echo "Paraview-${PARAVIEWVERSION} already created: module file exists under ${PARAVIEWMODULEFILE}"
+  echo -e "$YELLOW""Paraview-${PARAVIEWVERSION} already created: module file exists under ${PARAVIEWMODULEFILE}$NC"
 fi

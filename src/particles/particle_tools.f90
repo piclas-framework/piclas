@@ -14,7 +14,7 @@
 
 MODULE MOD_part_tools
 !===================================================================================================================================
-! Contains tools for particle related operations. This routine is uses MOD_Particle_Boundary_Tools, but not vice versa!
+! Contains tools for particle related operations. This routine uses MOD_Particle_Boundary_Tools, but not vice versa!
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -31,26 +31,6 @@ END INTERFACE
 
 INTERFACE DiceUnitVector
   MODULE PROCEDURE DiceUnitVector
-END INTERFACE
-
-INTERFACE LIQUIDEVAP
-  MODULE PROCEDURE LIQUIDEVAP
-END INTERFACE
-
-INTERFACE LIQUIDREFL
-  MODULE PROCEDURE LIQUIDREFL
-END INTERFACE
-
-INTERFACE ALPHALIQUID
-  MODULE PROCEDURE ALPHALIQUID
-END INTERFACE
-
-INTERFACE BETALIQUID
-  MODULE PROCEDURE BETALIQUID
-END INTERFACE
-
-INTERFACE TSURUTACONDENSCOEFF
-  MODULE PROCEDURE TSURUTACONDENSCOEFF
 END INTERFACE
 
 INTERFACE isChargedParticle
@@ -78,9 +58,8 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: LIQUIDEVAP,LIQUIDREFL,ALPHALIQUID,BETALIQUID,TSURUTACONDENSCOEFF
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, isChargedParticle
-PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties
+PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CalcRadWeightMPF, isChargedParticle
+PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums
 !===================================================================================================================================
 
 CONTAINS
@@ -91,8 +70,8 @@ SUBROUTINE UpdateNextFreePosition()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars        ,ONLY: PDM,PEM, PartSpecies, doParticleMerge, vMPF_SpecNumElem, PartPressureCell
-USE MOD_Particle_Vars        ,ONLY: KeepWallParticles, PartState, VarTimeStep, usevMPF
+USE MOD_Particle_Vars        ,ONLY: PDM,PEM, PartSpecies, doParticleMerge, vMPF_SpecNumElem
+USE MOD_Particle_Vars        ,ONLY: PartState, VarTimeStep, usevMPF
 USE MOD_DSMC_Vars            ,ONLY: useDSMC, CollInf
 USE MOD_Particle_VarTimeStep ,ONLY: CalcVarTimeStep
 #if USE_LOADBALANCE
@@ -107,6 +86,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: counter1,i,n
+INTEGER            :: ElemID
+#if !USE_MPI
+INTEGER            :: OffSetElemMPI(0) = 0            !> Dummy offset for single-thread mode
+#endif
 #if USE_LOADBALANCE
 REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -117,39 +100,36 @@ CALL LBStartTime(tLBStart)
 
 IF(PDM%maxParticleNumber.EQ.0) RETURN
 counter1 = 1
-IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell.OR.usevMPF) THEN
+IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
   PEM%pNumber(:) = 0
-  IF (KeepWallParticles) PEM%wNumber(:) = 0
 END IF
+
 n = PDM%ParticleVecLength !PDM%maxParticleNumber
 PDM%ParticleVecLength = 0
 PDM%insideParticleNumber = 0
 IF (doParticleMerge) vMPF_SpecNumElem = 0
-IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell.OR.usevMPF) THEN
+
+IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
   DO i=1,n
     IF (.NOT.PDM%ParticleInside(i)) THEN
       IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
       PDM%nextFreePosition(counter1) = i
       counter1 = counter1 + 1
     ELSE
-      IF (PEM%pNumber(PEM%Element(i)).EQ.0) THEN
-        PEM%pStart(PEM%Element(i)) = i                    ! Start of Linked List for Particles in Elem
+      ElemID = PEM%LocalElemID(i)
+      IF (PEM%pNumber(ElemID).EQ.0) THEN
+        PEM%pStart(ElemID) = i                     ! Start of Linked List for Particles in Elem
       ELSE
-        PEM%pNext(PEM%pEnd(PEM%Element(i))) = i ! Next Particle of same Elem (Linked List)
+        PEM%pNext(PEM%pEnd(ElemID)) = i            ! Next Particle of same Elem (Linked List)
       END IF
-      PEM%pEnd(PEM%Element(i)) = i
-      PEM%pNumber(PEM%Element(i)) = &                      ! Number of Particles in Element
-          PEM%pNumber(PEM%Element(i)) + 1
+      PEM%pEnd(ElemID) = i
+      PEM%pNumber(ElemID) = &                      ! Number of Particles in Element
+          PEM%pNumber(ElemID) + 1
       IF (VarTimeStep%UseVariableTimeStep) THEN
-        VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(1,i),PartState(2,i),PEM%Element(i))
-      END IF
-      IF (KeepWallParticles) THEN
-        IF (PDM%ParticleAtWall(i)) THEN
-          PEM%wNumber(PEM%Element(i)) = PEM%wNumber(PEM%Element(i)) + 1
-        END IF
+        VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(1,i),PartState(2,i),ElemID)
       END IF
       PDM%ParticleVecLength = i
-      IF(doParticleMerge) vMPF_SpecNumElem(PEM%Element(i),PartSpecies(i)) = vMPF_SpecNumElem(PEM%Element(i),PartSpecies(i)) + 1
+      IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(i)) = vMPF_SpecNumElem(ElemID,PartSpecies(i)) + 1
     END IF
   END DO
 ELSE ! no DSMC
@@ -180,14 +160,14 @@ CALL LBPauseTime(LB_UNFP,tLBStart)
 END SUBROUTINE UpdateNextFreePosition
 
 
-SUBROUTINE StoreLostParticleProperties(iPart,ElemID,UsePartState_opt)
+SUBROUTINE StoreLostParticleProperties(iPart,ElemID,UsePartState_opt,PartMissingType_opt)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Store information of a lost particle (during restart and during the simulation)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
-USE MOD_Globals                ,ONLY: abort
+USE MOD_Globals                ,ONLY: abort,myrank
 USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,PartSpecies,Species,PartState,LastPartPos
-USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartStateLostVecLength
+USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartLostDataSize,PartStateLostVecLength
 USE MOD_TimeDisc_Vars          ,ONLY: time
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
@@ -195,8 +175,9 @@ USE MOD_TimeDisc_Vars          ,ONLY: time
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
 INTEGER,INTENT(IN)          :: iPart
-INTEGER,INTENT(IN)          :: ElemID
+INTEGER,INTENT(IN)          :: ElemID ! Global element index
 LOGICAL,INTENT(IN),OPTIONAL :: UsePartState_opt
+INTEGER,INTENT(IN),OPTIONAL :: PartMissingType_opt ! 0: lost, 1: missing & found once, >1: missing & multiply found
 INTEGER                     :: dims(2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -228,49 +209,52 @@ ASSOCIATE( iMax => PartStateLostVecLength )
   IF(iMax.GT.dims(2))THEN
 
     ! --- PartStateLost ---
-    ALLOCATE(PartStateLost_tmp(1:14,1:dims(2)), STAT=ALLOCSTAT)
+    ALLOCATE(PartStateLost_tmp(1:PartLostDataSize,1:dims(2)), STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL abort(&
           __STAMP__&
           ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost_tmp temporary array!')
     ! Save old data
-    PartStateLost_tmp(1:14,1:dims(2)) = PartStateLost(1:14,1:dims(2))
+    PartStateLost_tmp(1:PartLostDataSize,1:dims(2)) = PartStateLost(1:PartLostDataSize,1:dims(2))
 
     ! Re-allocate PartStateLost to twice the size
     DEALLOCATE(PartStateLost)
-    ALLOCATE(PartStateLost(1:14,1:2*dims(2)), STAT=ALLOCSTAT)
+    ALLOCATE(PartStateLost(1:PartLostDataSize,1:2*dims(2)), STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL abort(&
           __STAMP__&
           ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost array!')
-    PartStateLost(1:14,        1:  dims(2)) = PartStateLost_tmp(1:14,1:dims(2))
-    PartStateLost(1:14,dims(2)+1:2*dims(2)) = 0.
+    PartStateLost(1:PartLostDataSize,        1:  dims(2)) = PartStateLost_tmp(1:PartLostDataSize,1:dims(2))
+    PartStateLost(1:PartLostDataSize,dims(2)+1:2*dims(2)) = 0.
 
   END IF
 
-  !ParticlePositionX,
-  !ParticlePositionY,
-  !ParticlePositionZ,
-  !VelocityX,
-  !VelocityY,
-  !VelocityZ,
-  !Species,
-  !ElementID,
-  !PartID,
-  !LastPos-X,
-  !LastPos-Y,
-  !LastPos-Z
-
+  ! 1-3: Particle position (last valid position)
   IF(UsePartState_loc)THEN
     PartStateLost(1:3,iMax) = PartState(1:3,iPart)
   ELSE
     PartStateLost(1:3,iMax) = LastPartPos(1:3,iPart)
   END IF ! UsePartState_loc
+  ! 4-6: Particle velocity
   PartStateLost(4:6  ,iMax) = PartState(4:6,iPart)
+  ! 7: SpeciesID
   PartStateLost(7    ,iMax) = REAL(PartSpecies(iPart))
+  ! 8: Macro particle factor
   PartStateLost(8    ,iMax) = MPF
+  ! 9: time of loss
   PartStateLost(9    ,iMax) = time
+  ! 10: Global element ID
   PartStateLost(10   ,iMax) = REAL(ElemID)
+  ! 11: Particle ID
   PartStateLost(11   ,iMax) = REAL(iPart)
+  ! 12-14: Particle position (position of loss)
   PartStateLost(12:14,iMax) = PartState(1:3,iPart)
+  ! 15: myrank
+  PartStateLost(15,iMax) = myrank
+  ! 16: missing type, i.e., 0: lost, 1: missing & found once, >1: missing & multiply found
+  IF(PRESENT(PartMissingType_opt))THEN ! when particles go missing during restart (maybe they are found on other procs or lost)
+    PartStateLost(16,iMax) = PartMissingType_opt
+  ELSE ! simply lost during the simulation
+    PartStateLost(16,iMax) = 0
+  END IF ! PRESENT(PartMissingType_opt)
 END ASSOCIATE
 
 END SUBROUTINE StoreLostParticleProperties
@@ -307,109 +291,34 @@ IMPLICIT NONE
 
 END FUNCTION DiceUnitVector
 
-FUNCTION VeloFromDistribution(distribution,specID,Tempergy)
+
+FUNCTION VeloFromDistribution(distribution,Tempergy)
 !===================================================================================================================================
 !> calculation of velocityvector (Vx,Vy,Vz) sampled from given distribution function
-!>  liquid_evap: normal direction to surface with ARM from shifted evaporation rayleigh, tangential from normal distribution
-!>  liquid_refl: normal direction to surface with ARM from shifted reflection rayleigh, tangential from normal distribution
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals                 ,ONLY: Abort,UNIT_stdOut
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars           ,ONLY: Species
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN) :: distribution !< specifying keyword for velocity distribution
-INTEGER,INTENT(IN)          :: specID       !< input species
-REAL,INTENT(IN)             :: Tempergy         !< input temperature [K] or energy [J] or velocity [m/s]
+REAL,INTENT(IN)             :: Tempergy     !< input temperature [K] or energy [J] or velocity [m/s]
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+REAL            :: VeloFromDistribution(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL, PARAMETER :: xmin=0., xmax=5.
-REAL            :: VeloFromDistribution(1:3)
-REAL            :: alpha, beta
-REAL            :: y1, f, ymax, i, binsize
-REAL            :: sigma, val(1:2)
-REAL            :: Velo1, Velo2, Velosq
-REAL            :: RandVal(2)
 !===================================================================================================================================
 !-- set velocities
 SELECT CASE(TRIM(distribution))
 CASE('deltadistribution')
-  !Velosq = 2
-  !DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
-    !CALL RANDOM_NUMBER(RandVal)
-    !Velo1 = 2.*RandVal(1) - 1.
-    !Velo2 = 2.*RandVal(2) - 1.
-    !Velosq = Velo1**2 + Velo2**2
-  !END DO
-  !VeloFromDistribution(1) = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
-  !VeloFromDistribution(2) = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
-  !CALL RANDOM_NUMBER(RandVal)
-  !VeloFromDistribution(3) = SQRT(-2*LOG(RandVal(1)))
-
   ! Get random vector
   VeloFromDistribution = DiceUnitVector()
   ! Mirror z-component of velocity (particles are emitted from surface!)
   VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
   ! Set magnitude
   VeloFromDistribution = Tempergy*VeloFromDistribution
-
-CASE('liquid_evap','liquid_refl')
-  ! sample normal direction with ARM from given, shifted rayleigh distribution function
-  sigma = SQRT(BoltzmannConst*Tempergy/Species(SpecID)%MassIC)
-  alpha=ALPHALIQUID(specID,Tempergy)
-  beta=BETALIQUID(specID,Tempergy)
-  ! define ymax used in ARM
-  IF (beta.GE.1 .AND. TRIM(distribution).EQ.'liquid_evap') THEN
-    i = xmin
-    binsize = (xmax-xmin)/100.
-    ymax = LIQUIDEVAP(beta,i,1.)
-    DO WHILE (i.LE.xmax) !
-      val(1)=LIQUIDEVAP(beta,i,1.)
-      val(2)=LIQUIDEVAP(beta,i+binsize,1.)
-      IF (val(2).GT.val(1)) THEN
-        ymax = val(2)
-      END IF
-      i=i+binsize
-    END DO
-    ymax = ymax*1.1
-  ELSE
-    SELECT CASE(TRIM(distribution))
-    CASE('liquid_evap')
-      ymax = 0.7
-    CASE('liquid_refl')
-      ymax = 0.9
-    END SELECT
-  END IF
-  ! do ARM loop
-  y1=1
-  f=0
-  DO WHILE (y1-f.GT.0)
-    CALL RANDOM_NUMBER(RandVal)
-    Velo1=xmin+RandVal(1)*(xmax-xmin)
-    SELECT CASE(TRIM(distribution))
-    CASE('liquid_evap')
-      f=LIQUIDEVAP(beta,Velo1,1.)
-    CASE('liquid_refl')
-      f=LIQUIDREFL(alpha,beta,Velo1,1.)
-    END SELECT
-    y1=ymax*RandVal(2)
-  END DO
-  VeloFromDistribution(3) = sigma*Velo1
-  ! build tangential velocities from gauss (normal) distribution
-  Velosq = 2
-  DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
-    CALL RANDOM_NUMBER(RandVal)
-    Velo1 = 2.*RandVal(1) - 1.
-    Velo2 = 2.*RandVal(2) - 1.
-    Velosq = Velo1**2 + Velo2**2
-  END DO
-  VeloFromDistribution(1) = Velo1*SQRT(-2.*LOG(Velosq)/Velosq)*sigma
-  VeloFromDistribution(2) = Velo2*SQRT(-2.*LOG(Velosq)/Velosq)*sigma
 CASE DEFAULT
   WRITE (UNIT_stdOut,'(A)') "distribution =", distribution
   CALL abort(&
@@ -451,147 +360,44 @@ END IF
 END FUNCTION GetParticleWeight
 
 
-PURE REAL FUNCTION LIQUIDEVAP(beta,x,sigma)
+PURE REAL FUNCTION CalcRadWeightMPF(yPos, iSpec, iPart)
 !===================================================================================================================================
-!
+!> Determines the weighting factor when using an additional radial weighting for axisymmetric simulations. Linear increase from the
+!> rotational axis (y=0) to the outer domain boundary (y=ymax).
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+USE MOD_Particle_Vars           ,ONLY: Species, PEM
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN) :: beta,x,sigma
-REAL            :: betaLoc
-!===================================================================================================================================
-betaLoc = beta
-IF (betaLoc.GE.2.) betaLoc = 2. - 1e-10
-IF (betaLoc.LT.0.) betaLoc = 0.
-
-liquidEvap=(1-betaLoc*exp(-0.5*(x/sigma)**2))/(1-betaLoc/2)  *   x/sigma**2  *  exp(-0.5*(x/sigma)**2)
-IF (liquidEvap.LT.0.) liquidEvap = 0.
-END FUNCTION
-
-
-REAL FUNCTION LIQUIDREFL(alpha,beta,x,sigma)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN) :: alpha,beta,x,sigma
-REAL            :: betaLoc, alphaLoc
-!===================================================================================================================================
-betaLoc = beta
-IF (betaLoc.GE.2.) betaLoc = 2. - 1e-10
-IF (betaLoc.LT.0.) betaLoc = 0.
-alphaLoc = alpha
-IF (alphaLoc.GT.1.) alphaLoc = 1.
-IF (alphaLoc.LT.0.) alphaLoc = 0.
-
-if (alphaLoc.GE.1.) then
-  if (betaLoc.LE.0) then
-    liquidRefl = x/sigma**2  *  exp(-0.5*(x/sigma)**2)
-  else
-    liquidRefl = (betaLoc*exp(-0.5*(x/sigma)**2))/(1.-(1.-betaLoc/2.))  *   x/sigma**2  *  exp(-0.5*(x/sigma)**2)
-  end if
-else
-  liquidRefl = (1.-alphaLoc+alphaLoc*betaLoc*exp(-0.5*(x/sigma)**2))/(1.-alphaLoc*(1.-betaLoc/2.)) &
-             * x/sigma**2 * exp(-0.5*(x/sigma)**2)
-end if
-
-IF (liquidRefl.LT.0.) liquidRefl = 0.
-END FUNCTION
-
-
-PURE FUNCTION ALPHALIQUID(specID,temp) RESULT(alpha)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-! MODULES
-USE MOD_SurfaceModel_Vars ,ONLY: SpecSurf
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: specID
-REAL,INTENT(IN)    :: temp
+REAL, INTENT(IN)                :: yPos
+INTEGER, INTENT(IN)             :: iSpec
+INTEGER, OPTIONAL,INTENT(IN)    :: iPart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL :: alpha
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+REAL                 :: yPosIn
 !===================================================================================================================================
-SELECT CASE (SpecSurf(specID)%condensCase)
-CASE (1)
-  alpha = SpecSurf(specID)%liquidAlpha
-CASE (2)
-  alpha = exp(-((4-BETALIQUID(specID,temp))/(2*(2-BETALIQUID(specID,temp)))-1))
-END SELECT
-IF (alpha.GT.1.) alpha = 1.
-IF (alpha.LT.0.) alpha = 0.
-END FUNCTION
 
+IF(RadialWeighting%CellLocalWeighting.AND.PRESENT(iPart)) THEN
+  yPosIn = ElemMidPoint_Shared(2,PEM%CNElemID(iPart))
+ELSE
+  yPosIn = yPos
+END IF
 
-PURE FUNCTION BETALIQUID(specID,temp) RESULT(beta)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-! MODULES
-USE MOD_SurfaceModel_Vars ,ONLY: SpecSurf
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: specID
-REAL,INTENT(IN)    :: temp
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL :: beta
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-SELECT CASE (SpecSurf(specID)%condensCase)
-CASE (1)
-  beta = SpecSurf(specID)%liquidBeta
-CASE (2)
-  beta = SpecSurf(specID)%liquidBetaCoeff(1)*temp**5 &
-       + SpecSurf(specID)%liquidBetaCoeff(2)*temp**4 &
-       + SpecSurf(specID)%liquidBetaCoeff(3)*temp**3 &
-       + SpecSurf(specID)%liquidBetaCoeff(4)*temp**2 &
-       + SpecSurf(specID)%liquidBetaCoeff(5)*temp    &
-       + SpecSurf(specID)%liquidBetaCoeff(6)
-END SELECT
-IF (beta.GE.2.) beta = 2. - 1e-10
-IF (beta.LT.0.) beta=0.
-END FUNCTION
+CalcRadWeightMPF = (1. + yPosIn/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
 
+RETURN
 
-FUNCTION TSURUTACONDENSCOEFF(SpecID,normalVelo,temp) RESULT(sigma)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars ,ONLY: Species
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: specID
-REAL,INTENT(IN)    :: normalVelo,temp
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL :: sigma
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-sigma = ALPHALIQUID(specID,temp)*(1-BETALIQUID(specID,temp)*exp(-normalVelo**2*Species(specID)%MassIC/(2*Boltzmannconst*temp)))
-IF (sigma.LT.0.) sigma = 0.
-IF (sigma.GT.1.) sigma = 1.
-END FUNCTION
+END FUNCTION CalcRadWeightMPF
+
 
 PURE FUNCTION isChargedParticle(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -602,7 +408,7 @@ PURE FUNCTION isChargedParticle(iPart)
 USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)  :: iPart
 LOGICAL             :: isChargedParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -631,7 +437,7 @@ USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)  :: iPart
 LOGICAL             :: isPushParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -660,7 +466,7 @@ USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)  :: iPart
 LOGICAL             :: isDepositParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -690,7 +496,7 @@ USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)  :: iPart
 LOGICAL             :: isInterpolateParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -703,5 +509,45 @@ ELSE
 END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
 END FUNCTION isInterpolateParticle
 
+
+SUBROUTINE BuildTransGaussNums(nPart, iRanPart)
+!===================================================================================================================================
+!> Builds random Gauss numbers with a zero mean and a variance of one
+!===================================================================================================================================
+! MODULES
+USE Ziggurat
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: nPart
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)             :: iRanPart(:,:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                           :: sumiRan(3), varianceiRan(3)
+INTEGER                        :: iLoop
+!===================================================================================================================================
+sumiRan(1:3) = 0.0
+varianceiRan(1:3) = 0.0
+DO iLoop = 1, nPart
+  iRanPart(1,iLoop) = rnor()
+  iRanPart(2,iLoop) = rnor()
+  iRanPart(3,iLoop) = rnor()
+  sumiRan(1:3) = sumiRan(1:3) + iRanPart(1:3,iLoop)
+END DO
+sumiRan(1:3) = sumiRan(1:3)/nPart
+DO iLoop = 1, nPart
+  iRanPart(1:3,iLoop) = iRanPart(1:3,iLoop)-sumiRan(1:3)
+  varianceiRan(1:3) = varianceiRan(1:3) + iRanPart(1:3,iLoop)*iRanPart(1:3,iLoop)
+END DO
+varianceiRan(1:3) = SQRT(varianceiRan(1:3)/nPart)
+
+DO iLoop = 1, nPart
+  iRanPart(1:3,iLoop) = iRanPart(1:3,iLoop)/varianceiRan(1:3)
+END DO
+
+END SUBROUTINE BuildTransGaussNums
 
 END MODULE MOD_part_tools

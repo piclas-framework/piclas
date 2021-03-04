@@ -25,20 +25,6 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 #if USE_MPI
-INTERFACE InitLoadBalance
-  MODULE PROCEDURE InitLoadBalance
-END INTERFACE
-
-#if USE_LOADBALANCE
-INTERFACE ComputeElemLoad
-  MODULE PROCEDURE ComputeElemLoad
-END INTERFACE
-
-INTERFACE LoadBalance
-  MODULE PROCEDURE LoadBalance
-END INTERFACE
-#endif /*USE_LOADBALANCE*/
-
 PUBLIC::InitLoadBalance
 #if USE_LOADBALANCE
 PUBLIC::LoadBalance
@@ -299,7 +285,7 @@ IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
         + tCurrent(LB_SURFFLUX)  * nSurfacefluxPerElem(iElem)*stotalSurfacefluxes &
         + tCurrent(LB_SURF)     * nSurfacePartsPerElem(iElem)*stotalSurfaceParts
     ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
-    IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+    IF(StringBeginsWith(DepositionType,'shape_function'))THEN
       ElemTimePartElem = ElemTimePartElem &
           + tCurrent(LB_DEPOSITION) * nDeposPerElem(iElem)*stotalDepos
     END IF
@@ -333,7 +319,7 @@ END IF
 CALL ComputeImbalance()
 
 ! Fill .csv file for performance analysis and load balance: write data line
-CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time=time)
+CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
 
 ! only check if imbalance is > a given threshold
 PerformLoadBalance=.FALSE.
@@ -354,7 +340,7 @@ END SUBROUTINE ComputeElemLoad
 
 SUBROUTINE LoadBalance()
 !===================================================================================================================================
-! routine performing the load balancing stuff
+! Routine performing the load balancing stuff
 !===================================================================================================================================
 ! USED MODULES
 USE MOD_Globals
@@ -369,7 +355,7 @@ USE MOD_Particle_MPI     ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleR
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
 #endif /*PARTICLES*/
 USE MOD_LoadBalance_Vars ,ONLY: CurrentImbalance, MaxWeight, MinWeight
-USE MOD_LoadBalance_Vars ,ONLY: Currentimbalance, PerformLoadBalance
+USE MOD_LoadBalance_Vars ,ONLY: Currentimbalance, PerformLoadBalance,LoadBalanceMaxSteps
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimeField
 USE MOD_StringTools      ,ONLY: set_formatting,clear_formatting
 ! IMPLICIT VARIABLE HANDLING
@@ -394,17 +380,17 @@ IF(.NOT.PerformLoadBalance) THEN
   RETURN
 END IF
 
-SWRITE(UNIT_StdOut,'(X)')
-SWRITE(UNIT_StdOut,'(X)')
+SWRITE(UNIT_StdOut,'(1X)')
+SWRITE(UNIT_StdOut,'(1X)')
 SWRITE(UNIT_StdOut,'(132("="))')
+nLoadBalanceSteps=nLoadBalanceSteps+1
 CALL set_formatting("green")
-SWRITE(UNIT_stdOut,'(A)') ' PERFORMING LOAD BALANCE ...'
+SWRITE(UNIT_stdOut,'(A,I0,A,I0,A)') ' PERFORMING LOAD BALANCE ',nLoadBalanceSteps,' of ',LoadBalanceMaxSteps,' ...'
 CALL clear_formatting()
 ! Measure init duration
 LB_StartTime=PICLASTIME()
 
-nLoadBalanceSteps=nLoadBalanceSteps+1
-! finialize all arrays
+! Finalize all arrays
 CALL FinalizePiclas(IsLoadBalance=.TRUE.)
 ! reallocate
 CALL InitPiclas(IsLoadBalance=.TRUE.) ! determines new imbalance in InitMesh() -> ReadMesh()
@@ -432,7 +418,7 @@ SWRITE(UNIT_stdOut,'(A,ES9.3,A,ES9.3,A,ES9.3,A,ES9.3)')&
 
 #ifdef PARTICLES
 ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
-IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
   ! send number of particles
@@ -466,7 +452,9 @@ SUBROUTINE ComputeImbalance()
 USE MOD_Globals
 USE MOD_LoadBalance_Vars ,ONLY: WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample, PerformPartWeightLB, DeviationThreshold
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimeFieldTot,ElemTimeField
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimePartTot,ElemTimePart
 #endif /*PARTICLES*/
@@ -494,7 +482,7 @@ ELSE
   ! Skip the reduce for DSMC timedisc
   CALL MPI_REDUCE(ElemTimeField , ElemTimeFieldTot , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
   WeightSum = ElemTimeFieldTot ! only correct on MPI root
-#endif /*(PP_TimeDiscMethod!=4)*/
+#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
 #ifdef PARTICLES
   CALL MPI_REDUCE(ElemTimePart , ElemTimePartTot  , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
   WeightSum = WeightSum + ElemTimePartTot ! only correct on MPI root

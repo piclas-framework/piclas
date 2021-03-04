@@ -118,8 +118,7 @@ USE MOD_Restart_Vars      ,ONLY: DoRestart
 USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars         ,ONLY: ElemBaryNGeo
-USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
-USE MOD_Equation_Vars     ,ONLY: eps0
+USE MOD_Globals_Vars      ,ONLY: BoltzmannConst,eps0
 USE MOD_IO_HDF5           ,ONLY: AddToElemData,ElementOut
 USE MOD_Restart_Vars      ,ONLY: RestartFile
 USE MOD_TTM_Vars          ,ONLY: DoImportTTMFile
@@ -810,14 +809,14 @@ DO iPart=1,PDM%ParticleVecLength
 
       ! Check if the average charge (TTM data) for the current cell is zero
       ! (if yes: add a charge to force at least singly charged ions)
-      IF(TTM_Cell_11(PEM%Element(iPart)).EQ.0)THEN ! this would create uncharged atoms -> force singly charged ions
-        ElemCharge(PEM%Element(iPart))=ElemCharge(PEM%Element(iPart))+1
+      IF(TTM_Cell_11(PEM%GlobalElemID(iPart)).EQ.0)THEN ! this would create uncharged atoms -> force singly charged ions
+        ElemCharge(PEM%GlobalElemID(iPart))=ElemCharge(PEM%GlobalElemID(iPart))+1
         location = MINLOC(ABS(IMDSpeciesCharge-1),1) !Determines the location of the element in the array with min value
       ELSE
         ! Get the TTM cell charge avergae value and select and upper and lower charge number
-        ChargeLower       = INT(TTM_Cell_11(PEM%Element(iPart))) ! FLOOR(): use first DOF (0,0,0) because the data is const. in each cell
+        ChargeLower       = INT(TTM_Cell_11(PEM%GlobalElemID(iPart))) ! FLOOR(): use first DOF (0,0,0) because the data is const. in each cell
         ChargeUpper       = ChargeLower+1                        ! CEILING(): floor + 1
-        ChargeProbability = REAL(ChargeUpper)-TTM_Cell_11(PEM%Element(iPart)) ! 2-1,4=0.6 -> 60% probability to get lower charge
+        ChargeProbability = REAL(ChargeUpper)-TTM_Cell_11(PEM%GlobalElemID(iPart)) ! 2-1,4=0.6 -> 60% probability to get lower charge
 
         ! Distribute the charge using random numbers
         CALL RANDOM_NUMBER(iRan)
@@ -827,12 +826,12 @@ DO iPart=1,PDM%ParticleVecLength
           ! Determines the location of the element in the array with min value: get the index of the corresponding charged ion
           ! species
           location                       = MINLOC(ABS(IMDSpeciesCharge-ChargeLower),1)
-          ElemCharge(PEM%Element(iPart)) = ElemCharge(PEM%Element(iPart))+ChargeLower
+          ElemCharge(PEM%GlobalElemID(iPart)) = ElemCharge(PEM%GlobalElemID(iPart))+ChargeLower
         ELSE ! Select the upper charge number
           ! Determines the location of the element in the array with min value: get the index of the corresponding charged ion
           ! species
           location                       = MINLOC(ABS(IMDSpeciesCharge-ChargeUpper),1)
-          ElemCharge(PEM%Element(iPart)) = ElemCharge(PEM%Element(iPart))+ChargeUpper
+          ElemCharge(PEM%GlobalElemID(iPart)) = ElemCharge(PEM%GlobalElemID(iPart))+ChargeUpper
         END IF
       END IF
 
@@ -888,11 +887,11 @@ DO iElem=1,PP_nElems
     IF ((useDSMC).AND.(CollisMode.GT.1)) THEN
       PartStateIntEn( 1,ParticleIndexNbr) = 0.
       PartStateIntEn( 2,ParticleIndexNbr) = 0.
-      IF ( DSMC%ElectronicModel )  PartStateIntEn( 3,ParticleIndexNbr) = 0.
+      IF (DSMC%ElectronicModel.GT.0)  PartStateIntEn( 3,ParticleIndexNbr) = 0.
     END IF
 
     ! Set the element ID of the electron to the current element ID
-    PEM%Element(ParticleIndexNbr) = iElem
+    PEM%GlobalElemID(ParticleIndexNbr) = iElem
 
     ! Determine the electron temperature (for each cell different) in Kelvin for the Maxwellian distribution
     IF(TTM_Cell_2(iElem).LE.0.0)THEN ! not enough atoms in FD cell for averaging a temperature: use max value for electrons

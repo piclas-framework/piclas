@@ -140,16 +140,28 @@ before_script:
   - export CMAKE_LIBRARY_PATH=/opt/hdf5/1.10.5/lib:$CMAKE_LIBRARY_PAT
 ```
 
-otherwise, the correct environment must be loaded, e.g.,
-```
-module load XX/XX
-```
+
+otherwise, the correct environment must be loaded by adding the following in `/etc/profile`
+
+    ```
+    # Default modules
+    module load gcc/9.2.0  cmake/3.15.3-d  openmpi/4.0.1/gcc/9.2.0  hdf5/1.10.5/gcc/9.2.0/openmpi/4.0.1
+    ```
+
+or by loading the modules directly in the gilab script file, e.g.,
+
+    ```
+    module load XX/XX
+    ```
 
 NOTE: The stack size limit has been removed here by `ulimit -s unlimited`, which might be required
 by memory consuming programs
 
 ### Installation Steps for Gitlab Runners 
-Latest test: on ubuntu (18.04), 3 Jul 2019
+Latest tests on 
+
+  * Ubuntu (18.04) with gitlab-runner 10.5.0 (10.5.0), 3 Jul 2019
+  * Ubuntu server (18.04.3 LTS) with gitlab-runner 10.5.0 (10.5.0), 19 Nov 2019
 
 1. Install gitlab-runner from ubuntu packages (choose old version to avoid problems https://gitlab.com/gitlab-org/gitlab-runner/issues/1379)
    This creates the user gitlab-runner and a home directory (for 10.5 in /var/lib/gitlab-runner/)

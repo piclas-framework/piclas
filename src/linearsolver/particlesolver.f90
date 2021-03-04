@@ -151,13 +151,13 @@ SUBROUTINE SelectImplicitParticles()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Vars,     ONLY:Species,PartSpecies,PartIsImplicit,PDM,Pt,PartState
-USE MOD_Linearsolver_Vars, ONLY:PartImplicitMethod
-USE MOD_TimeDisc_Vars,     ONLY:dt,nRKStages,iter!,time
-USE MOD_Equation_Vars,     ONLY:c2_inv
-USE MOD_LinearSolver_Vars, ONLY:DoPrintConvInfo
+USE MOD_Particle_Vars     ,ONLY: Species,PartSpecies,PartIsImplicit,PDM,Pt,PartState
+USE MOD_Linearsolver_Vars ,ONLY: PartImplicitMethod
+USE MOD_TimeDisc_Vars     ,ONLY: dt,nRKStages,iter
+USE MOD_Globals_Vars      ,ONLY: c2_inv
+USE MOD_LinearSolver_Vars ,ONLY: DoPrintConvInfo
 #if USE_MPI
-USE MOD_Particle_MPI_Vars, ONLY:PartMPI
+USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -255,7 +255,9 @@ USE MOD_Particle_Vars          ,ONLY: PartQ,F_PartX0,F_PartXk,Norm_F_PartX0,Norm
                                      ,PartState, Pt, LastPartPos, PEM, PDM, PartLorentzType,PartDeltaX,PartDtFrac,PartStateN  &
                                      ,PartMeshHasReflectiveBCs
 USE MOD_LinearOperator         ,ONLY: PartVectorDotProduct
-USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
+USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
+USE MOD_Particle_TriaTracking  ,ONLY: ParticleTriaTracking
 USE MOD_Part_RHS               ,ONLY: CalcPartRHS
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -266,7 +268,7 @@ USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_MPI*/
 USE MOD_LinearSolver_vars      ,ONLY: Eps2PartNewton,nPartNewton, PartgammaEW,nPartNewtonIter,DoPrintConvInfo
 USE MOD_Part_RHS               ,ONLY: PartRHS
-USE MOD_Equation_vars          ,ONLY: c2_inv
+USE MOD_Globals_Vars           ,ONLY: c2_inv
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 #ifdef CODE_ANALYZE
@@ -353,7 +355,7 @@ IF(opt)THEN ! compute zero state
       LastPartPos(1,iPart)=PartStateN(1,iPart)
       LastPartPos(2,iPart)=PartStateN(2,iPart)
       LastPartPos(3,iPart)=PartStateN(3,iPart)
-      PEM%lastElement(iPart)=PEM%ElementN(iPart)
+      PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
       ! HERE: rotate part to partstate back
       IF(PartLorentzType.EQ.5)THEN
         LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(4:6,iPart),PartState(4:6,iPart))*c2_inv)
@@ -388,11 +390,11 @@ ELSE
       !LastPartPos(1,iPart)=StagePartPos(iPart,1)
       !LastPartPos(2,iPart)=StagePartPos(iPart,2)
       !LastPartPos(3,iPart)=StagePartPos(iPart,3)
-      !PEM%lastElement(iPart)=PEM%StageElement(iPart)
+      !PEM%LastGlobalElemID(iPart)=PEM%StageElement(iPart)
       LastPartPos(1,iPart)=PartStateN(1,iPart)
       LastPartPos(2,iPart)=PartStateN(2,iPart)
       LastPartPos(3,iPart)=PartStateN(3,iPart)
-      PEM%lastElement(iPart)=PEM%ElementN(iPart)
+      PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
       reMap=.FALSE.
       IF(PartMeshHasReflectiveBCs)THEN
         IF(SUM(ABS(PEM%NormVec(1:3,iPart))).GT.0.)THEN
@@ -693,14 +695,15 @@ USE MOD_LinearSolver_Vars      ,ONLY: Part_alpha
 USE MOD_Part_RHS               ,ONLY: PartRHS
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
-USE MOD_Equation_Vars          ,ONLY: c2_inv
+USE MOD_Globals_Vars           ,ONLY: c2_inv
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
-USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
+USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
+USE MOD_Particle_TriaTracking  ,ONLY: ParticleTriaTracking
 USE MOD_LinearSolver_Vars      ,ONLY: DoFullNewton!,PartNewtonRelaxation
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
@@ -746,7 +749,7 @@ DO iPart=1,PDM%ParticleVecLength
     LastPartPos(1,iPart)=PartStateN(1,iPart)
     LastPartPos(2,iPart)=PartStateN(2,iPart)
     LastPartPos(3,iPart)=PartStateN(3,iPart)
-    PEM%lastElement(iPart)=PEM%ElementN(iPart)
+    PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
     ! and disable periodic movement
     IF(PartMeshHasReflectiveBCs) PEM%NormVec(:,iPart)=0.
     PEM%PeriodicMoved(iPart)=.FALSE.
@@ -829,12 +832,6 @@ CALL SendNbOfParticles(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLeng
 CALL MPIParticleSend() ! input value: which list:PartLambdaAccept or PDM%ParticleInisde?
 ! finish communication
 CALL MPIParticleRecv() ! input value: which list:PartLambdaAccept or PDM%ParticleInisde?
-! as we do not have the shape function here, we have to deallocate something
-SDEALLOCATE(ExtPartState)
-SDEALLOCATE(ExtPartSpecies)
-SDEALLOCATE(ExtPartToFIBGM)
-SDEALLOCATE(ExtPartMPF)
-NbrOfExtParticles=0
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -981,7 +978,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       LastPartPos(1,iPart)=PartStateN(1,iPart)
       LastPartPos(2,iPart)=PartStateN(2,iPart)
       LastPartPos(3,iPart)=PartStateN(3,iPart)
-      PEM%lastElement(iPart)=PEM%ElementN(iPart)
+      PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
       IF(PartMeshHasReflectiveBCs) PEM%NormVec(1:3,iPart)=0.
       PEM%PeriodicMoved(iPart)=.FALSE.
       ! recompute part state
@@ -1028,12 +1025,6 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
   CALL MPIParticleSend() ! input value: which list:PartLambdaAccept or PDM%ParticleInisde?
   ! finish communication
   CALL MPIParticleRecv() ! input value: which list:PartLambdaAccept or PDM%ParticleInisde?
-  ! as we do not have the shape function here, we have to deallocate something
-  SDEALLOCATE(ExtPartState)
-  SDEALLOCATE(ExtPartSpecies)
-  SDEALLOCATE(ExtPartToFIBGM)
-  SDEALLOCATE(ExtPartMPF)
-  NbrOfExtParticles=0
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/

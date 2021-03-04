@@ -99,7 +99,7 @@ USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCSides,nSides,BC
 USE MOD_Mesh_Vars          ,ONLY: nGlobalMortarSides,nMortarMPISides
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
 USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
-USE MOD_Equation_Vars      ,ONLY: eps0
+USE MOD_Globals_Vars       ,ONLY: eps0
 USE MOD_Restart_Vars       ,ONLY: DoRestart
 USE MOD_Mesh_Vars          ,ONLY: DoSwapMesh
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
@@ -170,7 +170,9 @@ IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far 
   MaxIterFixPoint       = GETINT('MaxIterFixPoint')
   NormNonlinearDevLimit = GETREAL('NormNonlinearDevLimit')
   IF (NormNonlinearDevLimit .LT. 1.) THEN
-    STOP 'NormNonlinearDevLimit should be .GE. 1'
+    CALL abort(&
+    __STAMP__&
+    ,'NormNonlinearDevLimit should be .GE. 1 but NormNonlinearDevLimit=',RealInfoOpt=NormNonlinearDevLimit)
   END IF
   EpsNonLinear=GETREAL('EpsNonLinear')
 ELSE
@@ -360,9 +362,9 @@ REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !===================================================================================================================================
 IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
   IF (t.LT.HDGSkip_t0) THEN
-    IF (MOD(iter,HDGSkipInit).NE.0) RETURN
+    IF (MOD(iter,INT(HDGSkipInit,8)).NE.0) RETURN
   ELSE
-    IF (MOD(iter,HDGSkip).NE.0) RETURN
+    IF (MOD(iter,INT(HDGSkip,8)).NE.0) RETURN
   END IF
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
   IF (iStage.GT.1) THEN
@@ -385,8 +387,9 @@ END IF
 END SUBROUTINE HDG
 
 
-SUBROUTINE HDGLinear(t,U_out)
+SUBROUTINE HDGLinear(time,U_out)
 !===================================================================================================================================
+! Linear HDG solver
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -398,7 +401,6 @@ USE MOD_Equation_Vars          ,ONLY: chitens_face
 USE MOD_Mesh_Vars              ,ONLY: Face_xGP,BoundaryType,nSides,BC
 USE MOD_Mesh_Vars              ,ONLY: ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars     ,ONLY: wGP
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Elem_Mat               ,ONLY: PostProcessGradient
 USE MOD_FillMortar_HDG         ,ONLY: SmallToBigMortar_HDG
 #if (PP_nVar==1)
@@ -415,7 +417,7 @@ USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)     :: t !time
+REAL,INTENT(IN)     :: time !time
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
@@ -446,28 +448,21 @@ DO iVar = 1, PP_nVar
     BCType =BoundaryType(BC(SideID),BC_TYPE)
     BCState=BoundaryType(BC(SideID),BC_STATE)
     SELECT CASE(BCType)
-    CASE(2) ! exact BC = Dirichlet BC !!
+    CASE(2) ! exact BC = Dirichlet BC !! ExactFunc via BCState (time is optional)
       ! Determine the exact BC state
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-        CALL ExactFunc(BCState,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID))
+        CALL ExactFunc(BCState,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t=time)
       END DO; END DO !p,q
-    CASE(4) ! exact BC = Dirichlet BC !!
-      ! SPECIAL BC: BCState specifies exactfunc to be used!!
+    CASE(4) ! exact BC = Dirichlet BC !! Zero potential
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-  !      CALL ExactFunc(BCState,t,0,Face_xGP(:,p,q,SideID),lambda(r:r,SideID))
-       lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID))) &
-         +PartBound%Voltage_CollectCharges(PartBound%MapToPartBC(BC(SideID)))
+       lambda(iVar,r:r,SideID)=0.
       END DO; END DO !p,q
-    CASE(5) ! exact BC = Dirichlet BC !!
-!print*,"BCType=",BCType,"    BCsideID=",BCsideID,"     IniExactFunc",IniExactFunc
+    CASE(5) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-        CALL ExactFunc(BCState,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t)
-!print*,"t=",t,"r=",r,"BCState=",BCState,"Face_xGP(:,p,q,SideID)=",Face_xGP(:,p,q,SideID)
-!print*,lambda(iVar,r:r,SideID)
-       !lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
+        CALL ExactFunc(-1,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t=time,iRefState=BCState)
       END DO; END DO !p,q
     END SELECT ! BCType
   END DO !BCsideID=1,nDirichletBCSides
@@ -481,11 +476,10 @@ DO iVar = 1, PP_nVar
     BCType =BoundaryType(BC(SideID),BC_TYPE)
     BCState=BoundaryType(BC(SideID),BC_STATE)
     SELECT CASE(BCType)
-    CASE(10) !neumann q=0
+    CASE(10) !neumann q=0 !! Zero gradient
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-        qn_face(iVar,r,BCSideID)= 0. !SUM((/0.,0.,0./)  &
-                                !*MATMUL(chitens_face(:,:,p,q,SideID),NormVec(:,p,q,SideID)))*SurfElem(p,q,SideID)*wGP(p)*wGP(q)
+        qn_face(iVar,r,BCSideID)= 0.
       END DO; END DO !p,q
     CASE(11) !neumann q*n=1 !test
       DO q=0,PP_N; DO p=0,PP_N
@@ -647,8 +641,9 @@ CALL LBPauseTime(LB_DG,tLBStart)
 END SUBROUTINE HDGLinear
 
 
-SUBROUTINE HDGNewton(t,U_out,td_iter)
+SUBROUTINE HDGNewton(time,U_out,td_iter)
 !===================================================================================================================================
+! HDG non-linear solver via Newton's method
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -661,13 +656,12 @@ USE MOD_LinearSolver_Vars      ,ONLY: DoPrintConvInfo
 #else
 USE MOD_TimeDisc_Vars          ,ONLY: IterDisplayStep,DoDisplayIter
 #endif
-USE MOD_Equation_Vars          ,ONLY: eps0
+USE MOD_Globals_Vars           ,ONLY: eps0
 USE MOD_Equation_Vars          ,ONLY: chitens_face
 USE MOD_Mesh_Vars              ,ONLY: Face_xGP,BoundaryType,nSides,BC
 USE MOD_Mesh_Vars              ,ONLY: ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars     ,ONLY: wGP
 USE MOD_Particle_Vars          ,ONLY:  RegionElectronRef
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Elem_Mat               ,ONLY: PostProcessGradient, Elem_Mat,BuildPrecond
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime
@@ -681,7 +675,7 @@ USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)     :: t !time
+REAL,INTENT(IN)     :: time !time
 INTEGER(KIND=8),INTENT(IN)  :: td_iter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -716,18 +710,20 @@ DO BCsideID=1,nDirichletBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(2) ! exact BC = Dirichlet BC !!
-    ! Determine the exact BC state
+  CASE(2) ! exact BC = Dirichlet BC !! ExactFunc via BCState (time is optional)
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
-      CALL ExactFunc(BCState,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID))
+      CALL ExactFunc(BCState,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),time)
     END DO; END DO !p,q
-  CASE(4) ! exact BC = Dirichlet BC !!
-    ! SPECIAL BC: BCState specifies exactfunc to be used!!
+  CASE(4) ! exact BC = Dirichlet BC !! Zero potential
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
-      lambda(PP_nVar,r:r,SideID)= PartBound%Voltage(PartBound%MapToPartBC(BC(SideID))) &
-        +PartBound%Voltage_CollectCharges(PartBound%MapToPartBC(BC(SideID)))
+      lambda(PP_nVar,r:r,SideID)= 0.
+    END DO; END DO !p,q
+  CASE(5) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
+    DO q=0,PP_N; DO p=0,PP_N
+      r=q*(PP_N+1) + p+1
+      CALL ExactFunc(-1,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iRefState=BCState)
     END DO; END DO !p,q
   END SELECT ! BCType
 END DO !BCsideID=1,nDirichletBCSides
@@ -738,7 +734,7 @@ DO BCsideID=1,nNeumannBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(10) !neumann q=0
+  CASE(10) !neumann q=0 !! Zero gradient
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
       qn_face(PP_nVar,r,BCSideID)= 0.
@@ -806,10 +802,10 @@ CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
 IF (converged) THEN
 #if defined(IMPA) || defined(ROS)
   IF(DoPrintConvInfo)THEN
-    SWRITE(*,*) 'Newton Iteration has converged in 0 steps...'
+    SWRITE(*,*) 'HDGNewton: Newton Iteration has converged in 0 steps...'
   END IF
 #else
-  SWRITE(*,*) 'Newton Iteration has converged in 0 steps...'
+  SWRITE(*,*) 'HDGNewton: Newton Iteration has converged in 0 steps...'
 #endif
 ELSE
   CALL CG_solver(RHS_face(PP_nVar,:,:),lambda(PP_nVar,:,:))
@@ -830,7 +826,7 @@ ELSE
   END DO !iElem
 
   IF(AdaptNewtonStartValue) THEN
-    IF ((.NOT.DoRestart.AND.ALMOSTEQUAL(t,0.)).OR.(DoRestart.AND.ALMOSTEQUAL(t,RestartTime))) THEN
+    IF ((.NOT.DoRestart.AND.ALMOSTEQUAL(time,0.)).OR.(DoRestart.AND.ALMOSTEQUAL(time,RestartTime))) THEN
       DO iElem=1,PP_nElems
         RegionID=GEO%ElemToRegion(iElem)
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -901,7 +897,7 @@ ELSE
       RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(PP_nVar,:,iElem)
     END DO !iElem
     IF (warning_linear) THEN
-      SWRITE(*,*) 'WARNING: during iteration at least one DOF resulted in a phi > phi_max.\n'//&
+      SWRITE(*,*) 'HDGNewton WARNING: during iteration at least one DOF resulted in a phi > phi_max.\n'//&
         '=> Increase Part-RegionElectronRef#-PhiMax if already steady!'
     END IF
 
@@ -939,19 +935,20 @@ ELSE
     IF (converged) THEN
 #if defined(IMPA) || defined(ROS)
       IF(DoPrintConvInfo)THEN
-        SWRITE(*,*) 'Newton Iteration has converged in ',iter,' steps...'
+        SWRITE(*,*) 'HDGNewton: Newton Iteration has converged in ',iter,' steps...'
       END IF
 #else
       IF(DoDisplayIter)THEN
         IF(HDGDisplayConvergence.AND.(MOD(td_iter,IterDisplayStep).EQ.0)) THEN
-          SWRITE(*,*) 'Newton Iteration has converged in ',iter,' steps...'
+          SWRITE(*,*) 'HDGNewton: Newton Iteration has converged in ',iter,' steps...'
         END IF
       END IF
 #endif
       EXIT
     ELSE IF (iter.EQ.MaxIterFixPoint) THEN
-      STOP 'Newton Iteration has NOT converged!'
-    !    SWRITE(*,*)'Norm_r2: ',Norm_r2
+      CALL abort(&
+        __STAMP__&
+        ,'HDGNewton: Newton Iteration has NOT converged!')
     END IF
 
     CALL CG_solver(RHS_face(PP_nVar,:,:),lambda(PP_nVar,:,:))
@@ -1207,11 +1204,11 @@ END IF ! iteration.GT.0
 HDGNorm = SQRT(Norm_R2)
 
 IF(HDGDisplayConvergence.AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
-  WRITE(UNIT_StdOut,'(A,X,I16)')      '#iterations          :',iteration
-  WRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime           [s]:',RunTime
-  WRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime/iteration [s]:',RunTimePerIteration
-  !WRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime/iteration/DOF[s]:',(TimeEndCG-TimeStartCG)/REAL(iteration*PP_nElems*nGP_vol)
-  WRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'Final Residual       :',HDGNorm
+  WRITE(UNIT_StdOut,'(A,1X,I16)')      '#iterations          :',iteration
+  WRITE(UNIT_StdOut,'(A,1X,ES25.14E3)')'RunTime           [s]:',RunTime
+  WRITE(UNIT_StdOut,'(A,1X,ES25.14E3)')'RunTime/iteration [s]:',RunTimePerIteration
+  !WRITE(UNIT_StdOut,'(A,1X,ES16.7)')'RunTime/iteration/DOF[s]:',(TimeEndCG-TimeStartCG)/REAL(iteration*PP_nElems*nGP_vol)
+  WRITE(UNIT_StdOut,'(A,1X,ES25.14E3)')'Final Residual       :',HDGNorm
   WRITE(UNIT_StdOut,'(132("-"))')
 END IF
 END SUBROUTINE DisplayConvergence

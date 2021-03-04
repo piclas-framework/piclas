@@ -38,12 +38,6 @@ CHARACTER(LEN=255),DIMENSION(4),PARAMETER :: StrVarNames(3)=(/ CHARACTER(LEN=255
                                                                                      'MagneticFieldZ'/)
 
 LOGICAL           :: EquationInitIsDone=.FALSE.
-REAL              :: eps0
-REAL              :: mu0, smu0
-REAL              :: c
-REAL              :: c2
-REAL              :: c2_inv
-REAL              :: c_inv
 INTEGER           :: alpha_shape
 REAL              :: shapeFuncPrefix
 REAL              :: rCutoff

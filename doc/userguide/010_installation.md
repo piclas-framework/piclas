@@ -2,7 +2,7 @@
 
 # Installation \label{chap:installation}
 
-The following chapter describes the installation procedure on a Linux machine requiring root access. This includes the installation of required prerequisites, setting up MPI and HDF5. Please note that high-performance clusters usually have a module environment, where you have to load the appropriate modules instead of compiling them yourself. The module configuration for some of the clusters used by the research group are given in Chapter \ref{chap:cluster_guide}. In that case, you can jump directly to the description of the download und installation procedure of PICLas in Section {sec:download_source}.
+The following chapter describes the installation procedure on a Linux machine requiring root access. This includes the installation of required prerequisites, setting up MPI and HDF5. Please note that high-performance clusters usually have a module environment, where you have to load the appropriate modules instead of compiling them yourself. The module configuration for some of the clusters used by the research group are given in Chapter \ref{chap:cluster_guide}. In that case, you can jump directly to the description of the download and installation procedure of PICLas in Section {sec:download_source}.
 
 ## Prerequisites
 **PICLas** has been tested on various Linux distributions. This includes Ubuntu 14.04 LTS, 16.04 LTS and 18.04 LTS, 20.04 LTS and 20.10, OpenSUSE 42.1 and CentOS 7.
@@ -86,7 +86,7 @@ For convenience, you can add these lines to your `.bashrc`.
 
 ### Installing/setting up HDF5 \label{sec:install_hdf5}
 
-An available installation of HDF5 can be utilized with PICLas. This requires properly setup environment variables and the compilation of HDF5 during the PICLas compilation has to be turned off (`PICLAS_BUILD_HDF5 = OFF`). If this option is enabled, HDF5 will be downloaded and compiled. However, this means that everytime a clean compilation of PICLas is performed, HDF5 will be recompiled. It is prefered to either install HDF5 on your system locally or utilize the packages provided on your cluster.
+An available installation of HDF5 can be utilized with PICLas. This requires properly setup environment variables and the compilation of HDF5 during the PICLas compilation has to be turned off (`PICLAS_BUILD_HDF5 = OFF`). If this option is enabled, HDF5 will be downloaded and compiled. However, this means that every time a clean compilation of PICLas is performed, HDF5 will be recompiled. It is preferred to either install HDF5 on your system locally or utilize the packages provided on your cluster.
 
 The recommended HDF5 version to use with PICLas is **1.10.0-patch1**. In the following a manual installation of HDF5 is described, if HDF5 is already available on your system you can skip to the next Section \ref{sec:hdf5_env}.
 
@@ -151,7 +151,7 @@ Note that cloning **PICLas** from GitHub may not be possible on some machines, a
     ccmake ..
     make
 
-For a list of all compiler options visit Section \ref{sec:compileroptions}. Finally, the executables **PICLas** and **h5piclas2vtk** are contained in your **PICLas** directory in `build/bin/`. 
+For a list of all compiler options visit Section \ref{sec:compileroptions}. Finally, the executables **PICLas** and **piclas2vtk** are contained in your **PICLas** directory in `build/bin/`. 
 
 ### Directory paths \label{sec:installation_directory}
 

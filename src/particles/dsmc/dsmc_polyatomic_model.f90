@@ -34,7 +34,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly_ARM, DSMC_SetInternalEnr_Poly_MH, DSMC_SetInternalEnr_Poly_MH_FirstPick
-PUBLIC :: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly_ARM, DSMC_VibRelaxPoly_MH, Calc_Beta_Poly, DSMC_VibRelaxPoly_ARM_MH
+PUBLIC :: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly_ARM, DSMC_VibRelaxPoly_MH, DSMC_VibRelaxPoly_ARM_MH
 PUBLIC :: DSMC_FindFirstVibPick, DSMC_RelaxVibPolyProduct
 !===================================================================================================================================
 
@@ -116,65 +116,62 @@ SUBROUTINE DSMC_FindFirstVibPick(iInitTmp, iSpec, init_or_sf)
 ! Burn-in phase for the modified Metropolis-Hasting method for the particle generation of polyatomic molecules
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
-  USE MOD_DSMC_Vars,            ONLY : SpecDSMC, PolyatomMolDSMC
-  USE MOD_Particle_Vars,        ONLY : Species
+USE MOD_Globals
+USE MOD_DSMC_Vars,            ONLY : SpecDSMC, PolyatomMolDSMC
+USE MOD_Particle_Vars,        ONLY : Species
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iInitTmp, iSpec, init_or_sf
+INTEGER, INTENT(IN)           :: iInitTmp, iSpec, init_or_sf
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL, ALLOCATABLE            :: iRan(:)
-  REAL                          :: iRan2, NormProb
-  INTEGER,ALLOCATABLE          :: iQuant_old(:)
-  INTEGER                       :: iDOF, iWalk, iPolyatMole, iInit
-  REAL                          :: TVib                       ! vibrational temperature
+REAL, ALLOCATABLE            :: iRan(:)
+REAL                          :: iRan2, NormProb
+INTEGER,ALLOCATABLE          :: iQuant_old(:)
+INTEGER                       :: iDOF, iWalk, iPolyatMole, iInit
+REAL                          :: TVib                       ! vibrational temperature
 !===================================================================================================================================
-IF (Species(iSpec)%Init(iInitTmp)%ElemTVibFileID.GT.0) CALL abort(&
-__STAMP__&
-,'ERROR in DSMC_FindFirstVibPick: can not use Macro tvib restart!')
 
-  SELECT CASE (init_or_sf)
-    CASE(1) !iInit
-      TVib=SpecDSMC(iSpec)%Init(iInitTmp)%TVib
-    CASE(2) !SurfaceFlux
-      TVib=SpecDSMC(iSpec)%SurfaceFlux(iInitTmp)%TVib
-      iInit = iInitTmp + Species(iSpec)%NumberOfInits
-    CASE DEFAULT
-      CALL abort(&
-      __STAMP__&
-      ,'Neither iInit nor SurfaceFlux defined as reference!')
-  END SELECT
+SELECT CASE (init_or_sf)
+  CASE(1) !iInit
+    TVib=SpecDSMC(iSpec)%Init(iInitTmp)%TVib
+  CASE(2) !SurfaceFlux
+    TVib=SpecDSMC(iSpec)%SurfaceFlux(iInitTmp)%TVib
+    iInit = iInitTmp + Species(iSpec)%NumberOfInits
+  CASE DEFAULT
+    CALL abort(&
+    __STAMP__&
+    ,'Neither iInit nor SurfaceFlux defined as reference!')
+END SELECT
 
-  iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-  ALLOCATE(iRan(PolyatomMolDSMC(iPolyatMole)%VibDOF),iQuant_old(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+ALLOCATE(iRan(PolyatomMolDSMC(iPolyatMole)%VibDOF),iQuant_old(PolyatomMolDSMC(iPolyatMole)%VibDOF))
 
+CALL RANDOM_NUMBER(iRan)
+PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(:,iInit) = INT(iRan(:)*PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(:))
+
+DO iWalk=1, 5000
+  iQuant_old(:)=PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(:,iInit)
   CALL RANDOM_NUMBER(iRan)
-  PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(:,iInit) = INT(iRan(:)*PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(:))
-
-  DO iWalk=1, 5000
-    iQuant_old(:)=PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(:,iInit)
-    CALL RANDOM_NUMBER(iRan)
-    PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(:,iInit) = iQuant_old(:)+FLOOR(3*iRan(:)-1)
-    NormProb = 0.0
-    DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-      IF(PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(iDOF,iInit).LT.0) THEN
-        PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(iDOF,iInit) = -1*PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(iDOF,iInit) -1
-      END IF
-      NormProb = NormProb + (iQuant_old(iDOF) &
-          -PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(iDOF,iInit))*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) &
-          /TVib
-    END DO
-    NormProb = MIN(1.0,EXP(NormProb))
-    CALL RANDOM_NUMBER(iRan2)
-    IF (NormProb.LT.iRan2) PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(:,iInit)=iQuant_old(:)
+  PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(:,iInit) = iQuant_old(:)+FLOOR(3*iRan(:)-1)
+  NormProb = 0.0
+  DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+    IF(PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(iDOF,iInit).LT.0) THEN
+      PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(iDOF,iInit) = -1*PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(iDOF,iInit) -1
+    END IF
+    NormProb = NormProb + (iQuant_old(iDOF) &
+        -PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(iDOF,iInit))*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) &
+        /TVib
   END DO
+  NormProb = MIN(1.0,EXP(NormProb))
+  CALL RANDOM_NUMBER(iRan2)
+  IF (NormProb.LT.iRan2) PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(:,iInit)=iQuant_old(:)
+END DO
 
-  DEALLOCATE(iRan, iQuant_old)
+DEALLOCATE(iRan, iQuant_old)
 
 END SUBROUTINE DSMC_FindFirstVibPick
 
@@ -184,110 +181,179 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpecies, iInit, iPart, init_
 ! Initialization of polyatomic molecules by treating every mode separately in a loop
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
-  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
-  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
-  USE MOD_Particle_Vars,        ONLY : Adaptive_MacroVal, PEM, Species
-  USE MOD_Particle_Boundary_Vars,ONLY: PartBound
-  USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
+USE MOD_Globals               ,ONLY: Abort
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
+USE MOD_Particle_Vars         ,ONLY: Adaptive_MacroVal, PEM, Species
+USE MOD_DSMC_ElectronicModel  ,ONLY: InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iSpecies, iInit, iPart, init_or_sf
+INTEGER, INTENT(IN)           :: iSpecies, iInit, iPart, init_or_sf
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                          :: iRan, iRan2, NormProb
-  INTEGER                       :: iQuant, iDOF, iPolyatMole
-  REAL                          :: TVib                       ! vibrational temperature
-  REAL                          :: TRot                       ! rotational temperature
-  INTEGER                       :: ElemID
-  REAL                          :: pressure
+REAL                          :: iRan, iRan2, NormProb
+INTEGER                       :: iQuant, iDOF, iPolyatMole
+REAL                          :: TVib                       ! vibrational temperature
+REAL                          :: TRot                       ! rotational temperature
+INTEGER                       :: ElemID
 !===================================================================================================================================
-
-  SELECT CASE (init_or_sf)
-    CASE(1) !iInit
-      IF (Species(iSpecies)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
-        TVib=SpecDSMC(iSpecies)%Init(iInit)%TVib
-      ELSE
-        TVib=Species(iSpecies)%Init(iInit)%ElemTVib(PEM%Element(iPart))
-      END IF
-      IF (Species(iSpecies)%Init(iInit)%ElemTRotFileID.EQ.0) THEN
-        TRot=SpecDSMC(iSpecies)%Init(iInit)%TRot
-      ELSE
-        TRot=Species(iSpecies)%Init(iInit)%ElemTRot(PEM%Element(iPart))
-      END IF
-    CASE(2) !SurfaceFlux
-      IF(iInit.GT.Species(iSpecies)%nSurfacefluxBCs)THEN
-        !-- compute number of to be inserted particles
-        SELECT CASE(PartBound%AdaptiveType(Species(iSpecies)%Surfaceflux(iInit)%BC))
-        CASE(1) ! Pressure inlet (pressure, temperature const)
-          TVib=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TVib
-          TRot=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TRot
-        CASE(2) ! adaptive Outlet/freestream
-          ElemID = PEM%Element(iPart)
-          pressure = PartBound%AdaptivePressure(Species(iSpecies)%Surfaceflux(iInit)%BC)
-          TVib = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(7,ElemID,:)))
-          TRot = TVib
-        CASE(3) ! pressure outlet (pressure defined)
-        CASE DEFAULT
-          CALL abort(&
-__STAMP__&
-,'wrong adaptive type for Surfaceflux in vib/rot poly!')
-        END SELECT
-      ELSE
-        IF(Species(iSpecies)%Surfaceflux(iInit)%Adaptive) THEN
-          SELECT CASE(Species(iSpecies)%Surfaceflux(iInit)%AdaptiveType)
-            CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
-              TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
-              TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
-            CASE(2) ! adaptive Outlet/freestream
-              ElemID = PEM%Element(iPart)
-              TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
-                      / (BoltzmannConst * Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpecies))
-              TRot = TVib
-            CASE DEFAULT
-              CALL abort(&
-              __STAMP__&
-              ,'Wrong adaptive type for Surfaceflux in vib/rot poly!')
-          END SELECT
-        ELSE
+ElemID = PEM%LocalElemID(iPart)
+SELECT CASE (init_or_sf)
+  CASE(1) !iInit
+    TVib=SpecDSMC(iSpecies)%Init(iInit)%TVib
+    TRot=SpecDSMC(iSpecies)%Init(iInit)%TRot
+  CASE(2) !SurfaceFlux
+    IF(Species(iSpecies)%Surfaceflux(iInit)%Adaptive) THEN
+      SELECT CASE(Species(iSpecies)%Surfaceflux(iInit)%AdaptiveType)
+        CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
           TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
           TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
-        END IF
-      END IF
-    CASE DEFAULT
-      CALL abort(&
-      __STAMP__&
-      ,'Neither iInit nor SurfaceFlux defined as reference!')
-  END SELECT
+        CASE(2) ! adaptive Outlet/freestream
+          TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
+                  / (BoltzmannConst * Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpecies))
+          TRot = TVib
+        CASE DEFAULT
+          CALL abort(&
+          __STAMP__&
+          ,'Wrong adaptive type for Surfaceflux in vib/rot poly!')
+      END SELECT
+    ELSE
+      TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
+      TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+    END IF
+  CASE DEFAULT
+    CALL abort(&
+    __STAMP__&
+    ,'Neither iInit nor SurfaceFlux defined as reference!')
+END SELECT
 
-  IF (DSMC%ElectronicModel) THEN
-    CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
-  ENDIF
+IF (DSMC%ElectronicModel.GT.0) THEN
+  CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
+ENDIF
 
-  ! set vibrational energy
-  iPolyatMole = SpecDSMC(iSpecies)%SpecToPolyArray
-  IF(ALLOCATED(VibQuantsPar(iPart)%Quants)) DEALLOCATE(VibQuantsPar(iPart)%Quants)
-  ALLOCATE(VibQuantsPar(iPart)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-  PartStateIntEn( 1,iPart) = 0.0
-  DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+! set vibrational energy
+iPolyatMole = SpecDSMC(iSpecies)%SpecToPolyArray
+IF(ALLOCATED(VibQuantsPar(iPart)%Quants)) DEALLOCATE(VibQuantsPar(iPart)%Quants)
+ALLOCATE(VibQuantsPar(iPart)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+PartStateIntEn( 1,iPart) = 0.0
+DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+  CALL RANDOM_NUMBER(iRan)
+  iQuant = INT(-LOG(iRan)*TVib/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
+  DO WHILE (iQuant.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF))
     CALL RANDOM_NUMBER(iRan)
     iQuant = INT(-LOG(iRan)*TVib/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
-    DO WHILE (iQuant.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF))
-      CALL RANDOM_NUMBER(iRan)
-      iQuant = INT(-LOG(iRan)*TVib/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
-    END DO
-    PartStateIntEn( 1,iPart) = PartStateIntEn( 1,iPart) &
-                               + (iQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
-    VibQuantsPar(iPart)%Quants(iDOF)=iQuant
   END DO
-  IF (SpecDSMC(iSpecies)%Xi_Rot.EQ.2) THEN
+  PartStateIntEn( 1,iPart) = PartStateIntEn( 1,iPart) &
+                              + (iQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
+  VibQuantsPar(iPart)%Quants(iDOF)=iQuant
+END DO
+IF (SpecDSMC(iSpecies)%Xi_Rot.EQ.2) THEN
+  CALL RANDOM_NUMBER(iRan2)
+  PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan2)
+ELSE IF (SpecDSMC(iSpecies)%Xi_Rot.EQ.3) THEN
+  CALL RANDOM_NUMBER(iRan2)
+  PartStateIntEn( 2,iPart) = iRan2*10 !the distribution function has only non-negligible  values betwenn 0 and 10
+  NormProb = SQRT(PartStateIntEn( 2,iPart))*EXP(-PartStateIntEn( 2,iPart))/(SQRT(0.5)*EXP(-0.5))
+  CALL RANDOM_NUMBER(iRan2)
+  DO WHILE (iRan2.GE.NormProb)
+    CALL RANDOM_NUMBER(iRan2)
+    PartStateIntEn( 2,iPart) = iRan2*10 !the distribution function has only non-negligible  values betwenn 0 and 10
+    NormProb = SQRT(PartStateIntEn( 2,iPart))*EXP(-PartStateIntEn( 2,iPart))/(SQRT(0.5)*EXP(-0.5))
+    CALL RANDOM_NUMBER(iRan2)
+  END DO
+  PartStateIntEn( 2,iPart) = PartStateIntEn( 2,iPart)*BoltzmannConst*TRot
+END IF
+
+END SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode
+
+
+SUBROUTINE DSMC_SetInternalEnr_Poly_ARM(iSpec, iInit, iPart, init_or_sf)
+!===================================================================================================================================
+! Initialization/particle generation of polyatomic molecules with the acceptance-rejection method (extremely slow for molecules with
+! more than 3 atoms due to low acceptance probability, only for comparison with Metropolis-Hastings)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals               ,ONLY: Abort
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
+USE MOD_Particle_Vars         ,ONLY: PEM
+USE MOD_DSMC_ElectronicModel  ,ONLY: InitElectronShell
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER, INTENT(IN)           :: iSpec, iInit, iPart, init_or_sf
+REAL, ALLOCATABLE             :: iRan(:), tempEng(:)
+REAL                          :: iRan2, NormProb
+INTEGER,ALLOCATABLE           :: iQuant(:)
+INTEGER                       :: iDOF,iPolyatMole
+REAL                          :: TVib                       ! vibrational temperature
+REAL                          :: TRot                       ! rotational temperature
+INTEGER                       :: ElemID
+!===================================================================================================================================
+ElemID = PEM%LocalElemID(iPart)
+SELECT CASE (init_or_sf)
+  CASE(1) !iInit
+    TVib=SpecDSMC(iSpec)%Init(iInit)%TVib
+    TRot=SpecDSMC(iSpec)%Init(iInit)%TRot
+  CASE(2) !SurfaceFlux
+    TVib=SpecDSMC(iSpec)%SurfaceFlux(iInit)%TVib
+    TRot=SpecDSMC(iSpec)%SurfaceFlux(iInit)%TRot
+  CASE DEFAULT
+    CALL abort(&
+    __STAMP__&
+    ,'Neither iInit nor SurfaceFlux defined as reference!')
+END SELECT
+
+IF (DSMC%ElectronicModel.GT.0) THEN
+  CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
+ENDIF
+
+! Set vibrational energy of new molecule
+IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
+  iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+  IF(ALLOCATED(VibQuantsPar(iPart)%Quants)) DEALLOCATE(VibQuantsPar(iPart)%Quants)
+  ALLOCATE(VibQuantsPar(iPart)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+  ALLOCATE(iRan(PolyatomMolDSMC(iPolyatMole)%VibDOF) &
+          ,tempEng(PolyatomMolDSMC(iPolyatMole)%VibDOF) &
+          ,iQuant(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+  CALL RANDOM_NUMBER(iRan)
+  iQuant(:) = INT(iRan(:)*PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(:))
+  tempEng(:)=iQuant(:)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:)/TVib
+  NormProb = 1.0
+  DO iDOF = 1 , PolyatomMolDSMC(iPolyatMole)%VibDOF
+    NormProb = NormProb*EXP(-tempEng(iDOF))
+  END DO
+  CALL RANDOM_NUMBER(iRan2)
+  DO WHILE (iRan2.GE.NormProb)
+    CALL RANDOM_NUMBER(iRan)
+    iQuant(:) = INT(iRan(:)*PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(:))
+    tempEng(:)=iQuant(:)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:)/TVib
+    NormProb = 1.0
+    DO iDOF = 1 , PolyatomMolDSMC(iPolyatMole)%VibDOF
+      NormProb = NormProb*EXP(-tempEng(iDOF))
+    END DO
+    CALL RANDOM_NUMBER(iRan2)
+  END DO
+  PartStateIntEn( 1,iPart) = 0.0
+  VibQuantsPar(iPart)%Quants(:)=iQuant(:)
+  DO iDOF = 1 , PolyatomMolDSMC(iPolyatMole)%VibDOF
+    PartStateIntEn( 1,iPart)= PartStateIntEn( 1,iPart) &
+      +(iQuant(iDOF) + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
+  END DO
+! Set rotational energy of new molecule
+  IF (SpecDSMC(iSpec)%Xi_Rot.EQ.2) THEN
     CALL RANDOM_NUMBER(iRan2)
     PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan2)
-  ELSE IF (SpecDSMC(iSpecies)%Xi_Rot.EQ.3) THEN
+  ELSE IF (SpecDSMC(iSpec)%Xi_Rot.EQ.3) THEN
     CALL RANDOM_NUMBER(iRan2)
     PartStateIntEn( 2,iPart) = iRan2*10 !the distribution function has only non-negligible  values betwenn 0 and 10
     NormProb = SQRT(PartStateIntEn( 2,iPart))*EXP(-PartStateIntEn( 2,iPart))/(SQRT(0.5)*EXP(-0.5))
@@ -300,117 +366,11 @@ __STAMP__&
     END DO
     PartStateIntEn( 2,iPart) = PartStateIntEn( 2,iPart)*BoltzmannConst*TRot
   END IF
-
-END SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode
-
-
-SUBROUTINE DSMC_SetInternalEnr_Poly_ARM(iSpec, iInit, iPart, init_or_sf)
-!===================================================================================================================================
-! Initialization/particle generation of polyatomic molecules with the acceptance-rejection method (extremely slow for molecules with
-! more than 3 atoms due to low acceptance probability, only for comparison with Metropolis-Hastings)
-!===================================================================================================================================
-! MODULES
-  USE MOD_Globals
-  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
-  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
-  USE MOD_Particle_Vars,        ONLY : PEM, Species
-  USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  INTEGER, INTENT(IN)           :: iSpec, iInit, iPart, init_or_sf
-  REAL, ALLOCATABLE             :: iRan(:), tempEng(:)
-  REAL                          :: iRan2, NormProb
-  INTEGER,ALLOCATABLE           :: iQuant(:)
-  INTEGER                       :: iDOF,iPolyatMole
-  REAL                          :: TVib                       ! vibrational temperature
-  REAL                          :: TRot                       ! rotational temperature
-!===================================================================================================================================
-
-  SELECT CASE (init_or_sf)
-    CASE(1) !iInit
-      IF (Species(iSpec)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
-        TVib=SpecDSMC(iSpec)%Init(iInit)%TVib
-      ELSE
-        TVib=Species(iSpec)%Init(iInit)%ElemTVib(PEM%Element(iPart))
-      END IF
-      IF (Species(iSpec)%Init(iInit)%ElemTRotFileID.EQ.0) THEN
-        TRot=SpecDSMC(iSpec)%Init(iInit)%TRot
-      ELSE
-        TRot=Species(iSpec)%Init(iInit)%ElemTRot(PEM%Element(iPart))
-      END IF
-    CASE(2) !SurfaceFlux
-      TVib=SpecDSMC(iSpec)%SurfaceFlux(iInit)%TVib
-      TRot=SpecDSMC(iSpec)%SurfaceFlux(iInit)%TRot
-    CASE DEFAULT
-      CALL abort(&
-      __STAMP__&
-      ,'Neither iInit nor SurfaceFlux defined as reference!')
-  END SELECT
-
-  IF (DSMC%ElectronicModel) THEN
-    CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
-  ENDIF
-
-! Set vibrational energy of new molecule
-  IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
-    iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-    IF(ALLOCATED(VibQuantsPar(iPart)%Quants)) DEALLOCATE(VibQuantsPar(iPart)%Quants)
-    ALLOCATE(VibQuantsPar(iPart)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-    ALLOCATE(iRan(PolyatomMolDSMC(iPolyatMole)%VibDOF) &
-            ,tempEng(PolyatomMolDSMC(iPolyatMole)%VibDOF) &
-            ,iQuant(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-    CALL RANDOM_NUMBER(iRan)
-    iQuant(:) = INT(iRan(:)*PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(:))
-    tempEng(:)=iQuant(:)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:)/TVib
-    NormProb = 1.0
-    DO iDOF = 1 , PolyatomMolDSMC(iPolyatMole)%VibDOF
-      NormProb = NormProb*EXP(-tempEng(iDOF))
-    END DO
-    CALL RANDOM_NUMBER(iRan2)
-    DO WHILE (iRan2.GE.NormProb)
-      CALL RANDOM_NUMBER(iRan)
-      iQuant(:) = INT(iRan(:)*PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(:))
-      tempEng(:)=iQuant(:)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:)/TVib
-      NormProb = 1.0
-      DO iDOF = 1 , PolyatomMolDSMC(iPolyatMole)%VibDOF
-        NormProb = NormProb*EXP(-tempEng(iDOF))
-      END DO
-      CALL RANDOM_NUMBER(iRan2)
-    END DO
-    PartStateIntEn( 1,iPart) = 0.0
-    VibQuantsPar(iPart)%Quants(:)=iQuant(:)
-    DO iDOF = 1 , PolyatomMolDSMC(iPolyatMole)%VibDOF
-      PartStateIntEn( 1,iPart)= PartStateIntEn( 1,iPart) &
-        +(iQuant(iDOF) + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
-    END DO
-! Set rotational energy of new molecule
-    IF (SpecDSMC(iSpec)%Xi_Rot.EQ.2) THEN
-      CALL RANDOM_NUMBER(iRan2)
-      PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan2)
-    ELSE IF (SpecDSMC(iSpec)%Xi_Rot.EQ.3) THEN
-      CALL RANDOM_NUMBER(iRan2)
-      PartStateIntEn( 2,iPart) = iRan2*10 !the distribution function has only non-negligible  values betwenn 0 and 10
-      NormProb = SQRT(PartStateIntEn( 2,iPart))*EXP(-PartStateIntEn( 2,iPart))/(SQRT(0.5)*EXP(-0.5))
-      CALL RANDOM_NUMBER(iRan2)
-      DO WHILE (iRan2.GE.NormProb)
-        CALL RANDOM_NUMBER(iRan2)
-        PartStateIntEn( 2,iPart) = iRan2*10 !the distribution function has only non-negligible  values betwenn 0 and 10
-        NormProb = SQRT(PartStateIntEn( 2,iPart))*EXP(-PartStateIntEn( 2,iPart))/(SQRT(0.5)*EXP(-0.5))
-        CALL RANDOM_NUMBER(iRan2)
-      END DO
-      PartStateIntEn( 2,iPart) = PartStateIntEn( 2,iPart)*BoltzmannConst*TRot
-    END IF
-    DEALLOCATE(iRan, tempEng, iQuant)
-  ELSE
-    PartStateIntEn( 1,iPart) = 0
-    PartStateIntEn( 2,iPart) = 0
-  END IF
+  DEALLOCATE(iRan, tempEng, iQuant)
+ELSE
+  PartStateIntEn( 1,iPart) = 0
+  PartStateIntEn( 2,iPart) = 0
+END IF
 
 END SUBROUTINE DSMC_SetInternalEnr_Poly_ARM
 
@@ -421,40 +381,33 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_MH_FirstPick(iSpec, iInit, iPart, init_or_sf
 ! Burn-in phase is included for each particle, can be utilized for setting the internal energy regardless of the previous state
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
-  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
-  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
-  USE MOD_Particle_Vars,        ONLY : PEM, Species
-  USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
+USE MOD_Globals               ,ONLY: Abort
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
+USE MOD_Particle_Vars         ,ONLY: PEM
+USE MOD_DSMC_ElectronicModel  ,ONLY: InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iSpec, iInit, iPart, init_or_sf
+INTEGER, INTENT(IN)           :: iSpec, iInit, iPart, init_or_sf
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL, ALLOCATABLE             :: iRan(:)
-  REAL                          :: iRan2, NormProb
-  INTEGER,ALLOCATABLE           :: iQuant(:), iQuant_old(:)
-  INTEGER                       :: iDOF,iPolyatMole, iWalk
-  REAL                          :: TVib                       ! vibrational temperature
-  REAL                          :: TRot                       ! rotational temperature
+REAL, ALLOCATABLE             :: iRan(:)
+REAL                          :: iRan2, NormProb
+INTEGER,ALLOCATABLE           :: iQuant(:), iQuant_old(:)
+INTEGER                       :: iDOF,iPolyatMole, iWalk
+REAL                          :: TVib                       ! vibrational temperature
+REAL                          :: TRot                       ! rotational temperature
+INTEGER                       :: ElemID
 !===================================================================================================================================
-
+ElemID = PEM%LocalElemID(iPart)
   SELECT CASE (init_or_sf)
     CASE(1) !iInit
-      IF (Species(iSpec)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
-        TVib=SpecDSMC(iSpec)%Init(iInit)%TVib
-      ELSE
-        TVib=Species(iSpec)%Init(iInit)%ElemTVib(PEM%Element(iPart))
-      END IF
-      IF (Species(iSpec)%Init(iInit)%ElemTRotFileID.EQ.0) THEN
-        TRot=SpecDSMC(iSpec)%Init(iInit)%TRot
-      ELSE
-        TRot=Species(iSpec)%Init(iInit)%ElemTRot(PEM%Element(iPart))
-      END IF
+      TVib=SpecDSMC(iSpec)%Init(iInit)%TVib
+      TRot=SpecDSMC(iSpec)%Init(iInit)%TRot
     CASE(2) !SurfaceFlux
       TVib=SpecDSMC(iSpec)%SurfaceFlux(iInit)%TVib
       TRot=SpecDSMC(iSpec)%SurfaceFlux(iInit)%TRot
@@ -464,7 +417,7 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_MH_FirstPick(iSpec, iInit, iPart, init_or_sf
       ,'Neither iInit nor SurfaceFlux defined as reference!')
   END SELECT
 
-  IF (DSMC%ElectronicModel) THEN
+  IF (DSMC%ElectronicModel.GT.0) THEN
     CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
   ENDIF
 
@@ -532,107 +485,100 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_MH(iSpec, iInitTmp, iPart, init_or_sf)
 ! Burn-in phase is NOT included, utilizes LastVibQuantNums as first initial value of the Markov chain
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
-  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
-  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
-  USE MOD_Particle_Vars,        ONLY : Species, PEM
-  USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
+USE MOD_Globals               ,ONLY: Abort
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
+USE MOD_Particle_Vars         ,ONLY: Species, PEM
+USE MOD_DSMC_ElectronicModel  ,ONLY: InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iSpec, iInitTmp, iPart, init_or_sf
+INTEGER, INTENT(IN)           :: iSpec, iInitTmp, iPart, init_or_sf
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL, ALLOCATABLE            :: iRan(:)
-  REAL                          :: iRan2, NormProb
-  INTEGER,ALLOCATABLE          :: iQuant_old(:)
-  INTEGER                       :: iDOF,iPolyatMole, iWalk, iInit
-  REAL                          :: TVib                       ! vibrational temperature
-  REAL                          :: TRot                       ! rotational temperature
+REAL, ALLOCATABLE             :: iRan(:)
+REAL                          :: iRan2, NormProb
+INTEGER,ALLOCATABLE           :: iQuant_old(:)
+INTEGER                       :: iDOF,iPolyatMole, iWalk, iInit
+REAL                          :: TVib                       ! vibrational temperature
+REAL                          :: TRot                       ! rotational temperature
+INTEGER                       :: ElemID
 !===================================================================================================================================
+ElemID = PEM%LocalElemID(iPart)
+SELECT CASE (init_or_sf)
+  CASE(1) !iInit
+    TVib=SpecDSMC(iSpec)%Init(iInitTmp)%TVib
+    TRot=SpecDSMC(iSpec)%Init(iInitTmp)%TRot
+  CASE(2) !SurfaceFlux
+    TVib=SpecDSMC(iSpec)%SurfaceFlux(iInitTmp)%TVib
+    TRot=SpecDSMC(iSpec)%SurfaceFlux(iInitTmp)%TRot
+    iInit = iInitTmp + Species(iSpec)%NumberOfInits
+  CASE DEFAULT
+    CALL abort(&
+    __STAMP__&
+    ,'Neither iInit nor SurfaceFlux defined as reference!')
+END SELECT
 
-  SELECT CASE (init_or_sf)
-    CASE(1) !iInit
-      IF (Species(iSpec)%Init(iInitTmp)%ElemTVibFileID.EQ.0) THEN
-        TVib=SpecDSMC(iSpec)%Init(iInitTmp)%TVib
-      ELSE
-        TVib=Species(iSpec)%Init(iInitTmp)%ElemTVib(PEM%Element(iPart))
-      END IF
-      IF (Species(iSpec)%Init(iInitTmp)%ElemTRotFileID.EQ.0) THEN
-        TRot=SpecDSMC(iSpec)%Init(iInitTmp)%TRot
-      ELSE
-        TRot=Species(iSpec)%Init(iInitTmp)%ElemTRot(PEM%Element(iPart))
-      END IF
-    CASE(2) !SurfaceFlux
-      TVib=SpecDSMC(iSpec)%SurfaceFlux(iInitTmp)%TVib
-      TRot=SpecDSMC(iSpec)%SurfaceFlux(iInitTmp)%TRot
-      iInit = iInitTmp + Species(iSpec)%NumberOfInits
-    CASE DEFAULT
-      CALL abort(&
-      __STAMP__&
-      ,'Neither iInit nor SurfaceFlux defined as reference!')
-  END SELECT
+IF (DSMC%ElectronicModel.GT.0) THEN
+  CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
+ENDIF
 
-  IF (DSMC%ElectronicModel) THEN
-    CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
-  ENDIF
-
-  IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
-    iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-    ALLOCATE(iRan(PolyatomMolDSMC(iPolyatMole)%VibDOF) &
-            ,iQuant_old(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-    IF(ALLOCATED(VibQuantsPar(iPart)%Quants)) DEALLOCATE(VibQuantsPar(iPart)%Quants)
-    ALLOCATE(VibQuantsPar(iPart)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
+  iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+  ALLOCATE(iRan(PolyatomMolDSMC(iPolyatMole)%VibDOF) &
+          ,iQuant_old(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+  IF(ALLOCATED(VibQuantsPar(iPart)%Quants)) DEALLOCATE(VibQuantsPar(iPart)%Quants)
+  ALLOCATE(VibQuantsPar(iPart)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
 ! Set vibrational energy
-    DO iWalk = 1, 150
-      iQuant_old(:)=PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(:, iInit)
-      CALL RANDOM_NUMBER(iRan)
-      PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(:, iInit) = iQuant_old(:)+FLOOR(3*iRan(:)-1)
-      NormProb = 0.0
-      DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-        IF(PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(iDOF, iInit).LT.0) THEN
-            PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(iDOF, iInit) = &
-              -1*PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(iDOF, iInit) -1
-        END IF
-        NormProb = NormProb + (iQuant_old(iDOF) &
-          -PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(iDOF, iInit))*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / TVib
-      END DO
-      NormProb = MIN(1.0,EXP(NormProb))
-      CALL RANDOM_NUMBER(iRan2)
-      IF (NormProb.LT.iRan2) PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(:, iInit)=iQuant_old(:)
+  DO iWalk = 1, 150
+    iQuant_old(:)=PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(:, iInit)
+    CALL RANDOM_NUMBER(iRan)
+    PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(:, iInit) = iQuant_old(:)+FLOOR(3*iRan(:)-1)
+    NormProb = 0.0
+    DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+      IF(PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(iDOF, iInit).LT.0) THEN
+          PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(iDOF, iInit) = &
+            -1*PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(iDOF, iInit) -1
+      END IF
+      NormProb = NormProb + (iQuant_old(iDOF) &
+        -PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(iDOF, iInit))*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / TVib
     END DO
-    PartStateIntEn( 1,iPart) = 0.0
-    DO iDOF = 1 , PolyatomMolDSMC(iPolyatMole)%VibDOF
-      PartStateIntEn( 1,iPart)= PartStateIntEn( 1,iPart) &
-        +(PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(iDOF, iInit) &
-        + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
-    END DO
-    VibQuantsPar(iPart)%Quants(:)=PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(:, iInit)
-    DEALLOCATE(iRan, iQuant_old)
+    NormProb = MIN(1.0,EXP(NormProb))
+    CALL RANDOM_NUMBER(iRan2)
+    IF (NormProb.LT.iRan2) PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(:, iInit)=iQuant_old(:)
+  END DO
+  PartStateIntEn( 1,iPart) = 0.0
+  DO iDOF = 1 , PolyatomMolDSMC(iPolyatMole)%VibDOF
+    PartStateIntEn( 1,iPart)= PartStateIntEn( 1,iPart) &
+      +(PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(iDOF, iInit) &
+      + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
+  END DO
+  VibQuantsPar(iPart)%Quants(:)=PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(:, iInit)
+  DEALLOCATE(iRan, iQuant_old)
 ! Set rotational energy
-    IF (SpecDSMC(iSpec)%Xi_Rot.EQ.2) THEN
-      CALL RANDOM_NUMBER(iRan2)
-      PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan2)
-    ELSE IF (SpecDSMC(iSpec)%Xi_Rot.EQ.3) THEN
+  IF (SpecDSMC(iSpec)%Xi_Rot.EQ.2) THEN
+    CALL RANDOM_NUMBER(iRan2)
+    PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan2)
+  ELSE IF (SpecDSMC(iSpec)%Xi_Rot.EQ.3) THEN
+    CALL RANDOM_NUMBER(iRan2)
+    PartStateIntEn( 2,iPart) = iRan2*10 !the distribution function has only non-negligible  values betwenn 0 and 10
+    NormProb = SQRT(PartStateIntEn( 2,iPart))*EXP(-PartStateIntEn( 2,iPart))/(SQRT(0.5)*EXP(-0.5))
+    CALL RANDOM_NUMBER(iRan2)
+    DO WHILE (iRan2.GE.NormProb)
       CALL RANDOM_NUMBER(iRan2)
       PartStateIntEn( 2,iPart) = iRan2*10 !the distribution function has only non-negligible  values betwenn 0 and 10
       NormProb = SQRT(PartStateIntEn( 2,iPart))*EXP(-PartStateIntEn( 2,iPart))/(SQRT(0.5)*EXP(-0.5))
       CALL RANDOM_NUMBER(iRan2)
-      DO WHILE (iRan2.GE.NormProb)
-        CALL RANDOM_NUMBER(iRan2)
-        PartStateIntEn( 2,iPart) = iRan2*10 !the distribution function has only non-negligible  values betwenn 0 and 10
-        NormProb = SQRT(PartStateIntEn( 2,iPart))*EXP(-PartStateIntEn( 2,iPart))/(SQRT(0.5)*EXP(-0.5))
-        CALL RANDOM_NUMBER(iRan2)
-      END DO
-      PartStateIntEn( 2,iPart) = PartStateIntEn( 2,iPart)*BoltzmannConst*TRot
-    END IF
-  ELSE
-    PartStateIntEn( 1,iPart) = 0
-    PartStateIntEn( 2,iPart) = 0
+    END DO
+    PartStateIntEn( 2,iPart) = PartStateIntEn( 2,iPart)*BoltzmannConst*TRot
   END IF
+ELSE
+  PartStateIntEn( 1,iPart) = 0
+  PartStateIntEn( 2,iPart) = 0
+END IF
 
 END SUBROUTINE DSMC_SetInternalEnr_Poly_MH
 
@@ -1035,38 +981,5 @@ SUBROUTINE DSMC_RotRelaxPoly(iPair, iPart,FakXi)
 
 END SUBROUTINE DSMC_RotRelaxPoly
 
-
-REAL FUNCTION Calc_Beta_Poly(iReac,Xi_Total)
-!===================================================================================================================================
-! Calculates the Beta coefficient for polyatomic reactions
-!===================================================================================================================================
-! MODULES
-  USE MOD_Globals
-  USE MOD_DSMC_Vars,            ONLY : ChemReac, CollInf
-  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  INTEGER, INTENT(IN)            ::      iReac
-  REAL, INTENT(IN)                ::     Xi_Total
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-
-  IF((ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 &
-  + CollInf%omega(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1)) + Xi_Total/2.).GT.0.0) THEN
-    Calc_Beta_Poly = ChemReac%Arrhenius_Prefactor(iReac)                                                                        &
-      * (BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) &
-      - CollInf%omega(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1))))   &
-      * GAMMA(Xi_Total/2.) / (ChemReac%Hab(iReac) * GAMMA(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5           &
-      + CollInf%omega(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1)) + Xi_Total/2.))
-  ELSE
-    Calc_Beta_Poly = 0.0
-  END IF
-
-END FUNCTION Calc_Beta_Poly
 
 END MODULE MOD_DSMC_PolyAtomicModel

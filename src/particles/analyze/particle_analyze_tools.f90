@@ -40,14 +40,15 @@ PUBLIC :: CalcNumPartsOfSpec
 
 CONTAINS
 
-PURE FUNCTION CalcEkinPart(iPart)
+
+PURE REAL FUNCTION CalcEkinPart(iPart)
 !===================================================================================================================================
 ! computes the kinetic energy of one particle
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Equation_Vars ,ONLY: c2, c2_inv
+USE MOD_Globals_Vars  ,ONLY: c2, c2_inv
 USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species
 USE MOD_PARTICLE_Vars ,ONLY: usevMPF
 USE MOD_Particle_Vars ,ONLY: PartLorentzType
@@ -60,7 +61,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 INTEGER,INTENT(IN)                 :: iPart
-REAL                               :: CalcEkinPart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                               :: partV2, gamma1, WeightingFactor
@@ -83,21 +83,26 @@ ELSE
     CalcEkinPart= 0.5 * Species(PartSpecies(iPart))%MassIC * partV2 * WeightingFactor
   ELSE
     gamma1=partV2*c2_inv
-    gamma1=1.0/SQRT(1.-gamma1)
-    CalcEkinPart=(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2 * WeightingFactor
+    ! Sanity check: Lorentz factor must be below 1.0
+    IF(gamma1.GE.1.0)THEN
+      CalcEkinPart=-1.0
+    ELSE
+      gamma1=1.0/SQRT(1.-gamma1)
+      CalcEkinPart=(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2 * WeightingFactor
+    END IF ! gamma1.GE.1.0
   END IF ! ipartV2
 END IF
 END FUNCTION CalcEkinPart
 
 
-PURE FUNCTION CalcEkinPart2(velocity,Species_IN,WeightingFactor)
+PURE REAL FUNCTION CalcEkinPart2(velocity,Species_IN,WeightingFactor)
 !===================================================================================================================================
 ! computes the kinetic energy of one particle given its velocity, species and weighting factor
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Equation_Vars ,ONLY: c2,c2_inv
+USE MOD_Globals_Vars  ,ONLY: c2,c2_inv
 USE MOD_Particle_Vars ,ONLY: Species
 USE MOD_Particle_Vars ,ONLY: PartLorentzType
 ! IMPLICIT VARIABLE HANDLING
@@ -109,7 +114,6 @@ INTEGER,INTENT(IN)              :: Species_IN
 REAL,INTENT(IN)                 :: WeightingFactor
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                            :: CalcEkinPart2
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                            :: partV2, gamma1
@@ -126,8 +130,13 @@ ELSE
     CalcEkinPart2= 0.5 * Species(Species_IN)%MassIC * partV2 * WeightingFactor
   ELSE
     gamma1=partV2*c2_inv
-    gamma1=1.0/SQRT(1.-gamma1)
-    CalcEkinPart2=(gamma1-1.0)*Species(Species_IN)%MassIC*c2 * WeightingFactor
+    ! Sanity check: Lorentz factor must be below 1.0
+    IF(gamma1.GE.1.0)THEN
+      CalcEkinPart2=-1.0
+    ELSE
+      gamma1=1.0/SQRT(1.-gamma1)
+      CalcEkinPart2=(gamma1-1.0)*Species(Species_IN)%MassIC*c2 * WeightingFactor
+    END IF ! gamma1.GE.1.0
   END IF ! ipartV2
 END IF
 END FUNCTION CalcEkinPart2
@@ -144,8 +153,8 @@ SUBROUTINE CalcNumPartsOfSpec(NumSpec,SimNumSpec,CalcNumSpec_IN,CalcSimNumSpec_I
 USE MOD_Globals
 USE MOD_Particle_Vars         ,ONLY: PDM,PartSpecies
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
-USE MOD_DSMC_Vars             ,ONLY: BGGas
-USE MOD_Particle_Vars         ,ONLY: nSpecies
+USE MOD_DSMC_Vars             ,ONLY: BGGas, DSMC
+USE MOD_Particle_Vars         ,ONLY: nSpecies, Species
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 #if USE_MPI
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
@@ -182,6 +191,18 @@ IF(BGGas%NumberOfSpecies.GT.0) THEN
     END IF
   END DO
 END IF
+IF (DSMC%DoAmbipolarDiff) THEN
+  NumSpec(DSMC%AmbiDiffElecSpec) = 0.0
+  SimNumSpec(DSMC%AmbiDiffElecSpec) = 0.0
+  DO iSpec = 1, nSpecies
+    IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+    IF(Species(iSpec)%ChargeIC.GT.0.0) THEN
+      NumSpec(DSMC%AmbiDiffElecSpec) = NumSpec(DSMC%AmbiDiffElecSpec) + NumSpec(iSpec)
+      SimNumSpec(DSMC%AmbiDiffElecSpec) = SimNumSpec(DSMC%AmbiDiffElecSpec) + SimNumSpec(iSpec)
+    END IF
+  END DO
+END IF
+
 IF(nSpecAnalyze.GT.1)THEN
   NumSpec(nSpecAnalyze)    = SUM(NumSpec(1:nSpecies))
   SimNumSpec(nSpecAnalyze) = SUM(SimNumSpec(1:nSpecies))

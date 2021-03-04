@@ -12,7 +12,8 @@
 !==================================================================================================================================
 MODULE MOD_PreProc
 !===================================================================================================================================
-! Add comments please!
+! Use this module in other modules without the 'ONLY' directive, because when one of the following variables is compiled as an 
+! integer or real, then no variable is declared.
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING

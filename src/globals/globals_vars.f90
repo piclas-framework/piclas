@@ -22,8 +22,8 @@ IMPLICIT NONE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=6),PARAMETER :: ProgramName  = 'PICLas'              !> name of this program
-INTEGER,PARAMETER          :: MajorVersion = 1                     !> FileVersion number saved in each hdf5 file with hdf5 header
-INTEGER,PARAMETER          :: MinorVersion = 9                     !> FileVersion number saved in each hdf5 file with hdf5 header
+INTEGER,PARAMETER          :: MajorVersion = 2                     !> FileVersion number saved in each hdf5 file with hdf5 header
+INTEGER,PARAMETER          :: MinorVersion = 0                     !> FileVersion number saved in each hdf5 file with hdf5 header
 INTEGER,PARAMETER          :: PatchVersion = 0                     !> FileVersion number saved in each hdf5 file with hdf5 header
 REAL,PARAMETER             :: FileVersion  = REAL(MajorVersion,8)+REAL(MinorVersion,8)/10.+REAL(PatchVersion,8)/100. !> FileVersion 
                                                                    !> number saved in each hdf5 file with hdf5 header
@@ -38,19 +38,42 @@ REAL                       :: SimulationEfficiency                 !> relates th
                                                                    !> CALCULATION in [s]/[CPUh])
 REAL                       :: PID                                  !> Performance index: (CalcTimeEnd-CalcTimeStart)*nProcessors/
                                                                    !> (nGlobalElems*(PP_N+1)**3*iter_loc)
-REAL                       :: PI                                   !> the number pi ~= 3.14
-REAL                       :: sPI                                  !> inverse of pi
-REAL                       :: epsMach,TwoepsMach                   !> TODO-DEFINE-PARAMETER
-REAL,PARAMETER             :: EuMas          = 0.577215664901533_8 !> Euler-Mascheroni constant
-REAL,PARAMETER             :: PlanckConst    = 6.62606957E-34      !> Planck constant [J s] SI-Unit!
-REAL,PARAMETER             :: ElementaryCharge = 1.602176634e-19   !> redefinition of SI base units in 2018-2019,
-                                                                   !> => negative charge of an electron, joule to eV, ...
-REAL,PARAMETER             :: ElectronMass   = 9.1093826E-31       !> mass of an electron
-CHARACTER(LEN=255)         :: ProjectName                          !> TODO-DEFINE-PARAMETER
-CHARACTER(LEN=255)         :: ParameterFile                        !> filename of the parameter file
-CHARACTER(LEN=255)         :: ParameterDSMCFile                    !> filename of the parameterDSMC file
-REAL, PARAMETER            :: BoltzmannConst=1.380648813E-23       !> Boltzmann constant [J/K] SI-Unit! in m^2/(s^2*K)
-CHARACTER(LEN=5)           :: TimeStampLenStr,TimeStampLenStr2     !> Strings for timestamp format of time
+REAL,PARAMETER             :: PI=ACOS(-1.0)                         !> the number pi ~= 3.14
+REAL,PARAMETER             :: sPI=1.0/PI                            !> inverse of pi
+REAL,PARAMETER             :: epsMach=EPSILON(0.0)                  !> Machine accuracy
+REAL,PARAMETER             :: TwoepsMach=2.0d0*epsMach              !> twice the machine accuracy
+REAL,PARAMETER             :: EuMas          = 0.577215664901533_8  !> Euler-Mascheroni constant
+REAL,PARAMETER             :: PlanckConst    = 6.62606957e-34       !> Planck constant [J s] SI-Unit!
+REAL,PARAMETER             :: ElementaryCharge = 1.602176634e-19    !> redefinition of SI base units in 2018-2019,
+                                                                    !> => negative charge of an electron, joule to eV, ...
+REAL,PARAMETER             :: StefanBoltzmannConst = 5.670374419E-8
+REAL,PARAMETER             :: ElectronMass   = 9.1093826e-31        !> mass of an electron
+CHARACTER(LEN=255)         :: ProjectName                           !> TODO-DEFINE-PARAMETER
+CHARACTER(LEN=255)         :: ParameterFile                         !> filename of the parameter file
+CHARACTER(LEN=255)         :: ParameterDSMCFile                     !> filename of the parameterDSMC file
+REAL, PARAMETER            :: BoltzmannConst=1.380648813e-23        !> Boltzmann constant [J/K] SI-Unit! in m^2/(s^2*K)
+CHARACTER(LEN=5)           :: TimeStampLenStr,TimeStampLenStr2      !> Strings for timestamp format of time
+
+REAL,PARAMETER             :: maxEXP= LOG(HUGE(maxexp))
+! Set variables (natural constants and derived quantities) from user input or hard coded 
+! depending on compile flag (PICLAS_READIN_CONSTANTS=ON)
+#if USE_READIN_CONSTANTS
+REAL           :: eps0                        !> permittivity eps0
+REAL           :: mu0                         !> permeability mu0
+REAL           :: smu0                        !> 1/mu0
+REAL           :: c                           !> speed of light c
+REAL           :: c2                          !> c^2
+REAL           :: c2_inv                      !> 1/c^2
+REAL           :: c_inv                       !> 1/c
+#else
+REAL,PARAMETER :: eps0   = 8.8541878176e-12   !> permittivity eps0 of vacuum [F/m]
+REAL,PARAMETER :: mu0    = 1.2566370614e-6    !> permeability mu0 of vacuum [H/m]
+REAL,PARAMETER :: smu0   = 1/mu0              !> 1/mu0 = 7.9577471548222157e5 [m/H]
+REAL,PARAMETER :: c      = 299792458.0        !> speed of light c in vacuum [m/s]
+REAL,PARAMETER :: c2     = c**2               !> c^2   = 8.9875517873681764e16 [m^2/s^2]
+REAL,PARAMETER :: c2_inv = 1/c2               !> 1/c^2 = 1.1126500560536184e-17 [s^2/m^2]
+REAL,PARAMETER :: c_inv  = 1/c                !> 1/c   = 3.3356409519815204e-9 [s/m]
+#endif /*USE_READIN_CONSTANTS*/
 !===================================================================================================================================
 
 !CONTAINS

@@ -114,14 +114,12 @@ SUBROUTINE InitEquation()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Globals_Vars,ONLY:PI
+USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Mesh_Vars
 USE MOD_ReadInTools
-USE MOD_Basis,ONLY:PolynomialDerivativeMatrix
-USE MOD_Interpolation_Vars, ONLY: xGP
-!#ifdef PARTICLES
-USE MOD_Interpolation_Vars,ONLY:InterpolationInitIsDone
-!#endif
+USE MOD_Basis              ,ONLY: PolynomialDerivativeMatrix
+USE MOD_Interpolation_Vars ,ONLY: xGP
+USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
 USE MOD_Equation_Vars
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -131,7 +129,6 @@ USE MOD_Equation_Vars
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                             :: c_test
 #if USE_MPI
 #endif
 !===================================================================================================================================
@@ -152,23 +149,7 @@ fDamping           = GETREAL('fDamping','0.99')
 fDamping_pois      = GETREAL('fDamping_pois','0.99')
 DoParabolicDamping = GETLOGICAL('ParabolicDamping','.FALSE.')
 xDipole(1:3)       = GETREALARRAY('xDipole',3,'0.,0.,0.') ! dipole base point for CASE(4)
-c_test = 1./SQRT(eps0*mu0)
-IF ( ABS(c-c_test)/c.GT.10E-8) THEN
-  SWRITE(*,*) "ERROR: c does not equal 1/sqrt(eps*mu)!"
-  SWRITE(*,*) "c:", c
-  SWRITE(*,*) "mu:", mu0
-  SWRITE(*,*) "eps:", eps0
-  SWRITE(*,*) "1/sqrt(eps*mu):", c_test
-  CALL abort(&
-      __STAMP__&
-      ,' Speed of light coefficients does not match!')
-END IF
 
-c2     = c*c
-c_inv  = 1./c
-c2_inv = 1./c2
-
-c_corr2   = c_corr*c_corr
 c_corr_c  = c_corr*c
 c_corr_c2 = c_corr*c2
 eta_c     = (c_corr-1.)*c
@@ -246,10 +227,11 @@ SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Equation_Vars,ONLY:c,c2,eps0,xDipole
-USE MOD_Globals_Vars,ONLY:PI
+USE MOD_Globals_Vars  ,ONLY: c,c2,eps0
+USE MOD_Equation_Vars ,ONLY: xDipole
+USE MOD_Globals_Vars  ,ONLY: PI
 # if (PP_TimeDiscMethod==1)
-USE MOD_TimeDisc_vars,ONLY:dt
+USE MOD_TimeDisc_vars ,ONLY: dt
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -518,19 +500,19 @@ SUBROUTINE CalcSource(t,coeff,Ut)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,       ONLY : abort
+USE MOD_Globals       ,ONLY: abort
 USE MOD_PreProc
-USE MOD_Equation_Vars, ONLY : eps0,IniExactFunc,xDipole
+USE MOD_Globals_Vars  ,ONLY: eps0
+USE MOD_Equation_Vars ,ONLY: IniExactFunc,xDipole
 #ifdef PARTICLES
-USE MOD_Equation_Vars, ONLY : c_corr
-USE MOD_PICDepo_Vars,  ONLY : PartSource,DoDeposition
+USE MOD_Equation_Vars ,ONLY: c_corr
+USE MOD_PICDepo_Vars  ,ONLY: PartSource,DoDeposition
 #endif /*PARTICLES*/
-USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
-!USE MOD_PIC_Analyze,   ONLY : CalcDepositedCharge
+USE MOD_Mesh_Vars     ,ONLY: Elem_xGP
 #ifdef LSERK
-USE MOD_Equation_Vars, ONLY : DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars, ONLY : dt, sdtCFLOne!, RK_B, iStage
-USE MOD_DG_Vars,       ONLY : U
+USE MOD_Equation_Vars ,ONLY: DoParabolicDamping,fDamping
+USE MOD_TimeDisc_Vars ,ONLY: dt, sdtCFLOne
+USE MOD_DG_Vars       ,ONLY: U
 #endif /*LSERK*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -598,18 +580,18 @@ SUBROUTINE CalcSource_Pois(t)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,       ONLY : abort
+USE MOD_Globals       ,ONLY: abort
 USE MOD_PreProc
-USE MOD_Equation_Vars, ONLY : Phit,Phi
-USE MOD_DG_Vars,       ONLY: U
-USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc
+USE MOD_Equation_Vars ,ONLY: Phit,Phi
+USE MOD_DG_Vars       ,ONLY: U
+USE MOD_Globals_Vars  ,ONLY: eps0,c_corr
+USE MOD_Equation_Vars ,ONLY: IniExactFunc
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars,  ONLY : PartSource,DoDeposition
+USE MOD_PICDepo_Vars  ,ONLY: PartSource,DoDeposition
 #endif /*PARTICLES*/
-!USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
 #ifdef LSERK
-USE MOD_Equation_Vars, ONLY : DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars, ONLY : dt, sdtCFLOne!, RK_B, iStage
+USE MOD_Equation_Vars ,ONLY: DoParabolicDamping,fDamping
+USE MOD_TimeDisc_Vars ,ONLY: dt, sdtCFLOne
 #endif /*LSERK*/
 
 ! IMPLICIT VARIABLE HANDLING
@@ -892,10 +874,10 @@ SUBROUTINE FillFlux(Flux,doMPISides)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Equation_Vars,         ONLY: Phi_master,Phi_slave
-USE MOD_Mesh_Vars,       ONLY: NormVec,SurfElem
-USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE
-USE MOD_Riemann_Pois,         ONLY: Riemann_Pois
+USE MOD_Equation_Vars ,ONLY: Phi_master,Phi_slave
+USE MOD_Mesh_Vars     ,ONLY: NormVec,SurfElem
+USE MOD_Mesh_Vars     ,ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE
+USE MOD_Riemann_Pois  ,ONLY: Riemann_Pois
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

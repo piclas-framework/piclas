@@ -38,27 +38,31 @@ PUBLIC :: CreateParticle, RemoveParticle
 
 CONTAINS
 
-SUBROUTINE CreateParticle(Species,Pos,ElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,NewPartID)
+SUBROUTINE CreateParticle(SpecID,Pos,ElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,NewPartID)
 !===================================================================================================================================
 !> creates a single particle at correct array position and assign properties
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies,PartPosRef
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies,PartPosRef, VarTimeStep, usevMPF, PartMPF
+USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
+USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-INTEGER, INTENT(IN)           :: Species
-REAL, INTENT(IN)              :: Pos(1:3)
-INTEGER, INTENT(IN)           :: ElemID
-REAL, INTENT(IN)              :: Velocity(1:3)
-REAL, INTENT(IN)              :: RotEnergy
-REAL, INTENT(IN)              :: VibEnergy
-REAL, INTENT(IN)              :: ElecEnergy
-INTEGER, INTENT(OUT),OPTIONAL :: NewPartID
+INTEGER, INTENT(IN)           :: SpecID        !< Species ID
+REAL, INTENT(IN)              :: Pos(1:3)      !< Position (x,y,z)
+INTEGER, INTENT(IN)           :: ElemID        !< global element ID
+REAL, INTENT(IN)              :: Velocity(1:3) !< Velocity (vx,vy,vz)
+REAL, INTENT(IN)              :: RotEnergy     !< Rotational energy
+REAL, INTENT(IN)              :: VibEnergy     !< Vibrational energy
+REAL, INTENT(IN)              :: ElecEnergy    !< Electronic energy
+INTEGER, INTENT(OUT),OPTIONAL :: NewPartID     !< ID of newly created particle
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER :: newParticleID
@@ -73,7 +77,7 @@ IF(newParticleID.GT.PDM%MaxParticleNumber)THEN
       ,'CreateParticle: newParticleID.GT.PDM%MaxParticleNumber. newParticleID=',IntInfoOpt=newParticleID)
 END IF
 
-PartSpecies(newParticleID)     = Species
+PartSpecies(newParticleID)     = SpecID
 LastPartPos(1:3,newParticleID) = Pos(1:3)
 PartState(1:3,newParticleID)   = Pos(1:3)
 PartState(4:6,newParticleID)   = Velocity(1:3)
@@ -86,25 +90,34 @@ END IF ! TrackingMethod.EQ.REFMAPPING
 IF (useDSMC.AND.(CollisMode.GT.1)) THEN
   PartStateIntEn(1,newParticleID) = VibEnergy
   PartStateIntEn(2,newParticleID) = RotEnergy
-  IF (DSMC%ElectronicModel) THEN
+  IF (DSMC%ElectronicModel.GT.0) THEN
     PartStateIntEn(3,newParticleID) = ElecEnergy
   ENDIF
+  IF (DSMC%DoAmbipolarDiff) THEN
+    newAmbiParts = newAmbiParts + 1
+    iPartIndx_NodeNewAmbi(newAmbiParts) = newParticleID
+  END IF
 END IF
 
-PDM%ParticleInside(newParticleID) = .TRUE.
-PDM%dtFracPush(newParticleID)     = .FALSE.
-PDM%IsNewPart(newParticleID)      = .TRUE.
-PEM%Element(newParticleID)        = ElemID
-PEM%lastElement(newParticleID)    = ElemID
+PDM%ParticleInside(newParticleID)   = .TRUE.
+PDM%dtFracPush(newParticleID)       = .FALSE.
+PDM%IsNewPart(newParticleID)        = .TRUE.
+PEM%GlobalElemID(newParticleID)     = ElemID
+PEM%LastGlobalElemID(newParticleID) = ElemID
 
-! ?????? necessary?
-! IF (VarTimeStep%UseVariableTimeStep) THEN
-!   VarTimeStep%ParticleTimeStep(newParticleID) &
-!     = CalcVarTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%Element(newParticleID))
-! END IF
-! IF (RadialWeighting%DoRadialWeighting) THEN
-!   PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID), 1,newParticleID)
-! END IF
+! Set particle time step and weight (if required)
+IF (VarTimeStep%UseVariableTimeStep) THEN
+  VarTimeStep%ParticleTimeStep(newParticleID) = &
+    CalcVarTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%LocalElemID(newParticleID))
+END IF
+IF (usevMPF) THEN
+  IF (RadialWeighting%DoRadialWeighting) THEN
+    PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID),SpecID,newParticleID)
+  ELSE
+    PartMPF(newParticleID) = Species(SpecID)%MacroParticleFactor
+  END IF
+END IF
+
 IF (PRESENT(NewPartID)) NewPartID=newParticleID
 
 END SUBROUTINE CreateParticle
@@ -117,15 +130,18 @@ SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 !>  !!!NOTE!!! This routine is inside particle analyze because of circular definition of modules (CalcEkinPart)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, Species, UseAdaptive
-USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcMassflowRate
+USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, UseAdaptive, PartMPF, usevMPF
+USE MOD_Particle_Vars             ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance
+USE MOD_Particle_Analyze_Vars     ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcMassflowRate
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput,BPO
 #if defined(IMPA)
-USE MOD_Particle_Vars           ,ONLY: PartIsImplicit
-USE MOD_Particle_Vars           ,ONLY: DoPartInNewton
+USE MOD_Particle_Vars             ,ONLY: PartIsImplicit
+USE MOD_Particle_Vars             ,ONLY: DoPartInNewton
 #endif /*IMPA*/
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
-USE MOD_part_tools              ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars               ,ONLY: CollInf
+USE MOD_Particle_Analyze_Tools    ,ONLY: CalcEkinPart
+USE MOD_part_tools                ,ONLY: GetParticleWeight
+USE MOD_DSMC_Vars                 ,ONLY: CollInf
+USE MOD_Mesh_Vars                 ,ONLY: BoundaryName
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -136,6 +152,7 @@ LOGICAL, INTENT(OUT),OPTIONAL :: crossedBC               !< optional flag is nee
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec, iSF
+REAL                          :: MPF
 !===================================================================================================================================
 
 PDM%ParticleInside(PartID) = .FALSE.
@@ -152,7 +169,7 @@ IF(CalcPartBalance) THEN
 END IF ! CalcPartBalance
 
 ! If a BCID is given (e.g. when a particle is removed at a boundary), check if its an adaptive surface flux BC or the mass flow
-! through the boundary shall be calculated
+! through the boundary shall be calculated or the charges impinging on the boundary are to be summed (thruster neutralization)
 IF(PRESENT(BCID)) THEN
   IF(UseAdaptive.OR.CalcMassflowRate) THEN
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
@@ -164,6 +181,25 @@ IF(PRESENT(BCID)) THEN
       END IF
     END DO
   END IF ! UseAdaptive.OR.CalcMassflowRate
+  IF(UseNeutralization)THEN
+    IF(TRIM(BoundaryName(BCID)).EQ.TRIM(NeutralizationSource))THEN
+      ! Add +1 for electrons and -1 for ions
+      NeutralizationBalance = NeutralizationBalance - INT(SIGN(1.0, Species(iSpec)%ChargeIC))
+    END IF
+  END IF ! UseNeutralization
+  IF(CalcBoundaryParticleOutput)THEN
+    IF(usevMPF)THEN
+      MPF = PartMPF(PartID)
+    ELSE
+      MPF = Species(iSpec)%MacroParticleFactor
+    END IF
+    ASSOCIATE( iBPOBC   => BPO%BCIDToBPOBCID(BCID),&
+               iBPOSpec => BPO%SpecIDToBPOSpecID(iSpec))
+      IF(iBPOBC.GT.0.AND.iBPOSpec.GT.0)THEN! count this species on this BC
+        BPO%RealPartOut(iBPOBC,iBPOSpec) = BPO%RealPartOut(iBPOBC,iBPOSpec) + MPF
+      END IF ! iBPOBC.GT.0.AND.iBPOSpec.GT.0
+    END ASSOCIATE
+  END IF ! CalcBoundaryParticleOutput
 END IF ! PRESENT(BCID)
 
 ! Tracking-relevant variables (not required if a particle is removed within the domain, e.g. removal due to radial weighting)

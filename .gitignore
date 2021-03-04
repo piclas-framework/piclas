@@ -20,6 +20,7 @@ CMakeFiles/
 regressioncheck/reggie/*
 tmp*/
 output_dir_gitlab_tool/
+output_dir/
 .tags
 userguide.pdf
 developerguide.pdf
@@ -31,3 +32,4 @@ userblock.tmp
 *f90.orig
 commit.h
 .createCylinderHOPR.json
+*.h5

@@ -32,23 +32,27 @@ CONTAINS
 !===================================================================================================================================
 SUBROUTINE InitializePiclas()
 ! MODULES
-USE MOD_Globals_vars           ,ONLY: InitializationWallTime,MajorVersion,MinorVersion,PatchVersion
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: ParameterFile,ParameterDSMCFile
+USE MOD_Globals_Vars           ,ONLY: InitializationWallTime,MajorVersion,MinorVersion,PatchVersion
 USE MOD_Commandline_Arguments
+USE MOD_Globals                ,ONLY: iError,Logging,MPIroot,StartTime,UNIT_stdOut,PiclasTime,doPrintHelp,abort
+USE MOD_Globals                ,ONLY: SetStackSizeUnlimited,CollectiveStop,ReOpenLogFile
+USE MOD_Globals_Init           ,ONLY: InitGlobals
+USE MOD_Globals_Vars           ,ONLY: ParameterFile,ParameterDSMCFile,InitializationWallTime
 USE MOD_ReadInTools            ,ONLY: prms,PrintDefaultparameterFile,ExtractparameterFile
 USE MOD_Piclas_Init            ,ONLY: InitPiclas
 USE MOD_Restart_Vars           ,ONLY: RestartFile
 USE MOD_Restart                ,ONLY: Restart
 USE MOD_Interpolation          ,ONLY: InitInterpolation
 USE MOD_IO_HDF5                ,ONLY: InitIOHDF5
-USE MOD_TimeDisc               ,ONLY: InitTime,InitTimeDisc
+USE MOD_TimeDiscInit           ,ONLY: InitTime,InitTimeDisc
 USE MOD_MPI                    ,ONLY: InitMPI
 USE MOD_Mesh_Vars              ,ONLY: DoSwapMesh
 USE MOD_Mesh                   ,ONLY: SwapMesh
 #if USE_MPI
+USE MOD_MPI_Shared!            ,ONLY: InitMPIShared
 USE MOD_LoadBalance            ,ONLY: InitLoadBalance
-USE MOD_MPI                    ,ONLY: FinalizeMPI
 #endif /*USE_MPI*/
 USE MOD_Output                 ,ONLY: InitOutput
 USE MOD_Define_Parameters_Init ,ONLY: InitDefineParameters
@@ -159,6 +163,7 @@ CALL InitIOHDF5()
 CALL InitGlobals()
 #if USE_MPI
 CALL InitLoadBalance()
+CALL InitMPIShared()
 #endif /*USE_MPI*/
 ! call init routines
 ! Measure init duration

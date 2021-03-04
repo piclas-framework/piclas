@@ -197,7 +197,7 @@ iCounter=5
 ALLOCATE(DoPowerDensity(1:nSpecies))
 DoPowerDensity=.FALSE.
 nSpecPowerDensity=0
-IF(DoDeposition .AND. .NOT.RelaxDeposition)THEN ! compute powerdensity only if particles are deposited and not relaxed
+IF(DoDeposition.AND.(.NOT.RelaxDeposition))THEN ! compute powerdensity only if particles are deposited and not relaxed
   DO iSpec=1,nSpecies
     IF(ANY(CalcAvg(iCounter+1:iCounter+5))) THEN
       DoPowerDensity(iSpec)=.TRUE.
@@ -287,9 +287,9 @@ FUNCTION GETMAPBYNAME(VarName,VarNameList,nVarList)
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)             :: nVarList                !< length of list
 CHARACTER(LEN=*),INTENT(IN)    :: VarName                 !< string to be compared
 CHARACTER(LEN=*),INTENT(IN)    :: VarNameList(nVarList)   !< list of strings to be searched
-INTEGER,INTENT(IN)             :: nVarList                !< length of list
 INTEGER                        :: GETMAPBYNAME            !< index of VarName in VarNameList
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES

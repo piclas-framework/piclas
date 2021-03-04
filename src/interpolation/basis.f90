@@ -284,7 +284,7 @@ SUBROUTINE BuildBezierVdm(N_In,xi_In,Vdm_Bezier,sVdm_Bezier)
 ! MODULES
 USE MOD_Globals,                ONLY: abort
 USE MOD_PreProc
-USE MOD_Particle_Surfaces_Vars, ONLY: arrayNchooseK,FacNchooseK,BezierElevation,ElevationMatrix
+USE MOD_Particle_Surfaces_Vars, ONLY: FacNchooseK,BezierElevation,ElevationMatrix
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -299,20 +299,14 @@ REAL,INTENT(OUT)   :: Vdm_Bezier(0:N_In,0:N_In),sVdm_Bezier(0:N_In,0:N_In)
 INTEGER            :: i,j, errorflag,IPIV(1:N_in+1),jStart,jEnd
 REAL               :: dummy,eps
 REAL               :: dummy_vec(0:N_In)
+REAL               :: arrayNchooseK(0:N_In,0:N_In)
 !===================================================================================================================================
-! set NPartCurved to N_In (NGeo)
-!IF(NPartCurved.NE.N_In)THEN
-!  print*,"NPartCurved is not equal NGeo: Setting NPartCurved=NGeo=",N_In
-!  !NPartCurved = N_In !CHANGETAG creates problems with supersampled intersection calculation
-!END IF
 ! store the coefficients
-ALLOCATE(arrayNchooseK(0:N_In,0:N_In))
 ALLOCATE(FacNchooseK(0:N_In,0:N_In))
 FacNchooseK(:,:) = 0.
 
 ALLOCATE(ElevationMatrix(0:N_In+BezierElevation,0:N_In))
 ElevationMatrix(:,:) = 0.
-
 
 !Vandermonde on xi_In
 DO i=0,N_In
@@ -332,49 +326,25 @@ END DO !j
 ! 3.) build array with binomial coeffs (fractions) for elevation
 IF(N_In+BezierElevation.GE.171) CALL Abort(&
 __STAMP__&
-,'Bezier elevation to polynomial degrees greater/equal 171 is forbiddon! exit.',171,REAL(N_In+BezierElevation))
+,'Bezier elevation to polynomial degrees greater/equal 171 is forbidden! exit.',171,REAL(N_In+BezierElevation))
+
 ElevationMatrix(0,0) = 1.
 ElevationMatrix(N_In+BezierElevation,N_In) = 1.
-!print*,"BezierElevation",N_In,'+',BezierElevation
-!print*,0," eps= ",0.
+
 DO i=1,N_In+BezierElevation-1 ! from 0+1 to p_new-1 -> remove the edge points
   jStart = MAX(0,i-BezierElevation)
   jEnd   = MIN(N_In,i)
   DO j=jStart,jEnd
-    !ElevationMatrix(i,j)=REAL(CHOOSE(N_In,j))*REAL(CHOOSE(BezierElevation,i-j)) / REAL(CHOOSE(N_In+BezierElevation,i))
     ElevationMatrix(i,j)=CHOOSE_large(N_In,j)*CHOOSE_large(BezierElevation,i-j) / CHOOSE_large(N_In+BezierElevation,i)
   END DO
   eps=ABS(SUM(ElevationMatrix(i,:))-1.0)
-  !print*,i," eps= ",eps
-  !print*,"------- next ------"
   IF(eps>1e-12) CALL Abort(&
 __STAMP__&
 ,'The line of the elevation matrix does not sum to unity! 1-1=',0,eps)
 END DO
-!print*,N_In+BezierElevation," eps= ",0.
-!STOP
-! debug
- !print*,"BezierElevation",N_In,'+',BezierElevation
- !DO i=0,N_In+BezierElevation
-  !write(*,"(I8,10F10.4)") i,ElevationMatrix(i,:)
-  !write(*,"(I3)", ADVANCE = "NO")    i
-  !write(*,"(12F10.4)", ADVANCE = "NO") ElevationMatrix(i,:)
-  !write(*,"(F13.4)")                  SUM(ElevationMatrix(i,:))
- !END DO
- !STOP
 
-!print*,arrayNchooseK !CHANGETAG
-!Inverse of the Vandermonde
 dummy_vec=0.
-!print*,dummy_vec
-!print*,SIZE(sVdm_Bezier),SIZE(dummy_vec)
-!print*,"CALL gaussj(sVdm_Bezier,dummy_vec)"
-!CALL gaussj(sVdm_Bezier,dummy_vec)
-!CALL gaussj(Matrix,Vector)
 
-!DO i=0,N_In
-  !print*,Vdm_Bezier(i,:)
-!END DO
 ! Invert A: Caution!!! From now on A=A^(-1)
 sVdm_Bezier=Vdm_Bezier
 CALL DGETRF(N_In+1,N_In+1,sVdm_Bezier,N_In+1,IPIV,errorflag)
@@ -384,25 +354,9 @@ __STAMP__ &
 CALL DGETRI(N_In+1,sVdm_Bezier,N_In+1,IPIV,dummy_vec,N_In+1,errorflag)
 IF (errorflag .NE. 0) CALL Abort(&
 __STAMP__ &
-,'Solver crashed',999,999.)
-!print*,"Matrix inverted"
-!DO i=0,N_In
-  !print*,sVdm_Bezier(i,:)
-!END DO
-!Matrix=MATMUL(sVdm_Bezier,Vdm_Bezier)
-!print*,"A^-1*A"
-!DO i=0,N_In
-  !print*,Matrix(i,:)
-!END DO
-!print*,"(ABS(MATMUL(sVdm_Bezier,Vdm_Bezier))"
-!print*,ABS(MATMUL(sVdm_Bezier,Vdm_Bezier))
-!print*,"SUM: (ABS(MATMUL(sVdm_Bezier,Vdm_Bezier))"
-!print*,SUM(ABS(MATMUL(sVdm_Bezier,Vdm_Bezier)))
-!print*,"(N_In+1)"
-!print*,(N_In+1)
-!check (Vdm_Bezier)^(-1)*Vdm_Bezier := I
+,'Solver crashed, sorry for the inconvenience',999,999.)
 dummy=SUM(ABS(MATMUL(sVdm_Bezier,Vdm_Bezier)))-REAL(N_In+1)
-!print*,dummy,PP_RealTolerance
+
 IF(ABS(dummy).GT.1.E-13) CALL abort(&
 __STAMP__&
 ,'problems in Bezier Vandermonde: check (Vdm_Bezier)^(-1)*Vdm_Bezier := I has a value of',999,dummy)
@@ -1090,7 +1044,7 @@ END SUBROUTINE PolynomialDerivativeMatrix
 
 
 
-FUNCTION ALMOSTEQUAL_UNITY(x,y)
+PURE FUNCTION ALMOSTEQUAL_UNITY(x,y)
 !===================================================================================================================================
 ! Based on Algorithm 139, Kopriva
 ! Compares two real numbers
@@ -1170,22 +1124,13 @@ INTEGER(KIND=8)            :: CHOOSE
 IF((k.EQ.0).OR.(N_in.EQ.k))THEN
   CHOOSE = 1
 ELSE
-  !IF(NGeo+BezierElevation.GE.20)THEN
   IF(N_in.GE.21)THEN
-    ! genauer
-    !print*,"N_in.GE.21"
-    !CHOOSE = INT(CHOOSELARGE(N_in,k),8)
-    !PRINT*,CHOOSE
-    ! weniger genau
-    !CHOOSE = INT(FACTORIALLARGE(REAL(N_in)) / (FACTORIALLARGE(REAL(k)) * FACTORIALLARGE(REAL(N_in-k))),8)
+    ! Better for large N_in
     CHOOSE = INT(FACTORIAL_REAL(N_in) / (FACTORIAL_REAL(k) * FACTORIAL_REAL(N_in-k)))
   ELSE
-    !print*,"else"
     CHOOSE = FACTORIAL(N_in) / (FACTORIAL(k) * FACTORIAL(N_in-k))
   END IF
 END IF
-!IF(CHOOSE.LT.0) CALL abort(__STAMP__&
-  !'CHOOSE is negative. This is not allowed! ',999,REAL(CHOOSE))
 END FUNCTION CHOOSE
 
 
@@ -1209,22 +1154,13 @@ REAL(KIND=8)       :: CHOOSE_large
 IF((k.EQ.0).OR.(N_in.EQ.k))THEN
   CHOOSE_large = 1
 ELSE
-  !IF(NGeo+BezierElevation.GE.20)THEN
   IF(N_in.GE.21)THEN
-    ! genauer
-    !print*,"N_in.GE.21"
-    !CHOOSE_large = INT(CHOOSE_largeLARGE(N_in,k),8)
-    !PRINT*,CHOOSE_large
-    ! weniger genau
-    !CHOOSE_large = INT(FACTORIALLARGE(REAL(N_in)) / (FACTORIALLARGE(REAL(k)) * FACTORIALLARGE(REAL(N_in-k))),8)
+    ! Better for large N_in
     CHOOSE_large = FACTORIAL_REAL(N_in) / (FACTORIAL_REAL(k) * FACTORIAL_REAL(N_in-k))
   ELSE
-    !print*,"else"
     CHOOSE_large = FACTORIAL(N_in) / (FACTORIAL(k) * FACTORIAL(N_in-k))
   END IF
 END IF
-!IF(CHOOSE_large.LT.0) CALL abort(__STAMP__&
-  !'CHOOSE_large is negative. This is not allowed! ',999,REAL(CHOOSE_large))
 END FUNCTION CHOOSE_large
 
 
@@ -1328,7 +1264,7 @@ factorialLARGE = gamma(x + 1.0)
 END FUNCTION factorialLARGE
 
 
-SUBROUTINE LagrangeInterpolationPolys(x,N_in,xGP,wBary,L)
+PURE SUBROUTINE LagrangeInterpolationPolys(x,N_in,xGP,wBary,L)
 !============================================================================================================================
 ! Algorithm 34, Kopriva
 ! Computes all Lagrange functions evaluated at position x in [-1;1]

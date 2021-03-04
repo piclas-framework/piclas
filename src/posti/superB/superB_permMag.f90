@@ -990,7 +990,7 @@ USE MOD_SuperB_Vars         ,ONLY: PermanentMagnetInfo, MagnetFlag, DoCalcErrorN
 USE MOD_SuperB_Vars         ,ONLY: NumOfPermanentMagnets
 USE MOD_Mesh_Vars           ,ONLY: Metrics_fTilde, Metrics_gTilde, Metrics_hTilde, sJ
 USE MOD_Interpolation_Vars  ,ONLY: BGField, xGP, PsiMag
-USE MOD_Equation_Vars       ,ONLY: mu0
+USE MOD_Globals_Vars        ,ONLY: mu0
 USE MOD_SuperB_Tools        ,ONLY: CalcErrorSuperB
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

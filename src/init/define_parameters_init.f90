@@ -27,7 +27,8 @@ SUBROUTINE InitDefineParameters()
 ! Calls all parameter definition routines
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
-USE MOD_Globals
+USE MOD_Globals                    ,ONLY: UNIT_stdOut,MPIRoot
+USE MOD_Globals_Init               ,ONLY: DefineParametersGlobals
 USE MOD_ReadInTools                ,ONLY: prms
 USE MOD_MPI                        ,ONLY: DefineParametersMPI
 USE MOD_IO_HDF5                    ,ONLY: DefineParametersIO
@@ -40,15 +41,12 @@ USE MOD_LinearSolver               ,ONLY: DefineParametersLinearSolver
 USE MOD_LoadBalance                ,ONLY: DefineParametersLoadBalance
 USE MOD_Analyze                    ,ONLY: DefineParametersAnalyze
 USE MOD_RecordPoints               ,ONLY: DefineParametersRecordPoints
-USE MOD_TimeDisc                   ,ONLY: DefineParametersTimedisc
+USE MOD_TimeDiscInit               ,ONLY: DefineParametersTimeDisc
 USE MOD_Mesh                       ,ONLY: DefineParametersMesh
 USE MOD_Equation                   ,ONLY: DefineParametersEquation
 #if !(USE_HDG)
 USE MOD_PML                        ,ONLY: DefineParametersPML
 #endif /*USE_HDG*/
-#if USE_QDS_DG
-USE MOD_QDS                        ,ONLY: DefineParametersQDS
-#endif
 #ifdef MPI
 USE mod_readIMD                    ,ONLY: DefineParametersReadIMDdata
 #endif /* MPI */
@@ -56,24 +54,25 @@ USE mod_readIMD                    ,ONLY: DefineParametersReadIMDdata
 USE MOD_HDG                        ,ONLY: DefineParametersHDG
 #endif /*USE_HDG*/
 USE MOD_Dielectric                 ,ONLY: DefineParametersDielectric
-USE MOD_Filter                     ,ONLY: DefineParametersFilter
 USE MOD_Piclas_Init                ,ONLY: DefineParametersPiclas
 #ifdef PARTICLES
 USE MOD_ParticleInit               ,ONLY: DefineParametersParticles
-USE MOD_MacroBody_Init             ,ONLY: DefineParametersMacroBody
-USE MOD_Particle_Boundary_Sampling ,ONLY: DefineParametersParticlesBoundarySampling
-USE MOD_Particle_Mesh              ,ONLY: DefineParametersParticleMesh
+USE MOD_Particle_Emission_Init     ,ONLY: DefineParametersParticleEmission
+USE MOD_Particle_SurfFlux_Init     ,ONLY: DefineParametersParticleSurfaceFlux
+USE MOD_Particle_Boundary_Init     ,ONLY: DefineParametersParticleBoundary
+USE MOD_Particle_Boundary_Sampling ,ONLY: DefineParametersParticleBoundarySampling
+USE MOD_Particle_BGM               ,ONLY: DefineparametersParticleBGM
+USE MOD_Particle_Mesh              ,ONLY: DefineparametersParticleMesh
 USE MOD_Particle_Analyze           ,ONLY: DefineParametersParticleAnalyze
 USE MOD_TTMInit                    ,ONLY: DefineParametersTTM
 USE MOD_PICInit                    ,ONLY: DefineParametersPIC
-USE MOD_InitializeBackgroundField  ,ONLY: DefineParametersBGField
-USE MOD_Part_Emission              ,ONLY: DefineParametersParticleEmission
 USE MOD_DSMC_Init                  ,ONLY: DefineParametersDSMC
+USE MOD_DSMC_ChemInit              ,ONLY: DefineParametersChemistry
 USE MOD_SurfaceModel_Init          ,ONLY: DefineParametersSurfModel
 USE MOD_SurfaceModel_Analyze       ,ONLY: DefineParametersSurfModelAnalyze
 USE MOD_BGK_Init                   ,ONLY: DefineParametersBGK
 USE MOD_FPFlow_Init                ,ONLY: DefineParametersFPFlow
-USE MOD_Particle_Boundary_Porous   ,ONLY: DefineParametersPorousBC
+USE MOD_SurfaceModel_Porous        ,ONLY: DefineParametersPorousBC
 USE MOD_Particle_VarTimeStep       ,ONLY: DefineParametersVaribleTimeStep
 USE MOD_DSMC_Symmetry              ,ONLY: DefineParametersParticleSymmetry
 USE MOD_SuperB_Init                ,ONLY: DefineParametersSuperB
@@ -93,6 +92,7 @@ SWRITE(UNIT_stdOut,'(132("="))')
 
 CALL DefineParametersMPI()
 CALL DefineParametersIO()
+CALL DefineParametersGlobals()
 CALL DefineParametersLoadBalance()
 CALL DefineParametersInterpolation()
 CALL DefineParametersRestart()
@@ -101,37 +101,35 @@ CALL DefineParametersLinearSolver()
 #endif
 CALL DefineParametersOutput()
 CALL DefineParametersPiclas()
-CALL DefineParametersTimedisc()
+CALL DefineParametersTimeDisc()
 CALL DefineParametersMesh()
 CALL DefineParametersEquation()
 #if !(USE_HDG)
 CALL DefineParametersPML()
 #endif /*USE_HDG*/
-#if USE_QDS_DG
-CALL DefineParametersQDS()
-#endif
 #if USE_HDG
 CALL DefineParametersHDG()
 #endif /*USE_HDG*/
 CALL DefineParametersDielectric()
-CALL DefineParametersFilter()
 CALL DefineParametersAnalyze()
 CALL DefineParametersRecordPoints()
 #ifdef PARTICLES
 CALL DefineParametersSuperB()
 CALL DefineParametersParticles()
-CALL DefineParametersMacroBody()
-CALL DefineParametersParticlesBoundarySampling()
+CALL DefineParametersParticleEmission()
+CALL DefineParametersParticleSurfaceFlux()
+CALL DefineParametersParticleBoundary()
+CALL DefineParametersParticleBoundarySampling()
 CALL DefineParametersParticleSymmetry()
 CALL DefineParametersVaribleTimeStep()
 CALL DefineParametersPorousBC()
 CALL DefineParametersParticleMesh()
+CALL DefineParametersParticleBGM()
 CALL DefineParametersParticleAnalyze()
 CALL DefineParametersTTM()
 CALL DefineParametersPIC()
-CALL DefineParametersBGField()
-CALL DefineParametersParticleEmission()
 CALL DefineParametersDSMC()
+CALL DefineParametersChemistry()
 #if (PP_TimeDiscMethod==300)
 CALL DefineParametersFPFlow()
 #endif

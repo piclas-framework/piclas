@@ -23,6 +23,9 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
+REAL             :: ManualTimeStep                    !> Manual TimeStep
+LOGICAL          :: useManualTimeStep                 !> Logical Flag for manual timestep. For consistency
+                                                      !> with IAG programming style
 REAL             :: TEnd                              !> simulation end time
 REAL             :: TAnalyze                          !> time for next analyze
 REAL             :: Time                              !> Simulation Time
@@ -79,7 +82,7 @@ REAL,PARAMETER  :: CFLScaleAlpha(1:15) = &
 #endif /*PP_NodeType*/
 #endif
 
-#if ((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==43))
+#if ((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42))
 INTEGER,PARAMETER  :: nRKStages=1
 #endif
 

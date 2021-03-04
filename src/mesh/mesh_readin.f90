@@ -27,31 +27,6 @@ USE MOD_HDF5_Input
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
-!> @defgroup eleminfo ElemInfo parameters
-!>  Named parameters for ElemInfo array in mesh file
-!> @{
-INTEGER,PARAMETER    :: ElemInfoSize=6        !< number of entry in each line of ElemInfo
-INTEGER,PARAMETER    :: ELEM_Type=1           !< entry position,
-INTEGER,PARAMETER    :: ELEM_Zone=2
-INTEGER,PARAMETER    :: ELEM_FirstSideInd=3
-INTEGER,PARAMETER    :: ELEM_LastSideInd=4
-INTEGER,PARAMETER    :: ELEM_FirstNodeInd=5
-INTEGER,PARAMETER    :: ELEM_LastNodeInd=6
-!> @}
-
-!> @defgroup sideinfo SideInfo parameters
-!>  Named parameters for SideInfo array in mesh file
-!> @{
-INTEGER,PARAMETER    :: SideInfoSize=5        !< number of entries in each line of SideInfo
-INTEGER,PARAMETER    :: SIDE_Type=1
-INTEGER,PARAMETER    :: SIDE_ID=2
-INTEGER,PARAMETER    :: SIDE_nbElemID=3
-INTEGER,PARAMETER    :: SIDE_Flip=4
-INTEGER,PARAMETER    :: SIDE_BCID=5
-!> @}
-
-INTEGER,ALLOCATABLE  :: NodeInfo(:)
-INTEGER,ALLOCATABLE  :: NodeMap(:)
 INTEGER              :: nNodeIDs
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -213,40 +188,38 @@ SUBROUTINE ReadMesh(FileString)
 !> its own subset of the mesh.
 !> For a documentation of the mesh format see the documentation provided with HOPR (hopr-project.org)
 !> The arrays ElemInfo, SideInfo and NodeCoords are read, alongside with the boundary condition data.
-!> If the mesh is non-conforming and based on a tree representation, the corresponding tree data (Coords, parameter ranges,
-!> connectivity) is also read in.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_IO_HDF5
 USE MOD_Mesh_Vars            ,ONLY: tElem,tSide
-USE MOD_Mesh_Vars            ,ONLY: NGeo,NGeoTree
-USE MOD_Mesh_Vars            ,ONLY: NodeCoords,TreeCoords
-USE MOD_Mesh_Vars            ,ONLY: offsetElem,offsetTree,nElems,nGlobalElems,nTrees,nGlobalTrees,nNodes
-USE MOD_Mesh_Vars            ,ONLY: xiMinMax,ElemToTree
+USE MOD_Mesh_Vars            ,ONLY: NGeo
+USE MOD_Mesh_Vars            ,ONLY: NodeCoords
+USE MOD_Mesh_Vars            ,ONLY: offsetElem,nElems,nGlobalElems,nNodes
 USE MOD_Mesh_Vars            ,ONLY: nSides,nInnerSides,nBCSides,nMPISides,nAnalyzeSides,nGlobalMortarSides
-USE MOD_Mesh_Vars            ,ONLY: nMortarSides,isMortarMesh
+USE MOD_Mesh_Vars            ,ONLY: nMortarSides
 USE MOD_Mesh_Vars            ,ONLY: nGlobalUniqueSidesFromMesh
 USE MOD_Mesh_Vars            ,ONLY: useCurveds
 USE MOD_Mesh_Vars            ,ONLY: BoundaryType
 USE MOD_Mesh_Vars            ,ONLY: MeshInitIsDone
-USE MOD_Mesh_Vars            ,ONLY: Elems,Nodes
-USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE,createSides
-USE MOD_IO_HDF5
+USE MOD_Mesh_Vars            ,ONLY: Elems!,Nodes
+USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE!,createSides
+USE MOD_Mesh_Vars            ,ONLY: ElemInfo,SideInfo
+USE MOD_Particle_Mesh_Vars   ,ONLY: nComputeNodeElems,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
 #if USE_MPI
-USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc
+USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc!,offsetElemMPI
 USE MOD_LoadBalance_Tools    ,ONLY: DomainDecomposition
-#ifdef PARTICLES
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars     ,ONLY: nDeposPerElem,nSurfacePartsPerElem
-#endif /*USE_LOADBALANCE*/
-#endif /*PARTICLES*/
-USE MOD_PreProc
-USE MOD_ReadInTools
-USE MOD_StringTools          ,ONLY: STRICMP
+USE MOD_MPI_Shared_Vars      ,ONLY: MPI_COMM_SHARED
 #endif /*USE_MPI*/
 #ifdef PARTICLES
-USE MOD_LoadBalance_Vars     ,ONLY: nTracksPerElem,nPartsPerBCElem,nPartsPerElem,nSurfacefluxPerElem
+USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshBasics
+USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshElems,ReadMeshSides,ReadMeshSideNeighbors
+USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshNodes,StartCommunicateMeshReadin,FinishCommunicateMeshReadin
 USE MOD_Particle_Vars        ,ONLY: VarTimeStep
+USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars     ,ONLY: nDeposPerElem,nSurfacePartsPerElem,nTracksPerElem,nPartsPerBCElem,nSurfacefluxPerElem
+#endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -260,16 +233,12 @@ CHARACTER(LEN=*),INTENT(IN)  :: FileString
 TYPE(tElem),POINTER            :: aElem
 TYPE(tSide),POINTER            :: aSide,bSide
 REAL,ALLOCATABLE               :: NodeCoordsTmp(:,:,:,:,:)
-INTEGER,ALLOCATABLE            :: ElemInfo(:,:),SideInfo(:,:)
 INTEGER                        :: BCindex
 INTEGER                        :: iElem,ElemID
-INTEGER                        :: iNode,jNode,iNodeP,NodeID
-INTEGER                        :: offsetNodeID
-REAL   ,ALLOCATABLE            :: NodeCoords_indx(:,:)
-INTEGER                        :: CornerNodeIDswitch(8)
+INTEGER                        :: iNode
 INTEGER                        :: iLocSide,nbLocSide
 INTEGER                        :: iSide
-INTEGER                        :: FirstNodeInd,LastNodeInd,FirstSideInd,LastSideInd,FirstElemInd,LastElemInd
+INTEGER                        :: FirstSideInd,LastSideInd,FirstElemInd,LastElemInd
 INTEGER                        :: nPeriodicSides,nMPIPeriodics
 INTEGER                        :: ReduceData(11)
 INTEGER                        :: nSideIDs,offsetSideID
@@ -278,11 +247,9 @@ INTEGER                        :: iMortar,jMortar,nMortars
 INTEGER                        :: iNbProc
 INTEGER                        :: iProc
 INTEGER,ALLOCATABLE            :: MPISideCount(:)
-! new weight distribution method
 #endif /*USE_MPI*/
 LOGICAL                        :: doConnection
 LOGICAL                        :: oriented
-LOGICAL                        :: isMortarMeshExists
 #ifdef PARTICLES
 REAL, ALLOCATABLE              :: GlobVarTimeStep(:)
 #endif
@@ -301,9 +268,14 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
 CALL ReadAttribute(File_ID,'nUniqueSides',1,IntegerScalar=nGlobalUniqueSidesFromMesh)
+CALL ReadAttribute(File_ID,'nSides',1,IntegerScalar=nNonUniqueGlobalSides)
+CALL ReadAttribute(File_ID,'nNodes',1,IntegerScalar=nNonUniqueGlobalNodes)
 CALL CloseDataFile()
+! INTEGER KIND=4 check for number of elements
 CHECKSAFEINT(HSize(2),4)
 nGlobalElems=INT(HSize(2),4) !global number of elements
+! INTEGER KIND=4 check for number of nodes
+CHECKSAFEINT(8_8*INT(nGlobalElems,8),4)
 DEALLOCATE(HSize)
 IF(MPIRoot.AND.(nGlobalElems.LT.nProcessors))CALL abort(__STAMP__&
     ,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))
@@ -325,28 +297,18 @@ offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at
 ! Re-allocate nPartsPerElem depending on new number of elements
 IF(.NOT.ALLOCATED(nPartsPerElem))THEN
   ALLOCATE(nPartsPerElem(1:nElems))
-ELSE
-  SDEALLOCATE(nPartsPerElem)
-  ALLOCATE(nPartsPerElem(1:nElems))
 END IF
 nPartsPerElem=0
 CALL AddToElemData(ElementOut,'nPartsPerElem',LongIntArray=nPartsPerElem(:))
 #if USE_LOADBALANCE
-SDEALLOCATE(nDeposPerElem)
 ALLOCATE(nDeposPerElem(1:nElems))
 nDeposPerElem=0
-#endif /*USE_LOADBALANCE*/
-SDEALLOCATE(nTracksPerElem)
 ALLOCATE(nTracksPerElem(1:nElems))
 nTracksPerElem=0
-SDEALLOCATE(nSurfacefluxPerElem)
 ALLOCATE(nSurfacefluxPerElem(1:nElems))
 nSurfacefluxPerElem=0
-SDEALLOCATE(nPartsPerBCElem)
 ALLOCATE(nPartsPerBCElem(1:nElems))
 nPartsPerBCElem=0
-#if USE_LOADBALANCE
-SDEALLOCATE(nSurfacePartsPerElem)
 ALLOCATE(nSurfacePartsPerElem(1:nElems))
 nSurfacePartsPerElem=0
 #endif /*USE_LOADBALANCE*/
@@ -381,67 +343,81 @@ END IF
 #endif
 
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-CALL readBCs()
+CALL ReadBCs()
 !----------------------------------------------------------------------------------------------------------------------------
 !                              ELEMENTS
 !----------------------------------------------------------------------------------------------------------------------------
 
 !read local ElemInfo from data file
-FirstElemInd=offsetElem+1
-LastElemInd=offsetElem+nElems
-ALLOCATE(Elems(                FirstElemInd:LastElemInd))
-ALLOCATE(ElemInfo(ElemInfoSize,FirstElemInd:LastElemInd))
+FirstElemInd = offsetElem+1
+LastElemInd  = offsetElem+nElems
+ALLOCATE(Elems(                   FirstElemInd:LastElemInd))
+ALLOCATE(ElemInfo(ELEMINFOSIZE_H5,FirstElemInd:LastElemInd))
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-      ElemInfoSize => INT(ElemInfoSize,IK) ,&
+      ElemInfoSize => INT(ELEMINFOSIZE_H5,IK) ,&
       nElems       => INT(nElems,IK)       ,&
       offsetElem   => INT(offsetElem,IK)  )
-  CALL ReadArray('ElemInfo',2,(/ElemInfoSize,nElems/),offsetElem,2,IntegerArray_i4=ElemInfo)
+  CALL ReadArray('ElemInfo',2,(/ElemInfoSize,nElems/),offsetElem,2,IntegerArray_i4=ElemInfo(1:ElemInfoSize,:))
 END ASSOCIATE
 
 DO iElem=FirstElemInd,LastElemInd
-  iSide=ElemInfo(ELEM_FirstSideInd,iElem) !first index -1 in Sideinfo
-  iNode=ElemInfo(ELEM_FirstNodeInd,iElem) !first index -1 in NodeInfo
+  iSide=ElemInfo(ELEM_FIRSTSIDEIND,iElem) !first index -1 in Sideinfo
+  iNode=ElemInfo(ELEM_FIRSTNODEIND,iElem) !first index -1 in NodeInfo
   Elems(iElem)%ep=>GETNEWELEM()
   aElem=>Elems(iElem)%ep
   aElem%Ind    = iElem
-  aElem%Type   = ElemInfo(ELEM_Type,iElem)
-  aElem%Zone   = ElemInfo(ELEM_Zone,iElem)
+  aElem%Type   = ElemInfo(ELEM_TYPE,iElem)
+  aElem%Zone   = ElemInfo(ELEM_ZONE,iElem)
 END DO
+
+! Get number of compute-node elements (required for simulations with PARTICLES=ON/OFF)
+#if USE_MPI
+CALL MPI_ALLREDUCE(nElems,nComputeNodeElems,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
+#else
+nComputeNodeElems = nElems
+#endif /*USE_MPI*/
+
+#ifdef PARTICLES
+CALL ReadMeshElems()
+#endif
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              SIDES
 !----------------------------------------------------------------------------------------------------------------------------
 
-#if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-#endif /*USE_MPI*/
-offsetSideID=ElemInfo(ELEM_FirstSideInd,FirstElemInd) ! hdf5 array starts at 0-> -1
-nSideIDs=ElemInfo(ELEM_LastSideInd,LastElemInd)-ElemInfo(ELEM_FirstSideInd,FirstElemInd)
+! get offset of local side indices in the global sides
+offsetSideID = ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+nSideIDs     = ElemInfo(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd)
 !read local SideInfo from data file
-FirstSideInd=offsetSideID+1
-LastSideInd=offsetSideID+nSideIDs
-ALLOCATE(SideInfo(SideInfoSize,FirstSideInd:LastSideInd))
+FirstSideInd = offsetSideID+1
+LastSideInd  = offsetSideID+nSideIDs
+ALLOCATE(SideInfo(SIDEINFOSIZE,FirstSideInd:LastSideInd))
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-      SideInfoSize   => INT(SideInfoSize,IK)   ,&
+      SideInfoSize   => INT(SIDEINFOSIZE_H5,IK)   ,&
       nSideIDs       => INT(nSideIDs,IK)       ,&
       offsetSideID   => INT(offsetSideID,IK)  )
-  CALL ReadArray('SideInfo',2,(/SideInfoSize,nSideIDs/),offsetSideID,2,IntegerArray_i4=SideInfo)
+  CALL ReadArray('SideInfo',2,(/SideInfoSize,nSideIDs/),offsetSideID,2,IntegerArray_i4=SideInfo(1:SideInfoSize,:))
 END ASSOCIATE
 
+#ifdef PARTICLES
+CALL ReadMeshSides()
+#endif
+
+! iterate over all local elements and within each element over all sides
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
-  iSide=ElemInfo(ELEM_FirstSideInd,iElem) !first index -1 in Sideinfo
+  iSide=ElemInfo(ELEM_FIRSTSIDEIND,iElem) !first index -1 in Sideinfo
   !build up sides of the element according to CGNS standard
   ! assign flip
   DO iLocSide=1,6
     aSide=>aElem%Side(iLocSide)%sp
     iSide=iSide+1
     ! ALLOCATE MORTAR
-    ElemID=SideInfo(SIDE_nbElemID,iSide) !IF nbElemID <0, this marks a mortar master side.
+    ElemID=SideInfo(SIDE_NBELEMID,iSide) !IF nbElemID <0, this marks a mortar master side.
                                          ! The number (-1,-2,-3) is the Type of mortar
     IF(ElemID.LT.0)THEN ! mortar Sides attached!
       aSide%MortarType=ABS(ElemID)
@@ -458,7 +434,7 @@ DO iElem=FirstElemInd,LastElemInd
     ELSE
       aSide%nMortars=0
     END IF
-    IF(SideInfo(SIDE_Type,iSide).LT.0) aSide%MortarType=-10 !marks small neighbor  side as belonging to a mortar
+    IF(SideInfo(SIDE_TYPE,iSide).LT.0) aSide%MortarType=-10 !marks small neighbor  side as belonging to a mortar
 
     IF(aSide%MortarType.LE.0)THEN
       aSide%Elem=>aElem
@@ -470,17 +446,17 @@ DO iElem=FirstElemInd,LastElemInd
         aSide%BC_Alpha=99
 #endif /*PARTICLES*/
       ELSE !not oriented
-        aSide%flip=MOD(Sideinfo(SIDE_Flip,iSide),10)
+        aSide%flip=MOD(Sideinfo(SIDE_FLIP,ISIde),10)
         IF((aSide%flip.LT.0).OR.(aSide%flip.GT.4)) STOP 'NodeID doesnt belong to side'
 #ifdef PARTICLES
         aSide%BC_Alpha=-99
 #endif /*PARTICLES*/
       END IF
     ELSE !mortartype>0
-#ifdef PARTICLES
+#if defined(PARTICLES) || USE_HDG
       ! Store global unique side index
       aSide%Ind=-ABS(SideInfo(SIDE_ID,iSide))
-#endif /*PARTICLES*/
+#endif /*defined(PARTICLES) || USE_HDG*/
       DO iMortar=1,aSide%nMortars
         iSide=iSide+1
         aSide%mortarSide(iMortar)%sp%Elem=>aElem
@@ -498,7 +474,7 @@ END DO !iElem
 ! build up side connection
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
-  iSide=ElemInfo(ELEM_FirstSideInd,iElem) !first index -1 in Sideinfo
+  iSide=ElemInfo(ELEM_FIRSTSIDEIND,iElem) !first index -1 in Sideinfo
   DO iLocSide=1,6
     aSide=>aElem%Side(iLocSide)%sp
     iSide=iSide+1
@@ -509,7 +485,7 @@ DO iElem=FirstElemInd,LastElemInd
         iSide=iSide+1
         aSide=>aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp
       END IF
-      elemID  = SideInfo(SIDE_nbElemID,iSide)
+      elemID  = SideInfo(SIDE_NBELEMID,iSide)
       BCindex = SideInfo(SIDE_BCID,iSide)
 
       doConnection=.TRUE. ! for periodic sides if BC is reassigned as non periodic
@@ -565,6 +541,9 @@ DO iElem=FirstElemInd,LastElemInd
 #endif
         END IF
       END IF
+#ifdef PARTICLES
+      CALL ReadMeshSideNeighbors(elemID,iSide)
+#endif
     END DO !iMortar
   END DO !iLocSide
 END DO !iElem
@@ -573,69 +552,22 @@ END DO !iElem
 !----------------------------------------------------------------------------------------------------------------------------
 !                              NODES
 !----------------------------------------------------------------------------------------------------------------------------
-
-!read local Node Info from data file
-offsetNodeID=ElemInfo(ELEM_FirstNodeInd,FirstElemInd) ! hdf5 array starts at 0-> -1
-nNodeIDs=ElemInfo(ELEM_LastNodeInd,LastElemInd)-ElemInfo(ELEM_FirstNodeInd,FirstElemind)
-FirstNodeInd=offsetNodeID+1
-LastNodeInd=offsetNodeID+nNodeIDs
-ALLOCATE(NodeInfo(FirstNodeInd:LastNodeInd))
-
-! Associate construct for integer KIND=8 possibility
-ASSOCIATE (&
-      nNodeIDs     => INT(nNodeIDs,IK)     ,&
-      offsetNodeID => INT(offsetNodeID,IK) )
-  CALL ReadArray('GlobalNodeIDs',1,(/nNodeIDs/),offsetNodeID,1,IntegerArray_i4=NodeInfo)
-  ALLOCATE(NodeCoords_indx(3,nNodeIDs))
-  CALL ReadArray('NodeCoords',2,(/3_IK,nNodeIDs/),offsetNodeID,2,RealArray=NodeCoords_indx)
-END ASSOCIATE
-
-CALL GetNodeMap() !get nNodes and local NodeMap from NodeInfo array
-LOGWRITE(*,*)'MIN,MAX,SIZE of NodeMap',MINVAL(NodeMap),MAXVAL(NodeMap),SIZE(NodeMap,1)
-
-ALLOCATE(Nodes(1:nNodes)) ! pointer list, entry is known by INVMAP(i,nNodes,NodeMap)
-DO iNode=1,nNodes
-  NULLIFY(Nodes(iNode)%np)
-END DO
-! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is build
-CornerNodeIDswitch(1)=1
-CornerNodeIDswitch(2)=(Ngeo+1)
-CornerNodeIDswitch(3)=(Ngeo+1)**2
-CornerNodeIDswitch(4)=(Ngeo+1)*Ngeo+1
-CornerNodeIDswitch(5)=(Ngeo+1)**2*Ngeo+1
-CornerNodeIDswitch(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
-CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
-CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
-
-!assign nodes and get physical coordinates to Node pointers (new procedure compared to old mapping due to new meshformat)
-DO iElem=FirstElemInd,LastElemInd
-  aElem=>Elems(iElem)%ep
-  !iNode=ElemInfo(ELEM_FirstNodeInd,iElem) !first index -1 in NodeInfo
-  DO jNode=1,8
-    iNode = ElemInfo(ELEM_FirstNodeInd,iElem)+CornerNodeIDswitch(jNode)
-    NodeID=ABS(NodeInfo(iNode))       !global, unique NodeID
-    iNodeP=INVMAP(NodeID,nNodes,NodeMap)  ! index in local Nodes pointer array
-    IF(iNodeP.LE.0) STOP 'Problem in INVMAP'
-    IF(.NOT.ASSOCIATED(Nodes(iNodeP)%np))THEN
-      ALLOCATE(Nodes(iNodeP)%np)
-      Nodes(iNodeP)%np%ind = NodeID
-      Nodes(iNodeP)%np%x   = NodeCoords_indx(:,iNode-offsetNodeID)
-    END IF
-    aElem%Node(jNode)%np=>Nodes(iNodeP)%np
-  END DO
-  CALL createSides(aElem)
-END DO
-DEALLOCATE(NodeCoords_indx)
-
+#ifdef PARTICLES
+! Particles want to node coordinates in the old 2D format, hence this read-in happens twice
+CALL ReadMeshNodes()
+#endif
 
 ! get physical coordinates
+CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 IF(useCurveds)THEN
   ALLOCATE(NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nElems))
   CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoords)
 ELSE
   ALLOCATE(NodeCoords(   3,0:1,   0:1,   0:1,   nElems))
   ALLOCATE(NodeCoordsTmp(3,0:NGeo,0:NGeo,0:NGeo,nElems))
+  ! read all nodes
   CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoordsTmp)
+  ! throw away all nodes except the 8 corner nodes of each hexa
   NodeCoords(:,0,0,0,:)=NodeCoordsTmp(:,0,   0,   0,   :)
   NodeCoords(:,1,0,0,:)=NodeCoordsTmp(:,NGeo,0,   0,   :)
   NodeCoords(:,0,1,0,:)=NodeCoordsTmp(:,0,   NGeo,0,   :)
@@ -645,64 +577,18 @@ ELSE
   NodeCoords(:,0,1,1,:)=NodeCoordsTmp(:,0,   NGeo,NGeo,:)
   NodeCoords(:,1,1,1,:)=NodeCoordsTmp(:,NGeo,NGeo,NGeo,:)
   DEALLOCATE(NodeCoordsTmp)
+  NGeo=1 ! linear mesh; set polynomial degree of geometry to 1
 ENDIF
-IF(.NOT.useCurveds) NGeo=1
-
-!! IJK SORTING --------------------------------------------
-!!read local ElemInfo from data file
-!CALL DatasetExists(File_ID,'nElems_IJK',DExist)
-!IF(DExist)THEN
-!  CALL ReadArray('nElems_IJK',1,(/3/),0,1,IntegerArray=nElems_IJK)
-!  ALLOCATE(Elem_IJK(3,nLocalElems))
-!  CALL ReadArray('Elem_IJK',2,(/3,nElems/),offsetElem,2,IntegerArray=Elem_IJK)
-!END IF
-
-! Get Mortar specific arrays
-isMortarMeshExists=.FALSE.
-iMortar=0
-CALL DatasetExists(File_ID,'isMortarMesh',isMortarMeshExists,.TRUE.)
-IF(isMortarMeshExists)&
-    CALL ReadAttribute(File_ID,'isMortarMesh',1,IntegerScalar=iMortar)
-isMortarMesh=(iMortar.EQ.1)
-IF(isMortarMesh)THEN
-  CALL ReadAttribute(File_ID,'NgeoTree',1,IntegerScalar=NGeoTree)
-  CALL ReadAttribute(File_ID,'nTrees',1,IntegerScalar=nGlobalTrees)
-
-  ALLOCATE(xiMinMax(3,2,1:nElems))
-  ! Associate construct for integer KIND=8 possibility
-  ASSOCIATE (&
-        nElems     => INT(nElems,IK)     ,&
-        offsetElem => INT(offsetElem,IK) )
-    xiMinMax=-1.
-    CALL ReadArray('xiMinMax',3,(/3_IK,2_IK,nElems/),offsetElem,3,RealArray=xiMinMax)
-
-    ALLOCATE(ElemToTree(1:nElems))
-    ElemToTree=0
-    CALL ReadArray('ElemToTree',1,(/nElems/),offsetElem,1,IntegerArray_i4=ElemToTree)
-  END ASSOCIATE
-
-  ! only read trees, connected to a procs elements
-  offsetTree=MINVAL(ElemToTree)-1
-  ElemToTree=ElemToTree-offsetTree
-  nTrees=MAXVAL(ElemToTree)
-
-  ALLOCATE(TreeCoords(3,0:NGeoTree,0:NGeoTree,0:NGeoTree,nTrees))
-  TreeCoords=-1.
-  ! Associate construct for integer KIND=8 possibility
-  ASSOCIATE (&
-        NGeoTree   => INT(NGeoTree)            ,&
-        nTrees     => INT(nTrees)              ,&
-        offsetTree => INT(offsetTree)          )
-    CALL ReadArray('TreeCoords',2,(/3_IK,(NGeoTree+1_IK)**3_IK*nTrees/),&
-        (NGeoTree+1_IK)**3_IK*offsetTree,2,RealArray=TreeCoords)
-  END ASSOCIATE
-ELSE
-  nTrees=0
-END IF
-
-DEALLOCATE(ElemInfo,SideInfo,NodeInfo,NodeMap)
 
 CALL CloseDataFile()
+
+#ifdef PARTICLES
+! Start non-blocking communication of mesh information
+CALL StartCommunicateMeshReadin()
+#endif
+
+DEALLOCATE(ElemInfo,SideInfo)
+! Readin of mesh is now finished
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              COUNT SIDES
@@ -809,7 +695,6 @@ DEALLOCATE(MPISideCount)
 ReduceData(1)=nElems
 ReduceData(2)=nSides
 ReduceData(3)=nNodes
-ReduceData(11)=nNodeIDs
 ReduceData(4)=nInnerSides
 ReduceData(5)=nPeriodicSides
 ReduceData(6)=nBCSides
@@ -817,6 +702,12 @@ ReduceData(7)=nMPISides
 ReduceData(8)=nAnalyzeSides
 ReduceData(9)=nMortarSides
 ReduceData(10)=nMPIPeriodics
+ReduceData(11)=nNodeIDs
+
+#ifdef PARTICLES
+! Finish non-blocking communication of mesh information
+CALL FinishCommunicateMeshReadin()
+#endif
 
 #if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,ReduceData,11,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
@@ -845,46 +736,6 @@ END IF
 LOGWRITE_BARRIER
 SWRITE(UNIT_stdOut,'(132("."))')
 END SUBROUTINE ReadMesh
-
-
-SUBROUTINE GetNodeMap()
-!===================================================================================================================================
-! take NodeInfo array, sort it, eliminate mulitple IDs and return the Mapping 1->NodeID1, 2->NodeID2, ...
-! this is useful if the NodeID list of the mesh are not contiguous, essentially occuring when using domain decomposition (MPI)
-!===================================================================================================================================
-! MODULES
-USE MOD_mesh_vars,ONLY:nNodes
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                            :: temp(nNodeIDs+1),i,nullpos
-!===================================================================================================================================
-temp(1)=0
-temp(2:nNodeIDs+1)=NodeInfo
-!sort
-CALL Qsort1Int(temp)
-nullpos=INVMAP(0,nNodeIDs+1,temp)
-!count unique entries
-nNodes=1
-DO i=nullpos+2,nNodeIDs+1
-  IF(temp(i).NE.temp(i-1)) nNodes = nNodes+1
-END DO
-!associate unique entries
-ALLOCATE(NodeMap(nNodes))
-nNodes=1
-NodeMap(1)=temp(nullpos+1)
-DO i=nullpos+2,nNodeIDs+1
-  IF(temp(i).NE.temp(i-1)) THEN
-    nNodes = nNodes+1
-    NodeMap(nNodes)=temp(i)
-  END IF
-END DO
-END SUBROUTINE GetNodeMap
 
 
 FUNCTION INVMAP(ID,nIDs,ArrID)
@@ -938,7 +789,7 @@ END FUNCTION INVMAP
 
 
 #if USE_MPI
-FUNCTION ELEMIPROC(ElemID)
+PURE FUNCTION ELEMIPROC(ElemID)
 !===================================================================================================================================
 !> Find the id of a processor on which an element with a given ElemID lies, based on the MPI element offsets defined earlier.
 !> Use a bisection algorithm for faster search.

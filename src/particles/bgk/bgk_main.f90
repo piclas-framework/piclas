@@ -41,19 +41,20 @@ SUBROUTINE BGK_DSMC_main()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
-USE MOD_Mesh_Vars           ,ONLY: nElems
-USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, RadialWeighting
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
-USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
 USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, Symmetry, usevMPF
-USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength,BGKDSMCSwitchDens
+USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation,BGKDSMCSwitchDens
+! USE MOD_BGK_Vars            ,ONLY: BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
 USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
 USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
-USE MOD_DSMC_Analyze        ,ONLY: DSMCHO_data_sampling
 USE MOD_DSMC                ,ONLY: DSMC_main
-USE MOD_part_tools          ,ONLY: GetParticleWeight
+USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, RadialWeighting
+USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
+USE MOD_Part_Tools          ,ONLY: GetParticleWeight
+USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
+USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -62,7 +63,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iElem, nPart, iLoop, iPart
+INTEGER               :: iElem, nPart, iLoop, iPart, CNElemID
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
 LOGICAL               :: DoElement(nElems)
 REAL                  :: dens, partWeight, totalWeight
@@ -72,6 +73,7 @@ DoElement = .FALSE.
 
 DO iElem = 1, nElems
   nPart = PEM%pNumber(iElem)
+  CNElemID = GetCNElemID(iElem + offsetElem)
   IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
 
   totalWeight = 0.0
@@ -83,9 +85,9 @@ DO iElem = 1, nElems
   END DO
 
   IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    dens = totalWeight / GEO%Volume(iElem)
+    dens = totalWeight / ElemVolume_Shared(CNElemID)
   ELSE
-    dens = totalWeight * Species(1)%MacroParticleFactor / GEO%Volume(iElem)
+    dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
   END IF
 
   IF (dens.LT.BGKDSMCSwitchDens) THEN
@@ -111,13 +113,13 @@ DO iElem = 1, nElems
       BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.
       BGK_PrandtlNumber=0.; BGK_ExpectedPrandtlNumber=0.
     END IF
-    IF (BGKMovingAverage) THEN
-      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), &
-          ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
-               CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
-    ELSE
-      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem))
-    END IF
+    ! IF (BGKMovingAverage) THEN
+    !   CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID), &
+    !       ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
+    !            CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
+    ! ELSE
+      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
+    ! END IF
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
@@ -147,17 +149,17 @@ SUBROUTINE BGK_main()
 ! MODULES
 USE MOD_Globals
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
-USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile
-USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, SamplingActive
+USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
-USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
 USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry
-USE MOD_Restart_Vars        ,ONLY: RestartTime
-USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation, BGKMovingAverage, ElemNodeAveraging, BGKMovingAverageLength
+USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation!, BGKMovingAverage, ElemNodeAveraging, BGKMovingAverageLength
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
 USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
 USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
-USE MOD_DSMC_Analyze        ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues,WriteDSMCHOToHDF5
+USE MOD_DSMC_Analyze        ,ONLY: DSMCMacroSampling
+USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
+USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC
+USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -166,7 +168,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iElem, nPart, iLoop, iPart, nOutput
+INTEGER               :: iElem, nPart, iLoop, iPart, CNElemID
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
 !===================================================================================================================================
 DSMC_RHS = 0.0
@@ -181,6 +183,7 @@ IF (DoBGKCellAdaptation) THEN
   END DO
 ELSE ! No octree cell refinement
   DO iElem = 1, nElems
+    CNElemID = GetCNElemID(iElem + offsetElem)
     nPart = PEM%pNumber(iElem)
     IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
     ALLOCATE(iPartIndx_Node(nPart))
@@ -195,13 +198,13 @@ ELSE ! No octree cell refinement
       BGK_PrandtlNumber=0.; BGK_ExpectedPrandtlNumber=0.
     END IF
 
-    IF (BGKMovingAverage) THEN
-      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), &
-          ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
-               CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
-    ELSE
-      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem))
-    END IF
+    ! IF (BGKMovingAverage) THEN
+    !   CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID), &
+    !       ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
+    !            CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
+    ! ELSE
+      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
+    ! END IF
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
@@ -217,26 +220,10 @@ ELSE ! No octree cell refinement
   END DO
 END IF ! DoBGKCellAdaptation
 
-IF((.NOT.WriteMacroVolumeValues) .AND. (.NOT.WriteMacroSurfaceValues)) THEN
-  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN
-    SamplingActive=.TRUE.
-    SWRITE(*,*)'Sampling active'
-  END IF
-END IF
-
-IF(SamplingActive) THEN
-  CALL DSMCHO_data_sampling()
-  IF(DSMC%NumOutput.NE.0) THEN
-    nOutput = INT((DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput)-DSMC%NumOutput + 1
-    IF(Time.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
-      DSMC%NumOutput = DSMC%NumOutput - 1
-      ! Skipping outputs immediately after the first few iterations
-      IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN
-        CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time)
-        IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(during_dt_opt=.TRUE.)
-      END IF
-    END IF
-  END IF
+! Sampling of macroscopic values
+! (here for a continuous average; average over N iterations is performed in src/analyze/analyze.f90)
+IF (.NOT.WriteMacroVolumeValues .AND. .NOT.WriteMacroSurfaceValues) THEN
+  CALL DSMCMacroSampling()
 END IF
 
 END SUBROUTINE BGK_main

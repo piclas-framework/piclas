@@ -74,16 +74,9 @@ CALL prms%CreateLogicalOption( 'useCurveds',          "Controls usage of high-or
                                                       "high-order data and treat curved meshes as linear meshes.", '.TRUE.')
 
 CALL prms%CreateLogicalOption( 'DoWriteStateToHDF5',  "Write state of calculation to hdf5-file. TODO-DEFINE-PARAMETER",'.TRUE.')
-CALL prms%CreateLogicalOption( 'interpolateFromTree', "For non-conforming meshes, built by refinement from a tree structure, "//&
-                                                      "the metrics can be built from the tree geometry if it is contained "//&
-                                                      "in the mesh. Can improve free-stream preservation.",&
-                                                      '.TRUE.')
 CALL prms%CreateRealOption(    'meshScale',           "Scale the mesh by this factor (shrink/enlarge).",&
                                                       '1.0')
 CALL prms%CreateLogicalOption( 'meshdeform',          "Apply simple sine-shaped deformation on cartesion mesh (for testing).",&
-                                                      '.FALSE.')
-CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"TODO-DEFINE-PARAMETER\nCalculate pointing vector integral "//&
-                                                         "| only perpendicular to z axis",&
                                                       '.FALSE.')
 CALL prms%CreateLogicalOption( 'CalcMeshInfo',        'Calculate and output elem data for myrank, ElemID and tracking info to '//&
                                                       'ElemData',&
@@ -120,33 +113,24 @@ USE MOD_Mesh_Vars
 USE MOD_HDF5_Input
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
-!-----------------------------------------------------------------------------------------------------------------------------------                                                                                             ! -----------------------------------------------------------------------------------------------------------------------------------
 USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Metrics                ,ONLY: BuildCoords,CalcMetrics
-USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,CalcMeshInfo
+USE MOD_Analyze_Vars           ,ONLY: CalcMeshInfo
 USE MOD_Mappings               ,ONLY: InitMappings
-#ifdef PARTICLES
-USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh,InitParticleGeometry
-USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,SideSlabNormals,SideSlabIntervals
-USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty,ElemSlabNormals,ElemSlabIntervals
-#endif
 #if USE_MPI
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 #endif
-#ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
-#endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 #endif /*USE_LOADBALANCE*/
 USE MOD_ReadInTools            ,ONLY: PrintOption
 #ifdef PARTICLES
-USE MOD_Particle_Vars          ,ONLY: usevMPF, Symmetry
+USE MOD_Particle_Mesh_Vars     ,ONLY: meshScale
+USE MOD_Particle_Vars          ,ONLY: usevMPF
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 #endif
 IMPLICIT NONE
@@ -161,12 +145,15 @@ CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: MeshFile_IN !< file name of mesh to be
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                :: x(3),meshScale
+REAL                :: x(3)
 REAL,POINTER        :: coords(:,:,:,:,:)
 INTEGER             :: iElem,i,j,k,nElemsLoc
 !CHARACTER(32)       :: hilf2
 CHARACTER(LEN=255)  :: FileName
 LOGICAL             :: validMesh,ExistFile
+#ifndef PARTICLES
+REAL                :: meshScale
+#endif
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(&
@@ -190,7 +177,7 @@ IF(DoSwapMesh)THEN
     IF(.NOT.ExistFile) THEN
       SWRITE(UNIT_stdOut,'(A)') ' ERROR: no swapmesh binary found'
       SWRITE(UNIT_stdOut,'(A,A)') ' FileName:             ',TRIM(FileName)
-      SWRITE(UNIT_stdOut,'(A,L)') ' ExistFile:            ',ExistFile
+      SWRITE(UNIT_stdOut,'(A,L1)') ' ExistFile:            ',ExistFile
       DoSwapMesh=.FALSE.
     ELSE
       SwapMeshExePath=FileName
@@ -239,25 +226,21 @@ ELSE
   END IF
 END IF
 
+#ifdef PARTICLES
+meshScale    = GETREAL('meshScale'   ,'1.0')
+#endif /*USE_PARTICLES*/
 CALL ReadMesh(MeshFile) !set nElems
 
 !schmutz fink
 PP_nElems=nElems
 
-! if trees are available: compute metrics on tree level and interpolate to elements
-interpolateFromTree=.FALSE.
-IF(isMortarMesh) interpolateFromTree=GETLOGICAL('interpolateFromTree','.TRUE.')
-IF(interpolateFromTree)THEN
-  coords=>TreeCoords
-  NGeo=NGeoTree
-  nElemsLoc=nTrees
-ELSE
-  coords=>NodeCoords
-  nElemsLoc=nElems
-ENDIF
+coords=>NodeCoords
+nElemsLoc=nElems
 
 ! scale and deform mesh if desired (warning: no mesh output!)
+#if !defined(PARTICLES)
 meshScale=GETREAL('meshScale','1.0')
+#endif /*!USE_PARTICLES*/
 IF(ABS(meshScale-1.).GT.1e-14)&
   Coords =Coords*meshScale
 
@@ -271,11 +254,7 @@ IF(GETLOGICAL('meshdeform','.FALSE.'))THEN
 END IF
 
 ALLOCATE(Elem_xGP      (3,0:PP_N,0:PP_N,0:PP_N,nElems))
-IF(interpolateFromTree)THEN
-  CALL BuildCoords(NodeCoords,PP_N,Elem_xGP,TreeCoords)
-ELSE
-  CALL BuildCoords(NodeCoords,PP_N,Elem_xGP)
-ENDIF
+CALL BuildCoords(NodeCoords,PP_N,Elem_xGP)
 
 ! Return if no connectivity and metrics are required (e.g. for visualization mode)
 IF (meshMode.GT.0) THEN
@@ -309,10 +288,10 @@ IF (meshMode.GT.0) THEN
   AnalyzeSide = 0
 
 ! fill output definition for InnerBCs
-#ifdef PARTICLES
+#if defined(PARTICLES) || USE_HDG
   ALLOCATE(GlobalUniqueSideID(1:nSides))
   GlobalUniqueSideID(:)=-1
-#endif
+#endif /*defined(PARTICLES) || USE_HDG*/
 
   !NOTE: nMortarSides=nMortarInnerSides+nMortarMPISides
   ALLOCATE(MortarType(2,1:nSides))              ! 1: Type, 2: Index in MortarInfo
@@ -324,20 +303,6 @@ IF (meshMode.GT.0) THEN
   SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
   CALL fillMeshInfo()
 
-#ifdef PARTICLES
-  IF(meshMode.NE.3)THEN
-    ! save geometry information for particle tracking
-    CALL InitParticleMesh()
-    IF (TriaTracking.OR.Symmetry%Order.LE.2) THEN
-      CALL InitParticleGeometry()
-    END IF
-  END IF ! meshMode.NE.-1
-#endif
-
-  ! dealloacte pointers
-  SWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
-  CALL deleteMeshPointer()
-
   ! build necessary mappings
   CALL InitMappings(PP_N,VolToSideA,VolToSideIJKA,VolToSide2A,CGNS_VolToSideA, &
                          SideToVolA,SideToVol2A,CGNS_SideToVol2A,FS2M)
@@ -345,7 +310,7 @@ IF (meshMode.GT.0) THEN
 END IF
 
 IF (meshMode.GT.1) THEN
-  
+
   ! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
 
   ! volume data
@@ -378,28 +343,10 @@ IF (meshMode.GT.1) THEN
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
 
-  ! PoyntingVecIntegral
-  CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral')
 
-  ! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
-  ! assign 1/detJ (sJ)
-  ! assign normal and tangential vectors and surfElems on faces
-#ifdef PARTICLES
-  ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nSides) )
-  BezierControlPoints3D=0.
-
-  ALLOCATE(SideSlabNormals(1:3,1:3,1:nSides),SideSlabIntervals(1:6,nSides),BoundingBoxIsEmpty(1:nSides) )
-  SideSlabNormals=0.
-  SideSlabIntervals=0.
-  BoundingBoxIsEmpty=.TRUE.
-  ALLOCATE(ElemSlabNormals(1:3,0:3,1:nElems),ElemSlabIntervals(1:6,nElems) )
-  ElemSlabNormals=0.
-  ElemSlabIntervals=0.
-#endif /*PARTICLES*/
-#ifdef CODE_ANALYZE
-  ALLOCATE(SideBoundingBoxVolume(1:nSides))
-  SideBoundingBoxVolume=0.
-#endif /*CODE_ANALYZE*/
+! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
+! assign 1/detJ (sJ)
+! assign normal and tangential vectors and surfElems on faces
 
   crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
   SWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
@@ -411,17 +358,29 @@ IF (meshMode.GT.1) THEN
 #ifdef PARTICLES
   ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
   dXCL_NGeo = 0.
-  CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo,meshMode=meshMode)
+  CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
 #else
-  CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,meshMode=meshMode)
+  CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
 #endif
 
-  ! compute elem bary and elem radius
-  ALLOCATE(ElemBaryNGeo(1:3,1:nElems) )
+  ! Compute element bary and element radius for processor-local elements (without halo region)
+  ALLOCATE(ElemBaryNGeo(1:3,1:nElems))
   CALL BuildElementOrigin()
+
+#ifndef PARTICLES
+  ! dealloacte pointers
+  SWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
+  CALL deleteMeshPointer()
+#endif
 
   ! Initialize element volumes and characteristic lengths
   CALL InitElemVolumes()
+
+#ifndef PARTICLES
+  DEALLOCATE(NodeCoords)
+#endif
+  DEALLOCATE(dXCL_N)
+  DEALLOCATE(Ja_Face)
 
   IF(meshMode.NE.3)THEN
 #ifdef PARTICLES
@@ -432,14 +391,8 @@ IF (meshMode.GT.1) THEN
     END IF
 #endif /* PARTICLES */
   END IF ! meshMode.NE.3
-END IF
+END IF ! meshMode.GT.1
 
-SDEALLOCATE(NodeCoords)
-SDEALLOCATE(dXCL_N)
-SDEALLOCATE(Ja_Face)
-SDEALLOCATE(TreeCoords)
-SDEALLOCATE(xiMinMax)
-SDEALLOCATE(ElemToTree)
 
 IF(CalcMeshInfo)THEN
   CALL AddToElemData(ElementOut,'myRank',IntScalar=myRank)
@@ -467,11 +420,6 @@ USE MOD_Mesh_Vars,               ONLY: Xi_NGeo,Vdm_CLN_GaussN,Vdm_CLNGeo_CLN,Vdm
                                        ,wBaryCL_NGeo,XiCL_NGeo,DeltaXi_NGeo
 USE MOD_Basis,                   ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
 USE MOD_Basis,                   ONLY: ChebyGaussLobNodesAndWeights,PolynomialDerivativeMatrix,InitializeVandermonde
-#ifdef PARTICLES
-USE MOD_Mesh_Vars,               ONLY: wBaryCL_NGeo1,Vdm_CLNGeo1_CLNGeo,XiCL_NGeo1
-USE MOD_Particle_Surfaces_Vars,  ONLY: Vdm_Bezier,sVdm_Bezier,D_Bezier
-USE MOD_Basis,                   ONLY: BuildBezierVdm,BuildBezierDMat
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -485,9 +433,6 @@ REAL,INTENT(IN),DIMENSION(0:N_in)          :: xGP
 ! LOCAL VARIABLES
 REAL,DIMENSION(0:N_in)                     :: XiCL_N,wBaryCL_N
 REAL,DIMENSION(0:NGeo_in)                  :: wBary_NGeo!: XiCL_NGeo,!,wBaryCL_NGeo,wBary_NGeo
-#ifdef PARTICLES
-!REAL,DIMENSION(0:NGeo_in)                  :: XiEquiPartCurved
-#endif
 INTEGER                                    :: i
 !===================================================================================================================================
 ALLOCATE(DCL_N(0:N_in,0:N_in),Vdm_CLN_GaussN(0:N_in,0:N_in))
@@ -519,25 +464,6 @@ CALL PolynomialDerivativeMatrix(NGeo_in,XiCL_NGeo,DCL_NGeo)
 CALL InitializeVandermonde(NGeo_in,N_in   ,wBaryCL_NGeo,XiCL_NGeo,xGP      ,Vdm_CLNGeo_GaussN)
 CALL InitializeVandermonde(NGeo_in,N_in   ,wBaryCL_NGeo,XiCL_NGeo,XiCL_N   ,Vdm_CLNGeo_CLN   )
 CALL InitializeVandermonde(NGeo_in,NGeo_in,wBary_NGeo  ,Xi_NGeo  ,XiCL_NGeo,Vdm_NGeo_CLNGeo  )
-#ifdef PARTICLES
-! small wBaryCL_NGEO
-ALLOCATE(wBaryCL_NGeo1(0:1),XiCL_NGeo1(0:1))
-CALL ChebyGaussLobNodesAndWeights(1,XiCL_NGeo1)
-CALL BarycentricWeights(1,XiCL_NGeo1,wBaryCL_NGeo1)
-ALLOCATE(Vdm_CLNGeo1_CLNGeo(0:NGeo_In,0:1) )
-CALL InitializeVandermonde(1, NGeo_in,wBaryCL_NGeo1,XiCL_NGeo1,XiCL_NGeo ,Vdm_CLNGeo1_CLNGeo)
-
-! new for curved particle sides
-ALLOCATE(Vdm_Bezier(0:NGeo_in,0:NGeo_in),sVdm_Bezier(0:NGeo_in,0:NGeo_in))
-! initialize vandermonde for super-sampled surfaces (particle tracking with curved elements)
-!DO i=0,NGeo_in
-!  XiEquiPartCurved(i) = 2./REAL(NGeo_in) * REAL(i) - 1.
-!END DO
-! initialize vandermonde for bezier basis surface representation (particle tracking with curved elements)
-CALL BuildBezierVdm(NGeo_in,XiCL_NGeo,Vdm_Bezier,sVdm_Bezier) !CHANGETAG
-ALLOCATE(D_Bezier(0:NGeo_in,0:NGeo_in))
-CALL BuildBezierDMat(NGeo_in,Xi_NGeo,D_Bezier)
-#endif
 
 END SUBROUTINE InitMeshBasis
 
@@ -622,14 +548,14 @@ INQUIRE(File='../'//TRIM(NewFolderName),EXIST=objExist)
 IF(.NOT.objExist)THEN ! no swapmesh folder found
   SWRITE(UNIT_stdOut,'(A)')   ' ERROR: no swapmesh folder found. Cannot perform swapmesh'
   SWRITE(UNIT_stdOut,'(A,A)') ' objName:             ',TRIM(NewFolderName)
-  SWRITE(UNIT_stdOut,'(A,L)') ' objExist:            ',objExist
+  SWRITE(UNIT_stdOut,'(A,L1)') ' objExist:            ',objExist
 ELSE
   FileName='../'//TRIM(NewFolderName)//'/'//ParameterFile
   INQUIRE(File=FileName,EXIST=objExist)
   IF(.NOT.objExist) THEN
     SWRITE(UNIT_stdOut,'(A)')   ' ERROR: no '//ParameterFile//' found. Cannot perform swapmesh'
     SWRITE(UNIT_stdOut,'(A,A)') ' objName:             ',TRIM(FileName)
-    SWRITE(UNIT_stdOut,'(A,L)') ' objExist:            ',objExist
+    SWRITE(UNIT_stdOut,'(A,L1)') ' objExist:            ',objExist
   ELSE
     !NewFolderName=FileName
 
@@ -849,17 +775,25 @@ SUBROUTINE InitElemVolumes()
 !===================================================================================================================================
 ! Calculate Element volumes for later use in particle routines
 !===================================================================================================================================
-! MODULES                                               ! MODULES
-#if USE_MPI
-USE mpi
-USE MOD_Globals            ,ONLY: IERROR,MPIRoot
-#endif /*USE_MPI*/
+! MODULES
 USE MOD_PreProc
-USE MOD_Globals            ,ONLY: UNIT_StdOut,MPI_COMM_WORLD,abort
-USE MOD_Mesh_Vars          ,ONLY: nElems,sJ
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Globals            ,ONLY: UNIT_StdOut
 USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_Mesh_Vars          ,ONLY: nElems,sJ
+USE MOD_Particle_Mesh_Vars ,ONLY: LocalVolume,MeshVolume
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_ReadInTools
+#if USE_MPI
+USE MPI
+USE MOD_MPI_Shared
+USE MOD_Globals            ,ONLY: IERROR,MPIRoot
+#ifdef PARTICLES
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
+USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems,offsetComputeNodeElem
+USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED,myComputeNodeRank,MPI_COMM_LEADERS_SHARED
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
+#endif /*PARTICLES*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -868,48 +802,89 @@ USE MOD_ReadInTools
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem
-INTEGER           :: i,j,k
-INTEGER           :: ALLOCSTAT
-REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+INTEGER                         :: iElem,CNElemID
+INTEGER                         :: i,j,k
+REAL                            :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+INTEGER                         :: offsetElemCNProc
+#if USE_MPI
+#ifdef PARTICLES
+INTEGER(KIND=MPI_ADDRESS_KIND)  :: MPISharedSize
+REAL                            :: CNVolume                       ! Total CN volume
+#endif /*PARTICLES*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT ELEMENT GEOMETRY INFORMATION ...'
-ALLOCATE(GEO%Volume(nElems),&
-         GEO%MPVolumePortion(nElems),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-      __STAMP__&
-      ,'ERROR in InitElemGeometry: Cannot allocate GEO%Volume!')
+
+#if USE_MPI && defined(PARTICLES)
+! J_N is only built for local DG elements. Therefore, array is only filled for elements on the same compute node
+offsetElemCNProc = offsetElem - offsetComputeNodeElem
+#else
+offsetElemCNProc = 0
+#endif  /*USE_MPI && defined(PARTICLES)*/
+
+#if USE_MPI && defined(PARTICLES)
+MPISharedSize = INT(nComputeNodeElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemVolume_Shared_Win,ElemVolume_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemVolume_Shared_Win,IERROR)
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemCharLength_Shared_Win,ElemCharLength_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemCharLength_Shared_Win,IERROR)
+
+! Only root nullifies
+IF (myComputeNodeRank.EQ.0) THEN
+  ElemVolume_Shared(:)     = 0.
+  ElemCharLength_Shared(:) = 0.
 END IF
-GEO%MPVolumePortion(:)=0.
-ALLOCATE(GEO%CharLength(nElems),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-      __STAMP__&
-      ,'ERROR in InitElemGeometry: Cannot allocate GEO%CharLength!')
-END IF
+CALL MPI_WIN_SYNC(ElemVolume_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#else
+ALLOCATE(ElemVolume_Shared(nElems))
+ALLOCATE(ElemCharLength_Shared(nElems))
+ElemVolume_Shared(:)     = 0.
+ElemCharLength_Shared(:) = 0.
+#endif  /*USE_MPI && defined(PARTICLES)*/
 
 ! Calculate element volumes and characteristic lengths
-DO iElem=1,nElems
+DO iElem = 1,nElems
+  CNElemID=iElem+offsetElemCNProc
   !--- Calculate and save volume of element iElem
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-  GEO%Volume(iElem) = 0.
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    GEO%Volume(iElem)   = GEO%Volume(iElem) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
+    ElemVolume_Shared(CNElemID) = ElemVolume_Shared(CNElemID) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
   END DO; END DO; END DO
-  GEO%CharLength(iElem) = GEO%Volume(iElem)**(1./3.) ! Calculate characteristic cell length: V^(1/3)
+  !---- Calculate characteristic cell length: V^(1/3)
+  ElemCharLength_Shared(CNElemID) = ElemVolume_Shared(CNElemID)**(1./3.)
 END DO
 
-GEO%LocalVolume=SUM(GEO%Volume)
+#if USE_MPI && defined(PARTICLES)
+CALL MPI_WIN_SYNC(ElemVolume_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif /*USE_MPI && defined(PARTICLES)*/
+
+! Proc-local mesh volume
+LocalVolume = SUM(ElemVolume_Shared(offsetElemCNProc+1:offsetElemCNProc+nElems))
+
 #if USE_MPI
-CALL MPI_ALLREDUCE(GEO%LocalVolume,GEO%MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
+#ifdef PARTICLES
+! Compute-node mesh volume
+CNVolume = SUM(ElemVolume_Shared(:))
+IF (myComputeNodeRank.EQ.0) THEN
+  ! All-reduce between node leaders
+  CALL MPI_ALLREDUCE(CNVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,IERROR)
+END IF
+! Broadcast from node leaders to other processors on the same node
+CALL MPI_BCAST(MeshVolume,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iERROR)
 #else
-GEO%MeshVolume=GEO%LocalVolume
+! In this case, no shared array is created and all arrays are processor-local
+CALL MPI_ALLREDUCE(LocalVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
+#endif /*PARTICLES*/
+#else
+MeshVolume = LocalVolume
 #endif /*USE_MPI*/
 
-SWRITE(UNIT_StdOut,'(A,E18.8)') ' |              Total MESH Volume |                ', GEO%MeshVolume
-
+SWRITE(UNIT_StdOut,'(A,E18.8)') ' |              Total MESH Volume |                ', MeshVolume
 SWRITE(UNIT_stdOut,'(A)')' INIT ELEMENT GEOMETRY INFORMATION DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitElemVolumes
@@ -1079,9 +1054,6 @@ SDEALLOCATE(XiCL_NGeo)
 SDEALLOCATE(MortarType)
 SDEALLOCATE(MortarInfo)
 SDEALLOCATE(MortarSlave2MasterInfo)
-SDEALLOCATE(xiMinMax)
-SDEALLOCATE(ElemToTree)
-SDEALLOCATE(TreeCoords)
 ! mappings
 SDEALLOCATE(VolToSideA)
 SDEALLOCATE(VolToSide2A)
@@ -1094,7 +1066,6 @@ SDEALLOCATE(DetJac_Ref)
 SDEALLOCATE(Vdm_CLNGeo1_CLNGeo)
 SDEALLOCATE(wBaryCL_NGeo1)
 SDEALLOCATE(XiCL_NGeo1)
-SDEALLOCATE(CurvedElem)
 SDEALLOCATE(VolToSideIJKA)
 MeshInitIsDone = .FALSE.
 SDEALLOCATE(ElemBaryNGeo)

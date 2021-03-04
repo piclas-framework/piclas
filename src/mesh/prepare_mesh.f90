@@ -57,7 +57,7 @@ SUBROUTINE setLocalSideIDs()
 !> * InnerSides      : normal inner sides
 !> * MPI_MINE sides  : MPI sides to be processed by the current processor (e.g. flux computation)
 !> * MPI_YOUR sides  : MPI sides to be processed by the neighbour processor
-!> * MPIMortars      : mortar interfaces to be comunicated
+!> * MPIMortars      : mortar interfaces to be communicated
 !>
 !> Each side can be accessed through its SideID defining its position in the processor local side list.
 !> The routine furthermore sets the MPI masters and slave sides.
@@ -83,9 +83,6 @@ USE MOD_MPI_Vars           ,ONLY: offsetMPISides_MINE,offsetMPISides_YOUR,nMPISi
 USE MOD_MPI_Vars           ,ONLY: nMPISides_rec, OffsetMPISides_rec
 USE MOD_LoadBalance_Vars   ,ONLY: writePartitionInfo,DoLoadBalance,nLoadBalanceSteps, LoadDistri, PartDistri
 #endif
-#ifdef PARTICLES
-USE MOD_Particle_Mesh_Vars ,ONLY: SidePeriodicType
-#endif /*PARTICLES*/
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -255,18 +252,7 @@ DO iElem=FirstElemInd,LastElemInd
 #endif /*USE_MPI*/
   END DO
 END DO
-IF((nMortarInnerSides+nMortarMPISides).NE.nMortarSides) &
-   CALL abort(__STAMP__,'nInner+nMPI mortars <> nMortars.')
-
-#ifdef PARTICLES
-ALLOCATE(SidePeriodicType(1:nSides))
-SidePeriodicType = 0
-! positive entry: adding the periodic vector ends on the plus side
-! neg. entry: minus the periodic vector ends on the minus side
-! e.g. in periodic vector direction
-!      side+.xGP = side-.xGP + PeriodicVector
-!      side-.xGP = side+.xGP - PeriodicVector
-#endif /*PARTICLES*/
+IF((nMortarInnerSides+nMortarMPISides).NE.nMortarSides) CALL abort(__STAMP__,'nInner+nMPI mortars <> nMortars.')
 
 ! Iterate over all elements and within each element over all sides (6 for hexas in 3D, 4 for quads in 2D)
 ! and for each big Mortar side over all small virtual sides and set the 'SideID'.
@@ -307,9 +293,6 @@ DO iElem=FirstElemInd,LastElemInd
             END IF ! mortar
           END IF ! associated connection
         END IF ! .NOT. MPISide
-#ifdef PARTICLES
-        IF(aSide%SideID.GT.0) SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
-#endif /*PARTICLES*/
       END IF ! sideID EQ -1
     END DO ! iMortar
   END DO ! iLocSide=1,6
@@ -440,10 +423,6 @@ DO iNbProc=1,nNbProcs
             aSide%SideID=(aSide%SideID-nMPISides_YOUR_Proc(iNbProc))+offsetMPISides_MINE(iNbProc-1)
           END IF
         END IF ! myrank<NbProc
-#ifdef PARTICLES
-        ! Set BC alpha for changed SideID
-        SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
-#endif /*PARTICLES*/
       END DO ! iMortar
     END DO ! iLocSide
   END DO ! iElem
@@ -530,10 +509,6 @@ IF(nMortarSides.GT.0)THEN
         ! then shift SidID by number of big Mortars that will be moved and mark side as shifted (tmp=1)
         IF((aSide%tmp.EQ.0).AND.(aSide%SideID.GT.lastMortarInnerSide))THEN
           aSide%SideID=aSide%SideID+addToInnerMortars
-#ifdef PARTICLES
-          ! Set BC alpha for new SideID: Fix wrong BC assignment of inner sides
-          SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
-#endif /*PARTICLES*/
           aSide%tmp=1
         END IF
         ! repeat the same for the small virtual sides
@@ -542,10 +517,6 @@ IF(nMortarSides.GT.0)THEN
           aSide=>aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp ! point to small virtual side
           IF((aSide%tmp.EQ.0).AND.(aSide%SideID.GT.lastMortarInnerSide))THEN
             aSide%SideID=aSide%SideID+addToInnerMortars
-#ifdef PARTICLES
-            ! Set BC alpha for new SideID: Fix wrong BC assignment of inner sides
-            SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
-#endif /*PARTICLES*/
             aSide%tmp=1
           END IF
         END DO ! iMortar
@@ -574,15 +545,9 @@ IF(nMortarSides.GT.0)THEN
         IF(aSide%tmp.EQ.-2)THEN ! MPI mortars, renumber SideIDs
           iMortarMPISide=iMortarMPISide+1
           aSide%SideID=iMortarMPISide
-#ifdef PARTICLES
-          SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
-#endif /*PARTICLES*/
         ELSEIF(aSide%tmp.EQ.-1)THEN ! innermortars mortars, renumber SideIDs
           iMortarInnerSide=iMortarInnerSide+1
           aSide%SideID=iMortarInnerSide
-#ifdef PARTICLES
-          SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
-#endif /*PARTICLES*/
         END IF ! aSide%tmp==-1
       END DO ! iLocSide
     END DO ! iElem
@@ -844,8 +809,11 @@ USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: tElem,tSide,Elems
 USE MOD_Mesh_Vars        ,ONLY: nElems,offsetElem,nBCSides,nSides
 USE MOD_Mesh_Vars        ,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
-USE MOD_Mesh_Vars        ,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob,GlobalUniqueSideID
+USE MOD_Mesh_Vars        ,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob
 USE MOD_Mesh_Vars        ,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
+#if defined(PARTICLES) || USE_HDG
+USE MOD_Mesh_Vars        ,ONLY: GlobalUniqueSideID
+#endif /*defined(PARTICLES) || USE_HDG*/
 #if USE_MPI
 USE MOD_MPI_vars
 #endif
@@ -901,9 +869,9 @@ DO iElem=1,nElems
       SideToElem(S2E_FLIP,aSide%SideID)            = aSide%Flip
     END IF
     BC(aSide%sideID)=aSide%BCIndex
-#ifdef PARTICLES
+#if defined(PARTICLES) || USE_HDG
     GlobalUniqueSideID(aSide%sideID)=aSide%Ind
-#endif /*PARTICLES*/
+#endif /*defined(PARTICLES) || USE_HDG*/
   END DO ! LocSideID
 END DO ! iElem
 
@@ -927,10 +895,10 @@ DO iElem=1,nElems
       DO iMortar=1,aSide%nMortars
         mSide=>aSide%MortarSide(iMortar)%sp
         MortarType(1,mSide%SideID)=mSide%MortarType
-#ifdef PARTICLES
+#if defined(PARTICLES) || USE_HDG
         ! Store global unique side index on mortar side if the side has not been set previously
         IF(GlobalUniqueSideID(mSide%SideID).EQ.-1) GlobalUniqueSideID(mSide%SideID) = mSide%Ind
-#endif /*PARTICLES*/
+#endif /*defined(PARTICLES) || USE_HDG*/
         MortarInfo(MI_SIDEID,iMortar,SideID)=mSide%SideID
         MortarInfo(MI_FLIP,iMortar,SideID)=mSide%Flip
       END DO ! iMortar
@@ -1174,9 +1142,6 @@ USE MOD_Globals
 USE MOD_Mesh_Vars,ONLY:nElems,offsetElem
 USE MOD_Mesh_Vars,ONLY:tElem,tSide,Elems
 USE MOD_MPI_vars
-#ifdef PARTICLES
-USE MOD_Particle_Mesh_Vars, ONLY: SidePeriodicType
-#endif /*PARTICLES*/
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1249,18 +1214,9 @@ DO iElem=1,nElems
         IF(aSide%flip.EQ.0)THEN
           IF(Flip_YOUR(aSide%SideID).EQ.0) CALL abort(__STAMP__&
               ,'problem in exchangeflip',aSide%SideID,REAL(Flip_Your(aSide%SideID)))
-#ifdef PARTICLES
-          ! switch side-alpha if flip is changed. The other side now constructs the side, thus it has to be changed
-          IF(aSide%flip.NE.Flip_YOUR(aSide%SideID))  SidePeriodicType(aSide%SideID) =-SidePeriodicType(aSide%SideID)
-#endif /*PARTICLES*/
           aSide%flip=Flip_YOUR(aSide%sideID)
         END IF
       ELSE
-#ifdef PARTICLES
-        ! if side has not been a master side, i.e. a slave side, it is now used as a master side, hence, the
-        ! periodic displacement vector has to be rotated
-        IF(aSide%flip.NE.0) SidePeriodicType(aSide%SideID) =-SidePeriodicType(aSide%SideID)
-#endif /*PARTICLES*/
         aSide%flip=0 !MINE MPISides flip=0
       END IF
     END DO ! iMortar

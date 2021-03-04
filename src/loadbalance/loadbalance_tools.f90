@@ -78,13 +78,10 @@ INTEGER                        :: iElem
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' DOMAIN DECOMPOSITION ...'
 !simple partition: nGlobalelems/nprocs, do this on proc 0
-SDEALLOCATE(offsetElemMPI)
 ALLOCATE(offsetElemMPI(0:nProcessors))
 offsetElemMPI=0
-SDEALLOCATE(LoadDistri)
 ALLOCATE(LoadDistri(0:nProcessors-1))
 LoadDistri(:)=0.
-SDEALLOCATE(PartDistri)
 ALLOCATE(PartDistri(0:nProcessors-1))
 PartDistri(:)=0
 ElemTimeExists=.FALSE.
@@ -101,7 +98,6 @@ IF (DoRestart) THEN
   !--------------------------------------------------------------------------------------------------------------------------------!
   ! Readin of ElemTime: Read in only by MPIRoot in single mode, only communicate logical ElemTimeExists
   ! because the root performs the distribution of elements (domain decomposition) due to the load distribution scheme
-  SDEALLOCATE(ElemGlobalTime)
   ALLOCATE(ElemGlobalTime(1:nGlobalElems)) ! Allocate ElemGlobalTime for all MPI ranks
   ElemGlobalTime = 0.
 
@@ -156,7 +152,6 @@ END IF ! ElemTimeExists
 
 #if USE_HDG
 ! Allocate container for number of master sides for the HDG solver for each element
-SDEALLOCATE(ElemHDGSides)
 ALLOCATE(ElemHDGSides(1:nElems))
 ElemHDGSides=0
 IF(CalcMeshInfo)THEN
@@ -166,7 +161,6 @@ TotalHDGSides=0
 #endif /*USE_HDG*/
 
 ! Set new ElemTime depending on new load distribution
-SDEALLOCATE(ElemTime)
 ALLOCATE(ElemTime(1:nElems))
 ElemTime=0.
 CALL AddToElemData(ElementOut,'ElemTime',RealArray=ElemTime(1:nElems))
@@ -183,7 +177,6 @@ IF(ElemTimeExists.AND.MPIRoot)THEN
   DO iProc=0,nProcessors-1
     WeightSum_proc(iProc) = SUM(ElemGlobalTime(1+offsetElemMPI(iProc):offsetElemMPI(iProc+1)))
   END DO
-  SDEALLOCATE(ElemGlobalTime)
   MaxWeight = MAXVAL(WeightSum_proc)
   MinWeight = MINVAL(WeightSum_proc)
   ! WeightSum (Mesh global value) is already set in BalanceMethod scheme
