@@ -53,31 +53,28 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("HDG")
 
-CALL prms%CreateIntOption(      'NonLinSolver'           , 'TODO-DEFINE-PARAMETER', '1')
-CALL prms%CreateLogicalOption(  'NewtonExactSourceDeriv' , 'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateIntOption(      'AdaptIterNewton'        , 'TODO-DEFINE-PARAMETER', '0')
-CALL prms%CreateLogicalOption(  'NewtonAdaptStartValue'  , 'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateIntOption(      'AdaptIterNewtonToLinear', 'TODO-DEFINE-PARAMETER', '100')
-CALL prms%CreateRealOption(     'RelaxFacNonlinear'      , 'TODO-DEFINE-PARAMETER', '0.5')
-CALL prms%CreateIntOption(      'AdaptIterFixPoint'      , 'TODO-DEFINE-PARAMETER', '10')
-CALL prms%CreateIntOption(      'MaxIterFixPoint'        , 'TODO-DEFINE-PARAMETER', '10000')
-CALL prms%CreateRealOption(     'NormNonlinearDevLimit'  , 'TODO-DEFINE-PARAMETER', '99999.')
-CALL prms%CreateRealOption(     'EpsNonLinear'           , 'TODO-DEFINE-PARAMETER', '1.0E-6')
-CALL prms%CreateIntOption(      'PrecondType'            , 'TODO-DEFINE-PARAMETER', '2')
-CALL prms%CreateRealOption(     'epsCG'                  , 'TODO-DEFINE-PARAMETER', '1.0E-6')
-CALL prms%CreateIntOption(      'OutIterCG'              , 'TODO-DEFINE-PARAMETER', '1')
+CALL prms%CreateIntOption(    'NonLinSolver'           ,'Select Newton or Fix Point algorithm (default is Newton and Fix Point is not implemented)', '1')
+CALL prms%CreateLogicalOption('NewtonExactSourceDeriv' ,'Use exact derivative of exponential function in source term instead of linearized.', '.FALSE.')
+CALL prms%CreateIntOption(    'AdaptIterNewton'        ,'Set number of iteration steps after which the system matrix is recomputed', '0')
+CALL prms%CreateLogicalOption('NewtonAdaptStartValue'  ,'Initial recomputation of the system matrix with initial guess of the solution', '.FALSE.')
+CALL prms%CreateIntOption(    'AdaptIterNewtonToLinear','Maximum number of iterations where the exact source derivative is used before it is switched to the linearization', '100')
+CALL prms%CreateIntOption(    'MaxIterNewton'          ,'Maximum number of iterations in the Newton solver', '10000')
+CALL prms%CreateRealOption(   'EpsNonLinear'           ,'Abort residual of the Newton solver', '1.0E-6')
+CALL prms%CreateIntOption(    'PrecondType'            ,'Preconditioner type\n 0: no preconditioner\n 1: Side-block SPD preconditioner'&
+                                                      //' matrix (already Cholesky decomposed)\n 2: Inverse of diagonal preconditioned', '2')
+CALL prms%CreateRealOption(   'epsCG'                  ,'Abort residual of the CG solver', '1.0E-6')
+CALL prms%CreateIntOption(    'OutIterCG'              ,'Number of iteration steps between output of CG solver info to std out', '1')
 
-CALL prms%CreateLogicalOption(  'useRelativeAbortCrit'   , 'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateIntOption(      'maxIterCG'              , 'TODO-DEFINE-PARAMETER', '500')
-CALL prms%CreateLogicalOption(  'OnlyPostProc'           , 'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateLogicalOption(  'ExactLambda'            , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateLogicalOption('useRelativeAbortCrit'   ,'Switch between relative and absolute abort criterion', '.FALSE.')
+CALL prms%CreateIntOption(    'MaxIterCG'              ,'Maximum number of iterations in the CG solver', '500')
+CALL prms%CreateLogicalOption('ExactLambda'            ,'Initially set lambda on all sides (volume and boundaries) via a pre-defined function (ExactFunc)', '.FALSE.')
 
-CALL prms%CreateIntOption(      'HDG_N'                  , 'TODO-DEFINE-PARAMETER \nDefault: 2*N')
-CALL prms%CreateIntOption(      'HDGSkip'                , 'TODO-DEFINE-PARAMETER', '0')
-CALL prms%CreateIntOption(      'HDGSkipInit'            , 'TODO-DEFINE-PARAMETER', '0')
-CALL prms%CreateRealOption(     'HDGSkip_t0'             , 'TODO-DEFINE-PARAMETER', '0.')
+CALL prms%CreateIntOption(    'HDGSkip'                ,'Number of time step iterations until the HDG solver is called (i.e. all intermediate calls are skipped)', '0')
+CALL prms%CreateIntOption(    'HDGSkipInit'            ,'Number of time step iterations until the HDG solver is called (i.e. all intermediate calls are skipped)'&
+                                                      //' while time < HDGSkip_t0 (if HDGSkip > 0)', '0')
+CALL prms%CreateRealOption(   'HDGSkip_t0'             ,'Time during which HDGSkipInit is used instead of HDGSkip (if HDGSkip > 0)', '0.')
 
-CALL prms%CreateLogicalOption(  'HDGDisplayConvergence'  , 'Display divergence criteria: Iterations, RunTime and Residual', '.FALSE.')
+CALL prms%CreateLogicalOption('HDGDisplayConvergence'  ,'Display divergence criteria: Iterations, RunTime and Residual', '.FALSE.')
 
 END SUBROUTINE DefineParametersHDG
 
@@ -142,19 +139,19 @@ IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far 
   NonLinSolver=GETINT('NonLinSolver')
 
   IF (NonLinSolver.EQ.1) THEN
-    NewtonExactApprox       = GETLOGICAL('NewtonExactSourceDeriv')
+    NewtonExactSourceDeriv  = GETLOGICAL('NewtonExactSourceDeriv')
     AdaptIterNewton         = GETINT('AdaptIterNewton')
     AdaptIterNewtonOld      = AdaptIterNewton
-    AdaptNewtonStartValue   = GETLOGICAL('NewtonAdaptStartValue')
+    NewtonAdaptStartValue   = GETLOGICAL('NewtonAdaptStartValue')
     AdaptIterNewtonToLinear = GETINT('AdaptIterNewtonToLinear')
-    IF (NewtonExactApprox) AdaptNewtonStartValue=.true.
-    IF (DoRestart) AdaptNewtonStartValue=.false.
+    IF (NewtonExactSourceDeriv) NewtonAdaptStartValue=.TRUE.
+    IF (DoRestart) NewtonAdaptStartValue=.FALSE.
     ALLOCATE(NonlinVolumeFac(nGP_vol,PP_nElems))
     DO iElem=1,PP_nElems
       RegionID=ElemToBRRegion(iElem)
       DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
         r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-        IF (AdaptNewtonStartValue) THEN
+        IF (NewtonAdaptStartValue) THEN
           NonlinVolumeFac(r,iElem)=0.0
         ELSE
           NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
@@ -163,18 +160,8 @@ IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far 
     END DO !iElem
   END IF
 
-  RelaxFacNonlinear0    = GETREAL('RelaxFacNonlinear')
-  RelaxFacNonlinear     = RelaxFacNonlinear0
-  AdaptIterFixPoint0    = GETINT('AdaptIterFixPoint')
-  AdaptIterFixPoint     = AdaptIterFixPoint0
-  MaxIterFixPoint       = GETINT('MaxIterFixPoint')
-  NormNonlinearDevLimit = GETREAL('NormNonlinearDevLimit')
-  IF (NormNonlinearDevLimit .LT. 1.) THEN
-    CALL abort(&
-    __STAMP__&
-    ,'NormNonlinearDevLimit should be .GE. 1 but NormNonlinearDevLimit=',RealInfoOpt=NormNonlinearDevLimit)
-  END IF
-  EpsNonLinear=GETREAL('EpsNonLinear')
+  MaxIterNewton = GETINT('MaxIterNewton')
+  EpsNonLinear  = GETREAL('EpsNonLinear')
 ELSE
   nonlinear = .false.
 END IF
@@ -184,9 +171,8 @@ PrecondType          = GETINT('PrecondType')
 epsCG                = GETREAL('epsCG')
 OutIterCG            = GETINT('OutIterCG')
 useRelativeAbortCrit = GETLOGICAL('useRelativeAbortCrit')
-maxIterCG            = GETINT('maxIterCG')
+MaxIterCG            = GETINT('MaxIterCG')
 
-OnlyPostProc         = GETLOGICAL('OnlyPostProc')
 ExactLambda          = GETLOGICAL('ExactLambda')
 
 ALLOCATE(MaskedSide(1:nSides))
@@ -354,7 +340,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)     :: t !time
 INTEGER(KIND=8),INTENT(IN)  :: iter
-LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in first step (only BR electron fluid)
+LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in first step (only required for BR electron fluid)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
@@ -522,7 +508,7 @@ DO iElem=1,PP_nElems
 END DO !iElem
 
 !replace lambda with exact function (debugging)
-IF(onlyPostProc.OR.ExactLambda)THEN
+IF(ExactLambda)THEN
   DO SideID=1,nSides
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
@@ -839,13 +825,13 @@ ELSE
                                U_out(PP_nVar,:,iElem),1)
   END DO !iElem
 
-  IF(AdaptNewtonStartValue) THEN
+  IF(NewtonAdaptStartValue) THEN
     IF ((.NOT.DoRestart.AND.ALMOSTEQUAL(time,0.)).OR.(DoRestart.AND.ALMOSTEQUAL(time,RestartTime))) THEN
       DO iElem=1,PP_nElems
         RegionID=ElemToBRRegion(iElem)
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
           r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-          IF (NewtonExactApprox) THEN
+          IF (NewtonExactSourceDeriv) THEN
             NonlinVolumeFac(r,iElem) = RegionElectronRef(1,RegionID)/ (RegionElectronRef(3,RegionID)*eps0) &
                          * EXP( (U_out(1,r,iElem)-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
           ELSE
@@ -861,12 +847,12 @@ ELSE
   converged =.false.
   beLinear=.false.
   AdaptIterNewton = AdaptIterNewtonOld
-  DO iter=1,MaxIterFixPoint
+  DO iter=1,MaxIterNewton
 
     IF (.NOT.beLinear) THEN
       IF ((iter.EQ.AdaptIterNewtonToLinear)) THEN !.OR.(iter.GT.3*AdaptIterNewtonOld)) THEN
                                                  !removed second cond. to ensure fast convergence with very small AdaptIterNewton
-        IF(MPIroot) WRITE(*,*) 'The linear way, baby !!!!!!!!!!!!'
+        IF(MPIroot) WRITE(*,*) 'Info: Solver not converging with exact source derivative, switching to linearization (The linear way, baby)'
         DO iElem=1,PP_nElems
           RegionID=ElemToBRRegion(iElem)
           DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -887,7 +873,7 @@ ELSE
           RegionID=ElemToBRRegion(iElem)
           DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
             r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-            IF (NewtonExactApprox) THEN
+            IF (NewtonExactSourceDeriv) THEN
               NonlinVolumeFac(r,iElem) = RegionElectronRef(1,RegionID)/ (RegionElectronRef(3,RegionID)*eps0) &
                          * EXP( (U_out(1,r,iElem)-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
             ELSE
@@ -959,10 +945,10 @@ ELSE
       END IF
 #endif
       EXIT
-    ELSE IF (iter.EQ.MaxIterFixPoint) THEN
-      IPWRITE(UNIT_StdOut,*) "Norm_r2         =", Norm_r2
-      IPWRITE(UNIT_StdOut,*) "iter            =", iter
-      IPWRITE(UNIT_StdOut,*) "MaxIterFixPoint =", MaxIterFixPoint
+    ELSE IF (iter.EQ.MaxIterNewton) THEN
+      IPWRITE(UNIT_StdOut,*) "Norm_r2       =", Norm_r2
+      IPWRITE(UNIT_StdOut,*) "iter          =", iter
+      IPWRITE(UNIT_StdOut,*) "MaxIterNewton =", MaxIterNewton
       CALL abort(&
         __STAMP__&
         ,'HDGNewton: Newton Iteration has NOT converged!')
@@ -1540,7 +1526,7 @@ CASE(2)
     IF(MaskedSide(sideID)) THEN
       V(:,SideID)=0.
     ELSE
-      ! apply inverse of diagonal preconditioner
+      ! apply inverse of diagonal preconditioned
       DO igf = 1, nGP_face
         V(igf, SideID) = InvPrecondDiag(igf,SideID)*R(igf,SideID)
       END DO ! igf
