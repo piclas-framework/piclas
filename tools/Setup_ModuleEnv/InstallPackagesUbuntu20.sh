@@ -40,7 +40,3 @@ sudo apt-get install  lsb
 
 # Secure Sockets Layer toolkit - development files
 sudo apt-get install  libssl-dev
-
-# Create Installsources directory and copy the module templates
-sudo mkdir -p /opt/Installsources
-sudo cp -r moduletemplates /opt/Installsources/moduletemplates
