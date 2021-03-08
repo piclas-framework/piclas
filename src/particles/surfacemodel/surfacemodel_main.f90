@@ -42,7 +42,7 @@ SUBROUTINE SurfaceModel_main(PartID,SideID,ElemID,n_Loc)
 !===================================================================================================================================
 USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec
 USE MOD_Particle_Vars             ,ONLY: PartSpecies, WriteMacroSurfaceValues
-USE MOD_Particle_Tracking_Vars    ,ONLY: TriaTracking, TrackInfo
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide, dXiEQ_SurfSample, PartBound
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
@@ -113,7 +113,7 @@ IF(CalcSurfCollCounter) SurfAnalyzeCount(SpecID) = SurfAnalyzeCount(SpecID) + 1
 ! Sampling
 DoSample = (DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)
 IF(DoSample) THEN
-  IF (TriaTracking) THEN
+  IF (TrackingMethod.EQ.TRIATRACKING) THEN
     TrackInfo%p = 1 ; TrackInfo%q = 1
   ELSE
     Xitild  = MIN(MAX(-1.,TrackInfo%xi ),0.99)

@@ -228,7 +228,7 @@ SUBROUTINE InitParticleGlobals()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Particle_Tracking_Vars,     ONLY: TrackingMethod,TriaTracking,DoRefMapping
+USE MOD_Particle_Tracking_Vars,     ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -245,15 +245,7 @@ SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS...'
 ! Find tracking method immediately, a lot of the later variables depend on it
 TrackingMethod = GETINTFROMSTR('TrackingMethod')
 SELECT CASE(TrackingMethod)
-CASE(REFMAPPING)
-  DoRefMapping=.TRUE.
-  TriaTracking=.FALSE.
-CASE(TRACING)
-  DoRefMapping=.FALSE.
-  TriaTracking=.FALSE.
-CASE(TRIATRACKING)
-  DoRefMapping=.FALSE.
-  TriaTracking=.TRUE.
+CASE(REFMAPPING,TRACING,TRIATRACKING)
 CASE DEFAULT
   SWRITE(UNIT_stdOut,'(A)')' TrackingMethod not implemented! Select refmapping (1), tracing (2) or triatracking (3).'
   CALL abort(&
@@ -261,8 +253,7 @@ CASE DEFAULT
   ,'TrackingMethod not implemented! TrackingMethod=',IntInfoOpt=TrackingMethod)
 END SELECT
 IF (Symmetry%Order.LE.2) THEN
-  DoRefMapping=.FALSE.
-  TriaTracking=.TRUE.
+  TrackingMethod = TRIATRACKING
   SWRITE(UNIT_stdOut,'(A)') "TrackingMethod set to TriaTracking due to Symmetry2D."
 END IF
 
@@ -407,7 +398,7 @@ USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesInits
 USE MOD_Particle_Boundary_Init ,ONLY: InitializeVariablesPartBoundary, InitializeVariablesAuxBC
-USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: TriaSurfaceFlux
 USE MOD_PICInit                ,ONLY: InitPIC
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
@@ -502,9 +493,9 @@ IF(Symmetry%Axisymmetric) THEN
     RadialWeighting%PerformCloning = .TRUE.
     CALL DSMC_2D_InitRadialWeighting()
   END IF
-  IF(.NOT.TriaTracking) CALL abort(&
+  IF(TrackingMethod.NE.TRIATRACKING) CALL abort(&
     __STAMP__&
-    ,'ERROR: Axisymmetric simulation only supported with TriaTracking = T')
+    ,'ERROR: Axisymmetric simulation only supported with TrackingMethod = triatracking')
   IF(.NOT.TriaSurfaceFlux) CALL abort(&
     __STAMP__&
     ,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
@@ -534,7 +525,7 @@ SUBROUTINE AllocateParticleArrays()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
-USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars               ,ONLY: nElems
 USE MOD_DSMC_Vars               ,ONLY: useDSMC
 ! IMPLICIT VARIABLE HANDLING
@@ -547,7 +538,7 @@ USE MOD_DSMC_Vars               ,ONLY: useDSMC
 ! LOCAL VARIABLES
 INTEGER               :: ALLOCSTAT
 !===================================================================================================================================
-IF(DoRefMapping)THEN
+IF(TrackingMethod.EQ.REFMAPPING)THEN
   ALLOCATE(PartPosRef(1:3,PDM%MaxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
   __STAMP__&
@@ -729,7 +720,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Mesh_Vars               ,ONLY: nElems
-USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_VarTimeStep    ,ONLY: VarTimeStep_CalcElemFacs
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -745,10 +736,10 @@ IF(VarTimeStep%UseVariableTimeStep) THEN
   ! Initializing the particle time step array used during calculation for the distribution (after maxParticleNumber was read-in)
   ALLOCATE(VarTimeStep%ParticleTimeStep(1:PDM%maxParticleNumber))
   VarTimeStep%ParticleTimeStep = 1.
-  IF(.NOT.TriaTracking) THEN
+  IF(TrackingMethod.NE.TRIATRACKING) THEN
     CALL abort(&
       __STAMP__&
-      ,'ERROR: Variable time step is only supported with TriaTracking = T')
+      ,'ERROR: Variable time step is only supported with TrackingMethod = triatracking')
   END IF
   IF(VarTimeStep%UseLinearScaling) THEN
     IF(Symmetry%Order.LE.2) THEN
@@ -967,7 +958,6 @@ SUBROUTINE InitializeVariablesIMD()
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Globals_Vars            ,ONLY: ElementaryCharge
-USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -991,10 +981,6 @@ IMDCutOff             = GETSTR( 'IMDCutOff','no_cutoff')
 IMDCutOffxValue       = GETREAL('IMDCutOffxValue','-999.9')
 
 IF(TRIM(IMDAtomFile).NE.'no file found')DoImportIMDFile=.TRUE.
-IF(DoImportIMDFile)THEN
-  DoRefMapping=.FALSE. ! for faster init don't use DoRefMapping!
-  CALL PrintOption('DoImportIMDFile=T. Setting DoRefMapping =','*CHANGE',LogOpt=DoRefMapping)
-END IF
 
 ! get information for IMD atom/ion charge determination and distribution
 IMDnSpecies         = GETINT('IMDnSpecies','1')

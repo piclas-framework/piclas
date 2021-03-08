@@ -233,7 +233,7 @@ USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary, AdaptWallTemp
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
@@ -495,8 +495,8 @@ DO iPBC=1,nPartBound
       PartBound%MapToPartBC(iBC) = -1 !there are no internal BCs in the mesh, they are just in the name list!
       SWRITE(*,*)"... PartBound",iPBC,"is internal bound, no mapping needed"
     ELSEIF(BoundaryType(iBC,BC_TYPE).EQ.100)THEN
-      IF(DoRefMapping)THEN
-        SWRITE(UNIT_STDOUT,'(A)') ' Analyze sides are not implemented for DoRefMapping=T, because '//  &
+      IF(TrackingMethod.EQ.REFMAPPING)THEN
+        SWRITE(UNIT_STDOUT,'(A)') ' Analyze sides are not implemented for RefMapping=T, because '//  &
                                   ' orientation of SideNormVec is unknown.'
      CALL abort(&
                 __STAMP__&

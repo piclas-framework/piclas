@@ -51,7 +51,8 @@ USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm_Pois
 USE MOD_Equation_Vars          ,ONLY: Phi,Phit,nTotalPhi
 #endif /*PP_POIS*/
 #ifdef PARTICLES
-USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime,TriaTracking
+USE MOD_Particle_Tracking      ,ONLY: PerformTracking
+USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,MeasureTrackTime
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, PEM, PDM, &
@@ -59,9 +60,6 @@ USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, Delay
 USE MOD_PICModels              ,ONLY: FieldIonization
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
-USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
-USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
-USE MOD_Particle_TriaTracking  ,ONLY: ParticleTriaTracking
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
@@ -207,15 +205,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
 #endif /*USE_LOADBALANCE*/
 
   IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
-  IF(DoRefMapping)THEN
-    CALL ParticleRefTracking()
-  ELSE
-    IF (TriaTracking) THEN
-      CALL ParticleTriaTracking()
-    ELSE
-      CALL ParticleTracing()
-    END IF
-  END IF
+  CALL PerformTracking()
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
     tTracking=tTracking+TimeEnd-TimeStart
@@ -342,15 +332,7 @@ DO iStage=2,nRKStages
     CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
     IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
-    IF(DoRefMapping)THEN
-      CALL ParticleRefTracking()
-    ELSE
-      IF (TriaTracking) THEN
-        CALL ParticleTriaTracking()
-      ELSE
-        CALL ParticleTracing()
-      END IF
-    END IF
+    CALL PerformTracking()
     IF(MeasureTrackTime) THEN
       CALL CPU_TIME(TimeEnd)
       tTracking=tTracking+TimeEnd-TimeStart

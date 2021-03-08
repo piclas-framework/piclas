@@ -81,10 +81,11 @@ USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
 USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
 USE MOD_Particle_TriaTracking  ,ONLY: ParticleTriaTracking
-USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_Particle_Tracking_vars ,ONLY: TrackingMethod
 USE MOD_ParticleSolver         ,ONLY: ParticleNewton, SelectImplicitParticles
 USE MOD_Part_RHS               ,ONLY: PartRHS
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
@@ -508,16 +509,16 @@ DO iStage=2,nRKStages
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-    IF(DoRefMapping)THEN
-      ! tracking routines has to be extended for optional flag, like deposition
+    SELECT CASE(TrackingMethod)
+    CASE(REFMAPPING)
       CALL ParticleRefTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
-    ELSE
-      IF (TriaTracking) THEN
-        CALL ParticleTriaTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
-      ELSE
-        CALL ParticleTracing(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
-      END IF
-    END IF
+    CASE(TRACING)
+      CALL ParticleTracing(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+    CASE(TRIATRACKING)
+      CALL ParticleTriaTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+    CASE DEFAULT
+      CALL abort(__STAMP__,'TrackingMethod not implemented! TrackingMethod =',IntInfoOpt=TrackingMethod)
+    END SELECT
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -645,18 +646,16 @@ DO iStage=2,nRKStages
 #if USE_LOADBALANCE
       CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-      IF(DoRefMapping)THEN
-        ! tracking routines has to be extended for optional flag, like deposition
-        !CALL ParticleRefTracking()
+      SELECT CASE(TrackingMethod)
+      CASE(REFMAPPING)
         CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-      ELSE
-        !CALL ParticleTracing()
-        IF (TriaTracking) THEN
-          CALL ParticleTriaTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-        ELSE
-          CALL ParticleTracing(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-        END IF
-      END IF
+      CASE(TRACING)
+        CALL ParticleTracing(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+      CASE(TRIATRACKING)
+        CALL ParticleTriaTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+      CASE DEFAULT
+        CALL abort(__STAMP__,'TrackingMethod not implemented! TrackingMethod =',IntInfoOpt=TrackingMethod)
+      END SELECT
 #if USE_MPI
 #if USE_LOADBALANCE
       CALL LBStartTime(tLBStart)
@@ -802,18 +801,7 @@ iStage=0
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-  IF(DoRefMapping)THEN
-    ! tracking routines has to be extended for optional flag, like deposition
-    !CALL ParticleRefTracking()
-    CALL ParticleRefTracking() !(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
-  ELSE
-    !CALL ParticleTracing()
-    IF (TriaTracking) THEN
-      CALL ParticleTriaTracking() !doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
-    ELSE
-      CALL ParticleTracing() !doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
-    END IF
-  END IF
+  CALL PerformTracking()
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/

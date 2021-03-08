@@ -73,10 +73,7 @@ USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
-USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
-USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
-USE MOD_Particle_TriaTracking  ,ONLY: ParticleTriaTracking
-USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_Part_RHS               ,ONLY: PartRHS
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
@@ -479,16 +476,7 @@ DO iStage=2,nRKStages
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-    IF(DoRefMapping)THEN
-      ! tracking routines has to be extended for optional flag, like deposition
-      CALL ParticleRefTracking()
-    ELSE
-      IF (TriaTracking) THEN
-        CALL ParticleTriaTracking()
-      ELSE
-        CALL ParticleTracing()
-      END IF
-    END IF
+    CALL PerformTracking()
 #if USE_MPI
     ! send number of particles
     CALL SendNbOfParticles()
@@ -669,16 +657,7 @@ IF (time.GE.DelayTime) THEN
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-  IF(DoRefMapping)THEN
-    ! tracking routines has to be extended for optional flag, like deposition
-    CALL ParticleRefTracking()
-  ELSE
-    IF (TriaTracking) THEN
-      CALL ParticleTriaTracking()
-    ELSE
-      CALL ParticleTracing()
-    END IF
-  END IF
+  CALL PerformTracking()
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
