@@ -2,23 +2,44 @@
 
 #==============================================================================
 # title       : InstallParaview.sh
-# description : This script installs paraview with specific setting in a 
+# description : This script installs paraview with specific setting in a
 #               pre-installed module env
 # date        : Nov 27, 2019
-# version     : 1.0   
+# version     : 1.0
 # usage       : bash InstallParaview.sh
-# notes       : Bash in run interactively via "-i" to use "module load/purge" 
+# notes       : Bash in run interactively via "-i" to use "module load/purge"
 #               commands
 #==============================================================================
+
+# Check privilege
+if [[ "$EUID" -ne 0 ]]; then
+  echo "Please run as root"
+  exit 1
+fi
 
 # --------------------------------------------------------------------------------------------------
 # Colors
 # --------------------------------------------------------------------------------------------------
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-CYAN='\e[37;44m'
-NC='\033[0m' # No Color
+
+if test -t 1; then # if terminal
+  NbrOfColors=$(which tput > /dev/null && tput colors) # supports color
+  if test -n "$NbrOfColors" && test $NbrOfColors -ge 8; then
+    TERMCOLS=$(tput cols)
+    BOLD="$(tput bold)"
+    UNDERLINE="$(tput smul)"
+    STANDOUT="$(tput smso)"
+    NORMAL="$(tput sgr0)"
+    NC="$(tput sgr0)"
+    BLACK="$(tput setaf 0)"
+    RED="$(tput setaf 1)"
+    GREEN="$(tput setaf 2)"
+    YELLOW="$(tput setaf 3)"
+    BLUE="$(tput setaf 4)"
+    MAGENTA="$(tput setaf 5)"
+    CYAN="$(tput setaf 6)"
+    WHITE="$(tput setaf 7)"
+  fi
+fi
 
 # --------------------------------------------------------------------------------------------------
 # Functions
@@ -66,12 +87,15 @@ do
     #CMAKEVERSION=3.15.3-d
     CMAKEVERSION=3.17.0-d
     #GCCVERSION=9.2.0
-    GCCVERSION=10.1.0
+    GCCVERSION=9.3.0
+    #GCCVERSION=10.1.0
     #GCCVERSION=10.2.0
     #OPENMPIVERSION=3.1.4
     #OPENMPIVERSION=4.0.1
-    OPENMPIVERSION=4.0.2
-    HDF5VERSION=1.10.5
+    #OPENMPIVERSION=4.0.2
+    OPENMPIVERSION=3.1.6
+    #HDF5VERSION=1.10.5
+    HDF5VERSION=1.10.6
     break
   fi
 done
@@ -85,12 +109,13 @@ done
 #  sudo apt-get install libqt5svg5-dev
 #  sudo apt-get install qtxmlpatterns5-dev-tools
 #  sudo apt-get install qttools5-dev qt5-default libxt-dev libgl1-mesa-dev
+#  sudo apt-get install python3.8-dev
 PARAVIEWVERSION=5.8.0
 
 INSTALLDIR=/opt
-SOURCEDIR=/opt/Installsources
+SOURCEDIR=/opt/sources
 MODULESDIR=/opt/modules/modulefiles
-MODULETEMPLATESDIR=/opt/Installsources/moduletemplates
+MODULETEMPLATESDIR=/opt/sources/moduletemplates
 MODULETEMPLATENAME=paraview_temp
 
 if [ ! -d "${SOURCEDIR}" ]; then
