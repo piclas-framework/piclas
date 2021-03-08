@@ -72,6 +72,9 @@ CALL prms%CreateRealArrayOption('Part-FIBGMdeltas'&
 CALL prms%CreateRealArrayOption('Part-FactorFIBGM'&
   , 'Factor with which the background mesh will be scaled.'&
   , '1. , 1. , 1.')
+CALL prms%CreateRealOption(     'Part-SafetyFactor'           , 'Factor to scale the halo region with MPI', '1.0')
+CALL prms%CreateRealOption(     'Particles-HaloEpsVelo'       , 'Halo region velocity [m/s]', '0.')
+
 
 END SUBROUTINE DefineParametersParticleBGM
 
@@ -297,8 +300,8 @@ END IF
 #endif /*USE_LOADBALANCE*/
 
 #if USE_MPI
-SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
-halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
+SafetyFactor  =GETREAL('Part-SafetyFactor')
+halo_eps_velo =GETREAL('Particles-HaloEpsVelo')
 
 IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
 #endif /*USE_MPI*/
@@ -1295,7 +1298,6 @@ USE MOD_MPI_Shared_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared,BoundsOfElem_Shared
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

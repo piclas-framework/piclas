@@ -228,7 +228,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_ReadInTools
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_DSMC_Vars              ,ONLY: useDSMC
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
@@ -398,7 +398,7 @@ DO iPartBound=1,nPartBound
             ,'Error in particle init: only allowed SurfaceModels: 0,5,6,7!')
       END SELECT
     END IF
-    IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
+    IF (PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0) THEN
       !read Species to be changed at wall (in, out), out=0: delete
       PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
       DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(iPartBound)
@@ -416,10 +416,9 @@ DO iPartBound=1,nPartBound
     PartBound%Dielectric(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Dielectric')
     ! Sanity check: PartBound%Dielectric=T requires supplying species swap for every species
     IF(PartBound%Dielectric(iPartBound))THEN
-      IF(PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies)THEN
-        CALL abort(&
-            __STAMP__&
-            ,'PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies: PartBound%Dielectric=T requires supplying species swap for every species!')
+      IF(PartBound%NbrOfSpeciesSwaps(iPartBound).LT.(nSpecies-BGGas%NumberOfSpecies))THEN
+        CALL abort(__STAMP__,&
+          'PartBound%Dielectric=T requires supplying a species swap (Part-BoundaryX-NbrOfSpeciesSwaps) for every species (except background gas species)!')
       ELSE
         DoDielectricSurfaceCharge=.TRUE.
       END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies
