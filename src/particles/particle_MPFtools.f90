@@ -267,7 +267,7 @@ SUBROUTINE MergeParticles(iElem, NumFinPart, SpecNum, SpecID)
   USE MOD_Particle_Vars
   USE Levenberg_Marquardt
   USE MOD_Eval_xyz,               ONLY:GetPositionInRefElem
-  USE MOD_Particle_Tracking_Vars, ONLY:DoRefmapping
+  USE MOD_Particle_Tracking_Vars, ONLY:TrackingMethod
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -295,7 +295,7 @@ SUBROUTINE MergeParticles(iElem, NumFinPart, SpecNum, SpecID)
   iPart = PEM%pStart(iElem)
   DO iLoop = 1, PEM%pNumber(iElem)
     IF(PartSpecies(iPart).EQ.SpecID) THEN
-      IF(DoRefMapping)THEN ! here Nearst-GP is missing
+      IF(TrackingMethod.EQ.REFMAPPING)THEN ! here Nearst-GP is missing
         PartStateMap(iLoop2,1:3)=PartPosRef(1:3,iLoop2)
       ELSE
         CALL GetPositionInRefElem(PartState(1:3,iPart), PartStateMap(iLoop2,1:3), iElem)

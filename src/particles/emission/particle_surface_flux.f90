@@ -48,7 +48,7 @@ USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, BCdata
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac, dt
 #if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 #endif /*IMPA*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: nSurfacefluxPerElem
@@ -227,7 +227,7 @@ __STAMP__&
             END IF
             LastPartPos(1:3,ParticleIndexNbr)=PartState(1:3,ParticleIndexNbr)
 #if defined(IMPA) || defined(ROS)
-            IF(DoRefMapping) CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),globElemId)
+            IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),globElemId)
 #endif /*IMPA*/
             PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
             PDM%dtFracPush(ParticleIndexNbr) = .TRUE.
@@ -676,7 +676,7 @@ FUNCTION CalcPartPosTriaSurface(xyzNod, Vector1, Vector2, ndist, midpoint)
 ! Calculate random normalized vector in 3D (unit space)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -691,7 +691,7 @@ REAL                        :: RandVal2(2), PartDistance
 REAL, PARAMETER             :: eps_nontria=1.0E-6
 !===================================================================================================================================
   CALL RANDOM_NUMBER(RandVal2)
-  IF (.NOT.TriaTracking) THEN !prevent inconsistency with non-triatracking by bilinear-routine (tol. might be increased)
+  IF (TrackingMethod.NE.TRIATRACKING) THEN !prevent inconsistency with non-triatracking by bilinear-routine (tol. might be increased)
     RandVal2 = RandVal2 + eps_nontria*(1. - 2.*RandVal2) !shift randVal off from 0 and 1
     DO WHILE (ABS(RandVal2(1)+RandVal2(2)-1.0).LT.eps_nontria) !sum must not be 1, since this corresponds to third egde
       CALL RANDOM_NUMBER(RandVal2)

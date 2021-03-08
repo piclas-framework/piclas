@@ -72,16 +72,9 @@ CALL addStrListEntry('TrackingMethod' , 'tracing'         , TRACING)
 CALL addStrListEntry('TrackingMethod' , 'triatracking'    , TRIATRACKING)
 CALL addStrListEntry('TrackingMethod' , 'default'         , TRIATRACKING)
 
-CALL prms%CreateLogicalOption( 'Write-Tria-DebugMesh'&
-  , 'Writes per proc triangulated Surfacemesh used for Triatracking. Requires TriaTracking=T.'&
-  ,'.FALSE.')
 CALL prms%CreateLogicalOption( 'TriaSurfaceFlux'&
   , 'Using Triangle-aproximation [T] or (bi-)linear and bezier (curved) description [F] of sides for surfaceflux.'//&
   ' Default is set to TriaTracking')
-CALL prms%CreateLogicalOption( 'Write-TriaSurfaceFlux-DebugMesh'&
-  , 'Writes per proc triangulated Surfacemesh used for TriaSurfaceFlux. Requires TriaSurfaceFlux=T.'&
-  ,'.FALSE.')
-
 CALL prms%CreateLogicalOption( 'DisplayLostParticles'&
   , 'Display position, velocity, species and host element of particles lost during particle tracking (TrackingMethod = '//&
     'triatracking, tracing)','.FALSE.')
@@ -167,7 +160,6 @@ USE MOD_Particle_Tracking_Vars ,ONLY: MeasureTrackTime,FastPeriodic,CountNbrOfLo
 USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles,NbrOfLostParticlesTotal,NbrOfLostParticlesTotal_old
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLostVecLength,PartStateLost,PartLostDataSize
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, DisplayLostParticles
-!USE MOD_Particle_Tracking_Vars ,ONLY: WriteTriaDebugMesh
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,DepositionType
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR

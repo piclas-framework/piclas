@@ -168,7 +168,7 @@ USE MOD_DSMC_Vars              ,ONLY: BGGas, SpecDSMC, CollisMode
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -203,7 +203,7 @@ DO iPart = 1, PDM%ParticleVecLength
         ,'ERROR in BGGas: MaxParticleNumber should be twice the expected number of particles, to account for the BGG particles!')
     END IF
     PartState(1:3,PositionNbr) = PartState(1:3,iPart)
-    IF(DoRefMapping)THEN ! here Nearst-GP is missing
+    IF(TrackingMethod.EQ.REFMAPPING)THEN ! here Nearst-GP is missing
       PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,iPart)
     END IF
     iSpec = BGGas_GetSpecies()
@@ -387,7 +387,7 @@ USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF
 USE MOD_Part_Emission_Tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticleVelocity
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
-USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefmapping
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Particle_Vars           ,ONLY: WriteMacroVolumeValues
@@ -529,7 +529,7 @@ DO iSpec = 1,nSpecies                             ! Loop over all non-background
           END IF
           ! Position the background particle at the simulation particle
           PartState(1:3,bggPartIndex) = PartState(1:3,PartIndex)
-          IF(DoRefMapping)THEN ! here Nearst-GP is missing
+          IF(TrackingMethod.EQ.REFMAPPING)THEN ! here Nearst-GP is missing
             PartPosRef(1:3,bggPartIndex)=PartPosRef(1:3,PartIndex)
           END IF
           ! Set the species of the background gas particle
@@ -679,7 +679,7 @@ USE MOD_Particle_Vars          ,ONLY: PEM, PDM, PartSpecies, PartState, Species,
 USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_part_pos_and_velo      ,ONLY: SetParticleVelocity
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_part_emission_tools    ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
 USE MOD_DSMC_ChemReact         ,ONLY: PhotoIonization_InsertProducts
@@ -780,7 +780,7 @@ DO iPart = 1, NbrOfParticle
     iPartIndx_NodeNewAmbi(newAmbiParts) = NewParticleIndex
   END IF
   PartState(1:3,NewParticleIndex) = PartState(1:3,ParticleIndex)
-  IF(DoRefMapping)THEN ! here Nearst-GP is missing
+  IF(TrackingMethod.EQ.REFMAPPING)THEN ! here Nearst-GP is missing
     PartPosRef(1:3,NewParticleIndex)=PartPosRef(1:3,ParticleIndex)
   END IF
   ! Species index given from the initialization

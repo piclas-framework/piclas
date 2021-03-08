@@ -218,7 +218,7 @@ USE MOD_LinearSolver_Vars      ,ONLY: PartRelaxationFac,PartRelaxationFac0,DoPar
 USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
 USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
 USE MOD_Particle_TriaTracking  ,ONLY: ParticleTriaTracking
-USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_Particle_Tracking_vars ,ONLY: TrackingMethod
 USE MOD_LinearSolver_Vars      ,ONLY: Eps2PartNewton,UpdateInIter
 USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
 USE MOD_Particle_Vars          ,ONLY: PartStateN,PartStage
@@ -296,17 +296,18 @@ END IF
   CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
   ! here: could use deposition as hiding, not done yet
-  IF(DoRefMapping)THEN
+  SELECT CASE(TrackingMethod)
+  CASE(REFMAPPING)
     ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
     CALL ParticleRefTracking(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength))
-  ELSE
-    IF (TriaTracking) THEN
-      CALL ParticleTriaTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-    ELSE
-      ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
-      CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength))
-    END IF
-  END IF
+  CASE(TRACING)
+    ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+    CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength))
+  CASE(TRIATRACKING)
+    CALL ParticleTriaTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+  CASE DEFAULT
+    CALL abort(__STAMP__,'TrackingMethod not implemented! TrackingMethod =',IntInfoOpt=TrackingMethod)
+  END SELECT
   DO iPart=1,PDM%ParticleVecLength
     IF(PartIsImplicit(iPart))THEN
       IF(.NOT.PDM%ParticleInside(iPart)) PartisImplicit(iPart)=.FALSE.
@@ -504,17 +505,18 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 #endif /*USE_LOADBALANCE*/
       ! here: could use deposition as hiding, not done yet
       IF(DoPartRelaxation)THEN
-        IF(DoRefMapping)THEN
+        SELECT CASE(TrackingMethod)
+        CASE(REFMAPPING)
           ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
           CALL ParticleRefTracking(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength))
-        ELSE
-          IF (TriaTracking) THEN
-            CALL ParticleTriaTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-          ELSE
-            ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
-            CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength))
-          END IF
-        END IF
+        CASE(TRACING)
+          ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+          CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength))
+        CASE(TRIATRACKING)
+          CALL ParticleTriaTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+        CASE DEFAULT
+          CALL abort(__STAMP__,'TrackingMethod not implemented! TrackingMethod =',IntInfoOpt=TrackingMethod)
+        END SELECT
       END IF
       DO iPart=1,PDM%ParticleVecLength
         IF(PartIsImplicit(iPart))THEN
@@ -669,17 +671,18 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 #endif /*USE_LOADBALANCE*/
       ! here: could use deposition as hiding, not done yet
       IF(DoPartRelaxation)THEN
-        IF(DoRefMapping)THEN
+        SELECT CASE(TrackingMethod)
+        CASE(REFMAPPING)
           ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
           CALL ParticleRefTracking(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength))
-        ELSE
-          IF (TriaTracking) THEN
-            CALL ParticleTriaTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-          ELSE
-            ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
-            CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength))
-          END IF
-        END IF
+        CASE(TRACING)
+          ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+          CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength))
+        CASE(TRIATRACKING)
+          CALL ParticleTriaTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+        CASE DEFAULT
+          CALL abort(__STAMP__,'TrackingMethod not implemented! TrackingMethod =',IntInfoOpt=TrackingMethod)
+        END SELECT
       END IF
       DO iPart=1,PDM%ParticleVecLength
         IF(PartIsImplicit(iPart))THEN

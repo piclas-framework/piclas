@@ -95,7 +95,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoord
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID_Shared
 USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
-USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Vars           ,ONLY: nSpecies,VarTimeStep
 USE MOD_Particle_Vars           ,ONLY: Symmetry
 USE MOD_ReadInTools             ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
@@ -163,8 +163,8 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
 WRITE(UNIT=hilf,FMT='(I0)') NGeo
 nSurfSample = GETINT('DSMC-nSurfSample',TRIM(hilf))
 
-IF((nSurfSample.GT.1).AND.(TriaTracking)) &
-  CALL abort(__STAMP__,'nSurfSample cannot be >1 if TriaTracking=T')
+IF((nSurfSample.GT.1).AND.(TrackingMethod.EQ.TRIATRACKING)) &
+  CALL abort(__STAMP__,'nSurfSample cannot be >1 if TrackingMethod = triatracking')
 
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 CalcSurfaceImpact = GETLOGICAL('CalcSurfaceImpact')
@@ -583,7 +583,7 @@ DO iSide = firstSide,LastSide
   ! get global SideID. This contains only nonUniqueSide, no special mortar treatment required
   SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
 
-  IF (TriaTracking) THEN
+  IF (TrackingMethod.EQ.TRIATRACKING) THEN
     ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
     CNElemID  = GetCNElemID(ElemID)
     LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
@@ -613,8 +613,7 @@ DO iSide = firstSide,LastSide
     ELSE IF(Symmetry%Order.EQ.1) THEN
       SurfSideArea(1,1,iSide) = DSMC_1D_CalcSymmetryArea(LocSideID, CNElemID)
     END IF
-  ! .NOT. TriaTracking
-  ELSE
+  ELSE ! TrackingMethod.NE.TRIATRACKING
     ! call here stephens algorithm to compute area
     DO jSample=1,nSurfSample
       DO iSample=1,nSurfSample
