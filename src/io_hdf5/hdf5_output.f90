@@ -841,7 +841,7 @@ IF(NullifyElemTime) ElemTime=0.
 END SUBROUTINE WriteAdditionalElemData
 
 
-#if USE_LOADBALANCE
+#if USE_LOADBALANCE || defined(PARTICLES)
 SUBROUTINE WriteElemDataToSeparateContainer(FileName,ElemList,ElemDataName)
 !===================================================================================================================================
 !> Similar to WriteAdditionalElemData() but only writes one of the fields to a separate container
@@ -963,7 +963,7 @@ END IF ! (MAXVAL(ElemData).LE.0.0).AND.DoRestart.AND.(TRIM(ElemDataName).EQ.'Ele
 DEALLOCATE(ElemData)
 
 END SUBROUTINE WriteElemDataToSeparateContainer
-#endif /*USE_LOADBALANCE*/
+#endif /*USE_LOADBALANCE || defined(PARTICLES)*/
 
 
 #if (PP_nVar==8)
