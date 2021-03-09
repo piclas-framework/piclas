@@ -102,7 +102,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
 USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies,PartPosRef
-USE MOD_Particle_Tracking_vars  ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
@@ -156,7 +156,7 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
     TreeNode%PNum_Node = nPart
     iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
-    IF (DoRefMapping) THEN
+    IF (TrackingMethod.EQ.REFMAPPING) THEN
       DO iLoop = 1, nPart
         TreeNode%MappedPartStates(1:3,iLoop)=PartPosRef(1:3,iPart)
         iPart = PEM%pNext(iPart)
@@ -166,7 +166,7 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
         CALL GetPositionInRefElem(PartState(1:3,iPart),TreeNode%MappedPartStates(1:3,iLoop),iElem+offSetElem)
         iPart = PEM%pNext(iPart)
       END DO
-    END IF ! DoRefMapping
+    END IF ! TrackingMethod.EQ.REFMAPPING
     TreeNode%NodeDepth = 1
     TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
     CALL AddOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)

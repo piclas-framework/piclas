@@ -2,17 +2,51 @@
 
 #==============================================================================
 # title       : InstallCMake.sh
-# description : This script installs cmake with a specified version as given 
+# description : This script installs cmake with a specified version as given
 #               below via CMAKEVERSION='X.XX.X'
 # date        : Nov 27, 2019
-# version     : 1.0   
+# version     : 1.0
 # usage       : bash InstallCMake.sh
-# notes       : 
+# notes       :
 #==============================================================================
 
+# Check privilege
+if [[ "$EUID" -ne 0 ]]; then
+  echo "Please run as root"
+  exit 1
+fi
+
+# --------------------------------------------------------------------------------------------------
+# Colors
+# --------------------------------------------------------------------------------------------------
+
+if test -t 1; then # if terminal
+  NbrOfColors=$(which tput > /dev/null && tput colors) # supports color
+  if test -n "$NbrOfColors" && test $NbrOfColors -ge 8; then
+    TERMCOLS=$(tput cols)
+    BOLD="$(tput bold)"
+    UNDERLINE="$(tput smul)"
+    STANDOUT="$(tput smso)"
+    NORMAL="$(tput sgr0)"
+    NC="$(tput sgr0)"
+    BLACK="$(tput setaf 0)"
+    RED="$(tput setaf 1)"
+    GREEN="$(tput setaf 2)"
+    YELLOW="$(tput setaf 3)"
+    BLUE="$(tput setaf 4)"
+    MAGENTA="$(tput setaf 5)"
+    CYAN="$(tput setaf 6)"
+    WHITE="$(tput setaf 7)"
+  fi
+fi
+
+# --------------------------------------------------------------------------------------------------
+# Settings
+# --------------------------------------------------------------------------------------------------
+
 INSTALLDIR=/opt
-SOURCESDIR=/opt/Installsources
-TEMPLATEDIR=/opt/Installsources/moduletemplates
+SOURCESDIR=/opt/sources
+TEMPLATEDIR=/opt/sources/moduletemplates
 
 if [ ! -d "${SOURCESDIR}" ]; then
   mkdir -p ${SOURCESDIR}
@@ -34,7 +68,7 @@ if [[ -n ${1} ]]; then
 fi
 
 if [ ! -e "${MODULEFILE}" ]; then
-  echo "creating CMake-${CMAKEVERSION}"
+  echo "${GREEN}creating CMake-${CMAKEVERSION}${NC}"
   cd ${SOURCESDIR}
   if [ ! -e "${SOURCESDIR}/cmake-${CMAKEVERSION}.tar.gz" ]; then
     wget "https://github.com/Kitware/CMake/releases/download/v${CMAKEVERSION}/cmake-${CMAKEVERSION}.tar.gz"
@@ -51,8 +85,8 @@ if [ ! -e "${MODULEFILE}" ]; then
   make -j 2>&1 | tee make.out
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo " "
-    echo "Failed: [make -j 2>&1 | tee make.out]"
-    exit
+    echo "${RED}Failed: [make -j 2>&1 | tee make.out]${NC}"
+    exit 1
   else
     make install 2>&1 | tee install.out
   fi
@@ -66,14 +100,14 @@ if [ ! -e "${MODULEFILE}" ]; then
     sed -i 's/compilerversion/standard/g' ${MODULEFILE}
     rm -rf cmake-${CMAKEVERSION}.tar.gz
   else
-    echo "ERROR in cmake installation, no modulefile created"
+    echo "${RED}ERROR in cmake installation, no modulefile created${NC}"
     if [ ! -e ${CMAKEDIR}/bin/cmake ]; then
-      echo "ERROR: cmake not installed"
+      echo "${RED}ERROR: cmake not installed${NC}"
     fi
     if [ ! -e ${CMAKEDIR}/bin/ccmake ]; then
-      echo "ERROR: cmake-curses-gui not installed"
+      echo "${RED}ERROR: cmake-curses-gui not installed${NC}"
     fi
   fi
 else
-  echo "CMake-${CMAKEVERSION} already created (module file exists)"
+  echo "${YELLOW}CMake-${CMAKEVERSION} already created (module file exists)${NC}"
 fi

@@ -172,7 +172,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold, PerformLoadBalance, Lo
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem
 USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem,nPartsPerBCElem,nSurfacePartsPerElem
-USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_vars ,ONLY: TrackingMethod
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 USE MOD_LoadBalance_Vars       ,ONLY: ParticleMPIWeight,ElemTimePartTot,ElemTimePart
 #endif /*PARTICLES*/
@@ -222,7 +222,7 @@ IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
     nPartsPerElem=1
   END IF
   ! set and weight tracks per element
-  IF (DoRefMapping) THEN
+  IF (TrackingMethod.EQ.REFMAPPING) THEN
     helpSum=SUM(nTracksPerElem)
     IF(SUM(nTracksPerElem).GT.0) THEN
       sTotalTracks=1.0/REAL(helpSum)

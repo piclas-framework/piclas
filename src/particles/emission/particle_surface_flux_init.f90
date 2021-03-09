@@ -341,7 +341,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry, UseAdaptive, UseCircularInflow
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, TriaSurfaceFlux
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars              ,ONLY: NGeo, nElems
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -480,9 +480,9 @@ __STAMP__&
     IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
       DoPoissonRounding = .TRUE.
       UseAdaptive  = .TRUE.
-      IF(DoRefMapping) THEN
+      IF(TrackingMethod.EQ.REFMAPPING) THEN
         CALL abort(__STAMP__&
-            ,'ERROR: Adaptive surface flux boundary conditions are not implemented with DoRefMapping!')
+            ,'ERROR: Adaptive surface flux boundary conditions are not implemented with RefMapping!')
       END IF
       IF((Symmetry%Order.LE.2).OR.VarTimeStep%UseVariableTimeStep) THEN
         CALL abort(__STAMP__&
@@ -624,7 +624,7 @@ USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, SurfMeshSubSideData, SurfFluxSideSize, TriaSurfaceFlux, tBCdata_auxSFRadWeight
 USE MOD_Particle_Surfaces_Vars ,ONLY: SideType
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
-USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars              ,ONLY: nBCSides, offsetElem, BC, SideToElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, ElemMidPoint_Shared, SideInfo_Shared
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
@@ -767,12 +767,12 @@ DO iBC=1,countDataBC
         SurfMeshSubSideData(1,1:2,BCSideID)%area = DSMC_1D_CalcSymmetryArea(iLocSide,ElemID) / 2.
       END IF
       !----- symmetry specific area calculation end
-      IF (.NOT.TriaTracking) THEN !check that all sides are planar if TriaSurfaceFlux is used for tracing or refmapping
+      IF (TrackingMethod.NE.TRIATRACKING) THEN !check that all sides are planar if TriaSurfaceFlux is used for tracing or refmapping
         CNSideID = GetCNSideID(SideID)
         IF (SideType(CNSideID).NE.PLANAR_RECT .AND. SideType(CNSideID).NE.PLANAR_NONRECT) CALL abort(&
 __STAMP__&
 ,'every surfaceflux-sides must be planar if TriaSurfaceFlux is used for tracing or refmapping!!!')
-      END IF !.NOT.TriaTracking
+      END IF ! TrackingMethod.NE.TRIATRACKING
 
       DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
         CALL CalcNormAndTangTriangle(SideID=SideID &
@@ -907,7 +907,7 @@ USE MOD_Particle_Surfaces      ,ONLY: GetSideBoundingBox
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID, GetSideBoundingBoxTria
-USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Vars          ,ONLY: CountCircInflowType
 #endif
@@ -935,7 +935,7 @@ ELSE
   iLocSide = SideToElem(3,BCSideID)
 END IF
 SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
-IF  (TriaTracking) THEN
+IF(TrackingMethod.EQ.TRIATRACKING) THEN
   CALL GetSideBoundingBoxTria(SideID,BoundingBox)
 ELSE
   CALL GetSideBoundingBox(SideID,BoundingBox)

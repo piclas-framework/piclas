@@ -54,8 +54,7 @@ USE MOD_DSMC                  ,ONLY: DSMC_main
 USE MOD_DSMC_Vars             ,ONLY: useDSMC, DSMC_RHS, DSMC
 USE MOD_part_tools            ,ONLY: UpdateNextFreePosition
 #endif
-USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
-USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
+USE MOD_Particle_Tracking     ,ONLY: PerformTracking
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -101,11 +100,8 @@ END IF
 #endif /*USE_MPI*/
   IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   ! actual tracking
-  IF(DoRefMapping)THEN
-    CALL ParticleRefTracking()
-  ELSE
-    CALL ParticleTracing()
-  END IF
+
+  CALL PerformTracking()
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
     tTracking=tTracking+TimeEnd-TimeStart

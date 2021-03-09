@@ -262,7 +262,7 @@ USE MOD_Globals,                              ONLY:ABORT
 USE MOD_PreProc
 USE MOD_Mesh_Tools,                           ONLY:GetCNElemID,GetCNSideID
 USE MOD_Particle_Surfaces_Vars,               ONLY:SideNormVec,SideType
-USE MOD_Particle_Tracking_Vars,               ONLY:TriaTracking
+USE MOD_Particle_Tracking_Vars,               ONLY:TrackingMethod
 USE MOD_Particle_Mesh_Vars,                   ONLY:SideInfo_Shared,NodeCoords_Shared,ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -319,7 +319,7 @@ nx = -nx / nVal
 ny = -ny / nVal
 nz = -nz / nVal
 
-IF (.NOT.TriaTracking) THEN
+IF (TrackingMethod.NE.TRIATRACKING) THEN
   CNSideID = GetCNSideID(SideID)
   IF ((SideType(CNSideID).EQ.PLANAR_RECT .OR. SideType(CNSideID).EQ.PLANAR_NONRECT)) THEN
     !if surfflux-side are planar, TriaSurfaceflux can be also used for tracing or Refmapping (for which SideNormVec exists)!

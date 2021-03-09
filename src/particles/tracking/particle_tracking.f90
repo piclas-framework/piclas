@@ -14,102 +14,97 @@
 
 MODULE MOD_Particle_Tracking
 !===================================================================================================================================
-! Contains global variables provided by the particle surfaces routines
+!> General routines concerning particle tracking
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
-INTERFACE ParticleSanityCheck
-  MODULE PROCEDURE ParticleSanityCheck
-END INTERFACE
-
-INTERFACE PARTHASMOVED
-  MODULE PROCEDURE PARTHASMOVED
-END INTERFACE
-
+PUBLIC::PerformTracking
+PUBLIC::ParticleInsideCheck
 PUBLIC::ParticleSanityCheck
-PUBLIC::PARTHASMOVED
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
 
 CONTAINS
 
-!SUBROUTINE CheckPlanarInside(PartID,ElemID,lengthPartTrajectory,PartisDone)
-!!===================================================================================================================================
-!! checks if particle is inside of linear element with planar faces
-!!===================================================================================================================================
-!! MODULES
-!USE MOD_Preproc
-!USE MOD_Globals
-!USE MOD_Particle_Vars,               ONLY:PartState
-!USE MOD_Particle_Surfaces_Vars,      ONLY:SideNormVec,BezierControlPoints3D,epsilontol
-!USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,ElemRadiusNGeo
-!! IMPLICIT VARIABLE HANDLING
-!IMPLICIT NONE
-!! INPUT VARIABLES
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! INPUT/OUTPUT VARIABLES
-!INTEGER,INTENT(IN)            :: PartID,ElemID
-!REAL,INTENT(IN)               :: lengthPartTrajectory
-!LOGICAL,INTENT(INOUT)         :: PartisDone
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! OUTPUT VARIABLES
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-!INTEGER                       :: ilocSide, SideID, flip, PlanarSideNum
-!REAL                          :: NormVec(1:3), vector_face2particle(1:3), Direction, eps
-!!===================================================================================================================================
-!PartisDone = .TRUE.
-!PlanarSideNum = 0
-!eps = ElemRadiusNGeo(ElemID) / lengthPartTrajectory * epsilontol * 1000. !value can be further increased, so far "semi-empirical".
-!
-!DO ilocSide=1,6
-!  SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
-!  flip =   PartElemToSide(E2S_FLIP,ilocSide,ElemID)
-!  ! new with flip
-!  IF(flip.EQ.0)THEN
-!    NormVec = SideNormVec(1:3,SideID)
-!  ELSE
-!    NormVec = -SideNormVec(1:3,SideID)
-!  END IF
-!  vector_face2particle(1:3) = PartState(1:3,PartID) - BezierControlPoints3D(1:3,0,0,SideID)
-!  Direction = DOT_PRODUCT(NormVec,vector_face2particle)
-!
-!  !IF ( (Direction.GE.0.) .OR. (ALMOSTZERO(Direction)) ) THEN
-!  IF ( Direction.GE.-eps ) THEN !less rigorous check for planar-assumed sides: they can still be planar-nonrect for which the
-!                                !bilin-algorithm will be used which might give a different result for very small distances!
-!    PartisDone = .FALSE.
-!  END IF
-!END DO
-!
-!END SUBROUTINE CheckPlanarInside
-
-
-PURE FUNCTION PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo)
-!================================================================================================================================
-! check if particle has moved significantly within an element
-!================================================================================================================================
+SUBROUTINE PerformTracking()
+!===================================================================================================================================
+!> Routine called from the timedisc to call the selected tracking routine
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals                  ,ONLY: abort
+USE MOD_Particle_Tracking_vars   ,ONLY: TrackingMethod
+USE MOD_Particle_Tracing         ,ONLY: ParticleTracing
+USE MOD_Particle_RefTracking     ,ONLY: ParticleRefTracking
+USE MOD_Particle_TriaTracking    ,ONLY: ParticleTriaTracking
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-!--------------------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                      :: lengthPartTrajectory
-REAL,INTENT(IN)                      :: ElemRadiusNGeo
-!--------------------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-LOGICAL                              :: PARTHASMOVED
-!================================================================================================================================
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
 
-IF(ALMOSTZERO(lengthPartTrajectory/ElemRadiusNGeo))THEN
-  PARTHASMOVED=.FALSE.
-ELSE
-  PARTHASMOVED=.TRUE.
-END IF
+SELECT CASE(TrackingMethod)
+CASE(REFMAPPING)
+  CALL ParticleRefTracking()
+CASE(TRACING)
+  CALL ParticleTracing()
+CASE(TRIATRACKING)
+  CALL ParticleTriaTracking()
+CASE DEFAULT
+  CALL abort(__STAMP__,'TrackingMethod not implemented! TrackingMethod =',IntInfoOpt=TrackingMethod)
+END SELECT
 
-END FUNCTION PARTHASMOVED
+END SUBROUTINE PerformTracking
+
+
+LOGICAL FUNCTION ParticleInsideCheck(Position,iPart,GlobalElemID)
+!===================================================================================================================================
+!> Checks if the position is inside the element with the appropriate routine depending on the TrackingMethod
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
+USE MOD_Particle_Localization   ,ONLY: PartInElemCheck
+USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemEpsOneCell
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Particle_Vars           ,ONLY: PartPosRef
+!-----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: Position(3)
+INTEGER, INTENT(IN)             :: iPart,GlobalElemID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+ParticleInsideCheck = .FALSE.
+
+SELECT CASE(TrackingMethod)
+CASE(REFMAPPING)
+  CALL GetPositionInRefElem(Position,PartPosRef(1:3,iPart),GlobalElemID)
+  IF (MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) ParticleInsideCheck=.TRUE.
+CASE(TRACING)
+  CALL PartInElemCheck(Position,iPart,GlobalElemID,ParticleInsideCheck)
+CASE(TRIATRACKING)
+  CALL ParticleInsideQuad3D(Position,GlobalElemID,ParticleInsideCheck)
+CASE DEFAULT
+  CALL abort(__STAMP__,'TrackingMethod not implemented! TrackingMethod =',IntInfoOpt=TrackingMethod)
+END SELECT
+
+END FUNCTION ParticleInsideCheck
 
 
 SUBROUTINE ParticleSanityCheck(PartID)
@@ -126,7 +121,7 @@ USE MOD_Mesh_Vars,              ONLY:offsetElem
 USE MOD_Particle_Localization,  ONLY:PartInElemCheck
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo_Shared
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars, ONLY:TrackingMethod
 USE MOD_Particle_Vars,          ONLY:PEM,PDM,LastPartPos,PartState
 USE MOD_TimeDisc_Vars,          ONLY:iStage
 #ifdef IMPA
@@ -188,7 +183,7 @@ IF(   (PartState(1,PartID).GT.GEO%xmaxglob) &
      __STAMP__ &
      ,' PartPos outside of mesh. PartID=, iStage',PartID,REAL(iStage))
 END IF
-IF(.NOT.DoRefMapping)THEN
+IF(TrackingMethod.NE.REFMAPPING)THEN
   ElemID=PEM%GlobalElemID(PartID)
 #ifdef CODE_ANALYZE
   CALL PartInElemCheck(PartState(1:3,PartID),PartID,ElemID,isHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.)

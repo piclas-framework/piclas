@@ -151,7 +151,7 @@ USE MOD_Preproc
 USE MOD_Particle_MPI_Vars
 USE MOD_DSMC_Vars,              ONLY:useDSMC, CollisMode, DSMC
 USE MOD_Particle_Vars,          ONLY:usevMPF, PDM
-USE MOD_Particle_Tracking_vars, ONLY:DoRefMapping
+USE MOD_Particle_Tracking_vars, ONLY:TrackingMethod
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -168,7 +168,7 @@ PartCommSize   = 0
 ! PartState: position and velocity
 PartCommSize   = PartCommSize + 6
 ! Tracking: Include Reference coordinates
-IF(DoRefMapping) PartCommSize=PartCommSize+3
+IF(TrackingMethod.EQ.REFMAPPING) PartCommSize=PartCommSize+3
 ! Species-ID
 PartCommSize   = PartCommSize + 1
 ! id of element
@@ -434,7 +434,7 @@ USE MOD_DSMC_Vars,               ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn,
 USE MOD_DSMC_Vars,               ONLY:ElectronicDistriPart, AmbipolElecVelo
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI,PartMPIExchange,PartCommSize,PartSendBuf,PartRecvBuf,PartTargetProc!,PartHaloElemToProc
 USE MOD_Particle_MPI_Vars,       ONLY:nExchangeProcessors,ExchangeProcToGlobalProc
-USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars,  ONLY:TrackingMethod
 USE MOD_Particle_Vars,           ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM,PartPosRef,Species
 #if defined(LSERK)
 USE MOD_Particle_Vars,           ONLY:Pt_temp
@@ -536,7 +536,7 @@ DO iProc=0,nExchangeProcessors-1
       PartSendBuf(iProc)%content(1+iPos:6+iPos) = PartState(1:6,iPart)
       jPos=iPos+6
       !>> particle position in reference space
-      IF(DoRefMapping) THEN
+      IF(TrackingMethod.EQ.REFMAPPING) THEN
         PartSendBuf(iProc)%content(1+jPos:3+jPos) = PartPosRef(1:3,iPart)
         jPos=jPos+3
       END IF
@@ -854,7 +854,7 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn,
 USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf!,PartMPI
 USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping!,TriaTracking
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species
 #if defined(LSERK)
 USE MOD_Particle_Vars          ,ONLY: Pt_temp
@@ -970,7 +970,7 @@ DO iProc=0,nExchangeProcessors-1
     PartState(1:6,PartID)    = PartRecvBuf(iProc)%content(1+iPos: 6+iPos)
     jPos=iPos+6
     !>> particle position in reference space
-    IF(DoRefMapping)THEN
+    IF(TrackingMethod.EQ.REFMAPPING)THEN
       PartPosRef(1:3,PartID) = PartRecvBuf(iProc)%content(1+jPos: 3+jPos)
       jPos=jPos+3
     END IF
