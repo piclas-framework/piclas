@@ -24,12 +24,10 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if USE_HDG
-INTEGER             :: HDG_N
 INTEGER             :: nGP_vol              !=(PP_N+1)**3
 INTEGER             :: nGP_face             !=(PP_N+1)**2
 
 LOGICAL             :: useHDG=.FALSE.
-LOGICAL             :: OnlyPostProc=.FALSE. ! Flag to initialize exact function for lambda and only make the postprocessing
 LOGICAL             :: ExactLambda =.FALSE. ! Flag to initialize exact function for lambda
 REAL,ALLOCATABLE    :: InvDhat(:,:,:)       ! Inverse of Dhat matrix (nGP_vol,nGP_vol,nElems)
 REAL,ALLOCATABLE    :: Ehat(:,:,:,:)        ! Ehat matrix (nGP_Face,nGP_vol,6sides,nElems)
@@ -47,12 +45,9 @@ INTEGER             :: nDirichletBCsides
 INTEGER             :: nNeumannBCsides
 INTEGER,ALLOCATABLE :: DirichletBC(:)
 INTEGER,ALLOCATABLE :: NeumannBC(:)
-REAL                :: RelaxFacNonlinear, RelaxFacNonlinear0 ! Relaxation factor fur Fix point it.
-REAL                :: NormNonlinearDevLimit                 ! -''-, Threshold for assumed instability
-INTEGER             :: AdaptIterFixPoint, AdaptIterFixPoint0 ! -''-, Interval for automatic adaption
 LOGICAL             :: nonlinear            ! Use non-linear sources for HDG? (e.g. Boltzmann electrons)
-LOGICAL             :: NewtonExactApprox
-LOGICAL             :: AdaptNewtonStartValue
+LOGICAL             :: NewtonExactSourceDeriv
+LOGICAL             :: NewtonAdaptStartValue
 INTEGER             :: AdaptIterNewton
 INTEGER             :: AdaptIterNewtonToLinear
 INTEGER             :: AdaptIterNewtonOld
@@ -66,7 +61,7 @@ REAL,ALLOCATABLE    :: Domega(:,:)
 REAL,ALLOCATABLE    :: Lomega_m(:),Lomega_p(:)
 !CG parameters
 INTEGER             :: PrecondType=0  !0: none 1: block diagonal 2: only diagonal 3:Identity, debug
-INTEGER             :: MaxIterCG, MaxIterFixPoint, OutIterCG
+INTEGER             :: MaxIterCG, MaxIterNewton, OutIterCG
 REAL                :: EpsCG,EpsNonLinear
 LOGICAL             :: UseRelativeAbortCrit
 LOGICAL             :: HDGInitIsDone=.FALSE.
