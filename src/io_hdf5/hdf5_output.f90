@@ -3505,7 +3505,7 @@ SUBROUTINE AddBRElectronFluidToPartSource()
 ! MODULES
 USE MOD_Globals            ,ONLY: abort
 USE MOD_Mesh_Vars          ,ONLY: nElems
-USE MOD_PreProc            ,ONLY: PP_N
+USE MOD_PreProc
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemToBRRegion
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_DG_Vars            ,ONLY: U
