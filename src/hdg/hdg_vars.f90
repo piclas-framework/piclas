@@ -45,7 +45,7 @@ INTEGER             :: nDirichletBCsides
 INTEGER             :: nNeumannBCsides
 INTEGER,ALLOCATABLE :: DirichletBC(:)
 INTEGER,ALLOCATABLE :: NeumannBC(:)
-LOGICAL             :: nonlinear            ! Use non-linear sources for HDG? (e.g. Boltzmann electrons)
+LOGICAL             :: HDGnonlinear            ! Use non-linear sources for HDG? (e.g. Boltzmann electrons)
 LOGICAL             :: NewtonExactSourceDeriv
 LOGICAL             :: NewtonAdaptStartValue
 INTEGER             :: AdaptIterNewton

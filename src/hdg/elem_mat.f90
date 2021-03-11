@@ -145,7 +145,7 @@ DO iElem=1,PP_nElems
         ! Dhat = D - B A^{-1} B^T
 
         !  D  volume contribution for nonlinear stuff
-        IF (nonlinear.AND.(NonLinSolver.EQ.1)) THEN
+        IF (HDGnonlinear.AND.(NonLinSolver.EQ.1)) THEN
           j = index_3to1(g1,g2,g3)
           Dhat(j,j) = Dhat(j,j) - JwGP_vol( j,iElem)*NonlinVolumeFac(j,iElem)
         END IF

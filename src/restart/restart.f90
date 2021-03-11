@@ -98,8 +98,10 @@ USE MOD_Restart_Vars
 USE MOD_HDF5_Input             ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
 USE MOD_HDF5_Input             ,ONLY: DatasetExists
 #ifdef PARTICLES
+USE MOD_ReadInTools            ,ONLY: GETREAL
 USE MOD_Particle_Tracking_Vars ,ONLY: TotalNbrOfMissingParticlesSum
-USE MOD_Particle_Mesh_Vars     ,ONLY: BRConvertElectronsToFluid,BRConvertFluidToElectrons
+USE MOD_Particle_Mesh_Vars     ,ONLY: BRConvertElectronsToFluid,BRConvertFluidToElectrons,BRElectronsRemoved
+USE MOD_Particle_Mesh_Vars     ,ONLY: BRConvertFluidToElectronsTime,BRConvertElectronsToFluidTime
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -130,9 +132,22 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT RESTART...'
 #ifdef PARTICLES
 ! Set counter for particle that go missing during restart (if they are not located within their host element during restart)
 TotalNbrOfMissingParticlesSum = 0
-! Set possibility of either converting kinetic electrons to BR fluid or vice versa
-BRConvertElectronsToFluid = GETLOGICAL('BRConvertElectronsToFluid')! default is FALSE
-BRConvertFluidToElectrons = GETLOGICAL('BRConvertFluidToElectrons')! default is FALSE
+! Set possibility of either converting kinetic electrons to BR fluid or vice versa during restart
+BRConvertElectronsToFluid = GETLOGICAL('BRConvertElectronsToFluid') ! default is FALSE
+BRConvertFluidToElectrons = GETLOGICAL('BRConvertFluidToElectrons') ! default is FALSE
+BRElectronsRemoved = .FALSE.
+BRConvertElectronsToFluidTime = GETREAL('BRConvertElectronsToFluidTime') ! switch from kinetic to BR electron fluid
+BRConvertFluidToElectronsTime = GETREAL('BRConvertFluidToElectronsTime') ! switch from BR electron fluid to kinetic electrons 
+!                                                                        ! (create new electron particles)
+! BRTimeStepMultiplier = GETREAL('BRTimeStepMultiplier') ! Factor that is multiplied with the ManualTimeStep when using BR model
+
+IF((BRConvertElectronsToFluid.OR.BRConvertFluidToElectrons).AND.&
+  ((BRConvertElectronsToFluidTime.GT.0.).OR.(BRConvertFluidToElectronsTime.GT.0.)))THEN
+  CALL abort(__STAMP__,'BR electron model: Use either fixed conversion or times but not both!')
+END IF
+
+
+
 #endif /*PARTICLES*/
 
 ! Set the DG solution to zero (ignore the DG solution in the state file)
@@ -319,6 +334,7 @@ USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
 USE MOD_Equation_Vars          ,ONLY: Phi
 #endif /*PP_POIS*/
 #ifdef PARTICLES
+USE MOD_part_operations        ,ONLY: RemoveAllElectrons
 USE MOD_Restart_Tools          ,ONLY: ReadNodeSourceExtFromHDF5
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
 USE MOD_Particle_Vars          ,ONLY: PartState, PartSpecies, PEM, PDM, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset, Species
@@ -1459,7 +1475,7 @@ CALL CloseDataFile()
 #ifdef PARTICLES
 #if USE_HDG
   ! Create electrons from BR fluid properties
-  IF(BRConvertFluidToElectrons) CALL CreateElectronsFromBRFluid()
+  IF(BRConvertFluidToElectrons) CALL CreateElectronsFromBRFluid(.TRUE.)
 #endif /*USE_HDG*/
 #endif /*PARTICLES*/
 
@@ -1812,43 +1828,6 @@ DEALLOCATE(ElemData_HDF5)
 
 END SUBROUTINE MacroscopicRestart
 
-
-SUBROUTINE RemoveAllElectrons()
-!===================================================================================================================================
-!> Read-in of the element data from a DSMC state and insertion of particles based on the macroscopic values
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_part_operations    ,ONLY: RemoveParticle
-USE MOD_Particle_Analyze   ,ONLY: PARTISELECTRON
-USE MOD_Particle_Vars      ,ONLY: PDM
-USE MOD_Particle_Mesh_Vars ,ONLY: BRElectronsRemoved
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER :: iPart
-!===================================================================================================================================
-
-SWRITE(UNIT_stdOut,*) 'Using BR electron fluid, removing all electrons from restart file.'
-
-BRElectronsRemoved=.FALSE.
-DO iPart = 1,PDM%ParticleVecLength
-  IF(PARTISELECTRON(iPart))THEN
-    CALL RemoveParticle(iPart)
-    BRElectronsRemoved=.TRUE.
-  END IF
-END DO
-
-#if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,BRElectronsRemoved,1,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,iError)
-#endif /*USE_MPI*/
-
-END SUBROUTINE RemoveAllElectrons
 #endif /*PARTICLES*/
 
 

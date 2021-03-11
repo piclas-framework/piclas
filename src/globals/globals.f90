@@ -1134,4 +1134,55 @@ ELSE
 END IF ! SubStringLength.GT.0.AND.MainStringLength.GT.0
 END FUNCTION StringBeginsWith
 
+
+PURE FUNCTION PARTISELECTRON(PartID)
+!===================================================================================================================================
+! check if particle is an electron (species-charge = -1.609)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
+USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: PartID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL            :: PARTISELECTRON  !
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: SpeciesID
+!===================================================================================================================================
+PARTISELECTRON=.FALSE.
+SpeciesID = PartSpecies(PartID)
+IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
+IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) PARTISELECTRON=.TRUE.
+END FUNCTION PARTISELECTRON
+
+
+PURE FUNCTION SPECIESISELECTRON(SpeciesID)
+!===================================================================================================================================
+! check if species is an electron (species-charge = -1.609)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
+USE MOD_Particle_Vars          ,ONLY: Species
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: SpeciesID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL            :: SPECIESISELECTRON  !
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+SPECIESISELECTRON=.FALSE.
+IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
+IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) SPECIESISELECTRON=.TRUE.
+END FUNCTION SPECIESISELECTRON
+
+
 END MODULE MOD_Globals

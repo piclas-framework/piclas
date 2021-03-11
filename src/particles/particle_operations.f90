@@ -34,6 +34,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: CreateParticle, RemoveParticle
+PUBLIC :: RemoveAllElectrons
 !===================================================================================================================================
 
 CONTAINS
@@ -210,5 +211,48 @@ IF (PRESENT(crossedBC)) crossedBC=.TRUE.
 IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(PartID) = 0
 
 END SUBROUTINE RemoveParticle
+
+
+SUBROUTINE RemoveAllElectrons()
+!===================================================================================================================================
+!> Read-in of the element data from a DSMC state and insertion of particles based on the macroscopic values
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars      ,ONLY: PDM
+USE MOD_Particle_Mesh_Vars ,ONLY: BRElectronsRemoved
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iPart,BRNbrOfElectronsRemoved
+!===================================================================================================================================
+
+SWRITE(UNIT_stdOut,'(A)') ' Using BR electron fluid, removing all electrons from restart file.'
+
+BRNbrOfElectronsRemoved = 0
+DO iPart = 1,PDM%ParticleVecLength
+  IF(PARTISELECTRON(iPart))THEN
+    CALL RemoveParticle(iPart)
+    BRNbrOfElectronsRemoved = BRNbrOfElectronsRemoved + 1
+  END IF
+END DO
+
+#if USE_MPI
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,BRNbrOfElectronsRemoved,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+#endif /*USE_MPI*/
+
+IF(BRNbrOfElectronsRemoved.GT.0)THEN
+  SWRITE(UNIT_StdOut,'(A,I0,A)') " |_ Removed a total of ",BRNbrOfElectronsRemoved," electrons."
+  BRElectronsRemoved=.TRUE.
+ELSE
+  BRElectronsRemoved=.FALSE.
+END IF ! BRNbrOfElectronsRemove.GT.0
+
+END SUBROUTINE RemoveAllElectrons
 
 END MODULE MOD_part_operations

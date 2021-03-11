@@ -94,7 +94,7 @@ USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETREAL,GETINT
 USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides,nSides
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCSides,nSides,BC
 USE MOD_Mesh_Vars          ,ONLY: nGlobalMortarSides,nMortarMPISides
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions,ElemToBRRegion
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions,ElemToBRRegion,UseBRElectronFluid
 USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
 USE MOD_Globals_Vars       ,ONLY: eps0
 USE MOD_Restart_Vars       ,ONLY: DoRestart
@@ -134,8 +134,9 @@ ELSE
   HDGSkip=0
 END IF
 
+! BR electron fluid model
 IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far -> non-linear HDG-sources!
-  nonlinear = .true.
+  HDGnonlinear = .true.
   NonLinSolver=GETINT('NonLinSolver')
 
   IF (NonLinSolver.EQ.1) THEN
@@ -163,8 +164,10 @@ IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far 
   MaxIterNewton = GETINT('MaxIterNewton')
   EpsNonLinear  = GETREAL('EpsNonLinear')
 ELSE
-  nonlinear = .false.
+  HDGnonlinear = .false.
 END IF
+IPWRITE(UNIT_StdOut,*) "UseBR =", UseBRElectronFluid
+!read*
 
 !CG parameters
 PrecondType          = GETINT('PrecondType')
@@ -359,7 +362,7 @@ IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
   END IF
 #endif
 END IF
-IF(nonlinear) THEN
+IF(HDGnonlinear) THEN
   IF (NonLinSolver.EQ.1) THEN
     IF(PRESENT(ForceCGSolverIteration_opt))THEN
       CALL HDGNewton(t, U_out, iter, ForceCGSolverIteration_opt)

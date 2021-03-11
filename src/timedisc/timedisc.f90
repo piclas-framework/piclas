@@ -99,7 +99,8 @@ USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIPar
 #endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation       ,ONLY: InitAnalyticalParticleState
-#endif /*CODE_ANALYZE*/
+#endif /*CODE_ANALYZ*/
+USE MOD_ParticleInit           ,ONLY: SwitchBRElectronModel
 #endif /*PARTICLES*/
 USE MOD_Output                 ,ONLY: PrintStatusLine
 USE MOD_TimeStep
@@ -237,6 +238,7 @@ DO !iter_t=0,MaxIter
   IF(enableParticleMerge) THEN
     IF ((iter.GT.0).AND.(MOD(iter,INT(vMPFMergeParticleIter,8)).EQ.0)) doParticleMerge=.true.
   END IF
+  CALL SwitchBRElectronModel()
 #endif /*PARTICLES*/
 
   tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors

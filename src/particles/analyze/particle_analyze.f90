@@ -42,14 +42,6 @@ INTERFACE CalcPowerDensity
   MODULE PROCEDURE CalcPowerDensity
 END INTERFACE
 
-INTERFACE PARTISELECTRON
-  MODULE PROCEDURE PARTISELECTRON
-END INTERFACE
-
-INTERFACE SPECIESISELECTRON
-  MODULE PROCEDURE SPECIESISELECTRON
-END INTERFACE
-
 INTERFACE CalculatePartElemData
   MODULE PROCEDURE CalculatePartElemData
 END INTERFACE
@@ -72,7 +64,7 @@ END INTERFACE
 #endif /*CODE_ANALYZE*/
 
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
-PUBLIC:: AnalyzeParticles, PARTISELECTRON, SPECIESISELECTRON
+PUBLIC:: AnalyzeParticles
 PUBLIC:: CalcPowerDensity
 PUBLIC:: CalculatePartElemData
 PUBLIC:: WriteParticleTrackingData
@@ -3079,56 +3071,6 @@ END DO
 END SUBROUTINE CalcPowerDensity
 
 
-PURE FUNCTION PARTISELECTRON(PartID)
-!===================================================================================================================================
-! check if particle is an electron (species-charge = -1.609)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: PartID
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL            :: PARTISELECTRON  !
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER            :: SpeciesID
-!===================================================================================================================================
-PARTISELECTRON=.FALSE.
-SpeciesID = PartSpecies(PartID)
-IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
-IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) PARTISELECTRON=.TRUE.
-END FUNCTION PARTISELECTRON
-
-
-PURE FUNCTION SPECIESISELECTRON(SpeciesID)
-!===================================================================================================================================
-! check if species is an electron (species-charge = -1.609)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: Species
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: SpeciesID
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL            :: SPECIESISELECTRON  !
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-SPECIESISELECTRON=.FALSE.
-IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
-IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) SPECIESISELECTRON=.TRUE.
-END FUNCTION SPECIESISELECTRON
-
-
 SUBROUTINE CalculateElectronIonDensityCell()
 !===================================================================================================================================
 ! Count the number of electrons per DG cell and divide it by element-volume
@@ -3222,6 +3164,7 @@ SUBROUTINE CalculateElectronTemperatureCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals                ,ONLY: PARTISELECTRON
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElectronMass,ElementaryCharge
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,UseBRElectronFluid
 USE MOD_Preproc

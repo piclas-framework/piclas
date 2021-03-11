@@ -2655,6 +2655,7 @@ USE IFPORT                     ,ONLY: SYSTEM
 #endif
 #ifdef PARTICLES
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+USE MOD_Particle_Mesh_Vars     ,ONLY: UseBRElectronFluid
 #endif /*PARTICLES*/
 !USE MOD_PreProcFlags
 ! IMPLICIT VARIABLE HANDLING
@@ -2710,6 +2711,11 @@ CALL WriteAttributeToHDF5(File_ID,'NComputation',1,IntegerScalar=PP_N)
 
 #ifdef PARTICLES
 CALL WriteAttributeToHDF5(File_ID,'TrackingMethod',1,StrScalar=(/TRIM(TrackingString(TrackingMethod))/))
+IF(UseBRElectronFluid)THEN
+  CALL WriteAttributeToHDF5(File_ID,'SimulationModel',1,StrScalar=(/'HDG-BR'/))
+ELSE
+  CALL WriteAttributeToHDF5(File_ID,'SimulationModel',1,StrScalar=(/'HDG'/))
+END IF ! UseBRElectronFluid
 #endif /*PARTICLES*/
 
 CALL CloseDataFile()
@@ -3547,7 +3553,7 @@ DO iElem=1,nElems
         source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
             * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
       END IF
-      PartSource(:,:,:,:,CNElemID) = PartSource(:,:,:,:,CNElemID) - source_e
+      PartSource(4,i,j,k,CNElemID) = PartSource(4,i,j,k,CNElemID) - source_e
     END DO; END DO; END DO
   END IF
 END DO ! iElem=1,PP_nElems
