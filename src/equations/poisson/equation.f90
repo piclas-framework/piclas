@@ -541,8 +541,7 @@ USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
 USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO,ElemToBRRegion,UseBRElectronFluid
-USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
+USE MOD_HDG_Vars           ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
 USE MOD_Globals_Vars       ,ONLY: eps0
 #if IMPA
 USE MOD_LinearSolver_Vars  ,ONLY: ExplicitPartSource

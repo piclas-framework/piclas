@@ -60,8 +60,6 @@ PUBLIC::InitParticles
 PUBLIC::FinalizeParticles
 PUBLIC::DefineParametersParticles
 PUBLIC::InitialIonization
-PUBLIC::CreateElectronsFromBRFluid
-PUBLIC::SwitchBRElectronModel
 !===================================================================================================================================
 
 CONTAINS
@@ -130,6 +128,7 @@ CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'rho_ref, phi_re
 CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected phi for Region#\n'//&
                                                                 '(linear approx. above! def.: phi_ref)', numberedmulti=.TRUE.)
 
+#if USE_HDG
 CALL prms%CreateLogicalOption(  'BRConvertElectronsToFluid'   , 'Remove all electrons when using BR electron fluid', '.FALSE.')
 CALL prms%CreateLogicalOption(  'BRConvertFluidToElectrons'   , 'Create electrons from BR electron fluid (requires'//&
                                                                 ' ElectronDensityCell ElectronTemperatureCell from .h5 state file)'&
@@ -137,6 +136,7 @@ CALL prms%CreateLogicalOption(  'BRConvertFluidToElectrons'   , 'Create electron
 CALL prms%CreateRealOption(     'BRConvertFluidToElectronsTime', "Time when BR fluid electrons are to be converted to kinetic particles", '-1.0')
 CALL prms%CreateRealOption(     'BRConvertElectronsToFluidTime', "Time when kinetic electrons should be converted to BR fluid electrons", '-1.0')
 CALL prms%CreateLogicalOption(  'BRConvertModelRepeatedly'     , 'Repeat the switch between BR and kinetic multiple times', '.FALSE.')
+#endif /*USE_HDG*/
 
 CALL prms%CreateLogicalOption(  'PrintrandomSeeds'            , 'Flag defining if random seeds are written.', '.FALSE.')
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
@@ -423,6 +423,9 @@ USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
 USE MOD_DSMC_AmbipolarDiffusion,ONLY: InitializeVariablesAmbipolarDiff
 USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep,useManualTimeStep
+#if USE_HDG
+USE MOD_Part_BR_Elecron_Fluid  ,ONLY: InitializeVariablesElectronFluidRegions
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -516,7 +519,9 @@ CALL InitEmissionComm()
 CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 #endif /*USE_MPI*/
 
+#if USE_HDG
 CALL InitializeVariablesElectronFluidRegions()
+#endif /*USE_HDG*/
 CALL InitializeVariablesIMD()
 CALL InitializeVariablesWriteMacroValues()
 CALL InitializeVariablesvMPF()
@@ -669,173 +674,6 @@ IF(DoFieldIonization)THEN
 END IF
 
 END SUBROUTINE InitializeVariablesIonization
-
-
-SUBROUTINE InitializeVariablesElectronFluidRegions()
-!===================================================================================================================================
-! Initialize the variables first
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_ReadInTools
-USE MOD_Particle_Vars
-USE MOD_Particle_Mesh_Tools ,ONLY: MapBRRegionToElem
-USE MOD_Particle_Mesh_Vars  ,ONLY: NbrOfRegions,RegionBounds,UseBRElectronFluid,BRConvertElectronsToFluid,BRConvertFluidToElectrons
-USE MOD_Particle_Mesh_Vars  ,ONLY: BRConvertMode,BRConvertFluidToElectronsTime,BRConvertElectronsToFluidTime
-USE MOD_Restart_Vars        ,ONLY: DoRestart
-USE MOD_Restart_Vars        ,ONLY: RestartTime
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(32)         :: hilf, hilf2
-INTEGER               :: iRegions
-REAL                  :: phimax_tmp
-!===================================================================================================================================
-!-- Read parameters for region mapping
-NbrOfRegions = GETINT('NbrOfRegions','0')
-UseBRElectronFluid = .FALSE. ! Initialize
-IF (NbrOfRegions .GT. 0) THEN
-  UseBRElectronFluid = .TRUE.
-  ALLOCATE(RegionBounds(1:6,1:NbrOfRegions))
-  DO iRegions=1,NbrOfRegions
-    WRITE(UNIT=hilf2,FMT='(I0)') iRegions
-    RegionBounds(1:6,iRegions) = GETREALARRAY('RegionBounds'//TRIM(hilf2),6,'0. , 0. , 0. , 0. , 0. , 0.')
-  END DO
-
-  CALL MapBRRegionToElem()
-  ALLOCATE(RegionElectronRef(1:3,1:NbrOfRegions))
-  DO iRegions=1,NbrOfRegions
-    WRITE(UNIT=hilf2,FMT='(I0)') iRegions
-    ! 1:3 - rho_ref, phi_ref, and Te[eV]
-    RegionElectronRef(1:3,iRegions) = GETREALARRAY('Part-RegionElectronRef'//TRIM(hilf2),3,'0. , 0. , 1.')
-    WRITE(UNIT=hilf,FMT='(G0)') RegionElectronRef(2,iRegions)
-    phimax_tmp = GETREAL('Part-RegionElectronRef'//TRIM(hilf2)//'-PhiMax',TRIM(hilf))
-    IF (phimax_tmp.NE.RegionElectronRef(2,iRegions)) THEN !shift reference point (rho_ref, phi_ref) to phi_max:
-      RegionElectronRef(1,iRegions) = RegionElectronRef(1,iRegions) &
-        * EXP((phimax_tmp-RegionElectronRef(2,iRegions))/RegionElectronRef(3,iRegions))
-      RegionElectronRef(2,iRegions) = phimax_tmp
-      SWRITE(*,*) 'WARNING: BR-reference point is shifted to:', RegionElectronRef(1:2,iRegions)
-    END IF
-  END DO
-END IF
-
-
-! Check whether it is a restart or a fresh computation
-IF(.NOT.DoRestart)THEN ! When starting at t=0
-  
-  ! With switch BR -> kin -> BR (both cases: -2 switch twice and +2 switch multiple times)
-  IF(ABS(BRConvertMode).EQ.2) UseBRElectronFluid=.FALSE.
-
-  ! Run kinetic simulation and then switch to BR
-  IF((BRConvertElectronsToFluidTime.GT.0.).AND.(BRConvertMode.EQ.0)) UseBRElectronFluid=.FALSE.
-
-  IPWRITE(UNIT_StdOut,*) "FRESH: UseBRElectronFluid =", UseBRElectronFluid
-
-ELSE ! Restart
-
-  ! Single switch
-  IF(BRConvertMode.EQ.0)THEN
-
-    ! When restarting a simulation that has already been switched from BR -> kin
-    IF( (BRConvertFluidToElectronsTime.GT.0.).AND.&
-        (BRConvertFluidToElectronsTime.LT.RestartTime)) UseBRElectronFluid= .FALSE.
-
-    ! When restarting a simulation that has not yet been switched from kin -> BR
-    IF( (BRConvertElectronsToFluidTime.GT.0.).AND.&
-        (BRConvertElectronsToFluidTime.GE.RestartTime)) UseBRElectronFluid= .FALSE.
-    
-
-
-
-  ELSEIF(BRConvertMode.EQ.-1)THEN ! 2 switches: BR -> kin -> BR
-    IF(BRConvertFluidToElectronsTime.LT.RestartTime)THEN
-      BRConvertFluidToElectronsTime = -1. ! BR -> kin has already happened
-      IF(BRConvertElectronsToFluidTime.GE.RestartTime) UseBRElectronFluid= .FALSE. ! not yet switched from kin -> BR
-    END IF
-
-
-
-  ELSEIF(BRConvertMode.EQ.-2)THEN ! 2 switches: kin -> BR -> kin
-    IF(BRConvertElectronsToFluidTime.LT.RestartTime)THEN
-      BRConvertElectronsToFluidTime = -1.
-      IF(BRConvertFluidToElectronsTime.LT.RestartTime) UseBRElectronFluid = .FALSE. ! BR -> kin has already happened
-    ELSE
-      UseBRElectronFluid = .FALSE. ! still kinetic: kin -> BR has not happened yet
-    END IF
-
-
-
-  ELSEIF(BRConvertMode.EQ.1)THEN ! 2 switches: BR -> kin -> BR
-    ! Check if restart falls in kinetic region
-    IPWRITE(UNIT_StdOut,*) "MOD(RestartTime,BRConvertElectronsToFluidTime) =", MOD(RestartTime,BRConvertElectronsToFluidTime)
-    IPWRITE(UNIT_StdOut,*) "BRConvertFluidToElectronsTime =", BRConvertFluidToElectronsTime
-    IPWRITE(UNIT_StdOut,*) "MOD(RestartTime,BRConvertElectronsToFluidTime).GT.BRConvertFluidToElectronsTime =", MOD(RestartTime,BRConvertElectronsToFluidTime).GT.BRConvertFluidToElectronsTime
-    IPWRITE(UNIT_StdOut,*) "ALMOSTEQUALRELATIVE(MOD(RestartTime,BRConvertElectronsToFluidTime),BRConvertFluidToElectronsTime,1e-5) =", ALMOSTEQUALRELATIVE(MOD(RestartTime,BRConvertElectronsToFluidTime),BRConvertFluidToElectronsTime,1e-5)
-    IF(MOD(RestartTime,BRConvertElectronsToFluidTime).GT.0.0)THEN
-      ! not at t=0 (restart) or t=BRConvertElectronsToFluidTime
-      IF(MOD(RestartTime,BRConvertElectronsToFluidTime).GT.BRConvertFluidToElectronsTime)THEN
-        UseBRElectronFluid = .FALSE. ! not yet switched kin -> BR
-        ! fix tolerance issue: restart from HDG-BR file, but comes out as non-BR above
-        IF(ALMOSTEQUALRELATIVE(MOD(RestartTime,BRConvertElectronsToFluidTime),BRConvertFluidToElectronsTime,1e-5)) UseBRElectronFluid = .TRUE.
-      END IF ! MOD(RestartTime,BRConvertElectronsToFluidTime).GT.BRConvertFluidToElectronsTime)
-    ELSE
-      IF(RestartTime.GT.0.) UseBRElectronFluid = .FALSE. ! not yet switched kin -> BR
-    END IF ! MOD(RestartTime,BRConvertElectronsToFluidTime).GT.0.0
-
-
-  ELSEIF(BRConvertMode.EQ.2)THEN ! 2 switches: kin -> BR -> kin
-    ! Check if restart falls in kinetic region
-    IF(MOD(RestartTime,BRConvertFluidToElectronsTime).LE.BRConvertElectronsToFluidTime)THEN
-      ! 1.) Restart at 0 must be kinetic
-      ! 2.) Restart at exactly BRConvertFluidToElectronsTime must be BR
-      IF(RestartTime.GT.0.)THEN
-        IF(MOD(RestartTime,BRConvertFluidToElectronsTime).GT.0.) UseBRElectronFluid = .FALSE. ! not yet switched kin -> BR
-      ELSE
-        UseBRElectronFluid = .FALSE. ! restart from t=0 file
-      END IF ! RestartTime.GT.0.
-    ELSE
-      ! fix tolerance issue: restart from HDG-kinetic file, but comes out as BR because MOD rest is a little bit smaller than 
-      ! BRConvertElectronsToFluidTime, but is actually the same value. Example:
-      !   MOD(RestartTime,BRConvertFluidToElectronsTime) = 5.000000000000001e-6
-      !   BRConvertElectronsToFluidTime                  = 4.999999999999990e-6
-      IF(ALMOSTEQUALRELATIVE(MOD(RestartTime,BRConvertFluidToElectronsTime),BRConvertElectronsToFluidTime,1e-5)) UseBRElectronFluid = .FALSE.
-    END IF ! MOD(RestartTime,BRConvertFluidToElectronsTime).LE.BRConvertElectronsToFluidTime
-
-  END IF ! BRConvertMode.EQ.0
-
-END IF ! .NOT.DoRestart
-
-IPWRITE(UNIT_StdOut,*) "BRConvertMode      =", BRConvertMode
-IPWRITE(UNIT_StdOut,*) "UseBRElectronFluid =", UseBRElectronFluid
-!read*
-
-! If restart is required with BR -> kinetic
-!IF(BRConvertFluidToElectrons)THEN
-  !UseBRElectronFluid = .FALSE.
-!ELSE
-  !UseBRElectronFluid = .TRUE.
-!END IF ! BRConvertFluidToElectrons
-
-! Sanity Check
-IF((.NOT.UseBRElectronFluid).AND.BRConvertElectronsToFluid)THEN
-  SWRITE(UNIT_StdOut,*) "UseBRElectronFluid        =", UseBRElectronFluid
-  SWRITE(UNIT_StdOut,*) "BRConvertElectronsToFluid =", BRConvertElectronsToFluid
-  CALL abort(__STAMP__,'UseBRElectronFluid and BRConvertElectronsToFluid MUST be both true. Define BR electron fluid mode!')
-END IF ! (.NOT.UseBRElectronFluid).AND.BRConvertElectronsToFluid
-
-! Sanity Check
-IF(UseBRElectronFluid.AND.BRConvertFluidToElectrons)THEN
-  SWRITE(UNIT_StdOut,*) "UseBRElectronFluid        =", UseBRElectronFluid
-  SWRITE(UNIT_StdOut,*) "BRConvertFluidToElectrons =", BRConvertFluidToElectrons
-  CALL abort(__STAMP__,'UseBRElectronFluid and BRConvertFluidToElectrons CANNOT both be true. Deactivate BR electron fluid model!')
-END IF ! UseBRElectronFluid.AND.BRConvertFluidToElectrons
-
-END SUBROUTINE InitializeVariablesElectronFluidRegions
 
 
 SUBROUTINE InitializeVariablesVarTimeStep()
@@ -1444,260 +1282,7 @@ DO iElem=1,PP_nElems
   END DO
 END DO
 
-
 END SUBROUTINE InitialIonization
-
-
-SUBROUTINE CreateElectronsFromBRFluid(CreateFromRestartFile)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! 1.) reconstruct the electron phase space using the integrated charge density in each cell 
-!     a.) from ElectronDensityCell and ElectronTemperatureCell that are read from .h5 state file (only during restart)
-!     b.) from BR electron model variables in each cell (only during the simulation)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Globals             ,ONLY: abort,MPIRoot,UNIT_stdOut,IK,MPI_COMM_WORLD
-USE MOD_Globals_Vars        ,ONLY: ElementaryCharge,BoltzmannConst
-USE MOD_PreProc             ,ONLY: PP_nElems
-USE MOD_Particle_Vars       ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies,usevMPF,RegionElectronRef
-USE MOD_PIC_Analyze         ,ONLY: CalculateBRElectronsPerCell
-USE MOD_Mesh_Vars           ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo,offsetElem
-USE MOD_DSMC_Vars           ,ONLY: CollisMode,DSMC,PartStateIntEn
-USE MOD_part_emission_tools ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_DSMC_Vars           ,ONLY: useDSMC
-USE MOD_Eval_xyz            ,ONLY: TensorProductInterpolation
-USE MOD_HDF5_input          ,ONLY: OpenDataFile,CloseDataFile,ReadArray
-USE MOD_HDF5_Input          ,ONLY: File_ID,DatasetExists
-USE MOD_Mesh_Vars           ,ONLY: offsetElem
-USE MOD_Restart_Vars        ,ONLY: RestartFile
-USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared,ElemToBRRegion
-USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
-USE MOD_Part_Tools          ,ONLY: UpdateNextFreePosition
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT VARIABLES
-LOGICAL,INTENT(IN)             :: CreateFromRestartFile
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!REAL,DIMENSION(1,1:PP_nElems)  :: ElectronDensityCell,ElectronTemperatureCell
-REAL,ALLOCATABLE               :: ElectronDensityCell(:,:),ElectronTemperatureCell(:,:)
-INTEGER                        :: ElemCharge,ElecSpecIndx,iSpec,iElem,iPart,ParticleIndexNbr,RegionID
-REAL                           :: PartPosRef(1:3),ElemTemp
-CHARACTER(32)                  :: hilf
-LOGICAL                        :: ElectronDensityCellExists,ElectronTemperatureCellExists
-REAL                           :: MPF,ElectronNumberCell
-INTEGER                        :: BRNbrOfElectronsCreated
-!===================================================================================================================================
-BRNbrOfElectronsCreated=0
-! ---------------------------------------------------------------------------------------------------------------------------------
-! 0.) Read the data
-! ---------------------------------------------------------------------------------------------------------------------------------
-IF(CreateFromRestartFile)THEN
-  ALLOCATE(ElectronDensityCell(1,1:PP_nElems))
-  ALLOCATE(ElectronTemperatureCell(1,1:PP_nElems))
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-  CALL DatasetExists(File_ID,'ElectronDensityCell',ElectronDensityCellExists)
-  IF(ElectronDensityCellExists)THEN
-    ! Associate construct for integer KIND=8 possibility
-    ASSOCIATE (&
-          PP_nElems   => INT(PP_nElems,IK)   ,&
-          offsetElem  => INT(offsetElem,IK)   )
-      CALL ReadArray('ElectronDensityCell',2,(/1_IK,PP_nElems/),offsetElem,2,RealArray=ElectronDensityCell)
-    END ASSOCIATE
-  ELSE
-    CALL abort(__STAMP__,'ElectronDensityCell container not found in state file. This is required for CreateElectronsFromBRFluid()')
-  END IF
-
-  CALL DatasetExists(File_ID,'ElectronTemperatureCell',ElectronTemperatureCellExists)
-  IF(ElectronTemperatureCellExists)THEN
-    ! Associate construct for integer KIND=8 possibility
-    ASSOCIATE (&
-          PP_nElems   => INT(PP_nElems,IK)   ,&
-          offsetElem  => INT(offsetElem,IK)   )
-      CALL ReadArray('ElectronTemperatureCell',2,(/1_IK,PP_nElems/),offsetElem,2,RealArray=ElectronTemperatureCell)
-    END ASSOCIATE
-  ELSE
-    CALL abort(__STAMP__,'ElectronTemperatureCell container not found in state file. This is required for CreateElectronsFromBRFluid()')
-  END IF
-  CALL CloseDataFile()
-END IF ! CreateFromRestartFile
-
-! ---------------------------------------------------------------------------------------------------------------------------------
-! 1.) reconstruct electrons
-! ---------------------------------------------------------------------------------------------------------------------------------
-SWRITE(UNIT_stdOut,'(A)')' CreateElectronsFromBRFluid(): Reconstructing electrons from BR electron fluid density in each cell'
-
-! Loop over all species and find the index corresponding to the electron species: take the first electron species that is
-! encountered
-ElecSpecIndx = -1 ! Initialize the species index for the electron species with -1
-DO iSpec = 1, nSpecies
-  IF (Species(iSpec)%ChargeIC.GE.0.0) CYCLE
-    IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1)THEN
-      ElecSpecIndx = iSpec
-    EXIT
-  END IF
-END DO
-IF (ElecSpecIndx.LE.0) CALL abort(&
-  __STAMP__&
-  ,'Electron species not found. Cannot create electrons without the defined species!')
-
-WRITE(UNIT=hilf,FMT='(I0)') iSpec
-SWRITE(UNIT_stdOut,'(A)')'  Using iSpec='//TRIM(hilf)//' as electron species index from BR fluid conversion.'
-
-IF (usevMPF) THEN
-  CALL abort(__STAMP__,'vMPF not implemented yet in CreateElectronsFromBRFluid().')
-ELSE
-  MPF = Species(ElecSpecIndx)%MacroParticleFactor
-END IF
-
-! Loop over all elements
-DO iElem=1,PP_nElems
-
-  ! Set electron charge number for each cell
-  IF(CreateFromRestartFile)THEN
-    ElemCharge=NINT(ElectronDensityCell(1,iElem)*ElemVolume_Shared(GetCNElemID(iElem+offSetElem))/MPF)
-  ELSE
-    RegionID=ElemToBRRegion(iElem)
-    CALL CalculateBRElectronsPerCell(iElem,RegionID,ElectronNumberCell)
-    ElemCharge=NINT(ElectronNumberCell/MPF)
-  END IF ! CreateFromRestartFile
-
-  ! Create electrons, 1 electron for each charge of each element
-  DO iPart=1,ElemCharge
-    BRNbrOfElectronsCreated = BRNbrOfElectronsCreated + 1
-
-    ! Set the next free position in the particle vector list
-    PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
-    ParticleIndexNbr            = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
-    IF (ParticleIndexNbr.EQ.0) THEN
-      CALL Abort(&
-      __STAMP__&
-      ,'ERROR in CreateElectronsFromBRFluid(): New Particle Number greater max Part Num!')
-    END IF
-    PDM%ParticleVecLength       = PDM%ParticleVecLength + 1
-
-    !Set new SpeciesID of new particle (electron)
-    PDM%ParticleInside(ParticleIndexNbr) = .true.
-    PartSpecies(ParticleIndexNbr) = ElecSpecIndx
-
-    ! Place the electron randomly in the reference cell
-    CALL RANDOM_NUMBER(PartPosRef(1:3)) ! get random reference space
-    PartPosRef(1:3)=PartPosRef(1:3)*2. - 1. ! map (0,1) -> (-1,1)
-
-    ! Get the physical coordinates that correspond to the reference coordinates
-    CALL TensorProductInterpolation(PartPosRef(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem) &
-                      ,PartState(1:3,ParticleIndexNbr)) !Map into phys. space
-
-    ! Set the internal energies (vb, rot and electronic) to zero if needed
-    IF ((useDSMC).AND.(CollisMode.GT.1)) THEN
-      PartStateIntEn(1,ParticleIndexNbr) = 0.
-      PartStateIntEn(2,ParticleIndexNbr) = 0.
-      IF (DSMC%ElectronicModel.GT.0)  PartStateIntEn(3,ParticleIndexNbr) = 0.
-    END IF
-
-    ! Set the element ID of the electron to the current element ID
-    PEM%GlobalElemID(ParticleIndexNbr) = iElem + offsetElem
-
-    ! Set the electron velocity using the Maxwellian distribution (use the function that is suitable for small numbers)
-    IF(CreateFromRestartFile)THEN
-      ElemTemp = ElectronTemperatureCell(1,iElem)
-    ELSE
-      ElemTemp = RegionElectronRef(3,RegionID)*ElementaryCharge/BoltzmannConst ! convert eV to K
-    END IF ! CreateFromRestartFile
-    CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(4:6,ParticleIndexNbr),Temperature=ElemTemp)
-  END DO
-END DO
-
-IF(CreateFromRestartFile)THEN
-  DEALLOCATE(ElectronDensityCell)
-  DEALLOCATE(ElectronTemperatureCell)
-END IF ! CreateFromRestartFile
-
-#if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,BRNbrOfElectronsCreated,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
-#endif /*USE_MPI*/
-
-SWRITE(UNIT_StdOut,'(A,I0,A)') '  Created a total of ',BRNbrOfElectronsCreated,' electrons.'
-!read*
-
-! Update
-CALL UpdateNextFreePosition()
-
-
-END SUBROUTINE CreateElectronsFromBRFluid
-
-
-SUBROUTINE SwitchBRElectronModel()
-!----------------------------------------------------------------------------------------------------------------------------------!
-! Switch between BR electron fluid and kinetic model
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Particle_Mesh_Vars ,ONLY: UseBRElectronFluid,BRConvertFluidToElectronsTime,BRConvertElectronsToFluidTime
-USE MOD_Particle_Mesh_Vars ,ONLY: BRConvertModelRepeatedly,BRConvertMode
-USE MOD_TimeDisc_Vars      ,ONLY: time,iter
-USE MOD_Elem_Mat           ,ONLY: Elem_Mat
-USE MOD_part_operations    ,ONLY: RemoveAllElectrons
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-LOGICAL :: debug
-!===================================================================================================================================
-!debug=.true.
-debug=.false.
-! Mode=1: BR -> kin -> BR (when BRConvertElectronsToFluidTime > BRConvertFluidToElectronsTime)
-!t1 = BRConvertFluidToElectronsTime
-!t2 = BRConvertElectronsToFluidTime
-
-! Mode=2: kin -> BR -> kin (when BRConvertFluidToElectronsTime > BRConvertElectronsToFluidTime)
-!t1 = BRConvertElectronsToFluidTime
-!t2 = BRConvertFluidToElectronsTime
-
-! BR -> kinetic
-IF(UseBRElectronFluid.AND.BRConvertFluidToElectronsTime.GT.0.0)THEN
-  IF((.NOT.BRConvertModelRepeatedly).AND.(time.GE.BRConvertFluidToElectronsTime)                                      .OR.&
-     ((BRConvertMode.EQ.1)          .AND.(MOD(time,BRConvertElectronsToFluidTime).GE.BRConvertFluidToElectronsTime))  .OR.&
-     ((BRConvertMode.EQ.2)          .AND.(MOD(time,BRConvertFluidToElectronsTime).LT.BRConvertElectronsToFluidTime)) ) THEN
-   IF(debug)THEN
-    write(*,*) ""
-    IPWRITE(UNIT_StdOut,*) "SWITCH TO kinetic ?"
-    write(*,*) ""
-    read*
-   END IF ! debug
-    CALL CreateElectronsFromBRFluid(.FALSE.) ! Use BR electron fluid model density to create kinetic electrons in each cell
-    CALL Elem_Mat(iter)          ! Recompute elem matrices
-    UseBRElectronFluid = .FALSE. ! Deactivate BR fluid
-    IF((.NOT.BRConvertModelRepeatedly).AND.(BRConvertMode.EQ.-2)) BRConvertElectronsToFluidTime = -1.0 ! deactivate kin -> BR
-  END IF
-ENDIF
-
-! kinetic -> BR
-IF(.NOT.UseBRElectronFluid.AND.BRConvertElectronsToFluidTime.GT.0.0)THEN
-  IF((.NOT.BRConvertModelRepeatedly).AND.(time.GE.BRConvertElectronsToFluidTime)                                      .OR.&
-     ((BRConvertMode.EQ.1)          .AND.(MOD(time,BRConvertElectronsToFluidTime).LT.BRConvertFluidToElectronsTime))  .OR.&
-     ((BRConvertMode.EQ.2)          .AND.(MOD(time,BRConvertFluidToElectronsTime).GE.BRConvertElectronsToFluidTime)) ) THEN
-
-   IF(debug)THEN
-    write(*,*) ""
-    IPWRITE(UNIT_StdOut,*) "SWITCH TO BR ?"
-    write(*,*) ""
-    read*
-   END IF ! debug
-    CALL RemoveAllElectrons()    ! Remove all electron particles from the simulation
-    CALL Elem_Mat(iter)          ! Recompute elem matrices
-    UseBRElectronFluid = .TRUE.  ! Activate BR fluid
-    IF((.NOT.BRConvertModelRepeatedly).AND.(BRConvertMode.EQ.-1))BRConvertFluidToElectronsTime = -1.0 ! deactivate BR -> kin
-  END IF
-END IF ! .NOT.UseBRElectronFluid.AND.BRConvertE.GT.0.0
-END SUBROUTINE SwitchBRElectronModel
 
 
 SUBROUTINE FinalizeParticles()
@@ -1710,9 +1295,12 @@ USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
-USE MOD_Particle_MPI_Halo      ,ONLY: FinalizePartExchangeProcs
-USE MOD_PICDepo_Vars           ,ONLY: SendShapeElemID,SendElemShapeID,ShapeMapping,CNShapeMapping
+USE MOD_Particle_MPI_Halo  ,ONLY: FinalizePartExchangeProcs
+USE MOD_PICDepo_Vars       ,ONLY: SendShapeElemID,SendElemShapeID,ShapeMapping,CNShapeMapping
 #endif /*USE_MPI*/
+#if USE_HDG
+USE MOD_HDG_Vars           ,ONLY: RegionBounds,RegionElectronRef
+#endif /*USE_HDG*/
 !#if USE_MPI
 !USE MOD_Particle_MPI_Emission      ,ONLY: FinalizeEmissionParticlesToProcs
 !#endif
@@ -1784,8 +1372,6 @@ SDEALLOCATE(PEM%pNumber)
 SDEALLOCATE(PEM%pEnd)
 SDEALLOCATE(PEM%pNext)
 SDEALLOCATE(seeds)
-SDEALLOCATE(RegionBounds)
-SDEALLOCATE(RegionElectronRef)
 SDEALLOCATE(PartPosLandmark)
 #if USE_MPI
 SDEALLOCATE(SendShapeElemID)
@@ -1795,6 +1381,10 @@ SDEALLOCATE(CNShapeMapping)
 ! particle MPI halo exchange
 CALL FinalizePartExchangeProcs()
 #endif
+#if USE_HDG
+SDEALLOCATE(RegionBounds)
+SDEALLOCATE(RegionElectronRef)
+#endif /*USE_HDG*/
 END SUBROUTINE FinalizeParticles
 
 

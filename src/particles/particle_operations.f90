@@ -215,12 +215,15 @@ END SUBROUTINE RemoveParticle
 
 SUBROUTINE RemoveAllElectrons()
 !===================================================================================================================================
-!> Read-in of the element data from a DSMC state and insertion of particles based on the macroscopic values
+!> Removes all particles for which PARTISELECTRON(iPart) is true, i.e., all electron species
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars      ,ONLY: PDM
-USE MOD_Particle_Mesh_Vars ,ONLY: BRElectronsRemoved
+USE MOD_Particle_Vars ,ONLY: PDM
+#if USE_HDG
+USE MOD_HDG_Vars      ,ONLY: BRElectronsRemoved
+#endif /*USE_HDG*/
+USE MOD_TimeDisc_Vars ,ONLY: time
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -229,30 +232,33 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iPart,BRNbrOfElectronsRemoved
+INTEGER :: iPart,NbrOfElectronsRemoved
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)') ' Using BR electron fluid, removing all electrons from restart file.'
+SWRITE(UNIT_stdOut,'(A,ES25.14E3,A)')' RemoveAllElectrons(): Using BR electron fluid at t=',time,', removing all electrons.'
 
-BRNbrOfElectronsRemoved = 0
+NbrOfElectronsRemoved = 0
 DO iPart = 1,PDM%ParticleVecLength
   IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
   IF(PARTISELECTRON(iPart))THEN
     CALL RemoveParticle(iPart)
-    BRNbrOfElectronsRemoved = BRNbrOfElectronsRemoved + 1
+    NbrOfElectronsRemoved = NbrOfElectronsRemoved + 1
   END IF
 END DO
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,BRNbrOfElectronsRemoved,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,NbrOfElectronsRemoved,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
 
-IF(BRNbrOfElectronsRemoved.GT.0)THEN
-  SWRITE(UNIT_StdOut,'(A,I0,A)') '  Removed a total of ',BRNbrOfElectronsRemoved,' electrons.'
+IF(NbrOfElectronsRemoved.GT.0.AND.MPIRoot) WRITE(UNIT_StdOut,'(A,I0,A)') '  Removed a total of ',NbrOfElectronsRemoved,' electrons.'
+
+#if USE_HDG
+IF(NbrOfElectronsRemoved.GT.0)THEN
   BRElectronsRemoved=.TRUE.
 ELSE
   BRElectronsRemoved=.FALSE.
 END IF ! BRNbrOfElectronsRemove.GT.0
+#endif /*USE_HDG*/
 
 END SUBROUTINE RemoveAllElectrons
 

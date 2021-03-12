@@ -98,11 +98,10 @@ USE MOD_Restart_Vars
 USE MOD_HDF5_Input             ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
 USE MOD_HDF5_Input             ,ONLY: DatasetExists
 #ifdef PARTICLES
-USE MOD_ReadInTools            ,ONLY: GETREAL
 USE MOD_Particle_Tracking_Vars ,ONLY: TotalNbrOfMissingParticlesSum
-USE MOD_Particle_Mesh_Vars     ,ONLY: BRConvertElectronsToFluid,BRConvertFluidToElectrons,BRElectronsRemoved
-USE MOD_Particle_Mesh_Vars     ,ONLY: BRConvertFluidToElectronsTime,BRConvertElectronsToFluidTime,BRConvertModelRepeatedly
-USE MOD_Particle_Mesh_Vars     ,ONLY: BRConvertMode
+#if USE_HDG
+USE MOD_Part_BR_Elecron_Fluid  ,ONLY: InitSwitchBRElectronModel
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -133,54 +132,11 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT RESTART...'
 #ifdef PARTICLES
 ! Set counter for particle that go missing during restart (if they are not located within their host element during restart)
 TotalNbrOfMissingParticlesSum = 0
-! Set possibility of either converting kinetic electrons to BR fluid or vice versa during restart
-BRConvertElectronsToFluid = GETLOGICAL('BRConvertElectronsToFluid') ! default is FALSE
-BRConvertFluidToElectrons = GETLOGICAL('BRConvertFluidToElectrons') ! default is FALSE
-BRElectronsRemoved = .FALSE.
-BRConvertElectronsToFluidTime = GETREAL('BRConvertElectronsToFluidTime') ! switch from kinetic to BR electron fluid
-BRConvertFluidToElectronsTime = GETREAL('BRConvertFluidToElectronsTime') ! switch from BR electron fluid to kinetic electrons 
-!                                                                        ! (create new electron particles)
-! BRTimeStepMultiplier = GETREAL('BRTimeStepMultiplier') ! Factor that is multiplied with the ManualTimeStep when using BR model
-BRConvertModelRepeatedly = GETLOGICAL('BRConvertModelRepeatedly') ! Repeat the switch between BR and kinetic multiple times
-
-IF(BRConvertModelRepeatedly.AND.&
-  ((BRConvertElectronsToFluidTime.LT.0.).OR.(BRConvertFluidToElectronsTime.LT.0.)))THEN
-  IPWRITE(UNIT_StdOut,*) "BRConvertModelRepeatedly      =", BRConvertModelRepeatedly
-  IPWRITE(UNIT_StdOut,*) "BRConvertElectronsToFluidTime =", BRConvertElectronsToFluidTime
-  IPWRITE(UNIT_StdOut,*) "BRConvertFluidToElectronsTime =", BRConvertFluidToElectronsTime
-   CALL abort(__STAMP__,&
-     'BRConvertModelRepeatedly=T and either BRConvertElectronsToFluidTime or BRConvertFluidToElectronsTime is not set correctly.') 
-END IF
-
-IF((BRConvertElectronsToFluid.OR.BRConvertFluidToElectrons).AND.&
-  ((BRConvertElectronsToFluidTime.GT.0.).OR.(BRConvertFluidToElectronsTime.GT.0.)))THEN
-  CALL abort(__STAMP__,'BR electron model: Use either fixed conversion or times but not both!')
-END IF
-
-BRConvertMode = 0 ! Initialize
-
-! Both times are given
-IF((BRConvertElectronsToFluidTime.GE.0.).AND.(BRConvertFluidToElectronsTime.GE.0.))THEN
-  IF(BRConvertElectronsToFluidTime.GT.BRConvertFluidToElectronsTime)THEN
-    ! Mode=1: BR -> kin -> BR (when BRConvertElectronsToFluidTime > BRConvertFluidToElectronsTime)
-    IF(BRConvertModelRepeatedly) THEN
-       BRConvertMode = 1
-     ELSE
-       BRConvertMode = -1
-     END IF
-  ELSEIF(BRConvertFluidToElectronsTime.GT.BRConvertElectronsToFluidTime)THEN
-    ! Mode=2: kin -> BR -> kin (when BRConvertFluidToElectronsTime > BRConvertElectronsToFluidTime)
-    IF(BRConvertModelRepeatedly) THEN
-      BRConvertMode = 2
-    ELSE
-      BRConvertMode = -2
-    END IF
-  ELSE
-    CALL abort(__STAMP__,'BRConvertFluidToElectronsTime == BRConvertElectronsToFluidTime is not allowed!')
-  END IF ! BRConvertElectronsToFluidTime.GT.BRConvertFluidToElectronsTime
-END IF ! (BRConvertElectronsToFluidTime.GE.0.).AND.(BRConvertFluidToElectronsTime.GE.0.)
-
-
+#if USE_HDG
+  ! Initialize variables (only once, never during load balance restart) for switching between BR electron fluid model and fully        
+  ! kinetic model in HDG simulations                                                                                          
+  CALL InitSwitchBRElectronModel()
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 
 ! Set the DG solution to zero (ignore the DG solution in the state file)
@@ -399,13 +355,15 @@ USE MOD_Mesh_Vars              ,ONLY: lastMPISide_MINE
 USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
 USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
-USE MOD_Particle_Mesh_Vars     ,ONLY: UseBRElectronFluid,BRConvertElectronsToFluid,BRConvertFluidToElectrons
-USE MOD_ParticleInit           ,ONLY: CreateElectronsFromBRFluid
 #endif /*USE_HDG*/
 #if defined(PARTICLES) || (USE_HDG)
 USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists,nDims,HSize
 #endif
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+#if defined(PARTICLES) && USE_HDG
+USE MOD_Part_BR_Elecron_Fluid  ,ONLY: CreateElectronsFromBRFluid
+USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid,BRConvertElectronsToFluid,BRConvertFluidToElectrons
+#endif /*defined(PARTICLES) && USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1499,18 +1457,15 @@ IF(DoRestart)THEN
 #if USE_HDG
   ! Remove electron species when using BR electron fluid model
   IF(UseBRElectronFluid.AND.BRConvertElectronsToFluid) CALL RemoveAllElectrons()
-
 #endif /*USE_HDG*/
 #endif /*PARTICLES*/
 
 CALL CloseDataFile()
 
-#ifdef PARTICLES
-#if USE_HDG
+#if defined(PARTICLES) && USE_HDG
   ! Create electrons from BR fluid properties
   IF(BRConvertFluidToElectrons) CALL CreateElectronsFromBRFluid(.TRUE.)
-#endif /*USE_HDG*/
-#endif /*PARTICLES*/
+#endif /*defined(PARTICLES) && USE_HDG*/
 
 #if USE_HDG
   iter=0
@@ -1877,7 +1832,7 @@ USE MOD_HDG                ,ONLY: HDG
 USE MOD_TimeDisc_Vars      ,ONLY: iter
 #ifdef PARTICLES
 USE MOD_PICDepo            ,ONLY: Deposition
-USE MOD_Particle_Mesh_Vars ,ONLY: UseBRElectronFluid,BRElectronsRemoved
+USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid,BRElectronsRemoved
 #if USE_MPI
 USE MOD_Particle_MPI       ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -1917,8 +1872,10 @@ SUBROUTINE FinalizeRestart()
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Restart_Vars       ,ONLY: Vdm_GaussNRestart_GaussN,RestartInitIsDone,DoMacroscopicRestart
-USE MOD_Particle_Mesh_Vars ,ONLY: BRConvertFluidToElectrons,BRConvertElectronsToFluid
+USE MOD_Restart_Vars ,ONLY: Vdm_GaussNRestart_GaussN,RestartInitIsDone,DoMacroscopicRestart
+#if defined(PARTICLES) && USE_HDG
+USE MOD_HDG_Vars     ,ONLY: BRConvertFluidToElectrons,BRConvertElectronsToFluid
+#endif /*defined(PARTICLES) && USE_HDG*/
 ! IMPLICIT VARIABLE HANDLINGDGInitIsDone
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1928,11 +1885,16 @@ IMPLICIT NONE
 !===================================================================================================================================
 SDEALLOCATE(Vdm_GaussNRestart_GaussN)
 RestartInitIsDone = .FALSE.
+
 ! Avoid performing a macroscopic restart during an automatic load balance restart
 DoMacroscopicRestart = .FALSE.
+
+#if defined(PARTICLES) && USE_HDG
 ! Avoid converting BR electron fluid to actual particles or vice versa during an automatic load balance restart
 BRConvertFluidToElectrons = .FALSE.
 BRConvertElectronsToFluid = .FALSE.
+#endif /*defined(PARTICLES) && USE_HDG*/
+
 END SUBROUTINE FinalizeRestart
 
 END MODULE MOD_Restart

@@ -39,8 +39,11 @@ INTERFACE GetSideBoundingBoxTria
 END INTERFACE
 
 PUBLIC :: ParticleInsideQuad3D, InitPEM_LocalElemID, InitPEM_CNElemID, GetGlobalNonUniqueSideID, GetSideBoundingBoxTria
-PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, MapBRRegionToElem, WeirdElementCheck, CalcParticleMeshMetrics, InitElemNodeIDs
+PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, WeirdElementCheck, CalcParticleMeshMetrics, InitElemNodeIDs
 PUBLIC :: CalcBezierControlPoints, InitParticleGeometry
+#if USE_HDG
+PUBLIC :: MapBRRegionToElem
+#endif /*USE_HDG*/
 !===================================================================================================================================
 CONTAINS
 
@@ -1108,6 +1111,7 @@ END DO ! i=0,N
 END SUBROUTINE PointsEqual
 
 
+#if USE_HDG
 SUBROUTINE MapBRRegionToElem()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! map a particle region to element
@@ -1117,9 +1121,8 @@ SUBROUTINE MapBRRegionToElem()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars ,ONLY: NbrOfRegions, RegionBounds,GEO
+USE MOD_HDG_Vars           ,ONLY: NbrOfRegions, RegionBounds,ElemToBRRegion
 USE MOD_Mesh_Vars          ,ONLY: ElemBaryNGeo
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemToBRRegion
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1146,6 +1149,7 @@ DO iElem=1,PP_nElems
   END DO ! iRegions=1,NbrOfRegions
 END DO ! iElem=1,PP_nElems
 END SUBROUTINE MapBRRegionToElem
+#endif /*USE_HDG*/
 
 
 SUBROUTINE WeirdElementCheck()

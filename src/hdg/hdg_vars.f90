@@ -51,7 +51,7 @@ LOGICAL             :: NewtonAdaptStartValue
 INTEGER             :: AdaptIterNewton
 INTEGER             :: AdaptIterNewtonToLinear
 INTEGER             :: AdaptIterNewtonOld
-INTEGER             :: NonLinSolver  ! 1 Newton, 2 Fixpoint
+INTEGER             :: HDGNonLinSolver  ! 1 Newton, 2 Fixpoint
 REAL,ALLOCATABLE    :: NonlinVolumeFac(:,:)      !Factor for Volumeintegration necessary for nonlinear sources
 !mappings
 INTEGER             :: sideDir(6),pm(6),dirPm2iSide(2,3)
@@ -77,6 +77,24 @@ REAL                :: RunTime                !< CG Solver runtime
 REAL                :: RunTimePerIteration    !< CG Solver runtime per iteration
 REAL                :: HDGNorm                !< Norm
 INTEGER             :: iteration              !< number of iterations to achieve the norm 
+
+! --- Boltzmann relation (BR) electron fluid
+LOGICAL               :: UseBRElectronFluid            ! Indicates usage of BR electron fluid model
+INTEGER               :: NbrOfRegions                  ! Nbr of regions to be mapped to Elems
+INTEGER, ALLOCATABLE  :: ElemToBRRegion(:)             ! ElemToBRRegion(1:nElems)
+REAL, ALLOCATABLE     :: RegionBounds(:,:)             ! RegionBounds ((xmin,xmax,ymin,...)|1:NbrOfRegions)
+REAL, ALLOCATABLE     :: RegionElectronRef(:,:)        ! RegionElectronRef((rho0,phi0,Te[eV])|1:NbrOfRegions)
+#if defined(PARTICLES)
+! --- Switching between BR and fully kinetic HDG
+LOGICAL               :: BRConvertElectronsToFluid     ! User variable for removing all electrons and using BR instead
+REAL                  :: BRConvertElectronsToFluidTime ! Time when kinetic electrons should be converted to BR fluid electrons
+LOGICAL               :: BRConvertFluidToElectrons     ! User variable for creating particles from BR electron fluid (uses
+REAL                  :: BRConvertFluidToElectronsTime ! Time when BR fluid electrons should be converted to kinetic electrons
+INTEGER               :: BRConvertMode                 ! Mode used for switching BR->kin->BR OR kin->BR->kin
+!                                                      ! and ElectronDensityCell ElectronTemperatureCell from .h5 state file)
+LOGICAL               :: BRConvertModelRepeatedly      ! Repeat the switch between BR and kinetic multiple times
+LOGICAL               :: BRElectronsRemoved            ! True if electrons were removed during restart (only BR electrons)
+#endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 
 

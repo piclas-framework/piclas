@@ -121,11 +121,9 @@ USE MOD_Mesh_Vars              ,ONLY: GlobalUniqueSideID
 USE MOD_PICInterpolation_Vars  ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 USE MOD_Analyze_Vars           ,ONLY: AverageElectricPotential
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
+USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
-#ifdef PARTICLES
-USE MOD_Particle_Mesh_Vars     ,ONLY: UseBRElectronFluid
-#endif /*PARTICLES*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
 USE MOD_Mesh_Vars              ,ONLY: DoWriteStateToHDF5
 USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
@@ -588,8 +586,10 @@ ASSOCIATE (&
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
   IF(OutPutSource) THEN
+#if USE_HDG
     ! Add BR electron fluid density to PartSource for output to state.h5
     IF(UseBRElectronFluid) CALL AddBRElectronFluidToPartSource()
+#endif /*USE_HDG*/
     ! output of pure current and density
     ! not scaled with epsilon0 and c_corr
     nVar=4_IK
@@ -643,14 +643,14 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElemTime')
 #endif /*USE_LOADBALANCE*/
 
-#ifdef PARTICLES
+#if defined(PARTICLES) && USE_HDG
 ! Write 'ElectronDensityCell' and 'ElectronTemperatureCell' to a separate container in the state.h5 file
 ! (for special read-in and conversion to kinetic electrons)
 IF(UseBRElectronFluid) THEN
   CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElectronDensityCell')
   CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElectronTemperatureCell')
 END IF
-#endif /*PARTICLES*/
+#endif /*defined(PARTICLES) && USE_HDG*/
 
 ! Adjust values before WriteAdditionalElemData() is called
 CALL ModifyElemData(mode=1)
@@ -2655,7 +2655,9 @@ USE IFPORT                     ,ONLY: SYSTEM
 #endif
 #ifdef PARTICLES
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Mesh_Vars     ,ONLY: UseBRElectronFluid
+#if USE_HDG
+USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 !USE MOD_PreProcFlags
 ! IMPLICIT VARIABLE HANDLING
@@ -2711,11 +2713,13 @@ CALL WriteAttributeToHDF5(File_ID,'NComputation',1,IntegerScalar=PP_N)
 
 #ifdef PARTICLES
 CALL WriteAttributeToHDF5(File_ID,'TrackingMethod',1,StrScalar=(/TRIM(TrackingString(TrackingMethod))/))
+#if USE_HDG
 IF(UseBRElectronFluid)THEN
   CALL WriteAttributeToHDF5(File_ID,'SimulationModel',1,StrScalar=(/'HDG-BR'/))
 ELSE
   CALL WriteAttributeToHDF5(File_ID,'SimulationModel',1,StrScalar=(/'HDG'/))
 END IF ! UseBRElectronFluid
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 
 CALL CloseDataFile()
@@ -3504,6 +3508,7 @@ SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteNodeSourceExtToHDF5
 
 
+#if USE_HDG
 SUBROUTINE AddBRElectronFluidToPartSource()
 !===================================================================================================================================
 ! Add BR electron fluid density to PartSource for output to state.h5
@@ -3512,12 +3517,11 @@ SUBROUTINE AddBRElectronFluidToPartSource()
 USE MOD_Globals            ,ONLY: abort
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_PreProc
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemToBRRegion
+USE MOD_HDG_Vars           ,ONLY: ElemToBRRegion,RegionElectronRef
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_DG_Vars            ,ONLY: U
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_PICDepo_Vars       ,ONLY: PartSource
-USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3559,6 +3563,7 @@ DO iElem=1,nElems
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE AddBRElectronFluidToPartSource
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 
 

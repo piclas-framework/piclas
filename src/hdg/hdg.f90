@@ -53,7 +53,7 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("HDG")
 
-CALL prms%CreateIntOption(    'NonLinSolver'           ,'Select Newton or Fix Point algorithm (default is Newton and Fix Point is not implemented)', '1')
+CALL prms%CreateIntOption(    'HDGNonLinSolver'        ,'Select Newton or Fix Point algorithm (default is Newton and Fix Point is not implemented)', '1')
 CALL prms%CreateLogicalOption('NewtonExactSourceDeriv' ,'Use exact derivative of exponential function in source term instead of linearized.', '.FALSE.')
 CALL prms%CreateIntOption(    'AdaptIterNewton'        ,'Set number of iteration steps after which the system matrix is recomputed', '0')
 CALL prms%CreateLogicalOption('NewtonAdaptStartValue'  ,'Initial recomputation of the system matrix with initial guess of the solution', '.FALSE.')
@@ -94,14 +94,13 @@ USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETREAL,GETINT
 USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides,nSides
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCSides,nSides,BC
 USE MOD_Mesh_Vars          ,ONLY: nGlobalMortarSides,nMortarMPISides
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions,ElemToBRRegion,UseBRElectronFluid,BRConvertFluidToElectrons
-USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
 USE MOD_Globals_Vars       ,ONLY: eps0
 USE MOD_Restart_Vars       ,ONLY: DoRestart
 USE MOD_Mesh_Vars          ,ONLY: DoSwapMesh
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_Basis              ,ONLY: InitializeVandermonde,LegendreGaussNodesAndWeights,BarycentricWeights
 USE MOD_FillMortar_HDG     ,ONLY: InitMortar_HDG
+USE MOD_HDG_Vars           ,ONLY: NbrOfRegions,ElemToBRRegion,RegionElectronRef
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -134,11 +133,13 @@ ELSE
   HDGSkip=0
 END IF
 
+HDGNonLinSolver = -1 ! init
+
 ! BR electron fluid model
 IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far -> non-linear HDG-sources!
-  NonLinSolver=GETINT('NonLinSolver')
+  HDGNonLinSolver=GETINT('HDGNonLinSolver')
 
-  IF (NonLinSolver.EQ.1) THEN
+  IF (HDGNonLinSolver.EQ.1) THEN
     NewtonExactSourceDeriv  = GETLOGICAL('NewtonExactSourceDeriv')
     AdaptIterNewton         = GETINT('AdaptIterNewton')
     AdaptIterNewtonOld      = AdaptIterNewton
@@ -332,7 +333,6 @@ USE MOD_HDG_Vars
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars, ONLY: iStage
 #endif
-USE MOD_Particle_Mesh_Vars ,ONLY: UseBRElectronFluid
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -346,6 +346,7 @@ REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+! Check whether the solver should be skipped in this iteration
 IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
   IF (t.LT.HDGSkip_t0) THEN
     IF (MOD(iter,INT(HDGSkipInit,8)).NE.0) RETURN
@@ -358,21 +359,26 @@ IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
   END IF
 #endif
 END IF
+
+! Run the appropriate HDG solver: Newton or Linear
+#if defined(PARTICLES)
 IF(UseBRElectronFluid) THEN
-  IF (NonLinSolver.EQ.1) THEN
+  IF (HDGNonLinSolver.EQ.1) THEN
     IF(PRESENT(ForceCGSolverIteration_opt))THEN
       CALL HDGNewton(t, U_out, iter, ForceCGSolverIteration_opt)
     ELSE
       CALL HDGNewton(t, U_out, iter)
     END IF ! PRESENT(ForceCGSolverIteration)
   ELSE
-    CALL abort(&
-__STAMP__&
-,'Defined NonLinSolver not implemented (HDGFixPoint has been removed)!')
+    CALL abort(__STAMP__,'Defined HDGNonLinSolver not implemented (HDGFixPoint has been removed!) HDGNonLinSolver = ',&
+    IntInfoOpt=HDGNonLinSolver)
   END IF
 ELSE
+#endif /*defined(PARTICLES)*/
   CALL HDGLinear(t,U_out)
+#if defined(PARTICLES)
 END IF
+#endif /*defined(PARTICLES)*/
 
 END SUBROUTINE HDG
 
@@ -651,8 +657,6 @@ USE MOD_Equation_Vars          ,ONLY: chitens_face
 USE MOD_Mesh_Vars              ,ONLY: Face_xGP,BoundaryType,nSides,BC
 USE MOD_Mesh_Vars              ,ONLY: ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars     ,ONLY: wGP
-USE MOD_Particle_Vars          ,ONLY: RegionElectronRef
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Elem_Mat               ,ONLY: PostProcessGradient, Elem_Mat,BuildPrecond
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime
 #if (PP_nVar==1)
@@ -661,7 +665,7 @@ USE MOD_Equation_Vars          ,ONLY: E
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBRRegion,UseBRElectronFluid
+USE MOD_HDG_Vars               ,ONLY: ElemToBRRegion,RegionElectronRef
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -3079,7 +3079,6 @@ SUBROUTINE CalculateElectronIonDensityCell()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY:ElementaryCharge
-USE MOD_Particle_Mesh_Vars     ,ONLY:GEO,UseBRElectronFluid
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
 USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,PEM,usevMPF
 USE MOD_Preproc
@@ -3089,7 +3088,9 @@ USE MOD_Part_Tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars              ,ONLY: offSetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBRRegion
+#if USE_HDG
+USE MOD_HDG_Vars               ,ONLY: ElemToBRRegion,UseBRElectronFluid
+#endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3101,7 +3102,6 @@ IMPLICIT NONE
 INTEGER              :: iPart,iElem,RegionID
 REAL                 :: charge, MPF
 !===================================================================================================================================
-
 ! nullify
 ElectronDensityCell=0.
      IonDensityCell=0.
@@ -3136,17 +3136,21 @@ DO iPart=1,PDM%ParticleVecLength
     END ASSOCIATE
   END ASSOCIATE
 END DO ! iPart
+
+#if USE_HDG
 IF (UseBRElectronFluid) THEN !check for BR electrons
   DO iElem=1,PP_nElems
     RegionID=ElemToBRRegion(iElem)
     IF (RegionID.GT.0) THEN
-      IF (ElectronDensityCell(iElem).NE.0.) CALL abort(&
-        __STAMP__&
-        ,'Mixed BR and kinetic electrons are not implemented in CalculateElectronIonDensityCell yet!')
+      IF (ABS(ElectronDensityCell(iElem)).GT.0.0)THEN
+        IPWRITE(UNIT_StdOut,*) "iElem =", iElem
+        CALL abort( __STAMP__,'Mixed BR and kinetic electrons are not implemented in CalculateElectronIonDensityCell yet!')
+      END IF
       CALL CalculateBRElectronsPerCell(iElem,RegionID,ElectronDensityCell(iElem))
     END IF
   END DO ! iElem=1,PP_nElems
 END IF
+#endif /*USE_HDG*/
 
 ! loop over all elements and divide by volume
 DO iElem=1,PP_nElems
@@ -3166,14 +3170,15 @@ SUBROUTINE CalculateElectronTemperatureCell()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals                ,ONLY: PARTISELECTRON
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElectronMass,ElementaryCharge
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,UseBRElectronFluid
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars  ,ONLY: ElectronTemperatureCell
-USE MOD_Particle_Vars          ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartState,RegionElectronRef
+USE MOD_Particle_Vars          ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartState
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_part_tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBRRegion
+#if USE_HDG
+USE MOD_HDG_Vars               ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
+#endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3190,6 +3195,7 @@ REAL    :: MeanPartV_2(1:3)
 REAL    ::   TempDirec(1:3)
 REAL    :: WeightingFactor
 !===================================================================================================================================
+#if USE_HDG
 IF (UseBRElectronFluid) THEN ! check for BR electrons
   DO iElem=1,PP_nElems
     RegionID=ElemToBRRegion(iElem)
@@ -3199,6 +3205,7 @@ IF (UseBRElectronFluid) THEN ! check for BR electrons
   END DO ! iElem=1,PP_nElems
   RETURN ! Mixed BR and kinetic electrons are not implemented yet!
 END IF
+#endif /*USE_HDG*/
 
 ! nullify
 ElectronTemperatureCell=0.
