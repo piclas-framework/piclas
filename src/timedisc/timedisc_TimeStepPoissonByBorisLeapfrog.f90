@@ -117,7 +117,7 @@ IF (time.GE.DelayTime) THEN
   CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
   IF (CalcCoupledPower) PCoupl = 0. ! if output of coupled power is active: reset PCoupl
-  DO iPart=1,PDM%ParticleVecLength
+  DO iPart=1,PDM%PartiacleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
       ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
       IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')

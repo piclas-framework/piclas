@@ -94,7 +94,7 @@ USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETREAL,GETINT
 USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides,nSides
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCSides,nSides,BC
 USE MOD_Mesh_Vars          ,ONLY: nGlobalMortarSides,nMortarMPISides
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions,ElemToBRRegion,UseBRElectronFluid
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions,ElemToBRRegion,UseBRElectronFluid,BRConvertFluidToElectrons
 USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
 USE MOD_Globals_Vars       ,ONLY: eps0
 USE MOD_Restart_Vars       ,ONLY: DoRestart
@@ -136,7 +136,6 @@ END IF
 
 ! BR electron fluid model
 IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far -> non-linear HDG-sources!
-  HDGnonlinear = .true.
   NonLinSolver=GETINT('NonLinSolver')
 
   IF (NonLinSolver.EQ.1) THEN
@@ -163,11 +162,7 @@ IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far 
 
   MaxIterNewton = GETINT('MaxIterNewton')
   EpsNonLinear  = GETREAL('EpsNonLinear')
-ELSE
-  HDGnonlinear = .false.
 END IF
-IPWRITE(UNIT_StdOut,*) "UseBR =", UseBRElectronFluid
-!read*
 
 !CG parameters
 PrecondType          = GETINT('PrecondType')
@@ -337,6 +332,7 @@ USE MOD_HDG_Vars
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars, ONLY: iStage
 #endif
+USE MOD_Particle_Mesh_Vars ,ONLY: UseBRElectronFluid
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -362,7 +358,7 @@ IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
   END IF
 #endif
 END IF
-IF(HDGnonlinear) THEN
+IF(UseBRElectronFluid) THEN
   IF (NonLinSolver.EQ.1) THEN
     IF(PRESENT(ForceCGSolverIteration_opt))THEN
       CALL HDGNewton(t, U_out, iter, ForceCGSolverIteration_opt)
@@ -684,6 +680,7 @@ REAL    :: RHS_face(PP_nVar,nGP_face,nSides)
 REAL    :: rtmp(nGP_vol),Norm_r2!,Norm_r2_old
 LOGICAL :: converged, beLinear
 LOGICAL :: warning_linear
+REAL    :: warning_linear_phi
 #if (PP_nVar!=1)
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #endif
@@ -895,13 +892,15 @@ ELSE
     DO iElem=1,PP_nElems
       DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
         r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-        CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem),warning_linear)
+        CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem),warning_linear,warning_linear_phi)
       END DO; END DO; END DO !i,j,k
       RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(PP_nVar,:,iElem)
     END DO !iElem
     IF (warning_linear) THEN
-      SWRITE(*,*) 'HDGNewton WARNING: during iteration at least one DOF resulted in a phi > phi_max.\n'//&
-        '=> Increase Part-RegionElectronRef#-PhiMax if already steady!'
+      !SWRITE(*,'(A,F5.2,A,F5.2,A)') 'HDGNewton WARNING: during iteration at least one DOF resulted in a phi > phi_max. '//&
+        !'=> Increase Part-RegionElectronRef#-PhiMax if already steady! Phi-Phi_ref=',warning_linear_phi,'(Phi_ref=',RegionElectronRef(2,RegionID),')'
+      SWRITE(*,'(A,ES10.2E3)') 'HDGNewton WARNING: at least one DOF resulted in phi > phi_max. '//&
+        'Increase Part-RegionElectronRef#-PhiMax to shift the ref. point! Phi-Phi_ref=',warning_linear_phi!,' (Phi_ref=',RegionElectronRef(2,RegionID),')'
     END IF
 
     !prepare RHS_face ( RHS for lamdba system.)

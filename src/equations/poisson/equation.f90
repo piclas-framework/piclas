@@ -524,7 +524,7 @@ END DO
 END SUBROUTINE DivCleaningDamping
 
 
-PURE SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear)
+PURE SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear, warning_linear_phi)
 !===================================================================================================================================
 ! Determine the right-hand-side of Poisson's equation (either by an analytic function or deposition of charge from particles)
 ! TODO: currently particles are enforced, which means that they over-write the exact function solution because
@@ -558,7 +558,8 @@ INTEGER, INTENT(IN)             :: i, j, k,iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(PP_nVar)    ! state in conservative variables
-LOGICAL,INTENT(INOUT),OPTIONAL  :: warning_linear
+LOGICAL,INTENT(OUT),OPTIONAL  :: warning_linear
+REAL,INTENT(OUT),OPTIONAL     :: warning_linear_phi
 REAL,INTENT(IN),OPTIONAL        :: Phi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -571,6 +572,7 @@ INTEGER                         :: RegionID, CNElemID
 #endif /*PARTICLES*/
 !===================================================================================================================================
 IF(PRESENT(warning_linear)) warning_linear=.FALSE. ! Initialize
+IF(PRESENT(warning_linear_phi)) warning_linear_phi=0. ! Initialize
 ! Calculate IniExactFunc before particles are superimposed, because the IniExactFunc might be needed by the CalcError function
 SELECT CASE (IniExactFunc)
 CASE(0) ! Particles
@@ -605,10 +607,12 @@ IF(DoDeposition)THEN
         source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
             * EXP( (source_e) / RegionElectronRef(3,RegionID) )
       ELSE
+        ! Store delta for output
+        IF(PRESENT(warning_linear_phi)) warning_linear_phi = MAX(warning_linear_phi,source_e)
         ! Linear approximation from Taylor expansion O(1)
         source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
             * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
-        warning_linear = .TRUE.
+        IF(PRESENT(warning_linear)) warning_linear = .TRUE.
       END IF
       !source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
       !* EXP( (Phi-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )

@@ -101,7 +101,8 @@ USE MOD_HDF5_Input             ,ONLY: DatasetExists
 USE MOD_ReadInTools            ,ONLY: GETREAL
 USE MOD_Particle_Tracking_Vars ,ONLY: TotalNbrOfMissingParticlesSum
 USE MOD_Particle_Mesh_Vars     ,ONLY: BRConvertElectronsToFluid,BRConvertFluidToElectrons,BRElectronsRemoved
-USE MOD_Particle_Mesh_Vars     ,ONLY: BRConvertFluidToElectronsTime,BRConvertElectronsToFluidTime
+USE MOD_Particle_Mesh_Vars     ,ONLY: BRConvertFluidToElectronsTime,BRConvertElectronsToFluidTime,BRConvertModelRepeatedly
+USE MOD_Particle_Mesh_Vars     ,ONLY: BRConvertMode
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -140,12 +141,44 @@ BRConvertElectronsToFluidTime = GETREAL('BRConvertElectronsToFluidTime') ! switc
 BRConvertFluidToElectronsTime = GETREAL('BRConvertFluidToElectronsTime') ! switch from BR electron fluid to kinetic electrons 
 !                                                                        ! (create new electron particles)
 ! BRTimeStepMultiplier = GETREAL('BRTimeStepMultiplier') ! Factor that is multiplied with the ManualTimeStep when using BR model
+BRConvertModelRepeatedly = GETLOGICAL('BRConvertModelRepeatedly') ! Repeat the switch between BR and kinetic multiple times
+
+IF(BRConvertModelRepeatedly.AND.&
+  ((BRConvertElectronsToFluidTime.LT.0.).OR.(BRConvertFluidToElectronsTime.LT.0.)))THEN
+  IPWRITE(UNIT_StdOut,*) "BRConvertModelRepeatedly      =", BRConvertModelRepeatedly
+  IPWRITE(UNIT_StdOut,*) "BRConvertElectronsToFluidTime =", BRConvertElectronsToFluidTime
+  IPWRITE(UNIT_StdOut,*) "BRConvertFluidToElectronsTime =", BRConvertFluidToElectronsTime
+   CALL abort(__STAMP__,&
+     'BRConvertModelRepeatedly=T and either BRConvertElectronsToFluidTime or BRConvertFluidToElectronsTime is not set correctly.') 
+END IF
 
 IF((BRConvertElectronsToFluid.OR.BRConvertFluidToElectrons).AND.&
   ((BRConvertElectronsToFluidTime.GT.0.).OR.(BRConvertFluidToElectronsTime.GT.0.)))THEN
   CALL abort(__STAMP__,'BR electron model: Use either fixed conversion or times but not both!')
 END IF
 
+BRConvertMode = 0 ! Initialize
+
+! Both times are given
+IF((BRConvertElectronsToFluidTime.GE.0.).AND.(BRConvertFluidToElectronsTime.GE.0.))THEN
+  IF(BRConvertElectronsToFluidTime.GT.BRConvertFluidToElectronsTime)THEN
+    ! Mode=1: BR -> kin -> BR (when BRConvertElectronsToFluidTime > BRConvertFluidToElectronsTime)
+    IF(BRConvertModelRepeatedly) THEN
+       BRConvertMode = 1
+     ELSE
+       BRConvertMode = -1
+     END IF
+  ELSEIF(BRConvertFluidToElectronsTime.GT.BRConvertElectronsToFluidTime)THEN
+    ! Mode=2: kin -> BR -> kin (when BRConvertFluidToElectronsTime > BRConvertElectronsToFluidTime)
+    IF(BRConvertModelRepeatedly) THEN
+      BRConvertMode = 2
+    ELSE
+      BRConvertMode = -2
+    END IF
+  ELSE
+    CALL abort(__STAMP__,'BRConvertFluidToElectronsTime == BRConvertElectronsToFluidTime is not allowed!')
+  END IF ! BRConvertElectronsToFluidTime.GT.BRConvertFluidToElectronsTime
+END IF ! (BRConvertElectronsToFluidTime.GE.0.).AND.(BRConvertFluidToElectronsTime.GE.0.)
 
 
 #endif /*PARTICLES*/

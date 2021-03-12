@@ -134,7 +134,7 @@ END DO ! iElem=1,PP_nElems
 warning_linear=.FALSE.
 DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    CALL CalcSourceHDG(i,j,k,iElem,ImplicitSource(1:PP_nVar,i,j,k,iElem))
+    CALL CalcSourceHDG(i,j,k,iElem,ImplicitSource(1:PP_nVar,i,j,k,iElem),warning_linear)
   END DO; END DO; END DO !i,j,k
 END DO !iElem
 IF (warning_linear) THEN

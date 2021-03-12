@@ -241,8 +241,8 @@ DO !iter_t=0,MaxIter
   CALL SwitchBRElectronModel()
 #endif /*PARTICLES*/
 
-  tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
-  tEndDiff=tEnd-time            ! dito for end time
+  tAnalyzeDiff=tAnalyze-time    ! Time to next analysis, put in extra variable so number does not change due to numerical errors
+  tEndDiff=tEnd-time            ! Do the same for end time
 
   !IF(time.LT.3e-8)THEN
   !    !RETURN
@@ -255,7 +255,7 @@ DO !iter_t=0,MaxIter
   END IF
 #endif /*(PP_TimeDiscMethod==509)*/
   dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
-  dtWeight=dt/dt_Min !might be further descreased by rk-stages
+  dtWeight=dt/dt_Min ! Might be further decreased by RK-stages
 #if (PP_TimeDiscMethod==509)
   IF (iter.EQ.0) THEN
     dt_old=dt

@@ -61,6 +61,7 @@ USE MOD_Mesh_Vars          ,ONLY: SurfElem
 USE MOD_Mesh_Vars          ,ONLY: VolToSideA,VolToSideIJKA,ElemToSide!,VolToSide2A
 USE MOD_Basis              ,ONLY: getSPDInverse
 USE MOD_TimeDisc_Vars      ,ONLY: IterDisplayStep,DoDisplayIter
+USE MOD_Particle_Mesh_Vars ,ONLY: UseBRElectronFluid
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -145,7 +146,7 @@ DO iElem=1,PP_nElems
         ! Dhat = D - B A^{-1} B^T
 
         !  D  volume contribution for nonlinear stuff
-        IF (HDGnonlinear.AND.(NonLinSolver.EQ.1)) THEN
+        IF (UseBRElectronFluid.AND.(NonLinSolver.EQ.1)) THEN
           j = index_3to1(g1,g2,g3)
           Dhat(j,j) = Dhat(j,j) - JwGP_vol( j,iElem)*NonlinVolumeFac(j,iElem)
         END IF

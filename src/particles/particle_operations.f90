@@ -236,6 +236,7 @@ SWRITE(UNIT_stdOut,'(A)') ' Using BR electron fluid, removing all electrons from
 
 BRNbrOfElectronsRemoved = 0
 DO iPart = 1,PDM%ParticleVecLength
+  IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
   IF(PARTISELECTRON(iPart))THEN
     CALL RemoveParticle(iPart)
     BRNbrOfElectronsRemoved = BRNbrOfElectronsRemoved + 1
@@ -247,7 +248,7 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,BRNbrOfElectronsRemoved,1,MPI_INTEGER,MPI_SUM,MP
 #endif /*USE_MPI*/
 
 IF(BRNbrOfElectronsRemoved.GT.0)THEN
-  SWRITE(UNIT_StdOut,'(A,I0,A)') " |_ Removed a total of ",BRNbrOfElectronsRemoved," electrons."
+  SWRITE(UNIT_StdOut,'(A,I0,A)') '  Removed a total of ',BRNbrOfElectronsRemoved,' electrons.'
   BRElectronsRemoved=.TRUE.
 ELSE
   BRElectronsRemoved=.FALSE.
