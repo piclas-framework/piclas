@@ -925,17 +925,15 @@ BGMiglobDelta = BGMimaxglob - BGMiminglob
 BGMjglobDelta = BGMjmaxglob - BGMjminglob
 BGMkglobDelta = BGMkmaxglob - BGMkminglob
 
-! Allocate array to hold the number of elemebts on each FIBGM cell
+! Allocate array to hold the number of elements on each FIBGM cell
 MPISharedSize =                  INT((BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/(BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1)/) &
-                                     ,FIBGM_nTotalElems_Shared_Win,FIBGM_nTotalElems_Shared)
+CALL Allocate_Shared(MPISharedSize,(/(BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1)/),FIBGM_nTotalElems_Shared_Win,FIBGM_nTotalElems_Shared)
 CALL MPI_WIN_LOCK_ALL(0,FIBGM_nTotalElems_Shared_Win,IERROR)
 FIBGM_nTotalElems(BGMiminglob:BGMimaxglob,BGMjminglob:BGMjmaxglob,BGMkminglob:BGMkmaxglob) => FIBGM_nTotalElems_Shared
 
 ! Allocate flags which procs belong to which FIGBM cell
 MPISharedSize =                  INT((BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1)*nProcessors_Global,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/(BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1)*nProcessors_Global/) &
-                    ,FIBGMToProcFlag_Shared_Win,FIBGMToProcFlag_Shared)
+CALL Allocate_Shared(MPISharedSize,(/(BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1)*nProcessors_Global/),FIBGMToProcFlag_Shared_Win,FIBGMToProcFlag_Shared)
 CALL MPI_WIN_LOCK_ALL(0,FIBGMToProcFlag_Shared_Win,IERROR)
 FIBGM_nTotalElems(BGMiminglob:BGMimaxglob,BGMjminglob:BGMjmaxglob,BGMkminglob:BGMkmaxglob)                        => FIBGM_nTotalElems_Shared
 FIBGMToProcFlag  (BGMiminglob:BGMimaxglob,BGMjminglob:BGMjmaxglob,BGMkminglob:BGMkmaxglob,0:nProcessors_Global-1) => FIBGMToProcFlag_Shared
