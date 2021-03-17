@@ -25,12 +25,15 @@ INTERFACE CalcDepositedCharge
   MODULE PROCEDURE CalcDepositedCharge
 END INTERFACE
 
+#if USE_HDG
 INTERFACE CalculateBRElectronsPerCell
   MODULE PROCEDURE CalculateBRElectronsPerCell
 END INTERFACE
 
+PUBLIC:: CalculateBRElectronsPerCell
+#endif /*USE_HDG*/
 
-PUBLIC:: VerifyDepositedCharge, CalcDepositedCharge, CalculateBRElectronsPerCell
+PUBLIC:: VerifyDepositedCharge, CalcDepositedCharge
 !===================================================================================================================================
 
 CONTAINS

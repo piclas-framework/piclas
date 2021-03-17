@@ -260,6 +260,9 @@ USE MOD_CalcTimeStep  ,ONLY: CalcTimeStep
 USE MOD_TimeDisc_Vars ,ONLY: CFLtoOne
 #endif
 USE MOD_ReadInTools   ,ONLY: GETREAL
+#if defined(PARTICLES) && USE_HDG
+USE MOD_HDG_Vars      ,ONLY: BRTimeStepMultiplier,UseBRElectronFluid,BRTimeStepBackup
+#endif /*defined(PARTICLES) && USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -286,6 +289,12 @@ ELSE ! .NO. ManualTimeStep
   ! calculate time step for sub-cycling of divergence correction
   ! automatic particle time step of quasi-stationary time integration is not implemented
 END IF ! useManualTimestep
+
+#if defined(PARTICLES) && USE_HDG
+! Adjust the time step when BR electron fluid is active
+BRTimeStepBackup = dt_Min
+IF(UseBRElectronFluid) dt_Min = BRTimeStepMultiplier*dt_Min
+#endif /*defined(PARTICLES) && USE_HDG*/
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_StdOut,'(A,ES16.7)')'Initial Timestep  : ', dt_Min

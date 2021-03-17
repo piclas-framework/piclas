@@ -84,6 +84,8 @@ INTEGER               :: NbrOfRegions                  ! Nbr of regions to be ma
 INTEGER, ALLOCATABLE  :: ElemToBRRegion(:)             ! ElemToBRRegion(1:nElems)
 REAL, ALLOCATABLE     :: RegionBounds(:,:)             ! RegionBounds ((xmin,xmax,ymin,...)|1:NbrOfRegions)
 REAL, ALLOCATABLE     :: RegionElectronRef(:,:)        ! RegionElectronRef((rho0,phi0,Te[eV])|1:NbrOfRegions)
+REAL                  :: BRTimeStepMultiplier          ! Factor that is multiplied with the ManualTimeStep when using BR model
+REAL                  :: BRTimeStepBackup              ! Original time step
 #if defined(PARTICLES)
 ! --- Switching between BR and fully kinetic HDG
 LOGICAL               :: BRConvertElectronsToFluid     ! User variable for removing all electrons and using BR instead

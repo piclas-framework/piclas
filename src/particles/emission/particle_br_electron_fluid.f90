@@ -45,20 +45,20 @@ USE MOD_Globals                ,ONLY: myrank, abort, UNIT_StdOut
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETREAL,PrintOption
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 
 !===================================================================================================================================
 ! Set possibility of either converting kinetic electrons to BR fluid or vice versa during restart
-BRConvertElectronsToFluid = GETLOGICAL('BRConvertElectronsToFluid') ! default is FALSE
-BRConvertFluidToElectrons = GETLOGICAL('BRConvertFluidToElectrons') ! default is FALSE
-BRElectronsRemoved = .FALSE.
+BRConvertElectronsToFluid     = GETLOGICAL('BRConvertElectronsToFluid') ! default is FALSE
+BRConvertFluidToElectrons     = GETLOGICAL('BRConvertFluidToElectrons') ! default is FALSE
+BRElectronsRemoved            = .FALSE.
 BRConvertElectronsToFluidTime = GETREAL('BRConvertElectronsToFluidTime') ! switch from kinetic to BR electron fluid
-BRConvertFluidToElectronsTime = GETREAL('BRConvertFluidToElectronsTime') ! switch from BR electron fluid to kinetic electrons 
-!                                                                        ! (create new electron particles)
-! BRTimeStepMultiplier = GETREAL('BRTimeStepMultiplier') ! Factor that is multiplied with the ManualTimeStep when using BR model
-BRConvertModelRepeatedly = GETLOGICAL('BRConvertModelRepeatedly') ! Repeat the switch between BR and kinetic multiple times
+BRConvertFluidToElectronsTime = GETREAL('BRConvertFluidToElectronsTime') ! switch from BR electron fluid to kinetic electrons
+! ! (create new electron particles)
+BRTimeStepMultiplier          = GETREAL('BRTimeStepMultiplier') ! Factor that is multiplied with the ManualTimeStep when using BR model
+BRConvertModelRepeatedly      = GETLOGICAL('BRConvertModelRepeatedly') ! Repeat the switch between BR and kinetic multiple times
 
 IF(BRConvertModelRepeatedly.AND.&
   ((BRConvertElectronsToFluidTime.LT.0.).OR.(BRConvertFluidToElectronsTime.LT.0.)))THEN
@@ -66,7 +66,7 @@ IF(BRConvertModelRepeatedly.AND.&
   IPWRITE(UNIT_StdOut,*) "BRConvertElectronsToFluidTime =", BRConvertElectronsToFluidTime
   IPWRITE(UNIT_StdOut,*) "BRConvertFluidToElectronsTime =", BRConvertFluidToElectronsTime
    CALL abort(__STAMP__,&
-     'BRConvertModelRepeatedly=T and either BRConvertElectronsToFluidTime or BRConvertFluidToElectronsTime is not set correctly.') 
+     'BRConvertModelRepeatedly=T and either BRConvertElectronsToFluidTime or BRConvertFluidToElectronsTime is not set correctly.')
 END IF
 
 IF((BRConvertElectronsToFluid.OR.BRConvertFluidToElectrons).AND.&
@@ -162,8 +162,6 @@ IF(.NOT.DoRestart)THEN ! When starting at t=0
   ! Run kinetic simulation and then switch to BR
   IF((BRConvertElectronsToFluidTime.GT.0.).AND.(BRConvertMode.EQ.0)) UseBRElectronFluid=.FALSE.
 
-  IPWRITE(UNIT_StdOut,*) "FRESH: UseBRElectronFluid =", UseBRElectronFluid
-
 ELSE ! Restart (Important: also load balance restarts)
 
   ! Single switch
@@ -195,13 +193,6 @@ ELSE ! Restart (Important: also load balance restarts)
     ASSOCIATE( t       => MOD(RestartTime,BRConvertElectronsToFluidTime) ,&
                tBR2Kin => BRConvertFluidToElectronsTime                  )
       ! Check if restart falls in kinetic region
-      SWRITE(UNIT_StdOut,*) "BRConvertElectronsToFluidTime       =", BRConvertElectronsToFluidTime
-      SWRITE(UNIT_StdOut,*) "RestartTime                         =", RestartTime
-      SWRITE(UNIT_StdOut,*) "t                                   =", t
-      SWRITE(UNIT_StdOut,*) "tBR2Kin                             =", tBR2Kin
-      SWRITE(UNIT_StdOut,*) "t.GT.tBR2Kin                        =", t.GT.tBR2Kin
-      SWRITE(UNIT_StdOut,*) "ALMOSTEQUALRELATIVE(t,tBR2Kin,1e-5) =", ALMOSTEQUALRELATIVE(t,tBR2Kin,1e-5)
-
       IF(t.GT.0.0)THEN
         ! not at t=0 (restart) or t=BRConvertElectronsToFluidTime
         IF(t.GT.tBR2Kin)THEN
@@ -239,17 +230,6 @@ ELSE ! Restart (Important: also load balance restarts)
   END IF ! BRConvertMode.EQ.0
 
 END IF ! .NOT.DoRestart
-
-IPWRITE(UNIT_StdOut,*) "BRConvertMode      =", BRConvertMode
-IPWRITE(UNIT_StdOut,*) "UseBRElectronFluid =", UseBRElectronFluid
-!read*
-
-! If restart is required with BR -> kinetic
-!IF(BRConvertFluidToElectrons)THEN
-  !UseBRElectronFluid = .FALSE.
-!ELSE
-  !UseBRElectronFluid = .TRUE.
-!END IF ! BRConvertFluidToElectrons
 
 ! Sanity Check
 IF((.NOT.UseBRElectronFluid).AND.BRConvertElectronsToFluid)THEN
@@ -295,9 +275,8 @@ ASSOCIATE( tBR2Kin => BRConvertFluidToElectronsTime ,&
            tKin2BR => BRConvertElectronsToFluidTime )
   ! BR -> kinetic
   IF(UseBRElectronFluid.AND.tBR2Kin.GT.0.0)THEN
-    IF((.NOT.BRConvertModelRepeatedly).AND.(time.GE.tBR2Kin)               .OR.&
-       ((BRConvertMode.EQ.1)          .AND.(GreaterEqualWithTolerance(MOD(time,tKin2BR),tBR2Kin))) .OR.&
-       !((BRConvertMode.EQ.2)          .AND.(MOD(time,tBR2Kin).LT.tKin2BR)) )THEN
+    IF((.NOT.BRConvertModelRepeatedly).AND.(time.GE.tBR2Kin)                                             .OR.&
+       ((BRConvertMode.EQ.1)          .AND.(GreaterEqualWithTolerance(MOD(time,tKin2BR),tBR2Kin)))       .OR.&
        ((BRConvertMode.EQ.2)          .AND.(LesserThanWithTolerance(MOD(time,tBR2Kin),tKin2BR,tBR2Kin))) )THEN
      IF(debug)THEN
       write(*,*) ""
@@ -313,23 +292,10 @@ ASSOCIATE( tBR2Kin => BRConvertFluidToElectronsTime ,&
   ENDIF
 
   ! kinetic -> BR
-  !IPWRITE(UNIT_StdOut,*) "time              =", time
-  !IPWRITE(UNIT_StdOut,*) "tKin2BR           =", tKin2BR
-  !!IPWRITE(UNIT_StdOut,*) "MOD(time,tKin2BR) =", MOD(time,tKin2BR)! ,'<- a'
-  !IPWRITE(UNIT_StdOut,*) "MOD(time,tBR2Kin) =", MOD(time,tBR2Kin)
-  !IPWRITE(UNIT_StdOut,*) "time/tKin2BR      =", time/tKin2BR
-  !IPWRITE(UNIT_StdOut,*) "tKin2BR           =", tKin2BR          
-  !!IPWRITE(UNIT_StdOut,*) "tBR2Kin           =", tBR2Kin!          ,'<- b'
-  !!IPWRITE(UNIT_StdOut,*) "LesserThanWithTolerance(MOD(time,tKin2BR),tBR2Kin,tKin2BR) =", LesserThanWithTolerance(MOD(time,tKin2BR),tBR2Kin,tKin2BR)
-  !IPWRITE(UNIT_StdOut,*) "MOD(time,tBR2Kin).GE.tKin2BR                             =", MOD(time,tBR2Kin).GE.tKin2BR
-  !IPWRITE(UNIT_StdOut,*) "GreaterEqualWithTolerance(MOD(time,tBR2Kin),tKin2BR) =", GreaterEqualWithTolerance(MOD(time,tBR2Kin),tKin2BR)
-  !write(*,*) ""
-
   IF(.NOT.UseBRElectronFluid.AND.tKin2BR.GT.0.0)THEN
-    IF((.NOT.BRConvertModelRepeatedly).AND.(time.GE.tKin2BR)               .OR.&
+    IF((.NOT.BRConvertModelRepeatedly).AND.(time.GE.tKin2BR)                                             .OR.&
        ((BRConvertMode.EQ.1)          .AND.(LesserThanWithTolerance(MOD(time,tKin2BR),tBR2Kin,tKin2BR))) .OR.&
-       ((BRConvertMode.EQ.2)          .AND.(GreaterEqualWithTolerance(MOD(time,tBR2Kin),tKin2BR))) )THEN
-
+       ((BRConvertMode.EQ.2)          .AND.(GreaterEqualWithTolerance(MOD(time,tBR2Kin),tKin2BR)))       )THEN
      IF(debug)THEN
       write(*,*) ""
       IPWRITE(UNIT_StdOut,*) "MOD(time,tKin2BR),tBR2Kin,MOD(time,tKin2BR).LT.tBR2Kin =", MOD(time,tKin2BR),tBR2Kin,MOD(time,tKin2BR).LT.tBR2Kin
@@ -345,6 +311,7 @@ ASSOCIATE( tBR2Kin => BRConvertFluidToElectronsTime ,&
     END IF
   END IF ! .NOT.UseBRElectronFluid.AND.BRConvertE.GT.0.0
 END ASSOCIATE
+
 END SUBROUTINE SwitchBRElectronModel
 
 
@@ -589,7 +556,7 @@ CALL UpdateNextFreePosition()
 
 
 END SUBROUTINE CreateElectronsFromBRFluid
-#endif /*defined(PARTICLES) && USE_HDG*/
 
 
 END MODULE MOD_Part_BR_Elecron_Fluid
+#endif /*defined(PARTICLES) && USE_HDG*/

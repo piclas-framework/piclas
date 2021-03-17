@@ -106,6 +106,7 @@ USE MOD_TimeStep
 USE MOD_TimeDiscInit           ,ONLY: InitTimeStep
 #if defined(PARTICLES) && USE_HDG
 USE MOD_Part_BR_Elecron_Fluid  ,ONLY: SwitchBRElectronModel
+USE MOD_HDG_Vars               ,ONLY: BRTimeStepMultiplier,UseBRElectronFluid,BRTimeStepBackup
 #endif /*defined(PARTICLES) && USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -176,7 +177,7 @@ END IF
 
 tStart = time
 CALL PrintStatusLine(time,dt,tStart,tEnd)
-CALL InitTimeStep() ! Initial time step calculation
+CALL InitTimeStep() ! Initial time step calculation for dt_Min
 WallTimeStart=PICLASTIME()
 iter=0
 iter_PID=0
@@ -244,10 +245,13 @@ DO !iter_t=0,MaxIter
 
 #if defined(PARTICLES) && USE_HDG
   CALL SwitchBRElectronModel()
+  ! Adjust the time step when BR electron fluid is active
+  dt_Min = BRTimeStepBackup
+  IF(UseBRElectronFluid) dt_Min = BRTimeStepMultiplier*dt_Min
 #endif /*defined(PARTICLES) && USE_HDG*/
 
-  tAnalyzeDiff=tAnalyze-time    ! Time to next analysis, put in extra variable so number does not change due to numerical errors
-  tEndDiff=tEnd-time            ! Do the same for end time
+  tAnalyzeDiff = tAnalyze-time ! Time to next analysis, put in extra variable so number does not change due to numerical errors
+  tEndDiff     = tEnd-time     ! Do the same for end time
 
   !IF(time.LT.3e-8)THEN
   !    !RETURN

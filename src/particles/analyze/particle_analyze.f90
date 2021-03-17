@@ -3082,7 +3082,6 @@ USE MOD_Globals_Vars           ,ONLY:ElementaryCharge
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
 USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,PEM,usevMPF
 USE MOD_Preproc
-USE MOD_PIC_Analyze            ,ONLY:CalculateBRElectronsPerCell
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Part_Tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
@@ -3090,6 +3089,7 @@ USE MOD_Mesh_Vars              ,ONLY: offSetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: ElemToBRRegion,UseBRElectronFluid
+USE MOD_PIC_Analyze            ,ONLY:CalculateBRElectronsPerCell
 #endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING

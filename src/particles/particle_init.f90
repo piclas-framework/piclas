@@ -119,25 +119,6 @@ CALL prms%CreateRealArrayOption('Part-PeriodicVector[$]'      , 'Vector for peri
 CALL prms%CreateRealOption(     'Part-DelayTime'              , "During delay time the particles,"//&
                                                                 " won't be moved so the EM field can be evolved", '0.0')
 
-CALL prms%CreateIntOption(      'NbrOfRegions'                , 'Number of regions to be mapped to Elements', '0')
-CALL prms%CreateRealArrayOption('RegionBounds[$]'             , 'RegionBounds ((xmin,xmax,ymin,...)'//&
-                                                                '|1:NbrOfRegions)'&
-                                                                , '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'rho_ref, phi_ref, and Te[eV] for Region#'&
-                                                              , '0. , 0. , 1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected phi for Region#\n'//&
-                                                                '(linear approx. above! def.: phi_ref)', numberedmulti=.TRUE.)
-
-#if USE_HDG
-CALL prms%CreateLogicalOption(  'BRConvertElectronsToFluid'   , 'Remove all electrons when using BR electron fluid', '.FALSE.')
-CALL prms%CreateLogicalOption(  'BRConvertFluidToElectrons'   , 'Create electrons from BR electron fluid (requires'//&
-                                                                ' ElectronDensityCell ElectronTemperatureCell from .h5 state file)'&
-                                                              , '.FALSE.')
-CALL prms%CreateRealOption(     'BRConvertFluidToElectronsTime', "Time when BR fluid electrons are to be converted to kinetic particles", '-1.0')
-CALL prms%CreateRealOption(     'BRConvertElectronsToFluidTime', "Time when kinetic electrons should be converted to BR fluid electrons", '-1.0')
-CALL prms%CreateLogicalOption(  'BRConvertModelRepeatedly'     , 'Repeat the switch between BR and kinetic multiple times', '.FALSE.')
-#endif /*USE_HDG*/
-
 CALL prms%CreateLogicalOption(  'PrintrandomSeeds'            , 'Flag defining if random seeds are written.', '.FALSE.')
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 CALL prms%CreateLogicalOption(  'velocityOutputAtTime'        , 'Flag if leapfrog uses a velocity-output at real time' , '.FALSE.')
@@ -423,9 +404,9 @@ USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
 USE MOD_DSMC_AmbipolarDiffusion,ONLY: InitializeVariablesAmbipolarDiff
 USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep,useManualTimeStep
-#if USE_HDG
+#if defined(PARTICLES) && USE_HDG
 USE MOD_Part_BR_Elecron_Fluid  ,ONLY: InitializeVariablesElectronFluidRegions
-#endif /*USE_HDG*/
+#endif /*defined(PARTICLES) && USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -519,9 +500,9 @@ CALL InitEmissionComm()
 CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 #endif /*USE_MPI*/
 
-#if USE_HDG
+#if defined(PARTICLES) && USE_HDG
 CALL InitializeVariablesElectronFluidRegions()
-#endif /*USE_HDG*/
+#endif /*defined(PARTICLES) && USE_HDG*/
 CALL InitializeVariablesIMD()
 CALL InitializeVariablesWriteMacroValues()
 CALL InitializeVariablesvMPF()

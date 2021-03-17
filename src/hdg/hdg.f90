@@ -76,6 +76,31 @@ CALL prms%CreateRealOption(   'HDGSkip_t0'             ,'Time during which HDGSk
 
 CALL prms%CreateLogicalOption('HDGDisplayConvergence'  ,'Display divergence criteria: Iterations, RunTime and Residual', '.FALSE.')
 
+
+! --- BR electron fluid
+CALL prms%CreateIntOption(      'NbrOfRegions'                , 'Number of regions to be mapped to Elements', '0')
+CALL prms%CreateRealArrayOption('RegionBounds[$]'             , 'RegionBounds ((xmin,xmax,ymin,...)'//&
+                                                                '|1:NbrOfRegions)'&
+                                                                , '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'rho_ref, phi_ref, and Te[eV] for Region#'&
+                                                              , '0. , 0. , 1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected phi for Region#\n'//&
+                                                                '(linear approx. above! def.: phi_ref)', numberedmulti=.TRUE.)
+
+#if defined(PARTICLES)
+CALL prms%CreateLogicalOption(  'BRConvertElectronsToFluid'   , 'Remove all electrons when using BR electron fluid', '.FALSE.')
+CALL prms%CreateLogicalOption(  'BRConvertFluidToElectrons'   , 'Create electrons from BR electron fluid (requires'//&
+                                                                ' ElectronDensityCell ElectronTemperatureCell from .h5 state file)'&
+                                                              , '.FALSE.')
+CALL prms%CreateRealOption(     'BRConvertFluidToElectronsTime', "Time when BR fluid electrons are to be converted to kinetic particles", '-1.0')
+CALL prms%CreateRealOption(     'BRConvertElectronsToFluidTime', "Time when kinetic electrons should be converted to BR fluid electrons", '-1.0')
+CALL prms%CreateLogicalOption(  'BRConvertModelRepeatedly'     , 'Repeat the switch between BR and kinetic multiple times', '.FALSE.')
+CALL prms%CreateRealOption(     'BRTimeStepMultiplier'         , "Factor that is multiplied with the ManualTimeStep when using BR model", '1.0')
+#endif /*defined(PARTICLES)*/
+
+
+
+
 END SUBROUTINE DefineParametersHDG
 
 SUBROUTINE InitHDG()
