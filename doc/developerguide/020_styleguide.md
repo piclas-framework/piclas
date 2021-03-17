@@ -197,3 +197,13 @@ not allowed to just incorporate the corresponding number of the step within the 
     CALL StartExchange_FV_Elems(FV_Elems_slave,1,nSides,MPIRequest_FV_Elems(:,SEND),MPIRequest_FV_Elems(:,RECV),SendID=2)
     #endif /* FV_ENABLED */
 
+## Special Rules
+### CALL Allocate_Shared()
+Subroutine calls for *Allocate_Shared()* must be placed in a single line, i.e., no line break is allowed due to the compile flag
+*PICLAS_DEBUG_MEMORY*, which changes the number of arguments of the call for this routine by adding a debugging parameter.
+
+### USE MOD_Preproc
+Using variables via *USE MOD_Preproc, ONLY: PP_N* is not possible due to the compile flag *PICLAS_POLYNOMIAL_DEGREE*, which switches
+the polynomial degree between a constant values, e.g., 1, 2, 3 .. or the default value of *N*. Therefore, the *ONLY* statement is
+not allowed here.
+
