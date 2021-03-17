@@ -74,7 +74,6 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Localization   ,ONLY: PartInElemCheck
 USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemEpsOneCell
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Vars           ,ONLY: PartPosRef
 !-----------------------------------------------------------------------------------------------------------------------------------
