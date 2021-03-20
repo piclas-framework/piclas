@@ -67,12 +67,24 @@ for current_species in species_list:
     if result_elec > 0:
         grp_elec = grp_spec.create_group("ELECTRONIC")
     for cross_section in data_spec.cross_sections:
-        # For now, only considering effective cross-sections in PICLas
+        # Read-in of the effective cross-sections
         if cross_section.type == ldp.CrossSectionTypes.EFFECTIVE:
             ## Get the string of the cross section type (ELASTIC = 0, EFFECTIVE = 1, EXCITATION = 2, ATTACHMENT = 3, IONIZATION = 4)
             type_spec = ldp.CrossSectionTypes(cross_section.type).name
             ## Print name of the current species in console
-            print('Found effective cross-section.')
+            print('Found EFFECTIVE cross-section.')
+            ## Write cross-section dataset of the current species in the HDF5 database
+            dataset = grp_spec.create_dataset(type_spec, data=cross_section.data)
+            ## Save the type of cross-section
+            dataset.attrs['Type'] = type_spec
+            ## Save the additional information
+            dataset.attrs['Info'] = str(cross_section.info)
+        # Read-in of the elastic cross-sections
+        if cross_section.type == ldp.CrossSectionTypes.ELASTIC:
+            ## Get the string of the cross section type (ELASTIC = 0, EFFECTIVE = 1, EXCITATION = 2, ATTACHMENT = 3, IONIZATION = 4)
+            type_spec = ldp.CrossSectionTypes(cross_section.type).name
+            ## Print name of the current species in console
+            print('Found ELASTIC cross-section.')
             ## Write cross-section dataset of the current species in the HDF5 database
             dataset = grp_spec.create_dataset(type_spec, data=cross_section.data)
             ## Save the type of cross-section

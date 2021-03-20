@@ -359,7 +359,7 @@ END SUBROUTINE ParticleInserting
 
 SUBROUTINE AdaptiveBCAnalyze(initSampling_opt)
 !===================================================================================================================================
-! Sampling of variables (part-density, velocity and energy) for Adaptive BC elements
+! Sampling of variables (part-density and velocity) for adaptive BC and porous BC elements
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -369,12 +369,13 @@ USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, DSMC, CollisMode, SpecDSMC
 USE MOD_Mesh_Vars              ,ONLY: nElems, offsetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Part_Tools             ,ONLY: GetParticleWeight
-USE MOD_SurfaceModel_Vars      ,ONLY: PorousBCSampIter, PorousBCMacroVal
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared, SideInfo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
-USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal, AdaptiveWeightFac
-USE MOD_Particle_Vars          ,ONLY: usevMPF
+USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM, usevMPF
+USE MOD_Particle_Vars          ,ONLY: AdaptBCSample, AdaptBCMacroVal, AdaptBCRelaxFactor, AdaptBCSampIter
+USE MOD_Particle_Vars          ,ONLY: AdaptBCAverage, AdaptBCTruncAverage
 USE MOD_Timedisc_Vars          ,ONLY: iter
+USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
 USE MOD_LoadBalance_vars       ,ONLY: nPartsPerBCElem
@@ -388,17 +389,14 @@ LOGICAL, INTENT(IN), OPTIONAL   :: initSampling_opt
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: ElemID, AdaptiveElemID, i, iSpec, SamplingIteration
-REAL                            :: TVib_TempFac, TTrans_TempFac, RelaxationFactor
-REAL, ALLOCATABLE               :: Source(:,:,:)
+INTEGER                         :: ElemID, iElem, i, iSpec, SamplingIteration, TruncIter
+REAL                            :: partWeight, TTrans_TempFac, RelaxationFactor
 LOGICAL                         :: initSampling, isBCElem
 #if USE_LOADBALANCE
 REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
 INTEGER                         :: nlocSides, GlobalSideID, CNElemID, GlobalElemID, iLocSide
 !===================================================================================================================================
-ALLOCATE(Source(1:11,1:nElems,1:nSpecies))
-Source=0.0
 
 ! Optional flag for the utilization of the routine for an initial sampling of the density and pressure distribution before simstart
 IF(PRESENT(initSampling_opt)) THEN
@@ -407,9 +405,21 @@ ELSE
  initSampling = .FALSE.
 END IF
 
-! If no particles are present during the initial sampling for a porous BC, leave the routine, otherwise initial variables for the
+! If no particles are present during the initial sampling, leave the routine, otherwise initial variables for the
 ! adaptive inlet surface flux will be overwritten by zero's.
 IF (PDM%ParticleVecLength.LT.1) RETURN
+
+! Calculate the counter for the truncated moving average
+IF(AdaptBCTruncAverage) THEN
+  IF(iter.EQ.0_8) THEN
+    TruncIter = 1
+  ELSE
+    TruncIter = MOD(INT(iter,4),AdaptBCSampIter)
+    IF(TruncIter.EQ.0) TruncIter = AdaptBCSampIter
+  END IF
+  ! Delete the oldest sample (required, otherwise it would be added to the new sample)
+  AdaptBCAverage(1:8,TruncIter,1:nElems,1:nSpecies) = 0.
+END IF
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
@@ -434,21 +444,25 @@ DO i=1,PDM%ParticleVecLength
 #if USE_LOADBALANCE
     nPartsPerBCElem(ElemID) = nPartsPerBCElem(ElemID) + 1
 #endif /*USE_LOADBALANCE*/
+    ! Sample the particle properties
     iSpec = PartSpecies(i)
-    Source(1:3,ElemID, iSpec) = Source(1:3,ElemID,iSpec) + PartState(4:6,i) * GetParticleWeight(i)
-    Source(4:6,ElemID, iSpec) = Source(4:6,ElemID,iSpec) + PartState(4:6,i)**2 * GetParticleWeight(i)
-    Source(7,ElemID, iSpec) = Source(7,ElemID, iSpec) + 1.0  ! simulation particle number
-    IF(useDSMC)THEN
-      IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-        IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-          Source(8:9,ElemID, iSpec) = Source(8:9,ElemID, iSpec) + PartStateIntEn(1:2,i) * GetParticleWeight(i)
-        END IF
+    partWeight = GetParticleWeight(i)
+    IF(AdaptBCTruncAverage) THEN
+      ! Store the samples of the last AdaptBCSampIter and replace the oldest with the newest sample
+      AdaptBCAverage(1:3,TruncIter,ElemID, iSpec) = AdaptBCAverage(1:3,TruncIter,ElemID,iSpec) + PartState(4:6,i) * partWeight
+      IF(nPorousBC.GT.0) THEN
+        AdaptBCAverage(4:6,TruncIter,ElemID, iSpec) = AdaptBCAverage(4:6,TruncIter,ElemID,iSpec) + PartState(4:6,i)**2 * partWeight
       END IF
-      IF (DSMC%ElectronicModel.GT.0) THEN
-        Source(10,ElemID, iSpec) = Source(10,ElemID, iSpec) + PartStateIntEn(3,i) * GetParticleWeight(i)
+      AdaptBCAverage(7,  TruncIter,ElemID, iSpec) = AdaptBCAverage(7,  TruncIter,ElemID,iSpec) + 1.0  ! simulation particle number
+      AdaptBCAverage(8,  TruncIter,ElemID, iSpec) = AdaptBCAverage(8,  TruncIter,ElemID,iSpec) + partWeight
+    ELSE
+      AdaptBCSample(1:3,ElemID, iSpec) = AdaptBCSample(1:3,ElemID,iSpec) + PartState(4:6,i) * partWeight
+      IF(nPorousBC.GT.0) THEN
+        AdaptBCSample(4:6,ElemID, iSpec) = AdaptBCSample(4:6,ElemID,iSpec) + PartState(4:6,i)**2 * partWeight
       END IF
+      AdaptBCSample(7,ElemID, iSpec) = AdaptBCSample(7,ElemID, iSpec) + 1.0  ! simulation particle number
+      AdaptBCSample(8,ElemID, iSpec) = AdaptBCSample(8,ElemID, iSpec) + partWeight
     END IF
-    Source(11,ElemID, iSpec) = Source(11,ElemID, iSpec) + GetParticleWeight(i)
   END IF
 END DO
 #if USE_LOADBALANCE
@@ -459,15 +473,22 @@ IF(initSampling) THEN
   RelaxationFactor = 1
   SamplingIteration = 1
 ELSE
-  RelaxationFactor = AdaptiveWeightFac
-  SamplingIteration = PorousBCSampIter
+  RelaxationFactor = AdaptBCRelaxFactor
+  SamplingIteration = AdaptBCSampIter
 END IF
 
-DO AdaptiveElemID = 1,nElems
-  GlobalElemID = AdaptiveElemID + offsetElem
+IF(AdaptBCTruncAverage) THEN
+  AdaptBCSample(1:8,1:nElems,1:nSpecies) = SUM(AdaptBCAverage(1:8,:,1:nElems,1:nSpecies),2)
+  ! Initialization of the truncated average: get the correct number of samples to calculate the average number density while the 
+  ! sampling array is populated
+  IF(iter.LT.INT(AdaptBCSampIter,8)) SamplingIteration = INT(iter,4)
+END IF
+
+DO iElem = 1,nElems
+  GlobalElemID = iElem + offsetElem
   CNElemID = GetCNElemID(GlobalElemID)
   ! not a BC element
-  ! IF (ElemToBCSides(ELEM_NBR_BCSIDES,AdaptiveElemID).EQ.-1) CYCLE
+  ! IF (ElemToBCSides(ELEM_NBR_BCSIDES,iElem).EQ.-1) CYCLE
   ! ======================================
   ! ElemToBCSides is only built for RefMapping, eigenes Array beschreiben statt untere schleife jedes mal abzulaufen?
   isBCElem = .FALSE.
@@ -482,124 +503,85 @@ DO AdaptiveElemID = 1,nElems
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
   DO iSpec = 1,nSpecies
-    ! write timesample particle values of bc elements in global macrovalues of bc elements
-    IF (Source(7,AdaptiveElemID,iSpec).GT.0.0) THEN
-      IF(.NOT.initSampling) THEN
-        ! compute flow velocity (during computation, not for the initial distribution, where the velocity from the ini is used)
-        Adaptive_MacroVal(1:3,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(1:3,AdaptiveElemID,iSpec) &
-            + RelaxationFactor*Source(1:3,AdaptiveElemID, iSpec) / Source(11,AdaptiveElemID,iSpec)
-      END IF
-      ! compute flow Temperature
-      IF (Source(7,AdaptiveElemID,iSpec).GT.1.0) THEN
-        Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) &
-          + RelaxationFactor &
-            * (Source(7,AdaptiveElemID,iSpec)/(Source(7,AdaptiveElemID,iSpec)-1.0)) &
-            * Species(iSpec)%MassIC/ BoltzmannConst &
-            * ( Source(4:6,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec) &
-            - (Source(1:3,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2)
-      ELSE
-        Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec)
-      END IF
+    ! write particle values of bc elements in global macrovalues of bc elements
+    IF(AdaptBCSampIter.GT.0) THEN
       ! ================================================================
-      IF(PorousBCSampIter.GT.0) THEN
-        ! Sampling the number density and pressure every given number of iterations and RESETTING it after calculation
-        PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) = PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) + Source(1:6,AdaptiveElemID, iSpec)
-        ! Sampling the particle weights
-        PorousBCMacroVal(7,AdaptiveElemID,iSpec) = PorousBCMacroVal(7,AdaptiveElemID,iSpec) + Source(11,AdaptiveElemID,iSpec)
-        ! Sampling the number of simulation particles
-        PorousBCMacroVal(8,AdaptiveElemID,iSpec) = PorousBCMacroVal(8,AdaptiveElemID,iSpec) + Source(7,AdaptiveElemID,iSpec)
-        IF(MOD(iter,INT(SamplingIteration,8)).EQ.0_8) THEN
-          IF(PorousBCMacroVal(8,AdaptiveElemID,iSpec).GT.1) THEN
-            ! number density
-            IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-              Adaptive_MacroVal(7,AdaptiveElemID,iSpec)=PorousBCMacroVal(7,AdaptiveElemID,iSpec)/SamplingIteration   &
-                                                        /ElemVolume_Shared(CNElemID)
-            ELSE
-              Adaptive_MacroVal(7,AdaptiveElemID,iSpec)=PorousBCMacroVal(7,AdaptiveElemID,iSpec)/SamplingIteration   &
-                                                        /ElemVolume_Shared(CNElemID) * Species(iSpec)%MacroParticleFactor
+      ! Sampling iteration: sampling for AdaptBCSampIter iterations, calculating the macro values and resetting sample OR
+      ! AdaptBCTruncAverage: continuous average of the last AdaptBCSampIter iterations
+      IF((MOD(iter,INT(SamplingIteration,8)).EQ.0_8).OR.AdaptBCTruncAverage) THEN
+        IF (AdaptBCSample(7,iElem,iSpec).GT.0.0) THEN
+          ! Calculate the average velocties
+          AdaptBCSample(1:6,iElem,iSpec) = AdaptBCSample(1:6,iElem,iSpec) / AdaptBCSample(8,iElem,iSpec)
+          IF(.NOT.initSampling) THEN
+            ! Compute flow velocity (during computation, not for the initial distribution, where the velocity from the ini is used)
+            AdaptBCMacroVal(1:3,iElem,iSpec) = AdaptBCSample(1:3,iElem, iSpec)
+          END IF
+          ! number density
+          IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+            AdaptBCMacroVal(4,iElem,iSpec) = AdaptBCSample(8,iElem,iSpec) / REAL(SamplingIteration) / ElemVolume_Shared(CNElemID)
+          ELSE
+            AdaptBCMacroVal(4,iElem,iSpec) = AdaptBCSample(8,iElem,iSpec) / REAL(SamplingIteration) / ElemVolume_Shared(CNElemID) &
+                                              * Species(iSpec)%MacroParticleFactor
+          END IF
+          ! pressure (only for porous BC)
+          IF(nPorousBC.GT.0) THEN
+            IF(AdaptBCSample(7,iElem,iSpec).GT.1) THEN
+              ! instantaneous temperature WITHOUT 1/BoltzmannConst
+              TTrans_TempFac = (AdaptBCSample(7,iElem,iSpec)/(AdaptBCSample(7,iElem,iSpec)-1.0)) &
+                  *Species(iSpec)%MassIC*(AdaptBCSample(4,iElem,iSpec) - AdaptBCSample(1,iElem,iSpec)**2   &
+                                        + AdaptBCSample(5,iElem,iSpec) - AdaptBCSample(2,iElem,iSpec)**2   &
+                                        + AdaptBCSample(6,iElem,iSpec) - AdaptBCSample(3,iElem,iSpec)**2) / 3.
+              ! pressure (BoltzmannConstant canceled out in temperature calculation)
+              AdaptBCMacroVal(6,iElem,iSpec)=AdaptBCMacroVal(4,iElem,iSpec)*TTrans_TempFac
             END IF
-            ! instantaneous temperature WITHOUT 1/BoltzmannConst
-            PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) = PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) &
-                                                          / PorousBCMacroVal(7,AdaptiveElemID,iSpec)
-            TTrans_TempFac = (PorousBCMacroVal(8,AdaptiveElemID,iSpec)/(PorousBCMacroVal(8,AdaptiveElemID,iSpec)-1.0)) &
-                *Species(iSpec)%MassIC*(PorousBCMacroVal(4,AdaptiveElemID,iSpec) - PorousBCMacroVal(1,AdaptiveElemID,iSpec)**2   &
-                                      + PorousBCMacroVal(5,AdaptiveElemID,iSpec) - PorousBCMacroVal(2,AdaptiveElemID,iSpec)**2   &
-                                      + PorousBCMacroVal(6,AdaptiveElemID,iSpec) - PorousBCMacroVal(3,AdaptiveElemID,iSpec)**2) / 3.
-            ! pressure (BoltzmannConstant canceled out in temperature calculation)
-            Adaptive_MacroVal(12,AdaptiveElemID,iSpec)=Adaptive_MacroVal(7,AdaptiveElemID,iSpec)*TTrans_TempFac
-            ! Resetting the sampling values
-            PorousBCMacroVal(1:8,AdaptiveElemID,iSpec) = 0.0
+          END IF  ! nPorousBC.GT.0
+        END IF    ! AdaptBCSample(7,iElem,iSpec).GT.0.0
+        ! Resetting sampled values
+        AdaptBCSample(1:8,iElem,iSpec) = 0.
+      END IF  ! (MOD(iter,INT(SamplingIteration,8)).EQ.0_8).OR.AdaptBCTruncAverage
+    ELSE  ! AdaptBCSampIter.LE.0
+      ! ================================================================
+      ! Relaxation factor: updating the macro values with a certain percentage of the current sampled value
+      IF (AdaptBCSample(7,iElem,iSpec).GT.0.0) THEN
+        ! Calculate the average velocties
+        AdaptBCSample(1:6,iElem,iSpec) = AdaptBCSample(1:6,iElem,iSpec) / AdaptBCSample(8,iElem,iSpec)
+        IF(.NOT.initSampling) THEN
+          ! compute flow velocity (during computation, not for the initial distribution, where the velocity from the ini is used)
+          AdaptBCMacroVal(1:3,iElem,iSpec) = (1-RelaxationFactor)*AdaptBCMacroVal(1:3,iElem,iSpec) &
+                                              + RelaxationFactor*AdaptBCSample(1:3,iElem, iSpec)
+        END IF
+        ! Calculation of the number density
+        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+          AdaptBCMacroVal(4,iElem,iSpec) = (1-RelaxationFactor)*AdaptBCMacroVal(4,iElem,iSpec) &
+            + RelaxationFactor*AdaptBCSample(8,iElem,iSpec) / ElemVolume_Shared(CNElemID)
+        ELSE
+          AdaptBCMacroVal(4,iElem,iSpec) = (1-RelaxationFactor)*AdaptBCMacroVal(4,iElem,iSpec) &
+            + RelaxationFactor*AdaptBCSample(8,iElem,iSpec) / ElemVolume_Shared(CNElemID)*Species(iSpec)%MacroParticleFactor
+        END IF
+        ! pressure (only for porous BC)
+        IF(nPorousBC.GT.0) THEN
+          ! Compute instantaneous temperature WITHOUT 1/BoltzmannConst
+          IF (AdaptBCSample(7,iElem,iSpec).GT.1.0) THEN
+            TTrans_TempFac = (AdaptBCSample(7,iElem,iSpec)/(AdaptBCSample(7,iElem,iSpec)-1.0)) &
+                              * Species(iSpec)%MassIC * (AdaptBCSample(4,iElem,iSpec) - AdaptBCSample(1,iElem,iSpec)**2 &
+                                                       + AdaptBCSample(5,iElem,iSpec) - AdaptBCSample(2,iElem,iSpec)**2 &
+                                                       + AdaptBCSample(6,iElem,iSpec) - AdaptBCSample(3,iElem,iSpec)**2) / 3.
+            AdaptBCMacroVal(6,iElem,iSpec) = (1-RelaxationFactor)*AdaptBCMacroVal(6,iElem,iSpec) &
+                                              + RelaxationFactor*AdaptBCMacroVal(4,iElem,iSpec)*TTrans_TempFac
           END IF
         END IF
       ELSE
-        ! Calculation of the number density and pressure with the relaxation factor
-        ! compute instantaneous temperature WITHOUT 1/BoltzmannConst
-        IF (Source(7,AdaptiveElemID,iSpec).GT.1.0) THEN
-          TTrans_TempFac = (Source(7,AdaptiveElemID,iSpec)/(Source(7,AdaptiveElemID,iSpec)-1.0)) &
-                          * Species(iSpec)%MassIC * (Source(4,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)       &
-                          - (Source(1,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2   &
-                          + Source(5,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)      &
-                          - (Source(2,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2   &
-                          + Source(6,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)      &
-                          - (Source(3,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2) / 3.
-        ELSE
-          TTrans_TempFac = 0.0
-        END IF
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-          ! compute density
-          Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
-            + RelaxationFactor*Source(11,AdaptiveElemID,iSpec) /ElemVolume_Shared(CNElemID)
-          ! Pressure with relaxation factor
-          Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
-          +RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/ElemVolume_Shared(CNElemID)*TTrans_TempFac
-        ELSE
-          ! compute density
-          Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
-            + RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/ElemVolume_Shared(CNElemID)*Species(iSpec)%MacroParticleFactor
-          ! Pressure with relaxation factor
-          Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
-                                                      + RelaxationFactor*Source(11,AdaptiveElemID,iSpec)  &
-                                                      / ElemVolume_Shared(CNElemID)*Species(iSpec)%MacroParticleFactor*TTrans_TempFac
-        END IF
-      END IF
-      ! !==================================================================================================
-      IF(useDSMC)THEN
-        IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
-        IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-            IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-              IF( (Source(8,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec)) .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
-                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
-                  + RelaxationFactor*CalcTVibPoly(Source(8,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec),iSpec)
-              ELSE
-                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec)
-              END IF
-            ELSE
-              TVib_TempFac=Source(8,AdaptiveElemID,iSpec)/ (Source(11,AdaptiveElemID,iSpec) &
-                *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
-              IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
-                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec)
-              ELSE
-                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
-                  + RelaxationFactor*SpecDSMC(iSpec)%CharaTVib / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
-              END IF
-            END IF
-            Adaptive_MacroVal(9,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(9,AdaptiveElemID,iSpec) &
-                + RelaxationFactor*Source(9,AdaptiveElemID,iSpec)/(Source(11,AdaptiveElemID,iSpec)*BoltzmannConst)
-            IF (DSMC%ElectronicModel.GT.0) THEN
-              Adaptive_MacroVal(10,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(10,AdaptiveElemID,iSpec) &
-                + RelaxationFactor*CalcTelec( Source(10,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec),iSpec)
-            END IF
-          END IF
-        END IF
-      END IF
-    ELSE
-      Adaptive_MacroVal(1:10,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(1:10,AdaptiveElemID,iSpec)
-    END IF
-  END DO
+        ! Relax the values towards zero
+        AdaptBCMacroVal(1:7,iElem,iSpec) = (1-RelaxationFactor)*AdaptBCMacroVal(1:7,iElem,iSpec)
+      END IF  ! AdaptBCSample(7,iElem,iSpec).GT.0.0
+      ! Resetting sampled values
+      AdaptBCSample(1:8,iElem,iSpec) = 0.
+    END IF    ! AdaptBCSampIter.GT.0
+  END DO      ! iSpec = 1,nSpecies
 #if USE_LOADBALANCE
-  CALL LBElemSplitTime(AdaptiveElemID,tLBStart)
+  CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
-END DO
+END DO        ! iElem = 1,nElems
 
 END SUBROUTINE AdaptiveBCAnalyze
 

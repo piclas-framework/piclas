@@ -261,30 +261,34 @@ TYPE tSpecies                                                                ! P
 #endif
 END TYPE
 
-LOGICAL                                  :: UseCircularInflow                ! Flag is set if the circular inflow feature is used:
-                                                                             ! Particle insertion only in the defined circular area
-                                                                             ! on the surface of a surface flux
-INTEGER, ALLOCATABLE                     :: CountCircInflowType(:,:,:)       ! Counter whether cells are inside/partially inside or
-                                                                             ! outside of circular region (only with CODE_ANALYZE)
-LOGICAL                                  :: UseAdaptive                      ! Flag is set if an adaptive boundary is present
-REAL                                     :: AdaptiveWeightFac                ! weighting factor theta for weighting of average
-                                                                             ! instantaneous values with those
-                                                                             ! of previous iterations
-REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! Macroscopic value near boundaries
-                                                                             ! (1:14,1:nElems,1:nSpecies)
-                                                                             !  1:  VELOX
-                                                                             !  2:  VELOY
-                                                                             !  3:  VELOZ
-                                                                             !  4:  TEMPX
-                                                                             !  5:  TEMPY
-                                                                             !  6:  TEMPZ
-                                                                             !  7:  NUMBER DENSITY
-                                                                             !  8:  TVIB
-                                                                             !  9:  TROT
-                                                                             ! 10:  TELEC
-                                                                             ! 11:  Pumping capacity [m3/s]
-                                                                             ! 12:  Static pressure [Pa]
-                                                                             ! 13:  Integral pressure difference [Pa]
+LOGICAL                                 :: UseCircularInflow              ! Flag is set if the circular inflow feature is used:
+                                                                          ! Particle insertion only in the defined circular area
+                                                                          ! on the surface of a surface flux
+INTEGER, ALLOCATABLE                    :: CountCircInflowType(:,:,:)     ! Counter whether cells are inside/partially inside or
+                                                                          ! outside of circular region (only with CODE_ANALYZE)
+LOGICAL                                 :: UseAdaptive                    ! Flag is set if an adaptive boundary is present
+REAL                                    :: AdaptBCRelaxFactor             ! weighting factor theta for weighting of average
+                                                                          ! instantaneous values with those
+                                                                          ! of previous iterations
+INTEGER                                 :: AdaptBCSampIter                !
+LOGICAL                                 :: AdaptBCTruncAverage
+
+REAL, ALLOCATABLE                       :: AdaptBCAverage(:,:,:,:)        ! Truncated running average (current value replaces the first)
+REAL, ALLOCATABLE                       :: AdaptBCAverageGlobal(:,:,:,:)  ! Truncated running average global to keep during restart
+REAL, ALLOCATABLE                       :: AdaptBCSample(:,:,:)           ! Particle sample near boundaries
+REAL, ALLOCATABLE                       :: AdaptBCMacroVal(:,:,:)         ! Macroscopic value near boundaries
+                                                                            ! (1:10,1:nElems,1:nSpecies)
+                                                                            !  1:  VELOX
+                                                                            !  2:  VELOY
+                                                                            !  3:  VELOZ
+                                                                            !  4:  TEMPX
+                                                                            !  5:  TEMPY
+                                                                            !  6:  TEMPZ
+                                                                            !  7:  NUMBER DENSITY
+                                                                            !  8:  Pumping capacity [m3/s]
+                                                                            !  9:  Static pressure [Pa]
+                                                                            ! 10:  Integral pressure difference [Pa]
+
 INTEGER                                  :: nSpecies                         ! number of species
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 

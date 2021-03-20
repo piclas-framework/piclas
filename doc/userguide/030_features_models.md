@@ -371,14 +371,14 @@ The usage of rotational periodic boundary conditions is limited to cases, where 
 
 The porous boundary condition uses a removal probability to determine whether a particle is deleted or reflected at the boundary. The main application of the implemented condition is to model a pump, according to [@Lei2017]. It is defined by giving the number of porous boundaries and the respective boundary number (`BC=2` corresponds to the `BC_WALL` boundary defined in the previous section) on which the porous condition is.
 
-    Part-nPorousBC=1
-    Part-PorousBC1-BC=2
-    Part-PorousBC1-Pressure=5.
-    Part-PorousBC1-Temperature=300.
-    Part-PorousBC1-Type=pump
-    Part-PorousBC1-PumpingSpeed=2e-9
-    Part-PorousBC1-DeltaPumpingSpeed-Kp=0.1
-    Part-PorousBC1-DeltaPumpingSpeed-Ki=0.0
+    Surf-nPorousBC=1
+    Surf-PorousBC1-BC=2
+    Surf-PorousBC1-Pressure=5.
+    Surf-PorousBC1-Temperature=300.
+    Surf-PorousBC1-Type=pump
+    Surf-PorousBC1-PumpingSpeed=2e-9
+    Surf-PorousBC1-DeltaPumpingSpeed-Kp=0.1
+    Surf-PorousBC1-DeltaPumpingSpeed-Ki=0.0
 
 The removal probability is determined through the given pressure [Pa] and temperature [K] at the boundary. A pumping speed can be given as a first guess, however, the pumping speed $S$ [$m^3/s$] will be adapted if the proportional factor ($K_{\mathrm{p}}$, `DeltaPumpingSpeed-Kp`) is greater than zero
 
@@ -392,14 +392,14 @@ where $n$ is the sampled, cell-local number density and $N_{\mathrm{pump}}$ is t
 
 To reduce the influence of statistical fluctuations, the relevant macroscopic values (pressure difference $\Delta p$ and number density $n$) can be sampled for $N$ iterations by defining (for all porous boundaries)
 
-    Part-PorousBC-IterationMacroVal=10
+    AdaptiveBC-SamplingIteration=10
 
 A porous region on the specified boundary can be defined. At the moment, only the `circular` option is implemented. The origin of the circle/ring on the surface and the radius have to be given. In the case of a ring, a maximal and minimal radius is required (`-rmax` and `-rmin`, respectively), whereas for a circle only the input of maximal radius is sufficient.
 
-    Part-PorousBC1-Region=circular
-    Part-PorousBC1-normalDir=1
-    Part-PorousBC1-origin=(/5e-6,5e-6/)
-    Part-PorousBC1-rmax=2.5e-6
+    Surf-PorousBC1-Region=circular
+    Surf-PorousBC1-normalDir=1
+    Surf-PorousBC1-origin=(/5e-6,5e-6/)
+    Surf-PorousBC1-rmax=2.5e-6
 
 The absolute coordinates are defined as follows for the respective normal direction.
 
@@ -411,10 +411,10 @@ The absolute coordinates are defined as follows for the respective normal direct
 
 Using the regions, multiple pumps can be defined on a single boundary. Additionally, the BC can be used as a sensor by defining the respective type:
 
-    Part-PorousBC1-BC=3
-    Part-PorousBC1-Pressure=5.
-    Part-PorousBC1-Temperature=300.
-    Part-PorousBC1-Type=sensor
+    Surf-PorousBC1-BC=3
+    Surf-PorousBC1-Pressure=5.
+    Surf-PorousBC1-Temperature=300.
+    Surf-PorousBC1-Type=sensor
 
 Together with a region definition, a pump as well as a sensor can be defined on a single and/or multiple boundaries, allowing e.g. to determine the pressure difference between the pump and a remote area of interest.
 
@@ -675,7 +675,7 @@ $$v^{n}= (1-f_{\mathrm{relax}})\,v^{n-1} + f_{\mathrm{relax}} v^{\mathrm{samp}} 
 
 The relaxation factor $f_{\mathrm{relax}}$ is defined by
 
-    Part-AdaptiveWeightingFactor = 0.001
+    AdaptiveBC-RelaxationFactor = 0.001
 
 The adaptive particle emission can be combined with the circular inflow feature. In this context when the area of the actual emission circle/ring is very small, it is preferable to utilize the `Type=4` constant mass flow condition. `Type=3` assumes an open boundary and accounts for particles leaving the domain through that boundary already when determining the number of particles to be inserted. As a result, this method tends to over predict the given mass flow, when the emission area is very small and large sample size would be required to have enough particles that leave the domain through the emission area. For the `Type=4` method, the actual number of particles leaving the domain through the circular inflow is counted and the mass flow adapted accordingly, thus the correct mass flow can be reproduced.
 

@@ -863,7 +863,7 @@ SUBROUTINE CalcPartInsAdaptive(iSpec, iSF, BCSideID, iSide, iSample, jSample, Pa
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
-USE MOD_Particle_Vars           ,ONLY: Species, Adaptive_MacroVal
+USE MOD_Particle_Vars           ,ONLY: Species, AdaptBCMacroVal
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfMeshSubSideData
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
 IMPLICIT NONE
@@ -886,15 +886,13 @@ INTEGER                     :: ElemID
     ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%PartDensity
     T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
   CASE(2) ! adaptive Outlet/freestream
-    ElemPartDensity = Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpec)
+    ElemPartDensity = AdaptBCMacroVal(4,ElemID,iSpec)
     pressure = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure
-    T = pressure / (BoltzmannConst * Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpec))
-    !T = SQRT(Adaptive_MacroVal(4,ElemID,iSpec)**2+Adaptive_MacroVal(5,ElemID,iSpec)**2 &
-    !  + Adaptive_MacroVal(6,ElemID,iSpec)**2)
+    T = pressure / (BoltzmannConst * AdaptBCMacroVal(4,ElemID,iSpec))
   CASE(3) ! Mass flow, temperature constant
-    VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
-    VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
-    VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
+    VeloVec(1) = AdaptBCMacroVal(DSMC_VELOX,ElemID,iSpec)
+    VeloVec(2) = AdaptBCMacroVal(DSMC_VELOY,ElemID,iSpec)
+    VeloVec(3) = AdaptBCMacroVal(DSMC_VELOZ,ElemID,iSpec)
     vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
     veloNormal = VeloVec(1)*vec_nIn(1) + VeloVec(2)*vec_nIn(2) + VeloVec(3)*vec_nIn(3)
     IF(veloNormal.GT.0.0) THEN
@@ -903,12 +901,12 @@ INTEGER                     :: ElemID
       Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1:3,ElemID) = VeloVec(1:3)
     ELSE
       ! Using the old velocity vector, overwriting the sampled value with the old one
-      Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1,ElemID)
-      Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(2,ElemID)
-      Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(3,ElemID)
-      VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
-      VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
-      VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
+      AdaptBCMacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1,ElemID)
+      AdaptBCMacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(2,ElemID)
+      AdaptBCMacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(3,ElemID)
+      VeloVec(1) = AdaptBCMacroVal(DSMC_VELOX,ElemID,iSpec)
+      VeloVec(2) = AdaptBCMacroVal(DSMC_VELOY,ElemID,iSpec)
+      VeloVec(3) = AdaptBCMacroVal(DSMC_VELOZ,ElemID,iSpec)
       vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
       veloNormal = VeloVec(1)*vec_nIn(1) + VeloVec(2)*vec_nIn(2) + VeloVec(3)*vec_nIn(3)
       IF(veloNormal.GT.0.0) THEN
@@ -930,9 +928,9 @@ INTEGER                     :: ElemID
   __STAMP__&
   ,'ERROR Adaptive Inlet: Wrong adaptive type for Surfaceflux!')
   END SELECT
-  VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
-  VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
-  VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
+  VeloVec(1) = AdaptBCMacroVal(DSMC_VELOX,ElemID,iSpec)
+  VeloVec(2) = AdaptBCMacroVal(DSMC_VELOY,ElemID,iSpec)
+  VeloVec(3) = AdaptBCMacroVal(DSMC_VELOZ,ElemID,iSpec)
   VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
   IF (ABS(VeloIC).GT.0.) THEN
     VeloVecIC = VeloVec / VeloIC
@@ -982,7 +980,7 @@ SUBROUTINE AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
 !----------------------------------------------------------------------------------------------------------------------------------!                                                                                              ! ----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, Pi
-USE MOD_Particle_Vars          ,ONLY: Species, Adaptive_MacroVal
+USE MOD_Particle_Vars          ,ONLY: Species, AdaptBCMacroVal
 USE MOD_Particle_Surfaces_Vars ,ONLY: SurfMeshSubSideData, BCdata_auxSF, SurfFluxSideSize
 USE MOD_TimeDisc_Vars          ,ONLY: dt, RKdtFrac
 USE MOD_Mesh_Vars              ,ONLY: SideToElem, offsetElem
@@ -1027,9 +1025,9 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
   END IF
   SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
   DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-    VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
-    VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
-    VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
+    VeloVec(1) = AdaptBCMacroVal(DSMC_VELOX,ElemID,iSpec)
+    VeloVec(2) = AdaptBCMacroVal(DSMC_VELOY,ElemID,iSpec)
+    VeloVec(3) = AdaptBCMacroVal(DSMC_VELOZ,ElemID,iSpec)
     vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
     veloNormal = VeloVec(1)*vec_nIn(1) + VeloVec(2)*vec_nIn(2) + VeloVec(3)*vec_nIn(3)
     IF(veloNormal.GT.0.0) THEN
@@ -1038,12 +1036,12 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
       Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1:3,ElemID) = VeloVec(1:3)
     ELSE
       ! Using the old velocity vector, overwriting the sampled value with the old one
-      Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1,ElemID)
-      Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(2,ElemID)
-      Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(3,ElemID)
-      VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
-      VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
-      VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
+      AdaptBCMacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1,ElemID)
+      AdaptBCMacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(2,ElemID)
+      AdaptBCMacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(3,ElemID)
+      VeloVec(1) = AdaptBCMacroVal(DSMC_VELOX,ElemID,iSpec)
+      VeloVec(2) = AdaptBCMacroVal(DSMC_VELOY,ElemID,iSpec)
+      VeloVec(3) = AdaptBCMacroVal(DSMC_VELOZ,ElemID,iSpec)
       vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
       veloNormal = VeloVec(1)*vec_nIn(1) + VeloVec(2)*vec_nIn(2) + VeloVec(3)*vec_nIn(3)
       IF(veloNormal.GT.0.0) THEN
@@ -1182,13 +1180,13 @@ ELSE !Species(iSpec)%Surfaceflux(iSF)%Adaptive
     T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
   CASE(2) ! adaptive Outlet/freestream
     pressure = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure
-    T = pressure / (BoltzmannConst * Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpec))
+    T = pressure / (BoltzmannConst * AdaptBCMacroVal(4,ElemID,iSpec))
   CASE DEFAULT
     CALL abort(__STAMP__,'ERROR in SurfaceFlux: Wrong adaptive type for Surfaceflux velocities!')
   END SELECT
-  VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
-  VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
-  VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
+  VeloVec(1) = AdaptBCMacroVal(DSMC_VELOX,ElemID,iSpec)
+  VeloVec(2) = AdaptBCMacroVal(DSMC_VELOY,ElemID,iSpec)
+  VeloVec(3) = AdaptBCMacroVal(DSMC_VELOZ,ElemID,iSpec)
   vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
   VeloVec(1:3) = DOT_PRODUCT(VeloVec,vec_nIn)*vec_nIn(1:3)
   VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))

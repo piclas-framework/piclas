@@ -349,7 +349,7 @@ CALL FinalizeFPFlow()
 #if (PP_TimeDiscMethod==400)
 CALL FinalizeBGK()
 #endif
-CALL FinalizeParticles()
+CALL FinalizeParticles(IsLoadBalance)
 CALL FinalizeParticleBoundary()
 CALL FinalizeBackGroundField()
 CALL FinalizeSuperB()

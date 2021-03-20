@@ -2028,7 +2028,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Adaptive_MacroVal
+USE MOD_Particle_Vars          ,ONLY: nSpecies, AdaptBCMacroVal
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2047,7 +2047,7 @@ REAL,ALLOCATABLE               :: AdaptiveData(:,:,:)
 !===================================================================================================================================
 
 
-nVar = 10
+nVar = 7
 iVar = 1
 ALLOCATE(StrVarNames(nVar*nSpecies))
 DO iSpec=1,nSpecies
@@ -2055,13 +2055,10 @@ DO iSpec=1,nSpecies
   StrVarNames(iVar)   = 'Spec'//TRIM(SpecID)//'-VeloX'
   StrVarNames(iVar+1) = 'Spec'//TRIM(SpecID)//'-VeloY'
   StrVarNames(iVar+2) = 'Spec'//TRIM(SpecID)//'-VeloZ'
-  StrVarNames(iVar+3) = 'Spec'//TRIM(SpecID)//'-TempX'
-  StrVarNames(iVar+4) = 'Spec'//TRIM(SpecID)//'-TempY'
-  StrVarNames(iVar+5) = 'Spec'//TRIM(SpecID)//'-TempZ'
-  StrVarNames(iVar+6) = 'Spec'//TRIM(SpecID)//'-Density'
-  StrVarNames(iVar+7) = 'Spec'//TRIM(SpecID)//'-PumpVeloPerArea'
-  StrVarNames(iVar+8) = 'Spec'//TRIM(SpecID)//'-PumpPressure'
-  StrVarNames(iVar+9) = 'Spec'//TRIM(SpecID)//'-PumpIntegralError'
+  StrVarNames(iVar+3) = 'Spec'//TRIM(SpecID)//'-Density'
+  StrVarNames(iVar+4) = 'Spec'//TRIM(SpecID)//'-PumpVeloPerArea'
+  StrVarNames(iVar+5) = 'Spec'//TRIM(SpecID)//'-PumpPressure'
+  StrVarNames(iVar+6) = 'Spec'//TRIM(SpecID)//'-PumpIntegralError'
   iVar = iVar + nVar
 END DO
 
@@ -2075,15 +2072,12 @@ END IF
 ALLOCATE(AdaptiveData(nVar,nSpecies,nElems))
 AdaptiveData = 0.
 DO iElem = 1,nElems
-  AdaptiveData(1,:,iElem) = Adaptive_MacroVal(DSMC_VELOX,iElem,:)
-  AdaptiveData(2,:,iElem) = Adaptive_MacroVal(DSMC_VELOY,iElem,:)
-  AdaptiveData(3,:,iElem) = Adaptive_MacroVal(DSMC_VELOZ,iElem,:)
-  AdaptiveData(4,:,iElem) = Adaptive_MacroVal(DSMC_TEMPX,iElem,:)
-  AdaptiveData(5,:,iElem) = Adaptive_MacroVal(DSMC_TEMPY,iElem,:)
-  AdaptiveData(6,:,iElem) = Adaptive_MacroVal(DSMC_TEMPZ,iElem,:)
-  AdaptiveData(7,:,iElem) = Adaptive_MacroVal(DSMC_NUMDENS,iElem,:)
-  ! Porous BC parameter (11: Pumping capacity [m3/s], 12: Static pressure [Pa], 13: Integral pressure difference [Pa])
-  AdaptiveData(8:10,:,iElem) = Adaptive_MacroVal(11:13,iElem,:)
+  AdaptiveData(1,:,iElem) = AdaptBCMacroVal(DSMC_VELOX,iElem,:)
+  AdaptiveData(2,:,iElem) = AdaptBCMacroVal(DSMC_VELOY,iElem,:)
+  AdaptiveData(3,:,iElem) = AdaptBCMacroVal(DSMC_VELOZ,iElem,:)
+  AdaptiveData(4,:,iElem) = AdaptBCMacroVal(4,iElem,:)
+  ! Porous BC parameter (5: Pumping capacity [m3/s], 6: Static pressure [Pa], 7: Integral pressure difference [Pa])
+  AdaptiveData(5:7,:,iElem) = AdaptBCMacroVal(5:7,iElem,:)
 END DO
 
 WRITE(H5_Name,'(A)') 'AdaptiveInfo'

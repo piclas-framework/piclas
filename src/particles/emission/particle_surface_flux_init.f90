@@ -87,6 +87,14 @@ CALL prms%CreateLogicalOption(  'DoForceFreeSurfaceFlux' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Flag if the stage reconstruction uses a force' , '.FALSE.')
 ! Parameters for adaptive boundary conditions
+
+CALL prms%CreateRealOption(     'AdaptiveBC-RelaxationFactor',  'Relaxation factor for weighting of current'//&
+                                                                ' values with those of previous iterations.', '0.001')
+CALL prms%CreateIntOption(      'AdaptiveBC-SamplingIteration', 'Number of iterations the values will be sampled before updating'//&
+                                                                ' the utilized value. Alternative is to constantly update'//&
+                                                                ' with a relaxation factor', '0')
+CALL prms%CreateLogicalOption(  'AdaptiveBC-TruncateRunningAverage',  'Flag to enable a truncated running average for'//&
+                                                                      ' the last number of SamplingIteration', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-Adaptive' &
                                       , 'Flag for the definition of adaptive boundary conditions', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-Adaptive-Type' &
@@ -179,7 +187,7 @@ END IF
 
 !-- 3.: initialize Surfaceflux-specific data
 ! Allocate sampling of near adaptive boundary element values
-IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL AllocateAdaptiveBCSampling(AdaptiveInitDone)
+IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL InitializeAdaptiveBCSampling(AdaptiveInitDone)
 
 DO iSpec=1,nSpecies
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
@@ -336,7 +344,7 @@ SUBROUTINE ReadInAndPrepareSurfaceFlux(MaxSurfacefluxBCs, nDataBC)
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, Pi
-USE MOD_Particle_Vars          ,ONLY: AdaptiveWeightFac,nSpecies, Species, VarTimeStep, DoPoissonRounding, DoTimeDepInflow
+USE MOD_Particle_Vars          ,ONLY: AdaptBCRelaxFactor,nSpecies, Species, VarTimeStep, DoPoissonRounding, DoTimeDepInflow
 USE MOD_Particle_Vars          ,ONLY: Symmetry, UseAdaptive, UseCircularInflow
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
@@ -355,8 +363,6 @@ INTEGER, INTENT(INOUT) :: MaxSurfacefluxBCs, nDataBC
 CHARACTER(42)         :: hilf, hilf2, hilf3
 INTEGER               :: iSpec, iElem, iSF
 !===================================================================================================================================
-AdaptiveWeightFac = GETREAL('Part-AdaptiveWeightingFactor','0.001')
-
 DO iSpec=1,nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%nSurfacefluxBCs = GETINT('Part-Species'//TRIM(hilf)//'-nSurfacefluxBCs')
@@ -520,7 +526,8 @@ __STAMP__&
         END DO
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0
       END SELECT
-      IF (PartBound%TargetBoundCond(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.PartBound%ReflectiveBC) THEN ! iSF on reflective BC
+      ! Sanity check: regular surface flux must be on an open BC
+      IF (PartBound%TargetBoundCond(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.PartBound%ReflectiveBC) THEN
         IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow.AND.(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.NE.4)) THEN
           CALL abort(__STAMP__&
             ,'ERROR in adaptive surface flux: using a reflective BC without circularInflow is only allowed for Type 4!')
@@ -832,17 +839,19 @@ END DO !iBC
 
 END SUBROUTINE CreateSideListAndFinalizeAreasSurfFlux
 
-SUBROUTINE AllocateAdaptiveBCSampling(AdaptiveInitDone)
+SUBROUTINE InitializeAdaptiveBCSampling(AdaptiveInitDone)
 !===================================================================================================================================
 !>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_IO_HDF5
+USE MOD_ReadInTools
 USE MOD_Mesh_Vars               ,ONLY: offsetElem, nElems
-USE MOD_Particle_Vars           ,ONLY: nSpecies, Adaptive_MacroVal
+USE MOD_Particle_Vars           ,ONLY: nSpecies, AdaptBCMacroVal, AdaptBCSample, AdaptBCRelaxFactor, AdaptBCSampIter, AdaptBCAverage
+USE MOD_Particle_Vars           ,ONLY: AdaptBCTruncAverage, AdaptBCAverageGlobal
 USE MOD_Restart_Vars            ,ONLY: DoRestart,RestartFile
-USE MOD_HDF5_INPUT              ,ONLY: ReadArray, DatasetExists
+USE MOD_HDF5_INPUT              ,ONLY: ReadArray, DatasetExists, GetDataSize
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -854,43 +863,63 @@ LOGICAL, INTENT(OUT)              :: AdaptiveInitDone
 ! LOCAL VARIABLES
 LOGICAL                           :: AdaptiveDataExists
 REAL,ALLOCATABLE                  :: ElemData_HDF5(:,:,:)
-INTEGER                           :: iElem
+INTEGER                           :: iElem, nVar
 !===================================================================================================================================
-ALLOCATE(Adaptive_MacroVal(1:13,1:nElems,1:nSpecies))
-Adaptive_MacroVal(:,:,:)=0
-! If restart is done, check if adptiveinfo exists in state, read it in and write to adaptive_macrovalues
+ALLOCATE(AdaptBCMacroVal(1:7,1:nElems,1:nSpecies))
+AdaptBCMacroVal(:,:,:) = 0.0
+ALLOCATE(AdaptBCSample(1:8,1:nElems,1:nSpecies))
+AdaptBCSample = 0.0
+
+AdaptBCRelaxFactor = GETREAL('AdaptiveBC-RelaxationFactor')
+AdaptBCSampIter = GETINT('AdaptiveBC-SamplingIteration')
+AdaptBCTruncAverage = GETLOGICAL('AdaptiveBC-TruncateRunningAverage')
+
+IF(AdaptBCTruncAverage) THEN
+  IF(AdaptBCSampIter.EQ.0) THEN
+    CALL abort(__STAMP__,&
+      'ERROR: Truncated running average requires to the number of sampling iterations (AdaptiveBC-SamplingIteration > 0)!')
+  END IF
+  ALLOCATE(AdaptBCAverage(1:8,AdaptBCSampIter,1:nElems,1:nSpecies))
+  IF(ALLOCATED(AdaptBCAverageGlobal)) THEN
+    AdaptBCAverage(1:8,1:AdaptBCSampIter,1:nElems,1:nSpecies) = AdaptBCAverageGlobal(1:8,1:AdaptBCSampIter,offsetElem+1:offsetElem+nElems,1:nSpecies)
+  ELSE
+    AdaptBCAverage = 0.0
+  END IF
+END IF
+
+! If restart is done, check if adaptiveinfo exists in state, read it in and write to AdaptBCMacroValues
 AdaptiveInitDone = .FALSE.
 IF (DoRestart) THEN
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   ! read local ParticleInfo from HDF5
   CALL DatasetExists(File_ID,'AdaptiveInfo',AdaptiveDataExists)
   IF(AdaptiveDataExists)THEN
+    CALL GetDataSize(File_ID,'AdaptiveInfo',nDims,HSize)
+    nVar=INT(HSize(1),4)
+    DEALLOCATE(HSize)
     AdaptiveInitDone = .TRUE.
-    ALLOCATE(ElemData_HDF5(1:10,1:nSpecies,1:nElems))
+    ALLOCATE(ElemData_HDF5(1:nVar,1:nSpecies,1:nElems))
     ! Associate construct for integer KIND=8 possibility
     ASSOCIATE (&
           nSpecies   => INT(nSpecies,IK) ,&
           offsetElem => INT(offsetElem,IK),&
-          nElems     => INT(nElems,IK)    )
-      CALL ReadArray('AdaptiveInfo',3,(/10_IK, nSpecies, nElems/),offsetElem,3,RealArray=ElemData_HDF5(:,:,:))
+          nElems     => INT(nElems,IK)    ,&
+          nVar       => INT(nVar,IK)    )
+      CALL ReadArray('AdaptiveInfo',3,(/nVar, nSpecies, nElems/),offsetElem,3,RealArray=ElemData_HDF5(:,:,:))
     END ASSOCIATE
     DO iElem = 1,nElems
-      Adaptive_MacroVal(DSMC_VELOX,iElem,:)   = ElemData_HDF5(1,:,iElem)
-      Adaptive_MacroVal(DSMC_VELOY,iElem,:)   = ElemData_HDF5(2,:,iElem)
-      Adaptive_MacroVal(DSMC_VELOZ,iElem,:)   = ElemData_HDF5(3,:,iElem)
-      Adaptive_MacroVal(DSMC_TEMPX,iElem,:)   = ElemData_HDF5(4,:,iElem)
-      Adaptive_MacroVal(DSMC_TEMPY,iElem,:)   = ElemData_HDF5(5,:,iElem)
-      Adaptive_MacroVal(DSMC_TEMPZ,iElem,:)   = ElemData_HDF5(6,:,iElem)
-      Adaptive_MacroVal(DSMC_NUMDENS,iElem,:) = ElemData_HDF5(7,:,iElem)
-      ! Porous BC parameter (11: Pumping capacity [m3/s], 12: Static pressure [Pa], 13: Integral pressure difference [Pa])
-      Adaptive_MacroVal(11:13,iElem,:)        = ElemData_HDF5(8:10,:,iElem)
+      AdaptBCMacroVal(1:3,iElem,:)   = ElemData_HDF5(1:3,:,iElem)
+      ! nVar-3 only due to backwards compatibility (old state files have a larger array of 10 variables)
+      AdaptBCMacroVal(4,iElem,:)     = ElemData_HDF5(nVar-3,:,iElem)
+      ! Porous BC parameter (5: Pumping capacity [m3/s], 6: Static pressure [Pa], 7: Integral pressure difference [Pa])
+      AdaptBCMacroVal(5:7,iElem,:)   = ElemData_HDF5(nVar-2:nVar,:,iElem)
     END DO
     SDEALLOCATE(ElemData_HDF5)
   END IF
   CALL CloseDataFile()
 END IF
 
-END SUBROUTINE AllocateAdaptiveBCSampling
+END SUBROUTINE InitializeAdaptiveBCSampling
 
 
 SUBROUTINE DefineCircInflowRejectType(iSpec, iSF, iSide)
@@ -903,11 +932,10 @@ SUBROUTINE DefineCircInflowRejectType(iSpec, iSF, iSide)
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: offsetElem, SideToElem
-USE MOD_Particle_Surfaces      ,ONLY: GetSideBoundingBox
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Vars          ,ONLY: Species
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID, GetSideBoundingBoxTria
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Boundary_Tools,ONLY: GetRadialDistance2D
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Vars          ,ONLY: CountCircInflowType
 #endif
@@ -920,10 +948,8 @@ INTEGER, INTENT(IN)   :: iSpec, iSF, iSide
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                  :: BoundingBox(1:3,1:8), origin(2), Vector1(3), Vector2(3), Vector3(3), xyzNod(3), VecBoundingBox(3)
-REAL                  :: corner(3), corners(2,4), radiusCorner(2,4), rmax, rmin, point(2), vec(2)
-LOGICAL               :: r0inside, intersecExists(2,2)
-INTEGER               :: dir(3), iNode, currentBC, BCSideID, ElemID, iLocSide, SideID
+REAL                  :: rmax, rmin
+INTEGER               :: currentBC, BCSideID, ElemID, iLocSide, GlobalSideID
 !===================================================================================================================================
 currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
 BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
@@ -934,82 +960,10 @@ IF (ElemID.LT.1) THEN !not sure if necessary
 ELSE
   iLocSide = SideToElem(3,BCSideID)
 END IF
-SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
-IF(TrackingMethod.EQ.TRIATRACKING) THEN
-  CALL GetSideBoundingBoxTria(SideID,BoundingBox)
-ELSE
-  CALL GetSideBoundingBox(SideID,BoundingBox)
-END IF
-intersecExists=.FALSE.
-!atan2Shift=0.
-r0inside=.FALSE.
-dir=Species(iSpec)%Surfaceflux(iSF)%dir
-origin=Species(iSpec)%Surfaceflux(iSF)%origin
-Vector1(:)=0.
-Vector2(:)=0.
-Vector3(:)=0.
-xyzNod(1)=MINVAL(BoundingBox(1,:))
-xyzNod(2)=MINVAL(BoundingBox(2,:))
-xyzNod(3)=MINVAL(BoundingBox(3,:))
-VecBoundingBox(1) = MAXVAL(BoundingBox(1,:)) -MINVAL(BoundingBox(1,:))
-VecBoundingBox(2) = MAXVAL(BoundingBox(2,:)) -MINVAL(BoundingBox(2,:))
-VecBoundingBox(3) = MAXVAL(BoundingBox(3,:)) -MINVAL(BoundingBox(3,:))
-Vector1(dir(2)) = VecBoundingBox(dir(2))
-Vector2(dir(2)) = VecBoundingBox(dir(2))
-Vector2(dir(3)) = VecBoundingBox(dir(3))
-Vector3(dir(3)) = VecBoundingBox(dir(3))
+GlobalSideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
 
-!-- determine rmax (and corners)
-DO iNode=1,4
-  SELECT CASE(iNode)
-  CASE(1)
-    corner = xyzNod
-  CASE(2)
-    corner = xyzNod + Vector1
-  CASE(3)
-    corner = xyzNod + Vector2
-  CASE(4)
-    corner = xyzNod + Vector3
-  END SELECT
-  corner(dir(2)) = corner(dir(2)) - origin(1)
-  corner(dir(3)) = corner(dir(3)) - origin(2)
-  corners(1:2,iNode)=(/corner(dir(2)),corner(dir(3))/) !coordinates of orth. dirs
-  radiusCorner(1,iNode)=SQRT(corner(dir(2))**2+corner(dir(3))**2)
-END DO !iNode
-rmax=MAXVAL(radiusCorner(1,1:4))
+CALL GetRadialDistance2D(GlobalSideID,Species(iSpec)%Surfaceflux(iSF)%dir,Species(iSpec)%Surfaceflux(iSF)%origin,rmin,rmax)
 
-!-- determine rmin
-DO iNode=1,4
-  SELECT CASE(iNode)
-  CASE(1)
-    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
-    vec=(/Vector1(dir(2)),Vector1(dir(3))/)
-  CASE(2)
-    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
-    vec=(/Vector3(dir(2)),Vector3(dir(3))/)
-  CASE(3)
-    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
-    vec=(/-Vector1(dir(2)),-Vector1(dir(3))/)
-  CASE(4)
-    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
-    vec=(/-Vector3(dir(2)),-Vector3(dir(3))/)
-  END SELECT
-  vec=point + MIN(MAX(-DOT_PRODUCT(point,vec)/DOT_PRODUCT(vec,vec),0.),1.)*vec
-  radiusCorner(2,iNode)=SQRT(DOT_PRODUCT(vec,vec)) !rmin
-END DO !iNode
-
-!-- determine if r0 is inside of bounding box
-IF ((origin(1) .GE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:))) .AND. &
-   (origin(1) .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:))) .AND. &
-   (origin(2) .GE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:))) .AND. &
-   (origin(2) .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:))) ) THEN
-   r0inside = .TRUE.
-END IF
-IF (r0inside) THEN
-  rmin = 0.
-ELSE
-  rmin=MINVAL(radiusCorner(2,1:4))
-END IF
 ! define rejecttype
 IF ( (rmin .GT. Species(iSpec)%Surfaceflux(iSF)%rmax) .OR. (rmax .LT. Species(iSpec)%Surfaceflux(iSF)%rmin) ) THEN
   Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=1
@@ -1123,7 +1077,7 @@ SUBROUTINE InitAdaptiveSurfFlux(iSpec, iSF, ElemID, AdaptiveInitDone)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Adaptive_MacroVal
+USE MOD_Particle_Vars          ,ONLY: Species, AdaptBCMacroVal
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart, MacroRestartValues
 ! IMPLICIT VARIABLE HANDLING
@@ -1140,29 +1094,23 @@ LOGICAL, INTENT(IN)   :: AdaptiveInitDone
 IF (.NOT.AdaptiveInitDone) THEN
   ! initialize velocity, trans_temperature and density of macrovalues
   IF (DoMacroscopicRestart) THEN
-    Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = MacroRestartValues(ElemID,iSpec,DSMC_VELOX)
-    Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = MacroRestartValues(ElemID,iSpec,DSMC_VELOY)
-    Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = MacroRestartValues(ElemID,iSpec,DSMC_VELOZ)
-    Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = MAX(0.,MacroRestartValues(ElemID,iSpec,DSMC_TEMPX))
-    Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = MAX(0.,MacroRestartValues(ElemID,iSpec,DSMC_TEMPY))
-    Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = MAX(0.,MacroRestartValues(ElemID,iSpec,DSMC_TEMPZ))
-    Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpec) = MacroRestartValues(ElemID,iSpec,DSMC_NUMDENS)
+    AdaptBCMacroVal(DSMC_VELOX,ElemID,iSpec) = MacroRestartValues(ElemID,iSpec,DSMC_VELOX)
+    AdaptBCMacroVal(DSMC_VELOY,ElemID,iSpec) = MacroRestartValues(ElemID,iSpec,DSMC_VELOY)
+    AdaptBCMacroVal(DSMC_VELOZ,ElemID,iSpec) = MacroRestartValues(ElemID,iSpec,DSMC_VELOZ)
+    AdaptBCMacroVal(4,ElemID,iSpec) = MacroRestartValues(ElemID,iSpec,DSMC_NUMDENS)
     IF(nPorousBC.GT.0) THEN
       CALL abort(&
 __STAMP__&
 ,'Macroscopic restart with porous BC and without state file including adaptive BC info not implemented!')
     END IF
   ELSE
-    Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
+    AdaptBCMacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
         * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1)
-    Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
+    AdaptBCMacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
         * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(2)
-    Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
+    AdaptBCMacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
         * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(3)
-    Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
-    Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
-    Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
-    Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
+    AdaptBCMacroVal(4,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
   END IF
 END IF
 END SUBROUTINE InitAdaptiveSurfFlux
