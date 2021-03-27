@@ -100,7 +100,7 @@ SUBROUTINE BuildILU0(ILU0,iElem)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Basis                      ,ONLY:GetInverse
+!USE MOD_Mathtools,ONLY:INVERSE
 USE MOD_LinearSolver_Vars          ,ONLY:nDOFelem
 USE MOD_CSR_Vars                   ,ONLY:nUNonZeros,nLNonZeros,nMTriangle
 USE MOD_CSR_VArs                   ,ONLY:DE,IL,IU
@@ -578,7 +578,7 @@ END DO
 !WRITE(*,'(A,E23.14)') ' Difference of both matrix vector products is', SUM(ABS(Vresu2)-ABS(Vresu1))
 !
 !
-!Ainv(:,:)=getInverse(nDOFelem,Ploc)
+!Ainv(:,:)=INVERSE(Ploc)
 !vResu3=MATMUL(Ainv,vtild)
 !
 !kk=0
