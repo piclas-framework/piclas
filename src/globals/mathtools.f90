@@ -116,7 +116,7 @@ REAL             :: AINV(SIZE(A,1),SIZE(A,2))   !< Result: inverse of A
 ! LOCAL VARIABLES
 REAL, DIMENSION(SIZE(A,1),SIZE(A,2)) :: U,L,A2  !< Upper and Lower part of A and copy
 REAL, DIMENSION(SIZE(A,1))           :: b,d,x   !< RHS and aux vectors
-INTEGER                              :: i,j,k,n !< Loop indices
+INTEGER                              :: i,j,k   !< Loop indices
 INTEGER                              :: n       !< Size of first dimension of A, assume that A is a square matirx
 REAL                                 :: c       !< Auxiliary coefficient
 !==================================================================================================================================
