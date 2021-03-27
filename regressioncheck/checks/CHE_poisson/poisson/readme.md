@@ -8,3 +8,7 @@
 - CalcBoundaryParticleOutput = T
     - count the number of electrons that impact on the left boundary and output to SurfaceAnalyze.csv (compare the last line with a
     reference)
+- using rounded values for all particle masses
+    - otherwise fails when using CORE_SPLIT and MPI=5 due to
+    "Message: CODE_ANALYZE: DSMC_Chemistry is not energy conserving for chemical reaction:       1"
+    - not that rel. Energy difference : -1.18806002360921E-012
