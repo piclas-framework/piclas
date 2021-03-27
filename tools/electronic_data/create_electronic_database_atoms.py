@@ -3,6 +3,8 @@ import h5py
 import pandas as pd
 import io
 import re
+from datetime import date
+
 # Function to determine the Roman number from an integer
 def int_to_Roman(num):
    val = (1000, 900,  500, 400, 100,  90, 50,  40, 10,  9,   5,  4,   1)
@@ -13,12 +15,16 @@ def int_to_Roman(num):
       roman_num += syb[i] * count
       num -= val[i] * count
    return roman_num
+
+### USER INPUT BEGIN
+# Output of the HDF5 database
+hdf = h5py.File('Electronic_State_Database.h5', 'a')
+# Species list to be included in the output database
+species_list = ['H']
+### USER INPUT END
+
 # Base URL of the query
 URL_base = 'https://physics.nist.gov/cgi-bin/ASD/energy1.pl'
-# Output of the HDF5 database
-hdf = h5py.File('Electronic_State_Database.h5', 'w')
-# Species list to be included in the output database
-species_list = ['Xe','XeIon1','XeIon2']
 # Loop over species list
 for current_species in species_list:
   # Get the ionization number as the last digits and 1 to comply with the NIST standard
@@ -37,12 +43,14 @@ for current_species in species_list:
   # Get the data from the NIST website
   data = response.content.decode('utf-8')
   # Clean the data
-  data = data.replace('"','')
+  data = data.replace('"[','')
+  data = data.replace(']"','')
+  data = data.replace('"(','')
+  data = data.replace(')"','')
   data = data.replace('= ','')
   data = data.replace('=','')
   data = data.replace(' ','')
-  data = data.replace('[','')
-  data = data.replace(']','')
+  data = data.replace('"','')
   # Read-in data as a pandas dataframe
   data = pd.read_csv(io.StringIO(data),skipinitialspace=True,delimiter=",",usecols=['J','Level(cm-1)'], na_values=['---'])
   data.dropna(inplace=True)
@@ -55,6 +63,13 @@ for current_species in species_list:
   data['Level(cm-1)'] = 100 * data['Level(cm-1)'] * 1.986E-025 / 1.38065E-023           # 1/cm * 100cm/m * (J m) / (J/K) = K
   data.columns=['Degeneracy', 'Level(K)']
   # Write to hdf
-  hdf.create_dataset(current_species, data=data)
+  # If data set already exists, delete the old set first
+  if current_species in hdf.keys():
+    del hdf[current_species]
+    print('Old dataset replaced.')
+  dataset = hdf.create_dataset(current_species, data=data)
+  # Write attributes for source and time of retrieval
+  dataset.attrs['Reference'] = 'Kramida, A., Ralchenko, Yu., Reader, J., and NIST ASD Team (2020). NIST Atomic Spectra Database (ver. 5.8), [Online]. Available: https://physics.nist.gov/asd. National Institute of Standards and Technology, Gaithersburg, MD. DOI: https://doi.org/10.18434/T4W30F. Retrieved on ' + date.today().strftime("%B %d, %Y") + '.'
+
 print('Output successful.')
 hdf.close()
