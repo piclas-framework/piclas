@@ -191,9 +191,9 @@ SUBROUTINE BuildBILU0BCSR(BJ,iElem)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Basis               ,ONLY:GetInverse
-USE MOD_LinearSolver_Vars   ,ONLY:nDOFELEM
-USE MOD_ILU_Vars            ,ONLY:BlockAA,BlockIA,BlockJA,nBDOF
+USE MOD_Mathtools         ,ONLY: INVERSE
+USE MOD_LinearSolver_Vars ,ONLY: nDOFELEM
+USE MOD_ILU_Vars          ,ONLY: BlockAA,BlockIA,BlockJA,nBDOF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -216,7 +216,7 @@ epsZero=EPSILON(0.0d0)*PP_nVar*PP_nVar
 DO s=PP_nVar,nDOFElem-PP_nVar,PP_nVar
   DO r=0,s-PP_nVar,PP_nVar ! richtig? +1 fehlend?
     IF(SUM(ABS(BJ(s+1:s+PP_nVar,r+1:r+PP_nVar))).GT.epsZero)THEN
-      dummy=GETINVERSE(PP_nVar,BJ(r+1:r+PP_nVar,r+1:r+PP_nVar))
+      dummy=INVERSE(BJ(r+1:r+PP_nVar,r+1:r+PP_nVar))
       BJ(s+1:s+PP_nVar,r+1:r+PP_nVar)=MATMUL(BJ(s+1:s+PP_nVar,r+1:r+PP_nVar),dummy)
       DO t=r+PP_nVar,nDOFElem-PP_nVar,PP_nVar
         IF(SUM(ABS(BJ(s+1:s+PP_nVar,t+1:t+PP_nVar))).GT.epsZero)THEN
@@ -240,7 +240,7 @@ DO i=1,nBDOF
     BlockAA(1:PP_nVar,1:PP_nVar,j,iElem)=BJ(vn1+1:vn1+PP_nVar,vn2+1:vn2+PP_nVar)
     IF(BlockJA(j).EQ.i)THEN
       !print*,'diag',BlockJA(j),i
-      BlockAA(1:PP_nVar,1:PP_nVar,j,iElem)=GETINVERSE(PP_nVar,BJ(vn1+1:vn1+PP_nVar,vn2+1:vn2+PP_nVar))
+      BlockAA(1:PP_nVar,1:PP_nVar,j,iElem)=INVERSE(BJ(vn1+1:vn1+PP_nVar,vn2+1:vn2+PP_nVar))
     END IF
   END DO ! j
 END DO ! i

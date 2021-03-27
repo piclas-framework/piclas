@@ -23,9 +23,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-REAL,PARAMETER        :: PP_RealTolerance = 1.E-15
+REAL,PARAMETER        :: PP_RealTolerance = EPSILON(1.0D0) !< machine precision
 #if PP_N == N
-  INTEGER             :: PP_N                       ! polynomial degree
+  INTEGER             :: PP_N                              !< polynomial degree
 #endif
 #if PP_nElems == NELEMZ
   INTEGER             :: PP_nElems = 0              ! pp preproc
