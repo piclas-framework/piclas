@@ -53,7 +53,7 @@ ENDIF()
 SET (HDF5TAG "hdf5-1_10_5" CACHE STRING "HDF5 version tag")
 
 # =========================================================================
-# Detect machine environements
+# Detect machine environments
 # =========================================================================
 SITE_NAME(CMAKE_HOSTNAME)
 STRING(FIND "${CMAKE_HOSTNAME}" "hawk" ONHAWK)
@@ -65,6 +65,24 @@ IF (ONHAWK GREATER -1)
   MARK_AS_ADVANCED(C_PATH CXX_PATH Fortran_PATH)
   MESSAGE(STATUS "Compiling on " ${CMAKE_HOSTNAME} " (ONHAWK=True)")
   ADD_DEFINITIONS(-DLUSTRE)
+
+  # Overwrite compiler target architecture
+  IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
+    #SET(PICLAS_INSTRUCTION "-xCORE-AVX2")  # hornet
+    SET(PICLAS_INSTRUCTION "-march=znver2") # hawk
+  ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+    #SET(PICLAS_INSTRUCTION "-xCORE-AVX2")     # hornet
+    SET(PICLAS_INSTRUCTION "-march=core-avx2") # hawk
+  ENDIF()
+  # Use AMD Optimized Lapack/BLAS
+  # SET(BLA_VENDOR "FLAME")
+ELSE()
+  # Set compiler target architecture
+  IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang" )
+    SET(FLEXI_INSTRUCTION "-march=native")
+  ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+    SET(FLEXI_INSTRUCTION "-xHost")
+  ENDIF()
 ENDIF()
 
 # =========================================================================
@@ -171,6 +189,17 @@ IF (PICLAS_READIN_CONSTANTS)
   ADD_DEFINITIONS(-DUSE_READIN_CONSTANTS=1)
 ELSE()
   ADD_DEFINITIONS(-DUSE_READIN_CONSTANTS=0)
+ENDIF()
+
+OPTION(PICLAS_VDM_ANALYTICAL "Alternative to matrix inversion: Compute inverse Vandermonde directly (required for inverse of Bezier and Legendre Vdm)" OFF)
+# VDM inverse for Lagrange polynomials, replace lapack with analytical solution, for Bezier switch to LU inverse calculation
+IF (ONHAWK GREATER -1)
+  IF (CMAKE_BUILD_TYPE MATCHES "Debug")
+    SET(PICLAS_VDM_ANALYTICAL ON CACHE BOOL "Auto-Activated: Alternative to matrix inversion: Compute inverse Vandermonde directly (required for inverse of Bezier and Legendre Vdm)" FORCE)
+  ENDIF()
+ENDIF()
+IF (PICLAS_VDM_ANALYTICAL)
+  ADD_DEFINITIONS(-DVDM_ANALYTICAL)
 ENDIF()
 
 # =========================================================================
@@ -458,13 +487,6 @@ ADD_DEFINITIONS("-DBASEDIR='\"${CMAKE_CURRENT_BINARY_DIR}/\"'")
 GET_FILENAME_COMPONENT (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
 
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-  #environment specific variables
-  IF(ONHAWK GREATER -1)
-    #SET(PICLAS_INSTRUCTION "-march=core-avx2") # hornet
-    SET(PICLAS_INSTRUCTION "-march=znver2")     # hawk
-  ELSE()
-    SET(PICLAS_INSTRUCTION "-march=native")
-  ENDIF()
   # set Flags
   SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -fdefault-real-8 -fdefault-double-8 -fbackslash -ffree-line-length-0 -DGNU")
   SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS}     -O3 ${PICLAS_INSTRUCTION} -finline-functions -fstack-arrays -finit-character=0")
@@ -475,13 +497,6 @@ IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   SET (PICLAS_COMPILE_FLAGS "-xf95-cpp-input -fPIC")
 
 ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-   #environment specific variables
-   IF(ONHAWK GREATER -1)
-     #SET(PICLAS_INSTRUCTION "-xCORE-AVX2")     # hornet
-     SET(PICLAS_INSTRUCTION "-march=core-avx2") # hawk
-   ELSE()
-     SET(PICLAS_INSTRUCTION "-xHost")
-   ENDIF()
    # set Flags
   SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -r8 -i4 -traceback -warn all -shared-intel -DINTEL")
   SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS}    -O2 ${PICLAS_INSTRUCTION} -qopt-report0 -qopt-report-phase=vec -no-prec-div")
