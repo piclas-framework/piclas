@@ -77,13 +77,14 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                           :: Time                              ! Used to track computation time
-CHARACTER(LEN=255)             :: NodeTypeVisuOut, InputStateFile, MeshFile, File_Type
+CHARACTER(LEN=255)             :: NodeTypeVisuOut, InputStateFile, MeshFile, File_Type, DGSolutionDataset
 INTEGER                        :: NVisu, iArgs, iArgsStart, TimeStampLength, iExt
 LOGICAL                        :: CmdLineMode, NVisuDefault         ! In command line mode only NVisu is specified directly,
                                                                     ! otherwise a parameter file is needed
 CHARACTER(LEN=2)               :: NVisuString                       ! String containing NVisu from command line option
 CHARACTER(LEN=20)              :: fmtString                         ! String containing options for formatted write
 LOGICAL                        :: DGSolutionExists, ElemDataExists, SurfaceDataExists, VisuParticles, PartDataExists
+LOGICAL                        :: BGFieldExists
 LOGICAL                        :: ReadMeshFinished, ElemMeshInit, SurfMeshInit
 #ifdef PARTICLES
 INTEGER                        :: iElem, iNode
@@ -254,6 +255,13 @@ DO iArgs = iArgsStart,nArgs
   CALL DatasetExists(File_ID,'ElemData',ElemDataExists)
   CALL DatasetExists(File_ID,'SurfaceData',SurfaceDataExists)
   CALL DatasetExists(File_ID,'PartData',PartDataExists)
+  CALL DatasetExists(File_ID,'BGField',BGFieldExists) ! deprecated, but allow for backward compatibility
+  IF(BGFieldExists)THEN
+    DGSolutionExists  = .TRUE.
+    DGSolutionDataset = 'BGField'
+  ELSE
+    DGSolutionDataset = 'DG_Solution'
+  END IF ! BGFieldExists
   ! Get the name of the mesh file
   CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
   CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
@@ -309,7 +317,7 @@ DO iArgs = iArgsStart,nArgs
   END IF
   ! === DG_Solution (incl. BField etc.) ============================================================================================
   IF(DGSolutionExists) THEN
-    CALL ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,File_Type)
+    CALL ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,File_Type,DGSolutionDataset)
   END IF
   ! === ElemData ===================================================================================================================
   IF(ElemDataExists) THEN
@@ -529,7 +537,7 @@ SDEALLOCATE(VarNameCombineLen)
 
 END SUBROUTINE WriteDataToVTK_PICLas
 
-SUBROUTINE ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,OutputName)
+SUBROUTINE ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,OutputName,DGSolutionDataset)
 !===================================================================================================================================
 !> Convert the output of the field solver to a VTK output format
 !===================================================================================================================================
@@ -547,7 +555,7 @@ USE MOD_VTK                   ,ONLY: WriteDataToVTK
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-CHARACTER(LEN=255),INTENT(IN) :: InputStateFile,NodeTypeVisuOut
+CHARACTER(LEN=255),INTENT(IN) :: InputStateFile,NodeTypeVisuOut,DGSolutionDataset
 CHARACTER(LEN=*),INTENT(IN)   :: OutputName
 INTEGER,INTENT(IN)            :: NVisu
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -570,7 +578,8 @@ LOGICAL                         :: DGSourceExists
 !===================================================================================================================================
 ! 1.) Open given file to get the number of elements, the order and the name of the mesh file
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-CALL GetDataProps('DG_Solution',nVar_Solution,N_State,nElems_State,NodeType_State)
+! Default: DGSolutionDataset = 'DG_Solution'
+CALL GetDataProps(TRIM(DGSolutionDataset),nVar_Solution,N_State,nElems_State,NodeType_State)
 CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 
@@ -595,7 +604,8 @@ IF (DGSourceExists) THEN
   StrVarNames(nVar_Solution+1:nVar_State) = StrVarNamesTemp(1:4)
 END IF
 
-CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
+! Check if a state file is converted. Read the time stamp from .h5
+IF(OutputName.EQ.'State') CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
 CALL CloseDataFile()
 
 SDEALLOCATE(Vdm_EQNgeo_NVisu)
@@ -624,7 +634,8 @@ ASSOCIATE (&
       offsetElem => INT(offsetElem,IK),&
       N_State    => INT(N_State,IK),&
       nElems     => INT(nElems,IK)    )
-  CALL ReadArray('DG_Solution',5,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+  ! Default: DGSolutionDataset = 'DG_Solution'
+  CALL ReadArray(TRIM(DGSolutionDataset),5,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
                   RealArray=U(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems))
   IF(DGSourceExists) THEN
     CALL ReadArray('DG_Source',5,(/4_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
