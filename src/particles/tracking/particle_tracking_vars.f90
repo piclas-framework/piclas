@@ -26,9 +26,6 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 INTEGER             :: TrackingMethod              ! Method that is used for tracking of particles
-LOGICAL             :: DoRefMapping                ! tracking by mapping particle into reference element
-LOGICAL             :: TriaTracking                ! tracking by using surface representation by triangles
-LOGICAL             :: WriteTriaDebugMesh          !
 REAL                :: tTracking                   ! Tracking time
 REAL                :: tLocalization               ! localization time
 INTEGER             :: nTracks                     ! number of tracked particles

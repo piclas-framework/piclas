@@ -244,7 +244,6 @@ SUBROUTINE DiagCSR(ILU0,iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Basis                  ,ONLY:GetInverse
 USE MOD_LinearSolver_Vars      ,ONLY:nDOFelem
 USE MOD_CSR_Vars               ,ONLY:nUNonZeros,nLNonZeros,nMTriangle
 USE MOD_CSR_Vars               ,ONLY:DE,IL,IU

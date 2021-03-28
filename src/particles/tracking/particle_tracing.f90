@@ -47,7 +47,7 @@ SUBROUTINE ParticleTracing()
 #endif /*NOT IMPA*/
 !===================================================================================================================================
 !> Routine for tracking of moving particles using polynomial description of sides.
-!> Routine calculates intersection and boundary interaction for (dorefmapping = false) and (TriaTracking = false)
+!> Routine calculates intersection and boundary interaction for TrackingMethod = tracing
 !> Time is analyzed for LoadBalancing purposes for each element independently because elements with e.g. surface are more costly
 !> ---------------------------------------------------------------------------------------------------------------------------------
 !> - Loop over all particles, which are in own proc --> PDM%ParticleInside(1:PDM%ParticleVecLength)
@@ -82,12 +82,12 @@ USE MOD_Particle_Boundary_Vars      ,ONLY: nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteractionAuxBC
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbrOfLostParts, NbrOfLostParticles, DisplayLostParticles
 USE MOD_Particle_Tracking_Vars      ,ONLY: TrackInfo
-USE MOD_Particle_Tracking           ,ONLY: PARTHASMOVED
 USE MOD_Mesh_Tools                  ,ONLY: GetGlobalElemID,GetCNElemID,GetCNSideID
 USE MOD_Particle_Mesh_Tools         ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
 USE MOD_Particle_Localization       ,ONLY: LocateParticleInElement
 USE MOD_Particle_Localization       ,ONLY: PartInElemCheck
+USE MOD_Particle_Localization       ,ONLY: PARTHASMOVED
 USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarRectInterSection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarCurvedIntersection

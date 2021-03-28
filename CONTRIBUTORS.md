@@ -37,6 +37,7 @@ This is a (possibly incomplete) list of the people who contributed to piclas.
 * Wladimir Reschke
 * Matthias Sonntag
 * Marcel "Mitch" Scherrmann
+* Anna Schwarz
 * Marc Staudenmaier
 * Torsten Stindl
 * Andreas Stock

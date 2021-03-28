@@ -94,7 +94,7 @@ SUBROUTINE InitDepositionMethod()
 USE MOD_Globals
 USE MOD_ReadInTools            ,ONLY: GETINTFROMSTR
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf
-USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_ReadInTools            ,ONLY: GETREAL
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
@@ -107,8 +107,7 @@ r_sf=-1.0 ! default
 DepositionType_loc = GETINTFROMSTR('PIC-Deposition-Type')
 ! check for interpolation type incompatibilities (cannot be done at interpolation_init
 ! because DepositionType_loc is not known yet)
-IF((DepositionType_loc.EQ.PRM_DEPO_CVWM).AND. &
-   (.NOT.(TriaTracking))) THEN
+IF((DepositionType_loc.EQ.PRM_DEPO_CVWM).AND.(TrackingMethod.NE.TRIATRACKING)) THEN
   CALL abort(&
   __STAMP__&
   ,'ERROR in pic_depo.f90: PIC-Deposition-Type = cell_volweight_mean only allowed with TriaTracking!')
@@ -167,7 +166,7 @@ USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LB
 USE MOD_LoadBalance_Timers     ,ONLY: LBElemSplitTime_avg
 #endif /*USE_LOADBALANCE*/
 USE MOD_Mesh_Vars              ,ONLY: nElems, offSetElem
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if ((USE_HDG) && (PP_nVar==1))
 USE MOD_TimeDisc_Vars          ,ONLY: dt,tAnalyzeDiff,tEndDiff
@@ -234,7 +233,7 @@ DO iPart = 1,PDM%ParticleVecLength
   ELSE
     Charge= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
   END IF ! usevMPF
-  IF(DoRefMapping)THEN
+  IF(TrackingMethod.EQ.REFMAPPING)THEN
     TempPartPos(1:3)=PartPosRef(1:3,iPart)
   ELSE
     CALL GetPositionInRefElem(PartState(1:3,iPart),TempPartPos,PEM%GlobalElemID(iPart),ForceMode=.TRUE.)

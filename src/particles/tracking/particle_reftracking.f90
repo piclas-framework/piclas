@@ -21,12 +21,7 @@ MODULE MOD_Particle_RefTracking
 IMPLICIT NONE
 PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
-
-INTERFACE ParticleRefTracking
-  MODULE PROCEDURE ParticleRefTracking
-END INTERFACE
 PUBLIC::ParticleRefTracking
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
 
@@ -549,7 +544,7 @@ USE MOD_Utils                       ,ONLY: InsertionSort
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars      ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
-USE MOD_Particle_Tracking           ,ONLY: PARTHASMOVED
+USE MOD_Particle_Localization       ,ONLY: PARTHASMOVED
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -667,7 +662,7 @@ DO WHILE(DoTracing)
       IF (PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank) THEN
         IF (PartID.EQ.PARTOUT) THEN
           WRITE(UNIT_stdout,'(30("-"))')
-          WRITE(UNIT_stdout,'(A)')           '     | Output after compute intersection (DoubleCheck dorefmapping): '
+          WRITE(UNIT_stdout,'(A)')           '     | Output after compute intersection (DoubleCheck refmapping): '
           WRITE(UNIT_stdout,'(2(A,I0),A,L1)') '     | SideType: ',SideType(CNSideID) ,' | SideID: ',SideID,' | Hit: ',isHit
           WRITE(UNIT_stdout,'(2(A,G0))')     '     | Alpha: '   , locAlpha(ilocSide),' | LengthPartTrajectory: ', lengthPartTrajectory
           WRITE(UNIT_stdout,'((A,G0))')      '     | AlphaOld: ',alphaOld
@@ -697,7 +692,7 @@ DO WHILE(DoTracing)
       IF (PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank) THEN
         IF (PartID.EQ.PARTOUT) THEN
           WRITE(UNIT_stdout,'(30("-"))')
-          WRITE(UNIT_stdout,'(A)')           '     | Output after compute intersection (dorefmapping, BCTracing): '
+          WRITE(UNIT_stdout,'(A)')           '     | Output after compute intersection (refmapping, BCTracing): '
           WRITE(UNIT_stdout,'(2(A,I0),A,L1)') '     | SideType: ',SideType(CNSideID) ,' | SideID: ',SideID,' | Hit: ',isHit
           WRITE(UNIT_stdout,'(2(A,G0))')     '     | Alpha: '   , locAlpha(ilocSide),' | LengthPartTrajectory: ', lengthPartTrajectory
           WRITE(UNIT_stdout,'(A,2(1X,G0))')   '     | Intersection xi/eta: ',xi(ilocSide),eta(ilocSide)

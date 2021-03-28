@@ -42,10 +42,8 @@ USE MOD_DSMC_Vars              ,ONLY: DSMC_RHS, DSMC, CollisMode
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
-USE MOD_Particle_Tracking_vars ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
-USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
-USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
-USE MOD_Particle_TriaTracking  ,ONLY: ParticleTriaTracking
+USE MOD_Particle_Tracking      ,ONLY: PerformTracking
+USE MOD_Particle_Tracking_vars ,ONLY: tTracking,MeasureTrackTime
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -118,15 +116,7 @@ CALL IRecvNbOfParticles()
 #endif /*USE_MPI*/
 IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
 ! actual tracking
-IF(DoRefMapping)THEN
-  CALL ParticleRefTracking()
-ELSE
-  IF (TriaTracking) THEN
-    CALL ParticleTriaTracking()
-  ELSE
-    CALL ParticleTracing()
-  END IF
-END IF
+CALL PerformTracking()
 IF (nPorousBC.GT.0) THEN
   CALL PorousBoundaryRemovalProb_Pressure()
 END IF

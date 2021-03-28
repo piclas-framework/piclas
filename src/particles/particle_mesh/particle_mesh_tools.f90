@@ -21,11 +21,6 @@ MODULE MOD_Particle_Mesh_Tools
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-
-INTERFACE ParticleInsideQuad3D
-  MODULE PROCEDURE ParticleInsideQuad3D
-END INTERFACE
-
 ! Initialization routines
 INTERFACE InitPEM_LocalElemID
   MODULE PROCEDURE InitPEM_LocalElemID
@@ -51,7 +46,7 @@ CONTAINS
 
 
 !PURE SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
-SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
+SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det_Out)
 !===================================================================================================================================
 !> Checks if particle is inside of a linear element with triangulated faces, compatible with mortars
 !> Regular element: The determinant of a 3x3 matrix, where the three vectors point from the particle to the nodes of a triangle, is
@@ -74,14 +69,14 @@ INTEGER,INTENT(IN)            :: ElemID
 REAL   ,INTENT(IN)            :: PartStateLoc(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL   ,INTENT(OUT)           :: Det(6,2)
 LOGICAL,INTENT(OUT)           :: InElementCheck
+REAL   ,INTENT(OUT),OPTIONAL  :: Det_Out(6,2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: ilocSide, NodeNum, SideID, SideIDMortar, ind, NbElemID, nNbMortars, nlocSides, localSideID
 INTEGER                       :: CNElemID
 LOGICAL                       :: PosCheck, NegCheck, InElementCheckMortar, InElementCheckMortarNb
-REAL                          :: A(1:3,1:4), crossP(3)
+REAL                          :: A(1:3,1:4), crossP(3), Det(6,2)
 !===================================================================================================================================
 InElementCheck = .TRUE.
 InElementCheckMortar = .TRUE.
@@ -190,6 +185,8 @@ DO iLocSide = 1,nlocSides
     END IF
   END IF ! Mortar element or regular element
 END DO ! iLocSide = 1,6
+
+IF(PRESENT(Det_Out)) Det_Out = Det
 
 RETURN
 

@@ -112,7 +112,7 @@ USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC, PorousBC, PorousBCMacroVal
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound, nPorousSides, MapSurfSideToPorousSide_Shared, PorousBCSampWall
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCInfo_Shared,PorousBCProperties_Shared,PorousBCSampWall_Shared
 USE MOD_Particle_Boundary_Vars      ,ONLY: nComputeNodeSurfTotalSides, SurfSide2GlobalSide
-USE MOD_Particle_Tracking_Vars      ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_Vars      ,ONLY: TrackingMethod
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_SHARED, myComputeNodeRank
@@ -138,9 +138,9 @@ INTEGER(KIND=MPI_ADDRESS_KIND)         :: MPISharedSize
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION ...'
 
-IF(DoRefMapping) THEN
+IF(TrackingMethod.EQ.REFMAPPING) THEN
   CALL abort(__STAMP__&
-      ,'ERROR: Porous boundary conditions are not implemented with DoRefMapping!')
+      ,'ERROR: Porous boundary conditions are not implemented with RefMapping!')
 END IF
 
 IF((Symmetry%Order.LE.2).AND.(.NOT.Symmetry%Axisymmetric)) THEN
@@ -1112,9 +1112,9 @@ SUBROUTINE GetRadialDistance2D(GlobalSideID,dir,origin,rmin,rmax)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Surfaces,      ONLY: GetSideBoundingBox
-USE MOD_Particle_Mesh_Tools       ,ONLY: GetSideBoundingBoxTria
-USE MOD_Particle_Tracking_Vars    ,ONLY: TriaTracking
+USE MOD_Particle_Surfaces       ,ONLY: GetSideBoundingBox
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetSideBoundingBoxTria
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1132,7 +1132,7 @@ REAL                          :: Vector1(3),Vector2(3),Vector3(3),xyzNod(3),corn
 LOGICAL                       :: r0inside
 !===================================================================================================================================
 ! Determine which cells are inside/outside/partially inside the defined region
-IF (TriaTracking) THEN
+IF (TrackingMethod.EQ.TRIATRACKING) THEN
   CALL GetSideBoundingBoxTria(GlobalSideID,BoundingBox)
 ELSE
   CALL GetSideBoundingBox(GlobalSideID,BoundingBox)

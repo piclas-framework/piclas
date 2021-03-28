@@ -39,17 +39,12 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: Pi
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, DSMC
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
-USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
-USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping, TriaTracking
-USE MOD_Particle_Localization   ,ONLY: PartInElemCheck
-USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemEpsOneCell
-USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Vars           ,ONLY: Species, PDM, nSpecies, PartState, Symmetry, VarTimeStep
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared
+USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -63,7 +58,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                             :: iElem,iSpec,iPart,nPart,locnPart,iHeight,yPartitions,GlobalElemID
 REAL                                :: iRan, RandomPos(3), PartDens, TempMPF, MaxPosTemp, MinPosTemp
-REAL                                :: TempVol, Volume, Det(6,2), RefPos(1:3)
+REAL                                :: TempVol, Volume
 LOGICAL                             :: InsideFlag
 !===================================================================================================================================
 
@@ -100,16 +95,7 @@ DO iElem = 1, nElems
               RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
               RandomPos(2) = MinPosTemp + RandomPos(2)*(MaxPosTemp-MinPosTemp)
               RandomPos(3) = 0.0
-              IF (DoRefMapping) THEN
-                CALL GetPositionInRefElem(RandomPos,RefPos,GlobalElemID)
-                IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(GetCNElemID(GlobalElemID))) InsideFlag=.TRUE.
-              ELSE
-                IF (TriaTracking) THEN
-                  CALL ParticleInsideQuad3D(RandomPos,GlobalElemID,InsideFlag,Det)
-                ELSE
-                  CALL PartInElemCheck(RandomPos,iPart,GlobalElemID,InsideFlag)
-                END IF
-              END IF
+              InsideFlag = ParticleInsideCheck(RandomPos,iPart,GlobalElemID)
               IF (InsideFlag) THEN
                 PartState(1:3,locnPart) = RandomPos(1:3)
                 CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
@@ -136,16 +122,7 @@ DO iElem = 1, nElems
               RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
               RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
               RandomPos(3) = 0.0
-              IF (DoRefMapping) THEN
-                CALL GetPositionInRefElem(RandomPos,RefPos,GlobalElemID)
-                IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(GetCNElemID(GlobalElemID))) InsideFlag=.TRUE.
-              ELSE
-                IF (TriaTracking) THEN
-                  CALL ParticleInsideQuad3D(RandomPos,GlobalElemID,InsideFlag,Det)
-                ELSE
-                  CALL PartInElemCheck(RandomPos,iPart,GlobalElemID,InsideFlag)
-                END IF
-              END IF
+              InsideFlag = ParticleInsideCheck(RandomPos,iPart,GlobalElemID)
             END DO
             PartState(1:3,locnPart) = RandomPos(1:3)
             CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
@@ -170,16 +147,7 @@ DO iElem = 1, nElems
           CALL RANDOM_NUMBER(RandomPos(1:2))
           RandomPos(1:2) = Bounds(1,1:2) + RandomPos(1:2)*(Bounds(2,1:2)-Bounds(1,1:2))
           RandomPos(3) = 0.0
-          IF (DoRefMapping) THEN
-            CALL GetPositionInRefElem(RandomPos,RefPos,GlobalElemID)
-            IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(GetCNElemID(GlobalElemID))) InsideFlag=.TRUE.
-          ELSE
-            IF (TriaTracking) THEN
-              CALL ParticleInsideQuad3D(RandomPos,GlobalElemID,InsideFlag,Det)
-            ELSE
-              CALL PartInElemCheck(RandomPos,iPart,GlobalElemID,InsideFlag)
-            END IF
-          END IF
+          InsideFlag = ParticleInsideCheck(RandomPos,iPart,GlobalElemID)
           IF (InsideFlag) THEN
             PartState(1:3,locnPart) = RandomPos(1:3)
             CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
@@ -205,16 +173,7 @@ DO iElem = 1, nElems
           RandomPos(1:2) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
           RandomPos(2) = 0.0
           RandomPos(3) = 0.0
-          IF (DoRefMapping) THEN
-            CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-            IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(GetCNElemID(GlobalElemID))) InsideFlag=.TRUE.
-          ELSE
-            IF (TriaTracking) THEN
-              CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
-            ELSE
-              CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
-            END IF
-          END IF
+          InsideFlag = ParticleInsideCheck(RandomPos,iPart,GlobalElemID)
           IF (InsideFlag) THEN
             PartState(1:3,locnPart) = RandomPos(1:3)
             CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
@@ -239,16 +198,7 @@ DO iElem = 1, nElems
           InsideFlag=.FALSE.
           CALL RANDOM_NUMBER(RandomPos)
           RandomPos(1:3) = Bounds(1,1:3) + RandomPos(1:3)*(Bounds(2,1:3)-Bounds(1,1:3))
-          IF (DoRefMapping) THEN
-            CALL GetPositionInRefElem(RandomPos,RefPos,GlobalElemID)
-            IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(GetCNElemID(GlobalElemID))) InsideFlag=.TRUE.
-          ELSE
-            IF (TriaTracking) THEN
-              CALL ParticleInsideQuad3D(RandomPos,GlobalElemID,InsideFlag,Det)
-            ELSE
-              CALL PartInElemCheck(RandomPos,iPart,GlobalElemID,InsideFlag)
-            END IF
-          END IF
+          InsideFlag = ParticleInsideCheck(RandomPos,iPart,GlobalElemID)
           IF (InsideFlag) THEN
             PartState(1:3,locnPart) = RandomPos(1:3)
             CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
@@ -268,6 +218,7 @@ END IF
 PDM%ParticleVecLength = PDM%ParticleVecLength + locnPart
 
 END SUBROUTINE MacroRestart_InsertParticles
+
 
 SUBROUTINE MacroRestart_InitializeParticle_Maxwell(iPart,iSpec,iElem)
 !===================================================================================================================================

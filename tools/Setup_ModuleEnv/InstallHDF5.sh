@@ -2,24 +2,45 @@
 
 #==============================================================================
 # title       : InstallHDF5.sh
-# description : This script installs HDF5 either for all compilers/mpi versions 
-#               found in a module env or for a specific compiler-mpi-combination 
+# description : This script installs HDF5 either for all compilers/mpi versions
+#               found in a module env or for a specific compiler-mpi-combination
 #               (also via module env)
 # date        : Nov 27, 2019
-# version     : 1.0   
+# version     : 1.0
 # usage       : bash InstallHDF5.sh [--help] [--rerun] [--modules]
-# notes       : Bash in run interactively via "-i" to use "module load/purge" 
+# notes       : Bash in run interactively via "-i" to use "module load/purge"
 #               commands
 #==============================================================================
+
+# Check privilege
+if [[ "$EUID" -ne 0 ]]; then
+  echo "Please run as root"
+  exit 1
+fi
 
 # --------------------------------------------------------------------------------------------------
 # Colors
 # --------------------------------------------------------------------------------------------------
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-CYAN='\e[37;44m'
-NC='\033[0m' # No Color
+
+if test -t 1; then # if terminal
+  NbrOfColors=$(which tput > /dev/null && tput colors) # supports color
+  if test -n "$NbrOfColors" && test $NbrOfColors -ge 8; then
+    TERMCOLS=$(tput cols)
+    BOLD="$(tput bold)"
+    UNDERLINE="$(tput smul)"
+    STANDOUT="$(tput smso)"
+    NORMAL="$(tput sgr0)"
+    NC="$(tput sgr0)"
+    BLACK="$(tput setaf 0)"
+    RED="$(tput setaf 1)"
+    GREEN="$(tput setaf 2)"
+    YELLOW="$(tput setaf 3)"
+    BLUE="$(tput setaf 4)"
+    MAGENTA="$(tput setaf 5)"
+    CYAN="$(tput setaf 6)"
+    WHITE="$(tput setaf 7)"
+  fi
+fi
 
 # --------------------------------------------------------------------------------------------------
 # Check command line arguments
@@ -42,8 +63,8 @@ do
   then
     LOADMODULES=0
     # Set desired versions
-    USECOMPILERVERSION=9.2.0
-    USEMPIVERSION=4.0.5
+    USECOMPILERVERSION=9.3.0
+    USEMPIVERSION=3.1.6
     # Force --rerun via 'set'
     echo ""
     echo "Running '-m' with GCC $USECOMPILERVERSION and  OpenMPI $USEMPIVERSION"
@@ -53,8 +74,8 @@ do
 done
 
 INSTALLDIR=/opt
-SOURCESDIR=/opt/Installsources
-TEMPLATEDIR=/opt/Installsources/moduletemplates
+SOURCESDIR=/opt/sources
+TEMPLATEDIR=/opt/sources/moduletemplates
 
 if [ ! -d "${SOURCESDIR}" ]; then
   mkdir -p ${SOURCESDIR}
@@ -63,13 +84,13 @@ fi
 # DOWNLOAD and INSTALL HDF5 for every compiler openmpi / mpich combination (example HDF5-1.8.18)
 #HDF5VERSION=1.8.18
 #HDF5VERSION=1.10.4
-HDF5VERSION=1.10.5
+HDF5VERSION=1.10.6
 
 HDF5DIR=${INSTALLDIR}'/hdf5/'${HDF5VERSION}
 
 COMPILERNAMES='gcc intel'
 for WHICHCOMPILER in ${COMPILERNAMES}; do
-  echo -e "$GREEN$WHICHCOMPILER ------------------------------------------------------------------------------$NC"
+  echo "${GREEN}$WHICHCOMPILER ------------------------------------------------------------------------------${NC}"
   if [ ! -d "${INSTALLDIR}/modules/modulefiles/compilers/${WHICHCOMPILER}" ]; then
     break
   fi
@@ -82,24 +103,24 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
     if [[ $LOADMODULES -eq 0 ]]; then
       COMPILERVERSION=$USECOMPILERVERSION
     fi
-    echo -e "$GREEN  $COMPILERVERSION ------------------------------------------------------------------------------$NC"
+    echo "${GREEN}  $COMPILERVERSION ------------------------------------------------------------------------------${NC}"
     if [ ! -e "${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}" ]; then
       mkdir -p ${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}
     fi
 
     #--- build hdf5 in single
     MODULEFILE=${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}/single
-    echo -e "$GREEN      Installing under: ${MODULEFILE}$NC"
+    echo "${GREEN}      Installing under: ${MODULEFILE}${NC}"
     if [[ -n ${1} ]]; then
       if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
         rm ${MODULEFILE}
       fi
     fi
     if [ ! -e "${MODULEFILE}" ]; then
-      echo -e "$GREEN    creating HDF5-${HDF5VERSION} library for ${WHICHCOMPILER}-${COMPILERVERSION} single$NC"
+      echo "${GREEN}    creating HDF5-${HDF5VERSION} library for ${WHICHCOMPILER}-${COMPILERVERSION} single${NC}"
       module purge
       if [[ -n $(module load ${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
-        echo -e "$RED      module ${WHICHCOMPILER}/${COMPILERVERSION} not found $NC"
+        echo "${RED}      module ${WHICHCOMPILER}/${COMPILERVERSION} not found ${NC}"
         break
       fi
       module load ${WHICHCOMPILER}/${COMPILERVERSION}
@@ -113,8 +134,8 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
         wget "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz"
       fi
       if [ ! -e "${SOURCESDIR}/hdf5-${HDF5VERSION}.tar.gz" ]; then
-        echo -e "$RED no hdf5 install-file downloaded for HDF5-${HDF5VERSION}$NC"
-        echo -e "$RED check if https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz exists$NC"
+        echo "${RED} no hdf5 install-file downloaded for HDF5-${HDF5VERSION}${NC}"
+        echo "${RED} check if https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz exists${NC}"
         break
       fi
       tar -xzf hdf5-${HDF5VERSION}.tar.gz hdf5-${HDF5VERSION}
@@ -122,7 +143,7 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
         mkdir -p ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/single
       fi
       if [[ ${1} =~ ^-r(erun)?$ ]] ; then
-        rm ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/single/* 
+        rm ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/single/*
       fi
       cd ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/single/
       if [ "${WHICHCOMPILER}" == "gcc" ]; then
@@ -133,7 +154,7 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
       make -j 2>&1 | tee make.out
       if [ ${PIPESTATUS[0]} -ne 0 ]; then
         echo " "
-        echo -e "$RED Failed: [make -j 2>&1 | tee make.out]$NC"
+        echo "${RED} Failed: [make -j 2>&1 | tee make.out]${NC}"
         exit
       else
         make install 2>&1 | tee install.out
@@ -142,15 +163,15 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
       cp ${TEMPLATEDIR}/libraries/hdf5/single_template ${MODULEFILE}
       sed -i 's/whichcompiler/'${WHICHCOMPILER}'/gI' ${MODULEFILE}
       sed -i 's/compilerversion/'${COMPILERVERSION}'/gI' ${MODULEFILE}
-      sed -i 's/hdf5version/'${HDF5VERSION}'/gI' ${MODULEFILE} 
+      sed -i 's/hdf5version/'${HDF5VERSION}'/gI' ${MODULEFILE}
     else
-      echo -e "$YELLOW""      HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} already created (module file exists)$NC"
+      echo "${YELLOW}      HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} already created (module file exists)${NC}"
     fi
 
     #--- build hdf5 with mpi
     MPINAMES='openmpi mpich'
     for WHICHMPI in ${MPINAMES}; do
-      echo -e "$GREEN    $WHICHMPI ------------------------------------------------------------------------------$NC"
+      echo "${GREEN}    $WHICHMPI ------------------------------------------------------------------------------${NC}"
       if [ ! -d "${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}" ]; then
         mkdir -p ${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}
       fi
@@ -166,9 +187,9 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
         if [[ $LOADMODULES -eq 0 ]]; then
           MPIVERSION=$USEMPIVERSION
         fi
-        echo -e "$GREEN    $MPIVERSION ------------------------------------------------------------------------------$NC"
+        echo "${GREEN}    $MPIVERSION ------------------------------------------------------------------------------${NC}"
         MODULEFILE=${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION}
-        echo -e "$GREEN      Installing under: ${MODULEFILE}$NC"
+        echo "${GREEN}      Installing under: ${MODULEFILE}${NC}"
         if [[ -n ${1} ]]; then
           if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
             rm ${MODULEFILE}
@@ -177,12 +198,12 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
         if [ ! -e "${MODULEFILE}" ]; then
           module purge
           if [[ -n $(module load ${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
-            echo -e "$RED      module ${WHICHCOMPILER}/${COMPILERVERSION} not found $NC"
+            echo "${RED}      module ${WHICHCOMPILER}/${COMPILERVERSION} not found ${NC}"
             break
           fi
           module load ${WHICHCOMPILER}/${COMPILERVERSION}
           if [[ -n $(module load ${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
-            echo -e "$RED      module ${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}/${COMPILERVERSION} not found $NC"
+            echo "${RED}      module ${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}/${COMPILERVERSION} not found ${NC}"
             break
           fi
           module load ${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}/${COMPILERVERSION}
@@ -191,14 +212,14 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
             mkdir -p ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION}
           fi
           if [[ ${1} =~ ^-r(erun)?$ ]] ; then
-            rm ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION}/* 
+            rm ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION}/*
           fi
           cd ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION}
           ${SOURCESDIR}/hdf5-${HDF5VERSION}/configure --prefix=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION} --with-pic --enable-fortran --enable-fortran2003 --disable-shared --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
           make -j 2>&1 | tee make.out
           if [ ${PIPESTATUS[0]} -ne 0 ]; then
             echo " "
-            echo -e "$RED""Failed: [make -j 2>&1 | tee make.out]$NC"
+            echo "${RED}Failed: [make -j 2>&1 | tee make.out]${NC}"
             exit
           else
             make install 2>&1 | tee install.out
@@ -206,11 +227,11 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
           cp ${TEMPLATEDIR}/libraries/hdf5/mpi_template ${MODULEFILE}
           sed -i 's/whichcompiler/'${WHICHCOMPILER}'/gI' ${MODULEFILE}
           sed -i 's/compilerversion/'${COMPILERVERSION}'/gI' ${MODULEFILE}
-          sed -i 's/hdf5version/'${HDF5VERSION}'/gI' ${MODULEFILE} 
+          sed -i 's/hdf5version/'${HDF5VERSION}'/gI' ${MODULEFILE}
           sed -i 's/whichmpi/'${WHICHMPI}'/gI' ${MODULEFILE}
           sed -i 's/mpiversion/'${MPIVERSION}'/gI' ${MODULEFILE}
         else
-          echo -e "$YELLOW""      HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} and ${WHICHMPI}-${MPIVERSION} already created (module file exists)$NC"
+          echo "${YELLOW}      HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} and ${WHICHMPI}-${MPIVERSION} already created (module file exists)${NC}"
           continue
         fi
       done

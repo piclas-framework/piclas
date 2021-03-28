@@ -459,7 +459,7 @@ FUNCTION GetInterpolatedFieldPartPos(ElemID,PartID)
 ! Evaluate the electro-(magnetic) field using the reference position and return the field
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: PartPosRef,PDM,PartState,PEM
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
@@ -490,9 +490,9 @@ NotMappedSurfFluxParts=DoSurfaceFlux !Surfaceflux particles inserted before inte
 #endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
 
 ! Check if reference position is required
-IF(NotMappedSurfFluxParts .AND.DoRefMapping)THEN
+IF(NotMappedSurfFluxParts .AND.(TrackingMethod.EQ.REFMAPPING))THEN
   IF(PDM%dtFracPush(PartID)) CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef_loc(1:3),ElemID)
-ELSEIF(.NOT.DoRefMapping)THEN
+ELSEIF(TrackingMethod.NE.REFMAPPING)THEN
   CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef_loc(1:3),ElemID)
 ELSE
   PartPosRef_loc(1:3) = PartPosRef(1:3,PartID)

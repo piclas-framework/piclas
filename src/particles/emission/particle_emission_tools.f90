@@ -912,19 +912,16 @@ SUBROUTINE SetCellLocalParticlePosition(chunkSize,iSpec,iInit,UseExactPartNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
-USE MOD_Particle_Localization  ,ONLY: PartInElemCheck
-USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
-USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
-USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry, VarTimeStep, PartMPF
-USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
+USE MOD_Particle_Mesh_Vars      ,ONLY: LocalVolume
+USE MOD_Particle_Mesh_Vars      ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
+USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM, Symmetry, VarTimeStep, PartMPF
+USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -944,8 +941,6 @@ INTEGER                          :: iPart,  nPart
 REAL                             :: iRan, RandomPos(3)
 REAL                             :: PartDens
 LOGICAL                          :: InsideFlag
-REAL                             :: Det(6,2)
-REAL                             :: RefPos(1:3)
 INTEGER                          :: CellChunkSize(1+offsetElem:nElems+offsetElem)
 INTEGER                          :: chunkSize_tmp, ParticleIndexNbr
 REAL                             :: adaptTimestep
@@ -1007,18 +1002,7 @@ __STAMP__,&
             END IF
             IF(Symmetry%Order.LE.2) RandomPos(3) = 0.
             IF(Symmetry%Order.LE.1) RandomPos(2) = 0.
-
-            SELECT CASE(TrackingMethod)
-              CASE(TRIATRACKING)
-                CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
-
-              CASE(TRACING)
-                CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
-
-              CASE(REFMAPPING)
-                CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-                IF (MAXVAL(ABS(RefPos)).LE.ElemEpsOneCell(CNElemID)) InsideFlag=.TRUE.
-            END SELECT
+            InsideFlag = ParticleInsideCheck(RandomPos,iPart,iElem)
           END DO
           PartState(1:3,ParticleIndexNbr) = RandomPos(1:3)
           PDM%ParticleInside(ParticleIndexNbr) = .TRUE.

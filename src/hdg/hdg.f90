@@ -1613,17 +1613,17 @@ SUBROUTINE RestartHDG(U_out)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
-USE MOD_Elem_Mat          ,ONLY:PostProcessGradient
-USE MOD_Basis              ,ONLY: getSPDInverse, GetInverse
+USE MOD_Elem_Mat      ,ONLY: PostProcessGradient
+USE MOD_Basis         ,ONLY: getSPDInverse
 #if USE_MPI
 USE MOD_MPI_Vars
 #endif /*USE_MPI*/
 #if (PP_nVar==1)
-USE MOD_Equation_Vars,     ONLY:E
+USE MOD_Equation_Vars ,ONLY: E
 #elif (PP_nVar==3)
-USE MOD_Equation_Vars,     ONLY:B
+USE MOD_Equation_Vars ,ONLY: B
 #else
-USE MOD_Equation_Vars,     ONLY:B, E
+USE MOD_Equation_Vars ,ONLY: B, E
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

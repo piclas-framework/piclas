@@ -696,7 +696,7 @@ USE MOD_Part_RHS               ,ONLY: PartRHS
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 USE MOD_Globals_Vars           ,ONLY: c2_inv
-USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_Particle_Tracking_vars ,ONLY: TrackingMethod
 USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
 USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
 USE MOD_Particle_TriaTracking  ,ONLY: ParticleTriaTracking
@@ -800,15 +800,16 @@ CALL IRecvNbofParticles() ! input value: which list:PartLambdaAccept or PDM%Part
 CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
-IF(DoRefMapping)THEN
+SELECT CASE(TrackingMethod)
+CASE(REFMAPPING)
   CALL ParticleRefTracking(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
-ELSE
-  IF (TriaTracking) THEN
-    CALL ParticleTriaTracking(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
-  ELSE
-    CALL ParticleTracing(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
-  END IF
-END IF
+CASE(TRACING)
+  CALL ParticleTracing(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
+CASE(TRIATRACKING)
+  CALL ParticleTriaTracking(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
+CASE DEFAULT
+  CALL abort(__STAMP__,'TrackingMethod not implemented! TrackingMethod =',IntInfoOpt=TrackingMethod)
+END SELECT
 
 DO iPart=1,PDM%ParticleVecLength
   IF(.NOT.PDM%ParticleInside(iPart))THEN
@@ -994,15 +995,16 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles() ! input value: which list:PartLambdaAccept or PDM%ParticleInisde?
 #endif /*USE_MPI*/
-  IF(DoRefMapping)THEN
+  SELECT CASE(TrackingMethod)
+  CASE(REFMAPPING)
     CALL ParticleRefTracking(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
-  ELSE
-    IF (TriaTracking) THEN
-      CALL ParticleTriaTracking(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
-    ELSE
-      CALL ParticleTracing(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
-    END IF
-  END IF
+  CASE(TRACING)
+    CALL ParticleTracing(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
+  CASE(TRIATRACKING)
+    CALL ParticleTriaTracking(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
+  CASE DEFAULT
+    CALL abort(__STAMP__,'TrackingMethod not implemented! TrackingMethod =',IntInfoOpt=TrackingMethod)
+  END SELECT
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PDM%ParticleInside(iPart))THEN
       DoPartInNewton(iPart)=.FALSE.
