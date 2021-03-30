@@ -18,9 +18,10 @@ def int_to_Roman(num):
 
 ### USER INPUT BEGIN
 # Output of the HDF5 database
-hdf = h5py.File('Electronic_State_Database.h5', 'a')
+hdf = h5py.File('Electronic-State-Database.h5', 'a')
 # Species list to be included in the output database
-species_list = ['H']
+#species_list = ['H']
+species_list = ['Xe','XeIon1','XeIon2']
 ### USER INPUT END
 
 # Base URL of the query
