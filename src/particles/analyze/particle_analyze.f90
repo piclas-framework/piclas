@@ -101,7 +101,7 @@ CALL prms%CreateLogicalOption(  'CalcTotalEnergy'         , 'Calculate Total Ene
 CALL prms%CreateLogicalOption(  'PIC-VerifyCharge'        , 'Validate the charge after each deposition'//&
                                                             'and write an output in std.out','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcIonizationDegree'    , 'Compute the ionization degree in each cell','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcPointsPerShapeFunction','Compute the points per shape function in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPointsPerShapeFunction','Compute the average number of interpolation points that are used for the shape function in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPlasmaParameter'     ,'Compute the plasma parameter N_D in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPointsPerDebyeLength', 'Compute the points per Debye length in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPICCFLCondition'     , 'Compute a PIC CFL condition for each cell','.FALSE.')
@@ -216,6 +216,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared_Win
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared_Win
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared_Win
 #endif /*USE_MPI*/
+USE MOD_PICDepo_Vars          ,ONLY: DepositionType,SFElemr2_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -226,7 +227,7 @@ INTEGER       :: dir, VeloDirs_hilf(4),iElem
 REAL          :: DOF,VolumeShapeFunction
 CHARACTER(32) :: hilf
 INTEGER       :: iSpec
-INTEGER       :: offsetElemCNProc
+INTEGER       :: offsetElemCNProc,CNElemID
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #else
@@ -244,23 +245,51 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE ANALYZE...'
 ! Average number of points per shape function: max. number allowed is (PP_N+1)^3
 CalcPointsPerShapeFunction = GETLOGICAL('CalcPointsPerShapeFunction','.FALSE.')
 IF(CalcPointsPerShapeFunction)THEN
-  ! calculate cell local number excluding neighbor DOFs
+  ! PPSCell:
+  ! Points per shape function sphere (cell mean value): Calculate cell local number excluding neighbor DOFs
   ALLOCATE( PPSCell(1:PP_nElems) )
   PPSCell=0.0
   CALL AddToElemData(ElementOut,'PPSCell',RealArray=PPSCell(1:PP_nElems))
-  ! assume Cartesian grid and calculate to total number including neighbor DOFs
+
+  ! PPSCellEqui:
+  ! Points per shape function sphere (cell mean value): Assume Cartesian grid and calculate to total number including neighbor DOFs
   ALLOCATE( PPSCellEqui(1:PP_nElems) )
   PPSCellEqui=0.0
   CALL AddToElemData(ElementOut,'PPSCellEqui',RealArray=PPSCellEqui(1:PP_nElems))
-  !
-  VolumeShapeFunction = 4./3.*PI*(r_sf**3)
-  CALL PrintOption('VolumeShapeFunction','OUTPUT',RealOpt=VolumeShapeFunction)
-  DOF                 = REAL((PP_N+1)**3)
-  CALL PrintOption('Max DOFs in Shape-Function per cell','OUTPUT',RealOpt=DOF)
-  DO iElem = 1, nElems
-    PPSCell(iElem)     = MIN(1.,VolumeShapeFunction/ElemVolume_Shared(GetCNElemID(iElem+offSetElem))) * DOF
-    PPSCellEqui(iElem) =       (VolumeShapeFunction/ElemVolume_Shared(GetCNElemID(iElem+offSetElem))) * DOF
-  END DO ! iElem = 1, nElems
+
+  ! DOF per element in 3D
+  DOF = REAL((PP_N+1)**3)
+  ! Depending on type of shape function, calculate global shape function volume or separate for each cell
+  IF(TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
+    ! ShapeFunctionRadius: Create additional array (radius is already stored in the shared array) for output to .h5 (debugging)
+    ALLOCATE( ShapeFunctionRadius(1:PP_nElems) )
+    ShapeFunctionRadius=0.0
+    CALL AddToElemData(ElementOut,'ShapeFunctionRadius',RealArray=ShapeFunctionRadius(1:PP_nElems))
+
+    ! ShapeFunctioFraction: Element to shape function volume ratio
+    ALLOCATE( ShapeFunctionFraction(1:PP_nElems) )
+    ShapeFunctionFraction=0.0
+    CALL AddToElemData(ElementOut,'ShapeFunctionFraction',RealArray=ShapeFunctionFraction(1:PP_nElems))
+
+    ! Loop over all elems and calculate shape function volume for each element separately
+    DO iElem = 1, nElems
+      CNElemID                     = GetCNElemID(iElem+offSetElem) ! iElem + offSetElem = globElemID
+      ShapeFunctionRadius(iElem)   = SFElemr2_Shared(1,CNElemID)
+      VolumeShapeFunction          = 4./3.*PI*(ShapeFunctionRadius(iElem)**3)
+      ShapeFunctionFraction(iElem) = (VolumeShapeFunction /ElemVolume_Shared(CNElemID))
+      PPSCell(iElem)               = MIN(1.,VolumeShapeFunction/ElemVolume_Shared(CNElemID)) * DOF
+      PPSCellEqui(iElem)           =       (VolumeShapeFunction/ElemVolume_Shared(CNElemID)) * DOF
+    END DO ! iElem = 1, nElems
+  ELSE
+    VolumeShapeFunction = 4./3.*PI*(r_sf**3)
+    CALL PrintOption('VolumeShapeFunction','OUTPUT',RealOpt=VolumeShapeFunction)
+    CALL PrintOption('Max DOFs in Shape-Function per cell','OUTPUT',RealOpt=DOF)
+    DO iElem = 1, nElems
+      CNElemID           = GetCNElemID(iElem+offSetElem) ! iElem + offSetElem = globElemID
+      PPSCell(iElem)     = MIN(1.,VolumeShapeFunction/ElemVolume_Shared(CNElemID)) * DOF
+      PPSCellEqui(iElem) =       (VolumeShapeFunction/ElemVolume_Shared(CNElemID)) * DOF
+    END DO ! iElem = 1, nElems
+  END IF ! TRIM(DepositionType).EQ.'shape_function_adaptive'
 END IF
 
 !--------------------------------------------------------------------------------------------------------------------
