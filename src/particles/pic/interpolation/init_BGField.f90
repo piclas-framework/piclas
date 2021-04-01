@@ -85,14 +85,14 @@ USE MOD_SuperB                ,ONLY: SuperB
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                 :: nVar_BField,N_in,nElems_BGField
-CHARACTER(LEN=255)                      :: BGFileName,NodeType_BGField
+CHARACTER(LEN=255)                      :: BGFileName,NodeType_BGField,BGFieldName
 CHARACTER(LEN=40)                       :: DefaultValue
 CHARACTER(LEN=255),ALLOCATABLE          :: VarNames(:)
 REAL,ALLOCATABLE                        :: BGField_tmp(:,:,:,:,:), Vdm_BGFieldIn_BGField(:,:)
 REAL,ALLOCATABLE                        :: xGP_tmp(:),wBary_tmp(:),wGP_tmp(:)
 INTEGER                                 :: iElem,i,j,k
 REAL                                    :: BGFieldScaling
-LOGICAL                                 :: BGFieldExists
+LOGICAL                                 :: BGFieldExists,DG_SolutionExists
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(132("-"))')
@@ -124,14 +124,18 @@ ELSE
   BGFieldScaling = GETREAL('PIC-BGFieldScaling','1.')
   ! 2b) Read-in the parameters from the BGField file
   CALL OpenDataFile(BGFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-  CALL DatasetExists(File_ID,'BGField',BGFieldExists)
+  CALL DatasetExists(File_ID,'BGField',BGFieldExists) ! backward compatibility
+  CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
   IF(BGFieldExists) THEN
-    CALL GetDataProps('BGField',nVar_BField,N_in,nElems_BGField,NodeType_BGField)
+    BGFieldName = 'BGField'
+  ELSEIF(DG_SolutionExists) THEN
+    BGFieldName = 'DG_Solution'
   ELSE
     CALL abort(&
       __STAMP__&
       ,' ERROR Background Field: BGField container was not found in the given file!')
   END IF
+  CALL GetDataProps(TRIM(BGFieldName) , nVar_BField , N_in , nElems_BGField , NodeType_BGField)
 END IF
 
 ! 3) Initialize the background field arrays, depending on the selected order and the node type
@@ -192,11 +196,11 @@ ELSE
         OffsetElem    => INT(OffsetElem,IK) )
     IF(NBG.EQ.N_IN)THEN
       ALLOCATE(BGField(1:BGDataSize,0:NBG,0:NBG,0:NBG,1:PP_nElems))
-      CALL ReadArray('BGField',5,(/BGdatasize,N_in+1_IK,N_in+1_IK,N_in+1_IK,PP_nElems/),OffsetElem,5,RealArray=BGField)
+      CALL ReadArray(TRIM(BGFieldName),5,(/BGdatasize,N_in+1_IK,N_in+1_IK,N_in+1_IK,PP_nElems/),OffsetElem,5,RealArray=BGField)
     ELSE
       ALLOCATE(BGField_tmp(1:BGDataSize,0:N_in,0:N_in,0:N_in,1:PP_nElems))
       ALLOCATE(BGField(1:BGDataSize,0:NBG,0:NBG,0:NBG,1:PP_nElems))
-      CALL ReadArray('BGField',5,(/BGdatasize,N_in+1_IK,N_in+1_IK,N_in+1_IK,PP_nElems/),OffsetElem,5,RealArray=BGField_tmp)
+      CALL ReadArray(TRIM(BGFieldName),5,(/BGdatasize,N_in+1_IK,N_in+1_IK,N_in+1_IK,PP_nElems/),OffsetElem,5,RealArray=BGField_tmp)
     END IF
   END ASSOCIATE
 
