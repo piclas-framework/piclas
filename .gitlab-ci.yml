@@ -517,6 +517,13 @@ WEK_PIC_maxwell:
     - cd build
     - python ./reggie/reggie.py ../regressioncheck/checks/WEK_PIC_maxwell
 
+WEK_PIC_poisson:
+  <<: *defaults_weekly
+  stage: reggie_weekly
+  script:
+    - cd build
+    - python ./reggie/reggie.py ../regressioncheck/checks/WEK_PIC_poisson
+
 WEK_DSMC:
   <<: *defaults_weekly
   stage: reggie_weekly
