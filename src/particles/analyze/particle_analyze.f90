@@ -276,10 +276,21 @@ IF(CalcPointsPerShapeFunction)THEN
       CNElemID                     = GetCNElemID(iElem+offSetElem) ! iElem + offSetElem = globElemID
       ShapeFunctionRadius(iElem)   = SFElemr2_Shared(1,CNElemID)
       VolumeShapeFunction          = 4./3.*PI*(ShapeFunctionRadius(iElem)**3)
-      ShapeFunctionFraction(iElem) = (VolumeShapeFunction /ElemVolume_Shared(CNElemID))
+      ShapeFunctionFraction(iElem) = (VolumeShapeFunction/ElemVolume_Shared(CNElemID))
       PPSCell(iElem)               = MIN(1.,VolumeShapeFunction/ElemVolume_Shared(CNElemID)) * DOF
       PPSCellEqui(iElem)           =       (VolumeShapeFunction/ElemVolume_Shared(CNElemID)) * DOF
+      IF(PPSCellEqui(iElem).GT.4./3.*PI*(PP_N+1)**3)THEN
+        IPWRITE(UNIT_StdOut,*) "PPSCellEqui(iElem)                      =", PPSCellEqui(iElem)
+        IPWRITE(UNIT_StdOut,*) "maximum allowed is 4./3.*PI*(PP_N+1)**3 =", 4./3.*PI*(PP_N+1)**3
+        CALL abort(__STAMP__,'PPSCellEqui(iElem) > 4./3.*PI*(PP_N+1)**3 is not allowed')
+        IPWRITE(UNIT_StdOut,*) "Reduce the number of DOF/SF in order to have no DOF outside of the deposition range (neighbour elems)"
+      END IF ! PPSCellEqui(iElem).GT.4./3.*PI*(PP_N+1)**3
     END DO ! iElem = 1, nElems
+    ! WRITE (*,*) "PP_N                   =", PP_N
+    ! WRITE (*,*) "ShapeFunctionRadius(1) =", ShapeFunctionRadius(1)
+    ! WRITE (*,*) "PPSCell(1)             =", PPSCell(1)            
+    ! WRITE (*,*) "PPSCellEqui(1)         =", PPSCellEqui(1)
+    ! read*
   ELSE
     VolumeShapeFunction = 4./3.*PI*(r_sf**3)
     CALL PrintOption('VolumeShapeFunction','OUTPUT',RealOpt=VolumeShapeFunction)
@@ -4146,6 +4157,8 @@ SDEALLOCATE(ElectronTemperatureCell)
 SDEALLOCATE(PlasmaFrequencyCell)
 SDEALLOCATE(PPSCell)
 SDEALLOCATE(PPSCellEqui)
+SDEALLOCATE(ShapeFunctionRadius)
+SDEALLOCATE(ShapeFunctionFraction)
 IF(CalcCoupledPower) THEN
   DO iSpec = 1, nSpecies
     SDEALLOCATE(PCouplSpec(iSpec)%DensityAvgElem)

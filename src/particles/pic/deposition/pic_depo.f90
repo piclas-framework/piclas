@@ -96,6 +96,8 @@ USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 USE MOD_ReadInTools            ,ONLY: PrintOption
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared,ElemToElemMapping,ElemToElemInfo
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 #if USE_MPI
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank,MPI_COMM_LEADERS_SHARED
@@ -129,7 +131,9 @@ INTEGER                   :: TestElemID
 LOGICAL,ALLOCATABLE       :: NodeDepoMapping(:,:)
 INTEGER                   :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1),firstNode,lastNode
 #endif
-REAL                      :: dimFactorSF
+REAL                      :: dimFactorSF,middist
+LOGICAL                   :: ElemDone
+INTEGER                   :: ppp,globElemID
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
@@ -455,6 +459,12 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   r2_sf = r_sf * r_sf  ! Radius squared
   r2_sf_inv = 1./r2_sf ! Inverse of radius squared
 
+
+
+
+
+
+
   ! Initialize auxiliary variables
   hilf_geo='volume'
   hilf_dim='3D'
@@ -514,6 +524,12 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
     END IF ! dim_sf.EQ.1
   END IF ! dim_sf.EQ.3
 
+
+
+
+
+
+
   ! Output info regarding charge distribution and points per shape function resolution
   ASSOCIATE(nTotalDOFin3D             => nGlobalElems*(PP_N+1)**3   ,&
             VolumeShapeFunctionSphere => 4./3.*PI*r_sf**3           )
@@ -535,9 +551,9 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
       IF(VolumeShapeFunction.GT.MeshVolume)THEN
         CALL PrintOption('Mesh volume ('//TRIM(hilf_dim)//')', 'CALCUL.' , RealOpt=MeshVolume)
         WRITE(UNIT_stdOut,'(A)') ' Maybe wrong perpendicular direction (PIC-shapefunction-direction)?'
-        CALL abort(&
-        __STAMP__&
-        ,'ShapeFunctionVolume > MeshVolume ('//TRIM(hilf_dim)//' shape function)')
+        !CALL abort(&
+        !__STAMP__&
+        !,'ShapeFunctionVolume > MeshVolume ('//TRIM(hilf_dim)//' shape function)')
       END IF
     END IF
     IF(dim_sf.NE.3)THEN
@@ -547,6 +563,14 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
     CALL PrintOption('Average DOFs in Shape-Function (corresponding 3D sphere)' , 'CALCUL.' , RealOpt=&
          REAL(nTotalDOFin3D)*VolumeShapeFunctionSphere/MeshVolume)
   END ASSOCIATE
+
+
+
+
+  !write(*,*) 'shape_function_adaptive'
+  !read*
+
+
 
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive') THEN
 #if USE_MPI
@@ -564,27 +588,59 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 #if USE_MPI
     IF (myComputeNodeRank.EQ.0) THEN
 #endif
-    SFElemr2_Shared   = HUGE(1.)
+    SFElemr2_Shared = HUGE(1.)
 #if USE_MPI
     END IF
     CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
     CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif
     DO iElem = firstElem,lastElem
+      ElemDone = .FALSE.
+
+      ! Calculate the average distance from the ElemMidPoint to all 8 corners
+      middist = 0.0
       DO iNode = 1, 8
         NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
-        UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
-        DO jElem = 1, NodeToElemMapping(2,UniqueNodeID)
-          NbElemID = NodeToElemInfo(NodeToElemMapping(1,UniqueNodeID)+jElem)
-          DO jNode = 1, 8
-            NeighNonUniqueNodeID = ElemNodeID_Shared(jNode,NbElemID)
-            NeighUniqueNodeID = NodeInfo_Shared(NeighNonUniqueNodeID)
-            IF (UniqueNodeID.EQ.NeighUniqueNodeID) CYCLE
-            r_sf_tmp = VECNORM(NodeCoords_Shared(1:3,NonUniqueNodeID)-NodeCoords_Shared(1:3,NeighNonUniqueNodeID))
-            IF (r_sf_tmp.LT.SFElemr2_Shared(1,iElem)) SFElemr2_Shared(1,iElem) = r_sf_tmp
-          END DO
-        END DO
+        middist = middist + VECNORM(ElemMidPoint_Shared(1:3,iElem)-NodeCoords_Shared(1:3,NonUniqueNodeID))
       END DO
+      ! Scale the influence of my own cell (starting from 8. and the higher the number, the smaller the weight of the own cell)
+      !middist = middist / 16.   ! => r = 1.3*L
+      !middist = middist / 8.    ! => r = 0.8*L
+      !middist = middist / 12.   ! => r = 1.1*L
+      middist = middist / 10.524 ! => r = 1.0*L (when using 2.0 / (PP_N+1.) as scaling factor)
+      !middist = 0.
+
+      DO ppp = 1,ElemToElemMapping(2,iElem)
+        globElemID = GetGlobalElemID(ElemToElemInfo(ElemToElemMapping(1,iElem)+ppp))
+        NbElemID = GetCNElemID(globElemID)
+        Nodeloop: DO jNode = 1, 8
+          NeighNonUniqueNodeID = ElemNodeID_Shared(jNode,NbElemID)
+          NeighUniqueNodeID = NodeInfo_Shared(NeighNonUniqueNodeID)
+          DO iNode = 1, 8
+            NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
+            UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
+            IF (UniqueNodeID.EQ.NeighUniqueNodeID) CYCLE Nodeloop
+          END DO
+          ElemDone =.TRUE.
+          r_sf_tmp = VECNORM(ElemMidPoint_Shared(1:3,iElem)-NodeCoords_Shared(1:3,NeighNonUniqueNodeID))
+          IF (r_sf_tmp.LT.SFElemr2_Shared(1,iElem)) SFElemr2_Shared(1,iElem) = r_sf_tmp
+        END DO Nodeloop
+      END DO
+      IF (.NOT.ElemDone) THEN
+        DO iNode = 1, 8
+          NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
+          r_sf_tmp = VECNORM(ElemMidPoint_Shared(1:3,iElem)-NodeCoords_Shared(1:3,NonUniqueNodeID))
+          IF (r_sf_tmp.LT.SFElemr2_Shared(1,iElem)) SFElemr2_Shared(1,iElem) = r_sf_tmp
+        END DO
+      END IF
+      SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) - middist
+      !SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 1.0 / (PP_N+1.)
+      SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 2.0 / (PP_N+1.)  ! max for N=1 gives 33.5
+      !SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 3.0 / (PP_N+1.) ! max for N=2 gives 113
+      !SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 4.0 / (PP_N+1.) ! max for N=3 gives 268
+      !SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 5.0 / (PP_N+1.) ! max for N=4 gives 524
+      !SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 6.0 / (PP_N+1.) ! max for N=5 gives 095
+      !SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 2.5 / (PP_N+1.)
       SFElemr2_Shared(2,iElem) = SFElemr2_Shared(1,iElem)*SFElemr2_Shared(1,iElem)
     END DO
 #if USE_MPI
@@ -593,25 +649,21 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 #endif
   END IF
 
-  !ALLOCATE(PartToFIBGM(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-  !IF (ALLOCSTAT.NE.0) CALL abort(&
-  !    __STAMP__&
-  !    ' Cannot allocate PartToFIBGM!')
-  !ALLOCATE(ExtPartToFIBGM(1:6,1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
-  !IF (ALLOCSTAT.NE.0) THEN
-  !  CALL abort(__STAMP__&
-  !    ' Cannot allocate ExtPartToFIBGM!')
+  !VolumeShapeFunction=4./3.*PI*r_sf**3
+  !nTotalDOF=nGlobalElems*(PP_N+1)**3
+  !IF(MPIRoot)THEN
+    !IF(VolumeShapeFunction.GT.MeshVolume) &
+      !CALL abort(&
+      !__STAMP__&
+      !,'ShapeFunctionVolume > MeshVolume')
+  !END IF
 
-  VolumeShapeFunction=4./3.*PI*r_sf**3
-  nTotalDOF=nGlobalElems*(PP_N+1)**3
-  IF(MPIRoot)THEN
-    IF(VolumeShapeFunction.GT.MeshVolume) &
-      CALL abort(&
-      __STAMP__&
-      ,'ShapeFunctionVolume > MeshVolume')
-  END IF
+  !CALL PrintOption('Average DOFs in Shape-Function','CALCUL.',RealOpt=REAL(nTotalDOF)*VolumeShapeFunction/MeshVolume)
 
-  CALL PrintOption('Average DOFs in Shape-Function','CALCUL.',RealOpt=REAL(nTotalDOF)*VolumeShapeFunction/MeshVolume)
+  !read*
+
+
+
 
   ! --- build periodic case matrix for shape-function-deposition
   IF (GEO%nPeriodicVectors.GT.0) THEN
@@ -672,12 +724,20 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
     PeriodicSFCaseMatrix(:,:) = 0
   END IF
 
+
+
+
+
   ! --- Set element flag for cycling already completed elements
 #if USE_MPI
   ALLOCATE(ChargeSFDone(1:nComputeNodeTotalElems))
 #else
   ALLOCATE(ChargeSFDone(1:nElems))
 #endif /*USE_MPI*/
+
+
+
+
 
 CASE DEFAULT
   CALL abort(&
