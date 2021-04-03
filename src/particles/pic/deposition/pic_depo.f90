@@ -640,18 +640,23 @@ END SUBROUTINE InitShapeFunctionDimensionalty
 SUBROUTINE InitShapeFunctionAdaptive()
 ! MODULES
 USE MOD_Preproc
-USE MOD_Globals            ,ONLY: UNIT_stdOut,MPIRoot,abort,IERROR,MPI_ADDRESS_KIND,VECNORM
-USE MOD_PICDepo_Vars       ,ONLY: SFAdaptiveDOF,SFElemr2_Shared,SFElemr2_Shared_Win
+USE MOD_Globals            ,ONLY: UNIT_stdOut,abort,IERROR,VECNORM
+USE MOD_PICDepo_Vars       ,ONLY: SFAdaptiveDOF,SFElemr2_Shared
 USE MOD_ReadInTools        ,ONLY: GETREAL
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemMidPoint_Shared,ElemToElemMapping,ElemToElemInfo
 USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
-USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
-USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
+#if USE_MPI
+USE MOD_PICDepo_Vars       ,ONLY: SFElemr2_Shared_Win
+USE MOD_Globals            ,ONLY: MPIRoot,MPI_ADDRESS_KIND
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank,MPI_COMM_SHARED
 USE MOD_MPI_Shared
+#else
+USE MOD_Mesh_Vars          ,ONLY: nElems
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -664,7 +669,9 @@ LOGICAL                        :: ElemDone
 INTEGER                        :: ppp,globElemID
 REAL                           :: r_sf_tmp
 INTEGER                        :: iElem,firstElem,lastElem,jNode,NbElemID,NeighNonUniqueNodeID
+#if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
+#endif /*USE_MPI*/
 !===================================================================================================================================
 ! Set the number of DOF/SF
 SFAdaptiveDOF = GETREAL('PIC-shapefunction-adaptive-DOF')
