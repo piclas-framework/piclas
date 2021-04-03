@@ -286,11 +286,6 @@ IF(CalcPointsPerShapeFunction)THEN
         CALL abort(__STAMP__,'PPSCellEqui(iElem) > (4./3.)*PI*(PP_N+1)**3 is not allowed')
       END IF ! PPSCellEqui(iElem).GT.4./3.*PI*(PP_N+1)**3
     END DO ! iElem = 1, nElems
-    ! WRITE (*,*) "PP_N                   =", PP_N
-    ! WRITE (*,*) "ShapeFunctionRadius(1) =", ShapeFunctionRadius(1)
-    ! WRITE (*,*) "PPSCell(1)             =", PPSCell(1)            
-    ! WRITE (*,*) "PPSCellEqui(1)         =", PPSCellEqui(1)
-    ! read*
   ELSE
     VolumeShapeFunction = 4./3.*PI*(r_sf**3)
     CALL PrintOption('VolumeShapeFunction','OUTPUT',RealOpt=VolumeShapeFunction)

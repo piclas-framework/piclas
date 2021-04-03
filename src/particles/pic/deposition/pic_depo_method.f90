@@ -95,7 +95,7 @@ USE MOD_Globals
 USE MOD_ReadInTools            ,ONLY: GETINTFROMSTR
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_ReadInTools            ,ONLY: GETREAL
+USE MOD_ReadInTools            ,ONLY: GETREAL,PrintOption
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -137,7 +137,15 @@ END SELECT
 
 ! If shape function is used, the radius must be read here as it is used for the BGM setup
 IF(StringBeginsWith(DepositionType,'shape_function'))THEN
-  r_sf = GETREAL('PIC-shapefunction-radius')
+  IF(TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
+    ! When using shape function adaptive, the radius is scaled as such that only the direct element neighbours are considered for
+    ! deposition (all corner node connected elements) and each element has a separate shape function radius. Therefore, the global
+    ! radius is set to zero
+    r_sf = 0.
+    CALL PrintOption('Global shape fucntion radius is set to zero: PIC-shapefunction-radius' , 'INFO.' , RealOpt=r_sf)
+  ELSE
+    r_sf = GETREAL('PIC-shapefunction-radius')
+  END IF ! TRIM(DepositionType).EQ.'shape_function_adaptive'
 END IF ! StringBeginsWith(DepositionType,'shape_function')
 
 ! Suppress compiler warnings

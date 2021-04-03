@@ -324,9 +324,7 @@ END IF
 
 ! Set logical for building node neighbourhood
 SELECT CASE(TRIM(DepositionType))
-  CASE('cell_volweight_mean')
-    FindNeighbourElems = .TRUE.
-  CASE('shape_function_adaptive')
+  CASE('cell_volweight_mean','shape_function_adaptive')
     FindNeighbourElems = .TRUE.
   CASE DEFAULT
     FindNeighbourElems = .FALSE.
