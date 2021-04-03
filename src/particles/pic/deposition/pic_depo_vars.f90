@@ -27,7 +27,7 @@ LOGICAL                         :: DoDeposition              ! flag to switch de
 LOGICAL                         :: RelaxDeposition           ! relaxation of current PartSource with RelaxFac into PartSourceOld
 REAL                            :: RelaxFac
 
-REAL,ALLOCPOINT                 :: PartSource(:,:,:,:,:)     ! PartSource(1:4,PP_N,PP_N,PP_N,nComputeNodeTotalElems) containing 
+REAL,ALLOCPOINT                 :: PartSource(:,:,:,:,:)     ! PartSource(1:4,PP_N,PP_N,PP_N,nComputeNodeTotalElems) containing
 !                                                            ! current and charge density source terms for Maxwell/Poisson systems
 !                                                            ! Access array with CNElemID = GetCNElemID(GlobalElemID)
 !                                                            !                            = GetCNElemID(iElem+offSetElem)
@@ -48,6 +48,10 @@ CHARACTER(LEN=256)              :: DepositionType            ! Type of Depositio
 INTEGER,ALLOCATABLE             :: PartToFIBGM(:,:)          ! Mapping form Particle to FIBGM
 REAL,ALLOCATABLE                :: ElemRadius2_sf(:)         ! elem radius plus radius_sf
 REAL, ALLOCATABLE               :: BGMSource(:,:,:,:)
+REAL                            :: SFAdaptiveDOF             ! Average number of DOF in shape function radius (assuming a Cartesian
+!                                                            ! grid with equal elements). Only implemented for PIC-Deposition-Type =
+!                                                            ! shape_function_adaptive (2). The maximum number of DOF is limited by
+!                                                            ! the polynomial degree and is (4/3)*Pi*(N+1)^3. Default is 33.
 REAL                            :: r_sf                      ! cutoff radius of shape function
 REAL                            :: r2_sf                     ! cutoff radius of shape function * cutoff radius of shape function
 REAL                            :: r2_sf_inv                 ! 1/cutoff radius of shape function * cutoff radius of shape function

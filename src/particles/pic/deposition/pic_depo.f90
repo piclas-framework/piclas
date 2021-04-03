@@ -66,6 +66,9 @@ CALL prms%CreateLogicalOption(  'PIC-shapefunction-3D-deposition' ,'Deposit the 
 CALL prms%CreateRealOption(     'PIC-shapefunction-radius0', 'Minimum shape function radius (for cylindrical and spherical)', '1.')
 CALL prms%CreateRealOption(     'PIC-shapefunction-scale'  , 'Scaling factor of shape function radius '//&
                                                              '(for cylindrical and spherical)', '0.')
+CALL prms%CreateRealOption(     'PIC-shapefunction-adaptive-DOF'  ,'Average number of DOF in shape function radius (assuming a '//&
+    'Cartesian grid with equal elements). Only implemented for PIC-Deposition-Type = shape_function_adaptive (2). The maximum '//&
+    'number of DOF is limited by the polynomial degree and is (4/3)*Pi*(N+1)^3', '33.')
 
 END SUBROUTINE DefineParametersPICDeposition
 
@@ -131,7 +134,7 @@ INTEGER                   :: TestElemID
 LOGICAL,ALLOCATABLE       :: NodeDepoMapping(:,:)
 INTEGER                   :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1),firstNode,lastNode
 #endif
-REAL                      :: dimFactorSF,middist
+REAL                      :: dimFactorSF,middist,SFDepoScaling
 LOGICAL                   :: ElemDone
 INTEGER                   :: ppp,globElemID
 !===================================================================================================================================
@@ -573,6 +576,16 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 
 
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive') THEN
+    ! Set the number of DOF/SF
+    SFAdaptiveDOF = GETREAL('PIC-shapefunction-adaptive-DOF')
+    IF(SFAdaptiveDOF.GT.(4./3.)*PI*(PP_N+1)**3)THEN
+      IPWRITE(UNIT_StdOut,*) "Maximum allowed is 4./3.*PI*(PP_N+1)**3 =", (4./3.)*PI*(PP_N+1)**3
+      CALL abort(__STAMP__,'PIC-shapefunction-adaptive-DOF > 4./3.*PI*(PP_N+1)**3 is not allowed')
+      IPWRITE(UNIT_StdOut,*) "Reduce the number of DOF/SF in order to have no DOF outside of the deposition range (neighbour elems)"
+    ELSE
+      SFDepoScaling = (3.*SFAdaptiveDOF/(4.*PI))**(1./3.)
+    END IF
+
 #if USE_MPI
     firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
     lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
@@ -635,19 +648,21 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
       END IF
       SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) - middist
       !SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 1.0 / (PP_N+1.)
-      SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 2.0 / (PP_N+1.)  ! max for N=1 gives 33.5
-      !SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 3.0 / (PP_N+1.) ! max for N=2 gives 113
-      !SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 4.0 / (PP_N+1.) ! max for N=3 gives 268
-      !SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 5.0 / (PP_N+1.) ! max for N=4 gives 524
-      !SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 6.0 / (PP_N+1.) ! max for N=5 gives 095
+      !SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 2.0 / (PP_N+1.)  ! max for N=1, always gives 33.5
+      !SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 3.0 / (PP_N+1.) ! max for N=2, always gives 113
+      !SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 4.0 / (PP_N+1.) ! max for N=3, always gives 268
+      !SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 5.0 / (PP_N+1.) ! max for N=4, always gives 524
+      !SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 6.0 / (PP_N+1.) ! max for N=5, always gives 095
       !SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * 2.5 / (PP_N+1.)
+
+      SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * SFDepoScaling / (PP_N+1.)
       SFElemr2_Shared(2,iElem) = SFElemr2_Shared(1,iElem)*SFElemr2_Shared(1,iElem)
     END DO
 #if USE_MPI
     CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
     CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif
-  END IF
+  END IF ! TRIM(DepositionType).EQ.'shape_function_adaptive'
 
   !VolumeShapeFunction=4./3.*PI*r_sf**3
   !nTotalDOF=nGlobalElems*(PP_N+1)**3

@@ -199,8 +199,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, VarTimeStep, PDM, usevMPF
-USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
-USE MOD_PICDepo_Vars          ,ONLY: r_sf
+USE MOD_PICDepo_Vars          ,ONLY: DoDeposition,SFAdaptiveDOF,r_sf,DepositionType,SFElemr2_Shared
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
 USE MOD_ReadInTools           ,ONLY: PrintOption
 #if (PP_TimeDiscMethod == 42)
@@ -216,7 +215,6 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared_Win
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared_Win
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared_Win
 #endif /*USE_MPI*/
-USE MOD_PICDepo_Vars          ,ONLY: DepositionType,SFElemr2_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -279,11 +277,13 @@ IF(CalcPointsPerShapeFunction)THEN
       ShapeFunctionFraction(iElem) = (VolumeShapeFunction/ElemVolume_Shared(CNElemID))
       PPSCell(iElem)               = MIN(1.,VolumeShapeFunction/ElemVolume_Shared(CNElemID)) * DOF
       PPSCellEqui(iElem)           =       (VolumeShapeFunction/ElemVolume_Shared(CNElemID)) * DOF
-      IF(PPSCellEqui(iElem).GT.4./3.*PI*(PP_N+1)**3)THEN
-        IPWRITE(UNIT_StdOut,*) "PPSCellEqui(iElem)                      =", PPSCellEqui(iElem)
-        IPWRITE(UNIT_StdOut,*) "maximum allowed is 4./3.*PI*(PP_N+1)**3 =", 4./3.*PI*(PP_N+1)**3
-        CALL abort(__STAMP__,'PPSCellEqui(iElem) > 4./3.*PI*(PP_N+1)**3 is not allowed')
-        IPWRITE(UNIT_StdOut,*) "Reduce the number of DOF/SF in order to have no DOF outside of the deposition range (neighbour elems)"
+      IF(PPSCellEqui(iElem).GT.(4./3.)*PI*(PP_N+1)**3)THEN
+        IPWRITE(UNIT_StdOut,'(I0,A,F10.2)') " PPSCellEqui(iElem)                                        =", PPSCellEqui(iElem)
+        IPWRITE(UNIT_StdOut,'(I0,A,I3,A,F10.2)') " For N =",PP_N,", the maximum allowed is (4./3.)*PI*(PP_N+1)**3 =",&
+                                                                                                       (4./3.)*PI*(PP_N+1)**3
+        IPWRITE(UNIT_StdOut,'(I0,A,F10.2)') " Reduce the number of DOF/SF in order to have no DOF outside of the deposition "//&
+            "range (neighbour elems) by changing\n  PIC-shapefunction-adaptive-DOF, which is currently set to =", SFAdaptiveDOF
+        CALL abort(__STAMP__,'PPSCellEqui(iElem) > (4./3.)*PI*(PP_N+1)**3 is not allowed')
       END IF ! PPSCellEqui(iElem).GT.4./3.*PI*(PP_N+1)**3
     END DO ! iElem = 1, nElems
     ! WRITE (*,*) "PP_N                   =", PP_N
