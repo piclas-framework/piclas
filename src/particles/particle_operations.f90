@@ -130,7 +130,8 @@ SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 !>  !!!NOTE!!! This routine is inside particle analyze because of circular definition of modules (CalcEkinPart)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, UseAdaptive, PartMPF, usevMPF
+USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, PartMPF, usevMPF
+USE MOD_Particle_Sampling_Vars    ,ONLY: UseAdaptive
 USE MOD_Particle_Vars             ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance
 USE MOD_Particle_Analyze_Vars     ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcMassflowRate
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput,BPO

@@ -84,7 +84,7 @@ USE MOD_Restart_Vars           ,ONLY: RestartFile
 #ifdef PARTICLES
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PartSource
-USE MOD_Particle_Vars          ,ONLY: UseAdaptive
+USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5, PartBound
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
@@ -2028,7 +2028,8 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems
-USE MOD_Particle_Vars          ,ONLY: nSpecies, AdaptBCMacroVal
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2042,10 +2043,9 @@ CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255)             :: H5_Name
 CHARACTER(LEN=255)             :: SpecID
 INTEGER                        :: nVar
-INTEGER                        :: iElem,iVar,iSpec
+INTEGER                        :: iElem,iVar,iSpec,SampleElemID
 REAL,ALLOCATABLE               :: AdaptiveData(:,:,:)
 !===================================================================================================================================
-
 
 nVar = 7
 iVar = 1
@@ -2072,12 +2072,13 @@ END IF
 ALLOCATE(AdaptiveData(nVar,nSpecies,nElems))
 AdaptiveData = 0.
 DO iElem = 1,nElems
-  AdaptiveData(1,:,iElem) = AdaptBCMacroVal(DSMC_VELOX,iElem,:)
-  AdaptiveData(2,:,iElem) = AdaptBCMacroVal(DSMC_VELOY,iElem,:)
-  AdaptiveData(3,:,iElem) = AdaptBCMacroVal(DSMC_VELOZ,iElem,:)
-  AdaptiveData(4,:,iElem) = AdaptBCMacroVal(4,iElem,:)
-  ! Porous BC parameter (5: Pumping capacity [m3/s], 6: Static pressure [Pa], 7: Integral pressure difference [Pa])
-  AdaptiveData(5:7,:,iElem) = AdaptBCMacroVal(5:7,iElem,:)
+  SampleElemID = AdaptBCMapElemToSample(iElem)
+  IF(SampleElemID.GT.0) THEN
+    ! Sample values (1-3: Velocity vector [m/s], 4: Number density [1/m3])
+    AdaptiveData(1:4,:,iElem) = AdaptBCMacroVal(1:4,SampleElemID,:)
+    ! Porous BC parameter (5: Pumping capacity [m3/s], 6: Static pressure [Pa], 7: Integral pressure difference [Pa])
+    AdaptiveData(5:7,:,iElem) = AdaptBCMacroVal(5:7,SampleElemID,:)
+  END IF
 END DO
 
 WRITE(H5_Name,'(A)') 'AdaptiveInfo'

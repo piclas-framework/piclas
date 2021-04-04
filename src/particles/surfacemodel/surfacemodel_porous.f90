@@ -102,9 +102,8 @@ SUBROUTINE InitPorousBoundaryCondition()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Tools     ,ONLY: GetRadialDistance2D
-USE MOD_Mesh_Vars                   ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
-USE MOD_Particle_Vars               ,ONLY: nSpecies,Symmetry
+USE MOD_Particle_Vars               ,ONLY: Symmetry
 USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC, PorousBC
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound, nPorousSides, MapSurfSideToPorousSide_Shared, PorousBCSampWall
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCInfo_Shared,PorousBCProperties_Shared,PorousBCSampWall_Shared
@@ -454,13 +453,14 @@ USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC, PorousBC
 USE MOD_SurfaceModel_Analyze_Vars   ,ONLY: CalcPorousBCInfo, PorousBCOutput
 USE MOD_Particle_Boundary_Vars      ,ONLY: nPorousSides, PorousBCProperties_Shared, PorousBCInfo_Shared, SampWallPumpCapacity
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCSampWall, PorousBCSampWall_Shared
-USE MOD_Particle_Vars               ,ONLY: Species, nSpecies, AdaptBCMacroVal, usevMPF, VarTimeStep
-USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
-USE MOD_Timedisc_Vars,          ONLY:dt
+USE MOD_Particle_Vars               ,ONLY: Species, nSpecies, usevMPF, VarTimeStep
+USE MOD_Particle_Sampling_Vars      ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
+USE MOD_Particle_VarTimeStep        ,ONLY: CalcVarTimeStep
+USE MOD_Timedisc_Vars               ,ONLY: dt
 USE MOD_Particle_Mesh_Vars
-USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 #if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank, MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
+USE MOD_MPI_Shared_Vars             ,ONLY: myComputeNodeRank, MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -470,7 +470,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: LocalElemID,CNElemID,GlobalElemID,SurfSideID,GlobalSideID,iPorousSide,iPBC
+INTEGER                       :: LocalElemID,CNElemID,GlobalElemID,SurfSideID,GlobalSideID,iPorousSide,iPBC,SampleElemID
 REAL                          :: PumpingSpeedTemp,DeltaPressure,partWeight,SumPartPorousBC,dtVar
 REAL                          :: SumPartImpinged(nPorousBC)
 !===================================================================================================================================
@@ -524,10 +524,11 @@ DO iPorousSide = 1, nPorousSides
   ! Only treat your proc-local elements
   IF ((GlobalElemID.LT.1+offSetElem).OR.(GlobalElemID.GT.nElems+offSetElem)) CYCLE
   LocalElemID = GlobalElemID - offsetElem
+  SampleElemID = AdaptBCMapElemToSample(LocalElemID)
   iPBC = PorousBCInfo_Shared(1,iPorousSide)
   SumPartPorousBC = SumPartImpinged(iPBC)
   ! Skip element if number density is zero
-  IF(SUM(AdaptBCMacroVal(4,LocalElemID,1:nSpecies)).EQ.0.0) CYCLE
+  IF(SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies)).EQ.0.0) CYCLE
   ! Get the correct time step of the cell
   IF(VarTimeStep%UseVariableTimeStep) THEN
     dtVar = dt * CalcVarTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), LocalElemID)
@@ -537,19 +538,19 @@ DO iPorousSide = 1, nPorousSides
   ! Determine the removal probability based on the pumping speed (adaptive to a target pressure or fixed)
   IF((PorousBC(iPBC)%DeltaPumpingSpeedKp.GT.0.).OR.(PorousBC(iPBC)%DeltaPumpingSpeedKi.GT.0.)) THEN
     ! a) Determining the delta between current gas mixture pressure in adjacent cell and target pressure
-    DeltaPressure = SUM(AdaptBCMacroVal(6,LocalElemID,1:nSpecies))-PorousBC(iPBC)%Pressure
+    DeltaPressure = SUM(AdaptBCMacroVal(6,SampleElemID,1:nSpecies))-PorousBC(iPBC)%Pressure
     ! Integrating the pressure difference (only utilized later if DeltaPumpingSpeedKi was given)
     IF(PorousBCProperties_Shared(2,iPorousSide).GT.0.0) THEN
-      AdaptBCMacroVal(7,LocalElemID,1) = AdaptBCMacroVal(7,LocalElemID,1) + DeltaPressure * dtVar
+      AdaptBCMacroVal(7,SampleElemID,1) = AdaptBCMacroVal(7,SampleElemID,1) + DeltaPressure * dtVar
     ELSE
-      AdaptBCMacroVal(7,LocalElemID,1) = 0.0
+      AdaptBCMacroVal(7,SampleElemID,1) = 0.0
     END IF
     ! b) Adapting the pumping capacity (m^3/s) according to pressure difference (control through proportional and integral part)
     PumpingSpeedTemp = PorousBCProperties_Shared(2,iPorousSide) + PorousBC(iPBC)%DeltaPumpingSpeedKp * DeltaPressure &
-        + PorousBC(iPBC)%DeltaPumpingSpeedKi * AdaptBCMacroVal(7,LocalElemID,1)
+        + PorousBC(iPBC)%DeltaPumpingSpeedKi * AdaptBCMacroVal(7,SampleElemID,1)
     ! c) Calculate the removal probability if any particles hit the pump
     IF(SumPartPorousBC.GT.0) THEN
-      PorousBCProperties_Shared(1,iPorousSide) = PumpingSpeedTemp*SUM(AdaptBCMacroVal(4,LocalElemID,1:nSpecies)) &
+      PorousBCProperties_Shared(1,iPorousSide) = PumpingSpeedTemp*SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies)) &
                                                       * dtVar / (SumPartPorousBC*partWeight)
     ELSE
       PorousBCProperties_Shared(1,iPorousSide) = 0.0
@@ -559,7 +560,7 @@ DO iPorousSide = 1, nPorousSides
       PorousBCProperties_Shared(1,iPorousSide) = 1.0
       ! Setting pumping speed to maximum value (alpha=1)
       PorousBCProperties_Shared(2,iPorousSide) = SumPartPorousBC*partWeight &
-                                                    / (SUM(AdaptBCMacroVal(4,LocalElemID,1:nSpecies))*dtVar)
+                                                    / (SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies))*dtVar)
     ELSE IF(PorousBCProperties_Shared(1,iPorousSide).LE.0.0) THEN
       PorousBCProperties_Shared(1,iPorousSide) = 0.0
       ! Avoiding negative pumping speeds
@@ -572,24 +573,24 @@ DO iPorousSide = 1, nPorousSides
     ! Constant given pumping speed
     IF(SumPartPorousBC.GT.0) THEN
       PorousBCProperties_Shared(1,iPorousSide) = PorousBCProperties_Shared(2,iPorousSide) &
-                      * SUM(AdaptBCMacroVal(4,LocalElemID,1:nSpecies)) * dtVar / (SumPartPorousBC*partWeight)
+                      * SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies)) * dtVar / (SumPartPorousBC*partWeight)
     ELSE
       PorousBCProperties_Shared(1,iPorousSide) = 0.0
     END IF
   END IF
   ! Storing the pumping speed for the restart state file
-  AdaptBCMacroVal(5,LocalElemID,1) = PorousBCProperties_Shared(2,iPorousSide)
+  AdaptBCMacroVal(5,SampleElemID,1) = PorousBCProperties_Shared(2,iPorousSide)
   ! e) Sampling of the pumping capacity (and other variables for PartAnalyze) for the output
   ! -------- Sampling for output in DSMCSurfState --------------------------------------------------------------------------------
   IF(DSMC%CalcSurfaceVal) THEN
     SampWallPumpCapacity(SurfSideID) = SampWallPumpCapacity(SurfSideID) + PorousBCSampWall_Shared(2,iPorousSide) &
-                                                * partWeight / (SUM(AdaptBCMacroVal(4,LocalElemID,1:nSpecies))*dtVar)
+                                                * partWeight / (SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies))*dtVar)
   END IF
   ! -------- Sampling for output in PartAnalyze ----------------------------------------------------------------------------------
   IF(CalcPorousBCInfo) THEN
     ! Sampling the actual instantaneous pumping speed S (m^3/s) through the number of deleted particles  (-PumpSpeed-Measure-)
     PorousBCOutput(2,iPBC) = PorousBCOutput(2,iPBC) + PorousBCSampWall_Shared(2,iPorousSide) * PartWeight &
-                                                          / (SUM(AdaptBCMacroVal(4,LocalElemID,1:nSpecies))*dtVar)
+                                                          / (SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies))*dtVar)
     IF(PorousBCSampWall_Shared(1,iPorousSide).GT.0) THEN
       ! Counting only sides, where a particle hit the pump
       PorousBCOutput(1,iPBC) = PorousBCOutput(1,iPBC) + 1.
@@ -598,7 +599,7 @@ DO iPorousSide = 1, nPorousSides
       ! Removal probability
       PorousBCOutput(4,iPBC) = PorousBCOutput(4,iPBC) + PorousBCProperties_Shared(1,iPorousSide)
       ! Normalized pressure at the pump
-      PorousBCOutput(5,iPBC) = PorousBCOutput(5,iPBC) + SUM(AdaptBCMacroVal(6,LocalElemID,1:nSpecies)) / PorousBC(iPBC)%Pressure
+      PorousBCOutput(5,iPBC) = PorousBCOutput(5,iPBC) + SUM(AdaptBCMacroVal(6,SampleElemID,1:nSpecies)) / PorousBC(iPBC)%Pressure
     END IF
   END IF
 END DO    ! iPorousSide = 1, nPorousSides

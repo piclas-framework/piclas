@@ -86,13 +86,14 @@ USE MOD_Particle_Vars          ,ONLY: DoImportIMDFile
 #if USE_MPI
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /*USE_MPI*/
-USE MOD_Particle_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter, UseAdaptive
+USE MOD_Particle_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
+USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
 #if (USE_MPI) && (USE_LOADBALANCE) && defined(PARTICLES)
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_LoadBalance_Vars       ,ONLY: ElemTimePart
 #endif /* USE_LOADBALANCE && PARTICLES*/
-USE MOD_Part_Emission          ,ONLY: AdaptiveBCAnalyze
+USE MOD_Particle_Sampling_Adapt,ONLY: AdaptiveBCSampling
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -362,7 +363,7 @@ DO !iter_t=0,MaxIter
   CALL PerformAnalyze(time,FirstOrLastIter=finalIter,OutPutHDF5=.FALSE.)
 #ifdef PARTICLES
   ! sampling of near adaptive boundary element values
-  IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL AdaptiveBCAnalyze()
+  IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL AdaptiveBCSampling()
 #endif /*PARICLES*/
   ! output of state file
   !IF ((dt.EQ.tAnalyzeDiff).OR.(dt.EQ.tEndDiff)) THEN   ! timestep is equal to time to analyze or end

@@ -277,14 +277,15 @@ USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
 USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
-USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies,UseAdaptive
+USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
+USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptive
 USE MOD_Restart_Vars               ,ONLY: DoRestart
 USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
 USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
 USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
 USE MOD_Particle_Mesh_Vars         ,ONLY: GEO
-USE MOD_Part_Emission              ,ONLY: AdaptiveBCAnalyze
+USE MOD_Particle_Sampling_Adapt    ,ONLY: InitAdaptiveBCSampling
 USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundaryRotPeriodic, InitAdaptiveWallTemp
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
@@ -349,6 +350,9 @@ END IF
 ! Initialize porous boundary condition (requires BCdata_auxSF and SurfMesh from InitParticleBoundarySampling)
 IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 
+! Allocate sampling of near adaptive boundary element values
+IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL InitAdaptiveBCSampling()
+
 IF (useDSMC) THEN
   CALL InitDSMC()
   CALL InitSurfaceModel()
@@ -370,11 +374,6 @@ END IF
 ! has to be called AFTER InitializeVariables and InitDSMC
 CALL InitParticleCommSize()
 #endif
-
-! sampling of near adaptive boundary element values in the first time step to get initial distribution for porous BC
-IF(.NOT.DoRestart) THEN
-  ! IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL AdaptiveBCAnalyze(initSampling_opt=.TRUE.)
-END IF
 
 ParticlesInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLES DONE!'
@@ -1319,7 +1318,7 @@ END DO
 END SUBROUTINE InitialIonization
 
 
-SUBROUTINE FinalizeParticles(IsLoadBalance)
+SUBROUTINE FinalizeParticles()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! finalize particle variables
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1327,21 +1326,15 @@ SUBROUTINE FinalizeParticles(IsLoadBalance)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Vars
+USE MOD_Particle_Sampling_Vars
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
-USE MOD_Mesh_Vars              ,ONLY: offsetElem, nElems, nGlobalElems
-USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_MPI_Halo      ,ONLY: FinalizePartExchangeProcs
 USE MOD_PICDepo_Vars           ,ONLY: SendShapeElemID,SendElemShapeID,ShapeMapping,CNShapeMapping
 #endif /*USE_MPI*/
-!#if USE_MPI
-!USE MOD_Particle_MPI_Emission      ,ONLY: FinalizeEmissionParticlesToProcs
-!#endif
-!USE MOD_DSMC_Vars,                  ONLY: SampDSMC
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
-LOGICAL                         :: IsLoadBalance
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1392,23 +1385,6 @@ SDEALLOCATE(PDM%IsNewPart)
 SDEALLOCATE(vMPF_SpecNumElem)
 SDEALLOCATE(PartMPF)
 SDEALLOCATE(Species)
-SDEALLOCATE(AdaptBCMacroVal)
-SDEALLOCATE(AdaptBCSample)
-#if USE_MPI
-IF(AdaptBCTruncAverage) THEN
-  IF(IsLoadBalance) THEN
-    IF(.NOT.ALLOCATED(AdaptBCAverageGlobal)) THEN
-      ALLOCATE(AdaptBCAverageGlobal(1:8,1:AdaptBCSampIter,1:nGlobalElems,1:nSpecies))
-      AdaptBCAverageGlobal = 0.
-    END IF
-    AdaptBCAverageGlobal(1:8,1:AdaptBCSampIter,offsetElem+1:offsetElem+nElems,1:nSpecies) = AdaptBCAverage(1:8,1:AdaptBCSampIter,1:nElems,1:nSpecies)
-    CALL MPI_ALLREDUCE(MPI_IN_PLACE,AdaptBCAverageGlobal,8*AdaptBCSampIter*nGlobalElems*nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_SHARED,IERROR)
-  ELSE
-    SDEALLOCATE(AdaptBCAverageGlobal)
-  END IF
-END IF
-#endif /*USE_MPI*/
-SDEALLOCATE(AdaptBCAverage)
 SDEALLOCATE(SpecReset)
 SDEALLOCATE(IMDSpeciesID)
 SDEALLOCATE(IMDSpeciesCharge)

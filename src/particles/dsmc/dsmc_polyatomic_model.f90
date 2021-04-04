@@ -184,7 +184,8 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpecies, iInit, iPart, init_
 USE MOD_Globals               ,ONLY: Abort
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
-USE MOD_Particle_Vars         ,ONLY: AdaptBCMacroVal, PEM, Species
+USE MOD_Particle_Vars         ,ONLY: PEM, Species
+USE MOD_Particle_Sampling_Vars,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
 USE MOD_DSMC_ElectronicModel  ,ONLY: InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -213,7 +214,8 @@ SELECT CASE (init_or_sf)
           TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
           TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
         CASE(2) ! adaptive Outlet/freestream
-          TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure / (BoltzmannConst * AdaptBCMacroVal(4,ElemID,iSpecies))
+          TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
+                  / (BoltzmannConst * AdaptBCMacroVal(4,AdaptBCMapElemToSample(ElemID),iSpecies))
           TRot = TVib
         CASE DEFAULT
           CALL abort(&

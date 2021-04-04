@@ -387,7 +387,8 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
 USE MOD_Globals                 ,ONLY: abort
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn, SpecDSMC, DSMC
-USE MOD_Particle_Vars           ,ONLY: Species, PEM, AdaptBCMacroVal
+USE MOD_Particle_Vars           ,ONLY: Species, PEM
+USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
 USE MOD_DSMC_ElectronicModel    ,ONLY: InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -420,7 +421,8 @@ IF ((SpecDSMC(iSpecies)%InterID.EQ.2).OR.(SpecDSMC(iSpecies)%InterID.EQ.20)) THE
           TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
           TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
         CASE(2) ! adaptive Outlet/freestream
-          TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure / (BoltzmannConst * AdaptBCMacroVal(4,ElemID,iSpecies))
+          TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
+                  / (BoltzmannConst * AdaptBCMacroVal(4,AdaptBCMapElemToSample(ElemID),iSpecies))
           TRot = TVib
         CASE DEFAULT
           CALL abort(&
