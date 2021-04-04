@@ -422,36 +422,31 @@ CASE('cell_volweight_mean')
     CALL GetVandermonde(1, NodeTypeVISU, PP_N, NodeType, Vdm_EQ_N, modal=.FALSE.)
   END IF ! DoDielectricSurfaceCharge
 
-
-!  ! Additional source for cell_volweight_mean (external or surface charge)
-!  IF(DoDielectricSurfaceCharge)THEN
-!    ALLOCATE(NodeSourceExt(1:nNodes))
-!    NodeSourceExt = 0.0
-!    ALLOCATE(NodeSourceExtTmp(1:nNodes))
-!    NodeSourceExtTmp = 0.0
-!  END IF ! DoDielectricSurfaceCharge
 CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
+
+  ! Get shape function exponent and dimension (1D, 2D or 3D)
   alpha_sf = GETINT('PIC-shapefunction-alpha')
   dim_sf   = GETINT('PIC-shapefunction-dimension')
+
   ! Get shape function direction for 1D (the direction in which the charge will be distributed) and 2D (the direction in which the
   ! charge will be constant)
   dim_sf_dir = GETINT('PIC-shapefunction-direction')
-  ! Distribute the charge over the volume (3D) or line (1D)/area (2D): default is TRUE
+
+  ! Get deposition parameter, the default is TRUE (3D), that distributes the charge over
+  !  FALSE: line (1D) / area (2D)
+  !   TRUE: volume (3D)
   sfDepo3D = GETLOGICAL('PIC-shapefunction-3D-deposition')
 
-  ! Set shape function dimension (1D, 2D or 3D)
+  ! --- Set shape function dimension (1D, 2D or 3D)
   CALL InitShapeFunctionDimensionalty()
 
-  ! Set shape function radius in each cell or use global radius
+  ! --- Set shape function radius in each cell or use global radius
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive') THEN
     CALL InitShapeFunctionAdaptive()
-    w_sf  = 1.0
-  ELSE
-    r2_sf = r_sf * r_sf  ! Radius squared
-    r2_sf_inv = 1./r2_sf ! Inverse of radius squared
+    w_sf  = 1.0 ! set dummy value
   END IF
 
-  ! --- Init periodic case matrix for shape-function-deposition
+  ! --- Set periodic case matrix for shape function deposition (virtual displacement of particles in the periodic directions)
   CALL InitPeriodicSFCaseMatrix()
 
   ! --- Set element flag for cycling already completed elements
@@ -490,7 +485,7 @@ SUBROUTINE InitShapeFunctionDimensionalty()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals            ,ONLY: UNIT_stdOut,MPIRoot,abort
-USE MOD_PICDepo_Vars       ,ONLY: dim_sf,BetaFac,w_sf,r_sf,r2_sf,alpha_sf,dim_sf_dir,sfDepo3D,dim_sf_dir1,dim_sf_dir2
+USE MOD_PICDepo_Vars       ,ONLY: dim_sf,BetaFac,w_sf,r_sf,r2_sf,r2_sf_inv,alpha_sf,dim_sf_dir,sfDepo3D,dim_sf_dir1,dim_sf_dir2
 USE MOD_PICDepo_Vars       ,ONLY: DepositionType
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,MeshVolume
 USE MOD_ReadInTools        ,ONLY: PrintOption
@@ -509,6 +504,12 @@ INTEGER                   :: nTotalDOF
 REAL                      :: dimFactorSF
 REAL                      :: VolumeShapeFunction
 !===================================================================================================================================
+! 0. Set global radius squared and the inverse of that
+IF(.NOT.TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
+  r2_sf = r_sf * r_sf  ! Radius squared
+  r2_sf_inv = 1./r2_sf ! Inverse of radius squared
+END IF
+
 ! 1. Initialize auxiliary variables
 hilf_geo='volume'
 WRITE(UNIT=hilf_dim,FMT='(I0)') dim_sf

@@ -702,7 +702,6 @@ USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_FPFlow_Vars            ,ONLY: FP_MaxRelaxFactor,FP_MaxRotRelaxFactor,FP_MeanRelaxFactor,FP_MeanRelaxFactorCounter
 USE MOD_FPFlow_Vars            ,ONLY: FP_PrandtlNumber,FPInitDone
 USE MOD_Particle_Analyze_Vars
-USE MOD_Particle_Mesh_Vars     ,ONLY: MeshVolume
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_Particle_Vars          ,ONLY: Species,nSpecies,usevMPF
 USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
@@ -710,6 +709,7 @@ USE MOD_Restart_Vars           ,ONLY: RestartTime,DoRestart
 USE MOD_TimeDisc_Vars          ,ONLY: iter, dt, IterDisplayStep
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+USE MOD_Particle_Mesh_Vars     ,ONLY: MeshVolume
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars              ,ONLY: BGGas
 #endif
