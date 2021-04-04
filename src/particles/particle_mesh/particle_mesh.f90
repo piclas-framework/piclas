@@ -146,7 +146,9 @@ USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID,GetGlo
 USE MOD_Mesh_Vars              ,ONLY: deleteMeshPointer,NodeCoords
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
 USE MOD_Mesh_Vars              ,ONLY: useCurveds
+#if USE_MPI
 USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
+#endif /*USE_MPI*/
 USE MOD_Particle_BGM           ,ONLY: BuildBGMAndIdentifyHaloRegion
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Tools    ,ONLY: InitPEM_LocalElemID,InitPEM_CNElemID,GetMeshMinMax,IdentifyElemAndSideType
@@ -348,7 +350,7 @@ SELECT CASE(TrackingMethod)
     IF (DoDeposition) CALL BuildEpsOneCell()
 
 CASE(TRACING,REFMAPPING)
-    IF(TriaSurfaceFlux) CALL InitParticleGeometry()
+    IF(TriaSurfaceFlux.OR.TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitParticleGeometry()
     IF(FindNeighbourElems) CALL InitElemNodeIDs()
 
 !    CALL CalcParticleMeshMetrics()
@@ -498,11 +500,14 @@ SUBROUTINE FinalizeParticleMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
+#if USE_MPI
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
+#endif /*USE_MPI*/
 USE MOD_Particle_BGM           ,ONLY: FinalizeBGM
 USE MOD_Particle_Mesh_Readin   ,ONLY: FinalizeMeshReadin
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,Distance,ListDistance,PartStateLost
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 #if USE_MPI
 USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
@@ -511,7 +516,6 @@ USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
-USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -536,6 +540,13 @@ SELECT CASE (TrackingMethod)
     ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+
+    ! InitParticleGeometry()
+    IF(TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
+      CALL UNLOCK_AND_FREE(ConcaveElemSide_Shared_Win)
+      CALL UNLOCK_AND_FREE(ElemSideNodeID_Shared_Win)
+      CALL UNLOCK_AND_FREE(ElemMidPoint_Shared_Win)
+    END IF ! TRIM(DepositionType).EQ.'shape_function_adaptive'
 
     ! BuildSideOriginAndRadius()
     IF (TrackingMethod.EQ.REFMAPPING) THEN
@@ -737,11 +748,6 @@ SELECT CASE (TrackingMethod)
     END IF !PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
-    ! InitParticleGeometry
-    ADEALLOCATE(ConcaveElemSide_Shared)
-    ADEALLOCATE(ElemSideNodeID_Shared)
-    ADEALLOCATE(ElemMidPoint_Shared)
-
     ! BuildElementRadiusTria
     ADEALLOCATE(ElemBaryNGeo_Shared)
     ADEALLOCATE(ElemRadius2NGEO_Shared)
@@ -801,6 +807,11 @@ SDEALLOCATE(ListDistance)
 SDEALLOCATE(PartStateLost)
 SDEALLOCATE(ElemTolerance)
 SDEALLOCATE(ElemToGlobalElemID)
+
+! InitParticleGeometry
+ADEALLOCATE(ConcaveElemSide_Shared)
+ADEALLOCATE(ElemSideNodeID_Shared)
+ADEALLOCATE(ElemMidPoint_Shared)
 
 ParticleMeshInitIsDone=.FALSE.
 
