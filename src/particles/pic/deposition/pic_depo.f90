@@ -641,22 +641,23 @@ END SUBROUTINE InitShapeFunctionDimensionalty
 SUBROUTINE InitShapeFunctionAdaptive()
 ! MODULES
 USE MOD_Preproc
-USE MOD_Globals            ,ONLY: UNIT_stdOut,abort,IERROR,VECNORM
-USE MOD_PICDepo_Vars       ,ONLY: SFAdaptiveDOF,SFElemr2_Shared
-USE MOD_ReadInTools        ,ONLY: GETREAL
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
-USE MOD_Globals_Vars       ,ONLY: PI
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemMidPoint_Shared,ElemToElemMapping,ElemToElemInfo
-USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
-USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
+USE MOD_Globals                     ,ONLY: UNIT_stdOut,abort,IERROR
+USE MOD_PICDepo_Vars                ,ONLY: SFAdaptiveDOF,SFElemr2_Shared
+USE MOD_ReadInTools                 ,ONLY: GETREAL
+USE MOD_Particle_Mesh_Vars          ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
+USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
+USE MOD_Globals_Vars                ,ONLY: PI
+USE MOD_Particle_Mesh_Vars          ,ONLY: ElemMidPoint_Shared,ElemToElemMapping,ElemToElemInfo
+USE MOD_Mesh_Tools                  ,ONLY: GetGlobalElemID
+USE MOD_Particle_Mesh_Vars          ,ONLY: NodeCoords_Shared
+USE MOD_PICDepo_Shapefunction_Tools ,ONLY: SFNorm
 #if USE_MPI
-USE MOD_PICDepo_Vars       ,ONLY: SFElemr2_Shared_Win
-USE MOD_Globals            ,ONLY: MPIRoot,MPI_ADDRESS_KIND
-USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank,MPI_COMM_SHARED
+USE MOD_PICDepo_Vars                ,ONLY: SFElemr2_Shared_Win
+USE MOD_Globals                     ,ONLY: MPIRoot,MPI_ADDRESS_KIND
+USE MOD_MPI_Shared_Vars             ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank,MPI_COMM_SHARED
 USE MOD_MPI_Shared
 #else
-USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_Mesh_Vars                   ,ONLY: nElems
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -716,7 +717,7 @@ DO iElem = firstElem,lastElem
   middist = 0.0
   DO iNode = 1, 8
     NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
-    middist = middist + VECNORM(ElemMidPoint_Shared(1:3,iElem)-NodeCoords_Shared(1:3,NonUniqueNodeID))
+    middist = middist + SFNorm(ElemMidPoint_Shared(1:3,iElem)-NodeCoords_Shared(1:3,NonUniqueNodeID))
   END DO
   ! Scale the influence of my own cell (starting from 8. and the higher the number, the smaller the weight of the own cell)
   middist = middist / 10.524 ! 10.524 is tuned to achieve a radius of r = 1.0*L (when using 2.0 / (PP_N+1.) as scaling factor),
@@ -734,14 +735,14 @@ DO iElem = firstElem,lastElem
         IF (UniqueNodeID.EQ.NeighUniqueNodeID) CYCLE Nodeloop
       END DO
       ElemDone =.TRUE.
-      r_sf_tmp = VECNORM(ElemMidPoint_Shared(1:3,iElem)-NodeCoords_Shared(1:3,NeighNonUniqueNodeID))
+      r_sf_tmp = SFNorm(ElemMidPoint_Shared(1:3,iElem)-NodeCoords_Shared(1:3,NeighNonUniqueNodeID))
       IF (r_sf_tmp.LT.SFElemr2_Shared(1,iElem)) SFElemr2_Shared(1,iElem) = r_sf_tmp
     END DO Nodeloop
   END DO
   IF (.NOT.ElemDone) THEN
     DO iNode = 1, 8
       NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
-      r_sf_tmp = VECNORM(ElemMidPoint_Shared(1:3,iElem)-NodeCoords_Shared(1:3,NonUniqueNodeID))
+      r_sf_tmp = SFNorm(ElemMidPoint_Shared(1:3,iElem)-NodeCoords_Shared(1:3,NonUniqueNodeID))
       IF (r_sf_tmp.LT.SFElemr2_Shared(1,iElem)) SFElemr2_Shared(1,iElem) = r_sf_tmp
     END DO
   END IF
