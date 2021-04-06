@@ -198,6 +198,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
 
       IF(nPorousBC.GT.0) THEN
         DO iPBC=1, nPorousBC
+          IF(MapSurfSideToPorousSide_Shared(iSurfSide).EQ.0) CYCLE
           IF(PorousBCInfo_Shared(1,MapSurfSideToPorousSide_Shared(iSurfSide)).EQ.iPBC) THEN
             ! Pump capacity is already in cubic meter per second (diving by the number of iterations)
             MacroSurfaceVal(nVarCount+iPBC,p,q,OutputCounter) = SampWallPumpCapacity(iSurfSide) * dt / TimeSample
