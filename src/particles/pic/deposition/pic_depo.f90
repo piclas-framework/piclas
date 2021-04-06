@@ -68,7 +68,12 @@ CALL prms%CreateRealOption(     'PIC-shapefunction-scale'  , 'Scaling factor of 
                                                              '(for cylindrical and spherical)', '0.')
 CALL prms%CreateRealOption(     'PIC-shapefunction-adaptive-DOF'  ,'Average number of DOF in shape function radius (assuming a '//&
     'Cartesian grid with equal elements). Only implemented for PIC-Deposition-Type = shape_function_adaptive (2). The maximum '//&
-    'number of DOF is limited by the polynomial degree and is (4/3)*Pi*(N+1)^3', '33.')
+    'number of DOF is limited by the polynomial degree and depends on PIC-shapefunction-dimension=1, 2 or 3\n'//&
+   '1D: 2*(N+1)\n'//&
+   '2D: Pi*(N+1)^2\n'//&
+   '3D: (4/3)*Pi*(N+1)^3\n'//&
+   'Default is 2 (1D), 12 (2D) and 33 (3D)')
+    !'number of DOF is limited by the polynomial degree and is (4/3)*Pi*(N+1)^3', '33.')
 
 END SUBROUTINE DefineParametersPICDeposition
 
@@ -436,15 +441,20 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   !  FALSE: line (1D) / area (2D)
   !   TRUE: volume (3D)
   sfDepo3D = GETLOGICAL('PIC-shapefunction-3D-deposition')
+  IF((dim_sf.EQ.3).AND.(.NOT.sfDepo3D)) &
+      CALL abort(__STAMP__,'PIC-shapefunction-dimension=F and PIC-shapefunction-3D-deposition=T is not allowed')
 
   ! --- Set shape function dimension (1D, 2D or 3D)
   CALL InitShapeFunctionDimensionalty()
 
-  ! --- Set shape function radius in each cell or use global radius
-  IF(TRIM(DepositionType).EQ.'shape_function_adaptive') THEN
-    CALL InitShapeFunctionAdaptive()
+  ! --- Set shape function radius in each cell when using adaptive shape function
+  IF(TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitShapeFunctionAdaptive()
+
+  ! --- Set integration factor only for uncorrected shape function methods
+  SELECT CASE(TRIM(DepositionType))
+  CASE('shape_function_cc', 'shape_function_adaptive')
     w_sf  = 1.0 ! set dummy value
-  END IF
+  END SELECT
 
   ! --- Set periodic case matrix for shape function deposition (virtual displacement of particles in the periodic directions)
   CALL InitPeriodicSFCaseMatrix()
@@ -486,7 +496,7 @@ SUBROUTINE InitShapeFunctionDimensionalty()
 USE MOD_Preproc
 USE MOD_Globals            ,ONLY: UNIT_stdOut,MPIRoot,abort
 USE MOD_PICDepo_Vars       ,ONLY: dim_sf,BetaFac,w_sf,r_sf,r2_sf,r2_sf_inv,alpha_sf,dim_sf_dir,sfDepo3D,dim_sf_dir1,dim_sf_dir2
-USE MOD_PICDepo_Vars       ,ONLY: DepositionType
+USE MOD_PICDepo_Vars       ,ONLY: DepositionType,dimFactorSF
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,MeshVolume
 USE MOD_ReadInTools        ,ONLY: PrintOption
 USE MOD_Globals_Vars       ,ONLY: PI
@@ -501,12 +511,17 @@ IMPLICIT NONE
 CHARACTER(32)             :: hilf_geo
 CHARACTER(1)              :: hilf_dim
 INTEGER                   :: nTotalDOF
-REAL                      :: dimFactorSF
 REAL                      :: VolumeShapeFunction
+REAL                      :: r_sf_loc,r2_sf_loc  !> temporary variables
 !===================================================================================================================================
 ! 0. Set global radius squared and the inverse of that
-IF(.NOT.TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
-  r2_sf = r_sf * r_sf  ! Radius squared
+IF(TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
+  r_sf_loc  = 1.
+  r2_sf_loc = 1.
+ELSE
+  r_sf_loc  = r_sf
+  r2_sf     = r_sf * r_sf  ! Radius squared
+  r2_sf_loc = r2_sf
   r2_sf_inv = 1./r2_sf ! Inverse of radius squared
 END IF
 
@@ -527,17 +542,16 @@ SELECT CASE (dim_sf)
       dimFactorSF = (GEO%xmaxglob-GEO%xminglob)*(GEO%ymaxglob-GEO%yminglob)
     END IF
 
-    ! Set prefix factor (not for shape_function_adaptive)
-    IF(.NOT.TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
-      IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
-        w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf*GAMMA(REAL(alpha_sf+1))*dimFactorSF)
-      ELSE ! Distribute the charge over the line (1D)
-        w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf*GAMMA(REAL(alpha_sf+1)))
-      END IF
-    END IF ! .NOT.TRIM(DepositionType).EQ.'shape_function_adaptive'
+    ! Set prefix factor
+    IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
+      w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf_loc*GAMMA(REAL(alpha_sf+1))*dimFactorSF)
+    ELSE ! Distribute the charge over the line (1D)
+      w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf_loc*GAMMA(REAL(alpha_sf+1)))
+      hilf_geo='line'
+    END IF
 
     ! Set shape function length (3D volume)
-    VolumeShapeFunction=2*r_sf*dimFactorSF
+    VolumeShapeFunction=2*r_sf_loc*dimFactorSF
     ! Calculate number of 1D DOF (assume second and third direction with 1 cell layer and area given by dimFactorSF)
     nTotalDOF=nGlobalElems*(PP_N+1)
 
@@ -551,14 +565,13 @@ SELECT CASE (dim_sf)
       dimFactorSF = (GEO%zmaxglob-GEO%zminglob)
     END IF
 
-    ! Set prefix factor (not for shape_function_adaptive)
-    IF(.NOT.TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
-      IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
-        w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf*dimFactorSF)
-      ELSE ! Distribute the charge over the area (2D)
-        w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf)
-      END IF
-    END IF ! .NOT.TRIM(DepositionType).EQ.'shape_function_adaptive'
+    ! Set prefix factor
+    IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
+      w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf_loc*dimFactorSF)
+    ELSE ! Distribute the charge over the area (2D)
+      w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf_loc)
+      hilf_geo='area'
+    END IF
 
     ! set the two perpendicular directions used for deposition
     dim_sf_dir1 = MERGE(1,2,dim_sf_dir.EQ.2)
@@ -567,27 +580,18 @@ SELECT CASE (dim_sf)
         ' and variable distrbution in ',dim_sf_dir1,' and ',dim_sf_dir2,' (1: x, 2: y and 3: z)'
 
     ! Set shape function length (3D volume)
-    VolumeShapeFunction=PI*(r_sf**2)*dimFactorSF
+    VolumeShapeFunction=PI*(r_sf_loc**2)*dimFactorSF
     ! Calculate number of 2D DOF (assume third direction with 1 cell layer and width dimFactorSF)
     nTotalDOF=nGlobalElems*(PP_N+1)**2
 
   CASE (3) ! --- 3D shape function -------------------------------------------------------------------------------------------------
     ! Set prefix factor (not for shape_function_adaptive)
-    IF(.NOT.TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
-      BetaFac = beta(1.5, REAL(alpha_sf) + 1.)
-      w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) * (REAL(alpha_sf) + 1.)/(PI*(r_sf**3))
-    END IF ! .NOT.TRIM(DepositionType).EQ.'shape_function_adaptive'
+    BetaFac = beta(1.5, REAL(alpha_sf) + 1.)
+    w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) * (REAL(alpha_sf) + 1.)/(PI*(r_sf_loc**3))
 
   CASE DEFAULT
     CALL abort(__STAMP__,'Shape function dimensio must be 1, 2 or 3')
 END SELECT
-
-! 3. Output info on how the shape function deposits the charge
-IF(.NOT.sfDepo3D.AND.dim_sf.EQ.1)THEN
-  hilf_geo='line'
-ELSEIF(.NOT.sfDepo3D.AND.dim_sf.EQ.2)THEN
-  hilf_geo='area'
-END IF
 
 SWRITE(UNIT_stdOut,'(A)') ' The complete charge is '//TRIM(hilf_geo)//' distributed (via '//TRIM(hilf_dim)//'D shape function)'
 
@@ -596,7 +600,7 @@ IF(.NOT.sfDepo3D)THEN
   SWRITE(UNIT_stdOut,'(A)') ' because the charge is spread out over either a line (1D shape function) or an area (2D shape function)!'
 END IF
 
-! 4. Output info regarding charge distribution and points per shape function resolution
+! 3. Output info regarding charge distribution and points per shape function resolution
 IF(.NOT.TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
   ASSOCIATE(nTotalDOFin3D             => nGlobalElems*(PP_N+1)**3 ,&
             VolumeShapeFunctionSphere => 4./3.*PI*r_sf**3         )
@@ -642,7 +646,7 @@ SUBROUTINE InitShapeFunctionAdaptive()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals                     ,ONLY: UNIT_stdOut,abort,IERROR
-USE MOD_PICDepo_Vars                ,ONLY: SFAdaptiveDOF,SFElemr2_Shared
+USE MOD_PICDepo_Vars                ,ONLY: SFAdaptiveDOF,SFElemr2_Shared,dim_sf
 USE MOD_ReadInTools                 ,ONLY: GETREAL
 USE MOD_Particle_Mesh_Vars          ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
@@ -666,27 +670,63 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: UniqueNodeID,NonUniqueNodeID,iNode,NeighUniqueNodeID
-REAL                           :: middist,SFDepoScaling
+REAL                           :: middist,middistScaling,SFDepoScaling
 LOGICAL                        :: ElemDone
 INTEGER                        :: ppp,globElemID
-REAL                           :: r_sf_tmp
+REAL                           :: r_sf_tmp,SFAdaptiveDOFDefault,DOFMax
 INTEGER                        :: iElem,firstElem,lastElem,jNode,NbElemID,NeighNonUniqueNodeID
+CHARACTER(32)                  :: hilf2,hilf3
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #endif /*USE_MPI*/
 !===================================================================================================================================
 ! Set the number of DOF/SF
-SFAdaptiveDOF = GETREAL('PIC-shapefunction-adaptive-DOF')
-IF(SFAdaptiveDOF.GT.(4./3.)*PI*(PP_N+1)**3)THEN
-  SWRITE(UNIT_StdOut,*) "         PIC-shapefunction-adaptive-DOF =", SFAdaptiveDOF
-  SWRITE(UNIT_StdOut,*) "Maximum allowed is 4./3.*PI*(PP_N+1)**3 =", (4./3.)*PI*(PP_N+1)**3
+! Check which shape function dimension is used and set default value
+SELECT CASE(dim_sf)
+CASE(1)
+  SFAdaptiveDOFDefault=2.0*(1.+1.)
+  DOFMax = 2.0*(REAL(PP_N)+1.) ! Max. DOF per element in 1D
+  hilf2 = '2*(N+1)'            ! Max. DOF per element in 1D for abort message
+CASE(2)
+  SFAdaptiveDOFDefault=PI*(1.+1.)**2
+  DOFMax = PI*(REAL(PP_N)+1.)**2 ! Max. DOF per element in 2D
+  hilf2 = 'PI*(N+1)**2'          ! Max. DOF per element in 1D for abort message
+CASE(3)
+  SFAdaptiveDOFDefault=(4./3.)*PI*(1.+1.)**3
+  DOFMax = (4./3.)*PI*(REAL(PP_N)+1.)**3 ! Max. DOF per element in 2D
+  hilf2 = '(4/3)*PI*(N+1)**3'            ! Max. DOF per element in 1D for abort message
+END SELECT
+WRITE(UNIT=hilf3,FMT='(G0)') SFAdaptiveDOFDefault
+SFAdaptiveDOF = GETREAL('PIC-shapefunction-adaptive-DOF',TRIM(hilf3))
+
+IF(SFAdaptiveDOF.GT.DOFMax)THEN
+  SWRITE(UNIT_StdOut,'(A,F10.2)') "         PIC-shapefunction-adaptive-DOF =", SFAdaptiveDOF
+  SWRITE(UNIT_StdOut,'(A,A19,A,F10.2)') " Maximum allowed is ",TRIM(hilf2)," =", DOFMax
   SWRITE(UNIT_StdOut,*) "Reduce the number of DOF/SF in order to have no DOF outside of the deposition range (neighbour elems)"
   SWRITE(UNIT_StdOut,*) "Set a value lower or equal to than the maximum for a given polynomial degree N\n"
-  SWRITE(UNIT_StdOut,*) "         N:     1      2      3      4      5       6       7"
-  SWRITE(UNIT_StdOut,*) "  Max. DOF:    33    113    268    523    904    1436    2144"
-  CALL abort(__STAMP__,'PIC-shapefunction-adaptive-DOF > 4./3.*PI*(PP_N+1)**3 is not allowed')
+  SWRITE(UNIT_StdOut,*) "              N:     1      2      3      4      5       6       7"
+  SWRITE(UNIT_StdOut,*) "  ----------------------------------------------------------------"
+  SWRITE(UNIT_StdOut,*) "           | 1D:     4      6      8     10     12      14      16"
+  SWRITE(UNIT_StdOut,*) "  Max. DOF | 2D:    12     28     50     78    113     153     201"
+  SWRITE(UNIT_StdOut,*) "           | 3D:    33    113    268    523    904    1436    2144"
+  SWRITE(UNIT_StdOut,*) "  ----------------------------------------------------------------"
+  CALL abort(__STAMP__,'PIC-shapefunction-adaptive-DOF > '//TRIM(hilf2)//' is not allowed')
 ELSE
-  SFDepoScaling = (3.*SFAdaptiveDOF/(4.*PI))**(1./3.)
+  ! Check which shape function dimension is used
+  SELECT CASE(dim_sf)
+  CASE(1)
+    SFDepoScaling  = SFAdaptiveDOF/2.0
+    middistScaling = 8.0 ! 8.0 is tuned to achieve a radius of r = 1.0*L (when using 2.0 / (PP_N+1.) as scaling factor),
+                         ! where L is the cell length of a cubic Cartesian element
+  CASE(2)
+    SFDepoScaling  = SQRT(SFAdaptiveDOF/PI)
+    middistScaling = 9.734 ! 9.734 is tuned to achieve a radius of r = 1.0*L (when using 2.0 / (PP_N+1.) as scaling factor),
+                           ! where L is the cell length of a cubic Cartesian element
+  CASE(3)
+    SFDepoScaling  = (3.*SFAdaptiveDOF/(4.*PI))**(1./3.)
+    middistScaling = 10.524 ! 10.524 is tuned to achieve a radius of r = 1.0*L (when using 2.0 / (PP_N+1.) as scaling factor),
+                            ! where L is the cell length of a cubic Cartesian element
+  END SELECT
 END IF
 
 #if USE_MPI
@@ -720,8 +760,8 @@ DO iElem = firstElem,lastElem
     middist = middist + SFNorm(ElemMidPoint_Shared(1:3,iElem)-NodeCoords_Shared(1:3,NonUniqueNodeID))
   END DO
   ! Scale the influence of my own cell (starting from 8. and the higher the number, the smaller the weight of the own cell)
-  middist = middist / 10.524 ! 10.524 is tuned to achieve a radius of r = 1.0*L (when using 2.0 / (PP_N+1.) as scaling factor),
-  !  where L is the cell length of a cubic Cartesian element
+  middist = middist / middistScaling ! tuned to achieve a radius of r = 1.0*L (when using 2.0 / (PP_N+1.) as scaling factor),
+                                     ! where L is the cell length of a cubic Cartesian element
 
   DO ppp = 1,ElemToElemMapping(2,iElem)
     globElemID = GetGlobalElemID(ElemToElemInfo(ElemToElemMapping(1,iElem)+ppp))

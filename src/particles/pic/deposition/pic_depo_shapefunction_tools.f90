@@ -41,6 +41,7 @@ SUBROUTINE calcSfSource(SourceSize_in,ChargeMPF,PartPos,PartID,PartVelo)
 USE MOD_Globals
 USE MOD_PICDepo_Vars       ,ONLY: DepositionType
 USE MOD_Particle_Mesh_Vars ,ONLY: NbrOfPeriodicSFCases
+USE MOD_PICDepo_Vars       ,ONLY: w_sf
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -94,11 +95,12 @@ DO iCase = 1, NbrOfPeriodicSFCases
   ! Select deposition type
   SELECT CASE(TRIM(DepositionType))
   CASE('shape_function')
-    CALL depoChargeOnDOFsSF(PartPosShifted,SourceSize,Fac)
+    ! Consider the integration factor w_sf for standard (uncorrected) deposition method
+    CALL depoChargeOnDOFsSF(          PartPosShifted , SourceSize , Fac*w_sf )
   CASE('shape_function_cc')
-    CALL depoChargeOnDOFsSFChargeCon(PartPosShifted,SourceSize,Fac)
+    CALL depoChargeOnDOFsSFChargeCon( PartPosShifted , SourceSize , Fac )
   CASE('shape_function_adaptive')
-    CALL depoChargeOnDOFsSFAdaptive(PartPosShifted,SourceSize,Fac,PartID)
+    CALL depoChargeOnDOFsSFAdaptive(  PartPosShifted , SourceSize , Fac       , PartID )
   CASE DEFAULT
     CALL CollectiveStop(__STAMP__,&
         'Unknown ShapeFunction Method!')
@@ -334,7 +336,7 @@ SUBROUTINE depoChargeOnDOFsSFChargeCon(Position,SourceSize,Fac)
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:r_sf, r2_sf, r2_sf_inv,alpha_sf,w_sf,ChargeSFDone
+USE MOD_PICDepo_Vars,           ONLY:r_sf, r2_sf, r2_sf_inv,alpha_sf,ChargeSFDone,sfDepo3D,dimFactorSF
 USE MOD_Mesh_Vars,              ONLY:nElems, offSetElem
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo, ElemsJ
@@ -461,10 +463,15 @@ DO kk = kmin,kmax
   END DO ! ll
 END DO ! kk
 
+! Check if the charge is to be distributed over a line (1D) or area (2D)
+IF(.NOT.sfDepo3D)THEN
+  totalCharge = totalCharge / dimFactorSF
+END IF
+
 element => first
 firstElem = .TRUE.
 IF (nUsedElems.GT.0) THEN
-  alpha = (Fac(4)/w_sf) / totalCharge
+  alpha = Fac(4) / totalCharge
   DO ppp=1, nUsedElems
     globElemID = element%globElemID
     DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -487,7 +494,7 @@ SUBROUTINE depoChargeOnDOFsSFAdaptive(Position,SourceSize,Fac,PartIdx)
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:alpha_sf,w_sf,SFElemr2_Shared,ChargeSFDone
+USE MOD_PICDepo_Vars,           ONLY:alpha_sf,SFElemr2_Shared,ChargeSFDone,sfDepo3D,dimFactorSF
 USE MOD_Mesh_Vars,              ONLY:nElems, offSetElem
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNgeo, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo, ElemsJ, ElemToElemMapping,ElemToElemInfo
@@ -603,10 +610,15 @@ DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
   ChargeSFDone(CNElemID) = .TRUE.
 END DO ! ppp
 
+! Check if the charge is to be distributed over a line (1D) or area (2D)
+IF(.NOT.sfDepo3D)THEN
+  totalCharge = totalCharge / dimFactorSF
+END IF
+
 element => first
 firstElem = .TRUE.
 IF (nUsedElems.GT.0) THEN
-  alpha = (Fac(4)/w_sf) / totalCharge
+  alpha = Fac(4) / totalCharge
   DO ppp=1, nUsedElems
     globElemID = element%globElemID
     DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -653,19 +665,18 @@ CNElemID = GetCNElemID(globElemID)
 #if USE_MPI
 IF (ElemOnMyProc(globElemID)) THEN
 #endif /*USE_MPI*/
-  PartSource(dim1:4,k,l,m, CNElemID) = PartSource(dim1:4,k,l,m, CNElemID) + Source(dim1:4)
+  PartSource(dim1:4,k,l,m,CNElemID) = PartSource(dim1:4,k,l,m,CNElemID) + Source(dim1:4)
 !#if !((USE_HDG) && (PP_nVar==1))
 !#endif
 #if USE_MPI
 ELSE
   ASSOCIATE( ShapeID => SendElemShapeID(CNElemID))
-    !IPWRITE(UNIT_StdOut,*) "globElemID,CNElemID, ShapeID =", globElemID,CNElemID, ShapeID
     IF(ShapeID.EQ.-1)THEN
       IPWRITE(UNIT_StdOut,*) "CNElemID   =", CNElemID
       IPWRITE(UNIT_StdOut,*) "globElemID =", globElemID
       CALL abort(__STAMP__,'SendElemShapeID(CNElemID)=-1 and therefore not correctly mapped. Increase Particles-HaloEpsVelo!')
     END IF
-    PartSourceProc(dim1:4,k,l,m, ShapeID) = PartSourceProc(dim1:4,k,l,m, ShapeID) + Source(dim1:4)
+    PartSourceProc(dim1:4,k,l,m,ShapeID) = PartSourceProc(dim1:4,k,l,m,ShapeID) + Source(dim1:4)
   END ASSOCIATE
 !#if !((USE_HDG) && (PP_nVar==1))
 !#endif
@@ -707,7 +718,7 @@ PURE REAL FUNCTION SFNorm(v1)
 ! Return the shape function norm by calculating the corresponding 1D, 2D or 3D distance from the input vector 'v1'
 !============================================================================================================================
 USE MOD_Globals      ,ONLY: VECNORM
-USE MOD_PICDepo_Vars ,ONLY: dim_sf,dim_sf_dir1,dim_sf_dir2
+USE MOD_PICDepo_Vars ,ONLY: dim_sf,dim_sf_dir,dim_sf_dir1,dim_sf_dir2
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -722,7 +733,7 @@ REAL, INTENT(IN) :: v1(1:3) !< Input vector for which the norm is calculated
 ! Check in which dimension the norm is to be calculated
 SELECT CASE (dim_sf)
 CASE (1)
-  SFNorm = ABS(v1(dim_sf))
+  SFNorm = ABS(v1(dim_sf_dir))
 CASE (2)
   SFNorm = SQRT(v1(dim_sf_dir1)**2+v1(dim_sf_dir2)**2)
 CASE (3)

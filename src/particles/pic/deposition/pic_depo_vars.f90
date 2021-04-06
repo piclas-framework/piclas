@@ -61,6 +61,8 @@ REAL                            :: r_sf_scale                ! scaling of shape 
 REAL                            :: BetaFac                   ! betafactor of shape-function || integral =1
 INTEGER                         :: sf1d_dir                  ! direction of 1D shape function
 LOGICAL                         :: sfDepo3D                  ! when using 1D or 2D deposition, the charge can be deposited over the
+!                                                            ! a line (1D) or area (2D)
+REAL                            :: dimFactorSF               ! Scaling factor when using sfDepo3D=F
 LOGICAL,ALLOCATABLE             :: ChargeSFDone(:)           ! Element flag for cycling already completed elements
 LOGICAL                         :: DoSFChargeCons
 !                                                            ! volume (3D) or line (1D) / area (2D)
