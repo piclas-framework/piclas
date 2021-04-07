@@ -669,13 +669,18 @@ Depending of the type of the chosen boundary type either the mass flow [kg/s] or
     Part-Species1-Surfaceflux1-Adaptive-Massflow=1.00E-14
     Part-Species1-Surfaceflux1-Adaptive-Pressure=10
 
-The adaptive boundaries require the sampling of macroscopic properties such as flow velocity at the boundary. To compensate for the statistical fluctuations a relaxation factor $f_{\mathrm{relax}}$ is utilized and the current value of the sampled variable $v^{n}$ is updated according to
+The adaptive boundaries require the sampling of macroscopic properties such as flow velocity at the boundary. To compensate for the statistical fluctuations, three possible sampling approaches are available. The first approach uses a relaxation factor $f_{\mathrm{relax}}$, where the current value of the sampled variable $v^{n}$ is updated according to
 
 $$v^{n}= (1-f_{\mathrm{relax}})\,v^{n-1} + f_{\mathrm{relax}} v^{\mathrm{samp}} $$
 
 The relaxation factor $f_{\mathrm{relax}}$ is defined by
 
     AdaptiveBC-RelaxationFactor = 0.001
+
+The second and third approach allows to sample over a certain number of iterations. If the truncated running average option is enabled, the macroscopic properties will be continuously updated while the oldest sample will be replaced with the most recent. If the truncated running average option is disabled, the macroscopic properties will be only updated every given number of iterations, and the complete sample will be resetted afterwads. If a number of iterations is given, it will be used instead of the first approach with the relaxation factor.
+
+    AdaptiveBC-SamplingIteration      = 100
+    AdaptiveBC-TruncateRunningAverage = T       ! DEFAULT: F
 
 The adaptive particle emission can be combined with the circular inflow feature. In this context when the area of the actual emission circle/ring is very small, it is preferable to utilize the `Type=4` constant mass flow condition. `Type=3` assumes an open boundary and accounts for particles leaving the domain through that boundary already when determining the number of particles to be inserted. As a result, this method tends to over predict the given mass flow, when the emission area is very small and large sample size would be required to have enough particles that leave the domain through the emission area. For the `Type=4` method, the actual number of particles leaving the domain through the circular inflow is counted and the mass flow adapted accordingly, thus the correct mass flow can be reproduced.
 
@@ -687,13 +692,13 @@ where $R=8.314$ J mol$^{-1}$K$^{-1}$ is the gas constant, $M$ the molar mass in 
 
 To verify the resulting mass flow rate of an adaptive surface flux, the following option can be enabled
 
-    CalcMassflowRate = T
+    CalcAdaptiveBCInfo = T
 
-This will output a species-specific mass flow rate [kg s^$-1$] for each surface flux condition in the `PartAnalyze.csv`, which gives the current mass flow for the time step. Positive values correspond to a net mass flux into the domain and negative values vice versa. It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
+This will output a species-specific mass flow rate [kg s$^{-1}$] and the average pressure in the adjacent cells [Pa] for each surface flux condition in the `PartAnalyze.csv`, which gives the current values for the time step. For the former, positive values correspond to a net mass flux into the domain and negative values vice versa. It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
 
 #### Missing descriptions
 
-SimpleRadialVeloFit, ReduceNoise, DoForceFreeSurfaceFlux
+ReduceNoise, DoForceFreeSurfaceFlux
 
 DoPoissonRounding: [@Tysanner2004]
 

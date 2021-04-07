@@ -2029,7 +2029,7 @@ USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
+USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCMacroVal, AdaptBCSampleElemNum, AdaptBCMapSampleToElem, AdaptiveData
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2043,8 +2043,7 @@ CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255)             :: H5_Name
 CHARACTER(LEN=255)             :: SpecID
 INTEGER                        :: nVar
-INTEGER                        :: iElem,iVar,iSpec,SampleElemID
-REAL,ALLOCATABLE               :: AdaptiveData(:,:,:)
+INTEGER                        :: ElemID,iVar,iSpec,SampleElemID
 !===================================================================================================================================
 
 nVar = 7
@@ -2068,17 +2067,13 @@ IF(MPIRoot)THEN
   CALL CloseDataFile()
 END IF
 
-! rewrite and save arrays for AdaptiveData
-ALLOCATE(AdaptiveData(nVar,nSpecies,nElems))
 AdaptiveData = 0.
-DO iElem = 1,nElems
-  SampleElemID = AdaptBCMapElemToSample(iElem)
-  IF(SampleElemID.GT.0) THEN
-    ! Sample values (1-3: Velocity vector [m/s], 4: Number density [1/m3])
-    AdaptiveData(1:4,:,iElem) = AdaptBCMacroVal(1:4,SampleElemID,:)
-    ! Porous BC parameter (5: Pumping capacity [m3/s], 6: Static pressure [Pa], 7: Integral pressure difference [Pa])
-    AdaptiveData(5:7,:,iElem) = AdaptBCMacroVal(5:7,SampleElemID,:)
-  END IF
+DO SampleElemID = 1,AdaptBCSampleElemNum
+  ElemID = AdaptBCMapSampleToElem(SampleElemID)
+  ! Sample values (1-3: Velocity vector [m/s], 4: Number density [1/m3])
+  AdaptiveData(1:4,:,ElemID) = AdaptBCMacroVal(1:4,SampleElemID,:)
+  ! Porous BC parameter (5: Pumping capacity [m3/s], 6: Static pressure [Pa], 7: Integral pressure difference [Pa])
+  AdaptiveData(5:7,:,ElemID) = AdaptBCMacroVal(5:7,SampleElemID,:)
 END DO
 
 WRITE(H5_Name,'(A)') 'AdaptiveInfo'
@@ -2099,7 +2094,6 @@ ASSOCIATE (&
 END ASSOCIATE
 CALL CloseDataFile()
 SDEALLOCATE(StrVarNames)
-SDEALLOCATE(AdaptiveData)
 
 END SUBROUTINE WriteAdaptiveInfoToHDF5
 

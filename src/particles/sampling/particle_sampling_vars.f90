@@ -39,13 +39,15 @@ REAL, ALLOCATABLE                       :: AdaptBCAverage(:,:,:,:)        ! Trun
 REAL, ALLOCATABLE                       :: AdaptBCAverageGlobal(:,:,:,:)  ! Truncated running average global to keep during restart
 REAL, ALLOCATABLE                       :: AdaptBCSample(:,:,:)           ! Particle sample near boundaries
 REAL, ALLOCATABLE                       :: AdaptBCMacroVal(:,:,:)         ! Macroscopic value near boundaries
-                                                                            ! (1:7,1:AdaptBCSampleElemNum,1:nSpecies)
-                                                                            !  1:  VELOX
-                                                                            !  2:  VELOY
-                                                                            !  3:  VELOZ
-                                                                            !  4:  NUMBER DENSITY
-                                                                            !  5:  Pumping capacity [m3/s]
-                                                                            !  6:  Static pressure [Pa]
-                                                                            !  7:  Integral pressure difference [Pa]
+                                                                          ! (1:7,1:AdaptBCSampleElemNum,1:nSpecies)
+                                                                          !  1:  VELOX
+                                                                          !  2:  VELOY
+                                                                          !  3:  VELOZ
+                                                                          !  4:  NUMBER DENSITY
+                                                                          !  5:  Pumping capacity [m3/s]
+                                                                          !  6:  Static pressure [Pa]
+                                                                          !  7:  Integral pressure difference [Pa]
+REAL, ALLOCATABLE                       :: AdaptiveData(:,:,:)            ! Macroscopic value near boundaries (for output)
+REAL, ALLOCATABLE                       :: AdaptBCAreaSurfaceFlux(:,:)    ! UseCircularInflow: Surflux area as the sum of actual elements
 !-----------------------------------------------------------------------------------------------------------------------------------
 END MODULE MOD_Particle_Sampling_Vars

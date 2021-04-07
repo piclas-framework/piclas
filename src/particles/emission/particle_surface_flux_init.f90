@@ -87,14 +87,6 @@ CALL prms%CreateLogicalOption(  'DoForceFreeSurfaceFlux' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Flag if the stage reconstruction uses a force' , '.FALSE.')
 ! Parameters for adaptive boundary conditions
-
-CALL prms%CreateRealOption(     'AdaptiveBC-RelaxationFactor',  'Relaxation factor for weighting of current'//&
-                                                                ' values with those of previous iterations.', '0.001')
-CALL prms%CreateIntOption(      'AdaptiveBC-SamplingIteration', 'Number of iterations the values will be sampled before updating'//&
-                                                                ' the utilized value. Alternative is to constantly update'//&
-                                                                ' with a relaxation factor', '0')
-CALL prms%CreateLogicalOption(  'AdaptiveBC-TruncateRunningAverage',  'Flag to enable a truncated running average for'//&
-                                                                      ' the last number of SamplingIteration', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-Adaptive' &
                                       , 'Flag for the definition of adaptive boundary conditions', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-Adaptive-Type' &
@@ -122,7 +114,6 @@ SUBROUTINE InitializeParticleSurfaceflux()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Mesh_Vars              ,ONLY: nBCSides, SideToElem, offsetElem, NGeo
-USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas, tBCdata_auxSFRadWeight
 USE MOD_Particle_Surfaces_Vars ,ONLY: SurfFluxSideSize, TriaSurfaceFlux

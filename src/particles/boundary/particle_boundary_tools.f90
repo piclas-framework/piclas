@@ -494,7 +494,6 @@ SUBROUTINE CheckBoundsWithCartRadius(Bounds,dir,origin,radius,positiontype)
 !- positiontype=0 : complete bb is inside of radius
 !- positiontype=1 : complete bb is outside of radius
 !- positiontype=2 : bb is partly inside of radius
-! (based on "check where the sides are located relative to rmax" in particle_emission for SimpleRadialVeloFit)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!

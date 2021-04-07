@@ -22,10 +22,28 @@ MODULE MOD_Particle_Sampling_Adapt
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC :: InitAdaptiveBCSampling, AdaptiveBCSampling, FinalizeParticleSamplingAdaptive
+PUBLIC :: DefineParametersParticleSamplingAdaptive, InitAdaptiveBCSampling, AdaptiveBCSampling, FinalizeParticleSamplingAdaptive
 !===================================================================================================================================
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for the sampling for the adaptive boundary conditions
+!==================================================================================================================================
+SUBROUTINE DefineParametersParticleSamplingAdaptive()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%CreateRealOption(   'AdaptiveBC-RelaxationFactor',  'Relaxation factor for weighting of current'//&
+                                                              ' values with those of previous iterations.', '0.001')
+CALL prms%CreateIntOption(    'AdaptiveBC-SamplingIteration', 'Number of iterations the values will be sampled before updating'//&
+                                                              ' the utilized value. Alternative is to constantly update'//&
+                                                              ' with a relaxation factor', '0')
+CALL prms%CreateLogicalOption('AdaptiveBC-TruncateRunningAverage',  'Flag to enable a truncated running average for'//&
+                                                                    ' the last number of SamplingIteration', '.FALSE.')
+END SUBROUTINE DefineParametersParticleSamplingAdaptive
+
 
 SUBROUTINE InitAdaptiveBCSampling()
 !===================================================================================================================================
@@ -38,16 +56,16 @@ USE MOD_ReadInTools
 USE MOD_Particle_Sampling_Vars
 USE MOD_HDF5_INPUT              ,ONLY: ReadArray, DatasetExists, GetDataSize
 USE MOD_Mesh_Vars               ,ONLY: offsetElem, nElems, SideToElem
-USE MOD_Particle_Vars           ,ONLY: Species, nSpecies
-USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF
+USE MOD_Particle_Vars           ,ONLY: Species, nSpecies, UseCircularInflow
+USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
 USE MOD_Restart_Vars            ,ONLY: DoRestart,RestartFile, DoMacroscopicRestart, MacroRestartValues
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: nPorousSides, PorousBCInfo_Shared, SurfSide2GlobalSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
-#if USE_MPI
-#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
-USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem
+#if USE_MPI
+USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
+#if USE_LOADBALANCE
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank, nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 #endif /*USE_LOADBALANCE*/
@@ -63,16 +81,24 @@ USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 LOGICAL                           :: AdaptiveDataExists
 REAL,ALLOCATABLE                  :: ElemData_HDF5(:,:,:)
 INTEGER                           :: iElem, iSpec, iSF, iSide, ElemID, SampleElemID, nVar, GlobalSideID, GlobalElemID, currentBC
+INTEGER                           :: jSample, iSample, BCSideID
 #if USE_MPI
+#if USE_LOADBALANCE
 INTEGER                           :: offsetElemCNProc(nComputeNodeProcessors), nSendCount(nComputeNodeProcessors)
 REAL,ALLOCATABLE                  :: AdaptBCAverageTemp(:,:,:,:)
+#endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
 AdaptBCSampleElemNum = 0
 ALLOCATE(AdaptBCMapElemToSample(nElems))
 AdaptBCMapElemToSample = 0
-
+ALLOCATE(AdaptiveData(1:7,1:nSpecies,1:nElems))
+AdaptiveData = 0.
+IF(UseCircularInflow) THEN
+  ALLOCATE(AdaptBCAreaSurfaceFlux(1:nSpecies,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
+  AdaptBCAreaSurfaceFlux = 0.
+END IF
 ! 1) Count the number of sample elements and create mapping from ElemID to SampleElemID
 ! 1a) Add elements for the adaptive surface flux
 DO iSpec=1,nSpecies
@@ -82,8 +108,17 @@ DO iSpec=1,nSpecies
     IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) CYCLE
     ! Loop over sides on the surface flux
     DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
-      ElemID = SideToElem(S2E_ELEM_ID,BCdata_auxSF(currentBC)%SideList(iSide))
+      BCSideID = BCdata_auxSF(currentBC)%SideList(iSide)
+      ElemID = SideToElem(S2E_ELEM_ID,BCSideID)
       IF (Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
+        ! Skip elements outside of the circular inflow
+        IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+          IF(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).EQ.1) CYCLE
+          ! Determine the area of the surface flux
+          DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+            AdaptBCAreaSurfaceFlux(iSpec,iSF)=AdaptBCAreaSurfaceFlux(iSpec,iSF)+SurfMeshSubSideData(iSample,jSample,BCSideID)%area
+          END DO; END DO
+        END IF
         ! Only add elements once
         IF(AdaptBCMapElemToSample(ElemID).NE.0) CYCLE
         ! Add the element to the BC sampling
@@ -93,6 +128,16 @@ DO iSpec=1,nSpecies
     END DO
   END DO
 END DO
+
+#if USE_MPI
+IF(UseCircularInflow) THEN
+  IF(PartMPI%MPIRoot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,AdaptBCAreaSurfaceFlux,nSpecies*MAXVAL(Species(:)%nSurfacefluxBCs),MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+  ELSE
+    CALL MPI_REDUCE(AdaptBCAreaSurfaceFlux,0,nSpecies*MAXVAL(Species(:)%nSurfacefluxBCs),MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+  END IF
+END IF
+#endif /*USE_MPI*/
 
 ! 1b) Add elements for the porous BCs
 IF(nPorousBC.GT.0) THEN
@@ -220,6 +265,10 @@ ELSE
       IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) CYCLE
       ! Loop over sides on the surface flux
       DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+        ! Skip elements outside of the circular inflow
+        IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+          IF(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).EQ.1) CYCLE
+        END IF
         ElemID = SideToElem(S2E_ELEM_ID,BCdata_auxSF(currentBC)%SideList(iSide))
         SampleElemID = AdaptBCMapElemToSample(ElemID)
         AdaptBCMacroVal(1:3,SampleElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC*Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1:3)
@@ -244,16 +293,13 @@ SUBROUTINE AdaptiveBCSampling(initSampling_opt)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Sampling_Vars
-USE MOD_DSMC_Analyze           ,ONLY: CalcTVibPoly,CalcTelec
-USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, DSMC, SpecDSMC, useDSMC, RadialWeighting
-USE MOD_Mesh_Vars              ,ONLY: nElems, offsetElem
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Part_Tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared, SideInfo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM, usevMPF
 USE MOD_Timedisc_Vars          ,ONLY: iter
-USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
 USE MOD_LoadBalance_vars       ,ONLY: nPartsPerBCElem
@@ -267,13 +313,12 @@ LOGICAL, INTENT(IN), OPTIONAL   :: initSampling_opt
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: ElemID, PartID, SampleElemID, iPart, iSpec, SamplingIteration, TruncIter
+INTEGER                         :: ElemID, CNElemID, SampleElemID, PartID, iPart, iSpec, SamplingIteration, TruncIter
 REAL                            :: partWeight, TTrans_TempFac, RelaxationFactor
-LOGICAL                         :: initSampling, isBCElem, CalcValues
+LOGICAL                         :: initSampling, CalcValues
 #if USE_LOADBALANCE
 REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
-INTEGER                         :: nlocSides, GlobalSideID, CNElemID, GlobalElemID, iLocSide
 !===================================================================================================================================
 
 ! Optional flag for the utilization of the routine for an initial sampling of the density and pressure distribution before simstart
@@ -315,16 +360,12 @@ DO SampleElemID = 1,AdaptBCSampleElemNum
     IF(AdaptBCTruncAverage) THEN
       ! Store the samples of the last AdaptBCSampIter and replace the oldest with the newest sample
       AdaptBCAverage(1:3,TruncIter,SampleElemID, iSpec) = AdaptBCAverage(1:3,TruncIter,SampleElemID,iSpec) + PartState(4:6,PartID) * partWeight
-      IF(nPorousBC.GT.0) THEN
-        AdaptBCAverage(4:6,TruncIter,SampleElemID, iSpec) = AdaptBCAverage(4:6,TruncIter,SampleElemID,iSpec) + PartState(4:6,PartID)**2 * partWeight
-      END IF
+      AdaptBCAverage(4:6,TruncIter,SampleElemID, iSpec) = AdaptBCAverage(4:6,TruncIter,SampleElemID,iSpec) + PartState(4:6,PartID)**2 * partWeight
       AdaptBCAverage(7,  TruncIter,SampleElemID, iSpec) = AdaptBCAverage(7,  TruncIter,SampleElemID,iSpec) + 1.0  ! simulation particle number
       AdaptBCAverage(8,  TruncIter,SampleElemID, iSpec) = AdaptBCAverage(8,  TruncIter,SampleElemID,iSpec) + partWeight
     ELSE
       AdaptBCSample(1:3,SampleElemID, iSpec) = AdaptBCSample(1:3,SampleElemID,iSpec) + PartState(4:6,PartID) * partWeight
-      IF(nPorousBC.GT.0) THEN
-        AdaptBCSample(4:6,SampleElemID, iSpec) = AdaptBCSample(4:6,SampleElemID,iSpec) + PartState(4:6,PartID)**2 * partWeight
-      END IF
+      AdaptBCSample(4:6,SampleElemID, iSpec) = AdaptBCSample(4:6,SampleElemID,iSpec) + PartState(4:6,PartID)**2 * partWeight
       AdaptBCSample(7,SampleElemID, iSpec) = AdaptBCSample(7,SampleElemID, iSpec) + 1.0  ! simulation particle number
       AdaptBCSample(8,SampleElemID, iSpec) = AdaptBCSample(8,SampleElemID, iSpec) + partWeight
     END IF
@@ -385,18 +426,16 @@ DO SampleElemID = 1,AdaptBCSampleElemNum
             AdaptBCMacroVal(4,SampleElemID,iSpec) = AdaptBCSample(8,SampleElemID,iSpec) / REAL(SamplingIteration) / ElemVolume_Shared(CNElemID) &
                                               * Species(iSpec)%MacroParticleFactor
           END IF
-          ! pressure (only for porous BC)
-          IF(nPorousBC.GT.0) THEN
-            IF(AdaptBCSample(7,SampleElemID,iSpec).GT.1) THEN
-              ! instantaneous temperature WITHOUT 1/BoltzmannConst
-              TTrans_TempFac = (AdaptBCSample(7,SampleElemID,iSpec)/(AdaptBCSample(7,SampleElemID,iSpec)-1.0)) &
-                  *Species(iSpec)%MassIC*(AdaptBCSample(4,SampleElemID,iSpec) - AdaptBCSample(1,SampleElemID,iSpec)**2   &
-                                        + AdaptBCSample(5,SampleElemID,iSpec) - AdaptBCSample(2,SampleElemID,iSpec)**2   &
-                                        + AdaptBCSample(6,SampleElemID,iSpec) - AdaptBCSample(3,SampleElemID,iSpec)**2) / 3.
-              ! pressure (BoltzmannConstant canceled out in temperature calculation)
-              AdaptBCMacroVal(6,SampleElemID,iSpec)=AdaptBCMacroVal(4,SampleElemID,iSpec)*TTrans_TempFac
-            END IF
-          END IF  ! nPorousBC.GT.0
+          ! Calculation of the pressure
+          IF(AdaptBCSample(7,SampleElemID,iSpec).GT.1) THEN
+            ! instantaneous temperature WITHOUT 1/BoltzmannConst
+            TTrans_TempFac = (AdaptBCSample(7,SampleElemID,iSpec)/(AdaptBCSample(7,SampleElemID,iSpec)-1.0)) &
+                *Species(iSpec)%MassIC*(AdaptBCSample(4,SampleElemID,iSpec) - AdaptBCSample(1,SampleElemID,iSpec)**2   &
+                                      + AdaptBCSample(5,SampleElemID,iSpec) - AdaptBCSample(2,SampleElemID,iSpec)**2   &
+                                      + AdaptBCSample(6,SampleElemID,iSpec) - AdaptBCSample(3,SampleElemID,iSpec)**2) / 3.
+            ! pressure (BoltzmannConstant canceled out in temperature calculation)
+            AdaptBCMacroVal(6,SampleElemID,iSpec)=AdaptBCMacroVal(4,SampleElemID,iSpec)*TTrans_TempFac
+          END IF
         END IF    ! AdaptBCSample(7,SampleElemID,iSpec).GT.0.0
         ! Resetting sampled values
         AdaptBCSample(1:8,SampleElemID,iSpec) = 0.
@@ -420,17 +459,15 @@ DO SampleElemID = 1,AdaptBCSampleElemNum
           AdaptBCMacroVal(4,SampleElemID,iSpec) = (1-RelaxationFactor)*AdaptBCMacroVal(4,SampleElemID,iSpec) &
             + RelaxationFactor*AdaptBCSample(8,SampleElemID,iSpec) / ElemVolume_Shared(CNElemID)*Species(iSpec)%MacroParticleFactor
         END IF
-        ! pressure (only for porous BC)
-        IF(nPorousBC.GT.0) THEN
+        ! Calculation of the pressure
+        IF (AdaptBCSample(7,SampleElemID,iSpec).GT.1.0) THEN
           ! Compute instantaneous temperature WITHOUT 1/BoltzmannConst
-          IF (AdaptBCSample(7,SampleElemID,iSpec).GT.1.0) THEN
-            TTrans_TempFac = (AdaptBCSample(7,SampleElemID,iSpec)/(AdaptBCSample(7,SampleElemID,iSpec)-1.0)) &
-                              * Species(iSpec)%MassIC * (AdaptBCSample(4,SampleElemID,iSpec) - AdaptBCSample(1,SampleElemID,iSpec)**2 &
-                                                       + AdaptBCSample(5,SampleElemID,iSpec) - AdaptBCSample(2,SampleElemID,iSpec)**2 &
-                                                       + AdaptBCSample(6,SampleElemID,iSpec) - AdaptBCSample(3,SampleElemID,iSpec)**2) / 3.
-            AdaptBCMacroVal(6,SampleElemID,iSpec) = (1-RelaxationFactor)*AdaptBCMacroVal(6,SampleElemID,iSpec) &
-                                              + RelaxationFactor*AdaptBCMacroVal(4,SampleElemID,iSpec)*TTrans_TempFac
-          END IF
+          TTrans_TempFac = (AdaptBCSample(7,SampleElemID,iSpec)/(AdaptBCSample(7,SampleElemID,iSpec)-1.0)) &
+                            * Species(iSpec)%MassIC * (AdaptBCSample(4,SampleElemID,iSpec) - AdaptBCSample(1,SampleElemID,iSpec)**2 &
+                                                      + AdaptBCSample(5,SampleElemID,iSpec) - AdaptBCSample(2,SampleElemID,iSpec)**2 &
+                                                      + AdaptBCSample(6,SampleElemID,iSpec) - AdaptBCSample(3,SampleElemID,iSpec)**2) / 3.
+          AdaptBCMacroVal(6,SampleElemID,iSpec) = (1-RelaxationFactor)*AdaptBCMacroVal(6,SampleElemID,iSpec) &
+                                            + RelaxationFactor*AdaptBCMacroVal(4,SampleElemID,iSpec)*TTrans_TempFac
         END IF
       ELSE
         ! Relax the values towards zero
@@ -456,12 +493,10 @@ SUBROUTINE FinalizeParticleSamplingAdaptive(IsLoadBalance)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Sampling_Vars
-USE MOD_Particle_Vars           ,ONLY: nSpecies
 #if USE_MPI
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+USE MOD_Particle_Vars           ,ONLY: nSpecies
 USE MOD_Mesh_Vars               ,ONLY: offsetElem, nElems, nGlobalElems
-USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeElems,offsetComputeNodeElem
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank, nComputeNodeProcessors, nProcessors_Global
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED, MPI_COMM_LEADERS_SHARED
 #endif /*USE_LOADBALANCE*/
@@ -474,9 +509,12 @@ LOGICAL                         :: IsLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_MPI
+#if USE_LOADBALANCE
 INTEGER                         :: ElemID, SampleElemID, offsetElemProc(nComputeNodeProcessors), nRecvCount(nComputeNodeProcessors)
 REAL                            :: AdaptBCAverageTempProc(1:8,1:AdaptBCSampIter,1:nElems,1:nSpecies)
-REAL,ALLOCATABLE                :: AdaptBCAverageTempCN(:,:,:,:), AdaptBCAverageTempGlobal(:,:,:,:)
+#endif /*USE_LOADBALANCE*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 #if USE_MPI
 #if USE_LOADBALANCE
@@ -529,6 +567,8 @@ SDEALLOCATE(AdaptBCMacroVal)
 SDEALLOCATE(AdaptBCSample)
 SDEALLOCATE(AdaptBCMapSampleToElem)
 SDEALLOCATE(AdaptBCMapElemToSample)
+SDEALLOCATE(AdaptiveData)
+SDEALLOCATE(AdaptBCAreaSurfaceFlux)
 
 END SUBROUTINE FinalizeParticleSamplingAdaptive
 
