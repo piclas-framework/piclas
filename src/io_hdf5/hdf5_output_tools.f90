@@ -362,6 +362,7 @@ IF(MPIRoot) THEN
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFile)/))
   CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
   CALL WriteAttributeToHDF5(File_ID,'VarNames',BGDataSize,StrArray=StrVarNames)
+  CALL WriteAttributeToHDF5(File_ID,'Time'    ,1,RealScalar=0.)
   CALL CloseDataFile()
   ! Add userblock to hdf5-file
   CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_CHAR)
@@ -380,7 +381,7 @@ ASSOCIATE (&
   PP_nElems    => INT(PP_nElems,IK)     ,&
   offsetElem   => INT(offsetElem,IK)    ,&
   nGlobalElems => INT(nGlobalElems,IK)  )
-CALL WriteArrayToHDF5(DataSetName='BGField'   , rank=5 , &
+CALL WriteArrayToHDF5(DataSetName='DG_Solution'   , rank=5 , &
                       nValGlobal=(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
                       nVal      =(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
                       offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
@@ -476,7 +477,7 @@ ASSOCIATE (&
   PP_nElems    => INT(PP_nElems,IK)    ,&
   offsetElem   => INT(offsetElem,IK)   ,&
   nGlobalElems => INT(nGlobalElems,IK) )
-CALL WriteArrayToHDF5(DataSetName='BField'    , rank=5 , &
+CALL WriteArrayToHDF5(DataSetName='DG_Solution'    , rank=5 , &
                       nValGlobal=(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
                       nVal      =(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
                       offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &

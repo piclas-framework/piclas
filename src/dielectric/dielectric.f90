@@ -477,7 +477,7 @@ SUBROUTINE CalcChiTens(chitens,chitensInv,DielectricEpsR)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Basis,         ONLY:GetInverse
+USE MOD_Mathtools ,ONLY: INVERSE
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -502,7 +502,7 @@ chitens(2,2)=DielectricEpsR
 chitens(3,3)=DielectricEpsR
 
 ! inverse of diffusion 3x3 tensor on each gausspoint
-chitensInv(:,:)=getInverse(3,chitens(:,:))
+chitensInv(:,:)=INVERSE(chitens(:,:))
 
 END SUBROUTINE calcChiTens
 #endif /*USE_HDG*/

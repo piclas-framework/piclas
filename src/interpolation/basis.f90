@@ -94,10 +94,6 @@ INTERFACE LagrangeInterpolationPolys
    MODULE PROCEDURE LagrangeInterpolationPolys
 END INTERFACE
 
-INTERFACE GetInverse
-   MODULE PROCEDURE GetInverse
-END INTERFACE
-
 INTERFACE GetSPDInverse
    MODULE PROCEDURE GetSPDInverse
 END INTERFACE
@@ -129,7 +125,6 @@ PUBLIC::PolynomialDerivativeMatrix
 PUBLIC::BarycentricWeights
 PUBLIC::LagrangeInterpolationPolys
 PUBLIC::LegendrePolynomialAndDerivative
-PUBLIC::GetInverse
 PUBLIC::GetSPDInverse
 PUBLIC::EQUALTOTOLERANCE
 
@@ -282,9 +277,10 @@ SUBROUTINE BuildBezierVdm(N_In,xi_In,Vdm_Bezier,sVdm_Bezier)
 ! by a BLAS routine for better matrix conditioning
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                ONLY: abort
 USE MOD_PreProc
-USE MOD_Particle_Surfaces_Vars, ONLY: FacNchooseK,BezierElevation,ElevationMatrix
+USE MOD_Globals                ,ONLY: abort
+USE MOD_Particle_Surfaces_Vars ,ONLY: FacNchooseK,BezierElevation,ElevationMatrix
+USE MOD_Mathtools              ,ONLY: INVERSE,INVERSE_LU
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -293,12 +289,11 @@ INTEGER,INTENT(IN) :: N_In
 REAL,INTENT(IN)    :: xi_In(0:N_In)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)   :: Vdm_Bezier(0:N_In,0:N_In),sVdm_Bezier(0:N_In,0:N_In)
+REAL,INTENT(OUT)   :: Vdm_Bezier(0:N_In,0:N_In),sVdm_Bezier(0:N_In,0:N_In) !< Vdm from/to Bezier Polynomial from BC representation
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: i,j, errorflag,IPIV(1:N_in+1),jStart,jEnd
+INTEGER            :: i,j,jStart,jEnd
 REAL               :: dummy,eps
-REAL               :: dummy_vec(0:N_In)
 REAL               :: arrayNchooseK(0:N_In,0:N_In)
 !===================================================================================================================================
 ! store the coefficients
@@ -311,8 +306,8 @@ ElevationMatrix(:,:) = 0.
 !Vandermonde on xi_In
 DO i=0,N_In
   DO j=0,N_In
-    ! 1.) evaluate the berstein polynomial at xi_in -> build vandermonde
-    CALL BernsteinPolynomial(N_In,j,xi_in(i),Vdm_Bezier(i,j))
+    ! 1.) evaluate the Bernstein polynomial at xi_In -> build Vandermonde
+    CALL BernsteinPolynomial(N_In,j,xi_In(i),Vdm_Bezier(i,j))
     ! 2.) build array with binomial coeffs for bezier clipping
     IF(i.GE.j)THEN!only calculate LU (for n >= k, else 0)
       arrayNchooseK(i,j)=REAL(CHOOSE(i,j))
@@ -343,23 +338,23 @@ __STAMP__&
 ,'The line of the elevation matrix does not sum to unity! 1-1=',0,eps)
 END DO
 
-dummy_vec=0.
+! Invert Vandermonde
+#ifdef VDM_ANALYTICAL
+! Computes sVdm_Leg in  buildLegendreVdm() via analytical expression (only works for Lagrange polynomials, hence the "analytical"
+! pre-processor flag) when Lapack fails
+! For Bezier (Bernstein basis) polynomial: use INVERSE_LU function
+sVdm_Bezier=INVERSE_LU(Vdm_Bezier)
+#else
+sVdm_Bezier=INVERSE(Vdm_Bezier)
+#endif /*VDM_ANALYTICAL*/
 
-! Invert A: Caution!!! From now on A=A^(-1)
-sVdm_Bezier=Vdm_Bezier
-CALL DGETRF(N_In+1,N_In+1,sVdm_Bezier,N_In+1,IPIV,errorflag)
-IF (errorflag .NE. 0) CALL Abort(&
-__STAMP__ &
-,'LU factorisation of matrix crashed',999,999.)
-CALL DGETRI(N_In+1,sVdm_Bezier,N_In+1,IPIV,dummy_vec,N_In+1,errorflag)
-IF (errorflag .NE. 0) CALL Abort(&
-__STAMP__ &
-,'Solver crashed, sorry for the inconvenience',999,999.)
+! Sanity check for Lapack Inverse: (Vdm_Bezier)^(-1)*Vdm_Bezier := I
 dummy=SUM(ABS(MATMUL(sVdm_Bezier,Vdm_Bezier)))-REAL(N_In+1)
-
-IF(ABS(dummy).GT.1.E-13) CALL abort(&
+! Tolerance used to be 1.0E-13, now depending on PP_RealTolerance, which yields approx. 8.88e-14 when PP_RealTolerance = 2.22e-16
+! (gradually reduced due to not fail), now depending on PP_RealTolerance
+IF(ABS(dummy).GT.400.*PP_RealTolerance) CALL abort(&
 __STAMP__&
-,'problems in Bezier Vandermonde: check (Vdm_Bezier)^(-1)*Vdm_Bezier := I has a value of',999,dummy)
+,'problems in Bezier Vandermonde: check (Vdm_Bezier)^(-1)*Vdm_Bezier := I has a value of',RealInfoOpt=dummy)
 END SUBROUTINE BuildBezierVdm
 
 
@@ -510,56 +505,6 @@ END SUBROUTINE BernsteinPolynomial
 !#endif /*PARTICLES*/
 
 
-FUNCTION GetInverse(dim1,A) RESULT(Ainv)
-!============================================================================================================================
-! invert a matrix (dependant in LAPACK Routines)
-!============================================================================================================================
-! MODULES
-USE MOD_Globals
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------
-!input parameters
-INTEGER, INTENT(IN) :: dim1   !size of matrix a
-REAL,INTENT(IN)     :: A(dim1,dim1)
-!----------------------------------------------------------------------------------------------------------------------------
-!output parameters
-REAL                :: Ainv(dim1,dim1)
-!----------------------------------------------------------------------------------------------------------------------------
-!local variables
-INTEGER            :: IPIV(dim1),INFO,lwork,i,j
-REAL               :: WORK(dim1*dim1)
-!============================================================================================================================
-! Store A in Ainv to prevent it from being overwritten by LAPACK
-  DO j=1,dim1
-    DO i=1,dim1
-      Ainv(i,j) = A(i,j)
-    END DO
-  END DO
-
-  ! DGETRF computes an LU factorization of a general M-by-N matrix A
-  ! using partial pivoting with row interchanges.
-  CALL DGETRF(dim1, dim1, Ainv, dim1, IPIV, INFO)
-
-  IF (INFO /= 0) THEN
-    CALL abort(&
-__STAMP__&
-,' Matrix is numerically singular!')
-  END IF
-
-  ! DGETRI computes the inverse of a matrix using the LU factorization
-  ! computed by DGETRF.
-  lwork=dim1*dim1
-  CALL DGETRI(dim1, Ainv, dim1, IPIV, WORK, lwork , INFO)
-
-  IF (INFO /= 0) THEN
-    CALL abort(&
-__STAMP__&
-,' Matrix inversion failed!')
-  END IF
-END FUNCTION GetInverse
-
-
 FUNCTION GetSPDInverse(dim1,A) RESULT(Ainv)
 !============================================================================================================================
 ! invert a symmetric positive definite matrix (dependant in LAPACK Routines)
@@ -598,58 +543,70 @@ INTEGER            :: INFO,i,j
 END FUNCTION GetSPDInverse
 
 
+!==================================================================================================================================
+!> Build a 1D Vandermonde matrix from an orthonormal Legendre basis to a nodal basis and reverse
+!==================================================================================================================================
 SUBROUTINE buildLegendreVdm(N_In,xi_In,Vdm_Leg,sVdm_Leg)
-!===================================================================================================================================
-! build a 1D Vandermonde matrix using the lagrange basis functions of degree
-! N_In, evaluated at the interpolation points xi_Out
-!===================================================================================================================================
 ! MODULES
-USE MOD_Globals,ONLY:abort
 USE MOD_PreProc
-! IMPLICIT VARIABLE HANDLING
+USE MOD_Globals   ,ONLY: abort
+#ifndef VDM_ANALYTICAL
+USE MOD_Mathtools ,ONLY: INVERSE
+#endif
 IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: N_In
-REAL,INTENT(IN)    :: xi_In(0:N_In)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(OUT)   :: Vdm_Leg(0:N_In,0:N_In),sVdm_Leg(0:N_In,0:N_In)
-!-----------------------------------------------------------------------------------------------------------------------------------
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: N_In                    !< input polynomial degree
+REAL,INTENT(IN)    :: xi_In(0:N_In)           !< nodal positions [-1,1]
+REAL,INTENT(OUT)   ::  Vdm_Leg(0:N_In,0:N_In) !< Vandermonde from Legendre to nodal basis
+REAL,INTENT(OUT)   :: sVdm_Leg(0:N_In,0:N_In) !< Vandermonde from nodal basis to Legendre
+!----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: i,j
 REAL               :: dummy
+#ifdef VDM_ANALYTICAL
 REAL               :: wBary_Loc(0:N_In)
 REAL               :: xGauss(0:N_In),wGauss(0:N_In)
-!===================================================================================================================================
-CALL BarycentricWeights(N_In,xi_in,wBary_loc)
+REAL               :: Vdm_Leg_Gauss(0:N_In,0:N_In) !< Vandermonde from Legendre on Gauss points
+REAL               :: Vdm_Lag(0:N_In,0:N_In)       !< Vandermonde from Lagrange to Gauss points
+#endif
+!==================================================================================================================================
+!compute the Vandermonde on xGP (Depends on NodeType)
+DO i=0,N_In; DO j=0,N_In
+  CALL LegendrePolynomialAndDerivative(j,xi_In(i),Vdm_Leg(i,j),dummy)
+END DO; END DO !j
+
+#ifdef VDM_ANALYTICAL
+! Alternative to matrix inversion: Compute inverse Vandermonde directly
+! Direct inversion has an error around 4e-16 (Lapack: err=0) and is 2 orders of magnitude faster than Lapack
+! see: Hindenlang: Mesh curving techniques for high order parallel simulations on unstructured meshes, 2014, p.27.
+CALL BarycentricWeights(N_In,xi_In,wBary_Loc)
 ! Compute first the inverse (by projection)
-CALL LegendreGaussNodesAndWeights(N_In,xGauss,wGauss) ! create Gauss points xGP and weights
+CALL LegendreGaussNodesAndWeights(N_In,xGauss,wGauss)
 !Vandermonde on xGauss
-DO i=0,N_In
-  DO j=0,N_In
-    CALL LegendrePolynomialAndDerivative(j,xGauss(i),Vdm_Leg(i,j),dummy)
-  END DO !i
-END DO !j
-Vdm_Leg=TRANSPOSE(Vdm_Leg)
+DO i=0,N_In; DO j=0,N_In
+  CALL LegendrePolynomialAndDerivative(i,xGauss(j),Vdm_Leg_Gauss(i,j),dummy)
+END DO; END DO !j
+!Vdm_Leg_Gauss=TRANSPOSE(Vdm_Leg_Gauss)
 DO j=0,N_In
-  Vdm_Leg(:,j)=Vdm_Leg(:,j)*wGauss(j)
+  Vdm_Leg_Gauss(:,j)=Vdm_Leg_Gauss(:,j)*wGauss(j)
 END DO
 !evaluate nodal basis (depends on NodeType, for Gauss: unity matrix)
-CALL InitializeVandermonde(N_In,N_In,wBary_Loc,xi_In,xGauss,sVdm_Leg)
-sVdm_Leg=MATMUL(Vdm_Leg,sVdm_Leg)
-!compute the Vandermonde on xGP (Depends on NodeType)
-DO i=0,N_In
-  DO j=0,N_In
-    CALL LegendrePolynomialAndDerivative(j,xi_In(i),Vdm_Leg(i,j),dummy)
-  END DO !i
-END DO !j
-!check (Vdm_Leg)^(-1)*Vdm_Leg := I
-dummy=SUM((ABS(MATMUL(sVdm_Leg,Vdm_Leg)))-(N_In+1))
-IF(dummy.GT. PP_RealTolerance) CALL abort(&
-__STAMP__&
-,'problems in MODAL<->NODAL Vandermonde ',999,dummy)
+CALL InitializeVandermonde(N_In,N_In,wBary_Loc,xi_In,xGauss,Vdm_Lag)
+sVdm_Leg=MATMUL(Vdm_Leg_Gauss,Vdm_Lag)
+dummy=ABS(SUM(ABS(MATMUL(sVdm_Leg,Vdm_Leg)))/(N_In+1.)-1.)
+IF(dummy.GT.15.*PP_RealTolerance) CALL abort(__STAMP__,&
+                                         'buildLegendreVdm: problems in MODAL<->NODAL Vandermonde ',999,dummy)
+#else
+! Lapack
+sVdm_Leg=INVERSE(Vdm_Leg)
 
+!check (Vdm_Leg)^(-1)*Vdm_Leg := I
+dummy=ABS(SUM(ABS(MATMUL(sVdm_Leg,Vdm_Leg)))/(N_In+1.)-1.)
+! Tolerance used to be PP_RealTolerance
+IF(dummy.GT.10.*PP_RealTolerance) CALL abort(__STAMP__,&
+                                         'problems in Legendre Vandermonde ',999,dummy)
+#endif
 END SUBROUTINE buildLegendreVdm
 
 
