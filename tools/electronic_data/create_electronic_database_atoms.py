@@ -20,8 +20,8 @@ def int_to_Roman(num):
 # Output of the HDF5 database
 hdf = h5py.File('Electronic-State-Database.h5', 'a')
 # Species list to be included in the output database
-#species_list = ['H']
-species_list = ['Xe','XeIon1','XeIon2']
+# species_list = ['N','O','NIon1','OIon1','H','Xe','XeIon1','XeIon2','Ar','ArIon1','ArIon2']
+species_list = ['OIon1']
 ### USER INPUT END
 
 # Base URL of the query
@@ -36,7 +36,7 @@ for current_species in species_list:
   current_species_NIST = species + '+' + int_to_Roman(ion_level)
   print('Converted '+current_species+' to '+current_species_NIST+' for download from NIST database.')
   # Build the request URL
-  URL_request = URL_base + '?de=0&spectrum=' + current_species_NIST + '&units=0&format=2&output=0&page_size=15&multiplet_ordered=1&level_out=on&j_out=on&temp=&submit=Retrieve+Data'
+  URL_request = URL_base + '?de=0&spectrum=' + current_species_NIST + '&units=0&format=2&output=0&page_size=15&multiplet_ordered=1&level_out=on&g_out=on&temp=&submit=Retrieve+Data'
   response = requests.get(URL_request)
   # Check the website
   if response.status_code == 200:
@@ -44,27 +44,27 @@ for current_species in species_list:
   # Get the data from the NIST website
   data = response.content.decode('utf-8')
   # Clean the data
-  data = data.replace('"[','')
-  data = data.replace(']"','')
-  data = data.replace('"(','')
-  data = data.replace(')"','')
+  data = data.replace('[','')
+  data = data.replace(']','')
+  data = data.replace('(','')
+  data = data.replace(')','')
   data = data.replace('= ','')
   data = data.replace('=','')
   data = data.replace(' ','')
   data = data.replace('"','')
   # Read-in data as a pandas dataframe
-  data = pd.read_csv(io.StringIO(data),skipinitialspace=True,delimiter=",",usecols=['J','Level(cm-1)'], na_values=['---'])
+  data = pd.read_csv(io.StringIO(data),skipinitialspace=True,delimiter=",",usecols=['g','Levelcm-1'], na_values=['---'])
+  # Drop rows with an empty cell and '---' entries (which were converted to N/A during read-in)
   data.dropna(inplace=True)
-  # Convert fraction entries to floats (5/2 -> 2.5)
-  if data['J'].dtype == 'object':
-    data['J'] = data.stack().map(lambda x: pd.eval(x)).unstack()
-  # Convert total angeluar momentum to degeneracy
-  data['J'] = 2 * data['J'] + 1
+  # Drop rows with a question mark ("This level/line may not be real.")
+  data.drop(data[data['Levelcm-1'].str.contains(r'[?]')].index,inplace=True)
+  # Drop rows with a +x ("The relative positions of the levels within such a system are accurate within experimental uncertainties, but no experimental connection between this system and the other levels of the spectrum has been made.")
+  data.drop(data[data['Levelcm-1'].str.contains(r'[+x]')].index,inplace=True)
   # Convert 1/cm to K
-  data['Level(cm-1)'] = 100 * data['Level(cm-1)'] * 1.986E-025 / 1.38065E-023           # 1/cm * 100cm/m * (J m) / (J/K) = K
+  data['Levelcm-1'] = data['Levelcm-1'].astype(float)
+  data['Levelcm-1'] = 100 * data['Levelcm-1'] * 1.986E-025 / 1.38065E-023           # 1/cm * 100cm/m * (J m) / (J/K) = K
   data.columns=['Degeneracy', 'Level(K)']
-  # Write to hdf
-  # If data set already exists, delete the old set first
+  # Write to hdf: If data set already exists, delete the old set first
   if current_species in hdf.keys():
     del hdf[current_species]
     print('Old dataset replaced.')
