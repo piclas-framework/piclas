@@ -155,7 +155,7 @@ CALL prms%CreateLogicalOption(  'CalcNumSpec'             , 'Calculate the numbe
                                                             'complete domain','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcNumDens'             , 'Calculate the number density [1/m3] per species for the complete '//&
                                                             'domain','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcMassflowRate'        , 'Calculate the massflow rate [kg/s] per species and surface flux' &
+CALL prms%CreateLogicalOption(  'CalcAdaptiveBCInfo'      , 'Calculate the massflow rate [kg/s] per species and surface flux' &
                                                           ,'.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCollRates'           , 'TODO-DEFINE-PARAMETER\n'//&
                                                             'Calculate the collision rates per '//&
@@ -562,10 +562,12 @@ IF(TrackParticlePosition)THEN
 END IF
 CalcSimNumSpec = GETLOGICAL('CalcNumSpec','.FALSE.')
 CalcNumDens    = GETLOGICAL('CalcNumDens','.FALSE.')
-CalcMassflowRate = GETLOGICAL('CalcMassflowRate')
-IF(CalcMassflowRate) THEN
+CalcAdaptiveBCInfo = GETLOGICAL('CalcAdaptiveBCInfo')
+IF(CalcAdaptiveBCInfo) THEN
   ALLOCATE(MassflowRate(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
   MassflowRate = 0.
+  ALLOCATE(PressureAdaptiveBC(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
+  PressureAdaptiveBC = 0.
 END IF
 CalcCollRates = GETLOGICAL('CalcCollRates','.FALSE.')
 CalcReacRates = GETLOGICAL('CalcReacRates','.FALSE.')
@@ -585,7 +587,7 @@ IF(CalcReacRates) THEN
   END IF
 END IF
 
-IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcMassflowRate.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
+IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcAdaptiveBCInfo.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
 
 !-- Compute transversal or thermal velocity of whole computational domain
 CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
@@ -662,14 +664,14 @@ USE MOD_Preproc
 USE MOD_Analyze_Vars           ,ONLY: CalcEpot,Wel,Wmag,Wphi,Wpsi
 USE MOD_BGK_Vars               ,ONLY: BGK_MaxRelaxFactor,BGK_MaxRotRelaxFactor,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone
-USE MOD_DSMC_Vars              ,ONLY: CollInf, useDSMC, CollisMode, ChemReac, RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: CollInf, useDSMC, CollisMode, ChemReac
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_FPFlow_Vars            ,ONLY: FP_MaxRelaxFactor,FP_MaxRotRelaxFactor,FP_MeanRelaxFactor,FP_MeanRelaxFactorCounter
 USE MOD_FPFlow_Vars            ,ONLY: FP_PrandtlNumber,FPInitDone
 USE MOD_Particle_Analyze_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: MeshVolume
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-USE MOD_Particle_Vars          ,ONLY: Species,nSpecies,usevMPF
+USE MOD_Particle_Vars          ,ONLY: Species,nSpecies
 USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
 USE MOD_Restart_Vars           ,ONLY: RestartTime,DoRestart
 USE MOD_TimeDisc_Vars          ,ONLY: iter, dt, IterDisplayStep
@@ -692,13 +694,13 @@ REAL,INTENT(IN)                 :: Time
 ! LOCAL VARIABLES
 LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
-INTEGER             :: unit_index, iSpec, OutputCounter, iSF, MaxSurfaceFluxBCs
+INTEGER             :: unit_index, iSpec, OutputCounter, iSF
 INTEGER(KIND=IK)    :: SimNumSpec(nSpecAnalyze)
 REAL                :: NumSpec(nSpecAnalyze), NumDens(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
 REAL                :: EkinMax(nSpecies)
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
-REAL                :: ETotal, MacroParticleFactor
+REAL                :: ETotal
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
 REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2)
@@ -770,11 +772,14 @@ INTEGER             :: dir
             OutputCounter = OutputCounter + 1
           END DO
         END IF
-        IF(CalcMassflowRate) THEN
+        IF(CalcAdaptiveBCInfo) THEN
           DO iSpec = 1, nSpecAnalyze
             DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
               WRITE(unit_index,'(I3.3,A15,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Massflow-Spec-',iSpec,'-SF-',iSF
+              OutputCounter = OutputCounter + 1
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A15,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Pressure-Spec-',iSpec,'-SF-',iSF
               OutputCounter = OutputCounter + 1
             END DO
           END DO
@@ -1054,23 +1059,8 @@ INTEGER             :: dir
   ! computes the real and simulated number of particles
   CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec,.TRUE.,CalcSimNumSpec)
   IF(CalcNumDens) CALL CalcNumberDensity(NumSpec,NumDens)
-  ! Determine the mass flux per species and surface flux [kg/s]
-  IF(CalcMassflowRate) THEN
-    ! If usevMPF or DoRadialWeighting then the MacroParticleFactor is already included in the GetParticleWeight
-    IF(iter.GT.0) THEN
-      DO iSpec = 1, nSpecies
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-          MacroParticleFactor = 1.
-        ELSE
-          MacroParticleFactor = Species(iSpec)%MacroParticleFactor
-        END IF
-        DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
-          ! SampledMassFlow contains the weighted particle number balance (in - out)
-          MassflowRate(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow*Species(iSpec)%MassIC*MacroParticleFactor/dt
-        END DO
-      END DO
-    END IF
-  END IF
+  ! Determine the mass flux [kg/s] and pressure [Pa] per species and surface flux (includes MPI communication)
+  IF(CalcAdaptiveBCInfo) CALL CalcAdaptBCInfo()
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate total temperature of each molecular species (Laux, p. 109)
   IF(CalcEkin.OR.CalcEint)THEN
@@ -1084,19 +1074,6 @@ INTEGER             :: dir
     CALL CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! contains MPI Communication
     IF(CalcEint.AND.(CollisMode.GT.1)) THEN
       ETotal = Ekin(nSpecAnalyze) + IntEn(nSpecAnalyze,1) + IntEn(nSpecAnalyze,2) + IntEn(nSpecAnalyze,3)
-!       IF(CollisMode.EQ.3) THEN
-!         totalChemEnergySum = 0.
-! #if USE_MPI
-!         IF(PartMPI%MPIRoot) THEN
-!           CALL MPI_REDUCE(ChemEnergySum,totalChemEnergySum,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-!         ELSE
-!           CALL MPI_REDUCE(ChemEnergySum,0,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-!         END IF
-! #else
-!         totalChemEnergySum = ChemEnergySum
-! #endif
-!         ETotal = ETotal + totalChemEnergySum
-!       END IF
     END IF
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1149,11 +1126,6 @@ INTEGER             :: dir
       CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(1:nSpecAnalyze) ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(1:nSpecAnalyze),nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
-    IF(CalcMassflowRate) THEN
-      MaxSurfaceFluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
-      CALL MPI_REDUCE(MPI_IN_PLACE,MassflowRate(1:nSpecAnalyze,1:MaxSurfaceFluxBCs),nSpecAnalyze*MaxSurfaceFluxBCs,&
-                      MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-    END IF
     IF(CalcCoupledPower) THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,PCoupl       ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PCouplAverage,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -1191,10 +1163,6 @@ INTEGER             :: dir
       CALL MPI_REDUCE(nPartOut   ,0,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(PartEkinIn ,0,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(PartEkinOut,0,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-    END IF
-    IF(CalcMassflowRate) THEN
-      MaxSurfaceFluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
-      CALL MPI_REDUCE(MassflowRate,MassflowRate,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
     IF(CalcCoupledPower) THEN
       CALL MPI_REDUCE(PCoupl       ,0,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -1295,11 +1263,13 @@ IF (PartMPI%MPIROOT) THEN
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(NumDens(iSpec))
       END DO
     END IF
-    IF(CalcMassflowRate) THEN
+    IF(CalcAdaptiveBCInfo) THEN
       DO iSpec = 1, nSpecAnalyze
         DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') MassflowRate(iSpec,iSF)
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PressureAdaptiveBC(iSpec,iSF)
         END DO
       END DO
     END IF
@@ -1973,6 +1943,100 @@ IF (PartMPI%MPIRoot) THEN
 END IF
 
 END SUBROUTINE CalcNumberDensity
+
+
+SUBROUTINE CalcAdaptBCInfo()
+!===================================================================================================================================
+!> Output for adaptive surface flux BCs: calculate the mass flow rate and the pressure in adjacent cells per species & surface flux
+!> 1) Calculate processor-local values
+!> 2) MPI communication
+!> 3) Determine final output values
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_TimeDisc_Vars           ,ONLY: dt, iter
+USE MOD_Particle_Analyze_Vars   ,ONLY: MassflowRate, PressureAdaptiveBC, nSpecAnalyze
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,usevMPF
+USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
+USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCAreaSurfaceFlux
+USE MOD_Mesh_Vars               ,ONLY: SideToElem
+USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: iSpec, iSF, ElemID, SampleElemID, SurfSideID, iSide, iSample, jSample, currentBC, MaxSurfaceFluxBCs
+REAL                :: MacroParticleFactor
+!===================================================================================================================================
+
+IF(iter.EQ.0) RETURN
+
+! 1) Calculate the processor-local mass flow rate and sum-up the area weighted pressure
+PressureAdaptiveBC = 0.
+DO iSpec = 1, nSpecies
+  ! If usevMPF or DoRadialWeighting then the MacroParticleFactor is already included in the GetParticleWeight
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+    MacroParticleFactor = 1.
+  ELSE
+    MacroParticleFactor = Species(iSpec)%MacroParticleFactor
+  END IF
+  DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
+    ! SampledMassFlow contains the weighted particle number balance (in - out)
+    MassflowRate(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow*Species(iSpec)%MassIC*MacroParticleFactor/dt
+    ! Calculate the average pressure
+    currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
+    ! Skip processors without a surface flux
+    IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) CYCLE
+    ! Loop over sides on the surface flux
+    DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+      SurfSideID = BCdata_auxSF(currentBC)%SideList(iSide)
+      ElemID = SideToElem(S2E_ELEM_ID,SurfSideID)
+      SampleElemID = AdaptBCMapElemToSample(ElemID)
+      IF(SampleElemID.GT.0) THEN
+        ! Sum up the area weighted pressure in each adjacent element
+        DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+          PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) &
+            + AdaptBCMacroVal(6,SampleElemID,iSpec) * SurfMeshSubSideData(iSample,jSample,SurfSideID)%area
+        END DO; END DO
+      END IF
+    END DO
+  END DO
+END DO
+
+! 2) Get the sum of the mass flow rate (final output value) and the sum of the area-weighted area pressures
+#if USE_MPI
+MaxSurfaceFluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
+IF (PartMPI%MPIRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,MassflowRate(1:nSpecAnalyze,1:MaxSurfaceFluxBCs),nSpecAnalyze*MaxSurfaceFluxBCs,&
+                  MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,PressureAdaptiveBC(1:nSpecAnalyze,1:MaxSurfaceFluxBCs),nSpecAnalyze*MaxSurfaceFluxBCs,&
+                  MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+ELSE ! no Root
+  CALL MPI_REDUCE(MassflowRate,MassflowRate,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(PressureAdaptiveBC,PressureAdaptiveBC,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+END IF
+#endif /*USE_MPI*/
+
+! 3) Determine the average pressure
+IF (PartMPI%MPIRoot) THEN
+  DO iSpec = 1, nSpecies
+    DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
+      IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+        ! Use the area sum of the elements included in the sampling, instead of the ideal circular area
+        PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) / AdaptBCAreaSurfaceFlux(iSpec,iSF)
+      ELSE
+        PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) / Species(iSpec)%Surfaceflux(iSF)%totalAreaSF
+      END IF
+    END DO
+  END DO
+END IF
+
+END SUBROUTINE CalcAdaptBCInfo
 
 
 SUBROUTINE CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec)
@@ -4146,6 +4210,7 @@ SDEALLOCATE(nPartOut)
 SDEALLOCATE(PartEkinIn)
 SDEALLOCATE(PartEkinOut)
 SDEALLOCATE(MassflowRate)
+SDEALLOCATE(PressureAdaptiveBC)
 
 IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)THEN
 #if USE_MPI

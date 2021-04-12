@@ -79,8 +79,6 @@ CALL prms%SetSection("Particle")
 
 CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  , 'Manual timestep [sec]. This variable is deprecated. '//&
                                                               'Use ManualTimestep instead.', '-1.0')
-CALL prms%CreateRealOption(     'Part-AdaptiveWeightingFactor', 'Weighting factor theta for weighting of average'//&
-                                                                ' instantaneous values with those of previous iterations.', '0.001')
 CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
 ! Ionization
 CALL prms%CreateLogicalOption(  'Part-DoInitialIonization'    , 'When restarting from a state, ionize the species to a '//&
@@ -280,13 +278,13 @@ USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
-USE MOD_Restart_Vars               ,ONLY: DoRestart
+USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptive
 USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
 USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
 USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
 USE MOD_Particle_Mesh_Vars         ,ONLY: GEO
-USE MOD_Part_Emission              ,ONLY: AdaptiveBCAnalyze
+USE MOD_Particle_Sampling_Adapt    ,ONLY: InitAdaptiveBCSampling
 USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundaryRotPeriodic, InitAdaptiveWallTemp
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
@@ -351,6 +349,9 @@ END IF
 ! Initialize porous boundary condition (requires BCdata_auxSF and SurfMesh from InitParticleBoundarySampling)
 IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 
+! Allocate sampling of near adaptive boundary element values
+IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL InitAdaptiveBCSampling()
+
 IF (useDSMC) THEN
   CALL InitDSMC()
   CALL InitSurfaceModel()
@@ -372,11 +373,6 @@ END IF
 ! has to be called AFTER InitializeVariables and InitDSMC
 CALL InitParticleCommSize()
 #endif
-
-! sampling of near adaptive boundary element values in the first time step to get initial distribution for porous BC
-IF(.NOT.DoRestart) THEN
-  IF(nPorousBC.GT.0) CALL AdaptiveBCAnalyze(initSampling_opt=.TRUE.)
-END IF
 
 ParticlesInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLES DONE!'
@@ -1329,15 +1325,12 @@ SUBROUTINE FinalizeParticles()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Vars
+USE MOD_Particle_Sampling_Vars
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
 USE MOD_Particle_MPI_Halo      ,ONLY: FinalizePartExchangeProcs
 USE MOD_PICDepo_Vars           ,ONLY: SendShapeElemID,SendElemShapeID,ShapeMapping,CNShapeMapping
 #endif /*USE_MPI*/
-!#if USE_MPI
-!USE MOD_Particle_MPI_Emission      ,ONLY: FinalizeEmissionParticlesToProcs
-!#endif
-!USE MOD_DSMC_Vars,                  ONLY: SampDSMC
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1391,7 +1384,6 @@ SDEALLOCATE(PDM%IsNewPart)
 SDEALLOCATE(vMPF_SpecNumElem)
 SDEALLOCATE(PartMPF)
 SDEALLOCATE(Species)
-SDEALLOCATE(Adaptive_MacroVal)
 SDEALLOCATE(SpecReset)
 SDEALLOCATE(IMDSpeciesID)
 SDEALLOCATE(IMDSpeciesCharge)

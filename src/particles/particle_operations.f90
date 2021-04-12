@@ -126,13 +126,14 @@ END SUBROUTINE CreateParticle
 SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 !===================================================================================================================================
 !> Removes a single particle "PartID" by setting the required variables.
-!> If CalcPartBalance/UseAdaptive/CalcMassflowRate = T: adds/substracts the particle to/from the respective counter
+!> If CalcPartBalance/UseAdaptive/CalcAdaptiveBCInfo = T: adds/substracts the particle to/from the respective counter
 !>  !!!NOTE!!! This routine is inside particle analyze because of circular definition of modules (CalcEkinPart)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, UseAdaptive, PartMPF, usevMPF
+USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, PartMPF, usevMPF
+USE MOD_Particle_Sampling_Vars    ,ONLY: UseAdaptive
 USE MOD_Particle_Vars             ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance
-USE MOD_Particle_Analyze_Vars     ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcMassflowRate
+USE MOD_Particle_Analyze_Vars     ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcAdaptiveBCInfo
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput,BPO
 #if defined(IMPA)
 USE MOD_Particle_Vars             ,ONLY: PartIsImplicit
@@ -171,7 +172,7 @@ END IF ! CalcPartBalance
 ! If a BCID is given (e.g. when a particle is removed at a boundary), check if its an adaptive surface flux BC or the mass flow
 ! through the boundary shall be calculated or the charges impinging on the boundary are to be summed (thruster neutralization)
 IF(PRESENT(BCID)) THEN
-  IF(UseAdaptive.OR.CalcMassflowRate) THEN
+  IF(UseAdaptive.OR.CalcAdaptiveBCInfo) THEN
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
       IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.BCID) THEN
         Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow &
@@ -180,7 +181,7 @@ IF(PRESENT(BCID)) THEN
             Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
       END IF
     END DO
-  END IF ! UseAdaptive.OR.CalcMassflowRate
+  END IF ! UseAdaptive.OR.CalcAdaptiveBCInfo
   IF(UseNeutralization)THEN
     IF(TRIM(BoundaryName(BCID)).EQ.TRIM(NeutralizationSource))THEN
       ! Add +1 for electrons and -1 for ions

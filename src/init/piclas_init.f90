@@ -278,6 +278,7 @@ USE MOD_Particle_Analyze           ,ONLY: FinalizeParticleAnalyze
 USE MOD_PICDepo                    ,ONLY: FinalizeDeposition
 USE MOD_PICInterpolation           ,ONLY: FinalizePICInterpolation
 USE MOD_ParticleInit               ,ONLY: FinalizeParticles
+USE MOD_Particle_Sampling_Adapt    ,ONLY: FinalizeParticleSamplingAdaptive
 USE MOD_Particle_Boundary_Init     ,ONLY: FinalizeParticleBoundary
 USE MOD_TTMInit                    ,ONLY: FinalizeTTM
 USE MOD_DSMC_Init                  ,ONLY: FinalizeDSMC
@@ -350,6 +351,7 @@ CALL FinalizeFPFlow()
 CALL FinalizeBGK()
 #endif
 CALL FinalizeParticles()
+CALL FinalizeParticleSamplingAdaptive(IsLoadBalance)
 CALL FinalizeParticleBoundary()
 CALL FinalizeBackGroundField()
 CALL FinalizeSuperB()
