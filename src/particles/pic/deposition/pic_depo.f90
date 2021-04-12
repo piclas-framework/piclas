@@ -71,9 +71,7 @@ CALL prms%CreateRealOption(     'PIC-shapefunction-adaptive-DOF'  ,'Average numb
     'number of DOF is limited by the polynomial degree and depends on PIC-shapefunction-dimension=1, 2 or 3\n'//&
    '1D: 2*(N+1)\n'//&
    '2D: Pi*(N+1)^2\n'//&
-   '3D: (4/3)*Pi*(N+1)^3\n'//&
-   'Default is 2 (1D), 12 (2D) and 33 (3D)')
-    !'number of DOF is limited by the polynomial degree and is (4/3)*Pi*(N+1)^3', '33.')
+   '3D: (4/3)*Pi*(N+1)^3\n')
 
 END SUBROUTINE DefineParametersPICDeposition
 
