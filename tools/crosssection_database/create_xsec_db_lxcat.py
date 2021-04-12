@@ -13,8 +13,7 @@ reference = "Phelps database, www.lxcat.net, retrieved on February 18, 2020. LXC
 
 # Output of the HDF5 database
 hdf = h5py.File(database_output, 'w')
-hdf.attrs['Info'] = 'Effective electron-neutrals collision cross-section database for read-in with PICLas. First column is the collision energy in [eV], second column is the cross-section in [m^2]'
-hdf.attrs['Reference'] = reference
+hdf.attrs['Info'] = 'Cross-section database: First column is the collision energy in [eV], second column is the cross-section in [m^2]'
 
 def sort_by_threshold(elem):
     return elem.threshold
@@ -55,6 +54,7 @@ for current_species in species_list:
         print('WARNING: '+ str(total-sum([result_rot,result_vib,result_elec])) +' excitation cross-section(s) could not be assigned!')
         print('WARNING: Cross-sections will be written in the UNDEFINED group.')
         grp_undef = grp_spec.create_group("UNDEFINED")
+        grp_undef.attrs['Reference'] = reference
     else:
         print('Found:')
         print(str(result_rot)+' rotational cross-section(s).')
@@ -62,10 +62,13 @@ for current_species in species_list:
         print(str(result_elec)+' electronic cross-section(s).')
     if result_rot > 0:
         grp_rot = grp_spec.create_group("ROTATION")
+        grp_rot.attrs['Reference'] = reference
     if result_vib > 0:
         grp_vib = grp_spec.create_group("VIBRATION")
+        grp_vib.attrs['Reference'] = reference
     if result_elec > 0:
         grp_elec = grp_spec.create_group("ELECTRONIC")
+        grp_elec.attrs['Reference'] = reference
     for cross_section in data_spec.cross_sections:
         # Read-in of the effective cross-sections
         if cross_section.type == ldp.CrossSectionTypes.EFFECTIVE:
@@ -77,8 +80,9 @@ for current_species in species_list:
             dataset = grp_spec.create_dataset(type_spec, data=cross_section.data)
             ## Save the type of cross-section
             dataset.attrs['Type'] = type_spec
-            ## Save the additional information
+            ## Save the additional information and reference
             dataset.attrs['Info'] = str(cross_section.info)
+            dataset.attrs['Reference'] = reference
         # Read-in of the elastic cross-sections
         if cross_section.type == ldp.CrossSectionTypes.ELASTIC:
             ## Get the string of the cross section type (ELASTIC = 0, EFFECTIVE = 1, EXCITATION = 2, ATTACHMENT = 3, IONIZATION = 4)
@@ -91,6 +95,7 @@ for current_species in species_list:
             dataset.attrs['Type'] = type_spec
             ## Save the additional information
             dataset.attrs['Info'] = str(cross_section.info)
+            dataset.attrs['Reference'] = reference
     for cross_section in sorted([cross_section for cross_section in data_spec.cross_sections if cross_section.type == ldp.CrossSectionTypes.EXCITATION],key=sort_by_threshold):
         ## Write cross-section dataset of the current species in the HDF5 database
         test = 0
