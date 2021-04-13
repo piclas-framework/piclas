@@ -28,10 +28,6 @@ CHARACTER(LEN=50) , ALLOCATABLE         :: SurfModEnergyDistribution(:) ! Energy
 
 ! === Porous BC ====================================================================================================================
 INTEGER                                 :: nPorousBC                          ! Number of porous BCs
-
-INTEGER                                 :: PorousBCSampIter                   !
-REAL, ALLOCATABLE                       :: PorousBCMacroVal(:,:,:)            !
-
 TYPE tPorousBC
   INTEGER                               :: BC                     ! Number of the reflective BC to be used as a porous BC
   REAL                                  :: Pressure               ! Pressure at the BC [Pa], user-given

@@ -25,7 +25,7 @@ SAVE
 LOGICAL                       :: ParticleAnalyzeInitIsDone = .FALSE.
 LOGICAL                       :: CalcSimNumSpec                      !< Calculate the number of simulated particles per species
 LOGICAL                       :: CalcNumDens                         !< Calculate the number density per species within the domain
-LOGICAL                       :: CalcMassflowRate                    !< Calculate the mass flow through the adaptive inlet boundary
+LOGICAL                       :: CalcAdaptiveBCInfo                    !< Calculate the mass flow through the adaptive inlet boundary
 LOGICAL                       :: CalcCollRates                       !< Calculate the collision rates per collision pair
 LOGICAL                       :: CalcReacRates                       !< Calculate the reaction rate per reaction
 LOGICAL                       :: CalcRelaxProb                       !< Calculate relaxation probabilities
@@ -135,5 +135,6 @@ REAL                          :: printDiffTime                       !< TODO
 REAL                          :: printDiffVec(6)                     !< TODO
 REAL                          :: ChemEnergySum                       !< TODO
 REAL,ALLOCATABLE              :: MassflowRate(:,:)
+REAL,ALLOCATABLE              :: PressureAdaptiveBC(:,:)
 !===================================================================================================================================
 END MODULE MOD_Particle_Analyze_Vars
