@@ -2029,7 +2029,7 @@ USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCMacroVal, AdaptBCSampleElemNum, AdaptBCMapSampleToElem, AdaptiveData
+USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCMacroVal,AdaptBCSampleElemNum,AdaptBCMapSampleToElem,AdaptiveData,AdaptBCTruncAverage
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2095,7 +2095,70 @@ END ASSOCIATE
 CALL CloseDataFile()
 SDEALLOCATE(StrVarNames)
 
+IF(AdaptBCTruncAverage) CALL WriteAdaptiveRunningAverageToHDF5(FileName)
+
 END SUBROUTINE WriteAdaptiveInfoToHDF5
+
+
+SUBROUTINE WriteAdaptiveRunningAverageToHDF5(FileName)
+!===================================================================================================================================
+!> Output of the running average required for the sampling at the adaptive boundary conditions. Required to keep the average
+!> during a load balance step.
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_IO_HDF5
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCAverage, AdaptBCSampleElemNum, AdaptBCMapSampleToElem, AdaptBCSampIter
+USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCSampleElemNumGlobal, offSetElemAdaptBCSample
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)  :: FileName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: nVar,ElemID,SampleElemID
+INTEGER, ALLOCATABLE           :: AdaptBCAverageIndex(:)
+!===================================================================================================================================
+
+nVar = 8
+ALLOCATE(AdaptBCAverageIndex(1:AdaptBCSampleElemNumGlobal))
+
+DO SampleElemID = 1,AdaptBCSampleElemNum
+  ElemID = AdaptBCMapSampleToElem(SampleElemID)
+  AdaptBCAverageIndex(SampleElemID) = ElemID + offsetElem
+END DO
+
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      AdaptBCSampleElemNumGlobal    => INT(AdaptBCSampleElemNumGlobal,IK)    ,&
+      AdaptBCSampleElemNum          => INT(AdaptBCSampleElemNum,IK)          ,&
+      nVar                          => INT(nVar,IK)            ,&
+      nSpecies                      => INT(nSpecies,IK)        ,&
+      AdaptBCSampIter               => INT(AdaptBCSampIter,IK) ,&
+      offSetElemAdaptBCSample       => INT(offSetElemAdaptBCSample,IK)      )
+  CALL WriteArrayToHDF5(DataSetName = 'AdaptiveRunningAverage' , rank = 4                   , &
+                        nValGlobal  = (/nVar  , AdaptBCSampIter  , AdaptBCSampleElemNumGlobal, nSpecies/) , &
+                        nVal        = (/nVar  , AdaptBCSampIter  , AdaptBCSampleElemNum      , nSpecies/) , &
+                        offset      = (/0_IK  , 0_IK             , offSetElemAdaptBCSample   , 0_IK/) , &
+                        collective  = .false. , RealArray = AdaptBCAverage)
+  CALL WriteArrayToHDF5(DataSetName = 'AdaptiveRunningAverageIndex' , rank = 1                   , &
+                        nValGlobal  = (/AdaptBCSampleElemNumGlobal/) , &
+                        nVal        = (/AdaptBCSampleElemNum      /) , &
+                        offset      = (/offSetElemAdaptBCSample  /) , &
+                        collective  = .false. , IntegerArray_i4 = AdaptBCAverageIndex)
+END ASSOCIATE
+CALL CloseDataFile()
+DEALLOCATE(AdaptBCAverageIndex)
+
+END SUBROUTINE WriteAdaptiveRunningAverageToHDF5
 
 
 SUBROUTINE WriteAdaptiveWallTempToHDF5(FileName)

@@ -36,7 +36,6 @@ INTEGER                                 :: AdaptBCSampleElemNum           ! Numb
 INTEGER, ALLOCATABLE                    :: AdaptBCMapSampleToElem(:)      ! 
 INTEGER, ALLOCATABLE                    :: AdaptBCMapElemToSample(:)      ! 
 REAL, ALLOCATABLE                       :: AdaptBCAverage(:,:,:,:)        ! Truncated running average (current value replaces the first)
-REAL, ALLOCATABLE                       :: AdaptBCAverageGlobal(:,:,:,:)  ! Truncated running average global to keep during restart
 REAL, ALLOCATABLE                       :: AdaptBCSample(:,:,:)           ! Particle sample near boundaries
 REAL, ALLOCATABLE                       :: AdaptBCMacroVal(:,:,:)         ! Macroscopic value near boundaries
                                                                           ! (1:7,1:AdaptBCSampleElemNum,1:nSpecies)
@@ -49,5 +48,7 @@ REAL, ALLOCATABLE                       :: AdaptBCMacroVal(:,:,:)         ! Macr
                                                                           !  7:  Integral pressure difference [Pa]
 REAL, ALLOCATABLE                       :: AdaptiveData(:,:,:)            ! Macroscopic value near boundaries (for output)
 REAL, ALLOCATABLE                       :: AdaptBCAreaSurfaceFlux(:,:)    ! UseCircularInflow: Surflux area as the sum of actual elements
+INTEGER                                 :: offSetElemAdaptBCSample
+INTEGER                                 :: AdaptBCSampleElemNumGlobal
 !-----------------------------------------------------------------------------------------------------------------------------------
 END MODULE MOD_Particle_Sampling_Vars

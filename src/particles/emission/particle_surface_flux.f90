@@ -157,9 +157,8 @@ __STAMP__&
         END IF ! noAdaptive.AND.(.NOT.Symmetry2DAxisymmetric)
         !-- proceed with calculated to be inserted particles
         IF (PartInsSubSide.LT.0) THEN
-          CALL abort(&
-__STAMP__&
-,'ERROR in ParticleSurfaceflux: PartInsSubSide.LT.0!')
+          CALL abort(__STAMP__,&
+            'ERROR in ParticleSurfaceflux: PartInsSubSide.LT.0!')
         ELSE IF (PartInsSubSide + ExtraParts.LE.0) THEN
           CYCLE
         END IF

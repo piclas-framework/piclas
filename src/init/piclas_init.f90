@@ -351,7 +351,7 @@ CALL FinalizeFPFlow()
 CALL FinalizeBGK()
 #endif
 CALL FinalizeParticles()
-CALL FinalizeParticleSamplingAdaptive(IsLoadBalance)
+CALL FinalizeParticleSamplingAdaptive()
 CALL FinalizeParticleBoundary()
 CALL FinalizeBackGroundField()
 CALL FinalizeSuperB()

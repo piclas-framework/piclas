@@ -65,10 +65,6 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
 #if USE_MPI
 USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
-#if USE_LOADBALANCE
-USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank, nComputeNodeProcessors
-USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
-#endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -78,16 +74,14 @@ USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                           :: AdaptiveDataExists
-REAL,ALLOCATABLE                  :: ElemData_HDF5(:,:,:)
+LOGICAL                           :: AdaptiveDataExists, RunningAverageExists
+REAL,ALLOCATABLE                  :: ElemData_HDF5(:,:,:), ElemData2_HDF5(:,:,:,:)
 INTEGER                           :: iElem, iSpec, iSF, iSide, ElemID, SampleElemID, nVar, GlobalSideID, GlobalElemID, currentBC
-INTEGER                           :: jSample, iSample, BCSideID
+INTEGER                           :: jSample, iSample, BCSideID, nElemReadin
+INTEGER,ALLOCATABLE               :: GlobalElemIndex(:)
 #if USE_MPI
-#if USE_LOADBALANCE
-INTEGER                           :: offsetElemCNProc(nComputeNodeProcessors), nSendCount(nComputeNodeProcessors)
-REAL,ALLOCATABLE                  :: AdaptBCAverageTemp(:,:,:,:)
-#endif /*USE_LOADBALANCE*/
-#endif /*USE_MPI*/
+INTEGER                           :: offSetElemAdaptBCSampleMPI(0:nProcessors-1)
+#endif
 !===================================================================================================================================
 
 AdaptBCSampleElemNum = 0
@@ -165,49 +159,48 @@ DO iElem = 1,nElems
   END IF
 END DO
 
+! Sanity check
+IF(SampleElemID.NE.AdaptBCSampleElemNum) THEN
+  IPWRITE(*,*) 'Number of elements counted in the mapping array: ', SampleElemID
+  IPWRITE(*,*) 'Number of elements counted during surface flux and porous BC checks: ', AdaptBCSampleElemNum
+  CALL abort(__STAMP__,&
+      'ERROR: Mapping between sampling elements and regular elements is not complete!')
+END IF
+
+#if USE_MPI
+! Gather the number of sampling elements per proc
+CALL MPI_GATHER(AdaptBCSampleElemNum,1,MPI_INTEGER_INT_KIND,offSetElemAdaptBCSampleMPI,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_WORLD,iError)
+! Distribute the number of elements per proc to each each proc
+CALL MPI_BCAST(offSetElemAdaptBCSampleMPI,nProcessors,MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
+! Determine the offset for the sampling elements
+IF(myRank.EQ.0) THEN
+  offSetElemAdaptBCSample = 0
+ELSE
+  offSetElemAdaptBCSample = SUM(offSetElemAdaptBCSampleMPI(0:myRank-1))
+END IF
+! Determine the total number of sampling elements (global)
+AdaptBCSampleElemNumGlobal = SUM(offSetElemAdaptBCSampleMPI)
+#else
+AdaptBCSampleElemNumGlobal = AdaptBCSampleElemNum
+#endif /*USE_MPI*/
+
 ALLOCATE(AdaptBCMacroVal(1:7,1:AdaptBCSampleElemNum,1:nSpecies))
 AdaptBCMacroVal(:,:,:) = 0.0
 ALLOCATE(AdaptBCSample(1:8,1:AdaptBCSampleElemNum,1:nSpecies))
 AdaptBCSample = 0.0
 
 ! 3) Read-in of the additional variables for sampling
-
 AdaptBCRelaxFactor = GETREAL('AdaptiveBC-RelaxationFactor')
 AdaptBCSampIter = GETINT('AdaptiveBC-SamplingIteration')
 AdaptBCTruncAverage = GETLOGICAL('AdaptiveBC-TruncateRunningAverage')
 
-! 3a) Initialize truncated average (and read-in of the sample array after a load balance step)
 IF(AdaptBCTruncAverage) THEN
   IF(AdaptBCSampIter.EQ.0) THEN
     CALL abort(__STAMP__,&
       'ERROR: Truncated running average requires to the number of sampling iterations (AdaptiveBC-SamplingIteration > 0)!')
   END IF
-  ALLOCATE(AdaptBCAverage(1:8,AdaptBCSampIter,1:AdaptBCSampleElemNum,1:nSpecies))
+  ALLOCATE(AdaptBCAverage(1:8,1:AdaptBCSampIter,1:AdaptBCSampleElemNum,1:nSpecies))
   AdaptBCAverage = 0.0
-#if USE_MPI
-#if USE_LOADBALANCE
-  IF(PerformLoadBalance) THEN
-    ALLOCATE(AdaptBCAverageTemp(1:8,AdaptBCSampIter,1:nElems,1:nSpecies))
-    AdaptBCAverage = 0.0
-    ! Displacement array (per proc)
-    CALL MPI_GATHER(offsetElem,1,MPI_INTEGER_INT_KIND,offsetElemCNProc,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_SHARED,iError)
-    ! Send counter (per proc)
-    CALL MPI_GATHER(8*AdaptBCSampIter*nElems*nSpecies,1,MPI_INTEGER_INT_KIND,nSendCount,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_SHARED,iError)
-    IF(myComputeNodeRank.EQ.0) THEN
-      CALL MPI_SCATTERV(AdaptBCAverageGlobal,nSendCount,offsetElemCNProc,MPI_DOUBLE_PRECISION, &
-                        AdaptBCAverageTemp,8*AdaptBCSampIter*nElems*nSpecies,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,IERROR)
-    ELSE
-      CALL MPI_SCATTERV(MPI_IN_PLACE,nSendCount,offsetElemCNProc,MPI_DOUBLE_PRECISION, &
-                        AdaptBCAverageTemp,8*AdaptBCSampIter*nElems*nSpecies,MPI_DOUBLE_PRECISION, 0, MPI_COMM_SHARED,IERROR)
-    END IF
-    DO SampleElemID = 1,AdaptBCSampleElemNum
-      ElemID = AdaptBCMapSampleToElem(SampleElemID)
-      AdaptBCAverage(:,:,SampleElemID,:) = AdaptBCAverageTemp(:,:,ElemID,:)
-    END DO
-    DEALLOCATE(AdaptBCAverageTemp)
-  END IF
-#endif /*USE_LOADBALANCE*/
-#endif /*USE_MPI*/
 END IF
 
 ! 4) If restart is done, check if adaptiveinfo exists in state, read it in and write to AdaptBCMacroValues
@@ -238,12 +231,52 @@ IF (DoRestart) THEN
     END DO
     SDEALLOCATE(ElemData_HDF5)
   END IF
+  ! Read-in the running average values from the state file during a load balance step
+  IF(AdaptBCTruncAverage.AND.PerformLoadBalance) THEN
+    CALL DatasetExists(File_ID,'AdaptiveRunningAverage',RunningAverageExists)
+    IF(RunningAverageExists)THEN
+      CALL GetDataSize(File_ID,'AdaptiveRunningAverage',nDims,HSize)
+      nVar=INT(HSize(2),4)
+      nElemReadin = INT(HSize(3),4)
+      DEALLOCATE(HSize)
+      IF(AdaptBCSampIter.EQ.nVar.AND.AdaptBCSampleElemNumGlobal.EQ.nElemReadin) THEN
+        ALLOCATE(ElemData2_HDF5(1:8,1:nVar,1:nElemReadin,1:nSpecies))
+        ALLOCATE(GlobalElemIndex(1:nElemReadin))
+        ! Associate construct for integer KIND=8 possibility
+        ASSOCIATE (&
+              nSpecies    => INT(nSpecies,IK) ,&
+              offsetElem  => INT(offsetElem,IK),&
+              nElemReadin => INT(nElemReadin,IK)    ,&
+              nVar        => INT(nVar,IK)    )
+          CALL ReadArray('AdaptiveRunningAverage',4,(/8_IK, nVar, nElemReadin, nSpecies/),0,3,RealArray=ElemData2_HDF5(:,:,:,:))
+          CALL ReadArray('AdaptiveRunningAverageIndex',1,(/nElemReadin/),0,1,IntegerArray_i4=GlobalElemIndex(:))
+        END ASSOCIATE
+        IF(AdaptBCSampleElemNum.GT.0) THEN
+          DO iElem = 1,nElemReadin
+            GlobalElemID = GlobalElemIndex(iElem)
+            ! Skip elements outside my local region
+            IF((GlobalElemID.LT.1+offsetElem).OR.(GlobalElemID.GT.nElems+offsetElem)) CYCLE
+            ! Get the sample element ID
+            SampleElemID = AdaptBCMapElemToSample(GlobalElemID-offsetElem)
+            IF(SampleElemID.GT.0) AdaptBCAverage(1:8,1:nVar,SampleElemID,1:nSpecies) = ElemData2_HDF5(1:8,1:nVar,iElem,1:nSpecies)
+          END DO
+        END IF
+        SDEALLOCATE(ElemData2_HDF5)
+        SDEALLOCATE(GlobalElemIndex)
+      ELSE
+        SWRITE(*,*) 'Sampling for adaptive boundary conditions: Different number of sampling iterations in state file. Values initiliazed with zeros.'
+      END IF
+    ELSE
+      SWRITE(*,*) 'Sampling for adaptive boundary conditions: No running average values found. Values initiliazed with zeros.'
+    END IF
+  END IF
   CALL CloseDataFile()
 END IF
 
-! 5) If no values have been read-in, initialize the sample with values either the macroscopic restart or the surface flux
-
-IF (AdaptiveDataExists) RETURN
+! Leave routine if the processor does not have sampling elements (after the MPI communication and HDF read-in)
+IF(AdaptBCSampleElemNum.EQ.0) RETURN
+! 4) Initialize the macroscopic values from either the macroscopic restart or the surface flux (if no values have been read-in)
+IF(AdaptiveDataExists) RETURN
 
 IF (DoMacroscopicRestart) THEN
   DO SampleElemID = 1,AdaptBCSampleElemNum
@@ -271,14 +304,16 @@ ELSE
         END IF
         ElemID = SideToElem(S2E_ELEM_ID,BCdata_auxSF(currentBC)%SideList(iSide))
         SampleElemID = AdaptBCMapElemToSample(ElemID)
-        AdaptBCMacroVal(1:3,SampleElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC*Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1:3)
-        AdaptBCMacroVal(4,SampleElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
+        IF(SampleElemID.GT.0) THEN
+          AdaptBCMacroVal(1:3,SampleElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC*Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1:3)
+          AdaptBCMacroVal(4,SampleElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
+        END IF
       END DO
     END DO
   END DO
 END IF
 
-! sampling of near adaptive boundary element values in the first time step to get initial distribution for porous BC
+! Sampling of near adaptive boundary element values in the first time step to get initial distribution for porous BC
 IF(.NOT.DoRestart.AND..NOT.PerformLoadBalance) THEN
   CALL AdaptiveBCSampling(initSampling_opt=.TRUE.)
 END IF
@@ -485,7 +520,7 @@ END DO        ! SampleElemID = 1,AdaptBCSampleElemNum
 END SUBROUTINE AdaptiveBCSampling
 
 
-SUBROUTINE FinalizeParticleSamplingAdaptive(IsLoadBalance)
+SUBROUTINE FinalizeParticleSamplingAdaptive()
 !----------------------------------------------------------------------------------------------------------------------------------!
 !>
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -493,75 +528,14 @@ SUBROUTINE FinalizeParticleSamplingAdaptive(IsLoadBalance)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Sampling_Vars
-#if USE_MPI
-#if USE_LOADBALANCE
-USE MOD_Particle_Vars           ,ONLY: nSpecies
-USE MOD_Mesh_Vars               ,ONLY: offsetElem, nElems, nGlobalElems
-USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank, nComputeNodeProcessors, nProcessors_Global
-USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED, MPI_COMM_LEADERS_SHARED
-#endif /*USE_LOADBALANCE*/
-#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
-LOGICAL                         :: IsLoadBalance
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if USE_MPI
-#if USE_LOADBALANCE
-INTEGER                         :: ElemID, SampleElemID, offsetElemProc(nComputeNodeProcessors), nRecvCount(nComputeNodeProcessors)
-REAL                            :: AdaptBCAverageTempProc(1:8,1:AdaptBCSampIter,1:nElems,1:nSpecies)
-#endif /*USE_LOADBALANCE*/
-#endif /*USE_MPI*/
 !===================================================================================================================================
-#if USE_MPI
-#if USE_LOADBALANCE
-IF(AdaptBCTruncAverage) THEN
-  IF(IsLoadBalance) THEN
-    ! IF(.NOT.ALLOCATED(AdaptBCAverageGlobal)) THEN
-    !   ALLOCATE(AdaptBCAverageGlobal(1:8,1:AdaptBCSampIter,1:nGlobalElems,1:nSpecies))
-    !   AdaptBCAverageGlobal = 0.
-    ! END IF
-    ! DO SampleElemID = 1,AdaptBCSampleElemNum
-    !   ElemID = AdaptBCMapSampleToElem(SampleElemID)
-    !   AdaptBCAverageGlobal(:,:,offsetElem+ElemID,:) = AdaptBCAverage(:,:,SampleElemID,:)
-    ! END DO
-    ! CALL MPI_ALLREDUCE(MPI_IN_PLACE,AdaptBCAverageGlobal,8*AdaptBCSampIter*nGlobalElems*nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_SHARED,IERROR)
-    ! ########################################################################
-    AdaptBCAverageTempProc = 0.
-    ! Store the sampled values in a nElems array
-    DO SampleElemID = 1,AdaptBCSampleElemNum
-      ElemID = AdaptBCMapSampleToElem(SampleElemID)
-      AdaptBCAverageTempProc(:,:,ElemID,:) = AdaptBCAverage(:,:,SampleElemID,:)
-    END DO
-    ! Compute-node leader gathers the information from his node processors
-    ! Displacement array (per proc)
-    CALL MPI_GATHER(offsetElem,1,MPI_INTEGER_INT_KIND,offsetElemProc,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_SHARED,iError)
-    ! Receive counter (per proc)
-    CALL MPI_GATHER(8*AdaptBCSampIter*nElems*nSpecies,1,MPI_INTEGER_INT_KIND,nRecvCount,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_SHARED,iError)
-    ! Compute-node leaders get the complete array
-    IF (myComputeNodeRank.EQ.0) THEN
-      IF(.NOT.ALLOCATED(AdaptBCAverageGlobal)) THEN
-        ALLOCATE(AdaptBCAverageGlobal(1:8,1:AdaptBCSampIter,1:nGlobalElems,1:nSpecies))
-      END IF
-      AdaptBCAverageGlobal = 0.
-      CALL MPI_GATHERV(AdaptBCAverageTempProc,8*AdaptBCSampIter*nElems*nSpecies,MPI_DOUBLE_PRECISION, &
-                      AdaptBCAverageGlobal, nRecvCount, offsetElemProc, MPI_DOUBLE_PRECISION, 0, MPI_COMM_SHARED,IERROR)
-      ! All-reduce between node leaders (in case of multi-node)
-      IF (nComputeNodeProcessors.LT.nProcessors_Global) &
-        CALL MPI_ALLREDUCE(MPI_IN_PLACE,AdaptBCAverageGlobal,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,IERROR)
-    ELSE
-      CALL MPI_GATHERV(AdaptBCAverageTempProc,8*AdaptBCSampIter*nElems*nSpecies,MPI_DOUBLE_PRECISION, &
-                      MPI_IN_PLACE, nRecvCount, offsetElemProc, MPI_DOUBLE_PRECISION, 0, MPI_COMM_SHARED,IERROR)
-    END IF
-  ELSE
-    SDEALLOCATE(AdaptBCAverageGlobal)
-  END IF
-END IF
-#endif /*USE_LOADBALANCE*/
-#endif /*USE_MPI*/
 SDEALLOCATE(AdaptBCAverage)
 SDEALLOCATE(AdaptBCMacroVal)
 SDEALLOCATE(AdaptBCSample)
