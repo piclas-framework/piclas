@@ -241,7 +241,13 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE ANALYZE...'
 
 ! Average number of points per shape function: max. number allowed is (PP_N+1)^3
-CalcPointsPerShapeFunction = GETLOGICAL('CalcPointsPerShapeFunction','.FALSE.')
+IF(StringBeginsWith(DepositionType,'shape_function'))THEN
+  CalcPointsPerShapeFunction = GETLOGICAL('CalcPointsPerShapeFunction')
+ELSE
+  CalcPointsPerShapeFunction = .FALSE.
+END IF
+
+! Allocate arrays and calculate the average number of points in each shape function sphere
 IF(CalcPointsPerShapeFunction)THEN
   ! PPSCell:
   ! Points per shape function sphere (cell mean value): Calculate cell local number excluding neighbor DOFs
