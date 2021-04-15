@@ -729,14 +729,26 @@ or
 
     PIC-Deposition-Type = shape_function_cc
 
-where `shape_function_cc` is a more charge-conserving method that adjusts the deposited charge by
+where `shape_function_cc` is a numerically charge-conserving method that adjusts the deposited charge by
 comparing its integral value to the total charge given by the particles.
 
-The shape function sphere might be truncated at walls or open boundaries, which can be prevented by
-using a local deposition method near boundaries. The deposition of particles in elements where the shape
-function might be truncated is changed to *cell_volweight* for these elements via
+The shape function sphere might be truncated at walls or open boundaries, which is compensated when using `shape_function_cc` by
+increasing the deposited charge of truncated particles.
 
-    PIC-shapefunction-local-depo-BC = T
+Additionally, an element-local shape function radius can be used, which is determined for each element separately depending on the
+size of the element and its direct neighbours by setting
+
+    PIC-Deposition-Type = shape_function_adaptive
+
+The shape function radius in this case is limited by the size of the surrounding elements and may not reach past its direct
+neighbours. This shape function method also is numerically charge conserving by integrating each particle's deposited charge and
+adjusting to this value. Depending on the polynomial degree N, the number of DOF that are within the shape function radius can be
+changed via
+
+    PIC-shapefunction-adaptive-DOF = 33
+
+The default values (maximum allowed for each polynomial degree $N$) depend on the dimensionality of the deposition kernel, 1D: $2(N+1)$, 2D: $\pi(N+1)^2$, 3D: $(4/3)\pi(N+1)^3$.
+
 
 The following polynomial isotropic shape functions are all designed to be used in three dimensions, where reductions to 2D and 1D are applied.
 

@@ -1547,9 +1547,7 @@ DO iSpec=1,nSpecies
       lineVector(3) = Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
         Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
       IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
-         CALL ABORT(&
-         __STAMP__&
-         ,'BaseVectors are parallel!')
+         CALL ABORT(__STAMP__,'BaseVectors are parallel!')
       ELSE
         lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
           lineVector(3) * lineVector(3))
