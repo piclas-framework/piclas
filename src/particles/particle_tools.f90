@@ -543,7 +543,6 @@ DO iLoop = 1, nPart
   varianceiRan(1:3) = varianceiRan(1:3) + iRanPart(1:3,iLoop)*iRanPart(1:3,iLoop)
 END DO
 varianceiRan(1:3) = SQRT(varianceiRan(1:3)/nPart)
-WRITE (*,*) "varianceiRan =", varianceiRan
 
 DO iLoop = 1, nPart
   DO I = 1, 3
