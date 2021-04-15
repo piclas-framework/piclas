@@ -319,9 +319,9 @@ DO ilocSide = 1,6
     IF(PartID.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(15("="))')
       WRITE(UNIT_stdout,'(A)')           '     | Output after compute intersection (PartInElemCheck): '
-      WRITE(UNIT_stdout,'(2(A,I0),A,L)') '     | SideType: ',SideType(CNSideID)  ,' | SideID: ',SideID,'| Hit: ',isHit
+      WRITE(UNIT_stdout,'(2(A,I0),A,L1)') '     | SideType: ',SideType(CNSideID)  ,' | SideID: ',SideID,'| Hit: ',isHit
       WRITE(UNIT_stdout,'(2(A,G0))')     '     | LengthPT: ',LengthPartTrajectory,' | Alpha: ',Alpha
-      WRITE(UNIT_stdout,'(A,2(X,G0))')   '     | Intersection xi/eta: ',xi,eta
+      WRITE(UNIT_stdout,'(A,2(1X,G0))')   '     | Intersection xi/eta: ',xi,eta
     END IF
   END IF
   IF(PRESENT(Sanity_Opt))THEN

@@ -111,6 +111,9 @@ REAL,ALLOCATABLE              :: PPSCell(:)                          !< Points p
 REAL,ALLOCATABLE              :: PPSCellEqui(:)                      !< Points per shape function sphere (cell mean value):
                                                                      !<   assume Cartesian grid and calculate to total number
                                                                      !<   including neighbor DOFs
+REAL,ALLOCATABLE              :: ShapeFunctionRadius(:)              !< Additional array (shape function radius is already stored in
+                                                                     !< the shared array) for output to .h5 (debugging)
+REAL,ALLOCATABLE              :: ShapeFunctionFraction(:)            !< Element to shape function volume ratio
 REAL,ALLOCATABLE              :: DebyeLengthCell(:)                  !< Debye length (cell mean value)
 REAL,ALLOCATABLE              :: PICTimeStepCell(:)                  !< Approximated PIC Time Step (mean cell value)
 REAL,ALLOCATABLE              :: PlasmaParameterCell(:)              !< Plasma parameter (cell mean value)

@@ -42,18 +42,19 @@ SUBROUTINE VerifyDepositedCharge()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,            ONLY:nElems, sJ, offsetElem
-USE MOD_Particle_Vars,        ONLY:PDM, Species, PartSpecies ,PartMPF,usevMPF
-USE MOD_Interpolation_Vars,   ONLY:wGP
-USE MOD_Particle_Analyze_Vars,ONLY:ChargeCalcDone
-USE MOD_Mesh_Tools           ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars             ,ONLY: nElems, sJ, offsetElem
+USE MOD_Particle_Vars         ,ONLY: PDM, Species, PartSpecies ,PartMPF,usevMPF
+USE MOD_Interpolation_Vars    ,ONLY: wGP
+USE MOD_Particle_Analyze_Vars ,ONLY: ChargeCalcDone
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+USE MOD_PICDepo_Vars          ,ONLY: sfDepo3D,dimFactorSF,dim_sf
 #if defined(IMPA)
-USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource
+USE MOD_LinearSolver_Vars     ,ONLY: ImplicitSource
 #else
-USE MOD_PICDepo_Vars,         ONLY:PartSource
+USE MOD_PICDepo_Vars          ,ONLY: PartSource
 #endif
 #if USE_MPI
-USE MOD_Particle_MPI_Vars,    ONLY:PartMPI
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -65,6 +66,8 @@ INTEGER           :: iElem, ElemID
 INTEGER           :: i,j,k
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: ChargeNumerical, ChargeLoc, ChargeAnalytical
+CHARACTER(32)     :: hilf_geo
+CHARACTER(1)      :: hilf_dim
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' PERFORMING CHARGE DEPOSITION PLAUSIBILITY CHECK...'
@@ -96,20 +99,44 @@ DO i=1,PDM%ParticleVecLength
   END IF
 END DO
 
+! Collect info on MPI root process
 #if USE_MPI
-   CALL MPI_ALLREDUCE(MPI_IN_PLACE , ChargeAnalytical, 1 , MPI_DOUBLE_PRECISION , MPI_SUM , PartMPI%COMM , IERROR)
-   CALL MPI_ALLREDUCE(MPI_IN_PLACE  , ChargeNumerical, 1 , MPI_DOUBLE_PRECISION , MPI_SUM , PartMPI%COMM , IERROR)
+   IF(PartMPI%MPIRoot) THEN
+     CALL MPI_REDUCE(MPI_IN_PLACE     , ChargeAnalytical , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
+     CALL MPI_REDUCE(MPI_IN_PLACE     , ChargeNumerical  , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
+   ELSE
+     CALL MPI_REDUCE(ChargeAnalytical , 0                , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
+     CALL MPI_REDUCE(ChargeNumerical  , 0                , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
+   END IF
 #endif
-SWRITE(*,*) "On the grid deposited charge (numerical) : ", ChargeNumerical
-SWRITE(*,*) "Charge by the particles (analytical)     : ", ChargeAnalytical
-SWRITE(*,*) "Absolute deposition error                : ", ABS(ChargeAnalytical-ChargeNumerical)
-IF(ABS(ChargeAnalytical).GT.0.0)THEN
-  SWRITE(*,*) "Relative deposition error in percent     : ", ABS(ChargeAnalytical-ChargeNumerical)/ChargeAnalytical*100,"%"
-ELSE
-  SWRITE(*,*) "Relative deposition error in percent     : 100%"
-END IF
-SWRITE(UNIT_stdOut,'(A)')' CHARGE DEPOSITION PLAUSIBILITY CHECK DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+
+! Output info to std.out
+IF(MPIRoot)THEN
+
+  ! Check if the charge is to be distributed over a line (1D) or area (2D)
+  IF(.NOT.sfDepo3D)THEN
+    ChargeAnalytical = ChargeAnalytical * dimFactorSF
+    ! Output info on how the shape function deposits the charge
+    IF(dim_sf.EQ.1)THEN
+      hilf_geo='line'
+    ELSEIF(dim_sf.EQ.2)THEN
+      hilf_geo='area'
+    END IF
+  ELSE
+    hilf_geo='volume'
+  END IF
+  WRITE(UNIT=hilf_dim,FMT='(I0)') dim_sf
+  WRITE(*,*) 'On the grid deposited charge (numerical) : ', ChargeNumerical ,'[C] ('//TRIM(hilf_geo)//'-deposited charge via '//TRIM(hilf_dim)//'D shape function)'
+  WRITE(*,*) 'Charge over by the particles (analytical): ', ChargeAnalytical,'[C] ('//TRIM(hilf_geo)//'-deposited charge via '//TRIM(hilf_dim)//'D shape function)'
+  WRITE(*,*) 'Absolute deposition error                : ', ABS(ChargeAnalytical-ChargeNumerical),'[C]'
+  IF(ABS(ChargeAnalytical).GT.0.0)THEN
+    WRITE(*,*) 'Relative deposition error in percent     : ', ABS(ChargeAnalytical-ChargeNumerical)/ChargeAnalytical*100,'[%]'
+  ELSE
+    WRITE(*,*) 'Relative deposition error in percent     : 100%'
+  END IF
+  WRITE(UNIT_stdOut,'(A)')' CHARGE DEPOSITION PLAUSIBILITY CHECK DONE!'
+  WRITE(UNIT_StdOut,'(132("-"))')
+END IF ! MPIRoot
 ChargeCalcDone = .TRUE.
 
 END SUBROUTINE VerifyDepositedCharge
