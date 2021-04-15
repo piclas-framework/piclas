@@ -605,7 +605,7 @@ CALL QuadraticSolver(A,B,C,nRoot,Eta(1),Eta(2))
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(PartID.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(A)') '     | Output after QuadraticSolver: '
-      WRITE(UNIT_stdout,'(A,I0,A,2(X,G0))') '     | number of root: ',nRoot,' | Eta: ',Eta(1:2)
+      WRITE(UNIT_stdout,'(A,I0,A,2(1X,G0))') '     | number of root: ',nRoot,' | Eta: ',Eta(1:2)
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
@@ -1318,7 +1318,7 @@ DO WHILE(iClipIter.LE.BezierClipMaxIter)
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(PartID.EQ.PARTOUT)THEN
-      WRITE(UNIT_stdout,'(A,I0,X,I0)') ' iClipIter,ClipMode ', iClipIter, ClipMode
+      WRITE(UNIT_stdout,'(A,I0,1X,I0)') ' iClipIter,ClipMode ', iClipIter, ClipMode
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
@@ -1871,18 +1871,11 @@ ComputeSurfaceDistance2 = t
 END FUNCTION ComputeSurfaceDistance2
 
 
-#ifdef CODE_ANALYZE
-FUNCTION ComputeXi(eta,A1,A2)
-#else
 PURE FUNCTION ComputeXi(eta,A1,A2)
-#endif /*CODE_ANALYZE*/
 !================================================================================================================================
 ! compute the xi value with algorithm 3.3 of Ramsey paper
 !================================================================================================================================
 ! IMPLICIT VARIABLE HANDLING
-#ifdef CODE_ANALYZE
-USE MOD_Globals, ONLY: abort,MyRank
-#endif /*CODE_ANALYZE*/
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES

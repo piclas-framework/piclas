@@ -300,7 +300,7 @@ IF(PRESENT(GeometryName))THEN
 
         ! Calculate 2D radius for x-y-plane
         r = SQRT(Elem_xGP(1,i,j,k,iElem)**2 + Elem_xGP(2,i,j,k,iElem)**2)
-        
+
         ! Only perform check for elements in z = Elem_xGP(3) > 0
         IF(Elem_xGP(3,i,j,k,iElem).GT.0.0)THEN
           ! Check if r is larger than the supplied value .AND. if r is not almost equal to the radius

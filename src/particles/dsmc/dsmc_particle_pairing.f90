@@ -117,7 +117,7 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, nPart
+INTEGER                       :: iPart, iLoop, nPart, CNElemID
 REAL                          :: SpecPartNum(nSpecies)
 TYPE(tTreeNode), POINTER      :: TreeNode
 REAL                          :: elemVolume
@@ -125,6 +125,7 @@ REAL                          :: elemVolume
 
 SpecPartNum = 0.
 nPart = PEM%pNumber(iElem)
+CNElemID = GetCNElemID(iElem+offSetElem)
 
 NULLIFY(TreeNode)
 
@@ -144,7 +145,7 @@ DO iLoop = 1, nPart
             SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + GetParticleWeight(TreeNode%iPartIndx_Node(iLoop))
 END DO
 
-elemVolume=ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+elemVolume=ElemVolume_Shared(CNElemID)
 
 ! 2.) Octree cell refinement algorithm
 DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), elemVolume)
@@ -152,7 +153,7 @@ DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), elemVolume)
 IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
   ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default = 40  for 2D/axisymmetric or = 80 for 3D)
   ! or the mean free path is less than the side length of a cube (approximation) with same volume as the actual cell
-  IF((DSMC%MeanFreePath.LT.ElemCharLength_Shared(GetCNElemID(iElem+offSetElem))) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
+  IF((DSMC%MeanFreePath.LT.ElemCharLength_Shared(CNElemID)) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
     ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
     TreeNode%PNum_Node = nPart
     iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
@@ -172,10 +173,10 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     CALL AddOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
     DEALLOCATE(TreeNode%MappedPartStates)
   ELSE
-    CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(GetCNElemID(iElem+offSetElem)))
+    CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(CNElemID))
   END IF
 ELSE
-  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(GetCNElemID(iElem+offSetElem)))
+  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(CNElemID))
 END IF
 
 DEALLOCATE(TreeNode%iPartIndx_Node)

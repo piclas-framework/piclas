@@ -29,6 +29,7 @@ PUBLIC :: CalcWallSample
 PUBLIC :: SampleImpactProperties
 PUBLIC :: StoreBoundaryParticleProperties
 PUBLIC :: MarkAuxBCElems
+PUBLIC :: GetRadialDistance2D
 !===================================================================================================================================
 
 CONTAINS
@@ -493,7 +494,6 @@ SUBROUTINE CheckBoundsWithCartRadius(Bounds,dir,origin,radius,positiontype)
 !- positiontype=0 : complete bb is inside of radius
 !- positiontype=1 : complete bb is outside of radius
 !- positiontype=2 : bb is partly inside of radius
-! (based on "check where the sides are located relative to rmax" in particle_emission for SimpleRadialVeloFit)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -578,5 +578,102 @@ END IF
 
 END SUBROUTINE CheckBoundsWithCartRadius
 
+
+SUBROUTINE GetRadialDistance2D(GlobalSideID,dir,origin,rmin,rmax)
+!===================================================================================================================================
+! Determines the radial distance to a given origin on a surface
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Surfaces       ,ONLY: GetSideBoundingBox
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetSideBoundingBoxTria
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: GlobalSideID, dir(3)
+REAL, INTENT(IN)              :: origin(2)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)             :: rmin,rmax
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iNode
+REAL                          :: BoundingBox(1:3,1:8), point(2), vec(2)
+REAL                          :: Vector1(3),Vector2(3),Vector3(3),xyzNod(3),corner(3),VecBoundingBox(3),radiusCorner(2,4)
+LOGICAL                       :: r0inside
+!===================================================================================================================================
+! Determine which cells are inside/outside/partially inside the defined region
+IF (TrackingMethod.EQ.TRIATRACKING) THEN
+  CALL GetSideBoundingBoxTria(GlobalSideID,BoundingBox)
+ELSE
+  CALL GetSideBoundingBox(GlobalSideID,BoundingBox)
+END IF
+r0inside=.FALSE.
+Vector1(:)=0.
+Vector2(:)=0.
+Vector3(:)=0.
+xyzNod(1)=MINVAL(BoundingBox(1,:))
+xyzNod(2)=MINVAL(BoundingBox(2,:))
+xyzNod(3)=MINVAL(BoundingBox(3,:))
+VecBoundingBox(1) = MAXVAL(BoundingBox(1,:)) -MINVAL(BoundingBox(1,:))
+VecBoundingBox(2) = MAXVAL(BoundingBox(2,:)) -MINVAL(BoundingBox(2,:))
+VecBoundingBox(3) = MAXVAL(BoundingBox(3,:)) -MINVAL(BoundingBox(3,:))
+Vector1(dir(2)) = VecBoundingBox(dir(2))
+Vector2(dir(2)) = VecBoundingBox(dir(2))
+Vector2(dir(3)) = VecBoundingBox(dir(3))
+Vector3(dir(3)) = VecBoundingBox(dir(3))
+!-- determine rmax (and corners)
+DO iNode=1,4
+  SELECT CASE(iNode)
+  CASE(1)
+    corner = xyzNod
+  CASE(2)
+    corner = xyzNod + Vector1
+  CASE(3)
+    corner = xyzNod + Vector2
+  CASE(4)
+    corner = xyzNod + Vector3
+  END SELECT
+  corner(dir(2)) = corner(dir(2)) - origin(1)
+  corner(dir(3)) = corner(dir(3)) - origin(2)
+  radiusCorner(1,iNode)=SQRT(corner(dir(2))**2+corner(dir(3))**2)
+END DO !iNode
+rmax=MAXVAL(radiusCorner(1,1:4))
+!-- determine rmin
+DO iNode=1,4
+  SELECT CASE(iNode)
+  CASE(1)
+    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
+    vec=(/Vector1(dir(2)),Vector1(dir(3))/)
+  CASE(2)
+    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
+    vec=(/Vector3(dir(2)),Vector3(dir(3))/)
+  CASE(3)
+    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
+    vec=(/-Vector1(dir(2)),-Vector1(dir(3))/)
+  CASE(4)
+    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
+    vec=(/-Vector3(dir(2)),-Vector3(dir(3))/)
+  END SELECT
+  vec=point + MIN(MAX(-DOT_PRODUCT(point,vec)/DOT_PRODUCT(vec,vec),0.),1.)*vec
+  radiusCorner(2,iNode)=SQRT(DOT_PRODUCT(vec,vec)) !rmin
+END DO !iNode
+!-- determine if r0 is inside of bounding box
+IF ((origin(1) .GE. MINVAL(BoundingBox(dir(2),:))) .AND. &
+    (origin(1) .LE. MAXVAL(BoundingBox(dir(2),:))) .AND. &
+    (origin(2) .GE. MINVAL(BoundingBox(dir(3),:))) .AND. &
+    (origin(2) .LE. MAXVAL(BoundingBox(dir(3),:))) ) THEN
+    r0inside = .TRUE.
+END IF
+IF (r0inside) THEN
+  rmin = 0.
+ELSE
+  rmin=MINVAL(radiusCorner(2,1:4))
+END IF
+
+END SUBROUTINE GetRadialDistance2D
 
 END MODULE MOD_Particle_Boundary_Tools

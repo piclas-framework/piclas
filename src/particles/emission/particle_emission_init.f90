@@ -274,6 +274,15 @@ DO iSpec = 1, nSpecies
     IF(.NOT.ALL(Species(iSpec)%Init(iInit)%VeloVecIC(:).EQ.0.)) THEN
       Species(iSpec)%Init(iInit)%VeloVecIC = Species(iSpec)%Init(iInit)%VeloVecIC / VECNORM(Species(iSpec)%Init(iInit)%VeloVecIC)
     END IF
+    ! Additional read-in for circular/cuboid cases
+    SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+    CASE('disc','circle','circle_equidistant','gyrotron_circle','cylinder','sphere','photon_cylinder','photon_SEE_disc')
+      Species(iSpec)%Init(iInit)%RadiusIC               = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC')
+      Species(iSpec)%Init(iInit)%Radius2IC              = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC')
+      Species(iSpec)%Init(iInit)%CylinderHeightIC       = GETREAL('Part-Species'//TRIM(hilf2)//'-CylinderHeightIC')
+    CASE('cuboid')
+      Species(iSpec)%Init(iInit)%CuboidHeightIC         = GETREAL('Part-Species'//TRIM(hilf2)//'-CuboidHeightIC')
+    END SELECT
     ! Space-ICs requiring basic geometry information and other options (all excluding cell_local and background)
     IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local').AND. &
        (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'background')) THEN
@@ -299,15 +308,6 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%InflowRiseTime         = 0.
       Species(iSpec)%Init(iInit)%NumberOfExcludeRegions = 0
     END IF
-    ! Additional read-in for circular/cuboid cases
-    SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
-    CASE('disc','circle','circle_equidistant','gyrotron_circle','cylinder','sphere','photon_cylinder','photon_SEE_disc')
-      Species(iSpec)%Init(iInit)%RadiusIC               = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC')
-      Species(iSpec)%Init(iInit)%Radius2IC              = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC')
-      Species(iSpec)%Init(iInit)%CylinderHeightIC       = GETREAL('Part-Species'//TRIM(hilf2)//'-CylinderHeightIC')
-    CASE('cuboid')
-      Species(iSpec)%Init(iInit)%CuboidHeightIC         = GETREAL('Part-Species'//TRIM(hilf2)//'-CuboidHeightIC')
-    END SELECT
     ! Additional read-in for specific cases
     IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sin_deviation') THEN
       Species(iSpec)%Init(iInit)%Amplitude              = GETREAL('Part-Species'//TRIM(hilf2)//'-Amplitude')
