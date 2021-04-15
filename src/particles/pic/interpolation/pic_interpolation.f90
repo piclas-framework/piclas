@@ -238,9 +238,6 @@ USE MOD_Part_Tools            ,ONLY: isInterpolateParticle
 USE MOD_PIC_Vars
 USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle,DoInterpolation,InterpolationType
 USE MOD_PICInterpolation_Vars ,ONLY: InterpolationElemLoop
-#ifdef CODE_ANALYZE
-USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
-#endif /* CODE_ANALYZE */
 USE MOD_PICInterpolation_Vars ,ONLY: CalcBField
 USE MOD_HDF5_Output_Tools     ,ONLY: WriteBGFieldToHDF5
 #if USE_HDG
@@ -800,7 +797,9 @@ SUBROUTINE InitAnalyticalParticleState()
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInitAnalyticalParticleState
 USE MOD_Particle_Analyze       ,ONLY: CalcAnalyticalParticleState
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_TimeDisc_Vars          ,ONLY: dt
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES

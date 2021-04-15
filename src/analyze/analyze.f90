@@ -1036,7 +1036,7 @@ END IF
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Recordpoints buffer
 ! Only usable with
-! maxwell or poissan in combination with HDG
+! maxwell or poisson in combination with HDG
 !----------------------------------------------------------------------------------------------------------------------------------
 ! remove duplicate analysis  due to double call of PerformAnalysis
 IF(RP_onProc) THEN

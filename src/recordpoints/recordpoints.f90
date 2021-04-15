@@ -338,6 +338,11 @@ USE MOD_Analyze_Vars      ,ONLY: Analyze_dt,FieldAnalyzeStep
 USE MOD_RecordPoints_Vars ,ONLY: RP_Data,RP_ElemID
 USE MOD_RecordPoints_Vars ,ONLY: RP_Buffersize,RP_MaxBuffersize,iSample
 USE MOD_RecordPoints_Vars ,ONLY: l_xi_RP,l_eta_RP,l_zeta_RP,nRP
+#if USE_HDG
+#if PP_nVar==1
+USE MOD_Equation_Vars      ,ONLY: E
+#endif /*PP_nVar==1*/
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -349,7 +354,14 @@ LOGICAL,INTENT(IN)             :: Output ! force sampling (e.g. first/last times
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: i,j,k,iRP
-REAL                    :: u_RP(PP_nVar,nRP)
+#if USE_HDG
+#if PP_nVar==1
+INTEGER,PARAMETER       :: AddVar=3
+#endif /*PP_nVar==1*/
+#else
+INTEGER,PARAMETER       :: AddVar=0
+#endif /*USE_HDG*/
+REAL                    :: U_RP(PP_nVar+AddVar,nRP)
 REAL                    :: l_eta_zeta_RP
 !-----------------------------------------------------------------------------------------------------------------------------------
 
@@ -364,7 +376,7 @@ IF(.NOT.ALLOCATED(RP_Data))THEN
   ! Compute required buffersize from timestep and add 10% tolerance
   RP_Buffersize = MIN(CEILING((1.05*Analyze_dt)/(dt*FieldAnalyzeStep))+1,RP_MaxBuffersize)
   !IPWRITE(*,*) 'buffer',rp_buffersize,rp_maxbuffersize
-  ALLOCATE(RP_Data(0:PP_nVar,nRP,RP_Buffersize))
+  ALLOCATE(RP_Data(0:PP_nVar+AddVar,nRP,RP_Buffersize))
   RP_Data=0.
 END IF
 
@@ -377,13 +389,19 @@ DO iRP=1,nRP
     DO j=0,PP_N
       l_eta_zeta_RP=l_eta_RP(j,iRP)*l_zeta_RP(k,iRP)
       DO i=0,PP_N
-        U_RP(:,iRP)=U_RP(:,iRP) + U(:,i,j,k,RP_ElemID(iRP))*l_xi_RP(i,iRP)*l_eta_zeta_RP
+#if USE_HDG
+#if PP_nVar==1
+        U_RP(:,iRP)=U_RP(:,iRP) + (/ U(:,i,j,k,RP_ElemID(iRP)), E(1:3,i,j,k,RP_ElemID(iRP)) /)*l_xi_RP(i,iRP)*l_eta_zeta_RP
+#endif /*PP_nVar==1*/
+#else
+        U_RP(:,iRP)=U_RP(:,iRP) +    U(:,i,j,k,RP_ElemID(iRP))                                *l_xi_RP(i,iRP)*l_eta_zeta_RP
+#endif /*USE_HDG*/
       END DO !i
     END DO !j
   END DO !k
 END DO ! iRP
-RP_Data(1:PP_nVar,:,iSample)=U_RP
-RP_Data(0,        :,iSample)=t
+RP_Data(1:PP_nVar+AddVar , : , iSample)=U_RP
+RP_Data(0                , : , iSample)=t
 
 ! dataset is full, write data and reset
 !IF(iSample.EQ.RP_Buffersize) CALL WriteRPToHDF5(tWriteData,.FALSE.)
@@ -415,7 +433,7 @@ USE HDF5
 USE MOD_IO_HDF5           ,ONLY: File_ID,OpenDataFile,CloseDataFile
 USE MOD_Equation_Vars     ,ONLY: StrVarNames
 USE MOD_HDF5_Output       ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5
-USE MOD_Globals_Vars       ,ONLY: ProjectName
+USE MOD_Globals_Vars      ,ONLY: ProjectName
 USE MOD_Mesh_Vars         ,ONLY: MeshFile
 USE MOD_Recordpoints_Vars ,ONLY: myRPrank,lastSample
 USE MOD_Recordpoints_Vars ,ONLY: RPDefFile,RP_Data,iSample,nSamples
@@ -436,6 +454,13 @@ CHARACTER(LEN=255)             :: FileString
 #if USE_MPI
 REAL                           :: startT,endT
 #endif
+#if USE_HDG
+#if PP_nVar==1
+INTEGER,PARAMETER       :: AddVar=3
+#endif /*PP_nVar==1*/
+#else
+INTEGER,PARAMETER       :: AddVar=0
+#endif /*USE_HDG*/
 !===================================================================================================================================
 IF(myRPrank.EQ.0) WRITE(UNIT_stdOut,'(a)')' WRITE RECORDPOINT DATA TO HDF5 FILE...'
 #if USE_MPI
@@ -452,7 +477,7 @@ IF(myRPrank.EQ.0)THEN
     CALL WriteAttributeToHDF5(File_ID,'ProjectName',1,StrScalar=(/TRIM(ProjectName)/))
     CALL WriteAttributeToHDF5(File_ID,'RPDefFile'  ,1,StrScalar=(/TRIM(RPDefFile)/))
     CALL WriteAttributeToHDF5(File_ID,'Time'       ,1,RealScalar=OutputTime)
-    CALL WriteAttributeToHDF5(File_ID,'VarNames'   ,PP_nVar,StrArray=StrVarNames)
+    CALL WriteAttributeToHDF5(File_ID,'VarNames'   ,PP_nVar+AddVar,StrArray=StrVarNames)
   END IF
   CALL CloseDataFile()
 END IF
@@ -475,7 +500,7 @@ IF(iSample.GT.0)THEN
 
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (&
-        PP_nVarP1    => INT(PP_nVar+1,IK)    ,&
+        PP_nVarP1    => INT(PP_nVar+AddVar+1,IK)    ,&
         nSamples     => INT(nSamples,IK)     ,&
         nRP          => INT(nRP,IK)          ,&
         iSample      => INT(iSample,IK)      ,&
@@ -521,7 +546,7 @@ IF(finalizeFile)THEN
     ! Recompute required buffersize from timestep and add 10% tolerance
     RP_Buffersize=MIN(CEILING(1.2*nSamples),RP_MaxBuffersize)
     DEALLOCATE(RP_Data)
-    ALLOCATE(RP_Data(0:PP_nVar,nRP,RP_Buffersize))
+    ALLOCATE(RP_Data(0:PP_nVar+AddVar,nRP,RP_Buffersize))
   END IF
   RP_fileExists=.FALSE.
   ! last sample of previous file = first sample of next file

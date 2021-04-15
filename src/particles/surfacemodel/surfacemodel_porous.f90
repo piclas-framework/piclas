@@ -48,9 +48,6 @@ CALL prms%SetSection("Porous BC")
 
 CALL prms%CreateIntOption(      'Surf-nPorousBC'&
                                 , 'Number of porous boundary conditions', '0')
-CALL prms%CreateIntOption(      'Surf-PorousBC-IterationMacroVal' &
-                                , 'Number of iterations the pressure and density will be sampled before updating the value. '//&
-                                  'Alternative is to constantly update with a relaxation factor', '0')
 CALL prms%CreateIntOption(      'Surf-PorousBC[$]-BC' &
                                 , 'PartBound to be a porous boundary', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surf-PorousBC[$]-Pressure' &
@@ -104,11 +101,10 @@ SUBROUTINE InitPorousBoundaryCondition()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Mesh_Vars                   ,ONLY: nElems
+USE MOD_Particle_Boundary_Tools     ,ONLY: GetRadialDistance2D
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
-USE MOD_Particle_Vars               ,ONLY: nSpecies,Symmetry
-!USE MOD_Particle_Vars               ,ONLY: Adaptive_MacroVal
-USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC, PorousBC, PorousBCMacroVal, PorousBCSampIter
+USE MOD_Particle_Vars               ,ONLY: Symmetry
+USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC, PorousBC
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound, nPorousSides, MapSurfSideToPorousSide_Shared, PorousBCSampWall
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCInfo_Shared,PorousBCProperties_Shared,PorousBCSampWall_Shared
 USE MOD_Particle_Boundary_Vars      ,ONLY: nComputeNodeSurfTotalSides, SurfSide2GlobalSide
@@ -148,13 +144,7 @@ IF((Symmetry%Order.LE.2).AND.(.NOT.Symmetry%Axisymmetric)) THEN
       ,'ERROR: Porous boundary conditions are not implemented for 1D/2D simulations!')
 END IF
 
-! 1) Read-in of parameters
-PorousBCSampIter = GETINT('Surf-PorousBC-IterationMacroVal')
-IF(PorousBCSampIter.GT.0) THEN
-  ALLOCATE(PorousBCMacroVal(1:8,1:nElems,1:nSpecies))
-  PorousBCMacroVal = 0.0
-END IF
-
+! 1) Allocate arrays
 ALLOCATE(PorousBC(1:nPorousBC))
 ALLOCATE(MapSurfSideToPorousBC_Temp(1:2,1:nComputeNodeSurfTotalSides))
 MapSurfSideToPorousBC_Temp = 0
@@ -329,8 +319,8 @@ IF (myComputeNodeRank.EQ.0) THEN
     GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,PorousBCInfo_Shared(2,iPorousSide))
     ! If a pumping speed was read-in during restart, use it (only for local elements and not halo sides)
     ! NOTE: DOES NOT WORK CURRENTLY AS ONLY NODE-LEADER IS PERFORMING THIS LOOP, HOWEVER ADAPTIVEMACROVAL IS STILL PROC LOCAL
-    ! IF(Adaptive_MacroVal(11,SideInfo_Shared(SIDE_ELEMID,GlobalSideID)-offsetElem,1).GT.0.0) THEN
-    !     PorousBCProperties_Shared(2,iPorousSide) = Adaptive_MacroVal(11,SideInfo_Shared(SIDE_ELEMID,GlobalSideID)-offsetElem,1)
+    ! IF(AdaptBCMacroVal(5,SideInfo_Shared(SIDE_ELEMID,GlobalSideID)-offsetElem,1).GT.0.0) THEN
+    !     PorousBCProperties_Shared(2,iPorousSide) = AdaptBCMacroVal(5,SideInfo_Shared(SIDE_ELEMID,GlobalSideID)-offsetElem,1)
     ! END IF
     ! Determine which cells are inside/outside/partially inside the defined region (0: inside, 1: partially)
     IF(PorousBC(iPBC)%UsingRegion) THEN
@@ -463,13 +453,14 @@ USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC, PorousBC
 USE MOD_SurfaceModel_Analyze_Vars   ,ONLY: CalcPorousBCInfo, PorousBCOutput
 USE MOD_Particle_Boundary_Vars      ,ONLY: nPorousSides, PorousBCProperties_Shared, PorousBCInfo_Shared, SampWallPumpCapacity
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCSampWall, PorousBCSampWall_Shared
-USE MOD_Particle_Vars               ,ONLY: Species, nSpecies, Adaptive_MacroVal, usevMPF, VarTimeStep
-USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
-USE MOD_Timedisc_Vars,          ONLY:dt
+USE MOD_Particle_Vars               ,ONLY: Species, nSpecies, usevMPF, VarTimeStep
+USE MOD_Particle_Sampling_Vars      ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
+USE MOD_Particle_VarTimeStep        ,ONLY: CalcVarTimeStep
+USE MOD_Timedisc_Vars               ,ONLY: dt
 USE MOD_Particle_Mesh_Vars
-USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 #if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank, MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
+USE MOD_MPI_Shared_Vars             ,ONLY: myComputeNodeRank, MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -479,7 +470,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: LocalElemID,CNElemID,GlobalElemID,SurfSideID,GlobalSideID,iPorousSide,iPBC
+INTEGER                       :: LocalElemID,CNElemID,GlobalElemID,SurfSideID,GlobalSideID,iPorousSide,iPBC,SampleElemID
 REAL                          :: PumpingSpeedTemp,DeltaPressure,partWeight,SumPartPorousBC,dtVar
 REAL                          :: SumPartImpinged(nPorousBC)
 !===================================================================================================================================
@@ -533,10 +524,11 @@ DO iPorousSide = 1, nPorousSides
   ! Only treat your proc-local elements
   IF ((GlobalElemID.LT.1+offSetElem).OR.(GlobalElemID.GT.nElems+offSetElem)) CYCLE
   LocalElemID = GlobalElemID - offsetElem
+  SampleElemID = AdaptBCMapElemToSample(LocalElemID)
   iPBC = PorousBCInfo_Shared(1,iPorousSide)
   SumPartPorousBC = SumPartImpinged(iPBC)
   ! Skip element if number density is zero
-  IF(SUM(Adaptive_MacroVal(DSMC_NUMDENS,LocalElemID,1:nSpecies)).EQ.0.0) CYCLE
+  IF(SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies)).EQ.0.0) CYCLE
   ! Get the correct time step of the cell
   IF(VarTimeStep%UseVariableTimeStep) THEN
     dtVar = dt * CalcVarTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), LocalElemID)
@@ -546,19 +538,19 @@ DO iPorousSide = 1, nPorousSides
   ! Determine the removal probability based on the pumping speed (adaptive to a target pressure or fixed)
   IF((PorousBC(iPBC)%DeltaPumpingSpeedKp.GT.0.).OR.(PorousBC(iPBC)%DeltaPumpingSpeedKi.GT.0.)) THEN
     ! a) Determining the delta between current gas mixture pressure in adjacent cell and target pressure
-    DeltaPressure = SUM(Adaptive_MacroVal(12,LocalElemID,1:nSpecies))-PorousBC(iPBC)%Pressure
+    DeltaPressure = SUM(AdaptBCMacroVal(6,SampleElemID,1:nSpecies))-PorousBC(iPBC)%Pressure
     ! Integrating the pressure difference (only utilized later if DeltaPumpingSpeedKi was given)
     IF(PorousBCProperties_Shared(2,iPorousSide).GT.0.0) THEN
-      Adaptive_MacroVal(13,LocalElemID,1) = Adaptive_MacroVal(13,LocalElemID,1) + DeltaPressure * dtVar
+      AdaptBCMacroVal(7,SampleElemID,1) = AdaptBCMacroVal(7,SampleElemID,1) + DeltaPressure * dtVar
     ELSE
-      Adaptive_MacroVal(13,LocalElemID,1) = 0.0
+      AdaptBCMacroVal(7,SampleElemID,1) = 0.0
     END IF
     ! b) Adapting the pumping capacity (m^3/s) according to pressure difference (control through proportional and integral part)
     PumpingSpeedTemp = PorousBCProperties_Shared(2,iPorousSide) + PorousBC(iPBC)%DeltaPumpingSpeedKp * DeltaPressure &
-        + PorousBC(iPBC)%DeltaPumpingSpeedKi * Adaptive_MacroVal(13,LocalElemID,1)
+        + PorousBC(iPBC)%DeltaPumpingSpeedKi * AdaptBCMacroVal(7,SampleElemID,1)
     ! c) Calculate the removal probability if any particles hit the pump
     IF(SumPartPorousBC.GT.0) THEN
-      PorousBCProperties_Shared(1,iPorousSide) = PumpingSpeedTemp*SUM(Adaptive_MacroVal(DSMC_NUMDENS,LocalElemID,1:nSpecies)) &
+      PorousBCProperties_Shared(1,iPorousSide) = PumpingSpeedTemp*SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies)) &
                                                       * dtVar / (SumPartPorousBC*partWeight)
     ELSE
       PorousBCProperties_Shared(1,iPorousSide) = 0.0
@@ -568,7 +560,7 @@ DO iPorousSide = 1, nPorousSides
       PorousBCProperties_Shared(1,iPorousSide) = 1.0
       ! Setting pumping speed to maximum value (alpha=1)
       PorousBCProperties_Shared(2,iPorousSide) = SumPartPorousBC*partWeight &
-                                                    / (SUM(Adaptive_MacroVal(DSMC_NUMDENS,LocalElemID,1:nSpecies))*dtVar)
+                                                    / (SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies))*dtVar)
     ELSE IF(PorousBCProperties_Shared(1,iPorousSide).LE.0.0) THEN
       PorousBCProperties_Shared(1,iPorousSide) = 0.0
       ! Avoiding negative pumping speeds
@@ -581,24 +573,24 @@ DO iPorousSide = 1, nPorousSides
     ! Constant given pumping speed
     IF(SumPartPorousBC.GT.0) THEN
       PorousBCProperties_Shared(1,iPorousSide) = PorousBCProperties_Shared(2,iPorousSide) &
-                      * SUM(Adaptive_MacroVal(DSMC_NUMDENS,LocalElemID,1:nSpecies)) * dtVar / (SumPartPorousBC*partWeight)
+                      * SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies)) * dtVar / (SumPartPorousBC*partWeight)
     ELSE
       PorousBCProperties_Shared(1,iPorousSide) = 0.0
     END IF
   END IF
   ! Storing the pumping speed for the restart state file
-  Adaptive_MacroVal(11,LocalElemID,1) = PorousBCProperties_Shared(2,iPorousSide)
+  AdaptBCMacroVal(5,SampleElemID,1) = PorousBCProperties_Shared(2,iPorousSide)
   ! e) Sampling of the pumping capacity (and other variables for PartAnalyze) for the output
   ! -------- Sampling for output in DSMCSurfState --------------------------------------------------------------------------------
   IF(DSMC%CalcSurfaceVal) THEN
     SampWallPumpCapacity(SurfSideID) = SampWallPumpCapacity(SurfSideID) + PorousBCSampWall_Shared(2,iPorousSide) &
-                                                * partWeight / (SUM(Adaptive_MacroVal(DSMC_NUMDENS,LocalElemID,1:nSpecies))*dtVar)
+                                                * partWeight / (SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies))*dtVar)
   END IF
   ! -------- Sampling for output in PartAnalyze ----------------------------------------------------------------------------------
   IF(CalcPorousBCInfo) THEN
     ! Sampling the actual instantaneous pumping speed S (m^3/s) through the number of deleted particles  (-PumpSpeed-Measure-)
     PorousBCOutput(2,iPBC) = PorousBCOutput(2,iPBC) + PorousBCSampWall_Shared(2,iPorousSide) * PartWeight &
-                                                          / (SUM(Adaptive_MacroVal(DSMC_NUMDENS,LocalElemID,1:nSpecies))*dtVar)
+                                                          / (SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies))*dtVar)
     IF(PorousBCSampWall_Shared(1,iPorousSide).GT.0) THEN
       ! Counting only sides, where a particle hit the pump
       PorousBCOutput(1,iPBC) = PorousBCOutput(1,iPBC) + 1.
@@ -607,7 +599,7 @@ DO iPorousSide = 1, nPorousSides
       ! Removal probability
       PorousBCOutput(4,iPBC) = PorousBCOutput(4,iPBC) + PorousBCProperties_Shared(1,iPorousSide)
       ! Normalized pressure at the pump
-      PorousBCOutput(5,iPBC) = PorousBCOutput(5,iPBC) + SUM(Adaptive_MacroVal(12,LocalElemID,1:nSpecies)) / PorousBC(iPBC)%Pressure
+      PorousBCOutput(5,iPBC) = PorousBCOutput(5,iPBC) + SUM(AdaptBCMacroVal(6,SampleElemID,1:nSpecies)) / PorousBC(iPBC)%Pressure
     END IF
   END IF
 END DO    ! iPorousSide = 1, nPorousSides
@@ -1105,104 +1097,6 @@ END SUBROUTINE InitPorousCommunication
 #endif /*USE_MPI*/
 
 
-SUBROUTINE GetRadialDistance2D(GlobalSideID,dir,origin,rmin,rmax)
-!===================================================================================================================================
-! Determines the radial distance to a given origin on a surface
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Particle_Surfaces       ,ONLY: GetSideBoundingBox
-USE MOD_Particle_Mesh_Tools     ,ONLY: GetSideBoundingBoxTria
-USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: GlobalSideID, dir(3)
-REAL, INTENT(IN)              :: origin(2)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)             :: rmin,rmax
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                       :: iNode
-REAL                          :: BoundingBox(1:3,1:8), point(2), vec(2)
-REAL                          :: Vector1(3),Vector2(3),Vector3(3),xyzNod(3),corner(3),VecBoundingBox(3),radiusCorner(2,4)
-LOGICAL                       :: r0inside
-!===================================================================================================================================
-! Determine which cells are inside/outside/partially inside the defined region
-IF (TrackingMethod.EQ.TRIATRACKING) THEN
-  CALL GetSideBoundingBoxTria(GlobalSideID,BoundingBox)
-ELSE
-  CALL GetSideBoundingBox(GlobalSideID,BoundingBox)
-END IF
-r0inside=.FALSE.
-Vector1(:)=0.
-Vector2(:)=0.
-Vector3(:)=0.
-xyzNod(1)=MINVAL(BoundingBox(1,:))
-xyzNod(2)=MINVAL(BoundingBox(2,:))
-xyzNod(3)=MINVAL(BoundingBox(3,:))
-VecBoundingBox(1) = MAXVAL(BoundingBox(1,:)) -MINVAL(BoundingBox(1,:))
-VecBoundingBox(2) = MAXVAL(BoundingBox(2,:)) -MINVAL(BoundingBox(2,:))
-VecBoundingBox(3) = MAXVAL(BoundingBox(3,:)) -MINVAL(BoundingBox(3,:))
-Vector1(dir(2)) = VecBoundingBox(dir(2))
-Vector2(dir(2)) = VecBoundingBox(dir(2))
-Vector2(dir(3)) = VecBoundingBox(dir(3))
-Vector3(dir(3)) = VecBoundingBox(dir(3))
-!-- determine rmax (and corners)
-DO iNode=1,4
-  SELECT CASE(iNode)
-  CASE(1)
-    corner = xyzNod
-  CASE(2)
-    corner = xyzNod + Vector1
-  CASE(3)
-    corner = xyzNod + Vector2
-  CASE(4)
-    corner = xyzNod + Vector3
-  END SELECT
-  corner(dir(2)) = corner(dir(2)) - origin(1)
-  corner(dir(3)) = corner(dir(3)) - origin(2)
-  radiusCorner(1,iNode)=SQRT(corner(dir(2))**2+corner(dir(3))**2)
-END DO !iNode
-rmax=MAXVAL(radiusCorner(1,1:4))
-!-- determine rmin
-DO iNode=1,4
-  SELECT CASE(iNode)
-  CASE(1)
-    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
-    vec=(/Vector1(dir(2)),Vector1(dir(3))/)
-  CASE(2)
-    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
-    vec=(/Vector3(dir(2)),Vector3(dir(3))/)
-  CASE(3)
-    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
-    vec=(/-Vector1(dir(2)),-Vector1(dir(3))/)
-  CASE(4)
-    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
-    vec=(/-Vector3(dir(2)),-Vector3(dir(3))/)
-  END SELECT
-  vec=point + MIN(MAX(-DOT_PRODUCT(point,vec)/DOT_PRODUCT(vec,vec),0.),1.)*vec
-  radiusCorner(2,iNode)=SQRT(DOT_PRODUCT(vec,vec)) !rmin
-END DO !iNode
-!-- determine if r0 is inside of bounding box
-IF ((origin(1) .GE. MINVAL(BoundingBox(dir(2),:))) .AND. &
-    (origin(1) .LE. MAXVAL(BoundingBox(dir(2),:))) .AND. &
-    (origin(2) .GE. MINVAL(BoundingBox(dir(3),:))) .AND. &
-    (origin(2) .LE. MAXVAL(BoundingBox(dir(3),:))) ) THEN
-    r0inside = .TRUE.
-END IF
-IF (r0inside) THEN
-  rmin = 0.
-ELSE
-  rmin=MINVAL(radiusCorner(2,1:4))
-END IF
-
-END SUBROUTINE GetRadialDistance2D
-
-
 SUBROUTINE FinalizePorousBoundaryCondition()
 !===================================================================================================================================
 !> Deallocates
@@ -1229,7 +1123,6 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 IF(nPorousBC.GT.0) THEN
-  SDEALLOCATE(PorousBCMacroVal)
   SDEALLOCATE(PorousBC)
   SDEALLOCATE(PorousBCSampWall)
   SDEALLOCATE(PorousBCOutput)

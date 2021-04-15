@@ -353,8 +353,8 @@ PVID = BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_ALPHA)
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
     IPWRITE(UNIT_stdout,'(I0,A)') '     PeriodicBC: '
-    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' ParticlePosition: ',PartState(1:3,PartID)
-    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' LastPartPos:      ',LastPartPos(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' ParticlePosition: ',PartState(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPos:      ',LastPartPos(1:3,PartID)
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
@@ -371,8 +371,8 @@ TrackInfo%lengthPartTrajectory  = TrackInfo%lengthPartTrajectory - TrackInfo%alp
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
     IPWRITE(UNIT_stdout,'(I0,A)') '     PeriodicBC: '
-    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' ParticlePosition-pp: ',PartState(1:3,PartID)
-    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' LastPartPo-pp:       ',LastPartPos(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' ParticlePosition-pp: ',PartState(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPo-pp:       ',LastPartPos(1:3,PartID)
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
@@ -433,8 +433,8 @@ REAL                                 :: LastPartPos_old(1:3),Velo_old(1:3), Velo
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
     IPWRITE(UNIT_stdout,'(I0,A)') '     RotPeriodicBC: '
-    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' ParticlePosition: ',PartState(1:3,PartID)
-    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' LastPartPos:      ',LastPartPos(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' ParticlePosition: ',PartState(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPos:      ',LastPartPos(1:3,PartID)
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
@@ -505,8 +505,8 @@ END IF
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
     IPWRITE(UNIT_stdout,'(I0,A)') '     RotPeriodicBC: '
-    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' ParticlePosition-pp: ',PartState(1:3,PartID)
-    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' LastPartPo-pp:       ',LastPartPos(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' ParticlePosition-pp: ',PartState(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPo-pp:       ',LastPartPos(1:3,PartID)
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
