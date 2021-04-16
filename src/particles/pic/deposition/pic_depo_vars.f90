@@ -94,6 +94,7 @@ INTEGER                         :: BGMmaxX                   ! Local maximum BGM
 INTEGER                         :: BGMmaxY                   ! Local maximum BGM Index in y
 INTEGER                         :: BGMmaxZ                   ! Local maximum BGM Index in z
 LOGICAL                         :: Periodic_Depo             ! Flag for periodic treatment for deposition
+REAL                            :: totalChargePeriodicSF     ! total charge of particle that is mirrored over periodic boundaries
 INTEGER                         :: NKnots
 REAL,ALLOCATABLE                :: Knots(:)
 LOGICAL                         :: OutputSource              ! write the source to hdf5
