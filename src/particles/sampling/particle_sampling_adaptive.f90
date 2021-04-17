@@ -245,11 +245,10 @@ IF (DoRestart) THEN
         ! Associate construct for integer KIND=8 possibility
         ASSOCIATE (&
               nSpecies    => INT(nSpecies,IK) ,&
-              offsetElem  => INT(offsetElem,IK),&
               nElemReadin => INT(nElemReadin,IK)    ,&
               nVar        => INT(nVar,IK)    )
-          CALL ReadArray('AdaptiveRunningAverage',4,(/8_IK, nVar, nElemReadin, nSpecies/),0,3,RealArray=ElemData2_HDF5(:,:,:,:))
-          CALL ReadArray('AdaptiveRunningAverageIndex',1,(/nElemReadin/),0,1,IntegerArray_i4=GlobalElemIndex(:))
+          CALL ReadArray('AdaptiveRunningAverage',4,(/8_IK, nVar, nElemReadin, nSpecies/),0_IK,3,RealArray=ElemData2_HDF5(:,:,:,:))
+          CALL ReadArray('AdaptiveRunningAverageIndex',1,(/nElemReadin/),0_IK,1,IntegerArray_i4=GlobalElemIndex(:))
         END ASSOCIATE
         IF(AdaptBCSampleElemNum.GT.0) THEN
           DO iElem = 1,nElemReadin
