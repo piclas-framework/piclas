@@ -394,6 +394,12 @@ NIG_PIC_poisson_RK3:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_RK3/ ; fi
 
+NIG_PIC_poisson_Boris-Leapfrog:
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_Boris-Leapfrog/ ; fi
+
 NIG_PIC_poisson_Leapfrog:
   <<: *defaults_nightly
   stage: reggie_nightly

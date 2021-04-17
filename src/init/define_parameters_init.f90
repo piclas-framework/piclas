@@ -27,7 +27,10 @@ SUBROUTINE InitDefineParameters()
 ! Calls all parameter definition routines
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
-USE MOD_Globals                    ,ONLY: UNIT_stdOut,MPIRoot
+USE MOD_Globals                    ,ONLY: UNIT_stdOut
+#if USE_MPI
+USE MOD_Globals                    ,ONLY: MPIRoot
+#endif /*USE_MPI*/
 USE MOD_Globals_Init               ,ONLY: DefineParametersGlobals
 USE MOD_ReadInTools                ,ONLY: prms
 USE MOD_MPI                        ,ONLY: DefineParametersMPI
