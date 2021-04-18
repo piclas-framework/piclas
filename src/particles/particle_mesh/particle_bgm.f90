@@ -342,7 +342,7 @@ ELSE
 
   ! Check whether halo_eps is smaller than shape function radius e.g. 'shape_function'
   IF(StringBeginsWith(DepositionType,'shape_function'))THEN
-    IF(r_sf.LE.0.) CALL abort(__STAMP__,'Shape function radius not read yet or set equal to zero! r_sf=',RealInfoOpt=r_sf)
+    IF(r_sf.LT.0.) CALL abort(__STAMP__,'Shape function radius not read yet or set equal to zero! r_sf=',RealInfoOpt=r_sf)
     halo_eps = halo_eps + r_sf
     CALL PrintOption('halo_eps from shape function radius','CALCUL.',RealOpt=halo_eps)
   END IF
