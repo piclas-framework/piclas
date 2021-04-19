@@ -334,23 +334,28 @@ IF(CalcPointsPerShapeFunction)THEN
       ! Check which shape function dimension is used
       SELECT CASE(dim_sf)
       CASE(1) ! 1D
-        DOF    = REAL((PP_N+1)) ! DOF per element in 1D
-        VolumeShapeFunction      = 2.0*ShapeFunctionRadius(iElem)
-        CALL PrintOption('VolumeShapeFunction (1D, line)','OUTPUT',RealOpt=VolumeShapeFunction)
-        CALL PrintOption('Max DOFs in Shape-Function per cell (1D, line)','OUTPUT',RealOpt=DOF)
+        DOF                 = REAL((PP_N+1)) ! DOF per element in 1D
+        VolumeShapeFunction = 2.0*r_sf
+        IF(MPIRoot.AND.(iElem.EQ.1))THEN
+          CALL PrintOption('VolumeShapeFunction (1D, line)','OUTPUT',RealOpt=VolumeShapeFunction)
+          CALL PrintOption('Max DOFs in Shape-Function per cell (1D, line)','OUTPUT',RealOpt=DOF)
+        END IF ! MPIRoot.AND.(iElem.EQ.1)
         ShapeFunctionFractionLoc = (VolumeShapeFunction/ElemVolume_Shared(CNElemID))*dimFactorSF
       CASE(2) ! 2D
-        DOF    = REAL((PP_N+1)**2) ! DOF per element in 2D
-        VolumeShapeFunction      = PI*(ShapeFunctionRadius(iElem)**2)
-        CALL PrintOption('VolumeShapeFunction (2D, circle area)','OUTPUT',RealOpt=VolumeShapeFunction)
-        CALL PrintOption('Max DOFs in Shape-Function per cell (2D, area)','OUTPUT',RealOpt=DOF)
+        DOF                 = REAL((PP_N+1)**2) ! DOF per element in 2D
+        VolumeShapeFunction = PI*(r_sf**2)
+        IF(MPIRoot.AND.(iElem.EQ.1))THEN
+          CALL PrintOption('VolumeShapeFunction (2D, circle area)','OUTPUT',RealOpt=VolumeShapeFunction)
+          CALL PrintOption('Max DOFs in Shape-Function per cell (2D, area)','OUTPUT',RealOpt=DOF)
+        END IF ! MPIRoot.AND.(iElem.EQ.1)
         ShapeFunctionFractionLoc = (VolumeShapeFunction/ElemVolume_Shared(CNElemID))*dimFactorSF
-
       CASE(3) ! 3D
-        DOF = REAL((PP_N+1)**3)     ! DOF per element in 3D
+        DOF                 = REAL((PP_N+1)**3) ! DOF per element in 3D
         VolumeShapeFunction = 4./3.*PI*(r_sf**3)
-        CALL PrintOption('VolumeShapeFunction (3D, sphere)','OUTPUT',RealOpt=VolumeShapeFunction)
-        CALL PrintOption('Max DOFs in Shape-Function per cell (3D, cuboid)','OUTPUT',RealOpt=DOF)
+        IF(MPIRoot.AND.(iElem.EQ.1))THEN
+          CALL PrintOption('VolumeShapeFunction (3D, sphere)','OUTPUT',RealOpt=VolumeShapeFunction)
+          CALL PrintOption('Max DOFs in Shape-Function per cell (3D, cuboid)','OUTPUT',RealOpt=DOF)
+        END IF ! MPIRoot.AND.(iElem.EQ.1)
         ShapeFunctionFractionLoc = VolumeShapeFunction/ElemVolume_Shared(CNElemID)
       END SELECT
       PPSCell(iElem)     = MIN(1.,ShapeFunctionFractionLoc) * DOF
