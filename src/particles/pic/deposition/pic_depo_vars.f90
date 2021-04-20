@@ -52,6 +52,8 @@ REAL                            :: SFAdaptiveDOF             ! Average number of
 !                                                            ! grid with equal elements). Only implemented for PIC-Deposition-Type =
 !                                                            ! shape_function_adaptive (2). The maximum number of DOF is limited by
 !                                                            ! the polynomial degree and is (4/3)*Pi*(N+1)^3. Default is 33.
+LOGICAL                         :: SFAdaptiveSmoothing       ! Enable smooth transition of element-dependent radius when
+                                                             ! using shape_function_adaptive, default=FALSE
 REAL                            :: r_sf                      ! cutoff radius of shape function
 REAL                            :: r2_sf                     ! cutoff radius of shape function * cutoff radius of shape function
 REAL                            :: r2_sf_inv                 ! 1/cutoff radius of shape function * cutoff radius of shape function

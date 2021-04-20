@@ -93,9 +93,9 @@ SUBROUTINE InitDepositionMethod()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools            ,ONLY: GETINTFROMSTR
-USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf,dim_sf,dim_sf_dir,SFAdaptiveSmoothing
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_ReadInTools            ,ONLY: GETREAL,PrintOption
+USE MOD_ReadInTools            ,ONLY: GETREAL,PrintOption,GETINT,GETLOGICAL
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -142,10 +142,16 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     ! deposition (all corner node connected elements) and each element has a separate shape function radius. Therefore, the global
     ! radius is set to zero
     r_sf = 0.
-    CALL PrintOption('Global shape fucntion radius is set to zero: PIC-shapefunction-radius' , 'INFO.' , RealOpt=r_sf)
+    CALL PrintOption('Global shape function radius is set to zero: PIC-shapefunction-radius' , 'INFO.' , RealOpt=r_sf)
+    SFAdaptiveSmoothing = GETLOGICAL('PIC-shapefunction-adaptive-smoothing')
   ELSE
     r_sf = GETREAL('PIC-shapefunction-radius')
   END IF ! TRIM(DepositionType).EQ.'shape_function_adaptive'
+
+  dim_sf   = GETINT('PIC-shapefunction-dimension')
+  ! Get shape function direction for 1D (the direction in which the charge will be distributed) and 2D (the direction in which the
+  ! charge will be constant)
+  dim_sf_dir = GETINT('PIC-shapefunction-direction')
 END IF ! StringBeginsWith(DepositionType,'shape_function')
 
 ! Suppress compiler warnings

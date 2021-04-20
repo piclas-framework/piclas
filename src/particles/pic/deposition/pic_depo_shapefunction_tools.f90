@@ -29,6 +29,7 @@ END INTERFACE
 
 PUBLIC:: calcSfSource
 PUBLIC:: SFNorm
+PUBLIC:: InitShapeFunctionDimensionalty
 !===================================================================================================================================
 
 CONTAINS
@@ -39,7 +40,8 @@ SUBROUTINE calcSfSource(SourceSize_in,ChargeMPF,PartPos,PartID,PartVelo)
 !============================================================================================================================
 ! use MODULES
 USE MOD_Globals
-USE MOD_PICDepo_Vars       ,ONLY: DepositionType,dimFactorSF,sfDepo3D,r_sf,r2_sf,r2_sf_inv,SFElemr2_Shared,w_sf,totalChargePeriodicSF
+USE MOD_PICDepo_Vars       ,ONLY: DepositionType,dimFactorSF,sfDepo3D,r_sf,r2_sf,r2_sf_inv,SFElemr2_Shared,w_sf
+USE MOD_PICDepo_Vars       ,ONLY: totalChargePeriodicSF,SFAdaptiveSmoothing
 USE MOD_Particle_Mesh_Vars ,ONLY: NbrOfPeriodicSFCases
 USE MOD_Particle_Vars      ,ONLY: PEM
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
@@ -84,7 +86,7 @@ ELSE
 END IF
 
 ! Check if periodic sides are present, otherwise simply use PartPos for deposition
-IF(TRIM(DepositionType).NE.'shape_function'.AND.(NbrOfPeriodicSFCases.GT.1))THEN
+IF(NbrOfPeriodicSFCases.GT.1)THEN
   totalChargePeriodicSF = 0.
 
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
@@ -100,19 +102,24 @@ IF(TRIM(DepositionType).NE.'shape_function'.AND.(NbrOfPeriodicSFCases.GT.1))THEN
     r2_sf_inv_tmp= r2_sf_inv_tmp
   END IF ! TRIM(DepositionType).EQ.'shape_function_adaptive'
 
-  DO iCase = 1, NbrOfPeriodicSFCases
-    PartPosShifted(1:3) = GetPartPosShifted(iCase,PartPos(1:3))
-    CALL calcTotalChargePeriodic_cc(      PartPosShifted , Fac(4) , totalChargePeriodicSF , r_sf_tmp , r2_sf_tmp , r2_sf_inv_tmp)
-    !CALL calcTotalChargePeriodic_Adaptive(PartPosShifted , Fac(4) , totalChargePeriodicSF, PartID)
-  END DO
+  IF(TRIM(DepositionType).EQ.'shape_function')THEN
+    ! Incorporate the coefficient that considers the volume integral of the kernel
+    Fac = Fac*w_sf
+  ELSE
+    DO iCase = 1, NbrOfPeriodicSFCases
+      PartPosShifted(1:3) = GetPartPosShifted(iCase,PartPos(1:3))
+      CALL calcTotalChargePeriodic_cc(      PartPosShifted , Fac(4) , totalChargePeriodicSF , r_sf_tmp , r2_sf_tmp , r2_sf_inv_tmp)
+      !CALL calcTotalChargePeriodic_Adaptive(PartPosShifted , Fac(4) , totalChargePeriodicSF, PartID)
+    END DO
 
-  ! Check if the charge is to be distributed over a line (1D) or area (2D)
-  IF(.NOT.sfDepo3D)THEN
-    totalChargePeriodicSF = totalChargePeriodicSF / dimFactorSF
-  END IF
+    ! Check if the charge is to be distributed over a line (1D) or area (2D)
+    IF(.NOT.sfDepo3D)THEN
+      totalChargePeriodicSF = totalChargePeriodicSF / dimFactorSF
+    END IF
 
-  ! Add scaling factor for charge conservation
-  Fac(1:4) = Fac(1:4) * Fac(4)/totalChargePeriodicSF
+    ! Add scaling factor for charge conservation
+    Fac(1:4) = Fac(1:4) * Fac(4)/totalChargePeriodicSF
+  END IF ! TRIM(DepositionType).NE.'shape_function'
 
   ! Call adaptive periodic shape function routine with corrected charge contribution stored in Fac
   DO iCase = 1 , NbrOfPeriodicSFCases
@@ -122,31 +129,29 @@ IF(TRIM(DepositionType).NE.'shape_function'.AND.(NbrOfPeriodicSFCases.GT.1))THEN
   END DO
 
 ELSE
-
-  ! Loop over periodic cases if present
-  DO iCase = 1, NbrOfPeriodicSFCases
-
-    ! Check if periodic sides are present, otherwise simply use PartPos for deposition
-    IF(NbrOfPeriodicSFCases.GT.1)THEN
-      PartPosShifted(1:3) = GetPartPosShifted(iCase,PartPos(1:3))
+  ! Select deposition type
+  SELECT CASE(TRIM(DepositionType))
+  CASE('shape_function')
+    ! Consider the integration factor w_sf for standard (uncorrected) deposition method
+    CALL depoChargeOnDOFsSF(          PartPos , SourceSize , Fac*w_sf , r_sf , r2_sf , r2_sf_inv)
+  CASE('shape_function_cc')
+    CALL depoChargeOnDOFsSFChargeCon( PartPos , SourceSize , Fac      , r_sf , r2_sf , r2_sf_inv)
+  CASE('shape_function_adaptive')
+    IF(SFAdaptiveSmoothing)THEN
+      ! Get radius/radius squared/inverse radius squared for each CN element when using adaptive SF
+      OrigElem     = PEM%GlobalElemID(PartID)
+      OrigCNElemID = GetCNElemID(OrigElem)
+      r_sf_tmp     = SFElemr2_Shared(1,OrigCNElemID)
+      r2_sf_tmp    = SFElemr2_Shared(2,OrigCNElemID)
+      r2_sf_inv_tmp= 1./SFElemr2_Shared(2,OrigCNElemID)
+      CALL depoChargeOnDOFsSFChargeCon( PartPos , SourceSize , Fac      , r_sf_tmp , r2_sf_tmp , r2_sf_inv_tmp)
     ELSE
-      PartPosShifted(1:3) = PartPos(1:3)
-    END IF ! NbrOfPeriodicSFCases.EQ.1
-
-    ! Select deposition type
-    SELECT CASE(TRIM(DepositionType))
-    CASE('shape_function')
-      ! Consider the integration factor w_sf for standard (uncorrected) deposition method
-      CALL depoChargeOnDOFsSF(          PartPosShifted , SourceSize , Fac*w_sf , r_sf , r2_sf , r2_sf_inv)
-    CASE('shape_function_cc')
-      CALL depoChargeOnDOFsSFChargeCon( PartPosShifted , SourceSize , Fac      )
-    CASE('shape_function_adaptive')
-      CALL depoChargeOnDOFsSFAdaptive(  PartPosShifted , SourceSize , Fac      , PartID )
-    CASE DEFAULT
-      CALL CollectiveStop(__STAMP__,&
-          'Unknown ShapeFunction Method!')
-    END SELECT ! DepositionType
-  END DO ! iCase = 1, NbrOfPeriodicSFCases
+      CALL depoChargeOnDOFsSFAdaptive(  PartPos , SourceSize , Fac      , PartID )
+    END IF ! SFAdaptiveSmoothing
+  CASE DEFAULT
+    CALL CollectiveStop(__STAMP__,&
+        'Unknown ShapeFunction Method!')
+  END SELECT ! DepositionType
 END IF ! TRIM(DepositionType).EQ.'shape_function_cc'.AND.(NbrOfPeriodicSFCases.GT.1)
 
 
@@ -620,14 +625,14 @@ END SUBROUTINE calcTotalChargePeriodic_Adaptive
 #endif /*WIP*/
 
 
-SUBROUTINE depoChargeOnDOFsSFChargeCon(Position,SourceSize,Fac)
+SUBROUTINE depoChargeOnDOFsSFChargeCon(Position,SourceSize,Fac,r_sf, r2_sf, r2_sf_inv)
 !============================================================================================================================
 ! actual deposition of single charge on DOFs via shapefunction
 !============================================================================================================================
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars       ,ONLY: r_sf, r2_sf, r2_sf_inv,alpha_sf,ChargeSFDone
+USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,ChargeSFDone
 USE MOD_Mesh_Vars          ,ONLY: nElems, offSetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ
@@ -649,6 +654,9 @@ INTEGER, INTENT(IN)              :: SourceSize
 !#else
 REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
 !#endif
+REAL, INTENT(IN)                 :: r_sf       !< shape function radius
+REAL, INTENT(IN)                 :: r2_sf      !< shape function radius squared
+REAL, INTENT(IN)                 :: r2_sf_inv  !< inverse of shape function radius squared
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1118,6 +1126,157 @@ CASE DEFAULT!CASE(3) Standard 3D shape function
   END DO
 END SELECT
 END FUNCTION GetPartPosShifted
+
+
+!===================================================================================================================================
+!> Set dimension (1D, 2D or 3D) of shape function and calculate the corresponding line, area of volume to which the charge is to be
+!> deposited. Output the average number of DOF that are captured by the shape function deposition kernel
+!===================================================================================================================================
+SUBROUTINE InitShapeFunctionDimensionalty()
+! MODULES
+USE MOD_Preproc
+USE MOD_Globals            ,ONLY: UNIT_stdOut,MPIRoot,abort
+USE MOD_PICDepo_Vars       ,ONLY: dim_sf,BetaFac,w_sf,r_sf,r2_sf,r2_sf_inv,alpha_sf,dim_sf_dir,sfDepo3D,dim_sf_dir1,dim_sf_dir2
+USE MOD_PICDepo_Vars       ,ONLY: DepositionType,dimFactorSF
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO,MeshVolume
+USE MOD_ReadInTools        ,ONLY: PrintOption
+USE MOD_Globals_Vars       ,ONLY: PI
+USE MOD_Mesh_Vars          ,ONLY: nGlobalElems
+USE MOD_PICDepo_Tools      ,ONLY: beta
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(32)             :: hilf_geo
+CHARACTER(1)              :: hilf_dim
+INTEGER                   :: nTotalDOF
+REAL                      :: VolumeShapeFunction
+REAL                      :: r_sf_loc,r2_sf_loc  !> temporary variables
+!===================================================================================================================================
+! 0. Set global radius squared and the inverse of that
+IF(TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
+  r_sf_loc  = 1.
+  r2_sf_loc = 1.
+ELSE
+  r_sf_loc  = r_sf
+  r2_sf     = r_sf * r_sf  ! Radius squared
+  r2_sf_loc = r2_sf
+  r2_sf_inv = 1./r2_sf ! Inverse of radius squared
+END IF
+
+! 1. Initialize auxiliary variables
+hilf_geo='volume'
+WRITE(UNIT=hilf_dim,FMT='(I0)') dim_sf
+
+! 2. Set the scaling factor for the shape function depending on 1D, 2D or 3D shape function and how the charge is to be distributed
+SELECT CASE (dim_sf)
+
+  CASE (1) ! --- 1D shape function -------------------------------------------------------------------------------------------------
+    ! Set perpendicular directions
+    IF(dim_sf_dir.EQ.1)THEN ! Shape function deposits charge in x-direction
+      dimFactorSF = (GEO%ymaxglob-GEO%yminglob)*(GEO%zmaxglob-GEO%zminglob)
+    ELSE IF (dim_sf_dir.EQ.2)THEN ! Shape function deposits charge in y-direction
+      dimFactorSF = (GEO%xmaxglob-GEO%xminglob)*(GEO%zmaxglob-GEO%zminglob)
+    ELSE IF (dim_sf_dir.EQ.3)THEN ! Shape function deposits charge in z-direction
+      dimFactorSF = (GEO%xmaxglob-GEO%xminglob)*(GEO%ymaxglob-GEO%yminglob)
+    END IF
+
+    ! Set prefix factor
+    IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
+      w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf_loc*GAMMA(REAL(alpha_sf+1))*dimFactorSF)
+    ELSE ! Distribute the charge over the line (1D)
+      w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf_loc*GAMMA(REAL(alpha_sf+1)))
+      hilf_geo='line'
+    END IF
+
+    ! Set shape function length (3D volume)
+    VolumeShapeFunction=2*r_sf_loc*dimFactorSF
+    ! Calculate number of 1D DOF (assume second and third direction with 1 cell layer and area given by dimFactorSF)
+    nTotalDOF=nGlobalElems*(PP_N+1)
+
+  CASE (2) ! --- 2D shape function -------------------------------------------------------------------------------------------------
+    ! Set perpendicular direction
+    IF(dim_sf_dir.EQ.1)THEN ! Shape function deposits charge in y-z-direction (const. in x)
+      dimFactorSF = (GEO%xmaxglob-GEO%xminglob)
+    ELSE IF (dim_sf_dir.EQ.2)THEN ! Shape function deposits charge in x-z-direction (const. in y)
+      dimFactorSF = (GEO%ymaxglob-GEO%yminglob)
+    ELSE IF (dim_sf_dir.EQ.3)THEN! Shape function deposits charge in x-y-direction (const. in z)
+      dimFactorSF = (GEO%zmaxglob-GEO%zminglob)
+    END IF
+
+    ! Set prefix factor
+    IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
+      w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf_loc*dimFactorSF)
+    ELSE ! Distribute the charge over the area (2D)
+      w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf_loc)
+      hilf_geo='area'
+    END IF
+
+    ! set the two perpendicular directions used for deposition
+    dim_sf_dir1 = MERGE(1,2,dim_sf_dir.EQ.2)
+    dim_sf_dir2 = MERGE(1,MERGE(3,3,dim_sf_dir.EQ.2),dim_sf_dir.EQ.3)
+    SWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') ' Shape function 2D with const. distribution in dir ',dim_sf_dir,&
+        ' and variable distrbution in ',dim_sf_dir1,' and ',dim_sf_dir2,' (1: x, 2: y and 3: z)'
+
+    ! Set shape function length (3D volume)
+    VolumeShapeFunction=PI*(r_sf_loc**2)*dimFactorSF
+    ! Calculate number of 2D DOF (assume third direction with 1 cell layer and width dimFactorSF)
+    nTotalDOF=nGlobalElems*(PP_N+1)**2
+
+  CASE (3) ! --- 3D shape function -------------------------------------------------------------------------------------------------
+    ! Set prefix factor (not for shape_function_adaptive)
+    BetaFac = beta(1.5, REAL(alpha_sf) + 1.)
+    w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) * (REAL(alpha_sf) + 1.)/(PI*(r_sf_loc**3))
+
+  CASE DEFAULT
+    CALL abort(__STAMP__,'Shape function dimensio must be 1, 2 or 3')
+END SELECT
+
+SWRITE(UNIT_stdOut,'(A)') ' The complete charge is '//TRIM(hilf_geo)//' distributed (via '//TRIM(hilf_dim)//'D shape function)'
+
+IF(.NOT.sfDepo3D)THEN
+  SWRITE(UNIT_stdOut,'(A)') ' Note that the integral of the charge density over the mesh volume is larger than the complete charge'
+  SWRITE(UNIT_stdOut,'(A)') ' because the charge is spread out over either a line (1D shape function) or an area (2D shape function)!'
+END IF
+
+! 3. Output info regarding charge distribution and points per shape function resolution
+IF(.NOT.TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
+  ASSOCIATE(nTotalDOFin3D             => nGlobalElems*(PP_N+1)**3 ,&
+            VolumeShapeFunctionSphere => 4./3.*PI*r_sf**3         )
+
+    ! Output shape function volume
+    IF(dim_sf.EQ.1)THEN
+      CALL PrintOption('Shape function volume (corresponding to a cuboid in 3D)'  , 'CALCUL.', RealOpt=VolumeShapeFunction)
+    ELSEIF(dim_sf.EQ.2)THEN
+      CALL PrintOption('Shape function volume (corresponding to a cylinder in 3D)', 'CALCUL.', RealOpt=VolumeShapeFunction)
+    ELSE
+      VolumeShapeFunction = VolumeShapeFunctionSphere
+      CALL PrintOption('Shape function volume (corresponding to a sphere in 3D)'  , 'CALCUL.', RealOpt=VolumeShapeFunction)
+    END IF
+
+    ! Sanity check: Shape function volume is not allowed to be larger than the complete mesh simulation domain
+    IF(MPIRoot)THEN
+      IF(VolumeShapeFunction.GT.MeshVolume)THEN
+        CALL PrintOption('Mesh volume ('//TRIM(hilf_dim)//')', 'CALCUL.' , RealOpt=MeshVolume)
+        WRITE(UNIT_stdOut,'(A)') ' Maybe wrong perpendicular direction (PIC-shapefunction-direction)?'
+        CALL abort(__STAMP__,'ShapeFunctionVolume > MeshVolume ('//TRIM(hilf_dim)//' shape function)')
+      END IF
+    END IF
+
+    ! Display 1D or 2D deposition info
+    IF(dim_sf.NE.3)THEN
+      CALL PrintOption('Average DOFs in Shape-Function '//TRIM(hilf_geo)//' ('//TRIM(hilf_dim)//')' , 'CALCUL.' , RealOpt=&
+          REAL(nTotalDOF)*VolumeShapeFunction/MeshVolume)
+    END IF ! dim_sf.NE.3
+
+    CALL PrintOption('Average DOFs in Shape-Function (corresponding 3D sphere)' , 'CALCUL.' , RealOpt=&
+        REAL(nTotalDOFin3D)*VolumeShapeFunctionSphere/MeshVolume)
+  END ASSOCIATE
+END IF ! .NOT.TRIM(DepositionType).EQ.'shape_function_adaptive'
+
+END SUBROUTINE InitShapeFunctionDimensionalty
 
 
 END MODULE MOD_PICDepo_Shapefunction_Tools
