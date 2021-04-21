@@ -87,7 +87,6 @@ END IF
 
 ! Check if periodic sides are present, otherwise simply use PartPos for deposition
 IF(NbrOfPeriodicSFCases.GT.1)THEN
-  totalChargePeriodicSF = 0.
 
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
     ! Get radius/radius squared/inverse radius squared for each CN element when using adaptive SF
@@ -99,13 +98,17 @@ IF(NbrOfPeriodicSFCases.GT.1)THEN
   ELSE
     r_sf_tmp     = r_sf
     r2_sf_tmp    = r2_sf
-    r2_sf_inv_tmp= r2_sf_inv_tmp
+    r2_sf_inv_tmp= r2_sf_inv
   END IF ! TRIM(DepositionType).EQ.'shape_function_adaptive'
 
   IF(TRIM(DepositionType).EQ.'shape_function')THEN
     ! Incorporate the coefficient that considers the volume integral of the kernel
     Fac = Fac*w_sf
   ELSE
+    ! Nullify for each particle
+    totalChargePeriodicSF = 0.
+
+    ! Virtually deposit each particle and add up the charge contribution
     DO iCase = 1, NbrOfPeriodicSFCases
       PartPosShifted(1:3) = GetPartPosShifted(iCase,PartPos(1:3))
       CALL calcTotalChargePeriodic_cc(      PartPosShifted , Fac(4) , totalChargePeriodicSF , r_sf_tmp , r2_sf_tmp , r2_sf_inv_tmp)

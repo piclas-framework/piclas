@@ -474,7 +474,7 @@ END SUBROUTINE InitializeDeposition
 SUBROUTINE InitShapeFunctionAdaptive()
 ! MODULES
 USE MOD_Preproc
-USE MOD_Globals                     ,ONLY: UNIT_stdOut,abort,IERROR,myrank
+USE MOD_Globals                     ,ONLY: UNIT_stdOut,abort,IERROR
 USE MOD_PICDepo_Vars                ,ONLY: SFAdaptiveDOF,SFAdaptiveSmoothing,SFElemr2_Shared,dim_sf,dimFactorSF
 USE MOD_ReadInTools                 ,ONLY: GETREAL,GETLOGICAL
 USE MOD_Particle_Mesh_Vars          ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
