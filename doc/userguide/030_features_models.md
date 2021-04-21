@@ -711,6 +711,13 @@ AcceptReject, ARM_DmaxSampleN: [@Garcia2006]
 Charge and current deposition can be performed using different methods, among others, shape
 functions, B-splines or locally volume-weighted approaches.
 
+|  **PIC-Deposition-Type**  |                             **Description**                            |
+|      :--------------:     |                  :-----------------------------------:                 |
+|   *cell_volweight_mean*   | Linear distribution in each element (continuous on element boundaries) |
+|      *shape_function*     |                standard shape function with fixed radius               |
+|    *shape_function_cc*    |            charge corrected shape function with fixed radius           |
+| *shape_function_adaptive* |      charge corrected shape function with element-dependent radius     |
+
 #### Linear Distribution Over Cell Interfaces
 A linear deposition method that also considers neighbouring elements can be selected by
 
@@ -741,16 +748,26 @@ size of the element and its direct neighbours by setting
     PIC-Deposition-Type = shape_function_adaptive
 
 The shape function radius in this case is limited by the size of the surrounding elements and may not reach past its direct
-neighbours. This shape function method also is numerically charge conserving by integrating each particle's deposited charge and
+neighbours.
+
+The direct influence of only the neibouring elements can be extended further by activating
+
+    PIC-shapefunction-adaptive-smoothing = T
+
+which increases the radius of influence and therefore takes more elements into account for the calculation of the shape function 
+radius in each element, hence, leading to a smoother transition in regions, where the element sizes rapidly change.
+
+This shape function method also is numerically charge conserving by integrating each particle's deposited charge and
 adjusting to this value. Depending on the polynomial degree N, the number of DOF that are within the shape function radius can be
 changed via
 
     PIC-shapefunction-adaptive-DOF = 33
 
-The default values (maximum allowed for each polynomial degree $N$) depend on the dimensionality of the deposition kernel, 1D: $2(N+1)$, 2D: $\pi(N+1)^2$, 3D: $(4/3)\pi(N+1)^3$.
+The default values (maximum allowed for each polynomial degree $N$) depend on the dimensionality of the deposition kernel,
+1D: $2(N+1)$, 2D: $\pi(N+1)^2$, 3D: $(4/3)\pi(N+1)^3$.
 
-
-The following polynomial isotropic shape functions are all designed to be used in three dimensions, where reductions to 2D and 1D are applied.
+The following polynomial isotropic shape functions are all designed to be used in three dimensions, where reductions to 2D and 1D
+are possible.
 
 ##### Shape Function 1D
 A one-dimensional shape function in $x$-direction is given by

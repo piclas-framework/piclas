@@ -428,16 +428,6 @@ CASE('cell_volweight_mean')
 
 CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 
-  ! Get shape function exponent and dimension (1D, 2D or 3D)
-  alpha_sf = GETINT('PIC-shapefunction-alpha')
-
-  ! Get deposition parameter, the default is TRUE (3D), that distributes the charge over
-  !  FALSE: line (1D) / area (2D)
-  !   TRUE: volume (3D)
-  sfDepo3D = GETLOGICAL('PIC-shapefunction-3D-deposition')
-  IF((dim_sf.EQ.3).AND.(.NOT.sfDepo3D)) &
-      CALL abort(__STAMP__,'PIC-shapefunction-dimension=F and PIC-shapefunction-3D-deposition=T is not allowed')
-
   ! --- Set shape function radius in each cell when using adaptive shape function
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitShapeFunctionAdaptive()
 
