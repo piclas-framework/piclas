@@ -198,6 +198,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared,ElemCharLengthY_Shar
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, VarTimeStep, PDM, usevMPF
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition,SFAdaptiveDOF,r_sf,DepositionType,SFElemr2_Shared,dim_sf,dimFactorSF,dim_sf_dir
+USE MOD_PICDepo_Vars          ,ONLY: SFAdaptiveSmoothing
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
 USE MOD_ReadInTools           ,ONLY: PrintOption
 #if (PP_TimeDiscMethod == 42)
@@ -248,6 +249,7 @@ END IF
 
 ! Allocate arrays and calculate the average number of points in each shape function sphere
 IF(CalcPointsPerShapeFunction)THEN
+
   ! PPSCell:
   ! Points per shape function sphere (cell mean value): Calculate cell local number excluding neighbor DOFs
   ALLOCATE( PPSCell(1:PP_nElems) )
@@ -306,29 +308,35 @@ IF(CalcPointsPerShapeFunction)THEN
       PPSCell(iElem)     = MIN(1.,ShapeFunctionFraction(iElem)) * DOF
       PPSCellCartesian(iElem) =        ShapeFunctionFraction(iElem)  * DOF
 
-      ! Sanity check
-      IF(PPSCellCartesian(iElem).GT.DOFMax.AND.(.NOT.ALMOSTEQUALRELATIVE(PPSCellCartesian(iElem),DOFMax,1e-5)))THEN
-        IPWRITE(UNIT_StdOut,'(I0,A57,F10.2)') " PPSCellCartesian(iElem) =", PPSCellCartesian(iElem)
-        IPWRITE(UNIT_StdOut,'(I0,A,I3,A,A19,A,F10.2)') " For N =",PP_N,", the maximum allowed is ",TRIM(hilf2)," =", DOFMax
-        IPWRITE(UNIT_StdOut,'(I0,A,3(ES23.14))') " ElemBaryNGeo(1:3,iElem) =", ElemBaryNGeo(1:3,iElem)
-        IPWRITE(UNIT_StdOut,'(I0,A,ES23.14)') " ShapeFunctionRadius(iElem) =", ShapeFunctionRadius(iElem)
-        IPWRITE(UNIT_StdOut,'(I0,A,F10.2)') " Reduce the number of DOF/SF in order to have no DOF outside of the deposition "//&
-            "range (neighbour elems) by changing\n  PIC-shapefunction-adaptive-DOF, which is currently set to =", SFAdaptiveDOF
-        SELECT CASE(dim_sf)
-        CASE(1) ! 1D
-          IPWRITE(UNIT_StdOut,'(I0,A,I3,A)') &
-              " WARNING: IF THIS CHECK FAILS YOU MIGHT BE USING MORE THAN 1 element in the other directions of "&
-              ,dim_sf_dir," (1: x, 2:y and 3: zdir)"
-        CASE(2) ! 2D
-          IPWRITE(UNIT_StdOut,'(I0,A,I3,A)') &
-              " WARNING: IF THIS CHECK FAILS YOU MIGHT BE USING MORE THAN 1 element in the direction of "&
-              ,dim_sf_dir," (1: x, 2:y and 3: zdir)"
-        END SELECT
-        CALL abort(__STAMP__,'PPSCellCartesian(iElem) > '//TRIM(hilf2)//' is not allowed')
-      END IF ! PPSCellCartesian(iElem).GT.4./3.*PI*(PP_N+1)**3
+      ! Sanity check (only when smoothing is not activated because then the radius is allowed to be larger)
+      IF(.NOT.SFAdaptiveSmoothing)THEN
+        ! Check if more DOF/SF are present in a cell than allowed (but allow the maximum value as it is used as default)
+        IF(PPSCellCartesian(iElem).GT.DOFMax.AND.(.NOT.ALMOSTEQUALRELATIVE(PPSCellCartesian(iElem),DOFMax,1e-5)))THEN
+          IPWRITE(UNIT_StdOut,'(I0,A57,F10.2)') " PPSCellCartesian(iElem) :", PPSCellCartesian(iElem)
+          IPWRITE(UNIT_StdOut,'(I0,A,I3,A,A19,A,F10.2)') " For N =",PP_N,", the maximum allowed is ",TRIM(hilf2)," :", DOFMax
+          IPWRITE(UNIT_StdOut,'(I0,A,29X,A,3(ES23.14))') " ElemBaryNGeo(1:3,iElem)   ",":", ElemBaryNGeo(1:3,iElem)
+          IPWRITE(UNIT_StdOut,'(I0,A,29X,A,ES23.14)')    " ShapeFunctionRadius(iElem)",":", ShapeFunctionRadius(iElem)
+          IPWRITE(UNIT_StdOut,'(I0,A,F10.2)') " Reduce the number of DOF/SF in order to have no DOF outside of the deposition "//&
+              "range (neighbour elems) by changing\n  PIC-shapefunction-adaptive-DOF, which is currently set to =", SFAdaptiveDOF
+          ! Check 1D/2D shape function distribution (assume that only 1 element is used in the constant direction)
+          SELECT CASE(dim_sf)
+          CASE(1) ! 1D
+            IPWRITE(UNIT_StdOut,'(I0,A,I3,A)') &
+                " WARNING: IF THIS CHECK FAILS YOU MIGHT BE USING MORE THAN 1 element in the other directions of "&
+                ,dim_sf_dir," (1: x, 2: y and 3: zdir)"
+          CASE(2) ! 2D
+            IPWRITE(UNIT_StdOut,'(I0,A,I3,A)') &
+                " WARNING: IF THIS CHECK FAILS YOU MIGHT BE USING MORE THAN 1 element in the direction of "&
+                ,dim_sf_dir," (1: x, 2: y and 3: zdir)"
+          END SELECT
+          CALL abort(__STAMP__,'PPSCellCartesian(iElem) > '//TRIM(hilf2)//' is not allowed')
+        END IF ! PPSCellCartesian(iElem).GT.4./3.*PI*(PP_N+1)**3
+      END IF ! .NOT.SFAdaptiveSmoothing
 
     END DO ! iElem = 1, nElems
-  ELSE
+
+  ELSE ! normal/cc shape function with global radius
+
     DO iElem = 1, nElems
       CNElemID           = GetCNElemID(iElem+offSetElem) ! iElem + offSetElem = globElemID
       ! Check which shape function dimension is used
@@ -361,7 +369,9 @@ IF(CalcPointsPerShapeFunction)THEN
       PPSCell(iElem)          = MIN(1.,ShapeFunctionFractionLoc) * DOF
       PPSCellCartesian(iElem) = ShapeFunctionFractionLoc  * DOF
     END DO ! iElem = 1, nElems
+
   END IF ! TRIM(DepositionType).EQ.'shape_function_adaptive'
+
 END IF
 
 !--------------------------------------------------------------------------------------------------------------------

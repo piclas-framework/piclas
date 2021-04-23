@@ -111,8 +111,7 @@ IF(NbrOfPeriodicSFCases.GT.1)THEN
     ! Virtually deposit each particle and add up the charge contribution
     DO iCase = 1, NbrOfPeriodicSFCases
       PartPosShifted(1:3) = GetPartPosShifted(iCase,PartPos(1:3))
-      CALL calcTotalChargePeriodic_cc(      PartPosShifted , Fac(4) , totalChargePeriodicSF , r_sf_tmp , r2_sf_tmp , r2_sf_inv_tmp)
-      !CALL calcTotalChargePeriodic_Adaptive(PartPosShifted , Fac(4) , totalChargePeriodicSF, PartID)
+      CALL calcTotalChargePeriodic_cc(PartPosShifted , Fac(4) , totalChargePeriodicSF , r_sf_tmp , r2_sf_tmp , r2_sf_inv_tmp)
     END DO
 
     ! Check if the charge is to be distributed over a line (1D) or area (2D)
@@ -128,7 +127,6 @@ IF(NbrOfPeriodicSFCases.GT.1)THEN
   DO iCase = 1 , NbrOfPeriodicSFCases
     PartPosShifted(1:3) = GetPartPosShifted(iCase,PartPos(1:3))
     CALL depoChargeOnDOFsSF(PartPosShifted , SourceSize , Fac , r_sf_tmp , r2_sf_tmp , r2_sf_inv_tmp)
-    !CALL depoChargeOnDOFsSFAdaptivePeriodic(PartPosShifted , SourceSize , Fac, PartID)
   END DO
 
 ELSE
@@ -378,86 +376,6 @@ DO kk = kmin,kmax
 END DO ! kk
 END SUBROUTINE depoChargeOnDOFsSF
 
-#ifdef WIP
-SUBROUTINE depoChargeOnDOFsSFAdaptivePeriodic(Position,SourceSize,Fac,PartIdx)
-!============================================================================================================================
-! after adding up the charge contribution of each particle to each element and integrating the resulting charge density
-! to ensure charge conservation, the corrected charge contribution is deposited on the actual grid DOF
-!============================================================================================================================
-! use MODULES
-USE MOD_Globals
-USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,ChargeSFDone,SFElemr2_Shared
-USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemBaryNgeo,Elem_xGP_Shared
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo,ElemToElemMapping,ElemToElemInfo
-USE MOD_Preproc
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID,GetGlobalElemID
-USE MOD_Particle_Vars      ,ONLY: PEM
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
-#endif  /*USE_LOADBALANCE*/
-!-----------------------------------------------------------------------------------------------------------------------------------
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)                 :: Position(3)
-INTEGER, INTENT(IN)              :: PartIdx
-INTEGER, INTENT(IN)              :: SourceSize
-!#if ((USE_HDG) && (PP_nVar==1))
-!REAL, INTENT(IN)                 :: Fac(4:4)
-!#else
-REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
-!#endif
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                          :: k, l, m
-INTEGER                          :: ppp
-INTEGER                          :: globElemID, CNElemID
-REAL                             :: radius2, S, S1
-INTEGER                          :: expo,I,localElem,OrigElem,OrigCNElemID
-!----------------------------------------------------------------------------------------------------------------------------------
-I=5-SourceSize
-ChargeSFDone(:) = .FALSE.
-!-- determine which background mesh cells (and interpolation points within) need to be considered
-!--- go through all mapped elements not done yet
-OrigElem = PEM%GlobalElemID(PartIdx)
-OrigCNElemID = GetCNElemID(OrigElem)
-globElemID = OrigElem
-DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
-  IF (ppp.GT.0) globElemID = GetGlobalElemID(ElemToElemInfo(ElemToElemMapping(1,OrigCNElemID)+ppp))
-  CNElemID = GetCNElemID(globElemID)
-  localElem = globElemID-offSetElem
-  IF (ChargeSFDone(CNElemID)) CYCLE
-  IF (SFNorm(Position(1:3)-ElemBaryNgeo(1:3,CNElemID)).GT.(SFElemr2_Shared(1,OrigCNElemID)+ElemRadiusNGeo(CNElemID))) CYCLE
-#if USE_LOADBALANCE
-  IF ((localElem.GE.1).AND.localElem.LE.nElems) nDeposPerElem(localElem)=nDeposPerElem(localElem)+1
-#endif /*USE_LOADBALANCE*/
-  !--- go through all gauss points
-  DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-    !-- calculate distance between gauss and particle
-    radius2 = SFRadius2(Position(1:3) - Elem_xGP_Shared(1:3,k,l,m,globElemID))
-    !-- calculate charge and current density at ip point using a shape function
-    !-- currently only one shapefunction available, more to follow (including structure change)
-    IF (radius2 .LE. SFElemr2_Shared(2,OrigCNElemID)) THEN
-      !            nUsedElems = nUsedElems + 1
-      !            usedElems(nUsedElems) = CNElemID
-      S = 1. - radius2/SFElemr2_Shared(2,OrigCNElemID)
-      S1 = S*S
-      DO expo = 3, alpha_sf
-        S1 = S*S1
-      END DO
-      CALL UpdatePartSource(I,k,l,m,globElemID,S1*Fac(I:4))
-    END IF
-  END DO; END DO; END DO
-  ChargeSFDone(CNElemID) = .TRUE.
-END DO ! ppp
-END SUBROUTINE depoChargeOnDOFsSFAdaptivePeriodic
-#endif /*WIP*/
-
 
 SUBROUTINE calcTotalChargePeriodic_cc(Position, Fac, totalCharge, r_sf, r2_sf, r2_sf_inv)
 !============================================================================================================================
@@ -550,82 +468,6 @@ DO kk = kmin,kmax
 END DO ! kk
 
 END SUBROUTINE calcTotalChargePeriodic_cc
-
-#ifdef WIP
-SUBROUTINE calcTotalChargePeriodic_Adaptive(Position,Fac,totalCharge,PartIdx)
-!============================================================================================================================
-! actual deposition of single charge on DOFs via shapefunction
-!============================================================================================================================
-! use MODULES
-USE MOD_PreProc
-USE MOD_Globals
-USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,SFElemr2_Shared,ChargeSFDone
-USE MOD_Mesh_Vars          ,ONLY: nElems, offSetElem
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemBaryNgeo, Elem_xGP_Shared
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ, ElemToElemMapping,ElemToElemInfo
-USE MOD_Preproc
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID, GetGlobalElemID
-USE MOD_Interpolation_Vars ,ONLY: wGP
-USE MOD_Particle_Vars      ,ONLY: PEM
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
-#endif  /*USE_LOADBALANCE*/
-!-----------------------------------------------------------------------------------------------------------------------------------
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)                 :: Position(3)
-INTEGER, INTENT(IN)              :: PartIdx
-REAL, INTENT(IN)                 :: Fac
-REAL, INTENT(INOUT)              :: totalCharge
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                          :: k, l, m
-INTEGER                          :: ppp
-INTEGER                          :: globElemID, CNElemID, OrigCNElemID, OrigElem
-INTEGER                          :: expo, localElem
-REAL                             :: radius2, S, S1
-!----------------------------------------------------------------------------------------------------------------------------------
-ChargeSFDone(:) = .FALSE.
-
-!-- determine which background mesh cells (and interpolation points within) need to be considered
-!--- go through all mapped elements not done yet
-OrigElem = PEM%GlobalElemID(PartIdx)
-OrigCNElemID = GetCNElemID(OrigElem)
-globElemID = OrigElem
-DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
-  IF (ppp.GT.0) globElemID = GetGlobalElemID(ElemToElemInfo(ElemToElemMapping(1,OrigCNElemID)+ppp))
-  CNElemID = GetCNElemID(globElemID)
-  localElem = globElemID-offSetElem
-  IF (ChargeSFDone(CNElemID)) CYCLE
-  IF (SFNorm(Position(1:3)-ElemBaryNgeo(1:3,CNElemID)).GT.(SFElemr2_Shared(1,OrigCNElemID)+ElemRadiusNGeo(CNElemID))) CYCLE
-#if USE_LOADBALANCE
-  IF ((localElem.GE.1).AND.localElem.LE.nElems) nDeposPerElem(localElem)=nDeposPerElem(localElem)+1
-#endif /*USE_LOADBALANCE*/
-    !--- go through all gauss points
-  DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-    !-- calculate distance between gauss and particle
-    radius2 = SFRadius2(Position(1:3) - Elem_xGP_Shared(1:3,k,l,m,globElemID))
-    !-- calculate charge and current density at ip point using a shape function
-    !-- currently only one shapefunction available, more to follow (including structure change)
-    IF (radius2 .LE. SFElemr2_Shared(2,OrigCNElemID)) THEN
-      S = 1. - radius2/SFElemr2_Shared(2,OrigCNElemID)
-      S1 = S*S
-      DO expo = 3, alpha_sf
-        S1 = S*S1
-      END DO
-      totalCharge = totalCharge  + wGP(k)*wGP(l)*wGP(m)*Fac*S1/ElemsJ(k,l,m,CNElemID)
-    END IF
-  END DO; END DO; END DO
-
-  ChargeSFDone(CNElemID) = .TRUE.
-END DO ! ppp
-
-END SUBROUTINE calcTotalChargePeriodic_Adaptive
-#endif /*WIP*/
 
 
 SUBROUTINE depoChargeOnDOFsSFChargeCon(Position,SourceSize,Fac,r_sf, r2_sf, r2_sf_inv)

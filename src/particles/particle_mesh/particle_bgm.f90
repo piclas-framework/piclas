@@ -109,7 +109,7 @@ USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
 USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
-USE MOD_PICDepo_Vars           ,ONLY: DepositionType,SFAdaptiveSmoothing,dim_sf,dim_sf_dir,dimFactorSF
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType,SFAdaptiveSmoothing,dim_sf,dimFactorSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared,ElemCharLength_Shared,offsetComputeNodeElem
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -152,7 +152,7 @@ INTEGER                        :: BGMiglobDelta,BGMjglobDelta,BGMkglobDelta
 ! Periodic FIBGM
 LOGICAL                        :: PeriodicComponent(1:3)
 INTEGER                        :: iPeriodicVector,iPeriodicComponent
-REAL                           :: LChar,LCharMax
+REAL                           :: CharacteristicLength,CharacteristicLengthMax
 INTEGER                        :: CNElemID
 LOGICAL                        :: EnlargeBGM ! Flag used for enlarging the BGM if RefMapping and/or shape function is used
 INTEGER                        :: offsetElemCNProc
@@ -312,23 +312,23 @@ halo_eps_velo =GETREAL('Particles-HaloEpsVelo')
 IF((TRIM(DepositionType).EQ.'shape_function_adaptive').AND.SFAdaptiveSmoothing)THEN
   ! J_N is only built for local DG elements. Therefore, array is only filled for elements on the same compute node
   offsetElemCNProc = offsetElem - offsetComputeNodeElem
-  LCharMax=0.
+  CharacteristicLengthMax=0.
   DO iElem = 1, nElems
     CNElemID=iElem+offsetElemCNProc
     ! Check which shape function dimension is used
     SELECT CASE(dim_sf)
     CASE(1)
-      LChar = ElemVolume_Shared(CNElemID) / dimFactorSF
+      CharacteristicLength = ElemVolume_Shared(CNElemID) / dimFactorSF
     CASE(2)
-      LChar = SQRT(ElemVolume_Shared(CNElemID) / dimFactorSF)
+      CharacteristicLength = SQRT(ElemVolume_Shared(CNElemID) / dimFactorSF)
     CASE(3)
-      LChar = ElemCharLength_Shared(CNElemID)
+      CharacteristicLength = ElemCharLength_Shared(CNElemID)
     END SELECT
-    LCharMax = MAX(LCharMax,LChar)
+    CharacteristicLengthMax = MAX(CharacteristicLengthMax,CharacteristicLength)
   END DO ! iElem = 1, nElems
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,LCharMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
-  r_sf = 1.1 * LCharMax ! Increase by 10%
-  IF(LChar.LE.0.) CALL abort(__STAMP__,'LChar.LE.0. is not allowed.')
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,CharacteristicLengthMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+  r_sf = 1.1 * CharacteristicLengthMax ! Increase by 10%
+  IF(CharacteristicLength.LE.0.) CALL abort(__STAMP__,'CharacteristicLength.LE.0. is not allowed.')
   CALL PrintOption('Global shape function radius from elements: PIC-shapefunction-radius' , 'INFO.' , RealOpt=r_sf)
 END IF ! (TRIM(DepositionType).EQ.'shape_function_adaptive').AND.SFAdaptiveSmoothing
 

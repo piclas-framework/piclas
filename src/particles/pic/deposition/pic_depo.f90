@@ -504,12 +504,12 @@ REAL                           :: SFDepoScaling
 LOGICAL                        :: ElemDone
 INTEGER                        :: ppp,globElemID
 REAL                           :: r_sf_tmp,SFAdaptiveDOFDefault,DOFMax
-INTEGER                        :: iElem,firstElem,lastElem,jNode,NbElemID,NeighNonUniqueNodeID
+INTEGER                        :: iCNElem,firstElem,lastElem,jNode,NbElemID,NeighNonUniqueNodeID
 CHARACTER(32)                  :: hilf2,hilf3
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #endif /*USE_MPI*/
-REAL                           :: L_char
+REAL                           :: CharacteristicLength
 !===================================================================================================================================
 ! Set the number of DOF/SF
 ! Check which shape function dimension is used and set default value
@@ -575,17 +575,17 @@ END IF
 CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif
-DO iElem = firstElem,lastElem
+DO iCNElem = firstElem,lastElem
   ElemDone = .FALSE.
 
-  DO ppp = 1,ElemToElemMapping(2,iElem)
-    globElemID = GetGlobalElemID(ElemToElemInfo(ElemToElemMapping(1,iElem)+ppp))
+  DO ppp = 1,ElemToElemMapping(2,iCNElem)
+    globElemID = GetGlobalElemID(ElemToElemInfo(ElemToElemMapping(1,iCNElem)+ppp))
     NbElemID = GetCNElemID(globElemID)
     Nodeloop: DO jNode = 1, 8
       NeighNonUniqueNodeID = ElemNodeID_Shared(jNode,NbElemID)
       NeighUniqueNodeID = NodeInfo_Shared(NeighNonUniqueNodeID)
       DO iNode = 1, 8
-        NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
+        NonUniqueNodeID = ElemNodeID_Shared(iNode,iCNElem)
         UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
         IF (UniqueNodeID.EQ.NeighUniqueNodeID) CYCLE Nodeloop
       END DO
@@ -593,9 +593,14 @@ DO iElem = firstElem,lastElem
 
       ! Measure distance from my corner nodes to neighbour corner nodes
       DO iNode = 1, 8
-        NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
-        r_sf_tmp = SFNorm(NodeCoords_Shared(1:3,NonUniqueNodeID) - NodeCoords_Shared(1:3,NeighNonUniqueNodeID))
-        IF (r_sf_tmp.LT.SFElemr2_Shared(1,iElem)) SFElemr2_Shared(1,iElem) = r_sf_tmp
+        NonUniqueNodeID = ElemNodeID_Shared(iNode,iCNElem)
+        ASSOCIATE( v1 => NodeCoords_Shared(1:3,NonUniqueNodeID)      ,&
+                   v2 => NodeCoords_Shared(1:3,NeighNonUniqueNodeID) )
+          IF(SFMeasureDistance(v1,v2)) THEN
+            r_sf_tmp = SFNorm(v1-v2)
+            IF (r_sf_tmp.LT.SFElemr2_Shared(1,iCNElem)) SFElemr2_Shared(1,iCNElem) = r_sf_tmp
+          END IF ! SFMeasureDistance(v1,v2)
+        END ASSOCIATE
       END DO ! iNode = 1, 8
 
     END DO Nodeloop
@@ -604,35 +609,40 @@ DO iElem = firstElem,lastElem
   ! Sanity check if no neighbours are present
   IF (.NOT.ElemDone) THEN
     DO iNode = 1, 8
-      NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
-      r_sf_tmp = SFNorm(ElemMidPoint_Shared(1:3,iElem)-NodeCoords_Shared(1:3,NonUniqueNodeID))
-      IF (r_sf_tmp.LT.SFElemr2_Shared(1,iElem)) SFElemr2_Shared(1,iElem) = r_sf_tmp
+      NonUniqueNodeID = ElemNodeID_Shared(iNode,iCNElem)
+      r_sf_tmp = SFNorm(ElemMidPoint_Shared(1:3,iCNElem)-NodeCoords_Shared(1:3,NonUniqueNodeID))
+      IF (r_sf_tmp.LT.SFElemr2_Shared(1,iCNElem)) SFElemr2_Shared(1,iCNElem) = r_sf_tmp
     END DO
   END IF
 
   ! Check which shape function dimension is used
   SELECT CASE(dim_sf)
   CASE(1)
-    L_char = ElemVolume_Shared(iElem) / dimFactorSF
+    CharacteristicLength = ElemVolume_Shared(iCNElem) / dimFactorSF
   CASE(2)
-    L_char = SQRT(ElemVolume_Shared(iElem) / dimFactorSF)
+    CharacteristicLength = SQRT(ElemVolume_Shared(iCNElem) / dimFactorSF)
   CASE(3)
-    L_char = ElemCharLength_Shared(iElem)
+    CharacteristicLength = ElemCharLength_Shared(iCNElem)
   END SELECT
 
   ! Check characteristic length of cell (or when using SFAdaptiveSmoothing)
-  IF(L_char.LT.SFElemr2_Shared(1,iElem).OR.SFAdaptiveSmoothing)THEN
-    SFElemr2_Shared(1,iElem) = (SFElemr2_Shared(1,iElem) + L_char)/2.0
+  IF(CharacteristicLength.LT.SFElemr2_Shared(1,iCNElem).OR.SFAdaptiveSmoothing)THEN
+    SFElemr2_Shared(1,iCNElem) = (SFElemr2_Shared(1,iCNElem) + CharacteristicLength)/2.0
   END IF
 
   ! Scale the radius so that it reaches at most the neighbouring cells but no further (all neighbours of the 8 corner nodes)
-  SFElemr2_Shared(1,iElem) = SFElemr2_Shared(1,iElem) * SFDepoScaling / (PP_N+1.)
-  SFElemr2_Shared(2,iElem) = SFElemr2_Shared(1,iElem)**2
+  SFElemr2_Shared(1,iCNElem) = SFElemr2_Shared(1,iCNElem) * SFDepoScaling / (PP_N+1.)
+  SFElemr2_Shared(2,iCNElem) = SFElemr2_Shared(1,iCNElem)**2
+
+  ! Sanity checks
+  IF(SFElemr2_Shared(1,iCNElem).LE.0.0)      CALL abort(__STAMP__,'Shape function radius <= zero!')
+  IF(SFElemr2_Shared(1,iCNElem).GE.HUGE(1.)) CALL abort(__STAMP__,'Shape function radius >= HUGE(1.)!')
 END DO
+
 #if USE_MPI
 CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
-#endif
+#endif /*USE_MPI*/
 
 END SUBROUTINE InitShapeFunctionAdaptive
 
@@ -774,6 +784,38 @@ IF(MOD(iter,PartAnalyzeStep).EQ.0) THEN
 END IF
 RETURN
 END SUBROUTINE Deposition
+
+
+PURE LOGICAL FUNCTION SFMeasureDistance(v1,v2)
+!============================================================================================================================
+! Check if the two position vectors coincide in the 1D or 2D projection. If yes, then return .FALSE., else return .TRUE.
+! If two points coincide in the direction in which the shape function is not deposited, they are ignored (coincide means that the 
+! real values are equal up to relative precision of 1e-5)
+!============================================================================================================================
+USE MOD_PICDepo_Vars ,ONLY: dim_sf,dim_sf_dir,dim_sf_dir1,dim_sf_dir2
+!-----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN) :: v1(1:3) !< Input vector 1
+REAL, INTENT(IN) :: v2(1:3) !< Input vector 2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+SFMeasureDistance = .TRUE. ! Default, also used for dim_sf=3 (3D case)
+
+! Depending on the dimensionality 
+SELECT CASE (dim_sf)
+CASE (1)
+  SFMeasureDistance = MERGE(.FALSE. , .TRUE. , ALMOSTEQUALRELATIVE(v1(dim_sf_dir) , v2(dim_sf_dir) , 1e-6))
+CASE (2)
+  SFMeasureDistance = MERGE(.FALSE. , .TRUE. , ALMOSTEQUALRELATIVE(v1(dim_sf_dir1) , v2(dim_sf_dir1) , 1e-6) .AND. &
+                                               ALMOSTEQUALRELATIVE(v1(dim_sf_dir2) , v2(dim_sf_dir2) , 1e-6)       )
+END SELECT
+
+END FUNCTION SFMeasureDistance
 
 
 SUBROUTINE FinalizeDeposition()
