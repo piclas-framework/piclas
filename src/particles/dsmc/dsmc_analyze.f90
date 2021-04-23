@@ -125,8 +125,8 @@ END IF
 nVar = 5
 nVarSpec = 1
 
-! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle and number: Add 9 to the buffer length
-nVarSpec = nVarSpec + 9
+! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle, number, and number per second: Add 10 to the buffer length
+IF(CalcSurfaceImpact) nVarSpec = nVarSpec + 10
 
 IF(nPorousBC.GT.0) THEN
   nVar = nVar + nPorousBC
@@ -239,8 +239,10 @@ DO iSurfSide = 1,nComputeNodeSurfSides
             ! Add number of impacts
             idx = idx + 1
             MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = nImpacts
-          ELSE
-            idx=idx+8
+
+            ! Add number of impacts per second
+            idx = idx + 1
+            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = nImpacts / TimeSample
           END IF ! nImpacts.GT.0.
         END IF ! CalcSurfaceImpact
       END DO ! iSpec=1,nSpecies

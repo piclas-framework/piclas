@@ -745,8 +745,8 @@ FileString = TRIM(FileName)//'.h5'
 nVar2D      = 5
 nVar2D_Spec = 1
 
-! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number: Add 8 variables
-IF (CalcSurfaceImpact) nVar2D_Spec = nVar2D_Spec + 8
+! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle, total number, number per second: Add 10 variables
+IF (CalcSurfaceImpact) nVar2D_Spec = nVar2D_Spec + 10
 
 IF (nPorousBC.GT.0)    nVar2D = nVar2D + nPorousBC
 
@@ -785,6 +785,7 @@ IF (mySurfRank.EQ.0) THEN
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyTrans')
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyRot')
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyVib')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyElec')
       ! Add average impact vector for each species (x,y,z)
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactVectorX')
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactVectorY')
@@ -793,6 +794,8 @@ IF (mySurfRank.EQ.0) THEN
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactAngle')
       ! Add number of impacts
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactNumber')
+      ! Add number of impacts per second
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactFlux')
     END IF ! CalcSurfaceImpact
 
   END DO ! iSpec=1,nSpecies
