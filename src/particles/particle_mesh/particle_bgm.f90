@@ -90,7 +90,6 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: c
 USE MOD_Preproc
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem,nGlobalElems
-USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Periodic_BC   ,ONLY: InitPeriodicBC
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
@@ -110,7 +109,19 @@ USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
 USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,SFAdaptiveSmoothing,dim_sf,dimFactorSF
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared,ElemCharLength_Shared,offsetComputeNodeElem
+USE MOD_Particle_Mesh_Vars     ,ONLY: offsetComputeNodeElem,NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,FIBGM_nElems,ElemToBGM_Shared,FIBGM_offsetElem
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGMToProc_Shared,FIBGMToProcFlag_Shared,nComputeNodeElems,FIBGMProcs_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGMToProcFlag_Shared_Win,FIBGMProcs_Shared_Win,nComputeNodeSides,FIBGMToProcFlag
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared,FIBGMToProc,FIBGM_nTotalElems,FIBGM_nElems_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared_Win,FIBGM_nElems_Shared,FIBGMToProc_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_Element_Shared_Win,FIBGM_Element_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems_Shared_Win,FIBGM_nTotalElems_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared,BoundsOfElem_Shared_Win,ElemToBGM_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared_Win,GEO,FIBGM_Element,FIBGMProcs
+!USE MOD_Particle_Mesh_Vars     ,ONLY: 
+!USE MOD_Particle_Mesh_Vars     ,ONLY: 
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -156,6 +167,7 @@ REAL                           :: CharacteristicLength,CharacteristicLengthMax
 INTEGER                        :: CNElemID
 LOGICAL                        :: EnlargeBGM ! Flag used for enlarging the BGM if RefMapping and/or shape function is used
 INTEGER                        :: offsetElemCNProc
+REAL                           :: BoundingBoxVolume
 #else
 REAL                           :: halo_eps
 #endif /*USE_MPI*/
@@ -315,14 +327,25 @@ IF((TRIM(DepositionType).EQ.'shape_function_adaptive').AND.SFAdaptiveSmoothing)T
   CharacteristicLengthMax=0.
   DO iElem = 1, nElems
     CNElemID=iElem+offsetElemCNProc
+
+    ! Because ElemVolume_Shared(CNElemID) is not available for halo elements, the bounding box volume is used as an approximate
+    ! value for the element volume from which the characteristic length of the element is calculated
+    ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iElem + offsetElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+      BoundingBoxVolume = (Bounds(2,1)-Bounds(1,1)) * (Bounds(2,2)-Bounds(1,2)) * (Bounds(2,3)-Bounds(1,3))
+    END ASSOCIATE
+    IF(BoundingBoxVolume.LE.0.0) CALL abort(__STAMP__,'Element bounding box volume cannot be zero!')
+
     ! Check which shape function dimension is used
     SELECT CASE(dim_sf)
     CASE(1)
-      CharacteristicLength = ElemVolume_Shared(CNElemID) / dimFactorSF
+      !CharacteristicLength = ElemVolume_Shared(CNElemID) / dimFactorSF
+      CharacteristicLength = BoundingBoxVolume / dimFactorSF
     CASE(2)
-      CharacteristicLength = SQRT(ElemVolume_Shared(CNElemID) / dimFactorSF)
+      !CharacteristicLength = SQRT(ElemVolume_Shared(CNElemID) / dimFactorSF)
+      CharacteristicLength = SQRT(BoundingBoxVolume / dimFactorSF)
     CASE(3)
-      CharacteristicLength = ElemCharLength_Shared(CNElemID)
+      !CharacteristicLength = ElemCharLength_Shared(CNElemID)
+      CharacteristicLength = BoundingBoxVolume**(1./3.)
     END SELECT
     CharacteristicLengthMax = MAX(CharacteristicLengthMax,CharacteristicLength)
   END DO ! iElem = 1, nElems

@@ -477,7 +477,7 @@ USE MOD_Preproc
 USE MOD_Globals                     ,ONLY: UNIT_stdOut,abort,IERROR
 USE MOD_PICDepo_Vars                ,ONLY: SFAdaptiveDOF,SFAdaptiveSmoothing,SFElemr2_Shared,dim_sf,dimFactorSF
 USE MOD_ReadInTools                 ,ONLY: GETREAL,GETLOGICAL
-USE MOD_Particle_Mesh_Vars          ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
+USE MOD_Particle_Mesh_Vars          ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,BoundsOfElem_Shared
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 USE MOD_Globals_Vars                ,ONLY: PI
 USE MOD_Particle_Mesh_Vars          ,ONLY: ElemMidPoint_Shared,ElemToElemMapping,ElemToElemInfo
@@ -492,7 +492,6 @@ USE MOD_MPI_Shared
 #else
 USE MOD_Mesh_Vars                   ,ONLY: nElems
 #endif /*USE_MPI*/
-USE MOD_Particle_Mesh_Vars          ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -509,7 +508,7 @@ CHARACTER(32)                  :: hilf2,hilf3
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #endif /*USE_MPI*/
-REAL                           :: CharacteristicLength
+REAL                           :: CharacteristicLength,BoundingBoxVolume
 !===================================================================================================================================
 ! Set the number of DOF/SF
 ! Check which shape function dimension is used and set default value
@@ -579,21 +578,27 @@ DO iCNElem = firstElem,lastElem
   ElemDone = .FALSE.
 
   DO ppp = 1,ElemToElemMapping(2,iCNElem)
+    ! Get neighbour global element ID
     globElemID = GetGlobalElemID(ElemToElemInfo(ElemToElemMapping(1,iCNElem)+ppp))
     NbElemID = GetCNElemID(globElemID)
+    ! Loop neighbour nodes
     Nodeloop: DO jNode = 1, 8
       NeighNonUniqueNodeID = ElemNodeID_Shared(jNode,NbElemID)
       NeighUniqueNodeID = NodeInfo_Shared(NeighNonUniqueNodeID)
+      ! Loop my nodes
       DO iNode = 1, 8
         NonUniqueNodeID = ElemNodeID_Shared(iNode,iCNElem)
         UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
-        IF (UniqueNodeID.EQ.NeighUniqueNodeID) CYCLE Nodeloop
+        IF (UniqueNodeID.EQ.NeighUniqueNodeID) CYCLE Nodeloop ! Skip coinciding nodes of my and my neighbours element
       END DO
       ElemDone =.TRUE.
 
-      ! Measure distance from my corner nodes to neighbour corner nodes
+      ! Measure distance from my corner nodes to neighbour elem corner nodes
       DO iNode = 1, 8
         NonUniqueNodeID = ElemNodeID_Shared(iNode,iCNElem)
+
+        ! Only measure distances in the dimension in which the nodes to not coincide (i.e. they are not projected onto each other
+        ! in 1D or 2D deposition)
         ASSOCIATE( v1 => NodeCoords_Shared(1:3,NonUniqueNodeID)      ,&
                    v2 => NodeCoords_Shared(1:3,NeighNonUniqueNodeID) )
           IF(SFMeasureDistance(v1,v2)) THEN
@@ -615,14 +620,22 @@ DO iCNElem = firstElem,lastElem
     END DO
   END IF
 
+  ! Because ElemVolume_Shared(CNElemID) is not available for halo elements, the bounding box volume is used as an approximate
+  ! value for the element volume from which the characteristic length of the element is calculated
+  ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GetGlobalElemID(iCNElem)) ) ! 1-2: Min, Max value; 1-3: x,y,z
+    BoundingBoxVolume = (Bounds(2,1)-Bounds(1,1)) * (Bounds(2,2)-Bounds(1,2)) * (Bounds(2,3)-Bounds(1,3))
+  END ASSOCIATE
   ! Check which shape function dimension is used
   SELECT CASE(dim_sf)
   CASE(1)
-    CharacteristicLength = ElemVolume_Shared(iCNElem) / dimFactorSF
+    !CharacteristicLength = ElemVolume_Shared(iCNElem) / dimFactorSF
+    CharacteristicLength = BoundingBoxVolume / dimFactorSF
   CASE(2)
-    CharacteristicLength = SQRT(ElemVolume_Shared(iCNElem) / dimFactorSF)
+    !CharacteristicLength = SQRT(ElemVolume_Shared(iCNElem) / dimFactorSF)
+    CharacteristicLength = SQRT(BoundingBoxVolume / dimFactorSF)
   CASE(3)
-    CharacteristicLength = ElemCharLength_Shared(iCNElem)
+    !CharacteristicLength = ElemCharLength_Shared(iCNElem)
+    CharacteristicLength = BoundingBoxVolume**(1./3.)
   END SELECT
 
   ! Check characteristic length of cell (or when using SFAdaptiveSmoothing)
