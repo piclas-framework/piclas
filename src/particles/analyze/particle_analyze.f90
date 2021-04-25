@@ -186,12 +186,11 @@ USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars             ,ONLY: nElems,offsetElem
 USE MOD_Particle_Analyze_Vars
 USE MOD_Particle_Mesh_Vars    ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, VarTimeStep, PDM, usevMPF
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition,SFAdaptiveDOF,r_sf,DepositionType,SFElemr2_Shared,dim_sf,dimFactorSF,dim_sf_dir
+USE MOD_PICDepo_Vars          ,ONLY: SFAdaptiveSmoothing
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
 USE MOD_ReadInTools           ,ONLY: PrintOption
 #if (PP_TimeDiscMethod == 42)
@@ -207,6 +206,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared_Win
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared_Win
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared_Win
 #endif /*USE_MPI*/
+USE MOD_Mesh_Vars             ,ONLY: ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -241,17 +241,18 @@ END IF
 
 ! Allocate arrays and calculate the average number of points in each shape function sphere
 IF(CalcPointsPerShapeFunction)THEN
+
   ! PPSCell:
   ! Points per shape function sphere (cell mean value): Calculate cell local number excluding neighbor DOFs
   ALLOCATE( PPSCell(1:PP_nElems) )
   PPSCell=0.0
   CALL AddToElemData(ElementOut,'PPSCell',RealArray=PPSCell(1:PP_nElems))
 
-  ! PPSCellEqui:
+  ! PPSCellCartesian:
   ! Points per shape function sphere (cell mean value): Assume Cartesian grid and calculate to total number including neighbor DOFs
-  ALLOCATE( PPSCellEqui(1:PP_nElems) )
-  PPSCellEqui=0.0
-  CALL AddToElemData(ElementOut,'PPSCellEqui',RealArray=PPSCellEqui(1:PP_nElems))
+  ALLOCATE( PPSCellCartesian(1:PP_nElems) )
+  PPSCellCartesian=0.0
+  CALL AddToElemData(ElementOut,'PPSCellCartesian',RealArray=PPSCellCartesian(1:PP_nElems))
 
   ! Depending on type of shape function, calculate global shape function volume or separate for each cell
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
@@ -297,58 +298,72 @@ IF(CalcPointsPerShapeFunction)THEN
 
       ! Calculate the corresponding number of DOF per shape function per cell/element (considering 1D, 2D or 3D distribution)
       PPSCell(iElem)     = MIN(1.,ShapeFunctionFraction(iElem)) * DOF
-      PPSCellEqui(iElem) =        ShapeFunctionFraction(iElem)  * DOF
+      PPSCellCartesian(iElem) =        ShapeFunctionFraction(iElem)  * DOF
 
-      ! Sanity check
-      IF(PPSCellEqui(iElem).GT.DOFMax.AND.(.NOT.ALMOSTEQUALRELATIVE(PPSCellEqui(iElem),DOFMax,1e-5)))THEN
-        IPWRITE(UNIT_StdOut,*) "PPSCellEqui(iElem),DOFMax =", PPSCellEqui(iElem),DOFMax
-        IPWRITE(UNIT_StdOut,'(I0,A57,F10.2)') " PPSCellEqui(iElem) =", PPSCellEqui(iElem)
-        IPWRITE(UNIT_StdOut,'(I0,A,I3,A,A19,A,F10.2)') " For N =",PP_N,", the maximum allowed is ",TRIM(hilf2)," =", DOFMax
-        IPWRITE(UNIT_StdOut,'(I0,A,F10.2)') " Reduce the number of DOF/SF in order to have no DOF outside of the deposition "//&
-            "range (neighbour elems) by changing\n  PIC-shapefunction-adaptive-DOF, which is currently set to =", SFAdaptiveDOF
-        SELECT CASE(dim_sf)
-        CASE(1) ! 1D
-          IPWRITE(UNIT_StdOut,'(I0,A,I3,A)') &
-              " WARNING: IF THIS CHECK FAILS YOU MIGHT BE USING MORE THAN 1 element in the other directions of "&
-              ,dim_sf," (1: x, 2:y and 3: zdir)"
-        CASE(2) ! 2D
-          IPWRITE(UNIT_StdOut,'(I0,A,I3,A)') &
-              " WARNING: IF THIS CHECK FAILS YOU MIGHT BE USING MORE THAN 1 element in the other directions of "&
-              ,dim_sf_dir," (1: x, 2:y and 3: zdir)"
-        END SELECT
-        CALL abort(__STAMP__,'PPSCellEqui(iElem) > '//TRIM(hilf2)//' is not allowed')
-      END IF ! PPSCellEqui(iElem).GT.4./3.*PI*(PP_N+1)**3
+      ! Sanity check (only when smoothing is not activated because then the radius is allowed to be larger)
+      IF(.NOT.SFAdaptiveSmoothing)THEN
+        ! Check if more DOF/SF are present in a cell than allowed (but allow the maximum value as it is used as default)
+        IF(PPSCellCartesian(iElem).GT.DOFMax.AND.(.NOT.ALMOSTEQUALRELATIVE(PPSCellCartesian(iElem),DOFMax,1e-5)))THEN
+          IPWRITE(UNIT_StdOut,'(I0,A57,F10.2)') " PPSCellCartesian(iElem) :", PPSCellCartesian(iElem)
+          IPWRITE(UNIT_StdOut,'(I0,A,I3,A,A19,A,F10.2)') " For N =",PP_N,", the maximum allowed is ",TRIM(hilf2)," :", DOFMax
+          IPWRITE(UNIT_StdOut,'(I0,A,29X,A,3(ES23.14))') " ElemBaryNGeo(1:3,iElem)   ",":", ElemBaryNGeo(1:3,iElem)
+          IPWRITE(UNIT_StdOut,'(I0,A,29X,A,ES23.14)')    " ShapeFunctionRadius(iElem)",":", ShapeFunctionRadius(iElem)
+          IPWRITE(UNIT_StdOut,'(I0,A,F10.2)') " Reduce the number of DOF/SF in order to have no DOF outside of the deposition "//&
+              "range (neighbour elems) by changing\n  PIC-shapefunction-adaptive-DOF, which is currently set to =", SFAdaptiveDOF
+          ! Check 1D/2D shape function distribution (assume that only 1 element is used in the constant direction)
+          SELECT CASE(dim_sf)
+          CASE(1) ! 1D
+            IPWRITE(UNIT_StdOut,'(I0,A,I3,A)') &
+                " WARNING: IF THIS CHECK FAILS YOU MIGHT BE USING MORE THAN 1 element in the other directions of "&
+                ,dim_sf_dir," (1: x, 2: y and 3: zdir)"
+          CASE(2) ! 2D
+            IPWRITE(UNIT_StdOut,'(I0,A,I3,A)') &
+                " WARNING: IF THIS CHECK FAILS YOU MIGHT BE USING MORE THAN 1 element in the direction of "&
+                ,dim_sf_dir," (1: x, 2: y and 3: zdir)"
+          END SELECT
+          CALL abort(__STAMP__,'PPSCellCartesian(iElem) > '//TRIM(hilf2)//' is not allowed')
+        END IF ! PPSCellCartesian(iElem).GT.4./3.*PI*(PP_N+1)**3
+      END IF ! .NOT.SFAdaptiveSmoothing
 
     END DO ! iElem = 1, nElems
-  ELSE
+
+  ELSE ! normal/cc shape function with global radius
+
     DO iElem = 1, nElems
       CNElemID           = GetCNElemID(iElem+offSetElem) ! iElem + offSetElem = globElemID
       ! Check which shape function dimension is used
       SELECT CASE(dim_sf)
       CASE(1) ! 1D
-        DOF    = REAL((PP_N+1)) ! DOF per element in 1D
-        VolumeShapeFunction      = 2.0*ShapeFunctionRadius(iElem)
-        CALL PrintOption('VolumeShapeFunction (1D, line)','OUTPUT',RealOpt=VolumeShapeFunction)
-        CALL PrintOption('Max DOFs in Shape-Function per cell (1D, line)','OUTPUT',RealOpt=DOF)
+        DOF                 = REAL((PP_N+1)) ! DOF per element in 1D
+        VolumeShapeFunction = 2.0*r_sf
+        IF(MPIRoot.AND.(iElem.EQ.1))THEN
+          CALL PrintOption('VolumeShapeFunction (1D, line)','OUTPUT',RealOpt=VolumeShapeFunction)
+          CALL PrintOption('Max DOFs in Shape-Function per cell (1D, line)','OUTPUT',RealOpt=DOF)
+        END IF ! MPIRoot.AND.(iElem.EQ.1)
         ShapeFunctionFractionLoc = (VolumeShapeFunction/ElemVolume_Shared(CNElemID))*dimFactorSF
       CASE(2) ! 2D
-        DOF    = REAL((PP_N+1)**2) ! DOF per element in 2D
-        VolumeShapeFunction      = PI*(ShapeFunctionRadius(iElem)**2)
-        CALL PrintOption('VolumeShapeFunction (2D, circle area)','OUTPUT',RealOpt=VolumeShapeFunction)
-        CALL PrintOption('Max DOFs in Shape-Function per cell (2D, area)','OUTPUT',RealOpt=DOF)
+        DOF                 = REAL((PP_N+1)**2) ! DOF per element in 2D
+        VolumeShapeFunction = PI*(r_sf**2)
+        IF(MPIRoot.AND.(iElem.EQ.1))THEN
+          CALL PrintOption('VolumeShapeFunction (2D, circle area)','OUTPUT',RealOpt=VolumeShapeFunction)
+          CALL PrintOption('Max DOFs in Shape-Function per cell (2D, area)','OUTPUT',RealOpt=DOF)
+        END IF ! MPIRoot.AND.(iElem.EQ.1)
         ShapeFunctionFractionLoc = (VolumeShapeFunction/ElemVolume_Shared(CNElemID))*dimFactorSF
-
       CASE(3) ! 3D
-        DOF = REAL((PP_N+1)**3)     ! DOF per element in 3D
+        DOF                 = REAL((PP_N+1)**3) ! DOF per element in 3D
         VolumeShapeFunction = 4./3.*PI*(r_sf**3)
-        CALL PrintOption('VolumeShapeFunction (3D, sphere)','OUTPUT',RealOpt=VolumeShapeFunction)
-        CALL PrintOption('Max DOFs in Shape-Function per cell (3D, cuboid)','OUTPUT',RealOpt=DOF)
+        IF(MPIRoot.AND.(iElem.EQ.1))THEN
+          CALL PrintOption('VolumeShapeFunction (3D, sphere)','OUTPUT',RealOpt=VolumeShapeFunction)
+          CALL PrintOption('Max DOFs in Shape-Function per cell (3D, cuboid)','OUTPUT',RealOpt=DOF)
+        END IF ! MPIRoot.AND.(iElem.EQ.1)
         ShapeFunctionFractionLoc = VolumeShapeFunction/ElemVolume_Shared(CNElemID)
       END SELECT
-      PPSCell(iElem)     = MIN(1.,ShapeFunctionFractionLoc) * DOF
-      PPSCellEqui(iElem) =        ShapeFunctionFractionLoc  * DOF
+      PPSCell(iElem)          = MIN(1.,ShapeFunctionFractionLoc) * DOF
+      PPSCellCartesian(iElem) = ShapeFunctionFractionLoc  * DOF
     END DO ! iElem = 1, nElems
+
   END IF ! TRIM(DepositionType).EQ.'shape_function_adaptive'
+
 END IF
 
 !--------------------------------------------------------------------------------------------------------------------
@@ -4228,7 +4243,7 @@ SDEALLOCATE(ElectronDensityCell)
 SDEALLOCATE(ElectronTemperatureCell)
 SDEALLOCATE(PlasmaFrequencyCell)
 SDEALLOCATE(PPSCell)
-SDEALLOCATE(PPSCellEqui)
+SDEALLOCATE(PPSCellCartesian)
 SDEALLOCATE(ShapeFunctionRadius)
 SDEALLOCATE(ShapeFunctionFraction)
 IF(CalcCoupledPower) THEN
