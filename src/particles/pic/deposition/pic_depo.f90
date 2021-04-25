@@ -52,7 +52,6 @@ CALL prms%CreateLogicalOption('PIC-RelaxDeposition'      , 'Relaxation of curren
 CALL prms%CreateRealOption(   'PIC-RelaxFac'             , 'Relaxation factor of current PartSource with RelaxFac\n'//&
                                                            'into PartSourceOld', '0.001')
 
-CALL prms%CreateLogicalOption('PIC-shapefunction-charge-conservation', 'Enable charge conservation.', '.FALSE.')
 CALL prms%CreateRealOption(   'PIC-shapefunction-radius'             , 'Radius of shape function'   , '1.')
 CALL prms%CreateIntOption(    'PIC-shapefunction-alpha'              , 'Exponent of shape function' , '2')
 CALL prms%CreateIntOption(    'PIC-shapefunction-dimension'          , '1D                          , 2D or 3D shape function', '3')
@@ -72,6 +71,8 @@ CALL prms%CreateRealOption(     'PIC-shapefunction-adaptive-DOF'  ,'Average numb
    '1D: 2*(N+1)\n'//&
    '2D: Pi*(N+1)^2\n'//&
    '3D: (4/3)*Pi*(N+1)^3\n')
+CALL prms%CreateLogicalOption('PIC-shapefunction-adaptive-smoothing', 'Enable smooth transition of element-dependent radius when'//&
+                                                                      ' using shape_function_adaptive.', '.FALSE.')
 
 END SUBROUTINE DefineParametersPICDeposition
 
@@ -427,24 +428,6 @@ CASE('cell_volweight_mean')
 
 CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 
-  ! Get shape function exponent and dimension (1D, 2D or 3D)
-  alpha_sf = GETINT('PIC-shapefunction-alpha')
-  dim_sf   = GETINT('PIC-shapefunction-dimension')
-
-  ! Get shape function direction for 1D (the direction in which the charge will be distributed) and 2D (the direction in which the
-  ! charge will be constant)
-  dim_sf_dir = GETINT('PIC-shapefunction-direction')
-
-  ! Get deposition parameter, the default is TRUE (3D), that distributes the charge over
-  !  FALSE: line (1D) / area (2D)
-  !   TRUE: volume (3D)
-  sfDepo3D = GETLOGICAL('PIC-shapefunction-3D-deposition')
-  IF((dim_sf.EQ.3).AND.(.NOT.sfDepo3D)) &
-      CALL abort(__STAMP__,'PIC-shapefunction-dimension=F and PIC-shapefunction-3D-deposition=T is not allowed')
-
-  ! --- Set shape function dimension (1D, 2D or 3D)
-  CALL InitShapeFunctionDimensionalty()
-
   ! --- Set shape function radius in each cell when using adaptive shape function
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitShapeFunctionAdaptive()
 
@@ -486,167 +469,15 @@ END SUBROUTINE InitializeDeposition
 
 
 !===================================================================================================================================
-!> Set dimension (1D, 2D or 3D) of shape function and calculate the corresponding line, area of volume to which the charge is to be
-!> deposited. Output the average number of DOF that are captured by the shape function deposition kernel
-!===================================================================================================================================
-SUBROUTINE InitShapeFunctionDimensionalty()
-! MODULES
-USE MOD_Preproc
-USE MOD_Globals            ,ONLY: UNIT_stdOut,MPIRoot,abort
-USE MOD_PICDepo_Vars       ,ONLY: dim_sf,BetaFac,w_sf,r_sf,r2_sf,r2_sf_inv,alpha_sf,dim_sf_dir,sfDepo3D,dim_sf_dir1,dim_sf_dir2
-USE MOD_PICDepo_Vars       ,ONLY: DepositionType,dimFactorSF
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO,MeshVolume
-USE MOD_ReadInTools        ,ONLY: PrintOption
-USE MOD_Globals_Vars       ,ONLY: PI
-USE MOD_Mesh_Vars          ,ONLY: nGlobalElems
-USE MOD_PICDepo_Tools      ,ONLY: beta
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(32)             :: hilf_geo
-CHARACTER(1)              :: hilf_dim
-INTEGER                   :: nTotalDOF
-REAL                      :: VolumeShapeFunction
-REAL                      :: r_sf_loc,r2_sf_loc  !> temporary variables
-!===================================================================================================================================
-! 0. Set global radius squared and the inverse of that
-IF(TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
-  r_sf_loc  = 1.
-  r2_sf_loc = 1.
-ELSE
-  r_sf_loc  = r_sf
-  r2_sf     = r_sf * r_sf  ! Radius squared
-  r2_sf_loc = r2_sf
-  r2_sf_inv = 1./r2_sf ! Inverse of radius squared
-END IF
-
-! 1. Initialize auxiliary variables
-hilf_geo='volume'
-WRITE(UNIT=hilf_dim,FMT='(I0)') dim_sf
-
-! 2. Set the scaling factor for the shape function depending on 1D, 2D or 3D shape function and how the charge is to be distributed
-SELECT CASE (dim_sf)
-
-  CASE (1) ! --- 1D shape function -------------------------------------------------------------------------------------------------
-    ! Set perpendicular directions
-    IF(dim_sf_dir.EQ.1)THEN ! Shape function deposits charge in x-direction
-      dimFactorSF = (GEO%ymaxglob-GEO%yminglob)*(GEO%zmaxglob-GEO%zminglob)
-    ELSE IF (dim_sf_dir.EQ.2)THEN ! Shape function deposits charge in y-direction
-      dimFactorSF = (GEO%xmaxglob-GEO%xminglob)*(GEO%zmaxglob-GEO%zminglob)
-    ELSE IF (dim_sf_dir.EQ.3)THEN ! Shape function deposits charge in z-direction
-      dimFactorSF = (GEO%xmaxglob-GEO%xminglob)*(GEO%ymaxglob-GEO%yminglob)
-    END IF
-
-    ! Set prefix factor
-    IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
-      w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf_loc*GAMMA(REAL(alpha_sf+1))*dimFactorSF)
-    ELSE ! Distribute the charge over the line (1D)
-      w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf_loc*GAMMA(REAL(alpha_sf+1)))
-      hilf_geo='line'
-    END IF
-
-    ! Set shape function length (3D volume)
-    VolumeShapeFunction=2*r_sf_loc*dimFactorSF
-    ! Calculate number of 1D DOF (assume second and third direction with 1 cell layer and area given by dimFactorSF)
-    nTotalDOF=nGlobalElems*(PP_N+1)
-
-  CASE (2) ! --- 2D shape function -------------------------------------------------------------------------------------------------
-    ! Set perpendicular direction
-    IF(dim_sf_dir.EQ.1)THEN ! Shape function deposits charge in y-z-direction (const. in x)
-      dimFactorSF = (GEO%xmaxglob-GEO%xminglob)
-    ELSE IF (dim_sf_dir.EQ.2)THEN ! Shape function deposits charge in x-z-direction (const. in y)
-      dimFactorSF = (GEO%ymaxglob-GEO%yminglob)
-    ELSE IF (dim_sf_dir.EQ.3)THEN! Shape function deposits charge in x-y-direction (const. in z)
-      dimFactorSF = (GEO%zmaxglob-GEO%zminglob)
-    END IF
-
-    ! Set prefix factor
-    IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
-      w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf_loc*dimFactorSF)
-    ELSE ! Distribute the charge over the area (2D)
-      w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf_loc)
-      hilf_geo='area'
-    END IF
-
-    ! set the two perpendicular directions used for deposition
-    dim_sf_dir1 = MERGE(1,2,dim_sf_dir.EQ.2)
-    dim_sf_dir2 = MERGE(1,MERGE(3,3,dim_sf_dir.EQ.2),dim_sf_dir.EQ.3)
-    SWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') ' Shape function 2D with const. distribution in dir ',dim_sf_dir,&
-        ' and variable distrbution in ',dim_sf_dir1,' and ',dim_sf_dir2,' (1: x, 2: y and 3: z)'
-
-    ! Set shape function length (3D volume)
-    VolumeShapeFunction=PI*(r_sf_loc**2)*dimFactorSF
-    ! Calculate number of 2D DOF (assume third direction with 1 cell layer and width dimFactorSF)
-    nTotalDOF=nGlobalElems*(PP_N+1)**2
-
-  CASE (3) ! --- 3D shape function -------------------------------------------------------------------------------------------------
-    ! Set prefix factor (not for shape_function_adaptive)
-    BetaFac = beta(1.5, REAL(alpha_sf) + 1.)
-    w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) * (REAL(alpha_sf) + 1.)/(PI*(r_sf_loc**3))
-
-  CASE DEFAULT
-    CALL abort(__STAMP__,'Shape function dimensio must be 1, 2 or 3')
-END SELECT
-
-SWRITE(UNIT_stdOut,'(A)') ' The complete charge is '//TRIM(hilf_geo)//' distributed (via '//TRIM(hilf_dim)//'D shape function)'
-
-IF(.NOT.sfDepo3D)THEN
-  SWRITE(UNIT_stdOut,'(A)') ' Note that the integral of the charge density over the mesh volume is larger than the complete charge'
-  SWRITE(UNIT_stdOut,'(A)') ' because the charge is spread out over either a line (1D shape function) or an area (2D shape function)!'
-END IF
-
-! 3. Output info regarding charge distribution and points per shape function resolution
-IF(.NOT.TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
-  ASSOCIATE(nTotalDOFin3D             => nGlobalElems*(PP_N+1)**3 ,&
-            VolumeShapeFunctionSphere => 4./3.*PI*r_sf**3         )
-
-    ! Output shape function volume
-    IF(dim_sf.EQ.1)THEN
-      CALL PrintOption('Shape function volume (corresponding to a cuboid in 3D)'  , 'CALCUL.', RealOpt=VolumeShapeFunction)
-    ELSEIF(dim_sf.EQ.2)THEN
-      CALL PrintOption('Shape function volume (corresponding to a cylinder in 3D)', 'CALCUL.', RealOpt=VolumeShapeFunction)
-    ELSE
-      VolumeShapeFunction = VolumeShapeFunctionSphere
-      CALL PrintOption('Shape function volume (corresponding to a sphere in 3D)'  , 'CALCUL.', RealOpt=VolumeShapeFunction)
-    END IF
-
-    ! Sanity check: Shape function volume is not allowed to be larger than the complete mesh simulation domain
-    IF(MPIRoot)THEN
-      IF(VolumeShapeFunction.GT.MeshVolume)THEN
-        CALL PrintOption('Mesh volume ('//TRIM(hilf_dim)//')', 'CALCUL.' , RealOpt=MeshVolume)
-        WRITE(UNIT_stdOut,'(A)') ' Maybe wrong perpendicular direction (PIC-shapefunction-direction)?'
-        CALL abort(__STAMP__,'ShapeFunctionVolume > MeshVolume ('//TRIM(hilf_dim)//' shape function)')
-      END IF
-    END IF
-
-    ! Display 1D or 2D deposition info
-    IF(dim_sf.NE.3)THEN
-      CALL PrintOption('Average DOFs in Shape-Function '//TRIM(hilf_geo)//' ('//TRIM(hilf_dim)//')' , 'CALCUL.' , RealOpt=&
-          REAL(nTotalDOF)*VolumeShapeFunction/MeshVolume)
-    END IF ! dim_sf.NE.3
-
-    CALL PrintOption('Average DOFs in Shape-Function (corresponding 3D sphere)' , 'CALCUL.' , RealOpt=&
-        REAL(nTotalDOFin3D)*VolumeShapeFunctionSphere/MeshVolume)
-  END ASSOCIATE
-END IF ! .NOT.TRIM(DepositionType).EQ.'shape_function_adaptive'
-
-
-END SUBROUTINE InitShapeFunctionDimensionalty
-
-
-!===================================================================================================================================
 !> Calculate the shape function radius for each element depending on the neighbouring element sizes and the own element size
 !===================================================================================================================================
 SUBROUTINE InitShapeFunctionAdaptive()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals                     ,ONLY: UNIT_stdOut,abort,IERROR
-USE MOD_PICDepo_Vars                ,ONLY: SFAdaptiveDOF,SFElemr2_Shared,dim_sf
-USE MOD_ReadInTools                 ,ONLY: GETREAL
-USE MOD_Particle_Mesh_Vars          ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
+USE MOD_PICDepo_Vars                ,ONLY: SFAdaptiveDOF,SFAdaptiveSmoothing,SFElemr2_Shared,dim_sf,dimFactorSF
+USE MOD_ReadInTools                 ,ONLY: GETREAL,GETLOGICAL
+USE MOD_Particle_Mesh_Vars          ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,BoundsOfElem_Shared
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 USE MOD_Globals_Vars                ,ONLY: PI
 USE MOD_Particle_Mesh_Vars          ,ONLY: ElemMidPoint_Shared,ElemToElemMapping,ElemToElemInfo
@@ -668,15 +499,16 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: UniqueNodeID,NonUniqueNodeID,iNode,NeighUniqueNodeID
-REAL                           :: middist,middistScaling,SFDepoScaling
+REAL                           :: SFDepoScaling
 LOGICAL                        :: ElemDone
 INTEGER                        :: ppp,globElemID
 REAL                           :: r_sf_tmp,SFAdaptiveDOFDefault,DOFMax
-INTEGER                        :: iElem,firstElem,lastElem,jNode,NbElemID,NeighNonUniqueNodeID
+INTEGER                        :: iCNElem,firstElem,lastElem,jNode,NbElemID,NeighNonUniqueNodeID
 CHARACTER(32)                  :: hilf2,hilf3
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #endif /*USE_MPI*/
+REAL                           :: CharacteristicLength,BoundingBoxVolume
 !===================================================================================================================================
 ! Set the number of DOF/SF
 ! Check which shape function dimension is used and set default value
@@ -714,16 +546,10 @@ ELSE
   SELECT CASE(dim_sf)
   CASE(1)
     SFDepoScaling  = SFAdaptiveDOF/2.0
-    middistScaling = 8.0 ! 8.0 is tuned to achieve a radius of r = 1.0*L (when using 2.0 / (PP_N+1.) as scaling factor),
-                         ! where L is the cell length of a cubic Cartesian element
   CASE(2)
     SFDepoScaling  = SQRT(SFAdaptiveDOF/PI)
-    middistScaling = 9.734 ! 9.734 is tuned to achieve a radius of r = 1.0*L (when using 2.0 / (PP_N+1.) as scaling factor),
-                           ! where L is the cell length of a cubic Cartesian element
   CASE(3)
     SFDepoScaling  = (3.*SFAdaptiveDOF/(4.*PI))**(1./3.)
-    middistScaling = 10.524 ! 10.524 is tuned to achieve a radius of r = 1.0*L (when using 2.0 / (PP_N+1.) as scaling factor),
-                            ! where L is the cell length of a cubic Cartesian element
   END SELECT
 END IF
 
@@ -748,50 +574,88 @@ END IF
 CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif
-DO iElem = firstElem,lastElem
+DO iCNElem = firstElem,lastElem
   ElemDone = .FALSE.
 
-  ! Calculate the average distance from the ElemMidPoint to all 8 corners
-  middist = 0.0
-  DO iNode = 1, 8
-    NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
-    middist = middist + SFNorm(ElemMidPoint_Shared(1:3,iElem)-NodeCoords_Shared(1:3,NonUniqueNodeID))
-  END DO
-  ! Scale the influence of my own cell (starting from 8. and the higher the number, the smaller the weight of the own cell)
-  middist = middist / middistScaling ! tuned to achieve a radius of r = 1.0*L (when using 2.0 / (PP_N+1.) as scaling factor),
-                                     ! where L is the cell length of a cubic Cartesian element
-
-  DO ppp = 1,ElemToElemMapping(2,iElem)
-    globElemID = GetGlobalElemID(ElemToElemInfo(ElemToElemMapping(1,iElem)+ppp))
+  DO ppp = 1,ElemToElemMapping(2,iCNElem)
+    ! Get neighbour global element ID
+    globElemID = GetGlobalElemID(ElemToElemInfo(ElemToElemMapping(1,iCNElem)+ppp))
     NbElemID = GetCNElemID(globElemID)
+    ! Loop neighbour nodes
     Nodeloop: DO jNode = 1, 8
       NeighNonUniqueNodeID = ElemNodeID_Shared(jNode,NbElemID)
       NeighUniqueNodeID = NodeInfo_Shared(NeighNonUniqueNodeID)
+      ! Loop my nodes
       DO iNode = 1, 8
-        NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
+        NonUniqueNodeID = ElemNodeID_Shared(iNode,iCNElem)
         UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
-        IF (UniqueNodeID.EQ.NeighUniqueNodeID) CYCLE Nodeloop
+        IF (UniqueNodeID.EQ.NeighUniqueNodeID) CYCLE Nodeloop ! Skip coinciding nodes of my and my neighbours element
       END DO
       ElemDone =.TRUE.
-      r_sf_tmp = SFNorm(ElemMidPoint_Shared(1:3,iElem)-NodeCoords_Shared(1:3,NeighNonUniqueNodeID))
-      IF (r_sf_tmp.LT.SFElemr2_Shared(1,iElem)) SFElemr2_Shared(1,iElem) = r_sf_tmp
+
+      ! Measure distance from my corner nodes to neighbour elem corner nodes
+      DO iNode = 1, 8
+        NonUniqueNodeID = ElemNodeID_Shared(iNode,iCNElem)
+
+        ! Only measure distances in the dimension in which the nodes to not coincide (i.e. they are not projected onto each other
+        ! in 1D or 2D deposition)
+        ASSOCIATE( v1 => NodeCoords_Shared(1:3,NonUniqueNodeID)      ,&
+                   v2 => NodeCoords_Shared(1:3,NeighNonUniqueNodeID) )
+          IF(SFMeasureDistance(v1,v2)) THEN
+            r_sf_tmp = SFNorm(v1-v2)
+            IF (r_sf_tmp.LT.SFElemr2_Shared(1,iCNElem)) SFElemr2_Shared(1,iCNElem) = r_sf_tmp
+          END IF ! SFMeasureDistance(v1,v2)
+        END ASSOCIATE
+      END DO ! iNode = 1, 8
+
     END DO Nodeloop
   END DO
+
+  ! Sanity check if no neighbours are present
   IF (.NOT.ElemDone) THEN
     DO iNode = 1, 8
-      NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
-      r_sf_tmp = SFNorm(ElemMidPoint_Shared(1:3,iElem)-NodeCoords_Shared(1:3,NonUniqueNodeID))
-      IF (r_sf_tmp.LT.SFElemr2_Shared(1,iElem)) SFElemr2_Shared(1,iElem) = r_sf_tmp
+      NonUniqueNodeID = ElemNodeID_Shared(iNode,iCNElem)
+      r_sf_tmp = SFNorm(ElemMidPoint_Shared(1:3,iCNElem)-NodeCoords_Shared(1:3,NonUniqueNodeID))
+      IF (r_sf_tmp.LT.SFElemr2_Shared(1,iCNElem)) SFElemr2_Shared(1,iCNElem) = r_sf_tmp
     END DO
   END IF
+
+  ! Because ElemVolume_Shared(CNElemID) is not available for halo elements, the bounding box volume is used as an approximate
+  ! value for the element volume from which the characteristic length of the element is calculated
+  ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GetGlobalElemID(iCNElem)) ) ! 1-2: Min, Max value; 1-3: x,y,z
+    BoundingBoxVolume = (Bounds(2,1)-Bounds(1,1)) * (Bounds(2,2)-Bounds(1,2)) * (Bounds(2,3)-Bounds(1,3))
+  END ASSOCIATE
+  ! Check which shape function dimension is used
+  SELECT CASE(dim_sf)
+  CASE(1)
+    !CharacteristicLength = ElemVolume_Shared(iCNElem) / dimFactorSF
+    CharacteristicLength = BoundingBoxVolume / dimFactorSF
+  CASE(2)
+    !CharacteristicLength = SQRT(ElemVolume_Shared(iCNElem) / dimFactorSF)
+    CharacteristicLength = SQRT(BoundingBoxVolume / dimFactorSF)
+  CASE(3)
+    !CharacteristicLength = ElemCharLength_Shared(iCNElem)
+    CharacteristicLength = BoundingBoxVolume**(1./3.)
+  END SELECT
+
+  ! Check characteristic length of cell (or when using SFAdaptiveSmoothing)
+  IF(CharacteristicLength.LT.SFElemr2_Shared(1,iCNElem).OR.SFAdaptiveSmoothing)THEN
+    SFElemr2_Shared(1,iCNElem) = (SFElemr2_Shared(1,iCNElem) + CharacteristicLength)/2.0
+  END IF
+
   ! Scale the radius so that it reaches at most the neighbouring cells but no further (all neighbours of the 8 corner nodes)
-  SFElemr2_Shared(1,iElem) = (SFElemr2_Shared(1,iElem) - middist) * SFDepoScaling / (PP_N+1.)
-  SFElemr2_Shared(2,iElem) = SFElemr2_Shared(1,iElem)**2
+  SFElemr2_Shared(1,iCNElem) = SFElemr2_Shared(1,iCNElem) * SFDepoScaling / (PP_N+1.)
+  SFElemr2_Shared(2,iCNElem) = SFElemr2_Shared(1,iCNElem)**2
+
+  ! Sanity checks
+  IF(SFElemr2_Shared(1,iCNElem).LE.0.0)      CALL abort(__STAMP__,'Shape function radius <= zero!')
+  IF(SFElemr2_Shared(1,iCNElem).GE.HUGE(1.)) CALL abort(__STAMP__,'Shape function radius >= HUGE(1.)!')
 END DO
+
 #if USE_MPI
 CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
-#endif
+#endif /*USE_MPI*/
 
 END SUBROUTINE InitShapeFunctionAdaptive
 
@@ -870,7 +734,7 @@ ELSE
     CALL PrintOption('Dimension of 1st periodic vector for 2D shape function','INFO',IntOpt=dim_periodic_vec1)
     SWRITE(UNIT_StdOut,*) "1st PeriodicVector =", GEO%PeriodicVectors(1:3,dim_periodic_vec1)
     CALL PrintOption('Dimension of 2nd periodic vector for 2D shape function','INFO',IntOpt=dim_periodic_vec2)
-    SWRITE(UNIT_StdOut,*) "1st PeriodicVector =", GEO%PeriodicVectors(1:3,dim_periodic_vec2)
+    SWRITE(UNIT_StdOut,*) "2nd PeriodicVector =", GEO%PeriodicVectors(1:3,dim_periodic_vec2)
   END IF ! dim_sf.EQ.2
 
 END IF
@@ -933,6 +797,38 @@ IF(MOD(iter,PartAnalyzeStep).EQ.0) THEN
 END IF
 RETURN
 END SUBROUTINE Deposition
+
+
+PURE LOGICAL FUNCTION SFMeasureDistance(v1,v2)
+!============================================================================================================================
+! Check if the two position vectors coincide in the 1D or 2D projection. If yes, then return .FALSE., else return .TRUE.
+! If two points coincide in the direction in which the shape function is not deposited, they are ignored (coincide means that the 
+! real values are equal up to relative precision of 1e-5)
+!============================================================================================================================
+USE MOD_PICDepo_Vars ,ONLY: dim_sf,dim_sf_dir,dim_sf_dir1,dim_sf_dir2
+!-----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN) :: v1(1:3) !< Input vector 1
+REAL, INTENT(IN) :: v2(1:3) !< Input vector 2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+SFMeasureDistance = .TRUE. ! Default, also used for dim_sf=3 (3D case)
+
+! Depending on the dimensionality 
+SELECT CASE (dim_sf)
+CASE (1)
+  SFMeasureDistance = MERGE(.FALSE. , .TRUE. , ALMOSTEQUALRELATIVE(v1(dim_sf_dir) , v2(dim_sf_dir) , 1e-6))
+CASE (2)
+  SFMeasureDistance = MERGE(.FALSE. , .TRUE. , ALMOSTEQUALRELATIVE(v1(dim_sf_dir1) , v2(dim_sf_dir1) , 1e-6) .AND. &
+                                               ALMOSTEQUALRELATIVE(v1(dim_sf_dir2) , v2(dim_sf_dir2) , 1e-6)       )
+END SELECT
+
+END FUNCTION SFMeasureDistance
 
 
 SUBROUTINE FinalizeDeposition()

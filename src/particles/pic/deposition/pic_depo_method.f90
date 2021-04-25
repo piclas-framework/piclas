@@ -93,9 +93,9 @@ SUBROUTINE InitDepositionMethod()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools            ,ONLY: GETINTFROMSTR
-USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf,dim_sf,dim_sf_dir,SFAdaptiveSmoothing,alpha_sf,sfDepo3D
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_ReadInTools            ,ONLY: GETREAL,PrintOption
+USE MOD_ReadInTools            ,ONLY: GETREAL,PrintOption,GETINT,GETLOGICAL
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -142,10 +142,28 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     ! deposition (all corner node connected elements) and each element has a separate shape function radius. Therefore, the global
     ! radius is set to zero
     r_sf = 0.
-    CALL PrintOption('Global shape fucntion radius is set to zero: PIC-shapefunction-radius' , 'INFO.' , RealOpt=r_sf)
+    CALL PrintOption('Global shape function radius is set to zero: PIC-shapefunction-radius' , 'INFO.' , RealOpt=r_sf)
+    SFAdaptiveSmoothing = GETLOGICAL('PIC-shapefunction-adaptive-smoothing')
   ELSE
     r_sf = GETREAL('PIC-shapefunction-radius')
   END IF ! TRIM(DepositionType).EQ.'shape_function_adaptive'
+
+  ! Get dimension of shape function kernel (distributes in 1, 2 or 3 dimensions)
+  dim_sf   = GETINT('PIC-shapefunction-dimension')
+
+  ! Get shape function direction for 1D (the direction in which the charge will be distributed) and 2D (the direction in which the
+  ! charge will be constant)
+  IF(dim_sf.NE.3) dim_sf_dir = GETINT('PIC-shapefunction-direction')
+
+  ! Get shape function exponent and dimension (1D, 2D or 3D). This parameter is required in InitShapeFunctionDimensionalty()
+  alpha_sf = GETINT('PIC-shapefunction-alpha')
+
+  ! Get deposition parameter, the default is TRUE (3D), that distributes the charge over
+  !  FALSE: line (1D) / area (2D)
+  !   TRUE: volume (3D)
+  sfDepo3D = GETLOGICAL('PIC-shapefunction-3D-deposition')
+  IF((dim_sf.EQ.3).AND.(.NOT.sfDepo3D)) &
+      CALL abort(__STAMP__,'PIC-shapefunction-dimension=F and PIC-shapefunction-3D-deposition=T is not allowed')
 END IF ! StringBeginsWith(DepositionType,'shape_function')
 
 ! Suppress compiler warnings

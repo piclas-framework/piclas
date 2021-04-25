@@ -184,6 +184,7 @@ USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBa
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_PICDepo_Shapefunction_Tools, ONLY:InitShapeFunctionDimensionalty
 !USE MOD_DSMC_Vars              ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -227,6 +228,10 @@ END IF
 
 ! Mesh min/max must be built on BezierControlPoint for possibly curved elements
 CALL GetMeshMinMax()
+
+! Set shape function dimension (1D, 2D or 3D)
+! This function requires GetMeshMinMax() and values calculated in it are used in BuildBGMAndIdentifyHaloRegion()
+IF(StringBeginsWith(DepositionType,'shape_function')) CALL InitShapeFunctionDimensionalty()
 
 ! Build BGM to Element mapping and identify which of the elements, sides and nodes are in the compute-node local and halo region
 CALL BuildBGMAndIdentifyHaloRegion()
