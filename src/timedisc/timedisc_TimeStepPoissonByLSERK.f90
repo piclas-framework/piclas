@@ -107,7 +107,7 @@ tStage=time
 #ifdef PARTICLES
 CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 RKdtFrac = RK_c(2)
-dtWeight = dt/dt_Min * RKdtFrac
+dtWeight = dt/dt_Min(DT_MIN) * RKdtFrac
 RKdtFracTotal=RKdtFrac
 
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
@@ -245,7 +245,7 @@ DO iStage=2,nRKStages
     RKdtFrac = 1.-RK_c(nRKStages)
     RKdtFracTotal=1.
   END IF
-  dtWeight = dt/dt_Min * RKdtFrac
+  dtWeight = dt/dt_Min(DT_MIN) * RKdtFrac
 
   ! deposition
   IF (time.GE.DelayTime) THEN

@@ -29,6 +29,7 @@ PUBLIC :: InitSwitchBRElectronModel
 PUBLIC :: InitializeVariablesElectronFluidRegions
 PUBLIC :: SwitchBRElectronModel
 PUBLIC :: CreateElectronsFromBRFluid
+PUBLIC :: GetNextBRSwitchTime
 !===================================================================================================================================
 CONTAINS
 
@@ -76,7 +77,7 @@ END IF
 
 BRConvertMode = 0 ! Initialize
 
-! Both times are given
+! Both times are given: Two or more switches
 IF((BRConvertElectronsToFluidTime.GE.0.).AND.(BRConvertFluidToElectronsTime.GE.0.))THEN
   IF(BRConvertElectronsToFluidTime.GT.BRConvertFluidToElectronsTime)THEN
     ! Mode=1: BR -> kin -> BR (when BRConvertElectronsToFluidTime > BRConvertFluidToElectronsTime)
@@ -95,9 +96,13 @@ IF((BRConvertElectronsToFluidTime.GE.0.).AND.(BRConvertFluidToElectronsTime.GE.0
   ELSE
     CALL abort(__STAMP__,'BRConvertFluidToElectronsTime == BRConvertElectronsToFluidTime is not allowed!')
   END IF ! BRConvertElectronsToFluidTime.GT.BRConvertFluidToElectronsTime
+ELSEIF(BRConvertElectronsToFluidTime.GE.0.)THEN
+  BRConvertMode = 3 ! Single Switch
+ELSEIF(BRConvertFluidToElectronsTime.GE.0.)THEN
+  BRConvertMode = 3 ! Single Switch
 END IF ! (BRConvertElectronsToFluidTime.GE.0.).AND.(BRConvertFluidToElectronsTime.GE.0.)
 
-CALL PrintOption('SwitchBRElectronModel: BRConvertMode' , 'INFO' , IntOpt=BRConvertMode)
+CALL PrintOption('Switch BR Electron <-> Kinetic: BRConvertMode (zero means OFF)' , 'INFO' , IntOpt=BRConvertMode)
 
 END SUBROUTINE InitSwitchBRElectronModel
 
@@ -160,12 +165,14 @@ IF(.NOT.DoRestart)THEN ! When starting at t=0
   IF(ABS(BRConvertMode).EQ.2) UseBRElectronFluid=.FALSE.
 
   ! Run kinetic simulation and then switch to BR
-  IF((BRConvertElectronsToFluidTime.GT.0.).AND.(BRConvertMode.EQ.0)) UseBRElectronFluid=.FALSE.
+  IF((BRConvertElectronsToFluidTime.GT.0.).AND.(BRConvertMode.EQ.3)) UseBRElectronFluid=.FALSE.
 
 ELSE ! Restart (Important: also load balance restarts)
 
+  ! --------------
   ! Single switch
-  IF(BRConvertMode.EQ.0)THEN
+  ! --------------
+  IF(BRConvertMode.EQ.3)THEN
 
     ! When restarting a simulation that has already been switched from BR -> kin
     IF( (BRConvertFluidToElectronsTime.GT.0.).AND.&
@@ -175,6 +182,9 @@ ELSE ! Restart (Important: also load balance restarts)
     IF( (BRConvertElectronsToFluidTime.GT.0.).AND.&
         (BRConvertElectronsToFluidTime.GE.RestartTime)) UseBRElectronFluid= .FALSE.
 
+  ! --------------
+  ! 2 Switches
+  ! --------------
   ELSEIF(BRConvertMode.EQ.-1)THEN ! 2 switches: BR -> kin -> BR
     IF(BRConvertFluidToElectronsTime.LT.RestartTime)THEN
       BRConvertFluidToElectronsTime = -1. ! BR -> kin has already happened
@@ -189,7 +199,10 @@ ELSE ! Restart (Important: also load balance restarts)
       UseBRElectronFluid = .FALSE. ! still kinetic: kin -> BR has not happened yet
     END IF
 
-  ELSEIF(BRConvertMode.EQ.1)THEN ! 2 switches: BR -> kin -> BR
+  ! --------------
+  ! Multiple Switches
+  ! --------------
+  ELSEIF(BRConvertMode.EQ.1)THEN ! Multiple switches: BR -> kin -> BR
     ASSOCIATE( t       => MOD(RestartTime,BRConvertElectronsToFluidTime) ,&
                tBR2Kin => BRConvertFluidToElectronsTime                  )
       ! Check if restart falls in kinetic region
@@ -209,7 +222,7 @@ ELSE ! Restart (Important: also load balance restarts)
     END ASSOCIATE
 
 
-  ELSEIF(BRConvertMode.EQ.2)THEN ! 2 switches: kin -> BR -> kin
+  ELSEIF(BRConvertMode.EQ.2)THEN ! Multiple switches: kin -> BR -> kin
     ! Check if restart falls in kinetic region
     IF(MOD(RestartTime,BRConvertFluidToElectronsTime).LE.BRConvertElectronsToFluidTime)THEN
       ! 1.) Restart at 0 must be kinetic
@@ -227,7 +240,7 @@ ELSE ! Restart (Important: also load balance restarts)
       IF(ALMOSTEQUALRELATIVE(MOD(RestartTime,BRConvertFluidToElectronsTime),BRConvertElectronsToFluidTime,1e-5)) UseBRElectronFluid = .FALSE.
     END IF ! MOD(RestartTime,BRConvertFluidToElectronsTime).LE.BRConvertElectronsToFluidTime
 
-  END IF ! BRConvertMode.EQ.0
+  END IF ! BRConvertMode.EQ.3
 
 END IF ! .NOT.DoRestart
 
@@ -248,6 +261,77 @@ END IF ! UseBRElectronFluid.AND.BRConvertFluidToElectrons
 END SUBROUTINE InitializeVariablesElectronFluidRegions
 
 
+!===================================================================================================================================
+!> For BR Electron / fully kinetic model switch, get the next time a switch is going to be performed
+!> Either one/two or multiple switches are possible depending on the user settings
+!===================================================================================================================================
+SUBROUTINE GetNextBRSwitchTime()
+! MODULES
+USE MOD_Globals       ,ONLY: abort
+USE MOD_TimeDisc_Vars ,ONLY: dt_Min,Time
+USE MOD_HDG_Vars      ,ONLY: BRConvertFluidToElectronsTime,BRConvertElectronsToFluidTime,BRConvertMode
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL :: t             !> time in relative frame
+REAL :: tMin,tMax     !> sorted t1 and t2
+REAL :: tBRSwitchDiff !> delta to next switch (BR or kinetic)
+!===================================================================================================================================
+!tBRSwitchDiff = tBRSwitch-Time ! Time to BR<->kinetic switch, use extra variable so number doesn't change due to numerical errors
+ASSOCIATE( t1 => BRConvertFluidToElectronsTime,&
+           t2 => BRConvertElectronsToFluidTime &
+         )
+  SELECT CASE (BRConvertMode)
+    CASE (3,-1,-2) ! Single switch OR 2 switches: BR -> kin -> BR (t1 < t2) OR kin -> BR -> kin (t1 > t2)
+      t = Time
+    CASE (1)  ! Multiple switches: BR -> kin -> BR (t1 < t2)
+      t = MOD(Time,t2)
+    CASE (2)  ! Multiple switches: kin -> BR -> kin (t1 > t2)
+      t = MOD(Time,t1)
+    CASE DEFAULT
+      CALL abort(__STAMP__,'Unknown value for BRConvertMode =',IntInfoOpt=BRConvertMode)
+  END SELECT
+
+  ! Calculate delta time
+  IF((t1.GT.0.0).AND.(t2.GT.0.0))THEN
+    tMin=MIN(t1,t2)
+    tMax=MAX(t1,t2)
+    IF(t.GT.tMin)THEN
+      tBRSwitchDiff = tMax
+    ELSE
+      tBRSwitchDiff = tMin
+    END IF ! t.GT.t1
+  ELSEIF(t1.GT.0.0)THEN
+    tBRSwitchDiff = t1
+  ELSEIF(t2.GT.0.0)THEN
+    tBRSwitchDiff = t2
+  END IF ! (t1.GT.0.0).AND.(t2.GT.0)
+
+  ! Catch tolerance issue which leads to a timestep of 1.0123123E-23 (basically zero)
+  IF(.NOT.ALMOSTEQUALRELATIVE(tBRSwitchDiff,t,1e-5))THEN
+    tBRSwitchDiff = tBRSwitchDiff - t
+  ELSE
+    tBRSwitchDiff = 0.0
+  END IF ! .NOT.ALMOSTEQUALRELATIVE(tBRSwitchDiff,t,1e-5)
+
+  ! Set dt_Min(DT_BR_SWITCH)
+  IF(tBRSwitchDiff.GT.0.0)THEN
+    dt_Min(DT_BR_SWITCH) = tBRSwitchDiff
+  ELSE
+    dt_Min(DT_BR_SWITCH) = HUGE(1.)
+  END IF ! tBRSwitchDiff.GT.0.0
+
+!WRITE (*,*) "dt_Min(DT_BR_SWITCH),t2,t1 =", dt_Min(DT_BR_SWITCH),t2,t1
+END ASSOCIATE
+WRITE (*,*) "dt_Min(DT_BR_SWITCH) =", dt_Min(DT_BR_SWITCH)
+!read*
+
+END SUBROUTINE GetNextBRSwitchTime
+
+
 SUBROUTINE SwitchBRElectronModel()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Switch between BR electron fluid and kinetic model
@@ -256,9 +340,9 @@ SUBROUTINE SwitchBRElectronModel()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_HDG_Vars
-USE MOD_TimeDisc_Vars      ,ONLY: time,iter
-USE MOD_Elem_Mat           ,ONLY: Elem_Mat
-USE MOD_part_operations    ,ONLY: RemoveAllElectrons
+USE MOD_TimeDisc_Vars         ,ONLY: time,iter,dt_Min
+USE MOD_Elem_Mat              ,ONLY: Elem_Mat
+USE MOD_part_operations       ,ONLY: RemoveAllElectrons
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -312,6 +396,11 @@ ASSOCIATE( tBR2Kin => BRConvertFluidToElectronsTime ,&
   END IF ! .NOT.UseBRElectronFluid.AND.BRConvertE.GT.0.0
 END ASSOCIATE
 
+! Restore the initial dt_Min from InitTimeStep() as it might have been changed in the previous time step
+dt_Min(DT_MIN) = BRTimeStepBackup
+! Adjust the time step when BR electron fluid is active. Usually BR electron time step is XX times larger than the fully kinetic
+IF(UseBRElectronFluid) dt_Min(DT_MIN) = BRTimeStepMultiplier*dt_Min(DT_MIN)
+CALL GetNextBRSwitchTime()
 END SUBROUTINE SwitchBRElectronModel
 
 

@@ -58,7 +58,7 @@ SUBROUTINE InitTime()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,tAnalyze,tEndDiff,tAnalyzeDiff
+USE MOD_TimeDisc_Vars          ,ONLY: Time,TEnd,tAnalyze,dt_Min
 USE MOD_Restart_Vars           ,ONLY: RestartTime
 #ifdef PARTICLES
 USE MOD_DSMC_Vars              ,ONLY: Iter_macvalout,Iter_macsurfvalout
@@ -75,19 +75,22 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 ! Setting the time variable, RestartTime is either zero or the actual restart time
-time=RestartTime
+Time=RestartTime
 #ifdef PARTICLES
 iter_macvalout=0
 iter_macsurfvalout=0
 IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) MacroValSampTime = Time
 #endif /*PARTICLES*/
 iAnalyze=1
-! Determine analyze time
+! Determine analyze Time
 tAnalyze=MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd)
 
 ! fill initial analyze stuff
-tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
-tEndDiff=tEnd-time            ! dito for end time
+dt_Min(DT_ANALYZE) = tAnalyze-Time ! Time to next analysis, put in extra variable so number does not change due to numerical errors
+dt_Min(DT_END)     = tEnd    -Time ! dito for end Time
+#if defined(PARTICLES) && USE_HDG
+dt_Min(DT_BR_SWITCH) = HUGE(1.)
+#endif/*defined(PARTICLES) && USE_HDG*/
 
 END SUBROUTINE InitTime
 
@@ -249,20 +252,28 @@ END SUBROUTINE InitTimeDisc
 
 SUBROUTINE InitTimeStep()
 !===================================================================================================================================
-!initial time step calculations for new timedisc-loop
+! Initial time step calculation for new timedisc-loop
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_TimeDisc_Vars ,ONLY: dt, dt_Min,ManualTimeStep,useManualTimestep
-USE MOD_TimeDisc_Vars ,ONLY: sdtCFLOne
-#if !(USE_HDG)
-USE MOD_CalcTimeStep  ,ONLY: CalcTimeStep
-USE MOD_TimeDisc_Vars ,ONLY: CFLtoOne
+USE MOD_TimeDisc_Vars         ,ONLY: dt, dt_Min,ManualTimeStep,useManualTimestep,sdtCFLOne
+#if ! (USE_HDG)
+USE MOD_CalcTimeStep          ,ONLY: CalcTimeStep
+USE MOD_TimeDisc_Vars         ,ONLY: CFLtoOne
 #endif
-USE MOD_ReadInTools   ,ONLY: GETREAL
+USE MOD_ReadInTools           ,ONLY: GETREAL
 #if defined(PARTICLES) && USE_HDG
-USE MOD_HDG_Vars      ,ONLY: BRTimeStepMultiplier,UseBRElectronFluid,BRTimeStepBackup
+USE MOD_HDG_Vars              ,ONLY: BRTimeStepMultiplier,UseBRElectronFluid,BRTimeStepBackup,BRConvertMode
+USE MOD_Part_BR_Elecron_Fluid ,ONLY: GetNextBRSwitchTime
 #endif /*defined(PARTICLES) && USE_HDG*/
+#if USE_LOADBALANCE
+USE MOD_TimeDisc_Vars         ,ONLY: Time,TEnd,dt,dt_Min,tAnalyze
+USE MOD_LoadBalance_Vars      ,ONLY: IAR_DoLoadBalance,IAR_LoadBalanceSample,DoLoadBalance
+USE MOD_LoadBalance_Vars      ,ONLY: LoadBalanceSample
+USE MOD_Restart_Vars          ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample,IAR_PerformPartWeightLB
+USE MOD_Restart_Vars          ,ONLY: RestartTime
+USE MOD_Analyze_Vars          ,ONLY: Analyze_dt,iAnalyze
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -273,33 +284,57 @@ IMPLICIT NONE
 ! For tEnd != tStart we have to advance the solution in time
 IF(useManualTimeStep)THEN
   ! particle time step is given externally and not calculated through the solver
-  dt_Min=ManualTimeStep
+  dt_Min(DT_MIN)=ManualTimeStep
 ELSE ! .NO. ManualTimeStep
   ! time step is calculated by the solver
   ! first Maxwell time step for explicit LSRK
 #if !(USE_HDG)
-  dt_Min    = CalcTimeStep()
-  sdtCFLOne = 1.0/(dt_Min*CFLtoOne)
+  dt_Min(DT_MIN)    = CalcTimeStep()
+  sdtCFLOne = 1.0/(dt_Min(DT_MIN)*CFLtoOne)
 #else
-  dt_Min    = 0
+  dt_Min(DT_MIN)    = 0
   sdtCFLOne = -1.0 !dummy for HDG!!!
 #endif /*USE_HDG*/
 
-  dt=dt_Min
+  dt=dt_Min(DT_MIN)
   ! calculate time step for sub-cycling of divergence correction
   ! automatic particle time step of quasi-stationary time integration is not implemented
 END IF ! useManualTimestep
 
 #if defined(PARTICLES) && USE_HDG
-! Adjust the time step when BR electron fluid is active
-BRTimeStepBackup = dt_Min
-IF(UseBRElectronFluid) dt_Min = BRTimeStepMultiplier*dt_Min
+IF(BRConvertMode.NE.0)THEN
+  ! Adjust the time step when BR electron fluid is active
+  BRTimeStepBackup = dt_Min(DT_MIN)
+  IF(UseBRElectronFluid) dt_Min(DT_MIN) = BRTimeStepMultiplier*dt_Min(DT_MIN)
+  CALL GetNextBRSwitchTime()
+END IF ! BRConvertMode.NE.0
 #endif /*defined(PARTICLES) && USE_HDG*/
 
 SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_StdOut,'(A,ES16.7)')'Initial Timestep  : ', dt_Min
+SWRITE(UNIT_StdOut,'(A,ES16.7)')'Initial Timestep  : ', dt_Min(DT_MIN)
 ! using sub-cycling requires an addional time step
 SWRITE(UNIT_StdOut,*)'CALCULATION RUNNING...'
+
+! --- Adjustments for first analysis step and/or initial auto restart
+dt=MINVAL(dt_Min) ! quick fix: set dt for initial write DSMCHOState (WriteMacroVolumeValues=T)
+
+#if USE_LOADBALANCE
+IF (DoInitialAutoRestart) THEN
+  IAR_DoLoadBalance     = DoLoadBalance
+  DoLoadBalance         = .TRUE.
+  IAR_LoadbalanceSample = LoadBalanceSample
+  LoadBalanceSample     = InitialAutoRestartSample
+  ! Correct initialautrestartSample if partweight_initialautorestart is enabled so tAnalyze is calculated correctly
+  ! LoadBalanceSample still needs to be zero
+  IF (IAR_PerformPartWeightLB) InitialAutoRestartSample=1
+  ! Correction for first analysis time due to auto initial restart
+  IF (MIN( RestartTime+iAnalyze*Analyze_dt , tEnd , RestartTime+InitialAutoRestartSample*dt ).LT.tAnalyze) THEN
+    tAnalyze           = MIN(RestartTime+iAnalyze*Analyze_dt , tEnd , RestartTime+InitialAutoRestartSample*dt )
+    dt_Min(DT_ANALYZE) = tAnalyze-Time
+    dt                 = MINVAL(dt_Min)
+  END IF
+END IF
+#endif /*USE_LOADBALANCE*/
 END SUBROUTINE InitTimeStep
 
 
