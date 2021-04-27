@@ -182,6 +182,7 @@ ADD_DEFINITIONS(-DPP_nElems=NELEMZ)
 
 # code development
 OPTION(PICLAS_CODE_ANALYZE "Code Analyze" OFF)
+OPTION(PICLAS_EXTRAE "Extrae instrumentation for code profiling (event tracing)" OFF)
 OPTION(PICLAS_CTAGS "Use Ctags" ON)
 
 OPTION(PICLAS_READIN_CONSTANTS "Allow read-in of user-defined constants, such as the vacuum speed of light c0, permittivity eps and permeability mu." OFF)
@@ -248,12 +249,17 @@ ELSE()
 ENDIF(PICLAS_PARTICLES)
 
 # =========================================================================
-# CODE_ANALYZE
+# CODE_ANALYZE and EXTRAE instrumentation
 # =========================================================================
 
 IF(PICLAS_CODE_ANALYZE)
   ADD_DEFINITIONS(-DCODE_ANALYZE)
 ENDIF(PICLAS_CODE_ANALYZE)
+
+IF(PICLAS_EXTRAE)
+  MESSAGE(STATUS "Activated extrae code tracing instrumentation using: $ENV{EXTRAE_HOME}")
+  ADD_DEFINITIONS(-DEXTRAE)
+ENDIF(PICLAS_EXTRAE)
 
 # =========================================================================
 # Timedisc method
@@ -799,6 +805,12 @@ FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_vars.f90
                          ./src/particles/boundary/particle_boundary_vars.f90)
 
+FILE(GLOB_RECURSE extraeF90 ./src/extrae/*.f90)
+
+IF(PICLAS_EXTRAE)
+  LIST(APPEND piclasF90 ${extraeF90})
+ENDIF(PICLAS_EXTRAE)
+
 IF(PICLAS_HDG)
   LIST(APPEND piclasF90 ${hdgF90})
   IF(PICLAS_IMPLICIT)
@@ -933,3 +945,9 @@ IF(PICLAS_DEBUG_MEMORY)
   SET (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DDEBUG_MEMORY")
 ENDIF()
 
+# =========================================================================
+# EXTRAE instrumentation
+# =========================================================================
+IF(PICLAS_EXTRAE)
+  SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -lompitracef -L$ENV{EXTRAE_HOME}/lib")
+ENDIF(PICLAS_EXTRAE)
