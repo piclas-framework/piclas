@@ -464,7 +464,7 @@ CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
 #ifdef PARTICLES
   ! Switch flag to false after the number of particles has been written to std out and before the time next step is started
-  GlobalNbrOfParticlesUpdated = .FALSE.    
+  GlobalNbrOfParticlesUpdated = .FALSE.
 #endif /*PARTICLES*/
 END DO ! iter_t
 END SUBROUTINE TimeDisc

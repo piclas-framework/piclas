@@ -299,6 +299,9 @@ USE MOD_Particle_MPI_Vars          ,ONLY: ParticleMPIInitisdone
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 USE MOD_IO_HDF5                    ,ONLY: ClearElemData,ElementOut
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
+USE MOD_TimeDiscInit               ,ONLY: FinalizeTimeDisc
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -311,6 +314,9 @@ REAL                    :: Time
 !===================================================================================================================================
 CALL ClearElemData(ElementOut)
 !Finalize
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
+CALL FinalizeTimeDisc
+#endif
 CALL FinalizeRecordPoints()
 CALL FinalizeAnalyze()
 CALL FinalizeDG()

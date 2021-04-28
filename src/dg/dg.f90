@@ -121,6 +121,9 @@ ALLOCATE(U_slave(PP_nVar,0:PP_N,0:PP_N,1:nSides))
 U_master=0.
 U_slave=0.
 
+! Allocate arrays to hold the face flux to reduce memory churn
+ALLOCATE(U_Master_loc(1:PP_nVar        ,0:PP_N,0:PP_N))
+ALLOCATE(U_Slave_loc (1:PP_nVar        ,0:PP_N,0:PP_N))
 
 #ifdef OPTIMIZED
   CALL GetRiemannMatrix()
@@ -130,8 +133,9 @@ U_slave=0.
 ! unique flux per side
 ! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0)
 ! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0)
-ALLOCATE(Flux_Master(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides))
-ALLOCATE(Flux_Slave(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(Flux_Master(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(Flux_Slave (1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(Flux_loc   (1:PP_nVar+PMLnVar,0:PP_N,0:PP_N))
 Flux_Master=0.
 Flux_Slave=0.
 #endif /*USE_HDG*/
@@ -587,6 +591,10 @@ SDEALLOCATE(U_master)
 SDEALLOCATE(U_slave)
 SDEALLOCATE(FLUX_Master)
 SDEALLOCATE(FLUX_Slave)
+SDEALLOCATE(U_Master_loc)
+SDEALLOCATE(U_Slave_loc)
+SDEALLOCATE(Flux_loc)
+
 DGInitIsDone = .FALSE.
 END SUBROUTINE FinalizeDG
 
