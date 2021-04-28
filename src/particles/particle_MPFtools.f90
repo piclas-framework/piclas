@@ -266,6 +266,7 @@ SUBROUTINE MergeParticles(iElem, NumFinPart, SpecNum, SpecID)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars
+USE MOD_Mesh_Vars,              ONLY:offsetElem
 USE Levenberg_Marquardt
 USE MOD_Eval_xyz,               ONLY:GetPositionInRefElem
 USE MOD_Particle_Tracking_Vars, ONLY:TrackingMethod
@@ -1906,7 +1907,7 @@ REAL FUNCTION CalcRelaBeta2(energy,randvecin, mpf, SpecID, DeltaE, OldMomentum)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,          ONLY : c2
-USE MOD_Particle_Vars,          ONLY : Species
+USE MOD_Particle_Vars,         ONLY : Species
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
