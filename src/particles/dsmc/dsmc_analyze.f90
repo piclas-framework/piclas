@@ -244,7 +244,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
           END IF ! nImpacts.GT.0.
         END IF ! CalcSurfaceImpact
       END DO ! iSpec=1,nSpecies
-      
+
       IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
         IF ((MacroSurfaceVal(4,p,q,OutputCounter).GT.0.0).AND.AdaptWallTemp) THEN
           iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
@@ -253,7 +253,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
         END IF
         MacroSurfaceVal(nVar,p,q,OutputCounter) = BoundaryWallTemp(p,q,iSurfSide)
       END IF
-     
+
     END DO ! q=1,nSurfSample
   END DO ! p=1,nSurfSample
 END DO ! iSurfSide=1,nComputeNodeSurfSides
@@ -700,7 +700,7 @@ IF (PRESENT(vBulk)) vBulk(1:3) = vBulk(1:3) / TotalMass
 DO iSpec=1, nSpecies
   IF(SpecPartNum_Simu(iSpec).GT.1) THEN
     ! Compute velocity averages
-    MeanPartV(iSpec,1:3)  = PartV(iSpec,1:3) / totalWeight(iSpec)      
+    MeanPartV(iSpec,1:3)  = PartV(iSpec,1:3) / totalWeight(iSpec)
   ELSE
     MeanPartV(iSpec,1:3) = 0.
   END IF
@@ -710,7 +710,7 @@ DO iPart=1,PartNum
   PartID = iPartIndx(iPart)
   SpecID = PartSpecies(PartID)
   partWeight = GetParticleWeight(PartID)
-  V_rel(1:3) = PartState(4:6,PartID)-MeanPartV(SpecID,1:3) 
+  V_rel(1:3) = PartState(4:6,PartID)-MeanPartV(SpecID,1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
   PartV2(SpecID) = PartV2(SpecID) + vmag2 * partWeight
 END DO
@@ -726,8 +726,8 @@ DO iSpec = 1, nSpecies
     Ener(iSpec) = Ener(iSpec) + totalweight(iSpec) * Species(iSpec)%MassIC / 2. * vmag2
     EnerTotal = EnerTotal + Ener(iSpec)
     tempweighttotal = tempweighttotal + totalweight(iSpec)
-    tempmass = tempmass +  totalweight(iSpec) * Species(iSpec)%MassIC 
-    vBulkTemp(1:3) = vBulkTemp(1:3) + MeanPartV(iSpec,1:3)*totalweight(iSpec) * Species(iSpec)%MassIC 
+    tempmass = tempmass +  totalweight(iSpec) * Species(iSpec)%MassIC
+    vBulkTemp(1:3) = vBulkTemp(1:3) + MeanPartV(iSpec,1:3)*totalweight(iSpec) * Species(iSpec)%MassIC
   END IF
 END DO
 IF ((tempmass.GT.0.0).AND.(tempweighttotal.GT.0.0)) THEN
@@ -799,7 +799,7 @@ DO iPart=1,PDM%ParticleVecLength
             DSMC_Solution(11,iElem, DSMC%AmbiDiffElecSpec) = DSMC_Solution(11,iElem, DSMC%AmbiDiffElecSpec) + 1.0
           END IF
         END IF
-      END IF     
+      END IF
     END IF
     DSMC_Solution(11,iElem, iSpec) = DSMC_Solution(11,iElem, iSpec) + 1.0 !simpartnum
   END IF
