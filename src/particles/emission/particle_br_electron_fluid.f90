@@ -326,7 +326,7 @@ ASSOCIATE( t1 => BRConvertFluidToElectronsTime,&
 
 !WRITE (*,*) "dt_Min(DT_BR_SWITCH),t2,t1 =", dt_Min(DT_BR_SWITCH),t2,t1
 END ASSOCIATE
-WRITE (*,*) "dt_Min(DT_BR_SWITCH) =", dt_Min(DT_BR_SWITCH)
+!WRITE (*,*) "dt_Min(DT_BR_SWITCH) =", dt_Min(DT_BR_SWITCH)
 !read*
 
 END SUBROUTINE GetNextBRSwitchTime
