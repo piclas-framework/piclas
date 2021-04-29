@@ -54,13 +54,14 @@ USE MOD_HDG_Vars
 USE MOD_Equation_Vars      ,ONLY: chitens
 #if defined(IMPA) || defined(ROS)
 USE MOD_LinearSolver_Vars  ,ONLY: DoPrintConvInfo
+#else
+USE MOD_TimeDisc_Vars      ,ONLY: IterDisplayStep,DoDisplayIter
 #endif
 USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Mesh_Vars          ,ONLY: sJ, Metrics_fTilde, Metrics_gTilde,Metrics_hTilde
 USE MOD_Mesh_Vars          ,ONLY: SurfElem
 USE MOD_Mesh_Vars          ,ONLY: VolToSideA,VolToSideIJKA,ElemToSide
 USE MOD_Basis              ,ONLY: getSPDInverse
-USE MOD_TimeDisc_Vars      ,ONLY: IterDisplayStep,DoDisplayIter
 #if defined(PARTICLES)
 USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #endif /*defined(PARTICLES)*/
