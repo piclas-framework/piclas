@@ -73,7 +73,7 @@ By default this will include the species-specific impact counter per iteration o
 
     CalcSurfaceImpact = T
 
-which calculates the species-dependent averaged impact energy (trans, rot, vib), impact vector, impact obliqueness angle (between particle trajectory and surface normal vector, e.g. an impact vector perpendicular to the surface corresponds to an impact angle of $0^{\circ}$) and number of real particle impacts over the sampling duration. 
+which calculates the species-dependent averaged impact energy (trans, rot, vib, elec), impact vector, impact obliqueness angle (between particle trajectory and surface normal vector, e.g. an impact vector perpendicular to the surface corresponds to an impact angle of $0^{\circ}$), number of real particle impacts over the sampling duration and number of real particle impacts per area per second.
 
 ## Integral Variables
 
