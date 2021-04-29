@@ -488,6 +488,7 @@ SUBROUTINE StartCommunicateMeshReadin()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars              ,ONLY: StartT
 USE MOD_Mesh_Vars
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
@@ -510,6 +511,13 @@ INTEGER                        :: iProc
 INTEGER                        :: offsetNodeID!,nNodeIDs
 #endif /*USE_MPI*/
 !===================================================================================================================================
+
+! Start timer: finished in FinishCommunicateMeshReadin()
+#if USE_MPI
+StartT=MPI_WTIME()
+#else
+CALL CPU_TIME(StartT)
+#endif
 
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
@@ -537,7 +545,7 @@ IF (PerformLoadBalance) THEN
   CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
   IF (myComputeNodeRank.EQ.0) THEN
-    SWRITE(UNIT_stdOut,'(A)') ' Updating mesh on shared memory...'
+    SWRITE(UNIT_stdOut,'(A)',ADVANCE="NO") ' Updating mesh on shared memory...'
 
     ! Arrays for the compute node to hold the elem offsets
     ALLOCATE(displsElem(   0:nLeaderGroupProcs-1),&
@@ -581,7 +589,7 @@ IF (PerformLoadBalance) THEN
 END IF
 #endif /*USE_LOADBALANCE*/
 
-SWRITE(UNIT_stdOut,'(A)') ' Communicating mesh on shared memory...'
+SWRITE(UNIT_stdOut,'(A)',ADVANCE="NO") ' Communicating mesh on shared memory...'
 
 #if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
@@ -651,6 +659,7 @@ SUBROUTINE FinishCommunicateMeshReadin()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars              ,ONLY: CommMeshReadinWallTime,StartT
 USE MOD_Mesh_Vars
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
@@ -666,12 +675,12 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!INTEGER                        :: FirstElem,LastElem
-INTEGER                        :: FirstElemInd,LastElemInd
-INTEGER                        :: iElem,NbElemID
-INTEGER                        :: nSideIDs,offsetSideID
-INTEGER                        :: iSide,sideCount
-INTEGER                        :: iLocSide,jLocSide,nlocSides,nlocSidesNb,NbSideID
+INTEGER :: FirstElemInd,LastElemInd
+INTEGER :: iElem,NbElemID
+INTEGER :: nSideIDs,offsetSideID
+INTEGER :: iSide,sideCount
+INTEGER :: iLocSide,jLocSide,nlocSides,nlocSidesNb,NbSideID
+REAL    :: EndT
 !===================================================================================================================================
 
 
@@ -780,6 +789,11 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
 nUniqueGlobalNodes = MAXVAL(NodeInfo_Shared)
 SDEALLOCATE(SideInfo_Shared_tmp)
+
+EndT=PICLASTIME()
+CommMeshReadinWallTime=EndT-StartT
+SWRITE(UNIT_stdOut,'(A,F0.3,A)')' DONE  [',CommMeshReadinWallTime,'s]'
+SWRITE(UNIT_stdOut,'(132("."))')
 
 END SUBROUTINE FinishCommunicateMeshReadin
 

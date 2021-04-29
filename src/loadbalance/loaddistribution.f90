@@ -1104,6 +1104,7 @@ SUBROUTINE WriteElemTimeStatistics(WriteHeader,time_opt,iter_opt)
 USE MOD_LoadBalance_Vars ,ONLY: TargetWeight,nLoadBalanceSteps,CurrentImbalance,MinWeight,MaxWeight,WeightSum
 USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout,abort,nProcessors,ProcessMemUsage,nProcessors
 USE MOD_Globals_Vars     ,ONLY: SimulationEfficiency,PID,WallTime,InitializationWallTime,ReadMeshWallTime
+USE MOD_Globals_Vars     ,ONLY: DomainDecompositionWallTime,CommMeshReadinWallTime
 USE MOD_Restart_Vars     ,ONLY: DoRestart
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimeField
@@ -1129,9 +1130,9 @@ INTEGER                                  :: ioUnit,I
 CHARACTER(LEN=150)                       :: formatStr
 #ifdef PARTICLES
 REAL                                     :: SumElemTime,ElemTimeFieldPercent,ElemTimePartPercent
-INTEGER,PARAMETER                        :: nOutputVar=21
+INTEGER,PARAMETER                        :: nOutputVar=23
 #else
-INTEGER,PARAMETER                        :: nOutputVar=16
+INTEGER,PARAMETER                        :: nOutputVar=18
 #endif /*PARTICLES*/
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
     'time'                   , &
@@ -1145,6 +1146,8 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'SimulationEfficiency'   , &
     'PID'                    , &
     'SimulationWallTime'     , &
+    'DomainDecompositionWallTime', &
+    'CommMeshReadinWallTime' , &
     'ReadMeshWallTime'       , &
     'InitializationWallTime' , &
     'MemoryUsed'             , &
@@ -1275,6 +1278,8 @@ ELSE !
         delimiter,SimulationEfficiency    ,&
         delimiter,PID                     ,&
         delimiter,WallTime                ,&
+        delimiter,DomainDecompositionWallTime,&
+        delimiter,CommMeshReadinWallTime  ,&
         delimiter,ReadMeshWallTime        ,&
         delimiter,InitializationWallTime  ,&
         delimiter,memory(1)               ,&

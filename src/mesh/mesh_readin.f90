@@ -171,7 +171,7 @@ BoundaryType(:,BC_TYPE)  = BCType(1,:)
 BoundaryType(:,BC_STATE) = BCType(3,:)
 BoundaryType(:,BC_ALPHA) = BCType(4,:)
 SWRITE(UNIT_StdOut,'(132("."))')
-SWRITE(Unit_StdOut,'(A,A16,A20,A10,A10,A10)')'BOUNDARY CONDITIONS','|','Name','Type','State','Alpha'
+SWRITE(Unit_StdOut,'(A,A15,A20,A10,A10,A10)')' BOUNDARY CONDITIONS','|','Name','Type','State','Alpha'
 DO iBC=1,nBCs
   SWRITE(*,'(A,A33,A20,I10,I10,I10)')' |','|',TRIM(BoundaryName(iBC)),BoundaryType(iBC,:)
 END DO
@@ -264,7 +264,7 @@ __STAMP__ &
 END IF
 
 SWRITE(UNIT_stdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')'READ MESH FROM DATA FILE "'//TRIM(FileString)//'" ...'
+SWRITE(UNIT_stdOut,'(A)',ADVANCE="NO")' READ MESH FROM DATA FILE "'//TRIM(FileString)//'" ...'
 #if USE_MPI
 StartT=MPI_WTIME()
 #else
@@ -286,6 +286,9 @@ CHECKSAFEINT(8_8*INT(nGlobalElems,8),4)
 DEALLOCATE(HSize)
 IF(MPIRoot.AND.(nGlobalElems.LT.nProcessors))CALL abort(__STAMP__&
     ,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))
+EndT=PICLASTIME()
+ReadMeshWallTime=EndT-StartT
+SWRITE(UNIT_stdOut,'(A,F0.3,A)')' DONE  [',ReadMeshWallTime,'s]'
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              DOMAIN DECOMPOSITION
@@ -742,9 +745,6 @@ END IF
 
 LOGWRITE_BARRIER
 
-EndT=PICLASTIME()
-ReadMeshWallTime=EndT-StartT
-SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'READ MESH FROM DATA FILE "'//TRIM(FileString)//'" ... DONE  [',ReadMeshWallTime,'s]'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE ReadMesh
 
