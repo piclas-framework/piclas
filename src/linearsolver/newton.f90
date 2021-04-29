@@ -84,9 +84,10 @@ REAL                       :: rRel
 LOGICAL                    :: warning_linear
 #if USE_MPI
 REAL                       :: NormArray(3), GlobalNormArray(3)
-#else
-REAL                       :: rTmp(1:8), locMass
 #endif /*USE_MPI*/
+#if ! (USE_HDG)
+REAL                     :: rTmp(1:8), locMass
+#endif /*DG*/
 !===================================================================================================================================
 
 Norm_R         =0.
