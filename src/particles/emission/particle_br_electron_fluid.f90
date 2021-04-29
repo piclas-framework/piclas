@@ -116,7 +116,6 @@ USE MOD_Globals
 USE MOD_HDG_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
-USE MOD_Particle_Mesh_Tools ,ONLY: MapBRRegionToElem
 USE MOD_Restart_Vars        ,ONLY: DoRestart,RestartTime
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -645,6 +644,45 @@ CALL UpdateNextFreePosition()
 
 
 END SUBROUTINE CreateElectronsFromBRFluid
+
+
+SUBROUTINE MapBRRegionToElem()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! map a particle region to element
+! check only element barycenter, nothing else
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_HDG_Vars           ,ONLY: NbrOfRegions, RegionBounds,ElemToBRRegion
+USE MOD_Mesh_Vars          ,ONLY: ElemBaryNGeo
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+ INTEGER                :: iElem, iRegions
+!===================================================================================================================================
+SDEALLOCATE(ElemToBRRegion)
+ALLOCATE(ElemToBRRegion(1:PP_nElems))
+ElemToBRRegion=0
+
+DO iElem=1,PP_nElems
+  DO iRegions=1,NbrOfRegions
+    IF ((ElemBaryNGeo(1,iElem).LT.RegionBounds(1,iRegions)).OR.(ElemBaryNGEO(1,iElem).GE.RegionBounds(2,iRegions))) CYCLE
+    IF ((ElemBaryNGeo(2,iElem).LT.RegionBounds(3,iRegions)).OR.(ElemBaryNGEO(2,iElem).GE.RegionBounds(4,iRegions))) CYCLE
+    IF ((ElemBaryNGeo(3,iElem).LT.RegionBounds(5,iRegions)).OR.(ElemBaryNGEO(3,iElem).GE.RegionBounds(6,iRegions))) CYCLE
+    IF (ElemToBRRegion(iElem).EQ.0) THEN
+      ElemToBRRegion(iElem)=iRegions
+    ELSE
+      CALL ABORT(__STAMP__,'Defined regions are overlapping')
+    END IF
+  END DO ! iRegions=1,NbrOfRegions
+END DO ! iElem=1,PP_nElems
+END SUBROUTINE MapBRRegionToElem
 
 
 END MODULE MOD_Part_BR_Elecron_Fluid
