@@ -937,7 +937,7 @@ INTEGER, INTENT(INOUT)           :: chunkSize
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: iElem, ichunkSize
+INTEGER                          :: iElem, ichunkSize, iGlobalElem
 INTEGER                          :: iPart,  nPart
 REAL                             :: iRan, RandomPos(3)
 REAL                             :: PartDens
@@ -971,11 +971,12 @@ __STAMP__,&
 
   ichunkSize = 1
   ParticleIndexNbr = 1
-  DO iElem = 1+offsetElem, nElems+offsetElem
-    CNElemID = GetCNElemID(iElem)
-    ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+  DO iElem = 1, nElems
+    iGlobalElem = iElem + offsetElem
+    CNElemID = GetCNElemID(iGlobalElem)
+    ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iGlobalElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
       IF (UseExactPartNum) THEN
-        nPart = CellChunkSize(iElem)
+        nPart = CellChunkSize(iGlobalElem)
       ELSE
         IF(RadialWeighting%DoRadialWeighting) THEN
           PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec)
@@ -1003,13 +1004,13 @@ __STAMP__,&
             END IF
             IF(Symmetry%Order.LE.2) RandomPos(3) = 0.
             IF(Symmetry%Order.LE.1) RandomPos(2) = 0.
-            InsideFlag = ParticleInsideCheck(RandomPos,iPart,iElem)
+            InsideFlag = ParticleInsideCheck(RandomPos,iPart,iGlobalElem)
           END DO
           PartState(1:3,ParticleIndexNbr) = RandomPos(1:3)
           PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
           PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
           PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
-          PEM%GlobalElemID(ParticleIndexNbr) = iElem
+          PEM%GlobalElemID(ParticleIndexNbr) = iGlobalElem
           ichunkSize = ichunkSize + 1
           IF (VarTimeStep%UseVariableTimeStep) THEN
             VarTimeStep%ParticleTimeStep(ParticleIndexNbr) = &
