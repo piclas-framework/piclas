@@ -395,11 +395,9 @@ ASSOCIATE( tBR2Kin => BRConvertFluidToElectronsTime ,&
   END IF ! .NOT.UseBRElectronFluid.AND.BRConvertE.GT.0.0
 END ASSOCIATE
 
-! Restore the initial dt_Min from InitTimeStep() as it might have been changed in the previous time step
-dt_Min(DT_MIN) = BRTimeStepBackup
-! Adjust the time step when BR electron fluid is active. Usually BR electron time step is XX times larger than the fully kinetic
-IF(UseBRElectronFluid) dt_Min(DT_MIN) = BRTimeStepMultiplier*dt_Min(DT_MIN)
+! For BR Electron / fully kinetic model switch, get the next time a switch is going to be performed
 CALL GetNextBRSwitchTime()
+
 END SUBROUTINE SwitchBRElectronModel
 
 

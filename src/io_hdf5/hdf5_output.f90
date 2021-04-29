@@ -122,6 +122,9 @@ USE MOD_PICInterpolation_Vars  ,ONLY: useAlgebraicExternalField,AlgebraicExterna
 USE MOD_Analyze_Vars           ,ONLY: AverageElectricPotential
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
 USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid
+USE MOD_Particle_Analyze       ,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronIonDensity,CalcElectronTemperature
+USE MOD_Particle_Analyze       ,ONLY: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
@@ -647,7 +650,18 @@ CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElemTime')
 ! Write 'ElectronDensityCell' and 'ElectronTemperatureCell' to a separate container in the state.h5 file
 ! (for special read-in and conversion to kinetic electrons)
 IF(UseBRElectronFluid) THEN
+  ! Check if electron density is already calculated in each cell
+  IF(.NOT.CalcElectronIonDensity)THEN
+    CALL AllocateElectronIonDensityCell
+    CALL CalculateElectronIonDensityCell()
+  END IF
   CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElectronDensityCell')
+
+  ! Check if electron temperature is already calculated in each cell
+  IF(.NOT.CalcElectronTemperature)THEN
+    CALL AllocateElectronTemperatureCell
+    CALL CalculateElectronTemperatureCell()
+  END IF
   CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElectronTemperatureCell')
 END IF
 #endif /*defined(PARTICLES) && USE_HDG*/

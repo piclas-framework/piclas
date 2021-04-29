@@ -302,12 +302,12 @@ ELSE ! .NO. ManualTimeStep
 END IF ! useManualTimestep
 
 #if defined(PARTICLES) && USE_HDG
-IF(BRConvertMode.NE.0)THEN
-  ! Adjust the time step when BR electron fluid is active
-  BRTimeStepBackup = dt_Min(DT_MIN)
-  IF(UseBRElectronFluid) dt_Min(DT_MIN) = BRTimeStepMultiplier*dt_Min(DT_MIN)
-  CALL GetNextBRSwitchTime()
-END IF ! BRConvertMode.NE.0
+! Check if BR<->kin switch is active
+IF(BRConvertMode.NE.0) CALL GetNextBRSwitchTime()
+
+! Adjust the time step when BR electron fluid is active
+BRTimeStepBackup = dt_Min(DT_MIN)
+IF(UseBRElectronFluid) dt_Min(DT_MIN) = BRTimeStepMultiplier*dt_Min(DT_MIN)
 #endif /*defined(PARTICLES) && USE_HDG*/
 
 SWRITE(UNIT_StdOut,'(132("-"))')

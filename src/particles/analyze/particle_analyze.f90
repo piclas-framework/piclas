@@ -22,28 +22,8 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE InitParticleAnalyze
-  MODULE PROCEDURE InitParticleAnalyze
-END INTERFACE
-
-INTERFACE FinalizeParticleAnalyze
-  MODULE PROCEDURE FinalizeParticleAnalyze
-END INTERFACE
-
 INTERFACE AnalyzeParticles
   MODULE PROCEDURE AnalyzeParticles
-END INTERFACE
-
-INTERFACE CalcShapeEfficiencyR
-  MODULE PROCEDURE CalcShapeEfficiencyR
-END INTERFACE
-
-INTERFACE CalcPowerDensity
-  MODULE PROCEDURE CalcPowerDensity
-END INTERFACE
-
-INTERFACE CalculatePartElemData
-  MODULE PROCEDURE CalculatePartElemData
 END INTERFACE
 
 INTERFACE WriteParticleTrackingData
@@ -63,15 +43,17 @@ INTERFACE CalcAnalyticalParticleState
 END INTERFACE
 #endif /*CODE_ANALYZE*/
 
-PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
-PUBLIC:: AnalyzeParticles
-PUBLIC:: CalcPowerDensity
-PUBLIC:: CalculatePartElemData
-PUBLIC:: WriteParticleTrackingData
+PUBLIC :: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
+PUBLIC :: AnalyzeParticles
+PUBLIC :: CalcPowerDensity
+PUBLIC :: CalculatePartElemData
+PUBLIC :: WriteParticleTrackingData
 #ifdef CODE_ANALYZE
-PUBLIC:: AnalyticParticleMovement,CalcAnalyticalParticleState
+PUBLIC :: AnalyticParticleMovement,CalcAnalyticalParticleState
 #endif /*CODE_ANALYZE*/
 PUBLIC :: CalcCoupledPowerPart
+PUBLIC :: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
+PUBLIC :: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 !===================================================================================================================================
 PUBLIC::DefineParametersParticleAnalyze
 
@@ -530,34 +512,12 @@ END IF
 ! Electron Density
 CalcElectronIonDensity   = GETLOGICAL('CalcElectronIonDensity','.FALSE.')
 IF(CalcDebyeLength.OR.CalcPlasmaFrequency.OR.CalcIonizationDegree) CalcElectronIonDensity=.TRUE.
-IF(CalcElectronIonDensity) THEN
-  ! electrons
-  ALLOCATE( ElectronDensityCell(1:PP_nElems) )
-  ElectronDensityCell=0.0
-  CALL AddToElemData(ElementOut,'ElectronDensityCell',RealArray=ElectronDensityCell(1:PP_nElems))
-  ! ions
-  ALLOCATE( IonDensityCell(1:PP_nElems) )
-  IonDensityCell=0.0
-  CALL AddToElemData(ElementOut,'IonDensityCell',RealArray=IonDensityCell(1:PP_nElems))
-  ! neutrals
-  ALLOCATE( NeutralDensityCell(1:PP_nElems) )
-  NeutralDensityCell=0.0
-  CALL AddToElemData(ElementOut,'NeutralDensityCell',RealArray=NeutralDensityCell(1:PP_nElems))
-  ! charge number
-  ALLOCATE( ChargeNumberCell(1:PP_nElems) )
-  ChargeNumberCell=0.0
-  CALL AddToElemData(ElementOut,'ChargeNumberCell',RealArray=ChargeNumberCell(1:PP_nElems))
-END IF
+IF(CalcElectronIonDensity) CALL AllocateElectronIonDensityCell()
 
 ! Electron Temperature
 CalcElectronTemperature   = GETLOGICAL('CalcElectronTemperature','.FALSE.')
 IF(CalcDebyeLength.OR.CalcPlasmaFrequency.OR.CalcPICCFLCondition) CalcElectronTemperature=.TRUE.
-IF(CalcElectronTemperature)THEN
-  !ElectronTemperatureIsMaxwell=GETLOGICAL('ElectronTemperatureIsMaxwell','.TRUE.')
-  ALLOCATE( ElectronTemperatureCell(1:PP_nElems) )
-  ElectronTemperatureCell=0.0
-  CALL AddToElemData(ElementOut,'ElectronTemperatureCell',RealArray=ElectronTemperatureCell(1:PP_nElems))
-END IF
+IF(CalcElectronTemperature) CALL AllocateElectronTemperatureCell()
 !--------------------------------------------------------------------------------------------------------------------
 ! PartAnalyzeStep: The interval for the particle analyze output routines (write-out into PartAnalyze.csv)
 !             = 1: Analyze and output every time step
@@ -748,6 +708,75 @@ SWRITE(UNIT_stdOut,'(A)')' INIT PARTCILE ANALYZE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitParticleAnalyze
+
+!===================================================================================================================================
+!> Allocate the required ElemData arrays for electron/ion/neutral density for each element (singly data point in each element),
+!> which is required for BR electron model (conversion from BR to fully kinetic)
+!===================================================================================================================================
+SUBROUTINE AllocateElectronIonDensityCell()
+! MODULES
+USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
+USE MOD_Preproc               ,ONLY: PP_nElems
+USE MOD_Particle_Analyze_Vars ,ONLY: ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+
+!===================================================================================================================================
+! Check if ElectronDensityCell has already been allocated (CalcElectronIonDensity=F and UseBRElectronFluid=T)
+IF(ALLOCATED(ElectronDensityCell)) RETURN
+
+! electrons
+ALLOCATE( ElectronDensityCell(1:PP_nElems) )
+ElectronDensityCell=0.0
+CALL AddToElemData(ElementOut,'ElectronDensityCell',RealArray=ElectronDensityCell(1:PP_nElems))
+
+! ions
+ALLOCATE( IonDensityCell(1:PP_nElems) )
+IonDensityCell=0.0
+CALL AddToElemData(ElementOut,'IonDensityCell',RealArray=IonDensityCell(1:PP_nElems))
+
+! neutrals
+ALLOCATE( NeutralDensityCell(1:PP_nElems) )
+NeutralDensityCell=0.0
+CALL AddToElemData(ElementOut,'NeutralDensityCell',RealArray=NeutralDensityCell(1:PP_nElems))
+
+! charge number
+ALLOCATE( ChargeNumberCell(1:PP_nElems) )
+ChargeNumberCell=0.0
+CALL AddToElemData(ElementOut,'ChargeNumberCell',RealArray=ChargeNumberCell(1:PP_nElems))
+
+END SUBROUTINE AllocateElectronIonDensityCell
+
+
+!===================================================================================================================================
+!> Allocate the required ElemData arrays for electron/ion/neutral density for each element (singly data point in each element),
+!> which is required for BR electron model (conversion from BR to fully kinetic)
+!===================================================================================================================================
+SUBROUTINE AllocateElectronTemperatureCell()
+! MODULES
+USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
+USE MOD_Preproc               ,ONLY: PP_nElems
+USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+
+!===================================================================================================================================
+! Check if ElectronTemperatureCell has already been allocated (CalcElectronIonDensity=F and UseBRElectronFluid=T)
+IF(ALLOCATED(ElectronTemperatureCell)) RETURN
+
+ALLOCATE( ElectronTemperatureCell(1:PP_nElems) )
+ElectronTemperatureCell=0.0
+CALL AddToElemData(ElementOut,'ElectronTemperatureCell',RealArray=ElectronTemperatureCell(1:PP_nElems))
+
+END SUBROUTINE AllocateElectronTemperatureCell
 
 
 SUBROUTINE AnalyzeParticles(Time)

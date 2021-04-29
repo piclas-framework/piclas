@@ -107,7 +107,7 @@ USE MOD_TimeStep
 USE MOD_TimeDiscInit           ,ONLY: InitTimeStep
 #if defined(PARTICLES) && USE_HDG
 USE MOD_Part_BR_Elecron_Fluid  ,ONLY: SwitchBRElectronModel
-USE MOD_HDG_Vars               ,ONLY: BRConvertMode
+USE MOD_HDG_Vars               ,ONLY: BRConvertMode,BRTimeStepBackup,BRTimeStepMultiplier,UseBRElectronFluid
 #endif /*defined(PARTICLES) && USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -220,7 +220,12 @@ DO !iter_t=0,MaxIter
 #endif /*PARTICLES*/
 
 #if defined(PARTICLES) && USE_HDG
+  ! Check if BR<->kin switch is active
   IF(BRConvertMode.NE.0) CALL SwitchBRElectronModel()
+  ! Restore the initial dt_Min from InitTimeStep() as it might have been changed in the previous time step due to BR<->kin switch
+  dt_Min(DT_MIN) = BRTimeStepBackup
+  ! Adjust the time step when BR electron fluid is active. Usually BR electron time step is XX times larger than the fully kinetic
+  IF(UseBRElectronFluid) dt_Min(DT_MIN) = BRTimeStepMultiplier*dt_Min(DT_MIN)
 #endif /*defined(PARTICLES) && USE_HDG*/
 
   dt_Min(DT_ANALYZE) = tAnalyze-time ! Time to next analysis, put in extra variable so number does not change due to numerical errors
