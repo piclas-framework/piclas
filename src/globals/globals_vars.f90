@@ -34,6 +34,7 @@ REAL                       :: WallTime                             !> Wall time 
 REAL                       :: InitializationWallTime               !> Wall time needed to initialize a simulation (or
                                                                    !> re-initialize a simulation by performing a load balance
                                                                    !>  step)
+REAL                       :: ReadMeshWallTime                     !> Wall time needed to read the mesh (SUBROUTINE ReadMesh)
 REAL                       :: SimulationEfficiency                 !> relates the simulated time to the used CPUh (SIMULATION TIME PER
                                                                    !> CALCULATION in [s]/[CPUh])
 REAL                       :: PID                                  !> Performance index: (CalcTimeEnd-CalcTimeStart)*nProcessors/

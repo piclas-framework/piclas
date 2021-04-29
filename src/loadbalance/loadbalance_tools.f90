@@ -75,7 +75,7 @@ REAL,ALLOCATABLE               :: WeightSum_proc(:)
 INTEGER                        :: iProc
 INTEGER                        :: iElem
 !===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_StdOut,'(132("."))')
 SWRITE(UNIT_stdOut,'(A)')' DOMAIN DECOMPOSITION ...'
 !simple partition: nGlobalelems/nprocs, do this on proc 0
 ALLOCATE(offsetElemMPI(0:nProcessors))
@@ -200,7 +200,6 @@ ELSE
   MinWeight = -1.
 END IF
 SWRITE(UNIT_stdOut,'(A)')' DOMAIN DECOMPOSITION DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE DomainDecomposition
 
 
