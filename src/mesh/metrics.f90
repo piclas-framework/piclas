@@ -132,7 +132,7 @@ SUBROUTINE CalcMetrics(XCL_NGeo_Out,dXCL_NGeo_out)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars          ,ONLY: NGeo,NGeoRef
+USE MOD_Mesh_Vars          ,ONLY: NGeo,NGeoRef,nGlobalElems
 USE MOD_Mesh_Vars          ,ONLY: sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,crossProductMetrics
 USE MOD_Mesh_Vars          ,ONLY: Face_xGP,normVec,surfElem,TangVec1,TangVec2
 USE MOD_Mesh_Vars          ,ONLY: nElems,dXCL_N
@@ -190,6 +190,8 @@ REAL    :: xiCL_NGeo(0:NGeo)   ,wBaryCL_NGeo(0:NGeo)
 REAL               :: StartT,EndT
 LOGICAL            :: meshCheckRef
 REAL,ALLOCATABLE   :: scaledJacRef(:,:,:)
+REAL               :: SmallestscaledJacRef
+REAL,PARAMETER     :: scaledJacRefTol=0.01
 !===================================================================================================================================
 
 StartT=PICLASTIME()
@@ -230,6 +232,7 @@ CALL GetNodesAndWeights(NGeo   , NodeTypeCL  , XiCL_NGeo  , wIPBary=wBaryCL_NGeo
 ! Outer loop over all elements
 DetJac_Ref=0.
 dXCL_N=0.
+SmallestscaledJacRef=HUGE(1.)
 DO iElem=1,nElems
   !1.a) Transform from EQUI_Ngeo to CL points on Ngeo and N
   CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_EQNGeo_CLNGeo,NodeCoords(:,:,:,:,iElem)            ,XCL_Ngeo)
@@ -264,7 +267,8 @@ DO iElem=1,nElems
     ALLOCATE(scaledJacRef(0:NGeoRef,0:NGeoRef,0:NGeoRef))
     DO k=0,NGeoRef; DO j=0,NGeoRef; DO i=0,NGeoRef
       scaledJacRef(i,j,k)=DetJac_Ref(1,i,j,k,iElem)/MAXVAL(DetJac_Ref(1,:,:,:,iElem))
-      IF(scaledJacRef(i,j,k).LT.0.01) THEN
+      SmallestscaledJacRef=MIN(SmallestscaledJacRef,scaledJacRef(i,j,k))
+      IF(scaledJacRef(i,j,k).LT.scaledJacRefTol) THEN
         WRITE(Unit_StdOut,*) 'Too small scaled Jacobians found (CL/Gauss):', scaledJacRef(i,j,k)
         WRITE(Unit_StdOut,*) 'Coords near:', Elem_xGP(:,INT(PP_N/2),INT(PP_N/2),INT(PP_N/2),iElem)
         WRITE(Unit_StdOut,*) 'This check is optional. You can disable it by setting meshCheckRef = F'
@@ -388,6 +392,17 @@ DO iElem=1,nElems
   IF(PRESENT(XCL_Ngeo_Out))   XCL_Ngeo_Out(1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)= XCL_Ngeo(1:3,0:Ngeo,0:Ngeo,0:Ngeo)
   IF(PRESENT(dXCL_ngeo_out)) dXCL_Ngeo_Out(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)=dXCL_Ngeo(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo)
 END DO !iElem=1,nElems
+
+! Communicate smallest ref. Jacobian and display
+#if USE_MPI
+IF(MPIroot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE , SmallestscaledJacRef , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_WORLD , iError)
+ELSE
+  CALL MPI_REDUCE(SmallestscaledJacRef   , 0          , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_WORLD , iError)
+END IF
+#endif /*USE_MPI*/
+SWRITE (*,'(A,ES18.10E3,A,I0,A,ES13.5E3)') " Smallest scaled Jacobian in reference system: ",SmallestscaledJacRef,&
+    " (",nGlobalElems," global elements). Abort threshold is set to:", scaledJacRefTol
 
 endt=PICLASTIME()
 SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT,'s]'
