@@ -58,8 +58,6 @@ CHARACTER(255)        :: IMDCutOff                                           ! c
                                                                              !                                      2.) Epot
                                                                              !                                      3.) coordinates
                                                                              !                                      4.) velocity
-INTEGER               :: WeirdElems                                          ! Number of Weird Elements (=Elements which are folded
-                                                                             ! into themselves)
 REAL    , ALLOCATABLE :: PartState(:,:)                                      ! 1st index: x,y,z,vx,vy,vz
 !                                                                            ! 2nd index: 1:NParts
 REAL    , ALLOCATABLE :: PartPosRef(:,:)                                     ! (1:3,1:NParts) particles pos mapped to -1|1 space
