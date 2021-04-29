@@ -130,19 +130,19 @@ INTEGER               :: iRegions
 REAL                  :: phimax_tmp
 !===================================================================================================================================
 !-- Read parameters for region mapping
-NbrOfRegions = GETINT('NbrOfRegions','0')
+BRNbrOfRegions = GETINT('BRNbrOfRegions','0')
 UseBRElectronFluid = .FALSE. ! Initialize
-IF (NbrOfRegions .GT. 0) THEN
+IF (BRNbrOfRegions .GT. 0) THEN
   UseBRElectronFluid = .TRUE.
-  ALLOCATE(RegionBounds(1:6,1:NbrOfRegions))
-  DO iRegions=1,NbrOfRegions
+  ALLOCATE(RegionBounds(1:6,1:BRNbrOfRegions))
+  DO iRegions=1,BRNbrOfRegions
     WRITE(UNIT=hilf2,FMT='(I0)') iRegions
     RegionBounds(1:6,iRegions) = GETREALARRAY('RegionBounds'//TRIM(hilf2),6,'0. , 0. , 0. , 0. , 0. , 0.')
   END DO
 
   CALL MapBRRegionToElem()
-  ALLOCATE(RegionElectronRef(1:3,1:NbrOfRegions))
-  DO iRegions=1,NbrOfRegions
+  ALLOCATE(RegionElectronRef(1:3,1:BRNbrOfRegions))
+  DO iRegions=1,BRNbrOfRegions
     WRITE(UNIT=hilf2,FMT='(I0)') iRegions
     ! 1:3 - rho_ref, phi_ref, and Te[eV]
     RegionElectronRef(1:3,iRegions) = GETREALARRAY('Part-RegionElectronRef'//TRIM(hilf2),3,'0. , 0. , 1.')
@@ -386,7 +386,7 @@ ASSOCIATE( tBR2Kin => BRConvertFluidToElectronsTime ,&
       write(*,*) ""
       read*
      END IF ! debug
-     IF(NbrOfRegions.EQ.0) CALL abort(__STAMP__,'SwitchBRElectronModel(): Cannot switch [kin -> BR] as no BR regions are defined!')
+     IF(BRNbrOfRegions.EQ.0) CALL abort(__STAMP__,'SwitchBRElectronModel(): Cannot switch [kin -> BR] as no BR regions are defined!')
       CALL RemoveAllElectrons()    ! Remove all electron particles from the simulation
       CALL Elem_Mat(iter)          ! Recompute elem matrices
       UseBRElectronFluid = .TRUE.  ! Activate BR fluid
@@ -655,7 +655,7 @@ SUBROUTINE MapBRRegionToElem()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_HDG_Vars           ,ONLY: NbrOfRegions, RegionBounds,ElemToBRRegion
+USE MOD_HDG_Vars           ,ONLY: BRNbrOfRegions, RegionBounds,ElemToBRRegion
 USE MOD_Mesh_Vars          ,ONLY: ElemBaryNGeo
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -671,7 +671,7 @@ ALLOCATE(ElemToBRRegion(1:PP_nElems))
 ElemToBRRegion=0
 
 DO iElem=1,PP_nElems
-  DO iRegions=1,NbrOfRegions
+  DO iRegions=1,BRNbrOfRegions
     IF ((ElemBaryNGeo(1,iElem).LT.RegionBounds(1,iRegions)).OR.(ElemBaryNGEO(1,iElem).GE.RegionBounds(2,iRegions))) CYCLE
     IF ((ElemBaryNGeo(2,iElem).LT.RegionBounds(3,iRegions)).OR.(ElemBaryNGEO(2,iElem).GE.RegionBounds(4,iRegions))) CYCLE
     IF ((ElemBaryNGeo(3,iElem).LT.RegionBounds(5,iRegions)).OR.(ElemBaryNGEO(3,iElem).GE.RegionBounds(6,iRegions))) CYCLE
@@ -680,7 +680,7 @@ DO iElem=1,PP_nElems
     ELSE
       CALL ABORT(__STAMP__,'Defined regions are overlapping')
     END IF
-  END DO ! iRegions=1,NbrOfRegions
+  END DO ! iRegions=1,BRNbrOfRegions
 END DO ! iElem=1,PP_nElems
 END SUBROUTINE MapBRRegionToElem
 

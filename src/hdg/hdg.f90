@@ -78,9 +78,9 @@ CALL prms%CreateLogicalOption('HDGDisplayConvergence'  ,'Display divergence crit
 
 
 ! --- BR electron fluid
-CALL prms%CreateIntOption(      'NbrOfRegions'                , 'Number of regions to be mapped to Elements', '0')
+CALL prms%CreateIntOption(      'BRNbrOfRegions'                , 'Number of regions to be mapped to Elements', '0')
 CALL prms%CreateRealArrayOption('RegionBounds[$]'             , 'RegionBounds ((xmin,xmax,ymin,...)'//&
-                                                                '|1:NbrOfRegions)'&
+                                                                '|1:BRNbrOfRegions)'&
                                                                 , '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'rho_ref, phi_ref, and Te[eV] for Region#'&
                                                               , '0. , 0. , 1.', numberedmulti=.TRUE.)
@@ -125,7 +125,7 @@ USE MOD_Mesh_Vars          ,ONLY: DoSwapMesh
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_Basis              ,ONLY: InitializeVandermonde,LegendreGaussNodesAndWeights,BarycentricWeights
 USE MOD_FillMortar_HDG     ,ONLY: InitMortar_HDG
-USE MOD_HDG_Vars           ,ONLY: NbrOfRegions,ElemToBRRegion,RegionElectronRef
+USE MOD_HDG_Vars           ,ONLY: BRNbrOfRegions,ElemToBRRegion,RegionElectronRef
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -161,7 +161,7 @@ END IF
 HDGNonLinSolver = -1 ! init
 
 ! BR electron fluid model
-IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far -> non-linear HDG-sources!
+IF (BRNbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far -> non-linear HDG-sources!
   HDGNonLinSolver=GETINT('HDGNonLinSolver')
 
   IF (HDGNonLinSolver.EQ.1) THEN
