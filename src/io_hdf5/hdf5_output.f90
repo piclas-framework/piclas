@@ -122,9 +122,9 @@ USE MOD_PICInterpolation_Vars  ,ONLY: useAlgebraicExternalField,AlgebraicExterna
 USE MOD_Analyze_Vars           ,ONLY: AverageElectricPotential
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
 USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid
-USE MOD_Particle_Analyze       ,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronIonDensity,CalcElectronTemperature
-USE MOD_Particle_Analyze       ,ONLY: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
+USE MOD_Particle_Analyze_Tools ,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
+USE MOD_Particle_Analyze_Tools ,ONLY: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
