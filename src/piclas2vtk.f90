@@ -102,6 +102,8 @@ CALL prms%CreateStringOption( 'NodeTypeVisu',"Node type of the visualization bas
 CALL prms%CreateIntOption(    'NVisu',       "Number of points at which solution is sampled for visualization.")
 CALL prms%CreateLogicalOption('VisuParticles',  "Visualize particles (velocity, species, internal energy).", '.FALSE.')
 CALL prms%CreateIntOption(    'TimeStampLength', 'Length of the floating number time stamp', '21')
+CALL prms%CreateLogicalOption( 'meshCheckWeirdElements'&
+  , 'Abort when weird elements are found: it means that part of the element is turned inside-out. ','.TRUE.')
 CALL DefineParametersIO()
 CALL DefineParametersMesh()
 CALL DefineParametersInterpolation()
@@ -172,7 +174,7 @@ IF(NVisuDefault.OR.CmdLineMode) THEN
   IF(NVisuDefault) THEN
     NVisu = 1
       ! Since we are not reading a parameter file, some properties of the prms object need to be set
-    prms%maxNameLen  = 13 ! gatheredWrite is the longest option
+    prms%maxNameLen  = 25 ! meshCheckWeirdElements is the longest option
     prms%maxValueLen = 23 ! CHEBYSHEV-GAUSS-LOBATTO is the longest possible value
   ELSE IF(CmdLineMode) THEN
     ! Read NVisu from the first command line argument
