@@ -94,6 +94,9 @@ CALL prms%CreateLogicalOption( 'CartesianPeriodic'&
 CALL prms%CreateLogicalOption( 'FastPeriodic'&
   , ' Further simplification by directly moving particle into grid. Instead of moving the particle several times the periodic'//&
     ' displacements, the particle is mapped directly back into the domain. ','.FALSE.')
+CALL prms%CreateLogicalOption( 'meshCheckWeirdElements'&
+  , 'Abort when weird elements are found: it means that part of the element is turned inside-out. ','.TRUE.')
+
 CALL prms%CreateIntOption(     'RefMappingGuess'&
   , ' Initial guess of the Newton for mapping the particle into reference coordinates.\n'//&
     '1 -linear pseudo-Cartesian coordinates\n'//&
@@ -354,8 +357,10 @@ SELECT CASE(TrackingMethod)
 
     IF (DoDeposition) CALL BuildEpsOneCell()
 
-CASE(TRACING,REFMAPPING)
+  CASE(TRACING,REFMAPPING)
+    ! ElemMidPoint_Shared required
     IF(TriaSurfaceFlux.OR.TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitParticleGeometry()
+    ! ElemNodeID_Shared required
     IF(FindNeighbourElems) CALL InitElemNodeIDs()
 
 !    CALL CalcParticleMeshMetrics()

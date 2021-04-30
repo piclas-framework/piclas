@@ -351,6 +351,8 @@ TYPE (tGeometry)                         :: GEO
 
 INTEGER                                  :: WeirdElems                        ! Number of Weird Elements (=Elements which are folded
                                                                               ! into themselves)
+LOGICAL                                  :: meshCheckWeirdElements            ! Flag for checking if elements are turned inside out
+!                                                                             ! (default=F)
 LOGICAL                                  :: FindNeighbourElems=.FALSE.        ! Flag defining if mapping for neighbour elements
                                                                               ! is built via nodes
 INTEGER                                  :: NbrOfRegions      ! Nbr of regions to be mapped to Elems
