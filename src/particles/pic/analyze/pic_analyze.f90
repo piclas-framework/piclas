@@ -25,12 +25,15 @@ INTERFACE CalcDepositedCharge
   MODULE PROCEDURE CalcDepositedCharge
 END INTERFACE
 
+#if USE_HDG
 INTERFACE CalculateBRElectronsPerCell
   MODULE PROCEDURE CalculateBRElectronsPerCell
 END INTERFACE
 
+PUBLIC:: CalculateBRElectronsPerCell
+#endif /*USE_HDG*/
 
-PUBLIC:: VerifyDepositedCharge, CalcDepositedCharge, CalculateBRElectronsPerCell
+PUBLIC:: VerifyDepositedCharge, CalcDepositedCharge
 !===================================================================================================================================
 
 CONTAINS
@@ -231,20 +234,22 @@ END IF
 
 END SUBROUTINE CalcDepositedCharge
 
+
+#if USE_HDG
 SUBROUTINE CalculateBRElectronsPerCell(iElem,RegionID,ElectronNumberCell)
 !===================================================================================================================================
 ! calcs integrated (physical) number of BR electrons in cell
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,         ONLY:ElementaryCharge
+USE MOD_Globals_Vars       ,ONLY: ElementaryCharge
 USE MOD_Preproc
-USE MOD_Mesh_Vars,            ONLY:sJ
-USE MOD_Interpolation_Vars,   ONLY:wGP
-USE MOD_Particle_Vars,        ONLY:RegionElectronRef
-#if ((USE_HDG) && (PP_nVar==1))
-USE MOD_DG_Vars,              ONLY:U
+USE MOD_Mesh_Vars          ,ONLY: sJ
+USE MOD_Interpolation_Vars ,ONLY: wGP
+#if PP_nVar==1
+USE MOD_DG_Vars            ,ONLY: U
 #endif
+USE MOD_HDG_Vars           ,ONLY: RegionElectronRef
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -262,7 +267,7 @@ REAL              :: source_e
 ElectronNumberCell=0.
 J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
 DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-#if ((USE_HDG) && (PP_nVar==1))
+#if PP_nVar==1
   source_e = U(1,i,j,k,iElem)-RegionElectronRef(2,RegionID)
 #else
   CALL abort(&
@@ -281,6 +286,7 @@ END DO; END DO; END DO
 ElectronNumberCell=ElectronNumberCell/ElementaryCharge
 
 END SUBROUTINE CalculateBRElectronsPerCell
+#endif /*USE_HDG*/
 
 
 END MODULE MOD_PIC_Analyze

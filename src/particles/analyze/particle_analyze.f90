@@ -22,36 +22,8 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE InitParticleAnalyze
-  MODULE PROCEDURE InitParticleAnalyze
-END INTERFACE
-
-INTERFACE FinalizeParticleAnalyze
-  MODULE PROCEDURE FinalizeParticleAnalyze
-END INTERFACE
-
 INTERFACE AnalyzeParticles
   MODULE PROCEDURE AnalyzeParticles
-END INTERFACE
-
-INTERFACE CalcShapeEfficiencyR
-  MODULE PROCEDURE CalcShapeEfficiencyR
-END INTERFACE
-
-INTERFACE CalcPowerDensity
-  MODULE PROCEDURE CalcPowerDensity
-END INTERFACE
-
-INTERFACE PARTISELECTRON
-  MODULE PROCEDURE PARTISELECTRON
-END INTERFACE
-
-INTERFACE SPECIESISELECTRON
-  MODULE PROCEDURE SPECIESISELECTRON
-END INTERFACE
-
-INTERFACE CalculatePartElemData
-  MODULE PROCEDURE CalculatePartElemData
 END INTERFACE
 
 INTERFACE WriteParticleTrackingData
@@ -71,13 +43,13 @@ INTERFACE CalcAnalyticalParticleState
 END INTERFACE
 #endif /*CODE_ANALYZE*/
 
-PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
-PUBLIC:: AnalyzeParticles, PARTISELECTRON, SPECIESISELECTRON
-PUBLIC:: CalcPowerDensity
-PUBLIC:: CalculatePartElemData
-PUBLIC:: WriteParticleTrackingData
+PUBLIC :: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
+PUBLIC :: AnalyzeParticles
+PUBLIC :: CalcPowerDensity
+PUBLIC :: CalculatePartElemData
+PUBLIC :: WriteParticleTrackingData
 #ifdef CODE_ANALYZE
-PUBLIC:: AnalyticParticleMovement,CalcAnalyticalParticleState
+PUBLIC :: AnalyticParticleMovement,CalcAnalyticalParticleState
 #endif /*CODE_ANALYZE*/
 PUBLIC :: CalcCoupledPowerPart
 !===================================================================================================================================
@@ -215,6 +187,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared_Win
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared_Win
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars             ,ONLY: ElemBaryNGeo
+USE MOD_Particle_Analyze_Tools,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -538,34 +511,12 @@ END IF
 ! Electron Density
 CalcElectronIonDensity   = GETLOGICAL('CalcElectronIonDensity','.FALSE.')
 IF(CalcDebyeLength.OR.CalcPlasmaFrequency.OR.CalcIonizationDegree) CalcElectronIonDensity=.TRUE.
-IF(CalcElectronIonDensity) THEN
-  ! electrons
-  ALLOCATE( ElectronDensityCell(1:PP_nElems) )
-  ElectronDensityCell=0.0
-  CALL AddToElemData(ElementOut,'ElectronDensityCell',RealArray=ElectronDensityCell(1:PP_nElems))
-  ! ions
-  ALLOCATE( IonDensityCell(1:PP_nElems) )
-  IonDensityCell=0.0
-  CALL AddToElemData(ElementOut,'IonDensityCell',RealArray=IonDensityCell(1:PP_nElems))
-  ! neutrals
-  ALLOCATE( NeutralDensityCell(1:PP_nElems) )
-  NeutralDensityCell=0.0
-  CALL AddToElemData(ElementOut,'NeutralDensityCell',RealArray=NeutralDensityCell(1:PP_nElems))
-  ! charge number
-  ALLOCATE( ChargeNumberCell(1:PP_nElems) )
-  ChargeNumberCell=0.0
-  CALL AddToElemData(ElementOut,'ChargeNumberCell',RealArray=ChargeNumberCell(1:PP_nElems))
-END IF
+IF(CalcElectronIonDensity) CALL AllocateElectronIonDensityCell()
 
 ! Electron Temperature
 CalcElectronTemperature   = GETLOGICAL('CalcElectronTemperature','.FALSE.')
 IF(CalcDebyeLength.OR.CalcPlasmaFrequency.OR.CalcPICCFLCondition) CalcElectronTemperature=.TRUE.
-IF(CalcElectronTemperature)THEN
-  !ElectronTemperatureIsMaxwell=GETLOGICAL('ElectronTemperatureIsMaxwell','.TRUE.')
-  ALLOCATE( ElectronTemperatureCell(1:PP_nElems) )
-  ElectronTemperatureCell=0.0
-  CALL AddToElemData(ElementOut,'ElectronTemperatureCell',RealArray=ElectronTemperatureCell(1:PP_nElems))
-END IF
+IF(CalcElectronTemperature) CALL AllocateElectronTemperatureCell()
 !--------------------------------------------------------------------------------------------------------------------
 ! PartAnalyzeStep: The interval for the particle analyze output routines (write-out into PartAnalyze.csv)
 !             = 1: Analyze and output every time step
@@ -3254,241 +3205,6 @@ END DO
 END SUBROUTINE CalcPowerDensity
 
 
-PURE FUNCTION PARTISELECTRON(PartID)
-!===================================================================================================================================
-! check if particle is an electron (species-charge = -1.609)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: PartID
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL            :: PARTISELECTRON  !
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER            :: SpeciesID
-!===================================================================================================================================
-PARTISELECTRON=.FALSE.
-SpeciesID = PartSpecies(PartID)
-IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
-IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) PARTISELECTRON=.TRUE.
-END FUNCTION PARTISELECTRON
-
-
-PURE FUNCTION SPECIESISELECTRON(SpeciesID)
-!===================================================================================================================================
-! check if species is an electron (species-charge = -1.609)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: Species
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: SpeciesID
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL            :: SPECIESISELECTRON  !
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-SPECIESISELECTRON=.FALSE.
-IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
-IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) SPECIESISELECTRON=.TRUE.
-END FUNCTION SPECIESISELECTRON
-
-
-SUBROUTINE CalculateElectronIonDensityCell()
-!===================================================================================================================================
-! Count the number of electrons per DG cell and divide it by element-volume
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY:ElementaryCharge
-USE MOD_Particle_Mesh_Vars     ,ONLY:GEO,NbrOfRegions
-USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
-USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,PEM,usevMPF
-USE MOD_Preproc
-USE MOD_PIC_Analyze            ,ONLY:CalculateBRElectronsPerCell
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_Part_Tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
-USE MOD_Mesh_Vars              ,ONLY: offSetElem
-USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER              :: iPart,iElem,RegionID
-REAL                 :: charge, MPF
-!===================================================================================================================================
-
-! nullify
-ElectronDensityCell=0.
-     IonDensityCell=0.
- NeutralDensityCell=0.
-   ChargeNumberCell=0.
-
-! loop over all particles and count the number of electrons per cell
-! CAUTION: we need the number of all real particle instead of simulated particles
-DO iPart=1,PDM%ParticleVecLength
-  IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    MPF = GetParticleWeight(iPart)
-  ELSE
-    MPF = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
-  END IF
-  ASSOCIATE ( &
-    ElemID  => PEM%LocalElemID(iPart)                              )  ! Element ID
-    ASSOCIATE ( &
-      n_e    => ElectronDensityCell(ElemID),& ! Electron density (cell average)
-      n_i    => IonDensityCell(ElemID)     ,& ! Ion density (cell average)
-      n_n    => NeutralDensityCell(ElemID) ,& ! Neutral density (cell average)
-      Z      => ChargeNumberCell(ElemID)   )  ! Charge number (cell average)
-      charge = Species(PartSpecies(iPart))%ChargeIC/ElementaryCharge
-      IF(PARTISELECTRON(iPart))THEN ! electrons
-        n_e = n_e + MPF
-      ELSEIF(ABS(charge).GT.0.0)THEN ! ions (positive or negative)
-        n_i = n_i + MPF
-        Z   = Z   + charge*MPF
-      ELSE ! neutrals
-        n_n  = n_n + MPF
-      END IF
-    END ASSOCIATE
-  END ASSOCIATE
-END DO ! iPart
-IF (NbrOfRegions .GT. 0) THEN !check for BR electrons
-  DO iElem=1,PP_nElems
-    RegionID=GEO%ElemToRegion(iElem)
-    IF (RegionID.GT.0) THEN
-      IF (ElectronDensityCell(iElem).NE.0.) CALL abort(&
-__STAMP__&
-,'Mixed BR and kinetic electrons are not implemented in CalculateElectronIonDensityCell yet!')
-      CALL CalculateBRElectronsPerCell(iElem,RegionID,ElectronDensityCell(iElem))
-    END IF
-  END DO ! iElem=1,PP_nElems
-END IF
-
-! loop over all elements and divide by volume
-DO iElem=1,PP_nElems
-  ElectronDensityCell(iElem)=ElectronDensityCell(iElem)/ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
-       IonDensityCell(iElem)=IonDensityCell(iElem)     /ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
-   NeutralDensityCell(iElem)=NeutralDensityCell(iElem) /ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
-END DO ! iElem=1,PP_nElems
-
-END SUBROUTINE CalculateElectronIonDensityCell
-
-
-SUBROUTINE CalculateElectronTemperatureCell()
-!===================================================================================================================================
-! Count the number of electrons per DG cell and divide it by element-volume
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElectronMass,ElementaryCharge
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,NbrOfRegions
-USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars  ,ONLY: ElectronTemperatureCell
-USE MOD_Particle_Vars          ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartState,RegionElectronRef
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_part_tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER :: iPart,iElem,ElemID,Method,RegionID
-REAL    :: nElectronsPerCell(1:PP_nElems)
-REAL    ::  PartVandV2(1:PP_nElems,1:6)
-REAL    :: Mean_PartV2(1:3)
-REAL    :: MeanPartV_2(1:3)
-REAL    ::   TempDirec(1:3)
-REAL    :: WeightingFactor
-!===================================================================================================================================
-IF (NbrOfRegions .GT. 0) THEN ! check for BR electrons
-  DO iElem=1,PP_nElems
-    RegionID=GEO%ElemToRegion(iElem)
-    IF (RegionID.GT.0) THEN
-      ElectronTemperatureCell(iElem) = RegionElectronRef(3,RegionID)*ElementaryCharge/BoltzmannConst ! convert eV to K
-    END IF
-  END DO ! iElem=1,PP_nElems
-  RETURN ! Mixed BR and kinetic electrons are not implemented yet!
-END IF
-
-! nullify
-ElectronTemperatureCell=0.
-nElectronsPerCell      =0.
-
-! hard-coded
-Method=1 ! 0: <E> = (3/2)*<k_B*T> (keeps drift velocity, hence, over-estimates the temperature when drift becomes important)
-!        ! 1: remove drift from temperature calculation
-
-PartVandV2 = 0.
-! 1.   loop over all particles and sum-up the electron energy per cell and count the number of electrons per cell
-DO iPart=1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart))THEN
-    IF(.NOT.PARTISELECTRON(iPart)) CYCLE  ! ignore anything that is not an electron
-    ElemID                      = PEM%LocalElemID(iPart)
-    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-      WeightingFactor = GetParticleWeight(iPart)
-    ELSE
-      WeightingFactor = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
-    END IF
-    nElectronsPerCell(ElemID) = nElectronsPerCell(ElemID) + WeightingFactor
-    ! Determine velocity or kinetic energy
-    SELECT CASE(Method)
-    CASE(0) ! 1.0   for distributions where the drift is negligible
-      ElectronTemperatureCell(ElemID) = ElectronTemperatureCell(ElemID)+CalcEkinPart(iPart)
-    CASE(1) ! 1.1   remove drift from distribution
-      PartVandV2(ElemID,1:3) = PartVandV2(ElemID,1:3) + PartState(4:6,iPart)    * WeightingFactor
-      PartVandV2(ElemID,4:6) = PartVandV2(ElemID,4:6) + PartState(4:6,iPart)**2 * WeightingFactor
-    END SELECT
-  END IF ! ParticleInside
-END DO ! iPart
-
-! 2.   loop over all elements and divide by electrons per cell to get average kinetic energy
-SELECT CASE(Method)
-CASE(0) ! 2.0   for distributions where the drift is negligible
-  DO iElem=1,PP_nElems
-    IF(nElectronsPerCell(iElem).GT.0.) THEN
-      ! <E> = (3/2)*<k_B*T>
-      ElectronTemperatureCell(iElem)  = 2.*ElectronTemperatureCell(iElem)/(3.*nElectronsPerCell(iElem)*BoltzmannConst)
-    END IF
-  END DO ! iElem=1,PP_nElems
-CASE(1) ! 2.1   remove drift from distribution
-  DO iElem=1,PP_nElems
-    IF(nElectronsPerCell(iElem).LT.2.) THEN ! only calculate the temperature when more than one electron are present
-      ElectronTemperatureCell(iElem) = 0.0
-    ELSE
-      ! Compute velocity averages
-      MeanPartV_2(1:3)  = (PartVandV2(iElem,1:3) / nElectronsPerCell(iElem))**2 ! < |v| >**2
-      Mean_PartV2(1:3)  =  PartVandV2(iElem,4:6) / nElectronsPerCell(iElem)     ! < |v|**2 >
-      ! Compute temperatures
-      TempDirec(1:3) = ElectronMass * (Mean_PartV2(1:3) - MeanPartV_2(1:3)) / BoltzmannConst
-      ElectronTemperatureCell(iElem) = (TempDirec(1) + TempDirec(2) + TempDirec(3))/3.0
-      IF(ElectronTemperatureCell(iElem).LT.0.0)THEN
-        ElectronTemperatureCell(iElem)=0.0
-      END IF
-    END IF
-  END DO
-END SELECT
-
-END SUBROUTINE CalculateElectronTemperatureCell
 
 
 SUBROUTINE CalculatePlasmaFrequencyCell()
@@ -3844,9 +3560,10 @@ SUBROUTINE CalculatePartElemData()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Analyze_Vars  ,ONLY:CalcPlasmaFrequency,CalcPICTimeStep,CalcElectronIonDensity
-USE MOD_Particle_Analyze_Vars  ,ONLY:CalcElectronTemperature,CalcDebyeLength,CalcIonizationDegree,CalcPointsPerDebyeLength
-USE MOD_Particle_Analyze_Vars  ,ONLY:CalcPlasmaParameter,CalcPICCFLCondition,CalcMaxPartDisplacement
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaFrequency,CalcPICTimeStep,CalcElectronIonDensity
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronTemperature,CalcDebyeLength,CalcIonizationDegree,CalcPointsPerDebyeLength
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaParameter,CalcPICCFLCondition,CalcMaxPartDisplacement
+USE MOD_Particle_Analyze_Tools ,ONLY: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
