@@ -76,6 +76,8 @@ CALL prms%CreateRealOption(    'meshScale',           "Scale the mesh by this fa
                                                       '1.0')
 CALL prms%CreateLogicalOption( 'meshdeform',          "Apply simple sine-shaped deformation on cartesion mesh (for testing).",&
                                                       '.FALSE.')
+CALL prms%CreateLogicalOption( 'meshCheckRef',        "Flag if the mesh Jacobians should be checked in the reference system in "//&
+                                                      "addition to the computational system.",'.TRUE.')
 CALL prms%CreateLogicalOption( 'CalcMeshInfo',        'Calculate and output elem data for myrank, ElemID and tracking info to '//&
                                                       'ElemData',&
                                                       '.FALSE.')

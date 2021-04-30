@@ -139,6 +139,9 @@ USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
 USE MOD_DSMC_SpecXSec           ,ONLY: MCC_Chemistry_Init
+#if USE_HDG
+USE MOD_HDG_Vars                ,ONLY: UseBRElectronFluid
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -148,7 +151,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=3)      :: hilf
-INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit, iCase, iCase2, ReacIndexCounter
+INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit, iCase, iCase2, iProd, ReacIndexCounter
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
 LOGICAL               :: DoScat, RecombAdded
 REAL                  :: BGGasEVib, PhotonEnergy, omega, ChargeProducts, ChargeReactants
@@ -493,7 +496,15 @@ ChemReac%CollCaseInfo(:)%NumOfReactionPaths = 0
 
 DO iCase = 1, CollInf%NumCase
   RecombAdded = .FALSE.
-  DO iReac = 1, ChemReac%NumOfReact
+  REACLOOP: DO iReac = 1, ChemReac%NumOfReact
+#if USE_HDG
+    ! Skip reactions involving electrons as products
+    IF(UseBRElectronFluid) THEN
+      DO iProd = 1,4
+        IF(SpecDSMC(ChemReac%Products(iReac,iProd))%InterID.EQ.4) CYCLE REACLOOP
+      END DO
+    END IF
+#endif /*USE_HDG*/
     ! Skip the special case of photo ionization
     IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
     iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
@@ -508,7 +519,7 @@ DO iCase = 1, CollInf%NumCase
       END IF
       ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths = ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths + 1
     END IF
-  END DO
+  END DO REACLOOP
 END DO
 
 DO iCase = 1, CollInf%NumCase
@@ -520,7 +531,15 @@ DO iCase = 1, CollInf%NumCase
   ChemReac%CollCaseInfo(iCase)%HasXSecReaction    = .FALSE.
   ReacIndexCounter = 0
   RecombAdded = .FALSE.
-  DO iReac = 1, ChemReac%NumOfReact
+  REACLOOP2: DO iReac = 1, ChemReac%NumOfReact
+#if USE_HDG
+    ! Skip reactions involving electrons as products
+    IF(UseBRElectronFluid) THEN
+      DO iProd = 1,4
+        IF(SpecDSMC(ChemReac%Products(iReac,iProd))%InterID.EQ.4) CYCLE REACLOOP2
+      END DO
+    END IF
+#endif /*USE_HDG*/
     ! Skip the special case of photo ionization
     IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
     iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
@@ -547,7 +566,7 @@ DO iCase = 1, CollInf%NumCase
         END IF
       END IF
     END IF
-  END DO
+  END DO REACLOOP2
 END DO
 
 IF(ChemReac%AnyXSecReaction) THEN

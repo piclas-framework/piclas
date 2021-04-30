@@ -108,7 +108,7 @@ REAL,ALLOCATABLE              :: MaxPartDisplacementCellY(:)         !< Maximum 
 REAL,ALLOCATABLE              :: MaxPartDisplacementCellZ(:)         !< Maximum particle displacement in Z (cell mean value)
 REAL,ALLOCATABLE              :: PPSCell(:)                          !< Points per shape function sphere (cell mean value):
                                                                      !<   calculate cell local number excluding neighbor DOFs
-REAL,ALLOCATABLE              :: PPSCellEqui(:)                      !< Points per shape function sphere (cell mean value):
+REAL,ALLOCATABLE              :: PPSCellCartesian(:)                 !< Points per shape function sphere (cell mean value):
                                                                      !<   assume Cartesian grid and calculate to total number
                                                                      !<   including neighbor DOFs
 REAL,ALLOCATABLE              :: ShapeFunctionRadius(:)              !< Additional array (shape function radius is already stored in

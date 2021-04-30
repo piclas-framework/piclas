@@ -93,9 +93,9 @@ SUBROUTINE InitDepositionMethod()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools            ,ONLY: GETINTFROMSTR
-USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf,dim_sf,dim_sf_dir,SFAdaptiveSmoothing,alpha_sf,sfDepo3D
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_ReadInTools            ,ONLY: GETREAL,PrintOption
+USE MOD_ReadInTools            ,ONLY: GETREAL,PrintOption,GETINT,GETLOGICAL
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -142,10 +142,28 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     ! deposition (all corner node connected elements) and each element has a separate shape function radius. Therefore, the global
     ! radius is set to zero
     r_sf = 0.
-    CALL PrintOption('Global shape fucntion radius is set to zero: PIC-shapefunction-radius' , 'INFO.' , RealOpt=r_sf)
+    CALL PrintOption('Global shape function radius is set to zero: PIC-shapefunction-radius' , 'INFO.' , RealOpt=r_sf)
+    SFAdaptiveSmoothing = GETLOGICAL('PIC-shapefunction-adaptive-smoothing')
   ELSE
     r_sf = GETREAL('PIC-shapefunction-radius')
   END IF ! TRIM(DepositionType).EQ.'shape_function_adaptive'
+
+  ! Get dimension of shape function kernel (distributes in 1, 2 or 3 dimensions)
+  dim_sf   = GETINT('PIC-shapefunction-dimension')
+
+  ! Get shape function direction for 1D (the direction in which the charge will be distributed) and 2D (the direction in which the
+  ! charge will be constant)
+  IF(dim_sf.NE.3) dim_sf_dir = GETINT('PIC-shapefunction-direction')
+
+  ! Get shape function exponent and dimension (1D, 2D or 3D). This parameter is required in InitShapeFunctionDimensionalty()
+  alpha_sf = GETINT('PIC-shapefunction-alpha')
+
+  ! Get deposition parameter, the default is TRUE (3D), that distributes the charge over
+  !  FALSE: line (1D) / area (2D)
+  !   TRUE: volume (3D)
+  sfDepo3D = GETLOGICAL('PIC-shapefunction-3D-deposition')
+  IF((dim_sf.EQ.3).AND.(.NOT.sfDepo3D)) &
+      CALL abort(__STAMP__,'PIC-shapefunction-dimension=F and PIC-shapefunction-3D-deposition=T is not allowed')
 END IF ! StringBeginsWith(DepositionType,'shape_function')
 
 ! Suppress compiler warnings
@@ -177,7 +195,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems, offSetElem
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if ((USE_HDG) && (PP_nVar==1))
-USE MOD_TimeDisc_Vars          ,ONLY: dt,tAnalyzeDiff,tEndDiff
+USE MOD_TimeDisc_Vars          ,ONLY: dt,dt_Min
 #endif
 #if USE_MPI
 USE MOD_PICDepo_Vars       ,ONLY: PartSource_Shared_Win
@@ -216,7 +234,7 @@ INTEGER            :: iPart,iElem
 
 ! Check whether charge and current density have to be computed or just the charge density
 #if ((USE_HDG) && (PP_nVar==1))
-IF(ALMOSTEQUAL(dt,tAnalyzeDiff).OR.ALMOSTEQUAL(dt,tEndDiff))THEN
+IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
   doCalculateCurrentDensity=.TRUE.
   SourceDim=1
 ELSE ! do not calculate current density
@@ -342,7 +360,7 @@ USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
 #if ((USE_HDG) && (PP_nVar==1))
-USE MOD_TimeDisc_Vars      ,ONLY: dt,tAnalyzeDiff,tEndDiff
+USE MOD_TimeDisc_Vars      ,ONLY: dt,dt_Min
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -379,7 +397,7 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 ! Check whether charge and current density have to be computed or just the charge density
 ! For HDG the current density is only required for output to HDF5, i.e., analysis reasons
 #if ((USE_HDG) && (PP_nVar==1))
-IF(ALMOSTEQUAL(dt,tAnalyzeDiff).OR.ALMOSTEQUAL(dt,tEndDiff))THEN
+IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
   doCalculateCurrentDensity=.TRUE.
   SourceDim=1
 ELSE ! do not calculate current density

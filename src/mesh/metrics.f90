@@ -132,18 +132,19 @@ SUBROUTINE CalcMetrics(XCL_NGeo_Out,dXCL_NGeo_out)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars,               ONLY:NGeo,NGeoRef
-USE MOD_Mesh_Vars,               ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,crossProductMetrics
-USE MOD_Mesh_Vars,               ONLY:Face_xGP,normVec,surfElem,TangVec1,TangVec2
-USE MOD_Mesh_Vars,               ONLY:nElems,dXCL_N
-USE MOD_Mesh_Vars,               ONLY:detJac_Ref,Ja_Face
-USE MOD_Mesh_Vars,               ONLY:crossProductMetrics
-USE MOD_Mesh_Vars,               ONLY:NodeCoords,Elem_xGP
-USE MOD_Mesh_Vars,               ONLY:nElems,offSetElem
-USE MOD_Interpolation,           ONLY:GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
-USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
-USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
-USE MOD_Interpolation_Vars,      ONLY:NodeTypeCL,NodeTypeVISU,NodeType
+USE MOD_Mesh_Vars          ,ONLY: NGeo,NGeoRef,nGlobalElems
+USE MOD_Mesh_Vars          ,ONLY: sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,crossProductMetrics
+USE MOD_Mesh_Vars          ,ONLY: Face_xGP,normVec,surfElem,TangVec1,TangVec2
+USE MOD_Mesh_Vars          ,ONLY: nElems,dXCL_N
+USE MOD_Mesh_Vars          ,ONLY: DetJac_Ref,Ja_Face
+USE MOD_Mesh_Vars          ,ONLY: crossProductMetrics
+USE MOD_Mesh_Vars          ,ONLY: NodeCoords,Elem_xGP
+USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem
+USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
+USE MOD_ChangeBasis        ,ONLY: changeBasis3D,ChangeBasis3D_XYZ
+USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
+USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType
+USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -187,8 +188,11 @@ REAL    :: xiCL_N(0:PP_N)   ,wBaryCL_N(0:PP_N)
 REAL    :: xiCL_NGeo(0:NGeo)   ,wBaryCL_NGeo(0:NGeo)
 
 REAL               :: StartT,EndT
+LOGICAL            :: meshCheckRef
+REAL,ALLOCATABLE   :: scaledJacRef(:,:,:)
+REAL               :: SmallestscaledJacRef
+REAL,PARAMETER     :: scaledJacRefTol=0.01
 !===================================================================================================================================
-
 
 StartT=PICLASTIME()
 
@@ -196,7 +200,9 @@ StartT=PICLASTIME()
 Metrics_fTilde=0.
 Metrics_gTilde=0.
 Metrics_hTilde=0.
-!
+
+! Check Jacobians in Ref already (no good if we only go on because N doesn't catch misbehaving points)
+meshCheckRef=GETLOGICAL('meshCheckRef','.TRUE.')
 
 ! Initialize Vandermonde and D matrices
 ! Only use modal Vandermonde for terms that need to be conserved as Jacobian if N_out>PP_N
@@ -224,8 +230,9 @@ CALL GetNodesAndWeights(PP_N   , NodeTypeCL  , xiCL_N  , wIPBary=wBaryCL_N)
 CALL GetNodesAndWeights(NGeo   , NodeTypeCL  , XiCL_NGeo  , wIPBary=wBaryCL_NGeo)
 
 ! Outer loop over all elements
-detJac_Ref=0.
+DetJac_Ref=0.
 dXCL_N=0.
+SmallestscaledJacRef=HUGE(1.)
 DO iElem=1,nElems
   !1.a) Transform from EQUI_Ngeo to CL points on Ngeo and N
   CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_EQNGeo_CLNGeo,NodeCoords(:,:,:,:,iElem)            ,XCL_Ngeo)
@@ -244,18 +251,35 @@ DO iElem=1,nElems
 
   ! 1.c)Jacobians! grad(X_1) (grad(X_2) x grad(X_3))
   ! Compute Jacobian on NGeo and then interpolate:
-  ! required to guarantee conservativity when restarting with N<NGeo
+  ! required to guarantee conservation when restarting with N<NGeo
   CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,1,:,:,:),dX_NgeoRef(:,1,:,:,:))
   CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,2,:,:,:),dX_NgeoRef(:,2,:,:,:))
   CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,3,:,:,:),dX_NgeoRef(:,3,:,:,:))
   DO k=0,NgeoRef; DO j=0,NgeoRef; DO i=0,NgeoRef
-    detJac_Ref(1,i,j,k,iElem)=detJac_Ref(1,i,j,k,iElem) &
+    DetJac_Ref(1,i,j,k,iElem)=DetJac_Ref(1,i,j,k,iElem) &
       + dX_NgeoRef(1,1,i,j,k)*(dX_NgeoRef(2,2,i,j,k)*dX_NgeoRef(3,3,i,j,k) - dX_NgeoRef(3,2,i,j,k)*dX_NgeoRef(2,3,i,j,k))  &
       + dX_NgeoRef(2,1,i,j,k)*(dX_NgeoRef(3,2,i,j,k)*dX_NgeoRef(1,3,i,j,k) - dX_NgeoRef(1,2,i,j,k)*dX_NgeoRef(3,3,i,j,k))  &
       + dX_NgeoRef(3,1,i,j,k)*(dX_NgeoRef(1,2,i,j,k)*dX_NgeoRef(2,3,i,j,k) - dX_NgeoRef(2,2,i,j,k)*dX_NgeoRef(1,3,i,j,k))
   END DO; END DO; END DO !i,j,k=0,NgeoRef
 
-  ! interpolate detJac_ref to the solution points
+  ! Check Jacobians in Ref already (no good if we only go on because N doesn't catch misbehaving points)
+  IF (meshCheckRef) THEN
+    ALLOCATE(scaledJacRef(0:NGeoRef,0:NGeoRef,0:NGeoRef))
+    DO k=0,NGeoRef; DO j=0,NGeoRef; DO i=0,NGeoRef
+      scaledJacRef(i,j,k)=DetJac_Ref(1,i,j,k,iElem)/MAXVAL(DetJac_Ref(1,:,:,:,iElem))
+      SmallestscaledJacRef=MIN(SmallestscaledJacRef,scaledJacRef(i,j,k))
+      IF(scaledJacRef(i,j,k).LT.scaledJacRefTol) THEN
+        WRITE(Unit_StdOut,*) 'Too small scaled Jacobians found (CL/Gauss):', scaledJacRef(i,j,k)
+        WRITE(Unit_StdOut,*) 'Coords near:', Elem_xGP(:,INT(PP_N/2),INT(PP_N/2),INT(PP_N/2),iElem)
+        WRITE(Unit_StdOut,*) 'This check is optional. You can disable it by setting meshCheckRef = F'
+        CALL abort(__STAMP__,&
+          'Scaled Jacobian in reference system lower then tolerance in global element:',iElem+offsetElem)
+      END IF
+    END DO; END DO; END DO !i,j,k=0,N
+    DEALLOCATE(scaledJacRef)
+  END IF
+
+  ! project detJac_ref onto the solution basis
   CALL ChangeBasis3D(1,NgeoRef,PP_N,Vdm_NgeoRef_N,DetJac_Ref(:,:,:,:,iElem),DetJac_N)
 
   ! assign to global Variable sJ
@@ -265,11 +289,11 @@ DO iElem=1,nElems
 
   ! check for negative Jacobians
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    IF(detJac_N(1,i,j,k).LE.0.)&
+    IF(DetJac_N(1,i,j,k).LE.0.)&
       WRITE(Unit_StdOut,*) 'Negative Jacobian found on Gauss point. Coords:', Elem_xGP(:,i,j,k,iElem)
   END DO; END DO; END DO !i,j,k=0,N
   ! check scaled Jacobians
-  scaledJac(2)=MINVAL(detJac_N(1,:,:,:))/MAXVAL(detJac_N(1,:,:,:))
+  scaledJac(2)=MINVAL(DetJac_N(1,:,:,:))/MAXVAL(DetJac_N(1,:,:,:))
   IF(scaledJac(2).LT.0.01) THEN
     WRITE(Unit_StdOut,*) 'Too small scaled Jacobians found (CL/Gauss):', scaledJac
     CALL abort(__STAMP__,&
@@ -368,6 +392,17 @@ DO iElem=1,nElems
   IF(PRESENT(XCL_Ngeo_Out))   XCL_Ngeo_Out(1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)= XCL_Ngeo(1:3,0:Ngeo,0:Ngeo,0:Ngeo)
   IF(PRESENT(dXCL_ngeo_out)) dXCL_Ngeo_Out(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)=dXCL_Ngeo(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo)
 END DO !iElem=1,nElems
+
+! Communicate smallest ref. Jacobian and display
+#if USE_MPI
+IF(MPIroot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE , SmallestscaledJacRef , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_WORLD , iError)
+ELSE
+  CALL MPI_REDUCE(SmallestscaledJacRef   , 0          , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_WORLD , iError)
+END IF
+#endif /*USE_MPI*/
+SWRITE (*,'(A,ES18.10E3,A,I0,A,ES13.5E3)') " Smallest scaled Jacobian in reference system: ",SmallestscaledJacRef,&
+    " (",nGlobalElems," global elements). Abort threshold is set to:", scaledJacRefTol
 
 endt=PICLASTIME()
 SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT,'s]'
@@ -692,7 +727,7 @@ CALL GetNodesAndWeights(PP_N   , NodeTypeCL  , xiCL_N  , wIPBary=wBaryCL_N)
 CALL GetNodesAndWeights(NGeo   , NodeTypeCL  , XiCL_NGeo  , wIPBary=wBaryCL_NGeo)
 
 ! Outer loop over all elements
-detJac_Ref=0.
+DetJac_Ref=0.
 DO iElem=1,nElems
   !1.a) Transform from EQUI_Ngeo to CL points on Ngeo and N
   CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_EQNGeo_CLNGeo,NodeCoords(:,:,:,:,iElem)            ,XCL_Ngeo)
@@ -711,18 +746,18 @@ DO iElem=1,nElems
 
   ! 1.c)Jacobians! grad(X_1) (grad(X_2) x grad(X_3))
   ! Compute Jacobian on NGeo and then interpolate:
-  ! required to guarantee conservativity when restarting with N<NGeo
+  ! required to guarantee conservation when restarting with N<NGeo
   CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,1,:,:,:),dX_NgeoRef(:,1,:,:,:))
   CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,2,:,:,:),dX_NgeoRef(:,2,:,:,:))
   CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,3,:,:,:),dX_NgeoRef(:,3,:,:,:))
   DO k=0,NgeoRef; DO j=0,NgeoRef; DO i=0,NgeoRef
-    detJac_Ref(1,i,j,k,iElem)=detJac_Ref(1,i,j,k,iElem) &
+    DetJac_Ref(1,i,j,k,iElem)=DetJac_Ref(1,i,j,k,iElem) &
       + dX_NgeoRef(1,1,i,j,k)*(dX_NgeoRef(2,2,i,j,k)*dX_NgeoRef(3,3,i,j,k) - dX_NgeoRef(3,2,i,j,k)*dX_NgeoRef(2,3,i,j,k))  &
       + dX_NgeoRef(2,1,i,j,k)*(dX_NgeoRef(3,2,i,j,k)*dX_NgeoRef(1,3,i,j,k) - dX_NgeoRef(1,2,i,j,k)*dX_NgeoRef(3,3,i,j,k))  &
       + dX_NgeoRef(3,1,i,j,k)*(dX_NgeoRef(1,2,i,j,k)*dX_NgeoRef(2,3,i,j,k) - dX_NgeoRef(2,2,i,j,k)*dX_NgeoRef(1,3,i,j,k))
   END DO; END DO; END DO !i,j,k=0,NgeoRef
 
-  ! interpolate detJac_ref to the solution points
+  ! interpolate DetJac_ref to the solution points
   CALL ChangeBasis3D(1,NgeoRef,PP_N,Vdm_NgeoRef_N,DetJac_Ref(:,:,:,:,iElem),DetJac_N)
 
   ! assign to global Variable sJ

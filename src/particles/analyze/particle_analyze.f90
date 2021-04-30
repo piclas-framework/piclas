@@ -22,36 +22,8 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE InitParticleAnalyze
-  MODULE PROCEDURE InitParticleAnalyze
-END INTERFACE
-
-INTERFACE FinalizeParticleAnalyze
-  MODULE PROCEDURE FinalizeParticleAnalyze
-END INTERFACE
-
 INTERFACE AnalyzeParticles
   MODULE PROCEDURE AnalyzeParticles
-END INTERFACE
-
-INTERFACE CalcShapeEfficiencyR
-  MODULE PROCEDURE CalcShapeEfficiencyR
-END INTERFACE
-
-INTERFACE CalcPowerDensity
-  MODULE PROCEDURE CalcPowerDensity
-END INTERFACE
-
-INTERFACE PARTISELECTRON
-  MODULE PROCEDURE PARTISELECTRON
-END INTERFACE
-
-INTERFACE SPECIESISELECTRON
-  MODULE PROCEDURE SPECIESISELECTRON
-END INTERFACE
-
-INTERFACE CalculatePartElemData
-  MODULE PROCEDURE CalculatePartElemData
 END INTERFACE
 
 INTERFACE WriteParticleTrackingData
@@ -71,13 +43,13 @@ INTERFACE CalcAnalyticalParticleState
 END INTERFACE
 #endif /*CODE_ANALYZE*/
 
-PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
-PUBLIC:: AnalyzeParticles, PARTISELECTRON, SPECIESISELECTRON
-PUBLIC:: CalcPowerDensity
-PUBLIC:: CalculatePartElemData
-PUBLIC:: WriteParticleTrackingData
+PUBLIC :: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
+PUBLIC :: AnalyzeParticles
+PUBLIC :: CalcPowerDensity
+PUBLIC :: CalculatePartElemData
+PUBLIC :: WriteParticleTrackingData
 #ifdef CODE_ANALYZE
-PUBLIC:: AnalyticParticleMovement,CalcAnalyticalParticleState
+PUBLIC :: AnalyticParticleMovement,CalcAnalyticalParticleState
 #endif /*CODE_ANALYZE*/
 PUBLIC :: CalcCoupledPowerPart
 !===================================================================================================================================
@@ -194,12 +166,11 @@ USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars             ,ONLY: nElems,offsetElem
 USE MOD_Particle_Analyze_Vars
 USE MOD_Particle_Mesh_Vars    ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, VarTimeStep, PDM, usevMPF
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition,SFAdaptiveDOF,r_sf,DepositionType,SFElemr2_Shared,dim_sf,dimFactorSF,dim_sf_dir
+USE MOD_PICDepo_Vars          ,ONLY: SFAdaptiveSmoothing
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
 USE MOD_ReadInTools           ,ONLY: PrintOption
 #if (PP_TimeDiscMethod == 42)
@@ -215,6 +186,8 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared_Win
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared_Win
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared_Win
 #endif /*USE_MPI*/
+USE MOD_Mesh_Vars             ,ONLY: ElemBaryNGeo
+USE MOD_Particle_Analyze_Tools,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -249,17 +222,18 @@ END IF
 
 ! Allocate arrays and calculate the average number of points in each shape function sphere
 IF(CalcPointsPerShapeFunction)THEN
+
   ! PPSCell:
   ! Points per shape function sphere (cell mean value): Calculate cell local number excluding neighbor DOFs
   ALLOCATE( PPSCell(1:PP_nElems) )
   PPSCell=0.0
   CALL AddToElemData(ElementOut,'PPSCell',RealArray=PPSCell(1:PP_nElems))
 
-  ! PPSCellEqui:
+  ! PPSCellCartesian:
   ! Points per shape function sphere (cell mean value): Assume Cartesian grid and calculate to total number including neighbor DOFs
-  ALLOCATE( PPSCellEqui(1:PP_nElems) )
-  PPSCellEqui=0.0
-  CALL AddToElemData(ElementOut,'PPSCellEqui',RealArray=PPSCellEqui(1:PP_nElems))
+  ALLOCATE( PPSCellCartesian(1:PP_nElems) )
+  PPSCellCartesian=0.0
+  CALL AddToElemData(ElementOut,'PPSCellCartesian',RealArray=PPSCellCartesian(1:PP_nElems))
 
   ! Depending on type of shape function, calculate global shape function volume or separate for each cell
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
@@ -305,58 +279,72 @@ IF(CalcPointsPerShapeFunction)THEN
 
       ! Calculate the corresponding number of DOF per shape function per cell/element (considering 1D, 2D or 3D distribution)
       PPSCell(iElem)     = MIN(1.,ShapeFunctionFraction(iElem)) * DOF
-      PPSCellEqui(iElem) =        ShapeFunctionFraction(iElem)  * DOF
+      PPSCellCartesian(iElem) =        ShapeFunctionFraction(iElem)  * DOF
 
-      ! Sanity check
-      IF(PPSCellEqui(iElem).GT.DOFMax.AND.(.NOT.ALMOSTEQUALRELATIVE(PPSCellEqui(iElem),DOFMax,1e-5)))THEN
-        IPWRITE(UNIT_StdOut,*) "PPSCellEqui(iElem),DOFMax =", PPSCellEqui(iElem),DOFMax
-        IPWRITE(UNIT_StdOut,'(I0,A57,F10.2)') " PPSCellEqui(iElem) =", PPSCellEqui(iElem)
-        IPWRITE(UNIT_StdOut,'(I0,A,I3,A,A19,A,F10.2)') " For N =",PP_N,", the maximum allowed is ",TRIM(hilf2)," =", DOFMax
-        IPWRITE(UNIT_StdOut,'(I0,A,F10.2)') " Reduce the number of DOF/SF in order to have no DOF outside of the deposition "//&
-            "range (neighbour elems) by changing\n  PIC-shapefunction-adaptive-DOF, which is currently set to =", SFAdaptiveDOF
-        SELECT CASE(dim_sf)
-        CASE(1) ! 1D
-          IPWRITE(UNIT_StdOut,'(I0,A,I3,A)') &
-              " WARNING: IF THIS CHECK FAILS YOU MIGHT BE USING MORE THAN 1 element in the other directions of "&
-              ,dim_sf," (1: x, 2:y and 3: zdir)"
-        CASE(2) ! 2D
-          IPWRITE(UNIT_StdOut,'(I0,A,I3,A)') &
-              " WARNING: IF THIS CHECK FAILS YOU MIGHT BE USING MORE THAN 1 element in the other directions of "&
-              ,dim_sf_dir," (1: x, 2:y and 3: zdir)"
-        END SELECT
-        CALL abort(__STAMP__,'PPSCellEqui(iElem) > '//TRIM(hilf2)//' is not allowed')
-      END IF ! PPSCellEqui(iElem).GT.4./3.*PI*(PP_N+1)**3
+      ! Sanity check (only when smoothing is not activated because then the radius is allowed to be larger)
+      IF(.NOT.SFAdaptiveSmoothing)THEN
+        ! Check if more DOF/SF are present in a cell than allowed (but allow the maximum value as it is used as default)
+        IF(PPSCellCartesian(iElem).GT.DOFMax.AND.(.NOT.ALMOSTEQUALRELATIVE(PPSCellCartesian(iElem),DOFMax,1e-5)))THEN
+          IPWRITE(UNIT_StdOut,'(I0,A57,F10.2)') " PPSCellCartesian(iElem) :", PPSCellCartesian(iElem)
+          IPWRITE(UNIT_StdOut,'(I0,A,I3,A,A19,A,F10.2)') " For N =",PP_N,", the maximum allowed is ",TRIM(hilf2)," :", DOFMax
+          IPWRITE(UNIT_StdOut,'(I0,A,29X,A,3(ES23.14))') " ElemBaryNGeo(1:3,iElem)   ",":", ElemBaryNGeo(1:3,iElem)
+          IPWRITE(UNIT_StdOut,'(I0,A,29X,A,ES23.14)')    " ShapeFunctionRadius(iElem)",":", ShapeFunctionRadius(iElem)
+          IPWRITE(UNIT_StdOut,'(I0,A,F10.2)') " Reduce the number of DOF/SF in order to have no DOF outside of the deposition "//&
+              "range (neighbour elems) by changing\n  PIC-shapefunction-adaptive-DOF, which is currently set to =", SFAdaptiveDOF
+          ! Check 1D/2D shape function distribution (assume that only 1 element is used in the constant direction)
+          SELECT CASE(dim_sf)
+          CASE(1) ! 1D
+            IPWRITE(UNIT_StdOut,'(I0,A,I3,A)') &
+                " WARNING: IF THIS CHECK FAILS YOU MIGHT BE USING MORE THAN 1 element in the other directions of "&
+                ,dim_sf_dir," (1: x, 2: y and 3: zdir)"
+          CASE(2) ! 2D
+            IPWRITE(UNIT_StdOut,'(I0,A,I3,A)') &
+                " WARNING: IF THIS CHECK FAILS YOU MIGHT BE USING MORE THAN 1 element in the direction of "&
+                ,dim_sf_dir," (1: x, 2: y and 3: zdir)"
+          END SELECT
+          CALL abort(__STAMP__,'PPSCellCartesian(iElem) > '//TRIM(hilf2)//' is not allowed')
+        END IF ! PPSCellCartesian(iElem).GT.4./3.*PI*(PP_N+1)**3
+      END IF ! .NOT.SFAdaptiveSmoothing
 
     END DO ! iElem = 1, nElems
-  ELSE
+
+  ELSE ! normal/cc shape function with global radius
+
     DO iElem = 1, nElems
       CNElemID           = GetCNElemID(iElem+offSetElem) ! iElem + offSetElem = globElemID
       ! Check which shape function dimension is used
       SELECT CASE(dim_sf)
       CASE(1) ! 1D
-        DOF    = REAL((PP_N+1)) ! DOF per element in 1D
-        VolumeShapeFunction      = 2.0*ShapeFunctionRadius(iElem)
-        CALL PrintOption('VolumeShapeFunction (1D, line)','OUTPUT',RealOpt=VolumeShapeFunction)
-        CALL PrintOption('Max DOFs in Shape-Function per cell (1D, line)','OUTPUT',RealOpt=DOF)
+        DOF                 = REAL((PP_N+1)) ! DOF per element in 1D
+        VolumeShapeFunction = 2.0*r_sf
+        IF(MPIRoot.AND.(iElem.EQ.1))THEN
+          CALL PrintOption('VolumeShapeFunction (1D, line)','OUTPUT',RealOpt=VolumeShapeFunction)
+          CALL PrintOption('Max DOFs in Shape-Function per cell (1D, line)','OUTPUT',RealOpt=DOF)
+        END IF ! MPIRoot.AND.(iElem.EQ.1)
         ShapeFunctionFractionLoc = (VolumeShapeFunction/ElemVolume_Shared(CNElemID))*dimFactorSF
       CASE(2) ! 2D
-        DOF    = REAL((PP_N+1)**2) ! DOF per element in 2D
-        VolumeShapeFunction      = PI*(ShapeFunctionRadius(iElem)**2)
-        CALL PrintOption('VolumeShapeFunction (2D, circle area)','OUTPUT',RealOpt=VolumeShapeFunction)
-        CALL PrintOption('Max DOFs in Shape-Function per cell (2D, area)','OUTPUT',RealOpt=DOF)
+        DOF                 = REAL((PP_N+1)**2) ! DOF per element in 2D
+        VolumeShapeFunction = PI*(r_sf**2)
+        IF(MPIRoot.AND.(iElem.EQ.1))THEN
+          CALL PrintOption('VolumeShapeFunction (2D, circle area)','OUTPUT',RealOpt=VolumeShapeFunction)
+          CALL PrintOption('Max DOFs in Shape-Function per cell (2D, area)','OUTPUT',RealOpt=DOF)
+        END IF ! MPIRoot.AND.(iElem.EQ.1)
         ShapeFunctionFractionLoc = (VolumeShapeFunction/ElemVolume_Shared(CNElemID))*dimFactorSF
-
       CASE(3) ! 3D
-        DOF = REAL((PP_N+1)**3)     ! DOF per element in 3D
+        DOF                 = REAL((PP_N+1)**3) ! DOF per element in 3D
         VolumeShapeFunction = 4./3.*PI*(r_sf**3)
-        CALL PrintOption('VolumeShapeFunction (3D, sphere)','OUTPUT',RealOpt=VolumeShapeFunction)
-        CALL PrintOption('Max DOFs in Shape-Function per cell (3D, cuboid)','OUTPUT',RealOpt=DOF)
+        IF(MPIRoot.AND.(iElem.EQ.1))THEN
+          CALL PrintOption('VolumeShapeFunction (3D, sphere)','OUTPUT',RealOpt=VolumeShapeFunction)
+          CALL PrintOption('Max DOFs in Shape-Function per cell (3D, cuboid)','OUTPUT',RealOpt=DOF)
+        END IF ! MPIRoot.AND.(iElem.EQ.1)
         ShapeFunctionFractionLoc = VolumeShapeFunction/ElemVolume_Shared(CNElemID)
       END SELECT
-      PPSCell(iElem)     = MIN(1.,ShapeFunctionFractionLoc) * DOF
-      PPSCellEqui(iElem) =        ShapeFunctionFractionLoc  * DOF
+      PPSCell(iElem)          = MIN(1.,ShapeFunctionFractionLoc) * DOF
+      PPSCellCartesian(iElem) = ShapeFunctionFractionLoc  * DOF
     END DO ! iElem = 1, nElems
+
   END IF ! TRIM(DepositionType).EQ.'shape_function_adaptive'
+
 END IF
 
 !--------------------------------------------------------------------------------------------------------------------
@@ -523,34 +511,12 @@ END IF
 ! Electron Density
 CalcElectronIonDensity   = GETLOGICAL('CalcElectronIonDensity','.FALSE.')
 IF(CalcDebyeLength.OR.CalcPlasmaFrequency.OR.CalcIonizationDegree) CalcElectronIonDensity=.TRUE.
-IF(CalcElectronIonDensity) THEN
-  ! electrons
-  ALLOCATE( ElectronDensityCell(1:PP_nElems) )
-  ElectronDensityCell=0.0
-  CALL AddToElemData(ElementOut,'ElectronDensityCell',RealArray=ElectronDensityCell(1:PP_nElems))
-  ! ions
-  ALLOCATE( IonDensityCell(1:PP_nElems) )
-  IonDensityCell=0.0
-  CALL AddToElemData(ElementOut,'IonDensityCell',RealArray=IonDensityCell(1:PP_nElems))
-  ! neutrals
-  ALLOCATE( NeutralDensityCell(1:PP_nElems) )
-  NeutralDensityCell=0.0
-  CALL AddToElemData(ElementOut,'NeutralDensityCell',RealArray=NeutralDensityCell(1:PP_nElems))
-  ! charge number
-  ALLOCATE( ChargeNumberCell(1:PP_nElems) )
-  ChargeNumberCell=0.0
-  CALL AddToElemData(ElementOut,'ChargeNumberCell',RealArray=ChargeNumberCell(1:PP_nElems))
-END IF
+IF(CalcElectronIonDensity) CALL AllocateElectronIonDensityCell()
 
 ! Electron Temperature
 CalcElectronTemperature   = GETLOGICAL('CalcElectronTemperature','.FALSE.')
 IF(CalcDebyeLength.OR.CalcPlasmaFrequency.OR.CalcPICCFLCondition) CalcElectronTemperature=.TRUE.
-IF(CalcElectronTemperature)THEN
-  !ElectronTemperatureIsMaxwell=GETLOGICAL('ElectronTemperatureIsMaxwell','.TRUE.')
-  ALLOCATE( ElectronTemperatureCell(1:PP_nElems) )
-  ElectronTemperatureCell=0.0
-  CALL AddToElemData(ElementOut,'ElectronTemperatureCell',RealArray=ElectronTemperatureCell(1:PP_nElems))
-END IF
+IF(CalcElectronTemperature) CALL AllocateElectronTemperatureCell()
 !--------------------------------------------------------------------------------------------------------------------
 ! PartAnalyzeStep: The interval for the particle analyze output routines (write-out into PartAnalyze.csv)
 !             = 1: Analyze and output every time step
@@ -3239,241 +3205,6 @@ END DO
 END SUBROUTINE CalcPowerDensity
 
 
-PURE FUNCTION PARTISELECTRON(PartID)
-!===================================================================================================================================
-! check if particle is an electron (species-charge = -1.609)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: PartID
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL            :: PARTISELECTRON  !
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER            :: SpeciesID
-!===================================================================================================================================
-PARTISELECTRON=.FALSE.
-SpeciesID = PartSpecies(PartID)
-IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
-IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) PARTISELECTRON=.TRUE.
-END FUNCTION PARTISELECTRON
-
-
-PURE FUNCTION SPECIESISELECTRON(SpeciesID)
-!===================================================================================================================================
-! check if species is an electron (species-charge = -1.609)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: Species
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: SpeciesID
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL            :: SPECIESISELECTRON  !
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-SPECIESISELECTRON=.FALSE.
-IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
-IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) SPECIESISELECTRON=.TRUE.
-END FUNCTION SPECIESISELECTRON
-
-
-SUBROUTINE CalculateElectronIonDensityCell()
-!===================================================================================================================================
-! Count the number of electrons per DG cell and divide it by element-volume
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY:ElementaryCharge
-USE MOD_Particle_Mesh_Vars     ,ONLY:GEO,NbrOfRegions
-USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
-USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,PEM,usevMPF
-USE MOD_Preproc
-USE MOD_PIC_Analyze            ,ONLY:CalculateBRElectronsPerCell
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_Part_Tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
-USE MOD_Mesh_Vars              ,ONLY: offSetElem
-USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER              :: iPart,iElem,RegionID
-REAL                 :: charge, MPF
-!===================================================================================================================================
-
-! nullify
-ElectronDensityCell=0.
-     IonDensityCell=0.
- NeutralDensityCell=0.
-   ChargeNumberCell=0.
-
-! loop over all particles and count the number of electrons per cell
-! CAUTION: we need the number of all real particle instead of simulated particles
-DO iPart=1,PDM%ParticleVecLength
-  IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    MPF = GetParticleWeight(iPart)
-  ELSE
-    MPF = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
-  END IF
-  ASSOCIATE ( &
-    ElemID  => PEM%LocalElemID(iPart)                              )  ! Element ID
-    ASSOCIATE ( &
-      n_e    => ElectronDensityCell(ElemID),& ! Electron density (cell average)
-      n_i    => IonDensityCell(ElemID)     ,& ! Ion density (cell average)
-      n_n    => NeutralDensityCell(ElemID) ,& ! Neutral density (cell average)
-      Z      => ChargeNumberCell(ElemID)   )  ! Charge number (cell average)
-      charge = Species(PartSpecies(iPart))%ChargeIC/ElementaryCharge
-      IF(PARTISELECTRON(iPart))THEN ! electrons
-        n_e = n_e + MPF
-      ELSEIF(ABS(charge).GT.0.0)THEN ! ions (positive or negative)
-        n_i = n_i + MPF
-        Z   = Z   + charge*MPF
-      ELSE ! neutrals
-        n_n  = n_n + MPF
-      END IF
-    END ASSOCIATE
-  END ASSOCIATE
-END DO ! iPart
-IF (NbrOfRegions .GT. 0) THEN !check for BR electrons
-  DO iElem=1,PP_nElems
-    RegionID=GEO%ElemToRegion(iElem)
-    IF (RegionID.GT.0) THEN
-      IF (ElectronDensityCell(iElem).NE.0.) CALL abort(&
-__STAMP__&
-,'Mixed BR and kinetic electrons are not implemented in CalculateElectronIonDensityCell yet!')
-      CALL CalculateBRElectronsPerCell(iElem,RegionID,ElectronDensityCell(iElem))
-    END IF
-  END DO ! iElem=1,PP_nElems
-END IF
-
-! loop over all elements and divide by volume
-DO iElem=1,PP_nElems
-  ElectronDensityCell(iElem)=ElectronDensityCell(iElem)/ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
-       IonDensityCell(iElem)=IonDensityCell(iElem)     /ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
-   NeutralDensityCell(iElem)=NeutralDensityCell(iElem) /ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
-END DO ! iElem=1,PP_nElems
-
-END SUBROUTINE CalculateElectronIonDensityCell
-
-
-SUBROUTINE CalculateElectronTemperatureCell()
-!===================================================================================================================================
-! Count the number of electrons per DG cell and divide it by element-volume
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElectronMass,ElementaryCharge
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,NbrOfRegions
-USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars  ,ONLY: ElectronTemperatureCell
-USE MOD_Particle_Vars          ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartState,RegionElectronRef
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_part_tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER :: iPart,iElem,ElemID,Method,RegionID
-REAL    :: nElectronsPerCell(1:PP_nElems)
-REAL    ::  PartVandV2(1:PP_nElems,1:6)
-REAL    :: Mean_PartV2(1:3)
-REAL    :: MeanPartV_2(1:3)
-REAL    ::   TempDirec(1:3)
-REAL    :: WeightingFactor
-!===================================================================================================================================
-IF (NbrOfRegions .GT. 0) THEN ! check for BR electrons
-  DO iElem=1,PP_nElems
-    RegionID=GEO%ElemToRegion(iElem)
-    IF (RegionID.GT.0) THEN
-      ElectronTemperatureCell(iElem) = RegionElectronRef(3,RegionID)*ElementaryCharge/BoltzmannConst ! convert eV to K
-    END IF
-  END DO ! iElem=1,PP_nElems
-  RETURN ! Mixed BR and kinetic electrons are not implemented yet!
-END IF
-
-! nullify
-ElectronTemperatureCell=0.
-nElectronsPerCell      =0.
-
-! hard-coded
-Method=1 ! 0: <E> = (3/2)*<k_B*T> (keeps drift velocity, hence, over-estimates the temperature when drift becomes important)
-!        ! 1: remove drift from temperature calculation
-
-PartVandV2 = 0.
-! 1.   loop over all particles and sum-up the electron energy per cell and count the number of electrons per cell
-DO iPart=1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart))THEN
-    IF(.NOT.PARTISELECTRON(iPart)) CYCLE  ! ignore anything that is not an electron
-    ElemID                      = PEM%LocalElemID(iPart)
-    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-      WeightingFactor = GetParticleWeight(iPart)
-    ELSE
-      WeightingFactor = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
-    END IF
-    nElectronsPerCell(ElemID) = nElectronsPerCell(ElemID) + WeightingFactor
-    ! Determine velocity or kinetic energy
-    SELECT CASE(Method)
-    CASE(0) ! 1.0   for distributions where the drift is negligible
-      ElectronTemperatureCell(ElemID) = ElectronTemperatureCell(ElemID)+CalcEkinPart(iPart)
-    CASE(1) ! 1.1   remove drift from distribution
-      PartVandV2(ElemID,1:3) = PartVandV2(ElemID,1:3) + PartState(4:6,iPart)    * WeightingFactor
-      PartVandV2(ElemID,4:6) = PartVandV2(ElemID,4:6) + PartState(4:6,iPart)**2 * WeightingFactor
-    END SELECT
-  END IF ! ParticleInside
-END DO ! iPart
-
-! 2.   loop over all elements and divide by electrons per cell to get average kinetic energy
-SELECT CASE(Method)
-CASE(0) ! 2.0   for distributions where the drift is negligible
-  DO iElem=1,PP_nElems
-    IF(nElectronsPerCell(iElem).GT.0.) THEN
-      ! <E> = (3/2)*<k_B*T>
-      ElectronTemperatureCell(iElem)  = 2.*ElectronTemperatureCell(iElem)/(3.*nElectronsPerCell(iElem)*BoltzmannConst)
-    END IF
-  END DO ! iElem=1,PP_nElems
-CASE(1) ! 2.1   remove drift from distribution
-  DO iElem=1,PP_nElems
-    IF(nElectronsPerCell(iElem).LT.2.) THEN ! only calculate the temperature when more than one electron are present
-      ElectronTemperatureCell(iElem) = 0.0
-    ELSE
-      ! Compute velocity averages
-      MeanPartV_2(1:3)  = (PartVandV2(iElem,1:3) / nElectronsPerCell(iElem))**2 ! < |v| >**2
-      Mean_PartV2(1:3)  =  PartVandV2(iElem,4:6) / nElectronsPerCell(iElem)     ! < |v|**2 >
-      ! Compute temperatures
-      TempDirec(1:3) = ElectronMass * (Mean_PartV2(1:3) - MeanPartV_2(1:3)) / BoltzmannConst
-      ElectronTemperatureCell(iElem) = (TempDirec(1) + TempDirec(2) + TempDirec(3))/3.0
-      IF(ElectronTemperatureCell(iElem).LT.0.0)THEN
-        ElectronTemperatureCell(iElem)=0.0
-      END IF
-    END IF
-  END DO
-END SELECT
-
-END SUBROUTINE CalculateElectronTemperatureCell
 
 
 SUBROUTINE CalculatePlasmaFrequencyCell()
@@ -3829,9 +3560,10 @@ SUBROUTINE CalculatePartElemData()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Analyze_Vars  ,ONLY:CalcPlasmaFrequency,CalcPICTimeStep,CalcElectronIonDensity
-USE MOD_Particle_Analyze_Vars  ,ONLY:CalcElectronTemperature,CalcDebyeLength,CalcIonizationDegree,CalcPointsPerDebyeLength
-USE MOD_Particle_Analyze_Vars  ,ONLY:CalcPlasmaParameter,CalcPICCFLCondition,CalcMaxPartDisplacement
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaFrequency,CalcPICTimeStep,CalcElectronIonDensity
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronTemperature,CalcDebyeLength,CalcIonizationDegree,CalcPointsPerDebyeLength
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaParameter,CalcPICCFLCondition,CalcMaxPartDisplacement
+USE MOD_Particle_Analyze_Tools ,ONLY: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -4276,7 +4008,7 @@ SDEALLOCATE(ElectronDensityCell)
 SDEALLOCATE(ElectronTemperatureCell)
 SDEALLOCATE(PlasmaFrequencyCell)
 SDEALLOCATE(PPSCell)
-SDEALLOCATE(PPSCellEqui)
+SDEALLOCATE(PPSCellCartesian)
 SDEALLOCATE(ShapeFunctionRadius)
 SDEALLOCATE(ShapeFunctionFraction)
 IF(CalcCoupledPower) THEN

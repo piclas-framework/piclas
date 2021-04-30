@@ -24,12 +24,10 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if USE_HDG
-INTEGER             :: HDG_N
 INTEGER             :: nGP_vol              !=(PP_N+1)**3
 INTEGER             :: nGP_face             !=(PP_N+1)**2
 
 LOGICAL             :: useHDG=.FALSE.
-LOGICAL             :: OnlyPostProc=.FALSE. ! Flag to initialize exact function for lambda and only make the postprocessing
 LOGICAL             :: ExactLambda =.FALSE. ! Flag to initialize exact function for lambda
 REAL,ALLOCATABLE    :: InvDhat(:,:,:)       ! Inverse of Dhat matrix (nGP_vol,nGP_vol,nElems)
 REAL,ALLOCATABLE    :: Ehat(:,:,:,:)        ! Ehat matrix (nGP_Face,nGP_vol,6sides,nElems)
@@ -47,16 +45,13 @@ INTEGER             :: nDirichletBCsides
 INTEGER             :: nNeumannBCsides
 INTEGER,ALLOCATABLE :: DirichletBC(:)
 INTEGER,ALLOCATABLE :: NeumannBC(:)
-REAL                :: RelaxFacNonlinear, RelaxFacNonlinear0 ! Relaxation factor fur Fix point it.
-REAL                :: NormNonlinearDevLimit                 ! -''-, Threshold for assumed instability
-INTEGER             :: AdaptIterFixPoint, AdaptIterFixPoint0 ! -''-, Interval for automatic adaption
-LOGICAL             :: nonlinear            ! Use non-linear sources for HDG? (e.g. Boltzmann electrons)
-LOGICAL             :: NewtonExactApprox
-LOGICAL             :: AdaptNewtonStartValue
+LOGICAL             :: HDGnonlinear            ! Use non-linear sources for HDG? (e.g. Boltzmann electrons)
+LOGICAL             :: NewtonExactSourceDeriv
+LOGICAL             :: NewtonAdaptStartValue
 INTEGER             :: AdaptIterNewton
 INTEGER             :: AdaptIterNewtonToLinear
 INTEGER             :: AdaptIterNewtonOld
-INTEGER             :: NonLinSolver  ! 1 Newton, 2 Fixpoint
+INTEGER             :: HDGNonLinSolver  ! 1 Newton, 2 Fixpoint
 REAL,ALLOCATABLE    :: NonlinVolumeFac(:,:)      !Factor for Volumeintegration necessary for nonlinear sources
 !mappings
 INTEGER             :: sideDir(6),pm(6),dirPm2iSide(2,3)
@@ -66,7 +61,7 @@ REAL,ALLOCATABLE    :: Domega(:,:)
 REAL,ALLOCATABLE    :: Lomega_m(:),Lomega_p(:)
 !CG parameters
 INTEGER             :: PrecondType=0  !0: none 1: block diagonal 2: only diagonal 3:Identity, debug
-INTEGER             :: MaxIterCG, MaxIterFixPoint, OutIterCG
+INTEGER             :: MaxIterCG, MaxIterNewton, OutIterCG
 REAL                :: EpsCG,EpsNonLinear
 LOGICAL             :: UseRelativeAbortCrit
 LOGICAL             :: HDGInitIsDone=.FALSE.
@@ -82,6 +77,26 @@ REAL                :: RunTime                !< CG Solver runtime
 REAL                :: RunTimePerIteration    !< CG Solver runtime per iteration
 REAL                :: HDGNorm                !< Norm
 INTEGER             :: iteration              !< number of iterations to achieve the norm 
+
+! --- Boltzmann relation (BR) electron fluid
+LOGICAL               :: UseBRElectronFluid            ! Indicates usage of BR electron fluid model
+INTEGER               :: BRNbrOfRegions                  ! Nbr of regions to be mapped to Elems
+INTEGER, ALLOCATABLE  :: ElemToBRRegion(:)             ! ElemToBRRegion(1:nElems)
+REAL, ALLOCATABLE     :: RegionBounds(:,:)             ! RegionBounds ((xmin,xmax,ymin,...)|1:BRNbrOfRegions)
+REAL, ALLOCATABLE     :: RegionElectronRef(:,:)        ! RegionElectronRef((rho0,phi0,Te[eV])|1:BRNbrOfRegions)
+REAL                  :: BRTimeStepMultiplier          ! Factor that is multiplied with the ManualTimeStep when using BR model
+REAL                  :: BRTimeStepBackup              ! Original time step
+#if defined(PARTICLES)
+! --- Switching between BR and fully kinetic HDG
+LOGICAL               :: BRConvertElectronsToFluid     ! User variable for removing all electrons and using BR instead
+REAL                  :: BRConvertElectronsToFluidTime ! Time when kinetic electrons should be converted to BR fluid electrons
+LOGICAL               :: BRConvertFluidToElectrons     ! User variable for creating particles from BR electron fluid (uses
+REAL                  :: BRConvertFluidToElectronsTime ! Time when BR fluid electrons should be converted to kinetic electrons
+INTEGER               :: BRConvertMode                 ! Mode used for switching BR->kin->BR OR kin->BR->kin
+!                                                      ! and ElectronDensityCell ElectronTemperatureCell from .h5 state file)
+LOGICAL               :: BRConvertModelRepeatedly      ! Repeat the switch between BR and kinetic multiple times
+LOGICAL               :: BRElectronsRemoved            ! True if electrons were removed during restart (only BR electrons)
+#endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 
 

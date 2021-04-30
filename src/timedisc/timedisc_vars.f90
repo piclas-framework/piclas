@@ -31,8 +31,6 @@ REAL             :: TAnalyze                          !> time for next analyze
 REAL             :: Time                              !> Simulation Time
 REAL             :: dt                                !> simulation time step
 REAL             :: dtWeight                          !> part of original dt that is currently used as dt (output, rk, ...)
-REAL             :: tEndDiff                          !> difference between simulation time and simulation end time
-REAL             :: tAnalyzeDiff                      !> difference between simulation time and next analyze time
 REAL             :: CFLScale                          !> cfl scale
 REAL             :: CFLtoOne                          !> scaling factor to scale CFL to one
 REAL             :: sdtCFLOne                         !> inverse of dt of CFLOne
@@ -46,7 +44,18 @@ INTEGER(KIND=8)  :: IterDisplayStepUser               !> number of displayed ite
 LOGICAL          :: DoDisplayIter                     !> flag if iterations are displayed (TRUE if IterDisplayStep>0)
 LOGICAl          :: TimediscInitIsDone = .FALSE.
 REAL             :: TimeDG, TimeParticle
-REAL             :: dt_Min
+#if defined(PARTICLES) && USE_HDG
+REAL             :: dt_Min(4) !> dt_Min(DT_MIN)       = dt_Min(1) = original dt_Min
+                              !> dt_Min(DT_ANALYZE)   = dt_Min(2) = tAnalyzeDiff
+                              !> dt_Min(DT_END)       = dt_Min(3) = tEndDiff
+                              !> dt_Min(DT_BR_SWITCH) = dt_Min(4) = tBRDiff (time to BR<->kin switch)
+#else
+REAL             :: dt_Min(3) !> dt_Min(DT_MIN)       = dt_Min(1) = original dt_Min
+                              !> dt_Min(DT_ANALYZE)   = dt_Min(2) = tAnalyzeDiff
+                              !> dt_Min(DT_END)       = dt_Min(3) = tEndDiff
+#endif /*defined(PARTICLES) && USE_HDG*/
+!REAL             :: tEndDiff     !> difference between simulation time and simulation end time -> dt_Min(DT_END)
+!REAL             :: tAnalyzeDiff !> difference between simulation time and next analyze time -> dt_Min(DT_ANALYZE)
 #if (defined(IMPA) || defined(ROS) || (PP_TimeDiscMethod==509))
 REAL             :: dt_old
 #endif /*defined(IMPA) || defined(ROS) || (PP_TimeDiscMethod==509)*/
