@@ -56,10 +56,12 @@ for current_species in species_list:
   data = pd.read_csv(io.StringIO(data),skipinitialspace=True,delimiter=",",usecols=['g','Levelcm-1'], na_values=['---'])
   # Drop rows with an empty cell and '---' entries (which were converted to N/A during read-in)
   data.dropna(inplace=True)
-  # Drop rows with a question mark ("This level/line may not be real.")
-  data.drop(data[data['Levelcm-1'].str.contains(r'[?]')].index,inplace=True)
-  # Drop rows with a +x ("The relative positions of the levels within such a system are accurate within experimental uncertainties, but no experimental connection between this system and the other levels of the spectrum has been made.")
-  data.drop(data[data['Levelcm-1'].str.contains(r'[+x]')].index,inplace=True)
+  # Check the datatype: if its a float, then all non-numerical characters have already been removed
+  if data['Levelcm-1'].dtype != 'float64':
+    # Drop rows with a question mark ("This level/line may not be real.")
+    data.drop(data[data['Levelcm-1'].str.contains(r'[?]')].index,inplace=True)
+    # Drop rows with a +x ("The relative positions of the levels within such a system are accurate within experimental uncertainties, but no experimental connection between this system and the other levels of the spectrum has been made.")
+    data.drop(data[data['Levelcm-1'].str.contains(r'[+x]')].index,inplace=True)
   # Convert 1/cm to K
   data['Levelcm-1'] = data['Levelcm-1'].astype(float)
   data['Levelcm-1'] = 100 * data['Levelcm-1'] * 1.986E-025 / 1.38065E-023           # 1/cm * 100cm/m * (J m) / (J/K) = K
