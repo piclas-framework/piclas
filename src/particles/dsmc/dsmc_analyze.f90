@@ -79,7 +79,7 @@ LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                            :: iSpec,iSurfSide,p,q, nVar, nVarSpec, iPBC, nVarCount, OutputCounter
-REAL                               :: TimeSample, ActualTime, TimeSampleTemp, CounterSum, nImpacts
+REAL                               :: TimeSample, ActualTime, TimeSampleTemp, CounterSum, nImpacts, IterNum
 LOGICAL                            :: during_dt
 INTEGER                            :: idx, GlobalSideID, SurfSideNb, iBC
 !===================================================================================================================================
@@ -95,12 +95,17 @@ ELSE
   ActualTime=time
 END IF
 
+! Determine the sampling time for the calculation of fluxes
 IF (WriteMacroSurfaceValues) THEN
-  TimeSample = Time - MacroValSampTime !elapsed time since last sampling (variable dt's possible!)
+  ! Elapsed time since last sampling (variable dt's possible!)
+  TimeSample = Time - MacroValSampTime
   MacroValSampTime = Time
 ELSE IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
+  ! Sampling at the end of the simulation: When a restart is performed and the sampling starts immediately, determine the correct sampling time
+  ! (e.g. sampling is set to 20% of tend = 1s, and restart is performed at 0.9s, sample time = 0.1s)
   TimeSample = Time - RestartTime
 ELSE
+  ! Sampling at the end of the simulation: calculated from the user given input
   TimeSample = (Time-(1-DSMC%TimeFracSamp)*TEnd)
 END IF
 
@@ -125,8 +130,8 @@ END IF
 nVar = 5
 nVarSpec = 1
 
-! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle and number: Add 9 to the buffer length
-nVarSpec = nVarSpec + 9
+! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle, number, and number per second: Add 10 to the buffer length
+IF(CalcSurfaceImpact) nVarSpec = nVarSpec + 10
 
 IF(nPorousBC.GT.0) THEN
   nVar = nVar + nPorousBC
@@ -151,6 +156,8 @@ ASSOCIATE(SampWallState        => SampWallState_Shared           ,&
 #endif
 
 OutputCounter = 0
+! Determine the total number of iterations
+IterNum = REAL(NINT(TimeSample / dt))
 
 DO iSurfSide = 1,nComputeNodeSurfSides
   !================== INNER BC CHECK
@@ -165,10 +172,13 @@ DO iSurfSide = 1,nComputeNodeSurfSides
   END IF
   !================== INNER BC CHECK
   OutputCounter = OutputCounter + 1
+
   DO q = 1,nSurfSample
     DO p = 1,nSurfSample
+      ! --- Total output (force per area, heat flux, simulation particle impact per iteration)
       CounterSum = SUM(SampWallState(SAMPWALL_NVARS+1:SAMPWALL_NVARS+nSpecies,p,q,iSurfSide))
 
+      ! Correct the sample time in the case of a cell local time step with the average time step factor for each side
       IF(VarTimeStep%UseVariableTimeStep .AND. CounterSum.GT.0.0) THEN
         TimeSampleTemp = TimeSample * SampWallState(SAMPWALL_NVARS+nSpecies+1,p,q,iSurfSide) / CounterSum
       ELSE
@@ -192,24 +202,24 @@ DO iSurfSide = 1,nComputeNodeSurfSides
                                            / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
 
       ! Number of simulation particle impacts per iteration
-      MacroSurfaceVal(5,p,q,OutputCounter) = CounterSum * dt / TimeSample
+      MacroSurfaceVal(5,p,q,OutputCounter) = CounterSum / IterNum
 
-      nVarCount = 5
-
+      ! Output of the pump capacity
       IF(nPorousBC.GT.0) THEN
+        nVarCount = 5
         DO iPBC=1, nPorousBC
           IF(MapSurfSideToPorousSide_Shared(iSurfSide).EQ.0) CYCLE
           IF(PorousBCInfo_Shared(1,MapSurfSideToPorousSide_Shared(iSurfSide)).EQ.iPBC) THEN
             ! Pump capacity is already in cubic meter per second (diving by the number of iterations)
-            MacroSurfaceVal(nVarCount+iPBC,p,q,OutputCounter) = SampWallPumpCapacity(iSurfSide) * dt / TimeSample
+            MacroSurfaceVal(nVarCount+iPBC,p,q,OutputCounter) = SampWallPumpCapacity(iSurfSide) / IterNum
           END IF
         END DO
       END IF
-
+      ! --- Species-specific output
       DO iSpec=1,nSpecies
         idx = 1
         ! Species-specific counter of simulation particle impacts per iteration
-        MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallState(SAMPWALL_NVARS+iSpec,p,q,iSurfSide) * dt / TimeSample
+        MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallState(SAMPWALL_NVARS+iSpec,p,q,iSurfSide) / IterNum
         ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
         IF(CalcSurfaceImpact)THEN
           nImpacts = SampWallImpactNumber(iSpec,p,q,iSurfSide)
@@ -239,8 +249,10 @@ DO iSurfSide = 1,nComputeNodeSurfSides
             ! Add number of impacts
             idx = idx + 1
             MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = nImpacts
-          ELSE
-            idx=idx+8
+
+            ! Add number of impacts per second
+            idx = idx + 1
+            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = nImpacts / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
           END IF ! nImpacts.GT.0.
         END IF ! CalcSurfaceImpact
       END DO ! iSpec=1,nSpecies
