@@ -1156,7 +1156,7 @@ SUBROUTINE WeirdElementCheck()
 ! Fixing the problem would involve defining the bilinear edge between nodes 2 and 4
 ! (instead of 1 and 3). This information would need to be stored and used throughout
 ! the particle treatment. Additionally, since the edge would need to be changed
-! for both neighboring elements, it is possible that both element might have the problem
+! for both neighboring elements, it is possible that both elements might have the problem
 ! hence no solution exists.
 ! tl;dr: Hard/maybe impossible to fix, hence only a warning is given so the user can decide
 !===================================================================================================================================
@@ -1164,7 +1164,7 @@ SUBROUTINE WeirdElementCheck()
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ConcaveElemSide_Shared,ElemSideNodeID_Shared
-USE MOD_Particle_Mesh_Vars        ,ONLY: WeirdElems
+USE MOD_Particle_Mesh_Vars        ,ONLY: WeirdElems,meshCheckWeirdElements
 USE MOD_Mesh_Tools                ,ONLY: GetGlobalElemID
 #if USE_MPI
 USE MOD_MPI_Shared_Vars           ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
@@ -1297,6 +1297,8 @@ IF(WeirdElems.GT.0) THEN
   DO iElem = 1,WeirdElems
     IPWRITE(UNIT_stdOut,*) WeirdElemNbrs(iElem)
   END DO
+  IPWRITE(Unit_StdOut,*) 'This check is optional. You can disable it by setting meshCheckWeirdElements = F'
+  CALL abort(__STAMP__,'Weird elements found: it means that part of the element is turned inside-out')
 END IF
 
 SWRITE(UNIT_stdOut,'(A)')' CHECKING FOR WEIRD ELEMENTS DONE!'
@@ -1605,15 +1607,16 @@ SUBROUTINE InitParticleGeometry()
 USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_Globals
-USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Mesh_Vars          ,ONLY: NGeo
 USE MOD_Particle_Mesh_Vars
-USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
+USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
 #if USE_MPI
-USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 #else
-USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif
+USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1769,7 +1772,8 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif
 
 !--- check for elements with intersecting sides (e.g. very flat elements)
-CALL WeirdElementCheck()
+meshCheckWeirdElements = GETLOGICAL('meshCheckWeirdElements','.TRUE.')
+IF(meshCheckWeirdElements) CALL WeirdElementCheck()
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')

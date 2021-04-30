@@ -43,6 +43,7 @@ SUBROUTINE DomainDecomposition()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Globals_Vars         ,ONLY: DomainDecompositionWallTime
 USE MOD_Restart_Vars         ,ONLY: DoRestart
 USE MOD_Mesh_Vars            ,ONLY: offsetElem,nElems,nGlobalElems
 USE MOD_LoadBalance_Vars     ,ONLY: ElemTimeField
@@ -72,11 +73,16 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 LOGICAL                        :: ElemTimeExists
 REAL,ALLOCATABLE               :: WeightSum_proc(:)
-INTEGER                        :: iProc
-INTEGER                        :: iElem
+INTEGER                        :: iProc,iElem
+REAL                           :: StartT,EndT
 !===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_StdOut,'(132("."))')
 SWRITE(UNIT_stdOut,'(A)')' DOMAIN DECOMPOSITION ...'
+#if USE_MPI
+StartT=MPI_WTIME()
+#else
+CALL CPU_TIME(StartT)
+#endif
 !simple partition: nGlobalelems/nprocs, do this on proc 0
 ALLOCATE(offsetElemMPI(0:nProcessors))
 offsetElemMPI=0
@@ -199,7 +205,9 @@ ELSE
   MaxWeight = -1.
   MinWeight = -1.
 END IF
-SWRITE(UNIT_stdOut,'(A)')' DOMAIN DECOMPOSITION DONE!'
+EndT=PICLASTIME()
+DomainDecompositionWallTime=EndT-StartT
+SWRITE(UNIT_stdOut,'(A,F0.3,A)')' DOMAIN DECOMPOSITION ... DONE  [',DomainDecompositionWallTime,'s]'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE DomainDecomposition
 
