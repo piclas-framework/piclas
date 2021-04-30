@@ -949,5 +949,8 @@ ENDIF()
 # EXTRAE instrumentation
 # =========================================================================
 IF(PICLAS_EXTRAE)
-  SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -lompitracef -L$ENV{EXTRAE_HOME}/lib")
+  # MPI+OpenMP
+  #SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -lompitracef -L$ENV{EXTRAE_HOME}/lib")
+  # only MPI
+  SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -lmpitracef -L$ENV{EXTRAE_HOME}/lib")
 ENDIF(PICLAS_EXTRAE)
