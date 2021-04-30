@@ -36,10 +36,9 @@ SUBROUTINE SecondaryElectronEmission(PartID_IN,locBCID,ProductSpec,ProductSpecNb
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals           ,ONLY: abort,VECNORM
+USE MOD_Globals           ,ONLY: abort,VECNORM,PARTISELECTRON
 USE MOD_Globals_Vars      ,ONLY: c
 USE MOD_Particle_Vars     ,ONLY: PartState,Species,PartSpecies
-USE MOD_Particle_Analyze  ,ONLY: PartIsElectron
 USE MOD_Globals_Vars      ,ONLY: ElementaryCharge,ElectronMass
 USE MOD_SurfaceModel_Vars ,ONLY: SurfModResultSpec
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound

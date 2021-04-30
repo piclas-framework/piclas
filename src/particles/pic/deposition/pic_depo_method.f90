@@ -195,7 +195,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems, offSetElem
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if ((USE_HDG) && (PP_nVar==1))
-USE MOD_TimeDisc_Vars          ,ONLY: dt,tAnalyzeDiff,tEndDiff
+USE MOD_TimeDisc_Vars          ,ONLY: dt,dt_Min
 #endif
 #if USE_MPI
 USE MOD_PICDepo_Vars       ,ONLY: PartSource_Shared_Win
@@ -234,7 +234,7 @@ INTEGER            :: iPart,iElem
 
 ! Check whether charge and current density have to be computed or just the charge density
 #if ((USE_HDG) && (PP_nVar==1))
-IF(ALMOSTEQUAL(dt,tAnalyzeDiff).OR.ALMOSTEQUAL(dt,tEndDiff))THEN
+IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
   doCalculateCurrentDensity=.TRUE.
   SourceDim=1
 ELSE ! do not calculate current density
@@ -360,7 +360,7 @@ USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
 #if ((USE_HDG) && (PP_nVar==1))
-USE MOD_TimeDisc_Vars      ,ONLY: dt,tAnalyzeDiff,tEndDiff
+USE MOD_TimeDisc_Vars      ,ONLY: dt,dt_Min
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -397,7 +397,7 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 ! Check whether charge and current density have to be computed or just the charge density
 ! For HDG the current density is only required for output to HDF5, i.e., analysis reasons
 #if ((USE_HDG) && (PP_nVar==1))
-IF(ALMOSTEQUAL(dt,tAnalyzeDiff).OR.ALMOSTEQUAL(dt,tEndDiff))THEN
+IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
   doCalculateCurrentDensity=.TRUE.
   SourceDim=1
 ELSE ! do not calculate current density

@@ -39,7 +39,7 @@ INTERFACE GetSideBoundingBoxTria
 END INTERFACE
 
 PUBLIC :: ParticleInsideQuad3D, InitPEM_LocalElemID, InitPEM_CNElemID, GetGlobalNonUniqueSideID, GetSideBoundingBoxTria
-PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, MapRegionToElem, WeirdElementCheck, CalcParticleMeshMetrics, InitElemNodeIDs
+PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, WeirdElementCheck, CalcParticleMeshMetrics, InitElemNodeIDs
 PUBLIC :: CalcBezierControlPoints, InitParticleGeometry
 !===================================================================================================================================
 CONTAINS
@@ -1106,45 +1106,6 @@ DO i=1,N
 END DO ! i=0,N
 
 END SUBROUTINE PointsEqual
-
-
-SUBROUTINE MapRegionToElem()
-!----------------------------------------------------------------------------------------------------------------------------------!
-! map a particle region to element
-! check only element barycenter, nothing else
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars ,ONLY: NbrOfRegions, RegionBounds,GEO
-USE MOD_Mesh_Vars          ,ONLY: ElemBaryNGeo
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
- INTEGER                :: iElem, iRegions
-!===================================================================================================================================
-SDEALLOCATE(GEO%ElemToRegion)
-ALLOCATE(GEO%ElemToRegion(1:PP_nElems))
-GEO%ElemToRegion=0
-
-DO iElem=1,PP_nElems
-  DO iRegions=1,NbrOfRegions
-    IF ((ElemBaryNGeo(1,iElem).LT.RegionBounds(1,iRegions)).OR.(ElemBaryNGEO(1,iElem).GE.RegionBounds(2,iRegions))) CYCLE
-    IF ((ElemBaryNGeo(2,iElem).LT.RegionBounds(3,iRegions)).OR.(ElemBaryNGEO(2,iElem).GE.RegionBounds(4,iRegions))) CYCLE
-    IF ((ElemBaryNGeo(3,iElem).LT.RegionBounds(5,iRegions)).OR.(ElemBaryNGEO(3,iElem).GE.RegionBounds(6,iRegions))) CYCLE
-    IF (GEO%ElemToRegion(iElem).EQ.0) THEN
-      GEO%ElemToRegion(iElem)=iRegions
-    ELSE
-      CALL ABORT(__STAMP__,'Defined regions are overlapping')
-    END IF
-  END DO ! iRegions=1,NbrOfRegions
-END DO ! iElem=1,PP_nElems
-END SUBROUTINE MapRegionToElem
 
 
 SUBROUTINE WeirdElementCheck()

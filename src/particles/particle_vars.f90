@@ -363,7 +363,6 @@ INTEGER, ALLOCATABLE                     :: vMPF_SpecNumElem(:,:)             ! 
 CHARACTER(30)                            :: vMPF_velocityDistribution         ! specifying keyword for velocity distribution
 REAL, ALLOCATABLE                        :: vMPF_NewPosRefElem(:,:)          ! new positions in ref elem
 LOGICAL                                  :: vMPF_relativistic
-REAL, ALLOCATABLE                        :: RegionElectronRef(:,:)            ! RegionElectronRef((rho0,phi0,Te[eV])|1:NbrOfRegions)
 LOGICAL                                  :: DoSurfaceFlux                     ! Flag for emitting by SurfaceFluxBCs
 LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson sampling instead of random rounding
 LOGICAL                                  :: DoTimeDepInflow                   ! Insertion and SurfaceFlux w simple random rounding

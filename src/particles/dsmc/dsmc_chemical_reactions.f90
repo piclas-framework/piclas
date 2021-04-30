@@ -363,7 +363,6 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 USE MOD_part_tools             ,ONLY: GetParticleWeight
 USE MOD_part_operations        ,ONLY: RemoveParticle
-USE MOD_Particle_Analyze       ,ONLY: PARTISELECTRON
 #ifdef CODE_ANALYZE
 USE MOD_Globals                ,ONLY: unit_stdout,myrank
 USE MOD_Particle_Vars          ,ONLY: Symmetry

@@ -51,16 +51,20 @@ SUBROUTINE Elem_Mat(td_iter)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
-USE MOD_Equation_Vars     , ONLY: chitens
+USE MOD_Equation_Vars      ,ONLY: chitens
 #if defined(IMPA) || defined(ROS)
-USE MOD_LinearSolver_Vars, ONLY:DoPrintConvInfo
+USE MOD_LinearSolver_Vars  ,ONLY: DoPrintConvInfo
+#else
+USE MOD_TimeDisc_Vars      ,ONLY: IterDisplayStep,DoDisplayIter
 #endif
 USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Mesh_Vars          ,ONLY: sJ, Metrics_fTilde, Metrics_gTilde,Metrics_hTilde
 USE MOD_Mesh_Vars          ,ONLY: SurfElem
-USE MOD_Mesh_Vars          ,ONLY: VolToSideA,VolToSideIJKA,ElemToSide!,VolToSide2A
+USE MOD_Mesh_Vars          ,ONLY: VolToSideA,VolToSideIJKA,ElemToSide
 USE MOD_Basis              ,ONLY: getSPDInverse
-USE MOD_TimeDisc_Vars      ,ONLY: IterDisplayStep,DoDisplayIter
+#if defined(PARTICLES)
+USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
+#endif /*defined(PARTICLES)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -144,11 +148,13 @@ DO iElem=1,PP_nElems
         !---------------------------------------------------------------
         ! Dhat = D - B A^{-1} B^T
 
+#if defined(PARTICLES)
         !  D  volume contribution for nonlinear stuff
-        IF (nonlinear.AND.(NonLinSolver.EQ.1)) THEN
+        IF (UseBRElectronFluid.AND.(HDGNonLinSolver.EQ.1)) THEN
           j = index_3to1(g1,g2,g3)
           Dhat(j,j) = Dhat(j,j) - JwGP_vol( j,iElem)*NonlinVolumeFac(j,iElem)
         END IF
+#endif /*defined(PARTICLES)*/
         !  D  surface contribution
 
         gdx=(/g1,g2,g3/)
