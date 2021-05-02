@@ -954,4 +954,6 @@ IF(PICLAS_EXTRAE)
   #SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -lompitracef -L$ENV{EXTRAE_HOME}/lib")
   # only MPI
   SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -lmpitracef -L$ENV{EXTRAE_HOME}/lib")
+  # change binary name by adding the suffix '_extrae'
+  SET_TARGET_PROPERTIES(piclas PROPERTIES OUTPUT_NAME "piclas_extrae")
 ENDIF(PICLAS_EXTRAE)
