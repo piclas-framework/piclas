@@ -88,12 +88,21 @@ REAL, DIMENSION(3)         :: v_minus, v_plus, v_prime, t_vec
 #endif /*PARTICLES*/
 !===================================================================================================================================
 #ifdef PARTICLES
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int8(9000001), int(5))
+#endif /*EXTRAE*/
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition()
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int8(9000001), int(0))
+#endif /*EXTRAE*/
 #endif /*PARTICLES*/
 
 CALL HDG(time,U,iter)
 
 #ifdef PARTICLES
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int8(9000001), int(5))
+#endif /*EXTRAE*/
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -184,7 +193,13 @@ IF (time.GE.DelayTime) THEN
     PartMPIExchange%nMPIParticles=0
 #endif /*USE_MPI*/
     CALL Deposition() ! because of emission and UpdateParticlePosition
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int8(9000001), int(0))
+#endif /*EXTRAE*/
     CALL HDG(time,U,iter)
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int8(9000001), int(5))
+#endif /*EXTRAE*/
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -249,6 +264,9 @@ IF (useDSMC) THEN
 #endif /*USE_LOADBALANCE*/
   END IF
 END IF
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int8(9000001), int(0))
+#endif /*EXTRAE*/
 #endif /*PARTICLES*/
 
 END SUBROUTINE TimeStepPoissonByBorisLeapfrog

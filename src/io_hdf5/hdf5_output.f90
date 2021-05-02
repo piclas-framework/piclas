@@ -184,6 +184,9 @@ INTEGER                        :: i,j,k,iElem
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int8(9000001), int(3))
+#endif /*EXTRAE*/
 ! set local variables for output and previous times
 IF(OutputTimeFixed.GE.0.0)THEN
   SWRITE(UNIT_StdOut,'(A,ES25.14E3,A2)',ADVANCE='NO')' (WriteStateToHDF5 for fixed output time :',OutputTimeFixed,') '
@@ -688,6 +691,9 @@ EndT=PICLASTIME()
 SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
 SWRITE(UNIT_StdOut,'(A,ES16.7)') "#Particles : ", REAL(nGlobalNbrOfParticles)
 
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int8(9000001), int(0))
+#endif /*EXTRAE*/
 END SUBROUTINE WriteStateToHDF5
 
 

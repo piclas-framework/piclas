@@ -68,6 +68,10 @@ IMPLICIT NONE
 REAL                    :: SystemTime
 LOGICAL                 :: userblockFound
 !===================================================================================================================================
+#ifdef EXTRAE
+SWRITE(*,*) "TEEEEEEEEEEEEEST\n\n\n\nYolo\n\n"
+CALL extrae_eventandcounters(int8(9000001), int(1))
+#endif /*EXTRAE*/
 CALL SetStackSizeUnlimited()
 
 CALL InitMPI()
@@ -211,6 +215,9 @@ SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
 
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int8(9000001), int(0))
+#endif /*EXTRAE*/
 END SUBROUTINE InitializePiclas
 
 
