@@ -901,6 +901,9 @@ REAL                          :: L_Inf_PartSource(1:4)
 #endif /* PARTICLES */
 REAL                          :: CurrentTime
 !===================================================================================================================================
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int8(9000001), int(6))
+#endif /*EXTRAE*/
 
 ! Create .csv file for performance analysis and load balance: write header line
 CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter_opt=iter)
@@ -1242,6 +1245,9 @@ IF(DoPerformErrorCalc)THEN
   END IF
 END IF
 
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int8(9000001), int(0))
+#endif /*EXTRAE*/
 END SUBROUTINE PerformAnalyze
 
 #ifdef PARTICLES
