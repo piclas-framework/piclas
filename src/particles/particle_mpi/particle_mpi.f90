@@ -1659,6 +1659,7 @@ DO iSpec=1,nSpecies
 
     ! create new communicator
     color = MERGE(nInitRegions,MPI_UNDEFINED,RegionOnProc)
+    Species(iSpec)%Init(iInit)%InitCOMM=nInitRegions
     CALL MPI_COMM_SPLIT(PartMPI%COMM,color,0,PartMPI%InitGroup(nInitRegions)%COMM,iError)
     IF (RegionOnProc) THEN
       CALL MPI_COMM_RANK(PartMPI%InitGroup(nInitRegions)%COMM,PartMPI%InitGroup(nInitRegions)%MyRank,iError)
