@@ -183,16 +183,17 @@ DataSizeSide  =(PP_N+1)*(PP_N+1)
 ! split communicator into smaller groups (e.g. for local nodes)
 GroupSize=GETINT('GroupSize','0')
 IF(GroupSize.LT.1)THEN ! group procs by node
-#if USE_MPI3
-  ! MPI3 directly gives you shared memory groups
-  CALL MPI_INFO_CREATE(info,iError)
-  CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD,MPI_COMM_TYPE_SHARED,myRank,info,MPI_COMM_NODE,iError)
+  ! Split the node communicator (shared memory) from the global communicator on physical processor or node level
+#if USE_CORE_SPLIT
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,myRank,0,MPI_COMM_NODE,iError)
 #else
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,myRank,myRank,MPI_COMM_NODE,iError)
+  ! Note that using SharedMemoryMethod=OMPI_COMM_TYPE_CORE somehow does not work in every case (intel/amd processors)
+  ! Also note that OMPI_COMM_TYPE_CORE is undefined when not using OpenMPI
+  CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD,SharedMemoryMethod,0,MPI_INFO_NULL,MPI_COMM_NODE,IERROR)
 #endif
 ELSE ! use groupsize
   color=myRank/GroupSize
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,myRank,MPI_COMM_NODE,iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,0,MPI_COMM_NODE,iError)
 END IF
 CALL MPI_COMM_RANK(MPI_COMM_NODE,myLocalRank,iError)
 CALL MPI_COMM_SIZE(MPI_COMM_NODE,nLocalProcs,iError)
@@ -204,12 +205,12 @@ MPI_COMM_WORKERS=MPI_COMM_NULL
 myLeaderRank=-1
 myWorkerRank=-1
 IF(myLocalRank.EQ.0)THEN
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,0,myRank,MPI_COMM_LEADERS,iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,0,0,MPI_COMM_LEADERS,iError)
   CALL MPI_COMM_RANK( MPI_COMM_LEADERS,myLeaderRank,iError)
   CALL MPI_COMM_SIZE( MPI_COMM_LEADERS,nLeaderProcs,iError)
   nWorkerProcs=nProcessors-nLeaderProcs
 ELSE
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,1,myRank,MPI_COMM_WORKERS,iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,1,0,MPI_COMM_WORKERS,iError)
   CALL MPI_COMM_RANK( MPI_COMM_WORKERS,myWorkerRank,iError)
   CALL MPI_COMM_SIZE( MPI_COMM_WORKERS,nWorkerProcs,iError)
   nLeaderProcs=nProcessors-nWorkerProcs
