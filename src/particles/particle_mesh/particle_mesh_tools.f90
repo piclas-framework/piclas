@@ -39,7 +39,7 @@ INTERFACE GetSideBoundingBoxTria
 END INTERFACE
 
 PUBLIC :: ParticleInsideQuad3D, InitPEM_LocalElemID, InitPEM_CNElemID, GetGlobalNonUniqueSideID, GetSideBoundingBoxTria
-PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, MapRegionToElem, WeirdElementCheck, CalcParticleMeshMetrics, InitElemNodeIDs
+PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, WeirdElementCheck, CalcParticleMeshMetrics, InitElemNodeIDs
 PUBLIC :: CalcBezierControlPoints, InitParticleGeometry
 !===================================================================================================================================
 CONTAINS
@@ -1108,45 +1108,6 @@ END DO ! i=0,N
 END SUBROUTINE PointsEqual
 
 
-SUBROUTINE MapRegionToElem()
-!----------------------------------------------------------------------------------------------------------------------------------!
-! map a particle region to element
-! check only element barycenter, nothing else
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars ,ONLY: NbrOfRegions, RegionBounds,GEO
-USE MOD_Mesh_Vars          ,ONLY: ElemBaryNGeo
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
- INTEGER                :: iElem, iRegions
-!===================================================================================================================================
-SDEALLOCATE(GEO%ElemToRegion)
-ALLOCATE(GEO%ElemToRegion(1:PP_nElems))
-GEO%ElemToRegion=0
-
-DO iElem=1,PP_nElems
-  DO iRegions=1,NbrOfRegions
-    IF ((ElemBaryNGeo(1,iElem).LT.RegionBounds(1,iRegions)).OR.(ElemBaryNGEO(1,iElem).GE.RegionBounds(2,iRegions))) CYCLE
-    IF ((ElemBaryNGeo(2,iElem).LT.RegionBounds(3,iRegions)).OR.(ElemBaryNGEO(2,iElem).GE.RegionBounds(4,iRegions))) CYCLE
-    IF ((ElemBaryNGeo(3,iElem).LT.RegionBounds(5,iRegions)).OR.(ElemBaryNGEO(3,iElem).GE.RegionBounds(6,iRegions))) CYCLE
-    IF (GEO%ElemToRegion(iElem).EQ.0) THEN
-      GEO%ElemToRegion(iElem)=iRegions
-    ELSE
-      CALL ABORT(__STAMP__,'Defined regions are overlapping')
-    END IF
-  END DO ! iRegions=1,NbrOfRegions
-END DO ! iElem=1,PP_nElems
-END SUBROUTINE MapRegionToElem
-
-
 SUBROUTINE WeirdElementCheck()
 !===================================================================================================================================
 ! Calculate whether element edges intersect other sides
@@ -1156,7 +1117,7 @@ SUBROUTINE WeirdElementCheck()
 ! Fixing the problem would involve defining the bilinear edge between nodes 2 and 4
 ! (instead of 1 and 3). This information would need to be stored and used throughout
 ! the particle treatment. Additionally, since the edge would need to be changed
-! for both neighboring elements, it is possible that both element might have the problem
+! for both neighboring elements, it is possible that both elements might have the problem
 ! hence no solution exists.
 ! tl;dr: Hard/maybe impossible to fix, hence only a warning is given so the user can decide
 !===================================================================================================================================
@@ -1164,7 +1125,7 @@ SUBROUTINE WeirdElementCheck()
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ConcaveElemSide_Shared,ElemSideNodeID_Shared
-USE MOD_Particle_Mesh_Vars        ,ONLY: WeirdElems
+USE MOD_Particle_Mesh_Vars        ,ONLY: WeirdElems,meshCheckWeirdElements
 USE MOD_Mesh_Tools                ,ONLY: GetGlobalElemID
 #if USE_MPI
 USE MOD_MPI_Shared_Vars           ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
@@ -1297,6 +1258,8 @@ IF(WeirdElems.GT.0) THEN
   DO iElem = 1,WeirdElems
     IPWRITE(UNIT_stdOut,*) WeirdElemNbrs(iElem)
   END DO
+  IPWRITE(Unit_StdOut,*) 'This check is optional. You can disable it by setting meshCheckWeirdElements = F'
+  CALL abort(__STAMP__,'Weird elements found: it means that part of the element is turned inside-out')
 END IF
 
 SWRITE(UNIT_stdOut,'(A)')' CHECKING FOR WEIRD ELEMENTS DONE!'
@@ -1605,15 +1568,16 @@ SUBROUTINE InitParticleGeometry()
 USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_Globals
-USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Mesh_Vars          ,ONLY: NGeo
 USE MOD_Particle_Mesh_Vars
-USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
+USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
 #if USE_MPI
-USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 #else
-USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif
+USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1769,7 +1733,8 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif
 
 !--- check for elements with intersecting sides (e.g. very flat elements)
-CALL WeirdElementCheck()
+meshCheckWeirdElements = GETLOGICAL('meshCheckWeirdElements','.TRUE.')
+IF(meshCheckWeirdElements) CALL WeirdElementCheck()
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')

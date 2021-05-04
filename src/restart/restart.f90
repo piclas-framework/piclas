@@ -99,6 +99,9 @@ USE MOD_HDF5_Input             ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,Re
 USE MOD_HDF5_Input             ,ONLY: DatasetExists
 #ifdef PARTICLES
 USE MOD_Particle_Tracking_Vars ,ONLY: TotalNbrOfMissingParticlesSum
+#if USE_HDG
+USE MOD_Part_BR_Elecron_Fluid  ,ONLY: InitSwitchBRElectronModel
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -129,6 +132,11 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT RESTART...'
 #ifdef PARTICLES
 ! Set counter for particle that go missing during restart (if they are not located within their host element during restart)
 TotalNbrOfMissingParticlesSum = 0
+#if USE_HDG
+  ! Initialize variables (only once, never during load balance restart) for switching between BR electron fluid model and fully        
+  ! kinetic model in HDG simulations                                                                                          
+  CALL InitSwitchBRElectronModel()
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 
 ! Set the DG solution to zero (ignore the DG solution in the state file)
@@ -315,6 +323,7 @@ USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
 USE MOD_Equation_Vars          ,ONLY: Phi
 #endif /*PP_POIS*/
 #ifdef PARTICLES
+USE MOD_part_operations        ,ONLY: RemoveAllElectrons
 USE MOD_Restart_Tools          ,ONLY: ReadNodeSourceExtFromHDF5
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
 USE MOD_Particle_Vars          ,ONLY: PartState, PartSpecies, PEM, PDM, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset, Species
@@ -351,6 +360,10 @@ USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,Finis
 USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists,nDims,HSize
 #endif
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+#if defined(PARTICLES) && USE_HDG
+USE MOD_Part_BR_Elecron_Fluid  ,ONLY: CreateElectronsFromBRFluid
+USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid,BRConvertElectronsToFluid,BRConvertFluidToElectrons
+#endif /*defined(PARTICLES) && USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1441,9 +1454,18 @@ IF(DoRestart)THEN
   END IF ! .NOT.DoMacroscopicRestart
   ! Read-in the cell-local wall temperature
   IF (ANY(PartBound%UseAdaptedWallTemp)) CALL RestartAdaptiveWallTemp()
+#if USE_HDG
+  ! Remove electron species when using BR electron fluid model
+  IF(UseBRElectronFluid.AND.BRConvertElectronsToFluid) CALL RemoveAllElectrons()
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 
 CALL CloseDataFile()
+
+#if defined(PARTICLES) && USE_HDG
+  ! Create electrons from BR fluid properties
+  IF(BRConvertFluidToElectrons) CALL CreateElectronsFromBRFluid(.TRUE.)
+#endif /*defined(PARTICLES) && USE_HDG*/
 
 #if USE_HDG
   iter=0
@@ -1793,6 +1815,7 @@ DEALLOCATE(MacroRestartValues)
 DEALLOCATE(ElemData_HDF5)
 
 END SUBROUTINE MacroscopicRestart
+
 #endif /*PARTICLES*/
 
 
@@ -1803,14 +1826,15 @@ SUBROUTINE RecomputeLambda(t)
 ! a change in the load-distribution, number of used cores, etc,... lambda has to be recomputed ONCE
 !===================================================================================================================================
 ! MODULES
-USE MOD_DG_Vars,                 ONLY: U
+USE MOD_DG_Vars            ,ONLY: U
 USE MOD_PreProc
-USE MOD_HDG,                     ONLY: HDG
-USE MOD_TimeDisc_Vars,           ONLY: iter
+USE MOD_HDG                ,ONLY: HDG
+USE MOD_TimeDisc_Vars      ,ONLY: iter
 #ifdef PARTICLES
-USE MOD_PICDepo,                 ONLY: Deposition
+USE MOD_PICDepo            ,ONLY: Deposition
+USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid,BRElectronsRemoved
 #if USE_MPI
-USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI       ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
@@ -1829,7 +1853,16 @@ CALL Deposition()
 
 ! recompute fields
 ! EM field
-CALL HDG(t,U,iter)
+#ifdef PARTICLES
+IF(UseBRElectronFluid.AND.BRElectronsRemoved)THEN
+  ! When using BR electron fluid model, all electrons are removed from the restart file
+  CALL HDG(t,U,iter,ForceCGSolverIteration_opt=.TRUE.)
+ELSE
+#endif /*PARTICLES*/
+  CALL HDG(t,U,iter)
+#ifdef PARTICLES
+END IF ! UseBRElectronFluid
+#endif /*PARTICLES*/
 
 END SUBROUTINE RecomputeLambda
 #endif /*USE_HDG*/
@@ -1839,7 +1872,10 @@ SUBROUTINE FinalizeRestart()
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Restart_Vars,ONLY:Vdm_GaussNRestart_GaussN,RestartInitIsDone,DoMacroscopicRestart
+USE MOD_Restart_Vars ,ONLY: Vdm_GaussNRestart_GaussN,RestartInitIsDone,DoMacroscopicRestart
+#if defined(PARTICLES) && USE_HDG
+USE MOD_HDG_Vars     ,ONLY: BRConvertFluidToElectrons,BRConvertElectronsToFluid
+#endif /*defined(PARTICLES) && USE_HDG*/
 ! IMPLICIT VARIABLE HANDLINGDGInitIsDone
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1849,8 +1885,16 @@ IMPLICIT NONE
 !===================================================================================================================================
 SDEALLOCATE(Vdm_GaussNRestart_GaussN)
 RestartInitIsDone = .FALSE.
+
 ! Avoid performing a macroscopic restart during an automatic load balance restart
 DoMacroscopicRestart = .FALSE.
+
+#if defined(PARTICLES) && USE_HDG
+! Avoid converting BR electron fluid to actual particles or vice versa during an automatic load balance restart
+BRConvertFluidToElectrons = .FALSE.
+BRConvertElectronsToFluid = .FALSE.
+#endif /*defined(PARTICLES) && USE_HDG*/
+
 END SUBROUTINE FinalizeRestart
 
 END MODULE MOD_Restart
