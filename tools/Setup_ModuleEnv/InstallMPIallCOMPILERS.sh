@@ -48,7 +48,6 @@ fi
 WHICHMPI=openmpi
 # choose for which compilers mpi is build (gcc or intel)
 WHICHCOMPILER=gcc
-# --------------------------------------------------------------------------------------------------
 
 if [ "${WHICHMPI}" == "openmpi" ]; then
   # DOWNLOAD and INSTALL OPENMPI (example OpenMPI-2.1.6)
@@ -66,6 +65,10 @@ else
   echo -e "${RED}ERROR: no mpi installed${NC}"
   exit
 fi
+
+# --------------------------------------------------------------------------------------------------
+# Install Module for MPI
+# --------------------------------------------------------------------------------------------------
 
 if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
   INSTALLDIR=/opt
