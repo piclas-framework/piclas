@@ -82,7 +82,7 @@ INTEGER             :: iteration              !< number of iterations to achieve
 LOGICAL               :: UseBRElectronFluid            ! Indicates usage of BR electron fluid model
 INTEGER               :: BRNbrOfRegions                  ! Nbr of regions to be mapped to Elems
 INTEGER, ALLOCATABLE  :: ElemToBRRegion(:)             ! ElemToBRRegion(1:nElems)
-REAL, ALLOCATABLE     :: RegionBounds(:,:)             ! RegionBounds ((xmin,xmax,ymin,...)|1:BRNbrOfRegions)
+REAL, ALLOCATABLE     :: BRRegionBounds(:,:)           ! BRRegionBounds ((xmin,xmax,ymin,...)|1:BRNbrOfRegions)
 REAL, ALLOCATABLE     :: RegionElectronRef(:,:)        ! RegionElectronRef((rho0,phi0,Te[eV])|1:BRNbrOfRegions)
 REAL                  :: BRTimeStepMultiplier          ! Factor that is multiplied with the ManualTimeStep when using BR model
 REAL                  :: BRTimeStepBackup              ! Original time step

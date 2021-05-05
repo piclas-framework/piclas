@@ -134,10 +134,10 @@ BRNbrOfRegions = GETINT('BRNbrOfRegions','0')
 UseBRElectronFluid = .FALSE. ! Initialize
 IF (BRNbrOfRegions .GT. 0) THEN
   UseBRElectronFluid = .TRUE.
-  ALLOCATE(RegionBounds(1:6,1:BRNbrOfRegions))
+  ALLOCATE(BRRegionBounds(1:6,1:BRNbrOfRegions))
   DO iRegions=1,BRNbrOfRegions
     WRITE(UNIT=hilf2,FMT='(I0)') iRegions
-    RegionBounds(1:6,iRegions) = GETREALARRAY('RegionBounds'//TRIM(hilf2),6,'0. , 0. , 0. , 0. , 0. , 0.')
+    BRRegionBounds(1:6,iRegions) = GETREALARRAY('BRRegionBounds'//TRIM(hilf2),6,'0. , 0. , 0. , 0. , 0. , 0.')
   END DO
 
   CALL MapBRRegionToElem()
@@ -653,7 +653,7 @@ SUBROUTINE MapBRRegionToElem()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_HDG_Vars           ,ONLY: BRNbrOfRegions, RegionBounds,ElemToBRRegion
+USE MOD_HDG_Vars           ,ONLY: BRNbrOfRegions, BRRegionBounds,ElemToBRRegion
 USE MOD_Mesh_Vars          ,ONLY: ElemBaryNGeo
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -670,9 +670,9 @@ ElemToBRRegion=0
 
 DO iElem=1,PP_nElems
   DO iRegions=1,BRNbrOfRegions
-    IF ((ElemBaryNGeo(1,iElem).LT.RegionBounds(1,iRegions)).OR.(ElemBaryNGEO(1,iElem).GE.RegionBounds(2,iRegions))) CYCLE
-    IF ((ElemBaryNGeo(2,iElem).LT.RegionBounds(3,iRegions)).OR.(ElemBaryNGEO(2,iElem).GE.RegionBounds(4,iRegions))) CYCLE
-    IF ((ElemBaryNGeo(3,iElem).LT.RegionBounds(5,iRegions)).OR.(ElemBaryNGEO(3,iElem).GE.RegionBounds(6,iRegions))) CYCLE
+    IF ((ElemBaryNGeo(1,iElem).LT.BRRegionBounds(1,iRegions)).OR.(ElemBaryNGEO(1,iElem).GE.BRRegionBounds(2,iRegions))) CYCLE
+    IF ((ElemBaryNGeo(2,iElem).LT.BRRegionBounds(3,iRegions)).OR.(ElemBaryNGEO(2,iElem).GE.BRRegionBounds(4,iRegions))) CYCLE
+    IF ((ElemBaryNGeo(3,iElem).LT.BRRegionBounds(5,iRegions)).OR.(ElemBaryNGEO(3,iElem).GE.BRRegionBounds(6,iRegions))) CYCLE
     IF (ElemToBRRegion(iElem).EQ.0) THEN
       ElemToBRRegion(iElem)=iRegions
     ELSE
