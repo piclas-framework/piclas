@@ -756,7 +756,6 @@ USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, XSec_Relaxation, SpecXSec
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: BRNbrOfRegions,CalcBRVariableElectronTemp,RegionElectronRef
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElementaryCharge
-USE MOD_Part_BR_Elecron_Fluid  ,ONLY: UpdateVariableRefElectronTemp
 #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
