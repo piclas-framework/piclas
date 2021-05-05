@@ -79,6 +79,9 @@ CALL prms%CreateLogicalOption('HDGDisplayConvergence'  ,'Display divergence crit
 
 ! --- BR electron fluid
 CALL prms%CreateIntOption(      'BRNbrOfRegions'        , 'Number of regions to be mapped to Elements', '0')
+
+CALL prms%CreateStringOption(   'BRVariableElectronTemp', 'Variable electron reference temperature when using Boltzmann relation'//&
+                                                          ' electron model (default is using a constant temperature)','constant')
 CALL prms%CreateRealArrayOption('BRRegionBounds[$]'     , 'BRRegionBounds ((xmin,xmax,ymin,...)'//&
                                                            '|1:BRNbrOfRegions)'&
                                                         , '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)

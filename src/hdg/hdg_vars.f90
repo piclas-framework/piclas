@@ -76,14 +76,19 @@ LOGICAL             :: HDGDisplayConvergence  !< Display divergence criteria: It
 REAL                :: RunTime                !< CG Solver runtime
 REAL                :: RunTimePerIteration    !< CG Solver runtime per iteration
 REAL                :: HDGNorm                !< Norm
-INTEGER             :: iteration              !< number of iterations to achieve the norm 
+INTEGER             :: iteration              !< number of iterations to achieve the norm
 
 ! --- Boltzmann relation (BR) electron fluid
 LOGICAL               :: UseBRElectronFluid            ! Indicates usage of BR electron fluid model
-INTEGER               :: BRNbrOfRegions                  ! Nbr of regions to be mapped to Elems
+INTEGER               :: BRNbrOfRegions                ! Nbr of regions to be mapped to Elems
+LOGICAL               :: CalcBRVariableElectronTemp    ! Use variable ref. electron temperature for BR electron fluid
+CHARACTER(255)        :: BRVariableElectronTemp        ! Variable electron reference temperature when using Boltzmann relation
+!                                                      ! electron model (default is using a constant temperature)
 INTEGER, ALLOCATABLE  :: ElemToBRRegion(:)             ! ElemToBRRegion(1:nElems)
 REAL, ALLOCATABLE     :: BRRegionBounds(:,:)           ! BRRegionBounds ((xmin,xmax,ymin,...)|1:BRNbrOfRegions)
 REAL, ALLOCATABLE     :: RegionElectronRef(:,:)        ! RegionElectronRef((rho0,phi0,Te[eV])|1:BRNbrOfRegions)
+REAL, ALLOCATABLE     :: RegionElectronRefBackup(:)    ! RegionElectronRefBackup(Te[eV])|1:BRNbrOfRegions) when using variable
+!                                                      ! reference electron temperature
 REAL                  :: BRTimeStepMultiplier          ! Factor that is multiplied with the ManualTimeStep when using BR model
 REAL                  :: BRTimeStepBackup              ! Original time step
 #if defined(PARTICLES)
@@ -96,6 +101,7 @@ INTEGER               :: BRConvertMode                 ! Mode used for switching
 !                                                      ! and ElectronDensityCell ElectronTemperatureCell from .h5 state file)
 LOGICAL               :: BRConvertModelRepeatedly      ! Repeat the switch between BR and kinetic multiple times
 LOGICAL               :: BRElectronsRemoved            ! True if electrons were removed during restart (only BR electrons)
+REAL                  :: DeltaTimeBRWindow             ! Time length when BR is active (possibly multiple times)
 #endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 
