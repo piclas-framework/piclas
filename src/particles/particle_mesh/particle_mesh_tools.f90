@@ -1125,7 +1125,7 @@ SUBROUTINE WeirdElementCheck()
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ConcaveElemSide_Shared,ElemSideNodeID_Shared
-USE MOD_Particle_Mesh_Vars        ,ONLY: WeirdElems,meshCheckWeirdElements
+USE MOD_Particle_Mesh_Vars        ,ONLY: WeirdElems
 USE MOD_Mesh_Tools                ,ONLY: GetGlobalElemID
 #if USE_MPI
 USE MOD_MPI_Shared_Vars           ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
