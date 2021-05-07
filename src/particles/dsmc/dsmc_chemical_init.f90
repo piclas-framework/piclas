@@ -501,7 +501,9 @@ DO iCase = 1, CollInf%NumCase
     ! Skip reactions involving electrons as products
     IF(UseBRElectronFluid) THEN
       DO iProd = 1,4
-        IF(SpecDSMC(ChemReac%Products(iReac,iProd))%InterID.EQ.4) CYCLE REACLOOP
+        IF(ChemReac%Products(iReac,iProd).NE.0)THEN
+          IF(SpecDSMC(ChemReac%Products(iReac,iProd))%InterID.EQ.4) CYCLE REACLOOP
+        END IF ! ChemReac%Products(iReac,iProd).NE.0
       END DO
     END IF
 #endif /*USE_HDG*/
@@ -536,7 +538,9 @@ DO iCase = 1, CollInf%NumCase
     ! Skip reactions involving electrons as products
     IF(UseBRElectronFluid) THEN
       DO iProd = 1,4
-        IF(SpecDSMC(ChemReac%Products(iReac,iProd))%InterID.EQ.4) CYCLE REACLOOP2
+        IF(ChemReac%Products(iReac,iProd).NE.0)THEN
+          IF(SpecDSMC(ChemReac%Products(iReac,iProd))%InterID.EQ.4) CYCLE REACLOOP2
+        END IF ! ChemReac%Products(iReac,iProd).NE.0
       END DO
     END IF
 #endif /*USE_HDG*/
