@@ -205,7 +205,7 @@ CALL InitSurfModelAnalyze()
 #endif
 
 #if USE_HDG
-CALL InitHDG()
+CALL InitHDG() ! Hybridizable Discontinuous Galerkin Method (HDGSEM)
 #endif
 
 #ifdef PARTICLES

@@ -707,6 +707,7 @@ IsRestart = GETLOGICAL('IsRestart','.FALSE.')
 #if USE_HDG
 !-- Check variable ref. electron temperature for BR electron model
 IF(CalcBRVariableElectronTemp) DoPartAnalyze=.TRUE.
+CALL PrintOption('CalcBRVariableElectronTemp','INFO',LogOpt=CalcBRVariableElectronTemp)
 #endif /*USE_HDG*/
 
 ParticleAnalyzeInitIsDone=.TRUE.
