@@ -609,15 +609,17 @@ IF(SpecXSec(iCase)%UseCollXSec) THEN
   SpecXSec(iCase)%CrossSection = InterpolateCrossSection(iCase,CollEnergy)
   Coll_pData(iPair)%Prob = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * SpecXSec(iCase)%CrossSection * SpecNumTarget * MacroParticleFactor &
                                         / Volume * dtCell))
+  ! Correction for conditional probabilities in case of MCC
   IF(BGGas%BackgroundSpecies(targetSpec)) THEN
     ! Correct the collision probability in the case of the second species being a background species as the number of pairs
-    ! is either determined based on the null collision probability or in the case of mixture on the species fraction
+    ! is either determined based on the null collision probability or on the species fraction
     IF(XSec_NullCollision) THEN
       Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob / SpecXSec(iCase)%ProbNull
     ELSE
       Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob / BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(targetSpec))
     END IF
   ELSE
+    ! Using cross-sectional probabilities without background gas
     Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob * SpecNumSource / CollInf%Coll_CaseNum(iCase)
   END IF
 ELSE
