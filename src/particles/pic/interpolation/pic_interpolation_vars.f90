@@ -38,9 +38,15 @@ LOGICAL                 :: useVariableExternalField      !< Use given external f
 LOGICAL                 :: useAlgebraicExternalField     !< Use given algebraic expression for the external e and B field
 INTEGER                 :: AlgebraicExternalField        !< External E and B field from algebraic expression that is
                                                          !< interpolated to the particle position:
-                                                         !< 1: Axial B(x) and E(x) field 
-                                                         !<    from T. Charoy, 2D axial-azimuthal particle-in-cell
-                                                         !<    benchmark for low-temperature partially magnetized plasmas (2019)
+                                                         !< [1]: Axial B(x) and E(x) from field solver
+                                                         !<      from T. Charoy " 2D axial-azimuthal particle-in-cell
+                                                         !<      benchmark for low-temperature partially magnetized plasmas" (2019)
+                                                         !< [2]: 2D Radial By(x)=Br(x) and Bx=Bz=0
+                                                         !<      in axial x-direction and E(x) from field solver
+                                                         !<      from H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)
+                                                         !< [3]: same as [2] but 3D case, where Br(z) = (/Bx(z), By(z)/) in axial
+                                                         !<      z-direction
+INTEGER                 :: AlgebraicExternalFieldDelta   !< delta factor for H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)
 REAL,ALLOCATABLE        :: VariableExternalField(:,:)    !< z - Pos , Bz
 REAL                    :: DeltaExternalField            !< equidistant z-spacing for the VariableExternalField (fast computation)
 INTEGER                 :: nIntPoints                    !< number of all interpolation points external field

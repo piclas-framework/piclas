@@ -75,7 +75,8 @@ CALL prms%CreateLogicalOption(  'PIC-DoInterpolation'         , "Interpolate ele
  "  Method 2: PIC-externalField (const. E/B field)\n"//&
  "  Method 3: PIC-variableExternalField (CSV file for Bz(z) that is interpolated)\n"//&
  "  Method 4: PIC-AlgebraicExternalField (E/B pre-defined algebraic expression)\n"//&
- "  Method 5: PIC-BG-Field (read 3D magnetic field from .h5)\n"  , '.TRUE.')
+ "  Method 5: PIC-BG-Field (read 3D magnetic field from .h5)\n"&
+ , '.TRUE.')
 CALL prms%CreateStringOption(   'PIC-Interpolation-Type'      , "Type of Interpolation-Method to calculate the electro(-magnetic)"//&
                                                                 " field values for the particle push. Poisson solver (E field) "//&
                                                                 "and Maxwell solver (E+B field)", 'particle_position')
@@ -92,11 +93,14 @@ CALL prms%CreateStringOption(   'PIC-variableExternalField'   , 'Method 3 of 5: 
                                                                 'for interpolating the variable field at each particle z-position.', 'none')
 
 ! -- external field 4
-CALL prms%CreateIntOption(      'PIC-AlgebraicExternalField'   , 'Method 4 of 5: External E and B field from algebraic expression that is '//&
-                                                                 'interpolated to the particle position\n[1]: Axial Bz(x) field '//&
-                                                                 'from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark '//&
-                                                                 'for low-temperature partially magnetized plasmas (2019)', '0')
+CALL prms%CreateIntOption(      'PIC-AlgebraicExternalField'   , &
+     'Method 4 of 5: External E and B field from algebraic expression that is interpolated to the particle position\n'//&
+     '[1]: Axial Bz(x) field from T. Charoy "2D axial-azimuthal particle-in-cell benchmark for low-temperature partially magnetized plasmas" (2019)\n'//&
+     '[2]: Radial Br(x) field in axial x-direction from H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)\n'//&
+     '[3]: same as [2] but 3D case, where Br(z) = (/Bx(z), By(z)/) in axial z-direction'&
+     , '0')
 
+CALL prms%CreateIntOption(      'PIC-AlgebraicExternalFieldDelta', 'Delta factor for H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)', '2')
 CALL prms%CreateRealArrayOption('PIC-NormVecOfWall'  , 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Normal vector for pushTimeStep', '1. , 0. , 0.')
 CALL prms%CreateRealArrayOption('PIC-BGMdeltas'      , 'TODO-DEFINE-PARAMETER\n'//&
@@ -169,9 +173,12 @@ useAlgebraicExternalField    = .FALSE.
 AlgebraicExternalField = GETINT('PIC-AlgebraicExternalField')
 IF(AlgebraicExternalField.GT.0) useAlgebraicExternalField=.TRUE.
 ! Sanity Check: Add all integer values that are possible to the vector for checking
-IF(.NOT.ANY(AlgebraicExternalField.EQ.(/0,1/))) CALL abort(&
+IF(.NOT.ANY(AlgebraicExternalField.EQ.(/0,1,2,3/))) CALL abort(&
   __STAMP__&
   ,'Value for PIC-AlgebraicExternalField not defined',IntInfoOpt=AlgebraicExternalField)
+
+AlgebraicExternalFieldDelta = GETINT('PIC-AlgebraicExternalFieldDelta')
+IF(AlgebraicExternalFieldDelta.LT.0) CALL abort(__STAMP__,'AlgebraicExternalFieldDelta cannot be negative.')
 
 !--- Allocate arrays for interpolation of fields to particles
 ALLOCATE(FieldAtParticle(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
@@ -691,69 +698,95 @@ PURE FUNCTION InterpolateAlgebraicExternalField(Pos)
 !===================================================================================================================================
 ! MODULES
 !USE MOD_Globals
-USE MOD_PICInterpolation_Vars ,ONLY: externalField,AlgebraicExternalField
+USE MOD_PICInterpolation_Vars ,ONLY: externalField,AlgebraicExternalField,AlgebraicExternalFieldDelta
 #if USE_HDG
 USE MOD_Analyze_Vars          ,ONLY: AverageElectricPotential
 #endif /*USE_HDG*/
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)          :: Pos(1:3)                            !< particle position
+REAL,INTENT(IN) :: Pos(1:3) !< particle position
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                     :: InterpolateAlgebraicExternalField(1:6)  !< E and B field at particle position
+REAL            :: InterpolateAlgebraicExternalField(1:6)  !< E and B field at particle position
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL            :: r !< radius factor
 !===================================================================================================================================
-SELECT CASE (AlgebraicExternalField)
-CASE (1)
+ASSOCIATE(&
+      x => Pos(1) ,&
+      y => Pos(2) ,&
+      z => Pos(3)  &
+      )
+  SELECT CASE (AlgebraicExternalField)
+  CASE (1) ! Charoy 2019
 #if USE_HDG
-  ! Set Ex = Ue/xe
-  ASSOCIATE( Ue => AverageElectricPotential ,&
-             xe => 2.4e-2                   )
-    InterpolateAlgebraicExternalField(1) = Ue/xe
-  END ASSOCIATE
+    ! Set Ex = Ue/xe
+    ASSOCIATE( &
+          Ue => AverageElectricPotential ,&
+          xe => 2.4e-2                   )
+      InterpolateAlgebraicExternalField(1) = Ue/xe
+    END ASSOCIATE
 #else
     InterpolateAlgebraicExternalField(1) = externalField(1) ! default
 #endif /*USE_HDG*/
 
+    ! Set Ey, Ez, Bx and By
+    InterpolateAlgebraicExternalField(2:5) = externalField(2:5)
 
-  ! Set Ey, Ez, Bx and By
-  InterpolateAlgebraicExternalField(2:5) = externalField(2:5)
+    ! Calc Bz
+    ! Original formula
+    !ASSOCIATE(&
+    !      x     => Pos(1)   ,&
+    !      Lx    => 2.50E-2  ,&
+    !      xBmax => 0.750E-2 ,&
+    !      B0    => 6.00E-3  ,&
+    !      BLx   => 1.00E-3  ,&
+    !      Bmax  => 10.0E-3  ,&
+    !      sigma => 0.625E-2  &
+    !      )
+    ASSOCIATE( xBmax => 0.750E-2 )
+      IF(Pos(1).LT.xBmax)THEN
+        ! Original formula
+        !ASSOCIATE(a1 => (Bmax-B0)/(1.0-EXP(-0.5*(xBmax/sigma)**2))                              ,&
+        !          b1 => (B0 - Bmax*EXP(-0.5*(xBmax/sigma)**2))/(1.0-EXP(-0.5*(xBmax/sigma)**2))  )
+        !  InterpolateAlgebraicExternalField(6) = a1 * EXP(-0.5*((x-xBmax)/sigma)**2) + b1
+        !END ASSOCIATE
+        InterpolateAlgebraicExternalField(6) = 7.7935072222899814E-003 * EXP(-12800.0*(x-xBmax)**2) + 2.2064927777100192E-003
+      ELSE
+        ! Original formula
+        !ASSOCIATE(a2 => (Bmax-BLx)/(1.0-EXP(-0.5*((Lx-xBmax)/sigma)**2))                                  ,&
+        !          b2 => (BLx - Bmax*EXP(-0.5*((Lx-xBmax)/sigma)**2))/(1.0-EXP(-0.5*((Lx-xBmax)/sigma)**2))  )
+        !  InterpolateAlgebraicExternalField(6) = a2 * EXP(-0.5*((x-xBmax)/sigma)**2) + b2
+        !END ASSOCIATE
+        InterpolateAlgebraicExternalField(6) = 9.1821845944997683E-003 * EXP(-12800.0*(x-xBmax)**2) + 8.1781540550023306E-004
+      END IF ! Pos(1).LT.xBmax
+    END ASSOCIATE
+    !END ASSOCIATE
+  CASE (2) ! Liu 2010: 2D case
+    ! Set Ex, Ey, Ez, Bx and Bz
+    InterpolateAlgebraicExternalField(1:4) = externalField(1:4)
+    InterpolateAlgebraicExternalField(6)   = externalField(6)
 
-  ! Calc Bz
-  ! Original formula
-  !ASSOCIATE(&
-  !      x     => Pos(1)   ,&
-  !      Lx    => 2.50E-2  ,&
-  !      xBmax => 0.750E-2 ,&
-  !      B0    => 6.00E-3  ,&
-  !      BLx   => 1.00E-3  ,&
-  !      Bmax  => 10.0E-3  ,&
-  !      sigma => 0.625E-2  &
-  !      )
-  ASSOCIATE(&
-        x     => Pos(1)   ,&
-        xBmax => 0.750E-2 )
-    IF(Pos(1).LT.xBmax)THEN
-      ! Original formula
-      !ASSOCIATE(a1 => (Bmax-B0)/(1.0-EXP(-0.5*(xBmax/sigma)**2))                              ,&
-      !          b1 => (B0 - Bmax*EXP(-0.5*(xBmax/sigma)**2))/(1.0-EXP(-0.5*(xBmax/sigma)**2))  )
-      !  InterpolateAlgebraicExternalField(6) = a1 * EXP(-0.5*((x-xBmax)/sigma)**2) + b1
-      !END ASSOCIATE
-      InterpolateAlgebraicExternalField(6) = 7.7935072222899814E-003 * EXP(-12800.0*(x-xBmax)**2) + 2.2064927777100192E-003
-    ELSE
-      ! Original formula
-      !ASSOCIATE(a2 => (Bmax-BLx)/(1.0-EXP(-0.5*((Lx-xBmax)/sigma)**2))                                  ,&
-      !          b2 => (BLx - Bmax*EXP(-0.5*((Lx-xBmax)/sigma)**2))/(1.0-EXP(-0.5*((Lx-xBmax)/sigma)**2))  )
-      !  InterpolateAlgebraicExternalField(6) = a2 * EXP(-0.5*((x-xBmax)/sigma)**2) + b2
-      !END ASSOCIATE
-      InterpolateAlgebraicExternalField(6) = 9.1821845944997683E-003 * EXP(-12800.0*(x-xBmax)**2) + 8.1781540550023306E-004
-    END IF ! Pos(1).LT.xBmax
-  END ASSOCIATE
-  !END ASSOCIATE
-END SELECT
+    ! Calculate By(x)=Br(x)=Br,0*(x/L)^delta
+    ASSOCIATE( L => (GEO%xmaxglob-GEO%xminglob), Br0 => 400.0e-4, d => AlgebraicExternalFieldDelta ) ! Gauss to Tesla is *1e-4
+      InterpolateAlgebraicExternalField(5) = Br0*((x/L)**d)
+    END ASSOCIATE
+  CASE (3) ! Liu 2010: 3D case
+    ! Set Ex, Ey, Ez and Bz
+    InterpolateAlgebraicExternalField(1:3) = externalField(1:3)
+    InterpolateAlgebraicExternalField(6)   = externalField(6)
+
+    ! Calculate By(z)=Br(z)=Br,0*(z/L)^delta
+    ASSOCIATE( L => (GEO%zmaxglob-GEO%zminglob), Br0 => 400.0e-4, d => AlgebraicExternalFieldDelta ) ! Gauss to Tesla is *1e-4
+      r=Br0*((z/L)**d)/SQRT(x**2+y**2)
+      InterpolateAlgebraicExternalField(4) = x*r
+      InterpolateAlgebraicExternalField(5) = y*r
+    END ASSOCIATE
+  END SELECT
+END ASSOCIATE
 END FUNCTION InterpolateAlgebraicExternalField
 
 
