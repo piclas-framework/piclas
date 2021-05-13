@@ -95,7 +95,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoord
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID_Shared
 USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
-USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Vars           ,ONLY: nSpecies,VarTimeStep
 USE MOD_Particle_Vars           ,ONLY: Symmetry
 USE MOD_ReadInTools             ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
@@ -163,8 +163,8 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
 WRITE(UNIT=hilf,FMT='(I0)') NGeo
 nSurfSample = GETINT('DSMC-nSurfSample',TRIM(hilf))
 
-IF((nSurfSample.GT.1).AND.(TriaTracking)) &
-  CALL abort(__STAMP__,'nSurfSample cannot be >1 if TriaTracking=T')
+IF((nSurfSample.GT.1).AND.(TrackingMethod.EQ.TRIATRACKING)) &
+  CALL abort(__STAMP__,'nSurfSample cannot be >1 if TrackingMethod = triatracking')
 
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 CalcSurfaceImpact = GETLOGICAL('CalcSurfaceImpact')
@@ -583,7 +583,7 @@ DO iSide = firstSide,LastSide
   ! get global SideID. This contains only nonUniqueSide, no special mortar treatment required
   SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
 
-  IF (TriaTracking) THEN
+  IF (TrackingMethod.EQ.TRIATRACKING) THEN
     ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
     CNElemID  = GetCNElemID(ElemID)
     LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
@@ -613,8 +613,7 @@ DO iSide = firstSide,LastSide
     ELSE IF(Symmetry%Order.EQ.1) THEN
       SurfSideArea(1,1,iSide) = DSMC_1D_CalcSymmetryArea(LocSideID, CNElemID)
     END IF
-  ! .NOT. TriaTracking
-  ELSE
+  ELSE ! TrackingMethod.NE.TRIATRACKING
     ! call here stephens algorithm to compute area
     DO jSample=1,nSurfSample
       DO iSample=1,nSurfSample
@@ -746,8 +745,8 @@ FileString = TRIM(FileName)//'.h5'
 nVar2D      = 5
 nVar2D_Spec = 1
 
-! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number: Add 8 variables
-IF (CalcSurfaceImpact) nVar2D_Spec = nVar2D_Spec + 8
+! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle, total number, number per second: Add 10 variables
+IF (CalcSurfaceImpact) nVar2D_Spec = nVar2D_Spec + 10
 
 IF (nPorousBC.GT.0)    nVar2D = nVar2D + nPorousBC
 
@@ -786,6 +785,7 @@ IF (mySurfRank.EQ.0) THEN
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyTrans')
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyRot')
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyVib')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyElec')
       ! Add average impact vector for each species (x,y,z)
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactVectorX')
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactVectorY')
@@ -794,6 +794,8 @@ IF (mySurfRank.EQ.0) THEN
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactAngle')
       ! Add number of impacts
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactNumber')
+      ! Add number of impacts per second
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactFlux')
     END IF ! CalcSurfaceImpact
 
   END DO ! iSpec=1,nSpecies

@@ -34,6 +34,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: CreateParticle, RemoveParticle
+PUBLIC :: RemoveAllElectrons
 !===================================================================================================================================
 
 CONTAINS
@@ -126,13 +127,14 @@ END SUBROUTINE CreateParticle
 SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 !===================================================================================================================================
 !> Removes a single particle "PartID" by setting the required variables.
-!> If CalcPartBalance/UseAdaptive/CalcMassflowRate = T: adds/substracts the particle to/from the respective counter
+!> If CalcPartBalance/UseAdaptive/CalcAdaptiveBCInfo = T: adds/substracts the particle to/from the respective counter
 !>  !!!NOTE!!! This routine is inside particle analyze because of circular definition of modules (CalcEkinPart)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, UseAdaptive, PartMPF, usevMPF
+USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, PartMPF, usevMPF
+USE MOD_Particle_Sampling_Vars    ,ONLY: UseAdaptive
 USE MOD_Particle_Vars             ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance
-USE MOD_Particle_Analyze_Vars     ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcMassflowRate
+USE MOD_Particle_Analyze_Vars     ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcAdaptiveBCInfo
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput,BPO
 #if defined(IMPA)
 USE MOD_Particle_Vars             ,ONLY: PartIsImplicit
@@ -171,7 +173,7 @@ END IF ! CalcPartBalance
 ! If a BCID is given (e.g. when a particle is removed at a boundary), check if its an adaptive surface flux BC or the mass flow
 ! through the boundary shall be calculated or the charges impinging on the boundary are to be summed (thruster neutralization)
 IF(PRESENT(BCID)) THEN
-  IF(UseAdaptive.OR.CalcMassflowRate) THEN
+  IF(UseAdaptive.OR.CalcAdaptiveBCInfo) THEN
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
       IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.BCID) THEN
         Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow &
@@ -180,7 +182,7 @@ IF(PRESENT(BCID)) THEN
             Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
       END IF
     END DO
-  END IF ! UseAdaptive.OR.CalcMassflowRate
+  END IF ! UseAdaptive.OR.CalcAdaptiveBCInfo
   IF(UseNeutralization)THEN
     IF(TRIM(BoundaryName(BCID)).EQ.TRIM(NeutralizationSource))THEN
       ! Add +1 for electrons and -1 for ions
@@ -210,5 +212,55 @@ IF (PRESENT(crossedBC)) crossedBC=.TRUE.
 IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(PartID) = 0
 
 END SUBROUTINE RemoveParticle
+
+
+SUBROUTINE RemoveAllElectrons()
+!===================================================================================================================================
+!> Removes all particles for which PARTISELECTRON(iPart) is true, i.e., all electron species
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars ,ONLY: PDM
+#if USE_HDG
+USE MOD_HDG_Vars      ,ONLY: BRElectronsRemoved
+#endif /*USE_HDG*/
+USE MOD_TimeDisc_Vars ,ONLY: time
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iPart,NbrOfElectronsRemoved
+!===================================================================================================================================
+
+SWRITE(UNIT_stdOut,'(A,ES25.14E3,A)')' RemoveAllElectrons(): Using BR electron fluid at t=',time,', removing all electrons.'
+
+NbrOfElectronsRemoved = 0
+DO iPart = 1,PDM%ParticleVecLength
+  IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+  IF(PARTISELECTRON(iPart))THEN
+    CALL RemoveParticle(iPart)
+    NbrOfElectronsRemoved = NbrOfElectronsRemoved + 1
+  END IF
+END DO
+
+#if USE_MPI
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,NbrOfElectronsRemoved,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+#endif /*USE_MPI*/
+
+IF(NbrOfElectronsRemoved.GT.0.AND.MPIRoot) WRITE(UNIT_StdOut,'(A,I0,A)') '  Removed a total of ',NbrOfElectronsRemoved,' electrons.'
+
+#if USE_HDG
+IF(NbrOfElectronsRemoved.GT.0)THEN
+  BRElectronsRemoved=.TRUE.
+ELSE
+  BRElectronsRemoved=.FALSE.
+END IF ! BRNbrOfElectronsRemove.GT.0
+#endif /*USE_HDG*/
+
+END SUBROUTINE RemoveAllElectrons
 
 END MODULE MOD_part_operations

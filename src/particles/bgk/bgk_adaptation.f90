@@ -39,7 +39,7 @@ SUBROUTINE BGK_octree_adapt(iElem)
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: PEM, PartState, PartPosRef,Species,WriteMacroVolumeValues, usevMPF
-USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKSplittingDens
 ! USE MOD_BGK_Vars                ,ONLY: BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength
@@ -62,8 +62,8 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, nPart, CNElemID
-REAL                          :: Dens, partWeight, totalWeight
+INTEGER                       :: iPart,iLoop,nPart,CNElemID,GlobalElemID
+REAL                          :: Dens,partWeight,totalWeight
 TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
@@ -83,7 +83,8 @@ IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
   RETURN
 END IF
 
-CNElemID = GetCNElemID(iElem+offSetElem)
+GlobalElemID = iElem+offSetElem
+CNElemID     = GetCNElemID(GlobalElemID)
 
 NULLIFY(TreeNode)
 ALLOCATE(TreeNode)
@@ -110,15 +111,15 @@ END IF
 IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
   ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
   TreeNode%PNum_Node = nPart
-  IF (DoRefMapping) THEN
+  IF (TrackingMethod.EQ.REFMAPPING) THEN
     DO iLoop = 1, nPart
       TreeNode%MappedPartStates(1:3,iLoop)=PartPosRef(1:3,TreeNode%iPartIndx_Node(iLoop))
     END DO
   ELSE ! position in reference space [-1,1] has to be computed
     DO iLoop = 1, nPart
-      CALL GetPositionInRefElem(PartState(1:3,TreeNode%iPartIndx_Node(iLoop)),TreeNode%MappedPartStates(1:3,iLoop),iElem)
+      CALL GetPositionInRefElem(PartState(1:3,TreeNode%iPartIndx_Node(iLoop)),TreeNode%MappedPartStates(1:3,iLoop),GlobalElemID)
     END DO
-  END IF ! DoRefMapping
+  END IF ! TrackingMethod.EQ.REFMAPPING
   TreeNode%NodeDepth = 1
   TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
   ! Start of the recursive routine, which will descend further down the octree until the aforementioned criteria are fulfilled

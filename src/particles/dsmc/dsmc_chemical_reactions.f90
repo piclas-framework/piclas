@@ -359,11 +359,10 @@ USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange, CalcXiElec
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
 USE MOD_DSMC_Relaxation        ,ONLY: DSMC_VibRelaxDiatomic, CalcXiTotalEqui
 USE MOD_DSMC_CollisVec         ,ONLY: PostCollVec
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 USE MOD_part_tools             ,ONLY: GetParticleWeight
 USE MOD_part_operations        ,ONLY: RemoveParticle
-USE MOD_Particle_Analyze       ,ONLY: PARTISELECTRON
 #ifdef CODE_ANALYZE
 USE MOD_Globals                ,ONLY: unit_stdout,myrank
 USE MOD_Particle_Vars          ,ONLY: Symmetry
@@ -509,7 +508,7 @@ IF(EductReac(3).EQ.0) THEN
     ! Set species index of new particle
     PartSpecies(ReactInx(3)) = ProductReac(3)
     PartState(1:3,ReactInx(3)) = PartState(1:3,ReactInx(1))
-    IF(DoRefMapping) THEN
+    IF(TrackingMethod.EQ.REFMAPPING) THEN
       PartPosRef(1:3,ReactInx(3))=PartPosRef(1:3,ReactInx(1))
     END IF
     PartStateIntEn(1,ReactInx(3)) = 0.
@@ -543,7 +542,7 @@ IF(ProductReac(4).NE.0) THEN
   ! Set species index of new particle
   PartSpecies(ReactInx(4)) = ProductReac(4)
   PartState(1:3,ReactInx(4)) = PartState(1:3,ReactInx(1))
-  IF(DoRefMapping) THEN ! here Nearst-GP is missing
+  IF(TrackingMethod.EQ.REFMAPPING) THEN ! here Nearst-GP is missing
     PartPosRef(1:3,ReactInx(4))=PartPosRef(1:3,ReactInx(1))
   END IF
   PartStateIntEn(1,ReactInx(4)) = 0.
@@ -1465,7 +1464,7 @@ USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, DSMCSumOfForm
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, PartStateIntEn, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep
-USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefmapping
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_part_tools              ,ONLY: GetParticleWeight, DiceUnitVector
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
@@ -1541,7 +1540,7 @@ IF(EductReac(3).EQ.0) THEN
     ! Set species index of new particle
     PartSpecies(ReactInx(3)) = ProductReac(3)
     PartState(1:3,ReactInx(3)) = PartState(1:3,ReactInx(1))
-    IF(DoRefMapping) THEN
+    IF(TrackingMethod.EQ.REFMAPPING) THEN
       PartPosRef(1:3,ReactInx(3))=PartPosRef(1:3,ReactInx(1))
     END IF
     PartStateIntEn(1,ReactInx(3)) = 0.
@@ -1575,7 +1574,7 @@ IF(ProductReac(4).NE.0) THEN
   ! Set species index of new particle
   PartSpecies(ReactInx(4)) = ProductReac(4)
   PartState(1:3,ReactInx(4)) = PartState(1:3,ReactInx(1))
-  IF(DoRefMapping) THEN ! here Nearst-GP is missing
+  IF(TrackingMethod.EQ.REFMAPPING) THEN ! here Nearst-GP is missing
     PartPosRef(1:3,ReactInx(4))=PartPosRef(1:3,ReactInx(1))
   END IF
   PartStateIntEn(1,ReactInx(4)) = 0.

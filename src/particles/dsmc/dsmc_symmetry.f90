@@ -129,13 +129,8 @@ IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
 END IF
 
 DO BCSideID=1,nBCSides
-  locElemID = SideToElem(1,BCSideID)
-  IF (locElemID.LT.1) THEN !not sure if necessary
-    locElemID = SideToElem(2,BCSideID)
-    iLocSide = SideToElem(4,BCSideID)
-  ELSE
-    iLocSide = SideToElem(3,BCSideID)
-  END IF
+  locElemID = SideToElem(S2E_ELEM_ID,BCSideID)
+  iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
   SideID=GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%SymmetryBC) THEN
     CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))

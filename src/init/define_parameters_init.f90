@@ -27,7 +27,10 @@ SUBROUTINE InitDefineParameters()
 ! Calls all parameter definition routines
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
-USE MOD_Globals                    ,ONLY: UNIT_stdOut,MPIRoot
+USE MOD_Globals                    ,ONLY: UNIT_stdOut
+#if USE_MPI
+USE MOD_Globals                    ,ONLY: MPIRoot
+#endif /*USE_MPI*/
 USE MOD_Globals_Init               ,ONLY: DefineParametersGlobals
 USE MOD_ReadInTools                ,ONLY: prms
 USE MOD_MPI                        ,ONLY: DefineParametersMPI
@@ -61,6 +64,7 @@ USE MOD_Particle_Emission_Init     ,ONLY: DefineParametersParticleEmission
 USE MOD_Particle_SurfFlux_Init     ,ONLY: DefineParametersParticleSurfaceFlux
 USE MOD_Particle_Boundary_Init     ,ONLY: DefineParametersParticleBoundary
 USE MOD_Particle_Boundary_Sampling ,ONLY: DefineParametersParticleBoundarySampling
+USE MOD_Particle_Sampling_Adapt    ,ONLY: DefineParametersParticleSamplingAdaptive
 USE MOD_Particle_BGM               ,ONLY: DefineparametersParticleBGM
 USE MOD_Particle_Mesh              ,ONLY: DefineparametersParticleMesh
 USE MOD_Particle_Analyze           ,ONLY: DefineParametersParticleAnalyze
@@ -120,6 +124,7 @@ CALL DefineParametersParticleEmission()
 CALL DefineParametersParticleSurfaceFlux()
 CALL DefineParametersParticleBoundary()
 CALL DefineParametersParticleBoundarySampling()
+CALL DefineParametersParticleSamplingAdaptive()
 CALL DefineParametersParticleSymmetry()
 CALL DefineParametersVaribleTimeStep()
 CALL DefineParametersPorousBC()

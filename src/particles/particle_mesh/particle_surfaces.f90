@@ -113,7 +113,7 @@ USE MOD_Globals_Vars,               ONLY:EpsMach
 USE MOD_Particle_Surfaces_Vars
 USE MOD_Preproc
 USE MOD_Mesh_Vars,                  ONLY:NGeo
-USE MOD_ReadInTools,                ONLY:GETREAL,GETINT,GETLOGICAL
+USE MOD_ReadInTools,                ONLY:GETREAL,GETINT
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -262,7 +262,7 @@ USE MOD_Globals,                              ONLY:ABORT
 USE MOD_PreProc
 USE MOD_Mesh_Tools,                           ONLY:GetCNElemID,GetCNSideID
 USE MOD_Particle_Surfaces_Vars,               ONLY:SideNormVec,SideType
-USE MOD_Particle_Tracking_Vars,               ONLY:TriaTracking
+USE MOD_Particle_Tracking_Vars,               ONLY:TrackingMethod
 USE MOD_Particle_Mesh_Vars,                   ONLY:SideInfo_Shared,NodeCoords_Shared,ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -319,11 +319,11 @@ nx = -nx / nVal
 ny = -ny / nVal
 nz = -nz / nVal
 
-IF (.NOT.TriaTracking) THEN
+IF (TrackingMethod.NE.TRIATRACKING) THEN
   CNSideID = GetCNSideID(SideID)
   IF ((SideType(CNSideID).EQ.PLANAR_RECT .OR. SideType(CNSideID).EQ.PLANAR_NONRECT)) THEN
-    !if surfflux-side are planar, TriaSurfaceflux can be also used for tracing or Refmapping (for which SideNormVec exists)!
-    !warning: these values go into SurfMeshSubSideData and if TriaSurfaceflux they should be used only for planar_rect/_nonrect sides
+    !if surfflux-side are planar, TriaSurfaceFlux can be also used for tracing or Refmapping (for which SideNormVec exists)!
+    !warning: these values go into SurfMeshSubSideData and if TriaSurfaceFlux they should be used only for planar_rect/_nonrect sides
     dotpr = DOT_PRODUCT(SideNormVec(1:3,CNSideID),(/nx,ny,nz/))
     IF ( .NOT.ALMOSTEQUALRELATIVE(dotpr,1.,1.0E-2) ) &
       CALL abort(__STAMP__, 'SideNormVec is not identical with V1xV2!')

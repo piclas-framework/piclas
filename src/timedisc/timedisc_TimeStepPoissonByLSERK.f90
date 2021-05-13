@@ -64,11 +64,8 @@ USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIPar
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #endif
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
-USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
-USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
-USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
-USE MOD_Particle_TriaTracking  ,ONLY: ParticleTriaTracking
+USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 #endif /*PARTICLES*/
 USE MOD_HDG                    ,ONLY: HDG
 #if USE_LOADBALANCE
@@ -110,7 +107,7 @@ tStage=time
 #ifdef PARTICLES
 CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 RKdtFrac = RK_c(2)
-dtWeight = dt/dt_Min * RKdtFrac
+dtWeight = dt/dt_Min(DT_MIN) * RKdtFrac
 RKdtFracTotal=RKdtFrac
 
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
@@ -219,16 +216,7 @@ __STAMP__&
 #if USE_MPI
   CALL IRecvNbofParticles() ! open receive buffer for number of particles
 #endif
-  IF(DoRefMapping)THEN
-    CALL ParticleRefTracking()
-  ELSE
-    IF (TriaTracking) THEN
-      CALL ParticleTriaTracking()
-    ELSE
-      CALL ParticleTracing()
-    END IF
-  END IF
-
+  CALL PerformTracking()
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -257,7 +245,7 @@ DO iStage=2,nRKStages
     RKdtFrac = 1.-RK_c(nRKStages)
     RKdtFracTotal=1.
   END IF
-  dtWeight = dt/dt_Min * RKdtFrac
+  dtWeight = dt/dt_Min(DT_MIN) * RKdtFrac
 
   ! deposition
   IF (time.GE.DelayTime) THEN
@@ -356,16 +344,7 @@ DO iStage=2,nRKStages
 #if USE_MPI
     CALL IRecvNbofParticles() ! open receive buffer for number of particles
 #endif
-    IF(DoRefMapping)THEN
-      CALL ParticleRefTracking()
-    ELSE
-      IF (TriaTracking) THEN
-        CALL ParticleTriaTracking()
-      ELSE
-        CALL ParticleTracing()
-      END IF
-    END IF
-
+    CALL PerformTracking()
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/

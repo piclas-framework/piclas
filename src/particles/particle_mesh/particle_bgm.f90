@@ -72,6 +72,9 @@ CALL prms%CreateRealArrayOption('Part-FIBGMdeltas'&
 CALL prms%CreateRealArrayOption('Part-FactorFIBGM'&
   , 'Factor with which the background mesh will be scaled.'&
   , '1. , 1. , 1.')
+CALL prms%CreateRealOption(     'Part-SafetyFactor'           , 'Factor to scale the halo region with MPI', '1.0')
+CALL prms%CreateRealOption(     'Particles-HaloEpsVelo'       , 'Halo region velocity [m/s]', '0.')
+
 
 END SUBROUTINE DefineParametersParticleBGM
 
@@ -87,12 +90,17 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: c
 USE MOD_Preproc
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem,nGlobalElems
-USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Periodic_BC   ,ONLY: InitPeriodicBC
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,Distance,ListDistance
 USE MOD_ReadInTools            ,ONLY: GETREAL,GetRealArray,PrintOption
+USE MOD_Particle_Mesh_Vars     ,ONLY: offsetComputeNodeElem,NodeCoords_Shared,nComputeNodeSides,FIBGMToProcFlag
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,FIBGM_nElems,ElemToBGM_Shared,FIBGM_offsetElem
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGMToProc_Shared,FIBGMToProcFlag_Shared,nComputeNodeElems,FIBGMProcs_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared,FIBGMToProc,FIBGM_nTotalElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems_Shared,FIBGM_Element_Shared,BoundsOfElem_Shared,GEO,FIBGM_Element,FIBGMProcs
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c
 #endif
@@ -106,6 +114,11 @@ USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
 USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType,SFAdaptiveSmoothing,dim_sf,dimFactorSF
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared_Win,FIBGM_nElems_Shared_Win,FIBGMToProcFlag_Shared_Win,FIBGMProcs_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared_Win,FIBGMToProc_Shared_Win,FIBGM_Element_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems_Shared_Win,BoundsOfElem_Shared_Win,ElemToBGM_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems_Shared
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -119,7 +132,7 @@ INTEGER                        :: iElem,iLocSide,SideID
 INTEGER                        :: FirstElem,LastElem
 INTEGER                        :: firstNodeID,lastNodeID
 INTEGER                        :: offsetNodeID,nNodeIDs,currentOffset
-INTEGER,PARAMETER              :: moveBGMindex=1,increment=1
+INTEGER,PARAMETER              :: moveBGMindex=1,increment=1,haloChange=3
 REAL                           :: xmin,xmax,ymin,ymax,zmin,zmax
 INTEGER                        :: iBGM,jBGM,kBGM
 INTEGER                        :: BGMimax,BGMimin,BGMjmax,BGMjmin,BGMkmax,BGMkmin
@@ -147,13 +160,19 @@ INTEGER                        :: BGMiglobDelta,BGMjglobDelta,BGMkglobDelta
 ! Periodic FIBGM
 LOGICAL                        :: PeriodicComponent(1:3)
 INTEGER                        :: iPeriodicVector,iPeriodicComponent
+REAL                           :: CharacteristicLength,CharacteristicLengthMax
+INTEGER                        :: CNElemID
+LOGICAL                        :: EnlargeBGM ! Flag used for enlarging the BGM if RefMapping and/or shape function is used
+INTEGER                        :: offsetElemCNProc
+REAL                           :: BoundingBoxVolume
+! Mortar
+INTEGER                        :: iMortar,NbElemID,NbSideID,nMortarElems
 #else
 REAL                           :: halo_eps
 #endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
 INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 #endif /*CODE_ANALYZE*/
-LOGICAL                        :: EnlargeBGM ! Flag used for enlarging the BGM if RefMapping and/or shape function is used
 !===================================================================================================================================
 
 ! Read parameter for FastInitBackgroundMesh (FIBGM)
@@ -297,9 +316,45 @@ END IF
 #endif /*USE_LOADBALANCE*/
 
 #if USE_MPI
-SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
-halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
+SafetyFactor  =GETREAL('Part-SafetyFactor')
+halo_eps_velo =GETREAL('Particles-HaloEpsVelo')
 
+! Adaptive SF: Determine global shape function radius from maximum of characteristic length in each cell
+IF((TRIM(DepositionType).EQ.'shape_function_adaptive').AND.SFAdaptiveSmoothing)THEN
+  ! J_N is only built for local DG elements. Therefore, array is only filled for elements on the same compute node
+  offsetElemCNProc = offsetElem - offsetComputeNodeElem
+  CharacteristicLengthMax=0.
+  DO iElem = 1, nElems
+    CNElemID=iElem+offsetElemCNProc
+
+    ! Because ElemVolume_Shared(CNElemID) is not available for halo elements, the bounding box volume is used as an approximate
+    ! value for the element volume from which the characteristic length of the element is calculated
+    ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iElem + offsetElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+      BoundingBoxVolume = (Bounds(2,1)-Bounds(1,1)) * (Bounds(2,2)-Bounds(1,2)) * (Bounds(2,3)-Bounds(1,3))
+    END ASSOCIATE
+    IF(BoundingBoxVolume.LE.0.0) CALL abort(__STAMP__,'Element bounding box volume cannot be zero!')
+
+    ! Check which shape function dimension is used
+    SELECT CASE(dim_sf)
+    CASE(1)
+      !CharacteristicLength = ElemVolume_Shared(CNElemID) / dimFactorSF
+      CharacteristicLength = BoundingBoxVolume / dimFactorSF
+    CASE(2)
+      !CharacteristicLength = SQRT(ElemVolume_Shared(CNElemID) / dimFactorSF)
+      CharacteristicLength = SQRT(BoundingBoxVolume / dimFactorSF)
+    CASE(3)
+      !CharacteristicLength = ElemCharLength_Shared(CNElemID)
+      CharacteristicLength = BoundingBoxVolume**(1./3.)
+    END SELECT
+    CharacteristicLengthMax = MAX(CharacteristicLengthMax,CharacteristicLength)
+  END DO ! iElem = 1, nElems
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,CharacteristicLengthMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+  r_sf = 1.1 * CharacteristicLengthMax ! Increase by 10%
+  IF(CharacteristicLength.LE.0.) CALL abort(__STAMP__,'CharacteristicLength.LE.0. is not allowed.')
+  CALL PrintOption('Global shape function radius from elements: PIC-shapefunction-radius' , 'INFO.' , RealOpt=r_sf)
+END IF ! (TRIM(DepositionType).EQ.'shape_function_adaptive').AND.SFAdaptiveSmoothing
+
+! Check if multi-node
 IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
 #endif /*USE_MPI*/
   halo_eps  = 0.
@@ -339,7 +394,7 @@ ELSE
 
   ! Check whether halo_eps is smaller than shape function radius e.g. 'shape_function'
   IF(StringBeginsWith(DepositionType,'shape_function'))THEN
-    IF(r_sf.LE.0.) CALL abort(__STAMP__,'Shape function radius not read yet or set equal to zero! r_sf=',RealInfoOpt=r_sf)
+    IF(r_sf.LT.0.) CALL abort(__STAMP__,'Shape function radius not read yet (less than zero)! r_sf=',RealInfoOpt=r_sf)
     halo_eps = halo_eps + r_sf
     CALL PrintOption('halo_eps from shape function radius','CALCUL.',RealOpt=halo_eps)
   END IF
@@ -582,6 +637,37 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 IF (GEO%nPeriodicVectors.GT.0) CALL CheckPeriodicSides(EnlargeBGM)
 IF (GEO%RotPeriodicBC) CALL CheckRotPeriodicSides()
+CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+
+! Mortar sides
+IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
+  DO iElem = firstElem, lastElem
+    IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LT.1) CYCLE
+
+    ! Loop over all sides and check for mortar sides
+    DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iElem)
+      NbElemID = SideInfo_Shared(SIDE_NBELEMID,iSide)
+      ! Mortar side
+      IF (NbElemID.LT.0) THEN
+        nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,iSide).EQ.-1)
+
+        DO iMortar = 1,nMortarElems
+          NbSideID   = SideInfo_Shared(SIDE_NBSIDEID,iSide + iMortar)
+          ElemID     = SideInfo_Shared(SIDE_ELEMID  ,NbSideID)
+
+          ! Element not previously flagged
+          IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).LT.1) THEN
+            ASSOCIATE(posElem => (ElemID-1)*ELEMINFOSIZE + (ELEM_HALOFLAG-1))
+              CALL MPI_FETCH_AND_OP(haloChange,dummyInt,MPI_INTEGER,0,INT(4*posElem,MPI_ADDRESS_KIND),MPI_REPLACE,ElemInfo_Shared_Win,IERROR)
+            END ASSOCIATE
+          END IF
+        END DO
+      END IF
+    END DO
+  END DO
+END IF
+
 CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #else
@@ -922,17 +1008,15 @@ BGMiglobDelta = BGMimaxglob - BGMiminglob
 BGMjglobDelta = BGMjmaxglob - BGMjminglob
 BGMkglobDelta = BGMkmaxglob - BGMkminglob
 
-! Allocate array to hold the number of elemebts on each FIBGM cell
+! Allocate array to hold the number of elements on each FIBGM cell
 MPISharedSize =                  INT((BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/(BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1)/) &
-                                     ,FIBGM_nTotalElems_Shared_Win,FIBGM_nTotalElems_Shared)
+CALL Allocate_Shared(MPISharedSize,(/(BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1)/),FIBGM_nTotalElems_Shared_Win,FIBGM_nTotalElems_Shared)
 CALL MPI_WIN_LOCK_ALL(0,FIBGM_nTotalElems_Shared_Win,IERROR)
 FIBGM_nTotalElems(BGMiminglob:BGMimaxglob,BGMjminglob:BGMjmaxglob,BGMkminglob:BGMkmaxglob) => FIBGM_nTotalElems_Shared
 
 ! Allocate flags which procs belong to which FIGBM cell
 MPISharedSize =                  INT((BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1)*nProcessors_Global,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/(BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1)*nProcessors_Global/) &
-                    ,FIBGMToProcFlag_Shared_Win,FIBGMToProcFlag_Shared)
+CALL Allocate_Shared(MPISharedSize,(/(BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1)*nProcessors_Global/),FIBGMToProcFlag_Shared_Win,FIBGMToProcFlag_Shared)
 CALL MPI_WIN_LOCK_ALL(0,FIBGMToProcFlag_Shared_Win,IERROR)
 FIBGM_nTotalElems(BGMiminglob:BGMimaxglob,BGMjminglob:BGMjmaxglob,BGMkminglob:BGMkmaxglob)                        => FIBGM_nTotalElems_Shared
 FIBGMToProcFlag  (BGMiminglob:BGMimaxglob,BGMjminglob:BGMjmaxglob,BGMkminglob:BGMkmaxglob,0:nProcessors_Global-1) => FIBGMToProcFlag_Shared
@@ -1066,11 +1150,12 @@ ALLOCATE(Distance    (1:MAXVAL(FIBGM_nElems)) &
 ALLOCATE(CNTotalSide2GlobalSide(1:nComputeNodeTotalSides))
 ALLOCATE(GlobalSide2CNTotalSide(1:nNonUniqueGlobalSides))
 
-! Use MessageSize to store temporally store the previous value
+! Use MessageSize to temporally store the previous value
 MessageSize = nComputeNodeTotalSides
 nComputeNodeSides      = 0
 nComputeNodeTotalSides = 0
-GlobalSide2CNTotalSide(1:nGlobalElems) = -1
+GlobalSide2CNTotalSide(:) = -1
+CNTotalSide2GlobalSide(:) = -1
 
 ! CN-local elements
 DO iElem = 1,nComputeNodeElems
@@ -1078,6 +1163,9 @@ DO iElem = 1,nComputeNodeElems
 
   ! Loop over all sides
   DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID)
+    ! Check if side was already added
+    ! IF (GlobalSide2CNTotalSide(iSide).NE.-1) CYCLE
+
     nComputeNodeSides             = nComputeNodeSides      + 1
     nComputeNodeTotalSides        = nComputeNodeTotalSides + 1
     CNTotalSide2GlobalSide(nComputeNodeTotalSides) = iSide
@@ -1091,6 +1179,9 @@ Do iElem = nComputeNodeElems + 1,nComputeNodeTotalElems
 
   ! Loop over all sides
   DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID)
+    ! Check if side was already added
+    ! IF (GlobalSide2CNTotalSide(iSide).NE.-1) CYCLE
+
     nComputeNodeTotalSides        = nComputeNodeTotalSides + 1
     CNTotalSide2GlobalSide(nComputeNodeTotalSides) = iSide
     GlobalSide2CNTotalSide(iSide) = nComputeNodeTotalSides

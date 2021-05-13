@@ -161,7 +161,7 @@ SUBROUTINE BuildPrecond(t,tStage,tDeriv,alpha,dt)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Basis             ,ONLY: GetInverse
+USE MOD_Mathtools         ,ONLY: INVERSE
 USE MOD_Precond_Vars      ,ONLY: invXi,invEta,invZeta,dRdXi,dRdZeta,dRdEta
 USE MOD_LinearSolver_Vars ,ONLY: nDOFelem,mass,nDOFLine
 USE MOD_Precond_Vars      ,ONLY: invP,PrecondType,DebugMatrix
@@ -348,7 +348,7 @@ DO iElem=1,PP_nElems
   SELECT CASE(PrecondType)
   CASE(1,2) ! element block jacobi
     !invert Ploc => invP(:,:,iElem)
-    invP(:,:,iElem)=getInverse(nDOFelem,Ploc)
+    invP(:,:,iElem)=INVERSE(Ploc)
   CASE(3) ! ilu(0) of element
     CALL BuildILU0(Ploc,iElem)
   CASE(4)
@@ -357,9 +357,9 @@ DO iElem=1,PP_nElems
     ! compute the inverse of the 1D preconditioner
     DO q=0,PP_N
       DO p=0,PP_N
-        invXi  (:,:,p,q,iElem)=getInverse(nDOFLine,dRdXi  (:,:,p,q,iElem))
-        invEta (:,:,p,q,iElem)=getInverse(nDOFLine,dRdEta (:,:,p,q,iElem))
-        invZeta(:,:,p,q,iElem)=getInverse(nDOFLine,dRdZeta(:,:,p,q,iElem))
+        invXi  (:,:,p,q,iElem)=INVERSE(dRdXi  (:,:,p,q,iElem))
+        invEta (:,:,p,q,iElem)=INVERSE(dRdEta (:,:,p,q,iElem))
+        invZeta(:,:,p,q,iElem)=INVERSE(dRdZeta(:,:,p,q,iElem))
       END DO ! j
     END DO ! k
   END SELECT

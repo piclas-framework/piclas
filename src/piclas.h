@@ -279,3 +279,9 @@
 #define REFMAPPING    1
 #define TRACING       2
 #define TRIATRACKING  3
+
+! Time Step Minimum: dt_Min
+#define DT_MIN        1
+#define DT_ANALYZE    2
+#define DT_END        3
+#define DT_BR_SWITCH  4

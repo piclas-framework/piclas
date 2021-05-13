@@ -371,14 +371,14 @@ The usage of rotational periodic boundary conditions is limited to cases, where 
 
 The porous boundary condition uses a removal probability to determine whether a particle is deleted or reflected at the boundary. The main application of the implemented condition is to model a pump, according to [@Lei2017]. It is defined by giving the number of porous boundaries and the respective boundary number (`BC=2` corresponds to the `BC_WALL` boundary defined in the previous section) on which the porous condition is.
 
-    Part-nPorousBC=1
-    Part-PorousBC1-BC=2
-    Part-PorousBC1-Pressure=5.
-    Part-PorousBC1-Temperature=300.
-    Part-PorousBC1-Type=pump
-    Part-PorousBC1-PumpingSpeed=2e-9
-    Part-PorousBC1-DeltaPumpingSpeed-Kp=0.1
-    Part-PorousBC1-DeltaPumpingSpeed-Ki=0.0
+    Surf-nPorousBC=1
+    Surf-PorousBC1-BC=2
+    Surf-PorousBC1-Pressure=5.
+    Surf-PorousBC1-Temperature=300.
+    Surf-PorousBC1-Type=pump
+    Surf-PorousBC1-PumpingSpeed=2e-9
+    Surf-PorousBC1-DeltaPumpingSpeed-Kp=0.1
+    Surf-PorousBC1-DeltaPumpingSpeed-Ki=0.0
 
 The removal probability is determined through the given pressure [Pa] and temperature [K] at the boundary. A pumping speed can be given as a first guess, however, the pumping speed $S$ [$m^3/s$] will be adapted if the proportional factor ($K_{\mathrm{p}}$, `DeltaPumpingSpeed-Kp`) is greater than zero
 
@@ -392,14 +392,14 @@ where $n$ is the sampled, cell-local number density and $N_{\mathrm{pump}}$ is t
 
 To reduce the influence of statistical fluctuations, the relevant macroscopic values (pressure difference $\Delta p$ and number density $n$) can be sampled for $N$ iterations by defining (for all porous boundaries)
 
-    Part-PorousBC-IterationMacroVal=10
+    AdaptiveBC-SamplingIteration=10
 
 A porous region on the specified boundary can be defined. At the moment, only the `circular` option is implemented. The origin of the circle/ring on the surface and the radius have to be given. In the case of a ring, a maximal and minimal radius is required (`-rmax` and `-rmin`, respectively), whereas for a circle only the input of maximal radius is sufficient.
 
-    Part-PorousBC1-Region=circular
-    Part-PorousBC1-normalDir=1
-    Part-PorousBC1-origin=(/5e-6,5e-6/)
-    Part-PorousBC1-rmax=2.5e-6
+    Surf-PorousBC1-Region=circular
+    Surf-PorousBC1-normalDir=1
+    Surf-PorousBC1-origin=(/5e-6,5e-6/)
+    Surf-PorousBC1-rmax=2.5e-6
 
 The absolute coordinates are defined as follows for the respective normal direction.
 
@@ -411,10 +411,10 @@ The absolute coordinates are defined as follows for the respective normal direct
 
 Using the regions, multiple pumps can be defined on a single boundary. Additionally, the BC can be used as a sensor by defining the respective type:
 
-    Part-PorousBC1-BC=3
-    Part-PorousBC1-Pressure=5.
-    Part-PorousBC1-Temperature=300.
-    Part-PorousBC1-Type=sensor
+    Surf-PorousBC1-BC=3
+    Surf-PorousBC1-Pressure=5.
+    Surf-PorousBC1-Temperature=300.
+    Surf-PorousBC1-Type=sensor
 
 Together with a region definition, a pump as well as a sensor can be defined on a single and/or multiple boundaries, allowing e.g. to determine the pressure difference between the pump and a remote area of interest.
 
@@ -669,13 +669,18 @@ Depending of the type of the chosen boundary type either the mass flow [kg/s] or
     Part-Species1-Surfaceflux1-Adaptive-Massflow=1.00E-14
     Part-Species1-Surfaceflux1-Adaptive-Pressure=10
 
-The adaptive boundaries require the sampling of macroscopic properties such as flow velocity at the boundary. To compensate for the statistical fluctuations a relaxation factor $f_{\mathrm{relax}}$ is utilized and the current value of the sampled variable $v^{n}$ is updated according to
+The adaptive boundaries require the sampling of macroscopic properties such as flow velocity at the boundary. To compensate for the statistical fluctuations, three possible sampling approaches are available. The first approach uses a relaxation factor $f_{\mathrm{relax}}$, where the current value of the sampled variable $v^{n}$ is updated according to
 
 $$v^{n}= (1-f_{\mathrm{relax}})\,v^{n-1} + f_{\mathrm{relax}} v^{\mathrm{samp}} $$
 
 The relaxation factor $f_{\mathrm{relax}}$ is defined by
 
-    Part-AdaptiveWeightingFactor = 0.001
+    AdaptiveBC-RelaxationFactor = 0.001
+
+The second and third approach allows to sample over a certain number of iterations. If the truncated running average option is enabled, the macroscopic properties will be continuously updated while the oldest sample will be replaced with the most recent. If the truncated running average option is disabled, the macroscopic properties will be only updated every given number of iterations, and the complete sample will be resetted afterwads. If a number of iterations is given, it will be used instead of the first approach with the relaxation factor.
+
+    AdaptiveBC-SamplingIteration      = 100
+    AdaptiveBC-TruncateRunningAverage = T       ! DEFAULT: F
 
 The adaptive particle emission can be combined with the circular inflow feature. In this context when the area of the actual emission circle/ring is very small, it is preferable to utilize the `Type=4` constant mass flow condition. `Type=3` assumes an open boundary and accounts for particles leaving the domain through that boundary already when determining the number of particles to be inserted. As a result, this method tends to over predict the given mass flow, when the emission area is very small and large sample size would be required to have enough particles that leave the domain through the emission area. For the `Type=4` method, the actual number of particles leaving the domain through the circular inflow is counted and the mass flow adapted accordingly, thus the correct mass flow can be reproduced.
 
@@ -687,13 +692,13 @@ where $R=8.314$ J mol$^{-1}$K$^{-1}$ is the gas constant, $M$ the molar mass in 
 
 To verify the resulting mass flow rate of an adaptive surface flux, the following option can be enabled
 
-    CalcMassflowRate = T
+    CalcAdaptiveBCInfo = T
 
-This will output a species-specific mass flow rate [kg s^$-1$] for each surface flux condition in the `PartAnalyze.csv`, which gives the current mass flow for the time step. Positive values correspond to a net mass flux into the domain and negative values vice versa. It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
+This will output a species-specific mass flow rate [kg s$^{-1}$] and the average pressure in the adjacent cells [Pa] for each surface flux condition in the `PartAnalyze.csv`, which gives the current values for the time step. For the former, positive values correspond to a net mass flux into the domain and negative values vice versa. It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
 
 #### Missing descriptions
 
-SimpleRadialVeloFit, ReduceNoise, DoForceFreeSurfaceFlux
+ReduceNoise, DoForceFreeSurfaceFlux
 
 DoPoissonRounding: [@Tysanner2004]
 
@@ -705,6 +710,13 @@ AcceptReject, ARM_DmaxSampleN: [@Garcia2006]
 
 Charge and current deposition can be performed using different methods, among others, shape
 functions, B-splines or locally volume-weighted approaches.
+
+|  **PIC-Deposition-Type**  |                             **Description**                            |
+|      :--------------:     |                  :-----------------------------------:                 |
+|   *cell_volweight_mean*   | Linear distribution in each element (continuous on element boundaries) |
+|      *shape_function*     |                standard shape function with fixed radius               |
+|    *shape_function_cc*    |            charge corrected shape function with fixed radius           |
+| *shape_function_adaptive* |      charge corrected shape function with element-dependent radius     |
 
 #### Linear Distribution Over Cell Interfaces
 A linear deposition method that also considers neighbouring elements can be selected by
@@ -724,16 +736,38 @@ or
 
     PIC-Deposition-Type = shape_function_cc
 
-where `shape_function_cc` is a more charge-conserving method that adjusts the deposited charge by
+where `shape_function_cc` is a numerically charge-conserving method that adjusts the deposited charge by
 comparing its integral value to the total charge given by the particles.
 
-The shape function sphere might be truncated at walls or open boundaries, which can be prevented by
-using a local deposition method near boundaries. The deposition of particles in elements where the shape
-function might be truncated is changed to *cell_volweight* for these elements via
+The shape function sphere might be truncated at walls or open boundaries, which is compensated when using `shape_function_cc` by
+increasing the deposited charge of truncated particles.
 
-    PIC-shapefunction-local-depo-BC = T
+Additionally, an element-local shape function radius can be used, which is determined for each element separately depending on the
+size of the element and its direct neighbours by setting
 
-The following polynomial isotropic shape functions are all designed to be used in three dimensions, where reductions to 2D and 1D are applied.
+    PIC-Deposition-Type = shape_function_adaptive
+
+The shape function radius in this case is limited by the size of the surrounding elements and may not reach past its direct
+neighbours.
+
+The direct influence of only the neibouring elements can be extended further by activating
+
+    PIC-shapefunction-adaptive-smoothing = T
+
+which increases the radius of influence and therefore takes more elements into account for the calculation of the shape function 
+radius in each element, hence, leading to a smoother transition in regions, where the element sizes rapidly change.
+
+This shape function method also is numerically charge conserving by integrating each particle's deposited charge and
+adjusting to this value. Depending on the polynomial degree N, the number of DOF that are within the shape function radius can be
+changed via
+
+    PIC-shapefunction-adaptive-DOF = 33
+
+The default values (maximum allowed for each polynomial degree $N$) depend on the dimensionality of the deposition kernel,
+1D: $2(N+1)$, 2D: $\pi(N+1)^2$, 3D: $(4/3)\pi(N+1)^3$.
+
+The following polynomial isotropic shape functions are all designed to be used in three dimensions, where reductions to 2D and 1D
+are possible.
 
 ##### Shape Function 1D
 A one-dimensional shape function in $x$-direction is given by

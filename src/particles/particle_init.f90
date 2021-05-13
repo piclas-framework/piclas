@@ -79,8 +79,6 @@ CALL prms%SetSection("Particle")
 
 CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  , 'Manual timestep [sec]. This variable is deprecated. '//&
                                                               'Use ManualTimestep instead.', '-1.0')
-CALL prms%CreateRealOption(     'Part-AdaptiveWeightingFactor', 'Weighting factor theta for weighting of average'//&
-                                                                ' instantaneous values with those of previous iterations.', '0.001')
 CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
 ! Ionization
 CALL prms%CreateLogicalOption(  'Part-DoInitialIonization'    , 'When restarting from a state, ionize the species to a '//&
@@ -101,45 +99,23 @@ CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'    , 'Number of Seeds
                                                                 '> 0    Debugging-friendly with numbers from ini. ', '0')
 CALL prms%CreateIntOption(      'Particles-RandomSeed[$]'     , 'Seed [$] for Random Number Generator', '1', numberedmulti=.TRUE.)
 
-CALL prms%CreateLogicalOption(  'Particles-DoPoissonRounding' , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Flag to perform Poisson sampling'//&
+CALL prms%CreateLogicalOption(  'Particles-DoPoissonRounding' , 'Flag to perform Poisson sampling'//&
                                                                 ' instead of random rounding', '.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-DoTimeDepInflow'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Insertion and SurfaceFlux with'//&
+CALL prms%CreateLogicalOption(  'Particles-DoTimeDepInflow'   , 'Insertion and SurfaceFlux with'//&
                                                                 ' simple random rounding. Linearly ramping of'//&
                                                                 ' inflow-number-of-particles is only possible with'//&
                                                                 ' PoissonRounding or DoTimeDepInflow', '.FALSE.')
 CALL prms%CreateIntOption(      'Part-RotPeriodicAxi'         , 'Axis of rotational periodicity:'//&
                                                                    'x=1, y=2, z=3', '1')
-CALL prms%CreateRealOption(     'Part-RotPeriodicAngle'       , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Angle for rotational periodicity [Grad]'&
-                                                              , '1.0')
-CALL prms%CreateIntOption(      'Part-nPeriodicVectors'       , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Number of the periodic vectors j=1,...,n.'//&
+CALL prms%CreateRealOption(     'Part-RotPeriodicAngle'       , 'Angle for rotational periodicity [deg]', '1.0')
+CALL prms%CreateIntOption(      'Part-nPeriodicVectors'       , 'Number of the periodic vectors j=1,...,n.'//&
                                                                    ' Value has to be the same as defined in preprog.ini', '0')
-CALL prms%CreateRealArrayOption('Part-PeriodicVector[$]'      , 'TODO-DEFINE-PARAMETER\nVector for periodic boundaries.'//&
+CALL prms%CreateRealArrayOption('Part-PeriodicVector[$]'      , 'Vector for periodic boundaries.'//&
                                                                    'Has to be the same as defined in preproc.ini in their'//&
                                                                    ' respective order. ', '1. , 0. , 0.', numberedmulti=.TRUE.)
 
-CALL prms%CreateRealOption(     'Part-DelayTime'              , "TODO-DEFINE-PARAMETER\n"//&
-                                                                "During delay time the particles,"//&
-                                                                    " won't be moved so the EM field can be evolved", '0.0')
-
-CALL prms%CreateRealOption(     'Part-SafetyFactor'           , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Factor to scale the halo region with MPI'&
-                                                              , '1.0')
-CALL prms%CreateRealOption(     'Particles-HaloEpsVelo'       , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Halo region radius', '0.')
-
-CALL prms%CreateIntOption(      'NbrOfRegions'                , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Number of regions to be mapped to Elements', '0')
-CALL prms%CreateRealArrayOption('RegionBounds[$]'                , 'TODO-DEFINE-PARAMETER\nRegionBounds ((xmin,xmax,ymin,...)'//&
-                                                                '|1:NbrOfRegions)'&
-                                                                , '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'rho_ref, phi_ref, and Te[eV] for Region#'&
-                                                              , '0. , 0. , 1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected phi for Region#\n'//&
-                                                                '(linear approx. above! def.: phi_ref)', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-DelayTime'              , "During delay time the particles,"//&
+                                                                " won't be moved so the EM field can be evolved", '0.0')
 
 CALL prms%CreateLogicalOption(  'PrintrandomSeeds'            , 'Flag defining if random seeds are written.', '.FALSE.')
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
@@ -241,7 +217,7 @@ SUBROUTINE InitParticleGlobals()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Particle_Tracking_Vars,     ONLY: TrackingMethod,TriaTracking,DoRefMapping
+USE MOD_Particle_Tracking_Vars,     ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -258,15 +234,7 @@ SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS...'
 ! Find tracking method immediately, a lot of the later variables depend on it
 TrackingMethod = GETINTFROMSTR('TrackingMethod')
 SELECT CASE(TrackingMethod)
-CASE(REFMAPPING)
-  DoRefMapping=.TRUE.
-  TriaTracking=.FALSE.
-CASE(TRACING)
-  DoRefMapping=.FALSE.
-  TriaTracking=.FALSE.
-CASE(TRIATRACKING)
-  DoRefMapping=.FALSE.
-  TriaTracking=.TRUE.
+CASE(REFMAPPING,TRACING,TRIATRACKING)
 CASE DEFAULT
   SWRITE(UNIT_stdOut,'(A)')' TrackingMethod not implemented! Select refmapping (1), tracing (2) or triatracking (3).'
   CALL abort(&
@@ -274,8 +242,7 @@ CASE DEFAULT
   ,'TrackingMethod not implemented! TrackingMethod=',IntInfoOpt=TrackingMethod)
 END SELECT
 IF (Symmetry%Order.LE.2) THEN
-  DoRefMapping=.FALSE.
-  TriaTracking=.TRUE.
+  TrackingMethod = TRIATRACKING
   SWRITE(UNIT_stdOut,'(A)') "TrackingMethod set to TriaTracking due to Symmetry2D."
 END IF
 
@@ -302,13 +269,13 @@ USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
-USE MOD_Restart_Vars               ,ONLY: DoRestart
+USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptive
 USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
 USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
 USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
 USE MOD_Particle_Mesh_Vars         ,ONLY: GEO
-USE MOD_Part_Emission              ,ONLY: AdaptiveBCAnalyze
+USE MOD_Particle_Sampling_Adapt    ,ONLY: InitAdaptiveBCSampling
 USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundaryRotPeriodic, InitAdaptiveWallTemp
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
@@ -373,6 +340,9 @@ END IF
 ! Initialize porous boundary condition (requires BCdata_auxSF and SurfMesh from InitParticleBoundarySampling)
 IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 
+! Allocate sampling of near adaptive boundary element values
+IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL InitAdaptiveBCSampling()
+
 IF (useDSMC) THEN
   CALL InitDSMC()
   CALL InitSurfaceModel()
@@ -395,11 +365,6 @@ END IF
 CALL InitParticleCommSize()
 #endif
 
-! sampling of near adaptive boundary element values in the first time step to get initial distribution for porous BC
-IF(.NOT.DoRestart) THEN
-  IF(nPorousBC.GT.0) CALL AdaptiveBCAnalyze(initSampling_opt=.TRUE.)
-END IF
-
 ParticlesInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLES DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -420,7 +385,7 @@ USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesInits
 USE MOD_Particle_Boundary_Init ,ONLY: InitializeVariablesPartBoundary, InitializeVariablesAuxBC
-USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: TriaSurfaceFlux
 USE MOD_PICInit                ,ONLY: InitPIC
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
@@ -435,6 +400,9 @@ USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
 USE MOD_DSMC_AmbipolarDiffusion,ONLY: InitializeVariablesAmbipolarDiff
 USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep,useManualTimeStep
+#if defined(PARTICLES) && USE_HDG
+USE MOD_Part_BR_Elecron_Fluid  ,ONLY: InitializeVariablesElectronFluidRegions
+#endif /*defined(PARTICLES) && USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -515,9 +483,9 @@ IF(Symmetry%Axisymmetric) THEN
     RadialWeighting%PerformCloning = .TRUE.
     CALL DSMC_2D_InitRadialWeighting()
   END IF
-  IF(.NOT.TriaTracking) CALL abort(&
+  IF(TrackingMethod.NE.TRIATRACKING) CALL abort(&
     __STAMP__&
-    ,'ERROR: Axisymmetric simulation only supported with TriaTracking = T')
+    ,'ERROR: Axisymmetric simulation only supported with TrackingMethod = triatracking')
   IF(.NOT.TriaSurfaceFlux) CALL abort(&
     __STAMP__&
     ,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
@@ -528,7 +496,9 @@ CALL InitEmissionComm()
 CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 #endif /*USE_MPI*/
 
+#if defined(PARTICLES) && USE_HDG
 CALL InitializeVariablesElectronFluidRegions()
+#endif /*defined(PARTICLES) && USE_HDG*/
 CALL InitializeVariablesIMD()
 CALL InitializeVariablesWriteMacroValues()
 CALL InitializeVariablesvMPF()
@@ -547,7 +517,7 @@ SUBROUTINE AllocateParticleArrays()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
-USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars               ,ONLY: nElems
 USE MOD_DSMC_Vars               ,ONLY: useDSMC
 ! IMPLICIT VARIABLE HANDLING
@@ -560,7 +530,7 @@ USE MOD_DSMC_Vars               ,ONLY: useDSMC
 ! LOCAL VARIABLES
 INTEGER               :: ALLOCSTAT
 !===================================================================================================================================
-IF(DoRefMapping)THEN
+IF(TrackingMethod.EQ.REFMAPPING)THEN
   ALLOCATE(PartPosRef(1:3,PDM%MaxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
   __STAMP__&
@@ -683,56 +653,6 @@ END IF
 END SUBROUTINE InitializeVariablesIonization
 
 
-SUBROUTINE InitializeVariablesElectronFluidRegions()
-!===================================================================================================================================
-! Initialize the variables first
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_ReadInTools
-USE MOD_Particle_Vars
-USE MOD_Particle_Mesh_Tools ,ONLY: MapRegionToElem
-USE MOD_Particle_Mesh_Vars  ,ONLY: NbrOfRegions,RegionBounds
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(32)         :: hilf, hilf2
-INTEGER               :: iRegions
-REAL                  :: phimax_tmp
-!===================================================================================================================================
-!-- Read parameters for region mapping
-NbrOfRegions = GETINT('NbrOfRegions','0')
-IF (NbrOfRegions .GT. 0) THEN
-  ALLOCATE(RegionBounds(1:6,1:NbrOfRegions))
-  DO iRegions=1,NbrOfRegions
-    WRITE(UNIT=hilf2,FMT='(I0)') iRegions
-    RegionBounds(1:6,iRegions) = GETREALARRAY('RegionBounds'//TRIM(hilf2),6,'0. , 0. , 0. , 0. , 0. , 0.')
-  END DO
-
-  CALL MapRegionToElem()
-  ALLOCATE(RegionElectronRef(1:3,1:NbrOfRegions))
-  DO iRegions=1,NbrOfRegions
-    WRITE(UNIT=hilf2,FMT='(I0)') iRegions
-    ! 1:3 - rho_ref, phi_ref, and Te[eV]
-    RegionElectronRef(1:3,iRegions) = GETREALARRAY('Part-RegionElectronRef'//TRIM(hilf2),3,'0. , 0. , 1.')
-    WRITE(UNIT=hilf,FMT='(G0)') RegionElectronRef(2,iRegions)
-    phimax_tmp = GETREAL('Part-RegionElectronRef'//TRIM(hilf2)//'-PhiMax',TRIM(hilf))
-    IF (phimax_tmp.NE.RegionElectronRef(2,iRegions)) THEN !shift reference point (rho_ref, phi_ref) to phi_max:
-      RegionElectronRef(1,iRegions) = RegionElectronRef(1,iRegions) &
-        * EXP((phimax_tmp-RegionElectronRef(2,iRegions))/RegionElectronRef(3,iRegions))
-      RegionElectronRef(2,iRegions) = phimax_tmp
-      SWRITE(*,*) 'WARNING: BR-reference point is shifted to:', RegionElectronRef(1:2,iRegions)
-    END IF
-  END DO
-END IF
-
-END SUBROUTINE InitializeVariablesElectronFluidRegions
-
 SUBROUTINE InitializeVariablesVarTimeStep()
 !===================================================================================================================================
 ! Initialize the variables first
@@ -742,7 +662,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Mesh_Vars               ,ONLY: nElems
-USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_VarTimeStep    ,ONLY: VarTimeStep_CalcElemFacs
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -758,10 +678,10 @@ IF(VarTimeStep%UseVariableTimeStep) THEN
   ! Initializing the particle time step array used during calculation for the distribution (after maxParticleNumber was read-in)
   ALLOCATE(VarTimeStep%ParticleTimeStep(1:PDM%maxParticleNumber))
   VarTimeStep%ParticleTimeStep = 1.
-  IF(.NOT.TriaTracking) THEN
+  IF(TrackingMethod.NE.TRIATRACKING) THEN
     CALL abort(&
       __STAMP__&
-      ,'ERROR: Variable time step is only supported with TriaTracking = T')
+      ,'ERROR: Variable time step is only supported with TrackingMethod = triatracking')
   END IF
   IF(VarTimeStep%UseLinearScaling) THEN
     IF(Symmetry%Order.LE.2) THEN
@@ -980,7 +900,6 @@ SUBROUTINE InitializeVariablesIMD()
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Globals_Vars            ,ONLY: ElementaryCharge
-USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1004,10 +923,6 @@ IMDCutOff             = GETSTR( 'IMDCutOff','no_cutoff')
 IMDCutOffxValue       = GETREAL('IMDCutOffxValue','-999.9')
 
 IF(TRIM(IMDAtomFile).NE.'no file found')DoImportIMDFile=.TRUE.
-IF(DoImportIMDFile)THEN
-  DoRefMapping=.FALSE. ! for faster init don't use DoRefMapping!
-  CALL PrintOption('DoImportIMDFile=T. Setting DoRefMapping =','*CHANGE',LogOpt=DoRefMapping)
-END IF
 
 ! get information for IMD atom/ion charge determination and distribution
 IMDnSpecies         = GETINT('IMDnSpecies','1')
@@ -1193,6 +1108,7 @@ PEM%PeriodicMoved=.FALSE.
 END SUBROUTINE InitializeVariablesImplicit
 #endif
 
+
 SUBROUTINE InitialIonization()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! 1.) assign charges to each atom/molecule using the charge supplied by the user
@@ -1211,7 +1127,6 @@ USE MOD_DSMC_Vars           ,ONLY: CollisMode,DSMC,PartStateIntEn
 USE MOD_part_emission_tools ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_Vars           ,ONLY: useDSMC
 USE MOD_Eval_xyz            ,ONLY: TensorProductInterpolation
-USE MOD_Particle_Analyze    ,ONLY: PARTISELECTRON
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1241,7 +1156,7 @@ END DO ! I = 1, InitialIonizationSpecies
 ! ---------------------------------------------------------------------------------------------------------------------------------
 ! 1.) reconstruct ions and determine charge
 ! ---------------------------------------------------------------------------------------------------------------------------------
-SWRITE(UNIT_stdOut,*)'InitialIonization:'
+SWRITE(UNIT_stdOut,*)'InitialIonization():'
 SWRITE(UNIT_stdOut,*)'  1.) Reconstructing ions and determining the charge of each particle'
 
 ! Initialize the element charge with zero
@@ -1344,7 +1259,6 @@ DO iElem=1,PP_nElems
   END DO
 END DO
 
-
 END SUBROUTINE InitialIonization
 
 
@@ -1356,15 +1270,15 @@ SUBROUTINE FinalizeParticles()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Vars
+USE MOD_Particle_Sampling_Vars
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
-USE MOD_Particle_MPI_Halo      ,ONLY: FinalizePartExchangeProcs
-USE MOD_PICDepo_Vars           ,ONLY: SendShapeElemID,SendElemShapeID,ShapeMapping,CNShapeMapping
+USE MOD_Particle_MPI_Halo  ,ONLY: FinalizePartExchangeProcs
+USE MOD_PICDepo_Vars       ,ONLY: SendShapeElemID,SendElemShapeID,ShapeMapping,CNShapeMapping
 #endif /*USE_MPI*/
-!#if USE_MPI
-!USE MOD_Particle_MPI_Emission      ,ONLY: FinalizeEmissionParticlesToProcs
-!#endif
-!USE MOD_DSMC_Vars,                  ONLY: SampDSMC
+#if USE_HDG
+USE MOD_HDG_Vars           ,ONLY: RegionBounds,RegionElectronRef
+#endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1418,7 +1332,6 @@ SDEALLOCATE(PDM%IsNewPart)
 SDEALLOCATE(vMPF_SpecNumElem)
 SDEALLOCATE(PartMPF)
 SDEALLOCATE(Species)
-SDEALLOCATE(Adaptive_MacroVal)
 SDEALLOCATE(SpecReset)
 SDEALLOCATE(IMDSpeciesID)
 SDEALLOCATE(IMDSpeciesCharge)
@@ -1432,8 +1345,6 @@ SDEALLOCATE(PEM%pNumber)
 SDEALLOCATE(PEM%pEnd)
 SDEALLOCATE(PEM%pNext)
 SDEALLOCATE(seeds)
-SDEALLOCATE(RegionBounds)
-SDEALLOCATE(RegionElectronRef)
 SDEALLOCATE(PartPosLandmark)
 #if USE_MPI
 SDEALLOCATE(SendShapeElemID)
@@ -1443,6 +1354,10 @@ SDEALLOCATE(CNShapeMapping)
 ! particle MPI halo exchange
 CALL FinalizePartExchangeProcs()
 #endif
+#if USE_HDG
+SDEALLOCATE(RegionBounds)
+SDEALLOCATE(RegionElectronRef)
+#endif /*USE_HDG*/
 END SUBROUTINE FinalizeParticles
 
 

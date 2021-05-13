@@ -160,15 +160,10 @@ SUBROUTINE AD_InsertParticles(iPartIndx_Node, nPart, iPartIndx_NodeTotalAmbi, To
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                
-USE MOD_DSMC_Vars              ,ONLY: BGGas, CollisMode, DSMC, PartStateIntEn, AmbipolElecVelo, RadialWeighting
-USE MOD_DSMC_Vars              ,ONLY: DSMCSumOfFormedParticles, newAmbiParts, iPartIndx_NodeNewAmbi, DSMC_RHS
-USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, Species, VarTimeStep, PartMPF, Symmetry
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
-USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
-USE MOD_Particle_Localization  ,ONLY: PartInElemCheck
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_DSMC_Vars               ,ONLY: BGGas, CollisMode, DSMC, PartStateIntEn, AmbipolElecVelo, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: DSMCSumOfFormedParticles, newAmbiParts, iPartIndx_NodeNewAmbi, DSMC_RHS
+USE MOD_PARTICLE_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, Species, VarTimeStep, PartMPF, Symmetry
+USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -181,7 +176,7 @@ INTEGER,INTENT(INOUT),ALLOCATABLE :: iPartIndx_NodeTotalAmbi(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: iNewPart, iPart, PositionNbr, iLoop, nNewElectrons, IonIndX(nPart), iElem, PartNum
-REAL              :: MaxPos(3), MinPos(3), Vec3D(3), Det(6,2), RefPos(3), RandomPos(3)
+REAL              :: MaxPos(3), MinPos(3), Vec3D(3), RandomPos(3)
 LOGICAL           :: InsideFlag
 !===================================================================================================================================
 
@@ -223,15 +218,7 @@ __STAMP__&
     RandomPos(1:3) = MinPos(1:3)+Vec3D(1:3)*(MaxPos(1:3)-MinPos(1:3))
     IF(Symmetry%Order.LE.2) RandomPos(3) = 0.
     IF(Symmetry%Order.LE.1) RandomPos(2) = 0.
-    SELECT CASE(TrackingMethod)
-      CASE(TRIATRACKING)
-        CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
-      CASE(TRACING)
-        CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
-      CASE(REFMAPPING)
-        CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-        IF (MAXVAL(ABS(RefPos)).LE.ElemEpsOneCell(GetCNElemID(iElem))) InsideFlag=.TRUE.
-    END SELECT
+    InsideFlag = ParticleInsideCheck(RandomPos,iPart,iElem)
   END DO
   PartState(1:3,PositionNbr) = RandomPos(1:3)
   PartSpecies(PositionNbr) = DSMC%AmbiDiffElecSpec
@@ -273,7 +260,6 @@ SUBROUTINE AD_DeleteParticles(iPartIndx_Node, nPart_opt)
 ! MODULES
 USE MOD_Globals
 USE MOD_PARTICLE_Vars       ,ONLY: PDM, PartSpecies, Species, PartState, PEM
-USE MOD_Particle_Analyze    ,ONLY: PARTISELECTRON
 USE MOD_DSMC_Vars           ,ONLY: AmbipolElecVelo, newAmbiParts, iPartIndx_NodeNewAmbi, DSMC_RHS
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE

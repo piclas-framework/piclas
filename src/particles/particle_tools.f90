@@ -527,7 +527,7 @@ REAL, INTENT(OUT)             :: iRanPart(:,:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                           :: sumiRan(3), varianceiRan(3)
-INTEGER                        :: iLoop
+INTEGER                        :: iLoop,I
 !===================================================================================================================================
 sumiRan(1:3) = 0.0
 varianceiRan(1:3) = 0.0
@@ -545,9 +545,16 @@ END DO
 varianceiRan(1:3) = SQRT(varianceiRan(1:3)/nPart)
 
 DO iLoop = 1, nPart
-  iRanPart(1:3,iLoop) = iRanPart(1:3,iLoop)/varianceiRan(1:3)
+  DO I = 1, 3
+    IF(varianceiRan(I).GT.0)THEN ! Catch division by zero
+      iRanPart(I,iLoop) = iRanPart(I,iLoop)/varianceiRan(I)
+    ELSE
+      iRanPart(I,iLoop) = 0.
+    END IF ! varianceiRan(I).GT.0  
+  END DO ! I = 1, 3
 END DO
 
 END SUBROUTINE BuildTransGaussNums
+
 
 END MODULE MOD_part_tools

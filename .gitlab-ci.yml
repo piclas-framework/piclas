@@ -394,6 +394,12 @@ NIG_PIC_poisson_RK3:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_RK3/ ; fi
 
+NIG_PIC_poisson_Boris-Leapfrog:
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_Boris-Leapfrog/ ; fi
+
 NIG_PIC_poisson_Leapfrog:
   <<: *defaults_nightly
   stage: reggie_nightly
@@ -516,6 +522,13 @@ WEK_PIC_maxwell:
   script:
     - cd build
     - python ./reggie/reggie.py ../regressioncheck/checks/WEK_PIC_maxwell
+
+WEK_PIC_poisson:
+  <<: *defaults_weekly
+  stage: reggie_weekly
+  script:
+    - cd build
+    - python ./reggie/reggie.py ../regressioncheck/checks/WEK_PIC_poisson
 
 WEK_DSMC:
   <<: *defaults_weekly

@@ -62,7 +62,6 @@ CALL prms%CreateIntOption(      'Particles-DSMC-SelectionProcedure'     &
                                           '2: Gimelsheim.', '1')
 CALL prms%CreateRealOption(     'Particles-DSMC-RotRelaxProb'&
                                           , 'Define the rotational relaxation probability upon collision of molecules\n'//&
-                                              '(HALOWIKI:)Choice of the vibrational relaxation probability calculation\n'//&
                                           '0-1: constant\n'//&
                                           '2: variable, Boyd)', '0.2')
 CALL prms%CreateRealOption(     'Particles-DSMC-VibRelaxProb'&
@@ -350,14 +349,14 @@ IF(DSMC%MergeSubcells.AND.(Symmetry%Order.NE.2)) THEN
       ,'ERROR: Merging of subcells only supported within a 2D/axisymmetric simulation!')
 END IF
   IF(CollisMode.GE.2) THEN
-    DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb','0.2')
-    DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb','0.004')
+    DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb')
+    DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb')
   ELSE
     DSMC%RotRelaxProb = 0.
     DSMC%VibRelaxProb = 0.
   END IF
-DSMC%ElecRelaxProb = GETREAL('Particles-DSMC-ElecRelaxProb','0.01')
-DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant', '0.5')
+DSMC%ElecRelaxProb = GETREAL('Particles-DSMC-ElecRelaxProb')
+DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant')
 !-----------------------------------------------------------------------------------
 DSMC%CalcQualityFactors = GETLOGICAL('Particles-DSMC-CalcQualityFactors')
 DSMC%ReservoirSimu = GETLOGICAL('Particles-DSMCReservoirSim')
@@ -1470,6 +1469,7 @@ CALL DeleteElemNodeVol()
 SDEALLOCATE(BGGas%PairingPartner)
 SDEALLOCATE(BGGas%BackgroundSpecies)
 SDEALLOCATE(BGGas%MapSpecToBGSpec)
+SDEALLOCATE(BGGas%MapBGSpecToSpec)
 SDEALLOCATE(BGGas%SpeciesFraction)
 SDEALLOCATE(BGGas%NumberDensity)
 SDEALLOCATE(RadialWeighting%ClonePartNum)

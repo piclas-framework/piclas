@@ -72,16 +72,9 @@ CALL addStrListEntry('TrackingMethod' , 'tracing'         , TRACING)
 CALL addStrListEntry('TrackingMethod' , 'triatracking'    , TRIATRACKING)
 CALL addStrListEntry('TrackingMethod' , 'default'         , TRIATRACKING)
 
-CALL prms%CreateLogicalOption( 'Write-Tria-DebugMesh'&
-  , 'Writes per proc triangulated Surfacemesh used for Triatracking. Requires TriaTracking=T.'&
-  ,'.FALSE.')
 CALL prms%CreateLogicalOption( 'TriaSurfaceFlux'&
   , 'Using Triangle-aproximation [T] or (bi-)linear and bezier (curved) description [F] of sides for surfaceflux.'//&
   ' Default is set to TriaTracking')
-CALL prms%CreateLogicalOption( 'Write-TriaSurfaceFlux-DebugMesh'&
-  , 'Writes per proc triangulated Surfacemesh used for TriaSurfaceFlux. Requires TriaSurfaceFlux=T.'&
-  ,'.FALSE.')
-
 CALL prms%CreateLogicalOption( 'DisplayLostParticles'&
   , 'Display position, velocity, species and host element of particles lost during particle tracking (TrackingMethod = '//&
     'triatracking, tracing)','.FALSE.')
@@ -101,6 +94,9 @@ CALL prms%CreateLogicalOption( 'CartesianPeriodic'&
 CALL prms%CreateLogicalOption( 'FastPeriodic'&
   , ' Further simplification by directly moving particle into grid. Instead of moving the particle several times the periodic'//&
     ' displacements, the particle is mapped directly back into the domain. ','.FALSE.')
+CALL prms%CreateLogicalOption( 'meshCheckWeirdElements'&
+  , 'Abort when weird elements are found: it means that part of the element is turned inside-out. ','.TRUE.')
+
 CALL prms%CreateIntOption(     'RefMappingGuess'&
   , ' Initial guess of the Newton for mapping the particle into reference coordinates.\n'//&
     '1 -linear pseudo-Cartesian coordinates\n'//&
@@ -153,7 +149,9 @@ USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID,GetGlo
 USE MOD_Mesh_Vars              ,ONLY: deleteMeshPointer,NodeCoords
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
 USE MOD_Mesh_Vars              ,ONLY: useCurveds
+#if USE_MPI
 USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
+#endif /*USE_MPI*/
 USE MOD_Particle_BGM           ,ONLY: BuildBGMAndIdentifyHaloRegion
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Tools    ,ONLY: InitPEM_LocalElemID,InitPEM_CNElemID,GetMeshMinMax,IdentifyElemAndSideType
@@ -167,7 +165,6 @@ USE MOD_Particle_Tracking_Vars ,ONLY: MeasureTrackTime,FastPeriodic,CountNbrOfLo
 USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles,NbrOfLostParticlesTotal,NbrOfLostParticlesTotal_old
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLostVecLength,PartStateLost,PartLostDataSize
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, DisplayLostParticles
-!USE MOD_Particle_Tracking_Vars ,ONLY: WriteTriaDebugMesh
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,DepositionType
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
@@ -190,6 +187,7 @@ USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBa
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_PICDepo_Shapefunction_Tools, ONLY:InitShapeFunctionDimensionalty
 !USE MOD_DSMC_Vars              ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -233,6 +231,10 @@ END IF
 
 ! Mesh min/max must be built on BezierControlPoint for possibly curved elements
 CALL GetMeshMinMax()
+
+! Set shape function dimension (1D, 2D or 3D)
+! This function requires GetMeshMinMax() and values calculated in it are used in BuildBGMAndIdentifyHaloRegion()
+IF(StringBeginsWith(DepositionType,'shape_function')) CALL InitShapeFunctionDimensionalty()
 
 ! Build BGM to Element mapping and identify which of the elements, sides and nodes are in the compute-node local and halo region
 CALL BuildBGMAndIdentifyHaloRegion()
@@ -332,9 +334,7 @@ END IF
 
 ! Set logical for building node neighbourhood
 SELECT CASE(TRIM(DepositionType))
-  CASE('cell_volweight_mean')
-    FindNeighbourElems = .TRUE.
-  CASE('shape_function_adaptive')
+  CASE('cell_volweight_mean','shape_function_adaptive')
     FindNeighbourElems = .TRUE.
   CASE DEFAULT
     FindNeighbourElems = .FALSE.
@@ -357,8 +357,10 @@ SELECT CASE(TrackingMethod)
 
     IF (DoDeposition) CALL BuildEpsOneCell()
 
-CASE(TRACING,REFMAPPING)
-    IF(TriaSurfaceFlux) CALL InitParticleGeometry()
+  CASE(TRACING,REFMAPPING)
+    ! ElemMidPoint_Shared required
+    IF(TriaSurfaceFlux.OR.TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitParticleGeometry()
+    ! ElemNodeID_Shared required
     IF(FindNeighbourElems) CALL InitElemNodeIDs()
 
 !    CALL CalcParticleMeshMetrics()
@@ -508,11 +510,14 @@ SUBROUTINE FinalizeParticleMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
+#if USE_MPI
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
+#endif /*USE_MPI*/
 USE MOD_Particle_BGM           ,ONLY: FinalizeBGM
 USE MOD_Particle_Mesh_Readin   ,ONLY: FinalizeMeshReadin
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,Distance,ListDistance,PartStateLost
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 #if USE_MPI
 USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
@@ -545,6 +550,13 @@ SELECT CASE (TrackingMethod)
     ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+
+    ! InitParticleGeometry()
+    IF(TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
+      CALL UNLOCK_AND_FREE(ConcaveElemSide_Shared_Win)
+      CALL UNLOCK_AND_FREE(ElemSideNodeID_Shared_Win)
+      CALL UNLOCK_AND_FREE(ElemMidPoint_Shared_Win)
+    END IF ! TRIM(DepositionType).EQ.'shape_function_adaptive'
 
     ! BuildSideOriginAndRadius()
     IF (TrackingMethod.EQ.REFMAPPING) THEN
@@ -693,6 +705,10 @@ SELECT CASE (TrackingMethod)
     CALL UNLOCK_AND_FREE(ElemBaryNGeo_Shared_Win)
     CALL UNLOCK_AND_FREE(ElemRadius2NGeo_Shared_Win)
 
+    IF(StringBeginsWith(DepositionType,'shape_function'))THEN
+      CALL UNLOCK_AND_FREE(ElemRadiusNGeo_Shared_Win)
+    END IF
+
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
     IF (DoInterpolation.OR.DoDeposition) THEN
 #if USE_LOADBALANCE
@@ -742,14 +758,10 @@ SELECT CASE (TrackingMethod)
     END IF !PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
-    ! InitParticleGeometry
-    ADEALLOCATE(ConcaveElemSide_Shared)
-    ADEALLOCATE(ElemSideNodeID_Shared)
-    ADEALLOCATE(ElemMidPoint_Shared)
-
     ! BuildElementRadiusTria
     ADEALLOCATE(ElemBaryNGeo_Shared)
     ADEALLOCATE(ElemRadius2NGEO_Shared)
+    ADEALLOCATE(ElemRadiusNGeo_Shared)!only shape function
 
     ! BuildElemTypeAndBasisTria()
     ADEALLOCATE(XiEtaZetaBasis_Shared)
@@ -805,6 +817,11 @@ SDEALLOCATE(ListDistance)
 SDEALLOCATE(PartStateLost)
 SDEALLOCATE(ElemTolerance)
 SDEALLOCATE(ElemToGlobalElemID)
+
+! InitParticleGeometry
+ADEALLOCATE(ConcaveElemSide_Shared)
+ADEALLOCATE(ElemSideNodeID_Shared)
+ADEALLOCATE(ElemMidPoint_Shared)
 
 ParticleMeshInitIsDone=.FALSE.
 

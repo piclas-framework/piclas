@@ -238,9 +238,6 @@ USE MOD_Part_Tools            ,ONLY: isInterpolateParticle
 USE MOD_PIC_Vars
 USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle,DoInterpolation,InterpolationType
 USE MOD_PICInterpolation_Vars ,ONLY: InterpolationElemLoop
-#ifdef CODE_ANALYZE
-USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
-#endif /* CODE_ANALYZE */
 USE MOD_PICInterpolation_Vars ,ONLY: CalcBField
 USE MOD_HDF5_Output_Tools     ,ONLY: WriteBGFieldToHDF5
 #if USE_HDG
@@ -459,7 +456,7 @@ FUNCTION GetInterpolatedFieldPartPos(ElemID,PartID)
 ! Evaluate the electro-(magnetic) field using the reference position and return the field
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: PartPosRef,PDM,PartState,PEM
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
@@ -490,9 +487,9 @@ NotMappedSurfFluxParts=DoSurfaceFlux !Surfaceflux particles inserted before inte
 #endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
 
 ! Check if reference position is required
-IF(NotMappedSurfFluxParts .AND.DoRefMapping)THEN
+IF(NotMappedSurfFluxParts .AND.(TrackingMethod.EQ.REFMAPPING))THEN
   IF(PDM%dtFracPush(PartID)) CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef_loc(1:3),ElemID)
-ELSEIF(.NOT.DoRefMapping)THEN
+ELSEIF(TrackingMethod.NE.REFMAPPING)THEN
   CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef_loc(1:3),ElemID)
 ELSE
   PartPosRef_loc(1:3) = PartPosRef(1:3,PartID)
@@ -800,7 +797,9 @@ SUBROUTINE InitAnalyticalParticleState()
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInitAnalyticalParticleState
 USE MOD_Particle_Analyze       ,ONLY: CalcAnalyticalParticleState
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_TimeDisc_Vars          ,ONLY: dt
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES

@@ -2,17 +2,51 @@
 
 #==============================================================================
 # title       : InstallGCC.sh
-# description : This script installs the gcc compiler with a specified version 
+# description : This script installs the gcc compiler with a specified version
 #               as given below via GCCVERSION='X.X.X'
 # date        : Nov 27, 2019
-# version     : 1.0   
+# version     : 1.0
 # usage       : bash InstallGCC.sh
-# notes       : 
+# notes       :
 #==============================================================================
 
+# Check privilege
+if [[ "$EUID" -ne 0 ]]; then
+  echo "Please run as root"
+  exit 1
+fi
+
+# --------------------------------------------------------------------------------------------------
+# Colors
+# --------------------------------------------------------------------------------------------------
+
+if test -t 1; then # if terminal
+  NbrOfColors=$(which tput > /dev/null && tput colors) # supports color
+  if test -n "$NbrOfColors" && test $NbrOfColors -ge 8; then
+    TERMCOLS=$(tput cols)
+    BOLD="$(tput bold)"
+    UNDERLINE="$(tput smul)"
+    STANDOUT="$(tput smso)"
+    NORMAL="$(tput sgr0)"
+    NC="$(tput sgr0)"
+    BLACK="$(tput setaf 0)"
+    RED="$(tput setaf 1)"
+    GREEN="$(tput setaf 2)"
+    YELLOW="$(tput setaf 3)"
+    BLUE="$(tput setaf 4)"
+    MAGENTA="$(tput setaf 5)"
+    CYAN="$(tput setaf 6)"
+    WHITE="$(tput setaf 7)"
+  fi
+fi
+
+# --------------------------------------------------------------------------------------------------
+# Settings
+# --------------------------------------------------------------------------------------------------
+
 INSTALLDIR=/opt
-SOURCESDIR=/opt/Installsources
-MODULETEMPLATEDIR=/opt/Installsources/moduletemplates
+SOURCESDIR=/opt/sources
+MODULETEMPLATEDIR=/opt/sources/moduletemplates
 
 cd $INSTALLDIR
 if [ ! -e "${SOURCESDIR}" ]; then
@@ -43,6 +77,20 @@ GCCVERSION='9.3.0'
 # sudo apt-get install libmpc-dev
 #GCCVERSION='10.1.0'
 
+
+# --------------------------------------------------------------------------------------------------
+# Check pre-requisites
+# --------------------------------------------------------------------------------------------------
+
+if [[ ${GCCVERSION} == '9.3.0' ]] || [[ ${GCCVERSION} == '10.1.0' ]]; then
+  sudo apt-get install libmpfr-dev
+  sudo apt-get install libmpc-dev
+fi
+
+# --------------------------------------------------------------------------------------------------
+# Install Module GCC
+# --------------------------------------------------------------------------------------------------
+
 MODULEFILEDIR=${INSTALLDIR}/modules/modulefiles/compilers/gcc
 MODULEFILE=${MODULEFILEDIR}/${GCCVERSION}
 
@@ -55,7 +103,7 @@ if [[ -n ${1} ]]; then
 fi
 
 if [ ! -e "${MODULEFILE}" ]; then
-  echo "creating Compiler GCC-${GCCVERSION}"
+  echo "${GREEN}creating Compiler GCC-${GCCVERSION}${NC}"
   cd ${SOURCESDIR}
   if [ ! -e "${SOURCESDIR}/gcc-${GCCVERSION}.tar.gz" ]; then
     wget -O gcc-${GCCVERSION}.tar.gz "ftp://ftp.fu-berlin.de/unix/languages/gcc/releases/gcc-${GCCVERSION}/gcc-${GCCVERSION}.tar.gz"
@@ -70,7 +118,7 @@ if [ ! -e "${MODULEFILE}" ]; then
     mkdir -p gcc-${GCCVERSION}/build
   fi
   if [[ ${1} =~ ^-r(erun)?$ ]] ; then
-    rm gcc-${GCCVERSION}/build/* 
+    rm gcc-${GCCVERSION}/build/*
   fi
   cd gcc-${GCCVERSION}/build
   ../configure -v \
@@ -86,7 +134,7 @@ if [ ! -e "${MODULEFILE}" ]; then
   make -j 2>&1 | tee make.out
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo " "
-    echo "Failed: [make -j 2>&1 | tee make.out]"
+    echo "${RED}Failed: [make -j 2>&1 | tee make.out]${NC}"
     exit
   else
     make install 2>&1 | tee install.out
@@ -100,8 +148,8 @@ if [ ! -e "${MODULEFILE}" ]; then
     cp ${MODULETEMPLATEDIR}/compilers/gcc/v_temp ${MODULEFILE}
     sed -i 's/versionflag/'${GCCVERSION}'/gI' ${MODULEFILE}
   else
-    echo "compiler not installed, no modulefile created"
+    echo "${RED}compiler not installed, no modulefile created${NC}"
   fi
 else
-  echo "Compiler GCC-${GCCVERSION} already created (module file exists)"
+  echo "${YELLOW}Compiler GCC-${GCCVERSION} already created (module file exists)${NC}"
 fi

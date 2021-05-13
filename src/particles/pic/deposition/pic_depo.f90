@@ -52,7 +52,6 @@ CALL prms%CreateLogicalOption('PIC-RelaxDeposition'      , 'Relaxation of curren
 CALL prms%CreateRealOption(   'PIC-RelaxFac'             , 'Relaxation factor of current PartSource with RelaxFac\n'//&
                                                            'into PartSourceOld', '0.001')
 
-CALL prms%CreateLogicalOption('PIC-shapefunction-charge-conservation', 'Enable charge conservation.', '.FALSE.')
 CALL prms%CreateRealOption(   'PIC-shapefunction-radius'             , 'Radius of shape function'   , '1.')
 CALL prms%CreateIntOption(    'PIC-shapefunction-alpha'              , 'Exponent of shape function' , '2')
 CALL prms%CreateIntOption(    'PIC-shapefunction-dimension'          , '1D                          , 2D or 3D shape function', '3')
@@ -66,6 +65,14 @@ CALL prms%CreateLogicalOption(  'PIC-shapefunction-3D-deposition' ,'Deposit the 
 CALL prms%CreateRealOption(     'PIC-shapefunction-radius0', 'Minimum shape function radius (for cylindrical and spherical)', '1.')
 CALL prms%CreateRealOption(     'PIC-shapefunction-scale'  , 'Scaling factor of shape function radius '//&
                                                              '(for cylindrical and spherical)', '0.')
+CALL prms%CreateRealOption(     'PIC-shapefunction-adaptive-DOF'  ,'Average number of DOF in shape function radius (assuming a '//&
+    'Cartesian grid with equal elements). Only implemented for PIC-Deposition-Type = shape_function_adaptive (2). The maximum '//&
+    'number of DOF is limited by the polynomial degree and depends on PIC-shapefunction-dimension=1, 2 or 3\n'//&
+   '1D: 2*(N+1)\n'//&
+   '2D: Pi*(N+1)^2\n'//&
+   '3D: (4/3)*Pi*(N+1)^3\n')
+CALL prms%CreateLogicalOption('PIC-shapefunction-adaptive-smoothing', 'Enable smooth transition of element-dependent radius when'//&
+                                                                      ' using shape_function_adaptive.', '.FALSE.')
 
 END SUBROUTINE DefineParametersPICDeposition
 
@@ -76,26 +83,22 @@ SUBROUTINE InitializeDeposition
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_Basis                  ,ONLY: BarycentricWeights,InitializeVandermonde
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,NodeType,NodeTypeVISU
-USE MOD_Mesh_Vars              ,ONLY: nElems,sJ,nGlobalElems,Vdm_EQ_N
+USE MOD_Mesh_Vars              ,ONLY: nElems,sJ,Vdm_EQ_N
 USE MOD_Particle_Vars
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,MeshVolume
-USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes,NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,NodeToElemInfo,NodeToElemMapping
-USE MOD_Particle_Mesh_Vars     ,ONLY: PeriodicSFCaseMatrix,NbrOfPeriodicSFCases
 USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
 USE MOD_PICDepo_Vars
-USE MOD_PICDepo_Tools          ,ONLY: CalcCellLocNodeVolumes,ReadTimeAverage,beta
+USE MOD_PICDepo_Tools          ,ONLY: CalcCellLocNodeVolumes,ReadTimeAverage
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
-USE MOD_ReadInTools            ,ONLY: PrintOption
 #if USE_MPI
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank,MPI_COMM_LEADERS_SHARED
@@ -113,14 +116,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
-INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm, firstElem, lastElem, jNode, NbElemID, NeighNonUniqueNodeID
-INTEGER                   :: jElem, NonUniqueNodeID, iNode, NeighUniqueNodeID
-REAL                      :: VolumeShapeFunction,r_sf_tmp
+INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm
+INTEGER                   :: jElem, NonUniqueNodeID,iNode
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
-CHARACTER(32)             :: hilf_dim,hilf_geo
 CHARACTER(255)            :: TimeAverageFile
-INTEGER                   :: nTotalDOF
 INTEGER                   :: UniqueNodeID
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND)   :: MPISharedSize
@@ -129,7 +129,6 @@ INTEGER                   :: TestElemID
 LOGICAL,ALLOCATABLE       :: NodeDepoMapping(:,:)
 INTEGER                   :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1),firstNode,lastNode
 #endif
-REAL                      :: dimFactorSF
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
@@ -427,250 +426,19 @@ CASE('cell_volweight_mean')
     CALL GetVandermonde(1, NodeTypeVISU, PP_N, NodeType, Vdm_EQ_N, modal=.FALSE.)
   END IF ! DoDielectricSurfaceCharge
 
-
-!  ! Additional source for cell_volweight_mean (external or surface charge)
-!  IF(DoDielectricSurfaceCharge)THEN
-!    ALLOCATE(NodeSourceExt(1:nNodes))
-!    NodeSourceExt = 0.0
-!    ALLOCATE(NodeSourceExtTmp(1:nNodes))
-!    NodeSourceExtTmp = 0.0
-!  END IF ! DoDielectricSurfaceCharge
 CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
-  alpha_sf = GETINT('PIC-shapefunction-alpha')
-  dim_sf   = GETINT('PIC-shapefunction-dimension')
-  ! Get shape function direction for 1D (the direction in which the charge will be distributed) and 2D (the direction in which the
-  ! charge will be constant)
-  dim_sf_dir = GETINT('PIC-shapefunction-direction')
-  ! Distribute the charge over the volume (3D) or line (1D)/area (2D): default is TRUE
-  sfDepo3D = GETLOGICAL('PIC-shapefunction-3D-deposition')
-  ! Check if 2D shape function is activated
-  IF(dim_sf.EQ.2)THEN
-    ! set the two perpendicular directions used for deposition
-    dim_sf_dir1 = MERGE(1,2,dim_sf_dir.EQ.2)
-    dim_sf_dir2 = MERGE(1,MERGE(3,3,dim_sf_dir.EQ.2),dim_sf_dir.EQ.3)
-    SWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') ' Shape function 2D with const. distribution in dir ',dim_sf_dir,&
-        ' and variable distrbution in ',dim_sf_dir1,' and ',dim_sf_dir2,' (1: x, 2: y and 3: z)'
-  END IF ! dim_sf.EQ.2
 
-  r2_sf = r_sf * r_sf  ! Radius squared
-  r2_sf_inv = 1./r2_sf ! Inverse of radius squared
+  ! --- Set shape function radius in each cell when using adaptive shape function
+  IF(TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitShapeFunctionAdaptive()
 
-  ! Initialize auxiliary variables
-  hilf_geo='volume'
-  hilf_dim='3D'
-  ! Set the scaling factor for the shape function depending on 1D, 2D or 3D shape function and how the charge is to be distributed
-  IF(dim_sf.EQ.3)THEN! 3D shape function
-    BetaFac = beta(1.5, REAL(alpha_sf) + 1.)
-    w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) * (REAL(alpha_sf) + 1.)/(PI*(r_sf**3))
-  ELSE! 1D or 2D shape function
-    IF(dim_sf.EQ.1)THEN
-      ! Set perpendicular directions
-      IF(dim_sf_dir.EQ.1)THEN ! Shape function deposits charge in x-direction
-        dimFactorSF = (GEO%ymaxglob-GEO%yminglob)*(GEO%zmaxglob-GEO%zminglob)
-      ELSE IF (dim_sf_dir.EQ.2)THEN ! Shape function deposits charge in y-direction
-        dimFactorSF = (GEO%xmaxglob-GEO%xminglob)*(GEO%zmaxglob-GEO%zminglob)
-      ELSE IF (dim_sf_dir.EQ.3)THEN ! Shape function deposits charge in z-direction
-        dimFactorSF = (GEO%xmaxglob-GEO%xminglob)*(GEO%ymaxglob-GEO%yminglob)
-      END IF
-      IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
-        ! Set prefix factor
-        w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf*GAMMA(REAL(alpha_sf+1))*dimFactorSF)
-      ELSE ! Distribute the charge over the line (1D)
-        ! Set prefix factor
-        w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf*GAMMA(REAL(alpha_sf+1)))
-        ! Set shape function length (1D volume)
-        !VolumeShapeFunction=2*r_sf
-        hilf_geo='line'
-      END IF
-      ! Set shape function length (3D volume)
-      VolumeShapeFunction=2*r_sf*dimFactorSF
-      ! Calculate number of 1D DOF (assume second and third direction with 1 cell layer and area given by dimFactorSF)
-      nTotalDOF=nGlobalElems*(PP_N+1)
-      hilf_dim='1D'
-    ELSE! 2D shape function
-      ! Set perpendicular direction
-      IF(dim_sf_dir.EQ.1)THEN ! Shape function deposits charge in y-z-direction (const. in x)
-        dimFactorSF = (GEO%xmaxglob-GEO%xminglob)
-      ELSE IF (dim_sf_dir.EQ.2)THEN ! Shape function deposits charge in x-z-direction (const. in y)
-        dimFactorSF = (GEO%ymaxglob-GEO%yminglob)
-      ELSE IF (dim_sf_dir.EQ.3)THEN! Shape function deposits charge in x-y-direction (const. in z)
-        dimFactorSF = (GEO%zmaxglob-GEO%zminglob)
-      END IF
-      IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
-        ! Set prefix factor
-        w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf*dimFactorSF)
-      ELSE ! Distribute the charge over the area (2D)
-        ! Set prefix factor
-        w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf)
-        ! Set shape function length (2D volume)
-        !VolumeShapeFunction=PI*(r_sf**2)
-        hilf_geo='area'
-      END IF
-      ! Set shape function length (3D volume)
-      VolumeShapeFunction=PI*(r_sf**2)*dimFactorSF
-      ! Calculate number of 2D DOF (assume third direction with 1 cell layer and width dimFactorSF)
-      nTotalDOF=nGlobalElems*(PP_N+1)**2
-      hilf_dim='2D'
-    END IF ! dim_sf.EQ.1
-  END IF ! dim_sf.EQ.3
+  ! --- Set integration factor only for uncorrected shape function methods
+  SELECT CASE(TRIM(DepositionType))
+  CASE('shape_function_cc', 'shape_function_adaptive')
+    w_sf  = 1.0 ! set dummy value
+  END SELECT
 
-  ! Output info regarding charge distribution and points per shape function resolution
-  ASSOCIATE(nTotalDOFin3D             => nGlobalElems*(PP_N+1)**3   ,&
-            VolumeShapeFunctionSphere => 4./3.*PI*r_sf**3           )
-    SWRITE(UNIT_stdOut,'(A)') ' The complete charge is '//TRIM(hilf_geo)//' distributed (via '//TRIM(hilf_dim)//' shape function)'
-    IF(.NOT.sfDepo3D)THEN
-      SWRITE(UNIT_stdOut,'(A)') ' Note that the integral of the charge density over the mesh volume is larger than the complete charge'
-      SWRITE(UNIT_stdOut,'(A)') ' because the charge is spread out over either a line (1D shape function) or an area (2D shape function)!'
-    END IF
-    IF(dim_sf.EQ.1)THEN
-      CALL PrintOption('Shape function volume (corresponding to a cuboid in 3D)'  , 'CALCUL.', RealOpt=VolumeShapeFunction)
-    ELSEIF(dim_sf.EQ.2)THEN
-      CALL PrintOption('Shape function volume (corresponding to a cylinder in 3D)', 'CALCUL.', RealOpt=VolumeShapeFunction)
-    ELSE
-      VolumeShapeFunction = VolumeShapeFunctionSphere
-      CALL PrintOption('Shape function volume (corresponding to a sphere in 3D)'  , 'CALCUL.', RealOpt=VolumeShapeFunction)
-    END IF
-    !CALL PrintOption('Shape function volume ('//TRIM(hilf_dim)//')'              , 'CALCUL.', RealOpt=VolumeShapeFunction)
-    IF(MPIRoot)THEN
-      IF(VolumeShapeFunction.GT.MeshVolume)THEN
-        CALL PrintOption('Mesh volume ('//TRIM(hilf_dim)//')', 'CALCUL.' , RealOpt=MeshVolume)
-        WRITE(UNIT_stdOut,'(A)') ' Maybe wrong perpendicular direction (PIC-shapefunction-direction)?'
-        CALL abort(&
-        __STAMP__&
-        ,'ShapeFunctionVolume > MeshVolume ('//TRIM(hilf_dim)//' shape function)')
-      END IF
-    END IF
-    IF(dim_sf.NE.3)THEN
-      CALL PrintOption('Average DOFs in Shape-Function '//TRIM(hilf_geo)//' ('//TRIM(hilf_dim)//')' , 'CALCUL.' , RealOpt=&
-           REAL(nTotalDOF)*VolumeShapeFunction/MeshVolume)
-    END IF ! dim_sf.NE.3
-    CALL PrintOption('Average DOFs in Shape-Function (corresponding 3D sphere)' , 'CALCUL.' , RealOpt=&
-         REAL(nTotalDOFin3D)*VolumeShapeFunctionSphere/MeshVolume)
-  END ASSOCIATE
-
-  IF(TRIM(DepositionType).EQ.'shape_function_adaptive') THEN
-#if USE_MPI
-    firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-    lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
-
-    MPISharedSize = INT(2*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-    CALL Allocate_Shared(MPISharedSize,(/2,nComputeNodeTotalElems/),SFElemr2_Shared_Win,SFElemr2_Shared)
-    CALL MPI_WIN_LOCK_ALL(0,SFElemr2_Shared_Win,IERROR)
-#else
-    ALLOCATE(SFElemr2_Shared(1:2,1:nElems))
-    firstElem = 1
-    lastElem  = nElems
-#endif  /*USE_MPI*/
-#if USE_MPI
-    IF (myComputeNodeRank.EQ.0) THEN
-#endif
-    SFElemr2_Shared   = HUGE(1.)
-#if USE_MPI
-    END IF
-    CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
-    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
-#endif
-    DO iElem = firstElem,lastElem
-      DO iNode = 1, 8
-        NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
-        UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
-        DO jElem = 1, NodeToElemMapping(2,UniqueNodeID)
-          NbElemID = NodeToElemInfo(NodeToElemMapping(1,UniqueNodeID)+jElem)
-          DO jNode = 1, 8
-            NeighNonUniqueNodeID = ElemNodeID_Shared(jNode,NbElemID)
-            NeighUniqueNodeID = NodeInfo_Shared(NeighNonUniqueNodeID)
-            IF (UniqueNodeID.EQ.NeighUniqueNodeID) CYCLE
-            r_sf_tmp = VECNORM(NodeCoords_Shared(1:3,NonUniqueNodeID)-NodeCoords_Shared(1:3,NeighNonUniqueNodeID))
-            IF (r_sf_tmp.LT.SFElemr2_Shared(1,iElem)) SFElemr2_Shared(1,iElem) = r_sf_tmp
-          END DO
-        END DO
-      END DO
-      SFElemr2_Shared(2,iElem) = SFElemr2_Shared(1,iElem)*SFElemr2_Shared(1,iElem)
-    END DO
-#if USE_MPI
-    CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
-    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
-#endif
-  END IF
-
-  !ALLOCATE(PartToFIBGM(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-  !IF (ALLOCSTAT.NE.0) CALL abort(&
-  !    __STAMP__&
-  !    ' Cannot allocate PartToFIBGM!')
-  !ALLOCATE(ExtPartToFIBGM(1:6,1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
-  !IF (ALLOCSTAT.NE.0) THEN
-  !  CALL abort(__STAMP__&
-  !    ' Cannot allocate ExtPartToFIBGM!')
-
-  VolumeShapeFunction=4./3.*PI*r_sf**3
-  nTotalDOF=nGlobalElems*(PP_N+1)**3
-  IF(MPIRoot)THEN
-    IF(VolumeShapeFunction.GT.MeshVolume) &
-      CALL abort(&
-      __STAMP__&
-      ,'ShapeFunctionVolume > MeshVolume')
-  END IF
-
-  CALL PrintOption('Average DOFs in Shape-Function','CALCUL.',RealOpt=REAL(nTotalDOF)*VolumeShapeFunction/MeshVolume)
-
-  ! --- build periodic case matrix for shape-function-deposition
-  IF (GEO%nPeriodicVectors.GT.0) THEN
-
-    ! Build case matrix:
-    ! Particles may move in more periodic directions than their charge is deposited, e.g., fully periodic in combination with
-    ! 1D shape function
-    NbrOfPeriodicSFCases = 3**dim_sf
-
-    ALLOCATE(PeriodicSFCaseMatrix(1:NbrOfPeriodicSFCases,1:3))
-    PeriodicSFCaseMatrix(:,:) = 0
-    IF (dim_sf.EQ.1) THEN
-      PeriodicSFCaseMatrix(1,1) = 1
-      PeriodicSFCaseMatrix(3,1) = -1
-    END IF
-    IF (dim_sf.EQ.2) THEN
-      PeriodicSFCaseMatrix(1:3,1) = 1
-      PeriodicSFCaseMatrix(7:9,1) = -1
-      DO I = 1,3
-        PeriodicSFCaseMatrix(I*3-2,2) = 1
-        PeriodicSFCaseMatrix(I*3,2) = -1
-      END DO
-    END IF
-    IF (dim_sf.EQ.3) THEN
-      PeriodicSFCaseMatrix(1:9,1) = 1
-      PeriodicSFCaseMatrix(19:27,1) = -1
-      DO I = 1,3
-        PeriodicSFCaseMatrix(I*9-8:I*9-6,2) = 1
-        PeriodicSFCaseMatrix(I*9-2:I*9,2) = -1
-        DO J = 1,3
-          PeriodicSFCaseMatrix((J*3-2)+(I-1)*9,3) = 1
-          PeriodicSFCaseMatrix((J*3)+(I-1)*9,3) = -1
-        END DO
-      END DO
-    END IF
-
-    ! Define which of the periodic vectors are used for 2D shape function and display info
-    IF(dim_sf.EQ.2)THEN
-      IF(GEO%nPeriodicVectors.EQ.1)THEN
-        dim_periodic_vec1 = 1
-        dim_periodic_vec2 = 0
-      ELSEIF(GEO%nPeriodicVectors.EQ.2)THEN
-        dim_periodic_vec1 = 1
-        dim_periodic_vec2 = 2
-      ELSEIF(GEO%nPeriodicVectors.EQ.3)THEN
-        dim_periodic_vec1 = dim_sf_dir1
-        dim_periodic_vec2 = dim_sf_dir2
-      END IF ! GEO%nPeriodicVectors.EQ.1
-      CALL PrintOption('Dimension of 1st periodic vector for 2D shape function','INFO',IntOpt=dim_periodic_vec1)
-      SWRITE(UNIT_StdOut,*) "1st PeriodicVector =", GEO%PeriodicVectors(1:3,dim_periodic_vec1)
-      CALL PrintOption('Dimension of 2nd periodic vector for 2D shape function','INFO',IntOpt=dim_periodic_vec2)
-      SWRITE(UNIT_StdOut,*) "1st PeriodicVector =", GEO%PeriodicVectors(1:3,dim_periodic_vec2)
-    END IF ! dim_sf.EQ.2
-
-  ELSE
-    NbrOfPeriodicSFCases = 1
-    ALLOCATE(PeriodicSFCaseMatrix(1:1,1:3))
-    PeriodicSFCaseMatrix(:,:) = 0
-  END IF
+  ! --- Set periodic case matrix for shape function deposition (virtual displacement of particles in the periodic directions)
+  CALL InitPeriodicSFCaseMatrix()
 
   ! --- Set element flag for cycling already completed elements
 #if USE_MPI
@@ -698,6 +466,280 @@ END IF
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE DEPOSITION DONE!'
 
 END SUBROUTINE InitializeDeposition
+
+
+!===================================================================================================================================
+!> Calculate the shape function radius for each element depending on the neighbouring element sizes and the own element size
+!===================================================================================================================================
+SUBROUTINE InitShapeFunctionAdaptive()
+! MODULES
+USE MOD_Preproc
+USE MOD_Globals                     ,ONLY: UNIT_stdOut,abort,IERROR
+USE MOD_PICDepo_Vars                ,ONLY: SFAdaptiveDOF,SFAdaptiveSmoothing,SFElemr2_Shared,dim_sf,dimFactorSF
+USE MOD_ReadInTools                 ,ONLY: GETREAL,GETLOGICAL
+USE MOD_Particle_Mesh_Vars          ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,BoundsOfElem_Shared
+USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
+USE MOD_Globals_Vars                ,ONLY: PI
+USE MOD_Particle_Mesh_Vars          ,ONLY: ElemMidPoint_Shared,ElemToElemMapping,ElemToElemInfo
+USE MOD_Mesh_Tools                  ,ONLY: GetGlobalElemID
+USE MOD_Particle_Mesh_Vars          ,ONLY: NodeCoords_Shared
+USE MOD_PICDepo_Shapefunction_Tools ,ONLY: SFNorm
+#if USE_MPI
+USE MOD_PICDepo_Vars                ,ONLY: SFElemr2_Shared_Win
+USE MOD_Globals                     ,ONLY: MPIRoot,MPI_ADDRESS_KIND
+USE MOD_MPI_Shared_Vars             ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank,MPI_COMM_SHARED
+USE MOD_MPI_Shared
+#else
+USE MOD_Mesh_Vars                   ,ONLY: nElems
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: UniqueNodeID,NonUniqueNodeID,iNode,NeighUniqueNodeID
+REAL                           :: SFDepoScaling
+LOGICAL                        :: ElemDone
+INTEGER                        :: ppp,globElemID
+REAL                           :: r_sf_tmp,SFAdaptiveDOFDefault,DOFMax
+INTEGER                        :: iCNElem,firstElem,lastElem,jNode,NbElemID,NeighNonUniqueNodeID
+CHARACTER(32)                  :: hilf2,hilf3
+#if USE_MPI
+INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
+#endif /*USE_MPI*/
+REAL                           :: CharacteristicLength,BoundingBoxVolume
+!===================================================================================================================================
+! Set the number of DOF/SF
+! Check which shape function dimension is used and set default value
+SELECT CASE(dim_sf)
+CASE(1)
+  SFAdaptiveDOFDefault=2.0*(1.+1.)
+  DOFMax = 2.0*(REAL(PP_N)+1.) ! Max. DOF per element in 1D
+  hilf2 = '2*(N+1)'            ! Max. DOF per element in 1D for abort message
+CASE(2)
+  SFAdaptiveDOFDefault=PI*(1.+1.)**2
+  DOFMax = PI*(REAL(PP_N)+1.)**2 ! Max. DOF per element in 2D
+  hilf2 = 'PI*(N+1)**2'          ! Max. DOF per element in 1D for abort message
+CASE(3)
+  SFAdaptiveDOFDefault=(4./3.)*PI*(1.+1.)**3
+  DOFMax = (4./3.)*PI*(REAL(PP_N)+1.)**3 ! Max. DOF per element in 2D
+  hilf2 = '(4/3)*PI*(N+1)**3'            ! Max. DOF per element in 1D for abort message
+END SELECT
+WRITE(UNIT=hilf3,FMT='(G0)') SFAdaptiveDOFDefault
+SFAdaptiveDOF = GETREAL('PIC-shapefunction-adaptive-DOF',TRIM(hilf3))
+
+IF(SFAdaptiveDOF.GT.DOFMax)THEN
+  SWRITE(UNIT_StdOut,'(A,F10.2)') "         PIC-shapefunction-adaptive-DOF =", SFAdaptiveDOF
+  SWRITE(UNIT_StdOut,'(A,A19,A,F10.2)') " Maximum allowed is ",TRIM(hilf2)," =", DOFMax
+  SWRITE(UNIT_StdOut,*) "Reduce the number of DOF/SF in order to have no DOF outside of the deposition range (neighbour elems)"
+  SWRITE(UNIT_StdOut,*) "Set a value lower or equal to than the maximum for a given polynomial degree N\n"
+  SWRITE(UNIT_StdOut,*) "              N:     1      2      3      4      5       6       7"
+  SWRITE(UNIT_StdOut,*) "  ----------------------------------------------------------------"
+  SWRITE(UNIT_StdOut,*) "           | 1D:     4      6      8     10     12      14      16"
+  SWRITE(UNIT_StdOut,*) "  Max. DOF | 2D:    12     28     50     78    113     153     201"
+  SWRITE(UNIT_StdOut,*) "           | 3D:    33    113    268    523    904    1436    2144"
+  SWRITE(UNIT_StdOut,*) "  ----------------------------------------------------------------"
+  CALL abort(__STAMP__,'PIC-shapefunction-adaptive-DOF > '//TRIM(hilf2)//' is not allowed')
+ELSE
+  ! Check which shape function dimension is used
+  SELECT CASE(dim_sf)
+  CASE(1)
+    SFDepoScaling  = SFAdaptiveDOF/2.0
+  CASE(2)
+    SFDepoScaling  = SQRT(SFAdaptiveDOF/PI)
+  CASE(3)
+    SFDepoScaling  = (3.*SFAdaptiveDOF/(4.*PI))**(1./3.)
+  END SELECT
+END IF
+
+#if USE_MPI
+firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+
+MPISharedSize = INT(2*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/2,nComputeNodeTotalElems/),SFElemr2_Shared_Win,SFElemr2_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SFElemr2_Shared_Win,IERROR)
+#else
+ALLOCATE(SFElemr2_Shared(1:2,1:nElems))
+firstElem = 1
+lastElem  = nElems
+#endif  /*USE_MPI*/
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif
+  SFElemr2_Shared = HUGE(1.)
+#if USE_MPI
+END IF
+CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif
+DO iCNElem = firstElem,lastElem
+  ElemDone = .FALSE.
+
+  DO ppp = 1,ElemToElemMapping(2,iCNElem)
+    ! Get neighbour global element ID
+    globElemID = GetGlobalElemID(ElemToElemInfo(ElemToElemMapping(1,iCNElem)+ppp))
+    NbElemID = GetCNElemID(globElemID)
+    ! Loop neighbour nodes
+    Nodeloop: DO jNode = 1, 8
+      NeighNonUniqueNodeID = ElemNodeID_Shared(jNode,NbElemID)
+      NeighUniqueNodeID = NodeInfo_Shared(NeighNonUniqueNodeID)
+      ! Loop my nodes
+      DO iNode = 1, 8
+        NonUniqueNodeID = ElemNodeID_Shared(iNode,iCNElem)
+        UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
+        IF (UniqueNodeID.EQ.NeighUniqueNodeID) CYCLE Nodeloop ! Skip coinciding nodes of my and my neighbours element
+      END DO
+      ElemDone =.TRUE.
+
+      ! Measure distance from my corner nodes to neighbour elem corner nodes
+      DO iNode = 1, 8
+        NonUniqueNodeID = ElemNodeID_Shared(iNode,iCNElem)
+
+        ! Only measure distances in the dimension in which the nodes to not coincide (i.e. they are not projected onto each other
+        ! in 1D or 2D deposition)
+        ASSOCIATE( v1 => NodeCoords_Shared(1:3,NonUniqueNodeID)      ,&
+                   v2 => NodeCoords_Shared(1:3,NeighNonUniqueNodeID) )
+          IF(SFMeasureDistance(v1,v2)) THEN
+            r_sf_tmp = SFNorm(v1-v2)
+            IF (r_sf_tmp.LT.SFElemr2_Shared(1,iCNElem)) SFElemr2_Shared(1,iCNElem) = r_sf_tmp
+          END IF ! SFMeasureDistance(v1,v2)
+        END ASSOCIATE
+      END DO ! iNode = 1, 8
+
+    END DO Nodeloop
+  END DO
+
+  ! Sanity check if no neighbours are present
+  IF (.NOT.ElemDone) THEN
+    DO iNode = 1, 8
+      NonUniqueNodeID = ElemNodeID_Shared(iNode,iCNElem)
+      r_sf_tmp = SFNorm(ElemMidPoint_Shared(1:3,iCNElem)-NodeCoords_Shared(1:3,NonUniqueNodeID))
+      IF (r_sf_tmp.LT.SFElemr2_Shared(1,iCNElem)) SFElemr2_Shared(1,iCNElem) = r_sf_tmp
+    END DO
+  END IF
+
+  ! Because ElemVolume_Shared(CNElemID) is not available for halo elements, the bounding box volume is used as an approximate
+  ! value for the element volume from which the characteristic length of the element is calculated
+  ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GetGlobalElemID(iCNElem)) ) ! 1-2: Min, Max value; 1-3: x,y,z
+    BoundingBoxVolume = (Bounds(2,1)-Bounds(1,1)) * (Bounds(2,2)-Bounds(1,2)) * (Bounds(2,3)-Bounds(1,3))
+  END ASSOCIATE
+  ! Check which shape function dimension is used
+  SELECT CASE(dim_sf)
+  CASE(1)
+    !CharacteristicLength = ElemVolume_Shared(iCNElem) / dimFactorSF
+    CharacteristicLength = BoundingBoxVolume / dimFactorSF
+  CASE(2)
+    !CharacteristicLength = SQRT(ElemVolume_Shared(iCNElem) / dimFactorSF)
+    CharacteristicLength = SQRT(BoundingBoxVolume / dimFactorSF)
+  CASE(3)
+    !CharacteristicLength = ElemCharLength_Shared(iCNElem)
+    CharacteristicLength = BoundingBoxVolume**(1./3.)
+  END SELECT
+
+  ! Check characteristic length of cell (or when using SFAdaptiveSmoothing)
+  IF(CharacteristicLength.LT.SFElemr2_Shared(1,iCNElem).OR.SFAdaptiveSmoothing)THEN
+    SFElemr2_Shared(1,iCNElem) = (SFElemr2_Shared(1,iCNElem) + CharacteristicLength)/2.0
+  END IF
+
+  ! Scale the radius so that it reaches at most the neighbouring cells but no further (all neighbours of the 8 corner nodes)
+  SFElemr2_Shared(1,iCNElem) = SFElemr2_Shared(1,iCNElem) * SFDepoScaling / (PP_N+1.)
+  SFElemr2_Shared(2,iCNElem) = SFElemr2_Shared(1,iCNElem)**2
+
+  ! Sanity checks
+  IF(SFElemr2_Shared(1,iCNElem).LE.0.0)      CALL abort(__STAMP__,'Shape function radius <= zero!')
+  IF(SFElemr2_Shared(1,iCNElem).GE.HUGE(1.)) CALL abort(__STAMP__,'Shape function radius >= HUGE(1.)!')
+END DO
+
+#if USE_MPI
+CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif /*USE_MPI*/
+
+END SUBROUTINE InitShapeFunctionAdaptive
+
+
+!===================================================================================================================================
+!> Fill PeriodicSFCaseMatrix when using shape function deposition in combination with periodic boundaries
+!===================================================================================================================================
+SUBROUTINE InitPeriodicSFCaseMatrix()
+! MODULES
+USE MOD_Globals            ,ONLY: MPIRoot,UNIT_StdOut
+USE MOD_Particle_Mesh_Vars ,ONLY: PeriodicSFCaseMatrix,NbrOfPeriodicSFCases
+USE MOD_PICDepo_Vars       ,ONLY: dim_sf,dim_periodic_vec1,dim_periodic_vec2,dim_sf_dir1,dim_sf_dir2
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_ReadInTools        ,ONLY: PrintOption
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: I,J
+!===================================================================================================================================
+IF (GEO%nPeriodicVectors.LE.0) THEN
+
+  ! Set defaults and return in non-periodic case
+  NbrOfPeriodicSFCases = 1
+  ALLOCATE(PeriodicSFCaseMatrix(1:1,1:3))
+  PeriodicSFCaseMatrix(:,:) = 0
+
+ELSE
+
+  ! Build case matrix:
+  ! Particles may move in more periodic directions than their charge is deposited, e.g., fully periodic in combination with
+  ! 1D shape function
+  NbrOfPeriodicSFCases = 3**dim_sf
+
+  ALLOCATE(PeriodicSFCaseMatrix(1:NbrOfPeriodicSFCases,1:3))
+  PeriodicSFCaseMatrix(:,:) = 0
+  IF (dim_sf.EQ.1) THEN
+    PeriodicSFCaseMatrix(1,1) = 1
+    PeriodicSFCaseMatrix(3,1) = -1
+  END IF
+  IF (dim_sf.EQ.2) THEN
+    PeriodicSFCaseMatrix(1:3,1) = 1
+    PeriodicSFCaseMatrix(7:9,1) = -1
+    DO I = 1,3
+      PeriodicSFCaseMatrix(I*3-2,2) = 1
+      PeriodicSFCaseMatrix(I*3,2) = -1
+    END DO
+  END IF
+  IF (dim_sf.EQ.3) THEN
+    PeriodicSFCaseMatrix(1:9,1) = 1
+    PeriodicSFCaseMatrix(19:27,1) = -1
+    DO I = 1,3
+      PeriodicSFCaseMatrix(I*9-8:I*9-6,2) = 1
+      PeriodicSFCaseMatrix(I*9-2:I*9,2) = -1
+      DO J = 1,3
+        PeriodicSFCaseMatrix((J*3-2)+(I-1)*9,3) = 1
+        PeriodicSFCaseMatrix((J*3)+(I-1)*9,3) = -1
+      END DO
+    END DO
+  END IF
+
+  ! Define which of the periodic vectors are used for 2D shape function and display info
+  IF(dim_sf.EQ.2)THEN
+    IF(GEO%nPeriodicVectors.EQ.1)THEN
+      dim_periodic_vec1 = 1
+      dim_periodic_vec2 = 0
+    ELSEIF(GEO%nPeriodicVectors.EQ.2)THEN
+      dim_periodic_vec1 = 1
+      dim_periodic_vec2 = 2
+    ELSEIF(GEO%nPeriodicVectors.EQ.3)THEN
+      dim_periodic_vec1 = dim_sf_dir1
+      dim_periodic_vec2 = dim_sf_dir2
+    END IF ! GEO%nPeriodicVectors.EQ.1
+    CALL PrintOption('Dimension of 1st periodic vector for 2D shape function','INFO',IntOpt=dim_periodic_vec1)
+    SWRITE(UNIT_StdOut,*) "1st PeriodicVector =", GEO%PeriodicVectors(1:3,dim_periodic_vec1)
+    CALL PrintOption('Dimension of 2nd periodic vector for 2D shape function','INFO',IntOpt=dim_periodic_vec2)
+    SWRITE(UNIT_StdOut,*) "2nd PeriodicVector =", GEO%PeriodicVectors(1:3,dim_periodic_vec2)
+  END IF ! dim_sf.EQ.2
+
+END IF
+
+END SUBROUTINE InitPeriodicSFCaseMatrix
 
 
 SUBROUTINE Deposition(doParticle_In)
@@ -755,6 +797,38 @@ IF(MOD(iter,PartAnalyzeStep).EQ.0) THEN
 END IF
 RETURN
 END SUBROUTINE Deposition
+
+
+PURE LOGICAL FUNCTION SFMeasureDistance(v1,v2)
+!============================================================================================================================
+! Check if the two position vectors coincide in the 1D or 2D projection. If yes, then return .FALSE., else return .TRUE.
+! If two points coincide in the direction in which the shape function is not deposited, they are ignored (coincide means that the 
+! real values are equal up to relative precision of 1e-5)
+!============================================================================================================================
+USE MOD_PICDepo_Vars ,ONLY: dim_sf,dim_sf_dir,dim_sf_dir1,dim_sf_dir2
+!-----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN) :: v1(1:3) !< Input vector 1
+REAL, INTENT(IN) :: v2(1:3) !< Input vector 2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+SFMeasureDistance = .TRUE. ! Default, also used for dim_sf=3 (3D case)
+
+! Depending on the dimensionality 
+SELECT CASE (dim_sf)
+CASE (1)
+  SFMeasureDistance = MERGE(.FALSE. , .TRUE. , ALMOSTEQUALRELATIVE(v1(dim_sf_dir) , v2(dim_sf_dir) , 1e-6))
+CASE (2)
+  SFMeasureDistance = MERGE(.FALSE. , .TRUE. , ALMOSTEQUALRELATIVE(v1(dim_sf_dir1) , v2(dim_sf_dir1) , 1e-6) .AND. &
+                                               ALMOSTEQUALRELATIVE(v1(dim_sf_dir2) , v2(dim_sf_dir2) , 1e-6)       )
+END SELECT
+
+END FUNCTION SFMeasureDistance
 
 
 SUBROUTINE FinalizeDeposition()

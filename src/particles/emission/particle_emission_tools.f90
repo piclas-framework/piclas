@@ -387,7 +387,8 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
 USE MOD_Globals                 ,ONLY: abort
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn, SpecDSMC, DSMC
-USE MOD_Particle_Vars           ,ONLY: Species, PEM, Adaptive_MacroVal
+USE MOD_Particle_Vars           ,ONLY: Species, PEM
+USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
 USE MOD_DSMC_ElectronicModel    ,ONLY: InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -421,7 +422,7 @@ IF ((SpecDSMC(iSpecies)%InterID.EQ.2).OR.(SpecDSMC(iSpecies)%InterID.EQ.20)) THE
           TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
         CASE(2) ! adaptive Outlet/freestream
           TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
-                  / (BoltzmannConst * Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpecies))
+                  / (BoltzmannConst * AdaptBCMacroVal(4,AdaptBCMapElemToSample(ElemID),iSpecies))
           TRot = TVib
         CASE DEFAULT
           CALL abort(&
@@ -912,19 +913,16 @@ SUBROUTINE SetCellLocalParticlePosition(chunkSize,iSpec,iInit,UseExactPartNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
-USE MOD_Particle_Localization  ,ONLY: PartInElemCheck
-USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
-USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
-USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry, VarTimeStep, PartMPF
-USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
+USE MOD_Particle_Mesh_Vars      ,ONLY: LocalVolume
+USE MOD_Particle_Mesh_Vars      ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
+USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM, Symmetry, VarTimeStep, PartMPF
+USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -939,13 +937,11 @@ INTEGER, INTENT(INOUT)           :: chunkSize
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: iElem, ichunkSize
+INTEGER                          :: iElem, ichunkSize, iGlobalElem
 INTEGER                          :: iPart,  nPart
 REAL                             :: iRan, RandomPos(3)
 REAL                             :: PartDens
 LOGICAL                          :: InsideFlag
-REAL                             :: Det(6,2)
-REAL                             :: RefPos(1:3)
 INTEGER                          :: CellChunkSize(1+offsetElem:nElems+offsetElem)
 INTEGER                          :: chunkSize_tmp, ParticleIndexNbr
 REAL                             :: adaptTimestep
@@ -975,11 +971,12 @@ __STAMP__,&
 
   ichunkSize = 1
   ParticleIndexNbr = 1
-  DO iElem = 1+offsetElem, nElems+offsetElem
-    CNElemID = GetCNElemID(iElem)
-    ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+  DO iElem = 1, nElems
+    iGlobalElem = iElem + offsetElem
+    CNElemID = GetCNElemID(iGlobalElem)
+    ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iGlobalElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
       IF (UseExactPartNum) THEN
-        nPart = CellChunkSize(iElem)
+        nPart = CellChunkSize(iGlobalElem)
       ELSE
         IF(RadialWeighting%DoRadialWeighting) THEN
           PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec)
@@ -1007,24 +1004,13 @@ __STAMP__,&
             END IF
             IF(Symmetry%Order.LE.2) RandomPos(3) = 0.
             IF(Symmetry%Order.LE.1) RandomPos(2) = 0.
-
-            SELECT CASE(TrackingMethod)
-              CASE(TRIATRACKING)
-                CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
-
-              CASE(TRACING)
-                CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
-
-              CASE(REFMAPPING)
-                CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-                IF (MAXVAL(ABS(RefPos)).LE.ElemEpsOneCell(CNElemID)) InsideFlag=.TRUE.
-            END SELECT
+            InsideFlag = ParticleInsideCheck(RandomPos,iPart,iGlobalElem)
           END DO
           PartState(1:3,ParticleIndexNbr) = RandomPos(1:3)
           PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
           PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
           PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
-          PEM%GlobalElemID(ParticleIndexNbr) = iElem
+          PEM%GlobalElemID(ParticleIndexNbr) = iGlobalElem
           ichunkSize = ichunkSize + 1
           IF (VarTimeStep%UseVariableTimeStep) THEN
             VarTimeStep%ParticleTimeStep(ParticleIndexNbr) = &

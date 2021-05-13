@@ -93,9 +93,9 @@ SUBROUTINE InitDepositionMethod()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools            ,ONLY: GETINTFROMSTR
-USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf
-USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
-USE MOD_ReadInTools            ,ONLY: GETREAL
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf,dim_sf,dim_sf_dir,SFAdaptiveSmoothing,alpha_sf,sfDepo3D
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+USE MOD_ReadInTools            ,ONLY: GETREAL,PrintOption,GETINT,GETLOGICAL
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -107,8 +107,7 @@ r_sf=-1.0 ! default
 DepositionType_loc = GETINTFROMSTR('PIC-Deposition-Type')
 ! check for interpolation type incompatibilities (cannot be done at interpolation_init
 ! because DepositionType_loc is not known yet)
-IF((DepositionType_loc.EQ.PRM_DEPO_CVWM).AND. &
-   (.NOT.(TriaTracking))) THEN
+IF((DepositionType_loc.EQ.PRM_DEPO_CVWM).AND.(TrackingMethod.NE.TRIATRACKING)) THEN
   CALL abort(&
   __STAMP__&
   ,'ERROR in pic_depo.f90: PIC-Deposition-Type = cell_volweight_mean only allowed with TriaTracking!')
@@ -138,7 +137,33 @@ END SELECT
 
 ! If shape function is used, the radius must be read here as it is used for the BGM setup
 IF(StringBeginsWith(DepositionType,'shape_function'))THEN
-  r_sf = GETREAL('PIC-shapefunction-radius')
+  IF(TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
+    ! When using shape function adaptive, the radius is scaled as such that only the direct element neighbours are considered for
+    ! deposition (all corner node connected elements) and each element has a separate shape function radius. Therefore, the global
+    ! radius is set to zero
+    r_sf = 0.
+    CALL PrintOption('Global shape function radius is set to zero: PIC-shapefunction-radius' , 'INFO.' , RealOpt=r_sf)
+    SFAdaptiveSmoothing = GETLOGICAL('PIC-shapefunction-adaptive-smoothing')
+  ELSE
+    r_sf = GETREAL('PIC-shapefunction-radius')
+  END IF ! TRIM(DepositionType).EQ.'shape_function_adaptive'
+
+  ! Get dimension of shape function kernel (distributes in 1, 2 or 3 dimensions)
+  dim_sf   = GETINT('PIC-shapefunction-dimension')
+
+  ! Get shape function direction for 1D (the direction in which the charge will be distributed) and 2D (the direction in which the
+  ! charge will be constant)
+  IF(dim_sf.NE.3) dim_sf_dir = GETINT('PIC-shapefunction-direction')
+
+  ! Get shape function exponent and dimension (1D, 2D or 3D). This parameter is required in InitShapeFunctionDimensionalty()
+  alpha_sf = GETINT('PIC-shapefunction-alpha')
+
+  ! Get deposition parameter, the default is TRUE (3D), that distributes the charge over
+  !  FALSE: line (1D) / area (2D)
+  !   TRUE: volume (3D)
+  sfDepo3D = GETLOGICAL('PIC-shapefunction-3D-deposition')
+  IF((dim_sf.EQ.3).AND.(.NOT.sfDepo3D)) &
+      CALL abort(__STAMP__,'PIC-shapefunction-dimension=F and PIC-shapefunction-3D-deposition=T is not allowed')
 END IF ! StringBeginsWith(DepositionType,'shape_function')
 
 ! Suppress compiler warnings
@@ -167,10 +192,10 @@ USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LB
 USE MOD_LoadBalance_Timers     ,ONLY: LBElemSplitTime_avg
 #endif /*USE_LOADBALANCE*/
 USE MOD_Mesh_Vars              ,ONLY: nElems, offSetElem
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if ((USE_HDG) && (PP_nVar==1))
-USE MOD_TimeDisc_Vars          ,ONLY: dt,tAnalyzeDiff,tEndDiff
+USE MOD_TimeDisc_Vars          ,ONLY: dt,dt_Min
 #endif
 #if USE_MPI
 USE MOD_PICDepo_Vars       ,ONLY: PartSource_Shared_Win
@@ -209,7 +234,7 @@ INTEGER            :: iPart,iElem
 
 ! Check whether charge and current density have to be computed or just the charge density
 #if ((USE_HDG) && (PP_nVar==1))
-IF(ALMOSTEQUAL(dt,tAnalyzeDiff).OR.ALMOSTEQUAL(dt,tEndDiff))THEN
+IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
   doCalculateCurrentDensity=.TRUE.
   SourceDim=1
 ELSE ! do not calculate current density
@@ -234,7 +259,7 @@ DO iPart = 1,PDM%ParticleVecLength
   ELSE
     Charge= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
   END IF ! usevMPF
-  IF(DoRefMapping)THEN
+  IF(TrackingMethod.EQ.REFMAPPING)THEN
     TempPartPos(1:3)=PartPosRef(1:3,iPart)
   ELSE
     CALL GetPositionInRefElem(PartState(1:3,iPart),TempPartPos,PEM%GlobalElemID(iPart),ForceMode=.TRUE.)
@@ -335,7 +360,7 @@ USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
 #if ((USE_HDG) && (PP_nVar==1))
-USE MOD_TimeDisc_Vars      ,ONLY: dt,tAnalyzeDiff,tEndDiff
+USE MOD_TimeDisc_Vars      ,ONLY: dt,dt_Min
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -372,7 +397,7 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 ! Check whether charge and current density have to be computed or just the charge density
 ! For HDG the current density is only required for output to HDF5, i.e., analysis reasons
 #if ((USE_HDG) && (PP_nVar==1))
-IF(ALMOSTEQUAL(dt,tAnalyzeDiff).OR.ALMOSTEQUAL(dt,tEndDiff))THEN
+IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
   doCalculateCurrentDensity=.TRUE.
   SourceDim=1
 ELSE ! do not calculate current density
@@ -662,7 +687,7 @@ USE MOD_Preproc
 USE MOD_globals
 USE MOD_Particle_Vars               ,ONLY: Species, PartSpecies,PDM,PartMPF,usevMPF
 USE MOD_Particle_Vars               ,ONLY: PartState
-USE MOD_PICDepo_Vars                ,ONLY: PartSource,w_sf
+USE MOD_PICDepo_Vars                ,ONLY: PartSource
 USE MOD_PICDepo_Shapefunction_Tools ,ONLY: calcSfSource
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 #if USE_MPI
@@ -721,7 +746,7 @@ DO iPart=1,PDM%ParticleVecLength
     Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
   END IF
   ! Fill PartSourceProc and deposit charge in local part of PartSource(CNElem(1:nElems + offset))
-  CALL calcSfSource(4,Charge*w_sf,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
+  CALL calcSfSource(4,Charge,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
 END DO
 #if USE_MPI
 ! Communication

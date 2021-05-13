@@ -84,7 +84,7 @@ USE MOD_Restart_Vars           ,ONLY: RestartFile
 #ifdef PARTICLES
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PartSource
-USE MOD_Particle_Vars          ,ONLY: UseAdaptive
+USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5, PartBound
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
@@ -121,6 +121,10 @@ USE MOD_Mesh_Vars              ,ONLY: GlobalUniqueSideID
 USE MOD_PICInterpolation_Vars  ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 USE MOD_Analyze_Vars           ,ONLY: AverageElectricPotential
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
+USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronIonDensity,CalcElectronTemperature
+USE MOD_Particle_Analyze_Tools ,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
+USE MOD_Particle_Analyze_Tools ,ONLY: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
@@ -585,6 +589,10 @@ ASSOCIATE (&
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
   IF(OutPutSource) THEN
+#if USE_HDG
+    ! Add BR electron fluid density to PartSource for output to state.h5
+    IF(UseBRElectronFluid) CALL AddBRElectronFluidToPartSource()
+#endif /*USE_HDG*/
     ! output of pure current and density
     ! not scaled with epsilon0 and c_corr
     nVar=4_IK
@@ -638,6 +646,25 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElemTime')
 #endif /*USE_LOADBALANCE*/
 
+#if defined(PARTICLES) && USE_HDG
+! Write 'ElectronDensityCell' and 'ElectronTemperatureCell' to a separate container in the state.h5 file
+! (for special read-in and conversion to kinetic electrons)
+IF(UseBRElectronFluid) THEN
+  ! Check if electron density is already calculated in each cell
+  IF(.NOT.CalcElectronIonDensity)THEN
+    CALL AllocateElectronIonDensityCell
+    CALL CalculateElectronIonDensityCell()
+  END IF
+  CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElectronDensityCell')
+
+  ! Check if electron temperature is already calculated in each cell
+  IF(.NOT.CalcElectronTemperature)THEN
+    CALL AllocateElectronTemperatureCell
+    CALL CalculateElectronTemperatureCell()
+  END IF
+  CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElectronTemperatureCell')
+END IF
+#endif /*defined(PARTICLES) && USE_HDG*/
 
 ! Adjust values before WriteAdditionalElemData() is called
 CALL ModifyElemData(mode=1)
@@ -828,7 +855,7 @@ IF(NullifyElemTime) ElemTime=0.
 END SUBROUTINE WriteAdditionalElemData
 
 
-#if USE_LOADBALANCE
+#if USE_LOADBALANCE || defined(PARTICLES)
 SUBROUTINE WriteElemDataToSeparateContainer(FileName,ElemList,ElemDataName)
 !===================================================================================================================================
 !> Similar to WriteAdditionalElemData() but only writes one of the fields to a separate container
@@ -950,7 +977,7 @@ END IF ! (MAXVAL(ElemData).LE.0.0).AND.DoRestart.AND.(TRIM(ElemDataName).EQ.'Ele
 DEALLOCATE(ElemData)
 
 END SUBROUTINE WriteElemDataToSeparateContainer
-#endif /*USE_LOADBALANCE*/
+#endif /*USE_LOADBALANCE || defined(PARTICLES)*/
 
 
 #if (PP_nVar==8)
@@ -2028,7 +2055,8 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Adaptive_MacroVal
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCMacroVal, AdaptBCSampleElemNum, AdaptBCMapSampleToElem, AdaptiveData
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2042,12 +2070,10 @@ CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255)             :: H5_Name
 CHARACTER(LEN=255)             :: SpecID
 INTEGER                        :: nVar
-INTEGER                        :: iElem,iVar,iSpec
-REAL,ALLOCATABLE               :: AdaptiveData(:,:,:)
+INTEGER                        :: ElemID,iVar,iSpec,SampleElemID
 !===================================================================================================================================
 
-
-nVar = 10
+nVar = 7
 iVar = 1
 ALLOCATE(StrVarNames(nVar*nSpecies))
 DO iSpec=1,nSpecies
@@ -2055,13 +2081,10 @@ DO iSpec=1,nSpecies
   StrVarNames(iVar)   = 'Spec'//TRIM(SpecID)//'-VeloX'
   StrVarNames(iVar+1) = 'Spec'//TRIM(SpecID)//'-VeloY'
   StrVarNames(iVar+2) = 'Spec'//TRIM(SpecID)//'-VeloZ'
-  StrVarNames(iVar+3) = 'Spec'//TRIM(SpecID)//'-TempX'
-  StrVarNames(iVar+4) = 'Spec'//TRIM(SpecID)//'-TempY'
-  StrVarNames(iVar+5) = 'Spec'//TRIM(SpecID)//'-TempZ'
-  StrVarNames(iVar+6) = 'Spec'//TRIM(SpecID)//'-Density'
-  StrVarNames(iVar+7) = 'Spec'//TRIM(SpecID)//'-PumpVeloPerArea'
-  StrVarNames(iVar+8) = 'Spec'//TRIM(SpecID)//'-PumpPressure'
-  StrVarNames(iVar+9) = 'Spec'//TRIM(SpecID)//'-PumpIntegralError'
+  StrVarNames(iVar+3) = 'Spec'//TRIM(SpecID)//'-Density'
+  StrVarNames(iVar+4) = 'Spec'//TRIM(SpecID)//'-PumpVeloPerArea'
+  StrVarNames(iVar+5) = 'Spec'//TRIM(SpecID)//'-PumpPressure'
+  StrVarNames(iVar+6) = 'Spec'//TRIM(SpecID)//'-PumpIntegralError'
   iVar = iVar + nVar
 END DO
 
@@ -2071,19 +2094,13 @@ IF(MPIRoot)THEN
   CALL CloseDataFile()
 END IF
 
-! rewrite and save arrays for AdaptiveData
-ALLOCATE(AdaptiveData(nVar,nSpecies,nElems))
 AdaptiveData = 0.
-DO iElem = 1,nElems
-  AdaptiveData(1,:,iElem) = Adaptive_MacroVal(DSMC_VELOX,iElem,:)
-  AdaptiveData(2,:,iElem) = Adaptive_MacroVal(DSMC_VELOY,iElem,:)
-  AdaptiveData(3,:,iElem) = Adaptive_MacroVal(DSMC_VELOZ,iElem,:)
-  AdaptiveData(4,:,iElem) = Adaptive_MacroVal(DSMC_TEMPX,iElem,:)
-  AdaptiveData(5,:,iElem) = Adaptive_MacroVal(DSMC_TEMPY,iElem,:)
-  AdaptiveData(6,:,iElem) = Adaptive_MacroVal(DSMC_TEMPZ,iElem,:)
-  AdaptiveData(7,:,iElem) = Adaptive_MacroVal(DSMC_NUMDENS,iElem,:)
-  ! Porous BC parameter (11: Pumping capacity [m3/s], 12: Static pressure [Pa], 13: Integral pressure difference [Pa])
-  AdaptiveData(8:10,:,iElem) = Adaptive_MacroVal(11:13,iElem,:)
+DO SampleElemID = 1,AdaptBCSampleElemNum
+  ElemID = AdaptBCMapSampleToElem(SampleElemID)
+  ! Sample values (1-3: Velocity vector [m/s], 4: Number density [1/m3])
+  AdaptiveData(1:4,:,ElemID) = AdaptBCMacroVal(1:4,SampleElemID,:)
+  ! Porous BC parameter (5: Pumping capacity [m3/s], 6: Static pressure [Pa], 7: Integral pressure difference [Pa])
+  AdaptiveData(5:7,:,ElemID) = AdaptBCMacroVal(5:7,SampleElemID,:)
 END DO
 
 WRITE(H5_Name,'(A)') 'AdaptiveInfo'
@@ -2104,7 +2121,6 @@ ASSOCIATE (&
 END ASSOCIATE
 CALL CloseDataFile()
 SDEALLOCATE(StrVarNames)
-SDEALLOCATE(AdaptiveData)
 
 END SUBROUTINE WriteAdaptiveInfoToHDF5
 
@@ -2642,6 +2658,9 @@ USE IFPORT                     ,ONLY: SYSTEM
 #endif
 #ifdef PARTICLES
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+#if USE_HDG
+USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 !USE MOD_PreProcFlags
 ! IMPLICIT VARIABLE HANDLING
@@ -2697,6 +2716,13 @@ CALL WriteAttributeToHDF5(File_ID,'NComputation',1,IntegerScalar=PP_N)
 
 #ifdef PARTICLES
 CALL WriteAttributeToHDF5(File_ID,'TrackingMethod',1,StrScalar=(/TRIM(TrackingString(TrackingMethod))/))
+#if USE_HDG
+IF(UseBRElectronFluid)THEN
+  CALL WriteAttributeToHDF5(File_ID,'SimulationModel',1,StrScalar=(/'HDG-BR'/))
+ELSE
+  CALL WriteAttributeToHDF5(File_ID,'SimulationModel',1,StrScalar=(/'HDG'/))
+END IF ! UseBRElectronFluid
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 
 CALL CloseDataFile()
@@ -3483,6 +3509,64 @@ END DO ! i = 1, 2
 SDEALLOCATE(NodeSourceExtGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteNodeSourceExtToHDF5
+
+
+#if USE_HDG
+SUBROUTINE AddBRElectronFluidToPartSource()
+!===================================================================================================================================
+! Add BR electron fluid density to PartSource for output to state.h5
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals            ,ONLY: abort
+USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_PreProc
+USE MOD_HDG_Vars           ,ONLY: ElemToBRRegion,RegionElectronRef
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_DG_Vars            ,ONLY: U
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
+USE MOD_PICDepo_Vars       ,ONLY: PartSource
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iElem,RegionID,CNElemID
+INTEGER :: i,j,k
+REAL    :: source_e
+!===================================================================================================================================
+! Loop over all elements and all DOF and add the contribution of the BR electron density to PartSource
+DO iElem=1,nElems
+  ! BR electron fluid region
+  RegionID=ElemToBRRegion(iElem)
+  IF (RegionID.GT.0) THEN
+    ! CN element ID
+    CNElemID = GetCNElemID(iElem+offSetElem) ! = GetCNElemID(globElemID)
+
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+#if ((USE_HDG) && (PP_nVar==1))
+      source_e = U(1,i,j,k,iElem)-RegionElectronRef(2,RegionID)
+#else
+      CALL abort(&
+          __STAMP__&
+          ,' CalculateBRElectronsPerCell only implemented for electrostatic HDG!')
+#endif
+      IF (source_e .LT. 0.) THEN
+        source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
+            * EXP( (source_e) / RegionElectronRef(3,RegionID) )
+      ELSE
+        source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
+            * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
+      END IF
+      PartSource(4,i,j,k,CNElemID) = PartSource(4,i,j,k,CNElemID) - source_e
+    END DO; END DO; END DO
+  END IF
+END DO ! iElem=1,PP_nElems
+
+END SUBROUTINE AddBRElectronFluidToPartSource
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 
 

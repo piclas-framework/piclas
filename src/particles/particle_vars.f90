@@ -58,8 +58,6 @@ CHARACTER(255)        :: IMDCutOff                                           ! c
                                                                              !                                      2.) Epot
                                                                              !                                      3.) coordinates
                                                                              !                                      4.) velocity
-INTEGER               :: WeirdElems                                          ! Number of Weird Elements (=Elements which are folded
-                                                                             ! into themselves)
 REAL    , ALLOCATABLE :: PartState(:,:)                                      ! 1st index: x,y,z,vx,vy,vz
 !                                                                            ! 2nd index: 1:NParts
 REAL    , ALLOCATABLE :: PartPosRef(:,:)                                     ! (1:3,1:NParts) particles pos mapped to -1|1 space
@@ -261,30 +259,11 @@ TYPE tSpecies                                                                ! P
 #endif
 END TYPE
 
-LOGICAL                                  :: UseCircularInflow                ! Flag is set if the circular inflow feature is used:
-                                                                             ! Particle insertion only in the defined circular area
-                                                                             ! on the surface of a surface flux
-INTEGER, ALLOCATABLE                     :: CountCircInflowType(:,:,:)       ! Counter whether cells are inside/partially inside or
-                                                                             ! outside of circular region (only with CODE_ANALYZE)
-LOGICAL                                  :: UseAdaptive                      ! Flag is set if an adaptive boundary is present
-REAL                                     :: AdaptiveWeightFac                ! weighting factor theta for weighting of average
-                                                                             ! instantaneous values with those
-                                                                             ! of previous iterations
-REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! Macroscopic value near boundaries
-                                                                             ! (1:14,1:nElems,1:nSpecies)
-                                                                             !  1:  VELOX
-                                                                             !  2:  VELOY
-                                                                             !  3:  VELOZ
-                                                                             !  4:  TEMPX
-                                                                             !  5:  TEMPY
-                                                                             !  6:  TEMPZ
-                                                                             !  7:  NUMBER DENSITY
-                                                                             !  8:  TVIB
-                                                                             !  9:  TROT
-                                                                             ! 10:  TELEC
-                                                                             ! 11:  Pumping capacity [m3/s]
-                                                                             ! 12:  Static pressure [Pa]
-                                                                             ! 13:  Integral pressure difference [Pa]
+LOGICAL                                 :: UseCircularInflow              ! Flag is set if the circular inflow feature is used:
+                                                                          ! Particle insertion only in the defined circular area
+                                                                          ! on the surface of a surface flux
+INTEGER, ALLOCATABLE                    :: CountCircInflowType(:,:,:)     ! Counter whether cells are inside/partially inside or
+                                                                          ! outside of circular region (only with CODE_ANALYZE)
 INTEGER                                  :: nSpecies                         ! number of species
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
@@ -384,7 +363,6 @@ INTEGER, ALLOCATABLE                     :: vMPF_SpecNumElem(:,:)             ! 
 CHARACTER(30)                            :: vMPF_velocityDistribution         ! specifying keyword for velocity distribution
 REAL, ALLOCATABLE                        :: vMPF_NewPosRefElem(:,:)          ! new positions in ref elem
 LOGICAL                                  :: vMPF_relativistic
-REAL, ALLOCATABLE                        :: RegionElectronRef(:,:)            ! RegionElectronRef((rho0,phi0,Te[eV])|1:NbrOfRegions)
 LOGICAL                                  :: DoSurfaceFlux                     ! Flag for emitting by SurfaceFluxBCs
 LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson sampling instead of random rounding
 LOGICAL                                  :: DoTimeDepInflow                   ! Insertion and SurfaceFlux w simple random rounding

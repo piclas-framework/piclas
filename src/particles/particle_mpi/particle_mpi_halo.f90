@@ -296,7 +296,7 @@ IF (halo_eps.LE.0.) THEN
 
   ! Check whether MPI_halo_eps is smaller than shape function radius e.g. 'shape_function'
   IF(StringBeginsWith(DepositionType,'shape_function'))THEN
-    IF(r_sf.LE.0.) CALL abort(__STAMP__,'Shape function radius not read yet or set equal to zero! r_sf=',RealInfoOpt=r_sf)
+    IF(r_sf.LT.0.) CALL abort(__STAMP__,'Shape function radius is below zero; not correctly set yet? r_sf=',RealInfoOpt=r_sf)
     MPI_halo_eps = MPI_halo_eps + r_sf
     CALL PrintOption('MPI_halo_eps from shape function radius','CALCUL.',RealOpt=MPI_halo_eps)
   END IF

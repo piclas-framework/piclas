@@ -353,8 +353,8 @@ PVID = BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_ALPHA)
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
     IPWRITE(UNIT_stdout,'(I0,A)') '     PeriodicBC: '
-    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' ParticlePosition: ',PartState(1:3,PartID)
-    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' LastPartPos:      ',LastPartPos(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' ParticlePosition: ',PartState(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPos:      ',LastPartPos(1:3,PartID)
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
@@ -371,8 +371,8 @@ TrackInfo%lengthPartTrajectory  = TrackInfo%lengthPartTrajectory - TrackInfo%alp
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
     IPWRITE(UNIT_stdout,'(I0,A)') '     PeriodicBC: '
-    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' ParticlePosition-pp: ',PartState(1:3,PartID)
-    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' LastPartPo-pp:       ',LastPartPos(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' ParticlePosition-pp: ',PartState(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPo-pp:       ',LastPartPos(1:3,PartID)
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
@@ -426,7 +426,6 @@ INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 INTEGER                              :: SideID2, ElemID2, iNeigh, RotSideID
 REAL                                 :: adaptTimeStep
 LOGICAL                              :: FoundInElem
-REAL                                 :: det(6,2)
 REAL                                 :: LastPartPos_old(1:3),Velo_old(1:3), Velo_oldAmbi(1:3)
 !===================================================================================================================================
 
@@ -434,8 +433,8 @@ REAL                                 :: LastPartPos_old(1:3),Velo_old(1:3), Velo
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
     IPWRITE(UNIT_stdout,'(I0,A)') '     RotPeriodicBC: '
-    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' ParticlePosition: ',PartState(1:3,PartID)
-    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' LastPartPos:      ',LastPartPos(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' ParticlePosition: ',PartState(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPos:      ',LastPartPos(1:3,PartID)
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
@@ -506,8 +505,8 @@ END IF
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
     IPWRITE(UNIT_stdout,'(I0,A)') '     RotPeriodicBC: '
-    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' ParticlePosition-pp: ',PartState(1:3,PartID)
-    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' LastPartPo-pp:       ',LastPartPos(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' ParticlePosition-pp: ',PartState(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPo-pp:       ',LastPartPos(1:3,PartID)
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
@@ -522,7 +521,7 @@ DO iNeigh=1,NumRotPeriodicNeigh(RotSideID)
   END IF
   ElemID2 = SideInfo_Shared(SIDE_ELEMID,SideID2)
   ! find rotational periodic SideID2 through localization in all potentional rotational periodic sides
-  CALL ParticleInsideQuad3D(LastPartPos(1:3,PartID),ElemID2,FoundInElem,Det)
+  CALL ParticleInsideQuad3D(LastPartPos(1:3,PartID),ElemID2,FoundInElem)
   IF(FoundInElem) THEN
     ElemID = ElemID2
     EXIT
@@ -535,83 +534,5 @@ IF(.NOT.FoundInElem) THEN
 END IF
 
 END SUBROUTINE RotPeriodicBC
-
-
-!FUNCTION PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
-!!===================================================================================================================================
-!! particle moves through face and switches element
-!!===================================================================================================================================
-!! MODULES
-!USE MOD_Globals
-!USE MOD_Particle_Mesh_Vars ,ONLY: PartElemToElemAndSide
-!USE MOD_Mesh_Vars          ,ONLY: MortarType
-!! IMPLICIT VARIABLE HANDLING
-!IMPLICIT NONE
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! INPUT VARIABLES
-!INTEGER,INTENT(IN)  :: locSideID, SideID,ElemID
-!REAL,INTENT(IN)     :: xi,eta
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! OUTPUT VARIABLES
-!INTEGER,DIMENSION(2) :: PARTSWITCHELEMENT
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-!!===================================================================================================================================
-!
-!! move particle to new element
-!!     Type 1               Type 2              Type3
-!!      eta                  eta                 eta
-!!       ^                    ^                   ^
-!!       |                    |                   |
-!!   +---+---+            +---+---+           +---+---+
-!!   | 3 | 4 |            |   2   |           |   |   |
-!!   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
-!!   | 1 | 2 |            |   1   |           |   |   |
-!!   +---+---+            +---+---+           +---+---+
-!
-!CALL ABORT(__STAMP__,'Not yet implemented for new halo region')
-!
-!SELECT CASE(MortarType(1,SideID))
-!CASE(1)
-!  IF(Xi.GT.0.)THEN
-!    IF(Eta.GT.0.)THEN
-!      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(4  ,locSideID,ElemID)
-!      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(4+4,locSideID,ElemID)
-!    ELSE
-!      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(2  ,locSideID,ElemID)
-!      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(2+4,locSideID,ElemID)
-!    END IF
-!  ELSE
-!    IF(Eta.GT.0.)THEN
-!      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(3  ,locSideID,ElemID)
-!      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(3+4,locSideID,ElemID)
-!    ELSE
-!      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
-!      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
-!    END IF
-!  END IF
-!CASE(2)
-!  IF(Eta.GT.0.)THEN
-!    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(2  ,locSideID,ElemID)
-!    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(2+4,locSideID,ElemID)
-!  ELSE
-!    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
-!    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
-!  END IF
-!CASE(3)
-!  IF(Xi.LE.0.)THEN
-!    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
-!    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
-!  ELSE
-!    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(2  ,locSideID,ElemID)
-!    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(2+4,locSideID,ElemID)
-!  END IF
-!CASE DEFAULT ! normal side OR small mortar side
-!  PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
-!  PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
-!END SELECT
-!
-!END FUNCTION PARTSWITCHELEMENT
-
 
 END MODULE MOD_Particle_Boundary_Condition

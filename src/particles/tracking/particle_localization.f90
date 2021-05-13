@@ -44,9 +44,9 @@ PUBLIC:: SinglePointToElement
 PUBLIC:: LocateParticleInElement
 PUBLIC:: PartInElemCheck
 PUBLIC:: CountPartsPerElem
+PUBLIC:: PARTHASMOVED
 
 CONTAINS
-
 
 SUBROUTINE LocateParticleInElement(PartID,doHALO)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -55,7 +55,7 @@ SUBROUTINE LocateParticleInElement(PartID,doHALO)
 ! MODULES                                                                                                                          !
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -71,9 +71,7 @@ IF(ElemID.EQ.-1)THEN
   PDM%ParticleInside(PartID)=.FALSE.
 ELSE
   PDM%ParticleInside(PartID)=.TRUE.
-  IF(DoRefMapping)THEN
-    CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),ElemID)
-  END IF ! DoRefMapping
+  IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),ElemID)
 END IF ! ElemID.EQ.-1
 END SUBROUTINE LocateParticleInElement
 
@@ -321,9 +319,9 @@ DO ilocSide = 1,6
     IF(PartID.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(15("="))')
       WRITE(UNIT_stdout,'(A)')           '     | Output after compute intersection (PartInElemCheck): '
-      WRITE(UNIT_stdout,'(2(A,I0),A,L)') '     | SideType: ',SideType(CNSideID)  ,' | SideID: ',SideID,'| Hit: ',isHit
+      WRITE(UNIT_stdout,'(2(A,I0),A,L1)') '     | SideType: ',SideType(CNSideID)  ,' | SideID: ',SideID,'| Hit: ',isHit
       WRITE(UNIT_stdout,'(2(A,G0))')     '     | LengthPT: ',LengthPartTrajectory,' | Alpha: ',Alpha
-      WRITE(UNIT_stdout,'(A,2(X,G0))')   '     | Intersection xi/eta: ',xi,eta
+      WRITE(UNIT_stdout,'(A,2(1X,G0))')   '     | Intersection xi/eta: ',xi,eta
     END IF
   END IF
   IF(PRESENT(Sanity_Opt))THEN
@@ -438,5 +436,29 @@ DO iPart=1,PDM%ParticleVecLength
 END DO ! iPart=1,PDM%ParticleVecLength
 
 END SUBROUTINE CountPartsPerElem
+
+
+PURE FUNCTION PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo)
+!================================================================================================================================
+! check if particle has moved significantly within an element
+!================================================================================================================================
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                      :: lengthPartTrajectory
+REAL,INTENT(IN)                      :: ElemRadiusNGeo
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL                              :: PARTHASMOVED
+!================================================================================================================================
+
+IF(ALMOSTZERO(lengthPartTrajectory/ElemRadiusNGeo))THEN
+  PARTHASMOVED=.FALSE.
+ELSE
+  PARTHASMOVED=.TRUE.
+END IF
+
+END FUNCTION PARTHASMOVED
 
 END MODULE MOD_Particle_Localization

@@ -60,24 +60,24 @@ USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Mesh")
-CALL prms%CreateLogicalOption( 'DoSwapMesh',                    "TODO-DEFINE-PARAMETER\n"//&
-                                                          "Flag to swap mesh for calculation.",'.FALSE.')
+CALL prms%CreateLogicalOption( 'DoSwapMesh',              "Flag to swap mesh for calculation.",'.FALSE.')
 CALL prms%CreateStringOption(  'SwapMeshExePath',         "(relative) path to swap-meshfile (mandatory).")
-CALL prms%CreateIntOption(     'SwapMeshLevel',           "TODO-DEFINE-PARAMETER\n"//&
-                                                          "0: initial grid\n"//&
+CALL prms%CreateIntOption(     'SwapMeshLevel',           "0: initial grid\n"//&
                                                           "1: first swap mesh\n"//&
                                                           "2: second swap mesh\n",'0')
 
 CALL prms%CreateStringOption(  'MeshFile',            "(relative) path to meshfile (mandatory)\n"//&
                                                       "(HALOWIKI:) usually located in directory of project.ini")
 CALL prms%CreateLogicalOption( 'useCurveds',          "Controls usage of high-order information in mesh. Turn off to discard "//&
-                                                      "high-order data and treat curved meshes as linear meshes.", '.TRUE.')
+                                                      "high-order data and treat curved meshes as linear meshes.", '.FALSE.')
 
-CALL prms%CreateLogicalOption( 'DoWriteStateToHDF5',  "Write state of calculation to hdf5-file. TODO-DEFINE-PARAMETER",'.TRUE.')
+CALL prms%CreateLogicalOption( 'DoWriteStateToHDF5',  "Write state of calculation to hdf5-file.",'.TRUE.')
 CALL prms%CreateRealOption(    'meshScale',           "Scale the mesh by this factor (shrink/enlarge).",&
                                                       '1.0')
 CALL prms%CreateLogicalOption( 'meshdeform',          "Apply simple sine-shaped deformation on cartesion mesh (for testing).",&
                                                       '.FALSE.')
+CALL prms%CreateLogicalOption( 'meshCheckRef',        "Flag if the mesh Jacobians should be checked in the reference system in "//&
+                                                      "addition to the computational system.",'.TRUE.')
 CALL prms%CreateLogicalOption( 'CalcMeshInfo',        'Calculate and output elem data for myrank, ElemID and tracking info to '//&
                                                       'ElemData',&
                                                       '.FALSE.')
@@ -202,8 +202,8 @@ IF(.NOT.validMesh) &
     CALL CollectiveStop(__STAMP__,'ERROR - Mesh file not a valid HDF5 mesh.')
 
 
-useCurveds=GETLOGICAL('useCurveds','.TRUE.')
-DoWriteStateToHDF5=GETLOGICAL('DoWriteStateToHDF5','.TRUE.')
+useCurveds=GETLOGICAL('useCurveds')
+DoWriteStateToHDF5=GETLOGICAL('DoWriteStateToHDF5')
 #if USE_LOADBALANCE
 IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. .NOT.DoWriteStateToHDF5) THEN
   DoWriteStateToHDF5=.TRUE.

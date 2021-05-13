@@ -102,7 +102,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
 USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies,PartPosRef
-USE MOD_Particle_Tracking_vars  ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
@@ -117,7 +117,7 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, nPart
+INTEGER                       :: iPart, iLoop, nPart, CNElemID
 REAL                          :: SpecPartNum(nSpecies)
 TYPE(tTreeNode), POINTER      :: TreeNode
 REAL                          :: elemVolume
@@ -125,6 +125,7 @@ REAL                          :: elemVolume
 
 SpecPartNum = 0.
 nPart = PEM%pNumber(iElem)
+CNElemID = GetCNElemID(iElem+offSetElem)
 
 NULLIFY(TreeNode)
 
@@ -144,7 +145,7 @@ DO iLoop = 1, nPart
             SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + GetParticleWeight(TreeNode%iPartIndx_Node(iLoop))
 END DO
 
-elemVolume=ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+elemVolume=ElemVolume_Shared(CNElemID)
 
 ! 2.) Octree cell refinement algorithm
 DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), elemVolume)
@@ -152,11 +153,11 @@ DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), elemVolume)
 IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
   ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default = 40  for 2D/axisymmetric or = 80 for 3D)
   ! or the mean free path is less than the side length of a cube (approximation) with same volume as the actual cell
-  IF((DSMC%MeanFreePath.LT.ElemCharLength_Shared(GetCNElemID(iElem+offSetElem))) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
+  IF((DSMC%MeanFreePath.LT.ElemCharLength_Shared(CNElemID)) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
     ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
     TreeNode%PNum_Node = nPart
     iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
-    IF (DoRefMapping) THEN
+    IF (TrackingMethod.EQ.REFMAPPING) THEN
       DO iLoop = 1, nPart
         TreeNode%MappedPartStates(1:3,iLoop)=PartPosRef(1:3,iPart)
         iPart = PEM%pNext(iPart)
@@ -166,16 +167,16 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
         CALL GetPositionInRefElem(PartState(1:3,iPart),TreeNode%MappedPartStates(1:3,iLoop),iElem+offSetElem)
         iPart = PEM%pNext(iPart)
       END DO
-    END IF ! DoRefMapping
+    END IF ! TrackingMethod.EQ.REFMAPPING
     TreeNode%NodeDepth = 1
     TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
     CALL AddOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
     DEALLOCATE(TreeNode%MappedPartStates)
   ELSE
-    CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(GetCNElemID(iElem+offSetElem)))
+    CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(CNElemID))
   END IF
 ELSE
-  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(GetCNElemID(iElem+offSetElem)))
+  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(CNElemID))
 END IF
 
 DEALLOCATE(TreeNode%iPartIndx_Node)
