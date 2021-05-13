@@ -1110,7 +1110,7 @@ INTEGER             :: dir
           END IF
         END IF
 #endif
-        WRITE(unit_index,'(A1)') ' '
+        WRITE(unit_index,'(A)') ''
       END IF
     END IF
   END IF
@@ -1481,7 +1481,7 @@ IF (PartMPI%MPIROOT) THEN
       END DO
     END IF
 #endif /*(PP_TimeDiscMethod==42)*/
-    WRITE(unit_index,'(A1)') ' '
+    WRITE(unit_index,'(A)') ''
 #if USE_MPI
   END IF
 #endif /*USE_MPI*/
