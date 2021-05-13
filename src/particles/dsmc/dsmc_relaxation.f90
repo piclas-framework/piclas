@@ -201,7 +201,7 @@ SUBROUTINE CalcXiTotalEqui(iReac, iPair, nProd, Xi_Total, Weight, XiVibPart, XiE
 ! MODULES
 USE MOD_Globals_Vars              ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, ChemReac, Coll_pData, DSMC
-USE MOD_DSMC_ElectronicModel      ,ONLY: CalcXiElec
+USE MOD_part_tools                ,ONLY: CalcXiElec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
