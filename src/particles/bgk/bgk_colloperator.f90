@@ -435,11 +435,11 @@ SUBROUTINE CalcInnerDOFs(nSpec, EVibSpec, ERotSpec, totalWeightSpec, TVibSpec, T
 !> Determine the internal degrees of freedom and the respective temperature (rotation/vibration) for diatomic/polyatomic species
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: nSpecies
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, PolyatomMolDSMC
-USE MOD_BGK_Vars              ,ONLY: BGKDoVibRelaxation
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_DSMC_Analyze          ,ONLY: CalcTVibPoly
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, PolyatomMolDSMC
+USE MOD_BGK_Vars               ,ONLY: BGKDoVibRelaxation
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcTVibPoly
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
