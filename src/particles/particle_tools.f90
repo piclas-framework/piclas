@@ -60,6 +60,7 @@ END INTERFACE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CalcRadWeightMPF, isChargedParticle
 PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums
+PUBLIC :: CalcXiElec
 !===================================================================================================================================
 
 CONTAINS
@@ -555,6 +556,49 @@ DO iLoop = 1, nPart
 END DO
 
 END SUBROUTINE BuildTransGaussNums
+
+
+PURE REAL FUNCTION CalcXiElec(Telec, iSpec)
+!===================================================================================================================================
+!> Calculation of the electronic degree of freedom for a given temperature and species
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: Telec  !
+INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                         :: iQua
+REAL                            :: TempRatio, SumOne, SumTwo
+!===================================================================================================================================
+
+SumOne = 0.0
+SumTwo = 0.0
+
+DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant-1
+  TempRatio = SpecDSMC(iSpec)%ElectronicState(2,iQua)/Telec
+  IF(CHECKEXP(TempRatio)) THEN
+    SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,iQua)*SpecDSMC(iSpec)%ElectronicState(2,iQua)*EXP(-TempRatio)
+    SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,iQua)*EXP(-TempRatio)
+  END IF
+END DO
+
+IF((SumOne.GT.0.0).AND.(SumTwo.GT.0.0)) THEN
+  CalcXiElec = 2. * SumOne / (SumTwo * Telec)
+ELSE
+  CalcXiElec = 0.0
+END IF
+
+RETURN
+
+END FUNCTION CalcXiElec
 
 
 END MODULE MOD_part_tools
