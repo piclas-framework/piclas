@@ -58,7 +58,7 @@ USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, maxEXP
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf, ReactionProbGTUnityCounter
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, VarTimeStep
-USE MOD_DSMC_Analyze            ,ONLY: CalcTVibPoly, CalcTelec
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTVibPoly, CalcTelec
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_GetAnalyticRate
 ! IMPLICIT VARIABLE HANDLING
@@ -355,7 +355,7 @@ USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecD
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep
-USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange, CalcXiElec
+USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
 USE MOD_DSMC_Relaxation        ,ONLY: DSMC_VibRelaxDiatomic, CalcXiTotalEqui
 USE MOD_DSMC_CollisVec         ,ONLY: PostCollVec
