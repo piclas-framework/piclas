@@ -39,3 +39,6 @@ sfc.dat
 
 # vtu files (hopr debugging output)
 *.vtu
+
+# paraview plugin temp. files
+.flexi.ini
