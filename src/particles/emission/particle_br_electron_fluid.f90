@@ -43,8 +43,8 @@ SUBROUTINE InitSwitchBRElectronModel()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_HDG_Vars
-USE MOD_Globals                ,ONLY: myrank, abort, UNIT_StdOut
-USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETREAL,PrintOption
+USE MOD_Globals     ,ONLY: myrank, abort, UNIT_StdOut
+USE MOD_ReadInTools ,ONLY: GETLOGICAL,GETREAL,PrintOption
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -73,10 +73,11 @@ END IF
 
 IF((BRConvertElectronsToFluid.OR.BRConvertFluidToElectrons).AND.&
   ((BRConvertElectronsToFluidTime.GT.0.).OR.(BRConvertFluidToElectronsTime.GT.0.)))THEN
-  CALL abort(__STAMP__,'BR electron model: Use either fixed conversion or times but not both!')
+  CALL abort(__STAMP__,'BR electron model: Use either a) fixed conversion or b) times, but not both!')
 END IF
 
 BRConvertMode = 0 ! Initialize
+DeltaTimeBRWindow = -1. ! Initialize
 
 ! Both times are given: Two or more switches
 IF((BRConvertElectronsToFluidTime.GE.0.).AND.(BRConvertFluidToElectronsTime.GE.0.))THEN
@@ -101,13 +102,17 @@ IF((BRConvertElectronsToFluidTime.GE.0.).AND.(BRConvertFluidToElectronsTime.GE.0
   END IF ! BRConvertElectronsToFluidTime.GT.BRConvertFluidToElectronsTime
 ELSEIF(BRConvertElectronsToFluidTime.GE.0.)THEN
   BRConvertMode = 3 ! Single Switch
-  DeltaTimeBRWindow = HUGE(1.) ! no relaxation
+  !DeltaTimeBRWindow = HUGE(1.) ! no relaxation
 ELSEIF(BRConvertFluidToElectronsTime.GE.0.)THEN
   BRConvertMode = 3 ! Single Switch
   DeltaTimeBRWindow = BRConvertFluidToElectronsTime
 END IF ! (BRConvertElectronsToFluidTime.GE.0.).AND.(BRConvertFluidToElectronsTime.GE.0.)
 
 CALL PrintOption('Switch BR Electron <-> Kinetic: BRConvertMode (zero means OFF)' , 'INFO' , IntOpt=BRConvertMode)
+
+! Depending on usage of variable BR ref. electron temperature, do a sanity check
+IF(CalcBRVariableElectronTemp.AND.DeltaTimeBRWindow.LT.0.0) CALL abort(__STAMP__,&
+    'DeltaTimeBRWindow is negative. Set value for BRConvertFluidToElectronsTime.')
 
 END SUBROUTINE InitSwitchBRElectronModel
 
@@ -122,6 +127,7 @@ USE MOD_HDG_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Restart_Vars        ,ONLY: DoRestart,RestartTime
+USE MOD_TimeDisc_Vars       ,ONLY: Time
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -169,7 +175,7 @@ IF (BRNbrOfRegions .GT. 0) THEN
   BRVariableElectronTemp = GETSTR('BRVariableElectronTemp')
   SELECT CASE(TRIM(BRVariableElectronTemp))
   CASE('constant')  ! Default, nothing to do
-  CASE('linear') ! Linear drop towards background temperature
+  CASE('linear','exp') ! Linear/Exponential drop towards background temperature
     ! BG
     ! time
   CASE DEFAULT
@@ -182,8 +188,6 @@ IF (BRNbrOfRegions .GT. 0) THEN
       RegionElectronRefBackup(iRegions) = RegionElectronRef(3,iRegions)
     END DO
   END IF ! CalcBRVariableElectronTemp
-  !write(*,*) "particle_br_electron_fluid.f90"
-  !read*
 END IF
 
 ! Check whether it is a restart or a fresh computation
@@ -286,8 +290,13 @@ IF(UseBRElectronFluid.AND.BRConvertFluidToElectrons)THEN
   CALL abort(__STAMP__,'UseBRElectronFluid and BRConvertFluidToElectrons CANNOT both be true. Deactivate BR electron fluid model!')
 END IF ! UseBRElectronFluid.AND.BRConvertFluidToElectrons
 
-! Depending on kinetic/BR model, set the reference electron temperature
-IF(CalcBRVariableElectronTemp) CALL UpdateVariableRefElectronTemp(0.)
+IF(CalcBRVariableElectronTemp) THEN
+  ! For BR Electron / fully kinetic model switch, get the next time a switch is going to be performed
+  time=RestartTime
+  CALL GetNextBRSwitchTime()
+  ! Depending on kinetic/BR model, set the reference electron temperature
+  CALL UpdateVariableRefElectronTemp(0.)
+END IF
 
 END SUBROUTINE InitializeVariablesElectronFluidRegions
 
@@ -297,11 +306,12 @@ END SUBROUTINE InitializeVariablesElectronFluidRegions
 !===================================================================================================================================
 SUBROUTINE UpdateVariableRefElectronTemp(tAdd)
 ! MODULES
-USE MOD_Globals       ,ONLY: abort
+USE MOD_PreProc
+USE MOD_Globals       ,ONLY: abort,mpiroot
 USE MOD_HDG_Vars      ,ONLY: BRNbrOfRegions,UseBRElectronFluid,RegionElectronRefBackup,RegionElectronRef,DeltaTimeBRWindow
 USE MOD_HDG_Vars      ,ONLY: BRVariableElectronTemp
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge,BoltzmannConst
-USE MOD_TimeDisc_Vars ,ONLY: dt_Min
+USE MOD_TimeDisc_Vars ,ONLY: dt_Min,time
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -310,34 +320,55 @@ REAL,INTENT(IN) :: tAdd
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: iRegions
+REAL,PARAMETER :: T2_in_K=600
+!INTEGER :: i,j,k,r,iElem
+!INTEGER :: RegionID
 !===================================================================================================================================
 IF(UseBRElectronFluid)THEN
-  SELECT CASE(TRIM(BRVariableElectronTemp))
-  CASE('linear') ! Linear drop towards background temperature
-    DO iRegions=1,BRNbrOfRegions
-      RegionElectronRef(3,iRegions) = RegionElectronRefBackup(iRegions)
-      ASSOCIATE( &
-            T1 => RegionElectronRefBackup(iRegions)   ,&
-            T2 => 300*BoltzmannConst/ElementaryCharge ,& ! convert K to eV
-            dt => dt_Min(DT_BR_SWITCH)                )
+  ! Sanity check
+  IF(ABS(DeltaTimeBRWindow).LE.0.0) CALL abort(__STAMP__,&
+      'DeltaTimeBRWindow is zero. Therefore, 1/DeltaTimeBRWindow is not possible!')
 
-        !Sanity check
-        IF(dt.EQ.HUGE(1.))THEN
-          RegionElectronRef(3,iRegions) = T2 ! fall back to starting temperature
-        ELSE
-          !RegionElectronRef(3,iRegions) = (T2-T1)/(t2-t1)*dt + T2
-          RegionElectronRef(3,iRegions) = ((T1-T2)/DeltaTimeBRWindow)*(dt+tAdd) + T2
-        END IF ! dt_Min(DT_BR_SWITCH).EQ.HUGE(1.)
-      END ASSOCIATE
+  ASSOCIATE( &
+        T2 => T2_in_K*BoltzmannConst/ElementaryCharge ,& ! convert K to eV
+        dt => dt_Min(DT_BR_SWITCH)+tAdd           )
+    ! Select scaling function
+    SELECT CASE(TRIM(BRVariableElectronTemp))
+    CASE('linear') ! Linear drop towards background temperature
+      DO iRegions=1,BRNbrOfRegions
+        RegionElectronRef(3,iRegions) = RegionElectronRefBackup(iRegions)
+        ASSOCIATE(T1 => RegionElectronRefBackup(iRegions) )
+          ! Fallback
+          IF(dt.EQ.HUGE(1.))THEN
+            RegionElectronRef(3,iRegions) = T2 ! fall back to starting temperature
+          ELSE
+            RegionElectronRef(3,iRegions) = ((T1-T2)/DeltaTimeBRWindow)*dt + T2
+          END IF ! dt_Min(DT_BR_SWITCH).EQ.HUGE(1.)
+        END ASSOCIATE
+      END DO
+    CASE('exp') ! Exponential drop towards background temperature
+      DO iRegions=1,BRNbrOfRegions
+        RegionElectronRef(3,iRegions) = RegionElectronRefBackup(iRegions)
+        ASSOCIATE(T1 => RegionElectronRefBackup(iRegions) )
+          ! Fallback
+          IF(dt.EQ.HUGE(1.))THEN
+            RegionElectronRef(3,iRegions) = T2 ! fall back to starting temperature
+          ELSE
+            RegionElectronRef(3,iRegions) = (T1-T2)*EXP((-DeltaTimeBRWindow+dt)*3e6) + T2
+          END IF ! dt_Min(DT_BR_SWITCH).EQ.HUGE(1.)
+        END ASSOCIATE
+      END DO
+    END SELECT
+  END ASSOCIATE
 
-      ! Sanity check
-      IF(RegionElectronRef(3,iRegions).LT.0.0) CALL abort(__STAMP__,'Negative ref. electron temp!')
-    END DO
-  END SELECT
+  ! Sanity check
+  DO iRegions=1,BRNbrOfRegions
+    IF(RegionElectronRef(3,iRegions).LT.0.0) CALL abort(__STAMP__,'Negative ref. electron temp!')
+  END DO
+
 ELSE
   DO iRegions=1,BRNbrOfRegions
     RegionElectronRef(3,iRegions) = 0.
-    WRITE (*,*) "dt_Min(DT_BR_SWITCH) =", dt_Min(DT_BR_SWITCH)
   END DO
 END IF ! UseBRElectronFluid
 
@@ -350,7 +381,7 @@ END SUBROUTINE UpdateVariableRefElectronTemp
 !===================================================================================================================================
 SUBROUTINE GetNextBRSwitchTime()
 ! MODULES
-USE MOD_Globals       ,ONLY: abort
+USE MOD_Globals       ,ONLY: abort,mpiroot
 USE MOD_TimeDisc_Vars ,ONLY: dt_Min,Time,tEnd
 USE MOD_HDG_Vars      ,ONLY: BRConvertFluidToElectronsTime,BRConvertElectronsToFluidTime,BRConvertMode
 ! IMPLICIT VARIABLE HANDLING
@@ -363,7 +394,9 @@ REAL :: t             !> time in relative frame
 REAL :: tMin,tMax     !> sorted t1 and t2
 REAL :: tBRSwitchDiff !> delta to next switch (BR or kinetic), in relative time frame, i.e., MOD
 REAL :: tBRSwitch     !> time at next switch (BR or kinetic), in relative time frame, i.e., MOD
+LOGICAL::debug
 !===================================================================================================================================
+debug=.false.
 !tBRSwitchDiff = tBRSwitch-Time ! Time to BR<->kinetic switch, use extra variable so number doesn't change due to numerical errors
 ASSOCIATE( t1 => BRConvertFluidToElectronsTime,&
            t2 => BRConvertElectronsToFluidTime &
@@ -373,8 +406,11 @@ ASSOCIATE( t1 => BRConvertFluidToElectronsTime,&
       t = Time
     CASE (1)  ! Multiple switches: BR -> kin -> BR (t1 < t2)
       t = MOD(Time,t2)
+      IF(ALMOSTEQUALRELATIVE(t,t2,1e-5)) t=0. ! Prevent that modulus returns t ~= t2 (due to tolerance)
     CASE (2)  ! Multiple switches: kin -> BR -> kin (t1 > t2)
+      IF(debug.and.mpiroot) WRITE (*,*) "Time,t1 =", Time,t1
       t = MOD(Time,t1)
+      IF(ALMOSTEQUALRELATIVE(t,t1,1e-5)) t=0. ! Prevent that modulus returns t ~= t1 (due to tolerance)
     CASE DEFAULT
       CALL abort(__STAMP__,'Unknown value for BRConvertMode =',IntInfoOpt=BRConvertMode)
   END SELECT
@@ -383,6 +419,7 @@ ASSOCIATE( t1 => BRConvertFluidToElectronsTime,&
   IF((t1.GT.0.0).AND.(t2.GT.0.0))THEN
     tMin=MIN(t1,t2)
     tMax=MAX(t1,t2)
+    IF(debug.and.mpiroot) WRITE (*,*) "t,tmin,t.GE.tMin                   =", t,tmin,t.GE.tMin,ALMOSTEQUALRELATIVE(t,tMin,1e-5)
     IF((t.GE.tMin).OR.(ALMOSTEQUALRELATIVE(t,tMin,1e-5)))THEN
       tBRSwitch = tMax
     ELSE
@@ -400,6 +437,7 @@ ASSOCIATE( t1 => BRConvertFluidToElectronsTime,&
   ! Catch equal times
   IF((ALMOSTEQUALRELATIVE(tBRSwitch,t,1e-5)).AND.(tEnd.GE.t)) tBRSwitch = tEnd
 
+  IF(debug.and.mpiroot) WRITE (*,*) "tBRSwitch,t i                      =", tBRSwitch,t
   ! Catch tolerance issue which leads to a timestep of 1.0123123E-23 (basically zero)
   IF(ALMOSTEQUALRELATIVE(tBRSwitch,t,1e-5))THEN
     tBRSwitchDiff = 0.0
@@ -415,8 +453,7 @@ ASSOCIATE( t1 => BRConvertFluidToElectronsTime,&
   END IF ! tBRSwitchDiff.GT.0.0
 END ASSOCIATE
 
-!WRITE (*,*) "tBRSwitchDiff,dt_Min(DT_BR_SWITCH) =", tBRSwitchDiff,dt_Min(DT_BR_SWITCH)
-!read*
+IF(debug.and.mpiroot) WRITE (*,*) "tBRSwitchDiff,dt_Min(DT_BR_SWITCH) =", tBRSwitchDiff,dt_Min(DT_BR_SWITCH)
 
 END SUBROUTINE GetNextBRSwitchTime
 
@@ -429,9 +466,11 @@ SUBROUTINE SwitchBRElectronModel()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_HDG_Vars
-USE MOD_TimeDisc_Vars         ,ONLY: time,iter
-USE MOD_Elem_Mat              ,ONLY: Elem_Mat
-USE MOD_part_operations       ,ONLY: RemoveAllElectrons
+USE MOD_HDG             ,ONLY: UpdateNonlinVolumeFac
+USE MOD_TimeDisc_Vars   ,ONLY: time,iter
+USE MOD_Elem_Mat        ,ONLY: Elem_Mat
+USE MOD_part_operations ,ONLY: RemoveAllElectrons
+USE MOD_Restart_Tools   ,ONLY: RecomputeLambda
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -455,14 +494,12 @@ ASSOCIATE( tBR2Kin => BRConvertFluidToElectronsTime ,&
        ((BRConvertMode.EQ.1)          .AND.(GreaterEqualWithTolerance(MOD(time,tKin2BR),tBR2Kin)))       .OR.&
        ((BRConvertMode.EQ.2)          .AND.(LesserThanWithTolerance(MOD(time,tBR2Kin),tKin2BR,tBR2Kin))) )THEN
      IF(debug)THEN
-      write(*,*) ""
-      IPWRITE(UNIT_StdOut,*) "SWITCH TO kinetic ?",time
-      write(*,*) ""
+      IPWRITE(UNIT_StdOut,*) "\nSWITCH TO kinetic ?",time,"\n"
       read*
      END IF ! debug
       CALL CreateElectronsFromBRFluid(.FALSE.) ! Use BR electron fluid model density to create kinetic electrons in each cell
-      CALL Elem_Mat(iter)          ! Recompute elem matrices
       UseBRElectronFluid = .FALSE. ! Deactivate BR fluid
+      CALL Elem_Mat(iter)          ! Recompute elem matrices
       IF((.NOT.BRConvertModelRepeatedly).AND.(BRConvertMode.EQ.-2)) tKin2BR = -1.0 ! deactivate kin -> BR
     END IF
   ENDIF
@@ -473,18 +510,18 @@ ASSOCIATE( tBR2Kin => BRConvertFluidToElectronsTime ,&
        ((BRConvertMode.EQ.1)          .AND.(LesserThanWithTolerance(MOD(time,tKin2BR),tBR2Kin,tKin2BR))) .OR.&
        ((BRConvertMode.EQ.2)          .AND.(GreaterEqualWithTolerance(MOD(time,tBR2Kin),tKin2BR)))       )THEN
      IF(debug)THEN
-      write(*,*) ""
-      IPWRITE(UNIT_StdOut,*) "MOD(time,tKin2BR),tBR2Kin,MOD(time,tKin2BR).LT.tBR2Kin =", MOD(time,tKin2BR),tBR2Kin,MOD(time,tKin2BR).LT.tBR2Kin
-      IPWRITE(UNIT_StdOut,*) "SWITCH TO BR ?",time
-      write(*,*) ""
+      IPWRITE(UNIT_StdOut,*) "\nMOD(time,tKin2BR),tBR2Kin,MOD(time,tKin2BR).LT.tBR2Kin =", MOD(time,tKin2BR),tBR2Kin,MOD(time,tKin2BR).LT.tBR2Kin
+      IPWRITE(UNIT_StdOut,*) "SWITCH TO BR ?",time,"\n"
       read*
      END IF ! debug
      IF(BRNbrOfRegions.EQ.0) CALL abort(__STAMP__,'SwitchBRElectronModel(): Cannot switch [kin -> BR] as no BR regions are defined!')
       CALL RemoveAllElectrons()    ! Remove all electron particles from the simulation
-      CALL Elem_Mat(iter)          ! Recompute elem matrices
       UseBRElectronFluid = .TRUE.  ! Activate BR fluid
+      IF(.NOT.CalcBRVariableElectronTemp)CALL Elem_Mat(iter) ! Recompute elem matrices
       SwitchToBR=.TRUE.! check if a switch happens now to update the variable reference electron temperature
       IF((.NOT.BRConvertModelRepeatedly).AND.(BRConvertMode.EQ.-1))tBR2Kin = -1.0 ! deactivate BR -> kin
+      ! Recompute lambda: force iteration
+      !CALL  RecomputeLambda(time)
     END IF
   END IF ! .NOT.UseBRElectronFluid.AND.BRConvertE.GT.0.0
 END ASSOCIATE
@@ -492,8 +529,15 @@ END ASSOCIATE
 ! For BR Electron / fully kinetic model switch, get the next time a switch is going to be performed
 CALL GetNextBRSwitchTime()
 
-! Depending on kinetic/BR model, set the reference electron temperature for t^n
-IF(SwitchToBR.AND.CalcBRVariableElectronTemp) CALL UpdateVariableRefElectronTemp(0.)
+! Depending on kinetic/BR model, update values and matrices
+IF(SwitchToBR.AND.CalcBRVariableElectronTemp)THEN
+  ! Set new reference electron temperature for at t^n
+  CALL UpdateVariableRefElectronTemp(0.)
+  ! Calculate NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
+  CALL UpdateNonlinVolumeFac(.FALSE.)
+  ! Pre-compute HDG local element matrices
+  CALL Elem_Mat(iter)
+END IF
 END SUBROUTINE SwitchBRElectronModel
 
 
@@ -549,14 +593,14 @@ ELSE
     LesserThanWithTolerance = .TRUE. ! a=MOD(A,B) returns B because e.g. A/B=5
   ELSE
     LesserThanWithTolerance = .FALSE.
-  END IF ! 
+  END IF !
 END IF
 END FUNCTION LesserThanWithTolerance
 
 
 SUBROUTINE CreateElectronsFromBRFluid(CreateFromRestartFile)
 !----------------------------------------------------------------------------------------------------------------------------------!
-! 1.) reconstruct the electron phase space using the integrated charge density in each cell 
+! 1.) reconstruct the electron phase space using the integrated charge density in each cell
 !     a.) from ElectronDensityCell and ElectronTemperatureCell that are read from .h5 state file (only during restart)
 !     b.) from BR electron model variables in each cell (only during the simulation)
 !----------------------------------------------------------------------------------------------------------------------------------!
