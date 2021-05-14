@@ -12,18 +12,32 @@ endif
 SRC += 100_appendix.md
 SRC += references.md
 
+# Pandoc changed citeproc in 2.8
+PANDOCVERSION = $(shell pandoc --version | grep ^pandoc | sed 's/^.* //g')
+PANDOCMAJOR   = $(shell echo $(PANDOCVERSION) | cut -f1 -d.)
+PANDOCMINOR   = $(shell echo $(PANDOCVERSION) | cut -f2 -d.)
+ifeq ($(shell expr $(PANDOCMAJOR) \= 2), 0)
+	$(error No or unkown version of pandoc. Please use pandoc v2.x to build this documentation.)
+endif
+
+ifeq ($(shell expr $(PANDOCMINOR) \>= 8), 1)
+	PANDOCFILTER=--citeproc
+else
+	PANDOCFILTER=--filter pandoc-citeproc
+endif
+
 all: userguide
 	@echo '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 	@echo ' SUCCESS: DOCUMENTATION GENERATED!'
 	@echo '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 
 userguide:
-	pandoc $(SRC)   -o userguide.pdf -s -N --filter pandoc-citeproc --from markdown+implicit_figures --listings --template=../template.tex
+	pandoc $(SRC)   -o userguide.pdf -s -N $(PANDOCFILTER) --from markdown+implicit_figures --listings --template=../template.tex
 
 # utility targets
 
 tests:
-	pandoc tests.md -o test.pdf      -s -N --filter pandoc-citeproc --from markdown+implicit_figures --listings --template=../template.tex
+	pandoc tests.md -o test.pdf      -s -N $(PANDOCFILTER) --from markdown+implicit_figures --listings --template=../template.tex
 
 .PHONY: userguide
 
