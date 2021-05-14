@@ -33,3 +33,9 @@ userblock.tmp
 commit.h
 .createCylinderHOPR.json
 *.h5
+
+# hopr space filing curves
+sfc.dat
+
+# vtu files (hopr debugging output)
+*.vtu
