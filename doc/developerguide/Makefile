@@ -10,7 +10,7 @@ ifneq ($(BUILDALL),)
 endif
 SRC += references.md
 
-# Pandoc changed citeproc in 2.11
+# GNU Make can only perform numerical comparison, split and compare by parts
 PANDOCVERSION := $(shell pandoc --version | grep ^pandoc | sed 's/^.* //g')
 PANDOCMAJOR   := $(shell echo $(PANDOCVERSION) | cut -f1 -d.)
 PANDOCMINOR   := $(shell echo $(PANDOCVERSION) | cut -f2 -d.)

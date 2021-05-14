@@ -813,7 +813,9 @@ USE MOD_AnalyzeField              ,ONLY: AnalyzeField
 #ifdef PARTICLES
 USE MOD_Mesh_Vars                 ,ONLY: MeshFile
 USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum
-USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles,CalculatePartElemData,WriteParticleTrackingData
+USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles
+USE MOD_Particle_Analyze_Tools    ,ONLY: CalculatePartElemData
+USE MOD_Particle_Analyze_Output   ,ONLY: WriteParticleTrackingData
 USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep,DoPartAnalyze,TrackParticlePosition
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfaceAnalyzeStep
 USE MOD_SurfaceModel_Analyze      ,ONLY: AnalyzeSurface
@@ -832,7 +834,7 @@ USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
 USE MOD_Particle_Vars             ,ONLY: DelayTime
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
-USE MOD_Particle_Analyze          ,ONLY: AnalyticParticleMovement
+USE MOD_Particle_Analyze_Code     ,ONLY: AnalyticParticleMovement
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
 USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/

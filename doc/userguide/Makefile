@@ -5,14 +5,14 @@ BUILDALL=
 
 SRC=000_userguide.md 010_installation.md 020_workflow.md 030_features_models.md 040_visu_output.md 050_tools.md
 SRC +=  060_tutorials.md 080_cluster_guide.md 099_parameter.md
-# SRC +=  tutorials/*/*.md 070_unittest.md 080_cluster_guide.md 099_parameter.md 
+# SRC +=  tutorials/*/*.md 070_unittest.md 080_cluster_guide.md 099_parameter.md
 ifneq ($(BUILDALL),)
   SRC += missing.md
 endif
 SRC += 100_appendix.md
 SRC += references.md
 
-# Pandoc changed citeproc in 2.11
+# GNU Make can only perform numerical comparison, split and compare by parts
 PANDOCVERSION := $(shell pandoc --version | grep ^pandoc | sed 's/^.* //g')
 PANDOCMAJOR   := $(shell echo $(PANDOCVERSION) | cut -f1 -d.)
 PANDOCMINOR   := $(shell echo $(PANDOCVERSION) | cut -f2 -d.)
