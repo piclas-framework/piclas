@@ -295,16 +295,45 @@ IF(CalcBRVariableElectronTemp) THEN
   time=RestartTime
   CALL GetNextBRSwitchTime()
   ! Depending on kinetic/BR model, set the reference electron temperature
-  CALL UpdateVariableRefElectronTemp(0.)
+  CALL CalculateVariableRefElectronTemp(0.)
 END IF
 
 END SUBROUTINE InitializeVariablesElectronFluidRegions
 
 
 !===================================================================================================================================
+!> When changing the reference electron temperature, first calculate the new temperature and the update the temperature-dependent
+!> matrices for the non-linear HDG solver
+!===================================================================================================================================
+SUBROUTINE UpdateVariableRefElectronTemp(tShift)
+! MODULES
+USE MOD_HDG           ,ONLY: UpdateNonlinVolumeFac
+USE MOD_Elem_Mat      ,ONLY: Elem_Mat,BuildPrecond
+USE MOD_TimeDisc_Vars ,ONLY: iter
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(IN)  :: tShift ! temporal shift for electron temperature calculation, calculates temperature, e.g., for t^n or t^n+1
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+! Set new reference electron temperature for at t^n
+CALL CalculateVariableRefElectronTemp(0.)
+! Calculate NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
+CALL UpdateNonlinVolumeFac(.FALSE.)
+! Pre-compute HDG local element matrices
+CALL Elem_Mat(iter)
+! Build a block-diagonal preconditioner for the lambda system
+CALL BuildPrecond()
+END SUBROUTINE UpdateVariableRefElectronTemp
+
+
+
+!===================================================================================================================================
 !> For BR Electron / fully kinetic model: set current reference electron temperature
 !===================================================================================================================================
-SUBROUTINE UpdateVariableRefElectronTemp(tAdd)
+SUBROUTINE CalculateVariableRefElectronTemp(tAdd)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals       ,ONLY: abort,mpiroot
@@ -319,8 +348,8 @@ IMPLICIT NONE
 REAL,INTENT(IN) :: tAdd
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iRegions
-REAL,PARAMETER :: T2_in_K=600
+INTEGER         :: iRegions
+REAL,PARAMETER  :: T2_in_K=300 ! Target temperature
 !INTEGER :: i,j,k,r,iElem
 !INTEGER :: RegionID
 !===================================================================================================================================
@@ -372,7 +401,7 @@ ELSE
   END DO
 END IF ! UseBRElectronFluid
 
-END SUBROUTINE UpdateVariableRefElectronTemp
+END SUBROUTINE CalculateVariableRefElectronTemp
 
 
 !===================================================================================================================================
@@ -468,7 +497,7 @@ USE MOD_Globals
 USE MOD_HDG_Vars
 USE MOD_HDG             ,ONLY: UpdateNonlinVolumeFac
 USE MOD_TimeDisc_Vars   ,ONLY: time,iter
-USE MOD_Elem_Mat        ,ONLY: Elem_Mat
+USE MOD_Elem_Mat        ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_part_operations ,ONLY: RemoveAllElectrons
 USE MOD_Restart_Tools   ,ONLY: RecomputeLambda
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -517,7 +546,10 @@ ASSOCIATE( tBR2Kin => BRConvertFluidToElectronsTime ,&
      IF(BRNbrOfRegions.EQ.0) CALL abort(__STAMP__,'SwitchBRElectronModel(): Cannot switch [kin -> BR] as no BR regions are defined!')
       CALL RemoveAllElectrons()    ! Remove all electron particles from the simulation
       UseBRElectronFluid = .TRUE.  ! Activate BR fluid
-      IF(.NOT.CalcBRVariableElectronTemp)CALL Elem_Mat(iter) ! Recompute elem matrices
+      IF(.NOT.CalcBRVariableElectronTemp)THEN
+        CALL Elem_Mat(iter) ! Recompute elem matrices
+        CALL BuildPrecond() ! Build a block-diagonal preconditioner for the lambda system
+      END IF
       SwitchToBR=.TRUE.! check if a switch happens now to update the variable reference electron temperature
       IF((.NOT.BRConvertModelRepeatedly).AND.(BRConvertMode.EQ.-1))tBR2Kin = -1.0 ! deactivate BR -> kin
       ! Recompute lambda: force iteration
@@ -530,14 +562,8 @@ END ASSOCIATE
 CALL GetNextBRSwitchTime()
 
 ! Depending on kinetic/BR model, update values and matrices
-IF(SwitchToBR.AND.CalcBRVariableElectronTemp)THEN
-  ! Set new reference electron temperature for at t^n
-  CALL UpdateVariableRefElectronTemp(0.)
-  ! Calculate NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
-  CALL UpdateNonlinVolumeFac(.FALSE.)
-  ! Pre-compute HDG local element matrices
-  CALL Elem_Mat(iter)
-END IF
+IF(SwitchToBR.AND.CalcBRVariableElectronTemp) CALL UpdateVariableRefElectronTemp(0.)
+
 END SUBROUTINE SwitchBRElectronModel
 
 
