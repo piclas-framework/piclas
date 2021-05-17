@@ -379,6 +379,14 @@ DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
   aElem%Ind    = iElem
   aElem%Type   = ElemInfo(ELEM_TYPE,iElem)
+  ! Sanity check: Allow only specific element types
+  SELECT CASE(aElem%Type)
+  CASE(108,118,208)
+    ! linear hex (108), non-linear hex (118), spline hex (208)
+  CASE DEFAULT
+    ! Abort if non-hexahedral meshes are read
+    CALL abort(__STAMP__,'aElem%Type is NOT allowed: ',IntInfoOpt=aElem%Type)
+  END SELECT
   aElem%Zone   = ElemInfo(ELEM_ZONE,iElem)
 END DO
 
