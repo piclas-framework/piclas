@@ -1437,6 +1437,27 @@ DO iSpec=1,nSpecies
          RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
       END ASSOCIATE
       END IF ! .NOT.RegionOnProc
+    CASE('2D_Liu2010_neutralization')
+      ! Neutralization at right BC (max. x-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)
+      ! Check one region (emission at fixed x-position x=30 mm)
+      ASSOCIATE( &
+                 x2 => 30.0001e-3    ,& ! m
+                 x1 => 29.9999e-3    ,& ! m
+                 y2 => GEO%ymaxglob ,& ! m
+                 y1 => GEO%yminglob ,& ! m
+                 z2 => GEO%zmaxglob ,& ! m
+                 z1 => GEO%zminglob )
+       ! Check all 8 edges
+       xCoords(1:3,1) = (/x1,y1,z1/)
+       xCoords(1:3,2) = (/x2,y1,z1/)
+       xCoords(1:3,3) = (/x1,y2,z1/)
+       xCoords(1:3,4) = (/x2,y2,z1/)
+       xCoords(1:3,5) = (/x1,y1,z2/)
+       xCoords(1:3,6) = (/x2,y1,z2/)
+       xCoords(1:3,7) = (/x1,y2,z2/)
+       xCoords(1:3,8) = (/x2,y2,z2/)
+       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
+      END ASSOCIATE
     CASE('circle')
       xlen=Species(iSpec)%Init(iInit)%RadiusIC * &
            SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))

@@ -110,6 +110,7 @@ PUBLIC :: CalcVelocity_FromWorkFuncSEE, DSMC_SetInternalEnr_LauxVFD
 PUBLIC :: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
 PUBLIC :: SetParticlePositionLandmark
 PUBLIC :: SetParticlePositionLandmarkNeutralization
+PUBLIC :: SetParticlePositionLiu2010Neutralization
 #ifdef CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
@@ -2033,4 +2034,36 @@ DO i=1,chunkSize
 END DO
 END SUBROUTINE SetParticlePositionLandmarkNeutralization
 
+
+SUBROUTINE SetParticlePositionLiu2010Neutralization(chunkSize,particle_positions)
+!===================================================================================================================================
+! Set particle position
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)       :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: i
+REAL                    :: RandVal
+!===================================================================================================================================
+DO i=1,chunkSize
+  CALL RANDOM_NUMBER(RandVal)
+  ASSOCIATE( Ly => 14.0e-3                          ,& ! m
+             z  => (GEO%zmaxglob+GEO%zminglob)/2.0 )   ! m
+    particle_positions(i*3-2) = 29.99e-3
+    particle_positions(i*3-1) = RandVal * Ly + 21.5e-3
+    particle_positions(i*3  ) = z
+  END ASSOCIATE
+END DO
+END SUBROUTINE SetParticlePositionLiu2010Neutralization
 END MODULE MOD_part_emission_tools

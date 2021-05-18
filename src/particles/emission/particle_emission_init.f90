@@ -334,7 +334,7 @@ DO iSpec = 1, nSpecies
     CASE('2D_landmark','2D_landmark_copy')
       Species(iSpec)%Init(iInit)%ParticleEmissionType = 8
       Species(iSpec)%Init(iInit)%NINT_Correction      = 0.0
-    CASE('2D_landmark_neutralization')
+    CASE('2D_landmark_neutralization','2D_Liu2010_neutralization')
       Species(iSpec)%Init(iInit)%ParticleEmissionType = 9
       NeutralizationSource = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-NeutralizationSource'))
       NeutralizationBalance = 0

@@ -183,6 +183,7 @@ IF(PRESENT(BCID)) THEN
       END IF
     END DO
   END IF ! UseAdaptive.OR.CalcAdaptiveBCInfo
+  ! Used for ion thruster simulations: Landmark and Liu2010 (SPT-100)
   IF(UseNeutralization)THEN
     IF(TRIM(BoundaryName(BCID)).EQ.TRIM(NeutralizationSource))THEN
       ! Add +1 for electrons and -1 for ions
