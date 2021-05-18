@@ -1687,9 +1687,9 @@ USE MOD_io_hdf5
 USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, nSurfTotalSides
 USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp, GlobalSide2SurfSide
 #if USE_MPI
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
 USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp_Shared_Win
-USE MOD_MPI_Shared
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1749,8 +1749,7 @@ ELSE
   END ASSOCIATE
 END IF
 
-CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 #endif
 
 END SUBROUTINE RestartAdaptiveWallTemp

@@ -100,6 +100,7 @@ USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 #if USE_MPI
+USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank,MPI_COMM_LEADERS_SHARED
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,myLeaderGroupRank,nLeaderGroupProcs
@@ -160,8 +161,7 @@ IF(myComputeNodeRank.EQ.0) THEN
   PartSource=0.
 #if USE_MPI
 END IF
-CALL MPI_WIN_SYNC(PartSource_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
 #endif
 PartSourceConstExists=.FALSE.
 
@@ -277,8 +277,7 @@ CASE('cell_volweight_mean')
       DO iNode=firstNode, lastNode
         NodeSourceExt(iNode) = 0.
       END DO
-      CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
-      CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+      CALL BARRIER_AND_SYNC(NodeSourceExt_Shared_Win,MPI_COMM_SHARED)
     END IF ! .NOT.DoRestart
 
    ! Local, non-synchronized surface charge contribution (is added to NodeSource BEFORE MPI synchronization)
@@ -293,8 +292,7 @@ CASE('cell_volweight_mean')
     ! DO iNode=firstNode, lastNode
     !   NodeSourceExtTmp(iNode) = 0.
     ! END DO
-    !CALL MPI_WIN_SYNC(NodeSourceExtTmp_Shared_Win,IERROR)
-    !CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+    !CALL BARRIER_AND_SYNC(NodeSourceExtTmp_Shared_Win,MPI_COMM_SHARED)
   END IF ! DoDielectricSurfaceCharge
 
 
@@ -571,8 +569,7 @@ IF (myComputeNodeRank.EQ.0) THEN
   SFElemr2_Shared = HUGE(1.)
 #if USE_MPI
 END IF
-CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(SFElemr2_Shared_Win,MPI_COMM_SHARED)
 #endif
 DO iCNElem = firstElem,lastElem
   ElemDone = .FALSE.
@@ -653,8 +650,7 @@ DO iCNElem = firstElem,lastElem
 END DO
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(SFElemr2_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 END SUBROUTINE InitShapeFunctionAdaptive
@@ -759,6 +755,7 @@ USE MOD_PICDepo_Method        ,ONLY: DepositionMethod
 USE MOD_PIC_Analyze           ,ONLY: VerifyDepositedCharge
 USE MOD_TimeDisc_Vars         ,ONLY: iter
 #if USE_MPI
+USE MOD_MPI_Shared            ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars       ,ONLY: myComputeNodeRank,MPI_COMM_SHARED
 #endif  /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -782,8 +779,7 @@ IF (myComputeNodeRank.EQ.0) THEN
   PartSource = 0.0
 #if USE_MPI
 END IF
-CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
+CALL BARRIER_AND_SYNC(PartSource_Shared_Win, MPI_COMM_SHARED)
 #endif  /*USE_MPI*/
 
 IF(PRESENT(doParticle_In)) THEN

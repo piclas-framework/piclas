@@ -3325,6 +3325,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: nUniqueGlobalNodes
 #if USE_MPI
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmpLoc, NodeMapping, NodeSourceExtTmp_Shared_Win,NodeSourceExt_Shared_Win
+USE MOD_MPI_Shared         ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myLeaderGroupRank
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors, nLeaderGroupProcs
 #endif  /*USE_MPI*/
@@ -3367,8 +3368,7 @@ IF(iter.NE.0)THEN
       MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
   ! Reset local surface charge
   NodeSourceExtTmpLoc = 0.
-  CALL MPI_WIN_SYNC(NodeSourceExtTmp_Shared_Win,IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+  CALL BARRIER_AND_SYNC(NodeSourceExtTmp_Shared_Win,MPI_COMM_SHARED)
   IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
     DO iProc = 0, nLeaderGroupProcs - 1
       IF (iProc.EQ.myLeaderGroupRank) CYCLE
@@ -3421,8 +3421,7 @@ IF(iter.NE.0)THEN
       END IF
     END DO
   END IF
-  CALL MPI_WIN_SYNC(NodeSourceExtTmp_Shared_Win,IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+  CALL BARRIER_AND_SYNC(NodeSourceExtTmp_Shared_Win,MPI_COMM_SHARED)
   firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
   lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
 #else
@@ -3435,8 +3434,7 @@ IF(iter.NE.0)THEN
     NodeSourceExt(iNode) = NodeSourceExt(iNode) + NodeSourceExtTmp(iNode)
   END DO
 #if USE_MPI
-  CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+  CALL BARRIER_AND_SYNC(NodeSourceExt_Shared_Win,MPI_COMM_SHARED)
 #else
   ! Reset local surface charge
   NodeSourceExtTmp = 0.
@@ -3568,7 +3566,5 @@ END DO ! iElem=1,PP_nElems
 END SUBROUTINE AddBRElectronFluidToPartSource
 #endif /*USE_HDG*/
 #endif /*PARTICLES*/
-
-
 
 END MODULE MOD_HDF5_output
