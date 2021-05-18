@@ -126,8 +126,8 @@ USE MOD_Globals
 USE MOD_HDG_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
-USE MOD_Restart_Vars        ,ONLY: DoRestart,RestartTime
-USE MOD_TimeDisc_Vars       ,ONLY: Time
+USE MOD_Restart_Vars  ,ONLY: DoRestart,RestartTime
+USE MOD_TimeDisc_Vars ,ONLY: Time
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -290,6 +290,7 @@ IF(UseBRElectronFluid.AND.BRConvertFluidToElectrons)THEN
   CALL abort(__STAMP__,'UseBRElectronFluid and BRConvertFluidToElectrons CANNOT both be true. Deactivate BR electron fluid model!')
 END IF ! UseBRElectronFluid.AND.BRConvertFluidToElectrons
 
+! Check variable reference electron temperature
 IF(CalcBRVariableElectronTemp) THEN
   ! For BR Electron / fully kinetic model switch, get the next time a switch is going to be performed
   time=RestartTime
@@ -500,6 +501,7 @@ USE MOD_TimeDisc_Vars   ,ONLY: time,iter
 USE MOD_Elem_Mat        ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_part_operations ,ONLY: RemoveAllElectrons
 USE MOD_Restart_Tools   ,ONLY: RecomputeLambda
+USE MOD_DSMC_Vars       ,ONLY: XSec_NullCollision
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -530,6 +532,8 @@ ASSOCIATE( tBR2Kin => BRConvertFluidToElectronsTime ,&
       UseBRElectronFluid = .FALSE. ! Deactivate BR fluid
       CALL Elem_Mat(iter)          ! Recompute elem matrices
       IF((.NOT.BRConvertModelRepeatedly).AND.(BRConvertMode.EQ.-2)) tKin2BR = -1.0 ! deactivate kin -> BR
+      ! (Re-)activate Null-Collision (if the read-in parameter is set true)
+      XSec_NullCollision = BRNullCollisionDefault
     END IF
   ENDIF
 
@@ -554,6 +558,8 @@ ASSOCIATE( tBR2Kin => BRConvertFluidToElectronsTime ,&
       IF((.NOT.BRConvertModelRepeatedly).AND.(BRConvertMode.EQ.-1))tBR2Kin = -1.0 ! deactivate BR -> kin
       ! Recompute lambda: force iteration
       !CALL  RecomputeLambda(time)
+      ! Deactivate Null-Collision
+      XSec_NullCollision = .FALSE.
     END IF
   END IF ! .NOT.UseBRElectronFluid.AND.BRConvertE.GT.0.0
 END ASSOCIATE

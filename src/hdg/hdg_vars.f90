@@ -102,6 +102,8 @@ INTEGER               :: BRConvertMode                 ! Mode used for switching
 LOGICAL               :: BRConvertModelRepeatedly      ! Repeat the switch between BR and kinetic multiple times
 LOGICAL               :: BRElectronsRemoved            ! True if electrons were removed during restart (only BR electrons)
 REAL                  :: DeltaTimeBRWindow             ! Time length when BR is active (possibly multiple times)
+LOGICAL               :: BRNullCollisionDefault        ! Flag (backup of read-in parameter) whether null collision method
+                                                       ! (determining number of pairs based on maximum relaxation frequency) is used
 #endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 
