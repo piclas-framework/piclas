@@ -59,7 +59,7 @@ XSec_Relaxation = .FALSE.
 BRNullCollisionDefault = XSec_NullCollision ! Backup read-in parameter value (for switching null collision on/off)
 IF(XSec_NullCollision.AND.UseBRElectronFluid)THEN
   XSec_NullCollision = .FALSE. ! Deactivate null collision when using BR electrons due to (possibly) increased time step
-  CALL PrintOption('UseBRElectronFluid = T : XSec_NullCollision','INFO',LogOpt=XSec_NullCollision)
+  CALL PrintOption('Using BR electron fuild model: Particles-CollXSec-NullCollision','INFO',LogOpt=XSec_NullCollision)
 END IF
 #endif /*defined(PARTICLES) && USE_HDG*/
 
