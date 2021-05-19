@@ -315,8 +315,8 @@ END IF
 #endif /*USE_LOADBALANCE*/
 
 #if USE_MPI
-SafetyFactor  =GETREAL('Part-SafetyFactor')
-halo_eps_velo =GETREAL('Particles-HaloEpsVelo')
+SafetyFactor  = GETREAL('Part-SafetyFactor')
+halo_eps_velo = GETREAL('Particles-HaloEpsVelo')
 
 ! Adaptive SF: Determine global shape function radius from maximum of characteristic length in each cell
 IF((TRIM(DepositionType).EQ.'shape_function_adaptive').AND.SFAdaptiveSmoothing)THEN
@@ -324,7 +324,7 @@ IF((TRIM(DepositionType).EQ.'shape_function_adaptive').AND.SFAdaptiveSmoothing)T
   offsetElemCNProc = offsetElem - offsetComputeNodeElem
   CharacteristicLengthMax=0.
   DO iElem = 1, nElems
-    CNElemID=iElem+offsetElemCNProc
+    CNElemID = iElem+offsetElemCNProc
 
     ! Because ElemVolume_Shared(CNElemID) is not available for halo elements, the bounding box volume is used as an approximate
     ! value for the element volume from which the characteristic length of the element is calculated
@@ -465,12 +465,12 @@ ELSE
 END IF
 
 ! write function-local BGM indices into global variables
-GEO%FIBGMimin=BGMimin
-GEO%FIBGMimax=BGMimax
-GEO%FIBGMjmin=BGMjmin
-GEO%FIBGMjmax=BGMjmax
-GEO%FIBGMkmin=BGMkmin
-GEO%FIBGMkmax=BGMkmax
+GEO%FIBGMimin = BGMimin
+GEO%FIBGMimax = BGMimax
+GEO%FIBGMjmin = BGMjmin
+GEO%FIBGMjmax = BGMjmax
+GEO%FIBGMkmin = BGMkmin
+GEO%FIBGMkmax = BGMkmax
 #else
 BGMimin = BGMiminglob
 BGMimax = BGMimaxglob
@@ -504,9 +504,9 @@ END DO ! iBGM
 ! and which element is outside of compute-node domain (0)
 ! first do coarse check with BGM
 IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
-  ElemInfo_Shared(ELEM_HALOFLAG,firstElem:lastElem)=1
+  ElemInfo_Shared(ELEM_HALOFLAG,firstElem:lastElem) = 1
 ELSE
-  ElemInfo_Shared(ELEM_HALOFLAG,firstElem:lastElem)=0
+  ElemInfo_Shared(ELEM_HALOFLAG,firstElem:lastElem) = 0
   DO iElem = firstElem, lastElem
     BGMCellXmin = ElemToBGM_Shared(1,iElem)
     BGMCellXmax = ElemToBGM_Shared(2,iElem)
@@ -528,9 +528,9 @@ ELSE
           IF(kBGM.GT.BGMkmax) CYCLE
           !GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
           IF(iElem.GE.offsetComputeNodeElem+1 .AND. iElem.LE.offsetComputeNodeElem+nComputeNodeElems) THEN
-            ElemInfo_Shared(ELEM_HALOFLAG,iElem)=1 ! compute-node element
+            ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 1 ! compute-node element
           ELSE
-            ElemInfo_Shared(ELEM_HALOFLAG,iElem)=2 ! halo element
+            ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 2 ! halo element
           END IF
         END DO ! kBGM
       END DO ! jBGM
@@ -539,14 +539,10 @@ ELSE
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
   ! sum up potential halo elements and create correct offset mapping via ElemInfo_Shared
-  nHaloElems = 0
-  DO iElem = 1, nGlobalElems
-    IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.2) THEN
-      nHaloElems = nHaloElems + 1
-    END IF
-  END DO
+  nHaloElems = COUNT(ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.2)
+
   ALLOCATE(offsetCNHalo2GlobalElem(1:nHaloElems))
-  offsetCNHalo2GlobalElem=-1
+  offsetCNHalo2GlobalElem = -1
   nHaloElems = 0
   DO iElem = 1, nGlobalElems
     IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.2) THEN
@@ -554,14 +550,11 @@ ELSE
       offsetCNHalo2GlobalElem(nHaloElems) = iElem
     END IF
   END DO
+  ! The code below changes ElemInfo_Shared, identification of halo elements must complete before
+  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
   ! sum all MPI-side of compute-node and create correct offset mapping in SideInfo_Shared
-  nMPISidesShared = 0
-  DO iSide = 1, nNonUniqueGlobalSides
-    IF (SideInfo_Shared(SIDE_NBELEMTYPE,iSide).EQ.2) THEN
-      nMPISidesShared = nMPISidesShared + 1
-    END IF
-  END DO
+  nMPISidesShared = COUNT(SideInfo_Shared(SIDE_NBELEMTYPE,:).EQ.2)
   ALLOCATE(offsetMPISideShared(nMPISidesShared))
 
   nMPISidesShared = 0
