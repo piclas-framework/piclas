@@ -765,8 +765,7 @@ IF (myComputeNodeRank.EQ.0) THEN
 END IF
 
 ! Write compute-node local SIDE_NBELEMTYPE
-CALL BARRIER_AND_SYNC(SideInfo_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(SideInfo_Shared_Win,MPI_COMM_SHARED)
 
 SideInfo_Shared(SIDE_NBELEMTYPE,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo_Shared_tmp
 
