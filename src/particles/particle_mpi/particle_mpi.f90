@@ -1568,7 +1568,7 @@ DO iSpec=1,nSpecies
       END DO ! iNode
       RegionOnProc=BoxInProc(xCoords,8)
     CASE('cell_local')
-      RegionOnProc=.FALSE.
+      RegionOnProc=.TRUE.
     CASE('cuboid_equal')
        xlen = SQRT(Species(iSpec)%Init(iInit)%BaseVector1IC(1)**2 &
             + Species(iSpec)%Init(iInit)%BaseVector1IC(2)**2 &
@@ -1653,6 +1653,7 @@ DO iSpec=1,nSpecies
     CASE ('IMD')
        RegionOnProc=.TRUE.
     CASE ('background')
+      !
     CASE DEFAULT
       IPWRITE(*,*) 'ERROR: Species ', iSpec, 'of', iInit, 'is using an unknown SpaceIC!'
       CALL ABORT(&
