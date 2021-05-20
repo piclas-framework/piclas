@@ -452,7 +452,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
               IF (VECNORM( BoundsOfElemCenter(1:3)                                                    &
                          + GEO%PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
                          - MPISideBoundsOfElemCenter(1:3,iSide))                                      &
-                        .LE. MPI_halo_eps+BoundsOfElemCenter(4)+BoundsOfElemCenter(5)                 &
+                        .LE. MPI_halo_eps+BoundsOfElemCenter(4)-BoundsOfElemCenter(5)                 &
                                   +MPISideBoundsOfElemCenter(4,iSide)) THEN
                 ! flag the proc as exchange proc (in halo region)
                 IF(StringBeginsWith(DepositionType,'shape_function'))THEN
@@ -500,7 +500,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
               IF (VECNORM( BoundsOfElemCenter(1:3)                                                      &
                          + GEO%PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)   &
                          - MPISideBoundsOfElemCenter(1:3,iSide))                                        &
-                        .LE. MPI_halo_eps+BoundsOfElemCenter(4)+BoundsOfElemCenter(5)                   &
+                        .LE. MPI_halo_eps+BoundsOfElemCenter(4)-BoundsOfElemCenter(5)                   &
                                   +MPISideBoundsOfElemCenter(4,iSide)) THEN
                 ! flag the proc as exchange proc (in halo region)
                 IF(StringBeginsWith(DepositionType,'shape_function'))THEN
@@ -522,7 +522,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                              + GEO%PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)   &
                                + GEO%PeriodicVectors(1:3,jPeriodicVector) * DirPeriodicVector(jPeriodicDir) &
                              - MPISideBoundsOfElemCenter(1:3,iSide))                                        &
-                          .LE. MPI_halo_eps+BoundsOfElemCenter(4)+BoundsOfElemCenter(5)                     &
+                          .LE. MPI_halo_eps+BoundsOfElemCenter(4)-BoundsOfElemCenter(5)                     &
                                     +MPISideBoundsOfElemCenter(4,iSide)) THEN
                     ! flag the proc as exchange proc (in halo region)
                     IF(StringBeginsWith(DepositionType,'shape_function'))THEN
@@ -571,7 +571,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
       END SELECT
 
       ! Check rot periodic Elems and if iSide is on rot periodic BC
-      IF(GEO%RotPeriodicBC) THEN
+      IF(meshHasRotPeriodic) THEN
         DO iPeriodicDir = 1,2
           ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
             SELECT CASE(GEO%RotPeriodicAxi)
@@ -592,7 +592,8 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
           ! check if element is within halo_eps of rotationally displaced element
           IF (VECNORM( RotBoundsOfElemCenter(1:3)                                           &
                      - MPISideBoundsOfElemCenter(1:3,iSide))                                &
-                  .LE. MPI_halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
+                  .LE. MPI_halo_eps+BoundsOfElemCenter(4)-BoundsOfElemCenter(5)             &
+                            +MPISideBoundsOfElemCenter(4,iSide) ) THEN
             ! flag the proc as exchange proc (in halo region)
             IF(StringBeginsWith(DepositionType,'shape_function'))THEN
               FlagShapeElem(iElem) = .TRUE.
