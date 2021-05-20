@@ -75,6 +75,7 @@ USE MOD_TimeDisc_Vars           ,ONLY: nRKStages,RK_c
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 ! Partner identification
+LOGICAL                        :: ProcInRange
 INTEGER                        :: iPeriodicVector,jPeriodicVector,iPeriodicDir,jPeriodicDir,kPeriodicDir
 INTEGER,DIMENSION(2)           :: DirPeriodicVector = [-1,1]
 REAL,DIMENSION(6)              :: xCoordsProc,xCoordsOrigin
@@ -380,8 +381,15 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                                                            :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
           END SELECT
 
+          ! Keep direction to account for accuracy issues
+          IF (myRank.LT.HaloProc) THEN
+            ProcInRange = HaloBoxInProc(xCoordsOrigin,xCoordsProc,MPI_halo_eps,GEO%nPeriodicVectors,GEO%PeriodicVectors)
+          ELSE
+            ProcInRange = HaloBoxInProc(xCoordsProc,xCoordsOrigin,MPI_halo_eps,GEO%nPeriodicVectors,GEO%PeriodicVectors)
+          END IF
+
           ! Check if proc is in range
-          IF (.NOT.HaloBoxInProc(xCoordsOrigin,xCoordsProc,MPI_halo_eps,GEO%nPeriodicVectors,GEO%PeriodicVectors)) THEN
+          IF (.NOT.ProcInRange) THEN
             ! Proc definitely not in range
             GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = -2
             CYCLE
@@ -401,7 +409,11 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
   BoundsOfElemCenter(4)   = VECNORM ((/ BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
                                         BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                         BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
-  BoundsOfElemCenter(5)   = MERGE(0.,ABS(DistanceOfElemCenter_Shared(ElemID)),ElemInfo_Shared(ELEM_HALOFLAG,ElemID).EQ.1)
+  IF (MeshHasPeriodic .OR. MeshHasRotPeriodic) THEN
+    BoundsOfElemCenter(5) = MERGE(0.,ABS(DistanceOfElemCenter_Shared(ElemID)),ElemInfo_Shared(ELEM_HALOFLAG,ElemID).EQ.1)
+  ELSE
+    BoundsOfElemCenter(5) = 0.
+  END IF
 
   DO iSide = 1, nExchangeSides
     ! compare distance of centers with sum of element outer radii+halo_eps
