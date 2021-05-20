@@ -418,8 +418,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
   DO iSide = 1, nExchangeSides
     ! compare distance of centers with sum of element outer radii+halo_eps
     IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter(1:3,iSide)) &
-        .GT. MPI_halo_eps+BoundsOfElemCenter(4)-BoundsOfElemCenter(5)         &
-                  +MPISideBoundsOfElemCenter(4,iSide)) THEN
+        .GT. MPI_halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide)) THEN
 
       ! Also check periodic directions. Only MPI sides of the local proc are
       ! taken into account, so do not perform additional case distinction
