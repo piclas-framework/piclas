@@ -376,9 +376,9 @@ DO iPart=1,PDM%ParticleVecLength
       IF((DSMC%NumPolyatomMolecs.GT.0).AND.(SpecDSMC(PartSpecies(iPart))%PolyatomicMol)) THEN
         iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
         PartMPIExchange%nPartsSend(2,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
-          PartMPIExchange%nPartsSend(2,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + PolyatomMolDSMC(iPolyatMole)%VibDOF 
+          PartMPIExchange%nPartsSend(2,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + PolyatomMolDSMC(iPolyatMole)%VibDOF
       END IF
-      IF ((DSMC%ElectronicModel.EQ.2).AND. & 
+      IF ((DSMC%ElectronicModel.EQ.2).AND. &
           (.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized))) THEN
         PartMPIExchange%nPartsSend(3,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
           PartMPIExchange%nPartsSend(3,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + SpecDSMC(PartSpecies(iPart))%MaxElecQuant
@@ -483,9 +483,9 @@ PartCommSize=PartCommSize0+iStage*6
 
 !--- Determining the number of additional variables due to VibQuantsPar of polyatomic particles
 !--- (size varies depending on the species of particle)
-MsgLengthPoly(:) = PartMPIExchange%nPartsSend(2,:) 
-MsgLengthElec(:) = PartMPIExchange%nPartsSend(3,:) 
-MsgLengthAmbi(:) = PartMPIExchange%nPartsSend(4,:) 
+MsgLengthPoly(:) = PartMPIExchange%nPartsSend(2,:)
+MsgLengthElec(:) = PartMPIExchange%nPartsSend(3,:)
+MsgLengthAmbi(:) = PartMPIExchange%nPartsSend(4,:)
 
 ! 3) Build Message
 DO iProc=0,nExchangeProcessors-1
@@ -1568,7 +1568,7 @@ DO iSpec=1,nSpecies
       END DO ! iNode
       RegionOnProc=BoxInProc(xCoords,8)
     CASE('cell_local')
-      RegionOnProc=.TRUE.
+      RegionOnProc=.FALSE.
     CASE('cuboid_equal')
        xlen = SQRT(Species(iSpec)%Init(iInit)%BaseVector1IC(1)**2 &
             + Species(iSpec)%Init(iInit)%BaseVector1IC(2)**2 &
@@ -1659,64 +1659,38 @@ DO iSpec=1,nSpecies
       __STAMP__&
       ,'ERROR: Given SpaceIC is not implemented: '//TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
     END SELECT
+
     ! create new communicator
-    color=MPI_UNDEFINED
-    !IPWRITE(UNIT_stdOut,*) RegionOnProc
-    IF(RegionOnProc) color=nInitRegions!+1
-    ! set communicator id
-    Species(iSpec)%Init(iInit)%InitComm=nInitRegions
+    color = MERGE(nInitRegions,MPI_UNDEFINED,RegionOnProc)
+    Species(iSpec)%Init(iInit)%InitComm = nInitRegions
 
-    ! create ranks for RP communicator
-    IF(PartMPI%MPIRoot) THEN
-      InitRank=-1
-      noInitRank=-1
-      !myRPRank=0
-      iRank=0
-      PartMPI%InitGroup(nInitRegions)%MyRank=0
-      IF(RegionOnProc) THEN
-        InitRank=0
-      ELSE
-        noInitRank=0
-      END IF
-      DO iProc=1,PartMPI%nProcs-1
-        CALL MPI_RECV(hasRegion,1,MPI_LOGICAL,iProc,0,PartMPI%COMM,MPIstatus,iError)
-        IF(hasRegion) THEN
-          InitRank=InitRank+1
-          CALL MPI_SEND(InitRank,1,MPI_INTEGER,iProc,0,PartMPI%COMM,iError)
-        ELSE
-          noInitRank=noInitRank+1
-          CALL MPI_SEND(noInitRank,1,MPI_INTEGER,iProc,0,PartMPI%COMM,iError)
-        END IF
-      END DO
-    ELSE
-      CALL MPI_SEND(RegionOnProc,1,MPI_LOGICAL,0,0,PartMPI%COMM,iError)
-      CALL MPI_RECV(PartMPI%InitGroup(nInitRegions)%MyRank,1,MPI_INTEGER,0,0,PartMPI%COMM,MPIstatus,iError)
-    END IF
+    CALL MPI_COMM_SPLIT(PartMPI%COMM,color,MPI_INFO_NULL,PartMPI%InitGroup(nInitRegions)%COMM,iError)
+    ! Find my rank on the communicator, comm size and proc name
+    IF(RegionOnProc) THEN
+      CALL MPI_COMM_RANK(PartMPI%InitGroup(nInitRegions)%COMM,PartMPI%InitGroup(nInitRegions)%MyRank ,iError)
+      CALL MPI_COMM_SIZE(PartMPI%InitGroup(nInitRegions)%COMM,PartMPI%InitGroup(nInitRegions)%nProcs ,iError)
 
-    ! create new emission communicator
-    CALL MPI_COMM_SPLIT(PartMPI%COMM, color, PartMPI%InitGroup(nInitRegions)%MyRank, PartMPI%InitGroup(nInitRegions)%COMM,iError)
-    IF(RegionOnProc) CALL MPI_COMM_SIZE(PartMPI%InitGroup(nInitRegions)%COMM,PartMPI%InitGroup(nInitRegions)%nProcs ,iError)
-    IF(PartMPI%InitGroup(nInitRegions)%MyRank.EQ.0 .AND. RegionOnProc) &
-    WRITE(UNIT_StdOut,'(A,I0,A,I0,A,I0,A)') ' Emission-Region,Emission-Communicator:',nInitRegions,' on ',&
-    PartMPI%InitGroup(nInitRegions)%nProcs,' procs ('//TRIM(Species(iSpec)%Init(iInit)%SpaceIC)//', iSpec=',iSpec,')'
-    IF(PartMPI%InitGroup(nInitRegions)%COMM.NE.MPI_COMM_NULL) THEN
       IF(PartMPI%InitGroup(nInitRegions)%MyRank.EQ.0) THEN
+        WRITE(UNIT_StdOut,'(A,I0,A,I0,A,I0,A)') ' Emission-Region,Emission-Communicator:',nInitRegions,' on ',   &
+        PartMPI%InitGroup(nInitRegions)%nProcs,' procs ('//TRIM(Species(iSpec)%Init(iInit)%SpaceIC)//', iSpec=',iSpec,')'
         PartMPI%InitGroup(nInitRegions)%MPIRoot=.TRUE.
       ELSE
         PartMPI%InitGroup(nInitRegions)%MPIRoot=.FALSE.
       END IF
-      !ALLOCATE(PartMPI%InitGroup(nInitRegions)%CommToGroup(0:PartMPI%nProcs-1))
+
       ALLOCATE(PartMPI%InitGroup(nInitRegions)%GroupToComm(0:PartMPI%InitGroup(nInitRegions)%nProcs-1))
-      PartMPI%InitGroup(nInitRegions)%GroupToComm(PartMPI%InitGroup(nInitRegions)%MyRank)= PartMPI%MyRank
-      CALL MPI_ALLGATHER(PartMPI%MyRank,1,MPI_INTEGER&
-                        ,PartMPI%InitGroup(nInitRegions)%GroupToComm(0:PartMPI%InitGroup(nInitRegions)%nProcs-1)&
+      PartMPI%InitGroup(nInitRegions)%GroupToComm(PartMPI%InitGroup(nInitRegions)%MyRank) = PartMPI%MyRank
+
+      CALL MPI_ALLGATHER(PartMPI%MyRank,1,MPI_INTEGER                                                            &
+                        ,PartMPI%InitGroup(nInitRegions)%GroupToComm(0:PartMPI%InitGroup(nInitRegions)%nProcs-1) &
                        ,1,MPI_INTEGER,PartMPI%InitGroup(nInitRegions)%COMM,iERROR)
+
       ALLOCATE(PartMPI%InitGroup(nInitRegions)%CommToGroup(0:PartMPI%nProcs-1))
-      PartMPI%InitGroup(nInitRegions)%CommToGroup(0:PartMPI%nProcs-1)=-1
-      DO iRank=0,PartMPI%InitGroup(nInitRegions)%nProcs-1
+      PartMPI%InitGroup(nInitRegions)%CommToGroup(0:PartMPI%nProcs-1) = -1
+      DO iRank = 0,PartMPI%InitGroup(nInitRegions)%nProcs-1
         PartMPI%InitGroup(nInitRegions)%CommToGroup(PartMPI%InitGroup(nInitRegions)%GroupToComm(iRank))=iRank
       END DO ! iRank
-      !IPWRITE(*,*) 'CommToGroup',PartMPI%InitGroup(nInitRegions)%GroupToComm
+
     END IF
   END DO ! iniT
 END DO ! iSpec
