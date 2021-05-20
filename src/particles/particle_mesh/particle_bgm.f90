@@ -21,9 +21,6 @@ MODULE MOD_Particle_BGM
 IMPLICIT NONE
 PRIVATE
 
-! VARIABLES
-REAL,POINTER :: DistanceOfElemCenter_Shared(:)
-
 INTERFACE DefineParametersParticleBGM
     MODULE PROCEDURE DefineParametersParticleBGM
 END INTERFACE
@@ -122,6 +119,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared_Win,FIBGM_nElems_Shared_Wi
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared_Win,FIBGMToProc_Shared_Win,FIBGM_Element_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems_Shared_Win,BoundsOfElem_Shared_Win,ElemToBGM_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: MeshHasPeriodic,MeshHasRotPeriodic,DistanceOfElemCenter_Shared,DistanceOfElemCenter_Shared_Win
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -161,8 +159,6 @@ INTEGER                        :: iProc,ProcRank,nFIBGMToProc,MessageSize
 INTEGER                        :: BGMiDelta,BGMjDelta,BGMkDelta
 INTEGER                        :: BGMiglobDelta,BGMjglobDelta,BGMkglobDelta
 ! Periodic FIBGM
-LOGICAL                        :: MeshHasPeriodic,MeshHasRotPeriodic
-INTEGER                        :: DistanceOfElemCenter_Shared_WIN
 LOGICAL                        :: PeriodicComponent(1:3)
 INTEGER                        :: iPeriodicVector,iPeriodicComponent
 REAL                           :: CharacteristicLength,CharacteristicLengthMax
@@ -219,12 +215,12 @@ MeshHasPeriodic    = MERGE(.TRUE.,.FALSE.,GEO%nPeriodicVectors.GT.0)
 MeshHasRotPeriodic = GEO%RotPeriodicBC
 IF (MeshHasPeriodic .OR. MeshHasRotPeriodic) THEN
   MPISharedSize   = INT(nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-  CALL Allocate_Shared(MPISharedSize,(/nGlobalElems/),DistanceOfElemCenter_Shared_WIN,DistanceOfElemCenter_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,DistanceOfElemCenter_Shared_WIN,IERROR)
+  CALL Allocate_Shared(MPISharedSize,(/nGlobalElems/),DistanceOfElemCenter_Shared_Win,DistanceOfElemCenter_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,DistanceOfElemCenter_Shared_Win,IERROR)
   IF (myComputeNodeRank.EQ.0) THEN
     DistanceOfElemCenter_Shared = HUGE(1.)
   END IF
-  CALL BARRIER_AND_SYNC(DistanceOfElemCenter_Shared_WIN,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(DistanceOfElemCenter_Shared_Win,MPI_COMM_SHARED)
 END IF
 #else
 ! In order to use only one type of variables VarName_Shared in code structure such as tracking etc. for NON_MPI
@@ -646,22 +642,12 @@ ELSE
     END IF
   END DO ! iElem = firstHaloElem, lastHaloElem
 END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
-IF (MeshHasPeriodic .OR. MeshHasRotPeriodic) CALL BARRIER_AND_SYNC(DistanceOfElemCenter_Shared_WIN,MPI_COMM_SHARED)
+IF (MeshHasPeriodic .OR. MeshHasRotPeriodic) CALL BARRIER_AND_SYNC(DistanceOfElemCenter_Shared_Win,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win            ,MPI_COMM_SHARED)
 
 IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
 IF (MeshHasRotPeriodic) CALL CheckRotPeriodicSides(EnlargeBGM)
 CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
-
-! Free distance array for periodic sides
-IF (MeshHasPeriodic .OR. MeshHasRotPeriodic) THEN
-  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-  CALL UNLOCK_AND_FREE(DistanceOfElemCenter_Shared_WIN)
-  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-
-  ! Then, free the pointers or arrays
-  ADEALLOCATE(DistanceOfElemCenter_Shared)
-END IF
 
 ! Mortar sides
 IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
@@ -1352,9 +1338,9 @@ SUBROUTINE FinalizeHaloInfo()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHaloID
-USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHaloInfo_Array,ElemHaloInfo_Shared,ElemHaloInfo_Shared_Win
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1391,10 +1377,11 @@ SUBROUTINE CheckPeriodicSides(EnlargeBGM)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars              ,ONLY: BoundaryType,nGlobalElems
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_MPI_Shared_Vars
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared,BoundsOfElem_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: DistanceOfElemCenter_Shared
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1650,6 +1637,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_MPI_Shared_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared,BoundsOfElem_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: DistanceOfElemCenter_Shared
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
