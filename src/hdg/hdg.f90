@@ -372,7 +372,7 @@ REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 ! LOCAL VARIABLES
 !===================================================================================================================================
 #ifdef EXTRAE
-CALL extrae_eventandcounters(int8(9000001), int(4))
+CALL extrae_eventandcounters(int(9000001), int8(4))
 #endif /*EXTRAE*/
 ! Check whether the solver should be skipped in this iteration
 IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
@@ -409,7 +409,7 @@ END IF
 #endif /*defined(PARTICLES)*/
 
 #ifdef EXTRAE
-CALL extrae_eventandcounters(int8(9000001), int(0))
+CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
 END SUBROUTINE HDG
 

@@ -89,11 +89,11 @@ REAL, DIMENSION(3)         :: v_minus, v_plus, v_prime, t_vec
 !===================================================================================================================================
 #ifdef PARTICLES
 #ifdef EXTRAE
-CALL extrae_eventandcounters(int8(9000001), int(5))
+CALL extrae_eventandcounters(int(9000001), int8(5))
 #endif /*EXTRAE*/
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition()
 #ifdef EXTRAE
-CALL extrae_eventandcounters(int8(9000001), int(0))
+CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
 #endif /*PARTICLES*/
 
@@ -101,7 +101,7 @@ CALL HDG(time,U,iter)
 
 #ifdef PARTICLES
 #ifdef EXTRAE
-CALL extrae_eventandcounters(int8(9000001), int(5))
+CALL extrae_eventandcounters(int(9000001), int8(5))
 #endif /*EXTRAE*/
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
@@ -194,11 +194,11 @@ IF (time.GE.DelayTime) THEN
 #endif /*USE_MPI*/
     CALL Deposition() ! because of emission and UpdateParticlePosition
 #ifdef EXTRAE
-CALL extrae_eventandcounters(int8(9000001), int(0))
+CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
     CALL HDG(time,U,iter)
 #ifdef EXTRAE
-CALL extrae_eventandcounters(int8(9000001), int(5))
+CALL extrae_eventandcounters(int(9000001), int8(5))
 #endif /*EXTRAE*/
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
@@ -265,7 +265,7 @@ IF (useDSMC) THEN
   END IF
 END IF
 #ifdef EXTRAE
-CALL extrae_eventandcounters(int8(9000001), int(0))
+CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
 #endif /*PARTICLES*/
 

@@ -69,8 +69,7 @@ REAL                    :: SystemTime
 LOGICAL                 :: userblockFound
 !===================================================================================================================================
 #ifdef EXTRAE
-SWRITE(*,*) "TEEEEEEEEEEEEEST\n\n\n\nYolo\n\n"
-CALL extrae_eventandcounters(int8(9000001), int(1))
+CALL extrae_eventandcounters(int(9000001), int8(1))
 #endif /*EXTRAE*/
 CALL SetStackSizeUnlimited()
 
@@ -216,7 +215,7 @@ SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTi
 SWRITE(UNIT_stdOut,'(132("="))')
 
 #ifdef EXTRAE
-CALL extrae_eventandcounters(int8(9000001), int(0))
+CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
 END SUBROUTINE InitializePiclas
 

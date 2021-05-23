@@ -904,7 +904,7 @@ REAL                          :: L_Inf_PartSource(1:4)
 REAL                          :: CurrentTime
 !===================================================================================================================================
 #ifdef EXTRAE
-CALL extrae_eventandcounters(int8(9000001), int(6))
+CALL extrae_eventandcounters(int(9000001), int8(6))
 #endif /*EXTRAE*/
 
 ! Create .csv file for performance analysis and load balance: write header line
@@ -1248,7 +1248,7 @@ IF(DoPerformErrorCalc)THEN
 END IF
 
 #ifdef EXTRAE
-CALL extrae_eventandcounters(int8(9000001), int(0))
+CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
 END SUBROUTINE PerformAnalyze
 
