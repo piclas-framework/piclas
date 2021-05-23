@@ -280,7 +280,6 @@ USE MOD_PICInterpolation           ,ONLY: FinalizePICInterpolation
 USE MOD_ParticleInit               ,ONLY: FinalizeParticles
 USE MOD_Particle_Sampling_Adapt    ,ONLY: FinalizeParticleSamplingAdaptive
 USE MOD_Particle_Boundary_Init     ,ONLY: FinalizeParticleBoundary
-USE MOD_TimeDiscInit               ,ONLY: FinalizeTimeDisc
 USE MOD_TTMInit                    ,ONLY: FinalizeTTM
 USE MOD_DSMC_Init                  ,ONLY: FinalizeDSMC
 USE MOD_SurfaceModel_Porous        ,ONLY: FinalizePorousBoundaryCondition
@@ -300,6 +299,7 @@ USE MOD_Particle_MPI_Vars          ,ONLY: ParticleMPIInitisdone
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 USE MOD_IO_HDF5                    ,ONLY: ClearElemData,ElementOut
+USE MOD_TimeDiscInit               ,ONLY: FinalizeTimeDisc
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
