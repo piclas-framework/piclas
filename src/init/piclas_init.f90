@@ -280,6 +280,7 @@ USE MOD_PICInterpolation           ,ONLY: FinalizePICInterpolation
 USE MOD_ParticleInit               ,ONLY: FinalizeParticles
 USE MOD_Particle_Sampling_Adapt    ,ONLY: FinalizeParticleSamplingAdaptive
 USE MOD_Particle_Boundary_Init     ,ONLY: FinalizeParticleBoundary
+USE MOD_TimeDiscInit               ,ONLY: FinalizeTimeDisc
 USE MOD_TTMInit                    ,ONLY: FinalizeTTM
 USE MOD_DSMC_Init                  ,ONLY: FinalizeDSMC
 USE MOD_SurfaceModel_Porous        ,ONLY: FinalizePorousBoundaryCondition
@@ -299,9 +300,6 @@ USE MOD_Particle_MPI_Vars          ,ONLY: ParticleMPIInitisdone
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 USE MOD_IO_HDF5                    ,ONLY: ClearElemData,ElementOut
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
-USE MOD_TimeDiscInit               ,ONLY: FinalizeTimeDisc
-#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -314,9 +312,6 @@ REAL                    :: Time
 !===================================================================================================================================
 CALL ClearElemData(ElementOut)
 !Finalize
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
-CALL FinalizeTimeDisc
-#endif
 CALL FinalizeRecordPoints()
 CALL FinalizeAnalyze()
 CALL FinalizeDG()
@@ -441,23 +436,6 @@ IF(.NOT.IsLoadBalance) THEN
 END IF
 
 END SUBROUTINE FinalizeLoadBalance
-
-
-SUBROUTINE FinalizeTimeDisc()
-!===================================================================================================================================
-! Finalizes variables necessary for analyse subroutines
-!===================================================================================================================================
-! MODULES
-USE MOD_TimeDisc_Vars,ONLY:TimeDiscInitIsDone
-! IMPLICIT VARIABLE HANDLINGDGInitIsDone
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-TimeDiscInitIsDone = .FALSE.
-END SUBROUTINE FinalizeTimeDisc
 
 
 END MODULE MOD_Piclas_Init

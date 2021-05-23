@@ -417,6 +417,7 @@ SUBROUTINE FinalizeTimeDisc()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_TimeDisc_Vars, ONLY:TimeDiscInitIsDone
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 USE MOD_TimeDisc_Vars          ,ONLY: Ut_temp,U2t_temp
 #endif
@@ -437,6 +438,8 @@ SDEALLOCATE(U2t_temp)
 SDEALLOCATE(Phit_temp)
 #endif /*PP_POIS*/
 #endif
+
+TimeDiscInitIsDone = .FALSE.
 
 END SUBROUTINE FinalizeTimeDisc
 
