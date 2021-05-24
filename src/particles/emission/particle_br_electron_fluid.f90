@@ -339,7 +339,7 @@ SUBROUTINE SwitchBRElectronModel()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_HDG_Vars
-USE MOD_TimeDisc_Vars         ,ONLY: time,iter,dt_Min
+USE MOD_TimeDisc_Vars         ,ONLY: time,iter
 USE MOD_Elem_Mat              ,ONLY: Elem_Mat
 USE MOD_part_operations       ,ONLY: RemoveAllElectrons
 !----------------------------------------------------------------------------------------------------------------------------------!
