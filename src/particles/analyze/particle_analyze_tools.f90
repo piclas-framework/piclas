@@ -755,9 +755,6 @@ USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 #if !(USE_HDG)
 USE MOD_PML_Vars              ,ONLY: DoPML,xyzPhysicalMinMax
 #endif /*USE_HDG*/
-#if USE_MPI
-USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -866,9 +863,6 @@ USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 #if !(USE_HDG)
 USE MOD_PML_Vars              ,ONLY: DoPML,xyzPhysicalMinMax
 #endif /*USE_HDG*/
-#if USE_MPI
-USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -1304,9 +1304,7 @@ LOGICAL                         :: RegionOnProc
 REAL                            :: xCoords(3,8),lineVector(3),radius,height
 REAL                            :: xlen,ylen,zlen
 REAL                            :: dt
-INTEGER                         :: color,iProc
-INTEGER                         :: noInitRank,InitRank
-LOGICAL                         :: hasRegion
+INTEGER                         :: color
 !===================================================================================================================================
 
 ! get number of total init regions
