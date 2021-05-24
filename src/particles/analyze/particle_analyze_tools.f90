@@ -404,8 +404,11 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iPart,iElem,RegionID
-REAL                 :: charge, MPF
+INTEGER :: iPart,iElem
+REAL    :: charge, MPF
+#if USE_HDG
+INTEGER :: RegionID
+#endif /*USE_HDG*/
 !===================================================================================================================================
 ! nullify
 ElectronDensityCell=0.
@@ -474,13 +477,14 @@ SUBROUTINE CalculateElectronTemperatureCell()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals               ,ONLY: PARTISELECTRON
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass,ElementaryCharge
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell
 USE MOD_Particle_Vars         ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartState
 USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
+USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
 #endif /*USE_HDG*/
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -491,13 +495,16 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iPart,iElem,ElemID,Method,RegionID
+INTEGER :: iPart,iElem,ElemID,Method
 REAL    :: nElectronsPerCell(1:PP_nElems)
 REAL    ::  PartVandV2(1:PP_nElems,1:6)
 REAL    :: Mean_PartV2(1:3)
 REAL    :: MeanPartV_2(1:3)
 REAL    ::   TempDirec(1:3)
 REAL    :: WeightingFactor
+#if USE_HDG
+INTEGER :: RegionID
+#endif /*USE_HDG*/
 !===================================================================================================================================
 #if USE_HDG
 IF (UseBRElectronFluid) THEN ! check for BR electrons

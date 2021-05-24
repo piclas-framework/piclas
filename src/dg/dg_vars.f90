@@ -41,6 +41,11 @@ INTEGER                               :: nTotal_face   !loop i,j
 REAL,ALLOCATABLE                      :: U_master(:,:,:,:),U_slave(:,:,:,:)
 REAL,ALLOCATABLE                      :: Flux_Master(:,:,:,:)
 REAL,ALLOCATABLE                      :: Flux_Slave(:,:,:,:)
+! face values for Riemann
+REAL,ALLOCATABLE                      :: U_Master_loc(:,:,:)
+REAL,ALLOCATABLE                      :: U_Slave_loc (:,:,:)
+REAL,ALLOCATABLE                      :: Flux_loc(:,:,:)
+
 LOGICAL                               :: DGInitIsDone=.FALSE.
 #if defined(IMPA) || defined(ROS)
 REAL,ALLOCATABLE                      :: Un(:,:,:,:,:) ! computed from JU
