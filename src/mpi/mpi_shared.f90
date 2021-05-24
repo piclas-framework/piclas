@@ -122,7 +122,7 @@ nProcessors_Global = nProcessors
 #else
   ! Note that using SharedMemoryMethod=OMPI_COMM_TYPE_CORE somehow does not work in every case (intel/amd processors)
   ! Also note that OMPI_COMM_TYPE_CORE is undefined when not using OpenMPI
-  CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD, SharedMemoryMethod, myRank, MPI_INFO_NULL, MPI_COMM_SHARED,IERROR)
+  CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD,SharedMemoryMethod,0,MPI_INFO_NULL,MPI_COMM_SHARED,IERROR)
 #endif
 
 ! Find my rank on the shared communicator, comm size and proc name
@@ -147,9 +147,8 @@ CALL MPI_BCAST(ComputeNodeRootRank,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
 ! now split global communicator into small group leaders and the others
 MPI_COMM_LEADERS_SHARED=MPI_COMM_NULL
 myLeaderGroupRank=-1
-color=MPI_UNDEFINED
-IF(myComputeNodeRank.EQ.0) color=101
-CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,myRank,MPI_COMM_LEADERS_SHARED,IERROR)
+color = MERGE(101,MPI_UNDEFINED,myComputeNodeRank.EQ.0)
+CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,0,MPI_COMM_LEADERS_SHARED,IERROR)
 IF(myComputeNodeRank.EQ.0)THEN
   CALL MPI_COMM_RANK(MPI_COMM_LEADERS_SHARED,myLeaderGroupRank,IERROR)
   CALL MPI_COMM_SIZE(MPI_COMM_LEADERS_SHARED,nLeaderGroupProcs,IERROR)
