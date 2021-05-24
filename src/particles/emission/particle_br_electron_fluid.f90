@@ -500,7 +500,7 @@ USE MOD_HDG             ,ONLY: UpdateNonlinVolumeFac
 USE MOD_TimeDisc_Vars   ,ONLY: time,iter
 USE MOD_Elem_Mat        ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_part_operations ,ONLY: RemoveAllElectrons
-USE MOD_Restart_Tools   ,ONLY: RecomputeLambda
+!USE MOD_Restart_Tools   ,ONLY: RecomputeLambda
 USE MOD_DSMC_Vars       ,ONLY: XSec_NullCollision
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE

@@ -299,6 +299,7 @@ USE MOD_Particle_MPI_Vars          ,ONLY: ParticleMPIInitisdone
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 USE MOD_IO_HDF5                    ,ONLY: ClearElemData,ElementOut
+USE MOD_TimeDiscInit               ,ONLY: FinalizeTimeDisc
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -327,7 +328,6 @@ CALL FinalizeHDG()
 CALL FinalizeEquation()
 CALL FinalizeBC()
 IF(.NOT.IsLoadBalance) CALL FinalizeInterpolation()
-!CALL FinalizeTimeDisc()
 CALL FinalizeRestart()
 CALL FinalizeMesh()
 CALL FinalizeMortar()
@@ -435,23 +435,6 @@ IF(.NOT.IsLoadBalance) THEN
 END IF
 
 END SUBROUTINE FinalizeLoadBalance
-
-
-SUBROUTINE FinalizeTimeDisc()
-!===================================================================================================================================
-! Finalizes variables necessary for analyse subroutines
-!===================================================================================================================================
-! MODULES
-USE MOD_TimeDisc_Vars,ONLY:TimeDiscInitIsDone
-! IMPLICIT VARIABLE HANDLINGDGInitIsDone
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-TimeDiscInitIsDone = .FALSE.
-END SUBROUTINE FinalizeTimeDisc
 
 
 END MODULE MOD_Piclas_Init
