@@ -795,7 +795,7 @@ SUBROUTINE InitAnalyticalParticleState()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInitAnalyticalParticleState
-USE MOD_Particle_Analyze       ,ONLY: CalcAnalyticalParticleState
+USE MOD_Particle_Analyze_Code  ,ONLY: CalcAnalyticalParticleState
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_TimeDisc_Vars          ,ONLY: dt
