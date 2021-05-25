@@ -17,13 +17,13 @@ See the `README` and `INSTALL` file in the git repository of the package.
 In PICLas, the extrae code instrumentation for the very basic modules is already implemented, see the in-code statements, e.g.,
 
     #ifdef EXTRAE
-    CALL extrae_eventandcounters(int8(9000001), int(1))
+    CALL extrae_eventandcounters(int(9000001), int8(1))
     #endif
 
     ! Initialization
 
     #ifdef EXTRAE
-    CALL extrae_eventandcounters(int8(9000001), int(0))
+    CALL extrae_eventandcounters(int(9000001), int8(0))
     #endif
 
 which spans the complete initialization phase. Other regions are the field and particle modules (pure DG, PIC, DSMC, etc.) and the
@@ -61,7 +61,7 @@ Furthermore, a configuration file *extrae.xml* that defines which hardware count
 
       <openmp enabled="no" ompt="no">
         <locks enabled="no" />
-    		<taskloop enabled="no" />
+        <taskloop enabled="no" />
         <counters enabled="yes" />
       </openmp>
 
@@ -121,7 +121,7 @@ Furthermore, a configuration file *extrae.xml* that defines which hardware count
 
       <input-output enabled="no" />
 
-    	<syscall enabled="no" />
+      <syscall enabled="no" />
 
       <merge enabled="no"
         synchronization="default"
