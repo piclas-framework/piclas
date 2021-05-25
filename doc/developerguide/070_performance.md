@@ -173,19 +173,54 @@ The installed environment is meant to run in a bash shell. The GUI can be starte
     source /opt/intel/vtune_profiler_2020.0.0.605129/vtune-vars.sh
     vtune-gui
 
-Compile PICLas with “-g” to produce debugging information in the operating system’s native format,
-which is required for detailed analysis performed by VTune.
+Compile PICLas with "-g" to produce debugging information in the operating system's native format, which is required for detailed analysis performed by VTune.
 
 ### Usage
 In the Vtune GUI, set the path to the executable, the parameters (parameter.ini DSMC.ini) and the working directory (where the executable is run).
 
-Hit the “Start” button and wait. The piclas std-out is dumped directly into the shell where vtune-gui was launched. The output can be redirected to a shell that is displayed in VTune by Setting: Options → General → “Product output window”
+Hit the "Start" button and wait. The piclas std-out is dumped directly into the shell where vtune-gui was launched. The output can be redirected to a shell that is displayed in VTune by Setting: Options → General → "Product output window"
 
+## Valgrind
+Valgrind is a complete suite of tools for debugging/profiling licenced under GPL. The complete documentation can be found [here](https://www.valgrind.org/docs/manual/index.html).
 
+### Installation
+Valgrind is provided through the repository of all major Linux distributions. Install it with the package manager of your choice.
 
+### Usage
+Valgrind is composed of individual tools, each tailered to debug or profil a specific aspect. All tools need PICLas compiled with "-g" to produce debugging information in the operating system's native format.
 
+#### Callgrind
+Callgrind tracks the call graph and duration for each function.
 
+    valgrind --tool=callgrind ./piclas parameter.ini
 
+The output file can be opened with KCacheGrind or converted using gprof2dot. The options `-n PERCENTAGE, --node-thres=PERCENTAGE / -e PERCENTAGE, --edge-thres=PERCENTAGE` eliminate nodes/edges below this threshold [default: 0.5].
+
+    gprof2dot -n0 -e0 ./callgrind.out.1992 -f callgrind > out.dot
+    dot -Tpng out.dot -o out.png
+
+In both cases, make sure you have GraphViz installed.
+
+#### Memcheck
+Memcheck keeps track of every allocated memory and shows memory leaks or invalid accesses to memory/pointers. Run it with
+
+    valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes -s --suppressions=/share/openmpi/openmpi-valgrind.supp ./piclas parameter.ini
+
+OpenMPI handles its memory independently, so memcheck will always report memory leaks due to OpenMPI. Using the provided suppressions hides these falls flags. Combining memcheck with the GCC sanitize flag should provide full memory coverage.
+
+#### Massif
+Massif keeps track of the current memory usage as well as the overall heap usage. It helps finding code segments that hold on to memory after they should. Run it with
+
+    valgrind --tool=massif ./piclas parameter.ini
+
+The output file can be opened with massif-visualizer.
+
+#### DHAT
+DHAT tracks memory allocations and inspects every memory access to a block. It is exceptionally useful to find code segments where memory is allocated unused or rapidly re-allocated. Run it with
+
+    valgrind --tool=dhat ./piclas parameter.ini
+
+Afterwards, open `//usr/lib/valgrind/dh_view.html` in a web browser and load the output file.
 
 
 
