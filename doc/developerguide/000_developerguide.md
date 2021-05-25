@@ -2,7 +2,7 @@
 title: PICLas
 logo: ../logo.png
 subtitle: Developer Guide
-version: Version 2.0
+version: Version 2.1
 author: 
   - University of Stuttgart, Germany
   - Institute for Aerodynamics and Gas Dynamics (IAG)
