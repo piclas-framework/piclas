@@ -380,6 +380,10 @@ IF(.NOT.PerformLoadBalance) THEN
   RETURN
 END IF
 
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(2))
+#endif /*EXTRAE*/
+
 SWRITE(UNIT_StdOut,'(1X)')
 SWRITE(UNIT_StdOut,'(1X)')
 SWRITE(UNIT_StdOut,'(132("="))')
@@ -436,6 +440,9 @@ InitializationWallTime=LB_Time-LB_StartTime
 SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
 SWRITE(UNIT_StdOut,'(132("="))')
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 END SUBROUTINE LoadBalance
 
 
