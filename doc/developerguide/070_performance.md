@@ -35,11 +35,15 @@ in the cmake settings.
 
 ### Tracing the code
 
+#### Load the required Modules
+
 On the target system, the extrae software packages must be installed and loaded via, e.g.,
 
     module load extrae
 
-and create a shell script *tracing.sh* with the following content
+#### Create *tracing.sh* and *extrae.xml* in the simulation directory
+
+Create a shell script *tracing.sh* with the following content
 
     #!/bin/bash
 
@@ -48,8 +52,9 @@ and create a shell script *tracing.sh* with the following content
 
     $*
 
+where the path to the current directory must be inserted for *extrae.xml*.
 Note that `LD_PRELOAD` is only required when no user-defined instrumentation is used.
-Furthermore, a configuration file *extrae.xml* that defines which hardware counters should be traced
+Furthermore, a configuration file *extrae.xml* is required that defines which hardware counters, which should be traced
 
     <?xml version='1.0'?>
 
@@ -139,6 +144,12 @@ Here, the MPI library with PAPI_TOT_INS and PAPI_TOT_CYC counters are traced. No
 under
 
     home="/opt/hlrs/non-spack/performance/extrae/3.7.1-mpt-2.23-gcc-9.2.0"
+
+#### Run the application
+
+    mpirun -np 32 tracing.sh piclas parameter.ini
+
+#### Convert the Extrae output for Paraver
 
 The tracing output stored in *TRACE.mpits* is then converted to a Paraver file via
 
