@@ -113,9 +113,6 @@ IF(ParticleMPIInitIsDone) &
   ,' Particle MPI already initialized!')
 
 #if USE_MPI
-!PartMPI%myRank = myRank
-!color = 999
-!CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,PartMPI%MyRank,PartMPI%COMM,iERROR)
 CALL MPI_COMM_DUP (MPI_COMM_WORLD,PartMPI%COMM,iError)
 CALL MPI_COMM_RANK(PartMPI%COMM,PartMPI%myRank,iError)
 CALL MPI_COMM_SIZE(PartMPI%COMM,PartMPI%nProcs,iError)
@@ -1307,9 +1304,7 @@ LOGICAL                         :: RegionOnProc
 REAL                            :: xCoords(3,8),lineVector(3),radius,height
 REAL                            :: xlen,ylen,zlen
 REAL                            :: dt
-INTEGER                         :: color,iProc
-INTEGER                         :: noInitRank,InitRank
-LOGICAL                         :: hasRegion
+INTEGER                         :: color
 !===================================================================================================================================
 
 ! get number of total init regions
@@ -1663,27 +1658,23 @@ DO iSpec=1,nSpecies
 
     ! create new communicator
     color = MERGE(nInitRegions,MPI_UNDEFINED,RegionOnProc)
-    Species(iSpec)%Init(iInit)%InitComm = nInitRegions
+    Species(iSpec)%Init(iInit)%InitCOMM=nInitRegions
+    CALL MPI_COMM_SPLIT(PartMPI%COMM,color,0,PartMPI%InitGroup(nInitRegions)%COMM,iError)
+    IF (RegionOnProc) THEN
+      CALL MPI_COMM_RANK(PartMPI%InitGroup(nInitRegions)%COMM,PartMPI%InitGroup(nInitRegions)%MyRank,iError)
+      CALL MPI_COMM_SIZE(PartMPI%InitGroup(nInitRegions)%COMM,PartMPI%InitGroup(nInitRegions)%nProcs,iError)
+    END IF
 
-    CALL MPI_COMM_SPLIT(PartMPI%COMM,color,MPI_INFO_NULL,PartMPI%InitGroup(nInitRegions)%COMM,iError)
-    ! Find my rank on the communicator, comm size and proc name
-    IF(RegionOnProc) THEN
-      CALL MPI_COMM_RANK(PartMPI%InitGroup(nInitRegions)%COMM,PartMPI%InitGroup(nInitRegions)%MyRank ,iError)
-      CALL MPI_COMM_SIZE(PartMPI%InitGroup(nInitRegions)%COMM,PartMPI%InitGroup(nInitRegions)%nProcs ,iError)
+    IF(PartMPI%InitGroup(nInitRegions)%MyRank.EQ.0 .AND. RegionOnProc) &
+      WRITE(UNIT_StdOut,'(A,I0,A,I0,A,I0,A)') ' Emission-Region,Emission-Communicator:',nInitRegions,' on ',&
+      PartMPI%InitGroup(nInitRegions)%nProcs,' procs ('//TRIM(Species(iSpec)%Init(iInit)%SpaceIC)//', iSpec=',iSpec,')'
 
-      IF(PartMPI%InitGroup(nInitRegions)%MyRank.EQ.0) THEN
-        WRITE(UNIT_StdOut,'(A,I0,A,I0,A,I0,A)') ' Emission-Region,Emission-Communicator:',nInitRegions,' on ',   &
-        PartMPI%InitGroup(nInitRegions)%nProcs,' procs ('//TRIM(Species(iSpec)%Init(iInit)%SpaceIC)//', iSpec=',iSpec,')'
-        PartMPI%InitGroup(nInitRegions)%MPIRoot=.TRUE.
-      ELSE
-        PartMPI%InitGroup(nInitRegions)%MPIRoot=.FALSE.
-      END IF
-
+    IF(PartMPI%InitGroup(nInitRegions)%COMM.NE.MPI_COMM_NULL) THEN
+      PartMPI%InitGroup(nInitRegions)%MPIRoot=MERGE(.TRUE.,.FALSE.,PartMPI%InitGroup(nInitRegions)%MyRank.EQ.0)
       ALLOCATE(PartMPI%InitGroup(nInitRegions)%GroupToComm(0:PartMPI%InitGroup(nInitRegions)%nProcs-1))
       PartMPI%InitGroup(nInitRegions)%GroupToComm(PartMPI%InitGroup(nInitRegions)%MyRank) = PartMPI%MyRank
-
-      CALL MPI_ALLGATHER(PartMPI%MyRank,1,MPI_INTEGER                                                            &
-                        ,PartMPI%InitGroup(nInitRegions)%GroupToComm(0:PartMPI%InitGroup(nInitRegions)%nProcs-1) &
+      CALL MPI_ALLGATHER(PartMPI%MyRank,1,MPI_INTEGER&
+                        ,PartMPI%InitGroup(nInitRegions)%GroupToComm(0:PartMPI%InitGroup(nInitRegions)%nProcs-1)&
                        ,1,MPI_INTEGER,PartMPI%InitGroup(nInitRegions)%COMM,iERROR)
 
       ALLOCATE(PartMPI%InitGroup(nInitRegions)%CommToGroup(0:PartMPI%nProcs-1))

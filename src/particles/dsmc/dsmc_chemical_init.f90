@@ -151,11 +151,14 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=3)      :: hilf
-INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit, iCase, iCase2, iProd, ReacIndexCounter
+INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit, iCase, iCase2, ReacIndexCounter
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
 LOGICAL               :: DoScat, RecombAdded
 REAL                  :: BGGasEVib, PhotonEnergy, omega, ChargeProducts, ChargeReactants
 INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, ReadInNumOfReact
+#if USE_HDG
+INTEGER               :: iProd
+#endif /*USE_HDG*/
 !===================================================================================================================================
 
 ChemReac%NumOfReact = GETINT('DSMC-NumOfReactions')

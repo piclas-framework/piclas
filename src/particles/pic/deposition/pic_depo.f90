@@ -453,13 +453,11 @@ END SELECT
 
 IF (PartSourceConstExists) THEN
   ALLOCATE(PartSourceConst(1:4,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-__STAMP__&
-,'ERROR in pic_depo.f90: Cannot allocate PartSourceConst!')
-  END IF
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in pic_depo.f90: Cannot allocate PartSourceConst!')
   PartSourceConst=0.
 END IF
+
+ALLOCATE(PartSourceTmp(    1:4,0:PP_N,0:PP_N,0:PP_N))
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE DEPOSITION DONE!'
 
@@ -798,7 +796,7 @@ END SUBROUTINE Deposition
 PURE LOGICAL FUNCTION SFMeasureDistance(v1,v2)
 !============================================================================================================================
 ! Check if the two position vectors coincide in the 1D or 2D projection. If yes, then return .FALSE., else return .TRUE.
-! If two points coincide in the direction in which the shape function is not deposited, they are ignored (coincide means that the 
+! If two points coincide in the direction in which the shape function is not deposited, they are ignored (coincide means that the
 ! real values are equal up to relative precision of 1e-5)
 !============================================================================================================================
 USE MOD_PICDepo_Vars ,ONLY: dim_sf,dim_sf_dir,dim_sf_dir1,dim_sf_dir2
@@ -815,7 +813,7 @@ REAL, INTENT(IN) :: v2(1:3) !< Input vector 2
 !===================================================================================================================================
 SFMeasureDistance = .TRUE. ! Default, also used for dim_sf=3 (3D case)
 
-! Depending on the dimensionality 
+! Depending on the dimensionality
 SELECT CASE (dim_sf)
 CASE (1)
   SFMeasureDistance = MERGE(.FALSE. , .TRUE. , ALMOSTEQUALRELATIVE(v1(dim_sf_dir) , v2(dim_sf_dir) , 1e-6))
@@ -851,6 +849,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 SDEALLOCATE(PartSourceConst)
 SDEALLOCATE(PartSourceOld)
+SDEALLOCATE(PartSourceTmp)
 SDEALLOCATE(GaussBorder)
 SDEALLOCATE(Vdm_EquiN_GaussN)
 SDEALLOCATE(Knots)

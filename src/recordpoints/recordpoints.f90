@@ -146,42 +146,17 @@ USE MOD_RecordPoints_Vars   ,ONLY: RP_onProc,myRPrank,RP_COMM,nRP_Procs
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                   :: color,iProc
-INTEGER                   :: noRPrank,RPrank
-LOGICAL                   :: hasRP
+INTEGER                   :: color
 !===================================================================================================================================
-color=MPI_UNDEFINED
-IF(RP_onProc) color=2
-
-! create ranks for RP communicator
-IF(MPIRoot) THEN
-  RPrank=-1
-  noRPrank=-1
-  myRPRank=0
-  IF(RP_onProc) THEN
-    RPrank=0
-  ELSE
-    noRPrank=0
-  END IF
-  DO iProc=1,nProcessors-1
-    CALL MPI_RECV(hasRP,1,MPI_LOGICAL,iProc,0,MPI_COMM_WORLD,MPIstatus,iError)
-    IF(hasRP) THEN
-      RPrank=RPrank+1
-      CALL MPI_SEND(RPrank,1,MPI_INTEGER,iProc,0,MPI_COMM_WORLD,iError)
-    ELSE
-      noRPrank=noRPrank+1
-      CALL MPI_SEND(noRPrank,1,MPI_INTEGER,iProc,0,MPI_COMM_WORLD,iError)
-    END IF
-  END DO
-ELSE
-    CALL MPI_SEND(RP_onProc,1,MPI_LOGICAL,0,0,MPI_COMM_WORLD,iError)
-    CALL MPI_RECV(myRPrank,1,MPI_INTEGER,0,0,MPI_COMM_WORLD,MPIstatus,iError)
-END IF
 
 ! create new RP communicator for RP output
-CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, myRPrank, RP_COMM,iError)
-IF(RP_onProc) CALL MPI_COMM_SIZE(RP_COMM, nRP_Procs,iError)
-IF(myRPrank.EQ.0 .AND. RP_onProc) WRITE(*,*) 'RP COMM:',nRP_Procs,'procs'
+color = MERGE(2,MPI_UNDEFINED,RP_onProc)
+CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,myRPrank,RP_COMM,iError)
+IF (RP_onProc) THEN
+  CALL MPI_COMM_RANK (RP_COMM,myRPrank,iError)
+  CALL MPI_COMM_SIZE(RP_COMM, nRP_Procs,iError)
+  IF(myRPrank.EQ.0) WRITE(*,*) 'RP COMM:',nRP_Procs,'procs'
+END IF
 
 END SUBROUTINE InitRPCommunicator
 #endif /*USE_MPI*/
