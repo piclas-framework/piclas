@@ -53,7 +53,6 @@ Create a shell script *tracing.sh* with the following content
     $*
 
 where the path to the current directory must be inserted for *extrae.xml*.
-Note that `LD_PRELOAD` is only required when no user-defined instrumentation is used.
 Furthermore, a configuration file *extrae.xml* is required that defines which hardware counters, which should be traced
 
     <?xml version='1.0'?>
@@ -147,7 +146,11 @@ under
 
 #### Run the application
 
+Run the application and convert the output to Paraver format
+
     mpirun -np 32 tracing.sh piclas parameter.ini
+
+The following command can be appended to the submit script directly after `mpirun`.
 
 #### Convert the Extrae output for Paraver
 
