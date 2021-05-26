@@ -68,6 +68,9 @@ IMPLICIT NONE
 REAL                    :: SystemTime
 LOGICAL                 :: userblockFound
 !===================================================================================================================================
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(1))
+#endif /*EXTRAE*/
 CALL SetStackSizeUnlimited()
 
 CALL InitMPI()
@@ -211,6 +214,9 @@ SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
 
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 END SUBROUTINE InitializePiclas
 
 
