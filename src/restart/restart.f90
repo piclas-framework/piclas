@@ -804,6 +804,7 @@ IF(DoRestart)THEN
 
         CALL ReadArray('PartData',2,(/INT(PartDataSize_HDF5,IK),locnPart/),offsetnPart,2,RealArray=PartData)
 
+        ! Read DSMC-specific arrays
         IF(useDSMC)THEN
           ! Polyatomic
           IF (DSMC%NumPolyatomMolecs.GT.0) THEN
@@ -812,7 +813,7 @@ IF(DoRestart)THEN
             ALLOCATE(VibQuantData(MaxQuantNum,offsetnPart+1_IK:offsetnPart+locnPart))
             CALL ReadArray('VibQuantData',2,(/INT(MaxQuantNum,IK),locnPart/),offsetnPart,2,IntegerArray_i4=VibQuantData)
             !+1 is real number of necessary vib quants for the particle
-          END IF ! useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)
+          END IF
 
           ! Electronic
           IF (DSMC%ElectronicModel.EQ.2) THEN
@@ -831,7 +832,7 @@ IF(DoRestart)THEN
             CALL ReadArray('ADVeloData',2,(/INT(3,IK),locnPart/),offsetnPart,2,RealArray=AD_Data)
             !+1 is real number of necessary vib quants for the particle
           END IF
-        END IF ! (useDSMC).AND.(locnPart.GT.0)
+        END IF
 
         iPart=0
         DO iLoop = 1_IK,locnPart
