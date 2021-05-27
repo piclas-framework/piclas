@@ -61,8 +61,8 @@ REAL, INTENT(IN), OPTIONAL          :: NodeVolume
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                             :: iPType, NbrOfReaction, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase, PairType
-REAL                                :: SpecNum1, SpecNum2, Weight1, Weight2, Volume, CollProb
-REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot, MacroParticleFactor, dtCell, CollCaseNum
+REAL                                :: SpecNum1, SpecNum2, Weight1, Weight2, Volume, CollProb, PairMPF
+REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot, MacroParticleFactor, dtCell, CollCaseNum, SabFak
 !===================================================================================================================================
 
 PairType   = Coll_pData(iPair)%PairType
@@ -83,6 +83,17 @@ SpecNum2 = CollInf%Coll_SpecPartNum(iSpec_p2)
 
 Weight1 = GetParticleWeight(iPart_p1)
 Weight2 = GetParticleWeight(iPart_p2)
+
+IF(Coll_pData(iPair)%MPF.GT. 0.0) THEN
+  PairMPF  = Coll_pData(iPair)%MPF
+  SpecNum1 = CollInf%Coll_SpecPartNum(iSpec_p1) / PairMPF
+  SpecNum2 = CollInf%Coll_SpecPartNum(iSpec_p2) / PairMPF
+  SabFak   = PairMPF
+ELSE
+  PairMPF  = Species(1)%MacroParticleFactor
+  SpecNum2 = CollInf%Coll_SpecPartNum(iSpec_p2) / PairMPF
+  SabFak   = 1.0
+END IF
 ! Determing the particle weight (2D/VTS: Additional scaling of the weighting according to the position within the cell)
 IF (RadialWeighting%DoRadialWeighting) THEN
   ! Correction factor: Collision pairs above the mean MPF within the cell will get a higher collision probability
@@ -97,13 +108,13 @@ ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
   MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) &
                       / CollInf%MeanMPF(PairType)
   ! Sum over the mean variable time step factors (NO particle weighting factor included during MeanMPF summation)
-  CollCaseNum = CollInf%MeanMPF(PairType) * Species(1)%MacroParticleFactor
+  CollCaseNum = CollInf%MeanMPF(PairType) * PairMPF
   ! Weighting factor has to be included
-  SpecNum1 = SpecNum1 * Species(1)%MacroParticleFactor
-  SpecNum2 = SpecNum2 * Species(1)%MacroParticleFactor
+  SpecNum1 = SpecNum1 * PairMPF
+  SpecNum2 = SpecNum2 * PairMPF
 ELSE
-  MacroParticleFactor = Species(1)%MacroParticleFactor
-  CollCaseNum = REAL(CollInf%Coll_CaseNum(PairType))
+  MacroParticleFactor = PairMPF
+  CollCaseNum = REAL(CollInf%Coll_CaseNum(PairType)) / SabFak
 END IF
 
 IF (VarTimeStep%UseVariableTimeStep) THEN

@@ -301,6 +301,7 @@ TYPE tBGGas
   REAL, ALLOCATABLE             :: NumberDensity(:)         ! Number densities of the background gas, [1:BGGas%NumberOfSpecies]
   INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
                                                             ! regular particle
+  LOGICAL, ALLOCATABLE          :: TraceSpecies(:)          ! Flag, if Species is a trace element
 END TYPE tBGGas
 
 TYPE(tBGGas)                    :: BGGas
@@ -324,6 +325,7 @@ TYPE tPairData
                                                                   !       3: sigma excitation
   REAL                          :: Ec                           ! Collision Energy
   LOGICAL                       :: NeedForRec                   ! Flag if pair is needed for Recombination
+  REAL                          :: MPF                          ! Weightingfactor in case of different species based MPF and BGG
 END TYPE tPairData
 
 TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)                ! Data of collision pairs into a cell (nPair)

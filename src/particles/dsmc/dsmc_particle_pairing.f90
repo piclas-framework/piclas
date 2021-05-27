@@ -412,6 +412,7 @@ CollInf%Coll_SpecPartNum = 0
 CollInf%Coll_CaseNum = 0
 ALLOCATE(Coll_pData(nPair))
 Coll_pData%Ec=0
+Coll_pData%MPF=0.0
 
 IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
 
