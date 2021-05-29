@@ -217,7 +217,7 @@ DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(2,4,5) !dirichlet
+  CASE(2,4,5,6) !dirichlet
     nDirichletBCsides=nDirichletBCsides+1
   CASE(10,11) !Neumann,
     nNeumannBCsides=nNeumannBCsides+1
@@ -242,7 +242,7 @@ DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(2,4,5) !dirichlet
+  CASE(2,4,5,6) !dirichlet
     nDirichletBCsides=nDirichletBCsides+1
     DirichletBC(nDirichletBCsides)=SideID
     MaskedSide(SideID)=.TRUE.
@@ -490,6 +490,11 @@ DO iVar = 1, PP_nVar
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
         CALL ExactFunc(-1,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t=time,iRefState=BCState)
+      END DO; END DO !p,q
+    CASE(6) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
+      DO q=0,PP_N; DO p=0,PP_N
+        r=q*(PP_N+1) + p+1
+        CALL ExactFunc(-2,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t=time,iRefState=BCState)
       END DO; END DO !p,q
     END SELECT ! BCType
   END DO !BCsideID=1,nDirichletBCSides
@@ -752,6 +757,11 @@ DO BCsideID=1,nDirichletBCSides
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
       CALL ExactFunc(-1,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iRefState=BCState)
+    END DO; END DO !p,q
+  CASE(6) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
+    DO q=0,PP_N; DO p=0,PP_N
+      r=q*(PP_N+1) + p+1
+      CALL ExactFunc(-2,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iRefState=BCState)
     END DO; END DO !p,q
   END SELECT ! BCType
 END DO !BCsideID=1,nDirichletBCSides
