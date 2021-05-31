@@ -81,7 +81,7 @@ DO i=1,nSpecies
     ! Reset the number of particles per species AND init region
     NbrOfParticle = 0
     ! Only use inits defined for emission (every time step)
-    IF (Species(i)%Init(iInit)%ParticleEmissionType.LE.0) RETURN
+    IF (Species(i)%Init(iInit)%ParticleEmissionType.LE.0) CYCLE
 
     SELECT CASE(Species(i)%Init(iInit)%ParticleEmissionType)
       CASE(1) ! Emission Type: Particles per !!!!!SECOND!!!!!!!! (not per ns)
