@@ -53,6 +53,7 @@ Create a shell script *tracing.sh* with the following content
     $*
 
 where the path to the current directory must be inserted for *extrae.xml*.
+(WIP: `LD_PRELOAD` might only required when no user-defined instrumentation is used)
 Furthermore, a configuration file *extrae.xml* is required that defines which hardware counters, which should be traced
 
     <?xml version='1.0'?>
@@ -188,6 +189,21 @@ The installed environment is meant to run in a bash shell. The GUI can be starte
     vtune-gui
 
 Compile PICLas with "-g" to produce debugging information in the operating system's native format, which is required for detailed analysis performed by VTune.
+
+### Batch jobs
+VTune can also be run in batch mode without the GUI. For a list of available options, see
+
+    vtune -help
+
+and 
+
+    vtune -help collect
+
+To run a simulation with 10 MPI threads and collect data, simply run
+
+    mpirun -np 10 vtune -collect memory-consumption -trace-mpi -result-dir ~/intel/vtune/projects/feature_branch/r0001mc ~/piclas/particle.dev/build.vtune/bin/piclas parameter.ini
+
+and specify where the output data of vtune should be collected.
 
 ### Usage
 In the Vtune GUI, set the path to the executable, the parameters (parameter.ini DSMC.ini) and the working directory (where the executable is run).
