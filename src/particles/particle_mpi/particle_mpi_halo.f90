@@ -56,7 +56,7 @@ USE MOD_MPI_Vars                ,ONLY: offsetElemMPI
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_MPI_Vars       ,ONLY: SafetyFactor,halo_eps,halo_eps_velo
-USE MOD_Particle_MPI_Vars       ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc
+USE MOD_Particle_MPI_Vars       ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc,CheckExchangeProcs
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_PICDepo_Vars            ,ONLY: DepositionType
@@ -671,6 +671,8 @@ CALL MPI_REDUCE(nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob,1,MPI_
 IF (nNonSymmetricExchangeProcsGlob.GT.1) THEN
   SWRITE(Unit_StdOut,'(A,I0,A)') ' | Found ',nNonSymmetricExchangeProcsGlob, &
                                  ' previously missing non-symmetric particle exchange procs'
+  IF(CheckExchangeProcs) CALL abort(__STAMP__,&
+    ' Non-symmetric particle exchange procs > 1. This check is optional. You can disable it via CheckExchangeProcs = F')
 END IF
 
 ! Build reverse mapping
