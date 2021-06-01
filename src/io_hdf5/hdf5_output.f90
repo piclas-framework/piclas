@@ -1623,7 +1623,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Globals_Vars           ,ONLY: ProjectName
-USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength
+USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,nVarPartStateBoundary
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart2
 USE MOD_TimeDisc_Vars          ,ONLY: iter
@@ -1699,6 +1699,8 @@ PartDataSize = PartDataSize + 1
 PartDataSize = PartDataSize + 1
 ! Impact obliqueness angle [degree]
 PartDataSize = PartDataSize + 1
+! BCindex
+PartDataSize = PartDataSize + 1
 
 ! Set number of local particles
 locnPart = INT(PartStateBoundaryVecLength,IK)
@@ -1750,6 +1752,9 @@ DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
 
   ! Impact obliqueness angle [degree]
   PartData(11,iPart)=PartStateBoundary(10,pcount)
+
+  ! BCindex
+  PartData(12,iPart)=PartStateBoundary(11,pcount)
 
   pcount = pcount +1
 END DO ! iPart=offsetnPart+1_IK,offsetnPart+locnPart
@@ -1831,7 +1836,7 @@ PartStateBoundaryVecLength = 0
 ! Re-allocate PartStateBoundary for a small number of particles and double the array size each time the
 ! maximum is reached
 DEALLOCATE(PartStateBoundary)
-ALLOCATE(PartStateBoundary(1:10,1:10))
+ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:nVarPartStateBoundary))
 PartStateBoundary=0.
 
 END SUBROUTINE WriteBoundaryParticleToHDF5
