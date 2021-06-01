@@ -32,10 +32,11 @@ REAL,ALLOCPOINT                 :: PartSource(:,:,:,:,:)     ! PartSource(1:4,PP
 !                                                            ! Access array with CNElemID = GetCNElemID(GlobalElemID)
 !                                                            !                            = GetCNElemID(iElem+offSetElem)
 #if USE_MPI
-REAL, ALLOCATABLE               :: PartSourceProc(:,:,:,:,:)
+REAL,ALLOCATABLE                :: PartSourceProc(:,:,:,:,:)
 INTEGER                         :: PartSource_Shared_Win
 REAL,ALLOCPOINT                 :: PartSource_Shared(:)
 #endif
+REAL,ALLOCATABLE                :: PartSourceTmp (:,:,:,:)
 
 LOGICAL                         :: PartSourceConstExists
 REAL,ALLOCATABLE                :: PartSourceConst(:,:,:,:,:)! PartSource(1:4,PP_N,PP_N,PP_N,nElems) const. part of Source
@@ -114,11 +115,11 @@ REAL,ALLOCPOINT                 :: NodeVolume_Shared(:)
 REAL,ALLOCPOINT                 :: SFElemr2_Shared(:,:) ! index 1: radius, index 2: radius squared
 
 REAL,ALLOCPOINT                 :: NodeSource(:,:)
-REAL,ALLOCPOINT                 :: NodeSourceExt(:) ! Additional source for cell_volweight_mean (external or surface charge) 
+REAL,ALLOCPOINT                 :: NodeSourceExt(:) ! Additional source for cell_volweight_mean (external or surface charge)
 !                                                   ! that accumulates over time in elements adjacent to dielectric interfaces.
 !                                                   ! It contains the global, synchronized surface charge contribution that is
 !                                                   ! read and written to .h5
-REAL,ALLOCPOINT                 :: NodeSourceExtTmp(:) ! Additional source for cell_volweight_mean (external or surface charge) 
+REAL,ALLOCPOINT                 :: NodeSourceExtTmp(:) ! Additional source for cell_volweight_mean (external or surface charge)
 !                                                      ! that accumulates over time in elements adjacent to dielectric interfaces.
 !                                                      ! It contains the local non-synchronized surface charge contribution (does
 !                                                      ! not consider the charge contribution from restart files). This
@@ -126,7 +127,7 @@ REAL,ALLOCPOINT                 :: NodeSourceExtTmp(:) ! Additional source for c
 !                                                      ! as it is communicated via the normal NodeSource container NodeSourceExt.
 
 #if USE_MPI
-INTEGER                         :: SFElemr2_Shared_Win  
+INTEGER                         :: SFElemr2_Shared_Win
 REAL, ALLOCATABLE               :: NodeSourceLoc(:,:)           ! global, synchronized charge/current density on corner nodes
 INTEGER                         :: NodeSource_Shared_Win
 REAL,ALLOCPOINT                 :: NodeSource_Shared(:,:)

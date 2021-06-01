@@ -56,6 +56,7 @@ USE MOD_Restart_Vars               ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
 USE MOD_Timedisc_Vars              ,ONLY: time,dt
 #if USE_MPI
+USE MOD_MPI_Shared                 ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars            ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
 USE MOD_Particle_Boundary_Vars     ,ONLY: SampWallPumpCapacity_Shared
 USE MOD_Particle_Boundary_vars     ,ONLY: SampWallState_Shared,SampWallImpactNumber_Shared,SampWallImpactEnergy_Shared
@@ -119,8 +120,7 @@ CALL ExchangeSurfData()
 ! Only surface sampling leaders take part in the remainder of this routine
 IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) THEN
   IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
-    CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
-    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+    CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
   END IF
   RETURN
 END IF
@@ -273,8 +273,7 @@ END DO ! iSurfSide=1,nComputeNodeSurfSides
 #if USE_MPI
 END ASSOCIATE
 IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
-  CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+  CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 END IF
 #endif /*USE_MPI*/
 

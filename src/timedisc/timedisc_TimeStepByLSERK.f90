@@ -39,8 +39,9 @@ USE MOD_PreProc
 USE MOD_Vector
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iStage,time
 USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,RK_c,nRKStages
+USE MOD_TimeDisc_Vars          ,ONLY: Ut_temp,U2t_temp
 USE MOD_DG_Vars                ,ONLY: U,Ut
-USE MOD_PML_Vars               ,ONLY: U2,U2t,nPMLElems,DoPML,PMLnVar
+USE MOD_PML_Vars               ,ONLY: U2,U2t,DoPML
 USE MOD_PML                    ,ONLY: PMLTimeDerivative,CalcPMLSource
 USE MOD_Equation               ,ONLY: DivCleaningDamping
 USE MOD_Equation               ,ONLY: CalcSource
@@ -49,6 +50,7 @@ USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
 USE MOD_Equation               ,ONLY: DivCleaningDamping_Pois,EvalGradient
 USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm_Pois
 USE MOD_Equation_Vars          ,ONLY: Phi,Phit,nTotalPhi
+USE MOD_TimeDisc_Vars          ,ONLY: Phit_temp
 #endif /*PP_POIS*/
 #ifdef PARTICLES
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
@@ -81,16 +83,11 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                          :: Ut_temp(   1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
-REAL                          :: U2t_temp(  1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems) ! temporal variable for U2t
 REAL                          :: tStage,b_dt(1:nRKStages)
 #ifdef PARTICLES
 REAL                          :: timeStart,timeEnd
 INTEGER                       :: iPart
 #endif /*PARTICLES*/
-#ifdef PP_POIS
-REAL                          :: Phit_temp(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-#endif /*PP_POIS*/
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/

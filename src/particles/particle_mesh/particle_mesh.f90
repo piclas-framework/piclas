@@ -430,10 +430,9 @@ SELECT CASE(TrackingMethod)
       END DO
   END IF
 #if USE_MPI
-    CALL MPI_WIN_SYNC(SideSlabNormals_Shared_Win,IERROR)
-    CALL MPI_WIN_SYNC(SideSlabIntervals_Shared_Win,IERROR)
-    CALL MPI_WIN_SYNC(BoundingBoxIsEmpty_Shared_Win,IERROR)
-    CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+    CALL BARRIER_AND_SYNC(SideSlabNormals_Shared_Win   ,MPI_COMM_SHARED)
+    CALL BARRIER_AND_SYNC(SideSlabIntervals_Shared_Win ,MPI_COMM_SHARED)
+    CALL BARRIER_AND_SYNC(BoundingBoxIsEmpty_Shared_Win,MPI_COMM_SHARED)
 #endif /* USE_MPI */
 #ifdef CODE_ANALYZE
     ! TODO: bounding box volumes must be calculated for all unique sides.
