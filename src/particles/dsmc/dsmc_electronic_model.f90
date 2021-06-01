@@ -53,7 +53,8 @@ SUBROUTINE InitElectronShell(iSpec,iPart,iInit,init_or_sf)
 !===================================================================================================================================
 USE MOD_Globals         ,ONLY: abort
 USE MOD_Globals_Vars    ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars       ,ONLY: SpecDSMC, PartStateIntEn, ElectronicDistriPart, DSMC
+USE MOD_Particle_Vars   ,ONLY: PEM
+USE MOD_DSMC_Vars       ,ONLY: SpecDSMC, PartStateIntEn, ElectronicDistriPart, DSMC, BGGas
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -63,20 +64,28 @@ INTEGER, INTENT(IN)     :: iPart, iSpec, iInit, init_or_sf
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: iQua
+INTEGER                 :: iQua, LocalElemID
 REAL                    :: iRan, ElectronicPartition, ElectronicPartitionTemp, iRan2, tmpExp
 REAL                    :: Telec                      ! electronic temperature
 !===================================================================================================================================
 SELECT CASE (init_or_sf)
-CASE(1) !iInit
+CASE(1) ! Initial
   TElec=SpecDSMC(iSpec)%Init(iInit)%TElec
-CASE(2) !SurfaceFlux
-  Telec=SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec
+CASE(2) ! SurfaceFlux
+  TElec=SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec
 CASE DEFAULT
   CALL abort(&
   __STAMP__&
   ,'neither iInit nor Surfaceflux defined as reference!')
 END SELECT
+
+! Background gas distribution
+IF(BGGas%NumberOfSpecies.GT.0) THEN
+  IF(BGGas%BackgroundSpecies(iSpec).AND.BGGas%UseDistribution) THEN
+    LocalElemID = PEM%LocalElemID(iPart)
+    TElec = BGGas%Distribution(BGGas%MapSpecToBGSpec(iSpec),DSMC_TELEC,LocalElemID)
+  END IF
+END IF
 
 ElectronicPartition  = 0.
 ElectronicPartitionTemp = 0.

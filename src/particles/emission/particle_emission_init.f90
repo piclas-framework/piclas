@@ -120,6 +120,9 @@ CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-maxParticleNumber-y'  &
 CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-maxParticleNumber-z'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Maximum Number of all Particles in z direction', '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-DistributionSpeciesIndex'  &
+                                , 'Background gas with a distribution: Input the species index to use from the read-in '//&
+                                  'distribution of the DSMCState file', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-Alpha' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'WaveNumber for sin-deviation initiation.', numberedmulti=.TRUE.)
@@ -230,14 +233,19 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 INTEGER               :: iSpec, iInit
 CHARACTER(32)         :: hilf, hilf2
 !===================================================================================================================================
+ALLOCATE(SpecReset(1:nSpecies))
+SpecReset=.FALSE.
+UseNeutralization = .FALSE.
+! Background gas
 BGGas%NumberOfSpecies = 0
 ALLOCATE(BGGas%BackgroundSpecies(nSpecies))
 BGGas%BackgroundSpecies = .FALSE.
 ALLOCATE(BGGas%NumberDensity(nSpecies))
 BGGas%NumberDensity = 0.
-ALLOCATE(SpecReset(1:nSpecies))
-SpecReset=.FALSE.
-UseNeutralization = .FALSE.
+BGGas%UseDistribution = GETLOGICAL('Particles-BGGas-UseDistribution')
+IF(BGGas%UseDistribution) THEN
+  ALLOCATE(BGGas%DistributionSpeciesIndex(nSpecies))
+END IF
 
 DO iSpec = 1, nSpecies
   SWRITE (UNIT_stdOut,'(66(". "))')
@@ -398,6 +406,9 @@ DO iSpec = 1, nSpecies
         BGGas%BackgroundSpecies(iSpec)  = .TRUE.
         BGGas%NumberDensity(iSpec)      = Species(iSpec)%Init(iInit)%PartDensity
         Species(iSpec)%Init(iInit)%ParticleEmissionType = -1
+        ! Read-in the species index for background gas distribution
+        IF(BGGas%UseDistribution) &
+          BGGas%DistributionSpeciesIndex(iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DistributionSpeciesIndex')
       ELSE
         CALL abort(__STAMP__, &
           'ERROR: Only one background definition per species is allowed!')
@@ -607,6 +618,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars    ,ONLY: PI
 USE MOD_ReadInTools
 USE MOD_Particle_Vars   ,ONLY: Species
+USE MOD_DSMC_Vars       ,ONLY: BGGas
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -620,6 +632,9 @@ CHARACTER(32)           :: hilf2
 REAL                    :: factor
 !===================================================================================================================================
 Species(iSpec)%Init(iInit)%ParticleEmissionType = 7
+! Abort if a background gas distribution is used (CalcPhotoIonizationNumber assumes a constant distribution)
+IF(BGGas%UseDistribution) CALL abort(__STAMP__,&
+  'ERROR: Photo-ionization and a background gas distribution is not implemented yet!')
 ! Check coordinate system of normal vector and two tangential vectors (they must form an orthogonal basis)
 ASSOCIATE( v1 => UNITVECTOR(Species(iSpec)%Init(iInit)%NormalIC)      ,&
             v2 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC) ,&

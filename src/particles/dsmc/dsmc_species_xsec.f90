@@ -374,6 +374,7 @@ SUBROUTINE DetermineNullCollProb(iCase,iSpec,jSpec)
 ! MODULES
 USE MOD_ReadInTools
 USE MOD_Globals_Vars          ,ONLY: Pi
+USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Vars         ,ONLY: Species
 USE MOD_TimeDisc_Vars         ,ONLY: ManualTimeStep
 USE MOD_DSMC_Vars             ,ONLY: BGGas, SpecXSec
@@ -386,7 +387,7 @@ INTEGER,INTENT(IN)            :: jSpec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: MaxDOF, bggSpec
-REAL                          :: MaxCollFreq, Mass
+REAL                          :: MaxCollFreq, Mass, MaxNumDens
 REAL,ALLOCATABLE              :: Velocity(:)
 !===================================================================================================================================
 
@@ -399,6 +400,12 @@ ELSE
   Mass = Species(iSpec)%MassIC
 END IF
 
+IF(BGGas%UseDistribution) THEN
+  MaxNumDens = MAXVAL(BGGas%Distribution(bggSpec,7,1:nElems))
+ELSE
+  MaxNumDens = BGGas%NumberDensity(bggSpec)
+END IF
+
 MaxDOF = SIZE(SpecXSec(iCase)%CollXSecData,2)
 ALLOCATE(Velocity(MaxDOF))
 
@@ -406,7 +413,7 @@ ALLOCATE(Velocity(MaxDOF))
 Velocity(1:MaxDOF) = SQRT(2.) * SQRT(8.*SpecXSec(iCase)%CollXSecData(1,1:MaxDOF)/(Pi*Mass))
 
 ! Calculate the maximal collision frequency
-MaxCollFreq = MAXVAL(Velocity(1:MaxDOF) * SpecXSec(iCase)%CollXSecData(2,1:MaxDOF) * BGGas%NumberDensity(bggSpec))
+MaxCollFreq = MAXVAL(Velocity(1:MaxDOF) * SpecXSec(iCase)%CollXSecData(2,1:MaxDOF) * MaxNumDens)
 
 ! Determine the collision probability
 SpecXSec(iCase)%ProbNull = 1. - EXP(-MaxCollFreq*ManualTimeStep)

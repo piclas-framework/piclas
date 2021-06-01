@@ -387,7 +387,7 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
 ! MODULES
 USE MOD_Globals                 ,ONLY: abort
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn, SpecDSMC, DSMC
+USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn, SpecDSMC, DSMC, BGGas
 USE MOD_Particle_Vars           ,ONLY: Species, PEM
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
 USE MOD_DSMC_ElectronicModel    ,ONLY: InitElectronShell
@@ -439,6 +439,13 @@ IF ((SpecDSMC(iSpecies)%InterID.EQ.2).OR.(SpecDSMC(iSpecies)%InterID.EQ.20)) THE
     __STAMP__&
     ,'neither iInit nor Surfaceflux defined as reference!')
   END SELECT
+  ! Background gas distribution
+  IF(BGGas%NumberOfSpecies.GT.0) THEN
+    IF(BGGas%BackgroundSpecies(iSpecies).AND.BGGas%UseDistribution) THEN
+      TVib = BGGas%Distribution(BGGas%MapSpecToBGSpec(iSpecies),DSMC_TVIB,ElemID)
+      TRot = BGGas%Distribution(BGGas%MapSpecToBGSpec(iSpecies),DSMC_TROT,ElemID)
+    END IF
+  END IF
   ! Set vibrational energy
   CALL RANDOM_NUMBER(iRan)
   iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpecies)%CharaTVib)

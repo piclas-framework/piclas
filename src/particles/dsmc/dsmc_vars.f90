@@ -302,6 +302,11 @@ TYPE tBGGas
   REAL, ALLOCATABLE             :: NumberDensity(:)         ! Number densities of the background gas, [1:BGGas%NumberOfSpecies]
   INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
                                                             ! regular particle
+  LOGICAL                       :: UseDistribution          ! Flag for the utilization of a background gas distribution as read-in
+                                                            ! from a previous DSMC/BGK simulation result
+  REAL, ALLOCATABLE             :: Distribution(:,:,:)      ! Element local background gas [1:BGGSpecies,1:10,1:nElems]
+  INTEGER, ALLOCATABLE          :: DistributionSpeciesIndex(:)  ! Index of species in the read-in DSMCState file to use
+                                                                ! as a background distribution [1:nSpecies]
 END TYPE tBGGas
 
 TYPE(tBGGas)                    :: BGGas

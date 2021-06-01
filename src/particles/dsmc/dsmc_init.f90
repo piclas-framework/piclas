@@ -75,6 +75,9 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-AmbipolarDiffusion', &
                                           'Enables the ambipolar diffusion modelling of electrons, which are attached to the '//&
                                           'ions, however, retain their own velocity vector to participate in collision events.',&
                                           '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-BGGas-UseDistribution', &
+                                          'Utilization of a cell-local background gas distribution as read-in from a previous '//&
+                                          'DSMC/BGK result using Particles-MacroscopicRestart', '.FALSE.')
 !-----------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcQualityFactors', &
                                           'Enables [TRUE] / disables [FALSE] the calculation and output of:\n'//&
@@ -761,6 +764,15 @@ ELSE !CollisMode.GT.0
         SpecDSMC(iSpec)%ElecRelaxProb = DSMC%ElecRelaxProb    ! or 0.02 | Bird: somewhere in range 0.01 .. 0.02
         ! multi init stuff
         ALLOCATE(SpecDSMC(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
+        ! Skip the read-in of temperatures if a background gas distribution is used
+        IF(BGGas%NumberOfSpecies.GT.0) THEN
+          IF(BGGas%BackgroundSpecies(iSpec).AND.BGGas%UseDistribution) THEN
+            SpecDSMC(iSpec)%Init(1)%TVib  = 0.
+            SpecDSMC(iSpec)%Init(1)%TRot  = 0.
+            SpecDSMC(iSpec)%Init(1)%Telec = 0.
+            CYCLE
+          END IF
+        END IF
         DO iInit = 1, Species(iSpec)%NumberOfInits
           WRITE(UNIT=hilf2,FMT='(I0)') iInit
           hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
