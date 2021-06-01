@@ -1787,6 +1787,7 @@ ASSOCIATE (&
   StrVarNames2(9)  = 'MacroParticleFactor'
   StrVarNames2(10) = 'Time'
   StrVarNames2(11) = 'ImpactObliquenessAngle'
+  StrVarNames2(12) = 'PartBoundaryID'
 
   IF(MPIRoot)THEN
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
