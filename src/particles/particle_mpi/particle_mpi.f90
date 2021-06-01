@@ -1648,6 +1648,7 @@ DO iSpec=1,nSpecies
     CASE ('IMD')
        RegionOnProc=.TRUE.
     CASE ('background')
+      !
     CASE DEFAULT
       IPWRITE(*,*) 'ERROR: Species ', iSpec, 'of', iInit, 'is using an unknown SpaceIC!'
       CALL ABORT(&
@@ -1675,11 +1676,13 @@ DO iSpec=1,nSpecies
       CALL MPI_ALLGATHER(PartMPI%MyRank,1,MPI_INTEGER&
                         ,PartMPI%InitGroup(nInitRegions)%GroupToComm(0:PartMPI%InitGroup(nInitRegions)%nProcs-1)&
                        ,1,MPI_INTEGER,PartMPI%InitGroup(nInitRegions)%COMM,iERROR)
+
       ALLOCATE(PartMPI%InitGroup(nInitRegions)%CommToGroup(0:PartMPI%nProcs-1))
-      PartMPI%InitGroup(nInitRegions)%CommToGroup(0:PartMPI%nProcs-1)=-1
-      DO iRank=0,PartMPI%InitGroup(nInitRegions)%nProcs-1
+      PartMPI%InitGroup(nInitRegions)%CommToGroup(0:PartMPI%nProcs-1) = -1
+      DO iRank = 0,PartMPI%InitGroup(nInitRegions)%nProcs-1
         PartMPI%InitGroup(nInitRegions)%CommToGroup(PartMPI%InitGroup(nInitRegions)%GroupToComm(iRank))=iRank
       END DO ! iRank
+
     END IF
   END DO ! iniT
 END DO ! iSpec

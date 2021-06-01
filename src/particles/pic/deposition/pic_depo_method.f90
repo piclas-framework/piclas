@@ -198,9 +198,9 @@ USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_TimeDisc_Vars          ,ONLY: dt,dt_Min
 #endif
 #if USE_MPI
-USE MOD_PICDepo_Vars       ,ONLY: PartSource_Shared_Win
-USE MOD_Globals            ,ONLY: IERROR
-USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
+USE MOD_PICDepo_Vars           ,ONLY: PartSource_Shared_Win
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -324,8 +324,7 @@ CALL LBElemSplitTime_avg(tLBStart) ! Average over the number of elems (and Start
 #endif /*USE_LOADBALANCE*/
 DEALLOCATE(BGMSourceCellVol)
 #if USE_MPI
-CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
+CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 END SUBROUTINE DepositionMethod_CVW
 
@@ -348,11 +347,12 @@ USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExt,Node
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Part_Tools         ,ONLY: isDepositParticle
 #if USE_MPI
-USE MOD_PICDepo_Vars       ,ONLY: NodeSourceLoc, NodeMapping, NodeSource_Shared_Win
+USE MOD_MPI_Shared         ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myLeaderGroupRank
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors, nLeaderGroupProcs
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmpLoc
 USE MOD_PICDepo_Vars       ,ONLY: PartSource_Shared_Win
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceLoc, NodeMapping, NodeSource_Shared_Win
 #else
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
 #endif  /*USE_MPI*/
@@ -480,8 +480,7 @@ IF(myComputeNodeRank.EQ.0)THEN
 ELSE
   CALL MPI_REDUCE(NodeSourceLoc(SourceDim:4,:),0                        ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
 END IF ! myrank.eq.0
-CALL MPI_WIN_SYNC(NodeSource_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(NodeSource_Shared_Win,MPI_COMM_SHARED)
 
 ! Multi-node communication
 IF(nLeaderGroupProcs.GT.1)THEN
@@ -603,8 +602,7 @@ IF(nLeaderGroupProcs.GT.1)THEN
       END DO
     END IF ! doCalculateCurrentDensity
   END IF ! myComputeNodeRank.EQ.0
-  CALL MPI_WIN_SYNC(NodeSource_Shared_Win,IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+  CALL BARRIER_AND_SYNC(NodeSource_Shared_Win,MPI_COMM_SHARED)
 END IF ! nLeaderGroupProcs.GT.1
 #endif
 
@@ -632,8 +630,7 @@ CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 #endif /*USE_LOADBALANCE*/
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(NodeSource_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(NodeSource_Shared_Win,MPI_COMM_SHARED)
 firstElem = offSetElem+1
 lastElem  = offSetElem+nElems
 #else
@@ -671,8 +668,7 @@ END DO !iEle
 CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
-CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
+CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 END SUBROUTINE DepositionMethod_CVWM
 
@@ -691,11 +687,12 @@ USE MOD_PICDepo_Vars                ,ONLY: PartSource
 USE MOD_PICDepo_Shapefunction_Tools ,ONLY: calcSfSource
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 #if USE_MPI
+USE MOD_MPI_Shared                  ,ONLY: BARRIER_AND_SYNC
+USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_SHARED, myComputeNodeRank, nComputeNodeProcessors
+USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_LEADERS_SHARED, myLeaderGroupRank, nLeaderGroupProcs
 USE MOD_PICDepo_Vars                ,ONLY: PartSourceProc
 USE MOD_PICDepo_Vars                ,ONLY: PartSource_Shared_Win, ShapeMapping, nSendShapeElems, SendShapeElemID
 USE MOD_PICDepo_Vars                ,ONLY: CNShapeMapping
-USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_SHARED, myComputeNodeRank, nComputeNodeProcessors
-USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_LEADERS_SHARED, myLeaderGroupRank, nLeaderGroupProcs
 #endif /*USE_MPI*/
 USE MOD_Part_Tools                  ,ONLY: isDepositParticle
 ! IMPLICIT VARIABLE HANDLING
@@ -750,8 +747,7 @@ DO iPart=1,PDM%ParticleVecLength
 END DO
 #if USE_MPI
 ! Communication
-CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
+CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
 
 ! 1 of 2: Inner-Node Communication
 IF (myComputeNodeRank.EQ.0) THEN
@@ -798,9 +794,8 @@ ELSE
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END IF
 END IF
-!CALL MPI_WIN_FLUSH(0,PartSource_Shared_Win, IERROR)
-CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
+!CALL MPI_WIN_FLUSH(0,PartSource_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
 
 ! 2 of 2: Multi-node communication
 IF(nLeaderGroupProcs.GT.1)THEN
@@ -861,8 +856,7 @@ IF(nLeaderGroupProcs.GT.1)THEN
       END DO
     END DO
   END IF ! myComputeNodeRank.EQ.0
-  CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
+  CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
 END IF ! nLeaderGroupProcs.GT.1
 #endif
 END SUBROUTINE DepositionMethod_SF

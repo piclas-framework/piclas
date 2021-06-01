@@ -51,9 +51,10 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueG
 USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt,NodeVolume
 USE MOD_Restart_Vars           ,ONLY: N_Restart
 #if USE_MPI
+USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
-USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt_Shared_Win
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
+USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt_Shared_Win
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
@@ -143,8 +144,7 @@ IF(DG_SourceExtExists)THEN
   END DO
 
 #if USE_MPI
-  CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+  CALL BARRIER_AND_SYNC(NodeSourceExt_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 END IF ! DG_SourceExtExists
 

@@ -747,8 +747,7 @@ IF (myComputeNodeRank.EQ.0) THEN
   BoundaryWallTemp_Shared = 0.
 END IF
 BoundaryWallTemp => BoundaryWallTemp_Shared
-CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 firstSide = INT(REAL( myComputeNodeRank   *nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
 lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
 #else
@@ -766,8 +765,7 @@ DO iSide = firstSide,LastSide
 END DO 
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 END SUBROUTINE InitAdaptiveWallTemp
