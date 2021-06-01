@@ -671,8 +671,11 @@ CALL MPI_REDUCE(nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob,1,MPI_
 IF (nNonSymmetricExchangeProcsGlob.GT.1) THEN
   SWRITE(Unit_StdOut,'(A,I0,A)') ' | Found ',nNonSymmetricExchangeProcsGlob, &
                                  ' previously missing non-symmetric particle exchange procs'
-  IF(CheckExchangeProcs) CALL abort(__STAMP__,&
+  IF(CheckExchangeProcs)THEN
+    IPWRITE(UNIT_StdOut,*) "nNonSymmetricExchangeProcsGlob =", nNonSymmetricExchangeProcsGlob
+    CALL abort(__STAMP__,&
     ' Non-symmetric particle exchange procs > 1. This check is optional. You can disable it via CheckExchangeProcs = F')
+  END IF
 END IF
 
 ! Build reverse mapping
