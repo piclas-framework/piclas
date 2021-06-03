@@ -107,19 +107,14 @@ IMPLICIT NONE
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI ... '
-IF(ParticleMPIInitIsDone) &
-  CALL ABORT(&
-    __STAMP__&
-  ,' Particle MPI already initialized!')
+IF(ParticleMPIInitIsDone) CALL ABORT(__STAMP__,' Particle MPI already initialized!')
 
 #if USE_MPI
 CALL MPI_COMM_DUP (MPI_COMM_WORLD,PartMPI%COMM,iError)
 CALL MPI_COMM_RANK(PartMPI%COMM,PartMPI%myRank,iError)
 CALL MPI_COMM_SIZE(PartMPI%COMM,PartMPI%nProcs,iError)
 
-IF(PartMPI%nProcs.NE.nProcessors) CALL ABORT(&
-    __STAMP__&
-    ,' MPI Communicater-size does not match!', IERROR)
+IF(PartMPI%nProcs.NE.nProcessors) CALL ABORT(__STAMP__,' MPI Communicater-size does not match!', IERROR)
 PartCommSize   = 0
 PartMPI%MPIRoot = .FALSE.
 IF(PartMPI%MyRank.EQ.0) PartMPI%MPIRoot=.TRUE.
@@ -247,8 +242,7 @@ ALLOCATE( PartMPIExchange%nPartsSend(4,0:nExchangeProcessors-1)  &
         , PartTargetProc(1:PDM%MaxParticleNumber)                &
         , STAT=ALLOCSTAT                                         )
 
-IF (ALLOCSTAT.NE.0) &
-  CALL ABORT(__STAMP__,' Cannot allocate Particle-MPI-Variables! ALLOCSTAT',ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate Particle-MPI-Variables! ALLOCSTAT',ALLOCSTAT)
 
 PartMPIExchange%nPartsSend=0
 PartMPIExchange%nPartsRecv=0
@@ -731,13 +725,9 @@ END DO ! iProc
 ! 4) Finish Received number of particles
 DO iProc=0,nExchangeProcessors-1
   CALL MPI_WAIT(PartMPIExchange%SendRequest(1,iProc),MPIStatus,IERROR)
-  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(&
-    __STAMP__&
-    ,' MPI Communication error', IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   CALL MPI_WAIT(PartMPIExchange%RecvRequest(1,iProc),recv_status_list(:,iProc),IERROR)
-  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(&
-    __STAMP__&
-    ,' MPI Communication error', IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO ! iProc
 
 ! total number of received particles
@@ -961,7 +951,8 @@ DO iProc=0,nExchangeProcessors-1
     ! find free position in particle array
     nRecv  = nRecv+1
     PartID = PDM%nextFreePosition(nRecv+PDM%CurrentNextFreePosition)
-    IF(PartID.EQ.0) CALL ABORT(__STAMP__,' Error in ParticleExchange_parallel. Corrupted list: PIC%nextFreePosition', nRecv)
+    IF(PartID.EQ.0) CALL ABORT(__STAMP__,&
+        ' Error in ParticleExchange_parallel. PDM%nextFreePosition=0. Increase Part-MaxParticleNumber! ', nRecv)
 
     !>> particle position in physical space
     PartState(1:6,PartID)    = PartRecvBuf(iProc)%content(1+iPos: 6+iPos)
@@ -1208,8 +1199,7 @@ END DO ! iProc
 TempNextFreePosition        = PDM%CurrentNextFreePosition
 PDM%ParticleVecLength       = PDM%ParticleVecLength + PartMPIExchange%nMPIParticles
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
-IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) CALL ABORT(&
-    __STAMP__&
+IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) CALL ABORT(__STAMP__&
     ,' ParticleVecLegnth>MaxParticleNumber due to MPI-communication!')
 
 IF(RadialWeighting%PerformCloning) THEN
@@ -1523,9 +1513,7 @@ DO iSpec=1,nSpecies
       lineVector(3) = Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
         Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
       IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
-         CALL ABORT(&
-         __STAMP__&
-         ,'BaseVectors are parallel!')
+         CALL ABORT(__STAMP__,'BaseVectors are parallel!')
       ELSE
         lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
           lineVector(3) * lineVector(3))
@@ -1598,8 +1586,7 @@ DO iSpec=1,nSpecies
        IF ((xlen.NE.Species(iSpec)%Init(iInit)%BaseVector1IC(1)).OR. &
            (ylen.NE.Species(iSpec)%Init(iInit)%BaseVector2IC(2)).OR. &
            (zlen.NE.Species(iSpec)%Init(iInit)%CuboidHeightIC)) THEN
-          CALL ABORT(&
-          __STAMP__&
+          CALL ABORT(__STAMP__&
           ,'Basevectors1IC,-2IC and CuboidHeightIC have to be in x,y,z-direction, respectively for emission condition')
        END IF
        DO iNode=1,8
@@ -1630,8 +1617,7 @@ DO iSpec=1,nSpecies
        IF ((xlen.NE.Species(iSpec)%Init(iInit)%BaseVector1IC(1)).OR. &
            (ylen.NE.Species(iSpec)%Init(iInit)%BaseVector2IC(2)).OR. &
            (zlen.NE.Species(iSpec)%Init(iInit)%CuboidHeightIC)) THEN
-          CALL ABORT(&
-          __STAMP__&
+          CALL ABORT(__STAMP__&
           ,'Basevectors1IC,-2IC and CuboidHeightIC have to be in x,y,z-direction, respectively for emission condition')
        END IF
        DO iNode=1,8
@@ -1650,8 +1636,7 @@ DO iSpec=1,nSpecies
             (Species(iSpec)%Init(iInit)%maxParticleNumberX * Species(iSpec)%Init(iInit)%maxParticleNumberY &
             * Species(iSpec)%Init(iInit)%maxParticleNumberZ)) THEN
          SWRITE(*,*) 'for species ',iSpec,' does not match number of particles in each direction!'
-         CALL ABORT(&
-         __STAMP__&
+         CALL ABORT(__STAMP__&
          ,'ERROR: Number of particles in init / emission region',iInit)
        END IF
        xlen = abs(GEO%xmaxglob  - GEO%xminglob)
@@ -1672,8 +1657,7 @@ DO iSpec=1,nSpecies
       !
     CASE DEFAULT
       IPWRITE(*,*) 'ERROR: Species ', iSpec, 'of', iInit, 'is using an unknown SpaceIC!'
-      CALL ABORT(&
-      __STAMP__&
+      CALL ABORT(__STAMP__&
       ,'ERROR: Given SpaceIC is not implemented: '//TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
     END SELECT
 
