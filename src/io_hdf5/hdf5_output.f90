@@ -184,6 +184,9 @@ INTEGER                        :: i,j,k,iElem
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(3))
+#endif /*EXTRAE*/
 ! set local variables for output and previous times
 IF(OutputTimeFixed.GE.0.0)THEN
   SWRITE(UNIT_StdOut,'(A,ES25.14E3,A2)',ADVANCE='NO')' (WriteStateToHDF5 for fixed output time :',OutputTimeFixed,') '
@@ -688,6 +691,9 @@ EndT=PICLASTIME()
 SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
 SWRITE(UNIT_StdOut,'(A,ES16.7)') "#Particles : ", REAL(nGlobalNbrOfParticles)
 
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 END SUBROUTINE WriteStateToHDF5
 
 
@@ -3325,6 +3331,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: nUniqueGlobalNodes
 #if USE_MPI
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmpLoc, NodeMapping, NodeSourceExtTmp_Shared_Win,NodeSourceExt_Shared_Win
+USE MOD_MPI_Shared         ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myLeaderGroupRank
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors, nLeaderGroupProcs
 #endif  /*USE_MPI*/
@@ -3367,8 +3374,7 @@ IF(iter.NE.0)THEN
       MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
   ! Reset local surface charge
   NodeSourceExtTmpLoc = 0.
-  CALL MPI_WIN_SYNC(NodeSourceExtTmp_Shared_Win,IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+  CALL BARRIER_AND_SYNC(NodeSourceExtTmp_Shared_Win,MPI_COMM_SHARED)
   IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
     DO iProc = 0, nLeaderGroupProcs - 1
       IF (iProc.EQ.myLeaderGroupRank) CYCLE
@@ -3421,8 +3427,7 @@ IF(iter.NE.0)THEN
       END IF
     END DO
   END IF
-  CALL MPI_WIN_SYNC(NodeSourceExtTmp_Shared_Win,IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+  CALL BARRIER_AND_SYNC(NodeSourceExtTmp_Shared_Win,MPI_COMM_SHARED)
   firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
   lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
 #else
@@ -3435,8 +3440,7 @@ IF(iter.NE.0)THEN
     NodeSourceExt(iNode) = NodeSourceExt(iNode) + NodeSourceExtTmp(iNode)
   END DO
 #if USE_MPI
-  CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+  CALL BARRIER_AND_SYNC(NodeSourceExt_Shared_Win,MPI_COMM_SHARED)
 #else
   ! Reset local surface charge
   NodeSourceExtTmp = 0.
@@ -3568,7 +3572,5 @@ END DO ! iElem=1,PP_nElems
 END SUBROUTINE AddBRElectronFluidToPartSource
 #endif /*USE_HDG*/
 #endif /*PARTICLES*/
-
-
 
 END MODULE MOD_HDF5_output

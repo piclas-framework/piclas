@@ -254,7 +254,7 @@ def convert(mode,x):
     if mode == "int":
         y = int(x)
     if mode == "str":
-        if x is not '':
+        if x != '':
             y = str(x)
     return y
 

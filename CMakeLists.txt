@@ -56,14 +56,22 @@ SET (HDF5TAG "hdf5-1_10_5" CACHE STRING "HDF5 version tag")
 # Detect machine environments
 # =========================================================================
 SITE_NAME(CMAKE_HOSTNAME)
-STRING(FIND "${CMAKE_HOSTNAME}" "hawk" ONHAWK)
+STRING(FIND "${CMAKE_HOSTNAME}" "hawk" HOSTONHAWK)
+FIND_PROGRAM(LSB_RELEASE_EXEC lsb_release)
+EXECUTE_PROCESS(COMMAND ${LSB_RELEASE_EXEC} -is OUTPUT_VARIABLE LSB_RELEASE_ID_SHORT OUTPUT_STRIP_TRAILING_WHITESPACE)
+IF(LSB_RELEASE_ID_SHORT MATCHES "CentOS" AND HOSTONHAWK GREATER -1)
+  SET(ONHAWK ON)
+ELSE()
+  SET(ONHAWK OFF)
+ENDIF()
+
 # Set options that need to be enabled BEFORE ANY PROJECT OR LANGUAGE COMMAND
-IF (ONHAWK GREATER -1)
+IF (ONHAWK)
   SET(CMAKE_C_COMPILER       mpicc)
   SET(CMAKE_CXX_COMPILER     mpicxx)
   SET(CMAKE_Fortran_COMPILER mpif90) # mpif08 wrapper seems to have issues
   MARK_AS_ADVANCED(C_PATH CXX_PATH Fortran_PATH)
-  MESSAGE(STATUS "Compiling on " ${CMAKE_HOSTNAME} " (ONHAWK=True)")
+  MESSAGE(STATUS "Compiling on " ${CMAKE_HOSTNAME} " (ONHAWK=ON)")
   ADD_DEFINITIONS(-DLUSTRE)
 
   # Overwrite compiler target architecture
@@ -182,6 +190,7 @@ ADD_DEFINITIONS(-DPP_nElems=NELEMZ)
 
 # code development
 OPTION(PICLAS_CODE_ANALYZE "Code Analyze" OFF)
+OPTION(PICLAS_EXTRAE "Extrae instrumentation for code profiling (event tracing)" OFF)
 OPTION(PICLAS_CTAGS "Use Ctags" ON)
 
 OPTION(PICLAS_READIN_CONSTANTS "Allow read-in of user-defined constants, such as the vacuum speed of light c0, permittivity eps and permeability mu." OFF)
@@ -193,7 +202,7 @@ ENDIF()
 
 OPTION(PICLAS_VDM_ANALYTICAL "Alternative to matrix inversion: Compute inverse Vandermonde directly (required for inverse of Bezier and Legendre Vdm)" OFF)
 # VDM inverse for Lagrange polynomials, replace lapack with analytical solution, for Bezier switch to LU inverse calculation
-IF (ONHAWK GREATER -1)
+IF (ONHAWK)
   IF (CMAKE_BUILD_TYPE MATCHES "Debug")
     SET(PICLAS_VDM_ANALYTICAL ON CACHE BOOL "Auto-Activated: Alternative to matrix inversion: Compute inverse Vandermonde directly (required for inverse of Bezier and Legendre Vdm)" FORCE)
   ENDIF()
@@ -248,12 +257,17 @@ ELSE()
 ENDIF(PICLAS_PARTICLES)
 
 # =========================================================================
-# CODE_ANALYZE
+# CODE_ANALYZE and EXTRAE instrumentation
 # =========================================================================
 
 IF(PICLAS_CODE_ANALYZE)
   ADD_DEFINITIONS(-DCODE_ANALYZE)
 ENDIF(PICLAS_CODE_ANALYZE)
+
+IF(PICLAS_EXTRAE)
+  MESSAGE(STATUS "Activated extrae code tracing instrumentation using: $ENV{EXTRAE_HOME}")
+  ADD_DEFINITIONS(-DEXTRAE)
+ENDIF(PICLAS_EXTRAE)
 
 # =========================================================================
 # Timedisc method
@@ -799,6 +813,12 @@ FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_vars.f90
                          ./src/particles/boundary/particle_boundary_vars.f90)
 
+FILE(GLOB_RECURSE extraeF90 ./src/extrae/*.f90)
+
+IF(PICLAS_EXTRAE)
+  LIST(APPEND piclasF90 ${extraeF90})
+ENDIF(PICLAS_EXTRAE)
+
 IF(PICLAS_HDG)
   LIST(APPEND piclasF90 ${hdgF90})
   IF(PICLAS_IMPLICIT)
@@ -934,3 +954,14 @@ IF(PICLAS_DEBUG_MEMORY)
   SET (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DDEBUG_MEMORY")
 ENDIF()
 
+# =========================================================================
+# EXTRAE instrumentation
+# =========================================================================
+IF(PICLAS_EXTRAE)
+  # MPI+OpenMP
+  #SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -lompitracef -L$ENV{EXTRAE_HOME}/lib")
+  # only MPI
+  SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -lmpitracef -L$ENV{EXTRAE_HOME}/lib")
+  # change binary name by adding the suffix '_extrae'
+  SET_TARGET_PROPERTIES(piclas PROPERTIES OUTPUT_NAME "piclas_extrae")
+ENDIF(PICLAS_EXTRAE)

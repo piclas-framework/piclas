@@ -70,7 +70,12 @@ INTERFACE UNLOCK_AND_FREE_DUMMY
   MODULE PROCEDURE UNLOCK_AND_FREE_1
 END INTERFACE
 
+INTERFACE BARRIER_AND_SYNC
+  MODULE PROCEDURE BARRIER_AND_SYNC
+END INTERFACE
+
 PUBLIC::UNLOCK_AND_FREE_DUMMY
+PUBLIC::BARRIER_AND_SYNC
 
 !==================================================================================================================================
 CONTAINS
@@ -832,6 +837,36 @@ END IF
 CALL C_F_POINTER(SM_PTR, DataPointer,nVal)
 
 END SUBROUTINE ALLOCATE_SHARED_REAL_6
+
+
+!==================================================================================================================================
+!> Unlock and free shared memory array
+!==================================================================================================================================
+SUBROUTINE BARRIER_AND_SYNC(SharedWindow,Communicator) !,Barrier_Opt)
+! MODULES
+USE MOD_Globals
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(INOUT)       :: SharedWindow !> Shared memory window
+INTEGER,INTENT(INOUT)       :: Communicator !> Shared memory communicator
+! LOGICAL,INTENT(IN)          :: Barrier_Opt  !
+! LOCAL VARIABLES
+! LOGICAL                     :: Barrier
+!==================================================================================================================================
+! Barrier = MERGE(Barrier_Opt,.TRUE.,PRESENT(Barrier_Opt)
+
+CALL MPI_WIN_SYNC(SharedWindow,iError)
+! IF (Barrier) CALL MPI_BARRIER (Communicator,iError)
+CALL MPI_BARRIER (Communicator,iError)
+CALL MPI_WIN_SYNC(SharedWindow,iError)
+
+! IF(iError.NE.0)THEN
+!   CALL abort(__STAMP__,'ERROR in MPI_WIN_SYNC() for '//TRIM(SM_WIN_NAME)//': iError returned non-zero value =',IntInfoOpt=iError)
+! END IF ! iError.NE.0
+END SUBROUTINE BARRIER_AND_SYNC
 
 
 !==================================================================================================================================

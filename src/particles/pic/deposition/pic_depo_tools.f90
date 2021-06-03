@@ -149,8 +149,8 @@ USE MOD_Basis              ,ONLY: InitializeVandermonde
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Interpolation_Vars ,ONLY: wGP, xGP, wBary
 #if USE_MPI
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems, nComputeNodeProcessors, myComputeNodeRank, MPI_COMM_SHARED
-USE MOD_MPI_Shared!        ,ONLY: Allocate_Shared
 USE MOD_PICDepo_Vars       ,ONLY: NodeVolume_Shared, NodeVolume_Shared_Win
 #else
 USE MOD_Mesh_Vars          ,ONLY: nElems
@@ -192,8 +192,7 @@ IF (myComputeNodeRank.EQ.0) THEN
 END IF
 ! This sync/barrier is required as it cannot be guaranteed that the zeros have been written to memory by the time the MPI_REDUCE
 ! is executed (see MPI specification). Until the Sync is complete, the status is undefined, i.e., old or new value or utter nonsense.
-CALL MPI_WIN_SYNC(NodeVolume_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(NodeVolume_Shared_Win,MPI_COMM_SHARED)
 #else
 ALLOCATE(NodeVolume(1:nUniqueGlobalNodes))
 NodeVolume = 0.0
@@ -246,8 +245,7 @@ IF (myComputeNodeRank.EQ.0) THEN
 ELSE
   CALL MPI_REDUCE(NodeVolumeLoc , 0          , MessageSize , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
 END IF
-CALL MPI_WIN_SYNC(NodeVolume_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(NodeVolume_Shared_Win,MPI_COMM_SHARED)
 
 #if USE_DEBUG
 ! Sanity Check: Only check UniqueGlobalNodes that are on the compute node (total)
