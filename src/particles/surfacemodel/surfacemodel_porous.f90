@@ -157,8 +157,7 @@ IF (myComputeNodeRank.EQ.0) THEN
   MapSurfSideToPorousSide_Shared = 0
 END IF
 ! This barrier MIGHT not be required
-CALL MPI_WIN_SYNC(MapSurfSideToPorousSide_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(MapSurfSideToPorousSide_Shared_Win,MPI_COMM_SHARED)
 #else
 ALLOCATE(MapSurfSideToPorousSide_Shared(1:nComputeNodeSurfTotalSides))
 MapSurfSideToPorousSide_Shared = 0
@@ -292,10 +291,9 @@ IF (myComputeNodeRank.EQ.0) THEN
   PorousBCSampWall_Shared = 0.
 END IF
 ! This barrier MIGHT not be required
-CALL MPI_WIN_SYNC(PorousBCInfo_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(PorousBCProperties_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(PorousBCSampWall_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(PorousBCInfo_Shared_Win      ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(PorousBCProperties_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(PorousBCSampWall_Shared_Win  ,MPI_COMM_SHARED)
 #else
 ALLOCATE(PorousBCInfo_Shared(1:3,1:nPorousSides))               ! 1: Porous BC,   2: SurfSide ID, 3: SideType
 ALLOCATE(PorousBCProperties_Shared(1:2,1:nPorousSides))         ! 1: Remove prob, 2: Pumping speed side
@@ -342,9 +340,8 @@ IF (myComputeNodeRank.EQ.0) THEN
 #if USE_MPI
 END IF
 
-CALL MPI_WIN_SYNC(PorousBCInfo_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(PorousBCProperties_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(PorousBCInfo_Shared_Win      ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(PorousBCProperties_Shared_Win,MPI_COMM_SHARED)
 IF (myComputeNodeRank.EQ.0) CALL InitPorousCommunication()
 #endif
 
@@ -625,6 +622,7 @@ SUBROUTINE ExchangeImpingedPartPorousBC()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: nSurfLeaders,myComputeNodeRank,mySurfRank
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
@@ -657,8 +655,7 @@ IF (myComputeNodeRank.EQ.0) THEN
 ELSE
   CALL MPI_REDUCE(PorousBCSampWall,0                      ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
 END IF
-CALL MPI_WIN_SYNC(PorousBCSampWall_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(PorousBCSampWall_Shared_Win,MPI_COMM_SHARED)
 
 ! 2.) Internode communication between the surface leader processors of each compute node
 IF (myComputeNodeRank.EQ.0) THEN
@@ -766,8 +763,7 @@ IF (myComputeNodeRank.EQ.0) THEN
 END IF
 
 ! ensure synchronization on compute node
-CALL MPI_WIN_SYNC(PorousBCSampWall_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(PorousBCSampWall_Shared_Win,MPI_COMM_SHARED)
 
 END SUBROUTINE ExchangeImpingedPartPorousBC
 
@@ -783,6 +779,7 @@ SUBROUTINE ExchangeRemovalProbabilityPorousBC
 ! MODULES
 !-----------------------------------------------------------------------------------------------------------------------------------
 USE MOD_Globals
+USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: nSurfLeaders,myComputeNodeRank,mySurfRank
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
@@ -807,8 +804,7 @@ INTEGER                             :: RecvRequest(0:nSurfLeaders-1),SendRequest
 IF (.NOT.SurfOnNode) RETURN
 
 ! 1) Synchronize the removal probability
-CALL MPI_WIN_SYNC(PorousBCProperties_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(PorousBCProperties_Shared_Win,MPI_COMM_SHARED)
 
 IF (myComputeNodeRank.EQ.0) THEN
   ! 2) Internode communication
@@ -914,8 +910,7 @@ IF (myComputeNodeRank.EQ.0) THEN
 END IF
 
 ! ensure synchronization on compute node
-CALL MPI_WIN_SYNC(PorousBCProperties_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(PorousBCProperties_Shared_Win,MPI_COMM_SHARED)
 
 END SUBROUTINE ExchangeRemovalProbabilityPorousBC
 

@@ -42,7 +42,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo,ElemRadius2NGeo, ElemRadiusNG
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #if USE_MPI
-USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
@@ -95,9 +95,8 @@ IF (myComputeNodeRank.EQ.0) THEN
   IF(StringBeginsWith(DepositionType,'shape_function')) ElemRadiusNGeo = 0.
 #if USE_MPI
 END IF
-IF(StringBeginsWith(DepositionType,'shape_function')) CALL MPI_WIN_SYNC(ElemRadiusNGeo_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(ElemRadius2NGeo_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+IF(StringBeginsWith(DepositionType,'shape_function')) CALL BARRIER_AND_SYNC(ElemRadiusNGeo_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ElemRadius2NGeo_Shared_Win,MPI_COMM_SHARED)
 #endif /* USE_MPI*/
 
 #if USE_MPI
@@ -126,10 +125,9 @@ DO iElem=firstElem,lastElem
 END DO ! iElem
 
 #if USE_MPI
-IF(StringBeginsWith(DepositionType,'shape_function')) CALL MPI_WIN_SYNC(ElemRadiusNGeo_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(ElemRadius2NGeo_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(ElemBaryNGeo_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+IF(StringBeginsWith(DepositionType,'shape_function')) CALL BARRIER_AND_SYNC(ElemRadiusNGeo_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ElemRadius2NGeo_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ElemBaryNGeo_Shared_Win   ,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 END SUBROUTINE BuildElementRadiusTria
@@ -155,7 +153,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: XCL_NGeo_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemCurved_Shared,ElemCurved_Shared_Win
 USE MOD_Particle_Mesh_Vars      ,ONLY: XiEtaZetaBasis_Shared,XiEtaZetaBasis_Shared_Win
 USE MOD_Particle_Mesh_Vars      ,ONLY: slenXiEtaZetaBasis_Shared,slenXiEtaZetaBasis_Shared_Win
-USE MOD_MPI_Shared!             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
@@ -254,10 +252,9 @@ END DO
 
 #if USE_MPI
 END ASSOCIATE
-CALL MPI_WIN_SYNC(ElemCurved_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(XiEtaZetaBasis_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(slenXiEtaZetaBasis_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(ElemCurved_Shared_Win        ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(XiEtaZetaBasis_Shared_Win    ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(slenXiEtaZetaBasis_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 END SUBROUTINE BuildElemTypeAndBasisTria
@@ -335,8 +332,7 @@ IF (myComputeNodeRank.EQ.0) THEN
   ElemsJ_Shared = 0.
 END IF
 
-CALL MPI_WIN_SYNC(ElemsJ_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(ElemsJ_Shared_Win,MPI_COMM_SHARED)
 
 firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
@@ -382,8 +378,7 @@ DO iElem = firstElem,lastElem
   END IF
 END DO
 
-CALL MPI_WIN_SYNC(ElemsJ_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(ElemsJ_Shared_Win,MPI_COMM_SHARED)
 #else
 ElemsJ => sJ
 #endif /* USE_MPI*/
@@ -408,8 +403,7 @@ IF (myComputeNodeRank.EQ.0) THEN
 #if USE_MPI
 END IF
 
-CALL MPI_WIN_SYNC(ElemEpsOneCell_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(ElemEpsOneCell_Shared_Win,MPI_COMM_SHARED)
 #endif /* USE_MPI*/
 
 maxScaleJ = 0.
@@ -420,8 +414,7 @@ DO iElem = firstElem,lastElem
 END DO ! iElem = firstElem,lastElem
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(ElemEpsOneCell_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(ElemEpsOneCell_Shared_Win,MPI_COMM_SHARED)
 #endif /* USE_MPI*/
 
 !IF(CalcMeshInfo)THEN
@@ -523,8 +516,7 @@ IF (myComputeNodeRank.EQ.0) THEN
 #if USE_MPI
 END IF
 
-CALL MPI_WIN_SYNC(ElemToBCSides_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(ElemToBCSides_Shared_Win,MPI_COMM_SHARED)
 
 firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
@@ -726,9 +718,8 @@ IF (myComputeNodeRank.EQ.0) THEN
 #if USE_MPI
 END IF
 
-CALL MPI_WIN_SYNC(ElemToBCSides_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(SideBCMetrics_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(ElemToBCSides_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(SideBCMetrics_Shared_Win,MPI_COMM_SHARED)
 #endif /* USE_MPI*/
 
 nBCSidesProc      = 0
@@ -812,8 +803,7 @@ ELSE
 END IF ! fullMesh
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(SideBCMetrics_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(SideBCMetrics_Shared_Win,MPI_COMM_SHARED)
 
 firstSide = INT(REAL( myComputeNodeRank   *nComputeNodeBCSides)/REAL(nComputeNodeProcessors))+1
 lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeBCSides)/REAL(nComputeNodeProcessors))
@@ -839,8 +829,7 @@ DO iSide = firstSide,lastSide
 END DO ! iSide
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(SideBCMetrics_Shared_Win,iError)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(SideBCMetrics_Shared_Win,MPI_COMM_SHARED)
 #endif
 
 ! finally, sort by distance to help speed up BC tracking
@@ -877,8 +866,7 @@ DEALLOCATE(tmpSideBCDistance)
 DEALLOCATE(intSideBCMetrics)
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(SideBCMetrics_Shared_Win,iError)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(SideBCMetrics_Shared_Win,MPI_COMM_SHARED)
 #endif
 
 END SUBROUTINE BuildBCElemDistance
@@ -1025,9 +1013,8 @@ IF(myComputeNodeRank.EQ.0)THEN
 #if USE_MPI
 END IF ! myComputeNodeRank.EQ.0
 
-CALL MPI_WIN_SYNC(NodeToElemInfo_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(NodeToElemMapping_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(NodeToElemInfo_Shared_Win   ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(NodeToElemMapping_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 ! 4. Allocate shared array for mapping
@@ -1164,9 +1151,8 @@ DO iElem = firstElem, lastElem
 END DO ! iElem = firstElem, lastElem
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(ElemToElemInfo_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(ElemToElemMapping_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(ElemToElemInfo_Shared_Win   ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ElemToElemMapping_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 END SUBROUTINE BuildNodeNeighbourhood
@@ -1183,7 +1169,7 @@ USE MOD_Mesh_Vars          ,ONLY: NGeo,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemBaryNGeo
 #if USE_MPI
-USE MOD_MPI_Shared!        ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED
@@ -1234,8 +1220,7 @@ IF (myComputeNodeRank.EQ.0) THEN
 #if USE_MPI
 END IF
 
-CALL MPI_WIN_SYNC(ElemBaryNGeo_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(ElemBaryNGeo_Shared_Win,MPI_COMM_SHARED)
 #endif /* USE_MPI*/
 
 ! evaluate the polynomial at origin: Xi=(/0.0,0.0,0.0/)
@@ -1261,8 +1246,7 @@ END DO ! iElem
 
 #if USE_MPI
 END ASSOCIATE
-CALL MPI_WIN_SYNC(ElemBaryNGeo_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(ElemBaryNGeo_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 END SUBROUTINE BuildElementOriginShared
@@ -1285,7 +1269,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 #if USE_MPI
-USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
@@ -1350,9 +1334,8 @@ IF(myComputeNodeRank.EQ.0) THEN
 #if USE_MPI
 END IF
 
-CALL MPI_WIN_SYNC(ElemRadiusNGeo_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(ElemRadius2NGeo_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(ElemRadiusNGeo_Shared_Win ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ElemRadius2NGeo_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 #if USE_MPI
@@ -1408,11 +1391,10 @@ END DO ! iElem
 
 #if USE_MPI
 END ASSOCIATE
-CALL MPI_WIN_SYNC(ElemRadiusNGeo_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(ElemRadius2NGeo_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(XiEtaZetaBasis_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(slenXiEtaZetaBasis_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(ElemRadiusNGeo_Shared_Win    ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ElemRadius2NGeo_Shared_Win   ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(XiEtaZetaBasis_Shared_Win    ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(slenXiEtaZetaBasis_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 END SUBROUTINE BuildElementBasisAndRadius
@@ -1521,10 +1503,9 @@ IF (myComputeNodeRank.EQ.0) THEN
 #if USE_MPI
 END IF
 
-CALL MPI_WIN_SYNC(BCSide2SideID_Shared_Win,iError)
-CALL MPI_WIN_SYNC(SideID2BCSide_Shared_Win,iError)
-CALL MPI_WIN_SYNC(BCSideMetrics_Shared_Win,iError)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(BCSide2SideID_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(SideID2BCSide_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(BCSideMetrics_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 nUniqueBCSidesProc = 0
@@ -1560,10 +1541,9 @@ DO iSide = firstSide,lastSide
 END DO
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(BCSide2SideID_Shared_Win,iError)
-CALL MPI_WIN_SYNC(SideID2BCSide_Shared_Win,iError)
-CALL MPI_WIN_SYNC(BCSideMetrics_Shared_Win,iError)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(BCSide2SideID_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(SideID2BCSide_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(BCSideMetrics_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 END SUBROUTINE BuildSideOriginAndRadius
@@ -1666,12 +1646,11 @@ ELSE
 END IF
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(BaseVectors0_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(BaseVectors1_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(BaseVectors2_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(BaseVectors3_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(BaseVectorsScale_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(BaseVectors0_Shared_Win    ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(BaseVectors1_Shared_Win    ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(BaseVectors2_Shared_Win    ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(BaseVectors3_Shared_Win    ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(BaseVectorsScale_Shared_Win,MPI_COMM_SHARED)
 #endif /* USE_MPI */
 
 SWRITE(UNIT_stdOut,'(A)')' GET LINEAR SIDE BASEVECTORS DONE!'

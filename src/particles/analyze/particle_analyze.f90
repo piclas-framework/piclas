@@ -155,7 +155,7 @@ USE MOD_TimeDisc_Vars         ,ONLY: ManualTimeStep
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 #endif
 #if USE_MPI
-USE MOD_MPI_Shared!           ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars       ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars    ,ONLY: nComputeNodeElems,offsetComputeNodeElem
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared_Win
@@ -432,10 +432,9 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)TH
   END DO ! iElem = 1, nElems
 
 #if USE_MPI
-  CALL MPI_WIN_SYNC(ElemCharLengthX_Shared_Win,IERROR)
-  CALL MPI_WIN_SYNC(ElemCharLengthY_Shared_Win,IERROR)
-  CALL MPI_WIN_SYNC(ElemCharLengthZ_Shared_Win,IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+  CALL BARRIER_AND_SYNC(ElemCharLengthX_Shared_Win,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(ElemCharLengthY_Shared_Win,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(ElemCharLengthZ_Shared_Win,MPI_COMM_SHARED)
 #endif
 END IF
 
