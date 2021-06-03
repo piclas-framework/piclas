@@ -379,6 +379,7 @@ SUBROUTINE ExchangeSurfData()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: nSurfLeaders,myComputeNodeRank,mySurfRank
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
@@ -451,17 +452,16 @@ IF (CalcSurfaceImpact) THEN
   END IF
 END IF
 
-CALL MPI_WIN_SYNC(SampWallState_Shared_Win       ,IERROR)
+CALL BARRIER_AND_SYNC(SampWallState_Shared_Win         ,MPI_COMM_SHARED)
 IF(nPorousBC.GT.0) THEN
-  CALL MPI_WIN_SYNC(SampWallPumpCapacity_Shared_Win,IERROR)
+  CALL BARRIER_AND_SYNC(SampWallPumpCapacity_Shared_Win,MPI_COMM_SHARED)
 END IF
 IF (CalcSurfaceImpact) THEN
-  CALL MPI_WIN_SYNC(SampWallImpactEnergy_Shared_Win,IERROR)
-  CALL MPI_WIN_SYNC(SampWallImpactVector_Shared_Win,IERROR)
-  CALL MPI_WIN_SYNC(SampWallImpactAngle_Shared_Win ,IERROR)
-  CALL MPI_WIN_SYNC(SampWallImpactNumber_Shared_Win,IERROR)
+  CALL BARRIER_AND_SYNC(SampWallImpactEnergy_Shared_Win,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(SampWallImpactVector_Shared_Win,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(SampWallImpactAngle_Shared_Win ,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(SampWallImpactNumber_Shared_Win,MPI_COMM_SHARED)
 END IF
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
 ! prepare buffers for surf leader communication
 IF (myComputeNodeRank.EQ.0) THEN
@@ -662,17 +662,16 @@ IF (myComputeNodeRank.EQ.0) THEN
 END IF
 
 ! ensure synchronization on compute node
-CALL MPI_WIN_SYNC(SampWallState_Shared_Win       ,IERROR)
+CALL BARRIER_AND_SYNC(SampWallState_Shared_Win         ,MPI_COMM_SHARED)
 IF(nPorousBC.GT.0) THEN
-  CALL MPI_WIN_SYNC(SampWallPumpCapacity_Shared_Win,IERROR)
+  CALL BARRIER_AND_SYNC(SampWallPumpCapacity_Shared_Win,MPI_COMM_SHARED)
 END IF
 IF (CalcSurfaceImpact) THEN
-  CALL MPI_WIN_SYNC(SampWallImpactEnergy_Shared_Win,IERROR)
-  CALL MPI_WIN_SYNC(SampWallImpactVector_Shared_Win,IERROR)
-  CALL MPI_WIN_SYNC(SampWallImpactAngle_Shared_Win ,IERROR)
-  CALL MPI_WIN_SYNC(SampWallImpactNumber_Shared_Win,IERROR)
+  CALL BARRIER_AND_SYNC(SampWallImpactEnergy_Shared_Win,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(SampWallImpactVector_Shared_Win,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(SampWallImpactAngle_Shared_Win ,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(SampWallImpactNumber_Shared_Win,MPI_COMM_SHARED)
 END IF
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
 END SUBROUTINE ExchangeSurfData
 
