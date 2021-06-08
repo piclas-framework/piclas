@@ -49,7 +49,7 @@ def getPartInfo(line):
     SpecID = int(line[SpecID_Index+1])
 
             #['32', 'Error', 'in', 'Particle', 'TriaTracking!', 'Particle', 'Number', '442065', 'lost.', 'Element:', '2881', '(species:', '1', ')']
-    return PartID, Element, SpecID 
+    return PartID, Element, SpecID
 
 
 def RenameFiles(differences, stdfile, stdfile_backup, stdfile_new, args):
@@ -73,6 +73,7 @@ def CleanSingleLines(stdfile,args):
      1. [ REACTION       85084           5           1]
      2. [ CALCULATING THE ADAPTIVE SURFACE FLUX VALUES... Number of sampled particles:   0.0000000000000000     ]
      3. [   3382.0000000000000        1694.4798966228368]
+     OPTIONAL 4. [iter:                  702 time:   3.2151600000000616E-008]
     '''
 
     stdfile_new    = stdfile+".new"
@@ -103,6 +104,11 @@ def CleanSingleLines(stdfile,args):
                 # 3. [   3382.0000000000000        1694.4798966228368]
                 # Ignore this line and increase the counter by 1
                 changedLines+=1
+            elif args.lines and line_stripped.count(' ') > 16 and  'iter:' in line and 'time:' in line and len(line_split) > 3 and hasNumbers(line_stripped):
+                # OPTIONAL 4. [iter:                  702 time:   3.2151600000000616E-008]
+                changedLines+=1
+                #print(line_split)
+                #exit(0)
             else:
                 # Write the line to the new (clean) file
                 output_new.write(line)
@@ -118,10 +124,10 @@ def CleanDoPrintStatusLine(stdfile,args):
     stdfile_backup = stdfile+".bak"
 
     # 1. Search for carriage-return characters
-    
+
     changedLines=0
     with open(stdfile, "r") as input:
-            with open(stdfile_new, "w") as output_new: 
+            with open(stdfile_new, "w") as output_new:
                 for line in input:
                     # Remove carriage-return
                     output_new.write(line.rstrip()+"\n")
@@ -133,7 +139,7 @@ def CleanDoPrintStatusLine(stdfile,args):
     #Time = 0.8601E-07    dt = 0.1000E-10   eta =      0:44:32     |=========================================>        | [ 82.51%]
     arr = ['Time', 'dt', 'eta', '%', '|']
     n=0
-    with open(stdfile_new, "w") as output_new: 
+    with open(stdfile_new, "w") as output_new:
         for line in lines:
             n+=1
             if all(c in line.strip("\n") for c in arr):
@@ -142,7 +148,6 @@ def CleanDoPrintStatusLine(stdfile,args):
             else:
                 # Write the line to the new (clean) file
                 output_new.write(line)
-            
 
     # 3. Rename files
     RenameFiles(changedLines, stdfile, stdfile_backup, stdfile_new, args)
@@ -167,8 +172,8 @@ def CleanLostParticles(stdfile,args):
     nLostParts=0
     meshFound=False
     with open(stdfile, "r") as input:
-        with open(stdfile_lost, "w") as output_lost: 
-            with open(stdfile_new, "w") as output_new: 
+        with open(stdfile_lost, "w") as output_lost:
+            with open(stdfile_new, "w") as output_new:
                 for line in input:
                     n+=1
                     first = getFirst(line)
@@ -256,7 +261,7 @@ def CleanLostParticles(stdfile,args):
                     data[n,5] = vz
                     data[n,6] = SpecID
                     data[n,7] = Element
-                    data[n,8] = PartID 
+                    data[n,8] = PartID
                     data[n,9] = x #LastPos -> store new position (outside of the domain)
                     data[n,10] = y #LastPos -> store new position (outside of the domain)
                     data[n,11] = z #LastPos -> store new position (outside of the domain)
@@ -300,7 +305,7 @@ def CleanLostParticles(stdfile,args):
         f1.attrs.modify('Time',[0.])            # these brackets [] are required for ParaView plugin !
         f1.attrs.create('MeshFile', [MeshFile], None, dtype='<S255')
         f1.attrs.create('N', [1], None, dtype='i4')
-        f1.attrs.create('Project_Name',[b'Lost-particles'], None, dtype='<S255')  # these brackets [] are required for ParaView plugin ! 
+        f1.attrs.create('Project_Name',[b'Lost-particles'], None, dtype='<S255')  # these brackets [] are required for ParaView plugin !
 
         # old: PartPos as x,y, z for particles
         # f1.attrs.create('VarNamesParticles', [b'ParticlePositionX'.ljust(255),  # .ljust(255) is required for ParaView plugin !
@@ -359,17 +364,17 @@ def CleanFile(stdfile,args) :
 class bcolors :
     """color and font style definitions for changing output appearance"""
     # Reset (user after applying a color to return to normal coloring)
-    ENDC   ='\033[0m'    
+    ENDC   ='\033[0m'
 
     # Regular Colors
-    BLACK  ='\033[0;30m' 
-    RED    ='\033[0;31m' 
-    GREEN  ='\033[0;32m' 
-    YELLOW ='\033[0;33m' 
-    BLUE   ='\033[0;34m' 
-    PURPLE ='\033[0;35m' 
-    CYAN   ='\033[0;36m' 
-    WHITE  ='\033[0;37m' 
+    BLACK  ='\033[0;30m'
+    RED    ='\033[0;31m'
+    GREEN  ='\033[0;32m'
+    YELLOW ='\033[0;33m'
+    BLUE   ='\033[0;34m'
+    PURPLE ='\033[0;35m'
+    CYAN   ='\033[0;36m'
+    WHITE  ='\033[0;37m'
 
     # Text Style
     BOLD = '\033[1m'
@@ -403,6 +408,7 @@ parser = argparse.ArgumentParser(description='DESCRIPTION:\nTool for cleaning st
 parser.add_argument('files', type=str, help='Files (std*.out) that are to be cleaned.', nargs='+')
 parser.add_argument('-d', '--debug', action='store_true', help='Print additional information regarding the files onto screen.')
 parser.add_argument('-c', '--clean', action='store_true', help='Clean-up afterwards by removing any *.bak backup files.')
+parser.add_argument('-i', '--iter', action='store_true', help='Removes lines matching "iter:   702 time:   3.2151600000000616E-008" (default=False).')
 
 # Get command line arguments
 args = parser.parse_args()
