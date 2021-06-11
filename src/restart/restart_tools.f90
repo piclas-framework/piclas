@@ -162,7 +162,7 @@ SUBROUTINE RecomputeLambda(t)
 ! a change in the load-distribution, number of used cores, etc,... lambda has to be recomputed ONCE
 !===================================================================================================================================
 ! MODULES
-use MOD_Globals,only:mpiroot
+use MOD_Globals
 USE MOD_DG_Vars            ,ONLY: U
 USE MOD_PreProc
 USE MOD_HDG                ,ONLY: HDG

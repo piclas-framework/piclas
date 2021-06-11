@@ -84,7 +84,7 @@ INTEGER               :: BRNbrOfRegions                ! Nbr of regions to be ma
 LOGICAL               :: CalcBRVariableElectronTemp    ! Use variable ref. electron temperature for BR electron fluid
 CHARACTER(255)        :: BRVariableElectronTemp        ! Variable electron reference temperature when using Boltzmann relation
 !                                                      ! electron model (default is using a constant temperature)
-INTEGER               :: BRVariableElectronTempValue   ! Final electron temperature
+REAL                  :: BRVariableElectronTempValue   ! Final electron temperature
 INTEGER, ALLOCATABLE  :: ElemToBRRegion(:)             ! ElemToBRRegion(1:nElems)
 REAL, ALLOCATABLE     :: BRRegionBounds(:,:)           ! BRRegionBounds ((xmin,xmax,ymin,...)|1:BRNbrOfRegions)
 REAL, ALLOCATABLE     :: RegionElectronRef(:,:)        ! RegionElectronRef((rho0,phi0,Te[eV])|1:BRNbrOfRegions)

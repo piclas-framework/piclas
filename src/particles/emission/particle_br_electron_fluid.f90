@@ -182,7 +182,7 @@ IF (BRNbrOfRegions .GT. 0) THEN
       DO iInit=1, Species(iSpec)%NumberOfInits
         IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'background')THEN
           BRVariableElectronTempValue = Species(iSpec)%Init(iInit)%MWTemperatureIC
-          CALL PrintOption('Final value for variable BR reference electron temperature' , 'INFO' , IntOpt=BRVariableElectronTempValue)
+          CALL PrintOption('Final value for variable BR reference electron temperature','INFO',RealOpt=BRVariableElectronTempValue)
           EXIT
         END IF ! TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'background')
       END DO ! iInit=1, Species(iSpec)%NumberOfInits
@@ -329,8 +329,8 @@ REAL,INTENT(IN)  :: tShift ! temporal shift for electron temperature calculation
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-! Set new reference electron temperature for at t^n
-CALL CalculateVariableRefElectronTemp(0.)
+! Set new reference electron temperature for at t^n or t^n+1
+CALL CalculateVariableRefElectronTemp(tShift)
 ! Calculate NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
 CALL UpdateNonlinVolumeFac(.FALSE.)
 ! Pre-compute HDG local element matrices
@@ -347,11 +347,11 @@ END SUBROUTINE UpdateVariableRefElectronTemp
 SUBROUTINE CalculateVariableRefElectronTemp(tAdd)
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals       ,ONLY: abort,mpiroot
+USE MOD_Globals       ,ONLY: abort
 USE MOD_HDG_Vars      ,ONLY: BRNbrOfRegions,UseBRElectronFluid,RegionElectronRefBackup,RegionElectronRef,DeltaTimeBRWindow
 USE MOD_HDG_Vars      ,ONLY: BRVariableElectronTemp,BRVariableElectronTempValue
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge,BoltzmannConst
-USE MOD_TimeDisc_Vars ,ONLY: dt_Min,time
+USE MOD_TimeDisc_Vars ,ONLY: dt_Min
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
