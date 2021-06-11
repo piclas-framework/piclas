@@ -319,6 +319,7 @@ END SUBROUTINE InitializeVariablesElectronFluidRegions
 SUBROUTINE UpdateVariableRefElectronTemp(tShift)
 ! MODULES
 USE MOD_HDG           ,ONLY: UpdateNonlinVolumeFac
+USE MOD_HDG_vars      ,ONLY: UseBRElectronFluid,HDGNonLinSolver
 USE MOD_Elem_Mat      ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_TimeDisc_Vars ,ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
@@ -332,7 +333,7 @@ REAL,INTENT(IN)  :: tShift ! temporal shift for electron temperature calculation
 ! Set new reference electron temperature for at t^n or t^n+1
 CALL CalculateVariableRefElectronTemp(tShift)
 ! Calculate NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
-CALL UpdateNonlinVolumeFac(.FALSE.)
+IF(UseBRElectronFluid.AND.(HDGNonLinSolver.EQ.1)) CALL UpdateNonlinVolumeFac(.FALSE.)
 ! Pre-compute HDG local element matrices
 CALL Elem_Mat(iter)
 ! Build a block-diagonal preconditioner for the lambda system
