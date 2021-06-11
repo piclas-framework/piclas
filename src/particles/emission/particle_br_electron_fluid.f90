@@ -125,7 +125,7 @@ SUBROUTINE InitializeVariablesElectronFluidRegions()
 USE MOD_Globals
 USE MOD_HDG_Vars
 USE MOD_ReadInTools
-USE MOD_Particle_Vars
+USE MOD_Particle_Vars ,ONLY: nSpecies,Species
 USE MOD_Restart_Vars  ,ONLY: DoRestart,RestartTime
 USE MOD_TimeDisc_Vars ,ONLY: Time
 ! IMPLICIT VARIABLE HANDLING
@@ -137,7 +137,7 @@ USE MOD_TimeDisc_Vars ,ONLY: Time
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(32)         :: hilf, hilf2
-INTEGER               :: iRegions
+INTEGER               :: iRegions,iSpec,iInit
 REAL                  :: phimax_tmp
 !===================================================================================================================================
 !-- Read parameters for region mapping
@@ -176,8 +176,18 @@ IF (BRNbrOfRegions .GT. 0) THEN
   SELECT CASE(TRIM(BRVariableElectronTemp))
   CASE('constant')  ! Default, nothing to do
   CASE('linear','exp') ! Linear/Exponential drop towards background temperature
-    ! BG
-    ! time
+    ! BGGas temperature
+    BRVariableElectronTempValue = -1. ! initialize
+    DO iSpec=1,nSpecies
+      DO iInit=1, Species(iSpec)%NumberOfInits
+        IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'background')THEN
+          BRVariableElectronTempValue = Species(iSpec)%Init(iInit)%MWTemperatureIC
+          CALL PrintOption('Final value for variable BR reference electron temperature' , 'INFO' , IntOpt=BRVariableElectronTempValue)
+          EXIT
+        END IF ! TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'background')
+      END DO ! iInit=1, Species(iSpec)%NumberOfInits
+    END DO ! iSpec=1,nSpecies
+    IF(BRVariableElectronTempValue.LT.0.0) CALL abort(__STAMP__,'Variable reference electron temperature: final value is negative.')
   CASE DEFAULT
     CALL abort(__STAMP__,'Unknown method for BRVariableElectronTemp: '//TRIM(BRVariableElectronTemp))
   END SELECT
@@ -339,7 +349,7 @@ SUBROUTINE CalculateVariableRefElectronTemp(tAdd)
 USE MOD_PreProc
 USE MOD_Globals       ,ONLY: abort,mpiroot
 USE MOD_HDG_Vars      ,ONLY: BRNbrOfRegions,UseBRElectronFluid,RegionElectronRefBackup,RegionElectronRef,DeltaTimeBRWindow
-USE MOD_HDG_Vars      ,ONLY: BRVariableElectronTemp
+USE MOD_HDG_Vars      ,ONLY: BRVariableElectronTemp,BRVariableElectronTempValue
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge,BoltzmannConst
 USE MOD_TimeDisc_Vars ,ONLY: dt_Min,time
 ! IMPLICIT VARIABLE HANDLING
@@ -350,7 +360,6 @@ REAL,INTENT(IN) :: tAdd
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER         :: iRegions
-REAL,PARAMETER  :: T2_in_K=300 ! Target temperature
 !INTEGER :: i,j,k,r,iElem
 !INTEGER :: RegionID
 !===================================================================================================================================
@@ -360,7 +369,7 @@ IF(UseBRElectronFluid)THEN
       'DeltaTimeBRWindow is zero. Therefore, 1/DeltaTimeBRWindow is not possible!')
 
   ASSOCIATE( &
-        T2 => T2_in_K*BoltzmannConst/ElementaryCharge ,& ! convert K to eV
+        T2 => BRVariableElectronTempValue*BoltzmannConst/ElementaryCharge ,& ! convert K to eV
         dt => dt_Min(DT_BR_SWITCH)+tAdd           )
     ! Select scaling function
     SELECT CASE(TRIM(BRVariableElectronTemp))
