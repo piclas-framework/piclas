@@ -183,6 +183,17 @@ DO iVar=1,nVarAvg
   IF(iVar2.NE.-1)THEN
     CalcAvg(iVar2) = .TRUE.
   ELSE
+    SWRITE (*,*) "\n\n  Error in InitTimeAverage()"
+    SWRITE (*,*) " Select one or more of the following variables for time averaging via [VarNameAvg] and/or [VarNameFluc]\n"
+    SWRITE (*,*) "   ElectricFieldX\n    ElectricFieldY\n    ElectricFieldZ\n    MagneticFieldX\n    MagneticFieldY\n    MagneticFieldZ"
+    SWRITE (*,*) "   Phi\n    Psi\n    ElectricFieldMagnitude\n    MagneticFieldMagnitude"
+    SWRITE (*,*) "   PoyntingVectorX\n    PoyntingVectorY\n    PoyntingVectorZ\n    PoyntingVectorMagnitude"
+#ifdef PARTICLES
+    SWRITE (*,*) "\n  Maximum number of species: ", nSpecies
+    SWRITE (*,*) "   PowerDensityX-Spec0x\n    PowerDensityY-Spec0x\n    PowerDensityZ-Spec0x\n    PowerDensity-Spec0x"
+    SWRITE (*,*) "   ChargeDensity-Spec0x"
+    SWRITE (*,*) "   ChargeDensityX-Spec0x\n    ChargeDensityY-Spec0x\n    ChargeDensityZ-Spec0x\n    ChargeDensity-Spec0x"
+#endif /*PARTICLES*/
     CALL CollectiveStop(__STAMP__, &
     'Specified varname does not exist: ' // VarNamesAvgIni(iVar))
   END IF
