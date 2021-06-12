@@ -104,7 +104,7 @@ def CleanSingleLines(stdfile,args):
                 # 3. [   3382.0000000000000        1694.4798966228368]
                 # Ignore this line and increase the counter by 1
                 changedLines+=1
-            elif args.lines and line_stripped.count(' ') > 16 and  'iter:' in line and 'time:' in line and len(line_split) > 3 and hasNumbers(line_stripped):
+            elif args.iter and line_stripped.count(' ') > 16 and  'iter:' in line and 'time:' in line and len(line_split) > 3 and hasNumbers(line_stripped):
                 # OPTIONAL 4. [iter:                  702 time:   3.2151600000000616E-008]
                 changedLines+=1
                 #print(line_split)
