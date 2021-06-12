@@ -86,7 +86,6 @@ USE MOD_Dielectric_Vars
 USE MOD_HDF5_Output_Tools ,ONLY: WriteDielectricGlobalToHDF5
 USE MOD_Globals_Vars      ,ONLY: c
 USE MOD_Interfaces        ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
-USE MOD_Mesh              ,ONLY: GetMeshMinMaxBoundaries
 #if ! (USE_HDG)
 USE MOD_Equation_Vars     ,ONLY: c_corr
 #endif /*if not USE_HDG*/

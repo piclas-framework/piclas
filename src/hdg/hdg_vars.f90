@@ -42,7 +42,8 @@ REAL,ALLOCATABLE    :: InvPrecondDiag(:,:)  ! 1/diagonal of Precond
 REAL,ALLOCATABLE    :: qn_face(:,:,:)         ! for Neumann BC
 REAL,ALLOCATABLE    :: qn_face_MagStat(:,:,:)         ! for Neumann BC
 INTEGER             :: nDirichletBCsides
-INTEGER             :: ZeroPotentialSideID
+INTEGER             :: ZeroPotentialSideID   ! SideID, where the solution is set zero to enforce convergence
+REAL,PARAMETER      :: ZeroPotentialValue=0. ! This can be set to an arbitrary value (in the range of the potential solution)
 INTEGER             :: nNeumannBCsides
 INTEGER,ALLOCATABLE :: DirichletBC(:)
 INTEGER,ALLOCATABLE :: NeumannBC(:)
