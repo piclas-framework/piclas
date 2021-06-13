@@ -126,7 +126,6 @@ USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_Basis              ,ONLY: InitializeVandermonde,LegendreGaussNodesAndWeights,BarycentricWeights
 USE MOD_FillMortar_HDG     ,ONLY: InitMortar_HDG
 USE MOD_HDG_Vars           ,ONLY: BRNbrOfRegions,ElemToBRRegion,RegionElectronRef
-USE MOD_Mesh_Vars          ,ONLY: Face_xGP,nBCs,BoundaryName
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -362,7 +361,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_HDG_Vars    ,ONLY: ZeroPotentialSideID
 USE MOD_Mesh        ,ONLY: GetMeshMinMaxBoundaries
-USE MOD_Mesh_Vars   ,ONLY: nBCs,BoundaryName,nBCSides,BoundaryType,nSides,BC,xyzMinMax,NGeo,Face_xGP
+USE MOD_Mesh_Vars   ,ONLY: nBCs,BoundaryType,nSides,BC,xyzMinMax,NGeo,Face_xGP
 USE MOD_ReadInTools ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -371,7 +370,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: SideID,BCAlpha,BCType,BCState,iBC,nZeroPotentialSides,nZeroPotentialSidesGlobal,ZeroPotentialDir
-INTEGER           :: nZeroPotentialSidesMax
+INTEGER           :: nZeroPotentialSidesMax,BCSide
 REAL,DIMENSION(3) :: x,v1,v2,v3
 REAL              :: norm,I(3,3)
 !===================================================================================================================================
@@ -411,9 +410,11 @@ IF(ZeroPotentialSideID.EQ.-1)THEN
 
   nZeroPotentialSides = 0 ! Initialize
   DO SideID=1,nSides ! Periodic sides are not within the 1,nBCSides list !
-    BCType =BoundaryType(BC(SideID),BC_TYPE)
-    BCState=BoundaryType(BC(SideID),BC_STATE)
-    BCAlpha=BoundaryType(BC(SideID),BC_ALPHA)
+    BCSide=BC(SideID)
+    IF(BCSide.EQ.0) CYCLE ! inner sides
+    BCType =BoundaryType(BCSide,BC_TYPE)
+    BCState=BoundaryType(BCSide,BC_STATE)
+    BCAlpha=BoundaryType(BCSide,BC_ALPHA)
     IF(BCType.EQ.0) CYCLE ! skip inner sides
 
     ! Check if the normal vector of the face points in the direction (or negative direction) of the ZeroPotentialDir (tolerance 1e-5)
@@ -439,6 +440,7 @@ IF(ZeroPotentialSideID.EQ.-1)THEN
 #else
   nZeroPotentialSidesGlobal = nZeroPotentialSides
 #endif /*USE_MPI*/
+  SWRITE(UNIT_StdOut,'(A,I0)') " Found (global) number of zero potential sides: ", nZeroPotentialSidesMax
 
   ! Sanity checks for root
   IF(MPIroot)THEN
