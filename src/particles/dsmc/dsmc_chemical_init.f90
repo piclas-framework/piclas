@@ -28,6 +28,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DefineParametersChemistry
 PUBLIC :: DSMC_chemical_init
+PUBLIC :: InitReactionPaths
 !===================================================================================================================================
 
 CONTAINS
@@ -139,9 +140,6 @@ USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
 USE MOD_DSMC_SpecXSec           ,ONLY: MCC_Chemistry_Init
-#if USE_HDG
-USE MOD_HDG_Vars                ,ONLY: UseBRElectronFluid
-#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -151,14 +149,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=3)      :: hilf
-INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit, iCase, iCase2, ReacIndexCounter
+INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
-LOGICAL               :: DoScat, RecombAdded
+LOGICAL               :: DoScat
 REAL                  :: BGGasEVib, PhotonEnergy, omega, ChargeProducts, ChargeReactants
 INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, ReadInNumOfReact
-#if USE_HDG
-INTEGER               :: iProd
-#endif /*USE_HDG*/
 !===================================================================================================================================
 
 ChemReac%NumOfReact = GETINT('DSMC-NumOfReactions')
@@ -203,7 +198,7 @@ DO iReac = 1, ReadInNumOfReact
   ELSE
     ChemReac%BackwardReac(iReac) = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-BackwardReac','.FALSE.')
   END IF
-  IF (ChemReac%BackwardReac(iReac)) THEN 
+  IF (ChemReac%BackwardReac(iReac)) THEN
     ChemReac%NumOfReact = ChemReac%NumOfReact + 1
     IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.GT.0) &
       ChemReac%NumOfReact = ChemReac%NumOfReact + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
@@ -497,6 +492,79 @@ END IF
 ALLOCATE(ChemReac%CollCaseInfo(CollInf%NumCase))
 ChemReac%CollCaseInfo(:)%NumOfReactionPaths = 0
 
+! Initialize reaction paths
+CALL InitReactionPaths()
+
+! Initialize MCC model: Read-in of the reaction cross-section database and re-calculation of the null collision probability
+IF(ChemReac%AnyXSecReaction) THEN
+  CALL MCC_Chemistry_Init()
+END IF
+
+! Recombination: saving the reaction index based on the third species
+DO iReac = 1, ChemReac%NumOfReact
+  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
+    Reactant1 = ChemReac%Reactants(iReac,1)
+    Reactant2 = ChemReac%Reactants(iReac,2)
+    Reactant3 = ChemReac%Reactants(iReac,3)
+    ChemReac%ReactNumRecomb(Reactant1, Reactant2, Reactant3) = iReac
+    ChemReac%ReactNumRecomb(Reactant2, Reactant1, Reactant3) = iReac
+    DummyRecomb(Reactant1,Reactant2) = iReac
+  END IF
+END DO
+! Filling empty values of ReactNumRecomb with the last recombination reaction for that collision pair
+DO iReac = 1, ChemReac%NumOfReact
+  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
+    Reactant1 = ChemReac%Reactants(iReac,1)
+    Reactant2 = ChemReac%Reactants(iReac,2)
+    DO iSpec = 1, nSpecies
+      IF(ChemReac%ReactNumRecomb(Reactant1, Reactant2, iSpec).EQ.0) THEN
+        ChemReac%ReactNumRecomb(Reactant1, Reactant2, iSpec) = DummyRecomb(Reactant1,Reactant2)
+        ChemReac%ReactNumRecomb(Reactant2, Reactant1, iSpec) = DummyRecomb(Reactant1,Reactant2)
+      END IF
+    END DO
+  END IF
+END DO
+
+DEALLOCATE(DummyRecomb)
+DEALLOCATE(ChemReac%ArbDiss)
+
+DO iReac = 1, ChemReac%NumOfReact
+  ! Skip reactions that are not TCE
+  IF(TRIM(ChemReac%ReactModel(iReac)).NE.'TCE') CYCLE
+  iSpec = ChemReac%Reactants(iReac,1)
+  iSpec2 = ChemReac%Reactants(iReac,2)
+  omega = CollInf%omega(iSpec,iSpec2)
+  ! Compute VHS Factor H_ab necessary for reaction probs, only defined for one omega for all species (laux diss page 24)
+  ChemReac%Hab(iReac) = GAMMA(2.0 - omega) * 2.0 * CollInf%Cab(CollInf%Coll_Case(iSpec,iSpec2)) &
+                        / ((1 + CollInf%KronDelta(CollInf%Coll_Case(iSpec,iSpec2))) * SQRT(Pi)) &
+                        * (2.0 * BoltzmannConst / CollInf%MassRed(CollInf%Coll_Case(iSpec, iSpec2))) ** (0.5 - omega)
+END DO
+
+END SUBROUTINE DSMC_chemical_init
+
+
+!===================================================================================================================================
+!> Initialize all possible reaction paths
+!===================================================================================================================================
+SUBROUTINE InitReactionPaths()
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars ,ONLY: ChemReac,SpecDSMC,CollInf
+#if USE_HDG
+USE MOD_HDG_Vars  ,ONLY: UseBRElectronFluid ! Used for skipping reactions involving electrons as products
+#endif /*USE_HDG*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER     :: iReac,iCase,iCase2,ReacIndexCounter
+LOGICAL     :: RecombAdded
+#if USE_HDG
+INTEGER     :: iProd
+#endif /*USE_HDG*/
+!===================================================================================================================================
 DO iCase = 1, CollInf%NumCase
   RecombAdded = .FALSE.
   REACLOOP: DO iReac = 1, ChemReac%NumOfReact
@@ -576,51 +644,7 @@ DO iCase = 1, CollInf%NumCase
   END DO REACLOOP2
 END DO
 
-IF(ChemReac%AnyXSecReaction) THEN
-  CALL MCC_Chemistry_Init()
-END IF
-
-! Recombination: saving the reaction index based on the third species
-DO iReac = 1, ChemReac%NumOfReact
-  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
-    Reactant1 = ChemReac%Reactants(iReac,1)
-    Reactant2 = ChemReac%Reactants(iReac,2)
-    Reactant3 = ChemReac%Reactants(iReac,3)
-    ChemReac%ReactNumRecomb(Reactant1, Reactant2, Reactant3) = iReac
-    ChemReac%ReactNumRecomb(Reactant2, Reactant1, Reactant3) = iReac
-    DummyRecomb(Reactant1,Reactant2) = iReac
-  END IF
-END DO
-! Filling empty values of ReactNumRecomb with the last recombination reaction for that collision pair
-DO iReac = 1, ChemReac%NumOfReact
-  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
-    Reactant1 = ChemReac%Reactants(iReac,1)
-    Reactant2 = ChemReac%Reactants(iReac,2)
-    DO iSpec = 1, nSpecies
-      IF(ChemReac%ReactNumRecomb(Reactant1, Reactant2, iSpec).EQ.0) THEN
-        ChemReac%ReactNumRecomb(Reactant1, Reactant2, iSpec) = DummyRecomb(Reactant1,Reactant2)
-        ChemReac%ReactNumRecomb(Reactant2, Reactant1, iSpec) = DummyRecomb(Reactant1,Reactant2)
-      END IF
-    END DO
-  END IF
-END DO
-
-DEALLOCATE(DummyRecomb)
-DEALLOCATE(ChemReac%ArbDiss)
-
-DO iReac = 1, ChemReac%NumOfReact
-  ! Skip reactions that are not TCE
-  IF(TRIM(ChemReac%ReactModel(iReac)).NE.'TCE') CYCLE
-  iSpec = ChemReac%Reactants(iReac,1)
-  iSpec2 = ChemReac%Reactants(iReac,2)
-  omega = CollInf%omega(iSpec,iSpec2)
-  ! Compute VHS Factor H_ab necessary for reaction probs, only defined for one omega for all species (laux diss page 24)
-  ChemReac%Hab(iReac) = GAMMA(2.0 - omega) * 2.0 * CollInf%Cab(CollInf%Coll_Case(iSpec,iSpec2)) &
-                        / ((1 + CollInf%KronDelta(CollInf%Coll_Case(iSpec,iSpec2))) * SQRT(Pi)) &
-                        * (2.0 * BoltzmannConst / CollInf%MassRed(CollInf%Coll_Case(iSpec, iSpec2))) ** (0.5 - omega)
-END DO
-
-END SUBROUTINE DSMC_chemical_init
+END SUBROUTINE InitReactionPaths
 
 
 SUBROUTINE DSMC_BackwardRate_init()

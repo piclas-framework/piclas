@@ -510,8 +510,9 @@ USE MOD_HDG             ,ONLY: UpdateNonlinVolumeFac
 USE MOD_TimeDisc_Vars   ,ONLY: time,iter
 USE MOD_Elem_Mat        ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_part_operations ,ONLY: RemoveAllElectrons
-!USE MOD_Restart_Tools   ,ONLY: RecomputeLambda
 USE MOD_DSMC_Vars       ,ONLY: XSec_NullCollision
+USE MOD_DSMC_ChemInit   ,ONLY: InitReactionPaths
+USE MOD_DSMC_Vars       ,ONLY: ChemReac
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -519,13 +520,14 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL        :: debug,SwitchToBR
+LOGICAL        :: debug,SwitchToBR,SwitchToKin
 !===================================================================================================================================
 !debug=.true.
 debug=.false.
 
-! check if a switch happens now to update the variable reference electron temperature
+! check if a switch happens now to update the variable reference electron temperature or activate chemical reactions with electrons
 SwitchToBR=.FALSE.
+SwitchToKin=.FALSE.
 
 ASSOCIATE( tBR2Kin => BRConvertFluidToElectronsTime ,&
            tKin2BR => BRConvertElectronsToFluidTime )
@@ -541,6 +543,7 @@ ASSOCIATE( tBR2Kin => BRConvertFluidToElectronsTime ,&
       CALL CreateElectronsFromBRFluid(.FALSE.) ! Use BR electron fluid model density to create kinetic electrons in each cell
       UseBRElectronFluid = .FALSE. ! Deactivate BR fluid
       CALL Elem_Mat(iter)          ! Recompute elem matrices
+      SwitchToKin=.TRUE.! check if a switch happens now to update the chemical reactions (activate electron products)
       IF((.NOT.BRConvertModelRepeatedly).AND.(BRConvertMode.EQ.-2)) tKin2BR = -1.0 ! deactivate kin -> BR
       ! (Re-)activate Null-Collision (if the read-in parameter is set true)
       XSec_NullCollision = BRNullCollisionDefault
@@ -579,6 +582,13 @@ CALL GetNextBRSwitchTime()
 
 ! Depending on kinetic/BR model, update values and matrices
 IF(SwitchToBR.AND.CalcBRVariableElectronTemp) CALL UpdateVariableRefElectronTemp(0.)
+
+! Update reaction paths (specifically the ones that involve electrons, which are deactivated for UseBRElectronFluid = .FALSE.)
+IF(SwitchToBR.OR.SwitchToKin)THEN
+  SDEALLOCATE(ChemReac%CollCaseInfo)
+  SDEALLOCATE(ChemReac%CollCaseInfo)
+  CALL InitReactionPaths()
+END IF ! SwitchToBR.OR.Swi
 
 END SUBROUTINE SwitchBRElectronModel
 
