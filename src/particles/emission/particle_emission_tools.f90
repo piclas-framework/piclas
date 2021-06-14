@@ -1235,7 +1235,7 @@ USE MOD_SuperB_Tools           ,ONLY: FindLinIndependentVectors, GramSchmidtAlgo
 USE MOD_Globals_Vars           ,ONLY: Pi
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac, dt
 USE MOD_PICInterpolation_vars  ,ONLY: useVariableExternalField, VariableExternalField
-USE MOD_PICInterpolation       ,ONLY: InterpolateVariableExternalField
+USE MOD_PICInterpolation_tools ,ONLY: InterpolateVariableExternalField
 USE MOD_Globals_Vars           ,ONLY: c_inv
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING

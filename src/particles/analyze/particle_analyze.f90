@@ -56,11 +56,13 @@ CALL prms%CreateLogicalOption(  'CalcPICCFLCondition'     , 'Compute a PIC CFL c
 CALL prms%CreateLogicalOption(  'CalcMaxPartDisplacement' , 'Compute the maximum displacement of the fastest particle in terms of'//&
                                                             ' cell lengths in X, Y and Z for each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcDebyeLength'         , 'Compute the Debye length in each cell','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcPICTimeStep'         , 'Compute the HDG time step in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPICTimeStep'         , 'Compute the HDG time step in each cell depending on the plasma frequency','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPICTimeStepCyclotron', 'Compute the HDG time step in each cell depending on the cyclotron frequency','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcElectronTemperature' , 'Compute the electron temperature in each cell','.FALSE.')
 !CALL prms%CreateLogicalOption(  'ElectronTemperatureIsMaxwell', 'Flag if  electron temperature is assumed to be Maxwellian in each cell','.TRUE.')
 CALL prms%CreateLogicalOption(  'CalcElectronIonDensity'     , 'Compute the electron density in each cell','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcPlasmaFrequency'     , 'Compute the electron frequency in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPlasmaFrequency'     , 'Compute the electron plasma frequency in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcCyclotronFrequency'  , 'Compute the electron cylcotron frequency in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCharge'              , 'TODO-DEFINE-PARAMETER\n'//&
                                                             'Compute the whole deposited charge,'//&
                                                             ' absolute and relative charge error','.FALSE.')
@@ -466,7 +468,7 @@ IF(CalcIonizationDegree)THEN
   CALL AddToElemData(ElementOut,'QuasiNeutralityCell',RealArray=QuasiNeutralityCell(1:PP_nElems))
 END IF
 
-! PIC Time Step Approximation
+! PIC time step Approximation
 CalcPICTimeStep       = GETLOGICAL('CalcPICTimeStep','.FALSE.')
 IF(CalcPICTimeStep)THEN
   ALLOCATE( PICTimeStepCell(1:PP_nElems) )
@@ -474,13 +476,39 @@ IF(CalcPICTimeStep)THEN
   CALL AddToElemData(ElementOut,'PICTimeStepCell',RealArray=PICTimeStepCell(1:PP_nElems))
 END IF
 
-! Plasma Frequency
+! Plasma frequency
 CalcPlasmaFrequency   = GETLOGICAL('CalcPlasmaFrequency','.FALSE.')
 IF(CalcPICTimeStep) CalcPlasmaFrequency=.TRUE.
 IF(CalcPlasmaFrequency)THEN
   ALLOCATE( PlasmaFrequencyCell(1:PP_nElems) )
   PlasmaFrequencyCell=0.0
   CALL AddToElemData(ElementOut,'PlasmaFrequencyCell',RealArray=PlasmaFrequencyCell(1:PP_nElems))
+END IF
+
+! PIC time step approximation for gyro motion
+CalcPICTimeStepCyclotron       = GETLOGICAL('CalcPICTimeStepCyclotron','.FALSE.')
+IF(CalcPICTimeStepCyclotron)THEN
+  ALLOCATE( PICTimeStepCyclotronCell(1:PP_nElems) )
+  PICTimeStepCyclotronCell=0.0
+  CALL AddToElemData(ElementOut,'PICTimeStepCyclotronCell',RealArray=PICTimeStepCyclotronCell(1:PP_nElems))
+END IF
+
+! Electron cyclotron frequency and gyroradius
+CalcCyclotronFrequency   = GETLOGICAL('CalcCyclotronFrequency','.FALSE.')
+IF(CalcPICTimeStepCyclotron) CalcCyclotronFrequency=.TRUE.
+IF(CalcCyclotronFrequency)THEN
+  ALLOCATE( CyclotronFrequencyMaxCell(1:PP_nElems) )
+  CyclotronFrequencyMaxCell=0.0
+  CALL AddToElemData(ElementOut,'CyclotronFrequencyMaxCell',RealArray=CyclotronFrequencyMaxCell(1:PP_nElems))
+  ALLOCATE( CyclotronFrequencyMinCell(1:PP_nElems) )
+  CyclotronFrequencyMinCell=0.0
+  CALL AddToElemData(ElementOut,'CyclotronFrequencyMinCell',RealArray=CyclotronFrequencyMinCell(1:PP_nElems))
+  ALLOCATE( GyroradiusMinCell(1:PP_nElems) )
+  GyroradiusMinCell=0.0
+  CALL AddToElemData(ElementOut,'GyroradiusMinCell',RealArray=GyroradiusMinCell(1:PP_nElems))
+  ALLOCATE( GyroradiusMaxCell(1:PP_nElems) )
+  GyroradiusMaxCell=0.0
+  CALL AddToElemData(ElementOut,'GyroradiusMaxCell',RealArray=GyroradiusMaxCell(1:PP_nElems))
 END IF
 
 ! Electron Density
@@ -1566,6 +1594,12 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)TH
   ADEALLOCATE(ElemCharLengthY_Shared)
   ADEALLOCATE(ElemCharLengthZ_Shared)
 END IF
+
+SDEALLOCATE(CyclotronFrequencyMaxCell)
+SDEALLOCATE(CyclotronFrequencyMinCell)
+SDEALLOCATE(GyroradiusMaxCell)
+SDEALLOCATE(GyroradiusMinCell)
+SDEALLOCATE(PICTimeStepCyclotronCell)
 
 END SUBROUTINE FinalizeParticleAnalyze
 #endif /*PARTICLES*/
