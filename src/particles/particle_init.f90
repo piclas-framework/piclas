@@ -1277,7 +1277,7 @@ USE MOD_Particle_MPI_Halo  ,ONLY: FinalizePartExchangeProcs
 USE MOD_PICDepo_Vars       ,ONLY: SendShapeElemID,SendElemShapeID,ShapeMapping,CNShapeMapping
 #endif /*USE_MPI*/
 #if USE_HDG
-USE MOD_HDG_Vars           ,ONLY: RegionBounds,RegionElectronRef
+USE MOD_HDG_Vars           ,ONLY: BRRegionBounds,RegionElectronRef,RegionElectronRefBackup
 #endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -1355,8 +1355,9 @@ SDEALLOCATE(CNShapeMapping)
 CALL FinalizePartExchangeProcs()
 #endif
 #if USE_HDG
-SDEALLOCATE(RegionBounds)
+SDEALLOCATE(BRRegionBounds)
 SDEALLOCATE(RegionElectronRef)
+SDEALLOCATE(RegionElectronRefBackup)
 #endif /*USE_HDG*/
 END SUBROUTINE FinalizeParticles
 

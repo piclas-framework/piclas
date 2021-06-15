@@ -37,6 +37,7 @@ END INTERFACE
 PUBLIC :: InitHDG,FinalizeHDG
 PUBLIC :: HDG, RestartHDG
 PUBLIC :: DefineParametersHDG
+PUBLIC :: UpdateNonlinVolumeFac
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -78,10 +79,13 @@ CALL prms%CreateLogicalOption('HDGDisplayConvergence'  ,'Display divergence crit
 
 
 ! --- BR electron fluid
-CALL prms%CreateIntOption(      'BRNbrOfRegions'                , 'Number of regions to be mapped to Elements', '0')
-CALL prms%CreateRealArrayOption('RegionBounds[$]'             , 'RegionBounds ((xmin,xmax,ymin,...)'//&
-                                                                '|1:BRNbrOfRegions)'&
-                                                                , '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'BRNbrOfRegions'        , 'Number of regions to be mapped to Elements', '0')
+
+CALL prms%CreateStringOption(   'BRVariableElectronTemp', 'Variable electron reference temperature when using Boltzmann relation'//&
+                                                          ' electron model (default is using a constant temperature)','constant')
+CALL prms%CreateRealArrayOption('BRRegionBounds[$]'     , 'BRRegionBounds ((xmin,xmax,ymin,...)'//&
+                                                           '|1:BRNbrOfRegions)'&
+                                                        , '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'rho_ref, phi_ref, and Te[eV] for Region#'&
                                                               , '0. , 0. , 1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected phi for Region#\n'//&
@@ -119,7 +123,6 @@ USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETREAL,GETINT
 USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides,nSides
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCSides,nSides,BC
 USE MOD_Mesh_Vars          ,ONLY: nGlobalMortarSides,nMortarMPISides
-USE MOD_Globals_Vars       ,ONLY: eps0
 USE MOD_Restart_Vars       ,ONLY: DoRestart
 USE MOD_Mesh_Vars          ,ONLY: DoSwapMesh
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
@@ -135,7 +138,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: i,j,k,r,iElem,SideID
-INTEGER           :: BCType,BCState,RegionID
+INTEGER           :: BCType,BCState
 REAL              :: D(0:PP_N,0:PP_N)
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
@@ -171,19 +174,15 @@ IF (BRNbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so fa
     NewtonAdaptStartValue   = GETLOGICAL('NewtonAdaptStartValue')
     AdaptIterNewtonToLinear = GETINT('AdaptIterNewtonToLinear')
     IF (NewtonExactSourceDeriv) NewtonAdaptStartValue=.TRUE.
-    IF (DoRestart) NewtonAdaptStartValue=.FALSE.
+    IF (DoRestart)              NewtonAdaptStartValue=.FALSE.
     ALLOCATE(NonlinVolumeFac(nGP_vol,PP_nElems))
-    DO iElem=1,PP_nElems
-      RegionID=ElemToBRRegion(iElem)
-      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-        r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-        IF (NewtonAdaptStartValue) THEN
-          NonlinVolumeFac(r,iElem)=0.0
-        ELSE
-          NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
-        END IF
-      END DO; END DO; END DO !i,j,k
-    END DO !iElem
+
+    ! Set NonlinVolumeFac for each element. Set zero if
+    !  a) NewtonAdaptStartValue is activated
+    !  b) fully kinetic currently active and variable electron temperature activated (skips calculation when starting from
+    !     a simulation that was fully kinetic and will be switched)
+    CALL UpdateNonlinVolumeFac(NewtonAdaptStartValue.OR.((.NOT.UseBRElectronFluid).AND.CalcBRVariableElectronTemp))
+
   END IF
 
   MaxIterNewton = GETINT('MaxIterNewton')
@@ -331,9 +330,8 @@ DO iElem=1,PP_nElems
 END DO !iElem
 
 IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as only the state file is converted
-  CALL Elem_Mat(INT(0,8))
+  CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
 END IF
-
 
 CALL BuildPrecond()
 
@@ -346,6 +344,38 @@ HDGInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT HDG DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitHDG
+
+
+!===================================================================================================================================
+! Set NonlinVolumeFac for each element depending on
+!===================================================================================================================================
+SUBROUTINE UpdateNonlinVolumeFac(NullifyField)
+! MODULES
+USE MOD_PreProc
+USE MOD_HDG_Vars     ,ONLY: NonlinVolumeFac,RegionElectronRef,ElemToBRRegion
+USE MOD_Globals_Vars ,ONLY: eps0
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+LOGICAL,INTENT(IN)      :: NullifyField ! Set NonlinVolumeFac = 0 if this variable is true
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: i,j,k,r,iElem,RegionID
+!===================================================================================================================================
+IF(NullifyField) THEN
+  NonlinVolumeFac = 0.
+ELSE
+  DO iElem=1,PP_nElems
+    RegionID=ElemToBRRegion(iElem)
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+      r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
+      NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
+    END DO; END DO; END DO !i,j,k
+  END DO !iElem
+END IF ! NewtonAdaptStartValue
+
+END SUBROUTINE UpdateNonlinVolumeFac
 
 
 SUBROUTINE HDG(t,U_out,iter,ForceCGSolverIteration_opt)
@@ -370,6 +400,7 @@ LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in f
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+LOGICAL :: ForceCGSolverIteration_loc
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(4))
@@ -392,11 +423,8 @@ END IF
 #if defined(PARTICLES)
 IF(UseBRElectronFluid) THEN
   IF (HDGNonLinSolver.EQ.1) THEN
-    IF(PRESENT(ForceCGSolverIteration_opt))THEN
-      CALL HDGNewton(t, U_out, iter, ForceCGSolverIteration_opt)
-    ELSE
-      CALL HDGNewton(t, U_out, iter)
-    END IF ! PRESENT(ForceCGSolverIteration)
+    ForceCGSolverIteration_loc = MERGE(ForceCGSolverIteration_opt, .FALSE., PRESENT(ForceCGSolverIteration_opt))
+    CALL HDGNewton(t, U_out, iter, ForceCGSolverIteration_loc)
   ELSE
     CALL abort(__STAMP__,'Defined HDGNonLinSolver not implemented (HDGFixPoint has been removed!) HDGNonLinSolver = ',&
     IntInfoOpt=HDGNonLinSolver)
@@ -732,8 +760,7 @@ REAL    :: tLBStart
     CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 #if (PP_nVar!=1)
-  WRITE(*,*) 'Nonlinear Newton solver only available with EQ-system Poisson!!'
-  STOP
+  CALL abort(__STAMP__,'Nonlinear Newton solver only available with EQ-system Poisson!')
 #endif
 Norm_r2=0.
 
@@ -790,16 +817,16 @@ warning_linear=.FALSE.
 DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-    CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem),warning_linear)
+    CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem),warning_linear,warning_linear_phi)
   END DO; END DO; END DO !i,j,k
   RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(PP_nVar,:,iElem)
 END DO !iElem
 IF (warning_linear) THEN
-  SWRITE(*,*) 'WARNING: during iteration at least one DOF resulted in a phi > phi_max.\n'//&
-    '=> Increase Part-RegionElectronRef#-PhiMax if already steady!'
+  SWRITE(*,'(A,ES10.2E3)') 'WARNING: during iteration at least one DOF resulted in a phi > phi_max.\n'//&
+    '=> Increase Part-RegionElectronRef#-PhiMax if already steady! Phi-Phi_ref=',warning_linear_phi
 END IF
 
-  !prepare RHS_face ( RHS for lamdba system.)
+!prepare RHS_face ( RHS for lambda system.)
 RHS_vol(PP_nVar,:,:)=RHS_vol(PP_nVar,:,:)+JwGP_vol(:,:)*U_out(PP_nVar,:,:)*NonlinVolumeFac(:,:)
 
 RHS_face(PP_nVar,:,:) =0.
@@ -841,7 +868,7 @@ IF(PRESENT(ForceCGSolverIteration_opt))THEN
   IF(ForceCGSolverIteration_opt)THEN
     ! Due to the removal of electrons during restart
     converged=.false.
-    SWRITE(UNIT_StdOut,*) "Force initial CG solver iteration by setting converged=F (Norm_r2=",Norm_r2,")"
+    SWRITE(UNIT_StdOut,*) "Forcing initial CG solver to iterate by setting converged=F (Norm_r2=",Norm_r2,")"
   END IF ! ForceCGSolverIteration_opt
 END IF ! ForceCGSolverIteration_opt
 IF (converged) THEN
@@ -1182,9 +1209,9 @@ DO iteration=1,MaxIterCG
   lambda=lambda+omega*V
   R=R-omega*Z
   CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),rr)
+  IF(ISNAN(rr)) CALL abort(__STAMP__,'res=NaN')
 #if USE_MPI
   IF(MPIroot) converged=(rr.LT.AbortCrit2)
-!  IF(MPIroot) print*, rr, AbortCrit2
   CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
 #else
   converged=(rr.LT.AbortCrit2)
@@ -1238,7 +1265,7 @@ USE MOD_Globals       ,ONLY: UNIT_StdOut
 USE MOD_TimeDisc_Vars ,ONLY: iter,IterDisplayStep
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)     :: ElapsedTime
 INTEGER,INTENT(IN)  :: iteration
 REAL,INTENT(IN)     :: Norm_R2

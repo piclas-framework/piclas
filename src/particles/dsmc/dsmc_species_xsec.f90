@@ -32,9 +32,13 @@ SUBROUTINE MCC_Init()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
-USE MOD_PARTICLE_Vars         ,ONLY: nSpecies
-USE MOD_DSMC_Vars             ,ONLY: BGGas, SpecDSMC, XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation, CollInf
+USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
+USE MOD_PARTICLE_Vars ,ONLY: nSpecies
+USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation, CollInf
+#if defined(PARTICLES) && USE_HDG
+USE MOD_HDG_Vars      ,ONLY: UseBRElectronFluid,BRNullCollisionDefault
+USE MOD_ReadInTools   ,ONLY: PrintOption
+#endif /*defined(PARTICLES) && USE_HDG*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -51,6 +55,13 @@ ELSE
   XSec_NullCollision = .FALSE.
 END IF
 XSec_Relaxation = .FALSE.
+#if defined(PARTICLES) && USE_HDG
+BRNullCollisionDefault = XSec_NullCollision ! Backup read-in parameter value (for switching null collision on/off)
+IF(XSec_NullCollision.AND.UseBRElectronFluid)THEN
+  XSec_NullCollision = .FALSE. ! Deactivate null collision when using BR electrons due to (possibly) increased time step
+  CALL PrintOption('Using BR electron fuild model: Particles-CollXSec-NullCollision','INFO',LogOpt=XSec_NullCollision)
+END IF
+#endif /*defined(PARTICLES) && USE_HDG*/
 
 IF(TRIM(XSec_Database).EQ.'none') THEN
   CALL abort(&
