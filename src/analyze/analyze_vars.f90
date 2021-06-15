@@ -73,5 +73,15 @@ REAL                :: PosAverageElectricPotential      !< x-coordinate of plane
 INTEGER             :: AverageElectricPotentialFaces    !< global number of faces
 #endif /*USE_HDG*/
 !===================================================================================================================================
+! --- BoundaryFieldOutput = BFO
+LOGICAL                       :: CalcBoundaryFieldOutput !< Flag for activating this output
+
+TYPE tBoundaryFieldOutput
+  INTEGER                       :: NFieldBoundaries   !< Total number of boundaries where the field BC is stored to .csv
+  INTEGER,ALLOCATABLE           :: FieldBoundaries(:) !< Field-boundary number (iBC)
+END TYPE
+
+TYPE(tBoundaryFieldOutput)   :: BFO
+!===================================================================================================================================
 LOGICAL           :: AnalyzeInitIsDone = .FALSE.
 END MODULE MOD_Analyze_Vars
