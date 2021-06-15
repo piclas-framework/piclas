@@ -85,7 +85,8 @@ do
     LOADMODULES=0
     # Set desired versions
     #CMAKEVERSION=3.15.3-d
-    CMAKEVERSION=3.17.0-d
+    #CMAKEVERSION=3.17.0-d
+    CMAKEVERSION=3.20.3
     #GCCVERSION=9.2.0
     GCCVERSION=9.3.0
     #GCCVERSION=10.1.0
@@ -110,7 +111,13 @@ done
 #  sudo apt-get install qtxmlpatterns5-dev-tools
 #  sudo apt-get install qttools5-dev qt5-default libxt-dev libgl1-mesa-dev
 #  sudo apt-get install python3.8-dev
-PARAVIEWVERSION=5.8.0
+#PARAVIEWVERSION=5.8.0
+
+# Version 5.9.0 on Ubuntu 21.04 requires the following (also maybe some of the above, if they are not installed)
+# sudo apt-get install libqt5x11extras5-dev
+# sudo apt-get install qtdeclarative5-dev
+# sudo apt-get install qttools5-dev
+PARAVIEWVERSION=5.9.1
 
 INSTALLDIR=/opt
 SOURCEDIR=/opt/sources
@@ -183,11 +190,26 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
       # Check if renamed directory exists and create backup of it
       if [ -d "${SOURCEDIR}/paraview-${PARAVIEWVERSION}" ]; then
         # Move directory, e.g., "paraview-5.8.0" to "paraview-5.8.0_bak"
+        #echo -e "${SOURCEDIR}/paraview-${PARAVIEWVERSION} already exists."
         #rm -rf ${SOURCEDIR}/paraview-${PARAVIEWVERSION}_bak
-        mv ${SOURCEDIR}/paraview-${PARAVIEWVERSION} ${SOURCEDIR}/paraview-${PARAVIEWVERSION}_bak
+        #mv ${SOURCEDIR}/paraview-${PARAVIEWVERSION} ${SOURCEDIR}/paraview-${PARAVIEWVERSION}_bak
+
+        # Inquiry: Continue the installation with the existing files OR remove them all and start fresh
+        while true; do
+          read -p "${SOURCEDIR}/paraview-${PARAVIEWVERSION} already exists. Do you want to continue the installation (y/n)? Otherwise the directory will be removed and a fresh installation will be performed. [Y/n]" yn
+            case $yn in
+                [Yy]* ) echo "Continuing... "; break;;
+                [Nn]* ) rm -rf ${SOURCEDIR}/paraview-${PARAVIEWVERSION} ; break;;
+                * ) echo "Please answer yes or no.";;
+            esac
+        done
       fi
-      # The extracted directory is named, e.g., "ParaView-v5.8.0", which is renamed to "paraview-5.8.0" with small letters and no "v"
-      mv ${SOURCEDIR}/ParaView-v${PARAVIEWVERSION} ${SOURCEDIR}/paraview-${PARAVIEWVERSION}
+
+      # Check if renamed directory was possibly deleted in the previous step OR this is a completely fresh installation
+      if [ ! -d "${SOURCEDIR}/paraview-${PARAVIEWVERSION}" ]; then
+        # The extracted directory is named, e.g., "ParaView-v5.8.0", which is renamed to "paraview-5.8.0" with small letters and no "v"
+        mv ${SOURCEDIR}/ParaView-v${PARAVIEWVERSION} ${SOURCEDIR}/paraview-${PARAVIEWVERSION}
+      fi
     fi
     #rm -rf paraview-${PARAVIEWVERSION}-source.tar.gz
   fi
@@ -216,8 +238,18 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
       -DVTK_MODULE_USE_EXTERNAL_VTK_hdf5=ON \
       -DCMAKE_INSTALL_PREFIX=${PARAVIEWINSTALLDIR} \
       ${SOURCEDIR}/paraview-${PARAVIEWVERSION}
+  elif [ "$PARAVIEWVERSION" == "5.9.1" ]; then
+    cmake -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_POLICY_DEFAULT_CMP0072=NEW \
+      -DCMAKE_POLICY_DEFAULT_CMP0074=NEW \
+      -DPARAVIEW_USE_PYTHON=ON \
+      -DPARAVIEW_USE_MPI=ON \
+      -DPARAVIEW_INSTALL_DEVELOPMENT_FILES=ON \
+      -DVTK_USE_SYSTEM_HDF5=ON \
+      -DCMAKE_INSTALL_PREFIX=${PARAVIEWINSTALLDIR} \
+      ${SOURCEDIR}/paraview-${PARAVIEWVERSION}
   else
-    echo -e "$RED""ERROR: Set the correct cmake compile flags for the paraview version [$PARAVIEWVERSION]$NC"
+    echo -e "$RED""ERROR: Set the correct cmake compile flags for the paraview version [$PARAVIEWVERSION] in InstallParaview.sh$NC"
     exit
   fi
   make -j 2>&1 | tee make.out
@@ -230,7 +262,7 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
   fi
 
 
-  # create modulefile if installation seems succesfull (check if mpicc, mpicxx, mpifort exists in installdir)
+  # create modulefile if the installation seems successful (check if mpicc, mpicxx, mpifort exists in installdir)
   if [ -e "${PARAVIEWINSTALLDIR}/bin/paraview" ]; then
     if [ ! -d "${PARAVIEWMODULEFILEDIR}" ]; then
       mkdir -p ${PARAVIEWMODULEFILEDIR}
