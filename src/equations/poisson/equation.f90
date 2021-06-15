@@ -242,7 +242,7 @@ CASE(-2) ! Signal without zero-crossing (always positive or negative), otherwise
   ! RefState(3,iRefState): phase shift
   Omega   = 2.*PI*RefState(2,iRefState)
   r1      = RefState(1,iRefState) / 2.0
-  Resu(:) = r1*COS(Omega*t+RefState(3,iRefState)) + r1
+  Resu(:) = r1*(COS(Omega*t+RefState(3,iRefState)) + 1.0)
 CASE(-1) ! Signal with zero-crossing: Amplitude, Frequency and Phase Shift supplied by RefState
   ! RefState(1,iRefState): amplitude
   ! RefState(2,iRefState): frequency
