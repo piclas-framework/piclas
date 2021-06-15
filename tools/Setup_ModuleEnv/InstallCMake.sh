@@ -57,9 +57,11 @@ fi
 #CMAKEVERSION='3.4.3'
 #CMAKEVERSION='3.13.3'
 #CMAKEVERSION='3.15.3'
-CMAKEVERSION='3.17.0'
+#CMAKEVERSION='3.17.0'
+CMAKEVERSION='3.20.3'
+
 CMAKEDIR=${INSTALLDIR}/cmake/${CMAKEVERSION}/standard
-MODULEFILE=${INSTALLDIR}/modules/modulefiles/utilities/cmake/${CMAKEVERSION}-d
+MODULEFILE=${INSTALLDIR}/modules/modulefiles/utilities/cmake/${CMAKEVERSION}
 
 if [[ -n ${1} ]]; then
   if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
