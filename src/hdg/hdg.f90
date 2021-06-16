@@ -417,7 +417,7 @@ DO iBC=1,nBCs
   SELECT CASE(BCType)
   CASE(1) ! periodic
     ! do nothing
-  CASE(2,4,5) ! Dirichlet
+  CASE(2,4,5,6) ! Dirichlet
     ZeroPotentialSideID = 0 ! no zero potential required
     EXIT ! as soon as one Dirichlet BC is found, no zero potential must be used
   CASE(10,11) ! Neumann

@@ -693,7 +693,7 @@ SUBROUTINE GetMeshMinMaxBoundaries()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
-USE MOD_Mesh_Vars,     ONLY: Face_xGP,nBCSides,xyzMinMax,GetMeshMinMaxBoundariesIsDone
+USE MOD_Mesh_Vars,     ONLY: Face_xGP,nSides,xyzMinMax,GetMeshMinMaxBoundariesIsDone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
@@ -706,11 +706,13 @@ REAL                :: xyzMinMaxloc(6)
 !============================================================================================================================
 ! check if already called
 IF(GetMeshMinMaxBoundariesIsDone)RETURN
-! get processor local bounding box of faces for damping value ramp
-xyzMinMaxloc(:) = (/MINVAL(Face_xGP(1,:,:,1:nBCSides)),MAXVAL(Face_xGP(1,:,:,1:nBCSides)),&
-                    MINVAL(Face_xGP(2,:,:,1:nBCSides)),MAXVAL(Face_xGP(2,:,:,1:nBCSides)),&
-                    MINVAL(Face_xGP(3,:,:,1:nBCSides)),MAXVAL(Face_xGP(3,:,:,1:nBCSides))/)
-! get global bounding box of faces for damping value ramp
+
+! Get min/max values from Face_xGP. Note that nBCSides cannot be used because this does not work for fully periodic systems
+xyzMinMaxloc(:) = (/MINVAL(Face_xGP(1,:,:,1:nSides)),MAXVAL(Face_xGP(1,:,:,1:nSides)),&
+                    MINVAL(Face_xGP(2,:,:,1:nSides)),MAXVAL(Face_xGP(2,:,:,1:nSides)),&
+                    MINVAL(Face_xGP(3,:,:,1:nSides)),MAXVAL(Face_xGP(3,:,:,1:nSides))/)
+
+! Get global bounding box of faces for damping value ramp
 #if USE_MPI
    CALL MPI_ALLREDUCE(xyzMinMaxloc(1),xyzMinMax(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
    CALL MPI_ALLREDUCE(xyzMinMaxloc(2),xyzMinMax(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
