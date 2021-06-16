@@ -106,8 +106,9 @@ USE MOD_Output                 ,ONLY: PrintStatusLine
 USE MOD_TimeStep
 USE MOD_TimeDiscInit           ,ONLY: InitTimeStep
 #if defined(PARTICLES) && USE_HDG
-USE MOD_Part_BR_Elecron_Fluid  ,ONLY: SwitchBRElectronModel
+USE MOD_Part_BR_Elecron_Fluid  ,ONLY: SwitchBRElectronModel,UpdateVariableRefElectronTemp
 USE MOD_HDG_Vars               ,ONLY: BRConvertMode,BRTimeStepBackup,BRTimeStepMultiplier,UseBRElectronFluid
+USE MOD_HDG_Vars               ,ONLY: CalcBRVariableElectronTemp
 #endif /*defined(PARTICLES) && USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -333,6 +334,10 @@ DO !iter_t=0,MaxIter
   ELSE
     finalIter=.FALSE.
   END IF
+#if defined(PARTICLES) && USE_HDG
+  ! Depending on kinetic/BR model, set the reference electron temperature for t^n+1, therefore "add" -dt to the calculation
+  IF(CalcBRVariableElectronTemp) CALL UpdateVariableRefElectronTemp(-dt)
+#endif /*defined(PARTICLES) && USE_HDG*/
   CALL PerformAnalyze(time,FirstOrLastIter=finalIter,OutPutHDF5=.FALSE.)
 #ifdef PARTICLES
   ! sampling of near adaptive boundary element values
