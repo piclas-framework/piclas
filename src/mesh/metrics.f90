@@ -475,7 +475,7 @@ DO iLocSide=1,6
   DO q=0,Nloc; DO p=0,Nloc
     pq=CGNS_SideToVol2(Nloc,p,q,iLocSide)
     ! Compute Face_xGP for sides
-    Face_xGP(1:3,p,q,sideID)=tmp2(:,pq(1),pq(2))
+    Face_xGP(1:3,p,q,SideID)=tmp2(:,pq(1),pq(2))
   END DO; END DO ! p,q
 
   NormalDir=NormalDirs(iLocSide); TangDir=TangDirs(iLocSide); NormalSign=NormalSigns(iLocSide);

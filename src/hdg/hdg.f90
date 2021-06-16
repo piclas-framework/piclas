@@ -451,6 +451,7 @@ IF(ZeroPotentialSideID.EQ.-1)THEN
 
   nZeroPotentialSides = 0 ! Initialize
   DO SideID=1,nSides ! Periodic sides are not within the 1,nBCSides list !
+    IF(MAXVAL(ABS(Face_xGP(:,:,:,SideID))).LE.0.) CYCLE ! slave sides
     BCSide=BC(SideID)
     IF(BCSide.EQ.0) CYCLE ! inner sides
     BCType =BoundaryType(BCSide,BC_TYPE)
