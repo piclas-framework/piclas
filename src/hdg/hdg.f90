@@ -77,6 +77,9 @@ CALL prms%CreateRealOption(   'HDGSkip_t0'             ,'Time during which HDGSk
 
 CALL prms%CreateLogicalOption('HDGDisplayConvergence'  ,'Display divergence criteria: Iterations, RunTime and Residual', '.FALSE.')
 
+CALL prms%CreateIntOption(    'HDGZeroPotentialDir'    ,'Direction in which a Dirichlet condition with phi=0 is superimposed on the boundary conditions'&
+                                                      //' (1: x, 2: y, 3: z). The default chooses the direction automatically when no other Dirichlet boundary conditions are defined.'&
+                                                       ,'-1')
 
 ! --- BR electron fluid
 CALL prms%CreateIntOption(      'BRNbrOfRegions'                , 'Number of regions to be mapped to Elements', '0')
@@ -390,10 +393,10 @@ SUBROUTINE InitZeroPotential()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_HDG_Vars    ,ONLY: ZeroPotentialSideID
+USE MOD_HDG_Vars    ,ONLY: ZeroPotentialSideID,HDGZeroPotentialDir
 USE MOD_Mesh        ,ONLY: GetMeshMinMaxBoundaries
 USE MOD_Mesh_Vars   ,ONLY: nBCs,BoundaryType,nSides,BC,xyzMinMax,NGeo,Face_xGP
-USE MOD_ReadInTools ,ONLY: PrintOption
+USE MOD_ReadInTools ,ONLY: PrintOption,GETINT
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -405,10 +408,12 @@ INTEGER           :: nZeroPotentialSidesMax,BCSide
 REAL,DIMENSION(3) :: x,v1,v2,v3
 REAL              :: norm,I(3,3)
 !===================================================================================================================================
-ZeroPotentialSideID=-1 ! Initialize
-I(:,1) = (/1. , 0. , 0./)
-I(:,2) = (/0. , 1. , 0./)
-I(:,3) = (/0. , 0. , 1./)
+! Initialize variables
+HDGZeroPotentialDir = GETINT('HDGZeroPotentialDir')
+ZeroPotentialSideID = -1
+I(:,1)              = (/1. , 0. , 0./)
+I(:,2)              = (/0. , 1. , 0./)
+I(:,3)              = (/0. , 0. , 1./)
 
 ! Every processor has to check every BC
 DO iBC=1,nBCs
@@ -429,14 +434,19 @@ END DO
 
 ! If a Dirichlet BC is found ZeroPotentialSideID is zero and the following is skipped
 IF(ZeroPotentialSideID.EQ.-1)THEN
-  ! Select the direction (x, y or z), which has the largest extent (to account for 1D and 2D setups for example)
-  CALL GetMeshMinMaxBoundaries()
+  ! Check if the user has selected a specific direction
+  IF(HDGZeroPotentialDir.EQ.-1)THEN
+    ! Select the direction (x, y or z), which has the largest extent (to account for 1D and 2D setups for example)
+    CALL GetMeshMinMaxBoundaries()
 
-  ! Calc max extents in each direction for comparison
-  x(1) = xyzMinMax(2)-xyzMinMax(1)
-  x(2) = xyzMinMax(4)-xyzMinMax(3)
-  x(3) = xyzMinMax(6)-xyzMinMax(5)
-  ZeroPotentialDir=MAXLOC(x,DIM=1)
+    ! Calc max extents in each direction for comparison
+    x(1) = xyzMinMax(2)-xyzMinMax(1)
+    x(2) = xyzMinMax(4)-xyzMinMax(3)
+    x(3) = xyzMinMax(6)-xyzMinMax(5)
+    ZeroPotentialDir=MAXLOC(x,DIM=1)
+  ELSE
+    ZeroPotentialDir = HDGZeroPotentialDir
+  END IF ! HDGZeroPotentialDir.EQ.-1
   CALL PrintOption('Zero potential side activated in direction (1: x, 2: y, 3: z)','OUTPUT',IntOpt=ZeroPotentialDir)
 
   nZeroPotentialSides = 0 ! Initialize
@@ -1381,7 +1391,7 @@ USE MOD_Globals       ,ONLY: UNIT_StdOut
 USE MOD_TimeDisc_Vars ,ONLY: iter,IterDisplayStep
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)     :: ElapsedTime
 INTEGER,INTENT(IN)  :: iteration
 REAL,INTENT(IN)     :: Norm_R2
