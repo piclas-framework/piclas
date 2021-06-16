@@ -693,7 +693,7 @@ SUBROUTINE GetMeshMinMaxBoundaries()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
-USE MOD_Mesh_Vars,     ONLY: Face_xGP,nSides,xyzMinMax,GetMeshMinMaxBoundariesIsDone
+USE MOD_Mesh_Vars ,ONLY: xyzMinMax,GetMeshMinMaxBoundariesIsDone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
@@ -702,26 +702,41 @@ IMPLICIT NONE
 !output parameters
 !----------------------------------------------------------------------------------------------------------------------------
 !local variables
-REAL                :: xyzMinMaxloc(6)
+#if USE_MPI
+REAL              :: xmin_loc(3),xmax_loc(3) ! for sending via MPI
+REAL              :: xmin(3),xmax(3) ! for receiving via MPI
+#endif /*USE_MPI*/
 !============================================================================================================================
 ! check if already called
-IF(GetMeshMinMaxBoundariesIsDone)RETURN
+IF(GetMeshMinMaxBoundariesIsDone) RETURN
 
-! Get min/max values from Face_xGP. Note that nBCSides cannot be used because this does not work for fully periodic systems
-xyzMinMaxloc(:) = (/MINVAL(Face_xGP(1,:,:,1:nSides)),MAXVAL(Face_xGP(1,:,:,1:nSides)),&
-                    MINVAL(Face_xGP(2,:,:,1:nSides)),MAXVAL(Face_xGP(2,:,:,1:nSides)),&
-                    MINVAL(Face_xGP(3,:,:,1:nSides)),MAXVAL(Face_xGP(3,:,:,1:nSides))/)
-
-! Get global bounding box of faces for damping value ramp
+! Get global min/max for all directions x, y and z
 #if USE_MPI
-   CALL MPI_ALLREDUCE(xyzMinMaxloc(1),xyzMinMax(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
-   CALL MPI_ALLREDUCE(xyzMinMaxloc(2),xyzMinMax(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
-   CALL MPI_ALLREDUCE(xyzMinMaxloc(3),xyzMinMax(3), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
-   CALL MPI_ALLREDUCE(xyzMinMaxloc(4),xyzMinMax(4), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
-   CALL MPI_ALLREDUCE(xyzMinMaxloc(5),xyzMinMax(5), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
-   CALL MPI_ALLREDUCE(xyzMinMaxloc(6),xyzMinMax(6), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
+
+   ! Map global min/max values from xyzMinMax(1:6) that were determined in metric.f90 for each processor
+   xmin_loc(1) = xyzMinMax(1)
+   xmin_loc(2) = xyzMinMax(3)
+   xmin_loc(3) = xyzMinMax(5)
+
+   xmax_loc(1) = xyzMinMax(2)
+   xmax_loc(2) = xyzMinMax(4)
+   xmax_loc(3) = xyzMinMax(6)
+
+   ! Find global min
+   CALL MPI_ALLREDUCE(xmin_loc(1:3),xmin(1:3), 3, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
+   ! Find global max
+   CALL MPI_ALLREDUCE(xmax_loc(1:3),xmax(1:3), 3, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
+
+   ! Map global min/max values to xyzMinMax(1:6)
+   xyzMinMax(1) = xmin(1)
+   xyzMinMax(3) = xmin(2)
+   xyzMinMax(5) = xmin(3)
+
+   xyzMinMax(2) = xmax(1)
+   xyzMinMax(4) = xmax(2)
+   xyzMinMax(6) = xmax(3)
 #else
-   xyzMinMax=xyzMinMaxloc
+   ! Already doe in metric.f90
 #endif /*USE_MPI*/
 
 ! don't call twice

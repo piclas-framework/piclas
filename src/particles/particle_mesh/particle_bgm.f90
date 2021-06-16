@@ -236,7 +236,7 @@ lastElem  = nElems
 SELECT CASE(TrackingMethod)
   CASE(TRIATRACKING)
     DO iElem = firstElem, lastElem
-      offSetNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)
+      offsetNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)
       nNodeIDs     = ElemInfo_Shared(ELEM_LASTNODEIND ,iElem)-ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)
       firstNodeID  = offsetNodeID+1
       lastNodeID   = offsetNodeID+nNodeIDs
