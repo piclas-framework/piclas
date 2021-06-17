@@ -325,7 +325,6 @@ TYPE tPairData
                                                                   !       3: sigma excitation
   REAL                          :: Ec                           ! Collision Energy
   LOGICAL                       :: NeedForRec                   ! Flag if pair is needed for Recombination
-  REAL                          :: MPF                          ! Weightingfactor in case of different species based MPF and BGG
 END TYPE tPairData
 
 TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)                ! Data of collision pairs into a cell (nPair)
@@ -347,7 +346,7 @@ TYPE tCollInf     ! Collision information
   REAL          , ALLOCATABLE   :: Cab(:)                       ! species factor for cross section (#of case)
   INTEGER       , ALLOCATABLE   :: KronDelta(:)                 ! (number of case)
   REAL          , ALLOCATABLE   :: FracMassCent(:,:)            ! mx/(my+mx) (nSpec, number of cases)
-  REAL          , ALLOCATABLE   :: MeanMPF(:)
+  REAL          , ALLOCATABLE   :: MeanMPF(:)                   !
   REAL          , ALLOCATABLE   :: MassRed(:)                   ! reduced mass (number of cases)
   REAL          , ALLOCATABLE   :: Tref(:,:)                    ! collision model: reference temperature     , ini_2
   REAL          , ALLOCATABLE   :: dref(:,:)                    ! collision model: reference diameter        , ini_2

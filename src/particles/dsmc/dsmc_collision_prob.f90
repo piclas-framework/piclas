@@ -43,7 +43,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: UseMCC, SpecXSec, XSec_NullCollision, CollisMode
-USE MOD_Particle_Vars           ,ONLY: PartSpecies, Species, VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: dt
 USE MOD_DSMC_SpecXSec           ,ONLY: XSec_CalcCollisionProb, XSec_CalcReactionProb, XSec_CalcVibRelaxProb
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -61,8 +61,8 @@ REAL, INTENT(IN), OPTIONAL          :: NodeVolume
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                             :: iPType, NbrOfReaction, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase, PairType
-REAL                                :: SpecNum1, SpecNum2, Weight1, Weight2, Volume, CollProb, PairMPF
-REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot, MacroParticleFactor, dtCell, CollCaseNum, SabFak
+REAL                                :: SpecNum1, SpecNum2, Weight1, Weight2, Volume, CollProb
+REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot, MacroParticleFactor, dtCell, CollCaseNum
 !===================================================================================================================================
 
 PairType   = Coll_pData(iPair)%PairType
@@ -84,22 +84,16 @@ SpecNum2 = CollInf%Coll_SpecPartNum(iSpec_p2)
 Weight1 = GetParticleWeight(iPart_p1)
 Weight2 = GetParticleWeight(iPart_p2)
 
-IF(Coll_pData(iPair)%MPF.GT. 0.0) THEN
-  PairMPF  = Coll_pData(iPair)%MPF
-  SpecNum1 = CollInf%Coll_SpecPartNum(iSpec_p1) / PairMPF
-  SpecNum2 = CollInf%Coll_SpecPartNum(iSpec_p2) / PairMPF
-  SabFak   = PairMPF
-ELSE
-  PairMPF  = Species(1)%MacroParticleFactor
-  SpecNum2 = CollInf%Coll_SpecPartNum(iSpec_p2) / PairMPF
-  SabFak   = 1.0
-END IF
 ! Determing the particle weight (2D/VTS: Additional scaling of the weighting according to the position within the cell)
-IF (RadialWeighting%DoRadialWeighting) THEN
-  ! Correction factor: Collision pairs above the mean MPF within the cell will get a higher collision probability
-  ! Not the actual weighting factor, since the weighting factor is included in SpecNum
+IF (usevMPF) THEN
+  IF(RadialWeighting%DoRadialWeighting) THEN
+    ! Correction factor: Collision pairs above the mean MPF within the cell will get a higher collision probability
+    ! Not the actual weighting factor, since the weighting factor is included in SpecNum
     MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) &
                           / CollInf%MeanMPF(PairType)
+  ELSE
+    MacroParticleFactor = 1.
+  END IF
   ! Sum over the mean weighting factor of all collision pairs, is equal to the number of collision pairs
   ! (incl. weighting factor)
   CollCaseNum = CollInf%MeanMPF(PairType)
@@ -108,13 +102,13 @@ ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
   MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) &
                       / CollInf%MeanMPF(PairType)
   ! Sum over the mean variable time step factors (NO particle weighting factor included during MeanMPF summation)
-  CollCaseNum = CollInf%MeanMPF(PairType) * PairMPF
+  CollCaseNum = CollInf%MeanMPF(PairType) * Species(1)%MacroParticleFactor
   ! Weighting factor has to be included
-  SpecNum1 = SpecNum1 * PairMPF
-  SpecNum2 = SpecNum2 * PairMPF
+  SpecNum1 = SpecNum1 * Species(1)%MacroParticleFactor
+  SpecNum2 = SpecNum2 * Species(1)%MacroParticleFactor
 ELSE
-  MacroParticleFactor = PairMPF
-  CollCaseNum = REAL(CollInf%Coll_CaseNum(PairType)) / SabFak
+  MacroParticleFactor = Species(1)%MacroParticleFactor
+  CollCaseNum = REAL(CollInf%Coll_CaseNum(PairType))
 END IF
 IF (VarTimeStep%UseVariableTimeStep) THEN
   dtCell = dt * (VarTimeStep%ParticleTimeStep(iPart_p1) + VarTimeStep%ParticleTimeStep(iPart_p2))*0.5
