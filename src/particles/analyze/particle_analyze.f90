@@ -102,8 +102,10 @@ CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'    , 'Percentage of curr
 CALL prms%CreateLogicalOption(  'IsRestart'                , 'Flag, if the current calculation is a restart.', '.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , 'Calculate output of Power that is coupled into plasma' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'DisplayCoupledPower'      , 'Display coupled power in UNIT_stdOut' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcEMFieldOutput', 'Output the electro-mangetic fields on each DOF to .h5 calculated by PIC interpolation external fields and from field solver','.FALSE.')
 
 END SUBROUTINE DefineParametersParticleAnalyze
+
 
 SUBROUTINE InitParticleAnalyze()
 !===================================================================================================================================
@@ -686,6 +688,9 @@ IsRestart = GETLOGICAL('IsRestart','.FALSE.')
 IF(CalcBRVariableElectronTemp) DoPartAnalyze=.TRUE.
 CALL PrintOption('CalcBRVariableElectronTemp','INFO',LogOpt=CalcBRVariableElectronTemp)
 #endif /*USE_HDG*/
+
+!-- check if magnetic field on each DG DOF of every element is to be written to .h5
+CalcEMFieldOutput = GETLOGICAL('CalcEMFieldOutput')
 
 ParticleAnalyzeInitIsDone=.TRUE.
 

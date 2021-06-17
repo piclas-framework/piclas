@@ -145,5 +145,6 @@ REAL                          :: printDiffVec(6)                     !< TODO
 REAL                          :: ChemEnergySum                       !< TODO
 REAL,ALLOCATABLE              :: MassflowRate(:,:)
 REAL,ALLOCATABLE              :: PressureAdaptiveBC(:,:)
+LOGICAL                       :: CalcEMFieldOutput                   !< Output the electro-magnetic fields on each DOF to .h5 calculated by PIC interpolation external fields and from field solver
 !===================================================================================================================================
 END MODULE MOD_Particle_Analyze_Vars

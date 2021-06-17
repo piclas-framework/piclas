@@ -78,8 +78,9 @@ USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 #ifdef PARTICLES
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
-USE MOD_HDF5_Output_Particles  ,ONLY: WriteMagneticPICFieldToHDF5
+USE MOD_HDF5_Output_Particles  ,ONLY: WriteElectroMagneticPICFieldToHDF5
 USE MOD_HDF5_Output_State      ,ONLY: WriteIMDStateToHDF5
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEMFieldOutput
 #endif /*PARTICLES*/
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
@@ -193,10 +194,9 @@ CALL InitAnalyticalParticleState() ! Requires dt
 CALL PerformAnalyze(time,FirstOrLastIter=.TRUE.,OutPutHDF5=.FALSE.)
 
 #ifdef PARTICLES
-IF(DoImportIMDFile) CALL WriteIMDStateToHDF5() ! write IMD particles to state file (and TTM if it exists)
+IF(DoImportIMDFile) CALL WriteIMDStateToHDF5() ! Write IMD particles to state file (and TTM if it exists)
 #endif /*PARTICLES*/
-! Write initial state to file
-CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
+CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze) ! Write initial state to file
 
 ! if measurement of particle tracking time (used for analyze, load balancing uses own time measurement for tracking)
 #ifdef PARTICLES
@@ -205,6 +205,7 @@ IF(MeasureTrackTime)THEN
   tTracking=0
   tLocalization=0
 END IF
+IF(CalcEMFieldOutput) CALL WriteElectroMagneticPICFieldToHDF5() ! Write magnetic field to file 
 #endif /*PARTICLES*/
 
 ! No computation needed if tEnd=tStart!

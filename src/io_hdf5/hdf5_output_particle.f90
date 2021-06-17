@@ -70,7 +70,7 @@ PUBLIC :: WriteAdaptiveInfoToHDF5
 PUBLIC :: WriteAdaptiveWallTempToHDF5
 PUBLIC :: WriteVibProbInfoToHDF5
 PUBLIC :: WriteClonesToHDF5
-PUBLIC :: WriteMagneticPICFieldToHDF5
+PUBLIC :: WriteElectroMagneticPICFieldToHDF5
 !===================================================================================================================================
 
 CONTAINS
@@ -1797,21 +1797,119 @@ DEALLOCATE(PartData)
 
 END SUBROUTINE WriteClonesToHDF5
 
+
 !===================================================================================================================================
 !> Store the magnetic filed acting on particles at each DOF for all elements to .h5
 !===================================================================================================================================
-SUBROUTINE WriteMagneticPICFieldToHDF5()
+SUBROUTINE WriteElectroMagneticPICFieldToHDF5()
 ! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: ProjectName
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems,MeshFile,Elem_xGP
+USE MOD_Output_Vars            ,ONLY: UserBlockTmpFile,userblock_total_len
+USE MOD_Interpolation_Vars     ,ONLY: NodeType
+USE MOD_PICInterpolation_tools ,ONLY: GetExternalFieldAtParticle,GetEMField
+USE MOD_Interpolation_Vars     ,ONLY: xGP
+USE MOD_Restart_Vars           ,ONLY: RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-
+CHARACTER(LEN=255)             :: FileName
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+INTEGER                        :: nVal
+INTEGER,PARAMETER              :: outputVars=6
+REAL,ALLOCATABLE               :: outputArray(:,:,:,:,:)
+#if USE_MPI
+REAL                           :: StartT,EndT
+#endif /*USE_MPI*/
+INTEGER                        :: iElem,i,j,k
 !===================================================================================================================================
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE PIC EM-FIELD TO HDF5 FILE...'
+#if USE_MPI
+  StartT=MPI_WTIME()
+#endif /*USE_MPI*/
 
-END SUBROUTINE WriteMagneticPICFieldToHDF5
+ALLOCATE(outputArray(1:outputVars,0:PP_N,0:PP_N,0:PP_N,1:nElems))
+DO iElem=1,PP_nElems
+  DO k=0,PP_N
+    DO j=0,PP_N
+      DO i=0,PP_N
+        ASSOCIATE( x => Elem_xGP(1,i,j,k,iElem), y => Elem_xGP(2,i,j,k,iElem), z => Elem_xGP(3,i,j,k,iElem))
+          outputArray(1:6,i,j,k,iElem) = GetExternalFieldAtParticle((/x,y,z/)) + GetEMField(iElem,(/xGP(i),xGP(j),xGP(k)/))
+        END ASSOCIATE
+      END DO ! i
+    END DO ! j
+  END DO ! k
+END DO ! iElem=1,PP_nElems
+
+
+! Create dataset attribute "VarNames"
+ALLOCATE(StrVarNames(1:outputVars))
+StrVarNames(1)='ElectricFieldX'
+StrVarNames(2)='ElectricFieldY'
+StrVarNames(3)='ElectricFieldZ'
+StrVarNames(4)='MagneticFieldX'
+StrVarNames(5)='MagneticFieldY'
+StrVarNames(6)='MagneticFieldZ'
+
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+FileName=TRIM(ProjectName)//'_PIC-EMField.h5'
+IF(MPIRoot) THEN
+  CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,userblockSize=userblock_total_len)
+  ! Write file header
+  CALL WriteHDF5Header('BField',File_ID) ! File_Type='BField'
+  ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
+  CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=PP_N)
+  CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFile)/))
+  CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
+  CALL WriteAttributeToHDF5(File_ID,'VarNames',outputVars,StrArray=StrVarNames)
+  CALL WriteAttributeToHDF5(File_ID,'Time'    ,1,RealScalar=RestartTime)
+  CALL CloseDataFile()
+  ! Add userblock to hdf5-file
+  CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_CHAR)
+END IF
+#if USE_MPI
+CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif /*USE_MPI*/
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+
+nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+  outputVars   => INT(outputVars,IK)   ,&
+  N            => INT(PP_N,IK)         ,&
+  PP_nElems    => INT(PP_nElems,IK)    ,&
+  offsetElem   => INT(offsetElem,IK)   ,&
+  nGlobalElems => INT(nGlobalElems,IK) )
+CALL WriteArrayToHDF5(DataSetName='DG_Solution'    , rank=5 , &
+                      nValGlobal=(/outputVars , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+                      nVal      =(/outputVars , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
+                      offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+                      collective=.false., RealArray=outputArray)
+END ASSOCIATE
+
+CALL CloseDataFile()
+
+DEALLOCATE(StrVarNames)
+DEALLOCATE(outputArray)
+
+#if USE_MPI
+IF(MPIROOT)THEN
+  EndT=MPI_WTIME()
+  SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+END IF
+#else
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
+#endif /*USE_MPI*/
+
+END SUBROUTINE WriteElectroMagneticPICFieldToHDF5
 
 
 #endif /*defined(PARTICLES)*/
