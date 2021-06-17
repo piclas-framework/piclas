@@ -166,6 +166,8 @@ CALL prms%CreateLogicalOption(  'Part-vMPF'                      , 'TODO-DEFINE-
 CALL prms%CreateLogicalOption(  'Part-vMPFPartMerge'              , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Enable Particle Merge routines.'&
                                                               , '.FALSE.')
+CALL prms%CreateIntOption(      'Part-vMPFNewPartNum'         , 'Particle target value for merge routines.'&
+                                                              , '0')
 CALL prms%CreateIntOption(      'Part-vMPFMergePolOrder'      , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Polynomial degree for vMPF particle merge.'&
                                                               , '2')
@@ -916,6 +918,7 @@ INTEGER               :: ALLOCSTAT
 !===================================================================================================================================
 ! init varibale MPF per particle
 IF (usevMPF) THEN
+  vMPFNewPartNum = GETINT('Part-vMPFNewPartNum','0')
   enableParticleMerge = GETLOGICAL('Part-vMPFPartMerge','.FALSE.')
   IF (enableParticleMerge) THEN
     vMPFMergePolyOrder = GETINT('Part-vMPFMergePolOrder','2')

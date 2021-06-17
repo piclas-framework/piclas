@@ -39,7 +39,7 @@ SUBROUTINE SplitMerge_main()
 !> 3.) Call split or merge routine
 !===================================================================================================================================
 ! MODULES
-USE MOD_PARTICLE_Vars         ,ONLY: vMPFNewPartNum, PEM, nSpecies, PartSpecies
+USE MOD_PARTICLE_Vars         ,ONLY: vMPFNewPartNum, PEM, nSpecies, PartSpecies,PDM
 USE MOD_Mesh_Vars             ,ONLY: nElems
 
 ! IMPLICIT VARIABLE HANDLING
@@ -64,6 +64,7 @@ DO iElem = 1, nElems
   iPart = PEM%pStart(iElem)
   ! 1.) build partindx list for cell
   DO iLoop = 1, nPartCell
+    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     nPart(PartSpecies(iPart)) = nPart(PartSpecies(iPart)) + 1
     iPartIndx_Node_Temp(PartSpecies(iPart),nPart(PartSpecies(iPart))) = iPart
     iPart = PEM%pNext(iPart)

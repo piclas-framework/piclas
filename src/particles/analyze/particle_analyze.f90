@@ -2673,7 +2673,7 @@ IF(PartMPI%MPIRoot)THEN
       END IF
     END IF
     IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-      ! MacroParticleFactor is included in the case of RadialWeighting (also in combination with variable time step)
+      ! MacroParticleFactor is included in the case of vMPF (also in combination with variable time step)
       IntEn(iSpec,1) = EVib(iSpec)
       IntEn(iSpec,2) = ERot(iSpec)
       IF(DSMC%ElectronicModel.GT.0) IntEn(iSpec,3) = Eelec(iSpec)

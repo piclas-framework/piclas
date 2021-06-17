@@ -116,7 +116,6 @@ ELSE
   MacroParticleFactor = PairMPF
   CollCaseNum = REAL(CollInf%Coll_CaseNum(PairType)) / SabFak
 END IF
-
 IF (VarTimeStep%UseVariableTimeStep) THEN
   dtCell = dt * (VarTimeStep%ParticleTimeStep(iPart_p1) + VarTimeStep%ParticleTimeStep(iPart_p2))*0.5
 ELSE
@@ -195,7 +194,7 @@ SELECT CASE(iPType)
     ELSE
       Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(PairType))  &
         !* CollInf%Cab(PairType)                                               & ! Cab species comb fac
-        * Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor                  &
+        * MacroParticleFactor                  &
           ! weighting Fact, here only one MPF is used!!!
         / CollInf%Coll_CaseNum(PairType)                                      & ! sum of coll cases Sab
         * 1.0E-20 * SQRT(Coll_pData(iPair)%CRela2) * sigma_tot  &
@@ -211,6 +210,7 @@ SELECT CASE(iPType)
       __STAMP__&
       ,'ERROR in DSMC_collis: Wrong iPType case! = ',iPType)
 END SELECT
+
 IF (ISNAN(Coll_pData(iPair)%Prob)) THEN
   IPWRITE(UNIT_errOut,*)iPair,'in',iElem,'is NaN!'
   CALL Abort(&

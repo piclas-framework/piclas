@@ -30,8 +30,8 @@ INTERFACE DSMC_pairing_bggas
   MODULE PROCEDURE DSMC_pairing_bggas
 END INTERFACE
 
-INTERFACE BGGas_DeleteParticles
-  MODULE PROCEDURE BGGas_DeleteParticles
+INTERFACE BGGas_ControlParticles
+  MODULE PROCEDURE BGGas_ControlParticles
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -39,7 +39,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: BGGas_Initialize, BGGas_InsertParticles, DSMC_pairing_bggas, MCC_pairing_bggas, BGGas_DeleteParticles
+PUBLIC :: BGGas_Initialize, BGGas_InsertParticles, DSMC_pairing_bggas, MCC_pairing_bggas, BGGas_ControlParticles
 PUBLIC :: BGGas_PhotoIonization
 !===================================================================================================================================
 
@@ -166,7 +166,7 @@ USE MOD_Globals                ,ONLY: Abort
 USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_Vars              ,ONLY: BGGas, SpecDSMC, CollisMode
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
-USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef
+USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef, usevMPF, PartMPF
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 #if USE_LOADBALANCE
@@ -214,7 +214,8 @@ DO iPart = 1, PDM%ParticleVecLength
       ELSE
         CALL DSMC_SetInternalEnr_LauxVFD(iSpec,1,PositionNbr,1)
       END IF
-    END IF
+    END IF        
+    IF(usevMPF) PartMPF(PositionNbr) = PartMPF(iPart)
     PEM%GlobalElemID(PositionNbr) = PEM%GlobalElemID(iPart)
     LocalElemID = PEM%LocalElemID(PositionNbr)
     PDM%ParticleInside(PositionNbr) = .true.
@@ -266,25 +267,25 @@ INTEGER, INTENT(IN)           :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: nPair, iPair, iPart, iLoop, nPart, iLoop2, iNewPart, iSplit, LocalElemID
-INTEGER                       :: cSpec1, cSpec2, iCase, iSpec, iSpec2, iSpec3
+INTEGER                       :: cSpec1, cSpec2, iCase, iSpec, iSpec2, iSpec3, iSplitPart
 REAL                          :: iRan
 LOGICAL                       :: NeedToSplit
 INTEGER                       :: NewPairNum, SplitPartNum, PositionNbr
 INTEGER, ALLOCATABLE          :: TempIndxArray(:)
 REAL                          :: MPFRatio
-
 !===================================================================================================================================
 nPart = PEM%pNumber(iElem)
-
 NeedToSplit = .FALSE.
 IF(usevMPF) THEN
-  iPart = PEM%pStart(iElem)
+  iPart = PEM%pStart(iElem)  
   DO iLoop = 1, nPart
-    iSpec  = PartSpecies(iPart)
+    iSpec  = PartSpecies(iPart)! Skip background particles that have been created within this loop
+    IF(BGGas%BackgroundSpecies(iSpec)) CYCLE
     iSpec2 = PartSpecies(BGGas%PairingPartner(iPart))
-    IF(Species(iSpec)%MacroParticleFactor.GT.Species(iSpec2)%MacroParticleFactor) THEN
+    IF(PartMPF(iPart).GT.Species(iSpec2)%MacroParticleFactor) THEN 
       NeedToSplit = .TRUE.
       EXIT
+    ELSE
     END IF
     iPart = PEM%pNext(iPart)
   END DO
@@ -294,21 +295,25 @@ IF(NeedToSplit) THEN
   iPart = PEM%pStart(iElem)
   NewPairNum = INT(nPart/2)
   CollInf%Coll_CaseNum = 0
+  iNewPart = 0
 
   DO iLoop = 1, nPart
     iSpec  = PartSpecies(iPart)! Skip background particles that have been created within this loop
     IF(BGGas%BackgroundSpecies(iSpec)) CYCLE
     iSpec2 = PartSpecies(BGGas%PairingPartner(iPart))
-    IF(Species(iSpec)%MacroParticleFactor.GT.Species(iSpec2)%MacroParticleFactor) THEN
-      SplitPartNum = INT(Species(iSpec)%MacroParticleFactor / Species(iSpec2)%MacroParticleFactor)
-      NewPairNum   = NewPairNum + (SplitPartNum - 1)          ! New Number of Pairs
-      iNewPart = 0
+    IF(PartMPF(iPart).GT.Species(iSpec2)%MacroParticleFactor) THEN
+      SplitPartNum = NINT(PartMPF(iPart) / Species(iSpec2)%MacroParticleFactor)
+      
+      NewPairNum   = NewPairNum + (SplitPartNum - 1)          ! New Number of Pairs  
       PositionNbr = 0
       PartMPF(iPart) = Species(iSpec2)%MacroParticleFactor ! set new MPF for test particle
+      PartMPF(BGGas%PairingPartner(iPart)) = PartMPF(iPart)
       ALLOCATE(TempIndxArray(SplitPartNum))
+      iSplitPart = 0
       DO iLoop2 = 1, 2    ! 1: split test particle, 2: Creating particles of the background species
         DO iSplit = 2, SplitPartNum
           iNewPart = iNewPart + 1
+          iSplitPart = iSplitPart + 1
           PositionNbr = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition)      
           IF (PositionNbr.EQ.0) THEN
             CALL Abort(&
@@ -332,6 +337,7 @@ IF(NeedToSplit) THEN
               CALL DSMC_SetInternalEnr_LauxVFD(iSpec3,1,PositionNbr,1)
             END IF
           END IF
+          PartMPF(PositionNbr) = PartMPF(iPart)
           PEM%GlobalElemID(PositionNbr) = PEM%GlobalElemID(iPart)
           LocalElemID = PEM%LocalElemID(PositionNbr)
           PDM%ParticleInside(PositionNbr) = .TRUE.
@@ -339,20 +345,20 @@ IF(NeedToSplit) THEN
           PEM%pEnd(LocalElemID) = PositionNbr
           PEM%pNumber(LocalElemID) = PEM%pNumber(LocalElemID) + 1
           IF (iLoop2.EQ.1) THEN        
-            TempIndxArray(iNewPart) = PositionNbr    
+            TempIndxArray(iSplitPart) = PositionNbr    
           ELSE
-            BGGas%PairingPartner(TempIndxArray(iNewPart-(SplitPartNum - 1))) = PositionNbr       
+            BGGas%PairingPartner(TempIndxArray(iSplitPart-(SplitPartNum - 1))) = PositionNbr       
           END IF
-          CALL CalcVelocity_maxwell_lpn(FractNbr=iSpec3, Vec3D=PartState(4:6,PositionNbr), iInit=1)          
+          CALL CalcVelocity_maxwell_lpn(FractNbr=iSpec3, Vec3D=PartState(4:6,PositionNbr), iInit=1)  
         END DO   
       END DO 
       DEALLOCATE(TempIndxArray) 
     END IF
     iPart = PEM%pNext(iPart)
   END DO
+  nPair = NewPairNum
   PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,PositionNbr)
   PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + iNewPart  
- 
   nPart = PEM%pNumber(iElem)
   CALL InitCalcVibRelaxProb()
   ALLOCATE(Coll_pData(NewPairNum))
@@ -370,10 +376,10 @@ IF(NeedToSplit) THEN
     ! Counting the number of particles per species
     CollInf%Coll_SpecPartNum(iSpec) = CollInf%Coll_SpecPartNum(iSpec) + PartMPF(iPart)
     ! Calculation of mean vibrational energy per cell and iter, necessary for dissociation probability
-    IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) + PartStateIntEn(1,iPart) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! siehe dsmc_relaxation.f90 line 112
+    IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) + PartStateIntEn(1,iPart) * PartMPF(iPart)
     ! Creating pairs for species, which are not the background species
     IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN 
-      Coll_pData(iPair)%MPF = Species(iSpec)%MacroParticleFactor
+      Coll_pData(iPair)%MPF = PartMPF(iPart)
       Coll_pData(iPair)%iPart_p1 = iPart
       Coll_pData(iPair)%iPart_p2 = BGGas%PairingPartner(iPart)
       iPair = iPair + 1
@@ -383,8 +389,6 @@ IF(NeedToSplit) THEN
   
     
 ELSE IF(usevMPF) THEN    ! No need for additional split but variable weighting
-  
-  
   nPair = INT(nPart/2)
   CALL InitCalcVibRelaxProb()
 
@@ -402,16 +406,12 @@ ELSE IF(usevMPF) THEN    ! No need for additional split but variable weighting
   DO iLoop = 1, nPart
     iSpec = PartSpecies(iPart)
     ! Counting the number of particles per species
-    IF(usevMPF) THEN
-      CollInf%Coll_SpecPartNum(iSpec) = CollInf%Coll_SpecPartNum(iSpec) + PartMPF(iPart)
-    ELSE
-      CollInf%Coll_SpecPartNum(iSpec) = CollInf%Coll_SpecPartNum(iSpec) + Species(iSpec)%MacroParticleFactor 
-    END IF
+    CollInf%Coll_SpecPartNum(iSpec) = CollInf%Coll_SpecPartNum(iSpec) + PartMPF(iPart)
     ! Calculation of mean vibrational energy per cell and iter, necessary for dissociation probability
-    IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) + PartStateIntEn(1,iPart) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! siehe dsmc_relaxation.f90 line 112
+    IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) + PartStateIntEn(1,iPart) * PartMPF(iPart)  ! siehe dsmc_relaxation.f90 line 112
     ! Creating pairs for species, which are not the background species
     IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN 
-      Coll_pData(iPair)%MPF = Species(iSpec)%MacroParticleFactor
+      Coll_pData(iPair)%MPF = PartMPF(iPart)
       Coll_pData(iPair)%iPart_p1 = iPart
       Coll_pData(iPair)%iPart_p2 = BGGas%PairingPartner(iPart)
       iPair = iPair + 1
@@ -797,14 +797,15 @@ END IF
 END SUBROUTINE MCC_pairing_bggas
 
 
-SUBROUTINE BGGas_DeleteParticles()
+SUBROUTINE BGGas_ControlParticles()
 !===================================================================================================================================
 ! Deletes all background gas particles and updates the particle index list
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars,          ONLY : BGGas
-USE MOD_PARTICLE_Vars,      ONLY : PDM, PartSpecies
+USE MOD_PARTICLE_Vars,      ONLY : PDM, PartSpecies,vMPFNewPartNum
 USE MOD_part_tools,         ONLY : UpdateNextFreePosition
+USE MOD_vMPF,               ONLY : SplitMerge_main
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -815,16 +816,18 @@ USE MOD_part_tools,         ONLY : UpdateNextFreePosition
 ! LOCAL VARIABLES
 INTEGER                     :: iPart
 !===================================================================================================================================
-
 DO iPart = 1, PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
     IF(BGGas%BackgroundSpecies(PartSpecies(iPart))) PDM%ParticleInside(iPart) = .FALSE.
   END IF
 END DO
 BGGas%PairingPartner = 0
+
+IF(vMPFNewPartNum.NE.0) CALL SplitMerge_main
+
 CALL UpdateNextFreePosition()
 
-END SUBROUTINE BGGas_DeleteParticles
+END SUBROUTINE BGGas_ControlParticles
 
 
 SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,TotalNbrOfReactions)
