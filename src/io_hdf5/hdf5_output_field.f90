@@ -12,7 +12,7 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_HDF5_Output_Tools
+MODULE MOD_HDF5_Output_Fields
 !===================================================================================================================================
 ! Add comments please!
 !===================================================================================================================================
@@ -30,11 +30,10 @@ PRIVATE
 PUBLIC :: WritePMLzetaGlobalToHDF5
 #endif /*USE_HDG*/
 
-#ifdef PARTICLES
-PUBLIC :: WriteIMDStateToHDF5
-#endif /*PARTICLES*/
-
 PUBLIC :: WriteDielectricGlobalToHDF5,WriteBGFieldToHDF5,WriteBGFieldAnalyticToHDF5
+#if (PP_nVar==8)
+PUBLIC :: WritePMLDataToHDF5
+#endif
 !===================================================================================================================================
 
 CONTAINS
@@ -124,7 +123,6 @@ WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 SDEALLOCATE(DielectricGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteDielectricGlobalToHDF5
-
 
 
 #if !(USE_HDG)
@@ -219,84 +217,6 @@ END SUBROUTINE WritePMLzetaGlobalToHDF5
 #endif /*USE_HDG*/
 
 
-#ifdef PARTICLES
-SUBROUTINE WriteIMDStateToHDF5()
-!===================================================================================================================================
-! Write the particles data aquired from an IMD *.chkpt file to disk and abort the program
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Particle_Vars ,ONLY: IMDInputFile,IMDTimeScale,IMDLengthScale,IMDNumber
-USE MOD_Mesh_Vars     ,ONLY: MeshFile
-USE MOD_Restart_Vars  ,ONLY: DoRestart
-#if USE_MPI
-USE MOD_MPI           ,ONLY: FinalizeMPI
-#endif /*USE_MPI*/
-USE MOD_ReadInTools   ,ONLY: PrintOption
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(LEN=255) :: tempStr
-REAL               :: t,tFuture,IMDtimestep
-INTEGER            :: iSTATUS,IMDanalyzeIter
-!===================================================================================================================================
-IF(.NOT.DoRestart)THEN
-  IF(IMDTimeScale.GT.0.0)THEN
-    SWRITE(UNIT_StdOut,'(A)')'   IMD: calc physical time in seconds for which the IMD *.chkpt file is defined.'
-    ! calc physical time in seconds for which the IMD *.chkpt file is defined
-    ! t = IMDanalyzeIter * IMDtimestep * IMDTimeScale * IMDNumber
-    IMDtimestep=0.0
-    CALL GetParameterFromFile(IMDInputFile,'timestep'   , TempStr ,DelimiterSymbolIN=' ',CommentSymbolIN='#')
-    CALL str2real(TempStr,IMDtimestep,iSTATUS)
-    IF(iSTATUS.NE.0)THEN
-      CALL abort(&
-      __STAMP__&
-      ,'Could not find "timestep" in '//TRIM(IMDInputFile)//' for IMDtimestep!')
-    END IF
-
-    IMDanalyzeIter=0
-    CALL GetParameterFromFile(IMDInputFile,'checkpt_int', TempStr ,DelimiterSymbolIN=' ',CommentSymbolIN='#')
-    CALL str2int(TempStr,IMDanalyzeIter,iSTATUS)
-    IF(iSTATUS.NE.0)THEN
-      CALL abort(&
-      __STAMP__&
-      ,'Could not find "checkpt_int" in '//TRIM(IMDInputFile)//' for IMDanalyzeIter!')
-    END IF
-    CALL PrintOption('IMDtimestep'    , 'OUTPUT' , RealOpt=IMDtimestep)
-    CALL PrintOption('IMDanalyzeIter' , 'OUTPUT' , IntOpt=IMDanalyzeIter)
-    CALL PrintOption('IMDTimeScale'   , 'OUTPUT' , RealOpt=IMDTimeScale)
-    CALL PrintOption('IMDLengthScale' , 'OUTPUT' , RealOpt=IMDLengthScale)
-    CALL PrintOption('IMDNumber'      , 'OUTPUT' , IntOpt=IMDNumber)
-    t = REAL(IMDanalyzeIter) * IMDtimestep * IMDTimeScale * REAL(IMDNumber)
-    CALL PrintOption('t'              , 'OUTPUT' , RealOpt=t)
-    SWRITE(UNIT_StdOut,'(A,ES25.14E3,A,F15.3,A)')     '   Calculated time t :',t,' (',t*1e12,' ps)'
-
-    tFuture=t
-    CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
-    SWRITE(UNIT_StdOut,'(A)')'   Particles: StateFile (IMD MD data) created. Terminating successfully!'
-#if USE_MPI
-    CALL FinalizeMPI()
-    CALL MPI_FINALIZE(iERROR)
-    IF(iERROR.NE.0)THEN
-      CALL abort(&
-      __STAMP__&
-      , ' MPI_FINALIZE(iERROR) returned non-zero integer value',iERROR)
-    END IF
-#endif /*USE_MPI*/
-    STOP 0 ! terminate successfully
-  ELSE
-    CALL abort(&
-    __STAMP__&
-    , ' IMDLengthScale.LE.0.0 which is not allowed')
-  END IF
-END IF
-END SUBROUTINE WriteIMDStateToHDF5
-#endif /*PARTICLES*/
 
 
 SUBROUTINE WriteBGFieldToHDF5()
@@ -309,7 +229,8 @@ USE MOD_Globals
 USE MOD_Globals_Vars       ,ONLY: ProjectName
 USE MOD_Mesh_Vars          ,ONLY: offsetElem,nGlobalElems, nElems,MeshFile
 USE MOD_io_HDF5
-USE MOD_HDF5_output        ,ONLY: WriteArrayToHDF5, copy_userblock
+USE MOD_HDF5_output        ,ONLY: copy_userblock
+USE MOD_HDF5_Output        ,ONLY: WriteArrayToHDF5
 USE MOD_Output_Vars        ,ONLY: UserBlockTmpFile,userblock_total_len
 USE MOD_Interpolation_Vars ,ONLY: BGField, NodeType, NBG, BGDataSize, BGType
 ! IMPLICIT VARIABLE HANDLING
@@ -500,4 +421,98 @@ SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 END SUBROUTINE WriteBGFieldAnalyticToHDF5
 
 
-END MODULE MOD_HDF5_Output_Tools
+#if (PP_nVar==8)
+SUBROUTINE WritePMLDataToHDF5(FileName)
+!===================================================================================================================================
+! Write additional (elementwise scalar) data to HDF5
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Mesh_Vars     ,ONLY:offsetElem,nGlobalElems
+USE MOD_PML_Vars      ,ONLY:DoPML,PMLToElem,U2,nPMLElems,PMLnVar
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)  :: FileName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+REAL,ALLOCATABLE               :: Upml(:,:,:,:,:)
+INTEGER                        :: iPML
+!===================================================================================================================================
+
+IF(DoPML)THEN
+  ALLOCATE(StrVarNames(PMLnVar))
+  StrVarNames( 1)='PML-ElectricFieldX-P1'
+  StrVarNames( 2)='PML-ElectricFieldX-P2'
+  StrVarNames( 3)='PML-ElectricFieldX-P3'
+  StrVarNames( 4)='PML-ElectricFieldY-P4'
+  StrVarNames( 5)='PML-ElectricFieldY-P5'
+  StrVarNames( 6)='PML-ElectricFieldY-P6'
+  StrVarNames( 7)='PML-ElectricFieldZ-P7'
+  StrVarNames( 8)='PML-ElectricFieldZ-P8'
+  StrVarNames( 9)='PML-ElectricFieldZ-P9'
+  StrVarNames(10)='PML-MagneticFieldX-P10'
+  StrVarNames(11)='PML-MagneticFieldX-P11'
+  StrVarNames(12)='PML-MagneticFieldX-P12'
+  StrVarNames(13)='PML-MagneticFieldY-P13'
+  StrVarNames(14)='PML-MagneticFieldY-P14'
+  StrVarNames(15)='PML-MagneticFieldY-P15'
+  StrVarNames(16)='PML-MagneticFieldZ-P16'
+  StrVarNames(17)='PML-MagneticFieldZ-P17'
+  StrVarNames(18)='PML-MagneticFieldZ-P18'
+  StrVarNames(19)='PML-PhiB-P19'
+  StrVarNames(20)='PML-PhiB-P20'
+  StrVarNames(21)='PML-PhiB-P21'
+  StrVarNames(22)='PML-PsiE-P22'
+  StrVarNames(23)='PML-PsiE-P23'
+  StrVarNames(24)='PML-PsiE-P24'
+
+  ALLOCATE(UPML(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+  UPML=0.0
+  DO iPML=1,nPMLElems
+    Upml(:,:,:,:,PMLToElem(iPML)) = U2(:,:,:,:,iPML)
+  END DO ! iPML
+
+  IF(MPIRoot)THEN
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    CALL WriteAttributeToHDF5(File_ID,'VarNamesPML',PMLnVar,StrArray=StrVarNames)
+    CALL CloseDataFile()
+  END IF
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      nGlobalElems    => INT(nGlobalElems,IK)    ,&
+      N               => INT(PP_N,IK)            ,&
+      PMLnVar         => INT(PMLnVar,IK)         ,&
+      PP_nElems       => INT(PP_nElems,IK)       ,&
+      offsetElem      => INT(offsetElem,IK)      )
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                          DataSetName = 'PML_Solution', rank = 5,&
+                          nValGlobal  = (/PMLnVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+                          nVal        = (/PMLnVar , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
+                          offset      = (/0_IK    , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+                          collective  = .TRUE.,RealArray = Upml)
+END ASSOCIATE
+
+!  CALL WriteArrayToHDF5(DataSetName='PML_Solution', rank=5,&
+!                      nValGlobal=(/5,N+1,N+1,N+1,nGlobalElems/),&
+!                      nVal=      (/5,N+1,N+1,N+1,PP_nElems/),&
+!                      offset=    (/0,      0,     0,     0,     offsetElem/),&
+!                      collective=.TRUE., existing=.FALSE., RealArray=UPML)
+!
+!  CALL CloseDataFile()
+  DEALLOCATE(UPML)
+  DEALLOCATE(StrVarNames)
+END IF ! DoPML
+
+
+END SUBROUTINE WritePMLDataToHDF5
+#endif
+
+
+END MODULE MOD_HDF5_Output_Fields

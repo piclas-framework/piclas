@@ -83,7 +83,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools
 USE MOD_Dielectric_Vars
-USE MOD_HDF5_Output_Tools ,ONLY: WriteDielectricGlobalToHDF5
+USE MOD_HDF5_Output_Fields,ONLY: WriteDielectricGlobalToHDF5
 USE MOD_Globals_Vars      ,ONLY: c
 USE MOD_Interfaces        ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
 USE MOD_Mesh              ,ONLY: GetMeshMinMaxBoundaries
