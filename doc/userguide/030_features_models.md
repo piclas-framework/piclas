@@ -186,25 +186,33 @@ as detailed in the following table.
 |              |              |                                                                                                                            |
 |    (/5,1/)   | 5: Dirichlet |                                          1: use RefState Nbr 1, see details below                                          |
 |              |              |                                                                                                                            |
+|    (/6,1/)   | 6: Dirichlet |                                          1: use RefState Nbr 1, see details below                                          |
+|              |              |                                                                                                                            |
 |   (/10,0/)   |  10: Neumann |                                                  zero-gradient (dPhi/dn=0)                                                 |
 |   (/11,0/)   |  11: Neumann |                                                            q*n=1                                                           |
 
-For each boundary of type *5* (reference state boundary *RefState*), e.g.,
+For each boundary of type *5* (reference state boundary *RefState*), e.g., by setting the boundary in the *hopr.ini* file
 
     BoundaryName = BC_WALL ! BC name in the mesh.h5 file
     BoundaryType = (/5,1/) ! (/ Type, curveIndex, State, alpha /)
 
-the corresponding *RefState* number must also be supplied (here 1) and is selected from its position in the parameter file. Each
-*RefState* is defined in the *parameter.ini* file by supplying a value for the voltage an alternating frequency for the cosine
+the corresponding *RefState* number must also be supplied in the parameter.ini file (here 1) and is selected from its position 
+in the parameter file. 
+Each *RefState* is defined in the *parameter.ini* file by supplying a value for the voltage an alternating frequency for the cosine
 function (a frequency of 0 results in a fixed potential over time) and phase shift
 
-    RefState = (/-0.18011, 0.0, 0.0/) ! RefState Nbr 1: Voltage, Frequency and Phase shift
+    RefState = (/-0.18011, 1.0, 0.0/) ! RefState Nbr 1: Voltage, Frequency and Phase shift
 
-This yields the three parameters used in the general function
+This yields the three parameters used in the cosine function
 
-    Phi(t) = COS(2*pi*f*t + psi)
+    Phi(t) = A*COS(2*pi*f*t + psi)
 
-where, *t* is the time, *f* is the frequency and *psi* is the phase shift.
+where *A=-0.18011* is the amplitude, *t* is the time, *f=1* is the frequency and *psi=0* is the phase shift.
+
+Similar to boundary type *5* is type *6*, which simply uses a cosine function that always has the same sign, depending on the
+amplitude *A*
+
+    Phi(t) = (A/2) * (COS(2*pi*f*t + psi) + 1)
 
 ### Dielectric Materials
 

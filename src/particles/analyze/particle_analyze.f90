@@ -166,6 +166,9 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared_Win
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars             ,ONLY: ElemBaryNGeo
 USE MOD_Particle_Analyze_Tools,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
+#if USE_HDG
+USE MOD_HDG_Vars              ,ONLY: CalcBRVariableElectronTemp
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -704,6 +707,12 @@ IF(DoPartAnalyze)THEN
 END IF
 IsRestart = GETLOGICAL('IsRestart','.FALSE.')
 
+#if USE_HDG
+!-- Check variable ref. electron temperature for BR electron model
+IF(CalcBRVariableElectronTemp) DoPartAnalyze=.TRUE.
+CALL PrintOption('CalcBRVariableElectronTemp','INFO',LogOpt=CalcBRVariableElectronTemp)
+#endif /*USE_HDG*/
+
 ParticleAnalyzeInitIsDone=.TRUE.
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTCILE ANALYZE DONE!'
@@ -752,6 +761,10 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CalcRelaxProbRotVib
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, XSec_Relaxation, SpecXSec
 USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,ReacRates
 #endif
+#if USE_HDG
+USE MOD_HDG_Vars               ,ONLY: BRNbrOfRegions,CalcBRVariableElectronTemp,RegionElectronRef
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElementaryCharge
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -792,6 +805,9 @@ INTEGER             :: ii, iunit
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
 INTEGER             :: dir
+#if USE_HDG
+INTEGER             :: iRegions
+#endif /*USE_HDG*/
 !===================================================================================================================================
   IF ( DoRestart ) THEN
     isRestart = .true.
@@ -1117,6 +1133,15 @@ INTEGER             :: dir
           END IF
         END IF
 #endif
+#if USE_HDG
+        IF(CalcBRVariableElectronTemp)THEN ! variable reference electron temperature
+          DO iRegions=1,BRNbrOfRegions
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-RegionElectronRef', iRegions
+            OutputCounter = OutputCounter + 1
+          END DO
+        END IF ! CalcBRVariableElectronTemp
+#endif /*USE_HDG*/
         WRITE(unit_index,'(A)') ''
       END IF
     END IF
@@ -1502,6 +1527,13 @@ IF (PartMPI%MPIROOT) THEN
       END DO
     END IF
 #endif /*(PP_TimeDiscMethod==42)*/
+#if USE_HDG
+        IF(CalcBRVariableElectronTemp)THEN ! variable reference electron temperature
+          DO iRegions=1,BRNbrOfRegions
+            WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RegionElectronRef(3,iRegions)*ElementaryCharge/BoltzmannConst ! convert eV to K
+          END DO
+        END IF ! CalcBRVariableElectronTemp
+#endif /*USE_HDG*/
     WRITE(unit_index,'(A)') ''
 #if USE_MPI
   END IF

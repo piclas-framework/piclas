@@ -221,7 +221,7 @@ SampWallImpactNumber(SpecID,SubP,SubQ,SurfSideID) = SampWallImpactNumber(SpecID,
 END SUBROUTINE SampleImpactProperties
 
 
-SUBROUTINE StoreBoundaryParticleProperties(iPart,SpecID,PartPos,PartTrajectory,SurfaceNormal,mode,usevMPF_optIN)
+SUBROUTINE StoreBoundaryParticleProperties(iPart,SpecID,PartPos,PartTrajectory,SurfaceNormal,iBC,mode,usevMPF_optIN)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Save particle position, velocity and species to PartDataBoundary container for writing to .h5 later
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -229,7 +229,7 @@ SUBROUTINE StoreBoundaryParticleProperties(iPart,SpecID,PartPos,PartTrajectory,S
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,Species,PartState
-USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength
+USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,nVarPartStateBoundary
 USE MOD_TimeDisc_Vars          ,ONLY: time
 USE MOD_Globals_Vars           ,ONLY: PI
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -240,8 +240,9 @@ INTEGER,INTENT(IN) :: SpecID ! The species ID is required as it might not yet be
 REAL,INTENT(IN)    :: PartPos(1:3)
 REAL,INTENT(IN)    :: PartTrajectory(1:3)
 REAL,INTENT(IN)    :: SurfaceNormal(1:3)
+INTEGER,INTENT(IN) :: iBC  ! Part-BoundaryX on which the impact occurs
 INTEGER,INTENT(IN) :: mode ! 1: particle impacts on BC (species is stored as positive value)
-                             ! 2: particles is emitted from the BC into the simulation domain (species is stored as negative value)
+                            ! 2: particles is emitted from the BC into the simulation domain (species is stored as negative value)
 LOGICAL,INTENT(IN),OPTIONAL :: usevMPF_optIN ! For setting MPF for cases when PartMPF(iPart) might not yet be set during emission
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -279,21 +280,21 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
   IF(iMax.GT.dims(2))THEN
 
     ! --- PartStateBoundary ---
-    ALLOCATE(PartStateBoundary_tmp(1:10,1:dims(2)), STAT=ALLOCSTAT)
+    ALLOCATE(PartStateBoundary_tmp(1:nVarPartStateBoundary,1:dims(2)), STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL abort(&
           __STAMP__&
           ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundary_tmp temporary array!')
     ! Save old data
-    PartStateBoundary_tmp(1:10,1:dims(2)) = PartStateBoundary(1:10,1:dims(2))
+    PartStateBoundary_tmp(1:nVarPartStateBoundary,1:dims(2)) = PartStateBoundary(1:nVarPartStateBoundary,1:dims(2))
 
     ! Re-allocate PartStateBoundary to twice the size
     DEALLOCATE(PartStateBoundary)
-    ALLOCATE(PartStateBoundary(1:10,1:2*dims(2)), STAT=ALLOCSTAT)
+    ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:2*dims(2)), STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL abort(&
           __STAMP__&
           ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundary array!')
-    PartStateBoundary(1:10,        1:  dims(2)) = PartStateBoundary_tmp(1:10,1:dims(2))
-    PartStateBoundary(1:10,dims(2)+1:2*dims(2)) = 0.
+    PartStateBoundary(1:nVarPartStateBoundary,        1:  dims(2)) = PartStateBoundary_tmp(1:nVarPartStateBoundary,1:dims(2))
+    PartStateBoundary(1:nVarPartStateBoundary,dims(2)+1:2*dims(2)) = 0.
 
   END IF
 
@@ -311,6 +312,7 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
   PartStateBoundary(8  ,iMax) = MPF
   PartStateBoundary(9  ,iMax) = time
   PartStateBoundary(10 ,iMax) = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal))))
+  PartStateBoundary(11 ,iMax) = REAL(iBC)
 END ASSOCIATE
 
 END SUBROUTINE StoreBoundaryParticleProperties

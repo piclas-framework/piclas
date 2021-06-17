@@ -64,17 +64,15 @@ USE MOD_ReadInTools ,ONLY: prms
 !USE MOD_AnalyzeEquation ,ONLY: DefineParametersAnalyzeEquation
 IMPLICIT NONE
 !==================================================================================================================================
+! -------------------------
 CALL prms%SetSection("Analyze")
+! -------------------------
 CALL prms%CreateLogicalOption('DoCalcErrorNorms'     , 'Set true to compute L2 and LInf error norms at analyze step.','.FALSE.')
 CALL prms%CreateRealOption(   'Analyze_dt'           , 'Specifies time interval at which analysis routines are called.','0.')
 CALL prms%CreateRealOption(   'OutputTimeFixed'      , 'fixed time for writing state to .h5','-1.0')
 CALL prms%CreateIntOption(    'nSkipAnalyze'         , '(Skip Analyze-Dt)','1')
-CALL prms%CreateLogicalOption('CalcTimeAverage'      , 'Flag if time averaging should be performed','.FALSE.')
 CALL prms%CreateLogicalOption('DoMeasureAnalyzeTime' , 'Measure time that is spent in analyze routines and count the number of '//&
                                                        'analysis calls (to std out stream)','.FALSE.')
-CALL prms%CreateStringOption( 'VarNameAvg'           , 'Count of time average variables',multiple=.TRUE.)
-CALL prms%CreateStringOption( 'VarNameFluc'          , 'Count of fluctuation variables',multiple=.TRUE.)
-CALL prms%CreateIntOption(    'nSkipAvg'             , 'Iter every which CalcTimeAverage is performed')
 !CALL prms%CreateLogicalOption('AnalyzeToFile',   "Set true to output result of error norms to a file (DoCalcErrorNorms=T)",&
                                                  !'.FALSE.')
 !CALL prms%CreateIntOption(    'nWriteData' ,     "Interval as multiple of Analyze_dt at which HDF5 files "//&
@@ -85,18 +83,27 @@ CALL prms%CreateIntOption(    'nSkipAvg'             , 'Iter every which CalcTim
 !CALL prms%CreateIntOption(    'AnalyzeRefState' ,"Define state used for analyze (e.g. for computing L2 errors). "//&
                                                  !"Default: Same as IniRefState")
 !CALL DefineParametersAnalyzeEquation()
-#ifdef CODE_ANALYZE
-CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput' , 'print code analyze info to CodeAnalyze.csv','.TRUE.')
-#endif /* CODE_ANALYZE */
-CALL prms%CreateIntOption(      'Field-AnalyzeStep'   , 'Analyze is performed each Nth time step. Set to 0 to completely skip.','1')
+
+! -------------------------
+CALL prms%SetSection("Analyzefield")
+! -------------------------
+CALL prms%CreateIntOption(    'Field-AnalyzeStep'   , 'Analyze is performed each Nth time step. Set to 0 to completely skip.','1')
+
+!-- CalcStuff
 CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'Calculate Potential Energy. Output file is Database.csv','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPointsPerWavelength', 'Flag to compute the points per wavelength in each cell','.FALSE.')
 
-CALL prms%SetSection("Analyzefield")
 CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"Calculate Poynting vector integral, which is the integrated energy density "//&
                                                          "over a plane, perpendicular to PoyntingMainDir axis (default is z-direction)"//&
                                                          ". The plane position must lie on an interface between two adjacent elements.",&
                                                       '.FALSE.')
+
+!-- BoundaryFieldOutput
+CALL prms%CreateLogicalOption(  'CalcBoundaryFieldOutput', 'Output the field boundary over time' , '.FALSE.')
+CALL prms%CreateIntOption(      'BFO-NFieldBoundaries'   , 'Number of boundaries used for CalcBoundaryFieldOutput')
+CALL prms%CreateIntArrayOption( 'BFO-FieldBoundaries'    , 'Vector (length BFO-NFieldBoundaries) with the numbers of each Field-Boundary')
+
+!-- Poynting Vector
 CALL prms%CreateIntOption( 'PoyntingVecInt-Planes', 'Total number of Poynting vector integral planes for measuring the '//&
                                                     'directed power flow (energy flux density: Density and direction of an '//&
                                                     'electromagnetic field.', '0')
@@ -109,13 +116,23 @@ CALL prms%CreateRealOption('Plane-[$]-z-coord', 'z-coordinate of the n-th Poynti
 CALL prms%CreateIntOption( 'PoyntingMainDir'  , 'Direction in which the Poynting vector integral is to be measured. '//&
                                                    '\n1: x \n2: y \n3: z (default)','3')
 
-
+!-- AverageElectricPotential
 CALL prms%CreateLogicalOption( 'CalcAverageElectricPotential',"Calculate the averaged electric potential at a specific x-coordinate."//&
                                                               " The plane position must lie on an interface between two adjacent elements",&
                                                               '.FALSE.')
 CALL prms%CreateRealOption('AvgPotential-Plane-x-coord', 'x-coordinate of the averaged electric potential')
 CALL prms%CreateRealOption('AvgPotential-Plane-Tolerance', 'Absolute tolerance for checking the averaged electric potential plane '&
                                                          , '1E-5')
+!-- TimeAverage
+CALL prms%CreateLogicalOption('CalcTimeAverage'     , 'Flag if time averaging should be performed','.FALSE.')
+CALL prms%CreateIntOption(    'nSkipAvg'            , 'Iter every which CalcTimeAverage is performed')
+CALL prms%CreateStringOption( 'VarNameAvg'          , 'Count of time average variables',multiple=.TRUE.)
+CALL prms%CreateStringOption( 'VarNameFluc'         , 'Count of fluctuation variables',multiple=.TRUE.)
+
+!-- Code Analyze
+#ifdef CODE_ANALYZE
+CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput' , 'print code analyze info to CodeAnalyze.csv','.TRUE.')
+#endif /* CODE_ANALYZE */
 END SUBROUTINE DefineParametersAnalyze
 
 SUBROUTINE InitAnalyze()
@@ -133,11 +150,12 @@ USE MOD_Analyze_Vars          ,ONLY: AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNor
 USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed,FieldAnalyzeStep
 USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_Analyze_Vars          ,ONLY: doFieldAnalyze,CalcEpot
+USE MOD_Analyze_Vars          ,ONLY: CalcBoundaryFieldOutput,BFO
 USE MOD_Interpolation_Vars    ,ONLY: InterpolationInitIsDone
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_LoadBalance_Vars      ,ONLY: nSkipAnalyze
-USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL,GETLOGICAL,PrintOption
+USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL,GETLOGICAL,PrintOption,GETINTARRAY
 USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage           ,ONLY: InitTimeAverage
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
@@ -221,6 +239,14 @@ IF(CalcAverageElectricPotential)THEN
   CALL GetAverageElectricPotentialPlane()
 END IF
 #endif /*USE_HDG*/
+
+!-- BoundaryParticleOutput (after mapping of PartBound on FieldBound and determination of PartBound types = open, reflective etc.)
+CalcBoundaryFieldOutput = GETLOGICAL('CalcBoundaryFieldOutput')
+IF(CalcBoundaryFieldOutput)THEN
+  DoFieldAnalyze = .TRUE.
+  BFO%NFieldBoundaries = GETINT('BFO-NFieldBoundaries')
+  BFO%FieldBoundaries  = GETINTARRAY('BFO-FieldBoundaries',BFO%NFieldBoundaries)
+END IF ! CalcBoundaryFieldOutput
 
 ! Get logical for measurement of time spent in analyze routines
 DoMeasureAnalyzeTime = GETLOGICAL('DoMeasureAnalyzeTime')
