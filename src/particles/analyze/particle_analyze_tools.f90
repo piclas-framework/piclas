@@ -2165,8 +2165,8 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CyclotronFrequencyMaxCell,CyclotronFrequen
 USE MOD_Globals_Vars           ,ONLY: ElementaryCharge,ElectronMass
 USE MOD_Particle_Vars          ,ONLY: PDM, PEM
 USE MOD_PICInterpolation_tools ,ONLY: GetExternalFieldAtParticle,GetInterpolatedFieldPartPos,GetEMField
-USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Interpolation_Vars     ,ONLY: xGP
+USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2199,11 +2199,10 @@ ASSOCIATE( e   => ElementaryCharge,&
       iGlobElem  = PEM%GlobalElemID(iPart)
       iElem  = PEM%LocalElemID(iPart)
       IF (partV2.LT.1E12)THEN
-        field(1:6) = GetExternalFieldAtParticle(PartState(1:3,iPart))
-        IF(TRIM(InterpolationType).EQ.'particle_position') field(1:6) = field(1:6) + GetInterpolatedFieldPartPos(iGlobElem,iPart)
-        B       = VECNORM(field(4:6))
-        omega_c = e*B/m_e
-        SetFrequency=.TRUE.
+        field(1:6)   = GetExternalFieldAtParticle(PartState(1:3,iPart)) + GetInterpolatedFieldPartPos(iGlobElem,iPart)
+        B            = VECNORM(field(4:6))
+        omega_c      = e*B/m_e
+        SetFrequency = .TRUE.
         IF(omega_c.GT.0.) SetRadius = .TRUE.
       ELSE
         gamma1=partV2*c2_inv 
@@ -2211,12 +2210,11 @@ ASSOCIATE( e   => ElementaryCharge,&
         IF(gamma1.GE.1.0)THEN
           ! don't store this value as cyclotron frequency, keep the zero or an already correctly set value
         ELSE
-          field(1:6) = GetExternalFieldAtParticle(PartState(1:3,iPart))
-          IF(TRIM(InterpolationType).EQ.'particle_position') field(1:6) = field(1:6) + GetInterpolatedFieldPartPos(iGlobElem,iPart)
-          gamma1  = 1.0/SQRT(1.-gamma1)
-          B       = VECNORM(field(4:6))
-          omega_c = e*B/(gamma1*m_e)
-          SetFrequency=.TRUE.
+          field(1:6)   = GetExternalFieldAtParticle(PartState(1:3,iPart)) + GetInterpolatedFieldPartPos(iGlobElem,iPart)
+          gamma1       = 1.0/SQRT(1.-gamma1)
+          B            = VECNORM(field(4:6))
+          omega_c      = e*B/(gamma1*m_e)
+          SetFrequency = .TRUE.
           IF(omega_c.GT.0.) SetRadius = .TRUE.
         END IF ! gamma1.GE.1.0
       END IF ! partV2.LT.1E12
@@ -2243,9 +2241,8 @@ ASSOCIATE( e   => ElementaryCharge,&
       DO k=0,PP_N
         DO j=0,PP_N
           DO i=0,PP_N
-            ASSOCIATE( x => xGP(i), y => xGP(j), z => xGP(k))
-              field(1:6) = GetExternalFieldAtParticle((/x,y,z/))
-              IF(TRIM(InterpolationType).EQ.'particle_position') field(1:6) = field(1:6) + GetEMField(iElem,(/x,y,z/) )
+            ASSOCIATE( x => Elem_xGP(1,i,j,k,iElem), y => Elem_xGP(2,i,j,k,iElem), z => Elem_xGP(3,i,j,k,iElem))
+              field(1:6) = GetExternalFieldAtParticle((/x,y,z/)) + GetEMField(iElem,(/xGP(i),xGP(j),xGP(k)/))
               B = VECNORM(field(4:6))
               CyclotronFrequencyMaxCell(iElem) = MAX(CyclotronFrequencyMaxCell(iElem), e*B/(m_e) )
             END ASSOCIATE
@@ -2259,9 +2256,8 @@ ASSOCIATE( e   => ElementaryCharge,&
       DO k=0,PP_N
         DO j=0,PP_N
           DO i=0,PP_N
-            ASSOCIATE( x => xGP(i), y => xGP(j), z => xGP(k))
-              field(1:6) = GetExternalFieldAtParticle((/x,y,z/))
-              IF(TRIM(InterpolationType).EQ.'particle_position') field(1:6) = field(1:6) + GetEMField(iElem,(/x,y,z/) )
+            ASSOCIATE( x => Elem_xGP(1,i,j,k,iElem), y => Elem_xGP(2,i,j,k,iElem), z => Elem_xGP(3,i,j,k,iElem))
+              field(1:6) = GetExternalFieldAtParticle((/x,y,z/)) + GetEMField(iElem,(/xGP(i),xGP(j),xGP(k)/))
               B = VECNORM(field(4:6))
               CyclotronFrequencyMinCell(iElem) = MIN(CyclotronFrequencyMinCell(iElem), e*B/(m_e) )
             END ASSOCIATE
