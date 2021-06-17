@@ -337,6 +337,7 @@ USE MOD_io_HDF5
 USE MOD_HDF5_output        ,ONLY: WriteArrayToHDF5, copy_userblock
 USE MOD_Output_Vars        ,ONLY: UserBlockTmpFile,userblock_total_len
 USE MOD_Interpolation_Vars ,ONLY: BGFieldAnalytic, NodeType, BGDataSize
+USE MOD_Restart_Vars       ,ONLY: RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -380,6 +381,7 @@ IF(MPIRoot) THEN
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFile)/))
   CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
   CALL WriteAttributeToHDF5(File_ID,'VarNames',BGDataSize,StrArray=StrVarNames)
+  CALL WriteAttributeToHDF5(File_ID,'Time'    ,1,RealScalar=RestartTime)
   CALL CloseDataFile()
   ! Add userblock to hdf5-file
   CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_CHAR)
@@ -441,7 +443,7 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-REAL,ALLOCATABLE               :: Upml(:,:,:,:,:)
+REAL,ALLOCATABLE               :: UPML(:,:,:,:,:)
 INTEGER                        :: iPML
 !===================================================================================================================================
 
@@ -475,7 +477,7 @@ IF(DoPML)THEN
   ALLOCATE(UPML(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
   UPML=0.0
   DO iPML=1,nPMLElems
-    Upml(:,:,:,:,PMLToElem(iPML)) = U2(:,:,:,:,iPML)
+    UPML(:,:,:,:,PMLToElem(iPML)) = U2(:,:,:,:,iPML)
   END DO ! iPML
 
   IF(MPIRoot)THEN
@@ -496,7 +498,7 @@ ASSOCIATE (&
                           nValGlobal  = (/PMLnVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
                           nVal        = (/PMLnVar , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
                           offset      = (/0_IK    , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-                          collective  = .TRUE.,RealArray = Upml)
+                          collective  = .TRUE.,RealArray = UPML)
 END ASSOCIATE
 
 !  CALL WriteArrayToHDF5(DataSetName='PML_Solution', rank=5,&
