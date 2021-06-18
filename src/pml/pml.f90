@@ -218,7 +218,7 @@ END SUBROUTINE InitPML
 
 
 
-PURE SUBROUTINE PMLTimeRamping(t,RampingFactor)
+PPURE SUBROUTINE PMLTimeRamping(t,RampingFactor)
 !===================================================================================================================================
 ! set the scaling factor which ramps the damping factor over time
 !===================================================================================================================================

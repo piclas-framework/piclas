@@ -493,7 +493,7 @@ END SUBROUTINE CalcPoyntingIntegral
 
 
 #if (PP_nVar>=6)
-PURE SUBROUTINE PoyntingVector(Uface_in,Sloc)
+PPURE SUBROUTINE PoyntingVector(Uface_in,Sloc)
 !===================================================================================================================================
 !> Calculate the Poynting Vector on a certain face for vacuum properties
 !>
@@ -527,7 +527,7 @@ END DO  ! p - PP_N
 END SUBROUTINE PoyntingVector
 
 
-PURE SUBROUTINE PoyntingVectorDielectric(Uface_in,Sloc,mu_r_inv)
+PPURE SUBROUTINE PoyntingVectorDielectric(Uface_in,Sloc,mu_r_inv)
 !===================================================================================================================================
 !> Calculate the Poynting Vector on a certain face for dielectric properties (consider mu_r here, but not mu0)
 !>

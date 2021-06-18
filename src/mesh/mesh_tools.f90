@@ -49,7 +49,7 @@ PUBLIC :: GetCNSideID
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ABSTRACT INTERFACE
-  PURE INTEGER FUNCTION GetGlobalElemIDInterface(iElem)
+  PPURE INTEGER FUNCTION GetGlobalElemIDInterface(iElem)
     INTEGER,INTENT(IN) :: iElem
   END FUNCTION
 END INTERFACE
@@ -57,7 +57,7 @@ END INTERFACE
 PROCEDURE(GetGlobalElemIDInterface),POINTER :: GetGlobalElemID    !< pointer defining the mapping: compute-node element ID -> global element ID
 
 ABSTRACT INTERFACE
-  PURE INTEGER FUNCTION GetCNElemIDInterface(iElem)
+  PPURE INTEGER FUNCTION GetCNElemIDInterface(iElem)
     INTEGER,INTENT(IN) :: iElem
   END FUNCTION
 END INTERFACE
@@ -65,7 +65,7 @@ END INTERFACE
 PROCEDURE(GetCNElemIDInterface),POINTER     :: GetCNElemID        !< pointer defining the mapping: global element ID -> compute-node element ID
 
 ABSTRACT INTERFACE
-  PURE INTEGER FUNCTION GetGlobalSideIDInterface(iSide)
+  PPURE INTEGER FUNCTION GetGlobalSideIDInterface(iSide)
     INTEGER,INTENT(IN) :: iSide
   END FUNCTION
 END INTERFACE
@@ -73,7 +73,7 @@ END INTERFACE
 PROCEDURE(GetGlobalSideIDInterface),POINTER :: GetGlobalSideID    !< pointer defining the mapping: compute-node element ID -> global element ID
 
 ABSTRACT INTERFACE
-  PURE INTEGER FUNCTION GetCNSideIDInterface(iSide)
+  PPURE INTEGER FUNCTION GetCNSideIDInterface(iSide)
     INTEGER,INTENT(IN) :: iSide
   END FUNCTION
 END INTERFACE
@@ -175,7 +175,7 @@ END SUBROUTINE InitGetGlobalSideID
 !==================================================================================================================================!
 !> Get the compute-node element ID in case of MPI=OFF or single compute node (CN)
 !==================================================================================================================================!
-PURE INTEGER FUNCTION GetGlobalElemID_iElem(iElem)
+PPURE INTEGER FUNCTION GetGlobalElemID_iElem(iElem)
 ! MODULES
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iElem
@@ -192,7 +192,7 @@ END FUNCTION GetGlobalElemID_iElem
 !==================================================================================================================================!
 !> Get the compute-node element ID in case of MPI=OFF or single compute node (CN)
 !==================================================================================================================================!
-PURE FUNCTION GetGlobalSideID_iSide(iSide)
+PPURE FUNCTION GetGlobalSideID_iSide(iSide)
 ! MODULES
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iSide
@@ -210,7 +210,7 @@ END FUNCTION GetGlobalSideID_iSide
 !==================================================================================================================================!
 !> Get the global element ID in case of MPI=ON for single or multiple compute nodes (CN)
 !==================================================================================================================================!
-PURE INTEGER FUNCTION GetGlobalElemID_fromTotalElem(iElem)
+PPURE INTEGER FUNCTION GetGlobalElemID_fromTotalElem(iElem)
 ! MODULES
 USE MOD_MPI_Shared_Vars, ONLY:CNTotalElem2GlobalElem
 ! INPUT / OUTPUT VARIABLES
@@ -230,7 +230,7 @@ END FUNCTION GetGlobalElemID_fromTotalElem
 !==================================================================================================================================!
 !> Get the global element ID in case of MPI=ON for single or multiple compute nodes (CN)
 !==================================================================================================================================!
-PURE INTEGER FUNCTION GetGlobalSideID_fromTotalSide(iSide)
+PPURE INTEGER FUNCTION GetGlobalSideID_fromTotalSide(iSide)
 ! MODULES
 USE MOD_MPI_Shared_Vars, ONLY:CNTotalSide2GlobalSide
 ! INPUT / OUTPUT VARIABLES
@@ -317,7 +317,7 @@ END SUBROUTINE InitGetCNSideID
 !==================================================================================================================================!
 !> Get the CN element ID in case of MPI=OFF or single compute node (CN)
 !==================================================================================================================================!
-PURE INTEGER FUNCTION CNElemID_is_iElem(iElem)
+PPURE INTEGER FUNCTION CNElemID_is_iElem(iElem)
 ! MODULES
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iElem ! Global and local element ID are the same
@@ -334,7 +334,7 @@ END FUNCTION CNElemID_is_iElem
 !==================================================================================================================================!
 !> Get the CN element ID in case of MPI=OFF or single compute node (CN)
 !==================================================================================================================================!
-PURE INTEGER FUNCTION CNSideID_is_iSide(iSide)
+PPURE INTEGER FUNCTION CNSideID_is_iSide(iSide)
 ! MODULES
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iSide ! Global and local element ID are the same
@@ -352,7 +352,7 @@ END FUNCTION CNSideID_is_iSide
 !==================================================================================================================================!
 !> Get the CN element ID in case of MPI=ON for single or multiple compute nodes (CN)
 !==================================================================================================================================!
-PURE INTEGER FUNCTION GetGlobalElem2CNTotalElem(iElem)
+PPURE INTEGER FUNCTION GetGlobalElem2CNTotalElem(iElem)
 ! MODULES
 USE MOD_MPI_Shared_Vars, ONLY:GlobalElem2CNTotalElem
 ! INPUT / OUTPUT VARIABLES
@@ -372,7 +372,7 @@ END FUNCTION GetGlobalElem2CNTotalElem
 !==================================================================================================================================!
 !> Get the CN element ID in case of MPI=ON for single or multiple compute nodes (CN)
 !==================================================================================================================================!
-PURE INTEGER FUNCTION GetGlobalSide2CNTotalSide(iSide)
+PPURE INTEGER FUNCTION GetGlobalSide2CNTotalSide(iSide)
 ! MODULES
 USE MOD_MPI_Shared_Vars, ONLY:GlobalSide2CNTotalSide
 ! INPUT / OUTPUT VARIABLES

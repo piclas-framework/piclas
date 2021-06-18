@@ -10,6 +10,8 @@
 !
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
+#include "piclas.h"
+
 MODULE MOD_Particle_Vars
 !===================================================================================================================================
 ! Contains the Particles' variables (general for all modules: PIC, DSMC, FP)
@@ -303,7 +305,7 @@ END TYPE
 TYPE(tParticleElementMapping)            :: PEM
 
 ABSTRACT INTERFACE
-  PURE INTEGER FUNCTION ElemID_INTERFACE(iPart)
+  PPURE INTEGER FUNCTION ElemID_INTERFACE(iPart)
     INTEGER,INTENT(IN) :: iPart
   END FUNCTION
 END INTERFACE
