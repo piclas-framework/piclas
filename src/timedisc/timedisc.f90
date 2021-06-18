@@ -44,7 +44,7 @@ USE MOD_TimeAverage            ,ONLY: CalcTimeAverage
 USE MOD_Analyze                ,ONLY: PerformAnalyze
 USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze
 USE MOD_Restart_Vars           ,ONLY: RestartTime,RestartWallTime
-USE MOD_HDF5_output            ,ONLY: WriteStateToHDF5
+USE MOD_HDF5_Output_State      ,ONLY: WriteStateToHDF5
 USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 USE MOD_RecordPoints           ,ONLY: WriteRPToHDF5!,RecordPoints
@@ -78,7 +78,8 @@ USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 #ifdef PARTICLES
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
-USE MOD_HDF5_Output_Tools      ,ONLY: WriteIMDStateToHDF5
+USE MOD_HDF5_Output_Particles  ,ONLY: WriteMagneticPICFieldToHDF5
+USE MOD_HDF5_Output_State      ,ONLY: WriteIMDStateToHDF5
 #endif /*PARTICLES*/
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
