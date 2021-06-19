@@ -532,7 +532,7 @@ END DO
 END SUBROUTINE DivCleaningDamping
 
 
-PURE SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear, warning_linear_phi)
+PPURE SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear, warning_linear_phi)
 !===================================================================================================================================
 ! Determine the right-hand-side of Poisson's equation (either by an analytic function or deposition of charge from particles)
 ! TODO: currently particles are enforced, which means that they over-write the exact function solution because

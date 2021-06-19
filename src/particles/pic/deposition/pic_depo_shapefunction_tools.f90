@@ -819,7 +819,7 @@ END IF
 END SUBROUTINE UpdatePartSource
 
 
-PURE LOGICAL FUNCTION ElemOnMyProc(globElemID)
+PPURE LOGICAL FUNCTION ElemOnMyProc(globElemID)
 !============================================================================================================================
 ! Check if the global element ID is an element on my processor (i.e. local element index is between 1 and nElems)
 !============================================================================================================================
@@ -846,7 +846,7 @@ END IF
 END FUNCTION ElemOnMyProc
 
 
-PURE REAL FUNCTION SFNorm(v1)
+PPURE REAL FUNCTION SFNorm(v1)
 !============================================================================================================================
 ! Return the shape function norm by calculating the corresponding 1D, 2D or 3D distance from the input vector 'v1'
 !============================================================================================================================
@@ -876,7 +876,7 @@ END SELECT
 END FUNCTION SFNorm
 
 
-PURE REAL FUNCTION SFRadius2(v1)
+PPURE REAL FUNCTION SFRadius2(v1)
 !============================================================================================================================
 ! Return the squared distance by calculating the corresponding 1D, 2D or 3D value from the input vector 'v1'
 !============================================================================================================================
@@ -906,7 +906,7 @@ END SELECT
 END FUNCTION SFRadius2
 
 
-PURE FUNCTION GetPartPosShifted(iCase,PartPos)
+PPURE FUNCTION GetPartPosShifted(iCase,PartPos)
 !============================================================================================================================
 ! Return the shape function norm by calculating the corresponding 1D, 2D or 3D distance from the input vector 'vec'
 !============================================================================================================================

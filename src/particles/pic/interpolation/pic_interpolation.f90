@@ -353,7 +353,7 @@ END SELECT
 END SUBROUTINE InterpolateFieldToSingleParticle
 
 
-PURE FUNCTION GetExternalFieldAtParticle(PartID)
+PPURE FUNCTION GetExternalFieldAtParticle(PartID)
 !===================================================================================================================================
 ! Get the external field (analytic, variable, etc.) for the particle at position PartState(1:3,PartID)
 ! 4 Methods can be used:
@@ -409,7 +409,7 @@ END FUNCTION GetExternalFieldAtParticle
 
 
 #ifdef CODE_ANALYZE
-PURE FUNCTION GetAnalyticFieldAtParticle(PartPos)
+PPURE FUNCTION GetAnalyticFieldAtParticle(PartPos)
 !===================================================================================================================================
 ! Calculate the electro-(magnetic) field at the particle's position form an analytic solution
 !===================================================================================================================================
@@ -500,7 +500,7 @@ GetInterpolatedFieldPartPos(1:6) =  GetField(PEM%LocalElemID(PartID),PartPosRef_
 END FUNCTION GetInterpolatedFieldPartPos
 
 
-PURE FUNCTION GetField(ElemID,PartPosRef_loc)
+PPURE FUNCTION GetField(ElemID,PartPosRef_loc)
 !===================================================================================================================================
 ! Evaluate the electro-(magnetic) field using the reference position and return the field
 !===================================================================================================================================
@@ -651,7 +651,7 @@ SWRITE(UNIT_stdOut,'(A)')' ...VARIABLE EXTERNAL FIELD INITIALIZATION DONE'
 END SUBROUTINE ReadVariableExternalField
 
 
-PURE FUNCTION InterpolateVariableExternalField(Pos)
+PPURE FUNCTION InterpolateVariableExternalField(Pos)
 !===================================================================================================================================
 !> Interpolates the variable external field to the z-position
 !> NO z-values smaller than VariableExternalField(1,1) are allowed!
@@ -684,7 +684,7 @@ END IF
 END FUNCTION InterpolateVariableExternalField
 
 
-PURE FUNCTION InterpolateAlgebraicExternalField(Pos)
+PPURE FUNCTION InterpolateAlgebraicExternalField(Pos)
 !===================================================================================================================================
 !> Interpolates the variable external field to the z-position
 !> NO z-values smaller than VariableExternalField(1,1) are allowed!

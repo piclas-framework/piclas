@@ -1824,7 +1824,7 @@ END SUBROUTINE
 
 
 #if GCC_VERSION < 90000
-PURE FUNCTION FINDLOC(Array,Value,Dim)
+PPURE FUNCTION FINDLOC(Array,Value,Dim)
 !===================================================================================================================================
 !> Implements a subset of the intrinsic FINDLOC function for Fortran < 2008
 !===================================================================================================================================

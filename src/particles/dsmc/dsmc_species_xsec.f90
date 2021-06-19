@@ -427,7 +427,7 @@ DEALLOCATE(Velocity)
 END SUBROUTINE DetermineNullCollProb
 
 
-PURE REAL FUNCTION InterpolateCrossSection(iCase,CollisionEnergy)
+PPURE REAL FUNCTION InterpolateCrossSection(iCase,CollisionEnergy)
 !===================================================================================================================================
 !> Interpolate the collision cross-section [m^2] from the available data at the given collision energy [J]
 !> Collision energies below and above the given data will be set at the first and last level of the data set
@@ -477,7 +477,7 @@ END DO
 END FUNCTION InterpolateCrossSection
 
 
-PURE REAL FUNCTION InterpolateCrossSection_Vib(iCase,iVib,CollisionEnergy)
+PPURE REAL FUNCTION InterpolateCrossSection_Vib(iCase,iVib,CollisionEnergy)
 !===================================================================================================================================
 !> Interpolate the vibrational cross-section data for specific vibrational level at the given collision energy
 !> Note: Requires the data to be sorted by ascending energy values
@@ -527,7 +527,7 @@ END DO
 END FUNCTION InterpolateCrossSection_Vib
 
 
-PURE REAL FUNCTION InterpolateVibRelaxProb(iCase,CollisionEnergy)
+PPURE REAL FUNCTION InterpolateVibRelaxProb(iCase,CollisionEnergy)
 !===================================================================================================================================
 !> Interpolate the vibrational relaxation probability at the same intervals as the effective collision cross-section
 !> Note: Requires the data to be sorted by ascending energy values
@@ -787,7 +787,7 @@ END IF
 END SUBROUTINE MCC_Chemistry_Init
 
 
-PURE REAL FUNCTION InterpolateCrossSection_Chem(iCase,iPath,CollisionEnergy)
+PPURE REAL FUNCTION InterpolateCrossSection_Chem(iCase,iPath,CollisionEnergy)
 !===================================================================================================================================
 !> Interpolate the reaction cross-section data for specific reaction path at the given collision energy
 !> Note: Requires the data to be sorted by ascending energy values
