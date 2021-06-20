@@ -791,7 +791,7 @@ __STAMP__&
 END FUNCTION BessK
 
 
-PURE FUNCTION DEVI(mass, temp, gamma)
+PPURE FUNCTION DEVI(mass, temp, gamma)
 !===================================================================================================================================
 ! derivative to find max of function
 !===================================================================================================================================
@@ -811,7 +811,7 @@ REAL                :: DEVI
 END FUNCTION DEVI
 
 
-PURE FUNCTION SYNGE(velabs, temp, mass, BK2)
+PPURE FUNCTION SYNGE(velabs, temp, mass, BK2)
 !===================================================================================================================================
 ! Maxwell-Juettner distribution according to Synge Book p.48
 !===================================================================================================================================
@@ -834,7 +834,7 @@ SYNGE = velabs*velabs*gamma**5/BK2*exp(-mass*c2*gamma/(BoltzmannConst*temp))
 END FUNCTION SYNGE
 
 
-PURE FUNCTION QUASIREL(velabs, temp, mass)
+PPURE FUNCTION QUASIREL(velabs, temp, mass)
 !===================================================================================================================================
 ! discard gamma in the prefactor, maintain it in the computation of the energy
 !===================================================================================================================================
@@ -1586,7 +1586,7 @@ END SUBROUTINE InsideExcludeRegionCheck
 
 
 #ifdef CODE_ANALYZE
-PURE FUNCTION CalcVectorAdditionCoeffs(point,Vector1,Vector2)
+PPURE FUNCTION CalcVectorAdditionCoeffs(point,Vector1,Vector2)
 !===================================================================================================================================
 ! robust calculation of Coeffs C(1) and C(2) from point = C(1)*Vector1 + C(2)*Vector2
 !===================================================================================================================================
@@ -1626,7 +1626,7 @@ END IF
 END FUNCTION CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
 
-PURE FUNCTION CalcIntensity_Gaussian(x,x_norm)
+PPURE FUNCTION CalcIntensity_Gaussian(x,x_norm)
 !===================================================================================================================================
 !> Calculates an exponential function of the Gaussian form for a given input variable (e.g. time) and a normalization variable
 !> (e.g. pulse duration)
@@ -1731,7 +1731,7 @@ END ASSOCIATE
 END SUBROUTINE CalcNbrOfPhotons
 
 
-PURE FUNCTION CalcPhotonEnergy(lambda)
+PPURE FUNCTION CalcPhotonEnergy(lambda)
 !===================================================================================================================================
 !> Calculation of photon energy based on wavelength
 !===================================================================================================================================

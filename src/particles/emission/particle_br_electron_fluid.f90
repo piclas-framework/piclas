@@ -593,7 +593,7 @@ END IF ! SwitchToBR.OR.Swi
 END SUBROUTINE SwitchBRElectronModel
 
 
-PURE LOGICAL FUNCTION GreaterEqualWithTolerance(a,b)
+PPURE LOGICAL FUNCTION GreaterEqualWithTolerance(a,b)
 !===================================================================================================================================
 ! Check if a >= b or a is almost equal to b via ALMOSTEQUALRELATIVE
 ! Catch tolerance issues when a is only an epsilon smaller than b but the inquiry should be that they are equal
@@ -618,7 +618,7 @@ END IF
 END FUNCTION GreaterEqualWithTolerance
 
 
-PURE LOGICAL FUNCTION LesserThanWithTolerance(a,b,c)
+PPURE LOGICAL FUNCTION LesserThanWithTolerance(a,b,c)
 !===================================================================================================================================
 ! Check if a < b and NOT a is almost equal to b via ALMOSTEQUALRELATIVE
 ! Catch tolerance issues when a<b returns a false positive, because the numbers are actually the same (with an epsilon difference)

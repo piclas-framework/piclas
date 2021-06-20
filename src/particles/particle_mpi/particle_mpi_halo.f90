@@ -960,7 +960,7 @@ SDEALLOCATE(GlobalProcToExchangeProc)
 END SUBROUTINE FinalizePartExchangeProcs
 
 
-PURE FUNCTION HaloBoxInProc(CartNodes,CartProc,halo_eps,nPeriodicVectors,PeriodicVectors)
+PPURE FUNCTION HaloBoxInProc(CartNodes,CartProc,halo_eps,nPeriodicVectors,PeriodicVectors)
 !===================================================================================================================================
 ! Check if bounding box is on proc by comparing against the other bounding box extended by halo_eps
 !===================================================================================================================================

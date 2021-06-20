@@ -45,7 +45,7 @@ PUBLIC :: CalcBezierControlPoints, InitParticleGeometry
 CONTAINS
 
 
-!PURE SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
+!PPURE SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det_Out)
 !===================================================================================================================================
 !> Checks if particle is inside of a linear element with triangulated faces, compatible with mortars
@@ -193,7 +193,7 @@ RETURN
 END SUBROUTINE ParticleInsideQuad3D
 
 
-PURE SUBROUTINE ParticleInsideNbMortar(PartStateLoc,ElemID,InElementCheck)
+PPURE SUBROUTINE ParticleInsideNbMortar(PartStateLoc,ElemID,InElementCheck)
 !===================================================================================================================================
 !> Routines checks if the particle is inside the neighbouring mortar element. Used for the regular ParticleInsideQuad3D routine
 !> after it was determined that the particle is not in the concave part but in the convex part of the element.
@@ -300,7 +300,7 @@ END DO  ! iLocSide = 1,6
 END SUBROUTINE ParticleInsideNbMortar
 
 
-PURE FUNCTION CalcDetOfTrias(A,bending)
+PPURE FUNCTION CalcDetOfTrias(A,bending)
 !================================================================================================================================
 !> Calculates the determinant A*(B x C) for both triangles of a side. bending = 1 gives the determinant considering the actual
 !> orientation of the side (concave/convex), 2 gives the opposite of the saved form (e.g. a concave side gets the convex analog)
@@ -387,7 +387,7 @@ END SUBROUTINE InitPEM_LocalElemID
 !==================================================================================================================================!
 !> Get the global element ID from PEM%GlobalElemID(iPart)
 !==================================================================================================================================!
-PURE FUNCTION GetGlobalID(iPart)
+PPURE FUNCTION GetGlobalID(iPart)
 ! MODULES
 USE MOD_Particle_Vars ,ONLY: PEM
 ! IMPLICIT VARIABLE HANDLING
@@ -409,7 +409,7 @@ END FUNCTION GetGlobalID
 !==================================================================================================================================!
 !> Get the local element ID from PEM%GlobalElemID(iPart) - offsetElem
 !==================================================================================================================================!
-PURE FUNCTION GetGlobalID_offset(iPart)
+PPURE FUNCTION GetGlobalID_offset(iPart)
 ! MODULES
 USE MOD_Mesh_Vars     ,ONLY: offSetElem
 USE MOD_Particle_Vars ,ONLY: PEM
@@ -469,7 +469,7 @@ END SUBROUTINE InitPEM_CNElemID
 !> Get the CN element ID from the global element ID, which is first obtained from PEM%GlobalElemID(iPart) in case of MPI=ON for
 !> single or multiple compute nodes (CN)
 !==================================================================================================================================!
-PURE FUNCTION GetGlobalElem2CNTotalElem_iPart(iPart)
+PPURE FUNCTION GetGlobalElem2CNTotalElem_iPart(iPart)
 ! MODULES
 USE MOD_MPI_Shared_Vars ,ONLY: GlobalElem2CNTotalElem
 USE MOD_Particle_Vars   ,ONLY: PEM

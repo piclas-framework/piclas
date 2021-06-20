@@ -10,6 +10,8 @@
 !
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
+#include "piclas.h"
+
 MODULE MOD_ChangeBasis
 !===================================================================================================================================
 ! Changes a 2D or 3D Tensor Product Lagrange Points of Lagrange Basis of degree N_In to
@@ -49,7 +51,7 @@ CONTAINS
 
 
 
-PURE SUBROUTINE ChangeBasis3D(Dim1,N_In,N_Out,Vdm,X3D_In,X3D_Out)
+PPURE SUBROUTINE ChangeBasis3D(Dim1,N_In,N_Out,Vdm,X3D_In,X3D_Out)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions xi_In(0:N_In)
 ! to another 3D tensor product node positions (number of nodes N_out+1)
