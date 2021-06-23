@@ -512,7 +512,7 @@ USE MOD_Elem_Mat        ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_part_operations ,ONLY: RemoveAllElectrons
 USE MOD_DSMC_Vars       ,ONLY: XSec_NullCollision
 USE MOD_DSMC_ChemInit   ,ONLY: InitReactionPaths
-USE MOD_DSMC_Vars       ,ONLY: ChemReac
+USE MOD_DSMC_Vars       ,ONLY: ChemReac,CollInf,UseDSMC,CollisMode
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -521,6 +521,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL        :: debug,SwitchToBR,SwitchToKin
+INTEGER :: iCase
 !===================================================================================================================================
 !debug=.true.
 debug=.false.
@@ -584,9 +585,12 @@ CALL GetNextBRSwitchTime()
 IF(SwitchToBR.AND.CalcBRVariableElectronTemp) CALL UpdateVariableRefElectronTemp(0.)
 
 ! Update reaction paths (specifically the ones that involve electrons, which are deactivated for UseBRElectronFluid = .FALSE.)
-IF(SwitchToBR.OR.SwitchToKin)THEN
-  SDEALLOCATE(ChemReac%CollCaseInfo)
-  SDEALLOCATE(ChemReac%CollCaseInfo)
+IF(UseDSMC.AND.(SwitchToBR.OR.SwitchToKin).AND.(CollisMode.EQ.3))THEN
+  DO iCase = 1, CollInf%NumCase
+    SDEALLOCATE(ChemReac%CollCaseInfo(iCase)%ReactionIndex)
+    SDEALLOCATE(ChemReac%CollCaseInfo(iCase)%ReactionProb)
+  END DO
+  ChemReac%CollCaseInfo(:)%NumOfReactionPaths = 0 ! Re-initialize
   CALL InitReactionPaths()
 END IF ! SwitchToBR.OR.Swi
 
