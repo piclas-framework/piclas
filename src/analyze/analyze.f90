@@ -199,7 +199,13 @@ WRITE(DefStr,WRITEFORMAT) TEnd
 Analyze_dt        = GETREAL('Analyze_dt',DefStr)
 nSkipAnalyze      = GETINT('nSkipAnalyze')
 OutputTimeFixed   = GETREAL('OutputTimeFixed')
-doCalcTimeAverage = GETLOGICAL('CalcTimeAverage')
+! Time averaged quantises fields (Maxwell/Poisson solver) and deposited particles (PIC)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+  doCalcTimeAverage = GETLOGICAL('CalcTimeAverage')
+#else
+  doCalcTimeAverage = .FALSE.
+#endif
+
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
 
 FieldAnalyzeStep  = GETINT('Field-AnalyzeStep')
