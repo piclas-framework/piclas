@@ -2,7 +2,10 @@
 
 # Welcome to PICLas
 
-The code is licensed under the GNU General Public License V3. The licence can be found in [LICENCE](LICENCE.md) and the list of contributors in [CONTRIBUTORS](CONTRIBUTORS.md).
+The code is licensed under the GNU General Public License V3.
+The licence can be found in [LICENCE](LICENCE.md) and the list of contributors in [CONTRIBUTORS](CONTRIBUTORS.md).
+Among other things, PICLas is a scientific project.
+If you use PICLas for publications or presentations in science, please support the project by citing our publications given in [references](REFERENCE.md).
 
 ## PICLas Documentation
 
@@ -17,7 +20,8 @@ The documentation is a work in progress. For an installation guide please refer 
 7. [Tutorials](doc/userguide/060_tutorials.md)
 8. [Development Guide](doc/userguide/080_cluster_guide.md)
 
-A PDF file can be generated simply by executing *make* in the *doc/userguide/* folder. This requires `pandoc`, `pandoc-citeproc` and `LaTeX`. More information about pandoc and its installation can be found [here](https://pandoc.org/installing.html).
+A PDF file can be generated simply by executing *make* in the *doc/userguide/* folder. This requires `pandoc`, `pandoc-citeproc` and `LaTeX`.
+More information about pandoc and its installation can be found [here](https://pandoc.org/installing.html).
 
 The tools are known to work with the following software versions:
 
@@ -31,7 +35,7 @@ For information about the regression testing see [REGGIE](REGGIE.md).
 
 ## Used libraries
 
-PICLas uses several external libraries as well as auxilliary functions from open source projects, including:
+PICLas uses several external libraries as well as auxiliary functions from open source projects, including:
 
 * [HDF5](https://www.hdfgroup.org/)
 * [MPI](http://www.mcs.anl.gov/research/projects/mpi/)
@@ -40,7 +44,7 @@ PICLas uses several external libraries as well as auxilliary functions from open
 
 ## I need help or further information:
 
-* [IAG - Numerics Research Group](https://nrg.iag.uni-stuttgart.de/)
-* [IRS - Numerical Modelling and Simulation Group](https://www.irs.uni-stuttgart.de/forschung/numerische_modellierung_und_simulation/PICLas.en.html)
-* [HOPR (High Order Preprocessor)](https://hopr-project.org)
+* [IAG - Numerics Research Group](https://www.iag.uni-stuttgart.de/en/working-groups/numerical-methods/)
+* [IRS - Numerical Modelling and Simulation Group](https://www.irs.uni-stuttgart.de/forschung/raumtransporttechnologie/numerische_modellierung_und_simulation/)
+* [HOPR (High Order Preprocessor)](https://www.hopr-project.org/index.php/Home)
 * [boltzplatz - Numerical Plasma Dynamics](https://www.boltzplatz.eu)
