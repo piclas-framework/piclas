@@ -12,24 +12,51 @@ src/preprocflags.f90
 *~
 build*/
 !builds.ini
-reggie_run/
-ctags.txt
-CMakeCache.txt
 share/*
-CMakeFiles/
-regressioncheck/reggie/*
 tmp*/
-output_dir_gitlab_tool/
-output_dir/
-.tags
+piclas
+
+# user/dev guide
 userguide.pdf
 developerguide.pdf
-*.pvsm
+# when building the user/dev guide, a new template might be created
+template.tex
+
+# regression test
+regressioncheck/reggie/*
+output_dir_gitlab_tool/
+output_dir/
+reggie_run/
+
+# core dump files
 core
-piclas
+
+# temporary files from programs in the tools directory
+.createCylinderHOPR.json
+
+# temporary files of the paraview plugin
+.flexi.ini
+
+# hopr debug files
+sfc.dat
+
+
+# visualization files
+*.vtu
+*.h5
+
+# paraview layouts
+*.pvsm
+
+# piclas debug files
+out.*.dat
 *.out
+
+# cmake temporary files
 userblock.tmp
 *f90.orig
 commit.h
-.createCylinderHOPR.json
-*.h5
+CMakeCache.txt
+ctags.txt
+CMakeFiles/
+.tags
