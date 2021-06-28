@@ -16,6 +16,11 @@ share/*
 tmp*/
 piclas
 
+# latex
+*.aux
+*.log
+*.synctex.gz
+
 # user/dev guide
 userguide.pdf
 developerguide.pdf
@@ -60,3 +65,6 @@ CMakeCache.txt
 ctags.txt
 CMakeFiles/
 .tags
+
+# comma separated files
+*.csv
