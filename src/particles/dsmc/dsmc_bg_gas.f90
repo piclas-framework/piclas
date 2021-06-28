@@ -652,7 +652,7 @@ DO iSpec = 1,nSpecies
       IF(BGGas%BackgroundSpecies(jSpec)) THEN     ! Loop over all background species
         iCase = CollInf%Coll_Case(iSpec,jSpec)
         bgSpec = BGGas%MapSpecToBGSpec(jSpec)
-        IF(SpecDSMC(iSpec)%UseCollXSec.AND.XSec_NullCollision) THEN
+        IF(SpecXSec(iCase)%UseCollXSec.AND.XSec_NullCollision) THEN
           ! Collision cross-section: The maximum number of pairs to check is collision pair specific and depends on the null collision probability
           SpecPairNumReal = SpecPartNum(iSpec)*SpecXSec(iCase)%ProbNull
           SpecPairNumTemp = INT(SpecPartNum(iSpec)*SpecXSec(iCase)%ProbNull)
@@ -871,8 +871,8 @@ END IF
 DO iPair = 1, MCC_TotalPairNum
   cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
   cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
-  CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + GetParticleWeight(Coll_pData(iPair)%iPart_p1)
   iCase = CollInf%Coll_Case(cSpec1, cSpec2)
+  CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + GetParticleWeight(Coll_pData(iPair)%iPart_p1)
   CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
   Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) - PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
                            + (PartState(5,Coll_pData(iPair)%iPart_p1) - PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
