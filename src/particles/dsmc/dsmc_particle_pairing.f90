@@ -746,7 +746,7 @@ RECURSIVE SUBROUTINE AddQuadTreeNode(TreeNode, iElem, NodeVol)
 USE MOD_Globals
 USE MOD_DSMC_Analyze      ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars         ,ONLY: tTreeNode, DSMC, tNodeVolume, RadialWeighting, CollInf
-USE MOD_Particle_Vars     ,ONLY: nSpecies, PartSpecies, VarTimeStep
+USE MOD_Particle_Vars     ,ONLY: nSpecies, PartSpecies, VarTimeStep, usevMPF
 USE MOD_DSMC_Vars         ,ONLY: ElemNodeVol
 USE MOD_part_tools        ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -886,7 +886,7 @@ DO iLoop = 1, 4
   IF((PartNumChildNode(iLoop).GE.DSMC%PartNumOctreeNodeMin).AND.(.NOT.ForceNearestNeigh)) THEN
     ! Additional check if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
     ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-    IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
       DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop), RealParts(iLoop), Volume(iLoop))
     ELSE
       DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop),REAL(PartNumChildNode(iLoop)), Volume(iLoop))

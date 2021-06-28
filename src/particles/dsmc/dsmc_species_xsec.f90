@@ -572,7 +572,7 @@ SUBROUTINE XSec_CalcCollisionProb(iPair,SpecNum1,SpecNum2,CollCaseNum,MacroParti
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: SpecXSec, SpecDSMC, Coll_pData, CollInf, BGGas, XSec_NullCollision, RadialWeighting
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -581,7 +581,7 @@ INTEGER,INTENT(IN)            :: iPair
 REAL,INTENT(IN)               :: SpecNum1, SpecNum2, CollCaseNum, MacroParticleFactor, Volume, dtCell
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                          :: CollEnergy, SpecNumTarget, SpecNumSource, Weight1, Weight2, ReducedMass
+REAL                          :: CollEnergy, SpecNumTarget, SpecNumSource, Weight1, Weight2, ReducedMass, ReducedMassUnweighted
 INTEGER                       :: targetSpec, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase
 !===================================================================================================================================
 
@@ -597,14 +597,16 @@ IF(SpecXSec(iCase)%UseCollXSec) THEN
   END IF
   Weight1 = GetParticleWeight(iPart_p1)
   Weight2 = GetParticleWeight(iPart_p2)
-  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
     ReducedMass = (Species(iSpec_p1)%MassIC *Weight1  * Species(iSpec_p2)%MassIC * Weight2) &
       / (Species(iSpec_p1)%MassIC * Weight1+ Species(iSpec_p2)%MassIC * Weight2)
+    ReducedMassUnweighted = ReducedMass * 2. / (Weight1 + Weight2)
   ELSE
     ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
+    ReducedMassUnweighted = CollInf%MassRed(Coll_pData(iPair)%PairType)
   END IF
-  ! Using the relative kinetic energy of the particle
-  CollEnergy = 0.5 * ReducedMass * Coll_pData(iPair)%CRela2
+  ! Using the relative kinetic energy of the particle pair (real energy value per particle pair, no weighting/scaling factors)
+  CollEnergy = 0.5 * ReducedMassUnweighted * Coll_pData(iPair)%CRela2
   ! Calculate the collision probability
   SpecXSec(iCase)%CrossSection = InterpolateCrossSection(iCase,CollEnergy)
   Coll_pData(iPair)%Prob = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * SpecXSec(iCase)%CrossSection * SpecNumTarget * MacroParticleFactor &
@@ -637,7 +639,7 @@ SUBROUTINE XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Vol
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: SpecXSec, SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -647,6 +649,7 @@ REAL,INTENT(IN),OPTIONAL      :: SpecNum1, SpecNum2, MacroParticleFactor, Volume
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                          :: CollEnergy, SpecNumTarget, SpecNumSource, Weight1, Weight2, ReducedMass, SumVibCrossSection
+REAL                          :: ReducedMassUnweighted
 INTEGER                       :: targetSpec, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase, iVib, nVib
 !===================================================================================================================================
 
@@ -658,14 +661,16 @@ Weight2 = GetParticleWeight(iPart_p2)
 SpecXSec(iCase)%VibProb = 0.
 SumVibCrossSection = 0.
 
-IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
   ReducedMass = (Species(iSpec_p1)%MassIC *Weight1  * Species(iSpec_p2)%MassIC * Weight2) &
     / (Species(iSpec_p1)%MassIC * Weight1+ Species(iSpec_p2)%MassIC * Weight2)
+  ReducedMassUnweighted = ReducedMass * 2./(Weight1 + Weight2)
 ELSE
   ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
+  ReducedMassUnweighted = CollInf%MassRed(Coll_pData(iPair)%PairType)
 END IF
 ! Using the relative translational energy of the pair
-CollEnergy = 0.5 * ReducedMass * Coll_pData(iPair)%CRela2
+CollEnergy = 0.5 * ReducedMassUnweighted * Coll_pData(iPair)%CRela2
 ! Calculate the total vibrational cross-section
 nVib = SIZE(SpecXSec(iCase)%VibMode)
 DO iVib = 1, nVib
@@ -958,7 +963,7 @@ SUBROUTINE XSec_CalcReactionProb(iPair,iCase,SpecNum1,SpecNum2,MacroParticleFact
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, ChemReac, RadialWeighting, DSMC, PartStateIntEn, SpecXSec
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
@@ -970,7 +975,7 @@ REAL,INTENT(IN),OPTIONAL      :: SpecNum1, SpecNum2, MacroParticleFactor, Volume
 ! LOCAL VARIABLES
 INTEGER                       :: iPath, ReacTest, EductReac(1:3), ProductReac(1:4), ReactInx(1:2), nPair, iProd
 INTEGER                       :: NumWeightProd, targetSpec
-REAL                          :: EZeroPoint_Prod, dtCell, Weight(1:4), ReducedMass, ReducedMassUnweighted
+REAL                          :: EZeroPoint_Prod, dtCell, Weight(1:4), ReducedMass, ReducedMassUnweighted, CollEnergy
 REAL                          :: EZeroPoint_Educt, SpecNumTarget, SpecNumSource, CrossSection
 !===================================================================================================================================
 Weight = 0.; ReactInx = 0
@@ -1000,7 +1005,7 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(EductReac(2))%EZeroPoint * Weight(2)
     END IF
 
-    IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
       ReducedMass = (Species(EductReac(1))%MassIC *Weight(1) * Species(EductReac(2))%MassIC * Weight(2)) &
         / (Species(EductReac(1))%MassIC * Weight(1) + Species(EductReac(2))%MassIC * Weight(2))
       ReducedMassUnweighted = ReducedMass * 2./(Weight(1)+Weight(2))
@@ -1039,7 +1044,8 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     END IF
     ! Check first if sufficient energy is available for the products after the reaction
     IF(((Coll_pData(iPair)%Ec-EZeroPoint_Prod).GE.(-ChemReac%EForm(ReacTest)*SUM(Weight)/NumWeightProd))) THEN
-      CrossSection = InterpolateCrossSection_Chem(iCase,iPath,Coll_pData(iPair)%Ec-EZeroPoint_Educt)
+      CollEnergy = (Coll_pData(iPair)%Ec-EZeroPoint_Educt) * 2./(Weight(1)+Weight(2))
+      CrossSection = InterpolateCrossSection_Chem(iCase,iPath,CollEnergy)
       IF(SpecXSec(iCase)%UseCollXSec) THEN
         ! Interpolate the reaction cross-section
         ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = CrossSection
