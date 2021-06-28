@@ -72,7 +72,6 @@ LOGICAL                       :: CalcPICTimeStep                     !< Compute 
 LOGICAL                       :: CalcElectronIonDensity              !< Compute the electron density in each cell
 LOGICAL                       :: CalcElectronTemperature             !< Compute the electron temperature in each cell
 LOGICAL                       :: CalcPlasmaParameter                 !< Compute the plasma parameter in each cell
-!LOGICAL                       :: ElectronTemperatureIsMaxwell        ! Assumption of Maxwell-Boltzmann or undistributed electrons
 LOGICAL                       :: CalcPlasmaFrequency                 !< Compute the electron frequency in each cell
 LOGICAL                       :: CalcPointsPerDebyeLength            !< Compute the points per Debye length:
 LOGICAL                       :: CalcPICCFLCondition                 !< Compute a PIC CFL condition for each cell
