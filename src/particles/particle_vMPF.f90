@@ -41,7 +41,6 @@ SUBROUTINE SplitMerge_main()
 ! MODULES
 USE MOD_PARTICLE_Vars         ,ONLY: vMPFNewPartNum, PEM, nSpecies, PartSpecies,PDM
 USE MOD_Mesh_Vars             ,ONLY: nElems
-
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -64,7 +63,10 @@ DO iElem = 1, nElems
   iPart = PEM%pStart(iElem)
   ! 1.) build partindx list for cell
   DO iLoop = 1, nPartCell
-    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+    IF (.NOT.PDM%ParticleInside(iPart)) THEN
+      iPart = PEM%pNext(iPart)
+      CYCLE
+    END IF
     nPart(PartSpecies(iPart)) = nPart(PartSpecies(iPart)) + 1
     iPartIndx_Node_Temp(PartSpecies(iPart),nPart(PartSpecies(iPart))) = iPart
     iPart = PEM%pNext(iPart)
@@ -100,8 +102,8 @@ SUBROUTINE MergeParticles(iPartIndx_Node, nPart, nPartNew)
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, Species
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC, DSMC
-#ifdef CODE_ANALYZE
 USE MOD_Globals               ,ONLY: unit_stdout,myrank,abort
+#ifdef CODE_ANALYZE
 USE MOD_Particle_Vars         ,ONLY: Symmetry
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
@@ -167,7 +169,7 @@ DO iLoop = 1, nPart
       EOld_Inner = EOld_Inner + partWeight * (PartStateIntEn(1,iPartIndx_Node(iLoop)) +  PartStateIntEn(2,iPartIndx_Node(iLoop)))
     END IF
     ! Electronic energy
-    IF(DSMC%ElectronicModel.GT.0) EOld_Inner = EOld_Inner + partWeight * PartStateIntEn(3,iPartIndx_Node(iLoop))
+    IF(DSMC%ElectronicModel.GT.0.AND.SpecDSMC(iSpec)%InterID.NE.4) EOld_Inner = EOld_Inner + partWeight * PartStateIntEn(3,iPartIndx_Node(iLoop))
   END IF
 END DO
 
@@ -186,7 +188,7 @@ END DO
 ! 4.) calc bulkvelocity after deleting
 vBulkTmp = 0.
 DO iLoop = 1, nPartNew
-  PartMPF(iPartIndx_Node(iLoop)) = totalWeight / nPartNew
+  PartMPF(iPartIndx_Node(iLoop)) = totalWeight / REAL(nPartNew)
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
   vBulkTmp(1:3) = vBulkTmp(1:3) + PartState(4:6,iPartIndx_Node(iLoop)) * partWeight
 END DO
@@ -209,7 +211,7 @@ DO iLoop = 1, nPartNew
       ENew_Inner = ENew_Inner + partWeight * (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop)))
     END IF
     ! Electronic energy
-    IF(DSMC%ElectronicModel.GT.0) ENew_Inner = ENew_Inner + partWeight * PartStateIntEn(3,iPartIndx_Node(iLoop))
+    IF(DSMC%ElectronicModel.GT.0.AND.SpecDSMC(iSpec)%InterID.NE.4) ENew_Inner = ENew_Inner + partWeight * PartStateIntEn(3,iPartIndx_Node(iLoop))
   END IF
 END DO
 
