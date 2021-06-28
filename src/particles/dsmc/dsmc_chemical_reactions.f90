@@ -380,7 +380,7 @@ INTEGER, INTENT(IN)           :: iPair, iReac
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: ReactInx(1:4), EductReac(1:3), ProductReac(1:4), nDOFMAX, iProd, iPolyatMole, iSpec
-INTEGER                       :: SpecToDelete, iPart, NumEduct, NumProd
+INTEGER                       :: SpecToDelete, iPart, NumEduct, NumProd, LocalElemID
 REAL                          :: FracMassCent1, FracMassCent2, MassRed      ! mx/(mx+my)
 REAL                          :: VeloCOM(1:3)                               !> Centre of mass velocity
 REAL                          :: omega, FakXi, Xi_total, iRan, FacEtraDistri
@@ -526,6 +526,11 @@ IF(EductReac(3).EQ.0) THEN
     Weight(3) = Weight(1)
     NumProd = 3
     SumWeightProd = SumWeightProd + Weight(3)
+    ! Particle index linked list (required for merge)
+    LocalElemID = PEM%LocalElemID(ReactInx(3))
+    PEM%pNext(PEM%pEnd(LocalElemID)) = ReactInx(3)
+    PEM%pEnd(LocalElemID) = ReactInx(3)
+    PEM%pNumber(LocalElemID) = PEM%pNumber(LocalElemID) + 1
   END IF
 END IF
 
@@ -560,6 +565,11 @@ IF(ProductReac(4).NE.0) THEN
   Weight(4) = Weight(1)
   NumProd = 4
   SumWeightProd = SumWeightProd + Weight(4)
+  ! Particle index linked list (required for merge)
+  LocalElemID = PEM%LocalElemID(ReactInx(4))
+  PEM%pNext(PEM%pEnd(LocalElemID)) = ReactInx(4)
+  PEM%pEnd(LocalElemID) = ReactInx(4)
+  PEM%pNumber(LocalElemID) = PEM%pNumber(LocalElemID) + 1
 END IF
 
 #ifdef CODE_ANALYZE

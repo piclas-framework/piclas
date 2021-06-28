@@ -714,6 +714,10 @@ DO iSpec = 1,nSpecies                             ! Loop over all non-background
             CALL Abort(__STAMP__,&
               'ERROR in MCC: MaxParticleNumber should be twice the expected number of particles, to account for the BGG/MCC particles!')
           END IF
+          ! Particle index linked list (required for merge of particles)
+          PEM%pNext(PEM%pEnd(iElem)) = bggPartIndex
+          PEM%pEnd(iElem) = bggPartIndex
+          PEM%pNumber(iElem) = PEM%pNumber(iElem) + 1
           ! Position the background particle at the simulation particle
           PartState(1:3,bggPartIndex) = PartState(1:3,PartIndex)
           IF(TrackingMethod.EQ.REFMAPPING)THEN ! here Nearst-GP is missing
@@ -790,6 +794,10 @@ IF(ANY(NeedToSplit)) THEN
           CALL Abort(__STAMP__,&
             'ERROR in MCC: MaxParticleNumber should be twice the expected number of particles, to account for the BGG/MCC particles!')
         END IF
+        ! Particle index linked list
+        PEM%pNext(PEM%pEnd(iElem)) = PartIndex
+        PEM%pEnd(iElem) = PartIndex
+        PEM%pNumber(iElem) = PEM%pNumber(iElem) + 1
         !
         iSpec = PartSpecies(iPart_p1)
         PartSpecies(PartIndex) = iSpec
@@ -813,6 +821,10 @@ IF(ANY(NeedToSplit)) THEN
           CALL Abort(__STAMP__,&
             'ERROR in MCC: MaxParticleNumber should be twice the expected number of particles, to account for the BGG/MCC particles!')
         END IF
+        ! Particle index linked list
+        PEM%pNext(PEM%pEnd(iElem)) = bggPartIndex
+        PEM%pEnd(iElem) = bggPartIndex
+        PEM%pNumber(iElem) = PEM%pNumber(iElem) + 1
         ! 
         bgSpec = PartSpecies(iPart_p2)
         PartSpecies(bggPartIndex) = bgSpec
