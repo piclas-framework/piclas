@@ -330,7 +330,7 @@ END SELECT
 END FUNCTION VeloFromDistribution
 
 
-PURE REAL FUNCTION GetParticleWeight(iPart)
+PPURE REAL FUNCTION GetParticleWeight(iPart)
 !===================================================================================================================================
 !> Determines the appropriate particle weighting for the axisymmetric case with radial weighting and the variable time step. For
 !> radial weighting, the radial factor is multiplied by the regular weighting factor. If only a variable time step is used, at the
@@ -361,7 +361,7 @@ END IF
 END FUNCTION GetParticleWeight
 
 
-PURE REAL FUNCTION CalcRadWeightMPF(yPos, iSpec, iPart)
+PPURE REAL FUNCTION CalcRadWeightMPF(yPos, iSpec, iPart)
 !===================================================================================================================================
 !> Determines the weighting factor when using an additional radial weighting for axisymmetric simulations. Linear increase from the
 !> rotational axis (y=0) to the outer domain boundary (y=ymax).
@@ -400,7 +400,7 @@ RETURN
 END FUNCTION CalcRadWeightMPF
 
 
-PURE FUNCTION isChargedParticle(iPart)
+PPURE FUNCTION isChargedParticle(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Check if particle has charge unequal to zero and return T/F logical.
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -423,7 +423,7 @@ END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
 END FUNCTION isChargedParticle
 
 
-PURE FUNCTION isPushParticle(iPart)
+PPURE FUNCTION isPushParticle(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Check if particle is to be evolved in time by the particle pusher (time integration).
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -452,7 +452,7 @@ END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
 END FUNCTION isPushParticle
 
 
-PURE FUNCTION isDepositParticle(iPart)
+PPURE FUNCTION isDepositParticle(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Check if particle is to be deposited on the grid (particle-to-grid coupling).
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -481,7 +481,7 @@ END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
 END FUNCTION isDepositParticle
 
 
-PURE FUNCTION isInterpolateParticle(iPart)
+PPURE FUNCTION isInterpolateParticle(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Check if particle is to be interpolated (field-to-particle coupling), which is required for calculating the acceleration, e.g.,
 ! due to Lorentz forces at the position of the particle.
@@ -558,7 +558,7 @@ END DO
 END SUBROUTINE BuildTransGaussNums
 
 
-PURE REAL FUNCTION CalcXiElec(Telec, iSpec)
+PPURE REAL FUNCTION CalcXiElec(Telec, iSpec)
 !===================================================================================================================================
 !> Calculation of the electronic degree of freedom for a given temperature and species
 !===================================================================================================================================

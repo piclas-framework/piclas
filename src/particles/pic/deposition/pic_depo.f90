@@ -793,7 +793,7 @@ RETURN
 END SUBROUTINE Deposition
 
 
-PURE LOGICAL FUNCTION SFMeasureDistance(v1,v2)
+PPURE LOGICAL FUNCTION SFMeasureDistance(v1,v2)
 !============================================================================================================================
 ! Check if the two position vectors coincide in the 1D or 2D projection. If yes, then return .FALSE., else return .TRUE.
 ! If two points coincide in the direction in which the shape function is not deposited, they are ignored (coincide means that the
