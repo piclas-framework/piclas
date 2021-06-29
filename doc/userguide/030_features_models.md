@@ -214,6 +214,22 @@ amplitude *A*
 
     Phi(t) = (A/2) * (COS(2*pi*f*t + psi) + 1)
 
+#### Zero potential enforcement
+
+It is important to note that when no Dirichlet boundary conditions are selected by the user, the code automatically enforces mixed
+boundaries on either Neumann or periodic boundaries. Depending on the simulation domain, the direction with the largest extent is
+selected and on those boundaries an additional Dirichlet boundary condition with $\phi=0$ is enforced to ensure convergence of the
+HDG solver. The boundary conditions selected by the user are only altered at these locations and not removed.
+The information regarding the direction that is selected for this purpose is printed to std.out with the following line
+
+     |      Zero potential side activated in direction (1: x, 2: y, 3: z) |        1 |  OUTPUT | 
+
+To selected the direction by hand, simply supply the desired direction via
+
+    HDGZeroPotentialDir = 1
+
+with 1: x-, 2: y-, 3: z-direction.
+
 ### Dielectric Materials
 
 Dielectric material properties can be considered by defining regions (or specific elements)
