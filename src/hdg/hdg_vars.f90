@@ -42,6 +42,11 @@ REAL,ALLOCATABLE    :: InvPrecondDiag(:,:)  ! 1/diagonal of Precond
 REAL,ALLOCATABLE    :: qn_face(:,:,:)         ! for Neumann BC
 REAL,ALLOCATABLE    :: qn_face_MagStat(:,:,:)         ! for Neumann BC
 INTEGER             :: nDirichletBCsides
+INTEGER             :: ZeroPotentialSideID   ! SideID, where the solution is set zero to enforce convergence
+REAL,PARAMETER      :: ZeroPotentialValue=0. ! This can be set to an arbitrary value (in the range of the potential solution)
+INTEGER             :: HDGZeroPotentialDir   ! Direction in which a Dirichlet condition with phi=0 is superimposed on the boundary 
+!                                            ! conditions. Default chooses the direction automatically when no other Dirichlet 
+!                                            ! boundary conditions are defined.
 INTEGER             :: nNeumannBCsides
 INTEGER,ALLOCATABLE :: DirichletBC(:)
 INTEGER,ALLOCATABLE :: NeumannBC(:)

@@ -191,7 +191,6 @@ CALL Deposition()
 ! recompute fields
 ! EM field
 #ifdef PARTICLES
-!call sleep(1)
 IF(UseBRElectronFluid.AND.BRElectronsRemoved)THEN
   ! When using BR electron fluid model, all electrons are removed from the restart file
   CALL HDG(t,U,iter,ForceCGSolverIteration_opt=.TRUE.)
