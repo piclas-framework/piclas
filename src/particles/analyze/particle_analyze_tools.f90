@@ -60,7 +60,7 @@ PUBLIC :: CalcCoupledPowerPart
 CONTAINS
 
 
-PURE REAL FUNCTION CalcEkinPart(iPart)
+PPURE REAL FUNCTION CalcEkinPart(iPart)
 !===================================================================================================================================
 ! computes the kinetic energy of one particle
 !===================================================================================================================================
@@ -114,7 +114,7 @@ END IF
 END FUNCTION CalcEkinPart
 
 
-PURE REAL FUNCTION CalcEkinPart2(velocity,Species_IN,WeightingFactor)
+PPURE REAL FUNCTION CalcEkinPart2(velocity,Species_IN,WeightingFactor)
 !===================================================================================================================================
 ! computes the kinetic energy of one particle given its velocity, species and weighting factor
 !===================================================================================================================================
@@ -738,7 +738,7 @@ END SELECT
 END SUBROUTINE CalcShapeEfficiencyR
 
 
-PURE SUBROUTINE CalcKineticEnergy(Ekin)
+PPURE SUBROUTINE CalcKineticEnergy(Ekin)
 !===================================================================================================================================
 ! compute the kinetic energy of particles
 ! for velocity <1e6 non-relativistic formula is used, for larger velocities the relativistic kinetic energy is computed
@@ -846,7 +846,7 @@ END IF
 END SUBROUTINE CalcKineticEnergy
 
 
-PURE SUBROUTINE CalcKineticEnergyAndMaximum(Ekin,EkinMax)
+PPURE SUBROUTINE CalcKineticEnergyAndMaximum(Ekin,EkinMax)
 !===================================================================================================================================
 ! compute the kinetic energy of particles
 ! for velocity <1e6 non-relativistic formula is used, for larger velocities the relativistic kinetic energy is computed
@@ -967,7 +967,7 @@ END IF
 END SUBROUTINE CalcKineticEnergyAndMaximum
 
 
-PURE SUBROUTINE CalcNumberDensity(NumSpec,NumDens)
+PPURE SUBROUTINE CalcNumberDensity(NumSpec,NumDens)
 !===================================================================================================================================
 !> Computes the number density per species using the total mesh volume and if neccessary particle weights
 !> Background gas density is saved as given in the input

@@ -46,85 +46,51 @@ CALL prms%SetSection("Particle Analyze")
 
 CALL prms%CreateIntOption(      'Part-AnalyzeStep'        , 'Analyze is performed each Nth time step','1')
 CALL prms%CreateLogicalOption(  'CalcTotalEnergy'         , 'Calculate Total Energy. Output file is Database.csv','.FALSE.')
-CALL prms%CreateLogicalOption(  'PIC-VerifyCharge'        , 'Validate the charge after each deposition'//&
-                                                            'and write an output in std.out','.FALSE.')
+CALL prms%CreateLogicalOption(  'PIC-VerifyCharge'        , 'Validate the charge after each deposition and write an output in std.out','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcIonizationDegree'    , 'Compute the ionization degree in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPointsPerShapeFunction','Compute the average number of interpolation points that are used for the shape function in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPlasmaParameter'     ,'Compute the plasma parameter N_D in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPointsPerDebyeLength', 'Compute the points per Debye length in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPICCFLCondition'     , 'Compute a PIC CFL condition for each cell','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcMaxPartDisplacement' , 'Compute the maximum displacement of the fastest particle in terms of'//&
-                                                            ' cell lengths in X, Y and Z for each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcMaxPartDisplacement' , 'Compute the maximum displacement of the fastest particle relative to the cell lengths in X, Y and Z for each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcDebyeLength'         , 'Compute the Debye length in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPICTimeStep'         , 'Compute the HDG time step in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcElectronTemperature' , 'Compute the electron temperature in each cell','.FALSE.')
-!CALL prms%CreateLogicalOption(  'ElectronTemperatureIsMaxwell', 'Flag if  electron temperature is assumed to be Maxwellian in each cell','.TRUE.')
-CALL prms%CreateLogicalOption(  'CalcElectronIonDensity'     , 'Compute the electron density in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcElectronIonDensity'  , 'Compute the electron density in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPlasmaFrequency'     , 'Compute the electron frequency in each cell','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcCharge'              , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Compute the whole deposited charge,'//&
-                                                            ' absolute and relative charge error','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcKineticEnergy'       , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate Kinetic Energy. ','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcInternalEnergy'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate Internal Energy. ','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcTemp'                , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate Translational temperature.'&
-                                                          ,'.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcPartBalance'         , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate the Particle Power Balance'//&
-                                                            '- input and outflow energy of all particles','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcVelos'               , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate thermal and flow velocities.'//&
+CALL prms%CreateLogicalOption(  'CalcCharge'              , 'Compute the global deposited charge and determine the absolute and relative charge error','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcKineticEnergy'       , 'Calculate the global kinetic energy for all particle species.','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcInternalEnergy'      , 'Calculate the global internal energies (rotational, vibrational and electronic) for all particle species.','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcTemp'                , 'Calculate the global tranlational temperature for all particle species.','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPartBalance'         , 'Calculate the global in- and outflow of all particle species','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcVelos'               , 'Calculate the global thermal and flow velocities for all particle species'//&
                                                             'if CalcVelos = T VelocityDirections = (/[int],[int],[int],[int]/)  '//&
                                                             'Switching dimensions for CalcVelos on (1) or off (0)\n'//&
                                                             '(/v_x,v_y,v_z,|v|/) ','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcLaserInteraction'     , 'Compute laser-plasma interaction properties such as maximum '//&
-                                                             'particle energy per species.','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcRelaxProb'           , 'Calculate variable rotational and vibrational relaxation probability'&
-                                                            ' for PartAnalyse.csv\n'//&
-                                                            'Particles-DSMC-CalcQualityFactors has to be true.'&
-                                                          ,'.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcLaserInteraction'    , 'Compute laser-plasma interaction properties such as maximum particle energy per species.','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcRelaxProb'           , 'Calculate variable rotational and vibrational relaxation probability for PartAnalyse.csv\nParticles-DSMC-CalcQualityFactors has to be true.','.FALSE.')
 CALL prms%CreateRealOption(     'LaserInteractionEkinMaxRadius','maximum radius (x- and y-dir) of particle to be considered for '//&
                                                                 'Ekin maximum calculation (default is HUGE) '//&
                                                                 'OR if LaserInteractionEkinMaxZPosMin condition is true')
 CALL prms%CreateRealOption(     'LaserInteractionEkinMaxZPosMin','minimum z-position of particle to be considered for Ekin '//&
                                                                  'maximum calculation (default is -1.*HUGE) '//&
                                                                  'OR if LaserInteractionEkinMaxRadius condition is true')
-CALL prms%CreateIntArrayOption( 'VelocityDirections'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'x,y,z,abs -> 0/1 = T/F. (please note: CalcVelos)'&
-                                                          ,'1 , 1 , 1 , 1')
-CALL prms%CreateLogicalOption(  'Part-TrackPosition'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Track particle position','.FALSE.')
-CALL prms%CreateLogicalOption(  'printDiff'               , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateRealOption(     'printDiffTime'           , 'TODO-DEFINE-PARAMETER','12.')
-CALL prms%CreateRealArrayOption('printDiffVec'            , 'TODO-DEFINE-PARAMETER','0. , 0. , 0. , 0. , 0. , 0.')
-CALL prms%CreateLogicalOption(  'CalcNumSpec'             , 'Calculate the number of simulation particles per species for the '//&
-                                                            'complete domain','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcNumDens'             , 'Calculate the number density [1/m3] per species for the complete '//&
-                                                            'domain','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcAdaptiveBCInfo'      , 'Calculate the massflow rate [kg/s] per species and surface flux' &
-                                                          ,'.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcCollRates'           , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate the collision rates per '//&
-                                                            'collision pair','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcReacRates'           , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate the reaction rate per reaction'&
-                                                          ,'.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcShapeEfficiency'     , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Use efficiency methods for shape functions.'&
-                                                          , '.FALSE.')
-CALL prms%CreateStringOption(   'CalcShapeEfficiencyMethod', 'TODO-DEFINE-PARAMETER\n'//&
-                                                             'Choose between "AllParts" and '//&
-                                                             '"SomeParts", to either use all particles or a certain percentage'//&
-                                                             ' (ShapeEfficiencyNumber) of the currently used particles','AllParts')
-CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'    , 'TODO-DEFINE-PARAMETER\n'//&
-                                                             'Percentage of currently used particles is used.'&
-                                                           , '100')
-CALL prms%CreateLogicalOption(  'IsRestart'                , 'TODO-DEFINE-PARAMETER\n'//&
-                                                             'Flag, if the current calculation is a restart. '&
-                                                           , '.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , 'Calculate output of Power that is coupled into plasma' , '.FALSE.')
+CALL prms%CreateIntArrayOption( 'VelocityDirections'      , 'Direction of velocities when using CalcVelos=T, x,y,z,abs -> 0/1 = T/F.','1 , 1 , 1 , 1')
+CALL prms%CreateLogicalOption(  'Part-TrackPosition'      , 'Track a particle through the simulation domain and write position and velocity to ParticlePosition.csv (supports MPI but only one particle)','.FALSE.')
+CALL prms%CreateLogicalOption(  'printDiff'               , 'When using Part-TrackPosition=T, additionally supply time and vector for comparison which is used from t>time onward to calculate the L2 norm','.FALSE.')
+CALL prms%CreateRealOption(     'printDiffTime'           , 'Time for starting the comparison, when using Part-TrackPosition=T,','12.')
+CALL prms%CreateRealArrayOption('printDiffVec'            , 'Vector (x,v) that is used to calcualte the L2 norm when using Part-TrackPosition=T','0. , 0. , 0. , 0. , 0. , 0.')
+CALL prms%CreateLogicalOption(  'CalcNumSpec'             , 'Calculate the number of simulation particles per species for the complete domain','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcNumDens'             , 'Calculate the number density [1/m3] per species for the complete domain','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcAdaptiveBCInfo'      , 'Calculate the massflow rate [kg/s] per species and surface flux','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcCollRates'           , 'Calculate the collision rates per collision pair','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcReacRates'           , 'Calculate the reaction rate per reaction','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcShapeEfficiency'     , 'Use efficiency methods for shape functions.', '.FALSE.')
+CALL prms%CreateStringOption(   'CalcShapeEfficiencyMethod' , 'Choose between "AllParts" and '//&
+'"SomeParts", to either use all particles or a certain percentage (ShapeEfficiencyNumber) of the currently used particles','AllParts')
+CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'    , 'Percentage of currently used particles is used.', '100')
+CALL prms%CreateLogicalOption(  'IsRestart'                , 'Flag, if the current calculation is a restart. ', '.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , 'Calculate the amount of power that is coupled into charged particles during time integration' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'DisplayCoupledPower'      , 'Display coupled power in UNIT_stdOut' , '.FALSE.')
 
 END SUBROUTINE DefineParametersParticleAnalyze
@@ -164,6 +130,9 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared_Win
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars             ,ONLY: ElemBaryNGeo
 USE MOD_Particle_Analyze_Tools,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
+#if USE_HDG
+USE MOD_HDG_Vars              ,ONLY: CalcBRVariableElectronTemp
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -587,14 +556,12 @@ END IF
 TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
 IF(TrackParticlePosition)THEN
   IF(PDM%ParticleVecLength.GT.1)THEN
-  CALL abort(&
-      __STAMP__&
-      ,'Part-TrackPosition=T is currently not supported in combination with more than 1 particle!')
+    CALL abort(__STAMP__,'Part-TrackPosition=T is currently not supported in combination with more than 1 particle!')
   END IF
   printDiff=GETLOGICAL('printDiff','.FALSE.')
   IF(printDiff)THEN
-    printDiffTime=GETREAL('printDiffTime','12.')
-    printDiffVec=GETREALARRAY('printDiffVec',6,'0.,0.,0.,0.,0.,0.')
+    printDiffTime = GETREAL('printDiffTime','12.')
+    printDiffVec  = GETREALARRAY('printDiffVec',6,'0.,0.,0.,0.,0.,0.')
   END IF
 END IF
 CalcSimNumSpec = GETLOGICAL('CalcNumSpec','.FALSE.')
@@ -676,6 +643,12 @@ IF(DoPartAnalyze)THEN
 END IF
 IsRestart = GETLOGICAL('IsRestart','.FALSE.')
 
+#if USE_HDG
+!-- Check variable ref. electron temperature for BR electron model
+IF(CalcBRVariableElectronTemp) DoPartAnalyze=.TRUE.
+CALL PrintOption('CalcBRVariableElectronTemp','INFO',LogOpt=CalcBRVariableElectronTemp)
+#endif /*USE_HDG*/
+
 ParticleAnalyzeInitIsDone=.TRUE.
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTCILE ANALYZE DONE!'
@@ -724,6 +697,10 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CalcRelaxProbRotVib
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, XSec_Relaxation, SpecXSec
 USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,ReacRates
 #endif
+#if USE_HDG
+USE MOD_HDG_Vars               ,ONLY: BRNbrOfRegions,CalcBRVariableElectronTemp,RegionElectronRef
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElementaryCharge
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -764,6 +741,9 @@ INTEGER             :: ii, iunit
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
 INTEGER             :: dir
+#if USE_HDG
+INTEGER             :: iRegions
+#endif /*USE_HDG*/
 !===================================================================================================================================
   IF ( DoRestart ) THEN
     isRestart = .true.
@@ -1089,6 +1069,15 @@ INTEGER             :: dir
           END IF
         END IF
 #endif
+#if USE_HDG
+        IF(CalcBRVariableElectronTemp)THEN ! variable reference electron temperature
+          DO iRegions=1,BRNbrOfRegions
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-RegionElectronRef', iRegions
+            OutputCounter = OutputCounter + 1
+          END DO
+        END IF ! CalcBRVariableElectronTemp
+#endif /*USE_HDG*/
         WRITE(unit_index,'(A)') ''
       END IF
     END IF
@@ -1474,6 +1463,13 @@ IF (PartMPI%MPIROOT) THEN
       END DO
     END IF
 #endif /*(PP_TimeDiscMethod==42)*/
+#if USE_HDG
+        IF(CalcBRVariableElectronTemp)THEN ! variable reference electron temperature
+          DO iRegions=1,BRNbrOfRegions
+            WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RegionElectronRef(3,iRegions)*ElementaryCharge/BoltzmannConst ! convert eV to K
+          END DO
+        END IF ! CalcBRVariableElectronTemp
+#endif /*USE_HDG*/
     WRITE(unit_index,'(A)') ''
 #if USE_MPI
   END IF

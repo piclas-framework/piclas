@@ -235,7 +235,15 @@ REAL                            :: cos_theta
 REAL                            :: eps1,eps2
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
-CASE(-1) ! Amplitude, Frequency and Phase Shift supplied by RefState
+CASE(-2) ! Signal without zero-crossing (always positive or negative), otherwise  like CASE(-1):
+         ! Amplitude, Frequency and Phase Shift supplied by RefState
+  ! RefState(1,iRefState): amplitude
+  ! RefState(2,iRefState): frequency
+  ! RefState(3,iRefState): phase shift
+  Omega   = 2.*PI*RefState(2,iRefState)
+  r1      = RefState(1,iRefState) / 2.0
+  Resu(:) = r1*(COS(Omega*t+RefState(3,iRefState)) + 1.0)
+CASE(-1) ! Signal with zero-crossing: Amplitude, Frequency and Phase Shift supplied by RefState
   ! RefState(1,iRefState): amplitude
   ! RefState(2,iRefState): frequency
   ! RefState(3,iRefState): phase shift
@@ -524,7 +532,7 @@ END DO
 END SUBROUTINE DivCleaningDamping
 
 
-PURE SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear, warning_linear_phi)
+PPURE SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear, warning_linear_phi)
 !===================================================================================================================================
 ! Determine the right-hand-side of Poisson's equation (either by an analytic function or deposition of charge from particles)
 ! TODO: currently particles are enforced, which means that they over-write the exact function solution because

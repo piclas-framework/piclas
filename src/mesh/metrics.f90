@@ -132,7 +132,7 @@ SUBROUTINE CalcMetrics(XCL_NGeo_Out,dXCL_NGeo_out)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars          ,ONLY: NGeo,NGeoRef,nGlobalElems
+USE MOD_Mesh_Vars          ,ONLY: NGeo,NGeoRef,nGlobalElems,xyzMinMax,GetMeshMinMaxBoundariesIsDone
 USE MOD_Mesh_Vars          ,ONLY: sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,crossProductMetrics
 USE MOD_Mesh_Vars          ,ONLY: Face_xGP,normVec,surfElem,TangVec1,TangVec2
 USE MOD_Mesh_Vars          ,ONLY: nElems,dXCL_N
@@ -203,6 +203,16 @@ Metrics_hTilde=0.
 
 ! Check Jacobians in Ref already (no good if we only go on because N doesn't catch misbehaving points)
 meshCheckRef=GETLOGICAL('meshCheckRef','.TRUE.')
+
+! Initialize min/max coordinates on faces (but not during load balance restart)
+IF(.NOT.GetMeshMinMaxBoundariesIsDone)THEN
+  xyzMinMax(1) = HUGE(1.)
+  xyzMinMax(2) = -HUGE(1.)
+  xyzMinMax(3) = HUGE(1.)
+  xyzMinMax(4) = -HUGE(1.)
+  xyzMinMax(5) = HUGE(1.)
+  xyzMinMax(6) = -HUGE(1.)
+END IF
 
 ! Initialize Vandermonde and D matrices
 ! Only use modal Vandermonde for terms that need to be conserved as Jacobian if N_out>PP_N
@@ -417,7 +427,7 @@ SUBROUTINE CalcSurfMetrics(Nloc,JaCL_N,XCL_N,Vdm_CLN_N,iElem,NormVec,TangVec1,Ta
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals,     ONLY:CROSS
-USE MOD_Mesh_Vars,   ONLY:ElemToSide,nSides,MortarType
+USE MOD_Mesh_Vars,   ONLY:ElemToSide,nSides,MortarType,xyzMinMax,GetMeshMinMaxBoundariesIsDone
 USE MOD_Mesh_Vars,   ONLY:NormalDirs,TangDirs,NormalSigns
 USE MOD_Mappings,    ONLY:CGNS_SideToVol2
 USE MOD_ChangeBasis, ONLY:ChangeBasis2D
@@ -471,11 +481,24 @@ DO iLocSide=1,6
     tmp=XCL_N(1:3,:   ,:   ,Nloc)
   END SELECT
   CALL ChangeBasis2D(3,Nloc,Nloc,Vdm_CLN_N,tmp,tmp2)
+
+  ! Get min/max coordinate from current face
+  IF(.NOT.GetMeshMinMaxBoundariesIsDone)THEN
+    xyzMinMax(1) = MIN(xyzMinMax(1), MINVAL(tmp(1,:,:)))
+    xyzMinMax(2) = MAX(xyzMinMax(2), MAXVAL(tmp(1,:,:)))
+
+    xyzMinMax(3) = MIN(xyzMinMax(3), MINVAL(tmp(2,:,:)))
+    xyzMinMax(4) = MAX(xyzMinMax(4), MAXVAL(tmp(2,:,:)))
+
+    xyzMinMax(5) = MIN(xyzMinMax(5), MINVAL(tmp(3,:,:)))
+    xyzMinMax(6) = MAX(xyzMinMax(6), MAXVAL(tmp(3,:,:)))
+  END IF ! .NOT.GetMeshMinMaxBoundariesIsDone
+
   ! turn into right hand system of side
   DO q=0,Nloc; DO p=0,Nloc
     pq=CGNS_SideToVol2(Nloc,p,q,iLocSide)
     ! Compute Face_xGP for sides
-    Face_xGP(1:3,p,q,sideID)=tmp2(:,pq(1),pq(2))
+    Face_xGP(1:3,p,q,SideID)=tmp2(:,pq(1),pq(2))
   END DO; END DO ! p,q
 
   NormalDir=NormalDirs(iLocSide); TangDir=TangDirs(iLocSide); NormalSign=NormalSigns(iLocSide);

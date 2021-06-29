@@ -65,6 +65,7 @@ USE MOD_Restart_Vars         ,ONLY: RestartInitIsDone
 USE MOD_Restart              ,ONLY: InitRestart
 USE MOD_Restart_Vars         ,ONLY: DoRestart
 USE MOD_Mesh                 ,ONLY: InitMesh
+USE MOD_Mesh_Vars            ,ONLY: GetMeshMinMaxBoundariesIsDone
 USE MOD_Equation             ,ONLY: InitEquation
 USE MOD_GetBoundaryFlux      ,ONLY: InitBC
 USE MOD_DG                   ,ONLY: InitDG
@@ -153,6 +154,7 @@ IF(IsLoadBalance)THEN
 ELSE
   CALL InitMortar()
   CALL InitRestart()
+  GetMeshMinMaxBoundariesIsDone = .FALSE. ! Initialize this logical only once (assume that the mesh sizes does not change during load balance restarts)
 END IF
 
 #ifdef PARTICLES
@@ -205,7 +207,7 @@ CALL InitSurfModelAnalyze()
 #endif
 
 #if USE_HDG
-CALL InitHDG()
+CALL InitHDG() ! Hybridizable Discontinuous Galerkin Method (HDGSEM)
 #endif
 
 #ifdef PARTICLES

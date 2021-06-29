@@ -56,14 +56,22 @@ SET (HDF5TAG "hdf5-1_10_5" CACHE STRING "HDF5 version tag")
 # Detect machine environments
 # =========================================================================
 SITE_NAME(CMAKE_HOSTNAME)
-STRING(FIND "${CMAKE_HOSTNAME}" "hawk" ONHAWK)
+STRING(FIND "${CMAKE_HOSTNAME}" "hawk" HOSTONHAWK)
+FIND_PROGRAM(LSB_RELEASE_EXEC lsb_release)
+EXECUTE_PROCESS(COMMAND ${LSB_RELEASE_EXEC} -is OUTPUT_VARIABLE LSB_RELEASE_ID_SHORT OUTPUT_STRIP_TRAILING_WHITESPACE)
+IF(LSB_RELEASE_ID_SHORT MATCHES "CentOS" AND HOSTONHAWK GREATER -1)
+  SET(ONHAWK ON)
+ELSE()
+  SET(ONHAWK OFF)
+ENDIF()
+
 # Set options that need to be enabled BEFORE ANY PROJECT OR LANGUAGE COMMAND
-IF (ONHAWK GREATER -1)
+IF (ONHAWK)
   SET(CMAKE_C_COMPILER       mpicc)
   SET(CMAKE_CXX_COMPILER     mpicxx)
   SET(CMAKE_Fortran_COMPILER mpif90) # mpif08 wrapper seems to have issues
   MARK_AS_ADVANCED(C_PATH CXX_PATH Fortran_PATH)
-  MESSAGE(STATUS "Compiling on " ${CMAKE_HOSTNAME} " (ONHAWK=True)")
+  MESSAGE(STATUS "Compiling on " ${CMAKE_HOSTNAME} " (ONHAWK=ON)")
   ADD_DEFINITIONS(-DLUSTRE)
 
   # Overwrite compiler target architecture
@@ -194,7 +202,7 @@ ENDIF()
 
 OPTION(PICLAS_VDM_ANALYTICAL "Alternative to matrix inversion: Compute inverse Vandermonde directly (required for inverse of Bezier and Legendre Vdm)" OFF)
 # VDM inverse for Lagrange polynomials, replace lapack with analytical solution, for Bezier switch to LU inverse calculation
-IF (ONHAWK GREATER -1)
+IF (ONHAWK)
   IF (CMAKE_BUILD_TYPE MATCHES "Debug")
     SET(PICLAS_VDM_ANALYTICAL ON CACHE BOOL "Auto-Activated: Alternative to matrix inversion: Compute inverse Vandermonde directly (required for inverse of Bezier and Legendre Vdm)" FORCE)
   ENDIF()

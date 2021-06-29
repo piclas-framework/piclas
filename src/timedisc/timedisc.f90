@@ -44,7 +44,7 @@ USE MOD_TimeAverage            ,ONLY: CalcTimeAverage
 USE MOD_Analyze                ,ONLY: PerformAnalyze
 USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze
 USE MOD_Restart_Vars           ,ONLY: RestartTime,RestartWallTime
-USE MOD_HDF5_output            ,ONLY: WriteStateToHDF5
+USE MOD_HDF5_Output_State      ,ONLY: WriteStateToHDF5
 USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 USE MOD_RecordPoints           ,ONLY: WriteRPToHDF5!,RecordPoints
@@ -78,7 +78,8 @@ USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 #ifdef PARTICLES
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
-USE MOD_HDF5_Output_Tools      ,ONLY: WriteIMDStateToHDF5
+USE MOD_HDF5_Output_Particles  ,ONLY: WriteMagneticPICFieldToHDF5
+USE MOD_HDF5_Output_State      ,ONLY: WriteIMDStateToHDF5
 #endif /*PARTICLES*/
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
@@ -106,8 +107,9 @@ USE MOD_Output                 ,ONLY: PrintStatusLine
 USE MOD_TimeStep
 USE MOD_TimeDiscInit           ,ONLY: InitTimeStep
 #if defined(PARTICLES) && USE_HDG
-USE MOD_Part_BR_Elecron_Fluid  ,ONLY: SwitchBRElectronModel
+USE MOD_Part_BR_Elecron_Fluid  ,ONLY: SwitchBRElectronModel,UpdateVariableRefElectronTemp
 USE MOD_HDG_Vars               ,ONLY: BRConvertMode,BRTimeStepBackup,BRTimeStepMultiplier,UseBRElectronFluid
+USE MOD_HDG_Vars               ,ONLY: CalcBRVariableElectronTemp
 #endif /*defined(PARTICLES) && USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -333,6 +335,10 @@ DO !iter_t=0,MaxIter
   ELSE
     finalIter=.FALSE.
   END IF
+#if defined(PARTICLES) && USE_HDG
+  ! Depending on kinetic/BR model, set the reference electron temperature for t^n+1, therefore "add" -dt to the calculation
+  IF(CalcBRVariableElectronTemp) CALL UpdateVariableRefElectronTemp(-dt)
+#endif /*defined(PARTICLES) && USE_HDG*/
   CALL PerformAnalyze(time,FirstOrLastIter=finalIter,OutPutHDF5=.FALSE.)
 #ifdef PARTICLES
   ! sampling of near adaptive boundary element values

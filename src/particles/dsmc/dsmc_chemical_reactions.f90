@@ -307,7 +307,7 @@ END IF
 END SUBROUTINE CalcReactionProb
 
 
-PURE REAL FUNCTION Calc_Beta_TCE(iReac,Xi_Total)
+PPURE REAL FUNCTION Calc_Beta_TCE(iReac,Xi_Total)
 !===================================================================================================================================
 ! Calculates the Beta coefficient for polyatomic reactions
 !===================================================================================================================================
@@ -1668,8 +1668,8 @@ DO iProd = 1, NumProd
       PartState(4:6,iPart) = GetRotatedVector(PartState(4:6,iPart),Species(InitSpec)%Init(iInit)%NormalIC)
       ! Store the particle information in PartStateBoundary.h5
       IF(DoBoundaryParticleOutputHDF5) CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),&
-                                        UNITVECTOR(PartState(4:6,iPart)),Species(InitSpec)%Init(iInit)%NormalIC,mode=2,&
-                                        usevMPF_optIN=.FALSE.)
+                                        UNITVECTOR(PartState(4:6,iPart)),Species(InitSpec)%Init(iInit)%NormalIC,iBC=-1,&
+                                        mode=2,usevMPF_optIN=.FALSE.)
     END ASSOCIATE
   END IF
 END DO
@@ -1685,7 +1685,7 @@ END IF
 END SUBROUTINE PhotoIonization_InsertProducts
 
 
-PURE FUNCTION GetRandomVectorInPlane(b1,b2,VeloVec,RandVal)
+PPURE FUNCTION GetRandomVectorInPlane(b1,b2,VeloVec,RandVal)
 !===================================================================================================================================
 ! Pick random vector in a plane set up by the basis vectors b1 and b2
 !===================================================================================================================================
@@ -1698,7 +1698,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)    :: b1(1:3),b2(1:3) ! Basis vectors (normalized)
 REAL,INTENT(IN)    :: VeloVec(1:3)    ! Velocity vector before the random direction selection within the plane defined by b1 and b2
-REAL,INTENT(IN)    :: RandVal         ! Random number (given from outside to render this function PURE)
+REAL,INTENT(IN)    :: RandVal         ! Random number (given from outside to render this function PPURE)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLE
 REAL               :: GetRandomVectorInPlane(1:3) ! Output velocity vector

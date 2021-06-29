@@ -41,7 +41,7 @@ USE MOD_Preproc
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Interpolation_Vars    ,ONLY: BGType, BGField, BGFieldAnalytic, BGFieldVTKOutput, BGDataSize, PsiMag
-USE MOD_HDF5_Output_Tools     ,ONLY: WriteBGFieldToHDF5,WriteBGFieldAnalyticToHDF5
+USE MOD_HDF5_Output_Fields    ,ONLY: WriteBGFieldToHDF5,WriteBGFieldAnalyticToHDF5
 USE MOD_SuperB_Init           ,ONLY: InitializeSuperB
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE

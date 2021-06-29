@@ -25,6 +25,9 @@ PRIVATE
 #ifdef PARTICLES
 PUBLIC :: ReadNodeSourceExtFromHDF5
 #endif /*PARTICLES*/
+#if USE_HDG
+PUBLIC :: RecomputeLambda
+#endif /*USE_HDG*/
 !===================================================================================================================================
 
 CONTAINS
@@ -152,4 +155,52 @@ END SUBROUTINE ReadNodeSourceExtFromHDF5
 #endif /*PARTICLES*/
 
 
+#if USE_HDG
+SUBROUTINE RecomputeLambda(t)
+!===================================================================================================================================
+! The lambda-solution is stored per side, however, the side-list is computed with the OLD domain-decomposition. To allow for
+! a change in the load-distribution, number of used cores, etc,... lambda has to be recomputed ONCE
+!===================================================================================================================================
+! MODULES
+use MOD_Globals
+USE MOD_DG_Vars            ,ONLY: U
+USE MOD_PreProc
+USE MOD_HDG                ,ONLY: HDG
+USE MOD_TimeDisc_Vars      ,ONLY: iter
+#ifdef PARTICLES
+USE MOD_PICDepo            ,ONLY: Deposition
+USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid,BRElectronsRemoved
+#if USE_MPI
+USE MOD_Particle_MPI       ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+#endif /*USE_MPI*/
+#endif /*PARTICLES*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)       :: t
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+#ifdef PARTICLES
+! Deposition of particles
+CALL Deposition()
+#endif /*PARTICLES*/
+
+! recompute fields
+! EM field
+#ifdef PARTICLES
+IF(UseBRElectronFluid.AND.BRElectronsRemoved)THEN
+  ! When using BR electron fluid model, all electrons are removed from the restart file
+  CALL HDG(t,U,iter,ForceCGSolverIteration_opt=.TRUE.)
+ELSE
+#endif /*PARTICLES*/
+  CALL HDG(t,U,iter)
+#ifdef PARTICLES
+END IF ! UseBRElectronFluid
+#endif /*PARTICLES*/
+
+END SUBROUTINE RecomputeLambda
+#endif /*USE_HDG*/
 END MODULE MOD_Restart_Tools

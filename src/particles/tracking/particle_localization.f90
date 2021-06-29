@@ -438,7 +438,7 @@ END DO ! iPart=1,PDM%ParticleVecLength
 END SUBROUTINE CountPartsPerElem
 
 
-PURE FUNCTION PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo)
+PPURE FUNCTION PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo)
 !================================================================================================================================
 ! check if particle has moved significantly within an element
 !================================================================================================================================
