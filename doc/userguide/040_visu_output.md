@@ -152,7 +152,7 @@ and stores it in `PCouplDensityAvgElem` for each species separately. Additionall
 **Plasma Frequency**
 The (cold) plasma frequency can be calculated via
 
-$$\omega_{p}=\omega_{e}=\frac{e^{2}n_{e}}{\varepsilon_{0}m_{e}}$$
+$$\omega_{p}=\omega_{e}=\sqrt{\frac{e^{2}n_{e}}{\varepsilon_{0}m_{e}}}$$
 
 which is the frequency with which the charge density of the electrons oscillates, where
 $\varepsilon_{0}$ is the permittivity of vacuum, $e$ is the elementary charge, $n_{e}$ and $m_{e}$

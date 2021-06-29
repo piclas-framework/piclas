@@ -1,0 +1,62 @@
+\documentclass[fontsize=8pt,a5paper,class=scrbook]{standalone}
+
+\usepackage{tikz}
+\usepackage{siunitx}
+\usepackage{pgfplots}
+
+
+
+
+\def\X{"x"}
+
+% Set default column separator for table (csv files)
+\pgfplotsset{table/col sep=comma}
+
+\begin{document}
+% ----------- END OF HEADER -------------
+
+
+\begin{tikzpicture}
+\foreach \x in {0,...,1}
+{
+%  \foreach[evaluate=\y as \z using int(3*\x+\y+3)] \y in {0,...,2} % 3x3 grid with N part sim
+  \foreach[evaluate=\y as \z using int(\x)] \y in {0,...,0} % 2x3 grid withouth N part sim
+  {
+  \ifnum\z<10
+  % z = 3,4,5  ,6,7,8
+  \ifnum\z<1
+    \def\YY{"Phi"}
+    \def\YLabel{Electric Potential $\phi~[\si{\volt}]$}
+    \def\mycolor{blue}
+  \else
+    \def\YY{"ElectricFieldX"}
+    \def\YLabel{Electric Field $E_x~[\si{\volt\per\metre}]$}
+    \def\mycolor{red}
+  \fi
+  
+  
+  
+    \begin{scope}[shift={(9*\x,-7*\y+-14)}]
+      \begin{axis}[
+                   scaled ticks=false,
+                   xmode=linear,
+                   %ymode=log,
+                   xlabel={$x~[\si{\metre}]$},
+                   ylabel={\YLabel},
+                   xmin=0,xmax=2*pi,
+                   ylabel shift=0 pt,
+                   xlabel shift=-2 pt,
+      ]
+      \addplot+[\mycolor,thick,no markers]   table [x expr=\thisrow{\X}, y expr=\thisrow{\YY}]{phi-t40e-9.csv};
+      
+
+      \end{axis}
+    \end{scope}
+    \fi
+  }
+}
+\end{tikzpicture}
+
+
+% ----------- FOOTER -------------
+\end{document}
