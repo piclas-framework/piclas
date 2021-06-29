@@ -68,6 +68,9 @@ CALL prms%SetSection("MPI")
 CALL prms%CreateIntOption('GroupSize', "Define size of MPI subgroups, used to e.g. perform grouped IO, where group master\n"//&
                                        "collects and outputs data.",&
                                        '0')
+#if defined(PARTICLES)
+CALL prms%CreateLogicalOption('CheckExchangeProcs' , 'Check if proc communication of particle info is non-symmetric', '.TRUE.')
+#endif /*PARTICLES*/
 END SUBROUTINE DefineParametersMPI
 
 SUBROUTINE InitMPI(mpi_comm_IN)
