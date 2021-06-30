@@ -193,9 +193,11 @@ IF (BRNbrOfRegions .GT. 0) THEN
   END SELECT
   IF((TRIM(BRVariableElectronTemp).NE.'').AND.(TRIM(BRVariableElectronTemp).NE.'constant')) CalcBRVariableElectronTemp=.TRUE.
   IF(CalcBRVariableElectronTemp)THEN
-    ALLOCATE(RegionElectronRefBackup(1:BRNbrOfRegions))
+    ALLOCATE(RegionElectronRefBackup(1:3,1:BRNbrOfRegions))
     DO iRegions=1,BRNbrOfRegions
-      RegionElectronRefBackup(iRegions) = RegionElectronRef(3,iRegions)
+      RegionElectronRefBackup(3,iRegions) = RegionElectronRef(3,iRegions)
+      RegionElectronRefBackup(2,iRegions) = RegionElectronRef(2,iRegions)
+      RegionElectronRefBackup(1,iRegions) = 0.
     END DO
   END IF ! CalcBRVariableElectronTemp
 END IF
@@ -370,31 +372,40 @@ IF(UseBRElectronFluid)THEN
       'DeltaTimeBRWindow is zero. Therefore, 1/DeltaTimeBRWindow is not possible!')
 
   ASSOCIATE( &
-        T2 => BRVariableElectronTempValue*BoltzmannConst/ElementaryCharge ,& ! convert K to eV
-        dt => dt_Min(DT_BR_SWITCH)+tAdd           )
+        T2   => BRVariableElectronTempValue*BoltzmannConst/ElementaryCharge ,& ! convert K to eV
+        dt   => dt_Min(DT_BR_SWITCH)+tAdd                                   ,&
+        Phi2 => 0.2 ) ! Volt
     ! Select scaling function
     SELECT CASE(TRIM(BRVariableElectronTemp))
     CASE('linear') ! Linear drop towards background temperature
       DO iRegions=1,BRNbrOfRegions
-        RegionElectronRef(3,iRegions) = RegionElectronRefBackup(iRegions)
-        ASSOCIATE(T1 => RegionElectronRefBackup(iRegions) )
+        RegionElectronRef(3,iRegions) = RegionElectronRefBackup(3,iRegions)
+        RegionElectronRef(2,iRegions) = RegionElectronRefBackup(2,iRegions)
+        ASSOCIATE(T1   => RegionElectronRefBackup(3,iRegions) ,&
+                  Phi1 => RegionElectronRefBackup(2,iRegions))
           ! Fallback
           IF(dt.EQ.HUGE(1.))THEN
             RegionElectronRef(3,iRegions) = T2 ! fall back to starting temperature
+            RegionElectronRef(2,iRegions) = Phi2 ! fall back to starting voltage
           ELSE
             RegionElectronRef(3,iRegions) = ((T1-T2)/DeltaTimeBRWindow)*dt + T2
+            RegionElectronRef(2,iRegions) = ((Phi1-Phi2)/DeltaTimeBRWindow)*dt + Phi2
           END IF ! dt_Min(DT_BR_SWITCH).EQ.HUGE(1.)
         END ASSOCIATE
       END DO
     CASE('exp') ! Exponential drop towards background temperature
       DO iRegions=1,BRNbrOfRegions
-        RegionElectronRef(3,iRegions) = RegionElectronRefBackup(iRegions)
-        ASSOCIATE(T1 => RegionElectronRefBackup(iRegions) )
+        RegionElectronRef(3,iRegions) = RegionElectronRefBackup(3,iRegions)
+        RegionElectronRef(2,iRegions) = RegionElectronRefBackup(2,iRegions)
+        ASSOCIATE(T1   => RegionElectronRefBackup(3,iRegions) ,&
+                  Phi1 => RegionElectronRefBackup(2,iRegions))
           ! Fallback
           IF(dt.EQ.HUGE(1.))THEN
             RegionElectronRef(3,iRegions) = T2 ! fall back to starting temperature
+            RegionElectronRef(2,iRegions) = Phi2 ! fall back to starting voltage
           ELSE
             RegionElectronRef(3,iRegions) = (T1-T2)*EXP((-DeltaTimeBRWindow+dt)*3e6) + T2
+            RegionElectronRef(2,iRegions) = (Phi1-Phi2)*EXP((-DeltaTimeBRWindow+dt)*3e6) + Phi2
           END IF ! dt_Min(DT_BR_SWITCH).EQ.HUGE(1.)
         END ASSOCIATE
       END DO
@@ -520,7 +531,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL        :: debug,SwitchToBR,SwitchToKin
+LOGICAL :: debug,SwitchToBR,SwitchToKin
 INTEGER :: iCase
 !===================================================================================================================================
 !debug=.true.

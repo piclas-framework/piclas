@@ -93,7 +93,7 @@ REAL                  :: BRVariableElectronTempValue   ! Final electron temperat
 INTEGER, ALLOCATABLE  :: ElemToBRRegion(:)             ! ElemToBRRegion(1:nElems)
 REAL, ALLOCATABLE     :: BRRegionBounds(:,:)           ! BRRegionBounds ((xmin,xmax,ymin,...)|1:BRNbrOfRegions)
 REAL, ALLOCATABLE     :: RegionElectronRef(:,:)        ! RegionElectronRef((rho0,phi0,Te[eV])|1:BRNbrOfRegions)
-REAL, ALLOCATABLE     :: RegionElectronRefBackup(:)    ! RegionElectronRefBackup(Te[eV])|1:BRNbrOfRegions) when using variable
+REAL, ALLOCATABLE     :: RegionElectronRefBackup(:,:)  ! RegionElectronRefBackup(Phi_ref,Te[eV])|1:BRNbrOfRegions) when using variable
 !                                                      ! reference electron temperature
 REAL                  :: BRTimeStepMultiplier          ! Factor that is multiplied with the ManualTimeStep when using BR model
 REAL                  :: BRTimeStepBackup              ! Original time step

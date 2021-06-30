@@ -1073,7 +1073,10 @@ INTEGER             :: iRegions
         IF(CalcBRVariableElectronTemp)THEN ! variable reference electron temperature
           DO iRegions=1,BRNbrOfRegions
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-RegionElectronRef', iRegions
+            WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-RegionElectronRefT', iRegions
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-RegionElectronRefPhi', iRegions
             OutputCounter = OutputCounter + 1
           END DO
         END IF ! CalcBRVariableElectronTemp
@@ -1467,6 +1470,7 @@ IF (PartMPI%MPIROOT) THEN
         IF(CalcBRVariableElectronTemp)THEN ! variable reference electron temperature
           DO iRegions=1,BRNbrOfRegions
             WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RegionElectronRef(3,iRegions)*ElementaryCharge/BoltzmannConst ! convert eV to K
+            WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RegionElectronRef(2,iRegions) ! Phi in Volt
           END DO
         END IF ! CalcBRVariableElectronTemp
 #endif /*USE_HDG*/
