@@ -1416,7 +1416,7 @@ DO iELEM = 1, nElems
           Uface=U_master(:,:,:,SideID)
         END IF ! Prolong
 
-        ! multiplied by surface element and  Gauss Points
+        ! multiplied by surface element and Gauss Points
         area_loc     = SUM(SurfElem(:,:,SideID) * wGPSurf(:,:))
         integral_loc = SUM(Uface(1,:,:) * SurfElem(:,:,SideID) * wGPSurf(:,:))
         AverageElectricPotentialProc = AverageElectricPotentialProc + integral_loc/area_loc
@@ -1513,7 +1513,8 @@ CALL MPI_ALLREDUCE(nAverageElecPotSides , AverageElectricPotentialFaces , 1 , MP
 #else
 AverageElectricPotentialFaces=nAverageElecPotSides
 #endif /*USE_MPI*/
-SWRITE(UNIT_stdOut,'(A,I10,A)') 'A total of',AverageElectricPotentialFaces,' surfaces for the average electric potential calculation are found.'
+SWRITE(UNIT_stdOut,'(A,I10,A)') ' A total of',AverageElectricPotentialFaces,&
+    ' surfaces for the average electric potential calculation are found.'
 SWRITE(UNIT_stdOut,'(A)') ' ... AVERAGE ELECTRIC POTENTIAL INITIALIZATION DONE.'
 #if USE_MPI
 IF(MPIRoot)THEN
@@ -1522,7 +1523,7 @@ IF(MPIRoot)THEN
     SWRITE(UNIT_stdOut,*) 'ERROR with: PosAverageElectricPotential = ',PosAverageElectricPotential
     CALL abort(&
     __STAMP__&
-    ,'Found zero faces for averaging the electric potentialPlease make sure \nthat the x-coordinate coincides with element'//&
+    ,'Found zero faces for averaging the electric potential. Please make sure \nthat the x-coordinate coincides with element'//&
     ' interfaces. Planes cutting through elements in currently not implemented.')
   END IF ! AverageElectricPotentialFaces.EQ.0
 #if USE_MPI

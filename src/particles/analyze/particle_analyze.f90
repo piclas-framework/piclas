@@ -131,7 +131,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared_Win
 USE MOD_Mesh_Vars             ,ONLY: ElemBaryNGeo
 USE MOD_Particle_Analyze_Tools,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
 #if USE_HDG
-USE MOD_HDG_Vars              ,ONLY: CalcBRVariableElectronTemp
+USE MOD_HDG_Vars              ,ONLY: CalcBRVariableElectronTemp,BRAutomaticElectronRef
 #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -645,8 +645,9 @@ IsRestart = GETLOGICAL('IsRestart','.FALSE.')
 
 #if USE_HDG
 !-- Check variable ref. electron temperature for BR electron model
-IF(CalcBRVariableElectronTemp) DoPartAnalyze=.TRUE.
-CALL PrintOption('CalcBRVariableElectronTemp','INFO',LogOpt=CalcBRVariableElectronTemp)
+IF(CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef) DoPartAnalyze=.TRUE.
+CALL PrintOption('CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef','INFO',&
+    LogOpt=CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef)
 #endif /*USE_HDG*/
 
 ParticleAnalyzeInitIsDone=.TRUE.
@@ -698,7 +699,7 @@ USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, XSec_Relaxation, SpecXSec
 USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,ReacRates
 #endif
 #if USE_HDG
-USE MOD_HDG_Vars               ,ONLY: BRNbrOfRegions,CalcBRVariableElectronTemp,RegionElectronRef
+USE MOD_HDG_Vars               ,ONLY: BRNbrOfRegions,CalcBRVariableElectronTemp,BRAutomaticElectronRef,RegionElectronRef
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElementaryCharge
 #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
@@ -1070,16 +1071,16 @@ INTEGER             :: iRegions
         END IF
 #endif
 #if USE_HDG
-        IF(CalcBRVariableElectronTemp)THEN ! variable reference electron temperature
+        IF(CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef)THEN ! variable reference electron temperature
           DO iRegions=1,BRNbrOfRegions
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-RegionElectronRefT', iRegions
+            WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-RegionElectronRefDensity', iRegions,'-[1/m^3]'
             OutputCounter = OutputCounter + 1
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-RegionElectronRefPhi', iRegions
+            WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-RegionElectronRefPhi', iRegions,'-[V]'
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-RegionElectronRefTe', iRegions,'-[K]'
             OutputCounter = OutputCounter + 1
           END DO
-        END IF ! CalcBRVariableElectronTemp
+        END IF ! CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef
 #endif /*USE_HDG*/
         WRITE(unit_index,'(A)') ''
       END IF
@@ -1467,12 +1468,13 @@ IF (PartMPI%MPIROOT) THEN
     END IF
 #endif /*(PP_TimeDiscMethod==42)*/
 #if USE_HDG
-        IF(CalcBRVariableElectronTemp)THEN ! variable reference electron temperature
-          DO iRegions=1,BRNbrOfRegions
-            WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RegionElectronRef(3,iRegions)*ElementaryCharge/BoltzmannConst ! convert eV to K
-            WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RegionElectronRef(2,iRegions) ! Phi in Volt
-          END DO
-        END IF ! CalcBRVariableElectronTemp
+    IF(CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef)THEN ! variable reference electron temperature
+      DO iRegions=1,BRNbrOfRegions
+        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RegionElectronRef(1,iRegions)/ElementaryCharge ! Density in 1/m^3
+        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RegionElectronRef(2,iRegions) ! Phi in Volt
+        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RegionElectronRef(3,iRegions)*ElementaryCharge/BoltzmannConst ! convert eV to K
+      END DO
+    END IF ! CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef
 #endif /*USE_HDG*/
     WRITE(unit_index,'(A)') ''
 #if USE_MPI
