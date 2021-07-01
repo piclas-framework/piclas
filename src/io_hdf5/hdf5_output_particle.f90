@@ -723,6 +723,17 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
 
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (MaxQuantNum           => INT(MaxQuantNum,IK))
+    IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file, required for (auto-)restart
+      IF(MPIRoot)THEN ! only root writes the container
+        CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+        CALL WriteArrayToHDF5(DataSetName='VibQuantData', rank=2              , &
+                              nValGlobal=(/MaxQuantNum  , nGlobalNbrOfParticles /)       , &
+                              nVal=      (/MaxQuantNum  , locnPart   /)       , &
+                              offset=    (/0_IK         , offsetnPart/)       , &
+                              collective=.FALSE.        , IntegerArray=VibQuantData)
+        CALL CloseDataFile()
+      END IF !MPIRoot
+    END IF !locnPart_max.EQ.0
 #if USE_MPI
     CALL DistributedWriteArray(FileName , &
                               DataSetName ='VibQuantData', rank=2           , &
@@ -777,6 +788,17 @@ IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
 
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (MaxElecQuant          => INT(MaxElecQuant,IK))
+    IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file, required for (auto-)restart
+      IF(MPIRoot)THEN ! only root writes the container
+        CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+        CALL WriteArrayToHDF5(DataSetName='ElecDistriData', rank=2              , &
+                              nValGlobal=(/MaxElecQuant   , nGlobalNbrOfParticles /)       , &
+                              nVal=      (/MaxElecQuant   , locnPart   /)       , &
+                              offset=    (/0_IK           , offsetnPart/)       , &
+                              collective=.FALSE.          , RealArray=ElecDistriData)
+        CALL CloseDataFile()
+      END IF !MPIRoot
+    END IF !locnPart_max.EQ.0
 #if USE_MPI
     CALL DistributedWriteArray(FileName , &
                               DataSetName ='ElecDistriData', rank=2           , &
@@ -828,6 +850,17 @@ IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
     PartInt(iElem_glob,2)=iPart
   END DO
 
+    IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file, required for (auto-)restart
+      IF(MPIRoot)THEN ! only root writes the container
+        CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+        CALL WriteArrayToHDF5(DataSetName='ADVeloData' , rank=2              , &
+                              nValGlobal=(/3_IK        , nGlobalNbrOfParticles /)       , &
+                              nVal=      (/3_IK        , locnPart   /)       , &
+                              offset=    (/0_IK        , offsetnPart/)       , &
+                              collective=.FALSE.       , RealArray=AD_Data)
+        CALL CloseDataFile()
+      END IF !MPIRoot
+    END IF !locnPart_max.EQ.0
 #if USE_MPI
     CALL DistributedWriteArray(FileName , &
                               DataSetName ='ADVeloData'  , rank=2           , &
