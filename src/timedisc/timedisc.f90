@@ -42,13 +42,12 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt_old
 USE MOD_TimeAverage_vars       ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage            ,ONLY: CalcTimeAverage
 USE MOD_Analyze                ,ONLY: PerformAnalyze
-USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze
+USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze,nSkipAnalyze,SkipAnalyzeWindow,SkipAnalyzeSwitchTime,nSkipAnalyzeSwitch
 USE MOD_Restart_Vars           ,ONLY: RestartTime,RestartWallTime
 USE MOD_HDF5_Output_State      ,ONLY: WriteStateToHDF5
 USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 USE MOD_RecordPoints           ,ONLY: WriteRPToHDF5!,RecordPoints
-USE MOD_LoadBalance_Vars       ,ONLY: nSkipAnalyze
 #if !(USE_HDG)
 USE MOD_PML_Vars               ,ONLY: DoPML,DoPMLTimeRamp,PMLTimeRamp
 USE MOD_PML                    ,ONLY: PMLTimeRamping
@@ -131,9 +130,9 @@ tPreviousAnalyze=RestartTime
 ! first average analyze is not written at start but at first tAnalyze
 tPreviousAverageAnalyze=tAnalyze
 ! saving the start of the simulation as restart time is overwritten during load balance step
-!   In case the overwritten one is used, state write out is performed only next Nth analze-dt after restart instead after analyze-dt
-!   w/o  tZero: nSkipAnalyze=5 , restart after iAnalyze=2 , next write out witout any restarts after iAnalyze=7
-!   with tZero: nSkipAnalyze=5 , restart after iAnalyze=2 , next write out witout any restarts after iAnalyze=5
+! In case the overwritten one is used, state write out is performed only next Nth Analyze_dt after restart instead after Analyze_dt
+!   w/o  tZero: nSkipAnalyze=5 , restart after iAnalyze=2 , next write out without any restarts after iAnalyze=7
+!   with tZero: nSkipAnalyze=5 , restart after iAnalyze=2 , next write out without any restarts after iAnalyze=5
 tZero = RestartTime
 
 ! write number of grid cells and dofs only once per computation
@@ -350,9 +349,9 @@ DO !iter_t=0,MaxIter
     WallTimeEnd=PICLASTIME()
     IF(MPIroot)THEN ! determine the SimulationEfficiency and PID here,
                     ! because it is used in ComputeElemLoad -> WriteElemTimeStatistics
-      WallTime = WallTimeEnd-StartTime
+      WallTime             = WallTimeEnd-StartTime
       SimulationEfficiency = (time-RestartTime)/((WallTimeEnd-RestartWallTime)*nProcessors/3600.) ! in [s] / [CPUh]
-      PID=(WallTimeEnd-WallTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_PID)
+      PID                  = (WallTimeEnd-WallTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_PID)
     END IF
 
 #if USE_MPI
@@ -379,6 +378,9 @@ DO !iter_t=0,MaxIter
 #else
 CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
 #endif /*USE_MPI*/
+
+    ! Adjust nSkipAnalyze when, e.g., also adjusting the time step (during load balance, this value is over-written)
+    IF(MOD(time,SkipAnalyzeWindow).GT.SkipAnalyzeSwitchTime) nSkipAnalyze = nSkipAnalyzeSwitch
 
 #if USE_LOADBALANCE
     IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. PerformLoadBalance .OR. ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN

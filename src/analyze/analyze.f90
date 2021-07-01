@@ -69,8 +69,12 @@ CALL prms%SetSection("Analyze")
 ! -------------------------
 CALL prms%CreateLogicalOption('DoCalcErrorNorms'     , 'Set true to compute L2 and LInf error norms at analyze step.','.FALSE.')
 CALL prms%CreateRealOption(   'Analyze_dt'           , 'Specifies time interval at which analysis routines are called.','0.')
+CALL prms%CreateIntOption(    'nSkipAnalyze'         , '(Skip Analyze_dt)','1')
+
+CALL prms%CreateRealOption(   'SkipAnalyzeWindow'    , 'Reoccurring time frame when switching between nSkipAnalyze and SkipAnalyzeWindow.','-1.')
+CALL prms%CreateRealOption(   'SkipAnalyzeSwitchTime', 'Time within the reoccurring time frame, when using nSkipAnalyzeSwitch instead of nSkipAnalyze.')
+CALL prms%CreateIntOption(    'nSkipAnalyzeSwitch'   , 'Skip Analyze_dt with a different values as nSkipAnalyze')
 CALL prms%CreateRealOption(   'OutputTimeFixed'      , 'fixed time for writing state to .h5','-1.0')
-CALL prms%CreateIntOption(    'nSkipAnalyze'         , '(Skip Analyze-Dt)','1')
 CALL prms%CreateLogicalOption('DoMeasureAnalyzeTime' , 'Measure time that is spent in analyze routines and count the number of '//&
                                                        'analysis calls (to std out stream)','.FALSE.')
 !CALL prms%CreateLogicalOption('AnalyzeToFile',   "Set true to output result of error norms to a file (DoCalcErrorNorms=T)",&
@@ -151,10 +155,10 @@ USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeF
 USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_Analyze_Vars          ,ONLY: doFieldAnalyze,CalcEpot
 USE MOD_Analyze_Vars          ,ONLY: CalcBoundaryFieldOutput,BFO
+USE MOD_Analyze_Vars          ,ONLY: nSkipAnalyze,SkipAnalyzeWindow,SkipAnalyzeSwitchTime,nSkipAnalyzeSwitch
 USE MOD_Interpolation_Vars    ,ONLY: InterpolationInitIsDone
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_LoadBalance_Vars      ,ONLY: nSkipAnalyze
 USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL,GETLOGICAL,PrintOption,GETINTARRAY
 USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage           ,ONLY: InitTimeAverage
@@ -198,6 +202,18 @@ DoCalcErrorNorms = GETLOGICAL('DoCalcErrorNorms')
 WRITE(DefStr,WRITEFORMAT) TEnd
 Analyze_dt        = GETREAL('Analyze_dt',DefStr)
 nSkipAnalyze      = GETINT('nSkipAnalyze')
+
+! Get 2nd option for skipping certain steps (within reoccurring time frame SkipAnalyzeWindow when time > SkipAnalyzeSwitchTime)
+SkipAnalyzeWindow = GETREAL('SkipAnalyzeWindow')
+IF(SkipAnalyzeWindow.GT.0.)THEN
+  SkipAnalyzeSwitchTime = GETREAL('SkipAnalyzeSwitchTime')
+  nSkipAnalyzeSwitch    = GETINT('nSkipAnalyzeSwitch')
+  IF(SkipAnalyzeSwitchTime.GT.SkipAnalyzeWindow) CALL abort(__STAMP__,'SkipAnalyzeSwitchTime must be smaller than SkipAnalyzeWindow')
+ELSE
+  SkipAnalyzeSwitchTime = HUGE(1.)
+  nSkipAnalyzeSwitch    = nSkipAnalyze
+END IF ! SkipAnalyzeWindow.GT.0.
+
 OutputTimeFixed   = GETREAL('OutputTimeFixed')
 ! Time averaged quantises fields (Maxwell/Poisson solver) and deposited particles (PIC)
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)

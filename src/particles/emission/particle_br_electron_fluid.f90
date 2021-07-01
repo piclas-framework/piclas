@@ -705,12 +705,15 @@ SUBROUTINE SwitchBRElectronModel()
 ! MODULES
 USE MOD_Globals
 USE MOD_HDG_Vars
-USE MOD_TimeDisc_Vars   ,ONLY: time,iter
-USE MOD_Elem_Mat        ,ONLY: Elem_Mat,BuildPrecond
-USE MOD_part_operations ,ONLY: RemoveAllElectrons
-USE MOD_DSMC_Vars       ,ONLY: XSec_NullCollision
-USE MOD_DSMC_ChemInit   ,ONLY: InitReactionPaths
-USE MOD_DSMC_Vars       ,ONLY: ChemReac,CollInf,UseDSMC,CollisMode
+USE MOD_TimeDisc_Vars    ,ONLY: time,iter
+USE MOD_Elem_Mat         ,ONLY: Elem_Mat,BuildPrecond
+USE MOD_part_operations  ,ONLY: RemoveAllElectrons
+USE MOD_DSMC_Vars        ,ONLY: XSec_NullCollision
+USE MOD_DSMC_ChemInit    ,ONLY: InitReactionPaths
+USE MOD_DSMC_Vars        ,ONLY: ChemReac,CollInf,UseDSMC,CollisMode
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: nLoadBalanceSteps
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -750,7 +753,7 @@ ASSOCIATE( tBR2Kin => BRConvertFluidToElectronsTime ,&
   ENDIF
 
   ! kinetic -> BR
-  IF(.NOT.UseBRElectronFluid.AND.tKin2BR.GT.0.0)THEN
+  IF((.NOT.UseBRElectronFluid).AND.(tKin2BR.GT.0.0).AND.(.NOT.SwitchToKin))THEN
     IF((.NOT.BRConvertModelRepeatedly).AND.(time.GE.tKin2BR)                                             .OR.&
        ((BRConvertMode.EQ.1)          .AND.(LesserThanWithTolerance(MOD(time,tKin2BR),tBR2Kin,tKin2BR))) .OR.&
        ((BRConvertMode.EQ.2)          .AND.(GreaterEqualWithTolerance(MOD(time,tBR2Kin),tKin2BR)))       )THEN
@@ -796,6 +799,12 @@ IF(UseDSMC)THEN
     CALL InitReactionPaths()
   END IF ! (SwitchToBR.OR.SwitchToKin).AND.(CollisMode.EQ.3)
 END IF ! UseDSMC
+
+! When switching BR <-> kin, reset the number of load balances to 0
+IF(SwitchToBR.OR.SwitchToKin)THEN
+  nLoadBalanceSteps = 0
+  SWRITE (*,*) " Switching BR <-> kin: Setting nLoadBalanceSteps=0"
+END IF ! SwitchToBR.OR.SwitchToKin
 
 END SUBROUTINE SwitchBRElectronModel
 
@@ -895,6 +904,7 @@ REAL,ALLOCATABLE               :: ElectronDensityCell(:,:),ElectronTemperatureCe
 INTEGER                        :: ElemCharge,ElecSpecIndx,iSpec,iElem,iPart,ParticleIndexNbr,RegionID
 REAL                           :: PartPosRef(1:3),ElemTemp
 CHARACTER(32)                  :: hilf
+CHARACTER(1)                   :: hilf2
 LOGICAL                        :: ElectronDensityCellExists,ElectronTemperatureCellExists
 REAL                           :: MPF,ElectronNumberCell
 INTEGER                        :: BRNbrOfElectronsCreated
@@ -933,12 +943,16 @@ IF(CreateFromRestartFile)THEN
         ' This is required for CreateElectronsFromBRFluid(). Set BRConvertFluidToElectrons = F to continue the kinetic simulation')
   END IF
   CALL CloseDataFile()
+  hilf2='T'
+ELSE
+  hilf2='F'
 END IF ! CreateFromRestartFile
 
 ! ---------------------------------------------------------------------------------------------------------------------------------
 ! 1.) reconstruct electrons
 ! ---------------------------------------------------------------------------------------------------------------------------------
-SWRITE(UNIT_stdOut,'(A,ES25.14E3,A)')' CreateElectronsFromBRFluid(): Reconstructing electrons at t=',time,' from BR electron fluid density in each cell'
+SWRITE(UNIT_stdOut,'(A,ES25.14E3,A)')' CreateElectronsFromBRFluid(): Reconstructing electrons at t=',time,&
+                                     ' from BR electron fluid density in each cell (CreateFromRestartFile='//hilf2//')'
 
 ! Loop over all species and find the index corresponding to the electron species: take the first electron species that is
 ! encountered
