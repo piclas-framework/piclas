@@ -426,8 +426,7 @@ END SUBROUTINE UpdateVariableRefElectronTemp
 !===================================================================================================================================
 SUBROUTINE UpdateBRAutomaticElectronRef()
 ! MODULES
-USE MOD_HDG_vars               ,ONLY: UseBRElectronFluid,HDGNonLinSolver
-USE MOD_Elem_Mat               ,ONLY: Elem_Mat,BuildPrecond
+USE MOD_HDG_vars               ,ONLY: HDGNonLinSolver
 USE MOD_TimeDisc_Vars          ,ONLY: iter
 USE MOD_Particle_Analyze_Tools ,ONLY: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 ! IMPLICIT VARIABLE HANDLING
@@ -438,7 +437,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 ! ------------
-! TODO: calculate n_e and T_e only in the relevant cells
+! TODO: calculate n_e and T_e only in the relevant cells (1st: only communicate values between these procs, 2nd: all other procs)
 ! ------------
 ! Update electron density in each cell
 CALL CalculateElectronIonDensityCell()
@@ -447,11 +446,7 @@ CALL CalculateElectronTemperatureCell()
 ! Set new reference potential, electron density and temperature
 CALL CalculateBRAutomaticElectronRef()
 ! Calculate NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
-IF(UseBRElectronFluid.AND.(HDGNonLinSolver.EQ.1)) CALL UpdateNonlinVolumeFac(.FALSE.)
-! Pre-compute HDG local element matrices
-CALL Elem_Mat(iter)
-! Build a block-diagonal preconditioner for the lambda system
-CALL BuildPrecond()
+IF(HDGNonLinSolver.EQ.1) CALL UpdateNonlinVolumeFac(.FALSE.)
 END SUBROUTINE UpdateBRAutomaticElectronRef
 
 
@@ -765,13 +760,12 @@ ASSOCIATE( tBR2Kin => BRConvertFluidToElectronsTime ,&
         read*
       END IF ! debug
       IF(BRNbrOfRegions.EQ.0) CALL abort(__STAMP__,'SwitchBRElectronModel(): Cannot switch [kin -> BR] as no BR regions are defined!')
-
       ! When switching from kin to BR and using automatic ref. value determination, update ref. values here and subsequent matrices
       IF(BRAutomaticElectronRef) CALL UpdateBRAutomaticElectronRef()
-
-      CALL RemoveAllElectrons()    ! Remove all electron particles from the simulation
-      UseBRElectronFluid = .TRUE.  ! Activate BR fluid
-      IF((.NOT.CalcBRVariableElectronTemp).AND.(.NOT.BRAutomaticElectronRef))THEN
+      CALL RemoveAllElectrons()  ! Remove all electron particles from the simulation
+      UseBRElectronFluid = .TRUE.! Activate BR fluid (must be set after UpdateBRAutomaticElectronRef because of determination of Te)
+      ! Recompute the matrices: also consider BRAutomaticElectronRef here
+      IF(.NOT.CalcBRVariableElectronTemp)THEN! for variable Te, these matrices are updated in UpdateVariableRefElectronTemp
         CALL Elem_Mat(iter) ! Recompute elem matrices
         CALL BuildPrecond() ! Build a block-diagonal preconditioner for the lambda system
       END IF
