@@ -249,7 +249,7 @@ LOGICAL,INTENT(IN),OPTIONAL :: usevMPF_optIN ! For setting MPF for cases when Pa
 REAL                 :: MPF
 INTEGER              :: dims(2)
 ! Temporary arrays
-REAL, ALLOCATABLE    :: PartStateBoundary_tmp(:,:) ! (1:10,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle
+REAL, ALLOCATABLE    :: PartStateBoundary_tmp(:,:) ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle,iBC
 !                                                  !                 2nd index: 1 to number of boundary-crossed particles
 INTEGER              :: ALLOCSTAT
 !===================================================================================================================================
