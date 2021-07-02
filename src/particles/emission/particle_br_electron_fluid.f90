@@ -710,10 +710,11 @@ USE MOD_Elem_Mat         ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_part_operations  ,ONLY: RemoveAllElectrons
 USE MOD_DSMC_Vars        ,ONLY: XSec_NullCollision
 USE MOD_DSMC_ChemInit    ,ONLY: InitReactionPaths
-USE MOD_DSMC_Vars        ,ONLY: ChemReac,CollInf,UseDSMC,CollisMode
+USE MOD_DSMC_Vars        ,ONLY: ChemReac,CollInf,UseDSMC,CollisMode,SpecXSec
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: nLoadBalanceSteps
 #endif /*USE_LOADBALANCE*/
+USE MOD_DSMC_SpecXSec    ,ONLY: MCC_Chemistry_Init
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -797,6 +798,15 @@ IF(UseDSMC)THEN
     END DO
     ChemReac%CollCaseInfo(:)%NumOfReactionPaths = 0 ! Re-initialize
     CALL InitReactionPaths()
+
+    ! Initialize MCC model: Read-in of the reaction cross-section database and re-calculation of the null collision probability
+    IF(ChemReac%AnyXSecReaction) THEN
+      DO iCase = 1, CollInf%NumCase
+        SDEALLOCATE(SpecXSec(iCase)%ReactionPath)
+      END DO
+      CALL MCC_Chemistry_Init()
+    END IF
+
   END IF ! (SwitchToBR.OR.SwitchToKin).AND.(CollisMode.EQ.3)
 END IF ! UseDSMC
 
