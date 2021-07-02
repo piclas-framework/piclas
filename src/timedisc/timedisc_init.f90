@@ -82,7 +82,7 @@ iter_macsurfvalout=0
 IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) MacroValSampTime = Time
 #endif /*PARTICLES*/
 iAnalyze=1
-! Determine analyze Time
+! Determine the first analyze time
 tAnalyze=MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd)
 
 ! fill initial analyze stuff
@@ -345,11 +345,11 @@ IF (DoInitialAutoRestart) THEN
   ! LoadBalanceSample still needs to be zero
   IF (IAR_PerformPartWeightLB) InitialAutoRestartSample=1
   ! Correction for first analysis time due to auto initial restart
-  IF (MIN( RestartTime+iAnalyze*Analyze_dt , tEnd , RestartTime+InitialAutoRestartSample*dt ).LT.tAnalyze) THEN
-    tAnalyze           = MIN(RestartTime+iAnalyze*Analyze_dt , tEnd , RestartTime+InitialAutoRestartSample*dt )
-    dt_Min(DT_ANALYZE) = tAnalyze-Time
-    dt                 = MINVAL(dt_Min)
-  END IF
+  !IF (MIN( RestartTime+iAnalyze*Analyze_dt , tEnd , RestartTime+InitialAutoRestartSample*dt ).LT.tAnalyze) THEN
+  !  tAnalyze           = MIN(RestartTime+iAnalyze*Analyze_dt , tEnd , RestartTime+InitialAutoRestartSample*dt )
+  !  dt_Min(DT_ANALYZE) = tAnalyze-Time
+  !  dt                 = MINVAL(dt_Min)
+  !END IF
 END IF
 #endif /*USE_LOADBALANCE*/
 END SUBROUTINE InitTimeStep
