@@ -71,8 +71,7 @@ for an intersection and a particle assigned accordingly to neighbor elements or 
 algorithm has no inherent self-consistency check. For critical intersections (beginning or end of a particle path or if a particle is located close to
 the edges of element faces) an additional safety check is performed by recomputing the element check and if it fails a re-localization of
 the particle is required. Particles traveling parallel to element faces are in an undefined state and are currently removed from the computation.
-This leads to a warning message. Note that tracing on periodic meshes works only for non-mpi computations. Periodic displacement requires
-additional coding.
+This leads to a warning message.
 
 ### Parameters for DoRefMapping and Tracing  (NEEDS UPDATING)
 
