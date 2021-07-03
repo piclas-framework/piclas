@@ -241,7 +241,8 @@ where the interpolation type `PIC-Interpolation-Type` is required. For depositio
 `PIC-Deposition-Type` is used. The dimension `PIC-shapefunction-dimension`, here 1D and direction `PIC-shapefunction-direction`, are
 selected specifically for the one-dimensional setup that is simulated here.
 
-The inserting (or emission) of particles at the beginning of the simulation is controlled via
+The inserting (sometimes labelled emission or initialization) of particles at the beginning or during the course of the simulation
+is controlled via
 
     ! =============================================================================== !
     ! PARTICLE Emission
@@ -289,12 +290,23 @@ The inserting (or emission) of particles at the beginning of the simulation is c
     Part-Species2-Init1-VeloVecIC             = (/0.,0.,0./)
     ! -------------------------------------
 
-where for each particle species the number initialization `Part-SpeciesX-nInits` sets that is accompanied by a block of parameters that start
-from `Part-SpeciesX-Init1-SpaceIC` up to `Part-SpeciesX-Init1-VeloVecIC`, which, here, distribute the particles on a line and
-sinusoidally dislocates them (representing an initial stage of a plasma wave in 1D).
+where, for each particle species, the number `Part-SpeciesX-nInits` controls how many initialization blocks are to be used.
+Each block is accompanied by a set of parameters that start from `Part-SpeciesX-Init1-SpaceIC` up to `Part-SpeciesX-Init1-VeloVecIC`
+, which, in the above example, distribute the particles equidistantly on a line and sinusoidally dislocates them (representing
+an initial stage of a plasma wave in 1D).
+
+The extent of dislocation is controlled by `Part-SpeciesX-Init1-Amplitude`, which is only set for the electron species as the ion
+species is no dislocated (they remain equidistantly distributed).
+The parameter `Part-SpeciesX-Init1-WaveNumber` set the number of sin wave repetitions in the `x`-direction of the domain.
+
 The number of simulation particles, given by`Part-SpeciesX-Init1-ParticleNumber` and weighted by
 `Part-SpeciesX-MacroParticleFactor`, the multiplication of which gives the number of real physical particles and together with the volume
 of the complete domain, the density of each species.
+
+In case of the `SpaceIC=sin\_deviation`, the number of simulation particles must be equal to the multiplied values given in
+`Part-SpeciesX-Init1-maxParticleNumber-x/y/z` as this emission type allows distributing the particles not only in one, but in all
+three Cartesian coordinates, which is not required for this 1D example.
+
 Furthermore, the masses `Part-SpeciesX-MassIC`and charges `Part-SpeciesX-ChargeIC` of each species are required.
 
 Finally, some parameters for run-time analysis are chosen by setting them `T` (true).
@@ -310,12 +322,12 @@ Finally, some parameters for run-time analysis are chosen by setting them `T` (t
     CalcPointsPerDebyeLength = T ! writes the PIC grid step restriction to XXX_State_000.0000XXX.h5 (rule of thumb)
     CalcTotalEnergy          = T ! writes the total energy of the system to PartAnalyze.csv (field and particle)
 
-where the function of the parameters is given in the code comments. An information regarding every parameter can be obtained from
+where the function of the parameters is given in the code comments. Information regarding every parameter can be obtained from
 running the command
 
     ./piclas --help "CalcCharge"
 
-where each parameter is simply supplied to the *help* module of **piclas**. This help module can also output the complete set of
+where each parameter can simply be supplied to the *help* module of **piclas**. This help module can also output the complete set of
 parameters via `./piclas --help` or a subset of them by supplying a section, e.g., `./piclas --help "HDG"` for the HDGSEM solver.
 
 #### Running the code
