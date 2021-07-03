@@ -963,9 +963,9 @@ __STAMP__,&
     IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
     chunkSize_tmp = INT(PartDens * LocalVolume)
     IF(chunkSize_tmp.GE.PDM%maxParticleNumber) THEN
-      CALL abort(&
-__STAMP__,&
-'ERROR in SetCellLocalParticlePosition: Maximum particle number during sanity check! max. particles needed: ',chunkSize_tmp)
+      CALL abort(__STAMP__,&
+      'ERROR in SetCellLocalParticlePosition: Maximum particle number during sanity check! max. particles needed: ',&
+      IntInfoOpt=chunkSize_tmp)
     END IF
   END IF
 

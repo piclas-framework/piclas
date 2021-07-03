@@ -23,6 +23,10 @@ The documentation is a work in progress. For an installation guide please refer 
 A PDF file can be generated simply by executing *make* in the *doc/userguide/* folder. This requires `pandoc`, `pandoc-citeproc` and `LaTeX`.
 More information about pandoc and its installation can be found [here](https://pandoc.org/installing.html).
 
+An automatically generated documentation using doxygen can be produced in *doc/doxygen/* by executing the `builddoxy.sh` script.
+This requires the `doxygen` package to be installed and is useful to get an overview over the code structure with call graphs.
+The resulting documentation can be viewed by opening the `piclas/doc/doxygen/doxygen/html/index.html` file in a browser.
+
 The tools are known to work with the following software versions:
 
 * OpenMPI > 1.8
@@ -44,7 +48,8 @@ PICLas uses several external libraries as well as auxiliary functions from open 
 
 ## I need help or further information:
 
-* [IAG - Numerics Research Group](https://www.iag.uni-stuttgart.de/en/working-groups/numerical-methods/)
-* [IRS - Numerical Modelling and Simulation Group](https://www.irs.uni-stuttgart.de/forschung/raumtransporttechnologie/numerische_modellierung_und_simulation/)
-* [HOPR (High Order Preprocessor)](https://www.hopr-project.org/index.php/Home)
-* [boltzplatz - Numerical Plasma Dynamics](https://www.boltzplatz.eu)
+* Academic
+  * [IAG - Numerics Research Group](https://www.iag.uni-stuttgart.de/en/working-groups/numerical-methods/)
+  * [IRS - Numerical Modelling and Simulation Group](https://www.irs.uni-stuttgart.de/forschung/raumtransporttechnologie/numerische_modellierung_und_simulation/)
+  * [HOPR (High Order Preprocessor)](https://www.hopr-project.org/index.php/Home)
+* Simulation service & training: [boltzplatz - numerical plasma dynamics GmbH](https://boltzplatz.eu)
