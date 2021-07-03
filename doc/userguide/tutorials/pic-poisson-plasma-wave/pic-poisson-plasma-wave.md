@@ -286,20 +286,12 @@ are utilized.
 $$ N_{e,sim} = \frac{n_{e} V}{w_{e}} $$
 
 In this case, however, the number of particles are pre-defined and the weighting factor is derived from the above equation.
-
-The extent of dislocation is controlled by `Part-SpeciesX-Init1-Amplitude`, which is only set for the electron species as the ion
-species is no dislocated (they remain equidistantly distributed).
-The parameter `Part-SpeciesX-Init1-WaveNumber` set the number of sin wave repetitions in the `x`-direction of the domain.
-
-The number of simulation particles, given by`Part-SpeciesX-Init1-ParticleNumber` and weighted by
-`Part-SpeciesX-MacroParticleFactor`, the multiplication of which gives the number of real physical particles and together with the volume
-of the complete domain, the density of each species.
-
-In case of the `SpaceIC=sin\_deviation`, the number of simulation particles must be equal to the multiplied values given in
-`Part-SpeciesX-Init1-maxParticleNumber-x/y/z` as this emission type allows distributing the particles not only in one, but in all
+The extent of dislocation is controlled by `Part-Species1-Init1-Amplitude`, which is only set for the electron species as the ion
+species is not dislocated (they remain equidistantly distributed).
+The parameter `Part-Species1-Init1-WaveNumber` sets the number of sine wave repetitions in the `x`-direction of the domain.
+In case of the `SpaceIC=sin_deviation`, the number of simulation particles must be equal to the multiplied values given in
+`Part-Species1-Init1-maxParticleNumber-x/y/z` as this emission type allows distributing the particles not only in one, but in all
 three Cartesian coordinates, which is not required for this 1D example.
-
-Furthermore, the masses `Part-SpeciesX-MassIC` and charges `Part-SpeciesX-ChargeIC` of each species are required.
 
 #### Analysis setup
 
