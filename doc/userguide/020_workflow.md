@@ -159,7 +159,7 @@ For some external libraries and programs that **PICLas** uses, the following opt
   * ``POSTI_BUILD_VISU``: Enables the compilation of the post-processing tool **piclas2vtk**, which enables the conversion of output files into the VTK format (Chapter \ref{chap:visu_output})
   * ``POSTI_USE_PARAVIEW``: Enables the compilation of the ParaView plugin, which enables the direct read-in of output files within ParaView
 
-## Solver settings
+## Solver settings \label{sec:solveroptions}
 
 Before setting up a simulation, the code must be compiled with the desired parameters. The most important compiler options to be set are:
 
