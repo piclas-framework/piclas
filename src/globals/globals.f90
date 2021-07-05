@@ -841,7 +841,7 @@ END IF
 END FUNCTION GETFREEUNIT
 
 
-PURE FUNCTION CROSS(v1,v2)
+PPURE FUNCTION CROSS(v1,v2)
 !===================================================================================================================================
 ! Computes the cross product of two 3-dimensional vectors: cross=v1 x v2
 !===================================================================================================================================
@@ -862,7 +862,7 @@ CROSS=(/v1(2)*v2(3)-v1(3)*v2(2),v1(3)*v2(1)-v1(1)*v2(3),v1(1)*v2(2)-v1(2)*v2(1)/
 END FUNCTION CROSS
 
 
-PURE FUNCTION CROSSNORM(v1,v2)
+PPURE FUNCTION CROSSNORM(v1,v2)
 !===================================================================================================================================
 ! Computes the cross product of to 3 dimensional vectors: cross=v1 x v2
 ! and normalizes the vector
@@ -886,7 +886,7 @@ CROSSNORM=CROSSNORM/length
 END FUNCTION CROSSNORM
 
 
-PURE FUNCTION UNITVECTOR(v1)
+PPURE FUNCTION UNITVECTOR(v1)
 !===================================================================================================================================
 ! compute  a unit vector from a given vector
 !===================================================================================================================================
@@ -913,7 +913,7 @@ END IF ! ABS(invL).GT.0.0
 END FUNCTION UNITVECTOR
 
 
-PURE FUNCTION VECNORM(v1)
+PPURE FUNCTION VECNORM(v1)
 !===================================================================================================================================
 ! Computes the Euclidean norm (length) of a vector
 !===================================================================================================================================
@@ -933,7 +933,7 @@ VECNORM=SQRT(v1(1)*v1(1)+v1(2)*v1(2)+v1(3)*v1(3))
 END FUNCTION VECNORM
 
 
-PURE SUBROUTINE OrthoNormVec(v1,v2,v3)
+PPURE SUBROUTINE OrthoNormVec(v1,v2,v3)
 !===================================================================================================================================
 !> computes orthonormal basis from a given vector v1 (v1 must be normalized)
 !===================================================================================================================================
@@ -960,7 +960,7 @@ v3(:)=CROSSNORM(v1,v2)
 END SUBROUTINE OrthoNormVec
 
 
-PURE FUNCTION DOTPRODUCT(v1)
+PPURE FUNCTION DOTPRODUCT(v1)
 !===================================================================================================================================
 ! Computes the dot product of a vector with itself
 !===================================================================================================================================
@@ -980,7 +980,7 @@ DOTPRODUCT=v1(1)*v1(1)+v1(2)*v1(2)+v1(3)*v1(3)
 END FUNCTION DOTPRODUCT
 
 
-PURE SUBROUTINE SphericalCoordinates(X,r,theta,phi)
+PPURE SUBROUTINE SphericalCoordinates(X,r,theta,phi)
 !===================================================================================================================================
 !> Computes the spherical coordinates of a Cartesian Vector X
 !> r     : radial distance (Euclidean norm (length) of vector X)
@@ -1020,7 +1020,7 @@ END IF ! ABS(r).GT.0.0
 END SUBROUTINE SphericalCoordinates
 
 
-PURE SUBROUTINE TransformVectorfieldSphericalCoordinates(P,XHat,X)
+PPURE SUBROUTINE TransformVectorfieldSphericalCoordinates(P,XHat,X)
 !===================================================================================================================================
 !> Transform a vector field component from spherical coordinates to Cartesian coordinates
 !===================================================================================================================================
@@ -1047,7 +1047,7 @@ CALL TransformVectorFromSphericalCoordinates(XHat,theta,phi,X)
 END SUBROUTINE TransformVectorfieldSphericalCoordinates
 
 
-PURE SUBROUTINE TransformVectorFromSphericalCoordinates(XHat,theta,phi,X)
+PPURE SUBROUTINE TransformVectorFromSphericalCoordinates(XHat,theta,phi,X)
 !===================================================================================================================================
 !> Transform a vector from spherical coordinates to Cartesian coordinates via supplied vector in spherical coordinates XHat,
 !> azimuthal angle phi and polar angle theta
@@ -1113,7 +1113,7 @@ WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(h
 END SUBROUTINE DisplaySimulationTime
 
 
-PURE LOGICAL FUNCTION StringBeginsWith(MainString,SubString)
+PPURE LOGICAL FUNCTION StringBeginsWith(MainString,SubString)
 !===================================================================================================================================
 ! Check if the string MainString starts with the string SubString
 ! Note that if one of the strings is of length zero, the result will be false and if both are zero the result will be true
@@ -1143,7 +1143,7 @@ END IF ! SubStringLength.GT.0.AND.MainStringLength.GT.0
 END FUNCTION StringBeginsWith
 
 
-PURE FUNCTION PARTISELECTRON(PartID)
+PPURE FUNCTION PARTISELECTRON(PartID)
 !===================================================================================================================================
 ! check if particle is an electron (species-charge = -1.609)
 !===================================================================================================================================
@@ -1169,7 +1169,7 @@ IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) PARTISELECTRON=.T
 END FUNCTION PARTISELECTRON
 
 
-PURE FUNCTION SPECIESISELECTRON(SpeciesID)
+PPURE FUNCTION SPECIESISELECTRON(SpeciesID)
 !===================================================================================================================================
 ! check if species is an electron (species-charge = -1.609)
 !===================================================================================================================================

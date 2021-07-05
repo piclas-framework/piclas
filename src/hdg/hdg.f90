@@ -77,15 +77,18 @@ CALL prms%CreateRealOption(   'HDGSkip_t0'             ,'Time during which HDGSk
 
 CALL prms%CreateLogicalOption('HDGDisplayConvergence'  ,'Display divergence criteria: Iterations, RunTime and Residual', '.FALSE.')
 
+CALL prms%CreateIntOption(    'HDGZeroPotentialDir'    ,'Direction in which a Dirichlet condition with phi=0 is superimposed on the boundary conditions'&
+                                                      //' (1: x, 2: y, 3: z). The default chooses the direction automatically when no other Dirichlet boundary conditions are defined.'&
+                                                       ,'-1')
 
 ! --- BR electron fluid
-CALL prms%CreateIntOption(      'BRNbrOfRegions'        , 'Number of regions to be mapped to Elements', '0')
+CALL prms%CreateIntOption(      'BRNbrOfRegions'                , 'Number of regions to be mapped to Elements', '0')
 
 CALL prms%CreateStringOption(   'BRVariableElectronTemp', 'Variable electron reference temperature when using Boltzmann relation'//&
                                                           ' electron model (default is using a constant temperature)','constant')
 CALL prms%CreateRealArrayOption('BRRegionBounds[$]'     , 'BRRegionBounds ((xmin,xmax,ymin,...)'//&
-                                                           '|1:BRNbrOfRegions)'&
-                                                        , '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
+                                                                '|1:BRNbrOfRegions)'&
+                                                                , '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'rho_ref, phi_ref, and Te[eV] for Region#'&
                                                               , '0. , 0. , 1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected phi for Region#\n'//&
@@ -120,8 +123,8 @@ USE MOD_Basis              ,ONLY: PolynomialDerivativeMatrix
 USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Elem_Mat           ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETREAL,GETINT
-USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides,nSides
-USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCSides,nSides,BC
+USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nSides,BC
 USE MOD_Mesh_Vars          ,ONLY: nGlobalMortarSides,nMortarMPISides
 USE MOD_Restart_Vars       ,ONLY: DoRestart
 USE MOD_Mesh_Vars          ,ONLY: DoSwapMesh
@@ -174,7 +177,7 @@ IF (BRNbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so fa
     NewtonAdaptStartValue   = GETLOGICAL('NewtonAdaptStartValue')
     AdaptIterNewtonToLinear = GETINT('AdaptIterNewtonToLinear')
     IF (NewtonExactSourceDeriv) NewtonAdaptStartValue=.TRUE.
-    IF (DoRestart)              NewtonAdaptStartValue=.FALSE.
+    IF (DoRestart) NewtonAdaptStartValue=.FALSE.
     ALLOCATE(NonlinVolumeFac(nGP_vol,PP_nElems))
 
     ! Set NonlinVolumeFac for each element. Set zero if
@@ -216,16 +219,17 @@ DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(2,4,5,6) !dirichlet
+  CASE(2,4,5,6) ! Dirichlet
     nDirichletBCsides=nDirichletBCsides+1
-  CASE(10,11) !Neumann,
+  CASE(10,11) ! Neumann
     nNeumannBCsides=nNeumannBCsides+1
   CASE DEFAULT ! unknown BCType
-    CALL abort(&
-    __STAMP__&
-    ,' unknown BC Type in hdg.f90!',BCType,999.)
+    CALL abort(__STAMP__,' unknown BC Type in hdg.f90!',IntInfoOpt=BCType)
   END SELECT ! BCType
 END DO
+
+! Check if zero potential must be set on a boundary (or periodic side)
+CALL InitZeroPotential()
 
 IF(nDirichletBCsides.GT.0)ALLOCATE(DirichletBC(nDirichletBCsides))
 IF(nNeumannBCsides  .GT.0)THEN
@@ -241,7 +245,7 @@ DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(2,4,5,6) !dirichlet
+  CASE(2,4,5,6) ! Dirichlet
     nDirichletBCsides=nDirichletBCsides+1
     DirichletBC(nDirichletBCsides)=SideID
     MaskedSide(SideID)=.TRUE.
@@ -333,6 +337,7 @@ IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as on
   CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
 END IF
 
+
 CALL BuildPrecond()
 
 ALLOCATE(lambda(PP_nVar,nGP_face,nSides))
@@ -376,6 +381,126 @@ ELSE
 END IF ! NewtonAdaptStartValue
 
 END SUBROUTINE UpdateNonlinVolumeFac
+
+
+!===================================================================================================================================
+!> Check if any Dirichlet BCs are present (globally, not only on the local processor).
+!> If there are none, an arbitrary potential is set at one of the boundaries to ensure
+!> convergence of the HDG solver. This is required for setups where fully periodic and/or Neumann boundaries are solely used.
+!> This only works for Cartesian meshes, i.e., that the boundary faces must be perpendicular to two of the three Cartesian axes
+!===================================================================================================================================
+SUBROUTINE InitZeroPotential()
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_HDG_Vars    ,ONLY: ZeroPotentialSideID,HDGZeroPotentialDir
+USE MOD_Mesh        ,ONLY: GetMeshMinMaxBoundaries
+USE MOD_Mesh_Vars   ,ONLY: nBCs,BoundaryType,nSides,BC,xyzMinMax,NGeo,Face_xGP
+USE MOD_ReadInTools ,ONLY: PrintOption,GETINT
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: SideID,BCAlpha,BCType,BCState,iBC,nZeroPotentialSides,nZeroPotentialSidesGlobal,ZeroPotentialDir
+INTEGER           :: nZeroPotentialSidesMax,BCSide
+REAL,DIMENSION(3) :: x,v1,v2,v3
+REAL              :: norm,I(3,3)
+!===================================================================================================================================
+! Initialize variables
+HDGZeroPotentialDir = GETINT('HDGZeroPotentialDir')
+ZeroPotentialSideID = -1
+I(:,1)              = (/1. , 0. , 0./)
+I(:,2)              = (/0. , 1. , 0./)
+I(:,3)              = (/0. , 0. , 1./)
+
+! Every processor has to check every BC
+DO iBC=1,nBCs
+  BCType  = BoundaryType(iBC,BC_TYPE)  ! 1
+  BCState = BoundaryType(iBC,BC_STATE) ! 2
+  SELECT CASE(BCType)
+  CASE(1) ! periodic
+    ! do nothing
+  CASE(2,4,5,6) ! Dirichlet
+    ZeroPotentialSideID = 0 ! no zero potential required
+    EXIT ! as soon as one Dirichlet BC is found, no zero potential must be used
+  CASE(10,11) ! Neumann
+    ! do nothing
+  CASE DEFAULT ! unknown BCType
+    CALL abort(__STAMP__,' unknown BC Type in hdg.f90!',IntInfoOpt=BCType)
+  END SELECT ! BCType
+END DO
+
+! If a Dirichlet BC is found ZeroPotentialSideID is zero and the following is skipped
+IF(ZeroPotentialSideID.EQ.-1)THEN
+  ! Check if the user has selected a specific direction
+  IF(HDGZeroPotentialDir.EQ.-1)THEN
+    ! Select the direction (x, y or z), which has the largest extent (to account for 1D and 2D setups for example)
+    CALL GetMeshMinMaxBoundaries()
+
+    ! Calc max extents in each direction for comparison
+    x(1) = xyzMinMax(2)-xyzMinMax(1)
+    x(2) = xyzMinMax(4)-xyzMinMax(3)
+    x(3) = xyzMinMax(6)-xyzMinMax(5)
+    ZeroPotentialDir=MAXLOC(x,DIM=1)
+  ELSE
+    ZeroPotentialDir = HDGZeroPotentialDir
+  END IF ! HDGZeroPotentialDir.EQ.-1
+  CALL PrintOption('Zero potential side activated in direction (1: x, 2: y, 3: z)','OUTPUT',IntOpt=ZeroPotentialDir)
+
+  nZeroPotentialSides = 0 ! Initialize
+  DO SideID=1,nSides ! Periodic sides are not within the 1,nBCSides list !
+    IF(MAXVAL(ABS(Face_xGP(:,:,:,SideID))).LE.0.) CYCLE ! slave sides
+    BCSide=BC(SideID)
+    IF(BCSide.EQ.0) CYCLE ! inner sides
+    BCType =BoundaryType(BCSide,BC_TYPE)
+    BCState=BoundaryType(BCSide,BC_STATE)
+    BCAlpha=BoundaryType(BCSide,BC_ALPHA)
+    IF(BCType.EQ.0) CYCLE ! skip inner sides
+
+    ! Check if the normal vector of the face points in the direction (or negative direction) of the ZeroPotentialDir (tolerance 1e-5)
+    v1(:) = Face_xGP(1:3 , NGeo , 0    , SideID) - Face_xGP(1:3 , 0 , 0 , SideID)
+    v2(:) = Face_xGP(1:3 , 0    , NGeo , SideID) - Face_xGP(1:3 , 0 , 0 , SideID)
+    v3(:) = CROSSNORM(v1,v2)
+    norm = ABS(DOT_PRODUCT(I(:,ZeroPotentialDir),v3))
+    IF(ALMOSTEQUALRELATIVE(norm, 1.0, 1E-5))THEN
+      ZeroPotentialSideID = SideID
+      nZeroPotentialSides = nZeroPotentialSides + 1
+    END IF ! ALMOSTEQUALRELATIVE(norm, 1.0, 1E-5)
+  END DO
+
+#if USE_MPI
+  ! Combine number of found zero potential sides to make sure that at least one is found
+  IF(MPIroot)THEN
+    CALL MPI_REDUCE(nZeroPotentialSides , nZeroPotentialSidesGlobal , 1 , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(nZeroPotentialSides , nZeroPotentialSidesMax    , 1 , MPI_INTEGER , MPI_MAX , 0 , MPI_COMM_WORLD , IERROR)
+  ELSE
+    CALL MPI_REDUCE(nZeroPotentialSides , 0                         , 1 , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(nZeroPotentialSides , 0                         , 1 , MPI_INTEGER , MPI_MAX , 0 , MPI_COMM_WORLD , IERROR)
+  END IF
+#else
+  nZeroPotentialSidesGlobal = nZeroPotentialSides
+#endif /*USE_MPI*/
+  SWRITE(UNIT_StdOut,'(A,I0)') " Found (global) number of zero potential sides: ", nZeroPotentialSidesMax
+
+  ! Sanity checks for root
+  IF(MPIroot)THEN
+    ! 1) multiples sides found
+    IF(nZeroPotentialSidesMax.GT.1)THEN
+      WRITE(UNIT_StdOut,'(A)') " WARNING: Found more than 1 zero potential side on a proc and currently, only one can be considered."
+      WRITE(UNIT_StdOut,'(A,I0,A)') " WARNING: nZeroPotentialSidesGlobal: ", nZeroPotentialSidesMax, " (may lead to problems)"
+    END IF
+
+    ! 2) no sides found
+    IF(nZeroPotentialSidesGlobal.EQ.0)THEN
+      WRITE(UNIT_StdOut,*) " Sanity check: this fails when the mesh is not Cartesian. This needs to be implemented if required."
+      CALL abort(__STAMP__,'Setup has no Dirichlet BCs and no zero potential sides where found.')
+    END IF
+  END IF
+END IF ! ZeroPotentialSideID.EQ.0
+
+END SUBROUTINE InitZeroPotential
 
 
 SUBROUTINE HDG(t,U_out,iter,ForceCGSolverIteration_opt)
@@ -563,6 +688,8 @@ DO iVar = 1, PP_nVar
   END IF
 #endif
 
+  ! Check if zero potential sides are present
+  IF(ZeroPotentialSideID.GT.0) lambda(iVar,:,ZeroPotentialSideID) = ZeroPotentialValue
 END DO
 
 !volume source (volume RHS of u system)
@@ -1297,7 +1424,7 @@ SUBROUTINE EvalResidual(RHS,lambda,R,iVar)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_HDG_Vars           ,ONLY: nGP_face,nDirichletBCSides,DirichletBC
+USE MOD_HDG_Vars           ,ONLY: nGP_face,nDirichletBCSides,DirichletBC,ZeroPotentialSideID,ZeroPotentialValue
 USE MOD_Mesh_Vars          ,ONLY: nSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1321,14 +1448,19 @@ ELSE
 END IF
 R=RHS-mv
 
-
 !set mv on Dirichlet BC to zero!
 #if (PP_nVar!=1)
 IF (iVar.EQ.4) THEN
 #endif
+
+  ! Dirichlet BCs
 DO BCsideID=1,nDirichletBCSides
   R(:,DirichletBC(BCsideID))=0.
 END DO ! SideID=1,nSides
+
+  ! Set potential to zero
+  IF(ZeroPotentialSideID.GT.0) R(:,ZeroPotentialSideID)= ZeroPotentialValue
+
 #if (PP_nVar!=1)
 END IF
 #endif
@@ -1349,7 +1481,7 @@ SUBROUTINE MatVec(lambda, mv, iVar)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_HDG_Vars          ,ONLY: Smat,nGP_face,nDirichletBCSides,DirichletBC
+USE MOD_HDG_Vars          ,ONLY: Smat,nGP_face,nDirichletBCSides,DirichletBC,ZeroPotentialSideID,ZeroPotentialValue
 USE MOD_Mesh_Vars         ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR
 USE MOD_FillMortar_HDG    ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
 #if USE_MPI
@@ -1486,10 +1618,15 @@ CALL SmallToBigMortar_HDG(1,mv)
 #if (PP_nVar!=1)
 IF (iVar.EQ.4) THEN
 #endif
+
 !set mv on Dirichlet BC to zero!
 DO BCsideID=1,nDirichletBCSides
   mv(:,DirichletBC(BCsideID))=0.
 END DO ! SideID=1,nSides
+
+  ! Set potential to zero
+  IF(ZeroPotentialSideID.GT.0) mv(:,ZeroPotentialSideID) = ZeroPotentialValue
+
 #if (PP_nVar!=1)
 END IF
 #endif

@@ -32,13 +32,26 @@ else
   $(info pandoc latex template not found on system, using git version)
 endif
 
+# Copy header file to this directory
+$(shell cp ../header.tex .)
+
+# Get piclas version from globals_vars.f90
+GLOBALSVARS := "../../src/globals/globals_vars.f90"
+PICLAS_MAJOR_VERSION := $(shell grep "INTEGER.*PARAMETER.*MajorVersion.*\=" "$(GLOBALSVARS)" | cut -d "=" -f2 | cut -f1 -d! | sed 's/[[:space:]]//g')
+PICLAS_MINOR_VERSION := $(shell grep "INTEGER.*PARAMETER.*MinorVersion.*\=" "$(GLOBALSVARS)" | cut -d "=" -f2 | cut -f1 -d! | sed 's/[[:space:]]//g')
+PICLAS_PATCH_VERSION := $(shell grep "INTEGER.*PARAMETER.*PatchVersion.*\=" "$(GLOBALSVARS)" | cut -d "=" -f2 | cut -f1 -d! | sed 's/[[:space:]]//g')
+PICLAS_VERSION := $(shell echo $(PICLAS_MAJOR_VERSION).$(PICLAS_MINOR_VERSION).$(PICLAS_PATCH_VERSION))
+
 all: developerguide
 	@echo '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 	@echo ' SUCCESS: DOCUMENTATION GENERATED!'
 	@echo '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 
 developerguide:
+	@echo "Extracted PICLas version from ../../src/globals/globals_vars.f90: v$(PICLAS_VERSION)"
+	sed -i 's/.*PICLas v.*/  PICLas v$(PICLAS_VERSION)/g' 000_developerguide.md
 	pandoc $(SRC)   -o developerguide.pdf -s -N $(PANDOCFILTER) --from markdown+implicit_figures --listings --template=../template.tex
+	rm header.tex
 
 # utility targets
 

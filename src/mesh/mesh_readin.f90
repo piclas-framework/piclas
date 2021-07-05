@@ -808,7 +808,7 @@ END FUNCTION INVMAP
 
 
 #if USE_MPI
-PURE FUNCTION ELEMIPROC(ElemID)
+PPURE FUNCTION ELEMIPROC(ElemID)
 !===================================================================================================================================
 !> Find the id of a processor on which an element with a given ElemID lies, based on the MPI element offsets defined earlier.
 !> Use a bisection algorithm for faster search.

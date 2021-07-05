@@ -236,7 +236,7 @@ lastElem  = nElems
 SELECT CASE(TrackingMethod)
   CASE(TRIATRACKING)
     DO iElem = firstElem, lastElem
-      offSetNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)
+      offsetNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)
       nNodeIDs     = ElemInfo_Shared(ELEM_LASTNODEIND ,iElem)-ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)
       firstNodeID  = offsetNodeID+1
       lastNodeID   = offsetNodeID+nNodeIDs
@@ -646,7 +646,7 @@ IF (MeshHasPeriodic .OR. MeshHasRotPeriodic) CALL BARRIER_AND_SYNC(DistanceOfEle
 CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win            ,MPI_COMM_SHARED)
 
 IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
-IF (MeshHasRotPeriodic) CALL CheckRotPeriodicSides(EnlargeBGM)
+IF (MeshHasRotPeriodic) CALL CheckRotPeriodicSides()!EnlargeBGM)
 CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
 ! Mortar sides
@@ -1624,7 +1624,8 @@ END DO
 END SUBROUTINE CheckPeriodicSides
 
 
-SUBROUTINE CheckRotPeriodicSides(EnlargeBGM)
+SUBROUTINE CheckRotPeriodicSides()
+!SUBROUTINE CheckRotPeriodicSides(EnlargeBGM)
 !===================================================================================================================================
 !> checks the elements against periodic rotation
 !===================================================================================================================================
@@ -1643,7 +1644,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)             :: EnlargeBGM ! Flag used for enlarging the BGM if RefMapping and/or shape function is used
+!LOGICAL,INTENT(IN)             :: EnlargeBGM ! Flag used for enlarging the BGM if RefMapping and/or shape function is used
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1824,7 +1825,7 @@ END SUBROUTINE
 
 
 #if GCC_VERSION < 90000
-PURE FUNCTION FINDLOC(Array,Value,Dim)
+PPURE FUNCTION FINDLOC(Array,Value,Dim)
 !===================================================================================================================================
 !> Implements a subset of the intrinsic FINDLOC function for Fortran < 2008
 !===================================================================================================================================

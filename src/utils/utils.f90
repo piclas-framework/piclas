@@ -49,7 +49,7 @@ PUBLIC:: SortArray,QuickSortTwoArrays
 
 CONTAINS
 
-PURE SUBROUTINE InsertionSort(a,id,len)
+PPURE SUBROUTINE InsertionSort(a,id,len)
 !===================================================================================================================================
 ! Insertion sort
 !===================================================================================================================================
@@ -462,7 +462,7 @@ END IF
 END SUBROUTINE QuadraticSolver
 
 
-PURE SUBROUTINE SortArray(EndID,ArrayA,ArrayB)
+PPURE SUBROUTINE SortArray(EndID,ArrayA,ArrayB)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! sort ArrayA (e.g. SideIDToSurfID) in ascending order of ArrayB (e.g. GlobalUniqueSideID)
 ! based on running MINLOC for each element .NE. -1
@@ -526,7 +526,7 @@ END DO
 END SUBROUTINE SortArray
 
 
-PURE RECURSIVE SUBROUTINE QuickSortTwoArrays(StartID,EndID,ArrayA,ArrayB)
+PPURE RECURSIVE SUBROUTINE QuickSortTwoArrays(StartID,EndID,ArrayA,ArrayB)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! sort ArrayA (e.g. SideIDToSurfID) in ascending order of ArrayB (e.g. GlobalUniqueSideID)
 ! based on QuickSort

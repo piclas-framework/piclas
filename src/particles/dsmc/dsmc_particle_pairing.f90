@@ -1588,7 +1588,7 @@ nPart = nPart - 1
 END SUBROUTINE FindRandomPartner
 
 
-PURE INTEGER FUNCTION OCTANTCUBEID(centerPoint,coord)
+PPURE INTEGER FUNCTION OCTANTCUBEID(centerPoint,coord)
 !===================================================================================================================================
 !> determine position of Coord in a cube Octant in reference to a 3D centerpoint
 !>         Numbering of the 8 Octant IDs (octree)
@@ -1635,7 +1635,7 @@ END IF
 END FUNCTION OCTANTCUBEID
 
 
-PURE FUNCTION OCTANTCUBEMIDPOINT(CubeID,octantDepth,octantCenter)
+PPURE FUNCTION OCTANTCUBEMIDPOINT(CubeID,octantDepth,octantCenter)
 !===================================================================================================================================
 !> determines the position of the center of the given cubeID of an Octant for a given 3D centerpoint and depth
 !===================================================================================================================================
