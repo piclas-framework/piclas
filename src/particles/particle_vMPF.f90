@@ -216,27 +216,34 @@ DO iLoop = 1, nPartNew
 END DO
 
 ! 6.) ensuring momentum and energy conservation
-alpha = SQRT((EOld+EOld_Inner-ENew_Inner)/ENew)
-DO iLoop = 1, nPartNew
-  PartState(4:6,iPartIndx_Node(iLoop)) = vBulk(1:3) + alpha*(PartState(4:6,iPartIndx_Node(iLoop))-vBulkTmp(1:3))
+IF(EOld+EOld_Inner-ENew_Inner.GT.0.0) THEN
+  alpha = SQRT((EOld+EOld_Inner-ENew_Inner)/ENew)
+  DO iLoop = 1, nPartNew
+    PartState(4:6,iPartIndx_Node(iLoop)) = vBulk(1:3) + alpha*(PartState(4:6,iPartIndx_Node(iLoop))-vBulkTmp(1:3))
 
 #ifdef CODE_ANALYZE
-  partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
-  iSpec = PartSpecies(iPartIndx_Node(iLoop))
-  ! Energy conservation
-  Energy_new = Energy_new + 0.5*Species(iSpec)%MassIC &
-  * DOT_PRODUCT(PartState(4:6,iPartIndx_Node(iLoop)),PartState(4:6,iPartIndx_Node(iLoop))) * partWeight
-  IF(CollisMode.GT.1) THEN
-    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-      Energy_new = Energy_new + (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop))) * partWeight
+    partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
+    iSpec = PartSpecies(iPartIndx_Node(iLoop))
+    ! Energy conservation
+    Energy_new = Energy_new + 0.5*Species(iSpec)%MassIC &
+    * DOT_PRODUCT(PartState(4:6,iPartIndx_Node(iLoop)),PartState(4:6,iPartIndx_Node(iLoop))) * partWeight
+    IF(CollisMode.GT.1) THEN
+      IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+        Energy_new = Energy_new + (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop))) * partWeight
+      END IF
+      IF(DSMC%ElectronicModel.GT.0) Energy_new = Energy_new + PartStateIntEn(3,iPartIndx_Node(iLoop))*partWeight
     END IF
-    IF(DSMC%ElectronicModel.GT.0) Energy_new = Energy_new + PartStateIntEn(3,iPartIndx_Node(iLoop))*partWeight
-  END IF
-  ! Momentum conservation
-  Momentum_new(1:3) = Momentum_new(1:3) + Species(iSpec)%MassIC * PartState(4:6,iPartIndx_Node(iLoop)) * partWeight
+    ! Momentum conservation
+    Momentum_new(1:3) = Momentum_new(1:3) + Species(iSpec)%MassIC * PartState(4:6,iPartIndx_Node(iLoop)) * partWeight
 #endif /* CODE_ANALYZE */
 
-END DO
+  END DO
+!ELSE
+!  alpha = 0
+!  DO iLoop = 1, nPartNew
+!    PartState(4:6,iPartIndx_Node(iLoop)) = vBulk(1:3) + alpha*(PartState(4:6,iPartIndx_Node(iLoop))-vBulkTmp(1:3))
+!  END DO
+END IF ! EOld+EOld_Inner-ENew_Inner.GT.0.0
 
 #ifdef CODE_ANALYZE
   ! Check for energy difference
