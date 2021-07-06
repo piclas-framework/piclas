@@ -2042,12 +2042,13 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255)             :: H5_Name
 CHARACTER(LEN=255)             :: SpecID
-INTEGER                        :: nVar
+INTEGER                        :: nVar, nVarTotal
 INTEGER                        :: ElemID,iVar,iSpec,SampleElemID
 !===================================================================================================================================
 
 nVar = 7
 iVar = 1
+nVarTotal = nVar*nSpecies
 ALLOCATE(StrVarNames(nVar*nSpecies))
 DO iSpec=1,nSpecies
   WRITE(SpecID,'(I3.3)') iSpec
@@ -2063,17 +2064,18 @@ END DO
 
 IF(MPIRoot)THEN
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdaptive',nVar*nSpecies,StrArray=StrVarNames)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdaptive',nVarTotal,StrArray=StrVarNames)
   CALL CloseDataFile()
 END IF
 
+iVar = 1
 AdaptiveData = 0.
-DO SampleElemID = 1,AdaptBCSampleElemNum
-  ElemID = AdaptBCMapSampleToElem(SampleElemID)
-  ! Sample values (1-3: Velocity vector [m/s], 4: Number density [1/m3])
-  AdaptiveData(1:4,:,ElemID) = AdaptBCMacroVal(1:4,SampleElemID,:)
-  ! Porous BC parameter (5: Pumping capacity [m3/s], 6: Static pressure [Pa], 7: Integral pressure difference [Pa])
-  AdaptiveData(5:7,:,ElemID) = AdaptBCMacroVal(5:7,SampleElemID,:)
+DO iSpec = 1, nSpecies
+  DO SampleElemID = 1,AdaptBCSampleElemNum
+    ElemID = AdaptBCMapSampleToElem(SampleElemID)
+    AdaptiveData(iVar:iVar-1+nVar,ElemID) = AdaptBCMacroVal(1:7,SampleElemID,iSpec)
+  END DO
+  iVar = iVar + nVar
 END DO
 
 WRITE(H5_Name,'(A)') 'AdaptiveInfo'
@@ -2083,14 +2085,14 @@ CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,commun
 ASSOCIATE (&
       nGlobalElems    => INT(nGlobalElems,IK)    ,&
       nElems          => INT(nElems,IK)          ,&
-      nVar            => INT(nVar,IK)            ,&
+      nVarTotal       => INT(nVarTotal,IK)       ,&
       nSpecies        => INT(nSpecies,IK)        ,&
       offsetElem      => INT(offsetElem,IK)      )
-  CALL WriteArrayToHDF5(DataSetName = H5_Name , rank = 3                   , &
-                        nValGlobal  = (/nVar  , nSpecies  , nGlobalElems/) , &
-                        nVal        = (/nVar  , nSpecies  , nElems      /) , &
-                        offset      = (/0_IK  , 0_IK      , offsetElem  /) , &
-                        collective  = .false. , RealArray = AdaptiveData)
+  CALL WriteArrayToHDF5(DataSetName = H5_Name, rank = 2            , &
+                        nValGlobal  = (/nVarTotal , nGlobalElems/) , &
+                        nVal        = (/nVarTotal , nElems      /) , &
+                        offset      = (/0_IK      , offsetElem  /) , &
+                        collective  = .false., RealArray = AdaptiveData)
 END ASSOCIATE
 CALL CloseDataFile()
 SDEALLOCATE(StrVarNames)

@@ -75,9 +75,9 @@ USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                           :: AdaptiveDataExists, RunningAverageExists
-REAL,ALLOCATABLE                  :: ElemData_HDF5(:,:,:), ElemData2_HDF5(:,:,:,:)
+REAL,ALLOCATABLE                  :: ElemData_HDF5(:,:), ElemData2_HDF5(:,:,:,:)
 INTEGER                           :: iElem, iSpec, iSF, iSide, ElemID, SampleElemID, nVar, GlobalSideID, GlobalElemID, currentBC
-INTEGER                           :: jSample, iSample, BCSideID, nElemReadin
+INTEGER                           :: jSample, iSample, BCSideID, nElemReadin, nVarTotal, iVar
 INTEGER,ALLOCATABLE               :: GlobalElemIndex(:)
 #if USE_MPI
 INTEGER                           :: offSetElemAdaptBCSampleMPI(0:nProcessors-1)
@@ -87,7 +87,7 @@ INTEGER                           :: offSetElemAdaptBCSampleMPI(0:nProcessors-1)
 AdaptBCSampleElemNum = 0
 ALLOCATE(AdaptBCMapElemToSample(nElems))
 AdaptBCMapElemToSample = 0
-ALLOCATE(AdaptiveData(1:7,1:nSpecies,1:nElems))
+ALLOCATE(AdaptiveData(1:7*nSpecies,1:nElems))
 AdaptiveData = 0.
 IF(UseCircularInflow) THEN
   ALLOCATE(AdaptBCAreaSurfaceFlux(1:nSpecies,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
@@ -210,24 +210,24 @@ IF (DoRestart) THEN
   CALL DatasetExists(File_ID,'AdaptiveInfo',AdaptiveDataExists)
   IF(AdaptiveDataExists)THEN
     CALL GetDataSize(File_ID,'AdaptiveInfo',nDims,HSize)
-    nVar=INT(HSize(1),4)
+    nVarTotal=INT(HSize(1),4)
     DEALLOCATE(HSize)
-    ALLOCATE(ElemData_HDF5(1:nVar,1:nSpecies,1:nElems))
+    ALLOCATE(ElemData_HDF5(1:nVarTotal,1:nElems))
     ! Associate construct for integer KIND=8 possibility
     ASSOCIATE (&
-          nSpecies   => INT(nSpecies,IK) ,&
           offsetElem => INT(offsetElem,IK),&
           nElems     => INT(nElems,IK)    ,&
-          nVar       => INT(nVar,IK)    )
-      CALL ReadArray('AdaptiveInfo',3,(/nVar, nSpecies, nElems/),offsetElem,3,RealArray=ElemData_HDF5(:,:,:))
+          nVarTotal  => INT(nVarTotal,IK)    )
+      CALL ReadArray('AdaptiveInfo',2,(/nVarTotal, nElems/),offsetElem,2,RealArray=ElemData_HDF5(:,:))
     END ASSOCIATE
-    DO SampleElemID = 1,AdaptBCSampleElemNum
-      ElemID = AdaptBCMapSampleToElem(SampleElemID)
-      AdaptBCMacroVal(1:3,SampleElemID,:)   = ElemData_HDF5(1:3,:,ElemID)
-      ! nVar-3 only due to backwards compatibility (old state files have a larger array of 10 variables)
-      AdaptBCMacroVal(4,SampleElemID,:)     = ElemData_HDF5(nVar-3,:,ElemID)
-      ! Porous BC parameter (5: Pumping capacity [m3/s], 6: Static pressure [Pa], 7: Integral pressure difference [Pa])
-      AdaptBCMacroVal(5:7,SampleElemID,:)   = ElemData_HDF5(nVar-2:nVar,:,ElemID)
+    nVar = 7
+    iVar = 1
+    DO iSpec = 1,nSpecies
+      DO SampleElemID = 1,AdaptBCSampleElemNum
+        ElemID = AdaptBCMapSampleToElem(SampleElemID)
+        AdaptBCMacroVal(1:7,SampleElemID,iSpec)   = ElemData_HDF5(iVar:iVar-1+nVar,ElemID)
+      END DO
+      iVar = iVar + nVar
     END DO
     SDEALLOCATE(ElemData_HDF5)
   END IF
