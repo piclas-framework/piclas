@@ -117,15 +117,6 @@ CALL prms%CreateRealArrayOption('Part-PeriodicVector[$]'      , 'Vector for peri
 CALL prms%CreateRealOption(     'Part-DelayTime'              , "During delay time the particles,"//&
                                                                 " won't be moved so the EM field can be evolved", '0.0')
 
-CALL prms%CreateIntOption(      'NbrOfRegions'                , 'Number of regions to be mapped to Elements', '0')
-CALL prms%CreateRealArrayOption('RegionBounds[$]'             , 'RegionBounds ((xmin,xmax,ymin,...)'//&
-                                                                '|1:NbrOfRegions)'&
-                                                                , '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'rho_ref, phi_ref, and Te[eV] for Region#'&
-                                                              , '0. , 0. , 1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected phi for Region#\n'//&
-                                                                '(linear approx. above! def.: phi_ref)', numberedmulti=.TRUE.)
-
 CALL prms%CreateLogicalOption(  'PrintrandomSeeds'            , 'Flag defining if random seeds are written.', '.FALSE.')
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 CALL prms%CreateLogicalOption(  'velocityOutputAtTime'        , 'Flag if leapfrog uses a velocity-output at real time' , '.FALSE.')
@@ -409,6 +400,9 @@ USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
 USE MOD_DSMC_AmbipolarDiffusion,ONLY: InitializeVariablesAmbipolarDiff
 USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep,useManualTimeStep
+#if defined(PARTICLES) && USE_HDG
+USE MOD_Part_BR_Elecron_Fluid  ,ONLY: InitializeVariablesElectronFluidRegions
+#endif /*defined(PARTICLES) && USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -502,7 +496,9 @@ CALL InitEmissionComm()
 CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 #endif /*USE_MPI*/
 
+#if defined(PARTICLES) && USE_HDG
 CALL InitializeVariablesElectronFluidRegions()
+#endif /*defined(PARTICLES) && USE_HDG*/
 CALL InitializeVariablesIMD()
 CALL InitializeVariablesWriteMacroValues()
 CALL InitializeVariablesvMPF()
@@ -656,56 +652,6 @@ END IF
 
 END SUBROUTINE InitializeVariablesIonization
 
-
-SUBROUTINE InitializeVariablesElectronFluidRegions()
-!===================================================================================================================================
-! Initialize the variables first
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_ReadInTools
-USE MOD_Particle_Vars
-USE MOD_Particle_Mesh_Tools ,ONLY: MapRegionToElem
-USE MOD_Particle_Mesh_Vars  ,ONLY: NbrOfRegions,RegionBounds
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(32)         :: hilf, hilf2
-INTEGER               :: iRegions
-REAL                  :: phimax_tmp
-!===================================================================================================================================
-!-- Read parameters for region mapping
-NbrOfRegions = GETINT('NbrOfRegions','0')
-IF (NbrOfRegions .GT. 0) THEN
-  ALLOCATE(RegionBounds(1:6,1:NbrOfRegions))
-  DO iRegions=1,NbrOfRegions
-    WRITE(UNIT=hilf2,FMT='(I0)') iRegions
-    RegionBounds(1:6,iRegions) = GETREALARRAY('RegionBounds'//TRIM(hilf2),6,'0. , 0. , 0. , 0. , 0. , 0.')
-  END DO
-
-  CALL MapRegionToElem()
-  ALLOCATE(RegionElectronRef(1:3,1:NbrOfRegions))
-  DO iRegions=1,NbrOfRegions
-    WRITE(UNIT=hilf2,FMT='(I0)') iRegions
-    ! 1:3 - rho_ref, phi_ref, and Te[eV]
-    RegionElectronRef(1:3,iRegions) = GETREALARRAY('Part-RegionElectronRef'//TRIM(hilf2),3,'0. , 0. , 1.')
-    WRITE(UNIT=hilf,FMT='(G0)') RegionElectronRef(2,iRegions)
-    phimax_tmp = GETREAL('Part-RegionElectronRef'//TRIM(hilf2)//'-PhiMax',TRIM(hilf))
-    IF (phimax_tmp.NE.RegionElectronRef(2,iRegions)) THEN !shift reference point (rho_ref, phi_ref) to phi_max:
-      RegionElectronRef(1,iRegions) = RegionElectronRef(1,iRegions) &
-        * EXP((phimax_tmp-RegionElectronRef(2,iRegions))/RegionElectronRef(3,iRegions))
-      RegionElectronRef(2,iRegions) = phimax_tmp
-      SWRITE(*,*) 'WARNING: BR-reference point is shifted to:', RegionElectronRef(1:2,iRegions)
-    END IF
-  END DO
-END IF
-
-END SUBROUTINE InitializeVariablesElectronFluidRegions
 
 SUBROUTINE InitializeVariablesVarTimeStep()
 !===================================================================================================================================
@@ -1162,6 +1108,7 @@ PEM%PeriodicMoved=.FALSE.
 END SUBROUTINE InitializeVariablesImplicit
 #endif
 
+
 SUBROUTINE InitialIonization()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! 1.) assign charges to each atom/molecule using the charge supplied by the user
@@ -1180,7 +1127,6 @@ USE MOD_DSMC_Vars           ,ONLY: CollisMode,DSMC,PartStateIntEn
 USE MOD_part_emission_tools ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_Vars           ,ONLY: useDSMC
 USE MOD_Eval_xyz            ,ONLY: TensorProductInterpolation
-USE MOD_Particle_Analyze    ,ONLY: PARTISELECTRON
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1210,7 +1156,7 @@ END DO ! I = 1, InitialIonizationSpecies
 ! ---------------------------------------------------------------------------------------------------------------------------------
 ! 1.) reconstruct ions and determine charge
 ! ---------------------------------------------------------------------------------------------------------------------------------
-SWRITE(UNIT_stdOut,*)'InitialIonization:'
+SWRITE(UNIT_stdOut,*)'InitialIonization():'
 SWRITE(UNIT_stdOut,*)'  1.) Reconstructing ions and determining the charge of each particle'
 
 ! Initialize the element charge with zero
@@ -1313,7 +1259,6 @@ DO iElem=1,PP_nElems
   END DO
 END DO
 
-
 END SUBROUTINE InitialIonization
 
 
@@ -1328,9 +1273,12 @@ USE MOD_Particle_Vars
 USE MOD_Particle_Sampling_Vars
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
-USE MOD_Particle_MPI_Halo      ,ONLY: FinalizePartExchangeProcs
-USE MOD_PICDepo_Vars           ,ONLY: SendShapeElemID,SendElemShapeID,ShapeMapping,CNShapeMapping
+USE MOD_Particle_MPI_Halo  ,ONLY: FinalizePartExchangeProcs
+USE MOD_PICDepo_Vars       ,ONLY: SendShapeElemID,SendElemShapeID,ShapeMapping,CNShapeMapping
 #endif /*USE_MPI*/
+#if USE_HDG
+USE MOD_HDG_Vars           ,ONLY: BRRegionBounds,RegionElectronRef,RegionElectronRefBackup
+#endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1397,8 +1345,6 @@ SDEALLOCATE(PEM%pNumber)
 SDEALLOCATE(PEM%pEnd)
 SDEALLOCATE(PEM%pNext)
 SDEALLOCATE(seeds)
-SDEALLOCATE(RegionBounds)
-SDEALLOCATE(RegionElectronRef)
 SDEALLOCATE(PartPosLandmark)
 #if USE_MPI
 SDEALLOCATE(SendShapeElemID)
@@ -1408,6 +1354,11 @@ SDEALLOCATE(CNShapeMapping)
 ! particle MPI halo exchange
 CALL FinalizePartExchangeProcs()
 #endif
+#if USE_HDG
+SDEALLOCATE(BRRegionBounds)
+SDEALLOCATE(RegionElectronRef)
+SDEALLOCATE(RegionElectronRefBackup)
+#endif /*USE_HDG*/
 END SUBROUTINE FinalizeParticles
 
 

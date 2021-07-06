@@ -89,6 +89,7 @@ USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
 #if USE_MPI
+USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
@@ -180,9 +181,8 @@ END IF
 ! LocalVolume & MeshVolume: Recalculate the volume of the mesh of a single process and the total mesh volume
 LocalVolume = SUM(ElemVolume_Shared(FirstElem:LastElem))
 #if USE_MPI
-CALL MPI_WIN_SYNC(ElemVolume_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(ElemVolume_Shared_Win    ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ElemCharLength_Shared_Win,MPI_COMM_SHARED)
 ! Compute-node mesh volume
 CNVolume = SUM(ElemVolume_Shared(:))
 IF (myComputeNodeRank.EQ.0) THEN
@@ -214,6 +214,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, 
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 #if USE_MPI
+USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
@@ -308,9 +309,8 @@ END DO
 ! LocalVolume & MeshVolume: Recalculate the volume of the mesh of a single process and the total mesh volume
 LocalVolume = SUM(ElemVolume_Shared(firstElem:lastElem))
 #if USE_MPI
-CALL MPI_WIN_SYNC(ElemVolume_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(ElemVolume_Shared_Win    ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ElemCharLength_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 MeshVolume = SUM(ElemVolume_Shared)
 

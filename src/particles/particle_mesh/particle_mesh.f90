@@ -94,6 +94,9 @@ CALL prms%CreateLogicalOption( 'CartesianPeriodic'&
 CALL prms%CreateLogicalOption( 'FastPeriodic'&
   , ' Further simplification by directly moving particle into grid. Instead of moving the particle several times the periodic'//&
     ' displacements, the particle is mapped directly back into the domain. ','.FALSE.')
+CALL prms%CreateLogicalOption( 'meshCheckWeirdElements'&
+  , 'Abort when weird elements are found: it means that part of the element is turned inside-out. ','.TRUE.')
+
 CALL prms%CreateIntOption(     'RefMappingGuess'&
   , ' Initial guess of the Newton for mapping the particle into reference coordinates.\n'//&
     '1 -linear pseudo-Cartesian coordinates\n'//&
@@ -184,6 +187,7 @@ USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBa
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_PICDepo_Shapefunction_Tools, ONLY:InitShapeFunctionDimensionalty
 !USE MOD_DSMC_Vars              ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -227,6 +231,10 @@ END IF
 
 ! Mesh min/max must be built on BezierControlPoint for possibly curved elements
 CALL GetMeshMinMax()
+
+! Set shape function dimension (1D, 2D or 3D)
+! This function requires GetMeshMinMax() and values calculated in it are used in BuildBGMAndIdentifyHaloRegion()
+IF(StringBeginsWith(DepositionType,'shape_function')) CALL InitShapeFunctionDimensionalty()
 
 ! Build BGM to Element mapping and identify which of the elements, sides and nodes are in the compute-node local and halo region
 CALL BuildBGMAndIdentifyHaloRegion()
@@ -349,8 +357,10 @@ SELECT CASE(TrackingMethod)
 
     IF (DoDeposition) CALL BuildEpsOneCell()
 
-CASE(TRACING,REFMAPPING)
+  CASE(TRACING,REFMAPPING)
+    ! ElemMidPoint_Shared required
     IF(TriaSurfaceFlux.OR.TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitParticleGeometry()
+    ! ElemNodeID_Shared required
     IF(FindNeighbourElems) CALL InitElemNodeIDs()
 
 !    CALL CalcParticleMeshMetrics()
@@ -420,10 +430,9 @@ CASE(TRACING,REFMAPPING)
       END DO
   END IF
 #if USE_MPI
-    CALL MPI_WIN_SYNC(SideSlabNormals_Shared_Win,IERROR)
-    CALL MPI_WIN_SYNC(SideSlabIntervals_Shared_Win,IERROR)
-    CALL MPI_WIN_SYNC(BoundingBoxIsEmpty_Shared_Win,IERROR)
-    CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+    CALL BARRIER_AND_SYNC(SideSlabNormals_Shared_Win   ,MPI_COMM_SHARED)
+    CALL BARRIER_AND_SYNC(SideSlabIntervals_Shared_Win ,MPI_COMM_SHARED)
+    CALL BARRIER_AND_SYNC(BoundingBoxIsEmpty_Shared_Win,MPI_COMM_SHARED)
 #endif /* USE_MPI */
 #ifdef CODE_ANALYZE
     ! TODO: bounding box volumes must be calculated for all unique sides.

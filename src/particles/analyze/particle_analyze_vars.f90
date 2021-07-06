@@ -72,7 +72,6 @@ LOGICAL                       :: CalcPICTimeStep                     !< Compute 
 LOGICAL                       :: CalcElectronIonDensity              !< Compute the electron density in each cell
 LOGICAL                       :: CalcElectronTemperature             !< Compute the electron temperature in each cell
 LOGICAL                       :: CalcPlasmaParameter                 !< Compute the plasma parameter in each cell
-!LOGICAL                       :: ElectronTemperatureIsMaxwell        ! Assumption of Maxwell-Boltzmann or undistributed electrons
 LOGICAL                       :: CalcPlasmaFrequency                 !< Compute the electron frequency in each cell
 LOGICAL                       :: CalcPointsPerDebyeLength            !< Compute the points per Debye length:
 LOGICAL                       :: CalcPICCFLCondition                 !< Compute a PIC CFL condition for each cell
@@ -108,7 +107,7 @@ REAL,ALLOCATABLE              :: MaxPartDisplacementCellY(:)         !< Maximum 
 REAL,ALLOCATABLE              :: MaxPartDisplacementCellZ(:)         !< Maximum particle displacement in Z (cell mean value)
 REAL,ALLOCATABLE              :: PPSCell(:)                          !< Points per shape function sphere (cell mean value):
                                                                      !<   calculate cell local number excluding neighbor DOFs
-REAL,ALLOCATABLE              :: PPSCellEqui(:)                      !< Points per shape function sphere (cell mean value):
+REAL,ALLOCATABLE              :: PPSCellCartesian(:)                 !< Points per shape function sphere (cell mean value):
                                                                      !<   assume Cartesian grid and calculate to total number
                                                                      !<   including neighbor DOFs
 REAL,ALLOCATABLE              :: ShapeFunctionRadius(:)              !< Additional array (shape function radius is already stored in

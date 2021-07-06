@@ -235,7 +235,15 @@ REAL                            :: cos_theta
 REAL                            :: eps1,eps2
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
-CASE(-1) ! Amplitude, Frequency and Phase Shift supplied by RefState
+CASE(-2) ! Signal without zero-crossing (always positive or negative), otherwise  like CASE(-1):
+         ! Amplitude, Frequency and Phase Shift supplied by RefState
+  ! RefState(1,iRefState): amplitude
+  ! RefState(2,iRefState): frequency
+  ! RefState(3,iRefState): phase shift
+  Omega   = 2.*PI*RefState(2,iRefState)
+  r1      = RefState(1,iRefState) / 2.0
+  Resu(:) = r1*(COS(Omega*t+RefState(3,iRefState)) + 1.0)
+CASE(-1) ! Signal with zero-crossing: Amplitude, Frequency and Phase Shift supplied by RefState
   ! RefState(1,iRefState): amplitude
   ! RefState(2,iRefState): frequency
   ! RefState(3,iRefState): phase shift
@@ -524,7 +532,7 @@ END DO
 END SUBROUTINE DivCleaningDamping
 
 
-SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear)
+PPURE SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear, warning_linear_phi)
 !===================================================================================================================================
 ! Determine the right-hand-side of Poisson's equation (either by an analytic function or deposition of charge from particles)
 ! TODO: currently particles are enforced, which means that they over-write the exact function solution because
@@ -534,15 +542,14 @@ SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear)
 ! it is in the tensor "chitens"
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals            ,ONLY: Abort
+USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
 #ifdef PARTICLES
 USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
-USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
+USE MOD_HDG_Vars           ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
 USE MOD_Globals_Vars       ,ONLY: eps0
 #if IMPA
 USE MOD_LinearSolver_Vars  ,ONLY: ExplicitPartSource
@@ -558,7 +565,8 @@ INTEGER, INTENT(IN)             :: i, j, k,iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(PP_nVar)    ! state in conservative variables
-LOGICAL,INTENT(INOUT),OPTIONAL  :: warning_linear
+LOGICAL,INTENT(OUT),OPTIONAL  :: warning_linear
+REAL,INTENT(OUT),OPTIONAL     :: warning_linear_phi
 REAL,INTENT(IN),OPTIONAL        :: Phi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -571,6 +579,7 @@ INTEGER                         :: RegionID, CNElemID
 #endif /*PARTICLES*/
 !===================================================================================================================================
 IF(PRESENT(warning_linear)) warning_linear=.FALSE. ! Initialize
+IF(PRESENT(warning_linear_phi)) warning_linear_phi=0. ! Initialize
 ! Calculate IniExactFunc before particles are superimposed, because the IniExactFunc might be needed by the CalcError function
 SELECT CASE (IniExactFunc)
 CASE(0) ! Particles
@@ -597,26 +606,29 @@ END SELECT ! ExactFunction
 IF(DoDeposition)THEN
   CNElemID = GetCNElemID(iElem+offSetElem)
   source_e=0.
-  IF (PRESENT(Phi)) THEN
-    RegionID=0
-    IF (NbrOfRegions .GT. 0) RegionID=GEO%ElemToRegion(iElem)
+  IF(UseBRElectronFluid.AND.PRESENT(Phi))THEN
+    RegionID=ElemToBRRegion(iElem)
     IF (RegionID .NE. 0) THEN
       source_e = Phi-RegionElectronRef(2,RegionID)
       IF (source_e .LT. 0.) THEN
         source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
             * EXP( (source_e) / RegionElectronRef(3,RegionID) )
       ELSE
+        ! Store delta for output
+        IF(PRESENT(warning_linear_phi)) warning_linear_phi = MAX(warning_linear_phi,source_e)
+        ! Linear approximation from Taylor expansion O(1)
         source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
             * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
-        warning_linear = .TRUE.
+        IF(PRESENT(warning_linear)) warning_linear = .TRUE.
       END IF
       !source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
       !* EXP( (Phi-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
     END IF
-  END IF
+  END IF ! UseBRElectronFluid
 #if IMPA
   resu(1)= - (PartSource(4,i,j,k,CNElemID)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
 #else
+  !IPWRITE(UNIT_StdOut,*) "Phi, PartSource(4,i,j,k,CNElemID),source_e =", Phi,PartSource(4,i,j,k,CNElemID),source_e
   resu(1)= - (PartSource(4,i,j,k,CNElemID)-source_e)/eps0
 #endif
 END IF

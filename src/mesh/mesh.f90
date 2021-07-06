@@ -76,6 +76,8 @@ CALL prms%CreateRealOption(    'meshScale',           "Scale the mesh by this fa
                                                       '1.0')
 CALL prms%CreateLogicalOption( 'meshdeform',          "Apply simple sine-shaped deformation on cartesion mesh (for testing).",&
                                                       '.FALSE.')
+CALL prms%CreateLogicalOption( 'meshCheckRef',        "Flag if the mesh Jacobians should be checked in the reference system in "//&
+                                                      "addition to the computational system.",'.TRUE.')
 CALL prms%CreateLogicalOption( 'CalcMeshInfo',        'Calculate and output elem data for myrank, ElemID and tracking info to '//&
                                                       'ElemData',&
                                                       '.FALSE.')
@@ -691,7 +693,7 @@ SUBROUTINE GetMeshMinMaxBoundaries()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
-USE MOD_Mesh_Vars,     ONLY: Face_xGP,nBCSides,xyzMinMax,GetMeshMinMaxBoundariesIsDone
+USE MOD_Mesh_Vars ,ONLY: xyzMinMax,GetMeshMinMaxBoundariesIsDone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
@@ -700,24 +702,41 @@ IMPLICIT NONE
 !output parameters
 !----------------------------------------------------------------------------------------------------------------------------
 !local variables
-REAL                :: xyzMinMaxloc(6)
+#if USE_MPI
+REAL              :: xmin_loc(3),xmax_loc(3) ! for sending via MPI
+REAL              :: xmin(3),xmax(3) ! for receiving via MPI
+#endif /*USE_MPI*/
 !============================================================================================================================
 ! check if already called
-IF(GetMeshMinMaxBoundariesIsDone)RETURN
-! get processor local bounding box of faces for damping value ramp
-xyzMinMaxloc(:) = (/MINVAL(Face_xGP(1,:,:,1:nBCSides)),MAXVAL(Face_xGP(1,:,:,1:nBCSides)),&
-                    MINVAL(Face_xGP(2,:,:,1:nBCSides)),MAXVAL(Face_xGP(2,:,:,1:nBCSides)),&
-                    MINVAL(Face_xGP(3,:,:,1:nBCSides)),MAXVAL(Face_xGP(3,:,:,1:nBCSides))/)
-! get global bounding box of faces for damping value ramp
+IF(GetMeshMinMaxBoundariesIsDone) RETURN
+
+! Get global min/max for all directions x, y and z
 #if USE_MPI
-   CALL MPI_ALLREDUCE(xyzMinMaxloc(1),xyzMinMax(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
-   CALL MPI_ALLREDUCE(xyzMinMaxloc(2),xyzMinMax(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
-   CALL MPI_ALLREDUCE(xyzMinMaxloc(3),xyzMinMax(3), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
-   CALL MPI_ALLREDUCE(xyzMinMaxloc(4),xyzMinMax(4), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
-   CALL MPI_ALLREDUCE(xyzMinMaxloc(5),xyzMinMax(5), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
-   CALL MPI_ALLREDUCE(xyzMinMaxloc(6),xyzMinMax(6), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
+
+   ! Map global min/max values from xyzMinMax(1:6) that were determined in metric.f90 for each processor
+   xmin_loc(1) = xyzMinMax(1)
+   xmin_loc(2) = xyzMinMax(3)
+   xmin_loc(3) = xyzMinMax(5)
+
+   xmax_loc(1) = xyzMinMax(2)
+   xmax_loc(2) = xyzMinMax(4)
+   xmax_loc(3) = xyzMinMax(6)
+
+   ! Find global min
+   CALL MPI_ALLREDUCE(xmin_loc(1:3),xmin(1:3), 3, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
+   ! Find global max
+   CALL MPI_ALLREDUCE(xmax_loc(1:3),xmax(1:3), 3, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
+
+   ! Map global min/max values to xyzMinMax(1:6)
+   xyzMinMax(1) = xmin(1)
+   xyzMinMax(3) = xmin(2)
+   xyzMinMax(5) = xmin(3)
+
+   xyzMinMax(2) = xmax(1)
+   xyzMinMax(4) = xmax(2)
+   xyzMinMax(6) = xmax(3)
 #else
-   xyzMinMax=xyzMinMaxloc
+   ! Already doe in metric.f90
 #endif /*USE_MPI*/
 
 ! don't call twice
@@ -793,7 +812,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Wi
 #endif /*PARTICLES*/
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -833,9 +852,8 @@ IF (myComputeNodeRank.EQ.0) THEN
   ElemVolume_Shared(:)     = 0.
   ElemCharLength_Shared(:) = 0.
 END IF
-CALL MPI_WIN_SYNC(ElemVolume_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(ElemVolume_Shared_Win    ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ElemCharLength_Shared_Win,MPI_COMM_SHARED)
 #else
 ALLOCATE(ElemVolume_Shared(nElems))
 ALLOCATE(ElemCharLength_Shared(nElems))
@@ -856,9 +874,8 @@ DO iElem = 1,nElems
 END DO
 
 #if USE_MPI && defined(PARTICLES)
-CALL MPI_WIN_SYNC(ElemVolume_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(ElemVolume_Shared_Win    ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ElemCharLength_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI && defined(PARTICLES)*/
 
 ! Proc-local mesh volume

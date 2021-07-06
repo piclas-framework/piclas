@@ -1,0 +1,81 @@
+% tikzpic.tex
+\documentclass[crop,tikz]{standalone}% 'crop' is the default for v1.0, before it was 'preview'
+%\usetikzlibrary{...}% tikz package already loaded by 'tikz' option
+%\usepackage[table,dvipsnames]{xcolor}
+\usepackage{tikz}  
+\usepackage{tikz-3dplot} 
+\usepackage{amssymb}
+\usepackage{xifthen}
+\usetikzlibrary{arrows,decorations.markings}
+
+\usetikzlibrary{arrows}
+
+\tdplotsetmaincoords{60}{105}
+\tdplotsetrotatedcoords{0}{0}{-50} %<- rotate around (x,y,z)
+\begin{document}
+
+\begin{tikzpicture}[scale=3,tdplot_rotated_coords,
+                    cube/.style={very thick,black},
+                    grid/.style={very thin,gray},
+                    axis/.style={->,blue,ultra thick},
+                    rotated axis/.style={->,
+                                         >=stealth,
+                                         purple,
+                                         ultra thick,
+                                         every node/.style={scale=2},
+                             }]
+
+    \def\xMax{30}
+
+    %draw the main coordinate frame axes
+    %\draw[axis,tdplot_main_coords] (0,0,0) -- (3.5,0,0) node[anchor=west]{\Huge $x'$};
+    %\draw[axis,tdplot_main_coords] (0,0,0) -- (0,3.5,0) node[anchor=north west]{\Huge $y'$};
+    %\draw[axis,tdplot_main_coords] (0,0,0) -- (0,0,3.5) node[anchor=west]{\Huge $z'$};
+
+
+    %draw the rotated coordinate frame axes
+    \draw[rotated axis,decoration={markings,mark=at position 1 with{\arrow[scale=3,>=stealth]{>}}},postaction={decorate}] (0,0,0) -- (\xMax+0.8,0,0) node[anchor=north]{\Huge $x$};
+    \draw[rotated axis,decoration={markings,mark=at position 1 with{\arrow[scale=3,>=stealth]{>}}},postaction={decorate}] (0,0,0) -- (0,3,0) node[anchor=south west]{\Huge $y$};
+    \draw[rotated axis,decoration={markings,mark=at position 1 with{\arrow[scale=3,>=stealth]{>}}},postaction={decorate}] (0,0,0) -- (0,0,3) node[anchor=west]{\Huge $z$};
+
+    %draw the top and bottom of the cube
+    \draw[cube,fill=blue!5] (0,0,0) -- (0,1,0) -- (\xMax,1,0) -- (\xMax,0,0) -- cycle;
+
+    %draw the top and bottom of the cube
+    \draw[cube,fill=red!5] (0,0,0) -- (0,1,0) -- (0,1,1) -- (0,0,1) -- cycle;
+
+    %draw the top and bottom of the cube
+    \draw[cube,fill=green!5] (0,0,0) -- (\xMax,0,0) -- (\xMax,0,1) -- (0,0,1) -- cycle;
+
+    \foreach \x in {0,0.5,...,\xMax}
+   \foreach \y in {0,1}
+      \foreach \z in {0,1}{
+           %#####################################################
+        \ifthenelse{  \lengthtest{\x pt < 29.5pt}  }
+           {
+             % True
+                \draw [black]   (\x,\y,\z) -- (\x+1,\y,\z);
+           }
+           {% False
+           }
+           %#####################################################
+           \ifthenelse{  \lengthtest{\y pt < 1pt}  }
+           {
+             % True
+                \draw [black]   (\x,\y,\z) -- (\x,\y+1,\z);
+           }
+           {% False
+           }
+           %#####################################################
+           \ifthenelse{  \lengthtest{\z pt < 1pt}  }
+           {
+             % True
+                \draw [black]   (\x,\y,\z) -- (\x,\y,\z+1);
+           }
+           {% False
+           }
+           \shade[rotated axis,ball color = black!50] (\x,\y,\z) circle (0.04cm);          
+}
+
+\end{tikzpicture}
+\end{document}

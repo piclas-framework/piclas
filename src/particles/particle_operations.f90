@@ -34,6 +34,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: CreateParticle, RemoveParticle
+PUBLIC :: RemoveAllElectrons
 !===================================================================================================================================
 
 CONTAINS
@@ -211,5 +212,55 @@ IF (PRESENT(crossedBC)) crossedBC=.TRUE.
 IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(PartID) = 0
 
 END SUBROUTINE RemoveParticle
+
+
+SUBROUTINE RemoveAllElectrons()
+!===================================================================================================================================
+!> Removes all particles for which PARTISELECTRON(iPart) is true, i.e., all electron species
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars ,ONLY: PDM
+#if USE_HDG
+USE MOD_HDG_Vars      ,ONLY: BRElectronsRemoved
+#endif /*USE_HDG*/
+USE MOD_TimeDisc_Vars ,ONLY: time
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iPart,NbrOfElectronsRemoved
+!===================================================================================================================================
+
+SWRITE(UNIT_stdOut,'(A,ES25.14E3,A)')' RemoveAllElectrons(): Using BR electron fluid at t=',time,', removing all electrons.'
+
+NbrOfElectronsRemoved = 0
+DO iPart = 1,PDM%ParticleVecLength
+  IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+  IF(PARTISELECTRON(iPart))THEN
+    CALL RemoveParticle(iPart)
+    NbrOfElectronsRemoved = NbrOfElectronsRemoved + 1
+  END IF
+END DO
+
+#if USE_MPI
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,NbrOfElectronsRemoved,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+#endif /*USE_MPI*/
+
+IF(NbrOfElectronsRemoved.GT.0.AND.MPIRoot) WRITE(UNIT_StdOut,'(A,I0,A)') '  Removed a total of ',NbrOfElectronsRemoved,' electrons.'
+
+#if USE_HDG
+IF(NbrOfElectronsRemoved.GT.0)THEN
+  BRElectronsRemoved=.TRUE.
+ELSE
+  BRElectronsRemoved=.FALSE.
+END IF ! BRNbrOfElectronsRemove.GT.0
+#endif /*USE_HDG*/
+
+END SUBROUTINE RemoveAllElectrons
 
 END MODULE MOD_part_operations

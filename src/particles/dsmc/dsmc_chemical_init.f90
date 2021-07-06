@@ -28,6 +28,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DefineParametersChemistry
 PUBLIC :: DSMC_chemical_init
+PUBLIC :: InitReactionPaths
 !===================================================================================================================================
 
 CONTAINS
@@ -148,9 +149,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=3)      :: hilf
-INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit, iCase, iCase2, ReacIndexCounter
+INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
-LOGICAL               :: DoScat, RecombAdded
+LOGICAL               :: DoScat
 REAL                  :: BGGasEVib, PhotonEnergy, omega, ChargeProducts, ChargeReactants
 INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, ReadInNumOfReact
 !===================================================================================================================================
@@ -197,7 +198,7 @@ DO iReac = 1, ReadInNumOfReact
   ELSE
     ChemReac%BackwardReac(iReac) = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-BackwardReac','.FALSE.')
   END IF
-  IF (ChemReac%BackwardReac(iReac)) THEN 
+  IF (ChemReac%BackwardReac(iReac)) THEN
     ChemReac%NumOfReact = ChemReac%NumOfReact + 1
     IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.GT.0) &
       ChemReac%NumOfReact = ChemReac%NumOfReact + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
@@ -491,65 +492,10 @@ END IF
 ALLOCATE(ChemReac%CollCaseInfo(CollInf%NumCase))
 ChemReac%CollCaseInfo(:)%NumOfReactionPaths = 0
 
-DO iCase = 1, CollInf%NumCase
-  RecombAdded = .FALSE.
-  DO iReac = 1, ChemReac%NumOfReact
-    ! Skip the special case of photo ionization
-    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
-    iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
-    IF(iCase.EQ.iCase2) THEN
-      ! Only add recombination reactions once
-      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
-        IF(RecombAdded) THEN
-          CYCLE
-        ELSE
-          RecombAdded = .TRUE.
-        END IF
-      END IF
-      ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths = ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths + 1
-    END IF
-  END DO
-END DO
+! Initialize reaction paths
+CALL InitReactionPaths()
 
-DO iCase = 1, CollInf%NumCase
-  ! Allocate the case specific type with the number of the possible reaction paths
-  ALLOCATE(ChemReac%CollCaseInfo(iCase)%ReactionIndex(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
-  ChemReac%CollCaseInfo(iCase)%ReactionIndex = 0
-  ALLOCATE(ChemReac%CollCaseInfo(iCase)%ReactionProb(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
-  ChemReac%CollCaseInfo(iCase)%ReactionProb = 0.
-  ChemReac%CollCaseInfo(iCase)%HasXSecReaction    = .FALSE.
-  ReacIndexCounter = 0
-  RecombAdded = .FALSE.
-  DO iReac = 1, ChemReac%NumOfReact
-    ! Skip the special case of photo ionization
-    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
-    iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
-    ! Save the reaction index for the specific collision case
-    IF(iCase.EQ.iCase2) THEN
-      ! Save the case number for the reaction
-      ChemReac%ReactCase(iReac) = iCase
-      ! But only add one recombination reaction to the number of reaction paths (the index of the others is stored in ReactNumRecomb
-      ! and is chosen based on the third collision partner selected during the simulation)
-      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
-        IF(RecombAdded) THEN
-          CYCLE
-        ELSE
-          RecombAdded = .TRUE.
-        END IF
-      END IF
-      ReacIndexCounter = ReacIndexCounter + 1
-      ChemReac%CollCaseInfo(iCase)%ReactionIndex(ReacIndexCounter) = iReac
-      IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'XSec')  THEN
-        ChemReac%CollCaseInfo(iCase)%HasXSecReaction = .TRUE.
-        IF(ChemReac%Reactants(iReac,3).NE.0) THEN
-          CALL abort(__STAMP__,&
-            'Chemistry - Error: Cross-section based chemistry for reactions with three reactants is not supported yet!')
-        END IF
-      END IF
-    END IF
-  END DO
-END DO
-
+! Initialize MCC model: Read-in of the reaction cross-section database and re-calculation of the null collision probability
 IF(ChemReac%AnyXSecReaction) THEN
   CALL MCC_Chemistry_Init()
 END IF
@@ -595,6 +541,110 @@ DO iReac = 1, ChemReac%NumOfReact
 END DO
 
 END SUBROUTINE DSMC_chemical_init
+
+
+!===================================================================================================================================
+!> Initialize all possible reaction paths
+!===================================================================================================================================
+SUBROUTINE InitReactionPaths()
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars ,ONLY: ChemReac,SpecDSMC,CollInf
+#if USE_HDG
+USE MOD_HDG_Vars  ,ONLY: UseBRElectronFluid ! Used for skipping reactions involving electrons as products
+#endif /*USE_HDG*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER     :: iReac,iCase,iCase2,ReacIndexCounter
+LOGICAL     :: RecombAdded
+#if USE_HDG
+INTEGER     :: iProd
+#endif /*USE_HDG*/
+!===================================================================================================================================
+DO iCase = 1, CollInf%NumCase
+  RecombAdded = .FALSE.
+  REACLOOP: DO iReac = 1, ChemReac%NumOfReact
+#if USE_HDG
+    ! Skip reactions involving electrons as products
+    IF(UseBRElectronFluid) THEN
+      DO iProd = 1,4
+        IF(ChemReac%Products(iReac,iProd).NE.0)THEN
+          IF(SpecDSMC(ChemReac%Products(iReac,iProd))%InterID.EQ.4) CYCLE REACLOOP
+        END IF ! ChemReac%Products(iReac,iProd).NE.0
+      END DO
+    END IF
+#endif /*USE_HDG*/
+    ! Skip the special case of photo ionization
+    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
+    iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
+    IF(iCase.EQ.iCase2) THEN
+      ! Only add recombination reactions once
+      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
+        IF(RecombAdded) THEN
+          CYCLE
+        ELSE
+          RecombAdded = .TRUE.
+        END IF
+      END IF
+      ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths = ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths + 1
+    END IF
+  END DO REACLOOP
+END DO
+
+DO iCase = 1, CollInf%NumCase
+  ! Allocate the case specific type with the number of the possible reaction paths
+  ALLOCATE(ChemReac%CollCaseInfo(iCase)%ReactionIndex(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
+  ChemReac%CollCaseInfo(iCase)%ReactionIndex = 0
+  ALLOCATE(ChemReac%CollCaseInfo(iCase)%ReactionProb(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
+  ChemReac%CollCaseInfo(iCase)%ReactionProb = 0.
+  ChemReac%CollCaseInfo(iCase)%HasXSecReaction    = .FALSE.
+  ReacIndexCounter = 0
+  RecombAdded = .FALSE.
+  REACLOOP2: DO iReac = 1, ChemReac%NumOfReact
+#if USE_HDG
+    ! Skip reactions involving electrons as products
+    IF(UseBRElectronFluid) THEN
+      DO iProd = 1,4
+        IF(ChemReac%Products(iReac,iProd).NE.0)THEN
+          IF(SpecDSMC(ChemReac%Products(iReac,iProd))%InterID.EQ.4) CYCLE REACLOOP2
+        END IF ! ChemReac%Products(iReac,iProd).NE.0
+      END DO
+    END IF
+#endif /*USE_HDG*/
+    ! Skip the special case of photo ionization
+    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
+    iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
+    ! Save the reaction index for the specific collision case
+    IF(iCase.EQ.iCase2) THEN
+      ! Save the case number for the reaction
+      ChemReac%ReactCase(iReac) = iCase
+      ! But only add one recombination reaction to the number of reaction paths (the index of the others is stored in ReactNumRecomb
+      ! and is chosen based on the third collision partner selected during the simulation)
+      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
+        IF(RecombAdded) THEN
+          CYCLE
+        ELSE
+          RecombAdded = .TRUE.
+        END IF
+      END IF
+      ReacIndexCounter = ReacIndexCounter + 1
+      ChemReac%CollCaseInfo(iCase)%ReactionIndex(ReacIndexCounter) = iReac
+      IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'XSec')  THEN
+        ChemReac%CollCaseInfo(iCase)%HasXSecReaction = .TRUE.
+        IF(ChemReac%Reactants(iReac,3).NE.0) THEN
+          CALL abort(__STAMP__,&
+            'Chemistry - Error: Cross-section based chemistry for reactions with three reactants is not supported yet!')
+        END IF
+      END IF
+    END IF
+  END DO REACLOOP2
+END DO
+
+END SUBROUTINE InitReactionPaths
 
 
 SUBROUTINE DSMC_BackwardRate_init()

@@ -171,7 +171,7 @@ BoundaryType(:,BC_TYPE)  = BCType(1,:)
 BoundaryType(:,BC_STATE) = BCType(3,:)
 BoundaryType(:,BC_ALPHA) = BCType(4,:)
 SWRITE(UNIT_StdOut,'(132("."))')
-SWRITE(Unit_StdOut,'(A,A16,A20,A10,A10,A10)')'BOUNDARY CONDITIONS','|','Name','Type','State','Alpha'
+SWRITE(Unit_StdOut,'(A,A15,A20,A10,A10,A10)')' BOUNDARY CONDITIONS','|','Name','Type','State','Alpha'
 DO iBC=1,nBCs
   SWRITE(*,'(A,A33,A20,I10,I10,I10)')' |','|',TRIM(BoundaryName(iBC)),BoundaryType(iBC,:)
 END DO
@@ -191,6 +191,7 @@ SUBROUTINE ReadMesh(FileString)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars         ,ONLY: ReadMeshWallTime
 USE MOD_IO_HDF5
 USE MOD_Mesh_Vars            ,ONLY: tElem,tSide
 USE MOD_Mesh_Vars            ,ONLY: NGeo
@@ -253,6 +254,7 @@ LOGICAL                        :: oriented
 #ifdef PARTICLES
 REAL, ALLOCATABLE              :: GlobVarTimeStep(:)
 #endif
+REAL                           :: StartT,EndT
 !===================================================================================================================================
 IF(MESHInitIsDone) RETURN
 IF(MPIRoot)THEN
@@ -261,8 +263,13 @@ __STAMP__ &
 ,'readMesh from data file "'//TRIM(FileString)//'" does not exist')
 END IF
 
-SWRITE(UNIT_stdOut,'(A)')'READ MESH FROM DATA FILE "'//TRIM(FileString)//'" ...'
-SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)',ADVANCE="NO")' READ MESH FROM DATA FILE "'//TRIM(FileString)//'" ...'
+#if USE_MPI
+StartT=MPI_WTIME()
+#else
+CALL CPU_TIME(StartT)
+#endif
 
 ! Get ElemInfo from Mesh file
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
@@ -279,6 +286,9 @@ CHECKSAFEINT(8_8*INT(nGlobalElems,8),4)
 DEALLOCATE(HSize)
 IF(MPIRoot.AND.(nGlobalElems.LT.nProcessors))CALL abort(__STAMP__&
     ,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))
+EndT=PICLASTIME()
+ReadMeshWallTime=EndT-StartT
+SWRITE(UNIT_stdOut,'(A,F0.3,A)')' DONE  [',ReadMeshWallTime,'s]'
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              DOMAIN DECOMPOSITION
@@ -369,6 +379,14 @@ DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
   aElem%Ind    = iElem
   aElem%Type   = ElemInfo(ELEM_TYPE,iElem)
+  ! Sanity check: Allow only specific element types
+  SELECT CASE(aElem%Type)
+  CASE(108,118,208)
+    ! linear hex (108), non-linear hex (118), spline hex (208)
+  CASE DEFAULT
+    ! Abort if non-hexahedral meshes are read
+    CALL abort(__STAMP__,'aElem%Type is NOT allowed: ',IntInfoOpt=aElem%Type)
+  END SELECT
   aElem%Zone   = ElemInfo(ELEM_ZONE,iElem)
 END DO
 
@@ -734,7 +752,8 @@ IF(MPIRoot)THEN
 END IF
 
 LOGWRITE_BARRIER
-SWRITE(UNIT_stdOut,'(132("."))')
+
+SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE ReadMesh
 
 
@@ -789,7 +808,7 @@ END FUNCTION INVMAP
 
 
 #if USE_MPI
-PURE FUNCTION ELEMIPROC(ElemID)
+PPURE FUNCTION ELEMIPROC(ElemID)
 !===================================================================================================================================
 !> Find the id of a processor on which an element with a given ElemID lies, based on the MPI element offsets defined earlier.
 !> Use a bisection algorithm for faster search.

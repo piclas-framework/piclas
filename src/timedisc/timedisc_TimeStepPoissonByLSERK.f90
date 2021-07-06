@@ -57,7 +57,7 @@ USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
-USE MOD_Particle_Analyze       ,ONLY: CalcCoupledPowerPart
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcCoupledPowerPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -107,7 +107,7 @@ tStage=time
 #ifdef PARTICLES
 CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 RKdtFrac = RK_c(2)
-dtWeight = dt/dt_Min * RKdtFrac
+dtWeight = dt/dt_Min(DT_MIN) * RKdtFrac
 RKdtFracTotal=RKdtFrac
 
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
@@ -245,7 +245,7 @@ DO iStage=2,nRKStages
     RKdtFrac = 1.-RK_c(nRKStages)
     RKdtFracTotal=1.
   END IF
-  dtWeight = dt/dt_Min * RKdtFrac
+  dtWeight = dt/dt_Min(DT_MIN) * RKdtFrac
 
   ! deposition
   IF (time.GE.DelayTime) THEN

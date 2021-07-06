@@ -71,8 +71,7 @@ for an intersection and a particle assigned accordingly to neighbor elements or 
 algorithm has no inherent self-consistency check. For critical intersections (beginning or end of a particle path or if a particle is located close to
 the edges of element faces) an additional safety check is performed by recomputing the element check and if it fails a re-localization of
 the particle is required. Particles traveling parallel to element faces are in an undefined state and are currently removed from the computation.
-This leads to a warning message. Note that tracing on periodic meshes works only for non-mpi computations. Periodic displacement requires
-additional coding.
+This leads to a warning message.
 
 ### Parameters for DoRefMapping and Tracing  (NEEDS UPDATING)
 
@@ -186,25 +185,49 @@ as detailed in the following table.
 |              |              |                                                                                                                            |
 |    (/5,1/)   | 5: Dirichlet |                                          1: use RefState Nbr 1, see details below                                          |
 |              |              |                                                                                                                            |
+|    (/6,1/)   | 6: Dirichlet |                                          1: use RefState Nbr 1, see details below                                          |
+|              |              |                                                                                                                            |
 |   (/10,0/)   |  10: Neumann |                                                  zero-gradient (dPhi/dn=0)                                                 |
 |   (/11,0/)   |  11: Neumann |                                                            q*n=1                                                           |
 
-For each boundary of type *5* (reference state boundary *RefState*), e.g.,
+For each boundary of type *5* (reference state boundary *RefState*), e.g., by setting the boundary in the *hopr.ini* file
 
     BoundaryName = BC_WALL ! BC name in the mesh.h5 file
     BoundaryType = (/5,1/) ! (/ Type, curveIndex, State, alpha /)
 
-the corresponding *RefState* number must also be supplied (here 1) and is selected from its position in the parameter file. Each
-*RefState* is defined in the *parameter.ini* file by supplying a value for the voltage an alternating frequency for the cosine
+the corresponding *RefState* number must also be supplied in the parameter.ini file (here 1) and is selected from its position 
+in the parameter file. 
+Each *RefState* is defined in the *parameter.ini* file by supplying a value for the voltage an alternating frequency for the cosine
 function (a frequency of 0 results in a fixed potential over time) and phase shift
 
-    RefState = (/-0.18011, 0.0, 0.0/) ! RefState Nbr 1: Voltage, Frequency and Phase shift
+    RefState = (/-0.18011, 1.0, 0.0/) ! RefState Nbr 1: Voltage, Frequency and Phase shift
 
-This yields the three parameters used in the general function
+This yields the three parameters used in the cosine function
 
-    Phi(t) = COS(2*pi*f*t + psi)
+    Phi(t) = A*COS(2*pi*f*t + psi)
 
-where, *t* is the time, *f* is the frequency and *psi* is the phase shift.
+where *A=-0.18011* is the amplitude, *t* is the time, *f=1* is the frequency and *psi=0* is the phase shift.
+
+Similar to boundary type *5* is type *6*, which simply uses a cosine function that always has the same sign, depending on the
+amplitude *A*
+
+    Phi(t) = (A/2) * (COS(2*pi*f*t + psi) + 1)
+
+#### Zero potential enforcement
+
+It is important to note that when no Dirichlet boundary conditions are selected by the user, the code automatically enforces mixed
+boundaries on either Neumann or periodic boundaries. Depending on the simulation domain, the direction with the largest extent is
+selected and on those boundaries an additional Dirichlet boundary condition with $\phi=0$ is enforced to ensure convergence of the
+HDG solver. The boundary conditions selected by the user are only altered at these locations and not removed.
+The information regarding the direction that is selected for this purpose is printed to std.out with the following line
+
+     |      Zero potential side activated in direction (1: x, 2: y, 3: z) |        1 |  OUTPUT | 
+
+To selected the direction by hand, simply supply the desired direction via
+
+    HDGZeroPotentialDir = 1
+
+with 1: x-, 2: y-, 3: z-direction.
 
 ### Dielectric Materials
 
@@ -711,6 +734,13 @@ AcceptReject, ARM_DmaxSampleN: [@Garcia2006]
 Charge and current deposition can be performed using different methods, among others, shape
 functions, B-splines or locally volume-weighted approaches.
 
+|  **PIC-Deposition-Type**  |                             **Description**                            |
+|      :--------------:     |                  :-----------------------------------:                 |
+|   *cell_volweight_mean*   | Linear distribution in each element (continuous on element boundaries) |
+|      *shape_function*     |                standard shape function with fixed radius               |
+|    *shape_function_cc*    |            charge corrected shape function with fixed radius           |
+| *shape_function_adaptive* |      charge corrected shape function with element-dependent radius     |
+
 #### Linear Distribution Over Cell Interfaces
 A linear deposition method that also considers neighbouring elements can be selected by
 
@@ -741,16 +771,26 @@ size of the element and its direct neighbours by setting
     PIC-Deposition-Type = shape_function_adaptive
 
 The shape function radius in this case is limited by the size of the surrounding elements and may not reach past its direct
-neighbours. This shape function method also is numerically charge conserving by integrating each particle's deposited charge and
+neighbours.
+
+The direct influence of only the neibouring elements can be extended further by activating
+
+    PIC-shapefunction-adaptive-smoothing = T
+
+which increases the radius of influence and therefore takes more elements into account for the calculation of the shape function 
+radius in each element, hence, leading to a smoother transition in regions, where the element sizes rapidly change.
+
+This shape function method also is numerically charge conserving by integrating each particle's deposited charge and
 adjusting to this value. Depending on the polynomial degree N, the number of DOF that are within the shape function radius can be
 changed via
 
     PIC-shapefunction-adaptive-DOF = 33
 
-The default values (maximum allowed for each polynomial degree $N$) depend on the dimensionality of the deposition kernel, 1D: $2(N+1)$, 2D: $\pi(N+1)^2$, 3D: $(4/3)\pi(N+1)^3$.
+The default values (maximum allowed for each polynomial degree $N$) depend on the dimensionality of the deposition kernel,
+1D: $2(N+1)$, 2D: $\pi(N+1)^2$, 3D: $(4/3)\pi(N+1)^3$.
 
-
-The following polynomial isotropic shape functions are all designed to be used in three dimensions, where reductions to 2D and 1D are applied.
+The following polynomial isotropic shape functions are all designed to be used in three dimensions, where reductions to 2D and 1D
+are possible.
 
 ##### Shape Function 1D
 A one-dimensional shape function in $x$-direction is given by

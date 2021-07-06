@@ -51,17 +51,17 @@ SUBROUTINE ImplicitNorm(t,coeff,R,Norm_R,Delta_Norm_R,Delta_Norm_Rel,First)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_DG_Vars,                 ONLY:U
-#if !(USE_HDG)
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS,mass
-USE MOD_DG_Vars,                 ONLY:Ut
-USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
-USE MOD_Equation,                ONLY:CalcSource
-USE MOD_Equation_Vars,           ONLY:DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars,           ONLY:sdtCFLOne
+#if ! (USE_HDG)
+USE MOD_DG_Vars           ,ONLY: U
+USE MOD_LinearSolver_Vars ,ONLY: ImplicitSource,LinSolverRHS,mass
+USE MOD_DG_Vars           ,ONLY: Ut
+USE MOD_DG                ,ONLY: DGTimeDerivative_weakForm
+USE MOD_Equation          ,ONLY: CalcSource
+USE MOD_Equation_Vars     ,ONLY: DoParabolicDamping,fDamping
+USE MOD_TimeDisc_Vars     ,ONLY: sdtCFLOne
 #else /* HDG */
-USE MOD_Equation,                ONLY:CalcSourceHDG
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource
+USE MOD_Equation          ,ONLY: CalcSourceHDG
+USE MOD_LinearSolver_Vars ,ONLY: ImplicitSource
 #endif /*DG*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -80,12 +80,14 @@ REAL,INTENT(OUT)           :: Delta_Norm_Rel
 ! LOCAL VARIABLES
 REAL                       :: X,DeltaX
 INTEGER                    :: iElem, i,j,k,iVar
-REAL                       :: rTmp(1:8), locMass
 REAL                       :: rRel
 LOGICAL                    :: warning_linear
 #if USE_MPI
 REAL                       :: NormArray(3), GlobalNormArray(3)
 #endif /*USE_MPI*/
+#if ! (USE_HDG)
+REAL                     :: rTmp(1:8), locMass
+#endif /*DG*/
 !===================================================================================================================================
 
 Norm_R         =0.
@@ -134,7 +136,7 @@ END DO ! iElem=1,PP_nElems
 warning_linear=.FALSE.
 DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    CALL CalcSourceHDG(i,j,k,iElem,ImplicitSource(1:PP_nVar,i,j,k,iElem))
+    CALL CalcSourceHDG(i,j,k,iElem,ImplicitSource(1:PP_nVar,i,j,k,iElem),warning_linear=warning_linear)
   END DO; END DO; END DO !i,j,k
 END DO !iElem
 IF (warning_linear) THEN
