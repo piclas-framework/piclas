@@ -504,6 +504,7 @@ DO iPair = 1, nPair
   cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
   cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
   iCase = CollInf%Coll_Case(cSpec1, cSpec2)
+  CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
   CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + GetParticleWeight(Coll_pData(iPair)%iPart_p1)
   Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) &
                             -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
