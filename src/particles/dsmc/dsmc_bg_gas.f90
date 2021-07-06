@@ -328,6 +328,11 @@ IF(NeedToSplit) THEN
             PartState(4:6,PositionNbr) = PartState(4:6,iPart)
             IF(CollisMode.GT.1) THEN
               PartStateIntEn(1:2,PositionNbr) = PartStateIntEn(1:2,iPart)
+              IF(SpecDSMC(iSpec3)%PolyatomicMol) THEN
+                IF(ALLOCATED(VibQuantsPar(PositionNbr)%Quants)) DEALLOCATE(VibQuantsPar(PositionNbr)%Quants)
+                ALLOCATE(VibQuantsPar(PositionNbr)%Quants(PolyatomMolDSMC(SpecDSMC(iSpec3)%SpecToPolyArray)%VibDOF))
+                VibQuantsPar(PositionNbr)%Quants(:) = VibQuantsPar(iPart)%Quants(:)
+              END IF
               IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,PositionNbr) = PartStateIntEn(3,iPart)
             END IF
           ELSE
@@ -558,6 +563,7 @@ USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles, XSec_NullCollision
+USE MOD_DSMC_Vars               ,ONLY: PolyatomMolDSMC, VibQuantsPar
 USE MOD_Part_Emission_Tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticleVelocity
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
@@ -798,15 +804,20 @@ IF(ANY(NeedToSplit)) THEN
         PEM%pNext(PEM%pEnd(iElem)) = PartIndex
         PEM%pEnd(iElem) = PartIndex
         PEM%pNumber(iElem) = PEM%pNumber(iElem) + 1
-        !
+        ! Particle state (position, velocity, internal energies)
         iSpec = PartSpecies(iPart_p1)
         PartSpecies(PartIndex) = iSpec
         PartState(1:6,PartIndex) = PartState(1:6,iPart_p1)
         IF(CollisMode.GT.1) THEN
           PartStateIntEn(1:2,PartIndex) = PartStateIntEn(1:2,iPart_p1)
+          IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+            IF(ALLOCATED(VibQuantsPar(PartIndex)%Quants)) DEALLOCATE(VibQuantsPar(PartIndex)%Quants)
+            ALLOCATE(VibQuantsPar(PartIndex)%Quants(PolyatomMolDSMC(SpecDSMC(iSpec)%SpecToPolyArray)%VibDOF))
+            VibQuantsPar(PartIndex)%Quants(:) = VibQuantsPar(iPart_p1)%Quants(:)
+          END IF
           IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,PartIndex) = PartStateIntEn(3,iPart_p1)
         END IF
-        !
+        ! Simulation variables/flags (MPF, time step factor, element ID)
         PartMPF(PartIndex) = PartMPF(iPart_p1)
         IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(PartIndex) = VarTimeStep%ParticleTimeStep(iPart_p1)
         PEM%GlobalElemID(PartIndex) = PEM%GlobalElemID(iPart_p1)
@@ -825,7 +836,7 @@ IF(ANY(NeedToSplit)) THEN
         PEM%pNext(PEM%pEnd(iElem)) = bggPartIndex
         PEM%pEnd(iElem) = bggPartIndex
         PEM%pNumber(iElem) = PEM%pNumber(iElem) + 1
-        ! 
+        ! Particle state (position, velocity, internal energies)
         bgSpec = PartSpecies(iPart_p2)
         PartSpecies(bggPartIndex) = bgSpec
         PartState(1:3,bggPartIndex) = PartState(1:3,iPart_p1)
@@ -837,7 +848,7 @@ IF(ANY(NeedToSplit)) THEN
             CALL DSMC_SetInternalEnr_LauxVFD(bgSpec,1,bggPartIndex,1)
           END IF
         END IF
-        ! 
+        ! Simulation variables/flags (MPF, time step factor, element ID)
         PartMPF(bggPartIndex) = PartMPF(PartIndex)
         IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(bggPartIndex) = VarTimeStep%ParticleTimeStep(iPart_p1)
         PEM%GlobalElemID(bggPartIndex) = PEM%GlobalElemID(iPart_p1)
@@ -845,7 +856,7 @@ IF(ANY(NeedToSplit)) THEN
         PDM%ParticleInside(bggPartIndex)  = .TRUE.
         PDM%IsNewPart(bggPartIndex)       = .TRUE.
         PDM%dtFracPush(bggPartIndex)      = .FALSE.
-        !
+        ! Particle pair indices
         Coll_pData(PairCount)%iPart_p1 = PartIndex
         Coll_pData(PairCount)%iPart_p2 = bggPartIndex
       END DO
