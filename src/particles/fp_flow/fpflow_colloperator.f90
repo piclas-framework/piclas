@@ -50,7 +50,7 @@ USE MOD_TimeDisc_Vars           ,ONLY: dt
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, DSMC_RHS, VibQuantsPar, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: CollInf, RadialWeighting
 USE Ziggurat
-USE MOD_DSMC_Analyze            ,ONLY: CalcTVibPoly
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTVibPoly
 USE MOD_BGK_CollOperator        ,ONLY: CalcTEquiPoly, CalcTEqui
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING

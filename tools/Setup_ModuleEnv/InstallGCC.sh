@@ -77,6 +77,20 @@ GCCVERSION='9.3.0'
 # sudo apt-get install libmpc-dev
 #GCCVERSION='10.1.0'
 
+
+# --------------------------------------------------------------------------------------------------
+# Check pre-requisites
+# --------------------------------------------------------------------------------------------------
+
+if [[ ${GCCVERSION} == '9.3.0' ]] || [[ ${GCCVERSION} == '10.1.0' ]]; then
+  sudo apt-get install libmpfr-dev
+  sudo apt-get install libmpc-dev
+fi
+
+# --------------------------------------------------------------------------------------------------
+# Install Module GCC
+# --------------------------------------------------------------------------------------------------
+
 MODULEFILEDIR=${INSTALLDIR}/modules/modulefiles/compilers/gcc
 MODULEFILE=${MODULEFILEDIR}/${GCCVERSION}
 

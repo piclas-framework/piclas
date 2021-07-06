@@ -183,6 +183,17 @@ DO iVar=1,nVarAvg
   IF(iVar2.NE.-1)THEN
     CalcAvg(iVar2) = .TRUE.
   ELSE
+    SWRITE (*,*) "\n\n  Error in InitTimeAverage()"
+    SWRITE (*,*) " Select one or more of the following variables for time averaging via [VarNameAvg] and/or [VarNameFluc]\n"
+    SWRITE (*,*) "   ElectricFieldX\n    ElectricFieldY\n    ElectricFieldZ\n    MagneticFieldX\n    MagneticFieldY\n    MagneticFieldZ"
+    SWRITE (*,*) "   Phi\n    Psi\n    ElectricFieldMagnitude\n    MagneticFieldMagnitude"
+    SWRITE (*,*) "   PoyntingVectorX\n    PoyntingVectorY\n    PoyntingVectorZ\n    PoyntingVectorMagnitude"
+#ifdef PARTICLES
+    SWRITE (*,*) "\n  Maximum number of species: ", nSpecies
+    SWRITE (*,*) "   PowerDensityX-Spec0x\n    PowerDensityY-Spec0x\n    PowerDensityZ-Spec0x\n    PowerDensity-Spec0x"
+    SWRITE (*,*) "   ChargeDensity-Spec0x"
+    SWRITE (*,*) "   ChargeDensityX-Spec0x\n    ChargeDensityY-Spec0x\n    ChargeDensityZ-Spec0x\n    ChargeDensity-Spec0x"
+#endif /*PARTICLES*/
     CALL CollectiveStop(__STAMP__, &
     'Specified varname does not exist: ' // VarNamesAvgIni(iVar))
   END IF
@@ -328,16 +339,16 @@ SUBROUTINE CalcTimeAverage(Finalize,dt,t,tPrevious)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars          ,ONLY: U
-USE MOD_Mesh_Vars        ,ONLY: MeshFile,nElems
-USE MOD_HDF5_Output      ,ONLY: WriteTimeAverage
-USE MOD_Globals_Vars     ,ONLY: smu0
-USE MOD_Timeaverage_Vars ,ONLY: UAvg,UFluc,CalcAvg,iAvg,FlucAvgMap,dtAvg,dtold,nVarAvg,nVarFluc,nVarFlucHasAvg &
+USE MOD_DG_Vars                ,ONLY: U
+USE MOD_Mesh_Vars              ,ONLY: MeshFile,nElems
+USE MOD_HDF5_Output            ,ONLY: WriteTimeAverage
+USE MOD_Globals_Vars           ,ONLY: smu0
+USE MOD_Timeaverage_Vars       ,ONLY: UAvg,UFluc,CalcAvg,iAvg,FlucAvgMap,dtAvg,dtold,nVarAvg,nVarFluc,nVarFlucHasAvg &
                                ,VarnamesAvgOut,VarNamesFlucOut,DoPoyntingVectorAvg
 #ifdef PARTICLES
-USE MOD_Timeaverage_Vars ,ONLY: PowerDensity,DoPowerDensity
-USE MOD_Particle_Vars    ,ONLY: nSpecies
-USE MOD_Particle_Analyze ,ONLY: CalcPowerDensity
+USE MOD_Timeaverage_Vars       ,ONLY: PowerDensity,DoPowerDensity
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcPowerDensity
 #endif /*Particles*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

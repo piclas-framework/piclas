@@ -39,13 +39,13 @@ INTERFACE GetSideBoundingBoxTria
 END INTERFACE
 
 PUBLIC :: ParticleInsideQuad3D, InitPEM_LocalElemID, InitPEM_CNElemID, GetGlobalNonUniqueSideID, GetSideBoundingBoxTria
-PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, MapRegionToElem, WeirdElementCheck, CalcParticleMeshMetrics, InitElemNodeIDs
+PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, WeirdElementCheck, CalcParticleMeshMetrics, InitElemNodeIDs
 PUBLIC :: CalcBezierControlPoints, InitParticleGeometry
 !===================================================================================================================================
 CONTAINS
 
 
-!PURE SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
+!PPURE SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det_Out)
 !===================================================================================================================================
 !> Checks if particle is inside of a linear element with triangulated faces, compatible with mortars
@@ -193,7 +193,7 @@ RETURN
 END SUBROUTINE ParticleInsideQuad3D
 
 
-PURE SUBROUTINE ParticleInsideNbMortar(PartStateLoc,ElemID,InElementCheck)
+PPURE SUBROUTINE ParticleInsideNbMortar(PartStateLoc,ElemID,InElementCheck)
 !===================================================================================================================================
 !> Routines checks if the particle is inside the neighbouring mortar element. Used for the regular ParticleInsideQuad3D routine
 !> after it was determined that the particle is not in the concave part but in the convex part of the element.
@@ -300,7 +300,7 @@ END DO  ! iLocSide = 1,6
 END SUBROUTINE ParticleInsideNbMortar
 
 
-PURE FUNCTION CalcDetOfTrias(A,bending)
+PPURE FUNCTION CalcDetOfTrias(A,bending)
 !================================================================================================================================
 !> Calculates the determinant A*(B x C) for both triangles of a side. bending = 1 gives the determinant considering the actual
 !> orientation of the side (concave/convex), 2 gives the opposite of the saved form (e.g. a concave side gets the convex analog)
@@ -387,7 +387,7 @@ END SUBROUTINE InitPEM_LocalElemID
 !==================================================================================================================================!
 !> Get the global element ID from PEM%GlobalElemID(iPart)
 !==================================================================================================================================!
-PURE FUNCTION GetGlobalID(iPart)
+PPURE FUNCTION GetGlobalID(iPart)
 ! MODULES
 USE MOD_Particle_Vars ,ONLY: PEM
 ! IMPLICIT VARIABLE HANDLING
@@ -409,7 +409,7 @@ END FUNCTION GetGlobalID
 !==================================================================================================================================!
 !> Get the local element ID from PEM%GlobalElemID(iPart) - offsetElem
 !==================================================================================================================================!
-PURE FUNCTION GetGlobalID_offset(iPart)
+PPURE FUNCTION GetGlobalID_offset(iPart)
 ! MODULES
 USE MOD_Mesh_Vars     ,ONLY: offSetElem
 USE MOD_Particle_Vars ,ONLY: PEM
@@ -469,7 +469,7 @@ END SUBROUTINE InitPEM_CNElemID
 !> Get the CN element ID from the global element ID, which is first obtained from PEM%GlobalElemID(iPart) in case of MPI=ON for
 !> single or multiple compute nodes (CN)
 !==================================================================================================================================!
-PURE FUNCTION GetGlobalElem2CNTotalElem_iPart(iPart)
+PPURE FUNCTION GetGlobalElem2CNTotalElem_iPart(iPart)
 ! MODULES
 USE MOD_MPI_Shared_Vars ,ONLY: GlobalElem2CNTotalElem
 USE MOD_Particle_Vars   ,ONLY: PEM
@@ -789,11 +789,10 @@ IF (myComputeNodeRank.EQ.0) THEN
 #if USE_MPI
 END IF
 
-CALL MPI_WIN_SYNC(ElemCurved_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(SideType_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(SideDistance_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(SideNormVec_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(ElemCurved_Shared_Win  ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(SideType_Shared_Win    ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(SideDistance_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(SideNormVec_Shared_Win ,MPI_COMM_SHARED)
 #endif /* USE_MPI*/
 
 ALLOCATE(SideIsDone(nNonUniqueGlobalSides))
@@ -996,8 +995,7 @@ END DO ! iElem=1,nTotalElems
 DEALLOCATE(SideIsDone)
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(ElemCurved_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(ElemCurved_Shared_Win,MPI_COMM_SHARED)
 #endif /* USE_MPI */
 
 ! zero counter for side types
@@ -1108,45 +1106,6 @@ END DO ! i=0,N
 END SUBROUTINE PointsEqual
 
 
-SUBROUTINE MapRegionToElem()
-!----------------------------------------------------------------------------------------------------------------------------------!
-! map a particle region to element
-! check only element barycenter, nothing else
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars ,ONLY: NbrOfRegions, RegionBounds,GEO
-USE MOD_Mesh_Vars          ,ONLY: ElemBaryNGeo
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
- INTEGER                :: iElem, iRegions
-!===================================================================================================================================
-SDEALLOCATE(GEO%ElemToRegion)
-ALLOCATE(GEO%ElemToRegion(1:PP_nElems))
-GEO%ElemToRegion=0
-
-DO iElem=1,PP_nElems
-  DO iRegions=1,NbrOfRegions
-    IF ((ElemBaryNGeo(1,iElem).LT.RegionBounds(1,iRegions)).OR.(ElemBaryNGEO(1,iElem).GE.RegionBounds(2,iRegions))) CYCLE
-    IF ((ElemBaryNGeo(2,iElem).LT.RegionBounds(3,iRegions)).OR.(ElemBaryNGEO(2,iElem).GE.RegionBounds(4,iRegions))) CYCLE
-    IF ((ElemBaryNGeo(3,iElem).LT.RegionBounds(5,iRegions)).OR.(ElemBaryNGEO(3,iElem).GE.RegionBounds(6,iRegions))) CYCLE
-    IF (GEO%ElemToRegion(iElem).EQ.0) THEN
-      GEO%ElemToRegion(iElem)=iRegions
-    ELSE
-      CALL ABORT(__STAMP__,'Defined regions are overlapping')
-    END IF
-  END DO ! iRegions=1,NbrOfRegions
-END DO ! iElem=1,PP_nElems
-END SUBROUTINE MapRegionToElem
-
-
 SUBROUTINE WeirdElementCheck()
 !===================================================================================================================================
 ! Calculate whether element edges intersect other sides
@@ -1156,7 +1115,7 @@ SUBROUTINE WeirdElementCheck()
 ! Fixing the problem would involve defining the bilinear edge between nodes 2 and 4
 ! (instead of 1 and 3). This information would need to be stored and used throughout
 ! the particle treatment. Additionally, since the edge would need to be changed
-! for both neighboring elements, it is possible that both element might have the problem
+! for both neighboring elements, it is possible that both elements might have the problem
 ! hence no solution exists.
 ! tl;dr: Hard/maybe impossible to fix, hence only a warning is given so the user can decide
 !===================================================================================================================================
@@ -1297,6 +1256,8 @@ IF(WeirdElems.GT.0) THEN
   DO iElem = 1,WeirdElems
     IPWRITE(UNIT_stdOut,*) WeirdElemNbrs(iElem)
   END DO
+  IPWRITE(Unit_StdOut,*) 'This check is optional. You can disable it by setting meshCheckWeirdElements = F'
+  CALL abort(__STAMP__,'Weird elements found: it means that part of the element is turned inside-out')
 END IF
 
 SWRITE(UNIT_stdOut,'(A)')' CHECKING FOR WEIRD ELEMENTS DONE!'
@@ -1386,10 +1347,9 @@ DO iElem = 1,nElems
 END DO ! iElem = 1, nElems
 
 ! Communicate XCL and dXCL between compute node roots instead of calculating globally
-CALL MPI_WIN_SYNC(XCL_NGeo_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(Elem_xGP_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(dXCL_NGeo_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(XCL_NGeo_Shared_Win ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(Elem_xGP_Shared_Win ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(dXCL_NGeo_Shared_Win,MPI_COMM_SHARED)
 
 IF (nComputeNodeProcessors.NE.nProcessors_Global .AND. myComputeNodeRank.EQ.0) THEN
   CALL MPI_ALLGATHERV( MPI_IN_PLACE                  &
@@ -1423,10 +1383,9 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global .AND. myComputeNodeRank.EQ.0) T
                      , IERROR)
 END IF
 
-CALL MPI_WIN_SYNC(XCL_NGeo_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(Elem_xGP_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(dXCL_NGeo_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(XCL_NGeo_Shared_Win ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(Elem_xGP_Shared_Win ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(dXCL_NGeo_Shared_Win,MPI_COMM_SHARED)
 #else
 XCL_NGeo_Shared  => XCL_NGeo
 Elem_xGP_Shared  => Elem_xGP
@@ -1448,7 +1407,6 @@ USE MOD_Mappings               ,ONLY: CGNS_SideToVol2
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
 USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides,SideInfo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: XCL_NGeo_Shared
-!USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 USE MOD_Particle_Surfaces      ,ONLY: GetBezierControlPoints3DElevated
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,sVdm_Bezier
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3DElevated,BezierElevation
@@ -1456,8 +1414,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3DElevated,BezierElevat
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: BezierControlPoints3D_Shared,BezierControlPoints3D_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: BezierControlPoints3DElevated_Shared,BezierControlPoints3DElevated_Shared_Win
-USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
-!USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
 #else
@@ -1525,11 +1482,10 @@ END IF
 #endif /*USE_MPI*/
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(BezierControlPoints3D_Shared_Win,IERROR)
+CALL BARRIER_AND_SYNC(BezierControlPoints3D_Shared_Win,MPI_COMM_SHARED)
 IF (BezierElevation.GT.0) THEN
-  CALL MPI_WIN_SYNC(BezierControlPoints3DElevated_Shared_Win,IERROR)
+  CALL BARRIER_AND_SYNC(BezierControlPoints3DElevated_Shared_Win,MPI_COMM_SHARED)
 END IF
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 firstElem = INT(REAL( myComputeNodeRank*   nGlobalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
@@ -1573,8 +1529,7 @@ DO iElem = firstElem,lastElem
 END DO ! iElem = firstElem, lastElem
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(BezierControlPoints3D_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(BezierControlPoints3D_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 ! Calculate elevated BezierControlPoints
@@ -1589,8 +1544,7 @@ IF (BezierElevation.GT.0) THEN
   END DO
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(BezierControlPoints3DElevated_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(BezierControlPoints3DElevated_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 END IF
 
@@ -1605,15 +1559,16 @@ SUBROUTINE InitParticleGeometry()
 USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_Globals
-USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Mesh_Vars          ,ONLY: NGeo
 USE MOD_Particle_Mesh_Vars
-USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
+USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
 #if USE_MPI
-USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 #else
-USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif
+USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1686,9 +1641,8 @@ ASSOCIATE(CNS => CornerNodeIDswitch )
     ConcaveElemSide_Shared = .FALSE.
 #if USE_MPI
   END IF
-  CALL MPI_WIN_SYNC(ElemSideNodeID_Shared_Win,IERROR)
-  CALL MPI_WIN_SYNC(ConcaveElemSide_Shared_Win,IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+  CALL BARRIER_AND_SYNC(ElemSideNodeID_Shared_Win ,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(ConcaveElemSide_Shared_Win,MPI_COMM_SHARED)
 #endif
 
   ! iElem is CNElemID
@@ -1719,8 +1673,7 @@ ASSOCIATE(CNS => CornerNodeIDswitch )
 
 END ASSOCIATE
 #if USE_MPI
-CALL MPI_WIN_SYNC(ElemSideNodeID_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(ElemSideNodeID_Shared_Win,MPI_COMM_SHARED)
 #endif
 
 !--- Save whether Side is concave or convex
@@ -1763,13 +1716,13 @@ DO iElem = firstElem,lastElem
 END DO
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(ConcaveElemSide_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(ElemMidPoint_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(ConcaveElemSide_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ElemMidPoint_Shared_Win   ,MPI_COMM_SHARED)
 #endif
 
 !--- check for elements with intersecting sides (e.g. very flat elements)
-CALL WeirdElementCheck()
+meshCheckWeirdElements = GETLOGICAL('meshCheckWeirdElements','.TRUE.')
+IF(meshCheckWeirdElements) CALL WeirdElementCheck()
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -1788,7 +1741,7 @@ USE MOD_Mesh_Vars              ,ONLY: NGeo
 USE MOD_Particle_Mesh_Vars
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 #if USE_MPI
-USE MOD_MPI_Shared!            ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 #else
 USE MOD_Mesh_Vars              ,ONLY: nElems
@@ -1839,8 +1792,7 @@ ASSOCIATE(CNS => CornerNodeIDswitch )
     ElemNodeID_Shared = 0
 #if USE_MPI
   END IF
-  CALL MPI_WIN_SYNC(ElemNodeID_Shared_Win,IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+  CALL BARRIER_AND_SYNC(ElemNodeID_Shared_Win,MPI_COMM_SHARED)
 #endif
 
   ! iElem is CNElemID
@@ -1852,8 +1804,7 @@ ASSOCIATE(CNS => CornerNodeIDswitch )
   END DO
 END ASSOCIATE
 #if USE_MPI
-CALL MPI_WIN_SYNC(ElemNodeID_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(ElemNodeID_Shared_Win,MPI_COMM_SHARED)
 #endif
 END SUBROUTINE InitElemNodeIDs
 

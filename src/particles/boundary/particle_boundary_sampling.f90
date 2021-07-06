@@ -100,7 +100,7 @@ USE MOD_Particle_Vars           ,ONLY: nSpecies,VarTimeStep
 USE MOD_Particle_Vars           ,ONLY: Symmetry
 USE MOD_ReadInTools             ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
 #if USE_MPI
-USE MOD_MPI_Shared!             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF,mySurfRank
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
@@ -187,8 +187,7 @@ IF (myComputeNodeRank.EQ.0) THEN
 #if USE_MPI
 END IF
 
-CALL MPI_WIN_SYNC(GlobalSide2SurfSide_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(GlobalSide2SurfSide_Shared_Win,MPI_COMM_SHARED)
 #endif /* USE_MPI*/
 
 ! get number of BC-Sides
@@ -333,9 +332,8 @@ DO iSide = firstSide,lastSide
   SurfSide2GlobalSide(SURF_SIDEID,GlobalSide2SurfSide(SURF_SIDEID,iSide)) = iSide
 END DO
 
-CALL MPI_WIN_SYNC(GlobalSide2SurfSide_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(SurfSide2GlobalSide_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+CALL BARRIER_AND_SYNC(GlobalSide2SurfSide_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(SurfSide2GlobalSide_Shared_Win,MPI_COMM_SHARED)
 #else
 ALLOCATE(SurfSide2GlobalSide(1:1,1:nComputeNodeSurfTotalSides))
 !SurfSide2GlobalSide = SurfSide2GlobalSideProc(:,1:nComputeNodeSurfTotalSides)
@@ -496,7 +494,7 @@ IF (myComputeNodeRank.EQ.0) THEN
   SampWallState_Shared = 0.
 ! #if USE_MPI
 END IF
-CALL MPI_WIN_SYNC(SampWallState_Shared_Win,IERROR)
+CALL BARRIER_AND_SYNC(SampWallState_Shared_Win,MPI_COMM_SHARED)
 !
 IF(nPorousBC.GT.0) THEN
   MPISharedSize = INT((nComputeNodeSurfTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
@@ -505,7 +503,7 @@ IF(nPorousBC.GT.0) THEN
   IF (myComputeNodeRank.EQ.0) THEN
     SampWallPumpCapacity_Shared = 0.
   END IF
-  CALL MPI_WIN_SYNC(SampWallPumpCapacity_Shared_Win,IERROR)
+  CALL BARRIER_AND_SYNC(SampWallPumpCapacity_Shared_Win,MPI_COMM_SHARED)
 END IF
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 IF (CalcSurfaceImpact) THEN
@@ -529,10 +527,10 @@ IF (CalcSurfaceImpact) THEN
     SampWallImpactAngle_Shared  = 0.
     SampWallImpactNumber_Shared = 0.
   END IF
-  CALL MPI_WIN_SYNC(SampWallImpactEnergy_Shared_Win,IERROR)
-  CALL MPI_WIN_SYNC(SampWallImpactVector_Shared_Win,IERROR)
-  CALL MPI_WIN_SYNC(SampWallImpactAngle_Shared_Win ,IERROR)
-  CALL MPI_WIN_SYNC(SampWallImpactNumber_Shared_Win,IERROR)
+  CALL BARRIER_AND_SYNC(SampWallImpactEnergy_Shared_Win,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(SampWallImpactVector_Shared_Win,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(SampWallImpactAngle_Shared_Win ,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(SampWallImpactNumber_Shared_Win,MPI_COMM_SHARED)
 END IF
 !#else
 !CALL ABORT(__STAMP__,'Still needs to be implemented for MPI=OFF')
@@ -560,8 +558,7 @@ IF (myComputeNodeRank.EQ.0) THEN
   SurfSideArea=0.
 #if USE_MPI
 END IF
-CALL MPI_WIN_SYNC(SurfSideArea_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(SurfSideArea_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 ! Calculate equidistant surface points
@@ -641,8 +638,7 @@ DO iSide = firstSide,LastSide
 END DO ! iSide = firstSide,lastSide
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(SurfSideArea_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(SurfSideArea_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 ! get the full area of all surface sides
@@ -745,8 +741,8 @@ FileString = TRIM(FileName)//'.h5'
 nVar2D      = 5
 nVar2D_Spec = 1
 
-! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number: Add 8 variables
-IF (CalcSurfaceImpact) nVar2D_Spec = nVar2D_Spec + 8
+! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle, total number, number per second: Add 10 variables
+IF (CalcSurfaceImpact) nVar2D_Spec = nVar2D_Spec + 10
 
 IF (nPorousBC.GT.0)    nVar2D = nVar2D + nPorousBC
 
@@ -785,6 +781,7 @@ IF (mySurfRank.EQ.0) THEN
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyTrans')
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyRot')
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyVib')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyElec')
       ! Add average impact vector for each species (x,y,z)
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactVectorX')
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactVectorY')
@@ -793,6 +790,8 @@ IF (mySurfRank.EQ.0) THEN
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactAngle')
       ! Add number of impacts
       CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactNumber')
+      ! Add number of impacts per second
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactFlux')
     END IF ! CalcSurfaceImpact
 
   END DO ! iSpec=1,nSpecies

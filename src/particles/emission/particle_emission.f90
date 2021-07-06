@@ -81,8 +81,9 @@ DO i=1,nSpecies
     ! Reset the number of particles per species AND init region
     NbrOfParticle = 0
     ! Only use inits defined for emission (every time step)
-    IF (Species(i)%Init(iInit)%ParticleEmissionType.GT.0) THEN
-      SELECT CASE(Species(i)%Init(iInit)%ParticleEmissionType)
+    IF (Species(i)%Init(iInit)%ParticleEmissionType.LE.0) CYCLE
+
+    SELECT CASE(Species(i)%Init(iInit)%ParticleEmissionType)
       CASE(1) ! Emission Type: Particles per !!!!!SECOND!!!!!!!! (not per ns)
         IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
           PartIns=Species(i)%Init(iInit)%ParticleNumber * dt*RKdtFrac  ! emitted particles during time-slab
@@ -271,53 +272,53 @@ DO i=1,nSpecies
 
       CASE DEFAULT
         NbrOfParticle = 0
-      END SELECT
+    END SELECT
 
-      CALL SetParticlePosition(i,iInit,NbrOfParticle)
-      ! Pairing of "electrons" with the background species and performing the reaction
-      IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_cylinder') THEN
-        CALL BGGas_PhotoIonization(i,iInit,NbrOfParticle)
-        CYCLE
-      END IF
+    CALL SetParticlePosition(i,iInit,NbrOfParticle)
+    ! Pairing of "electrons" with the background species and performing the reaction
+    IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_cylinder') THEN
+      CALL BGGas_PhotoIonization(i,iInit,NbrOfParticle)
+      CYCLE
+    END IF
 
-      CALL SetParticleVelocity(i,iInit,NbrOfParticle)
-      CALL SetParticleChargeAndMass(i,NbrOfParticle)
-      IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
-      IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
-      ! define molecule stuff
-      IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-        iPart = 1
-        DO WHILE (iPart.LE.NbrOfParticle)
-          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-          IF (PositionNbr.NE.0) THEN
-            IF (SpecDSMC(i)%PolyatomicMol) THEN
-              CALL DSMC_SetInternalEnr_Poly(i,iInit,PositionNbr,1)
-            ELSE
-              CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
-            END IF
+    CALL SetParticleVelocity(i,iInit,NbrOfParticle)
+    CALL SetParticleChargeAndMass(i,NbrOfParticle)
+    IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+    IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
+    ! define molecule stuff
+    IF (useDSMC.AND.(CollisMode.GT.1)) THEN
+      iPart = 1
+      DO WHILE (iPart.LE.NbrOfParticle)
+        PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+        IF (PositionNbr.NE.0) THEN
+          IF (SpecDSMC(i)%PolyatomicMol) THEN
+            CALL DSMC_SetInternalEnr_Poly(i,iInit,PositionNbr,1)
+          ELSE
+            CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
           END IF
-          iPart = iPart + 1
-        END DO
-      END IF
-      ! Compute number of input particles and energy
-      IF(CalcPartBalance.AND.(NbrOfParticle.GT.0)) THEN
-        nPartIn(i)=nPartIn(i) + NbrOfparticle
-        DO iPart=1,NbrOfParticle
-          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-          IF (PositionNbr .NE. 0) PartEkinIn(i) = PartEkinIn(i) + CalcEkinPart(PositionNbr)
-        END DO ! iPart
-      END IF ! CalcPartBalance
-      ! Update the current next free position and increase the particle vector length
-      PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
-      PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+        END IF
+        iPart = iPart + 1
+      END DO
+    END IF
+    ! Compute number of input particles and energy
+    IF(CalcPartBalance.AND.(NbrOfParticle.GT.0)) THEN
+      nPartIn(i)=nPartIn(i) + NbrOfparticle
+      DO iPart=1,NbrOfParticle
+        PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+        IF (PositionNbr .NE. 0) PartEkinIn(i) = PartEkinIn(i) + CalcEkinPart(PositionNbr)
+      END DO ! iPart
+    END IF ! CalcPartBalance
+    ! Update the current next free position and increase the particle vector length
+    PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
+    PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
 
-      ! Complete check if all particles were emitted successfully
+    ! Complete check if all particles were emitted successfully
 #if USE_MPI
-      InitGroup=Species(i)%Init(iInit)%InitCOMM
-      IF (PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL .AND. Species(i)%Init(iInit)%sumOfRequestedParticles.GT.0) THEN
-        CALL MPI_WAIT(PartMPI%InitGroup(InitGroup)%Request, MPI_STATUS_IGNORE, iError)
+    InitGroup=Species(i)%Init(iInit)%InitCOMM
+    IF (PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL .AND. Species(i)%Init(iInit)%sumOfRequestedParticles.GT.0) THEN
+      CALL MPI_WAIT(PartMPI%InitGroup(InitGroup)%Request, MPI_STATUS_IGNORE, iError)
 
-        IF(PartMPI%InitGroup(InitGroup)%MPIRoot) THEN
+      IF(PartMPI%InitGroup(InitGroup)%MPIRoot) THEN
 #endif
         ! add number of matching error to particle emission to fit
         ! number of added particles
@@ -337,10 +338,9 @@ DO i=1,nSpecies
         !  WRITE(UNIT_stdOut,'(A,I0,A)') 'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
         END IF
 #if USE_MPI
-        END IF ! PartMPI%iProc.EQ.0
-      END IF
+      END IF ! PartMPI%iProc.EQ.0
+    END IF
 #endif
-    END IF ! Species(iSpec)%Init(iInit)%ParticleEmissionType.GT.0
   END DO  ! iInit
 END DO  ! i=1,nSpecies
 

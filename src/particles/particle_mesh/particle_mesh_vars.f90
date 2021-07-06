@@ -240,6 +240,11 @@ INTEGER         :: ElemCharLength_Shared_Win
 INTEGER         :: ElemCharLengthX_Shared_Win
 INTEGER         :: ElemCharLengthY_Shared_Win
 INTEGER         :: ElemCharLengthZ_Shared_Win
+
+! periodic sides
+LOGICAL         :: MeshHasPeriodic,MeshHasRotPeriodic
+REAL,POINTER    :: DistanceOfElemCenter_Shared(:)
+INTEGER         :: DistanceOfElemCenter_Shared_Win
 #endif
 
 ! ElemID for WriteHaloInfo
@@ -340,7 +345,6 @@ TYPE tGeometry
   REAL, ALLOCATABLE                      :: CharLengthX(:)                    ! Characteristic length in X for each cell
   REAL, ALLOCATABLE                      :: CharLengthY(:)                    ! Characteristic length in Y for each cell
   REAL, ALLOCATABLE                      :: CharLengthZ(:)                    ! Characteristic length in Z for each cell
-  INTEGER, ALLOCATABLE                   :: ElemToRegion(:)                   ! ElemToRegion(1:nElems)
 
   LOGICAL                                :: SelfPeriodic                      ! does process have periodic bounds with itself?
   REAL, ALLOCATABLE                      :: XMinMax(:,:)                      ! Minimum (1) and maximum (2) xValue of the Element
@@ -349,14 +353,16 @@ END TYPE
 
 TYPE (tGeometry)                         :: GEO
 
+
 INTEGER                                  :: WeirdElems                        ! Number of Weird Elements (=Elements which are folded
                                                                               ! into themselves)
+LOGICAL                                  :: meshCheckWeirdElements            ! Flag for checking if elements are turned inside out
+!                                                                             ! (default=F)
 LOGICAL                                  :: FindNeighbourElems=.FALSE.        ! Flag defining if mapping for neighbour elements
-                                                                              ! is built via nodes
-INTEGER                                  :: NbrOfRegions      ! Nbr of regions to be mapped to Elems
-REAL, ALLOCATABLE                        :: RegionBounds(:,:) ! RegionBounds ((xmin,xmax,ymin,...)|1:NbrOfRegions)
+
 REAL,ALLOCATABLE                         :: ElemTolerance(:)
-INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id
+INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id is built via nodes
+
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Mesh_Vars

@@ -99,6 +99,9 @@ USE MOD_HDF5_Input             ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,Re
 USE MOD_HDF5_Input             ,ONLY: DatasetExists
 #ifdef PARTICLES
 USE MOD_Particle_Tracking_Vars ,ONLY: TotalNbrOfMissingParticlesSum
+#if USE_HDG
+USE MOD_Part_BR_Elecron_Fluid  ,ONLY: InitSwitchBRElectronModel
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -117,9 +120,7 @@ LOGICAL                     :: DG_SolutionUExists
 LOGICAL                     :: FileVersionExists
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.RestartInitIsDone)THEN
-   CALL abort(&
-__STAMP__&
-,'InitRestart not ready to be called or already called.',999,999.)
+   CALL abort(__STAMP__,'InitRestart not ready to be called or already called.',999,999.)
    RETURN
 END IF
 
@@ -129,6 +130,11 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT RESTART...'
 #ifdef PARTICLES
 ! Set counter for particle that go missing during restart (if they are not located within their host element during restart)
 TotalNbrOfMissingParticlesSum = 0
+#if USE_HDG
+  ! Initialize variables (only once, never during load balance restart) for switching between BR electron fluid model and fully        
+  ! kinetic model in HDG simulations                                                                                          
+  CALL InitSwitchBRElectronModel()
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 
 ! Set the DG solution to zero (ignore the DG solution in the state file)
@@ -148,16 +154,12 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   !The following arrays are read from the file
   !CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
   !CALL ReadArray('DG_SolutionPhi',5,(/4,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
-  CALL abort(&
-      __STAMP__&
-      ,'InitRestart: This case is not implemented here. Fix this!')
+  CALL abort(__STAMP__,'InitRestart: This case is not implemented here. Fix this!')
 #else
   !The following arrays are read from the file
   !CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
   !CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
-  CALL abort(&
-      __STAMP__&
-      ,'InitRestart: This case is not implemented here. Fix this!')
+  CALL abort(__STAMP__,'InitRestart: This case is not implemented here. Fix this!')
 #endif
 #elif USE_HDG
   CALL DatasetExists(File_ID,'DG_SolutionU',DG_SolutionUExists)
@@ -174,9 +176,7 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
     IF(PP_nVar.NE.nVar_Restart)THEN
       SWRITE(UNIT_StdOut,'(A,I5)')"     PP_nVar =", PP_nVar
       SWRITE(UNIT_StdOut,'(A,I5)')"nVar_Restart =", nVar_Restart
-      CALL abort(&
-          __STAMP__&
-          ,'InitRestart: PP_nVar.NE.nVar_Restart (number of variables in restat file does no match the compiled equation system).')
+      CALL abort(__STAMP__,'PP_nVar!=nVar_Restart (Number of variables in restart file does no match the compiled equation system).')
     END IF
   END IF
   ! Read in time from restart file
@@ -186,9 +186,7 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   IF (FileVersionExists) THEN
     CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5)
   ELSE
-    CALL abort(&
-        __STAMP__&
-        ,'Error in InitRestart(): Attribute "File_Version" does not exist!')
+    CALL abort(__STAMP__,'Error in InitRestart(): Attribute "File_Version" does not exist!')
   END IF
   IF(FileVersionHDF5.LT.1.5)THEN
     SWRITE(UNIT_StdOut,'(A)')' '
@@ -209,9 +207,8 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
     SWRITE(UNIT_StdOut,'(A)')' Note that the format can be changed back to the old one by running the script a second time.'
     SWRITE(UNIT_StdOut,'(A)')' '
     SWRITE(UNIT_StdOut,'(A)')' %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% '
-    CALL abort(&
-    __STAMP__&
-    ,'Error in InitRestart(): "File_Version" in restart file < 1.5. See error message above to fix. File version in restart file =',&
+    CALL abort(__STAMP__,&
+    'Error in InitRestart(): "File_Version" in restart file < 1.5. See error message above to fix. File version in restart file =',&
     RealInfoOpt=FileVersionHDF5)
   END IF ! FileVersionHDF5.LT.1.5
   CALL CloseDataFile()
@@ -315,6 +312,7 @@ USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
 USE MOD_Equation_Vars          ,ONLY: Phi
 #endif /*PP_POIS*/
 #ifdef PARTICLES
+USE MOD_part_operations        ,ONLY: RemoveAllElectrons
 USE MOD_Restart_Tools          ,ONLY: ReadNodeSourceExtFromHDF5
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
 USE MOD_Particle_Vars          ,ONLY: PartState, PartSpecies, PEM, PDM, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset, Species
@@ -335,6 +333,7 @@ USE MOD_PICDepo_Vars           ,ONLY: DoDeposition, RelaxDeposition, PartSourceO
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 #endif /*PARTICLES*/
 #if USE_HDG
+USE MOD_Restart_Tools          ,ONLY: RecomputeLambda
 USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face
 USE MOD_HDG                    ,ONLY: RestartHDG
 USE MOD_Mesh_Vars              ,ONLY: GlobalUniqueSideID,MortarType,SideToElem
@@ -351,6 +350,10 @@ USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,Finis
 USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists,nDims,HSize
 #endif
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+#if defined(PARTICLES) && USE_HDG
+USE MOD_Part_BR_Elecron_Fluid  ,ONLY: CreateElectronsFromBRFluid
+USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid,BRConvertElectronsToFluid,BRConvertFluidToElectrons
+#endif /*defined(PARTICLES) && USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -467,9 +470,7 @@ IF(DoRestart)THEN
           END DO
           DEALLOCATE(PartSource_HDF5)
         ELSE! We need to interpolate the solution to the new computational grid
-          CALL abort(&
-              __STAMP__&
-              ,' Restart with changed polynomial degree not implemented for DG_Source!')
+          CALL abort(__STAMP__,' Restart with changed polynomial degree not implemented for DG_Source!')
         END IF
       END IF
     END IF
@@ -491,10 +492,6 @@ IF(DoRestart)THEN
       IF(DG_SolutionUExists)THEN
         CALL ReadArray('DG_SolutionU',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
       ELSE
-        ! CALL abort(&
-        !     __STAMP__&
-        !     ,' DG_SolutionU does not exist in restart-file!')
-        ! !DG_Solution contains a 4er-/3er-/7er-array, not PP_nVar!!!
         CALL ReadArray('DG_Solution' ,5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
       END IF
 
@@ -540,9 +537,7 @@ IF(DoRestart)THEN
                     IF(iSide.EQ.SideID)THEN
                       iLocSide_master = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
                       IF(iLocSide_master.EQ.-1)THEN
-                        CALL abort(&
-                            __STAMP__&
-                            ,'This big mortar side must be master')
+                        CALL abort(__STAMP__,'This big mortar side must be master')
                       END IF !iLocSide.NE.-1
                       EXIT Check1
                     END IF ! iSide.EQ.SideID
@@ -784,17 +779,13 @@ IF(DoRestart)THEN
         END IF ! PartDataSize_HDF5.NE.PartDataSize
         IF (changedVars) THEN
           SWRITE(*,*) 'WARNING: VarNamesParticles have changed from restart-file!!!'
-          IF (.NOT.implemented) CALL Abort(&
-              __STAMP__&
-              ,"not implemented yet!")
+          IF (.NOT.implemented) CALL Abort(__STAMP__,"not implemented yet!")
           readVarFromState=.FALSE.
           DO iVar=1,PartDataSize_HDF5
             IF (TRIM(StrVarNames(iVar)).EQ.TRIM(StrVarNames_HDF5(iVar))) THEN
               readVarFromState(iVar)=.TRUE.
             ELSE
-              CALL Abort(&
-                  __STAMP__&
-                  ,"not associated VarNamesParticles in HDF5!")
+              CALL Abort(__STAMP__,"not associated VarNamesParticles in HDF5!")
             END IF
           END DO ! iVar=1,PartDataSize_HDF5
           DO iVar=1,PartDataSize
@@ -804,49 +795,44 @@ IF(DoRestart)THEN
               ELSE IF(TRIM(StrVarNames(iVar)).EQ.'MPF') THEN
                 SWRITE(*,*) 'WARNING: The particle weighting factor will be initialized with the given global weighting factor!'
               ELSE
-                CALL Abort(&
-                    __STAMP__&
-                    ,"not associated VarNamesParticles to be reset!")
+                CALL Abort(__STAMP__,"not associated VarNamesParticles to be reset!")
               END IF ! TRIM(StrVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(StrVarNames(iVar)).EQ.'Rotational'
             END IF ! .NOT.readVarFromState(iVar)
           END DO ! iVar=1,PartDataSize
         END IF ! changedVars
         ALLOCATE(PartData(PartDataSize_HDF5,offsetnPart+1_IK:offsetnPart+locnPart))
 
-        CALL ReadArray('PartData',2,(/INT(PartDataSize_HDF5,IK),locnPart/),offsetnPart,2,RealArray=PartData)!,&
-        !xfer_mode_independent=.TRUE.)
 
-        IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0).AND.locnPart.GT.0) THEN
-          CALL DatasetExists(File_ID,'VibQuantData',VibQuantDataExists)
-          IF (.NOT.VibQuantDataExists) CALL abort(&
-              __STAMP__&
-              ,' Restart file does not contain "VibQuantData" in restart file for reading of polyatomic data')
-          ALLOCATE(VibQuantData(MaxQuantNum,offsetnPart+1_IK:offsetnPart+locnPart))
+        CALL ReadArray('PartData',2,(/INT(PartDataSize_HDF5,IK),locnPart/),offsetnPart,2,RealArray=PartData)
 
-          CALL ReadArray('VibQuantData',2,(/INT(MaxQuantNum,IK),locnPart/),offsetnPart,2,IntegerArray_i4=VibQuantData)
-          !+1 is real number of necessary vib quants for the particle
-        END IF ! useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)
+        ! Read DSMC-specific arrays
+        IF(useDSMC)THEN
+          ! Polyatomic
+          IF (DSMC%NumPolyatomMolecs.GT.0) THEN
+            CALL DatasetExists(File_ID,'VibQuantData',VibQuantDataExists)
+            IF (.NOT.VibQuantDataExists) CALL abort(__STAMP__,' Restart file does not contain "VibQuantData" (polyatomic data)')
+            ALLOCATE(VibQuantData(MaxQuantNum,offsetnPart+1_IK:offsetnPart+locnPart))
+            CALL ReadArray('VibQuantData',2,(/INT(MaxQuantNum,IK),locnPart/),offsetnPart,2,IntegerArray_i4=VibQuantData)
+            !+1 is real number of necessary vib quants for the particle
+          END IF
 
-        IF (useDSMC.AND.(DSMC%ElectronicModel.EQ.2).AND.locnPart.GT.0) THEN
-          CALL DatasetExists(File_ID,'ElecDistriData',ElecDistriDataExists)
-          IF (.NOT.ElecDistriDataExists) CALL abort(&
-              __STAMP__&
-              ,' Restart file does not contain "ElecDistriDataExists" in restart file for reading of electronic data')
-          ALLOCATE(ElecDistriData(MaxElecQuant,offsetnPart+1_IK:offsetnPart+locnPart))
+          ! Electronic
+          IF (DSMC%ElectronicModel.EQ.2) THEN
+            CALL DatasetExists(File_ID,'ElecDistriData',ElecDistriDataExists)
+            IF (.NOT.ElecDistriDataExists) CALL abort(__STAMP__,' Restart file does not contain "ElecDistriData" (electronic data)')
+            ALLOCATE(ElecDistriData(MaxElecQuant,offsetnPart+1_IK:offsetnPart+locnPart))
+            CALL ReadArray('ElecDistriData',2,(/INT(MaxElecQuant,IK),locnPart/),offsetnPart,2,RealArray=ElecDistriData)
+            !+1 is real number of necessary vib quants for the particle
+          END IF
 
-          CALL ReadArray('ElecDistriData',2,(/INT(MaxElecQuant,IK),locnPart/),offsetnPart,2,RealArray=ElecDistriData)
-          !+1 is real number of necessary vib quants for the particle
-        END IF
-
-        IF (useDSMC.AND.DSMC%DoAmbipolarDiff.AND.locnPart.GT.0) THEN
-          CALL DatasetExists(File_ID,'ADVeloData',AD_DataExists)
-          IF (.NOT.AD_DataExists) CALL abort(&
-              __STAMP__&
-              ,' Restart file does not contain "ADVeloData" in restart file for reading of ambipolar diffusion data')
-          ALLOCATE(AD_Data(3,offsetnPart+1_IK:offsetnPart+locnPart))
-
-          CALL ReadArray('ADVeloData',2,(/INT(3,IK),locnPart/),offsetnPart,2,RealArray=AD_Data)
-          !+1 is real number of necessary vib quants for the particle
+          ! Ambipolar Diffusion
+          IF (DSMC%DoAmbipolarDiff) THEN
+            CALL DatasetExists(File_ID,'ADVeloData',AD_DataExists)
+            IF (.NOT.AD_DataExists) CALL abort(__STAMP__,' Restart file does not contain "ADVeloData" (ambipolar diffusion data)')
+            ALLOCATE(AD_Data(3,offsetnPart+1_IK:offsetnPart+locnPart))
+            CALL ReadArray('ADVeloData',2,(/INT(3,IK),locnPart/),offsetnPart,2,RealArray=AD_Data)
+            !+1 is real number of necessary vib quants for the particle
+          END IF
         END IF
 
         iPart=0
@@ -885,9 +871,7 @@ IF(DoRestart)THEN
                 PartStateIntEn(1,iPart)=0.
                 PartStateIntEn(2,iPart)=0.
               ELSE
-                CALL Abort(&
-                    __STAMP__&
-                    ,"resetting inner DOF for molecules is not implemented yet!"&
+                CALL Abort(__STAMP__,"resetting inner DOF for molecules is not implemented yet!"&
                 ,SpecDSMC(PartSpecies(iPart))%InterID , PartData(7,offsetnPart+iLoop))
               END IF ! readVarFromState(8).AND.readVarFromState(9)
             ELSE IF (usevMPF) THEN
@@ -1441,9 +1425,18 @@ IF(DoRestart)THEN
   END IF ! .NOT.DoMacroscopicRestart
   ! Read-in the cell-local wall temperature
   IF (ANY(PartBound%UseAdaptedWallTemp)) CALL RestartAdaptiveWallTemp()
+#if USE_HDG
+  ! Remove electron species when using BR electron fluid model
+  IF(UseBRElectronFluid.AND.BRConvertElectronsToFluid) CALL RemoveAllElectrons()
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 
 CALL CloseDataFile()
+
+#if defined(PARTICLES) && USE_HDG
+  ! Create electrons from BR fluid properties
+  IF(BRConvertFluidToElectrons) CALL CreateElectronsFromBRFluid(.TRUE.)
+#endif /*defined(PARTICLES) && USE_HDG*/
 
 #if USE_HDG
   iter=0
@@ -1665,9 +1658,9 @@ USE MOD_io_hdf5
 USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, nSurfTotalSides
 USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp, GlobalSide2SurfSide
 #if USE_MPI
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
 USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp_Shared_Win
-USE MOD_MPI_Shared
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1727,8 +1720,7 @@ ELSE
   END ASSOCIATE
 END IF
 
-CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 #endif
 
 END SUBROUTINE RestartAdaptiveWallTemp
@@ -1793,53 +1785,19 @@ DEALLOCATE(MacroRestartValues)
 DEALLOCATE(ElemData_HDF5)
 
 END SUBROUTINE MacroscopicRestart
+
 #endif /*PARTICLES*/
 
-
-#if USE_HDG
-SUBROUTINE RecomputeLambda(t)
-!===================================================================================================================================
-! The lambda-solution is stored per side, however, the side-list is computed with the OLD domain-decomposition. To allow for
-! a change in the load-distribution, number of used cores, etc,... lambda has to be recomputed ONCE
-!===================================================================================================================================
-! MODULES
-USE MOD_DG_Vars,                 ONLY: U
-USE MOD_PreProc
-USE MOD_HDG,                     ONLY: HDG
-USE MOD_TimeDisc_Vars,           ONLY: iter
-#ifdef PARTICLES
-USE MOD_PICDepo,                 ONLY: Deposition
-#if USE_MPI
-USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-#endif /*USE_MPI*/
-#endif /*PARTICLES*/
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)       :: t
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-
-#ifdef PARTICLES
-! Deposition of particles
-CALL Deposition()
-#endif /*PARTICLES*/
-
-! recompute fields
-! EM field
-CALL HDG(t,U,iter)
-
-END SUBROUTINE RecomputeLambda
-#endif /*USE_HDG*/
 
 SUBROUTINE FinalizeRestart()
 !===================================================================================================================================
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Restart_Vars,ONLY:Vdm_GaussNRestart_GaussN,RestartInitIsDone,DoMacroscopicRestart
+USE MOD_Restart_Vars ,ONLY: Vdm_GaussNRestart_GaussN,RestartInitIsDone,DoMacroscopicRestart
+#if defined(PARTICLES) && USE_HDG
+USE MOD_HDG_Vars     ,ONLY: BRConvertFluidToElectrons,BRConvertElectronsToFluid
+#endif /*defined(PARTICLES) && USE_HDG*/
 ! IMPLICIT VARIABLE HANDLINGDGInitIsDone
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1849,8 +1807,16 @@ IMPLICIT NONE
 !===================================================================================================================================
 SDEALLOCATE(Vdm_GaussNRestart_GaussN)
 RestartInitIsDone = .FALSE.
+
 ! Avoid performing a macroscopic restart during an automatic load balance restart
 DoMacroscopicRestart = .FALSE.
+
+#if defined(PARTICLES) && USE_HDG
+! Avoid converting BR electron fluid to actual particles or vice versa during an automatic load balance restart
+BRConvertFluidToElectrons = .FALSE.
+BRConvertElectronsToFluid = .FALSE.
+#endif /*defined(PARTICLES) && USE_HDG*/
+
 END SUBROUTINE FinalizeRestart
 
 END MODULE MOD_Restart

@@ -1,12 +1,12 @@
 ---
-title: PICLas
-logo: ../logo.png
+title: |
+  ![](../logo.png){width=15cm}
+  PICLas v2.2.0
 subtitle: User Guide
-version: Version 2.0
-author: 
+author:
+  - University of Stuttgart, Germany
   - Institute for Aerodynamics and Gas Dynamics (IAG)
   - Institute for Space Systems (IRS)
-  - University of Stuttgart, Germany
   - boltzplatz - Numerical Plasma Dynamics
 institute: IAG IRS
 date: \today

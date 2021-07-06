@@ -477,7 +477,7 @@ SUBROUTINE depoChargeOnDOFsSFChargeCon(Position,SourceSize,Fac,r_sf, r2_sf, r2_s
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,ChargeSFDone
+USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,ChargeSFDone,PartSourceTmp
 USE MOD_Mesh_Vars          ,ONLY: nElems, offSetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ
@@ -514,7 +514,6 @@ INTEGER                          :: globElemID, CNElemID
 INTEGER                          :: expo, nUsedElems, localElem
 REAL                             :: radius2, S, S1
 REAL                             :: totalCharge, alpha
-REAL                             :: PartSourcetmp(1:4,0:PP_N,0:PP_N,0:PP_N)
 TYPE SPElem
   REAL, ALLOCATABLE     :: PartSourceLoc(:,:,:,:)
   INTEGER               :: globElemID
@@ -569,7 +568,7 @@ DO kk = kmin,kmax
           !-- currently only one shapefunction available, more to follow (including structure change)
           IF (radius2 .LE. r2_sf) THEN
             IF (.NOT.elemDone) THEN
-              PartSourcetmp = 0.0
+              PartSourceTmp = 0.0
               nUsedElems = nUsedElems + 1
               elemDone = .TRUE.
             END IF
@@ -579,17 +578,17 @@ DO kk = kmin,kmax
               S1 = S*S1
             END DO
             IF (SourceSize.EQ.1) THEN
-              PartSourcetmp(4,k,l,m) = Fac(4) * S1
+              PartSourceTmp(4,k,l,m) = Fac(4) * S1
             ELSE
-              PartSourcetmp(1:4,k,l,m) = Fac(1:4) * S1
+              PartSourceTmp(1:4,k,l,m) = Fac(1:4) * S1
             END IF
-            totalCharge = totalCharge  + wGP(k)*wGP(l)*wGP(m)*PartSourcetmp(4,k,l,m)/ElemsJ(k,l,m,CNElemID)
+            totalCharge = totalCharge  + wGP(k)*wGP(l)*wGP(m)*PartSourceTmp(4,k,l,m)/ElemsJ(k,l,m,CNElemID)
           END IF
         END DO; END DO; END DO
 
         IF (elemDone) THEN
           IF (firstElem) THEN
-            first%PartSourceLoc(:,:,:,:) = PartSourcetmp(:,:,:,:)
+            first%PartSourceLoc(:,:,:,:) = PartSourceTmp(:,:,:,:)
             first%globElemID = globElemID
             firstElem = .FALSE.
           ELSE
@@ -597,7 +596,7 @@ DO kk = kmin,kmax
             ALLOCATE(element%PartSourceLoc(1:4,0:PP_N,0:PP_N,0:PP_N))
             element%next => first%next
             first%next => element
-            element%PartSourceLoc(:,:,:,:) = PartSourcetmp(:,:,:,:)
+            element%PartSourceLoc(:,:,:,:) = PartSourceTmp(:,:,:,:)
             element%globElemID = globElemID
           END IF
         END IF
@@ -668,7 +667,7 @@ INTEGER                          :: globElemID, CNElemID, OrigCNElemID, OrigElem
 INTEGER                          :: expo, nUsedElems, localElem
 REAL                             :: radius2, S, S1
 REAL                             :: totalCharge, alpha
-REAL                             :: PartSourcetmp(1:4,0:PP_N,0:PP_N,0:PP_N)
+REAL                             :: PartSourceTmp(1:4,0:PP_N,0:PP_N,0:PP_N)
 TYPE SPElem
   REAL, ALLOCATABLE     :: PartSourceLoc(:,:,:,:)
   INTEGER               :: globElemID
@@ -709,7 +708,7 @@ DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
     !-- currently only one shapefunction available, more to follow (including structure change)
     IF (radius2 .LE. SFElemr2_Shared(2,OrigCNElemID)) THEN
       IF (.NOT.elemDone) THEN
-        PartSourcetmp = 0.0
+        PartSourceTmp = 0.0
         nUsedElems = nUsedElems + 1
         elemDone = .TRUE.
       END IF
@@ -719,17 +718,17 @@ DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
         S1 = S*S1
       END DO
       IF (SourceSize.EQ.1) THEN
-        PartSourcetmp(4,k,l,m) = Fac(4) * S1
+        PartSourceTmp(4,k,l,m) = Fac(4) * S1
       ELSE
-        PartSourcetmp(1:4,k,l,m) = Fac(1:4) * S1
+        PartSourceTmp(1:4,k,l,m) = Fac(1:4) * S1
       END IF
-      totalCharge = totalCharge  + wGP(k)*wGP(l)*wGP(m)*PartSourcetmp(4,k,l,m)/ElemsJ(k,l,m,CNElemID)
+      totalCharge = totalCharge  + wGP(k)*wGP(l)*wGP(m)*PartSourceTmp(4,k,l,m)/ElemsJ(k,l,m,CNElemID)
     END IF
   END DO; END DO; END DO
 
   IF (elemDone) THEN
     IF (firstElem) THEN
-      first%PartSourceLoc(:,:,:,:) = PartSourcetmp(:,:,:,:)
+      first%PartSourceLoc(:,:,:,:) = PartSourceTmp(:,:,:,:)
       first%globElemID = globElemID
       firstElem = .FALSE.
     ELSE
@@ -737,7 +736,7 @@ DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
       ALLOCATE(element%PartSourceLoc(1:4,0:PP_N,0:PP_N,0:PP_N))
       element%next => first%next
       first%next => element
-      element%PartSourceLoc(:,:,:,:) = PartSourcetmp(:,:,:,:)
+      element%PartSourceLoc(:,:,:,:) = PartSourceTmp(:,:,:,:)
       element%globElemID = globElemID
     END IF
   END IF
@@ -820,7 +819,7 @@ END IF
 END SUBROUTINE UpdatePartSource
 
 
-PURE LOGICAL FUNCTION ElemOnMyProc(globElemID)
+PPURE LOGICAL FUNCTION ElemOnMyProc(globElemID)
 !============================================================================================================================
 ! Check if the global element ID is an element on my processor (i.e. local element index is between 1 and nElems)
 !============================================================================================================================
@@ -847,7 +846,7 @@ END IF
 END FUNCTION ElemOnMyProc
 
 
-PURE REAL FUNCTION SFNorm(v1)
+PPURE REAL FUNCTION SFNorm(v1)
 !============================================================================================================================
 ! Return the shape function norm by calculating the corresponding 1D, 2D or 3D distance from the input vector 'v1'
 !============================================================================================================================
@@ -877,7 +876,7 @@ END SELECT
 END FUNCTION SFNorm
 
 
-PURE REAL FUNCTION SFRadius2(v1)
+PPURE REAL FUNCTION SFRadius2(v1)
 !============================================================================================================================
 ! Return the squared distance by calculating the corresponding 1D, 2D or 3D value from the input vector 'v1'
 !============================================================================================================================
@@ -907,7 +906,7 @@ END SELECT
 END FUNCTION SFRadius2
 
 
-PURE FUNCTION GetPartPosShifted(iCase,PartPos)
+PPURE FUNCTION GetPartPosShifted(iCase,PartPos)
 !============================================================================================================================
 ! Return the shape function norm by calculating the corresponding 1D, 2D or 3D distance from the input vector 'vec'
 !============================================================================================================================

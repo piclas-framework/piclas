@@ -48,7 +48,7 @@ USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime
 USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies
-USE MOD_Particle_Analyze       ,ONLY: CalcCoupledPowerPart
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcCoupledPowerPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
 !#if (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
@@ -88,12 +88,21 @@ REAL, DIMENSION(3)         :: v_minus, v_plus, v_prime, t_vec
 #endif /*PARTICLES*/
 !===================================================================================================================================
 #ifdef PARTICLES
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition()
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 #endif /*PARTICLES*/
 
 CALL HDG(time,U,iter)
 
 #ifdef PARTICLES
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -184,7 +193,13 @@ IF (time.GE.DelayTime) THEN
     PartMPIExchange%nMPIParticles=0
 #endif /*USE_MPI*/
     CALL Deposition() ! because of emission and UpdateParticlePosition
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
     CALL HDG(time,U,iter)
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -249,6 +264,9 @@ IF (useDSMC) THEN
 #endif /*USE_LOADBALANCE*/
   END IF
 END IF
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 #endif /*PARTICLES*/
 
 END SUBROUTINE TimeStepPoissonByBorisLeapfrog

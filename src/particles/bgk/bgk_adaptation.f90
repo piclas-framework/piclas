@@ -62,8 +62,8 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, nPart, CNElemID
-REAL                          :: Dens, partWeight, totalWeight
+INTEGER                       :: iPart,iLoop,nPart,CNElemID,GlobalElemID
+REAL                          :: Dens,partWeight,totalWeight
 TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
@@ -83,7 +83,8 @@ IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
   RETURN
 END IF
 
-CNElemID = GetCNElemID(iElem+offSetElem)
+GlobalElemID = iElem+offSetElem
+CNElemID     = GetCNElemID(GlobalElemID)
 
 NULLIFY(TreeNode)
 ALLOCATE(TreeNode)
@@ -116,7 +117,7 @@ IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
     END DO
   ELSE ! position in reference space [-1,1] has to be computed
     DO iLoop = 1, nPart
-      CALL GetPositionInRefElem(PartState(1:3,TreeNode%iPartIndx_Node(iLoop)),TreeNode%MappedPartStates(1:3,iLoop),iElem)
+      CALL GetPositionInRefElem(PartState(1:3,TreeNode%iPartIndx_Node(iLoop)),TreeNode%MappedPartStates(1:3,iLoop),GlobalElemID)
     END DO
   END IF ! TrackingMethod.EQ.REFMAPPING
   TreeNode%NodeDepth = 1

@@ -100,6 +100,7 @@ USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 #if USE_MPI
+USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank,MPI_COMM_LEADERS_SHARED
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,myLeaderGroupRank,nLeaderGroupProcs
@@ -160,8 +161,7 @@ IF(myComputeNodeRank.EQ.0) THEN
   PartSource=0.
 #if USE_MPI
 END IF
-CALL MPI_WIN_SYNC(PartSource_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
 #endif
 PartSourceConstExists=.FALSE.
 
@@ -277,8 +277,7 @@ CASE('cell_volweight_mean')
       DO iNode=firstNode, lastNode
         NodeSourceExt(iNode) = 0.
       END DO
-      CALL MPI_WIN_SYNC(NodeSourceExt_Shared_Win,IERROR)
-      CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+      CALL BARRIER_AND_SYNC(NodeSourceExt_Shared_Win,MPI_COMM_SHARED)
     END IF ! .NOT.DoRestart
 
    ! Local, non-synchronized surface charge contribution (is added to NodeSource BEFORE MPI synchronization)
@@ -293,8 +292,7 @@ CASE('cell_volweight_mean')
     ! DO iNode=firstNode, lastNode
     !   NodeSourceExtTmp(iNode) = 0.
     ! END DO
-    !CALL MPI_WIN_SYNC(NodeSourceExtTmp_Shared_Win,IERROR)
-    !CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+    !CALL BARRIER_AND_SYNC(NodeSourceExtTmp_Shared_Win,MPI_COMM_SHARED)
   END IF ! DoDielectricSurfaceCharge
 
 
@@ -455,13 +453,11 @@ END SELECT
 
 IF (PartSourceConstExists) THEN
   ALLOCATE(PartSourceConst(1:4,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-__STAMP__&
-,'ERROR in pic_depo.f90: Cannot allocate PartSourceConst!')
-  END IF
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in pic_depo.f90: Cannot allocate PartSourceConst!')
   PartSourceConst=0.
 END IF
+
+ALLOCATE(PartSourceTmp(    1:4,0:PP_N,0:PP_N,0:PP_N))
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE DEPOSITION DONE!'
 
@@ -571,8 +567,7 @@ IF (myComputeNodeRank.EQ.0) THEN
   SFElemr2_Shared = HUGE(1.)
 #if USE_MPI
 END IF
-CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(SFElemr2_Shared_Win,MPI_COMM_SHARED)
 #endif
 DO iCNElem = firstElem,lastElem
   ElemDone = .FALSE.
@@ -653,8 +648,7 @@ DO iCNElem = firstElem,lastElem
 END DO
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(SFElemr2_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(SFElemr2_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 END SUBROUTINE InitShapeFunctionAdaptive
@@ -759,6 +753,7 @@ USE MOD_PICDepo_Method        ,ONLY: DepositionMethod
 USE MOD_PIC_Analyze           ,ONLY: VerifyDepositedCharge
 USE MOD_TimeDisc_Vars         ,ONLY: iter
 #if USE_MPI
+USE MOD_MPI_Shared            ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars       ,ONLY: myComputeNodeRank,MPI_COMM_SHARED
 #endif  /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -782,8 +777,7 @@ IF (myComputeNodeRank.EQ.0) THEN
   PartSource = 0.0
 #if USE_MPI
 END IF
-CALL MPI_WIN_SYNC(PartSource_Shared_Win, IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED, IERROR)
+CALL BARRIER_AND_SYNC(PartSource_Shared_Win, MPI_COMM_SHARED)
 #endif  /*USE_MPI*/
 
 IF(PRESENT(doParticle_In)) THEN
@@ -799,10 +793,10 @@ RETURN
 END SUBROUTINE Deposition
 
 
-PURE LOGICAL FUNCTION SFMeasureDistance(v1,v2)
+PPURE LOGICAL FUNCTION SFMeasureDistance(v1,v2)
 !============================================================================================================================
 ! Check if the two position vectors coincide in the 1D or 2D projection. If yes, then return .FALSE., else return .TRUE.
-! If two points coincide in the direction in which the shape function is not deposited, they are ignored (coincide means that the 
+! If two points coincide in the direction in which the shape function is not deposited, they are ignored (coincide means that the
 ! real values are equal up to relative precision of 1e-5)
 !============================================================================================================================
 USE MOD_PICDepo_Vars ,ONLY: dim_sf,dim_sf_dir,dim_sf_dir1,dim_sf_dir2
@@ -819,7 +813,7 @@ REAL, INTENT(IN) :: v2(1:3) !< Input vector 2
 !===================================================================================================================================
 SFMeasureDistance = .TRUE. ! Default, also used for dim_sf=3 (3D case)
 
-! Depending on the dimensionality 
+! Depending on the dimensionality
 SELECT CASE (dim_sf)
 CASE (1)
   SFMeasureDistance = MERGE(.FALSE. , .TRUE. , ALMOSTEQUALRELATIVE(v1(dim_sf_dir) , v2(dim_sf_dir) , 1e-6))
@@ -855,6 +849,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 SDEALLOCATE(PartSourceConst)
 SDEALLOCATE(PartSourceOld)
+SDEALLOCATE(PartSourceTmp)
 SDEALLOCATE(GaussBorder)
 SDEALLOCATE(Vdm_EquiN_GaussN)
 SDEALLOCATE(Knots)

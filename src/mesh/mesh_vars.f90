@@ -56,7 +56,7 @@ REAL,ALLOCATABLE,TARGET :: NodeCoords(:,:,:,:,:) !< XYZ positions (equidistant,N
 REAL,ALLOCATABLE,TARGET :: Elem_xGP(:,:,:,:,:)          !< XYZ positions (first index 1:3) of the volume Gauss Point
 REAL,ALLOCATABLE :: Face_xGP(:,:,:,:)            !< XYZ positions (first index 1:3) of the Boundary Face Gauss Point
 REAL,DIMENSION(6):: xyzMinMax                    !< from Face_xGP points determined maximum domain extension (min/max of domain)
-LOGICAL          :: GetMeshMinMaxBoundariesIsDone =.FALSE. !< don't call twice the calculation of xyzMinMax
+LOGICAL          :: GetMeshMinMaxBoundariesIsDone!< don't call twice the calculation of xyzMinMax
 REAL,ALLOCATABLE,DIMENSION(:,:):: ElemBaryNGeo   !< element local basis: origin
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Metrics on GaussPoints

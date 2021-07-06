@@ -36,11 +36,68 @@ The output of lost particles in a separate `*_PartStateLost*.h5` file can be ena
 
     CountNbrOfLostParts = T
 
-It includes particles lost during the tracking (TrackingMethod = triatracking, tracing) as well as during the restart procedure. For the latter, the output includes particles that went missing but were found on other processors.
+It includes particles lost during the tracking (TrackingMethod = triatracking, tracing) as well as during the restart procedure.
+For the latter, the output includes particles that went missing but were found on other processors.
 
 ## Field Variables
+When running a PIC simulation, the particle-grid deposited properties, such as charge and current densities (in each direction `x,
+y,`and `z`) can be written to the state file (`*_State_*.h5`) file at every `Analyze_dt` as well as at the start and end of the
+simulation by enabling
 
-WIP
+    PIC-OutputSource = T
+
+that stores the data in the same format as the solution polynomial of degree $N$, i.e., $(N+1)^{3}$ data points for each cell.
+
+### Time-averaged Field Quantities
+At each `Analyze_dt` and at the end of the simulation, additional time-averaged field properties can be written to `*_TimeAvg_*.h5`
+by enabling 
+
+    CalcTimeAverage = T
+
+where the averaging will take place over the time spanned between two `Analyze_dt` outputs. The time-averaged values and
+fluctuations are selected via `VarNameAvg` and `VarNameFluc`, depending on the equation system that is solved (Poisson or Maxwell).
+These properties are stored in the same format as the solution polynomial of degree $N$, i.e., $(N+1)^{3}$ data points for each cell.
+For Maxwell's equations, the following properties are available
+
+    VarName{Avg,Fluc} = ElectricFieldX
+    VarName{Avg,Fluc} = ElectricFieldY
+    VarName{Avg,Fluc} = ElectricFieldZ
+    VarName{Avg,Fluc} = MagneticFieldX
+    VarName{Avg,Fluc} = MagneticFieldY
+    VarName{Avg,Fluc} = MagneticFieldZ
+    VarName{Avg,Fluc} = Phi
+    VarName{Avg,Fluc} = Psi
+    VarName{Avg,Fluc} = ElectricFieldMagnitude
+    VarName{Avg,Fluc} = MagneticFieldMagnitude
+    VarName{Avg,Fluc} = PoyntingVectorX
+    VarName{Avg,Fluc} = PoyntingVectorY
+    VarName{Avg,Fluc} = PoyntingVectorZ
+    VarName{Avg,Fluc} = PoyntingVectorMagnitude
+
+and for Poisson's equation
+
+    VarName{Avg,Fluc} = Phi
+    VarName{Avg,Fluc} = ElectricFieldX
+    VarName{Avg,Fluc} = ElectricFieldY
+    VarName{Avg,Fluc} = ElectricFieldZ
+    VarName{Avg,Fluc} = ElectricFieldMagnitude
+
+
+
+In case of a PIC simulation, the particle-grid deposited properties (via the user-selected deposition method) are also available via
+`VarNameAvg` and `VarNameFluc`
+
+    VarName{Avg,Fluc} = PowerDensityX-Spec0x
+    VarName{Avg,Fluc} = PowerDensityY-Spec0x
+    VarName{Avg,Fluc} = PowerDensityZ-Spec0x
+    VarName{Avg,Fluc} = PowerDensity-Spec0x
+    VarName{Avg,Fluc} = ChargeDensity-Spec0x
+    VarName{Avg,Fluc} = ChargeDensityX-Spec0x
+    VarName{Avg,Fluc} = ChargeDensityY-Spec0x
+    VarName{Avg,Fluc} = ChargeDensityZ-Spec0x
+    VarName{Avg,Fluc} = ChargeDensity-Spec0x
+
+which must be supplied for each particle species `x` separately.
 
 ## Flow Field and Surface Variables \label{sec:visu_flowfield}
 
@@ -73,7 +130,7 @@ By default this will include the species-specific impact counter per iteration o
 
     CalcSurfaceImpact = T
 
-which calculates the species-dependent averaged impact energy (trans, rot, vib), impact vector, impact obliqueness angle (between particle trajectory and surface normal vector, e.g. an impact vector perpendicular to the surface corresponds to an impact angle of $0^{\circ}$) and number of real particle impacts over the sampling duration. 
+which calculates the species-dependent averaged impact energy (trans, rot, vib, elec), impact vector, impact obliqueness angle (between particle trajectory and surface normal vector, e.g. an impact vector perpendicular to the surface corresponds to an impact angle of $0^{\circ}$), number of real particle impacts over the sampling duration and number of real particle impacts per area per second.
 
 ## Integral Variables
 
@@ -95,7 +152,7 @@ and stores it in `PCouplDensityAvgElem` for each species separately. Additionall
 **Plasma Frequency**
 The (cold) plasma frequency can be calculated via
 
-$$\omega_{p}=\omega_{e}=\frac{e^{2}n_{e}}{\varepsilon_{0}m_{e}}$$
+$$\omega_{p}=\omega_{e}=\sqrt{\frac{e^{2}n_{e}}{\varepsilon_{0}m_{e}}}$$
 
 which is the frequency with which the charge density of the electrons oscillates, where
 $\varepsilon_{0}$ is the permittivity of vacuum, $e$ is the elementary charge, $n_{e}$ and $m_{e}$

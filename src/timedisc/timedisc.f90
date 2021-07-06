@@ -35,7 +35,7 @@ SUBROUTINE TimeDisc()
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,WallTime
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze,dtWeight,tEndDiff,tAnalyzeDiff
+USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze,dtWeight
 #if (PP_TimeDiscMethod==509)
 USE MOD_TimeDisc_Vars          ,ONLY: dt_old
 #endif /*(PP_TimeDiscMethod==509)*/
@@ -44,7 +44,7 @@ USE MOD_TimeAverage            ,ONLY: CalcTimeAverage
 USE MOD_Analyze                ,ONLY: PerformAnalyze
 USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze
 USE MOD_Restart_Vars           ,ONLY: RestartTime,RestartWallTime
-USE MOD_HDF5_output            ,ONLY: WriteStateToHDF5
+USE MOD_HDF5_Output_State      ,ONLY: WriteStateToHDF5
 USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 USE MOD_RecordPoints           ,ONLY: WriteRPToHDF5!,RecordPoints
@@ -67,9 +67,9 @@ USE MOD_Equation               ,ONLY: EvalGradient
 #if USE_MPI
 #if USE_LOADBALANCE
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
-USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
+USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime,IAR_DoLoadBalance,IAR_LoadBalanceSample
 USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance,LoadBalanceMaxSteps,nLoadBalanceSteps
-USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample,IAR_PerformPartWeightLB
+USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 USE MOD_LoadBalance_Vars       ,ONLY: ElemTimeField
 #endif /*USE_LOADBALANCE*/
 #else
@@ -78,7 +78,8 @@ USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 #ifdef PARTICLES
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
-USE MOD_HDF5_Output_Tools      ,ONLY: WriteIMDStateToHDF5
+USE MOD_HDF5_Output_Particles  ,ONLY: WriteMagneticPICFieldToHDF5
+USE MOD_HDF5_Output_State      ,ONLY: WriteIMDStateToHDF5
 #endif /*PARTICLES*/
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
@@ -100,11 +101,16 @@ USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIPar
 #endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation       ,ONLY: InitAnalyticalParticleState
-#endif /*CODE_ANALYZE*/
+#endif /*CODE_ANALYZ*/
 #endif /*PARTICLES*/
 USE MOD_Output                 ,ONLY: PrintStatusLine
 USE MOD_TimeStep
 USE MOD_TimeDiscInit           ,ONLY: InitTimeStep
+#if defined(PARTICLES) && USE_HDG
+USE MOD_Part_BR_Elecron_Fluid  ,ONLY: SwitchBRElectronModel,UpdateVariableRefElectronTemp
+USE MOD_HDG_Vars               ,ONLY: BRConvertMode,BRTimeStepBackup,BRTimeStepMultiplier,UseBRElectronFluid
+USE MOD_HDG_Vars               ,ONLY: CalcBRVariableElectronTemp
+#endif /*defined(PARTICLES) && USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -119,10 +125,6 @@ REAL                         :: tZero
 INTEGER(KIND=8)              :: iter_PID                 !> iteration counter since last InitPiclas call for PID calculation
 REAL                         :: WallTimeStart            !> wall time of simulation start
 REAL                         :: WallTimeEnd              !> wall time of simulation end
-#if USE_LOADBALANCE
-INTEGER                      :: tmp_LoadBalanceSample    !> loadbalance sample saved until initial autorestart ist finished
-LOGICAL                      :: tmp_DoLoadBalance        !> loadbalance flag saved until initial autorestart ist finished
-#endif /*USE_LOADBALANCE*/
 LOGICAL                      :: finalIter
 !===================================================================================================================================
 tPreviousAnalyze=RestartTime
@@ -173,8 +175,7 @@ END IF
 !#endif
 
 tStart = time
-CALL PrintStatusLine(time,dt,tStart,tEnd)
-CALL InitTimeStep() ! Initial time step calculation
+CALL InitTimeStep() ! Initial time step calculation for dt_Min
 WallTimeStart=PICLASTIME()
 iter=0
 iter_PID=0
@@ -182,32 +183,12 @@ iter_PID=0
 ! fill recordpoints buffer (first iteration)
 !IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.)
 
-dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/)) ! quick fix: set dt for initial write DSMCHOState (WriteMacroVolumeValues=T)
+CALL PrintStatusLine(time,dt,tStart,tEnd)
 
-#if USE_LOADBALANCE
-IF (DoInitialAutoRestart) THEN
-  tmp_DoLoadBalance     = DoLoadBalance
-  DoLoadBalance         = .TRUE.
-  tmp_LoadbalanceSample = LoadBalanceSample
-  LoadBalanceSample     = InitialAutoRestartSample
-  ! correct initialautrestartSample if partweight_initialautorestart is enabled so tAnalyze is calculated correctly
-  ! LoadBalanceSample still needs to be zero
-  IF (IAR_PerformPartWeightLB) InitialAutoRestartSample=1
-  ! correction for first analyzetime due to auto initial restart
-  IF (MIN(RestartTime+iAnalyze*Analyze_dt,tEnd,RestartTime+InitialAutoRestartSample*dt).LT.tAnalyze) THEN
-    tAnalyze     = MIN(RestartTime+iAnalyze*Analyze_dt,tEnd,RestartTime+InitialAutoRestartSample*dt)
-    tAnalyzeDiff = tAnalyze-time
-    dt           = MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
-  END IF
-END IF
-#endif /*USE_LOADBALANCE*/
-
-#ifdef PARTICLES
-#ifdef CODE_ANALYZE
+#if defined(PARTICLES) && defined(CODE_ANALYZE)
 ! Set specific particle position and velocity (calculated from an analytical expression)
-CALL InitAnalyticalParticleState()
-#endif /*CODE_ANALYZE*/
-#endif /*PARTICLES*/
+CALL InitAnalyticalParticleState() ! Requires dt
+#endif /*defined(PARTICLES) && defined(CODE_ANALYZE)*/
 
 CALL PerformAnalyze(time,FirstOrLastIter=.TRUE.,OutPutHDF5=.FALSE.)
 
@@ -240,21 +221,23 @@ DO !iter_t=0,MaxIter
   END IF
 #endif /*PARTICLES*/
 
-  tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
-  tEndDiff=tEnd-time            ! dito for end time
+#if defined(PARTICLES) && USE_HDG
+  ! Check if BR<->kin switch is active
+  IF(BRConvertMode.NE.0) CALL SwitchBRElectronModel()
+  ! Restore the initial dt_Min from InitTimeStep() as it might have been changed in the previous time step due to BR<->kin switch
+  dt_Min(DT_MIN) = BRTimeStepBackup
+  ! Adjust the time step when BR electron fluid is active. Usually BR electron time step is XX times larger than the fully kinetic
+  IF(UseBRElectronFluid) dt_Min(DT_MIN) = BRTimeStepMultiplier*dt_Min(DT_MIN)
+#endif /*defined(PARTICLES) && USE_HDG*/
 
-  !IF(time.LT.3e-8)THEN
-  !    !RETURN
-  !ELSE
-  !  IF(time.GT.4e-8) dt_Min=MIN(dt_Min*1.2,2e-8)
-  !END IF
+  dt_Min(DT_ANALYZE) = tAnalyze-time ! Time to next analysis, put in extra variable so number does not change due to numerical errors
+  dt_Min(DT_END)     = tEnd-time     ! Do the same for end time
+
 #if (PP_TimeDiscMethod==509)
-  IF (iter.GT.0) THEN
-    dt_old=dt
-  END IF
+  IF (iter.GT.0) dt_old=dt
 #endif /*(PP_TimeDiscMethod==509)*/
-  dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
-  dtWeight=dt/dt_Min !might be further descreased by rk-stages
+  dt=MINVAL(dt_Min)
+  dtWeight=dt/dt_Min(DT_MIN) ! Might be further decreased by RK-stages
 #if (PP_TimeDiscMethod==509)
   IF (iter.EQ.0) THEN
     dt_old=dt
@@ -265,22 +248,14 @@ DO !iter_t=0,MaxIter
 #if USE_LOADBALANCE
   ! check if loadbalancing is enabled with elemtime calculation and only LoadBalanceSample number of iteration left until analyze
   ! --> set PerformLBSample true
-  IF ((tAnalyzeDiff.LE.LoadBalanceSample*dt &                                 ! all iterations in LoadbalanceSample interval
-      .OR. (ALMOSTEQUALRELATIVE(tAnalyzeDiff,LoadBalanceSample*dt,1e-5))) &   ! make sure to get the first iteration in interval
-      .AND. .NOT.PerformLBSample .AND. DoLoadBalance) PerformLBSample=.TRUE.  ! make sure Loadbalancing is enabled
+  IF((dt_Min(DT_ANALYZE).LE.LoadBalanceSample*dt &                                ! all iterations in LoadbalanceSample interval
+     .OR. (ALMOSTEQUALRELATIVE(dt_Min(DT_ANALYZE),LoadBalanceSample*dt,1e-5))) &  ! make sure to get the first iteration in interval
+     .AND. .NOT.PerformLBSample .AND. DoLoadBalance) PerformLBSample=.TRUE. ! make sure Loadbalancing is enabled
 #endif /*USE_LOADBALANCE*/
-  IF (tAnalyzeDiff-dt.LT.dt/100.0) dt = tAnalyzeDiff
-  IF (tEndDiff-dt.LT.dt/100.0) dt = tEndDiff
-  IF ( dt .LT. 0. ) THEN
-    SWRITE(UNIT_StdOut,*)'*** ERROR: Is something wrong with the defined tEnd?!? ***'
-    CALL abort(&
-    __STAMP__&
-    ,'Error in tEndDiff or tAnalyzeDiff!')
-
-  END IF
-
+  IF(dt_Min(DT_ANALYZE)-dt.LT.dt/100.0) dt = dt_Min(DT_ANALYZE)
+  IF(    dt_Min(DT_END)-dt.LT.dt/100.0) dt = dt_Min(DT_END)
+  IF(dt.LT.0.) CALL abort(__STAMP__,'dt < 0: Is something wrong with the defined tEnd? Error in dt_Min(DT_END) or dt_Min(DT_ANALYZE)!')
   IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tPreviousAverageAnalyze) ! tPreviousAnalyze not used if finalize_flag=false
-
 #if !(USE_HDG)
   IF(DoPML)THEN
     IF(DoPMLTimeRamp)THEN
@@ -355,19 +330,23 @@ DO !iter_t=0,MaxIter
     END IF
   END IF
   ! calling the analyze routines
-  IF(ALMOSTEQUAL(dt,tEndDiff))THEN
+  IF(ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
     finalIter=.TRUE.
   ELSE
     finalIter=.FALSE.
   END IF
+#if defined(PARTICLES) && USE_HDG
+  ! Depending on kinetic/BR model, set the reference electron temperature for t^n+1, therefore "add" -dt to the calculation
+  IF(CalcBRVariableElectronTemp) CALL UpdateVariableRefElectronTemp(-dt)
+#endif /*defined(PARTICLES) && USE_HDG*/
   CALL PerformAnalyze(time,FirstOrLastIter=finalIter,OutPutHDF5=.FALSE.)
 #ifdef PARTICLES
   ! sampling of near adaptive boundary element values
   IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL AdaptiveBCSampling()
 #endif /*PARICLES*/
   ! output of state file
-  !IF ((dt.EQ.tAnalyzeDiff).OR.(dt.EQ.tEndDiff)) THEN   ! timestep is equal to time to analyze or end
-  IF((ALMOSTEQUAL(dt,tAnalyzeDiff)).OR.(ALMOSTEQUAL(dt,tEndDiff)))THEN
+  !IF ((dt.EQ.dt_Min(DT_ANALYZE)).OR.(dt.EQ.dt_Min(DT_END))) THEN   ! timestep is equal to time to analyze or end
+  IF((ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE))).OR.(ALMOSTEQUAL(dt,dt_Min(DT_END))))THEN
     WallTimeEnd=PICLASTIME()
     IF(MPIroot)THEN ! determine the SimulationEfficiency and PID here,
                     ! because it is used in ComputeElemLoad -> WriteElemTimeStatistics
@@ -402,9 +381,9 @@ CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
-    IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. PerformLoadBalance .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
+    IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. PerformLoadBalance .OR. ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
 #else
-    IF( MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
+    IF( MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
 #endif /*USE_LOADBALANCE*/
       ! Analyze for output
       CALL PerformAnalyze(tAnalyze,FirstOrLastIter=finalIter,OutPutHDF5=.TRUE.)
@@ -434,7 +413,7 @@ CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
         CALL LoadBalance()
         IF(PerformLoadBalance .AND. MOD(iAnalyze,nSkipAnalyze).NE.0) &
           CALL PerformAnalyze(time,FirstOrLastIter=.FALSE.,OutPutHDF5=.TRUE.)
-        !      dt=dt_Min !not sure if nec., was here before InitTimeStep was created, overwritten in next iter anyway
+        !      dt=dt_Min(DT_MIN) !not sure if nec., was here before InitTimeStep was created, overwritten in next iter anyway
         ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze) ! not sure if required
       END IF
     ELSE
@@ -447,8 +426,8 @@ CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
     PerformLBSample=.FALSE.
     IF (DoInitialAutoRestart) THEN
       DoInitialAutoRestart = .FALSE.
-      DoLoadBalance = tmp_DoLoadBalance
-      LoadBalanceSample = tmp_LoadBalanceSample
+      DoLoadBalance        = IAR_DoLoadBalance
+      LoadBalanceSample    = IAR_LoadBalanceSample
       iAnalyze=0
 #ifdef PARTICLES
       DSMC%SampNum=0
@@ -464,7 +443,7 @@ CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
 #ifdef PARTICLES
   ! Switch flag to false after the number of particles has been written to std out and before the time next step is started
-  GlobalNbrOfParticlesUpdated = .FALSE.    
+  GlobalNbrOfParticlesUpdated = .FALSE.
 #endif /*PARTICLES*/
 END DO ! iter_t
 END SUBROUTINE TimeDisc
@@ -531,7 +510,7 @@ IF(MPIroot)THEN
   WRITE(UNIT_stdOut,'(A,ES12.5,A)')' PID: CALCULATION TIME PER TSTEP/DOF: [',PID,' sec ]'
   WRITE(UNIT_stdOut,'(A,ES12.5,A)')' EFFICIENCY: SIMULATION TIME PER CALCULATION in [s]/[Core-h]: [',SimulationEfficiency,&
                                                                                         ' sec/h ]'
-  WRITE(UNIT_StdOut,'(A,ES16.7)')' Timestep  : ',dt_Min
+  WRITE(UNIT_StdOut,'(A,ES16.7)')' Timestep  : ',dt_Min(DT_MIN)
   WRITE(UNIT_stdOut,'(A,ES16.7)')'#Timesteps : ',REAL(iter)
 #ifdef PARTICLES
   IF(CountNbrOfLostParts.AND.(NbrOfLostParticlesTotal.GT.0))THEN

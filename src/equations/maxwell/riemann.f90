@@ -544,6 +544,7 @@ SUBROUTINE ExactFlux(t,tDeriv,Flux_Master,Flux_Slave,U_Master, U_slave,NormVec,F
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_PreProc
+USE MOD_DG_Vars,         ONLY:U_Master_loc,U_Slave_loc,Flux_loc
 USE MOD_Equation_Vars,   ONLY:IniExactFunc,ExactFluxDir
 USE MOD_Equation,        ONLY:ExactFunc
 USE MOD_PML_vars,        ONLY:PMLnVar
@@ -569,9 +570,7 @@ REAL,INTENT(INOUT)    :: Flux_Slave (1:PP_nVar+PMLnVar,0:PP_N,0:PP_N)
 ! LOCAL VARIABLES
 INTEGER               :: p,q
 LOGICAL               :: UseMaster
-REAL                  :: U_Master_loc(1:PP_nVar,0:PP_N,0:PP_N)
-REAL                  :: U_Slave_loc (1:PP_nVar,0:PP_N,0:PP_N)
-REAL                  :: Flux_loc(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N), U_loc(1:PP_nVar)
+REAL                  :: U_loc(1:PP_nVar)
 !===================================================================================================================================
 
 UseMaster=.TRUE.

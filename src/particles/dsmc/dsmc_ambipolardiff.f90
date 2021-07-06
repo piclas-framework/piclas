@@ -260,7 +260,6 @@ SUBROUTINE AD_DeleteParticles(iPartIndx_Node, nPart_opt)
 ! MODULES
 USE MOD_Globals
 USE MOD_PARTICLE_Vars       ,ONLY: PDM, PartSpecies, Species, PartState, PEM
-USE MOD_Particle_Analyze    ,ONLY: PARTISELECTRON
 USE MOD_DSMC_Vars           ,ONLY: AmbipolElecVelo, newAmbiParts, iPartIndx_NodeNewAmbi, DSMC_RHS
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE

@@ -233,6 +233,7 @@ USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary, AdaptWallTemp
+USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
@@ -458,9 +459,7 @@ DO iPartBound=1,nPartBound
 
   ! Surface particle output to .h5
   PartBound%BoundaryParticleOutputHDF5(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
-  IF(PartBound%BoundaryParticleOutputHDF5(iPartBound))THEN
-    DoBoundaryParticleOutputHDF5=.TRUE.
-  END IF ! PartBound%BoundaryParticleOutputHDF5(iPartBound)
+  IF(PartBound%BoundaryParticleOutputHDF5(iPartBound)) DoBoundaryParticleOutputHDF5=.TRUE.
 END DO
 AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
@@ -477,7 +476,7 @@ END IF
 
 ! Surface particle output to .h5
 IF(DoBoundaryParticleOutputHDF5)THEN
-  ALLOCATE(PartStateBoundary(1:10,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+  ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
         __STAMP__&
@@ -747,8 +746,7 @@ IF (myComputeNodeRank.EQ.0) THEN
   BoundaryWallTemp_Shared = 0.
 END IF
 BoundaryWallTemp => BoundaryWallTemp_Shared
-CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 firstSide = INT(REAL( myComputeNodeRank   *nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
 lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
 #else
@@ -766,8 +764,7 @@ DO iSide = firstSide,LastSide
 END DO 
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 END SUBROUTINE InitAdaptiveWallTemp

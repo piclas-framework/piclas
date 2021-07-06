@@ -27,7 +27,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_data_sampling, CalcMeanFreePath,WriteDSMCToHDF5
-PUBLIC :: CalcTVib, CalcSurfaceValues, CalcTelec, CalcTVibPoly, CalcGammaVib
+PUBLIC :: CalcTVib, CalcSurfaceValues, CalcGammaVib
 PUBLIC :: CalcInstantTransTemp, SummarizeQualityFactors, DSMCMacroSampling
 PUBLIC :: SamplingRotVibRelaxProb, CalcInstantElecTempXi
 !===================================================================================================================================
@@ -56,6 +56,7 @@ USE MOD_Restart_Vars               ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
 USE MOD_Timedisc_Vars              ,ONLY: time,dt
 #if USE_MPI
+USE MOD_MPI_Shared                 ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars            ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
 USE MOD_Particle_Boundary_Vars     ,ONLY: SampWallPumpCapacity_Shared
 USE MOD_Particle_Boundary_vars     ,ONLY: SampWallState_Shared,SampWallImpactNumber_Shared,SampWallImpactEnergy_Shared
@@ -79,7 +80,7 @@ LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                            :: iSpec,iSurfSide,p,q, nVar, nVarSpec, iPBC, nVarCount, OutputCounter
-REAL                               :: TimeSample, ActualTime, TimeSampleTemp, CounterSum, nImpacts
+REAL                               :: TimeSample, ActualTime, TimeSampleTemp, CounterSum, nImpacts, IterNum
 LOGICAL                            :: during_dt
 INTEGER                            :: idx, GlobalSideID, SurfSideNb, iBC
 !===================================================================================================================================
@@ -95,12 +96,17 @@ ELSE
   ActualTime=time
 END IF
 
+! Determine the sampling time for the calculation of fluxes
 IF (WriteMacroSurfaceValues) THEN
-  TimeSample = Time - MacroValSampTime !elapsed time since last sampling (variable dt's possible!)
+  ! Elapsed time since last sampling (variable dt's possible!)
+  TimeSample = Time - MacroValSampTime
   MacroValSampTime = Time
 ELSE IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
+  ! Sampling at the end of the simulation: When a restart is performed and the sampling starts immediately, determine the correct sampling time
+  ! (e.g. sampling is set to 20% of tend = 1s, and restart is performed at 0.9s, sample time = 0.1s)
   TimeSample = Time - RestartTime
 ELSE
+  ! Sampling at the end of the simulation: calculated from the user given input
   TimeSample = (Time-(1-DSMC%TimeFracSamp)*TEnd)
 END IF
 
@@ -114,8 +120,7 @@ CALL ExchangeSurfData()
 ! Only surface sampling leaders take part in the remainder of this routine
 IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) THEN
   IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
-    CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
-    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+    CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
   END IF
   RETURN
 END IF
@@ -125,8 +130,8 @@ END IF
 nVar = 5
 nVarSpec = 1
 
-! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle and number: Add 9 to the buffer length
-nVarSpec = nVarSpec + 9
+! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle, number, and number per second: Add 10 to the buffer length
+IF(CalcSurfaceImpact) nVarSpec = nVarSpec + 10
 
 IF(nPorousBC.GT.0) THEN
   nVar = nVar + nPorousBC
@@ -151,6 +156,8 @@ ASSOCIATE(SampWallState        => SampWallState_Shared           ,&
 #endif
 
 OutputCounter = 0
+! Determine the total number of iterations
+IterNum = REAL(NINT(TimeSample / dt))
 
 DO iSurfSide = 1,nComputeNodeSurfSides
   !================== INNER BC CHECK
@@ -165,10 +172,13 @@ DO iSurfSide = 1,nComputeNodeSurfSides
   END IF
   !================== INNER BC CHECK
   OutputCounter = OutputCounter + 1
+
   DO q = 1,nSurfSample
     DO p = 1,nSurfSample
+      ! --- Total output (force per area, heat flux, simulation particle impact per iteration)
       CounterSum = SUM(SampWallState(SAMPWALL_NVARS+1:SAMPWALL_NVARS+nSpecies,p,q,iSurfSide))
 
+      ! Correct the sample time in the case of a cell local time step with the average time step factor for each side
       IF(VarTimeStep%UseVariableTimeStep .AND. CounterSum.GT.0.0) THEN
         TimeSampleTemp = TimeSample * SampWallState(SAMPWALL_NVARS+nSpecies+1,p,q,iSurfSide) / CounterSum
       ELSE
@@ -192,24 +202,24 @@ DO iSurfSide = 1,nComputeNodeSurfSides
                                            / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
 
       ! Number of simulation particle impacts per iteration
-      MacroSurfaceVal(5,p,q,OutputCounter) = CounterSum * dt / TimeSample
+      MacroSurfaceVal(5,p,q,OutputCounter) = CounterSum / IterNum
 
-      nVarCount = 5
-
+      ! Output of the pump capacity
       IF(nPorousBC.GT.0) THEN
+        nVarCount = 5
         DO iPBC=1, nPorousBC
           IF(MapSurfSideToPorousSide_Shared(iSurfSide).EQ.0) CYCLE
           IF(PorousBCInfo_Shared(1,MapSurfSideToPorousSide_Shared(iSurfSide)).EQ.iPBC) THEN
             ! Pump capacity is already in cubic meter per second (diving by the number of iterations)
-            MacroSurfaceVal(nVarCount+iPBC,p,q,OutputCounter) = SampWallPumpCapacity(iSurfSide) * dt / TimeSample
+            MacroSurfaceVal(nVarCount+iPBC,p,q,OutputCounter) = SampWallPumpCapacity(iSurfSide) / IterNum
           END IF
         END DO
       END IF
-
+      ! --- Species-specific output
       DO iSpec=1,nSpecies
         idx = 1
         ! Species-specific counter of simulation particle impacts per iteration
-        MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallState(SAMPWALL_NVARS+iSpec,p,q,iSurfSide) * dt / TimeSample
+        MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallState(SAMPWALL_NVARS+iSpec,p,q,iSurfSide) / IterNum
         ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
         IF(CalcSurfaceImpact)THEN
           nImpacts = SampWallImpactNumber(iSpec,p,q,iSurfSide)
@@ -239,12 +249,14 @@ DO iSurfSide = 1,nComputeNodeSurfSides
             ! Add number of impacts
             idx = idx + 1
             MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = nImpacts
-          ELSE
-            idx=idx+8
+
+            ! Add number of impacts per second
+            idx = idx + 1
+            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = nImpacts / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
           END IF ! nImpacts.GT.0.
         END IF ! CalcSurfaceImpact
       END DO ! iSpec=1,nSpecies
-      
+
       IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
         IF ((MacroSurfaceVal(4,p,q,OutputCounter).GT.0.0).AND.AdaptWallTemp) THEN
           iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
@@ -253,7 +265,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
         END IF
         MacroSurfaceVal(nVar,p,q,OutputCounter) = BoundaryWallTemp(p,q,iSurfSide)
       END IF
-     
+
     END DO ! q=1,nSurfSample
   END DO ! p=1,nSurfSample
 END DO ! iSurfSide=1,nComputeNodeSurfSides
@@ -261,8 +273,7 @@ END DO ! iSurfSide=1,nComputeNodeSurfSides
 #if USE_MPI
 END ASSOCIATE
 IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
-  CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+  CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 END IF
 #endif /*USE_MPI*/
 
@@ -333,121 +344,6 @@ END FUNCTION CalcTVib
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-REAL FUNCTION CalcTelec(MeanEelec, iSpec)
-!===================================================================================================================================
-!> Calculation of the electronic temperature (zero-point search)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)      :: MeanEelec  !< Mean electronic energy
-INTEGER, INTENT(IN)   :: iSpec      !< Species index
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER               :: ii
-REAL                  :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
-REAL,PARAMETER        :: eps_prec=1E-3           !< Relative precision of root-finding algorithm
-REAL                  :: TempRatio, SumOne, SumTwo        !< Sums of the electronic partition function
-!===================================================================================================================================
-
-IF (MeanEelec.GT.0) THEN
-  ! Lower limit: very small value or lowest temperature if ionized
-  IF (SpecDSMC(iSpec)%ElectronicState(2,0).EQ.0.0) THEN
-    LowerTemp = 1.0
-  ELSE
-    LowerTemp = SpecDSMC(iSpec)%ElectronicState(2,0)
-  END IF
-  ! Upper limit: Last excitation level (ionization limit)
-  UpperTemp = SpecDSMC(iSpec)%ElectronicState(2,SpecDSMC(iSpec)%MaxElecQuant-1)
-  MiddleTemp = LowerTemp
-  DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
-    MiddleTemp = 0.5*( LowerTemp + UpperTemp)
-    SumOne = 0.0
-    SumTwo = 0.0
-    DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant-1
-      TempRatio = SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp
-      IF(CHECKEXP(TempRatio)) THEN
-        SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * EXP(-TempRatio)
-        SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * EXP(-TempRatio)
-      END IF
-    END DO
-    IF ( SumTwo / SumOne .GT. MeanEelec / BoltzmannConst ) THEN
-      UpperTemp = MiddleTemp
-    ELSE
-      LowerTemp = MiddleTemp
-    END IF
-  END DO
-  CalcTelec = MiddleTemp
-ELSE
-  CalcTelec = 0. ! sup
-END IF
-
-RETURN
-
-END FUNCTION CalcTelec
-
-
-REAL FUNCTION CalcTVibPoly(MeanEVib, iSpec)
-!===================================================================================================================================
-!> Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst, ElementaryCharge
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)                :: MeanEVib  ! Charak TVib, mean vibrational Energy of all molecules
-INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                 :: iDOF, iPolyatMole
-REAL                    :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
-REAL                    :: EGuess                           !< Energy value at the current MiddleTemp
-REAL,PARAMETER          :: eps_prec=5E-3                    !< Relative precision of root-finding algorithm
-!===================================================================================================================================
-
-! lower limit: very small value or lowest temperature if ionized
-! upper limit: highest possible temperature
-iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-IF (MeanEVib.GT.SpecDSMC(iSpec)%EZeroPoint) THEN
-  LowerTemp = 1.0
-  UpperTemp = 5.0*SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/BoltzmannConst
-  MiddleTemp = LowerTemp
-  DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
-    MiddleTemp = 0.5*(LowerTemp + UpperTemp)
-    EGuess = SpecDSMC(iSpec)%EZeroPoint
-    DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-      ASSOCIATE(CharTVib => PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
-        IF(CHECKEXP(CharTVib/MiddleTemp)) THEN
-          EGuess = EGuess + BoltzmannConst * CharTVib / (EXP(CharTVib/MiddleTemp) - 1.0)
-        END IF
-      END ASSOCIATE
-    END DO
-    IF (EGuess.GT.MeanEVib) THEN
-      UpperTemp = MiddleTemp
-    ELSE
-      LowerTemp = MiddleTemp
-    END IF
-  END DO
-  CalcTVibPoly = MiddleTemp
-ELSE
-  CalcTVibPoly = 0. ! sup
-END IF
-RETURN
-
-END FUNCTION CalcTVibPoly
 
 
 REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_temp)
@@ -593,12 +489,13 @@ SUBROUTINE CalcInstantElecTempXi(iPartIndx,PartNum)
 !> Calculation of the instantaneous translational temperature for the cell
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_Preproc
-USE MOD_DSMC_Vars     ,ONLY: DSMC, CollInf, PartStateIntEn
-USE MOD_Particle_Vars ,ONLY: PartSpecies, nSpecies
-USE MOD_part_tools    ,ONLY: GetParticleWeight
+USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars              ,ONLY: DSMC, CollInf, PartStateIntEn
+USE MOD_Particle_Vars          ,ONLY: PartSpecies, nSpecies
+USE MOD_part_tools             ,ONLY: GetParticleWeight
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -700,7 +597,7 @@ IF (PRESENT(vBulk)) vBulk(1:3) = vBulk(1:3) / TotalMass
 DO iSpec=1, nSpecies
   IF(SpecPartNum_Simu(iSpec).GT.1) THEN
     ! Compute velocity averages
-    MeanPartV(iSpec,1:3)  = PartV(iSpec,1:3) / totalWeight(iSpec)      
+    MeanPartV(iSpec,1:3)  = PartV(iSpec,1:3) / totalWeight(iSpec)
   ELSE
     MeanPartV(iSpec,1:3) = 0.
   END IF
@@ -710,7 +607,7 @@ DO iPart=1,PartNum
   PartID = iPartIndx(iPart)
   SpecID = PartSpecies(PartID)
   partWeight = GetParticleWeight(PartID)
-  V_rel(1:3) = PartState(4:6,PartID)-MeanPartV(SpecID,1:3) 
+  V_rel(1:3) = PartState(4:6,PartID)-MeanPartV(SpecID,1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
   PartV2(SpecID) = PartV2(SpecID) + vmag2 * partWeight
 END DO
@@ -726,8 +623,8 @@ DO iSpec = 1, nSpecies
     Ener(iSpec) = Ener(iSpec) + totalweight(iSpec) * Species(iSpec)%MassIC / 2. * vmag2
     EnerTotal = EnerTotal + Ener(iSpec)
     tempweighttotal = tempweighttotal + totalweight(iSpec)
-    tempmass = tempmass +  totalweight(iSpec) * Species(iSpec)%MassIC 
-    vBulkTemp(1:3) = vBulkTemp(1:3) + MeanPartV(iSpec,1:3)*totalweight(iSpec) * Species(iSpec)%MassIC 
+    tempmass = tempmass +  totalweight(iSpec) * Species(iSpec)%MassIC
+    vBulkTemp(1:3) = vBulkTemp(1:3) + MeanPartV(iSpec,1:3)*totalweight(iSpec) * Species(iSpec)%MassIC
   END IF
 END DO
 IF ((tempmass.GT.0.0).AND.(tempweighttotal.GT.0.0)) THEN
@@ -799,7 +696,7 @@ DO iPart=1,PDM%ParticleVecLength
             DSMC_Solution(11,iElem, DSMC%AmbiDiffElecSpec) = DSMC_Solution(11,iElem, DSMC%AmbiDiffElecSpec) + 1.0
           END IF
         END IF
-      END IF     
+      END IF
     END IF
     DSMC_Solution(11,iElem, iSpec) = DSMC_Solution(11,iElem, iSpec) + 1.0 !simpartnum
   END IF
@@ -815,20 +712,21 @@ SUBROUTINE DSMC_output_calc(nVar,nVar_quality,nVarloc,DSMC_MacroVal)
 !> Subroutine to calculate the solution U for writing into HDF5 format DSMC_output
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_PreProc
-USE MOD_BGK_Vars              ,ONLY: BGKInitDone, BGK_QualityFacSamp
-USE MOD_DSMC_Vars             ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting
-USE MOD_FPFlow_Vars           ,ONLY: FPInitDone, FP_QualityFacSamp
-USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry
-USE MOD_Particle_VarTimeStep  ,ONLY: CalcVarTimeStep
-USE MOD_Restart_Vars          ,ONLY: RestartTime
-USE MOD_TimeDisc_Vars         ,ONLY: time,TEnd,iter,dt
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
-USE MOD_Mesh_Vars             ,ONLY: offSetElem
-USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
+USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
+USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting
+USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
+USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry
+USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
+USE MOD_Restart_Vars           ,ONLY: RestartTime
+USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,iter,dt
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
+USE MOD_Mesh_Vars              ,ONLY: offSetElem
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec,CalcTVibPoly
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1097,7 +995,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: ProjectName
 USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
-USE MOD_HDF5_output   ,ONLY: WriteArrayToHDF5
+USE MOD_HDF5_Output   ,ONLY: WriteArrayToHDF5
 USE MOD_Particle_Vars ,ONLY: nSpecies, VarTimeStep
 USE MOD_BGK_Vars      ,ONLY: BGKInitDone
 USE MOD_FPFlow_Vars   ,ONLY: FPInitDone

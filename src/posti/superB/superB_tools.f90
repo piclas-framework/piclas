@@ -83,7 +83,7 @@ Vector2(3) = NormalVector(1)*Vector1(2) - NormalVector(2)*Vector1(1)
 END SUBROUTINE FindLinIndependentVectors
 
 
-PURE SUBROUTINE GramSchmidtAlgo(Vector1, Vector2, Vector3)
+PPURE SUBROUTINE GramSchmidtAlgo(Vector1, Vector2, Vector3)
 !===================================================================================================================================
 !> Contains the Gram Schmidt algorithm for an orthonormal basis
 !===================================================================================================================================

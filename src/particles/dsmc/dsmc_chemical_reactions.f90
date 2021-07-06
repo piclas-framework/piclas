@@ -58,7 +58,7 @@ USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, maxEXP
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf, ReactionProbGTUnityCounter
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, VarTimeStep, usevMPF
-USE MOD_DSMC_Analyze            ,ONLY: CalcTVibPoly, CalcTelec
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTVibPoly, CalcTelec
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_GetAnalyticRate
 ! IMPLICIT VARIABLE HANDLING
@@ -307,7 +307,7 @@ END IF
 END SUBROUTINE CalcReactionProb
 
 
-PURE REAL FUNCTION Calc_Beta_TCE(iReac,Xi_Total)
+PPURE REAL FUNCTION Calc_Beta_TCE(iReac,Xi_Total)
 !===================================================================================================================================
 ! Calculates the Beta coefficient for polyatomic reactions
 !===================================================================================================================================
@@ -355,7 +355,7 @@ USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecD
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep, usevMPF
-USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange, CalcXiElec
+USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
 USE MOD_DSMC_Relaxation        ,ONLY: DSMC_VibRelaxDiatomic, CalcXiTotalEqui
 USE MOD_DSMC_CollisVec         ,ONLY: PostCollVec
@@ -363,7 +363,6 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 USE MOD_part_tools             ,ONLY: GetParticleWeight
 USE MOD_part_operations        ,ONLY: RemoveParticle
-USE MOD_Particle_Analyze       ,ONLY: PARTISELECTRON
 #ifdef CODE_ANALYZE
 USE MOD_Globals                ,ONLY: unit_stdout,myrank
 USE MOD_Particle_Vars          ,ONLY: Symmetry
@@ -1675,8 +1674,8 @@ DO iProd = 1, NumProd
       PartState(4:6,iPart) = GetRotatedVector(PartState(4:6,iPart),Species(InitSpec)%Init(iInit)%NormalIC)
       ! Store the particle information in PartStateBoundary.h5
       IF(DoBoundaryParticleOutputHDF5) CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),&
-                                        UNITVECTOR(PartState(4:6,iPart)),Species(InitSpec)%Init(iInit)%NormalIC,mode=2,&
-                                        usevMPF_optIN=.FALSE.)
+                                        UNITVECTOR(PartState(4:6,iPart)),Species(InitSpec)%Init(iInit)%NormalIC,iBC=-1,&
+                                        mode=2,usevMPF_optIN=.FALSE.)
     END ASSOCIATE
   END IF
 END DO
@@ -1692,7 +1691,7 @@ END IF
 END SUBROUTINE PhotoIonization_InsertProducts
 
 
-PURE FUNCTION GetRandomVectorInPlane(b1,b2,VeloVec,RandVal)
+PPURE FUNCTION GetRandomVectorInPlane(b1,b2,VeloVec,RandVal)
 !===================================================================================================================================
 ! Pick random vector in a plane set up by the basis vectors b1 and b2
 !===================================================================================================================================
@@ -1705,7 +1704,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)    :: b1(1:3),b2(1:3) ! Basis vectors (normalized)
 REAL,INTENT(IN)    :: VeloVec(1:3)    ! Velocity vector before the random direction selection within the plane defined by b1 and b2
-REAL,INTENT(IN)    :: RandVal         ! Random number (given from outside to render this function PURE)
+REAL,INTENT(IN)    :: RandVal         ! Random number (given from outside to render this function PPURE)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLE
 REAL               :: GetRandomVectorInPlane(1:3) ! Output velocity vector

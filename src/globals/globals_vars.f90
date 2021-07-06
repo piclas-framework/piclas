@@ -23,9 +23,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=6),PARAMETER :: ProgramName  = 'PICLas'              !> name of this program
 INTEGER,PARAMETER          :: MajorVersion = 2                     !> FileVersion number saved in each hdf5 file with hdf5 header
-INTEGER,PARAMETER          :: MinorVersion = 0                     !> FileVersion number saved in each hdf5 file with hdf5 header
+INTEGER,PARAMETER          :: MinorVersion = 2                     !> FileVersion number saved in each hdf5 file with hdf5 header
 INTEGER,PARAMETER          :: PatchVersion = 0                     !> FileVersion number saved in each hdf5 file with hdf5 header
-REAL,PARAMETER             :: FileVersion  = REAL(MajorVersion,8)+REAL(MinorVersion,8)/10.+REAL(PatchVersion,8)/100. !> FileVersion 
+REAL,PARAMETER             :: FileVersion  = REAL(MajorVersion,8)+REAL(MinorVersion,8)/10.+REAL(PatchVersion,8)/100. !> FileVersion
                                                                    !> number saved in each hdf5 file with hdf5 header
 CHARACTER(LEN=10)          :: PiclasVersionStr                     !> PiclasVersionStrnumber saved in each hdf5 file with hdf5 header
 REAL                       :: FileVersionHDF5                      !> FileVersion number read from hdf5 restart file
@@ -34,8 +34,12 @@ REAL                       :: WallTime                             !> Wall time 
 REAL                       :: InitializationWallTime               !> Wall time needed to initialize a simulation (or
                                                                    !> re-initialize a simulation by performing a load balance
                                                                    !>  step)
+REAL                       :: ReadMeshWallTime                     !> Wall time needed to read the mesh (SUBROUTINE ReadMesh)
+REAL                       :: DomainDecompositionWallTime          !> Wall time needed for domain decomposition
+REAL                       :: CommMeshReadinWallTime               !> Shared memory mesh communication
 REAL                       :: SimulationEfficiency                 !> relates the simulated time to the used CPUh (SIMULATION TIME PER
                                                                    !> CALCULATION in [s]/[CPUh])
+REAL                       :: StartT                               !> Timer start
 REAL                       :: PID                                  !> Performance index: (CalcTimeEnd-CalcTimeStart)*nProcessors/
                                                                    !> (nGlobalElems*(PP_N+1)**3*iter_loc)
 REAL,PARAMETER             :: PI=ACOS(-1.0)                         !> the number pi ~= 3.14
@@ -55,7 +59,7 @@ REAL, PARAMETER            :: BoltzmannConst=1.380648813e-23        !> Boltzmann
 CHARACTER(LEN=5)           :: TimeStampLenStr,TimeStampLenStr2      !> Strings for timestamp format of time
 
 REAL,PARAMETER             :: maxEXP= LOG(HUGE(maxexp))
-! Set variables (natural constants and derived quantities) from user input or hard coded 
+! Set variables (natural constants and derived quantities) from user input or hard coded
 ! depending on compile flag (PICLAS_READIN_CONSTANTS=ON)
 #if USE_READIN_CONSTANTS
 REAL           :: eps0                        !> permittivity eps0

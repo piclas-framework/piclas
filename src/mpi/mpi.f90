@@ -68,6 +68,9 @@ CALL prms%SetSection("MPI")
 CALL prms%CreateIntOption('GroupSize', "Define size of MPI subgroups, used to e.g. perform grouped IO, where group master\n"//&
                                        "collects and outputs data.",&
                                        '0')
+#if defined(PARTICLES)
+CALL prms%CreateLogicalOption('CheckExchangeProcs' , 'Check if proc communication of particle info is non-symmetric', '.TRUE.')
+#endif /*PARTICLES*/
 END SUBROUTINE DefineParametersMPI
 
 SUBROUTINE InitMPI(mpi_comm_IN)
@@ -183,20 +186,21 @@ DataSizeSide  =(PP_N+1)*(PP_N+1)
 ! split communicator into smaller groups (e.g. for local nodes)
 GroupSize=GETINT('GroupSize','0')
 IF(GroupSize.LT.1)THEN ! group procs by node
-#if USE_MPI3
-  ! MPI3 directly gives you shared memory groups
-  CALL MPI_INFO_CREATE(info,iError)
-  CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD,MPI_COMM_TYPE_SHARED,myRank,info,MPI_COMM_NODE,iError)
+  ! Split the node communicator (shared memory) from the global communicator on physical processor or node level
+#if USE_CORE_SPLIT
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,myRank,0,MPI_COMM_NODE,iError)
 #else
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,myRank,myRank,MPI_COMM_NODE,iError)
+  ! Note that using SharedMemoryMethod=OMPI_COMM_TYPE_CORE somehow does not work in every case (intel/amd processors)
+  ! Also note that OMPI_COMM_TYPE_CORE is undefined when not using OpenMPI
+  CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD,SharedMemoryMethod,0,MPI_INFO_NULL,MPI_COMM_NODE,IERROR)
 #endif
 ELSE ! use groupsize
   color=myRank/GroupSize
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,myRank,MPI_COMM_NODE,iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,0,MPI_COMM_NODE,iError)
 END IF
 CALL MPI_COMM_RANK(MPI_COMM_NODE,myLocalRank,iError)
 CALL MPI_COMM_SIZE(MPI_COMM_NODE,nLocalProcs,iError)
-MPILocalRoot=(myLocalRank .EQ. 0)
+MPILocalRoot=(myLocalRank.EQ.0)
 
 ! now split global communicator into small group leaders and the others
 MPI_COMM_LEADERS=MPI_COMM_NULL
@@ -204,12 +208,12 @@ MPI_COMM_WORKERS=MPI_COMM_NULL
 myLeaderRank=-1
 myWorkerRank=-1
 IF(myLocalRank.EQ.0)THEN
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,0,myRank,MPI_COMM_LEADERS,iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,0,0,MPI_COMM_LEADERS,iError)
   CALL MPI_COMM_RANK( MPI_COMM_LEADERS,myLeaderRank,iError)
   CALL MPI_COMM_SIZE( MPI_COMM_LEADERS,nLeaderProcs,iError)
   nWorkerProcs=nProcessors-nLeaderProcs
 ELSE
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,1,myRank,MPI_COMM_WORKERS,iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,1,0,MPI_COMM_WORKERS,iError)
   CALL MPI_COMM_RANK( MPI_COMM_WORKERS,myWorkerRank,iError)
   CALL MPI_COMM_SIZE( MPI_COMM_WORKERS,nWorkerProcs,iError)
   nLeaderProcs=nProcessors-nWorkerProcs
@@ -370,8 +374,8 @@ SDEALLOCATE(nMPISides_rec)
 SDEALLOCATE(OffsetMPISides_rec)
 
 ! Free the communicators
-CALL MPI_COMM_FREE(MPI_COMM_NODE,IERROR)
-CALL MPI_COMM_FREE(MPI_COMM_LEADERS,IERROR)
+IF(MPI_COMM_NODE   .NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_NODE   ,IERROR)
+IF(MPI_COMM_LEADERS.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_LEADERS,IERROR)
 
 END SUBROUTINE FinalizeMPI
 #endif /*USE_MPI*/
