@@ -373,7 +373,7 @@ CalcMeanFreePath = 0.0
 
 IF (nPart.LE.1 .OR. ALL(SpecPartNum.EQ.0.) .OR.Volume.EQ.0) RETURN
 ! Calculation of mixture reference diameter
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.(BGGas%NumberOfSpecies.GT.0)) THEN
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   MacroParticleFactor = 1.
 ELSE
   MacroParticleFactor = Species(1)%MacroParticleFactor ! assumption: weighting factor of all species are identical!!!
