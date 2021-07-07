@@ -330,7 +330,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, TriaSurfaceFlux
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Mesh_Vars              ,ONLY: NGeo, nElems
+USE MOD_Mesh_Vars              ,ONLY: NGeo
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -341,7 +341,7 @@ INTEGER, INTENT(INOUT) :: MaxSurfacefluxBCs, nDataBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(42)         :: hilf, hilf2, hilf3
-INTEGER               :: iSpec, iElem, iSF
+INTEGER               :: iSpec, iSF
 !===================================================================================================================================
 DO iSpec=1,nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -497,13 +497,6 @@ __STAMP__&
           CALL abort(__STAMP__&
             ,'ERROR in init of adaptive inlet: positive initial guess of velocity for Type 3/Type 4 condition required!')
         END IF
-        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1:3,1:nElems))
-        ! Initializing the array with the given velocity vector and magnitude. It is used as a fallback, when the sampled velocity
-        ! in the cell is zero (e.g. when starting a simulation with zero particles)
-        DO iElem = 1, nElems
-          Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1:3,iElem) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
-                                                                                * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1:3)
-        END DO
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0
       END SELECT
       ! Sanity check: regular surface flux must be on an open BC

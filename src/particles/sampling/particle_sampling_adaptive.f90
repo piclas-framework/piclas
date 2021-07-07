@@ -190,6 +190,8 @@ ALLOCATE(AdaptBCMacroVal(1:7,1:AdaptBCSampleElemNum,1:nSpecies))
 AdaptBCMacroVal(:,:,:) = 0.0
 ALLOCATE(AdaptBCSample(1:8,1:AdaptBCSampleElemNum,1:nSpecies))
 AdaptBCSample = 0.0
+ALLOCATE(AdaptBCBackupVelocity(1:3,1:AdaptBCSampleElemNum,1:nSpecies))
+AdaptBCBackupVelocity = 0.0
 
 ! 3) Read-in of the additional variables for sampling
 AdaptBCRelaxFactor = GETREAL('AdaptiveBC-RelaxationFactor')
@@ -308,6 +310,9 @@ ELSE
         IF(SampleElemID.GT.0) THEN
           AdaptBCMacroVal(1:3,SampleElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC*Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1:3)
           AdaptBCMacroVal(4,SampleElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
+        ! Initializing the array with the given velocity vector and magnitude. It is used as a fallback, when the sampled velocity
+        ! in the cell is zero (e.g. when starting a simulation with zero particles)
+          AdaptBCBackupVelocity(1:3,SampleElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC*Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1:3)
         END IF
       END DO
     END DO

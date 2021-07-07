@@ -46,8 +46,10 @@ REAL, ALLOCATABLE                       :: AdaptBCMacroVal(:,:,:)         ! Macr
                                                                           !  5:  Pumping capacity [m3/s]
                                                                           !  6:  Static pressure [Pa]
                                                                           !  7:  Integral pressure difference [Pa]
-REAL, ALLOCATABLE                       :: AdaptiveData(:,:)            ! Macroscopic value near boundaries (for output)
+REAL, ALLOCATABLE                       :: AdaptiveData(:,:)              ! Macroscopic value near boundaries (for output)
 REAL, ALLOCATABLE                       :: AdaptBCAreaSurfaceFlux(:,:)    ! UseCircularInflow: Surflux area as the sum of actual elements
+REAL, ALLOCATABLE                       :: AdaptBCBackupVelocity(:,:,:)   ! Velocity is stored as backup for iterations without particles
+                                                                          ! in the cell [1:3,1:AdaptBCSampleElemNum,1:nSpecies]
 INTEGER                                 :: offSetElemAdaptBCSample
 INTEGER                                 :: AdaptBCSampleElemNumGlobal
 !-----------------------------------------------------------------------------------------------------------------------------------
