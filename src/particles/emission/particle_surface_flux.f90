@@ -858,7 +858,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
+USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCBackupVelocity
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfMeshSubSideData
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
 IMPLICIT NONE
@@ -891,10 +891,10 @@ INTEGER                     :: ElemID, SampleElemID
     IF(veloNormal.GT.0.0) THEN
       ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow &
                         / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
-      Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1:3,ElemID) = VeloVec(1:3)
+      AdaptBCBackupVelocity(1:3,SampleElemID,iSpec) = VeloVec(1:3)
     ELSE
       ! Using the old velocity vector, overwriting the sampled value with the old one
-      AdaptBCMacroVal(1:3,SampleElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1:3,ElemID)
+      AdaptBCMacroVal(1:3,SampleElemID,iSpec) = AdaptBCBackupVelocity(1:3,SampleElemID,iSpec)
       VeloVec(1:3) = AdaptBCMacroVal(1:3,SampleElemID,iSpec)
       vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
       veloNormal = VeloVec(1)*vec_nIn(1) + VeloVec(2)*vec_nIn(2) + VeloVec(3)*vec_nIn(3)
@@ -968,7 +968,7 @@ SUBROUTINE AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, Pi
 USE MOD_Particle_Vars          ,ONLY: Species
-USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
+USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCBackupVelocity
 USE MOD_Particle_Surfaces_Vars ,ONLY: SurfMeshSubSideData, BCdata_auxSF, SurfFluxSideSize
 USE MOD_TimeDisc_Vars          ,ONLY: dt, RKdtFrac
 USE MOD_Mesh_Vars              ,ONLY: SideToElem, offsetElem
@@ -1009,23 +1009,17 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
   iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
   SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
   DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-    VeloVec(1) = AdaptBCMacroVal(DSMC_VELOX,SampleElemID,iSpec)
-    VeloVec(2) = AdaptBCMacroVal(DSMC_VELOY,SampleElemID,iSpec)
-    VeloVec(3) = AdaptBCMacroVal(DSMC_VELOZ,SampleElemID,iSpec)
+    VeloVec(1:3) = AdaptBCMacroVal(1:3,SampleElemID,iSpec)
     vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
     veloNormal = VeloVec(1)*vec_nIn(1) + VeloVec(2)*vec_nIn(2) + VeloVec(3)*vec_nIn(3)
     IF(veloNormal.GT.0.0) THEN
       ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow &
                         / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
-      Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1:3,ElemID) = VeloVec(1:3)
+      AdaptBCBackupVelocity(1:3,SampleElemID,iSpec) = VeloVec(1:3)
     ELSE
       ! Using the old velocity vector, overwriting the sampled value with the old one
-      AdaptBCMacroVal(DSMC_VELOX,SampleElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1,ElemID)
-      AdaptBCMacroVal(DSMC_VELOY,SampleElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(2,ElemID)
-      AdaptBCMacroVal(DSMC_VELOZ,SampleElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(3,ElemID)
-      VeloVec(1) = AdaptBCMacroVal(DSMC_VELOX,SampleElemID,iSpec)
-      VeloVec(2) = AdaptBCMacroVal(DSMC_VELOY,SampleElemID,iSpec)
-      VeloVec(3) = AdaptBCMacroVal(DSMC_VELOZ,SampleElemID,iSpec)
+      AdaptBCMacroVal(1:3,SampleElemID,iSpec) = AdaptBCBackupVelocity(1:3,SampleElemID,iSpec)
+      VeloVec(1:3) = AdaptBCMacroVal(1:3,SampleElemID,iSpec)
       vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
       veloNormal = VeloVec(1)*vec_nIn(1) + VeloVec(2)*vec_nIn(2) + VeloVec(3)*vec_nIn(3)
       IF(veloNormal.GT.0.0) THEN
