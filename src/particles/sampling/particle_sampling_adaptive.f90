@@ -84,11 +84,13 @@ INTEGER                           :: offSetElemAdaptBCSampleMPI(0:nProcessors-1)
 #endif
 !===================================================================================================================================
 
+AdaptiveDataExists = .FALSE.; RunningAverageExists = .FALSE.
 AdaptBCSampleElemNum = 0
 ALLOCATE(AdaptBCMapElemToSample(nElems))
 AdaptBCMapElemToSample = 0
 ALLOCATE(AdaptiveData(1:7*nSpecies,1:nElems))
 AdaptiveData = 0.
+
 IF(UseCircularInflow) THEN
   ALLOCATE(AdaptBCAreaSurfaceFlux(1:nSpecies,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
   AdaptBCAreaSurfaceFlux = 0.
@@ -154,8 +156,8 @@ SampleElemID = 0
 ALLOCATE(AdaptBCMapSampleToElem(AdaptBCSampleElemNum))
 DO iElem = 1,nElems
   IF(AdaptBCMapElemToSample(iElem).NE.0) THEN
+    AdaptBCMapSampleToElem(AdaptBCMapElemToSample(iElem)) = iElem
     SampleElemID = SampleElemID + 1
-    AdaptBCMapSampleToElem(SampleElemID) = iElem
   END IF
 END DO
 
