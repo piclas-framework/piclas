@@ -596,8 +596,8 @@ __STAMP__&
       IPWRITE(UNIT_stdOut,*) ' xi               ', xi(1:3)
       IPWRITE(UNIT_stdOut,*) ' PartPos          ', X_in
       IPWRITE(UNIT_stdOut,*) ' GlobalElemID     ', ElemID
-      IPWRITE(UNIT_stdOut,*) ' LastPartPos      ', LastPartPos
-      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
+      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' LastPartPos ', LastPartPos(1:3,PartID)
+      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID      ', PartID
 #if defined(IMPA)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartIsImplicit(PartID)
 #endif
