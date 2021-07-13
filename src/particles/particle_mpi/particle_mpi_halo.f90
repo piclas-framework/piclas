@@ -668,11 +668,15 @@ DEALLOCATE(GlobalProcToRecvProc,RecvRequest,SendRequest,CommFlag)
 
 ! On smooth grids, nNonSymmetricExchangeProcs should be zero. Only output if previously missing particle exchange procs are found
 CALL MPI_REDUCE(nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-IF ((MPIRoot).AND.(nNonSymmetricExchangeProcsGlob.GT.0)) THEN
-  SWRITE(Unit_StdOut,'(A,I0,A)') ' | Found ',nNonSymmetricExchangeProcsGlob, &
-                                 ' previously missing non-symmetric particle exchange procs'
-  IF(CheckExchangeProcs) CALL abort(__STAMP__,&
-    ' Non-symmetric particle exchange procs > 1. This check is optional. You can disable it via CheckExchangeProcs = F')
+! Only root checks reduced value
+IF (MPIRoot) THEN
+  ! Check sum of nNonSymmetricExchangeProcs over all processors
+  IF(nNonSymmetricExchangeProcsGlob.GT.0)THEN
+    SWRITE(Unit_StdOut,'(A,I0,A)') ' | Found ',nNonSymmetricExchangeProcsGlob, &
+                                   ' previously missing non-symmetric particle exchange procs'
+    IF(CheckExchangeProcs) CALL abort(__STAMP__,&
+      ' Non-symmetric particle exchange procs > 1. This check is optional. You can disable it via CheckExchangeProcs = F')
+  END IF ! nNonSymmetricExchangeProcsGlob.GT.0
 END IF
 
 ! Build reverse mapping
