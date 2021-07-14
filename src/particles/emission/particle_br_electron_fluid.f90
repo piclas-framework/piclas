@@ -833,11 +833,14 @@ IF(UseDSMC)THEN
   END IF ! (SwitchToBR.OR.SwitchToKin).AND.(CollisMode.EQ.3)
 END IF ! UseDSMC
 
+
+#if USE_LOADBALANCE
 ! When switching BR <-> kin, reset the number of load balances to 0
 IF(SwitchToBR.OR.SwitchToKin)THEN
   nLoadBalanceSteps = 0
   SWRITE (*,*) " Switching BR <-> kin: Setting nLoadBalanceSteps=0"
 END IF ! SwitchToBR.OR.SwitchToKin
+#endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE SwitchBRElectronModel
 
