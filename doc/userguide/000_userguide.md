@@ -1,7 +1,7 @@
 ---
 title: |
   ![](../logo.png){width=15cm}
-  PICLas v2.1.0
+  PICLas v2.2.0
 subtitle: User Guide
 author:
   - University of Stuttgart, Germany
