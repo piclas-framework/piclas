@@ -284,12 +284,10 @@ USE MOD_HDG_Vars              ,ONLY: BRTimeStepMultiplier,UseBRElectronFluid,BRT
 USE MOD_Part_BR_Elecron_Fluid ,ONLY: GetNextBRSwitchTime
 #endif /*defined(PARTICLES) && USE_HDG*/
 #if USE_LOADBALANCE
-USE MOD_TimeDisc_Vars         ,ONLY: Time,TEnd,dt,dt_Min,tAnalyze
+USE MOD_TimeDisc_Vars         ,ONLY: dt,dt_Min
 USE MOD_LoadBalance_Vars      ,ONLY: IAR_DoLoadBalance,IAR_LoadBalanceSample,DoLoadBalance
 USE MOD_LoadBalance_Vars      ,ONLY: LoadBalanceSample
 USE MOD_Restart_Vars          ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample,IAR_PerformPartWeightLB
-USE MOD_Restart_Vars          ,ONLY: RestartTime
-USE MOD_Analyze_Vars          ,ONLY: Analyze_dt,iAnalyze
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

@@ -427,7 +427,6 @@ END SUBROUTINE UpdateVariableRefElectronTemp
 SUBROUTINE UpdateBRAutomaticElectronRef()
 ! MODULES
 USE MOD_HDG_vars               ,ONLY: HDGNonLinSolver
-USE MOD_TimeDisc_Vars          ,ONLY: iter
 USE MOD_Particle_Analyze_Tools ,ONLY: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
