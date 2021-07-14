@@ -1180,10 +1180,15 @@ CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: proposal !< reference value
 CLASS(*)                             :: value    !< parameter value
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CLASS(link),POINTER   :: current
-CLASS(Option),POINTER :: opt
-CHARACTER(LEN=255)    :: proposal_loc
+CLASS(link),POINTER          :: current
+CLASS(Option),POINTER        :: opt
+CHARACTER(LEN=255)           :: proposal_loc
+CLASS(link),POINTER          :: check
+CLASS(Option),POINTER        :: multi
 CLASS(OPTION),ALLOCATABLE    :: newopt
+CHARACTER(LEN=:),ALLOCATABLE :: testname
+INTEGER                      :: i
+CHARACTER(LEN=20)            :: fmtName
 !==================================================================================================================================
 
 ! iterate over all options
@@ -1252,6 +1257,60 @@ DO WHILE (associated(current))
       newopt%name = name
       newopt%numberedmulti = .FALSE.
       newopt%isSet = .FALSE.
+      ! Check if we can find a general option, applying to all numberedmulti
+      testname = name
+      DO i = 1, LEN(name)
+        ! Start replacing the index from the left
+        IF(INDEX('0123456789',name(i:i)).GT.0) THEN
+          testname(i:i) = '$'
+          ! Check if we can find this name
+          check => prms%firstLink
+          DO WHILE (associated(check))
+            IF (check%opt%NAMEEQUALS(testname) .AND. check%opt%isSet) THEN
+              multi => check%opt
+              ! copy value from option to result variable
+              SELECT TYPE (multi)
+                CLASS IS (IntOption)
+                  SELECT TYPE(value)
+                    TYPE IS (INTEGER)
+                      value = multi%value
+                  END SELECT
+                CLASS IS (RealOption)
+                  SELECT TYPE(value)
+                    TYPE IS (REAL)
+                      value = multi%value
+                  END SELECT
+                CLASS IS (LogicalOption)
+                  SELECT TYPE(value)
+                    TYPE IS (LOGICAL)
+                      value = multi%value
+                  END SELECT
+                CLASS IS (StringOption)
+                  SELECT TYPE(value)
+                    TYPE IS (STR255)
+                      value%chars = multi%value
+                  END SELECT
+              END SELECT
+              ! print option and value to stdout. Custom print, so do it here
+              WRITE(fmtName,*) prms%maxNameLen
+              SWRITE(UNIT_stdOut,'(a3)', ADVANCE='NO')  " | "
+              CALL set_formatting("blue")
+              SWRITE(UNIT_stdOut,"(a"//fmtName//")", ADVANCE='NO') TRIM(name)
+              CALL clear_formatting()
+              SWRITE(UNIT_stdOut,'(a3)', ADVANCE='NO')  " | "
+              CALL multi%printValue(prms%maxValueLen)
+              SWRITE(UNIT_stdOut,"(a3)", ADVANCE='NO') ' | '
+              CALL set_formatting("blue")
+              SWRITE(UNIT_stdOut,'(a7)', ADVANCE='NO')  "*MULTI"
+              CALL clear_formatting()
+              SWRITE(UNIT_stdOut,"(a3)") ' | '
+              RETURN
+            END IF
+            check => check%next
+          END DO
+        END IF
+      END DO
+      ! No catchall option, check if we can find a proposal
       IF ((PRESENT(proposal)).AND.(.NOT. newopt%isSet)) THEN
         proposal_loc = TRIM(proposal)
         CALL newopt%parse(proposal_loc)
@@ -1316,11 +1375,15 @@ CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: proposal  !< reference value
 CLASS(*)                             :: value(no) !< parameter value
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CLASS(link),POINTER   :: current
-CLASS(Option),POINTER :: opt
-CHARACTER(LEN=255)    :: proposal_loc
+CLASS(link),POINTER          :: current
+CLASS(Option),POINTER        :: opt
+CHARACTER(LEN=255)           :: proposal_loc
+CLASS(link),POINTER          :: check
+CLASS(Option),POINTER        :: multi
 CLASS(OPTION),ALLOCATABLE    :: newopt
-!INTEGER               :: i
+CHARACTER(LEN=:),ALLOCATABLE :: testname
+INTEGER                      :: i
+CHARACTER(LEN=20)            :: fmtName
 !==================================================================================================================================
 
 ! iterate over all options
@@ -1393,6 +1456,58 @@ DO WHILE (associated(current))
       newopt%name = name
       newopt%numberedmulti = .FALSE.
       newopt%isSet = .FALSE.
+      ! Check if we can find a general option, applying to all numberedmulti
+      testname = name
+      DO i = 1, LEN(name)
+        ! Start replacing the index from the left
+        IF(INDEX('0123456789',name(i:i)).GT.0) THEN
+          testname(i:i) = '$'
+          ! Check if we can find this name
+          check => prms%firstLink
+          DO WHILE (associated(check))
+            IF (check%opt%NAMEEQUALS(testname) .AND. check%opt%isSet) THEN
+              multi => check%opt
+              ! copy value from option to result variable
+              SELECT TYPE (newopt)
+                CLASS IS (IntArrayOption)
+                  IF (SIZE(newopt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+                  SELECT TYPE(value)
+                    TYPE IS (INTEGER)
+                    value = newopt%value
+                  END SELECT
+                CLASS IS (RealArrayOption)
+                  IF (SIZE(newopt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+                  SELECT TYPE(value)
+                    TYPE IS (REAL)
+                    value = newopt%value
+                  END SELECT
+                CLASS IS (LogicalArrayOption)
+                  IF (SIZE(newopt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+                  SELECT TYPE(value)
+                    TYPE IS (LOGICAL)
+                    value = newopt%value
+                  END SELECT
+              END SELECT
+              ! print option and value to stdout. Custom print, so do it here
+              WRITE(fmtName,*) prms%maxNameLen
+              SWRITE(UNIT_stdOut,'(a3)', ADVANCE='NO')  " | "
+              CALL set_formatting("blue")
+              SWRITE(UNIT_stdOut,"(a"//fmtName//")", ADVANCE='NO') TRIM(name)
+              CALL clear_formatting()
+              SWRITE(UNIT_stdOut,'(a3)', ADVANCE='NO')  " | "
+              CALL multi%printValue(prms%maxValueLen)
+              SWRITE(UNIT_stdOut,"(a3)", ADVANCE='NO') ' | '
+              CALL set_formatting("blue")
+              SWRITE(UNIT_stdOut,'(a7)', ADVANCE='NO')  "*MULTI"
+              CALL clear_formatting()
+              SWRITE(UNIT_stdOut,"(a3)") ' | '
+              RETURN
+            END IF
+            check => check%next
+          END DO
+        END IF
+      END DO
+      ! No catchall option, check if we can find a proposal
       IF ((PRESENT(proposal)).AND.(.NOT. newopt%isSet)) THEN
         proposal_loc = TRIM(proposal)
         CALL newopt%parse(proposal_loc)
@@ -1424,14 +1539,6 @@ DO WHILE (associated(current))
         TYPE IS (LOGICAL)
           value = newopt%value
         END SELECT
-      !CLASS IS (StringArrayOption)
-        !IF (SIZE(opt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
-        !SELECT TYPE(value)
-        !TYPE IS (STR255)
-          !DO i=1,no
-            !value(i)%chars = opt%value(i)
-          !END DO
-        !END SELECT
       END SELECT
       ! print option and value to stdout
       CALL newopt%print(prms%maxNameLen, prms%maxValueLen, mode=0)
@@ -1601,6 +1708,12 @@ CLASS(Option),POINTER         :: opt
 INTEGER                       :: i
 LOGICAL                       :: found
 INTEGER                       :: listSize         ! current size of list
+CLASS(link),POINTER           :: check
+CLASS(Option),POINTER         :: multi
+CLASS(OPTION),ALLOCATABLE     :: newopt
+CHARACTER(LEN=:),ALLOCATABLE  :: testname
+INTEGER                       :: iChar
+CHARACTER(LEN=20)             :: fmtName
 !==================================================================================================================================
 ! iterate over all options and compare names
 current => prms%firstLink
@@ -1653,6 +1766,105 @@ DO WHILE (associated(current))
   END IF
   current => current%next
 END DO
+
+! iterate over all options and compare reduced (all numbers removed) names with numberedmulti options
+current => prms%firstLink
+DO WHILE (associated(current))
+  IF (.NOT.current%opt%numberedmulti) THEN
+    current => current%next
+  ELSE
+    ! compare reduced name with reduced option name
+    IF (current%opt%NAMEEQUALSNUMBERED(name).AND.(.NOT.current%opt%isRemoved)) THEN
+      ! create new instance of multiple option
+      ALLOCATE(newopt, source=current%opt)
+      ! set name of new option like name in read line and set it being not multiple numbered
+      newopt%name = name
+      newopt%numberedmulti = .FALSE.
+      newopt%isSet = .FALSE.
+      ! Check if we can find a general option, applying to all numberedmulti
+      testname = name
+      DO iChar = 1, LEN(name)
+        ! Start replacing the index from the left
+        IF(INDEX('0123456789',name(iChar:iChar)).GT.0) THEN
+          testname(iChar:iChar) = '$'
+          ! Check if we can find this name
+          check => prms%firstLink
+          DO WHILE (associated(check))
+            IF (check%opt%NAMEEQUALS(testname) .AND. check%opt%isSet) THEN
+              multi => check%opt
+              ! copy value from option to result variable
+              SELECT TYPE (multi)
+                CLASS IS (IntFromStringOption)
+                  ! Set flag indicating the given option has an entry in the mapping
+                  multi%foundInList = .TRUE.
+                  ! Size of list with string-integer pairs
+                  listSize = SIZE(multi%strList)
+                  ! Check if an integer has been specified directly
+                  IF (ISINT(multi%value)) THEN
+                    READ(multi%value,*) value
+                    found=.FALSE.
+                    ! Check if the integer is present in the list of possible integers
+                    DO i=1,listSize
+                      IF (multi%intList(i).EQ.value)THEN
+                        found=.TRUE.
+                        multi%listIndex = i ! Store index of the mapping
+                        EXIT
+                      END IF
+                    END DO
+                    ! If it is not found, print a warning and set the flag to later use the correct output format
+                    IF(.NOT.found)THEN
+                      CALL PrintWarning("No named option for parameter " //TRIM(name)// " exists for this number, please ensure your input is correct.")
+                      multi%foundInList = .FALSE.
+                    END IF
+                    ! print option and value to stdout. Custom print, so do it here
+                    WRITE(fmtName,*) prms%maxNameLen
+                    SWRITE(UNIT_stdOut,'(a3)', ADVANCE='NO')  " | "
+                    CALL set_formatting("blue")
+                    SWRITE(UNIT_stdOut,"(a"//fmtName//")", ADVANCE='NO') TRIM(name)
+                    CALL clear_formatting()
+                    SWRITE(UNIT_stdOut,'(a3)', ADVANCE='NO')  " | "
+                    CALL multi%printValue(prms%maxValueLen)
+                    SWRITE(UNIT_stdOut,"(a3)", ADVANCE='NO') ' | '
+                    CALL set_formatting("blue")
+                    SWRITE(UNIT_stdOut,'(a7)', ADVANCE='NO')  "*MULTI"
+                    CALL clear_formatting()
+                    SWRITE(UNIT_stdOut,"(a3)") ' | '
+                    RETURN
+                  END IF
+                  ! If a string has been supplied, check if this string exists in the list and set it's integer representation according to the
+                  ! mapping
+                  DO i=1,listSize
+                    IF (STRICMP(multi%strList(i), multi%value)) THEN
+                      value = multi%intList(i)
+                      multi%listIndex = i ! Store index of the mapping
+                      ! print option and value to stdout. Custom print, so do it here
+                      WRITE(fmtName,*) prms%maxNameLen
+                      SWRITE(UNIT_stdOut,'(a3)', ADVANCE='NO')  " | "
+                      CALL set_formatting("blue")
+                      SWRITE(UNIT_stdOut,"(a"//fmtName//")", ADVANCE='NO') TRIM(name)
+                      CALL clear_formatting()
+                      SWRITE(UNIT_stdOut,'(a3)', ADVANCE='NO')  " | "
+                      CALL multi%printValue(prms%maxValueLen)
+                      SWRITE(UNIT_stdOut,"(a3)", ADVANCE='NO') ' | '
+                      CALL set_formatting("blue")
+                      SWRITE(UNIT_stdOut,'(a7)', ADVANCE='NO')  "*MULTI"
+                      CALL clear_formatting()
+                      SWRITE(UNIT_stdOut,"(a3)") ' | '
+                      RETURN
+                    END IF
+                  END DO
+                  CALL Abort(__STAMP__,"Unknown value for option: "//TRIM(name))
+              END SELECT
+            END IF
+            check => check%next
+          END DO
+        END IF
+      END DO
+    END IF
+    current => current%next
+  END IF
+END DO
+
 CALL Abort(__STAMP__,&
     "Unknown option: "//TRIM(name)//" or already read (use GET... routine only for multiple options more than once).")
 END FUNCTION GETINTFROMSTR
