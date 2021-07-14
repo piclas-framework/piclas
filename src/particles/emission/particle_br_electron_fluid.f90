@@ -215,7 +215,7 @@ IF(BRNbrOfRegions.GT.0)THEN
   BRVariableElectronTemp = GETSTR('BRVariableElectronTemp')
   SELECT CASE(TRIM(BRVariableElectronTemp))
   CASE('constant')  ! Default, nothing to do
-  CASE('linear','exp') ! Linear/Exponential drop towards background temperature
+  CASE('linear','exp','linear-phi','exp-phi') ! Linear/Exponential drop towards background temperature
     ! BGGas temperature
     BRVariableElectronTempValue = -1. ! initialize
     DO iSpec=1,nSpecies
@@ -484,6 +484,30 @@ IF(UseBRElectronFluid)THEN
     CASE('linear') ! Linear drop towards background temperature
       DO iRegions=1,BRNbrOfRegions
         RegionElectronRef(3,iRegions) = RegionElectronRefBackup(3,iRegions)
+        ASSOCIATE(T1   => RegionElectronRefBackup(3,iRegions) )
+          ! Fallback
+          IF(dt.EQ.HUGE(1.))THEN
+            RegionElectronRef(3,iRegions) = T2 ! fall back to starting temperature
+          ELSE
+            RegionElectronRef(3,iRegions) = ((T1-T2)/DeltaTimeBRWindow)*dt + T2
+          END IF ! dt_Min(DT_BR_SWITCH).EQ.HUGE(1.)
+        END ASSOCIATE
+      END DO
+    CASE('exp') ! Exponential drop towards background temperature
+      DO iRegions=1,BRNbrOfRegions
+        RegionElectronRef(3,iRegions) = RegionElectronRefBackup(3,iRegions)
+        ASSOCIATE(T1   => RegionElectronRefBackup(3,iRegions) )
+          ! Fallback
+          IF(dt.EQ.HUGE(1.))THEN
+            RegionElectronRef(3,iRegions) = T2 ! fall back to starting temperature
+          ELSE
+            RegionElectronRef(3,iRegions) = (T1-T2)*EXP((-DeltaTimeBRWindow+dt)*3e6) + T2
+          END IF ! dt_Min(DT_BR_SWITCH).EQ.HUGE(1.)
+        END ASSOCIATE
+      END DO
+    CASE('linear-phi') ! Linear drop towards background temperature
+      DO iRegions=1,BRNbrOfRegions
+        RegionElectronRef(3,iRegions) = RegionElectronRefBackup(3,iRegions)
         RegionElectronRef(2,iRegions) = RegionElectronRefBackup(2,iRegions)
         ASSOCIATE(T1   => RegionElectronRefBackup(3,iRegions) ,&
                   Phi1 => RegionElectronRefBackup(2,iRegions))
@@ -497,7 +521,7 @@ IF(UseBRElectronFluid)THEN
           END IF ! dt_Min(DT_BR_SWITCH).EQ.HUGE(1.)
         END ASSOCIATE
       END DO
-    CASE('exp') ! Exponential drop towards background temperature
+    CASE('exp-phi') ! Exponential drop towards background temperature
       DO iRegions=1,BRNbrOfRegions
         RegionElectronRef(3,iRegions) = RegionElectronRefBackup(3,iRegions)
         RegionElectronRef(2,iRegions) = RegionElectronRefBackup(2,iRegions)
