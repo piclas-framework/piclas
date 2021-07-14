@@ -420,11 +420,11 @@ CHARACTER(LEN=*),INTENT(IN)  :: filename
 CHARACTER(LEN=:),ALLOCATABLE :: GetFileExtension
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iExt,fileExtensionLenght
+INTEGER           :: iExt,fileExtensionLength
 !===================================================================================================================================
 iExt=INDEX(filename,'.',BACK = .TRUE.) ! Position of file extension
-fileExtensionLenght = LEN_TRIM(filename) - iExt
-ALLOCATE(CHARACTER(fileExtensionLenght) :: GetFileExtension)
+fileExtensionLength = LEN_TRIM(filename) - iExt
+ALLOCATE(CHARACTER(fileExtensionLength) :: GetFileExtension)
 GetFileExtension = filename(iExt+1:LEN_TRIM(filename))
 END FUNCTION GetFileExtension
 
