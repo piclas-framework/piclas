@@ -730,7 +730,7 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
                               nValGlobal=(/MaxQuantNum  , nGlobalNbrOfParticles /)       , &
                               nVal=      (/MaxQuantNum  , locnPart   /)       , &
                               offset=    (/0_IK         , offsetnPart/)       , &
-                              collective=.FALSE.        , IntegerArray=VibQuantData)
+                              collective=.FALSE.        , IntegerArray_i4=VibQuantData)
         CALL CloseDataFile()
       END IF !MPIRoot
     END IF !locnPart_max.EQ.0
