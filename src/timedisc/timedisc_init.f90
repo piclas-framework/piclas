@@ -245,7 +245,9 @@ dt=HUGE(1.)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Boris-Leapfrog, Poisson'
 #elif (PP_TimeDiscMethod==509)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Leapfrog, Poisson'
-# endif
+#elif (PP_TimeDiscMethod==600)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Radiation'
+#endif
 
 RKdtFrac      = 1.
 RKdtFracTotal = 1.

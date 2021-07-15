@@ -105,6 +105,10 @@ USE MOD_ParticleSolver       ,ONLY: InitPartSolver
 #if USE_HDG
 USE MOD_HDG                  ,ONLY: InitHDG
 #endif
+#if (PP_TimeDiscMethod==600)
+USE MOD_RadiationTrans_Init        ,ONLY: InitRadiationTransport
+USE MOD_Radiation_Init             ,ONLY: InitRadiation
+#endif
 USE MOD_Interfaces           ,ONLY: InitInterfaces
 USE MOD_ReadInTools          ,ONLY: GETLOGICAL,GETREALARRAY,GETINT
 USE MOD_TimeDisc_Vars        ,ONLY: TEnd
@@ -208,6 +212,11 @@ CALL InitSurfModelAnalyze()
 
 #if USE_HDG
 CALL InitHDG() ! Hybridizable Discontinuous Galerkin Method (HDGSEM)
+#endif
+
+#if (PP_TimeDiscMethod==600)
+CALL InitRadiation()
+CALL InitRadiationTransport()
 #endif
 
 #ifdef PARTICLES

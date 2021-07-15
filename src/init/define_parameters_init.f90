@@ -81,6 +81,10 @@ USE MOD_Particle_VarTimeStep       ,ONLY: DefineParametersVaribleTimeStep
 USE MOD_DSMC_Symmetry              ,ONLY: DefineParametersParticleSymmetry
 USE MOD_SuperB_Init                ,ONLY: DefineParametersSuperB
 #endif
+#if (PP_TimeDiscMethod==600)
+USE MOD_RadiationTrans_Init        ,ONLY: DefineParametersRadiationTransport
+USE MOD_Radiation_Init             ,ONLY: DefineParametersRadiation
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -140,6 +144,10 @@ CALL DefineParametersFPFlow()
 #endif
 #if (PP_TimeDiscMethod==400)
 CALL DefineParametersBGK()
+#endif
+#if (PP_TimeDiscMethod==600)
+CALL DefineParametersRadiation()
+CALL DefineParametersRadiationTrans()
 #endif
 CALL DefineParametersSurfModel()
 CALL DefineParametersSurfModelAnalyze()

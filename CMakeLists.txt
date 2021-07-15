@@ -146,7 +146,8 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           ROS3
                                                           ROS4
                                                           ROS46
-                                                          ROS6)
+                                                          ROS6
+                                                          Radiation)
 
 # Get environment variable
 SET(PICLAS_SPLIT_TYPE "$ENV{PICLAS_SPLIT_TYPE}")
@@ -366,6 +367,9 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
    FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_BGK.f90)
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=400)
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Radiation")
+   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_Radiation.f90)
+   ADD_DEFINITIONS(-DPP_TimeDiscMethod=600)
 ELSE()
    MESSAGE(SEND_ERROR "Unknown time discretization method.")
 ENDIF()

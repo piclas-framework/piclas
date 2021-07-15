@@ -317,6 +317,8 @@ DO !iter_t=0,MaxIter
 #else
   CALL TimeStepPoissonByLSERK() ! Runge Kutta Explicit, Poisson
 #endif
+#elif (PP_TimeDiscMethod==600)
+  CALL TimeStep_Radiation()
 #else
   CALL abort(&
   __STAMP__&
