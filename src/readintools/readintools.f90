@@ -1258,6 +1258,8 @@ DO WHILE (associated(current))
       newopt%numberedmulti = .FALSE.
       newopt%isSet = .FALSE.
       ! Check if we can find a general option, applying to all numberedmulti
+      SDEALLOCATE(testname) ! safety check
+      ALLOCATE(CHARACTER(LEN_TRIM(name)) :: testname)
       testname = name
       DO i = 1, LEN(name)
         ! Start replacing the index from the left
@@ -1457,6 +1459,8 @@ DO WHILE (associated(current))
       newopt%numberedmulti = .FALSE.
       newopt%isSet = .FALSE.
       ! Check if we can find a general option, applying to all numberedmulti
+      SDEALLOCATE(testname) ! safety check
+      ALLOCATE(CHARACTER(LEN_TRIM(name)) :: testname)
       testname = name
       DO i = 1, LEN(name)
         ! Start replacing the index from the left

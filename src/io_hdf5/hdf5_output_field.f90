@@ -26,7 +26,11 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-#if !(USE_HDG)
+#if USE_HDG
+#if defined(PARTICLES)
+PUBLIC :: WriteBRAverageElemToHDF5
+#endif /*defined(PARTICLES)*/
+#else
 PUBLIC :: WritePMLzetaGlobalToHDF5
 #endif /*USE_HDG*/
 
@@ -125,7 +129,87 @@ SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteDielectricGlobalToHDF5
 
 
-#if !(USE_HDG)
+#if USE_HDG
+#if defined(PARTICLES)
+SUBROUTINE WriteBRAverageElemToHDF5(isBRAverageElem)
+!===================================================================================================================================
+! write BRAverageElem field to HDF5 file
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars    ,ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_Globals_Vars ,ONLY: ProjectName
+USE MOD_io_HDF5
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL,INTENT(IN) :: isBRAverageElem(1:PP_nElems)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER,PARAMETER  :: N_variables=1
+REAL               :: BRAverageElem(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+CHARACTER(LEN=255) :: StrVarNames(1:N_variables)
+CHARACTER(LEN=255) :: FileName
+#if USE_MPI
+REAL               :: StartT,EndT
+#endif
+REAL               :: OutputTime
+INTEGER            :: iElem
+!===================================================================================================================================
+! create global zeta field for parallel output of zeta distribution
+StrVarNames(1)='BRAverageElem'
+BRAverageElem=0.
+DO iElem=1,PP_nElems
+  IF(isBRAverageElem(iElem))THEN
+    BRAverageElem(:,:,:,:,iElem) = 1.0
+  END IF
+END DO!iElem
+IF(MPIROOT)THEN
+  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE BRAverageElem TO HDF5 FILE...'
+#if USE_MPI
+  StartT=MPI_WTIME()
+#endif
+END IF
+OutputTime=0.0
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_BRAverageElem',OutputTime))//'.h5'
+IF(MPIRoot) CALL GenerateFileSkeleton('BRAverageElem',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)!,FutureTime)
+#if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+CALL WriteAttributeToHDF5(File_ID,'VarNamesBRAverageElem',N_variables,StrArray=StrVarNames)
+CALL CloseDataFile()
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+        nGlobalElems    => INT(nGlobalElems,IK)    ,&
+        PP_nElems       => INT(PP_nElems,IK)       ,&
+        N_variables     => INT(N_variables,IK)     ,&
+        N               => INT(PP_N,IK)            ,&
+        offsetElem      => INT(offsetElem,IK)      )
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                          DataSetName='DG_Solution' , rank=5 , &
+                          nValGlobal =(/N_variables , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+                          nVal       =(/N_variables , N+1_IK , N+1_IK , N+1_IK , PP_nElems   /) , &
+                          offset     =(/       0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem  /) , &
+                          collective =.TRUE.        , RealArray=BRAverageElem)
+END ASSOCIATE
+#if USE_MPI
+IF(MPIROOT)THEN
+  EndT=MPI_WTIME()
+  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+END IF
+#else
+WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
+#endif
+END SUBROUTINE WriteBRAverageElemToHDF5
+#endif /*defined(PARTICLES)*/
+#else
 SUBROUTINE WritePMLzetaGlobalToHDF5()
 !===================================================================================================================================
 ! write PMLzetaGlobal field to HDF5 file
@@ -145,7 +229,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: N_variables
+INTEGER,PARAMETER   :: N_variables=3
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName
 #if USE_MPI
@@ -154,7 +238,6 @@ REAL                :: StartT,EndT
 REAL                :: OutputTime!,FutureTime
 INTEGER             :: iElem
 !===================================================================================================================================
-N_variables=3
 ! create global zeta field for parallel output of zeta distribution
 ALLOCATE(PMLzetaGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 ALLOCATE(StrVarNames(1:N_variables))

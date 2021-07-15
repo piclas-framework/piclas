@@ -95,7 +95,7 @@ USE MOD_Mesh_Vars              ,ONLY: GlobalUniqueSideID
 USE MOD_PICInterpolation_Vars  ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 USE MOD_Analyze_Vars           ,ONLY: AverageElectricPotential
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
-USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid
+USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid,BRAutomaticElectronRef,RegionElectronRef
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronIonDensity,CalcElectronTemperature
 USE MOD_Particle_Analyze_Tools ,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
 USE MOD_Particle_Analyze_Tools ,ONLY: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
@@ -633,18 +633,30 @@ CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElemTime')
 IF(UseBRElectronFluid) THEN
   ! Check if electron density is already calculated in each cell
   IF(.NOT.CalcElectronIonDensity)THEN
-    CALL AllocateElectronIonDensityCell
+    CALL AllocateElectronIonDensityCell()
     CALL CalculateElectronIonDensityCell()
   END IF
   CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElectronDensityCell')
 
   ! Check if electron temperature is already calculated in each cell
   IF(.NOT.CalcElectronTemperature)THEN
-    CALL AllocateElectronTemperatureCell
+    CALL AllocateElectronTemperatureCell()
     CALL CalculateElectronTemperatureCell()
   END IF
   CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElectronTemperatureCell')
 END IF
+! Automatically obtain the reference parameters (from a fully kinetic simulation), store them in .h5 state
+IF(BRAutomaticElectronRef)THEN
+  IF(MPIRoot)THEN ! only root writes the container
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    CALL WriteArrayToHDF5( DataSetName = 'RegionElectronRef' , rank = 2 , &
+                           nValGlobal  = (/1_IK , 3_IK/)     , &
+                           nVal        = (/1_IK , 3_IK/)     , &
+                           offset      = (/0_IK , 0_IK/)     , &
+                           collective  = .FALSE., RealArray = RegionElectronRef(1:3,1))
+    CALL CloseDataFile()
+  END IF !MPIRoot
+END IF ! BRAutomaticElectronRef
 #endif /*defined(PARTICLES) && USE_HDG*/
 
 ! Adjust values before WriteAdditionalElemData() is called

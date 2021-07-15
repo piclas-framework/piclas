@@ -723,6 +723,17 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
 
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (MaxQuantNum           => INT(MaxQuantNum,IK))
+    IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file, required for (auto-)restart
+      IF(MPIRoot)THEN ! only root writes the container
+        CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+        CALL WriteArrayToHDF5(DataSetName='VibQuantData', rank=2              , &
+                              nValGlobal=(/MaxQuantNum  , nGlobalNbrOfParticles /)       , &
+                              nVal=      (/MaxQuantNum  , locnPart   /)       , &
+                              offset=    (/0_IK         , offsetnPart/)       , &
+                              collective=.FALSE.        , IntegerArray_i4=VibQuantData)
+        CALL CloseDataFile()
+      END IF !MPIRoot
+    END IF !locnPart_max.EQ.0
 #if USE_MPI
     CALL DistributedWriteArray(FileName , &
                               DataSetName ='VibQuantData', rank=2           , &
@@ -777,6 +788,17 @@ IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
 
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (MaxElecQuant          => INT(MaxElecQuant,IK))
+    IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file, required for (auto-)restart
+      IF(MPIRoot)THEN ! only root writes the container
+        CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+        CALL WriteArrayToHDF5(DataSetName='ElecDistriData', rank=2              , &
+                              nValGlobal=(/MaxElecQuant   , nGlobalNbrOfParticles /)       , &
+                              nVal=      (/MaxElecQuant   , locnPart   /)       , &
+                              offset=    (/0_IK           , offsetnPart/)       , &
+                              collective=.FALSE.          , RealArray=ElecDistriData)
+        CALL CloseDataFile()
+      END IF !MPIRoot
+    END IF !locnPart_max.EQ.0
 #if USE_MPI
     CALL DistributedWriteArray(FileName , &
                               DataSetName ='ElecDistriData', rank=2           , &
@@ -828,6 +850,17 @@ IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
     PartInt(iElem_glob,2)=iPart
   END DO
 
+    IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file, required for (auto-)restart
+      IF(MPIRoot)THEN ! only root writes the container
+        CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+        CALL WriteArrayToHDF5(DataSetName='ADVeloData' , rank=2              , &
+                              nValGlobal=(/3_IK        , nGlobalNbrOfParticles /)       , &
+                              nVal=      (/3_IK        , locnPart   /)       , &
+                              offset=    (/0_IK        , offsetnPart/)       , &
+                              collective=.FALSE.       , RealArray=AD_Data)
+        CALL CloseDataFile()
+      END IF !MPIRoot
+    END IF !locnPart_max.EQ.0
 #if USE_MPI
     CALL DistributedWriteArray(FileName , &
                               DataSetName ='ADVeloData'  , rank=2           , &
@@ -879,7 +912,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Globals_Vars           ,ONLY: ProjectName
-USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength
+USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,nVarPartStateBoundary
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart2
 USE MOD_TimeDisc_Vars          ,ONLY: iter
@@ -955,6 +988,8 @@ PartDataSize = PartDataSize + 1
 PartDataSize = PartDataSize + 1
 ! Impact obliqueness angle [degree]
 PartDataSize = PartDataSize + 1
+! iBC [-]
+PartDataSize = PartDataSize + 1
 
 ! Set number of local particles
 locnPart = INT(PartStateBoundaryVecLength,IK)
@@ -1007,6 +1042,9 @@ DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
   ! Impact obliqueness angle [degree]
   PartData(11,iPart)=PartStateBoundary(10,pcount)
 
+  ! iBC [-]
+  PartData(12,iPart)=PartStateBoundary(11,pcount)
+
   pcount = pcount +1
 END DO ! iPart=offsetnPart+1_IK,offsetnPart+locnPart
 
@@ -1038,6 +1076,7 @@ ASSOCIATE (&
   StrVarNames2(9)  = 'MacroParticleFactor'
   StrVarNames2(10) = 'Time'
   StrVarNames2(11) = 'ImpactObliquenessAngle'
+  StrVarNames2(12) = 'iBC'
 
   IF(MPIRoot)THEN
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
@@ -1087,7 +1126,7 @@ PartStateBoundaryVecLength = 0
 ! Re-allocate PartStateBoundary for a small number of particles and double the array size each time the
 ! maximum is reached
 DEALLOCATE(PartStateBoundary)
-ALLOCATE(PartStateBoundary(1:10,1:10))
+ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:10))
 PartStateBoundary=0.
 
 END SUBROUTINE WriteBoundaryParticleToHDF5

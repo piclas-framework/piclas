@@ -33,7 +33,7 @@ INTEGER             :: nCurrentParts               ! current number of particles
 LOGICAL             :: MeasureTrackTime            ! switch, if tracking time is measure
 LOGICAL             :: FastPeriodic                ! moves the particle along whole periodic vector,
                                                    ! neglecting possible reflexions
-LOGICAL             :: DisplayLostParticles        ! Display position, velocity, species and hots element of particles lost during 
+LOGICAL             :: DisplayLostParticles        ! Display position, velocity, species and hots element of particles lost during
 !                                                  ! particle tracking (TrackingMethod = triatracking, tracing). Default=F
 LOGICAL             :: CountNbrOfLostParts         ! logical, to count the lost particles
 REAL, ALLOCATABLE   :: PartStateLost(:,:)          ! (1:14,1:NParts) 1st index: LastPartPos-X,LastPartPos-Y,LastPartPos-Z,vx,vy,vz,
@@ -45,7 +45,7 @@ INTEGER             :: PartStateLostVecLength      ! Number of lost particles fo
 LOGICAL             :: CartesianPeriodic           ! old periodic for refmapping and ALL bcs periocic
 INTEGER             :: NbrOfLostParticles          ! Counter for lost particle per process
 INTEGER             :: NbrOfLostParticlesTotal     ! Counter for lost particles across all processes
-INTEGER             :: NbrOfLostParticlesTotal_old ! Difference between two Analyze_dt steps
+INTEGER             :: NbrOfLostParticlesTotal_old !
 INTEGER             :: NbrOfNewLostParticlesTotal  ! Difference between NbrOfLostParticlesTotal and NbrOfLostParticlesTotal_old
 INTEGER             :: TotalNbrOfMissingParticlesSum ! Global number of missing particles across all processors (lost during restart)
 REAL,ALLOCATABLE    :: Distance(:)                 ! list of distance between particle and element-origin
