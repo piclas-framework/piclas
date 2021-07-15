@@ -126,11 +126,6 @@ ELSE
     END IF
     CALL RANDOM_NUMBER(iRan2)
   END DO
-#if ( PP_TimeDiscMethod == 42 )
-#ifdef CODE_ANALYZE
-  SpecDSMC(iSpec)%levelcounter(iQua) = SpecDSMC(iSpec)%levelcounter(iQua) + 1
-#endif
-#endif
   PartStateIntEn(3,iPart) = BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
 END IF
 
