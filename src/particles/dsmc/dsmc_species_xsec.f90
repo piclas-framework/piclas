@@ -32,9 +32,13 @@ SUBROUTINE MCC_Init()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
-USE MOD_PARTICLE_Vars         ,ONLY: nSpecies
-USE MOD_DSMC_Vars             ,ONLY: BGGas, SpecDSMC, XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation, CollInf
+USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
+USE MOD_PARTICLE_Vars ,ONLY: nSpecies
+USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation, CollInf
+#if defined(PARTICLES) && USE_HDG
+USE MOD_HDG_Vars      ,ONLY: UseBRElectronFluid,BRNullCollisionDefault
+USE MOD_ReadInTools   ,ONLY: PrintOption
+#endif /*defined(PARTICLES) && USE_HDG*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -154,6 +158,14 @@ DO iSpec = 1, nSpecies
     END IF
   END DO        ! jSpec = iSpec, nSpecies
 END DO          ! iSpec = 1, nSpecies
+
+#if defined(PARTICLES) && USE_HDG
+BRNullCollisionDefault = XSec_NullCollision ! Backup read-in parameter value (for switching null collision on/off)
+IF(XSec_NullCollision.AND.UseBRElectronFluid)THEN
+  XSec_NullCollision = .FALSE. ! Deactivate null collision when using BR electrons due to (possibly) increased time step
+  CALL PrintOption('Using BR electron fuild model: Particles-CollXSec-NullCollision','INFO',LogOpt=XSec_NullCollision)
+END IF
+#endif /*defined(PARTICLES) && USE_HDG*/
 
 END SUBROUTINE MCC_Init
 
@@ -416,7 +428,7 @@ DEALLOCATE(Velocity)
 END SUBROUTINE DetermineNullCollProb
 
 
-PURE REAL FUNCTION InterpolateCrossSection(iCase,CollisionEnergy)
+PPURE REAL FUNCTION InterpolateCrossSection(iCase,CollisionEnergy)
 !===================================================================================================================================
 !> Interpolate the collision cross-section [m^2] from the available data at the given collision energy [J]
 !> Collision energies below and above the given data will be set at the first and last level of the data set
@@ -466,7 +478,7 @@ END DO
 END FUNCTION InterpolateCrossSection
 
 
-PURE REAL FUNCTION InterpolateCrossSection_Vib(iCase,iVib,CollisionEnergy)
+PPURE REAL FUNCTION InterpolateCrossSection_Vib(iCase,iVib,CollisionEnergy)
 !===================================================================================================================================
 !> Interpolate the vibrational cross-section data for specific vibrational level at the given collision energy
 !> Note: Requires the data to be sorted by ascending energy values
@@ -516,7 +528,7 @@ END DO
 END FUNCTION InterpolateCrossSection_Vib
 
 
-PURE REAL FUNCTION InterpolateVibRelaxProb(iCase,CollisionEnergy)
+PPURE REAL FUNCTION InterpolateVibRelaxProb(iCase,CollisionEnergy)
 !===================================================================================================================================
 !> Interpolate the vibrational relaxation probability at the same intervals as the effective collision cross-section
 !> Note: Requires the data to be sorted by ascending energy values
@@ -776,7 +788,7 @@ END IF
 END SUBROUTINE MCC_Chemistry_Init
 
 
-PURE REAL FUNCTION InterpolateCrossSection_Chem(iCase,iPath,CollisionEnergy)
+PPURE REAL FUNCTION InterpolateCrossSection_Chem(iCase,iPath,CollisionEnergy)
 !===================================================================================================================================
 !> Interpolate the reaction cross-section data for specific reaction path at the given collision energy
 !> Note: Requires the data to be sorted by ascending energy values

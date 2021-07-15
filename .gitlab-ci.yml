@@ -505,12 +505,19 @@ NIG_Photoionization_debug:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly_build_all": Build and run
 #                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
+#                                    - sanitizer for maxwell/poisson (CMAKE_BUILD_TYPE=SANI,Profile)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 build_all:
   <<: *defaults_nightly
   stage: reggie_nightly_build_all
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
+
+build_sanitize:
+  <<: *defaults_nightly
+  stage: reggie_nightly_build_all
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/sanitize ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly": Build and run examples once a week

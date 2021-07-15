@@ -209,7 +209,7 @@ Pt(:,iPart)=0.
 END SUBROUTINE CalcPartRHSSingleParticle
 
 
-PURE SUBROUTINE PartRHS_NR(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
+PPURE SUBROUTINE PartRHS_NR(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
 !===================================================================================================================================
 ! 'non-relativistic'
 ! Particle Right-Hand-Side: Non-relativistic push

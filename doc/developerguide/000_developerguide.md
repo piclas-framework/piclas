@@ -1,12 +1,13 @@
 ---
-title: PICLas
-logo: ../logo.png
+title: |
+  ![](../logo.png){width=15cm}
+  PICLas v2.1.0
 subtitle: Developer Guide
-version: Version 2.0
 author: 
   - University of Stuttgart, Germany
   - Institute for Aerodynamics and Gas Dynamics (IAG)
   - Institute for Space Systems (IRS)
+  - boltzplatz - Numerical Plasma Dynamics
 institute: IAG IRS
 date: \today
 documentclass: scrreprt
@@ -27,7 +28,7 @@ link-citations: true
 
 # Introduction
 
- [**PICLas**](http://https://github.com/piclas-framework/piclas)  is a three-dimensional simulation
+ [**PICLas**](https://github.com/piclas-framework/piclas)  is a three-dimensional simulation
  framework for Particle-in-Cell, Direct Simulation Monte Carlo and other particle methods that can be coupled for
  the simulation of collisional plasma flows.
  It features a high-order discontinuous 
@@ -38,6 +39,7 @@ link-citations: true
  It is licensed under GPLv3, written in Fortran and parallelized with MPI. Implemented features are
  
  * Coupled Particle-in-Cell with Direct Simulation Monte Carlo methods
+ * Particle-based Bhatnagar-Gross-Krook (Ellipsoidal Statistical, Shakov, Unified) and Fokker–Planck (Cubic, Ellipsoidal Statistical) models for continuum gas flows
  * Arbitrary order nodal polynomial tensor product basis using Gauss or Gauss Lobatto collocation 
    points for electrostatic and electromagnetic solvers
  * Matching high order curved mesh generation from external mesh formats (CGNS, GMSH) or 

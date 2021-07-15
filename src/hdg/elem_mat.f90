@@ -318,13 +318,13 @@ END IF
 
 CONTAINS
 
- PURE FUNCTION index_3to1(i1,i2,i3) RESULT(i)
+ PPURE FUNCTION index_3to1(i1,i2,i3) RESULT(i)
   INTEGER, INTENT(IN) :: i1, i2, i3
   INTEGER :: i
    i = i3*(PP_N+1)**2 + i2*(PP_N+1) + i1 + 1
  END FUNCTION index_3to1
 
- PURE FUNCTION sindex_3to1(i1,i2,i3,iLocSide) RESULT(i)
+ PPURE FUNCTION sindex_3to1(i1,i2,i3,iLocSide) RESULT(i)
   INTEGER, INTENT(IN) :: i1, i2, i3, iLocSide
   INTEGER :: i
   !local variables

@@ -157,7 +157,7 @@ END SUBROUTINE LowCase_overwrite
 !==================================================================================================================================
 !> Transform upper case letters in "Str1" into lower case letters, result is "Str2"
 !==================================================================================================================================
-PURE SUBROUTINE LowCase(Str1,Str2)
+PPURE SUBROUTINE LowCase(Str1,Str2)
 ! MODULES
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -234,7 +234,7 @@ END SUBROUTINE
 !==================================================================================================================================
 !> Converts integer to string
 !==================================================================================================================================
-PURE FUNCTION INTTOSTR(value)
+PPURE FUNCTION INTTOSTR(value)
 INTEGER,INTENT(IN)  :: value
 CHARACTER(LEN=255)  :: INTTOSTR
 WRITE(INTTOSTR,"(I20)") value
@@ -243,7 +243,7 @@ END FUNCTION INTTOSTR
 !==================================================================================================================================
 !> Checks if a string is an integer
 !==================================================================================================================================
-PURE FUNCTION ISINT(value)
+PPURE FUNCTION ISINT(value)
 CHARACTER(LEN=255),INTENT(IN)  :: value
 LOGICAL                        :: ISINT
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -420,11 +420,11 @@ CHARACTER(LEN=*),INTENT(IN)  :: filename
 CHARACTER(LEN=:),ALLOCATABLE :: GetFileExtension
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iExt,fileExtensionLenght
+INTEGER           :: iExt,fileExtensionLength
 !===================================================================================================================================
 iExt=INDEX(filename,'.',BACK = .TRUE.) ! Position of file extension
-fileExtensionLenght = LEN_TRIM(filename) - iExt
-ALLOCATE(CHARACTER(fileExtensionLenght) :: GetFileExtension)
+fileExtensionLength = LEN_TRIM(filename) - iExt
+ALLOCATE(CHARACTER(fileExtensionLength) :: GetFileExtension)
 GetFileExtension = filename(iExt+1:LEN_TRIM(filename))
 END FUNCTION GetFileExtension
 

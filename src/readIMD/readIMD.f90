@@ -46,7 +46,7 @@ subroutine read_IMD_results()
   use MOD_DSMC_Vars,only:PartStateIntEn
   use MOD_Particle_Mesh,only:SingleParticleToExactElementNoMap
   use mod_particle_mpi,only:IRecvNbofParticles, SendNbOfParticles, MPIParticleSend, MPIParticleRecv
-  use mod_hdf5_output,only:WriteStateToHDF5
+  use mod_hdf5_output_state,only:WriteStateToHDF5
   use mod_mesh_vars,only:meshfile
   use mod_part_tools,only:UpdateNextFreePosition
   use mod_mesh,only:getmeshminmaxboundaries

@@ -312,7 +312,7 @@ END ASSOCIATE
 END SUBROUTINE EvaluateFieldAtPhysPos
 
 
-PURE SUBROUTINE EvaluateFieldAtRefPos(xi_in,NVar_IN,N_in,U_In,NVar_OUT,U_OUT,ElemID)
+PPURE SUBROUTINE EvaluateFieldAtRefPos(xi_in,NVar_IN,N_in,U_In,NVar_OUT,U_OUT,ElemID)
 !===================================================================================================================================
 !> 1) interpolate DG solution to position (U_In -> U_OUT(xi_in))
 !> 2) interpolate backgroundfield to position ( U_OUT -> U_OUT(xi_in)+BG_field(xi_in) )
@@ -596,8 +596,8 @@ __STAMP__&
       IPWRITE(UNIT_stdOut,*) ' xi               ', xi(1:3)
       IPWRITE(UNIT_stdOut,*) ' PartPos          ', X_in
       IPWRITE(UNIT_stdOut,*) ' GlobalElemID     ', ElemID
-      IPWRITE(UNIT_stdOut,*) ' LastPartPos      ', LastPartPos
-      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
+      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' LastPartPos ', LastPartPos(1:3,PartID)
+      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID      ', PartID
 #if defined(IMPA)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartIsImplicit(PartID)
 #endif
@@ -614,7 +614,7 @@ END DO !newton
 END SUBROUTINE RefElemNewton
 
 
-PURE FUNCTION getDet(Mat)
+PPURE FUNCTION getDet(Mat)
 !=================================================================================================================================
 !> compute determinant of 3x3 matrix
 !=================================================================================================================================
@@ -636,7 +636,7 @@ getDet=   ( Mat(1,1) * Mat(2,2) - Mat(1,2) * Mat(2,1) ) * Mat(3,3) &
 END FUNCTION getDet
 
 
-PURE FUNCTION getInv(Mat,sdet)
+PPURE FUNCTION getInv(Mat,sdet)
 !=================================================================================================================================
 !> compute inverse of 3x3 matrix, needs sDet=1/det(Mat)
 !=================================================================================================================================
@@ -664,7 +664,7 @@ getInv(3,3) = ( Mat(1,1) * Mat(2,2) - Mat(1,2) * Mat(2,1) ) * sdet
 END FUNCTION getInv
 
 
-PURE SUBROUTINE GetRefNewtonStartValue(X_in,Xi,ElemID)
+PPURE SUBROUTINE GetRefNewtonStartValue(X_in,Xi,ElemID)
 !===================================================================================================================================
 !> Returns the initial value/ guess for the Newton's algorithm
 !===================================================================================================================================

@@ -70,7 +70,12 @@ INTERFACE UNLOCK_AND_FREE_DUMMY
   MODULE PROCEDURE UNLOCK_AND_FREE_1
 END INTERFACE
 
+INTERFACE BARRIER_AND_SYNC
+  MODULE PROCEDURE BARRIER_AND_SYNC
+END INTERFACE
+
 PUBLIC::UNLOCK_AND_FREE_DUMMY
+PUBLIC::BARRIER_AND_SYNC
 
 !==================================================================================================================================
 CONTAINS
@@ -122,7 +127,7 @@ nProcessors_Global = nProcessors
 #else
   ! Note that using SharedMemoryMethod=OMPI_COMM_TYPE_CORE somehow does not work in every case (intel/amd processors)
   ! Also note that OMPI_COMM_TYPE_CORE is undefined when not using OpenMPI
-  CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD, SharedMemoryMethod, myRank, MPI_INFO_NULL, MPI_COMM_SHARED,IERROR)
+  CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD,SharedMemoryMethod,0,MPI_INFO_NULL,MPI_COMM_SHARED,IERROR)
 #endif
 
 ! Find my rank on the shared communicator, comm size and proc name
@@ -147,9 +152,8 @@ CALL MPI_BCAST(ComputeNodeRootRank,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
 ! now split global communicator into small group leaders and the others
 MPI_COMM_LEADERS_SHARED=MPI_COMM_NULL
 myLeaderGroupRank=-1
-color=MPI_UNDEFINED
-IF(myComputeNodeRank.EQ.0) color=101
-CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,myRank,MPI_COMM_LEADERS_SHARED,IERROR)
+color = MERGE(101,MPI_UNDEFINED,myComputeNodeRank.EQ.0)
+CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,0,MPI_COMM_LEADERS_SHARED,IERROR)
 IF(myComputeNodeRank.EQ.0)THEN
   CALL MPI_COMM_RANK(MPI_COMM_LEADERS_SHARED,myLeaderGroupRank,IERROR)
   CALL MPI_COMM_SIZE(MPI_COMM_LEADERS_SHARED,nLeaderGroupProcs,IERROR)
@@ -833,6 +837,36 @@ END IF
 CALL C_F_POINTER(SM_PTR, DataPointer,nVal)
 
 END SUBROUTINE ALLOCATE_SHARED_REAL_6
+
+
+!==================================================================================================================================
+!> Unlock and free shared memory array
+!==================================================================================================================================
+SUBROUTINE BARRIER_AND_SYNC(SharedWindow,Communicator) !,Barrier_Opt)
+! MODULES
+USE MOD_Globals
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(INOUT)       :: SharedWindow !> Shared memory window
+INTEGER,INTENT(INOUT)       :: Communicator !> Shared memory communicator
+! LOGICAL,INTENT(IN)          :: Barrier_Opt  !
+! LOCAL VARIABLES
+! LOGICAL                     :: Barrier
+!==================================================================================================================================
+! Barrier = MERGE(Barrier_Opt,.TRUE.,PRESENT(Barrier_Opt)
+
+CALL MPI_WIN_SYNC(SharedWindow,iError)
+! IF (Barrier) CALL MPI_BARRIER (Communicator,iError)
+CALL MPI_BARRIER (Communicator,iError)
+CALL MPI_WIN_SYNC(SharedWindow,iError)
+
+! IF(iError.NE.0)THEN
+!   CALL abort(__STAMP__,'ERROR in MPI_WIN_SYNC() for '//TRIM(SM_WIN_NAME)//': iError returned non-zero value =',IntInfoOpt=iError)
+! END IF ! iError.NE.0
+END SUBROUTINE BARRIER_AND_SYNC
 
 
 !==================================================================================================================================

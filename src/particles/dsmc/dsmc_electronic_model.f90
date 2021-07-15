@@ -42,7 +42,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSpeciesLevel, CalcXiElec
+PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSpeciesLevel
 PUBLIC :: RelaxElectronicShellWall
 !===================================================================================================================================
 CONTAINS
@@ -126,11 +126,6 @@ ELSE
     END IF
     CALL RANDOM_NUMBER(iRan2)
   END DO
-#if ( PP_TimeDiscMethod == 42 )
-#ifdef CODE_ANALYZE
-  SpecDSMC(iSpec)%levelcounter(iQua) = SpecDSMC(iSpec)%levelcounter(iQua) + 1
-#endif
-#endif
   PartStateIntEn(3,iPart) = BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
 END IF
 
@@ -221,13 +216,13 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi, NewPart, Xi_elec)
 !> Model 2 (Burt): Simulation particle has an electronic energy distribution function attached to it
 !===================================================================================================================================
 USE MOD_Globals
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, PartStateIntEn, RadialWeighting, Coll_pData, DSMC, ElectronicDistriPart 
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep, usevMPF, nSpecies
-USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_DSMC_Analyze          ,ONLY: CalcTelec 
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, PartStateIntEn, RadialWeighting, Coll_pData, DSMC, ElectronicDistriPart 
+USE MOD_Particle_Vars          ,ONLY: PartSpecies, VarTimeStep, usevMPF, nSpecies
+USE MOD_part_tools             ,ONLY: GetParticleWeight
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec 
 #if (PP_TimeDiscMethod==42)
-USE MOD_DSMC_Vars,              ONLY: DSMC
+USE MOD_DSMC_Vars              ,ONLY: DSMC
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -646,48 +641,5 @@ REAL FUNCTION DiffElecEnergy(En1, En2)
   RETURN
 
 END FUNCTION DiffElecEnergy
-
-
-PURE REAL FUNCTION CalcXiElec(Telec, iSpec)
-!===================================================================================================================================
-!> Calculation of the electronic degree of freedom for a given temperature and species
-!===================================================================================================================================
-! MODULES
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)                :: Telec  !
-INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                         :: iQua
-REAL                            :: TempRatio, SumOne, SumTwo
-!===================================================================================================================================
-
-SumOne = 0.0
-SumTwo = 0.0
-
-DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant-1
-  TempRatio = SpecDSMC(iSpec)%ElectronicState(2,iQua)/Telec
-  IF(CHECKEXP(TempRatio)) THEN
-    SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,iQua)*SpecDSMC(iSpec)%ElectronicState(2,iQua)*EXP(-TempRatio)
-    SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,iQua)*EXP(-TempRatio)
-  END IF
-END DO
-
-IF((SumOne.GT.0.0).AND.(SumTwo.GT.0.0)) THEN
-  CalcXiElec = 2. * SumOne / (SumTwo * Telec)
-ELSE
-  CalcXiElec = 0.0
-END IF
-
-RETURN
-
-END FUNCTION CalcXiElec
 
 END MODULE MOD_DSMC_ElectronicModel

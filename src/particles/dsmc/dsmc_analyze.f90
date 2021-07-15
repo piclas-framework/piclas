@@ -27,7 +27,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_data_sampling, CalcMeanFreePath,WriteDSMCToHDF5
-PUBLIC :: CalcTVib, CalcSurfaceValues, CalcTelec, CalcTVibPoly, CalcGammaVib
+PUBLIC :: CalcTVib, CalcSurfaceValues, CalcGammaVib
 PUBLIC :: CalcInstantTransTemp, SummarizeQualityFactors, DSMCMacroSampling
 PUBLIC :: SamplingRotVibRelaxProb, CalcInstantElecTempXi
 !===================================================================================================================================
@@ -56,6 +56,7 @@ USE MOD_Restart_Vars               ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
 USE MOD_Timedisc_Vars              ,ONLY: time,dt
 #if USE_MPI
+USE MOD_MPI_Shared                 ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars            ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
 USE MOD_Particle_Boundary_Vars     ,ONLY: SampWallPumpCapacity_Shared
 USE MOD_Particle_Boundary_vars     ,ONLY: SampWallState_Shared,SampWallImpactNumber_Shared,SampWallImpactEnergy_Shared
@@ -119,8 +120,7 @@ CALL ExchangeSurfData()
 ! Only surface sampling leaders take part in the remainder of this routine
 IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) THEN
   IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
-    CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
-    CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+    CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
   END IF
   RETURN
 END IF
@@ -273,8 +273,7 @@ END DO ! iSurfSide=1,nComputeNodeSurfSides
 #if USE_MPI
 END ASSOCIATE
 IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
-  CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+  CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 END IF
 #endif /*USE_MPI*/
 
@@ -345,121 +344,6 @@ END FUNCTION CalcTVib
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-REAL FUNCTION CalcTelec(MeanEelec, iSpec)
-!===================================================================================================================================
-!> Calculation of the electronic temperature (zero-point search)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)      :: MeanEelec  !< Mean electronic energy
-INTEGER, INTENT(IN)   :: iSpec      !< Species index
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER               :: ii
-REAL                  :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
-REAL,PARAMETER        :: eps_prec=1E-3           !< Relative precision of root-finding algorithm
-REAL                  :: TempRatio, SumOne, SumTwo        !< Sums of the electronic partition function
-!===================================================================================================================================
-
-IF (MeanEelec.GT.0) THEN
-  ! Lower limit: very small value or lowest temperature if ionized
-  IF (SpecDSMC(iSpec)%ElectronicState(2,0).EQ.0.0) THEN
-    LowerTemp = 1.0
-  ELSE
-    LowerTemp = SpecDSMC(iSpec)%ElectronicState(2,0)
-  END IF
-  ! Upper limit: Last excitation level (ionization limit)
-  UpperTemp = SpecDSMC(iSpec)%ElectronicState(2,SpecDSMC(iSpec)%MaxElecQuant-1)
-  MiddleTemp = LowerTemp
-  DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
-    MiddleTemp = 0.5*( LowerTemp + UpperTemp)
-    SumOne = 0.0
-    SumTwo = 0.0
-    DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant-1
-      TempRatio = SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp
-      IF(CHECKEXP(TempRatio)) THEN
-        SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * EXP(-TempRatio)
-        SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * EXP(-TempRatio)
-      END IF
-    END DO
-    IF ( SumTwo / SumOne .GT. MeanEelec / BoltzmannConst ) THEN
-      UpperTemp = MiddleTemp
-    ELSE
-      LowerTemp = MiddleTemp
-    END IF
-  END DO
-  CalcTelec = MiddleTemp
-ELSE
-  CalcTelec = 0. ! sup
-END IF
-
-RETURN
-
-END FUNCTION CalcTelec
-
-
-REAL FUNCTION CalcTVibPoly(MeanEVib, iSpec)
-!===================================================================================================================================
-!> Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst, ElementaryCharge
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)                :: MeanEVib  ! Charak TVib, mean vibrational Energy of all molecules
-INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                 :: iDOF, iPolyatMole
-REAL                    :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
-REAL                    :: EGuess                           !< Energy value at the current MiddleTemp
-REAL,PARAMETER          :: eps_prec=5E-3                    !< Relative precision of root-finding algorithm
-!===================================================================================================================================
-
-! lower limit: very small value or lowest temperature if ionized
-! upper limit: highest possible temperature
-iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-IF (MeanEVib.GT.SpecDSMC(iSpec)%EZeroPoint) THEN
-  LowerTemp = 1.0
-  UpperTemp = 5.0*SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/BoltzmannConst
-  MiddleTemp = LowerTemp
-  DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
-    MiddleTemp = 0.5*(LowerTemp + UpperTemp)
-    EGuess = SpecDSMC(iSpec)%EZeroPoint
-    DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-      ASSOCIATE(CharTVib => PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
-        IF(CHECKEXP(CharTVib/MiddleTemp)) THEN
-          EGuess = EGuess + BoltzmannConst * CharTVib / (EXP(CharTVib/MiddleTemp) - 1.0)
-        END IF
-      END ASSOCIATE
-    END DO
-    IF (EGuess.GT.MeanEVib) THEN
-      UpperTemp = MiddleTemp
-    ELSE
-      LowerTemp = MiddleTemp
-    END IF
-  END DO
-  CalcTVibPoly = MiddleTemp
-ELSE
-  CalcTVibPoly = 0. ! sup
-END IF
-RETURN
-
-END FUNCTION CalcTVibPoly
 
 
 REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_temp)
@@ -605,12 +489,13 @@ SUBROUTINE CalcInstantElecTempXi(iPartIndx,PartNum)
 !> Calculation of the instantaneous translational temperature for the cell
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_Preproc
-USE MOD_DSMC_Vars     ,ONLY: DSMC, CollInf, PartStateIntEn
-USE MOD_Particle_Vars ,ONLY: PartSpecies, nSpecies
-USE MOD_part_tools    ,ONLY: GetParticleWeight
+USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars              ,ONLY: DSMC, CollInf, PartStateIntEn
+USE MOD_Particle_Vars          ,ONLY: PartSpecies, nSpecies
+USE MOD_part_tools             ,ONLY: GetParticleWeight
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -827,20 +712,21 @@ SUBROUTINE DSMC_output_calc(nVar,nVar_quality,nVarloc,DSMC_MacroVal)
 !> Subroutine to calculate the solution U for writing into HDF5 format DSMC_output
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_PreProc
-USE MOD_BGK_Vars              ,ONLY: BGKInitDone, BGK_QualityFacSamp
-USE MOD_DSMC_Vars             ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting
-USE MOD_FPFlow_Vars           ,ONLY: FPInitDone, FP_QualityFacSamp
-USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry
-USE MOD_Particle_VarTimeStep  ,ONLY: CalcVarTimeStep
-USE MOD_Restart_Vars          ,ONLY: RestartTime
-USE MOD_TimeDisc_Vars         ,ONLY: time,TEnd,iter,dt
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
-USE MOD_Mesh_Vars             ,ONLY: offSetElem
-USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
+USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
+USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting
+USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
+USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry
+USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
+USE MOD_Restart_Vars           ,ONLY: RestartTime
+USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,iter,dt
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
+USE MOD_Mesh_Vars              ,ONLY: offSetElem
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec,CalcTVibPoly
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1109,7 +995,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: ProjectName
 USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
-USE MOD_HDF5_output   ,ONLY: WriteArrayToHDF5
+USE MOD_HDF5_Output   ,ONLY: WriteArrayToHDF5
 USE MOD_Particle_Vars ,ONLY: nSpecies, VarTimeStep
 USE MOD_BGK_Vars      ,ONLY: BGKInitDone
 USE MOD_FPFlow_Vars   ,ONLY: FPInitDone

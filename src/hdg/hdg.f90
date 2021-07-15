@@ -12,12 +12,11 @@
 !==================================================================================================================================
 #include "piclas.h"
 
+!===================================================================================================================================
+!> Module for the HDG method
+!===================================================================================================================================
 MODULE MOD_HDG
-!===================================================================================================================================
-! Module for the HDG method
-!===================================================================================================================================
 ! MODULES
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -43,14 +42,17 @@ PUBLIC :: DefineParametersHDG
 CONTAINS
 
 #if USE_HDG
-!==================================================================================================================================
+!===================================================================================================================================
 !> Define parameters for HDG (Hubridized Discontinous Galerkin)
-!==================================================================================================================================
+!===================================================================================================================================
 SUBROUTINE DefineParametersHDG()
 ! MODULES
-USE MOD_ReadInTools ,ONLY: prms
+USE MOD_ReadInTools           ,ONLY: prms
+#if defined(PARTICLES)
+USE MOD_Part_BR_Elecron_Fluid ,ONLY: DefineParametersBR
+#endif /*defined(PARTICLES)*/
 IMPLICIT NONE
-!==================================================================================================================================
+!===================================================================================================================================
 CALL prms%SetSection("HDG")
 
 CALL prms%CreateIntOption(    'HDGNonLinSolver'        ,'Select Newton or Fix Point algorithm (default is Newton and Fix Point is not implemented)', '1')
@@ -76,37 +78,22 @@ CALL prms%CreateRealOption(   'HDGSkip_t0'             ,'Time during which HDGSk
 
 CALL prms%CreateLogicalOption('HDGDisplayConvergence'  ,'Display divergence criteria: Iterations, RunTime and Residual', '.FALSE.')
 
+CALL prms%CreateIntOption(    'HDGZeroPotentialDir'    ,'Direction in which a Dirichlet condition with phi=0 is superimposed on the boundary conditions'&
+                                                      //' (1: x, 2: y, 3: z). The default chooses the direction automatically when no other Dirichlet boundary conditions are defined.'&
+                                                       ,'-1')
 
 ! --- BR electron fluid
-CALL prms%CreateIntOption(      'BRNbrOfRegions'                , 'Number of regions to be mapped to Elements', '0')
-CALL prms%CreateRealArrayOption('RegionBounds[$]'             , 'RegionBounds ((xmin,xmax,ymin,...)'//&
-                                                                '|1:BRNbrOfRegions)'&
-                                                                , '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'rho_ref, phi_ref, and Te[eV] for Region#'&
-                                                              , '0. , 0. , 1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected phi for Region#\n'//&
-                                                                '(linear approx. above! def.: phi_ref)', numberedmulti=.TRUE.)
-
 #if defined(PARTICLES)
-CALL prms%CreateLogicalOption(  'BRConvertElectronsToFluid'   , 'Remove all electrons when using BR electron fluid', '.FALSE.')
-CALL prms%CreateLogicalOption(  'BRConvertFluidToElectrons'   , 'Create electrons from BR electron fluid (requires'//&
-                                                                ' ElectronDensityCell ElectronTemperatureCell from .h5 state file)'&
-                                                              , '.FALSE.')
-CALL prms%CreateRealOption(     'BRConvertFluidToElectronsTime', "Time when BR fluid electrons are to be converted to kinetic particles", '-1.0')
-CALL prms%CreateRealOption(     'BRConvertElectronsToFluidTime', "Time when kinetic electrons should be converted to BR fluid electrons", '-1.0')
-CALL prms%CreateLogicalOption(  'BRConvertModelRepeatedly'     , 'Repeat the switch between BR and kinetic multiple times', '.FALSE.')
-CALL prms%CreateRealOption(     'BRTimeStepMultiplier'         , "Factor that is multiplied with the ManualTimeStep when using BR model", '1.0')
+CALL DefineParametersBR()
 #endif /*defined(PARTICLES)*/
-
-
-
 
 END SUBROUTINE DefineParametersHDG
 
+
+!===================================================================================================================================
+!> Initialize variables of the HDG module
+!===================================================================================================================================
 SUBROUTINE InitHDG()
-!===================================================================================================================================
-! Initialize variables of the HDG module
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -116,17 +103,18 @@ USE MOD_Basis              ,ONLY: PolynomialDerivativeMatrix
 USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Elem_Mat           ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETREAL,GETINT
-USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides,nSides
-USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCSides,nSides,BC
+USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nSides,BC
 USE MOD_Mesh_Vars          ,ONLY: nGlobalMortarSides,nMortarMPISides
-USE MOD_Globals_Vars       ,ONLY: eps0
 USE MOD_Restart_Vars       ,ONLY: DoRestart
 USE MOD_Mesh_Vars          ,ONLY: DoSwapMesh
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_Basis              ,ONLY: InitializeVandermonde,LegendreGaussNodesAndWeights,BarycentricWeights
 USE MOD_FillMortar_HDG     ,ONLY: InitMortar_HDG
 USE MOD_HDG_Vars           ,ONLY: BRNbrOfRegions,ElemToBRRegion,RegionElectronRef
-! IMPLICIT VARIABLE HANDLING
+#if defined(PARTICLES)
+USE MOD_Part_BR_Elecron_Fluid ,ONLY: UpdateNonlinVolumeFac
+#endif /*defined(PARTICLES)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -135,7 +123,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: i,j,k,r,iElem,SideID
-INTEGER           :: BCType,BCState,RegionID
+INTEGER           :: BCType,BCState
 REAL              :: D(0:PP_N,0:PP_N)
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
@@ -160,6 +148,7 @@ END IF
 
 HDGNonLinSolver = -1 ! init
 
+#if defined(PARTICLES)
 ! BR electron fluid model
 IF (BRNbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far -> non-linear HDG-sources!
   HDGNonLinSolver=GETINT('HDGNonLinSolver')
@@ -173,22 +162,20 @@ IF (BRNbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so fa
     IF (NewtonExactSourceDeriv) NewtonAdaptStartValue=.TRUE.
     IF (DoRestart) NewtonAdaptStartValue=.FALSE.
     ALLOCATE(NonlinVolumeFac(nGP_vol,PP_nElems))
-    DO iElem=1,PP_nElems
-      RegionID=ElemToBRRegion(iElem)
-      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-        r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-        IF (NewtonAdaptStartValue) THEN
-          NonlinVolumeFac(r,iElem)=0.0
-        ELSE
-          NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
-        END IF
-      END DO; END DO; END DO !i,j,k
-    END DO !iElem
+
+    ! Set NonlinVolumeFac = RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0) for each element.
+    ! Set zero if
+    !  a) NewtonAdaptStartValue is activated
+    !  b) fully kinetic currently active and variable electron temperature activated (skips calculation when starting from
+    !     a simulation that was fully kinetic and will be switched)
+    CALL UpdateNonlinVolumeFac(NewtonAdaptStartValue.OR.((.NOT.UseBRElectronFluid).AND.CalcBRVariableElectronTemp))
+
   END IF
 
   MaxIterNewton = GETINT('MaxIterNewton')
   EpsNonLinear  = GETREAL('EpsNonLinear')
 END IF
+#endif /*defined(PARTICLES)*/
 
 !CG parameters
 PrecondType          = GETINT('PrecondType')
@@ -217,16 +204,17 @@ DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(2,4,5) !dirichlet
+  CASE(2,4,5,6) ! Dirichlet
     nDirichletBCsides=nDirichletBCsides+1
-  CASE(10,11) !Neumann,
+  CASE(10,11) ! Neumann
     nNeumannBCsides=nNeumannBCsides+1
   CASE DEFAULT ! unknown BCType
-    CALL abort(&
-    __STAMP__&
-    ,' unknown BC Type in hdg.f90!',BCType,999.)
+    CALL abort(__STAMP__,' unknown BC Type in hdg.f90!',IntInfoOpt=BCType)
   END SELECT ! BCType
 END DO
+
+! Check if zero potential must be set on a boundary (or periodic side)
+CALL InitZeroPotential()
 
 IF(nDirichletBCsides.GT.0)ALLOCATE(DirichletBC(nDirichletBCsides))
 IF(nNeumannBCsides  .GT.0)THEN
@@ -242,7 +230,7 @@ DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(2,4,5) !dirichlet
+  CASE(2,4,5,6) ! Dirichlet
     nDirichletBCsides=nDirichletBCsides+1
     DirichletBC(nDirichletBCsides)=SideID
     MaskedSide(SideID)=.TRUE.
@@ -331,7 +319,7 @@ DO iElem=1,PP_nElems
 END DO !iElem
 
 IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as only the state file is converted
-  CALL Elem_Mat(INT(0,8))
+  CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
 END IF
 
 
@@ -348,9 +336,129 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitHDG
 
 
+!===================================================================================================================================
+!> Check if any Dirichlet BCs are present (globally, not only on the local processor).
+!> If there are none, an arbitrary potential is set at one of the boundaries to ensure
+!> convergence of the HDG solver. This is required for setups where fully periodic and/or Neumann boundaries are solely used.
+!> This only works for Cartesian meshes, i.e., that the boundary faces must be perpendicular to two of the three Cartesian axes
+!===================================================================================================================================
+SUBROUTINE InitZeroPotential()
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_HDG_Vars    ,ONLY: ZeroPotentialSideID,HDGZeroPotentialDir
+USE MOD_Mesh        ,ONLY: GetMeshMinMaxBoundaries
+USE MOD_Mesh_Vars   ,ONLY: nBCs,BoundaryType,nSides,BC,xyzMinMax,NGeo,Face_xGP
+USE MOD_ReadInTools ,ONLY: PrintOption,GETINT
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: SideID,BCAlpha,BCType,BCState,iBC,nZeroPotentialSides,nZeroPotentialSidesGlobal,ZeroPotentialDir
+INTEGER           :: nZeroPotentialSidesMax,BCSide
+REAL,DIMENSION(3) :: x,v1,v2,v3
+REAL              :: norm,I(3,3)
+!===================================================================================================================================
+! Initialize variables
+HDGZeroPotentialDir = GETINT('HDGZeroPotentialDir')
+ZeroPotentialSideID = -1
+I(:,1)              = (/1. , 0. , 0./)
+I(:,2)              = (/0. , 1. , 0./)
+I(:,3)              = (/0. , 0. , 1./)
+
+! Every processor has to check every BC
+DO iBC=1,nBCs
+  BCType  = BoundaryType(iBC,BC_TYPE)  ! 1
+  BCState = BoundaryType(iBC,BC_STATE) ! 2
+  SELECT CASE(BCType)
+  CASE(1) ! periodic
+    ! do nothing
+  CASE(2,4,5,6) ! Dirichlet
+    ZeroPotentialSideID = 0 ! no zero potential required
+    EXIT ! as soon as one Dirichlet BC is found, no zero potential must be used
+  CASE(10,11) ! Neumann
+    ! do nothing
+  CASE DEFAULT ! unknown BCType
+    CALL abort(__STAMP__,' unknown BC Type in hdg.f90!',IntInfoOpt=BCType)
+  END SELECT ! BCType
+END DO
+
+! If a Dirichlet BC is found ZeroPotentialSideID is zero and the following is skipped
+IF(ZeroPotentialSideID.EQ.-1)THEN
+  ! Check if the user has selected a specific direction
+  IF(HDGZeroPotentialDir.EQ.-1)THEN
+    ! Select the direction (x, y or z), which has the largest extent (to account for 1D and 2D setups for example)
+    CALL GetMeshMinMaxBoundaries()
+
+    ! Calc max extents in each direction for comparison
+    x(1) = xyzMinMax(2)-xyzMinMax(1)
+    x(2) = xyzMinMax(4)-xyzMinMax(3)
+    x(3) = xyzMinMax(6)-xyzMinMax(5)
+    ZeroPotentialDir=MAXLOC(x,DIM=1)
+  ELSE
+    ZeroPotentialDir = HDGZeroPotentialDir
+  END IF ! HDGZeroPotentialDir.EQ.-1
+  CALL PrintOption('Zero potential side activated in direction (1: x, 2: y, 3: z)','OUTPUT',IntOpt=ZeroPotentialDir)
+
+  nZeroPotentialSides = 0 ! Initialize
+  DO SideID=1,nSides ! Periodic sides are not within the 1,nBCSides list !
+    IF(MAXVAL(ABS(Face_xGP(:,:,:,SideID))).LE.0.) CYCLE ! slave sides
+    BCSide=BC(SideID)
+    IF(BCSide.EQ.0) CYCLE ! inner sides
+    BCType =BoundaryType(BCSide,BC_TYPE)
+    BCState=BoundaryType(BCSide,BC_STATE)
+    BCAlpha=BoundaryType(BCSide,BC_ALPHA)
+    IF(BCType.EQ.0) CYCLE ! skip inner sides
+
+    ! Check if the normal vector of the face points in the direction (or negative direction) of the ZeroPotentialDir (tolerance 1e-5)
+    v1(:) = Face_xGP(1:3 , NGeo , 0    , SideID) - Face_xGP(1:3 , 0 , 0 , SideID)
+    v2(:) = Face_xGP(1:3 , 0    , NGeo , SideID) - Face_xGP(1:3 , 0 , 0 , SideID)
+    v3(:) = CROSSNORM(v1,v2)
+    norm = ABS(DOT_PRODUCT(I(:,ZeroPotentialDir),v3))
+    IF(ALMOSTEQUALRELATIVE(norm, 1.0, 1E-5))THEN
+      ZeroPotentialSideID = SideID
+      nZeroPotentialSides = nZeroPotentialSides + 1
+    END IF ! ALMOSTEQUALRELATIVE(norm, 1.0, 1E-5)
+  END DO
+
+#if USE_MPI
+  ! Combine number of found zero potential sides to make sure that at least one is found
+  IF(MPIroot)THEN
+    CALL MPI_REDUCE(nZeroPotentialSides , nZeroPotentialSidesGlobal , 1 , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(nZeroPotentialSides , nZeroPotentialSidesMax    , 1 , MPI_INTEGER , MPI_MAX , 0 , MPI_COMM_WORLD , IERROR)
+  ELSE
+    CALL MPI_REDUCE(nZeroPotentialSides , 0                         , 1 , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+    CALL MPI_REDUCE(nZeroPotentialSides , 0                         , 1 , MPI_INTEGER , MPI_MAX , 0 , MPI_COMM_WORLD , IERROR)
+  END IF
+#else
+  nZeroPotentialSidesGlobal = nZeroPotentialSides
+#endif /*USE_MPI*/
+  SWRITE(UNIT_StdOut,'(A,I0)') " Found (global) number of zero potential sides: ", nZeroPotentialSidesMax
+
+  ! Sanity checks for root
+  IF(MPIroot)THEN
+    ! 1) multiples sides found
+    IF(nZeroPotentialSidesMax.GT.1)THEN
+      WRITE(UNIT_StdOut,'(A)') " WARNING: Found more than 1 zero potential side on a proc and currently, only one can be considered."
+      WRITE(UNIT_StdOut,'(A,I0,A)') " WARNING: nZeroPotentialSidesGlobal: ", nZeroPotentialSidesMax, " (may lead to problems)"
+    END IF
+
+    ! 2) no sides found
+    IF(nZeroPotentialSidesGlobal.EQ.0)THEN
+      WRITE(UNIT_StdOut,*) " Sanity check: this fails when the mesh is not Cartesian. This needs to be implemented if required."
+      CALL abort(__STAMP__,'Setup has no Dirichlet BCs and no zero potential sides where found.')
+    END IF
+  END IF
+END IF ! ZeroPotentialSideID.EQ.0
+
+END SUBROUTINE InitZeroPotential
+
+
+!===================================================================================================================================
+!> HDG solver for linear or non-linear systems
+!===================================================================================================================================
 SUBROUTINE HDG(t,U_out,iter,ForceCGSolverIteration_opt)
-!===================================================================================================================================
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -358,7 +466,6 @@ USE MOD_HDG_Vars
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars, ONLY: iStage
 #endif
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -370,7 +477,11 @@ LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in f
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+LOGICAL :: ForceCGSolverIteration_loc
 !===================================================================================================================================
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(4))
+#endif /*EXTRAE*/
 ! Check whether the solver should be skipped in this iteration
 IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
   IF (t.LT.HDGSkip_t0) THEN
@@ -389,11 +500,8 @@ END IF
 #if defined(PARTICLES)
 IF(UseBRElectronFluid) THEN
   IF (HDGNonLinSolver.EQ.1) THEN
-    IF(PRESENT(ForceCGSolverIteration_opt))THEN
-      CALL HDGNewton(t, U_out, iter, ForceCGSolverIteration_opt)
-    ELSE
-      CALL HDGNewton(t, U_out, iter)
-    END IF ! PRESENT(ForceCGSolverIteration)
+    ForceCGSolverIteration_loc = MERGE(ForceCGSolverIteration_opt, .FALSE., PRESENT(ForceCGSolverIteration_opt))
+    CALL HDGNewton(t, U_out, iter, ForceCGSolverIteration_loc)
   ELSE
     CALL abort(__STAMP__,'Defined HDGNonLinSolver not implemented (HDGFixPoint has been removed!) HDGNonLinSolver = ',&
     IntInfoOpt=HDGNonLinSolver)
@@ -405,13 +513,16 @@ ELSE
 END IF
 #endif /*defined(PARTICLES)*/
 
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 END SUBROUTINE HDG
 
 
+!===================================================================================================================================
+!> Linear HDG solver
+!===================================================================================================================================
 SUBROUTINE HDGLinear(time,U_out)
-!===================================================================================================================================
-! Linear HDG solver
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -434,7 +545,6 @@ USE MOD_Equation_Vars          ,ONLY: B, E
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -485,6 +595,11 @@ DO iVar = 1, PP_nVar
         r=q*(PP_N+1) + p+1
         CALL ExactFunc(-1,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t=time,iRefState=BCState)
       END DO; END DO !p,q
+    CASE(6) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
+      DO q=0,PP_N; DO p=0,PP_N
+        r=q*(PP_N+1) + p+1
+        CALL ExactFunc(-2,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t=time,iRefState=BCState)
+      END DO; END DO !p,q
     END SELECT ! BCType
   END DO !BCsideID=1,nDirichletBCSides
 #if (PP_nVar!=1)
@@ -524,6 +639,8 @@ DO iVar = 1, PP_nVar
   END IF
 #endif
 
+  ! Check if zero potential sides are present
+  IF(ZeroPotentialSideID.GT.0) lambda(iVar,:,ZeroPotentialSideID) = ZeroPotentialValue
 END DO
 
 !volume source (volume RHS of u system)
@@ -662,10 +779,10 @@ CALL LBPauseTime(LB_DG,tLBStart)
 END SUBROUTINE HDGLinear
 
 
+!===================================================================================================================================
+!> HDG non-linear solver via Newton's method
+!===================================================================================================================================
 SUBROUTINE HDGNewton(time,U_out,td_iter,ForceCGSolverIteration_opt)
-!===================================================================================================================================
-! HDG non-linear solver via Newton's method
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -691,7 +808,6 @@ USE MOD_Equation_Vars          ,ONLY: E
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 USE MOD_HDG_Vars               ,ONLY: ElemToBRRegion,RegionElectronRef
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -721,8 +837,7 @@ REAL    :: tLBStart
     CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 #if (PP_nVar!=1)
-  WRITE(*,*) 'Nonlinear Newton solver only available with EQ-system Poisson!!'
-  STOP
+  CALL abort(__STAMP__,'Nonlinear Newton solver only available with EQ-system Poisson!')
 #endif
 Norm_r2=0.
 
@@ -746,6 +861,11 @@ DO BCsideID=1,nDirichletBCSides
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
       CALL ExactFunc(-1,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iRefState=BCState)
+    END DO; END DO !p,q
+  CASE(6) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
+    DO q=0,PP_N; DO p=0,PP_N
+      r=q*(PP_N+1) + p+1
+      CALL ExactFunc(-2,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iRefState=BCState)
     END DO; END DO !p,q
   END SELECT ! BCType
 END DO !BCsideID=1,nDirichletBCSides
@@ -774,16 +894,16 @@ warning_linear=.FALSE.
 DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-    CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem),warning_linear)
+    CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem),warning_linear,warning_linear_phi)
   END DO; END DO; END DO !i,j,k
   RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(PP_nVar,:,iElem)
 END DO !iElem
 IF (warning_linear) THEN
-  SWRITE(*,*) 'WARNING: during iteration at least one DOF resulted in a phi > phi_max.\n'//&
-    '=> Increase Part-RegionElectronRef#-PhiMax if already steady!'
+  SWRITE(*,'(A,ES10.2E3)') 'WARNING: during iteration at least one DOF resulted in a phi > phi_max.\n'//&
+    '=> Increase Part-RegionElectronRef#-PhiMax if already steady! Phi-Phi_ref=',warning_linear_phi
 END IF
 
-  !prepare RHS_face ( RHS for lamdba system.)
+!prepare RHS_face ( RHS for lambda system.)
 RHS_vol(PP_nVar,:,:)=RHS_vol(PP_nVar,:,:)+JwGP_vol(:,:)*U_out(PP_nVar,:,:)*NonlinVolumeFac(:,:)
 
 RHS_face(PP_nVar,:,:) =0.
@@ -825,7 +945,7 @@ IF(PRESENT(ForceCGSolverIteration_opt))THEN
   IF(ForceCGSolverIteration_opt)THEN
     ! Due to the removal of electrons during restart
     converged=.false.
-    SWRITE(UNIT_StdOut,*) "Force initial CG solver iteration by setting converged=F (Norm_r2=",Norm_r2,")"
+    SWRITE(UNIT_StdOut,*) "Forcing initial CG solver to iterate by setting converged=F (Norm_r2=",Norm_r2,")"
   END IF ! ForceCGSolverIteration_opt
 END IF ! ForceCGSolverIteration_opt
 IF (converged) THEN
@@ -1013,26 +1133,26 @@ CALL LBPauseTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 END SUBROUTINE HDGNewton
 
-SUBROUTINE CheckNonLinRes(RHS,lambda, converged,Norm_R2)
+
 !===================================================================================================================================
-!
+!> Determine the residual of the HDG solution
 !===================================================================================================================================
+SUBROUTINE CheckNonLinRes(RHS,lambda,converged,Norm_R2)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_HDG_Vars           ,ONLY: nGP_face
 USE MOD_HDG_Vars           ,ONLY: EpsNonLinear
 USE MOD_Mesh_Vars          ,ONLY: nSides,nMPISides_YOUR
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL, INTENT(IN)    :: RHS(nGP_face*nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(INOUT) :: lambda(nGP_face*nSides)
+REAL, INTENT(INOUT)    :: lambda(nGP_face*nSides)
 LOGICAL, INTENT(INOUT) :: converged
-REAL, INTENT(OUT) :: Norm_r2
+REAL, INTENT(OUT)      :: Norm_r2
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,DIMENSION(nGP_face*nSides) :: R
@@ -1056,10 +1176,11 @@ INTEGER                         :: VecSize
 #endif /*USE_MPI*/
 END SUBROUTINE CheckNonLinRes
 
+
+!===================================================================================================================================
+!> Continuous Gradient solver
+!===================================================================================================================================
 SUBROUTINE CG_solver(RHS,lambda,iVar)
-!===================================================================================================================================
-!
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
@@ -1070,7 +1191,6 @@ USE MOD_Mesh_Vars         ,ONLY: nSides,nMPISides_YOUR
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1166,9 +1286,9 @@ DO iteration=1,MaxIterCG
   lambda=lambda+omega*V
   R=R-omega*Z
   CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),rr)
+  IF(ISNAN(rr)) CALL abort(__STAMP__,'res=NaN')
 #if USE_MPI
   IF(MPIroot) converged=(rr.LT.AbortCrit2)
-!  IF(MPIroot) print*, rr, AbortCrit2
   CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
 #else
   converged=(rr.LT.AbortCrit2)
@@ -1211,18 +1331,17 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE CG_solver
 
 
+!===================================================================================================================================
+!> Set the global convergence properties of the HDG (CG) Solver and print then to StdOut)
+!===================================================================================================================================
 SUBROUTINE DisplayConvergence(ElapsedTime, iteration, Norm_R2)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! Set the global convergence properties of the HDG (CG) Solver and print then to StdOut)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES
 USE MOD_HDG_Vars      ,ONLY: HDGDisplayConvergence,HDGNorm,RunTime,RunTimePerIteration
 USE MOD_Globals       ,ONLY: UNIT_StdOut
 USE MOD_TimeDisc_Vars ,ONLY: iter,IterDisplayStep
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)     :: ElapsedTime
 INTEGER,INTENT(IN)  :: iteration
 REAL,INTENT(IN)     :: Norm_R2
@@ -1248,15 +1367,14 @@ END IF
 END SUBROUTINE DisplayConvergence
 
 
+!===================================================================================================================================
+!>
+!===================================================================================================================================
 SUBROUTINE EvalResidual(RHS,lambda,R,iVar)
-!===================================================================================================================================
-!
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_HDG_Vars           ,ONLY: nGP_face,nDirichletBCSides,DirichletBC
+USE MOD_HDG_Vars           ,ONLY: nGP_face,nDirichletBCSides,DirichletBC,ZeroPotentialSideID,ZeroPotentialValue
 USE MOD_Mesh_Vars          ,ONLY: nSides
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1278,14 +1396,19 @@ ELSE
 END IF
 R=RHS-mv
 
-
 !set mv on Dirichlet BC to zero!
 #if (PP_nVar!=1)
 IF (iVar.EQ.4) THEN
 #endif
-DO BCsideID=1,nDirichletBCSides
-  R(:,DirichletBC(BCsideID))=0.
-END DO ! SideID=1,nSides
+
+  ! Dirichlet BCs
+  DO BCsideID=1,nDirichletBCSides
+    R(:,DirichletBC(BCsideID))=0.
+  END DO ! SideID=1,nSides
+
+  ! Set potential to zero
+  IF(ZeroPotentialSideID.GT.0) R(:,ZeroPotentialSideID)= ZeroPotentialValue
+
 #if (PP_nVar!=1)
 END IF
 #endif
@@ -1294,7 +1417,6 @@ END IF
 END SUBROUTINE EvalResidual
 
 
-SUBROUTINE MatVec(lambda, mv, iVar)
 !===================================================================================================================================
 !> Performs matrix-vector multiplication for lambda system
 !>   Parallel Mortar concept:
@@ -1304,9 +1426,10 @@ SUBROUTINE MatVec(lambda, mv, iVar)
 !>   4) call mask_MPIsides: send  mv contribution from slave MPI sides to master MPI sides and add to master MPI sides
 !>   5) MORTAR, SmallToBig: add contribution of finalized small mortar sides to big mortar, via Transpose of interpolation operator
 !===================================================================================================================================
+SUBROUTINE MatVec(lambda, mv, iVar)
 ! MODULES
 USE MOD_Globals
-USE MOD_HDG_Vars          ,ONLY: Smat,nGP_face,nDirichletBCSides,DirichletBC
+USE MOD_HDG_Vars          ,ONLY: Smat,nGP_face,nDirichletBCSides,DirichletBC,ZeroPotentialSideID,ZeroPotentialValue
 USE MOD_Mesh_Vars         ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR
 USE MOD_FillMortar_HDG    ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
 #if USE_MPI
@@ -1317,7 +1440,6 @@ USE MOD_HDG_Vars          ,ONLY: Mask_MPIsides
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1443,10 +1565,15 @@ CALL SmallToBigMortar_HDG(1,mv)
 #if (PP_nVar!=1)
 IF (iVar.EQ.4) THEN
 #endif
+
 !set mv on Dirichlet BC to zero!
 DO BCsideID=1,nDirichletBCSides
   mv(:,DirichletBC(BCsideID))=0.
 END DO ! SideID=1,nSides
+
+  ! Set potential to zero
+  IF(ZeroPotentialSideID.GT.0) mv(:,ZeroPotentialSideID) = ZeroPotentialValue
+
 #if (PP_nVar!=1)
 END IF
 #endif
@@ -1464,17 +1591,16 @@ dummy=iVar
 END SUBROUTINE MatVec
 
 
+!===================================================================================================================================
+!> Computes Dot Product for vectors a and b: resu=a.b
+!===================================================================================================================================
 SUBROUTINE VectorDotProduct(dim1,A,B,Resu)
-!===================================================================================================================================
-! Computes Dot Product for vectors a and b: resu=a.b
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1514,18 +1640,16 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 END SUBROUTINE VectorDotProduct
 
 
-
+!===================================================================================================================================
+!> Apply the block-diagonal preconditioner for the lambda system
+!===================================================================================================================================
 SUBROUTINE ApplyPrecond(R, V)
-!===================================================================================================================================
-! Apply the block-diagonal preconditioner for the lambda system
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_HDG_Vars  ,ONLY: nGP_face, Precond, PrecondType,InvPrecondDiag
 USE MOD_HDG_Vars  ,ONLY: MaskedSide
 USE MOD_Mesh_Vars ,ONLY: nSides
 USE MOD_Mesh_Vars ,ONLY: nMPIsides_YOUR
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1568,13 +1692,11 @@ END SUBROUTINE ApplyPrecond
 
 
 
+!===================================================================================================================================
+!> Solve a symmetrical positive definite linear system of dimension dims
+!===================================================================================================================================
 SUBROUTINE solveSPD(dimA,A,nRHS,RHS, X)
-!===================================================================================================================================
-! Solve a symmetrical positive definite linear system of dimension dims
-!===================================================================================================================================
 ! MODULES
-
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1590,10 +1712,7 @@ REAL,INTENT(INOUT):: X(dimA,nRHS)
 INTEGER           :: lapack_info
 !===================================================================================================================================
 X = RHS
-
 CALL DPOTRS('U',dimA,nRHS,A,dimA,X,dimA,lapack_info)
-
-
 !IF (lapack_info .NE. 0) THEN
 !  STOP 'LAPACK ERROR IN SOLVE CHOLESKY!'
 !END IF
@@ -1601,9 +1720,10 @@ END SUBROUTINE solveSPD
 
 
 
+!===================================================================================================================================
+!> During restart, recalculate the gradient of the HDG solution
+!===================================================================================================================================
 SUBROUTINE RestartHDG(U_out)
-!===================================================================================================================================
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -1620,7 +1740,6 @@ USE MOD_Equation_Vars ,ONLY: B
 #else
 USE MOD_Equation_Vars ,ONLY: B, E
 #endif
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
@@ -1659,12 +1778,12 @@ END SUBROUTINE RestartHDG
 #endif /*USE_HDG*/
 
 
+!===================================================================================================================================
+!> Finalizes variables necessary for HDG subroutines
+!===================================================================================================================================
 SUBROUTINE FinalizeHDG()
-!===================================================================================================================================
-! Finalizes variables necessary for hdg subroutines
-!===================================================================================================================================
+! MODULES
 USE MOD_HDG_Vars
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES

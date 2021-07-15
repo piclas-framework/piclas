@@ -1839,7 +1839,7 @@ END IF
 END FUNCTION FlatBoundingBoxIntersection
 
 
-PURE FUNCTION ComputeSurfaceDistance2(BiLinearCoeff,xi,eta,PartTrajectory)
+PPURE FUNCTION ComputeSurfaceDistance2(BiLinearCoeff,xi,eta,PartTrajectory)
 !================================================================================================================================
 ! compute the required vector length to intersection
 ! ramsey paper algorithm 3.4
@@ -1871,7 +1871,7 @@ ComputeSurfaceDistance2 = t
 END FUNCTION ComputeSurfaceDistance2
 
 
-PURE FUNCTION ComputeXi(eta,A1,A2)
+PPURE FUNCTION ComputeXi(eta,A1,A2)
 !================================================================================================================================
 ! compute the xi value with algorithm 3.3 of Ramsey paper
 !================================================================================================================================

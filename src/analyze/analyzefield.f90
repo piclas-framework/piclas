@@ -62,6 +62,7 @@ SUBROUTINE AnalyzeField(Time)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars          ,ONLY: DoFieldAnalyze,CalcEpot,WEl
+USE MOD_Analyze_Vars          ,ONLY: CalcBoundaryFieldOutput,BFO
 #if (PP_nVar>=6)
 USE MOD_Analyze_Vars          ,ONLY: CalcPoyntingInt,nPoyntingIntPlanes,PosPoyntingInt
 #endif /*PP_nVar>=6*/
@@ -93,7 +94,6 @@ INTEGER            :: unit_index, nOutputVarTotal
 #if (PP_nVar>=6)
 INTEGER            :: iPlane
 REAL               :: PoyntingIntegral(1:nPoyntingIntPlanes)
-CHARACTER(LEN=255) :: StrVarNameTmp
 #endif /*PP_nVar>=6*/
 CHARACTER(LEN=150) :: formatStr
 #if (PP_nVar==8)
@@ -126,7 +126,9 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
 CHARACTER(LEN=255),ALLOCATABLE :: tmpStr(:) ! needed because PerformAnalyze is called multiple times at the beginning
 CHARACTER(LEN=1000)            :: tmpStr2
 CHARACTER(LEN=1),PARAMETER     :: delimiter=","
-INTEGER                        :: I
+INTEGER                        :: I,iBoundary
+CHARACTER(LEN=255) :: StrVarNameTmp
+REAL               :: BoundaryFieldOutput(1:PP_nVar)
 !===================================================================================================================================
 IF ( DoRestart ) THEN
   isRestart = .true.
@@ -162,6 +164,7 @@ IF(MPIROOT)THEN
 #else
       IF(.NOT.CalcEpot) nOutputVarTotal = nOutputVarTotal - 1
 #endif /*PP_nVar=8*/
+      IF(CalcBoundaryFieldOutput) nOutputVarTotal = nOutputVarTotal + BFO%NFieldBoundaries
       ALLOCATE(tmpStr(1:nOutputVarTotal))
       tmpStr=""
 
@@ -195,6 +198,15 @@ IF(MPIROOT)THEN
         WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-AverageElectricPotential"'
       END IF ! CalcAverageElectricPotential
 #endif /*USE_HDG*/
+
+      ! Add BoundaryFieldOutput for each boundary that is required
+      IF(CalcBoundaryFieldOutput)THEN
+        DO iBoundary=1,BFO%NFieldBoundaries
+          nOutputVarTotal = nOutputVarTotal + 1
+          WRITE(StrVarNameTmp,'(A,I0.3)') 'BFO-boundary',iBoundary
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+        END DO
+      END IF
 
       ! Set the format
       WRITE(formatStr,'(A1)')'('
@@ -279,6 +291,13 @@ IF(MPIROOT)THEN
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',AverageElectricPotential
   END IF ! CalcAverageElectricPotential
 #endif /*USE_HDG*/
+  ! ! Add BoundaryFieldOutput for each boundary that is required
+  IF(CalcBoundaryFieldOutput)THEN
+    DO iBoundary=1,BFO%NFieldBoundaries
+      CALL CalculateBoundaryFieldOutput(iBoundary,Time,BoundaryFieldOutput)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',BoundaryFieldOutput
+    END DO
+  END IF ! CalcBoundaryFieldOutput
   write(unit_index,'(A)') '' ! write 'newline' to file to finish the current line
 END IF
 
@@ -474,7 +493,7 @@ END SUBROUTINE CalcPoyntingIntegral
 
 
 #if (PP_nVar>=6)
-PURE SUBROUTINE PoyntingVector(Uface_in,Sloc)
+PPURE SUBROUTINE PoyntingVector(Uface_in,Sloc)
 !===================================================================================================================================
 !> Calculate the Poynting Vector on a certain face for vacuum properties
 !>
@@ -508,7 +527,7 @@ END DO  ! p - PP_N
 END SUBROUTINE PoyntingVector
 
 
-PURE SUBROUTINE PoyntingVectorDielectric(Uface_in,Sloc,mu_r_inv)
+PPURE SUBROUTINE PoyntingVectorDielectric(Uface_in,Sloc,mu_r_inv)
 !===================================================================================================================================
 !> Calculate the Poynting Vector on a certain face for dielectric properties (consider mu_r here, but not mu0)
 !>
@@ -1397,7 +1416,7 @@ DO iELEM = 1, nElems
           Uface=U_master(:,:,:,SideID)
         END IF ! Prolong
 
-        ! multiplied by surface element and  Gauss Points
+        ! multiplied by surface element and Gauss Points
         area_loc     = SUM(SurfElem(:,:,SideID) * wGPSurf(:,:))
         integral_loc = SUM(Uface(1,:,:) * SurfElem(:,:,SideID) * wGPSurf(:,:))
         AverageElectricPotentialProc = AverageElectricPotentialProc + integral_loc/area_loc
@@ -1494,7 +1513,8 @@ CALL MPI_ALLREDUCE(nAverageElecPotSides , AverageElectricPotentialFaces , 1 , MP
 #else
 AverageElectricPotentialFaces=nAverageElecPotSides
 #endif /*USE_MPI*/
-SWRITE(UNIT_stdOut,'(A,I10,A)') 'A total of',AverageElectricPotentialFaces,' surfaces for the average electric potential calculation are found.'
+SWRITE(UNIT_stdOut,'(A,I10,A)') ' A total of',AverageElectricPotentialFaces,&
+    ' surfaces for the average electric potential calculation are found.'
 SWRITE(UNIT_stdOut,'(A)') ' ... AVERAGE ELECTRIC POTENTIAL INITIALIZATION DONE.'
 #if USE_MPI
 IF(MPIRoot)THEN
@@ -1503,7 +1523,7 @@ IF(MPIRoot)THEN
     SWRITE(UNIT_stdOut,*) 'ERROR with: PosAverageElectricPotential = ',PosAverageElectricPotential
     CALL abort(&
     __STAMP__&
-    ,'Found zero faces for averaging the electric potentialPlease make sure \nthat the x-coordinate coincides with element'//&
+    ,'Found zero faces for averaging the electric potential. Please make sure \nthat the x-coordinate coincides with element'//&
     ' interfaces. Planes cutting through elements in currently not implemented.')
   END IF ! AverageElectricPotentialFaces.EQ.0
 #if USE_MPI
@@ -1532,5 +1552,54 @@ IMPLICIT NONE
 SDEALLOCATE(isAverageElecPotSide)
 END SUBROUTINE FinalizeAverageElectricPotential
 #endif /*USE_HDG*/
+
+!===================================================================================================================================
+!> Determine the field boundary condition values for the given iBC
+!===================================================================================================================================
+SUBROUTINE CalculateBoundaryFieldOutput(iBC,Time,BoundaryFieldOutput)
+! MODULES
+#if USE_HDG
+USE MOD_Mesh_Vars ,ONLY: BoundaryType
+USE MOD_Equation  ,ONLY: ExactFunc
+#else
+USE MOD_Globals   ,ONLY: abort
+#endif /*USE_HDG*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: iBC
+REAL,INTENT(IN)    :: Time
+REAL,INTENT(OUT)   :: BoundaryFieldOutput(1:PP_nVar)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+#if USE_HDG
+INTEGER           :: BCType,BCState
+#endif /*USE_HDG*/
+!===================================================================================================================================
+#if USE_HDG
+#if (PP_nVar==1)
+BCType =BoundaryType(iBC,BC_TYPE)
+BCState=BoundaryType(iBC,BC_STATE)
+ASSOCIATE( x => (/0., 0., 0./) )
+  SELECT CASE(BCType)
+  CASE(2) ! exact BC = Dirichlet BC !! ExactFunc via BCState (time is optional)
+    CALL ExactFunc(BCState , x , BoundaryFieldOutput , t=Time)
+  CASE(4) ! exact BC = Dirichlet BC !! Zero potential
+    BoundaryFieldOutput = 0.
+  CASE(5) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
+    CALL ExactFunc(  -1    , x , BoundaryFieldOutput , t=Time  , iRefState=BCState)
+  CASE(6) ! exact BC = Dirichlet BC !! ExactFunc via RefState (Time is optional)
+    CALL ExactFunc(  -2    , x , BoundaryFieldOutput , t=time  , iRefState=BCState)
+  END SELECT ! BCType
+END ASSOCIATE
+#else
+CALL abort(__STAMP__,'CalculateBoundaryFieldOutput is not implemented for PP_nVar>1')
+#endif /*PP_nVar==1*/
+#else
+CALL abort(__STAMP__,'CalculateBoundaryFieldOutput is not implemented for other equation systems yet (only HDG)')
+#endif /*USE_HDG*/
+
+END SUBROUTINE CalculateBoundaryFieldOutput
 
 END MODULE MOD_AnalyzeField

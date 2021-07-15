@@ -233,6 +233,7 @@ USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary, AdaptWallTemp
+USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
@@ -251,15 +252,11 @@ CHARACTER(200)        :: tmpString
 LOGICAL               :: DeprecatedVoltage
 !===================================================================================================================================
 ! Read in boundary parameters
-dummy_int = CountOption('Part-nBounds')       ! check if Part-nBounds is present in .ini file
-nPartBound = GETINT('Part-nBounds','1.') ! get number of particle boundaries
+dummy_int  = CountOption('Part-nBounds') ! check if Part-nBounds is present in .ini file
+nPartBound = GETINT('Part-nBounds')      ! get number of particle boundaries
 ! Read-in number of porous boundaries
-nPorousBC = GETINT('Surf-nPorousBC', '0')
-IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) THEN
-  CALL abort(&
-__STAMP__&
-  ,'ERROR: nPartBound .LE. 0:', nPartBound)
-END IF
+nPorousBC  = GETINT('Surf-nPorousBC')
+IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) CALL abort(__STAMP__  ,'ERROR: nPartBound .LE. 0:', nPartBound)
 
 ALLOCATE(PartBound%SourceBoundName(  1:nPartBound))
 PartBound%SourceBoundName = ''
@@ -458,9 +455,7 @@ DO iPartBound=1,nPartBound
 
   ! Surface particle output to .h5
   PartBound%BoundaryParticleOutputHDF5(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
-  IF(PartBound%BoundaryParticleOutputHDF5(iPartBound))THEN
-    DoBoundaryParticleOutputHDF5=.TRUE.
-  END IF ! PartBound%BoundaryParticleOutputHDF5(iPartBound)
+  IF(PartBound%BoundaryParticleOutputHDF5(iPartBound)) DoBoundaryParticleOutputHDF5=.TRUE.
 END DO
 AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
@@ -477,7 +472,7 @@ END IF
 
 ! Surface particle output to .h5
 IF(DoBoundaryParticleOutputHDF5)THEN
-  ALLOCATE(PartStateBoundary(1:10,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+  ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
         __STAMP__&
@@ -747,8 +742,7 @@ IF (myComputeNodeRank.EQ.0) THEN
   BoundaryWallTemp_Shared = 0.
 END IF
 BoundaryWallTemp => BoundaryWallTemp_Shared
-CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 firstSide = INT(REAL( myComputeNodeRank   *nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
 lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
 #else
@@ -766,8 +760,7 @@ DO iSide = firstSide,LastSide
 END DO 
 
 #if USE_MPI
-CALL MPI_WIN_SYNC(BoundaryWallTemp_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 END SUBROUTINE InitAdaptiveWallTemp

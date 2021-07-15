@@ -60,8 +60,16 @@ REAL             :: dt_Min(3) !> dt_Min(DT_MIN)       = dt_Min(1) = original dt_
 REAL             :: dt_old
 #endif /*defined(IMPA) || defined(ROS) || (PP_TimeDiscMethod==509)*/
 #if (PP_TimeDiscMethod==100)
-INTEGER,PARAMETER  :: nRKStages=1
+INTEGER,PARAMETER:: nRKStages=1
 #endif
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
+REAL,ALLOCATABLE :: Ut_temp(   :,:,:,:,:)             !> temporal variable for Ut
+REAL,ALLOCATABLE :: U2t_temp(  :,:,:,:,:)             !> temporal variable for U2t
+#ifdef PP_POIS
+REAL,ALLOCATABLE :: Phit_temp( :,:,:,:,:)
+#endif /*PP_POIS*/
+#endif
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! TIME INTEGRATION: RUNGE_KUTTA COEFFICIENTS AND STABILITY NUMBERS
 !-----------------------------------------------------------------------------------------------------------------------------------

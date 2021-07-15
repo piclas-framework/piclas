@@ -60,6 +60,7 @@ END INTERFACE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CalcRadWeightMPF, isChargedParticle
 PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums
+PUBLIC :: CalcXiElec
 !===================================================================================================================================
 
 CONTAINS
@@ -329,7 +330,7 @@ END SELECT
 END FUNCTION VeloFromDistribution
 
 
-PURE REAL FUNCTION GetParticleWeight(iPart)
+PPURE REAL FUNCTION GetParticleWeight(iPart)
 !===================================================================================================================================
 !> Determines the appropriate particle weighting for the axisymmetric case with radial weighting and the variable time step. For
 !> radial weighting, the radial factor is multiplied by the regular weighting factor. If only a variable time step is used, at the
@@ -360,7 +361,7 @@ END IF
 END FUNCTION GetParticleWeight
 
 
-PURE REAL FUNCTION CalcRadWeightMPF(yPos, iSpec, iPart)
+PPURE REAL FUNCTION CalcRadWeightMPF(yPos, iSpec, iPart)
 !===================================================================================================================================
 !> Determines the weighting factor when using an additional radial weighting for axisymmetric simulations. Linear increase from the
 !> rotational axis (y=0) to the outer domain boundary (y=ymax).
@@ -399,7 +400,7 @@ RETURN
 END FUNCTION CalcRadWeightMPF
 
 
-PURE FUNCTION isChargedParticle(iPart)
+PPURE FUNCTION isChargedParticle(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Check if particle has charge unequal to zero and return T/F logical.
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -422,7 +423,7 @@ END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
 END FUNCTION isChargedParticle
 
 
-PURE FUNCTION isPushParticle(iPart)
+PPURE FUNCTION isPushParticle(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Check if particle is to be evolved in time by the particle pusher (time integration).
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -451,7 +452,7 @@ END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
 END FUNCTION isPushParticle
 
 
-PURE FUNCTION isDepositParticle(iPart)
+PPURE FUNCTION isDepositParticle(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Check if particle is to be deposited on the grid (particle-to-grid coupling).
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -480,7 +481,7 @@ END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
 END FUNCTION isDepositParticle
 
 
-PURE FUNCTION isInterpolateParticle(iPart)
+PPURE FUNCTION isInterpolateParticle(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Check if particle is to be interpolated (field-to-particle coupling), which is required for calculating the acceleration, e.g.,
 ! due to Lorentz forces at the position of the particle.
@@ -555,6 +556,49 @@ DO iLoop = 1, nPart
 END DO
 
 END SUBROUTINE BuildTransGaussNums
+
+
+PPURE REAL FUNCTION CalcXiElec(Telec, iSpec)
+!===================================================================================================================================
+!> Calculation of the electronic degree of freedom for a given temperature and species
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: Telec  !
+INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                         :: iQua
+REAL                            :: TempRatio, SumOne, SumTwo
+!===================================================================================================================================
+
+SumOne = 0.0
+SumTwo = 0.0
+
+DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant-1
+  TempRatio = SpecDSMC(iSpec)%ElectronicState(2,iQua)/Telec
+  IF(CHECKEXP(TempRatio)) THEN
+    SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,iQua)*SpecDSMC(iSpec)%ElectronicState(2,iQua)*EXP(-TempRatio)
+    SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,iQua)*EXP(-TempRatio)
+  END IF
+END DO
+
+IF((SumOne.GT.0.0).AND.(SumTwo.GT.0.0)) THEN
+  CalcXiElec = 2. * SumOne / (SumTwo * Telec)
+ELSE
+  CalcXiElec = 0.0
+END IF
+
+RETURN
+
+END FUNCTION CalcXiElec
 
 
 END MODULE MOD_part_tools

@@ -31,6 +31,13 @@
 #define Allocate_Shared(a,b,c,d)   Allocate_Shared_DEBUG(a,b,c,d,'c')
 #endif
 
+! Deactivate PURE subroutines/functions when using DEBUG
+#if USE_DEBUG
+#define PPURE
+#else
+#define PPURE PURE
+#endif
+
 ! Replace function with dummy function and additional argument
 #define UNLOCK_AND_FREE(a)   UNLOCK_AND_FREE_DUMMY(a,'a')
 
@@ -285,3 +292,4 @@
 #define DT_ANALYZE    2
 #define DT_END        3
 #define DT_BR_SWITCH  4
+

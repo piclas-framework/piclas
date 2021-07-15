@@ -1031,14 +1031,14 @@ DO iElem=1,nElems
           CALL abort(&
               __STAMP__&
               ,'SideID.LE.nBCSides and SideID is periodic should not happen')
-        CASE(2,4,5) !Dirichlet
+        CASE(2,4,5,6) !Dirichlet
           ! do not consider this side
         CASE(10,11) !Neumann
           HDGSides = HDGSides + 1
         CASE DEFAULT ! unknown BCType
           CALL abort(&
               __STAMP__&
-              ,'Unknoqn BCType for HDG Load Balancing. BCType=',IntInfoOpt=BCType)
+              ,'Unknown BCType for HDG Load Balancing. BCType=',IntInfoOpt=BCType)
         END SELECT ! BCType
       ELSE
         ! Check for Mortars

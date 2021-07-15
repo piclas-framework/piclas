@@ -172,6 +172,8 @@ CHARACTER(LEN=255)    :: thisname,testname
 ind      = INDEX(TRIM(this%name),"$")
 thisname = this%name ! this is already lower case
 CALL LowCase(name,testname)
+
+NAMEEQUALSNUMBERED = .FALSE.
 DO WHILE(ind.GT.0)
   ind2 = INDEX(TRIM(testname), TRIM(thisname(1:ind-1)))
   IF(ind2.GT.0)THEN
@@ -197,10 +199,11 @@ DO WHILE(ind.GT.0)
       END IF ! TRIM(thisname).EQ.""
     END IF ! ind.EQ.0
   ELSE
-    ind=0
-    NAMEEQUALSNUMBERED=.FALSE.
+    ind = 0
+    NAMEEQUALSNUMBERED = .FALSE.
   END IF ! ind2.NE.0
 END DO
+
 END FUNCTION NAMEEQUALSNUMBERED
 
 !==================================================================================================================================

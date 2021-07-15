@@ -22,7 +22,7 @@ MODULE MOD_TimeDiscInit
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DefineParametersTimeDisc,InitTime,InitTimeDisc,InitTimeStep
+PUBLIC :: DefineParametersTimeDisc,InitTime,InitTimeDisc,InitTimeStep,FinalizeTimeDisc
 !===================================================================================================================================
 CONTAINS
 
@@ -62,7 +62,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: Time,TEnd,tAnalyze,dt_Min
 USE MOD_Restart_Vars           ,ONLY: RestartTime
 #ifdef PARTICLES
 USE MOD_DSMC_Vars              ,ONLY: Iter_macvalout,Iter_macsurfvalout
-USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime
+USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSampTime
 #endif /*PARTICLES*/
 USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze
 ! IMPLICIT VARIABLE HANDLING
@@ -82,7 +82,7 @@ iter_macsurfvalout=0
 IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) MacroValSampTime = Time
 #endif /*PARTICLES*/
 iAnalyze=1
-! Determine analyze Time
+! Determine the first analyze time
 tAnalyze=MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd)
 
 ! fill initial analyze stuff
@@ -114,6 +114,11 @@ USE MOD_TimeDisc_Vars ,ONLY: RK_c, RK_inc,RK_inflow,nRKStages
 USE MOD_TimeDisc_Vars ,ONLY: RK_c, RK_inflow,nRKStages
 #endif
 USE MOD_TimeDisc_Vars ,ONLY: TEnd
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
+USE MOD_TimeDisc_Vars          ,ONLY: Ut_temp,U2t_temp
+USE MOD_PML_Vars               ,ONLY: nPMLElems
+USE MOD_PML_Vars               ,ONLY: PMLnVar
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -241,12 +246,24 @@ dt=HUGE(1.)
 #elif (PP_TimeDiscMethod==509)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Leapfrog, Poisson'
 # endif
-RKdtFrac=1.
-RKdtFracTotal=1.
-dtWeight=1.
+
+RKdtFrac      = 1.
+RKdtFracTotal = 1.
+dtWeight      = 1.
+
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
+ALLOCATE(Ut_temp(   1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)) ! temporal variable for Ut
+ALLOCATE(U2t_temp(  1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems)) ! temporal variable for U2t
+#ifdef PP_POIS
+ALLOCATE(Phit_temp( 1:4      ,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
+#endif /*PP_POIS*/
+#endif
+
 TimediscInitIsDone = .TRUE.
+
 SWRITE(UNIT_stdOut,'(A)')' INIT TIMEDISC DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
+
 END SUBROUTINE InitTimeDisc
 
 
@@ -267,12 +284,10 @@ USE MOD_HDG_Vars              ,ONLY: BRTimeStepMultiplier,UseBRElectronFluid,BRT
 USE MOD_Part_BR_Elecron_Fluid ,ONLY: GetNextBRSwitchTime
 #endif /*defined(PARTICLES) && USE_HDG*/
 #if USE_LOADBALANCE
-USE MOD_TimeDisc_Vars         ,ONLY: Time,TEnd,dt,dt_Min,tAnalyze
+USE MOD_TimeDisc_Vars         ,ONLY: dt,dt_Min
 USE MOD_LoadBalance_Vars      ,ONLY: IAR_DoLoadBalance,IAR_LoadBalanceSample,DoLoadBalance
 USE MOD_LoadBalance_Vars      ,ONLY: LoadBalanceSample
 USE MOD_Restart_Vars          ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample,IAR_PerformPartWeightLB
-USE MOD_Restart_Vars          ,ONLY: RestartTime
-USE MOD_Analyze_Vars          ,ONLY: Analyze_dt,iAnalyze
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -328,11 +343,11 @@ IF (DoInitialAutoRestart) THEN
   ! LoadBalanceSample still needs to be zero
   IF (IAR_PerformPartWeightLB) InitialAutoRestartSample=1
   ! Correction for first analysis time due to auto initial restart
-  IF (MIN( RestartTime+iAnalyze*Analyze_dt , tEnd , RestartTime+InitialAutoRestartSample*dt ).LT.tAnalyze) THEN
-    tAnalyze           = MIN(RestartTime+iAnalyze*Analyze_dt , tEnd , RestartTime+InitialAutoRestartSample*dt )
-    dt_Min(DT_ANALYZE) = tAnalyze-Time
-    dt                 = MINVAL(dt_Min)
-  END IF
+  !IF (MIN( RestartTime+iAnalyze*Analyze_dt , tEnd , RestartTime+InitialAutoRestartSample*dt ).LT.tAnalyze) THEN
+  !  tAnalyze           = MIN(RestartTime+iAnalyze*Analyze_dt , tEnd , RestartTime+InitialAutoRestartSample*dt )
+  !  dt_Min(DT_ANALYZE) = tAnalyze-Time
+  !  dt                 = MINVAL(dt_Min)
+  !END IF
 END IF
 #endif /*USE_LOADBALANCE*/
 END SUBROUTINE InitTimeStep
@@ -393,5 +408,37 @@ CFLScale = CFLScale/(2.*PP_N+1.)
 SWRITE(UNIT_stdOut,'(A,ES16.7)') '   CFL:',CFLScale
 END SUBROUTINE FillCFL_DFL
 
+
+SUBROUTINE FinalizeTimeDisc()
+!===================================================================================================================================
+!> The genesis
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_TimeDisc_Vars, ONLY:TimeDiscInitIsDone
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
+USE MOD_TimeDisc_Vars          ,ONLY: Ut_temp,U2t_temp
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
+SDEALLOCATE(Ut_temp)
+SDEALLOCATE(U2t_temp)
+#ifdef PP_POIS
+SDEALLOCATE(Phit_temp)
+#endif /*PP_POIS*/
+#endif
+
+TimeDiscInitIsDone = .FALSE.
+
+END SUBROUTINE FinalizeTimeDisc
 
 END MODULE MOD_TimeDiscInit
