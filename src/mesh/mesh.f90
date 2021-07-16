@@ -840,6 +840,7 @@ offsetElemCNProc = offsetElem - offsetComputeNodeElem
 offsetElemCNProc = 0
 #endif  /*USE_MPI && defined(PARTICLES)*/
 
+! In case of MPI=ON and PARTICLES=OFF, no shared array is created and all arrays are processor-local
 #if USE_MPI && defined(PARTICLES)
 MPISharedSize = INT(nComputeNodeElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemVolume_Shared_Win,ElemVolume_Shared)

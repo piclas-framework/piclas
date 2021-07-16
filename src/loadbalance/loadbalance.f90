@@ -49,7 +49,7 @@ CALL prms%SetSection("LoadBalance")
 
 #if USE_LOADBALANCE
 CALL prms%CreateLogicalOption('DoLoadBalance'           , 'Set flag for doing dynamic LoadBalance.', '.FALSE.')
-CALL prms%CreateIntOption(    'LoadBalanceSample'       , 'Define number of iterations (before analyze_dt)'//&
+CALL prms%CreateIntOption(    'LoadBalanceSample'       , 'Define number of iterations (before Analyze_dt)'//&
                                                           ' that are used for calculation of elemtime information', value='1')
 CALL prms%CreateIntOption(    'LoadBalanceMaxSteps'     , 'Define number of maximum load balacing steps'//&
                                                           ' that are allowed.', value='1')
