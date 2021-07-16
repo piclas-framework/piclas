@@ -801,7 +801,6 @@ SUBROUTINE ConvertElemData(InputStateFile,ArrayName,VarName)
 !===================================================================================================================================
 !> Convert element/volume data (single value per cell, e.g. DSMC/BGK results) to a VTK format
 !===================================================================================================================================
-SUBROUTINE ConvertElemData(InputStateFile)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars    ,ONLY: ProjectName
