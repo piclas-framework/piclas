@@ -240,8 +240,6 @@ TYPE typeSurfaceflux
                                                                              ! insert the right amount of particles
   REAL, ALLOCATABLE                      :: CircleAreaPerTriaSide(:,:,:)     ! Adaptive, Type 4: Area within a triangle, determined
                                                                              ! through Monte Carlo integration (initially)
-  INTEGER                                :: AdaptivePartNumOut               ! Adaptive, Type 4: Number of particles exiting through
-                                                                             ! the adaptive boundary condition
   REAL                                   :: SampledMassflow                  ! Actual mass flow rate through a surface flux boundary
   REAL, ALLOCATABLE                      :: nVFRSub(:,:)                     ! normal volume flow rate through subsubside
 END TYPE

@@ -497,7 +497,6 @@ __STAMP__&
           CALL abort(__STAMP__&
             ,'ERROR in init of adaptive inlet: positive initial guess of velocity for Type 3/Type 4 condition required!')
         END IF
-        Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0
       END SELECT
       ! Sanity check: regular surface flux must be on an open BC
       IF (PartBound%TargetBoundCond(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.PartBound%ReflectiveBC) THEN

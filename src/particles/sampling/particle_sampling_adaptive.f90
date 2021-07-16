@@ -41,7 +41,7 @@ CALL prms%CreateIntOption(    'AdaptiveBC-SamplingIteration', 'Number of iterati
                                                               ' the utilized value. Alternative is to constantly update'//&
                                                               ' with a relaxation factor', '0')
 CALL prms%CreateLogicalOption('AdaptiveBC-TruncateRunningAverage',  'Flag to enable a truncated running average for'//&
-                                                                    ' the last number of SamplingIteration', '.TRUE.')
+                                                                    ' the last number of SamplingIteration')
 END SUBROUTINE DefineParametersParticleSamplingAdaptive
 
 
@@ -125,6 +125,13 @@ DO iSpec=1,nSpecies
     END DO
   END DO
 END DO
+
+! Type=4 requires the number of particles that left through that BC in the previous time step
+! Only allocate and nullify, if new simulation or restart, keep values during load balance step to avoid wrong mass flow during
+IF(.NOT.PerformLoadBalance) THEN
+  ALLOCATE(AdaptBCPartNumOut(1:nSpecies,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
+  AdaptBCPartNumOut = 0
+END IF
 
 #if USE_MPI
 IF(UseCircularInflow) THEN
@@ -219,15 +226,19 @@ END DO
 ! 3) Read-in of the additional variables for sampling
 AdaptBCRelaxFactor = GETREAL('AdaptiveBC-RelaxationFactor')
 AdaptBCSampIter = GETINT('AdaptiveBC-SamplingIteration')
-AdaptBCTruncAverage = GETLOGICAL('AdaptiveBC-TruncateRunningAverage')
 
-IF(AdaptBCTruncAverage) THEN
-  IF(AdaptBCSampIter.EQ.0) THEN
-    CALL abort(__STAMP__,&
-      'ERROR: Truncated running average requires to the number of sampling iterations (AdaptiveBC-SamplingIteration > 0)!')
+IF(AdaptBCSampIter.GT.0) THEN
+  AdaptBCTruncAverage = GETLOGICAL('AdaptiveBC-TruncateRunningAverage','.TRUE.')
+  IF(AdaptBCTruncAverage) THEN
+    ALLOCATE(AdaptBCAverage(1:8,1:AdaptBCSampIter,1:AdaptBCSampleElemNum,1:nSpecies))
+    AdaptBCAverage = 0.0
   END IF
-  ALLOCATE(AdaptBCAverage(1:8,1:AdaptBCSampIter,1:AdaptBCSampleElemNum,1:nSpecies))
-  AdaptBCAverage = 0.0
+ELSE
+  AdaptBCTruncAverage = GETLOGICAL('AdaptiveBC-TruncateRunningAverage','.FALSE.')
+  IF(AdaptBCTruncAverage) THEN
+    AdaptBCTruncAverage = .FALSE.
+    SWRITE(*,*) 'WARNING AdaptiveBC: TruncateRunningAverage is set to true, but SamplingIteration is zero. RelaxationFactor is utilized instead.'
+  END IF
 END IF
 
 ! 4) If restart is done, check if adaptiveinfo exists in state, read it in and write to AdaptBCMacroValues
@@ -258,7 +269,7 @@ IF (DoRestart) THEN
     END DO
     SDEALLOCATE(ElemData_HDF5)
   END IF
-  ! Read-in the running average values from the state file during a load balance step
+  ! Read-in the running average values from the state file
   IF(AdaptBCTruncAverage) THEN
     ! Avoid deleting the sampling iteration after a restart during a later load balacing step
     IF(.NOT.PerformLoadBalance) AdaptBCSampIterReadIn = 0
@@ -589,7 +600,7 @@ END DO        ! SampleElemID = 1,AdaptBCSampleElemNum
 END SUBROUTINE AdaptiveBCSampling
 
 
-SUBROUTINE FinalizeParticleSamplingAdaptive()
+SUBROUTINE FinalizeParticleSamplingAdaptive(IsLoadBalance)
 !----------------------------------------------------------------------------------------------------------------------------------!
 !>
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -600,6 +611,7 @@ USE MOD_Particle_Sampling_Vars
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN)              :: IsLoadBalance
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -613,6 +625,9 @@ SDEALLOCATE(AdaptBCMapElemToSample)
 SDEALLOCATE(AdaptiveData)
 SDEALLOCATE(AdaptBCAreaSurfaceFlux)
 SDEALLOCATE(AdaptBCBackupVelocity)
+IF(.NOT.IsLoadBalance) THEN
+  SDEALLOCATE(AdaptBCPartNumOut)
+END IF
 
 END SUBROUTINE FinalizeParticleSamplingAdaptive
 

@@ -44,6 +44,7 @@ USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass, SetParticleMPF
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, CalcAdaptiveBCInfo, nPartIn, PartEkinIn
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, BCdata_auxSF
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac, dt
@@ -90,7 +91,7 @@ DO iSpec=1,nSpecies
     IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
       IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
 #if USE_MPI
-        CALL MPI_ALLREDUCE(MPI_IN_PLACE,Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,IERROR)
+        CALL MPI_ALLREDUCE(MPI_IN_PLACE,AdaptBCPartNumOut(iSpec,iSF),1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,IERROR)
 #endif
         IF(.NOT.ALMOSTEQUAL(Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow,0.)) CALL AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
       END IF
@@ -101,7 +102,7 @@ DO iSpec=1,nSpecies
 
 !----- 0.: go through (sub)sides if present in proc
     IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) THEN
-      Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0
+      AdaptBCPartNumOut(iSpec,iSF) = 0
       CYCLE
     ELSE IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
       CALL abort(&
@@ -267,7 +268,7 @@ __STAMP__&
     END DO ! iSide
 
     IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
-      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0
+      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) AdaptBCPartNumOut(iSpec,iSF) = 0
     END IF
     IF (NbrOfParticle.NE.iPartTotal) CALL abort(&
 __STAMP__&
@@ -858,7 +859,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCBackupVelocity
+USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCBackupVelocity, AdaptBCPartNumOut
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfMeshSubSideData
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
 IMPLICIT NONE
@@ -950,7 +951,7 @@ INTEGER                     :: ElemID, SampleElemID
     PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide)     &
                             * (Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow * dt*RKdtFrac    &
                                 / (Species(iSpec)%MassIC * Species(iSpec)%MacroParticleFactor)  &
-                                + REAL(Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut)) +RandVal1)
+                                + REAL(AdaptBCPartNumOut(iSpec,iSF))) +RandVal1)
   ELSE
     CALL RANDOM_NUMBER(RandVal1)
     PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dt*RKdtFrac * nVFR+RandVal1)
