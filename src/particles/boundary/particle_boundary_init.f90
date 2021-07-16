@@ -252,15 +252,11 @@ CHARACTER(200)        :: tmpString
 LOGICAL               :: DeprecatedVoltage
 !===================================================================================================================================
 ! Read in boundary parameters
-dummy_int = CountOption('Part-nBounds')       ! check if Part-nBounds is present in .ini file
-nPartBound = GETINT('Part-nBounds','1.') ! get number of particle boundaries
+dummy_int  = CountOption('Part-nBounds') ! check if Part-nBounds is present in .ini file
+nPartBound = GETINT('Part-nBounds')      ! get number of particle boundaries
 ! Read-in number of porous boundaries
-nPorousBC = GETINT('Surf-nPorousBC', '0')
-IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) THEN
-  CALL abort(&
-__STAMP__&
-  ,'ERROR: nPartBound .LE. 0:', nPartBound)
-END IF
+nPorousBC  = GETINT('Surf-nPorousBC')
+IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) CALL abort(__STAMP__  ,'ERROR: nPartBound .LE. 0:', nPartBound)
 
 ALLOCATE(PartBound%SourceBoundName(  1:nPartBound))
 PartBound%SourceBoundName = ''
