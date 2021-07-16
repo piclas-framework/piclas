@@ -87,6 +87,12 @@ IF(BGGas%NumberOfSpecies.GT.0) THEN
   END IF
 END IF
 
+! Check if the temperature is zero
+IF(TElec.LE.0.)THEN
+  PartStateIntEn(3,iPart) = 0.0
+  RETURN
+END IF ! TElec.LE.0.
+
 ElectronicPartition  = 0.
 ElectronicPartitionTemp = 0.
 ! calculate sum over all energy levels == partition function for temperature Telec
@@ -135,11 +141,6 @@ ELSE
     END IF
     CALL RANDOM_NUMBER(iRan2)
   END DO
-#if ( PP_TimeDiscMethod == 42 )
-#ifdef CODE_ANALYZE
-  SpecDSMC(iSpec)%levelcounter(iQua) = SpecDSMC(iSpec)%levelcounter(iQua) + 1
-#endif
-#endif
   PartStateIntEn(3,iPart) = BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
 END IF
 

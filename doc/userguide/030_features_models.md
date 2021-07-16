@@ -71,8 +71,7 @@ for an intersection and a particle assigned accordingly to neighbor elements or 
 algorithm has no inherent self-consistency check. For critical intersections (beginning or end of a particle path or if a particle is located close to
 the edges of element faces) an additional safety check is performed by recomputing the element check and if it fails a re-localization of
 the particle is required. Particles traveling parallel to element faces are in an undefined state and are currently removed from the computation.
-This leads to a warning message. Note that tracing on periodic meshes works only for non-mpi computations. Periodic displacement requires
-additional coding.
+This leads to a warning message.
 
 ### Parameters for DoRefMapping and Tracing  (NEEDS UPDATING)
 
@@ -196,8 +195,8 @@ For each boundary of type *5* (reference state boundary *RefState*), e.g., by se
     BoundaryName = BC_WALL ! BC name in the mesh.h5 file
     BoundaryType = (/5,1/) ! (/ Type, curveIndex, State, alpha /)
 
-the corresponding *RefState* number must also be supplied in the parameter.ini file (here 1) and is selected from its position 
-in the parameter file. 
+the corresponding *RefState* number must also be supplied in the parameter.ini file (here 1) and is selected from its position
+in the parameter file.
 Each *RefState* is defined in the *parameter.ini* file by supplying a value for the voltage an alternating frequency for the cosine
 function (a frequency of 0 results in a fixed potential over time) and phase shift
 
@@ -222,7 +221,7 @@ selected and on those boundaries an additional Dirichlet boundary condition with
 HDG solver. The boundary conditions selected by the user are only altered at these locations and not removed.
 The information regarding the direction that is selected for this purpose is printed to std.out with the following line
 
-     |      Zero potential side activated in direction (1: x, 2: y, 3: z) |        1 |  OUTPUT | 
+     |      Zero potential side activated in direction (1: x, 2: y, 3: z) |        1 |  OUTPUT |
 
 To selected the direction by hand, simply supply the desired direction via
 
@@ -359,7 +358,7 @@ Between these two points the temperature will be interpolated, where the start v
 
 #### Radiative equilibrium
 
-Another option is to adapt the wall temperature based on the heat flux assuming that the wall is in radiative equilibrium. The temperature is then calculated from 
+Another option is to adapt the wall temperature based on the heat flux assuming that the wall is in radiative equilibrium. The temperature is then calculated from
 
 $$ q_w = \varepsilon \sigma T_w^4,$$
 
@@ -510,6 +509,13 @@ Regardless whether a standalone PIC, DSMC, or a coupled simulation is performed,
     Part-Species1-MacroParticleFactor=5E2
 
 Species that are not part of the initialization or emission but might occur as a result of e.g. chemical reactions should also be defined with these parameters.
+
+Due to the often repetitive definitions, the default value for a given parameter can be set using the wildcard `$`. Different values for individual parameters can be specified by explicitly specifying the numbered parameter, irrespective of the ordering in the parameter file.
+
+    Part-Species1-Init1-VeloIC = 1.
+    Part-Species$-Init$-VeloIC = 2.
+
+Due to runtime considerations, the evaluation of the wildcard character is performed from left to right. Thus, a parameter like `Part-Species1-Init$-VeloIC` will not work.
 
 Different velocity distributions are available for the initialization/emission of particles.
 
@@ -778,7 +784,7 @@ The direct influence of only the neibouring elements can be extended further by 
 
     PIC-shapefunction-adaptive-smoothing = T
 
-which increases the radius of influence and therefore takes more elements into account for the calculation of the shape function 
+which increases the radius of influence and therefore takes more elements into account for the calculation of the shape function
 radius in each element, hence, leading to a smoother transition in regions, where the element sizes rapidly change.
 
 This shape function method also is numerically charge conserving by integrating each particle's deposited charge and

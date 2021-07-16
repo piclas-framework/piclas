@@ -93,6 +93,7 @@ SUBROUTINE InitParticleMPI()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars
+USE MOD_ReadInTools       ,ONLY: GETLOGICAL
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -109,19 +110,22 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI ... '
 IF(ParticleMPIInitIsDone) CALL ABORT(__STAMP__,' Particle MPI already initialized!')
 
+! Get flag for ignoring the abort if the number of global exchange procs is non-symmetric
+CheckExchangeProcs = GETLOGICAL('CheckExchangeProcs')
+
 #if USE_MPI
 CALL MPI_COMM_DUP (MPI_COMM_WORLD,PartMPI%COMM,iError)
 CALL MPI_COMM_RANK(PartMPI%COMM,PartMPI%myRank,iError)
 CALL MPI_COMM_SIZE(PartMPI%COMM,PartMPI%nProcs,iError)
 
 IF(PartMPI%nProcs.NE.nProcessors) CALL ABORT(__STAMP__,' MPI Communicater-size does not match!', IERROR)
-PartCommSize   = 0
+PartCommSize    = 0
 PartMPI%MPIRoot = .FALSE.
 IF(PartMPI%MyRank.EQ.0) PartMPI%MPIRoot=.TRUE.
 #else
-PartMPI%myRank = 0
-PartMPI%nProcs = 1
-PartMPI%MPIRoot=.TRUE.
+PartMPI%myRank  = 0
+PartMPI%nProcs  = 1
+PartMPI%MPIRoot = .TRUE.
 #endif  /*USE_MPI*/
 
 ParticleMPIInitIsDone=.TRUE.
