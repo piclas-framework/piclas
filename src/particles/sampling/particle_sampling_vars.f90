@@ -31,6 +31,7 @@ REAL                                    :: AdaptBCRelaxFactor             ! weig
                                                                           ! instantaneous values with those
                                                                           ! of previous iterations
 INTEGER                                 :: AdaptBCSampIter                !
+INTEGER                                 :: AdaptBCSampIterReadIn          !
 LOGICAL                                 :: AdaptBCTruncAverage
 INTEGER                                 :: AdaptBCSampleElemNum           ! Number of elements with an adaptive BC
 INTEGER, ALLOCATABLE                    :: AdaptBCMapSampleToElem(:)      ! 

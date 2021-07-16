@@ -41,7 +41,7 @@ CALL prms%CreateIntOption(    'AdaptiveBC-SamplingIteration', 'Number of iterati
                                                               ' the utilized value. Alternative is to constantly update'//&
                                                               ' with a relaxation factor', '0')
 CALL prms%CreateLogicalOption('AdaptiveBC-TruncateRunningAverage',  'Flag to enable a truncated running average for'//&
-                                                                    ' the last number of SamplingIteration', '.FALSE.')
+                                                                    ' the last number of SamplingIteration', '.TRUE.')
 END SUBROUTINE DefineParametersParticleSamplingAdaptive
 
 
@@ -54,7 +54,7 @@ USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_ReadInTools
 USE MOD_Particle_Sampling_Vars
-USE MOD_HDF5_INPUT              ,ONLY: ReadArray, DatasetExists, GetDataSize
+USE MOD_HDF5_INPUT              ,ONLY: ReadArray, ReadAttribute, DatasetExists, GetDataSize
 USE MOD_Mesh_Vars               ,ONLY: offsetElem, nElems, SideToElem
 USE MOD_Particle_Vars           ,ONLY: Species, nSpecies, UseCircularInflow
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
@@ -77,7 +77,8 @@ USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
 LOGICAL                           :: AdaptiveDataExists, RunningAverageExists
 REAL,ALLOCATABLE                  :: ElemData_HDF5(:,:), ElemData2_HDF5(:,:,:,:)
 INTEGER                           :: iElem, iSpec, iSF, iSide, ElemID, SampleElemID, nVar, GlobalSideID, GlobalElemID, currentBC
-INTEGER                           :: jSample, iSample, BCSideID, nElemReadin, nVarTotal, iVar
+INTEGER                           :: jSample, iSample, BCSideID, nElemReadin, nVarTotal, iVar, nVarArrayStart, nVarArrayEnd
+INTEGER                           :: SampIterArrayEnd
 INTEGER,ALLOCATABLE               :: GlobalElemIndex(:)
 #if USE_MPI
 INTEGER                           :: offSetElemAdaptBCSampleMPI(0:nProcessors-1)
@@ -190,8 +191,30 @@ ALLOCATE(AdaptBCMacroVal(1:7,1:AdaptBCSampleElemNum,1:nSpecies))
 AdaptBCMacroVal(:,:,:) = 0.0
 ALLOCATE(AdaptBCSample(1:8,1:AdaptBCSampleElemNum,1:nSpecies))
 AdaptBCSample = 0.0
+
+! Initializing an array with the given velocity vector and magnitude. It is used as a fallback, when the sampled velocity
+! in the cell is zero (e.g. when starting a simulation with zero particles)
 ALLOCATE(AdaptBCBackupVelocity(1:3,1:AdaptBCSampleElemNum,1:nSpecies))
 AdaptBCBackupVelocity = 0.0
+DO iSpec=1,nSpecies
+  DO iSF=1,Species(iSpec)%nSurfacefluxBCs
+    currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
+    ! Skip processors without a surface flux
+    IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) CYCLE
+    ! Loop over sides on the surface flux
+    DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+      ! Skip elements outside of the circular inflow
+      IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+        IF(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).EQ.1) CYCLE
+      END IF
+      ElemID = SideToElem(S2E_ELEM_ID,BCdata_auxSF(currentBC)%SideList(iSide))
+      SampleElemID = AdaptBCMapElemToSample(ElemID)
+      IF(SampleElemID.GT.0) THEN
+        AdaptBCBackupVelocity(1:3,SampleElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC*Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1:3)
+      END IF
+    END DO
+  END DO
+END DO
 
 ! 3) Read-in of the additional variables for sampling
 AdaptBCRelaxFactor = GETREAL('AdaptiveBC-RelaxationFactor')
@@ -236,41 +259,70 @@ IF (DoRestart) THEN
     SDEALLOCATE(ElemData_HDF5)
   END IF
   ! Read-in the running average values from the state file during a load balance step
-  IF(AdaptBCTruncAverage.AND.PerformLoadBalance) THEN
+  IF(AdaptBCTruncAverage) THEN
+    ! Avoid deleting the sampling iteration after a restart during a later load balacing step
+    IF(.NOT.PerformLoadBalance) AdaptBCSampIterReadIn = 0
     CALL DatasetExists(File_ID,'AdaptiveRunningAverage',RunningAverageExists)
     IF(RunningAverageExists)THEN
+      ! Read-in the number of sampling iterations from the restart file (might differ from the current number)
+      IF(.NOT.PerformLoadBalance) CALL ReadAttribute(File_ID,'AdaptBCSampIter',1,IntegerScalar=AdaptBCSampIterReadIn)
+      ! Get the data size of the read-in array
       CALL GetDataSize(File_ID,'AdaptiveRunningAverage',nDims,HSize)
       nVar=INT(HSize(2),4)
       nElemReadin = INT(HSize(3),4)
       DEALLOCATE(HSize)
-      IF(AdaptBCSampIter.EQ.nVar.AND.AdaptBCSampleElemNumGlobal.EQ.nElemReadin) THEN
-        ALLOCATE(ElemData2_HDF5(1:8,1:nVar,1:nElemReadin,1:nSpecies))
-        ALLOCATE(GlobalElemIndex(1:nElemReadin))
-        ! Associate construct for integer KIND=8 possibility
-        ASSOCIATE (&
-              nSpecies    => INT(nSpecies,IK) ,&
-              nElemReadin => INT(nElemReadin,IK)    ,&
-              nVar        => INT(nVar,IK)    )
-          CALL ReadArray('AdaptiveRunningAverage',4,(/8_IK, nVar, nElemReadin, nSpecies/),0_IK,3,RealArray=ElemData2_HDF5(:,:,:,:))
-          CALL ReadArray('AdaptiveRunningAverageIndex',1,(/nElemReadin/),0_IK,1,IntegerArray_i4=GlobalElemIndex(:))
-        END ASSOCIATE
-        IF(AdaptBCSampleElemNum.GT.0) THEN
-          DO iElem = 1,nElemReadin
-            GlobalElemID = GlobalElemIndex(iElem)
-            ! Skip elements outside my local region
-            IF((GlobalElemID.LT.1+offsetElem).OR.(GlobalElemID.GT.nElems+offsetElem)) CYCLE
-            ! Get the sample element ID
-            SampleElemID = AdaptBCMapElemToSample(GlobalElemID-offsetElem)
-            IF(SampleElemID.GT.0) AdaptBCAverage(1:8,1:nVar,SampleElemID,1:nSpecies) = ElemData2_HDF5(1:8,1:nVar,iElem,1:nSpecies)
-          END DO
-        END IF
-        SDEALLOCATE(ElemData2_HDF5)
-        SDEALLOCATE(GlobalElemIndex)
-      ELSE
-        SWRITE(*,*) 'Sampling for adaptive boundary conditions: Different number of sampling iterations in state file. Values initiliazed with zeros.'
+      ! Abort if the array size does not correspond to the current adaptive BC configuration (e.g. a new adaptive BC was added)
+      IF(AdaptBCSampleElemNumGlobal.NE.nElemReadin) THEN
+        CALL abort(__STAMP__,&
+          'AdaptiveRunningAverage: Number of read-in elements does not correspond to current number of sample elements!')
       END IF
+      ! Treatment of different number of iterations between read-in and parameter input
+      IF(AdaptBCSampIter.EQ.nVar) THEN
+        nVarArrayStart = 1
+        nVarArrayEnd = nVar
+        SampIterArrayEnd = AdaptBCSampIter
+        IF(AdaptBCSampIterReadIn.LT.nVar.AND..NOT.PerformLoadBalance) THEN
+          SWRITE(*,*) 'AdaptiveRunningAverage: Array not filled in previous simulation run. Continuing at: ', AdaptBCSampIterReadIn + 1
+        END IF
+      ELSE IF(AdaptBCSampIter.GT.nVar) THEN
+        nVarArrayStart = 1
+        nVarArrayEnd = nVar
+        SampIterArrayEnd = nVar
+        SWRITE(*,*) 'AdaptiveRunningAverage: Smaller number of sampling iterations in state file. Continuing at: ', AdaptBCSampIterReadIn + 1
+      ELSE
+        nVarArrayStart = nVar - AdaptBCSampIter + 1
+        nVarArrayEnd = nVar
+        SampIterArrayEnd = AdaptBCSampIter
+        AdaptBCSampIterReadIn = AdaptBCSampIter
+        SWRITE(*,*) 'AdaptiveRunningAverage: Greater number of sampling iterations in state file. Using the last ', AdaptBCSampIterReadIn, ' sample iterations.'
+      END IF
+      ALLOCATE(ElemData2_HDF5(1:8,1:nVar,1:nElemReadin,1:nSpecies))
+      ALLOCATE(GlobalElemIndex(1:nElemReadin))
+      ! Associate construct for integer KIND=8 possibility
+      ASSOCIATE (&
+            nSpecies    => INT(nSpecies,IK) ,&
+            nElemReadin => INT(nElemReadin,IK)    ,&
+            nVar        => INT(nVar,IK)    )
+        CALL ReadArray('AdaptiveRunningAverage',4,(/8_IK, nVar, nElemReadin, nSpecies/),0_IK,3,RealArray=ElemData2_HDF5(:,:,:,:))
+        CALL ReadArray('AdaptiveRunningAverageIndex',1,(/nElemReadin/),0_IK,1,IntegerArray_i4=GlobalElemIndex(:))
+      END ASSOCIATE
+      ! Map the read-in values to the sampling array (GlobalElemID -> LocalElemID -> SampleElemID)
+      IF(AdaptBCSampleElemNum.GT.0) THEN
+        DO iElem = 1,nElemReadin
+          GlobalElemID = GlobalElemIndex(iElem)
+          ! Skip elements outside my local region
+          IF((GlobalElemID.LT.1+offsetElem).OR.(GlobalElemID.GT.nElems+offsetElem)) CYCLE
+          ! Get the sample element ID
+          SampleElemID = AdaptBCMapElemToSample(GlobalElemID-offsetElem)
+          IF(SampleElemID.GT.0) AdaptBCAverage(1:8,1:SampIterArrayEnd,SampleElemID,1:nSpecies) = ElemData2_HDF5(1:8,nVarArrayStart:nVarArrayEnd,iElem,1:nSpecies)
+        END DO
+      END IF
+      ! Calculate the macro values intially from the sample for the first iteration
+      CALL AdaptiveBCSampling(initTruncAverage_opt=.TRUE.)
+      SDEALLOCATE(ElemData2_HDF5)
+      SDEALLOCATE(GlobalElemIndex)
     ELSE
-      SWRITE(*,*) 'Sampling for adaptive boundary conditions: No running average values found. Values initiliazed with zeros.'
+      SWRITE(*,*) 'AdaptiveRunningAverage: No running average values found. Values initiliazed with zeros.'
     END IF
   END IF
   CALL CloseDataFile()
@@ -310,9 +362,6 @@ ELSE
         IF(SampleElemID.GT.0) THEN
           AdaptBCMacroVal(1:3,SampleElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC*Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1:3)
           AdaptBCMacroVal(4,SampleElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
-        ! Initializing the array with the given velocity vector and magnitude. It is used as a fallback, when the sampled velocity
-        ! in the cell is zero (e.g. when starting a simulation with zero particles)
-          AdaptBCBackupVelocity(1:3,SampleElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC*Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1:3)
         END IF
       END DO
     END DO
@@ -327,7 +376,7 @@ END IF
 END SUBROUTINE InitAdaptiveBCSampling
 
 
-SUBROUTINE AdaptiveBCSampling(initSampling_opt)
+SUBROUTINE AdaptiveBCSampling(initSampling_opt,initTruncAverage_opt)
 !===================================================================================================================================
 ! Sampling of variables (part-density and velocity) for adaptive BC and porous BC elements
 !===================================================================================================================================
@@ -350,13 +399,15 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 LOGICAL, INTENT(IN), OPTIONAL   :: initSampling_opt
+LOGICAL, INTENT(IN), OPTIONAL   :: initTruncAverage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: ElemID, CNElemID, SampleElemID, PartID, iPart, iSpec, SamplingIteration, TruncIter
+INTEGER                         :: ElemID, CNElemID, SampleElemID, PartID, iPart, iSpec, SamplingIteration, TruncIter, ModIter
+INTEGER                         :: RestartSampIter
 REAL                            :: partWeight, TTrans_TempFac, RelaxationFactor
-LOGICAL                         :: initSampling, CalcValues
+LOGICAL                         :: initSampling, CalcValues, initTruncAverage
 #if USE_LOADBALANCE
 REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -366,53 +417,65 @@ REAL                            :: tLBStart
 IF(PRESENT(initSampling_opt)) THEN
   initSampling = initSampling_opt
 ELSE
- initSampling = .FALSE.
+  initSampling = .FALSE.
+END IF
+
+! Optional flag for the utilization of the routine for an initial calculation of the density and pressure distribution from the
+! read-in truncated average sample values before simulation start
+IF(PRESENT(initTruncAverage_opt)) THEN
+  initTruncAverage = initTruncAverage_opt
+ELSE
+  initTruncAverage = .FALSE.
 END IF
 
 CalcValues = .FALSE.
 
 ! If no particles are present during the initial sampling, leave the routine, otherwise initial variables for the
 ! adaptive inlet surface flux will be overwritten by zero's.
-IF (PDM%ParticleVecLength.LT.1) RETURN
+IF (PDM%ParticleVecLength.LT.1.AND..NOT.initTruncAverage) RETURN
 
 ! Leave the routine if the processors does not have elements at an adaptive BC
 IF (AdaptBCSampleElemNum.EQ.0) RETURN
 
 ! Calculate the counter for the truncated moving average
-IF(AdaptBCTruncAverage) THEN
-  TruncIter = MERGE(AdaptBCSampIter,MOD(INT(iter,4)+1,AdaptBCSampIter),MOD(INT(iter,4)+1,AdaptBCSampIter).EQ.0)
+IF(AdaptBCTruncAverage.AND..NOT.initSampling) THEN
+  RestartSampIter =  INT(iter,4)+AdaptBCSampIterReadIn
+  ModIter = MOD(RestartSampIter,AdaptBCSampIter)
+  TruncIter = MERGE(AdaptBCSampIter,ModIter,ModIter.EQ.0)
   ! Delete the oldest sample (required, otherwise it would be added to the new sample)
-  AdaptBCAverage(1:8,TruncIter,1:AdaptBCSampleElemNum,1:nSpecies) = 0.
+  IF(.NOT.initTruncAverage) AdaptBCAverage(1:8,TruncIter,1:AdaptBCSampleElemNum,1:nSpecies) = 0.
 END IF
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-DO SampleElemID = 1,AdaptBCSampleElemNum
-  ElemID = AdaptBCMapSampleToElem(SampleElemID)
-  PartID = PEM%pStart(ElemID)
+IF(.NOT.initTruncAverage) THEN
+  DO SampleElemID = 1,AdaptBCSampleElemNum
+    ElemID = AdaptBCMapSampleToElem(SampleElemID)
+    PartID = PEM%pStart(ElemID)
 #if USE_LOADBALANCE
-  nPartsPerBCElem(ElemID) = nPartsPerBCElem(ElemID) + PEM%pNumber(ElemID)
+    nPartsPerBCElem(ElemID) = nPartsPerBCElem(ElemID) + PEM%pNumber(ElemID)
 #endif /*USE_LOADBALANCE*/
-  DO iPart = 1,PEM%pNumber(ElemID)
-    ! Sample the particle properties
-    iSpec = PartSpecies(PartID)
-    partWeight = GetParticleWeight(PartID)
-    IF(AdaptBCTruncAverage) THEN
-      ! Store the samples of the last AdaptBCSampIter and replace the oldest with the newest sample
-      AdaptBCAverage(1:3,TruncIter,SampleElemID, iSpec) = AdaptBCAverage(1:3,TruncIter,SampleElemID,iSpec) + PartState(4:6,PartID) * partWeight
-      AdaptBCAverage(4:6,TruncIter,SampleElemID, iSpec) = AdaptBCAverage(4:6,TruncIter,SampleElemID,iSpec) + PartState(4:6,PartID)**2 * partWeight
-      AdaptBCAverage(7,  TruncIter,SampleElemID, iSpec) = AdaptBCAverage(7,  TruncIter,SampleElemID,iSpec) + 1.0  ! simulation particle number
-      AdaptBCAverage(8,  TruncIter,SampleElemID, iSpec) = AdaptBCAverage(8,  TruncIter,SampleElemID,iSpec) + partWeight
-    ELSE
-      AdaptBCSample(1:3,SampleElemID, iSpec) = AdaptBCSample(1:3,SampleElemID,iSpec) + PartState(4:6,PartID) * partWeight
-      AdaptBCSample(4:6,SampleElemID, iSpec) = AdaptBCSample(4:6,SampleElemID,iSpec) + PartState(4:6,PartID)**2 * partWeight
-      AdaptBCSample(7,SampleElemID, iSpec) = AdaptBCSample(7,SampleElemID, iSpec) + 1.0  ! simulation particle number
-      AdaptBCSample(8,SampleElemID, iSpec) = AdaptBCSample(8,SampleElemID, iSpec) + partWeight
-    END IF
-    PartID = PEM%pNext(PartID)
+    DO iPart = 1,PEM%pNumber(ElemID)
+      ! Sample the particle properties
+      iSpec = PartSpecies(PartID)
+      partWeight = GetParticleWeight(PartID)
+      IF(AdaptBCTruncAverage.AND..NOT.initSampling) THEN
+        ! Store the samples of the last AdaptBCSampIter and replace the oldest with the newest sample
+        AdaptBCAverage(1:3,TruncIter,SampleElemID, iSpec) = AdaptBCAverage(1:3,TruncIter,SampleElemID,iSpec) + PartState(4:6,PartID) * partWeight
+        AdaptBCAverage(4:6,TruncIter,SampleElemID, iSpec) = AdaptBCAverage(4:6,TruncIter,SampleElemID,iSpec) + PartState(4:6,PartID)**2 * partWeight
+        AdaptBCAverage(7,  TruncIter,SampleElemID, iSpec) = AdaptBCAverage(7,  TruncIter,SampleElemID,iSpec) + 1.0  ! simulation particle number
+        AdaptBCAverage(8,  TruncIter,SampleElemID, iSpec) = AdaptBCAverage(8,  TruncIter,SampleElemID,iSpec) + partWeight
+      ELSE
+        AdaptBCSample(1:3,SampleElemID, iSpec) = AdaptBCSample(1:3,SampleElemID,iSpec) + PartState(4:6,PartID) * partWeight
+        AdaptBCSample(4:6,SampleElemID, iSpec) = AdaptBCSample(4:6,SampleElemID,iSpec) + PartState(4:6,PartID)**2 * partWeight
+        AdaptBCSample(7,SampleElemID, iSpec) = AdaptBCSample(7,SampleElemID, iSpec) + 1.0  ! simulation particle number
+        AdaptBCSample(8,SampleElemID, iSpec) = AdaptBCSample(8,SampleElemID, iSpec) + partWeight
+      END IF
+      PartID = PEM%pNext(PartID)
+    END DO
   END DO
-END DO
+END IF
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_ADAPTIVE,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -424,19 +487,19 @@ IF(initSampling) THEN
 ELSE
   RelaxationFactor = AdaptBCRelaxFactor
   IF(AdaptBCSampIter.GT.0) THEN
-    IF(AdaptBCTruncAverage.AND.(iter+1_8.LT.INT(AdaptBCSampIter,8))) THEN
+    IF(AdaptBCTruncAverage.AND.(RestartSampIter.LT.AdaptBCSampIter)) THEN
       ! Truncated average: get the correct number of samples to calculate the average number density while the 
       ! sampling array is populated
-      SamplingIteration = INT(iter,4) + 1
+      SamplingIteration = RestartSampIter
     ELSE
       SamplingIteration = AdaptBCSampIter
     END IF
     ! Determine whether the macroscopic values shall be calculated from the sample (e.g. every 100 steps)
-    CalcValues = MOD(iter+1_8,INT(SamplingIteration,8)).EQ.0_8
+    CalcValues = MOD(INT(iter,4),SamplingIteration).EQ.0
   END IF
 END IF
 
-IF(AdaptBCTruncAverage) THEN
+IF(AdaptBCTruncAverage.AND..NOT.initSampling) THEN
   ! Sum-up the complete sample over the number of sampling iterations
   AdaptBCSample(1:8,1:AdaptBCSampleElemNum,1:nSpecies) = SUM(AdaptBCAverage(1:8,:,1:AdaptBCSampleElemNum,1:nSpecies),2)
 END IF

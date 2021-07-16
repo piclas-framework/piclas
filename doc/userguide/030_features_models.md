@@ -690,9 +690,12 @@ An overview over the available types is given below.
 Depending of the type of the chosen boundary type either the mass flow [kg/s] or the static pressure [Pa] have to be given
 
     Part-Species1-Surfaceflux1-Adaptive-Massflow=1.00E-14
+    ! or
     Part-Species1-Surfaceflux1-Adaptive-Pressure=10
 
-The adaptive boundaries require the sampling of macroscopic properties such as flow velocity at the boundary. To compensate for the statistical fluctuations, three possible sampling approaches are available. The first approach uses a relaxation factor $f_{\mathrm{relax}}$, where the current value of the sampled variable $v^{n}$ is updated according to
+The temperature and velocity vector are defined by the regular surface flux parameters as described in the beginning of Section \ref{sec:particle_surface_flux}. The velocity provided is utilized as the initial value for the determination of particles to be inserted, where a very low velocity results in a high number of particles for a given massflow. In the subsequent iterations, the sampled velocity in the adjacent cells is utilized.
+
+The adaptive boundaries require the sampling of macroscopic properties such as the flow velocity at the boundary. To compensate for the statistical fluctuations, three possible sampling approaches are available. The first approach uses a relaxation factor $f_{\mathrm{relax}}$, where the current value of the sampled variable $v^{n}$ is updated according to
 
 $$v^{n}= (1-f_{\mathrm{relax}})\,v^{n-1} + f_{\mathrm{relax}} v^{\mathrm{samp}} $$
 
@@ -700,10 +703,10 @@ The relaxation factor $f_{\mathrm{relax}}$ is defined by
 
     AdaptiveBC-RelaxationFactor = 0.001
 
-The second and third approach allows to sample over a certain number of iterations. If the truncated running average option is enabled, the macroscopic properties will be continuously updated while the oldest sample will be replaced with the most recent. If the truncated running average option is disabled, the macroscopic properties will be only updated every given number of iterations, and the complete sample will be resetted afterwads. If a number of iterations is given, it will be used instead of the first approach with the relaxation factor.
+The second and third approach allows to sample over a certain number of iterations. If the truncated running average option is enabled (per default), the macroscopic properties will be continuously updated while the oldest sample will be replaced with the most recent. If the truncated running average option is disabled, the macroscopic properties will be only updated every given number of iterations, and the complete sample will be resetted afterwads. If a number of iterations is given, it will be used instead of the first approach with the relaxation factor.
 
     AdaptiveBC-SamplingIteration      = 100
-    AdaptiveBC-TruncateRunningAverage = T       ! DEFAULT: F
+    AdaptiveBC-TruncateRunningAverage = T       ! DEFAULT: T
 
 The adaptive particle emission can be combined with the circular inflow feature. In this context when the area of the actual emission circle/ring is very small, it is preferable to utilize the `Type=4` constant mass flow condition. `Type=3` assumes an open boundary and accounts for particles leaving the domain through that boundary already when determining the number of particles to be inserted. As a result, this method tends to over predict the given mass flow, when the emission area is very small and large sample size would be required to have enough particles that leave the domain through the emission area. For the `Type=4` method, the actual number of particles leaving the domain through the circular inflow is counted and the mass flow adapted accordingly, thus the correct mass flow can be reproduced.
 

@@ -1400,10 +1400,12 @@ SUBROUTINE WriteAdaptiveRunningAverageToHDF5(FileName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_IO_HDF5
+USE MOD_Timedisc_Vars          ,ONLY: iter
+USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCAverage, AdaptBCSampleElemNum, AdaptBCMapSampleToElem, AdaptBCSampIter
-USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCSampleElemNumGlobal, offSetElemAdaptBCSample
+USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCSampleElemNumGlobal, offSetElemAdaptBCSample, AdaptBCSampIterReadIn
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1417,6 +1419,8 @@ INTEGER                        :: nVar,ElemID,SampleElemID
 INTEGER, ALLOCATABLE           :: AdaptBCAverageIndex(:)
 !===================================================================================================================================
 
+IF(.NOT.DoRestart.AND.iter.EQ.0) RETURN
+
 nVar = 8
 ALLOCATE(AdaptBCAverageIndex(1:AdaptBCSampleElemNumGlobal))
 
@@ -1425,8 +1429,18 @@ DO SampleElemID = 1,AdaptBCSampleElemNum
   AdaptBCAverageIndex(SampleElemID) = ElemID + offsetElem
 END DO
 
-CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+! Store the position in the array for early restarts
+IF(MPIRoot)THEN
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  IF(INT(iter,4)+AdaptBCSampIterReadIn.LT.AdaptBCSampIter) THEN
+    CALL WriteAttributeToHDF5(File_ID,'AdaptBCSampIter',1,IntegerScalar=INT(iter,4)+AdaptBCSampIterReadIn)
+  ELSE
+    CALL WriteAttributeToHDF5(File_ID,'AdaptBCSampIter',1,IntegerScalar=AdaptBCSampIter)
+  END IF
+  CALL CloseDataFile()
+END IF
 
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
       AdaptBCSampleElemNumGlobal    => INT(AdaptBCSampleElemNumGlobal,IK)    ,&

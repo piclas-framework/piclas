@@ -1027,6 +1027,7 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
                         / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
       ELSE
         IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow.GT.0.0) THEN
+          SWRITE(*,*) VeloVec(1:3), AdaptBCBackupVelocity(1:3,SampleElemID,iSpec)
           SWRITE(*,*) 'WARNING: Negative/zero velocity at the adaptive boundary, Type 4, no particles inserted! iSF: ', iSF
         END IF
         ElemPartDensity = 0
