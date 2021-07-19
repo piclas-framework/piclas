@@ -2190,6 +2190,7 @@ ASSOCIATE( e   => ElementaryCharge,&
            m_e => ElectronMass )
   ! 1.) Loop all particles and check only if electrons
   DO iPart=1,PDM%ParticleVecLength
+    IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
     IF(PARTISELECTRON(iPart))THEN
       SetFrequency = .FALSE. ! Initialize
       SetRadius    = .FALSE. ! Initialize
