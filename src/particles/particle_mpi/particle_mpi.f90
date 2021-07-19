@@ -1430,12 +1430,33 @@ DO iSpec=1,nSpecies
       ! Neutralization at right BC (max. x-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)
       ! Check one region (emission at fixed x-position x=30 mm)
       ASSOCIATE( &
-                 x2 => 30.0001e-3    ,& ! m
-                 x1 => 29.9999e-3    ,& ! m
+                 x2 => 30.01e-3    ,& ! m
+                 x1 => 29.99e-3    ,& ! m
                  y2 => GEO%ymaxglob ,& ! m
                  y1 => GEO%yminglob ,& ! m
                  z2 => GEO%zmaxglob ,& ! m
                  z1 => GEO%zminglob )
+       ! Check all 8 edges
+       xCoords(1:3,1) = (/x1,y1,z1/)
+       xCoords(1:3,2) = (/x2,y1,z1/)
+       xCoords(1:3,3) = (/x1,y2,z1/)
+       xCoords(1:3,4) = (/x2,y2,z1/)
+       xCoords(1:3,5) = (/x1,y1,z2/)
+       xCoords(1:3,6) = (/x2,y1,z2/)
+       xCoords(1:3,7) = (/x1,y2,z2/)
+       xCoords(1:3,8) = (/x2,y2,z2/)
+       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
+      END ASSOCIATE
+    CASE('3D_Liu2010_neutralization')
+      ! Neutralization at right BC (max. z-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)
+      ! Check one region (emission at fixed z-position x=30 mm)
+      ASSOCIATE( &
+                 x2 => GEO%xmaxglob  ,& ! m
+                 x1 => GEO%xminglob  ,& ! m
+                 y2 => GEO%ymaxglob ,& ! m
+                 y1 => GEO%yminglob ,& ! m
+                 z2 => 30.01e-3 ,& ! m
+                 z1 => 29.99e-3 )
        ! Check all 8 edges
        xCoords(1:3,1) = (/x1,y1,z1/)
        xCoords(1:3,2) = (/x2,y1,z1/)

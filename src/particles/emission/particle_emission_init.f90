@@ -342,11 +342,14 @@ DO iSpec = 1, nSpecies
     CASE('2D_landmark','2D_landmark_copy')
       Species(iSpec)%Init(iInit)%ParticleEmissionType = 8
       Species(iSpec)%Init(iInit)%NINT_Correction      = 0.0
-    CASE('2D_landmark_neutralization','2D_Liu2010_neutralization')
+    CASE('2D_landmark_neutralization','2D_Liu2010_neutralization','3D_Liu2010_neutralization')
       Species(iSpec)%Init(iInit)%ParticleEmissionType = 9
       NeutralizationSource = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-NeutralizationSource'))
       NeutralizationBalance = 0
       UseNeutralization = .TRUE.
+      IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'3D_Liu2010_neutralization')THEN
+        Species(iSpec)%Init(iInit)%FirstQuadrantOnly = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-FirstQuadrantOnly')
+      END IF ! TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'3D_Liu2010_neutralization'
     END SELECT ! SpaceIC = '2D_landmark' or '2D_landmark_copy'
     !---Inserted Particles
     Species(iSpec)%Init(iInit)%InsertedParticle         = 0

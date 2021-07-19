@@ -56,7 +56,6 @@ PPURE FUNCTION GetExternalFieldAtParticle(pos)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PICInterpolation_Vars ,ONLY: externalField,useVariableExternalField,useAlgebraicExternalField
-USE MOD_Particle_Vars         ,ONLY: PartState
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/

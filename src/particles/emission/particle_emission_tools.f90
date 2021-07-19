@@ -111,6 +111,7 @@ PUBLIC :: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
 PUBLIC :: SetParticlePositionLandmark
 PUBLIC :: SetParticlePositionLandmarkNeutralization
 PUBLIC :: SetParticlePositionLiu2010Neutralization
+PUBLIC :: SetParticlePositionLiu2010Neutralization3D
 #ifdef CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
@@ -2073,4 +2074,55 @@ DO i=1,chunkSize
   END ASSOCIATE
 END DO
 END SUBROUTINE SetParticlePositionLiu2010Neutralization
+
+
+SUBROUTINE SetParticlePositionLiu2010Neutralization3D(FractNbr,iInit,chunkSize,particle_positions)
+!===================================================================================================================================
+! Set particle position
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Particle_Vars ,ONLY: Species
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)       :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                    :: Particle_pos(2),radius
+INTEGER                 :: i
+REAL                    :: lineVector(3),lineVector2(3)
+REAL                    :: RandVal(2)
+!===================================================================================================================================
+! Coordinate system: z-direction is assumed to be the axial direction
+ASSOCIATE( R1 => 21.5e-3  ,& ! m
+           R2 => 35.5e-3  ,& ! m
+           dR => 14.0e-3  ,& ! m
+           z  => 29.99e-3  ) ! m
+  DO i=1,chunkSize
+    radius = R2 + 1. ! Initialization for the while loop
+    DO WHILE(radius.GT.R2.OR.radius.LT.R1)
+      CALL RANDOM_NUMBER(RandVal)
+      ! Check if particles are to be inserted in the first quadrant only, otherwise map R [0,1] -> R [-1,1]
+      IF(.NOT.Species(FractNbr)%Init(iInit)%FirstQuadrantOnly) RandVal = RandVal * 2. - 1.
+      Particle_pos(1) = R2 * RandVal(1)
+      Particle_pos(2) = R2 * RandVal(2)
+
+      radius = SQRT(Particle_pos(1)**2 + Particle_pos(2)**2)
+
+    END DO
+    particle_positions(i*3-2) = Particle_pos(1)
+    particle_positions(i*3-1) = Particle_pos(2)
+    particle_positions(i*3  ) = z
+  END DO
+
+END ASSOCIATE
+END SUBROUTINE SetParticlePositionLiu2010Neutralization3D
+
+
 END MODULE MOD_part_emission_tools

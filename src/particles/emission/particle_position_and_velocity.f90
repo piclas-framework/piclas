@@ -140,7 +140,7 @@ USE MOD_part_emission_tools    ,ONLY: SetParticlePositionCuboidCylinder, SetPart
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionSphere, SetParticlePositionSinDeviation
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLandmark,SetParticlePositionLandmarkNeutralization
-USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLiu2010Neutralization
+USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLiu2010Neutralization,SetParticlePositionLiu2010Neutralization3D
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: SendEmissionParticlesToProcs
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
@@ -243,8 +243,11 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
     ! for low-temperature partially magnetized plasmas (2019)
     CALL SetParticlePositionLandmarkNeutralization(chunkSize,particle_positions)
   CASE('2D_Liu2010_neutralization')
-    ! Neutralization at right BC (max. x-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)
+    ! Neutralization at right BC (max. x-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010) - 2D case
     CALL SetParticlePositionLiu2010Neutralization(chunkSize,particle_positions)
+  CASE('3D_Liu2010_neutralization')
+    ! Neutralization at right BC (max. z-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010) - 3D case
+    CALL SetParticlePositionLiu2010Neutralization3D(FractNbr,iInit,chunkSize,particle_positions)
   END SELECT
   !------------------SpaceIC-cases: end-------------------------------------------------------------------------------------------
 #if USE_MPI
@@ -306,6 +309,7 @@ IF (chunkSize.GT.0) THEN
 END IF
 
 END SUBROUTINE SetParticlePosition
+
 
 SUBROUTINE SetParticleVelocity(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
