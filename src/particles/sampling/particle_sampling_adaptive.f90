@@ -35,6 +35,8 @@ SUBROUTINE DefineParametersParticleSamplingAdaptive()
 USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
+CALL prms%CreateLogicalOption('AdaptiveBC-AverageValuesOverBC',  'Flag to enable the usage of average macroscopic values'//&
+                                                                    ' across the whole boundary.', '.FALSE.')
 CALL prms%CreateRealOption(   'AdaptiveBC-RelaxationFactor',  'Relaxation factor for weighting of current'//&
                                                               ' values with those of previous iterations.', '0.001')
 CALL prms%CreateIntOption(    'AdaptiveBC-SamplingIteration', 'Number of iterations the values will be sampled before updating'//&
@@ -131,6 +133,8 @@ END DO
 IF(.NOT.PerformLoadBalance) THEN
   ALLOCATE(AdaptBCPartNumOut(1:nSpecies,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
   AdaptBCPartNumOut = 0
+  ALLOCATE(AdaptBCMeanValues(1:8,1:nSpecies,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
+  AdaptBCMeanValues = 0
 END IF
 
 #if USE_MPI
@@ -224,6 +228,7 @@ DO iSpec=1,nSpecies
 END DO
 
 ! 3) Read-in of the additional variables for sampling
+AdaptBCAverageValBC = GETLOGICAL('AdaptiveBC-AverageValuesOverBC')
 AdaptBCRelaxFactor = GETREAL('AdaptiveBC-RelaxationFactor')
 AdaptBCSampIter = GETINT('AdaptiveBC-SamplingIteration')
 
@@ -339,8 +344,6 @@ IF (DoRestart) THEN
   CALL CloseDataFile()
 END IF
 
-! Leave routine if the processor does not have sampling elements (after the MPI communication and HDF read-in)
-IF(AdaptBCSampleElemNum.EQ.0) RETURN
 ! 4) Initialize the macroscopic values from either the macroscopic restart or the surface flux (if no values have been read-in)
 IF(AdaptiveDataExists) RETURN
 
@@ -393,14 +396,16 @@ SUBROUTINE AdaptiveBCSampling(initSampling_opt,initTruncAverage_opt)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars
 USE MOD_Particle_Sampling_Vars
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_Mesh_Vars              ,ONLY: offsetElem
+USE MOD_Mesh_Vars              ,ONLY: offsetElem, SideToElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Part_Tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM, usevMPF
 USE MOD_Timedisc_Vars          ,ONLY: iter
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
 USE MOD_LoadBalance_vars       ,ONLY: nPartsPerBCElem
@@ -415,8 +420,9 @@ LOGICAL, INTENT(IN), OPTIONAL   :: initTruncAverage_opt
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: ElemID, CNElemID, SampleElemID, PartID, iPart, iSpec, SamplingIteration, TruncIter, ModIter
+INTEGER                         :: ElemID, CNElemID, SampleElemID, iPart, iSpec, SamplingIteration, TruncIter, ModIter
 INTEGER                         :: RestartSampIter
+INTEGER                         :: SampleCounter, BCSideID, currentBC, iSF, iSide
 REAL                            :: partWeight, TTrans_TempFac, RelaxationFactor
 LOGICAL                         :: initSampling, CalcValues, initTruncAverage
 #if USE_LOADBALANCE
@@ -445,46 +451,46 @@ CalcValues = .FALSE.
 ! adaptive inlet surface flux will be overwritten by zero's.
 IF (PDM%ParticleVecLength.LT.1.AND..NOT.initTruncAverage) RETURN
 
-! Leave the routine if the processors does not have elements at an adaptive BC
-IF (AdaptBCSampleElemNum.EQ.0) RETURN
-
 ! Calculate the counter for the truncated moving average
 IF(AdaptBCTruncAverage.AND..NOT.initSampling) THEN
-  RestartSampIter =  INT(iter,4)+AdaptBCSampIterReadIn
-  ModIter = MOD(RestartSampIter,AdaptBCSampIter)
-  TruncIter = MERGE(AdaptBCSampIter,ModIter,ModIter.EQ.0)
-  ! Delete the oldest sample (required, otherwise it would be added to the new sample)
-  IF(.NOT.initTruncAverage) AdaptBCAverage(1:8,TruncIter,1:AdaptBCSampleElemNum,1:nSpecies) = 0.
+  IF (AdaptBCSampleElemNum.GT.0) THEN
+    RestartSampIter =  INT(iter,4)+AdaptBCSampIterReadIn
+    ModIter = MOD(RestartSampIter,AdaptBCSampIter)
+    TruncIter = MERGE(AdaptBCSampIter,ModIter,ModIter.EQ.0)
+    ! Delete the oldest sample (required, otherwise it would be added to the new sample)
+    IF(.NOT.initTruncAverage) AdaptBCAverage(1:8,TruncIter,1:AdaptBCSampleElemNum,1:nSpecies) = 0.
+  END IF
 END IF
+
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 IF(.NOT.initTruncAverage) THEN
-  DO SampleElemID = 1,AdaptBCSampleElemNum
-    ElemID = AdaptBCMapSampleToElem(SampleElemID)
-    PartID = PEM%pStart(ElemID)
+  DO iPart = 1, PDM%ParticleVecLength
+    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+    ElemID = PEM%LocalElemID(iPart)
+    SampleElemID = AdaptBCMapElemToSample(ElemID)
+    ! Cycle particles inside non-sampling elements
+    IF(SampleElemID.LE.0) CYCLE
 #if USE_LOADBALANCE
     nPartsPerBCElem(ElemID) = nPartsPerBCElem(ElemID) + PEM%pNumber(ElemID)
 #endif /*USE_LOADBALANCE*/
-    DO iPart = 1,PEM%pNumber(ElemID)
-      ! Sample the particle properties
-      iSpec = PartSpecies(PartID)
-      partWeight = GetParticleWeight(PartID)
-      IF(AdaptBCTruncAverage.AND..NOT.initSampling) THEN
-        ! Store the samples of the last AdaptBCSampIter and replace the oldest with the newest sample
-        AdaptBCAverage(1:3,TruncIter,SampleElemID, iSpec) = AdaptBCAverage(1:3,TruncIter,SampleElemID,iSpec) + PartState(4:6,PartID) * partWeight
-        AdaptBCAverage(4:6,TruncIter,SampleElemID, iSpec) = AdaptBCAverage(4:6,TruncIter,SampleElemID,iSpec) + PartState(4:6,PartID)**2 * partWeight
-        AdaptBCAverage(7,  TruncIter,SampleElemID, iSpec) = AdaptBCAverage(7,  TruncIter,SampleElemID,iSpec) + 1.0  ! simulation particle number
-        AdaptBCAverage(8,  TruncIter,SampleElemID, iSpec) = AdaptBCAverage(8,  TruncIter,SampleElemID,iSpec) + partWeight
-      ELSE
-        AdaptBCSample(1:3,SampleElemID, iSpec) = AdaptBCSample(1:3,SampleElemID,iSpec) + PartState(4:6,PartID) * partWeight
-        AdaptBCSample(4:6,SampleElemID, iSpec) = AdaptBCSample(4:6,SampleElemID,iSpec) + PartState(4:6,PartID)**2 * partWeight
-        AdaptBCSample(7,SampleElemID, iSpec) = AdaptBCSample(7,SampleElemID, iSpec) + 1.0  ! simulation particle number
-        AdaptBCSample(8,SampleElemID, iSpec) = AdaptBCSample(8,SampleElemID, iSpec) + partWeight
-      END IF
-      PartID = PEM%pNext(PartID)
-    END DO
+    ! Sample the particle properties
+    iSpec = PartSpecies(iPart)
+    partWeight = GetParticleWeight(iPart)
+    IF(AdaptBCTruncAverage.AND..NOT.initSampling) THEN
+      ! Store the samples of the last AdaptBCSampIter and replace the oldest with the newest sample
+      AdaptBCAverage(1:3,TruncIter,SampleElemID, iSpec) = AdaptBCAverage(1:3,TruncIter,SampleElemID,iSpec) + PartState(4:6,iPart) * partWeight
+      AdaptBCAverage(4:6,TruncIter,SampleElemID, iSpec) = AdaptBCAverage(4:6,TruncIter,SampleElemID,iSpec) + PartState(4:6,iPart)**2 * partWeight
+      AdaptBCAverage(7,  TruncIter,SampleElemID, iSpec) = AdaptBCAverage(7,  TruncIter,SampleElemID,iSpec) + 1.0  ! simulation particle number
+      AdaptBCAverage(8,  TruncIter,SampleElemID, iSpec) = AdaptBCAverage(8,  TruncIter,SampleElemID,iSpec) + partWeight
+    ELSE
+      AdaptBCSample(1:3,SampleElemID, iSpec) = AdaptBCSample(1:3,SampleElemID,iSpec) + PartState(4:6,iPart) * partWeight
+      AdaptBCSample(4:6,SampleElemID, iSpec) = AdaptBCSample(4:6,SampleElemID,iSpec) + PartState(4:6,iPart)**2 * partWeight
+      AdaptBCSample(7,SampleElemID, iSpec) = AdaptBCSample(7,SampleElemID, iSpec) + 1.0  ! simulation particle number
+      AdaptBCSample(8,SampleElemID, iSpec) = AdaptBCSample(8,SampleElemID, iSpec) + partWeight
+    END IF
   END DO
 END IF
 #if USE_LOADBALANCE
@@ -510,9 +516,63 @@ ELSE
   END IF
 END IF
 
-IF(AdaptBCTruncAverage.AND..NOT.initSampling) THEN
+IF(AdaptBCTruncAverage.AND..NOT.initSampling.AND.AdaptBCSampleElemNum.GT.0) THEN
   ! Sum-up the complete sample over the number of sampling iterations
   AdaptBCSample(1:8,1:AdaptBCSampleElemNum,1:nSpecies) = SUM(AdaptBCAverage(1:8,:,1:AdaptBCSampleElemNum,1:nSpecies),2)
+END IF
+
+IF(AdaptBCAverageValBC) THEN
+  IF(CalcValues.OR.AdaptBCTruncAverage.OR.(AdaptBCSampIter.EQ.0)) THEN
+    AdaptBCMeanValues = 0.
+    ! Sum up values per species and surface flux
+    DO iSpec=1,nSpecies
+      DO iSF=1,Species(iSpec)%nSurfacefluxBCs
+        currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
+        ! Loop over sides on the surface flux
+        DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+          BCSideID = BCdata_auxSF(currentBC)%SideList(iSide)
+          ElemID = SideToElem(S2E_ELEM_ID,BCSideID)
+          SampleElemID = AdaptBCMapElemToSample(ElemID)
+          IF (SampleElemID.GT.0) THEN
+            ! Determine the mean flow velocity
+            AdaptBCMeanValues(1:8,iSpec,iSF) = AdaptBCMeanValues(1:8,iSpec,iSF) + AdaptBCSample(1:8,SampleElemID,iSpec)
+          END IF
+        END DO
+      END DO
+    END DO
+    ! MPI Communication
+#if USE_MPI
+    IF(MPIRoot)THEN
+      CALL MPI_REDUCE(MPI_IN_PLACE,AdaptBCMeanValues,8*nSpecies*MAXVAL(Species(:)%nSurfacefluxBCs),MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    ELSE
+      CALL MPI_REDUCE(AdaptBCMeanValues,0.,8*nSpecies*MAXVAL(Species(:)%nSurfacefluxBCs),MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    END IF
+#endif /*USE_MPI*/
+    IF(MPIRoot) THEN
+      DO iSpec=1,nSpecies
+        DO iSF=1,Species(iSpec)%nSurfacefluxBCs
+          IF(AdaptBCMeanValues(7,iSpec,iSF).GT.0.) THEN
+            AdaptBCMeanValues(1:6,iSpec,iSF) = AdaptBCMeanValues(1:6,iSpec,iSF) / AdaptBCMeanValues(8,iSpec,iSF)
+          END IF
+        END DO
+      END DO
+    END IF
+#if USE_MPI
+    CALL MPI_BCAST(AdaptBCMeanValues,8*nSpecies*MAXVAL(Species(:)%nSurfacefluxBCs), MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iERROR)
+#endif /*USE_MPI*/
+    ! Overwrite the cell local values with the average
+    DO iSpec=1,nSpecies
+      DO iSF=1,Species(iSpec)%nSurfacefluxBCs
+        currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
+        DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+          BCSideID = BCdata_auxSF(currentBC)%SideList(iSide)
+          ElemID = SideToElem(S2E_ELEM_ID,BCSideID)
+          SampleElemID = AdaptBCMapElemToSample(ElemID)
+          IF(SampleElemID.GT.0) AdaptBCSample(1:7,SampleElemID,iSpec) = AdaptBCMeanValues(1:7,iSpec,iSF)
+        END DO
+      END DO
+    END DO
+  END IF
 END IF
 
 DO SampleElemID = 1,AdaptBCSampleElemNum
@@ -529,7 +589,7 @@ DO SampleElemID = 1,AdaptBCSampleElemNum
       IF(CalcValues.OR.AdaptBCTruncAverage) THEN
         IF (AdaptBCSample(7,SampleElemID,iSpec).GT.0.0) THEN
           ! Calculate the average velocties
-          AdaptBCSample(1:6,SampleElemID,iSpec) = AdaptBCSample(1:6,SampleElemID,iSpec) / AdaptBCSample(8,SampleElemID,iSpec)
+          IF(.NOT.AdaptBCAverageValBC) AdaptBCSample(1:6,SampleElemID,iSpec) = AdaptBCSample(1:6,SampleElemID,iSpec) / AdaptBCSample(8,SampleElemID,iSpec)
           IF(.NOT.initSampling) THEN
             ! Compute flow velocity (during computation, not for the initial distribution, where the velocity from the ini is used)
             AdaptBCMacroVal(1:3,SampleElemID,iSpec) = AdaptBCSample(1:3,SampleElemID, iSpec)
@@ -560,7 +620,7 @@ DO SampleElemID = 1,AdaptBCSampleElemNum
       ! Relaxation factor: updating the macro values with a certain percentage of the current sampled value
       IF (AdaptBCSample(7,SampleElemID,iSpec).GT.0.0) THEN
         ! Calculate the average velocties
-        AdaptBCSample(1:6,SampleElemID,iSpec) = AdaptBCSample(1:6,SampleElemID,iSpec) / AdaptBCSample(8,SampleElemID,iSpec)
+        IF(.NOT.AdaptBCAverageValBC) AdaptBCSample(1:6,SampleElemID,iSpec) = AdaptBCSample(1:6,SampleElemID,iSpec) / AdaptBCSample(8,SampleElemID,iSpec)
         IF(.NOT.initSampling) THEN
           ! compute flow velocity (during computation, not for the initial distribution, where the velocity from the ini is used)
           AdaptBCMacroVal(1:3,SampleElemID,iSpec) = (1-RelaxationFactor)*AdaptBCMacroVal(1:3,SampleElemID,iSpec) &
@@ -627,6 +687,7 @@ SDEALLOCATE(AdaptBCAreaSurfaceFlux)
 SDEALLOCATE(AdaptBCBackupVelocity)
 IF(.NOT.IsLoadBalance) THEN
   SDEALLOCATE(AdaptBCPartNumOut)
+  SDEALLOCATE(AdaptBCMeanValues)
 END IF
 
 END SUBROUTINE FinalizeParticleSamplingAdaptive

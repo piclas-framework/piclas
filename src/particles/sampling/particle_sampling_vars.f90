@@ -27,6 +27,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Sampling of elements with a boundary for adaptive surface flux and porous BC
 LOGICAL                                 :: UseAdaptive                    ! Flag is set if an adaptive boundary is present
+LOGICAL                                 :: AdaptBCAverageValBC            ! Flag to enable/disable averaging accross the whole BC
 REAL                                    :: AdaptBCRelaxFactor             ! weighting factor theta for weighting of average
                                                                           ! instantaneous values with those
                                                                           ! of previous iterations
@@ -53,6 +54,7 @@ REAL, ALLOCATABLE                       :: AdaptBCBackupVelocity(:,:,:)   ! Velo
                                                                           ! in the cell [1:3,1:AdaptBCSampleElemNum,1:nSpecies]
 INTEGER, ALLOCATABLE                    :: AdaptBCPartNumOut(:,:)         ! Type 4: Number of particles exiting through the adaptive
                                                                           ! boundary condition
+REAL, ALLOCATABLE                       :: AdaptBCMeanValues(:,:,:)           !
 INTEGER                                 :: offSetElemAdaptBCSample
 INTEGER                                 :: AdaptBCSampleElemNumGlobal
 !-----------------------------------------------------------------------------------------------------------------------------------
