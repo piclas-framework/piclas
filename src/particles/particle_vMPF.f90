@@ -185,7 +185,7 @@ DO iLoop = 1, nDelete
   nTemp = nTemp - 1
 END DO
 
-! 4.) calc bulkvelocity after deleting
+! 4.) calc bulkvelocity after deleting and set new MPF
 vBulkTmp = 0.
 DO iLoop = 1, nPartNew
   PartMPF(iPartIndx_Node(iLoop)) = totalWeight / REAL(nPartNew)
@@ -238,11 +238,26 @@ IF(EOld+EOld_Inner-ENew_Inner.GT.0.0) THEN
 #endif /* CODE_ANALYZE */
 
   END DO
-!ELSE
-!  alpha = 0
-!  DO iLoop = 1, nPartNew
-!    PartState(4:6,iPartIndx_Node(iLoop)) = vBulk(1:3) + alpha*(PartState(4:6,iPartIndx_Node(iLoop))-vBulkTmp(1:3))
-!  END DO
+ELSE
+  alpha = 0
+  DO iLoop = 1, nPartNew
+    PartState(4:6,iPartIndx_Node(iLoop)) = vBulk(1:3) + alpha*(PartState(4:6,iPartIndx_Node(iLoop))-vBulkTmp(1:3))
+#ifdef CODE_ANALYZE
+    partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
+    iSpec = PartSpecies(iPartIndx_Node(iLoop))
+    ! Energy conservation
+    Energy_new = Energy_new + 0.5*Species(iSpec)%MassIC &
+    * DOT_PRODUCT(PartState(4:6,iPartIndx_Node(iLoop)),PartState(4:6,iPartIndx_Node(iLoop))) * partWeight
+    IF(CollisMode.GT.1) THEN
+      IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+        Energy_new = Energy_new + (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop))) * partWeight
+      END IF
+      IF(DSMC%ElectronicModel.GT.0) Energy_new = Energy_new + PartStateIntEn(3,iPartIndx_Node(iLoop))*partWeight
+    END IF
+    ! Momentum conservation
+    Momentum_new(1:3) = Momentum_new(1:3) + Species(iSpec)%MassIC * PartState(4:6,iPartIndx_Node(iLoop)) * partWeight
+#endif /* CODE_ANALYZE */
+  END DO
 END IF ! EOld+EOld_Inner-ENew_Inner.GT.0.0
 
 #ifdef CODE_ANALYZE
@@ -260,6 +275,7 @@ END IF ! EOld+EOld_Inner-ENew_Inner.GT.0.0
     END ASSOCIATE
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-12
     IPWRITE(UNIT_StdOut,*)                     " Old/new particle number: ", nPart, nPartNew
+    IPWRITE(UNIT_StdOut,*)                     " Species                : ", iSpec
     CALL abort(&
         __STAMP__&
         ,'CODE_ANALYZE: part merge is not energy conserving!')
