@@ -47,8 +47,7 @@ SUBROUTINE radiation_atoms(iElem, em_atom)
                                       Radiation_Emission_spec, Radiation_Absorption_spec, &
                                       NumDensElectrons, Radiation_ElemEnergy_Species
   USE MOD_Particle_Vars,     ONLY   : nSpecies
-  USE MOD_Equation_Vars,     ONLY   : c
-  USE MOD_Globals_Vars,      ONLY   : Pi
+  USE MOD_Globals_Vars,      ONLY   : c, Pi
   USE MOD_DSMC_Vars,         ONLY   : SpecDSMC
 !USE MOD_Radiation_Excitation, ONLY   : low_IonizationPot
 

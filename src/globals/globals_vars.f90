@@ -57,6 +57,8 @@ CHARACTER(LEN=255)         :: ParameterFile                         !> filename 
 CHARACTER(LEN=255)         :: ParameterDSMCFile                     !> filename of the parameterDSMC file
 REAL, PARAMETER            :: BoltzmannConst=1.380648813e-23        !> Boltzmann constant [J/K] SI-Unit! in m^2/(s^2*K)
 CHARACTER(LEN=5)           :: TimeStampLenStr,TimeStampLenStr2      !> Strings for timestamp format of time
+REAL,PARAMETER             :: BohrRadius     = 5.2917721067E-11     !> Radius, 1st Bohr orbit for H (a0) [m]
+REAL,PARAMETER             :: AtomicMassUnit = 1.660539040E-27      !> Atomic mass unit [kg]
 
 REAL,PARAMETER             :: maxEXP= LOG(HUGE(maxexp))
 ! Set variables (natural constants and derived quantities) from user input or hard coded

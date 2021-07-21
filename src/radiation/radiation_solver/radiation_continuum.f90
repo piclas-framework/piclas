@@ -122,7 +122,7 @@ SUBROUTINE Radiation_continuum_ff(n, z, iElem)
 ! MODULES
   USE MOD_Globals_Vars,      ONLY   : BoltzmannConst, PlanckConst
   USE MOD_Radiation_Vars,    ONLY   : RadiationInput, RadiationParameter, Radiation_Emission_spec, Radiation_Absorption_spec
-  USE MOD_Equation_Vars,     ONLY   : c
+  USE MOD_Globals_Vars,      ONLY   : c
 
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -174,7 +174,7 @@ SUBROUTINE Radiation_continuum_bf(iElem)
   USE MOD_Particle_Vars,     ONLY   : nSpecies
   USE MOD_Radiation_Vars,    ONLY   : RadiationInput, SpeciesRadiation, RadiationParameter, &
                                       Radiation_Emission_spec, Radiation_Absorption_spec, NumDensElectrons
-  USE MOD_Equation_Vars,     ONLY   : c
+  USE MOD_Globals_Vars,      ONLY   : c
   USE MOD_DSMC_Vars,         ONLY   : SpecDSMC
 
 ! IMPLICIT VARIABLE HANDLING

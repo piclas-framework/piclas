@@ -46,9 +46,8 @@ SUBROUTINE Radiation_readin_atoms(iSpec)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,    ONLY     : PlanckConst
+USE MOD_Globals_Vars,    ONLY     : PlanckConst, c
 USE MOD_Radiation_Vars,  ONLY     : SpeciesRadiation, RadiationInput
-USE MOD_Equation_Vars,   ONLY     : c
 USE MOD_ReadInTools
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -125,9 +124,8 @@ SUBROUTINE Radiation_readin_molecules(iSpec)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,    ONLY     : PlanckConst
+USE MOD_Globals_Vars,    ONLY     : PlanckConst, c
 USE MOD_Radiation_Vars,  ONLY     : SpeciesRadiation, RadiationInput
-USE MOD_Equation_Vars,   ONLY     : c
 USE MOD_ReadInTools
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -277,27 +275,5 @@ USE MOD_ReadInTools
   END IF
 END SUBROUTINE Radiation_readin_molecules
 
-
-
-!FUNCTION Test_Comment(hilf)
-!!===================================================================================================================================
-!!===================================================================================================================================
-!! MODULES
-!! IMPLICIT VARIABLE HANDLING
-!IMPLICIT NONE
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! INPUT VARIABLES
-!CHARACTER,INTENT(IN)          :: hilf
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! OUTPUT VARIABLES
-!LOGICAL                  :: Test_Comment  
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES 
-!!===================================================================================================================================
-!Test_Comment = .false.
-!      if (( hilf(1:1) .eq. 'c' ) .or. (hilf(1:1) .eq. '!' )) Test_Comment = .true.
-!      return
-!PRINT*, Test_Comment
-!END FUNCTION Test_Comment
 
 END MODULE MOD_Radiation_ReadIn

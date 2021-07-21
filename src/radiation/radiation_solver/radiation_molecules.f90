@@ -42,12 +42,11 @@ SUBROUTINE radiation_molecules(iElem, em_mol)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_Globals_Vars,      ONLY   : BoltzmannConst, PlanckConst, ElementaryCharge, AtomicMassUnit, Pi
+  USE MOD_Globals_Vars,      ONLY   : BoltzmannConst, PlanckConst, ElementaryCharge, AtomicMassUnit, Pi, c
   USE MOD_Radiation_Vars,    ONLY   : RadiationInput, RadiationParameter, SpeciesRadiation,  &
                                       Radiation_Emission_spec, Radiation_Absorption_spec, NumDensElectrons, TElectrons, &
                                       Radiation_ElemEnergy_Species
   USE MOD_Particle_Vars,     ONLY   : nSpecies
-  USE MOD_Equation_Vars,     ONLY   : c
   USE MOD_DSMC_Vars,         ONLY   : SpecDSMC
 
 ! IMPLICIT VARIABLE HANDLING

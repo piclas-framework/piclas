@@ -93,7 +93,7 @@ SUBROUTINE InitRadiation()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,          ONLY : PlanckConst
+USE MOD_Globals_Vars,          ONLY : PlanckConst, c
 USE MOD_Mesh_Vars,             ONLY : nElems
 USE MOD_Particle_Mesh_Vars,    ONLY : nTotalElems
 USE MOD_ReadInTools
@@ -101,7 +101,6 @@ USE MOD_PARTICLE_Vars,         ONLY : nSpecies
 USE MOD_Radiation_Vars
 USE MOD_DSMC_Vars,             ONLY : SpecDSMC
 USE MOD_Radiation_ReadIn,      ONLY : Radiation_readin_atoms, Radiation_readin_molecules
-USE MOD_Equation_Vars,         ONLY : c
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -230,7 +229,7 @@ SUBROUTINE MacroscopicRadiationInput()
   USE MOD_Particle_Vars             ,ONLY: nSpecies
   USE MOD_Radiation_Vars            ,ONLY: MacroRadInputParameters
   USE MOD_ReadInTools
-  USE MOD_Utils                     ,ONLY: BubbleSortID
+!  USE MOD_Utils                     ,ONLY: BubbleSortID !Laux
 !  USE MOD_Particle_Mesh_Vars        ,ONLY: GEO !Laux
   ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
