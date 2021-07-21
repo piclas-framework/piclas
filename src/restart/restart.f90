@@ -1759,6 +1759,7 @@ CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.T
 ! Check if the provided file is a DSMC state file.
 CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
 IF(TRIM(File_Type).NE.'DSMCState') THEN
+  SWRITE(*,*) 'ERROR: The given file type is: ', TRIM(File_Type)
   CALL abort(__STAMP__,&
       'ERROR: Given file for the macroscopic restart is not of the type "DSMCState", please check the input file!')
 END IF

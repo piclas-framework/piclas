@@ -88,13 +88,13 @@ DO iSpec=1,nSpecies
     iPartTotal=0
     ! Reset the mass flow rate counter for the next time step
     IF(CalcAdaptiveBCInfo) Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = 0.
-    IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
-      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
+    ! Adaptive BC, Type = 4 (Const. massflow): Sum-up the global number of particles exiting through the BC and calculate the new
+    ! weights
+    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
 #if USE_MPI
-        CALL MPI_ALLREDUCE(MPI_IN_PLACE,AdaptBCPartNumOut(iSpec,iSF),1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,IERROR)
+      CALL MPI_ALLREDUCE(MPI_IN_PLACE,AdaptBCPartNumOut(iSpec,iSF),1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,IERROR)
 #endif
-        IF(.NOT.ALMOSTEQUAL(Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow,0.)) CALL AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
-      END IF
+      IF(.NOT.ALMOSTEQUAL(Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow,0.)) CALL AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
     END IF
     !Calc Particles for insertion in standard case
     IF ((.NOT.DoPoissonRounding).AND.(.NOT. DoTimeDepInflow).AND.(.NOT.RadialWeighting%DoRadialWeighting) &
@@ -102,7 +102,7 @@ DO iSpec=1,nSpecies
 
 !----- 0.: go through (sub)sides if present in proc
     IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) THEN
-      AdaptBCPartNumOut(iSpec,iSF) = 0
+      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) AdaptBCPartNumOut(iSpec,iSF) = 0
       CYCLE
     ELSE IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
       CALL abort(&

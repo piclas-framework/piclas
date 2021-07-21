@@ -422,7 +422,7 @@ LOGICAL, INTENT(IN), OPTIONAL   :: initTruncAverage_opt
 ! LOCAL VARIABLES
 INTEGER                         :: ElemID, CNElemID, SampleElemID, iPart, iSpec, SamplingIteration, TruncIter, ModIter
 INTEGER                         :: RestartSampIter
-INTEGER                         :: SampleCounter, BCSideID, currentBC, iSF, iSide
+INTEGER                         :: BCSideID, currentBC, iSF, iSide
 REAL                            :: partWeight, TTrans_TempFac, RelaxationFactor
 LOGICAL                         :: initSampling, CalcValues, initTruncAverage
 #if USE_LOADBALANCE
