@@ -819,6 +819,8 @@ FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
 
 FILE(GLOB_RECURSE extraeF90 ./src/extrae/*.f90)
 
+FILE(GLOB_RECURSE radiationF90 ./src/radiation/*.f90)
+
 IF(PICLAS_EXTRAE)
   LIST(APPEND piclasF90 ${extraeF90})
 ENDIF(PICLAS_EXTRAE)
@@ -843,6 +845,9 @@ IF (PICLAS_PARTICLES)
 ELSE()
   LIST(APPEND piclasF90 ${noparticlesF90})
 ENDIF(PICLAS_PARTICLES)
+IF (PICLAS_TIMEDISCMETHOD STREQUAL "Radiation")
+  LIST(APPEND piclasF90 ${radiationF90})
+ENDIF()
 
 # define libs
 ADD_LIBRARY(libpiclasstaticF90 OBJECT ${piclasF90} )
