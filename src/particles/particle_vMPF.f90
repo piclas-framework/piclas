@@ -312,6 +312,259 @@ END IF ! EOld+EOld_Inner-ENew_Inner.GT.0.0
 
 END SUBROUTINE MergeParticles
 
+SUBROUTINE MergeParticles_New(iPartIndx_Node, nPart, nPartNew)
+!===================================================================================================================================
+!> Routine for merge particles
+!> 1.) Calc bulkvelocity v_bulk (for momentum conservation)
+!> 2.) Calc temperature, energy and degree of fredoms (for energy conservation)
+!> 2.1) T_trans, E_trans
+!> 2.2) T_elec, E_elec, DOF_elec
+!> 2.3) T_vib, E_vib, DOF_vib
+!> 2.4) T_rot, E_rot, DOF_rot
+!> 3.) Delete particles randomly (until nPartNew is reached)
+!> 4.) Calc bulkvelocity v_bulk_new after deleting
+!> 5.) Calc energy after deleting
+!> 5.1) E_trans_new
+!> 5.2) E_elec_new
+!> 5.3) E_vib_new
+!> 5.4) E_rot_new
+!> 6.) Ensuring momentum and energy conservation
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, Species
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC, DSMC
+#ifdef CODE_ANALYZE
+USE MOD_Globals               ,ONLY: unit_stdout,myrank,abort
+USE MOD_Particle_Vars         ,ONLY: Symmetry
+#endif /* CODE_ANALYZE */
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)                  :: nPart, nPartNew
+INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                  :: iRan, EOld
+INTEGER               :: iLoop, nDelete, nTemp, iPart, iPartIndx_NodeTMP(nPart),iSpec
+REAL                  :: partWeight, totalWeight, vBulkTmp(3), ENew, alpha
+REAL                  :: EOld_Inner,ENew_Inner
+REAL                  :: V_rel(3), vmag2, vBulk(3)
+REAL                  :: V_rel_new(3), vmag2_new, vBulk_new(3)
+REAL                  :: T_trans, T_elec, T_vib, T_rot, DOF_elec, DOF_vib, DOF_rot
+REAL                  :: E_trans, E_trans_new
+REAL                  :: E_elec, E_elec_new
+REAL                  :: E_vib, E_vib_new
+REAL                  :: E_rot, E_rot_new
+#ifdef CODE_ANALYZE
+REAL                  :: Energy_old, Momentum_old(3),Energy_new, Momentum_new(3)
+INTEGER               :: iMomDim, iMom
+#endif /* CODE_ANALYZE */
+!===================================================================================================================================
+vBulk = 0.0; vBulk_new = 0.0;  totalWeight = 0.0
+E_trans = 0.0; E_trans_new = 0.0
+E_elec = 0.0; E_elec_new = 0.0; DOF_elec = 0.0
+E_vib = 0.0; E_vib_new = 0.0; DOF_vib = 0.0
+E_rot = 0.0; E_rot_new = 0.0; DOF_rot = 0.0
+iSpec = PartSpecies(iPartIndx_Node(1))  ! in iPartIndx_Node all particles are from same species
+
+EOld_Inner = 0.0; EOld = 0.
+
+#ifdef CODE_ANALYZE
+Energy_old = 0.0; Energy_new = 0.0; Momentum_old = 0.0; Momentum_new = 0.0
+#endif /* CODE_ANALYZE */
+
+! 1.) calc bulkvelocity (for momentum conservation)
+DO iLoop = 1, nPart
+  partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
+  totalWeight = totalWeight + partWeight
+  vBulk(1:3) = vBulk(1:3) + PartState(4:6,iPartIndx_Node(iLoop)) * partWeight
+
+#ifdef CODE_ANALYZE
+  ! Energy conservation
+  Energy_old = Energy_old + 0.5 * Species(iSpec)%MassIC &
+  * DOT_PRODUCT(PartState(4:6,iPartIndx_Node(iLoop)),PartState(4:6,iPartIndx_Node(iLoop))) * partWeight
+  IF(CollisMode.GT.1) THEN
+    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      Energy_old = Energy_old + (PartStateIntEn(1,iPartIndx_Node(iLoop)) +  PartStateIntEn(2,iPartIndx_Node(iLoop))) * partWeight
+    END IF
+    IF(DSMC%ElectronicModel.GT.0) Energy_old = Energy_old + PartStateIntEn(3,iPartIndx_Node(iLoop))*partWeight
+  END IF
+  ! Momentum conservation
+  Momentum_old(1:3) = Momentum_old(1:3) + Species(iSpec)%MassIC * PartState(4:6,iPartIndx_Node(iLoop)) * partWeight
+#endif /* CODE_ANALYZE */
+
+END DO
+vBulk(1:3) = vBulk(1:3) / totalWeight
+
+! 2.) Calc energy, temperature and degree of fredoms (for energy conservation)
+! 2.1) Calc energy
+DO iLoop = 1, nPart
+  partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
+  V_rel(1:3)=PartState(4:6,iPartIndx_Node(iLoop))-vBulk(1:3)
+  vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
+  E_trans = E_trans + 0.5 * vmag2 * partWeight * Species(iSpec)%MassIC
+  IF(CollisMode.GT.1) THEN
+    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      ! Rotational and vibrational energy
+      E_vib = E_vib + partWeight * PartStateIntEn(1,iPartIndx_Node(iLoop)) 
+      E_rot = E_rot + PartStateIntEn(2,iPartIndx_Node(iLoop))
+    END IF
+    ! Electronic energy
+    IF(DSMC%ElectronicModel.GT.0.AND.SpecDSMC(iSpec)%InterID.NE.4) THEN
+      E_elec = E_elec + partWeight * PartStateIntEn(3,iPartIndx_Node(iLoop))
+    END IF
+  END IF
+END DO
+
+! 2.2) Calc temperature and degree of fredoms
+
+
+
+
+
+! 3.) delete particles randomly (until nPartNew is reached)
+iPartIndx_NodeTMP = iPartIndx_Node
+nTemp = nPart
+nDelete = nPart - nPartNew
+DO iLoop = 1, nDelete
+  CALL RANDOM_NUMBER(iRan)
+  iPart = INT(iRan*nTemp) + 1
+  PDM%ParticleInside(iPartIndx_Node(iPart)) = .FALSE.
+  iPartIndx_Node(iPart) = iPartIndx_Node(nTemp)
+  nTemp = nTemp - 1
+END DO
+
+
+
+
+
+! 4.) calc bulkvelocity after deleting and set new MPF
+vBulkTmp = 0.
+DO iLoop = 1, nPartNew
+  PartMPF(iPartIndx_Node(iLoop)) = totalWeight / REAL(nPartNew)
+  partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
+  vBulkTmp(1:3) = vBulkTmp(1:3) + PartState(4:6,iPartIndx_Node(iLoop)) * partWeight
+END DO
+vBulkTmp(1:3) = vBulkTmp(1:3) / totalWeight
+
+! 5.) calc energy after deleting
+
+totalWeight=0.0
+DO iLoop = 1, nPartNew
+  partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
+  totalWeight = totalWeight + partWeight
+  V_rel(1:3)=PartState(4:6,iPartIndx_Node(iLoop))-vBulkTmp(1:3)
+  vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
+  ENew = ENew + 0.5 * vmag2 * partWeight * Species(iSpec)%MassIC
+  IF(CollisMode.GT.1) THEN
+    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      ! Rotational and vibrational energy
+      ENew_Inner = ENew_Inner + partWeight * (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop)))
+    END IF
+    ! Electronic energy
+    IF(DSMC%ElectronicModel.GT.0.AND.SpecDSMC(iSpec)%InterID.NE.4) ENew_Inner = ENew_Inner + partWeight * PartStateIntEn(3,iPartIndx_Node(iLoop))
+  END IF
+END DO
+
+!!!! 6.) ensuring momentum and energy conservation
+!!!IF(EOld+EOld_Inner-ENew_Inner.GT.0.0) THEN
+!!!  alpha = SQRT((EOld+EOld_Inner-ENew_Inner)/ENew)
+!!!  DO iLoop = 1, nPartNew
+!!!    PartState(4:6,iPartIndx_Node(iLoop)) = vBulk(1:3) + alpha*(PartState(4:6,iPartIndx_Node(iLoop))-vBulkTmp(1:3))
+
+!!!#ifdef CODE_ANALYZE
+!!!    partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
+!!!    ! Energy conservation
+!!!    Energy_new = Energy_new + 0.5*Species(iSpec)%MassIC &
+!!!    * DOT_PRODUCT(PartState(4:6,iPartIndx_Node(iLoop)),PartState(4:6,iPartIndx_Node(iLoop))) * partWeight
+!!!    IF(CollisMode.GT.1) THEN
+!!!      IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+!!!        Energy_new = Energy_new + (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop))) * partWeight
+!!!      END IF
+!!!      IF(DSMC%ElectronicModel.GT.0) Energy_new = Energy_new + PartStateIntEn(3,iPartIndx_Node(iLoop))*partWeight
+!!!    END IF
+!!!    ! Momentum conservation
+!!!    Momentum_new(1:3) = Momentum_new(1:3) + Species(iSpec)%MassIC * PartState(4:6,iPartIndx_Node(iLoop)) * partWeight
+!!!#endif /* CODE_ANALYZE */
+
+!!!  END DO
+!!!ELSE
+!!!  alpha = 0
+!!!  DO iLoop = 1, nPartNew
+!!!    PartState(4:6,iPartIndx_Node(iLoop)) = vBulk(1:3) + alpha*(PartState(4:6,iPartIndx_Node(iLoop))-vBulkTmp(1:3))
+!!!#ifdef CODE_ANALYZE
+!!!    partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
+!!!    ! Energy conservation
+!!!    Energy_new = Energy_new + 0.5*Species(iSpec)%MassIC &
+!!!    * DOT_PRODUCT(PartState(4:6,iPartIndx_Node(iLoop)),PartState(4:6,iPartIndx_Node(iLoop))) * partWeight
+!!!    IF(CollisMode.GT.1) THEN
+!!!      IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+!!!        Energy_new = Energy_new + (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop))) * partWeight
+!!!      END IF
+!!!      IF(DSMC%ElectronicModel.GT.0) Energy_new = Energy_new + PartStateIntEn(3,iPartIndx_Node(iLoop))*partWeight
+!!!    END IF
+!!!    ! Momentum conservation
+!!!    Momentum_new(1:3) = Momentum_new(1:3) + Species(iSpec)%MassIC * PartState(4:6,iPartIndx_Node(iLoop)) * partWeight
+!!!#endif /* CODE_ANALYZE */
+!!!  END DO
+!!!END IF ! EOld+EOld_Inner-ENew_Inner.GT.0.0
+
+#ifdef CODE_ANALYZE
+  ! Check for energy difference
+  IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
+    WRITE(UNIT_StdOut,*) '\n'
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_old             : ",Energy_old
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_new             : ",Energy_new
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. Energy difference : ",Energy_new-Energy_old
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " alpha                  : ",alpha
+    ASSOCIATE( energy => MAX(ABS(Energy_old),ABS(Energy_new)) )
+      IF(energy.GT.0.0)THEN
+        IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Energy difference : ",(Energy_new-Energy_old)/energy
+      END IF
+    END ASSOCIATE
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-12
+    IPWRITE(UNIT_StdOut,*)                     " Old/new particle number: ", nPart, nPartNew
+    IPWRITE(UNIT_StdOut,*)                     " Species                : ", iSpec
+    CALL abort(&
+        __STAMP__&
+        ,'CODE_ANALYZE: part merge is not energy conserving!')
+  END IF
+  ! Check for momentum difference
+  IF(Symmetry%Order.EQ.3) THEN
+    ! Do not check the momentum in z as it can be very small (close to machine precision), leading to greater relative errors
+    iMomDim = 3
+  ELSE IF(Symmetry%Order.EQ.2) THEN
+    iMomDim = 2
+  ELSE
+    iMomDim = 1
+  END IF
+  DO iMom=1,iMomDim
+    IF (.NOT.ALMOSTEQUALRELATIVE(Momentum_old(iMom),Momentum_new(iMom),1.0e-10)) THEN
+      WRITE(UNIT_StdOut,*) '\n'
+      IPWRITE(UNIT_StdOut,'(I0,A,I0)')           " Direction (x,y,z)        : ",iMom
+      IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Momentum_old             : ",Momentum_old(iMom)
+      IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Momentum_new             : ",Momentum_new(iMom)
+      IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. Momentum difference : ",Momentum_new(iMom)-Momentum_old(iMom)
+      ASSOCIATE( Momentum => MAX(ABS(Momentum_old(iMom)),ABS(Momentum_new(iMom))) )
+        IF(Momentum.GT.0.0)THEN
+          IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Momentum difference : ",(Momentum_new(iMom)-Momentum_old(iMom))/Momentum
+        END IF
+      END ASSOCIATE
+      IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-10
+      CALL abort(&
+          __STAMP__&
+          ,'CODE_ANALYZE: part merge is not momentum conserving!')
+    END IF
+  END DO
+#endif /* CODE_ANALYZE */
+
+
+END SUBROUTINE MergeParticles_New
+
 #ifdef WIP
 SUBROUTINE CalculateDistMoments(iPartIndx_Node, nPart, vBulk, Vtherm2, PressTens, HeatVec, Energy)
 !===================================================================================================================================
