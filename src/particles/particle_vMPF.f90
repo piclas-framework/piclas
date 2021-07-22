@@ -334,6 +334,9 @@ SUBROUTINE MergeParticles_New(iPartIndx_Node, nPart, nPartNew)
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, Species
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC, DSMC
+!USE MOD_Macro_Restart       ,ONLY: CalcEElec_particle
+USE MOD_DSMC_Analyze        ,ONLY: CalcTelec
+
 #ifdef CODE_ANALYZE
 USE MOD_Globals               ,ONLY: unit_stdout,myrank,abort
 USE MOD_Particle_Vars         ,ONLY: Symmetry
@@ -406,12 +409,13 @@ DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
   V_rel(1:3)=PartState(4:6,iPartIndx_Node(iLoop))-vBulk(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
+!  u2 = u2 + vmag2*partWeight
   E_trans = E_trans + 0.5 * vmag2 * partWeight * Species(iSpec)%MassIC
   IF(CollisMode.GT.1) THEN
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
       ! Rotational and vibrational energy
-      E_vib = E_vib + partWeight * PartStateIntEn(1,iPartIndx_Node(iLoop)) 
-      E_rot = E_rot + PartStateIntEn(2,iPartIndx_Node(iLoop))
+      E_vib = E_vib + (PartStateIntEn(1,iPartIndx_Node(iLoop)) - SpecDSMC(iSpec)%EZeroPoint) * partWeight 
+      E_rot = E_rot + partWeight * PartStateIntEn(2,iPartIndx_Node(iLoop))
     END IF
     ! Electronic energy
     IF(DSMC%ElectronicModel.GT.0.AND.SpecDSMC(iSpec)%InterID.NE.4) THEN
@@ -421,10 +425,34 @@ DO iLoop = 1, nPart
 END DO
 
 ! 2.2) Calc temperature and degree of fredoms
-
-
-
-
+!u2 = u2 / (totalWeight - totalWeight2/totalWeight)
+!CellTemp = Species(1)%MassIC * u2 / (3.0*BoltzmannConst)
+IF(CollisMode.GT.1) THEN
+  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN        
+      iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+      T_vib = CalcTVibPoly(E_vib/totalWeight, iSpec)
+      IF (T_vib.GT.0.0) THEN
+        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+          DOF_vib= DOF_vib + 2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/T_vib &
+                              /(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/T_vib) - 1.)
+        END DO
+      END IF
+    ELSE
+      T_vib=E_vib / (totalWeight*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
+      IF (T_vib.GT.0.0) THEN
+        T_vib= SpecDSMC(iSpec)%CharaTVib/LOG(1. + 1./(T_vib))
+        DOF_vib = 2.* E_vib / (totalWeight*BoltzmannConst*T_vib)
+      END IF
+    END IF
+    DOF_rot = SpecDSMC(iSpec)%Xi_Rot
+    T_rot = 2.*E_rot/(DOF_rot*totalWeight*BoltzmannConst)    
+  END IF
+  IF(DSMC%ElectronicModel.GT.0.AND.SpecDSMC(iSpec)%InterID.NE.4) THEN
+    T_elec = CalcTelec(E_elec/totalWeight, iSpec)
+    IF (T_elec.GT.0.0) DOF_elec = 2.*E_elec/(totalWeight*BoltzmannConst*T_elec)
+  END IF
+END IF
 
 ! 3.) delete particles randomly (until nPartNew is reached)
 iPartIndx_NodeTMP = iPartIndx_Node
@@ -453,22 +481,42 @@ vBulkTmp(1:3) = vBulkTmp(1:3) / totalWeight
 
 ! 5.) calc energy after deleting
 
-totalWeight=0.0
+!totalWeight=0.0
 DO iLoop = 1, nPartNew
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
-  totalWeight = totalWeight + partWeight
+!  totalWeight = totalWeight + partWeight
   V_rel(1:3)=PartState(4:6,iPartIndx_Node(iLoop))-vBulkTmp(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
-  ENew = ENew + 0.5 * vmag2 * partWeight * Species(iSpec)%MassIC
+  E_trans_new = E_trans_new + 0.5 * vmag2 * partWeight * Species(iSpec)%MassIC
   IF(CollisMode.GT.1) THEN
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
       ! Rotational and vibrational energy
-      ENew_Inner = ENew_Inner + partWeight * (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop)))
+      E_vib_new = E_vib_new + (PartStateIntEn(1,iPartIndx_Node(iLoop)) - SpecDSMC(iSpec)%EZeroPoint) * partWeight 
+      E_rot_new = E_rot_new + partWeight * PartStateIntEn(2,iPartIndx_Node(iLoop))
     END IF
     ! Electronic energy
-    IF(DSMC%ElectronicModel.GT.0.AND.SpecDSMC(iSpec)%InterID.NE.4) ENew_Inner = ENew_Inner + partWeight * PartStateIntEn(3,iPartIndx_Node(iLoop))
+    IF(DSMC%ElectronicModel.GT.0.AND.SpecDSMC(iSpec)%InterID.NE.4) THEN
+      E_elec_new = E_elec_new + partWeight * PartStateIntEn(3,iPartIndx_Node(iLoop))
+    END IF
   END IF
 END DO
+
+
+IF(CollisMode.GT.1) THEN
+  IF(DSMC%ElectronicModel.GT.0.AND.SpecDSMC(iSpec)%InterID.NE.4) THEN
+    IF (E_elec.GT.0.0) THEN
+      IF (E_elec_new.EQ.0.0) THEN
+        DO iLoop = 1, nPartNew
+          iPart = iPartIndx_Node(iLoop)
+          CALL RANDOM_NUMBER(iRan)
+          PartStateIntEn( 3,iPart) = -LOG(iRan)*DOF_elec/2.*T_elec*BoltzmannConst
+        END DO        
+      END IF
+    END IF
+  END IF
+END IF
+
+
 
 !!!! 6.) ensuring momentum and energy conservation
 !!!IF(EOld+EOld_Inner-ENew_Inner.GT.0.0) THEN
