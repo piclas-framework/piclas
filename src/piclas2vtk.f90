@@ -102,7 +102,7 @@ CALL prms%CreateStringOption( 'NodeTypeVisu',"Node type of the visualization bas
                                              "VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO", 'VISU')
 CALL prms%CreateIntOption(    'NVisu',       "Number of points at which solution is sampled for visualization.")
 CALL prms%CreateLogicalOption('VisuParticles',  "Visualize particles (velocity, species, internal energy).", '.FALSE.')
-CALL prms%CreateLogicalOption('VisuAdaptiveInfo', "Visualize adaptive values (velocity, density, pumping speed)", '.FALSE.')
+CALL prms%CreateLogicalOption('VisuAdaptiveInfo', "Visualize the sampled values utilized for the adaptive surface flux and porous BC (velocity, density, pumping speed)", '.FALSE.')
 CALL prms%CreateIntOption(    'TimeStampLength', 'Length of the floating number time stamp', '21')
 CALL prms%CreateLogicalOption( 'meshCheckWeirdElements'&
   , 'Abort when weird elements are found: it means that part of the element is turned inside-out. ','.TRUE.')

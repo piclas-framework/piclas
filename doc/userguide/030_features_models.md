@@ -733,6 +733,10 @@ To verify the resulting mass flow rate of an adaptive surface flux, the followin
 
 This will output a species-specific mass flow rate [kg s$^{-1}$] and the average pressure in the adjacent cells [Pa] for each surface flux condition in the `PartAnalyze.csv`, which gives the current values for the time step. For the former, positive values correspond to a net mass flux into the domain and negative values vice versa. It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
 
+The sampled macroscopic values such as number density and velocity are stored in each `_State_` file and can be converted with the `piclas2vtk` tool to the VTK format for visualization. For this purpose, the conversion has to be enabled by
+
+    VisuAdaptiveInfo = T
+
 #### Missing descriptions
 
 ReduceNoise, DoForceFreeSurfaceFlux

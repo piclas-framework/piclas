@@ -17,6 +17,8 @@ NVisu                         1   Number of points at which solution is sampled 
 
 VisuParticles               OFF   Converts the particle data (positions, velocity, species, internal energies)
 
+VisuAdaptiveInfo            OFF   Converts the sampled values utilized for the adaptive surface flux and porous BC (velocity, density, pumping speed)
+
 NodeTypeVisu               VISU   Node type of the visualization basis: VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO
 -----------------------------------------------------------------------------------------------
 
