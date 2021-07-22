@@ -236,13 +236,10 @@ TYPE typeSurfaceflux
   INTEGER                                :: AdaptiveType                     ! Chose the adaptive type, description in DefineParams
   REAL                                   :: AdaptiveMassflow                 ! Mass flow [kg/s], which is held constant
   REAL                                   :: AdaptivePressure                 ! Static pressure [Pa], which is held constant
-  REAL, ALLOCATABLE                      :: AdaptivePreviousVelocity(:,:)    ! A velocity is stored in case of negative values
   REAL, ALLOCATABLE                      :: ConstMassflowWeight(:,:,:)       ! Adaptive, Type 4: Weighting factor for SF-sides to
                                                                              ! insert the right amount of particles
   REAL, ALLOCATABLE                      :: CircleAreaPerTriaSide(:,:,:)     ! Adaptive, Type 4: Area within a triangle, determined
                                                                              ! through Monte Carlo integration (initially)
-  INTEGER                                :: AdaptivePartNumOut               ! Adaptive, Type 4: Number of particles exiting through
-                                                                             ! the adaptive boundary condition
   REAL                                   :: SampledMassflow                  ! Actual mass flow rate through a surface flux boundary
   REAL, ALLOCATABLE                      :: nVFRSub(:,:)                     ! normal volume flow rate through subsubside
 END TYPE
