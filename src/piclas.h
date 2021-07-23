@@ -25,7 +25,14 @@
 ! Calculate GCC version
 #define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
 
+! Size of data types
 #define SIZEOF_F(x) (STORAGE_SIZE(x)/8)
+#define SIZE_LOG  KIND(.TRUE.)
+#define SIZE_INT  KIND(INT(1))
+#define SIZE_INT4 KIND(INT(1,KIND=4))
+#define SIZE_INT8 KIND(INT(1,KIND=8))
+#define SIZE_REAL KIND(REAL(1))
+#define SIZE_CHAR KIND('a')
 
 #ifdef DEBUG_MEMORY
 #define Allocate_Shared(a,b,c,d)   Allocate_Shared_DEBUG(a,b,c,d,'c')

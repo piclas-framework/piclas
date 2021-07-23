@@ -147,7 +147,7 @@ END IF
 
 !--- Allocate arrays for charge density collection and initialize
 #if USE_MPI
-MPISharedSize = INT(4*(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE(4*(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems,SIZE_REAL)
 CALL Allocate_Shared(MPISharedSize,(/4*(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems/),PartSource_Shared_Win,PartSource_Shared)
 CALL MPI_WIN_LOCK_ALL(0,PartSource_Shared_Win,IERROR)
 PartSource(1:4,0:PP_N,0:PP_N,0:PP_N,1:nComputeNodeTotalElems) => PartSource_Shared(1:4*(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems)
@@ -257,7 +257,7 @@ CASE('cell_volweight_mean')
   ! Initialize sub-cell volumes around nodes
   CALL CalcCellLocNodeVolumes()
 #if USE_MPI
-  MPISharedSize = INT(4*nUniqueGlobalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  MPISharedSize = MPI_SIZE(4*nUniqueGlobalNodes,SIZE_REAL)
   CALL Allocate_Shared(MPISharedSize,(/4,nUniqueGlobalNodes/),NodeSource_Shared_Win,NodeSource_Shared)
   CALL MPI_WIN_LOCK_ALL(0,NodeSource_Shared_Win,IERROR)
   NodeSource => NodeSource_Shared
@@ -268,7 +268,7 @@ CASE('cell_volweight_mean')
     lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
 
    ! Global, synchronized surface charge contribution (is added to NodeSource AFTER MPI synchronization)
-    MPISharedSize = INT(nUniqueGlobalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+    MPISharedSize = MPI_SIZE(nUniqueGlobalNodes,SIZE_REAL)
     CALL Allocate_Shared(MPISharedSize,(/nUniqueGlobalNodes/),NodeSourceExt_Shared_Win,NodeSourceExt_Shared)
     CALL MPI_WIN_LOCK_ALL(0,NodeSourceExt_Shared_Win,IERROR)
     NodeSourceExt => NodeSourceExt_Shared
@@ -281,7 +281,7 @@ CASE('cell_volweight_mean')
     END IF ! .NOT.DoRestart
 
    ! Local, non-synchronized surface charge contribution (is added to NodeSource BEFORE MPI synchronization)
-    MPISharedSize = INT(nUniqueGlobalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+    MPISharedSize = MPI_SIZE(nUniqueGlobalNodes,SIZE_REAL)
     CALL Allocate_Shared(MPISharedSize,(/nUniqueGlobalNodes/),NodeSourceExtTmp_Shared_Win,NodeSourceExtTmp_Shared)
     CALL MPI_WIN_LOCK_ALL(0,NodeSourceExtTmp_Shared_Win,IERROR)
     NodeSourceExtTmp => NodeSourceExtTmp_Shared
@@ -553,7 +553,7 @@ END IF
 firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 
-MPISharedSize = INT(2*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE(2*nComputeNodeTotalElems,SIZE_REAL)
 CALL Allocate_Shared(MPISharedSize,(/2,nComputeNodeTotalElems/),SFElemr2_Shared_Win,SFElemr2_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SFElemr2_Shared_Win,IERROR)
 #else

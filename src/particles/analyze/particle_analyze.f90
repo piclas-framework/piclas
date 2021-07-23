@@ -371,7 +371,7 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)TH
   ! Determine the average distances in x, y and z
   ! Move the determination of these variables as soon as they are required for other functions!
 #if USE_MPI
-  MPISharedSize = INT(nComputeNodeElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  MPISharedSize = MPI_SIZE(nComputeNodeElems,SIZE_REAL)
   CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemCharLengthX_Shared_Win,ElemCharLengthX_Shared)
   CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemCharLengthY_Shared_Win,ElemCharLengthY_Shared)
   CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemCharLengthZ_Shared_Win,ElemCharLengthZ_Shared)

@@ -68,10 +68,10 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 !================================================================================================================================
 
 #if USE_MPI
-  MPISharedSize = INT((3*nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((3*nComputeNodeTotalElems),SIZE_REAL)
   CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalElems/),ElemBaryNGeo_Shared_Win,ElemBaryNGeo_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemBaryNGeo_Shared_Win,IERROR)
-  MPISharedSize = INT((nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((nComputeNodeTotalElems),SIZE_REAL)
   CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalElems/),ElemRadius2NGeo_Shared_Win,ElemRadius2NGEO_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemRadius2NGeo_Shared_Win,IERROR)
   ElemRadius2NGeo    => ElemRadius2NGeo_Shared
@@ -184,13 +184,13 @@ SWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are curv
 
 ! elements
 #if USE_MPI
-MPISharedSize = INT((nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((nComputeNodeTotalElems),SIZE_LOG)
 CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalElems/),ElemCurved_Shared_Win,ElemCurved_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemCurved_Shared_Win,IERROR)
-MPISharedSize = INT((3*6*nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((3*6*nComputeNodeTotalElems),SIZE_REAL)
 CALL Allocate_Shared(MPISharedSize,(/3,6,nComputeNodeTotalElems/),XiEtaZetaBasis_Shared_Win,XiEtaZetaBasis_Shared)
 CALL MPI_WIN_LOCK_ALL(0,XiEtaZetaBasis_Shared_Win,IERROR)
-MPISharedSize = INT((6*nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((6*nComputeNodeTotalElems),SIZE_REAL)
 CALL Allocate_Shared(MPISharedSize,(/6,nComputeNodeTotalElems/),slenXiEtaZetaBasis_Shared_Win,slenXiEtaZetaBasis_Shared)
 CALL MPI_WIN_LOCK_ALL(0,slenXiEtaZetaBasis_Shared_Win,IERROR)
 ElemCurved         => ElemCurved_Shared
@@ -323,7 +323,7 @@ SWRITE(UNIT_StdOut,'(A)') ' Building EpsOneCell for all elements ...'
 
 ! build sJ for all elements not on local proc
 #if USE_MPI
-MPISharedSize = INT(((PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE(((PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems),SIZE_REAL)
 CALL Allocate_Shared(MPISharedSize,(/(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems/),ElemsJ_Shared_Win,ElemsJ_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemsJ_Shared_Win,IERROR)
 ElemsJ(0:PP_N,0:PP_N,0:PP_N,1:nComputeNodeTotalElems) => ElemsJ_Shared
@@ -387,7 +387,7 @@ IF (TrackingMethod.EQ.TRIATRACKING) RETURN
 
 ! allocate epsOneCell
 #if USE_MPI
-MPISharedSize = INT((nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((nComputeNodeTotalElems),SIZE_REAL)
 CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalElems/),ElemEpsOneCell_Shared_Win,ElemEpsOneCell_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemEpsOneCell_Shared_Win,IERROR)
 ElemEpsOneCell => ElemEpsOneCell_Shared
@@ -500,7 +500,7 @@ SWRITE(UNIT_StdOut,'(A)') ' Identifying BC sides and calculating side metrics ..
 
 ! elements
 #if USE_MPI
-MPISharedSize = INT((2*nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((2*nComputeNodeTotalElems),SIZE_INT)
 CALL Allocate_Shared(MPISharedSize,(/2,nComputeNodeTotalElems/),ElemToBCSides_Shared_Win,ElemToBCSides_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemToBCSides_Shared_Win,IERROR)
 ElemToBCSides => ElemToBCSides_Shared
@@ -702,7 +702,7 @@ nComputeNodeBCSides = nBCSidesProc
 
 ! Allocate shared array for BC sides
 #if USE_MPI
-MPISharedSize = INT((7*nComputeNodeBCSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((7*nComputeNodeBCSides),SIZE_REAL)
 CALL Allocate_Shared(MPISharedSize,(/7,nComputeNodeBCSides/),SideBCMetrics_Shared_Win,SideBCMetrics_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideBCMetrics_Shared_Win,IERROR)
 SideBCMetrics => SideBCMetrics_Shared
@@ -963,12 +963,12 @@ CALL MPI_BCAST(nNodeToElemMapping,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 !    NodeToElemMapping (offset and number of elements) -> CN element IDs : NodeToElemInfo = [CN elem IDs]
 #if USE_MPI
 ! NodeToElemMapping
-MPISharedSize = INT((2*nUniqueGlobalNodes),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((2*nUniqueGlobalNodes),SIZE_INT)
 CALL Allocate_Shared(MPISharedSize,(/2,nUniqueGlobalNodes/),NodeToElemMapping_Shared_Win,NodeToElemMapping_Shared)
 CALL MPI_WIN_LOCK_ALL(0,NodeToElemMapping_Shared_Win,IERROR)
 NodeToElemMapping => NodeToElemMapping_Shared
 ! NodeToElemInfo
-MPISharedSize = INT((nNodeToElemMapping),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((nNodeToElemMapping),SIZE_INT)
 CALL Allocate_Shared(MPISharedSize,(/nNodeToElemMapping/),NodeToElemInfo_Shared_Win,NodeToElemInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,NodeToElemInfo_Shared_Win,IERROR)
 NodeToElemInfo => NodeToElemInfo_Shared
@@ -1021,7 +1021,7 @@ CALL BARRIER_AND_SYNC(NodeToElemMapping_Shared_Win,MPI_COMM_SHARED)
 !    CN element ID -> all CN element IDs to which it is connected : ElemToElemMapping = [offset, Nbr of CN elements]
 #if USE_MPI
 ! ElemToElemMapping
-MPISharedSize = INT((2*nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((2*nComputeNodeTotalElems),SIZE_INT)
 CALL Allocate_Shared(MPISharedSize,(/2,nComputeNodeTotalElems/),ElemToElemMapping_Shared_Win,ElemToElemMapping_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemToElemMapping_Shared_Win,IERROR)
 ElemToElemMapping => ElemToElemMapping_Shared
@@ -1102,7 +1102,7 @@ nElemToElemMapping = OffsetCounter
 !    CN element ID -> all CN element IDs to which it is connected : ElemToElemInfo = [CN elem IDs]
 #if USE_MPI
 ! ElemToElemInfo
-MPISharedSize = INT((nElemToElemMapping),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((nElemToElemMapping),SIZE_INT)
 CALL Allocate_Shared(MPISharedSize,(/nElemToElemMapping/),ElemToElemInfo_Shared_Win,ElemToElemInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemToElemInfo_Shared_Win,IERROR)
 ElemToElemInfo => ElemToElemInfo_Shared
@@ -1197,7 +1197,7 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #endif /*USE_MPI*/
 !================================================================================================================================
 #if USE_MPI
-MPISharedSize = INT((3*nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((3*nComputeNodeTotalElems),SIZE_REAL)
 CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalElems/),ElemBaryNGeo_Shared_Win,ElemBaryNGeo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemBaryNGeo_Shared_Win,IERROR)
 ElemBaryNGeo => ElemBaryNGeo_Shared
@@ -1301,15 +1301,15 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #endif /*USE_MPI*/
 !================================================================================================================================
 #if USE_MPI
-  MPISharedSize = INT((nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((nComputeNodeTotalElems),SIZE_REAL)
   CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalElems/),ElemRadiusNGeo_Shared_Win,ElemRadiusNGeo_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemRadiusNGeo_Shared_Win,IERROR)
   CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalElems/),ElemRadius2NGeo_Shared_Win,ElemRadius2NGeo_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemRadius2NGeo_Shared_Win,IERROR)
-  MPISharedSize = INT((3*6*nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((3*6*nComputeNodeTotalElems),SIZE_REAL)
   CALL Allocate_Shared(MPISharedSize,(/3,6,nComputeNodeTotalElems/),XiEtaZetaBasis_Shared_Win,XiEtaZetaBasis_Shared)
   CALL MPI_WIN_LOCK_ALL(0,XiEtaZetaBasis_Shared_Win,IERROR)
-  MPISharedSize = INT((6*nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((6*nComputeNodeTotalElems),SIZE_REAL)
   CALL Allocate_Shared(MPISharedSize,(/6,nComputeNodeTotalElems/),slenXiEtaZetaBasis_Shared_Win,slenXiEtaZetaBasis_Shared)
   CALL MPI_WIN_LOCK_ALL(0,slenXiEtaZetaBasis_Shared_Win,IERROR)
   ElemRadiusNGeo     => ElemRadiusNGeo_Shared
@@ -1470,17 +1470,17 @@ sendbuf = offsetUniqueBCSidesProc + nUniqueBCSidesProc
 CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
 nUniqueBCSides = sendbuf
 
-MPISharedSize = INT((nUniqueBCSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((nUniqueBCSides),SIZE_INT)
 CALL Allocate_Shared(MPISharedSize,(/nUniqueBCSides/),BCSide2SideID_Shared_Win,BCSide2SideID_Shared)
 CALL MPI_WIN_LOCK_ALL(0,BCSide2SideID_Shared_Win,IERROR)
-MPISharedSize = INT((nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((nNonUniqueGlobalSides),SIZE_INT)
 CALL Allocate_Shared(MPISharedSize,(/nNonUniqueGlobalSides/),SideID2BCSide_Shared_Win,SideID2BCSide_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideID2BCSide_Shared_Win,IERROR)
 BCSide2SideID => BCSide2SideID_Shared
 SideID2BCSide => SideID2BCSide_Shared
 
 ! Also allocate array to hold BC Side metrics
-MPISharedSize = INT((4*nUniqueBCSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((4*nUniqueBCSides),SIZE_REAL)
 CALL Allocate_Shared(MPISharedSize,(/4,nUniqueBCSides/),BCSideMetrics_Shared_Win,BCSideMetrics_Shared)
 CALL MPI_WIN_LOCK_ALL(0,BCSideMetrics_Shared_Win,IERROR)
 BCSideMetrics => BCSideMetrics_Shared
@@ -1586,7 +1586,7 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' GET LINEAR SIDE BASEVECTORS...'
 #if USE_MPI
-MPISharedSize = INT((3*nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((3*nNonUniqueGlobalSides),SIZE_REAL)
 CALL Allocate_Shared(MPISharedSize,(/3,nNonUniqueGlobalSides/),BaseVectors0_Shared_Win,BaseVectors0_Shared)
 CALL MPI_WIN_LOCK_ALL(0,BaseVectors0_Shared_Win,IERROR)
 CALL Allocate_Shared(MPISharedSize,(/3,nNonUniqueGlobalSides/),BaseVectors1_Shared_Win,BaseVectors1_Shared)
@@ -1595,7 +1595,7 @@ CALL Allocate_Shared(MPISharedSize,(/3,nNonUniqueGlobalSides/),BaseVectors2_Shar
 CALL MPI_WIN_LOCK_ALL(0,BaseVectors2_Shared_Win,IERROR)
 CALL Allocate_Shared(MPISharedSize,(/3,nNonUniqueGlobalSides/),BaseVectors3_Shared_Win,BaseVectors3_Shared)
 CALL MPI_WIN_LOCK_ALL(0,BaseVectors3_Shared_Win,IERROR)
-MPISharedSize = INT((nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((nNonUniqueGlobalSides),SIZE_REAL)
 CALL Allocate_Shared(MPISharedSize,(/nNonUniqueGlobalSides/),BaseVectorsScale_Shared_Win,BaseVectorsScale_Shared)
 CALL MPI_WIN_LOCK_ALL(0,BaseVectorsScale_Shared_Win,IERROR)
 BaseVectors0 => BaseVectors0_Shared

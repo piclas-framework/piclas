@@ -150,7 +150,7 @@ ALLOCATE(MapSurfSideToPorousBC_Temp(1:2,1:nComputeNodeSurfTotalSides))
 MapSurfSideToPorousBC_Temp = 0
 
 #if USE_MPI
-MPISharedSize = INT((nComputeNodeSurfTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((nComputeNodeSurfTotalSides),SIZE_INT)
 CALL Allocate_Shared(MPISharedSize,(/nComputeNodeSurfTotalSides/),MapSurfSideToPorousSide_Shared_Win,MapSurfSideToPorousSide_Shared)
 CALL MPI_WIN_LOCK_ALL(0,MapSurfSideToPorousSide_Shared_Win,IERROR)
 IF (myComputeNodeRank.EQ.0) THEN
@@ -274,15 +274,15 @@ END IF
 
 CALL MPI_BCAST(nPorousSides,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
 
-MPISharedSize = INT((3*nPorousSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((3*nPorousSides),SIZE_INT)
 CALL Allocate_Shared(MPISharedSize,(/3,nPorousSides/),PorousBCInfo_Shared_Win,PorousBCInfo_Shared)
-MPISharedSize = INT((2*nPorousSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((2*nPorousSides),SIZE_REAL)
 CALL Allocate_Shared(MPISharedSize,(/2,nPorousSides/),PorousBCProperties_Shared_Win,PorousBCProperties_Shared)
 CALL Allocate_Shared(MPISharedSize,(/2,nPorousSides/),PorousBCSampWall_Shared_Win,PorousBCSampWall_Shared)
 CALL MPI_WIN_LOCK_ALL(0,PorousBCInfo_Shared_Win,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,PorousBCProperties_Shared_Win,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,PorousBCSampWall_Shared_Win,IERROR)
-MPISharedSize = INT((5*nPorousSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((5*nPorousSides),SIZE_INT)
 IF (myComputeNodeRank.EQ.0) THEN
   PorousBCInfo_Shared(1,1:nPorousSides) = MapSurfSideToPorousBC_Temp(1,1:nPorousSides)
   PorousBCInfo_Shared(2,1:nPorousSides) = MapSurfSideToPorousBC_Temp(2,1:nPorousSides)
@@ -771,7 +771,7 @@ END SUBROUTINE ExchangeImpingedPartPorousBC
 SUBROUTINE ExchangeRemovalProbabilityPorousBC
 !===================================================================================================================================
 !> Routine that communicates the calculated removal probability to the halo sides (since the removal probability requires locally
-!> sampled values of the adjacent elements). The halo sides then have the correct removal probability when treating the impinging 
+!> sampled values of the adjacent elements). The halo sides then have the correct removal probability when treating the impinging
 !> particles. The sides that communicate the impinged particles, receive the calculated removal probability.
 !> Thus, the nSendPorousSides/PorousBCSendBuf variables are utilized for the RECEIVE buffer and nRecvPorousSides/PorousBCRecvBuf
 !> are utilized for the SEND buffer.
