@@ -765,6 +765,7 @@ MPISharedSize = MPI_SIZE((nComputeNodeTotalSides),SIZE_INT)
 CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),  SideType_Shared_Win,    SideType_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideType_Shared_Win,IERROR)
 SideType => SideType_Shared
+MPISharedSize = MPI_SIZE((nComputeNodeTotalSides),SIZE_REAL)
 CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),  SideDistance_Shared_Win,SideDistance_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideDistance_Shared_Win,IERROR)
 SideDistance => SideDistance_Shared

@@ -205,6 +205,7 @@ CALL InitPeriodicBC()
 #if USE_MPI
 MPISharedSize = MPI_SIZE(6*nGlobalElems,SIZE_INT)
 CALL Allocate_Shared(MPISharedSize,(/6  ,nGlobalElems/),ElemToBGM_Shared_Win,ElemToBGM_Shared)
+MPISharedSize = MPI_SIZE(6*nGlobalElems,SIZE_REAL)
 CALL Allocate_Shared(MPISharedSize,(/2,3,nGlobalElems/),BoundsOfElem_Shared_Win,BoundsOfElem_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemToBGM_Shared_Win  ,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,BoundsOfElem_Shared_Win,IERROR)
