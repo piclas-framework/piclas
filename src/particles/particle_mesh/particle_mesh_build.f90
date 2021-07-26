@@ -702,7 +702,7 @@ nComputeNodeBCSides = nBCSidesProc
 
 ! Allocate shared array for BC sides
 #if USE_MPI
-MPISharedSize = MPI_SIZE((7*nComputeNodeBCSides),SIZE_REAL)
+MPISharedSize = MPI_SIZE(7*nComputeNodeBCSides,SIZE_REAL)
 CALL Allocate_Shared(MPISharedSize,(/7,nComputeNodeBCSides/),SideBCMetrics_Shared_Win,SideBCMetrics_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideBCMetrics_Shared_Win,IERROR)
 SideBCMetrics => SideBCMetrics_Shared
