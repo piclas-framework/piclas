@@ -368,13 +368,13 @@ SELECT CASE(TrackingMethod)
 !    CALL CalcBezierControlPoints()
 
 #if USE_MPI
-    MPISharedSize = INT((3**2*nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+    MPISharedSize = MPI_SIZE((3**2*nComputeNodeTotalSides),SIZE_REAL)
     CALL Allocate_Shared(MPISharedSize,(/3,3,nComputeNodeTotalSides/),SideSlabNormals_Shared_Win,SideSlabNormals_Shared)
     CALL MPI_WIN_LOCK_ALL(0,SideSlabNormals_Shared_Win,IERROR)
-    MPISharedSize = INT((6*nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+    MPISharedSize = MPI_SIZE((6*nComputeNodeTotalSides),SIZE_REAL)
     CALL Allocate_Shared(MPISharedSize,(/6,nComputeNodeTotalSides/),SideSlabIntervals_Shared_Win,SideSlabIntervals_Shared)
     CALL MPI_WIN_LOCK_ALL(0,SideSlabIntervals_Shared_Win,IERROR)
-    MPISharedSize = INT((nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+    MPISharedSize = MPI_SIZE((nComputeNodeTotalSides),SIZE_LOG)
     CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),BoundingBoxIsEmpty_Shared_Win,BoundingBoxIsEmpty_Shared)
     CALL MPI_WIN_LOCK_ALL(0,BoundingBoxIsEmpty_Shared_Win,IERROR)
     firstSide = INT(REAL (myComputeNodeRank   *nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))+1

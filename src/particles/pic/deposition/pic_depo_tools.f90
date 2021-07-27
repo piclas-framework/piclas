@@ -179,7 +179,7 @@ INTEGER                          :: I
 INTEGER                          :: NodeID(1:8)
 !===================================================================================================================================
 #if USE_MPI
-MPISharedSize = INT((nUniqueGlobalNodes),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((nUniqueGlobalNodes),SIZE_REAL)
 CALL Allocate_Shared(MPISharedSize,(/nUniqueGlobalNodes/),NodeVolume_Shared_Win,NodeVolume_Shared)
 CALL MPI_WIN_LOCK_ALL(0,NodeVolume_Shared_Win,IERROR)
 NodeVolume => NodeVolume_Shared

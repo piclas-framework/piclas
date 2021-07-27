@@ -14,7 +14,7 @@
 
 MODULE MOD_Particle_Boundary_Init
 !===================================================================================================================================
-!> 
+!>
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -735,7 +735,7 @@ IF (.NOT.(ANY(PartBound%UseAdaptedWallTemp))) RETURN
 
 #if USE_MPI
 !> Then shared arrays for boundary sampling
-MPISharedSize = INT((nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+MPISharedSize = MPI_SIZE((nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),SIZE_REAL)
 CALL Allocate_Shared(MPISharedSize,(/nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),BoundaryWallTemp_Shared_Win,BoundaryWallTemp_Shared)
 CALL MPI_WIN_LOCK_ALL(0,BoundaryWallTemp_Shared_Win,IERROR)
 IF (myComputeNodeRank.EQ.0) THEN
@@ -757,7 +757,7 @@ DO iSide = firstSide,LastSide
   SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
   iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
   IF (PartBound%MomentumACC(iBC).GT.0.0) BoundaryWallTemp(:,:,iSide) = PartBound%WallTemp(iBC)
-END DO 
+END DO
 
 #if USE_MPI
 CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
