@@ -94,13 +94,17 @@ SUBROUTINE InitRadiation()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,          ONLY : PlanckConst, c
-USE MOD_Mesh_Vars,             ONLY : nElems
-USE MOD_Particle_Mesh_Vars,    ONLY : nTotalElems
+USE MOD_Mesh_Vars,             ONLY : nElems, nGlobalElems
+USE MOD_Particle_Mesh_Vars,    ONLY : nComputeNodeElems
 USE MOD_ReadInTools
 USE MOD_PARTICLE_Vars,         ONLY : nSpecies
 USE MOD_Radiation_Vars
 USE MOD_DSMC_Vars,             ONLY : SpecDSMC
 USE MOD_Radiation_ReadIn,      ONLY : Radiation_readin_atoms, Radiation_readin_molecules
+#if USE_MPI
+!USE MOD_MPI_Shared_Vars
+USE MOD_MPI_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -111,6 +115,9 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
   CHARACTER(32)         :: hilf
   INTEGER               :: iSpec, iWaveLen
+#if USE_MPI
+  INTEGER(KIND=MPI_ADDRESS_KIND)  :: MPISharedSize
+#endif /*USE_MPI*/
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)') ' INIT RADIATION SOLVER...'
 
@@ -186,15 +193,15 @@ NumDensElectrons = GETREAL('Radiation-NumDensElectrons','0.0')
 TElectrons       = GETREAL('Radiation-TElectrons',      '0.0')
 
 #if USE_MPI
-  ! allocate shared array for ElemInfo
+  ! allocate shared array for Radiation_Emission/Absorption_Spec
   MPISharedSize = INT((RadiationParameter%WaveLenDiscr)*nComputeNodeElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
   CALL Allocate_Shared(MPISharedSize,(/RadiationParameter%WaveLenDiscr,nComputeNodeElems/), &
-Radiation_Emission_Spec_Shared_Win,Radiation_Emission_Spec_Shared)
+    Radiation_Emission_Spec_Shared_Win,Radiation_Emission_Spec_Shared)
   CALL MPI_WIN_LOCK_ALL(0,Radiation_Emission_Spec_Shared_Win,IERROR)
 
   MPISharedSize = INT((RadiationParameter%WaveLenDiscr)*nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
   CALL Allocate_Shared(MPISharedSize,(/RadiationParameter%WaveLenDiscr,nGlobalElems/), &
-Radiation_Absorption_Spec_Shared_Win,Radiation_Absorption_Spec_Shared)
+    Radiation_Absorption_Spec_Shared_Win,Radiation_Absorption_Spec_Shared)
   CALL MPI_WIN_LOCK_ALL(0,Radiation_Absorption_Spec_Shared_Win,IERROR)
 
 Radiation_Emission_spec => Radiation_Emission_spec_Shared
@@ -311,6 +318,10 @@ SUBROUTINE FinalizeRadiation()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Radiation_Vars
+#if USE_MPI
+!USE MOD_MPI_Shared_Vars    !,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -323,9 +334,16 @@ IMPLICIT NONE
 SDEALLOCATE(RadiationInput)
 SDEALLOCATE(SpeciesRadiation)
 SDEALLOCATE(RadiationParameter%WaveLen)
-SDEALLOCATE(Radiation_Emission_spec)
-SDEALLOCATE(Radiation_Absorption_spec)
 SDEALLOCATE(Radiation_ElemEnergy_Species)
+
+#if USE_MPI
+CALL UNLOCK_AND_FREE(Radiation_Emission_Spec_Shared_Win)
+CALL UNLOCK_AND_FREE(Radiation_Absorption_Spec_Shared_Win)
+ADEALLOCATE(Radiation_Emission_Spec_Shared)
+ADEALLOCATE(Radiation_Absorption_Spec_Shared)
+#endif /*USE_MPI*/
+ADEALLOCATE(Radiation_Emission_Spec)
+ADEALLOCATE(Radiation_Absorption_Spec)
 
 END SUBROUTINE FinalizeRadiation
 

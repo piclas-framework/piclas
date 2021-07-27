@@ -89,7 +89,7 @@ END TYPE tSpeciesRadiation
 
 TYPE(tSpeciesRadiation), ALLOCATABLE     :: SpeciesRadiation(:)         ! (nSpec)
 
-REAL, ALLOCATABLE       :: Radiation_NumDens
+!REAL, ALLOCATABLE       :: Radiation_NumDens
 REAL, ALLOCATABLE       :: Radiation_ElemEnergy_Species(:,:,:)! (number of species, number of mesh elements, 2(Emission,Absorption))
 
 

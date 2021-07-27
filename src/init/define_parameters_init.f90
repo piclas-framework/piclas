@@ -82,7 +82,7 @@ USE MOD_DSMC_Symmetry              ,ONLY: DefineParametersParticleSymmetry
 USE MOD_SuperB_Init                ,ONLY: DefineParametersSuperB
 #endif
 #if (PP_TimeDiscMethod==600)
-USE MOD_RadiationTrans_Init        ,ONLY: DefineParametersRadiationTransport
+USE MOD_RadiationTrans_Init        ,ONLY: DefineParametersRadiationTrans
 USE MOD_Radiation_Init             ,ONLY: DefineParametersRadiation
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
