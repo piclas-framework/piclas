@@ -176,9 +176,8 @@ END IF
 
 tStart = time
 CALL InitTimeStep() ! Initial time step calculation for dt_Min
-WallTimeStart=PICLASTIME()
-iter=0
-iter_PID=0
+iter     = 0
+iter_PID = 0
 
 ! fill recordpoints buffer (first iteration)
 !IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.)
@@ -213,6 +212,9 @@ IF(time.EQ.tEnd)RETURN
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! iterations starting up from here
 !-----------------------------------------------------------------------------------------------------------------------------------
+SWRITE(UNIT_StdOut,*)'CALCULATION RUNNING...'
+WallTimeStart=PICLASTIME()
+
 DO !iter_t=0,MaxIter
 
 #ifdef PARTICLES

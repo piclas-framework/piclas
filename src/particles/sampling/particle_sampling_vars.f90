@@ -27,16 +27,17 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Sampling of elements with a boundary for adaptive surface flux and porous BC
 LOGICAL                                 :: UseAdaptive                    ! Flag is set if an adaptive boundary is present
+LOGICAL                                 :: AdaptBCAverageValBC            ! Flag to enable/disable averaging accross the whole BC
 REAL                                    :: AdaptBCRelaxFactor             ! weighting factor theta for weighting of average
                                                                           ! instantaneous values with those
                                                                           ! of previous iterations
-INTEGER                                 :: AdaptBCSampIter                !
-LOGICAL                                 :: AdaptBCTruncAverage
+INTEGER                                 :: AdaptBCSampIter                ! Number of sampling iterations as given by user
+INTEGER                                 :: AdaptBCSampIterReadIn          ! Number of sampling iterations as read-in from state
+LOGICAL                                 :: AdaptBCTruncAverage            ! Flag to enable/disable a truncated running average
 INTEGER                                 :: AdaptBCSampleElemNum           ! Number of elements with an adaptive BC
-INTEGER, ALLOCATABLE                    :: AdaptBCMapSampleToElem(:)      ! 
-INTEGER, ALLOCATABLE                    :: AdaptBCMapElemToSample(:)      ! 
+INTEGER, ALLOCATABLE                    :: AdaptBCMapSampleToElem(:)      ! Mapping from sample element ID to the local element ID
+INTEGER, ALLOCATABLE                    :: AdaptBCMapElemToSample(:)      ! Mapping from local element ID to the sample element ID
 REAL, ALLOCATABLE                       :: AdaptBCAverage(:,:,:,:)        ! Truncated running average (current value replaces the first)
-REAL, ALLOCATABLE                       :: AdaptBCAverageGlobal(:,:,:,:)  ! Truncated running average global to keep during restart
 REAL, ALLOCATABLE                       :: AdaptBCSample(:,:,:)           ! Particle sample near boundaries
 REAL, ALLOCATABLE                       :: AdaptBCMacroVal(:,:,:)         ! Macroscopic value near boundaries
                                                                           ! (1:7,1:AdaptBCSampleElemNum,1:nSpecies)
@@ -47,7 +48,14 @@ REAL, ALLOCATABLE                       :: AdaptBCMacroVal(:,:,:)         ! Macr
                                                                           !  5:  Pumping capacity [m3/s]
                                                                           !  6:  Static pressure [Pa]
                                                                           !  7:  Integral pressure difference [Pa]
-REAL, ALLOCATABLE                       :: AdaptiveData(:,:,:)            ! Macroscopic value near boundaries (for output)
+REAL, ALLOCATABLE                       :: AdaptiveData(:,:)              ! Macroscopic value near boundaries (for output)
 REAL, ALLOCATABLE                       :: AdaptBCAreaSurfaceFlux(:,:)    ! UseCircularInflow: Surflux area as the sum of actual elements
+REAL, ALLOCATABLE                       :: AdaptBCBackupVelocity(:,:,:)   ! Velocity is stored as backup for iterations without particles
+                                                                          ! in the cell [1:3,1:AdaptBCSampleElemNum,1:nSpecies]
+INTEGER, ALLOCATABLE                    :: AdaptBCPartNumOut(:,:)         ! Type 4: Number of particles exiting through the adaptive
+                                                                          ! boundary condition
+REAL, ALLOCATABLE                       :: AdaptBCMeanValues(:,:,:)           !
+INTEGER                                 :: offSetElemAdaptBCSample
+INTEGER                                 :: AdaptBCSampleElemNumGlobal
 !-----------------------------------------------------------------------------------------------------------------------------------
 END MODULE MOD_Particle_Sampling_Vars

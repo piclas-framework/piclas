@@ -85,6 +85,7 @@ CHARACTER(LEN=2)               :: NVisuString                       ! String con
 CHARACTER(LEN=20)              :: fmtString                         ! String containing options for formatted write
 LOGICAL                        :: DGSolutionExists, ElemDataExists, SurfaceDataExists, VisuParticles, PartDataExists
 LOGICAL                        :: BGFieldExists
+LOGICAL                        :: VisuAdaptiveInfo, AdaptiveInfoExists
 LOGICAL                        :: ReadMeshFinished, ElemMeshInit, SurfMeshInit
 #ifdef PARTICLES
 INTEGER                        :: iElem, iNode
@@ -101,6 +102,7 @@ CALL prms%CreateStringOption( 'NodeTypeVisu',"Node type of the visualization bas
                                              "VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO", 'VISU')
 CALL prms%CreateIntOption(    'NVisu',       "Number of points at which solution is sampled for visualization.")
 CALL prms%CreateLogicalOption('VisuParticles',  "Visualize particles (velocity, species, internal energy).", '.FALSE.')
+CALL prms%CreateLogicalOption('VisuAdaptiveInfo', "Visualize the sampled values utilized for the adaptive surface flux and porous BC (velocity, density, pumping speed)", '.FALSE.')
 CALL prms%CreateIntOption(    'TimeStampLength', 'Length of the floating number time stamp', '21')
 CALL prms%CreateLogicalOption( 'meshCheckWeirdElements'&
   , 'Abort when weird elements are found: it means that part of the element is turned inside-out. ','.TRUE.')
@@ -205,6 +207,7 @@ END IF
 ! If no parameter file has been set, the standard values will be used
 NodeTypeVisuOut  = GETSTR('NodeTypeVisu','VISU')    ! Node type of visualization basis
 VisuParticles    = GETLOGICAL('VisuParticles','.FALSE.')
+VisuAdaptiveInfo    = GETLOGICAL('VisuAdaptiveInfo','.FALSE.')
 ! Initialization of I/O routines
 CALL InitIOHDF5()
 ! Get length of the floating number time stamp
@@ -251,6 +254,7 @@ DO iArgs = iArgsStart,nArgs
 
   ! Open .h5 file
   DGSolutionExists = .FALSE.; ElemDataExists = .FALSE.; SurfaceDataExists = .FALSE.; PartDataExists = .FALSE.
+  AdaptiveInfoExists = .FALSE.
   CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   ! Get the type of the .h5 file
   CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
@@ -258,6 +262,7 @@ DO iArgs = iArgsStart,nArgs
   CALL DatasetExists(File_ID,'DG_Solution',DGSolutionExists)
   IF(TRIM(File_Type).EQ.'PartStateBoundary') DGSolutionExists = .FALSE.
   CALL DatasetExists(File_ID,'ElemData',ElemDataExists)
+  CALL DatasetExists(File_ID,'AdaptiveInfo',AdaptiveInfoExists)
   CALL DatasetExists(File_ID,'SurfaceData',SurfaceDataExists)
   CALL DatasetExists(File_ID,'PartData',PartDataExists)
   CALL DatasetExists(File_ID,'BGField',BGFieldExists) ! deprecated, but allow for backward compatibility
@@ -325,7 +330,7 @@ DO iArgs = iArgsStart,nArgs
   END IF
   ! === ElemData ===================================================================================================================
   IF(ElemDataExists) THEN
-    CALL ConvertElemData(InputStateFile)
+    CALL ConvertElemData(InputStateFile,'ElemData','VarNamesAdd')
   END IF
   ! === SurfaceData ================================================================================================================
   IF(SurfaceDataExists) THEN
@@ -335,6 +340,12 @@ DO iArgs = iArgsStart,nArgs
   IF(VisuParticles) THEN
     IF(PartDataExists) THEN
       CALL ConvertPartData(InputStateFile)
+    END IF
+  END IF
+  ! === AdaptiveInfo
+  IF(VisuAdaptiveInfo) THEN
+    IF(AdaptiveInfoExists) THEN
+      CALL ConvertElemData(InputStateFile,'AdaptiveInfo','VarNamesAdaptive')
     END IF
   END IF
 END DO ! iArgs = 2, nArgs
@@ -786,10 +797,10 @@ CALL CloseDataFile()
 END SUBROUTINE ConvertPartData
 
 
+SUBROUTINE ConvertElemData(InputStateFile,ArrayName,VarName)
 !===================================================================================================================================
 !> Convert element/volume data (single value per cell, e.g. DSMC/BGK results) to a VTK format
 !===================================================================================================================================
-SUBROUTINE ConvertElemData(InputStateFile)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars    ,ONLY: ProjectName
@@ -802,6 +813,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile
+CHARACTER(LEN=*),INTENT(IN)     :: ArrayName
+CHARACTER(LEN=*),INTENT(IN)     :: VarName
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -818,13 +831,13 @@ CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,c
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
 CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
-CALL GetDataSize(File_ID,'ElemData',nDims,HSize)
+CALL GetDataSize(File_ID,TRIM(ArrayName),nDims,HSize)
 nVarAdd=INT(HSize(1),4)
 DEALLOCATE(HSize)
 
 IF (nVarAdd.GT.0) THEN
   ALLOCATE(VarNamesAdd(1:nVarAdd))
-  CALL ReadAttribute(File_ID,'VarNamesAdd',nVarAdd,StrArray=VarNamesAdd(1:nVarAdd))
+  CALL ReadAttribute(File_ID,TRIM(VarName),nVarAdd,StrArray=VarNamesAdd(1:nVarAdd))
   ALLOCATE(ElemData(1:nVarAdd,1:nElems))
 
   ! Associate construct for integer KIND=8 possibility
@@ -832,11 +845,11 @@ IF (nVarAdd.GT.0) THEN
         nVarAdd => INT(nVarAdd,IK) ,&
         offsetElem => INT(offsetElem,IK),&
         nElems     => INT(nElems,IK)    )
-    CALL ReadArray('ElemData',2,(/nVarAdd, nElems/),offsetElem,2,RealArray=ElemData(1:nVarAdd,1:nElems))
+    CALL ReadArray(TRIM(ArrayName),2,(/nVarAdd, nElems/),offsetElem,2,RealArray=ElemData(1:nVarAdd,1:nElems))
   END ASSOCIATE
   SELECT CASE(TRIM(File_Type))
     CASE('State')
-      FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution_ElemData',OutputTime))//'.vtu'
+      FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution_'//TRIM(ArrayName),OutputTime))//'.vtu'
     CASE('DSMCState','DSMCHOState')
       FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuDSMC',OutputTime))//'.vtu'
   END SELECT
