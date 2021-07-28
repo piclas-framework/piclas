@@ -313,28 +313,22 @@ LOGICAL,INTENT(IN),OPTIONAL          :: attrib   !< check dataset or attribute
 LOGICAL,INTENT(OUT)                  :: Exists   !< result: dataset exists
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER(HID_T)                       :: DSet_ID
-INTEGER                              :: hdferr
 LOGICAL                              :: attrib_loc
 !==================================================================================================================================
-CALL h5eset_auto_f(0, hdferr)
-! Open the dataset with default properties.
+
 IF (PRESENT(attrib)) THEN
   attrib_loc=attrib
 ELSE
   attrib_loc=.FALSE.
 END IF
+
+! Check attribute or data set. Data sets can be checked by determining the existence of the corresponding link
 IF(attrib_loc)THEN
-  CALL H5AOPEN_F(Loc_ID, TRIM(DSetName), DSet_ID, iError)
-  CALL H5ACLOSE_F(DSet_ID, iError)
+  CALL H5AEXISTS_F(Loc_ID, TRIM(DSetName), Exists, iError)
 ELSE
-  CALL H5DOPEN_F(Loc_ID, TRIM(DSetName), DSet_ID, iError)
-  CALL H5DCLOSE_F(DSet_ID, iError)
+  CALL H5LEXISTS_F(Loc_ID, TRIM(DSetName), Exists, iError)
 END IF
-Exists=.TRUE.
-IF(iError.LT.0) Exists=.FALSE.
-! auto error messages on
-CALL h5eset_auto_f(1, hdferr)
+
 END SUBROUTINE DatasetExists
 
 
@@ -667,7 +661,8 @@ CHARACTER(LEN=255),INTENT(OUT) :: NextFileName_HDF5 !< output: follow up file ac
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: ReadError
-INTEGER(HID_T)                 :: File_ID_loc,Plist_ID,Attr_ID
+INTEGER(HID_T)                 :: File_ID_loc,Plist_ID
+LOGICAL                        :: Exists
 !===================================================================================================================================
 LOGWRITE(*,*)' GET NEXT FILE NAME FROM HDF5 FILE ', TRIM (FileName),' ...'
 ReadError=0
@@ -689,10 +684,10 @@ CALL H5FOPEN_F(TRIM(FileName), H5F_ACC_RDONLY_F, File_ID_loc, iError,access_prp 
 ReadError=iError
 CALL H5PCLOSE_F(Plist_ID, iError)
 iError=ReadError
-IF (iError .EQ. 0) THEN
+IF (iError.EQ.0) THEN
   ! Check if the attribute 'NextFile' exists (Create the attribute for group File_ID_loc.)
-  CALL H5AOPEN_F(File_ID_loc, 'NextFile', Attr_ID, iError)
-  IF(iError.EQ.0)THEN
+  CALL H5AEXISTS_F(File_ID_loc, 'NextFile', Exists, iError)
+  IF (Exists) THEN
     ! Open the attribute "NextFile" of opened file
     CALL ReadAttribute(File_ID_loc,'NextFile',1,StrScalar=NextFileName_HDF5)
   ELSE
