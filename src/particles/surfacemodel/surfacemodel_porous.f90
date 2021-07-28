@@ -127,9 +127,6 @@ INTEGER               :: iSurfSide, iPBC, iSurfSideTmp, GlobalSideID, iPorousSid
 INTEGER,ALLOCATABLE   :: MapSurfSideToPorousBC_Temp(:,:)
 CHARACTER(32)         :: hilf, hilf2
 REAL                  :: rmin, rmax
-#if USE_MPI
-INTEGER(KIND=MPI_ADDRESS_KIND)         :: MPISharedSize
-#endif /*USE_MPI*/
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION ...'
@@ -150,8 +147,7 @@ ALLOCATE(MapSurfSideToPorousBC_Temp(1:2,1:nComputeNodeSurfTotalSides))
 MapSurfSideToPorousBC_Temp = 0
 
 #if USE_MPI
-MPISharedSize = MPI_SIZE((nComputeNodeSurfTotalSides),SIZE_INT)
-CALL Allocate_Shared(MPISharedSize,(/nComputeNodeSurfTotalSides/),MapSurfSideToPorousSide_Shared_Win,MapSurfSideToPorousSide_Shared)
+CALL Allocate_Shared((/nComputeNodeSurfTotalSides/),MapSurfSideToPorousSide_Shared_Win,MapSurfSideToPorousSide_Shared)
 CALL MPI_WIN_LOCK_ALL(0,MapSurfSideToPorousSide_Shared_Win,IERROR)
 IF (myComputeNodeRank.EQ.0) THEN
   MapSurfSideToPorousSide_Shared = 0
@@ -274,15 +270,12 @@ END IF
 
 CALL MPI_BCAST(nPorousSides,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
 
-MPISharedSize = MPI_SIZE((3*nPorousSides),SIZE_INT)
-CALL Allocate_Shared(MPISharedSize,(/3,nPorousSides/),PorousBCInfo_Shared_Win,PorousBCInfo_Shared)
-MPISharedSize = MPI_SIZE((2*nPorousSides),SIZE_REAL)
-CALL Allocate_Shared(MPISharedSize,(/2,nPorousSides/),PorousBCProperties_Shared_Win,PorousBCProperties_Shared)
-CALL Allocate_Shared(MPISharedSize,(/2,nPorousSides/),PorousBCSampWall_Shared_Win,PorousBCSampWall_Shared)
+CALL Allocate_Shared((/3,nPorousSides/),PorousBCInfo_Shared_Win,PorousBCInfo_Shared)
+CALL Allocate_Shared((/2,nPorousSides/),PorousBCProperties_Shared_Win,PorousBCProperties_Shared)
+CALL Allocate_Shared((/2,nPorousSides/),PorousBCSampWall_Shared_Win,PorousBCSampWall_Shared)
 CALL MPI_WIN_LOCK_ALL(0,PorousBCInfo_Shared_Win,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,PorousBCProperties_Shared_Win,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,PorousBCSampWall_Shared_Win,IERROR)
-MPISharedSize = MPI_SIZE((5*nPorousSides),SIZE_INT)
 IF (myComputeNodeRank.EQ.0) THEN
   PorousBCInfo_Shared(1,1:nPorousSides) = MapSurfSideToPorousBC_Temp(1,1:nPorousSides)
   PorousBCInfo_Shared(2,1:nPorousSides) = MapSurfSideToPorousBC_Temp(2,1:nPorousSides)

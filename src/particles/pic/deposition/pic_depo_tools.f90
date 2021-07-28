@@ -169,7 +169,6 @@ REAL                             :: Vdm_loc(0:1,0:PP_N),wGP_loc,xGP_loc(0:1),Det
 REAL                             :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N)
 INTEGER                          :: j,k,l,iElem, firstElem, lastElem
 #if USE_MPI
-INTEGER(KIND=MPI_ADDRESS_KIND)   :: MPISharedSize
 INTEGER                          :: MessageSize
 REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
 #endif
@@ -179,8 +178,7 @@ INTEGER                          :: I
 INTEGER                          :: NodeID(1:8)
 !===================================================================================================================================
 #if USE_MPI
-MPISharedSize = MPI_SIZE((nUniqueGlobalNodes),SIZE_REAL)
-CALL Allocate_Shared(MPISharedSize,(/nUniqueGlobalNodes/),NodeVolume_Shared_Win,NodeVolume_Shared)
+CALL Allocate_Shared((/nUniqueGlobalNodes/),NodeVolume_Shared_Win,NodeVolume_Shared)
 CALL MPI_WIN_LOCK_ALL(0,NodeVolume_Shared_Win,IERROR)
 NodeVolume => NodeVolume_Shared
 firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1

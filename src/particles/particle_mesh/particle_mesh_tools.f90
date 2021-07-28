@@ -733,9 +733,6 @@ INTEGER                                  :: NGeo3,NGeo2
 REAL                                     :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo)
 REAL                                     :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo)
 LOGICAL                                  :: isCurvedSide,isRectangular
-#if USE_MPI
-INTEGER(KIND=MPI_ADDRESS_KIND)           :: MPISharedSize
-#endif /* USE_MPI */
 ! output and sanity check
 INTEGER                                  :: nPlanarRectangular,   nPlanarNonRectangular,   nPlanarCurved,   nBilinear,   nCurved
 INTEGER                                  :: nPlanarRectangularTot,nPlanarNonRectangularTot,nPlanarCurvedTot,nBilinearTot,nCurvedTot
@@ -751,8 +748,7 @@ SWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are curv
 
 ! elements
 #if USE_MPI
-MPISharedSize = MPI_SIZE((nComputeNodeTotalElems),SIZE_LOG)
-CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalElems/),ElemCurved_Shared_Win,ElemCurved_Shared)
+CALL Allocate_Shared((/nComputeNodeTotalElems/),ElemCurved_Shared_Win,ElemCurved_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemCurved_Shared_Win,IERROR)
 ElemCurved => ElemCurved_Shared
 #else
@@ -761,16 +757,13 @@ ALLOCATE(ElemCurved(1:nComputeNodeElems))
 
 ! sides
 #if USE_MPI
-MPISharedSize = MPI_SIZE((nComputeNodeTotalSides),SIZE_INT)
-CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),  SideType_Shared_Win,    SideType_Shared)
+CALL Allocate_Shared((/nComputeNodeTotalSides/),  SideType_Shared_Win,    SideType_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideType_Shared_Win,IERROR)
 SideType => SideType_Shared
-MPISharedSize = MPI_SIZE((nComputeNodeTotalSides),SIZE_REAL)
-CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),  SideDistance_Shared_Win,SideDistance_Shared)
+CALL Allocate_Shared((/nComputeNodeTotalSides/),  SideDistance_Shared_Win,SideDistance_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideDistance_Shared_Win,IERROR)
 SideDistance => SideDistance_Shared
-MPISharedSize = MPI_SIZE((3*nComputeNodeTotalSides),SIZE_REAL)
-CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalSides/),SideNormVec_Shared_Win, SideNormVec_Shared)
+CALL Allocate_Shared((/3,nComputeNodeTotalSides/),SideNormVec_Shared_Win, SideNormVec_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideNormVec_Shared_Win,IERROR)
 SideNormVec => SideNormVec_Shared
 #else
@@ -1299,9 +1292,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                        :: iElem
 REAL                           :: Vdm_NGeo_CLNGeo(0:NGeo,0:NGeo)
-#if USE_MPI
-INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
-#endif /*USE_MPI*/
 !===================================================================================================================================
 
 ! small wBaryCL_NGEO
@@ -1328,12 +1318,9 @@ IF (PerformLoadBalance) RETURN
 
 #if USE_MPI
 ! This is a trick. Allocate as 1D array and then set a pointer with the proper array bounds
-MPISharedSize = MPI_SIZE((3*(NGeo+1)**3*nGlobalElems),SIZE_REAL)
-CALL Allocate_Shared(MPISharedSize,(/3*  (NGeo+1)*(NGeo+1)*(NGeo+1)*nGlobalElems/), XCL_NGeo_Shared_Win,XCL_NGeo_Array)
-MPISharedSize = MPI_SIZE((3*(PP_N+1)**3*nGlobalElems),SIZE_REAL)
-CALL Allocate_Shared(MPISharedSize,(/3*  (PP_N+1)*(PP_N+1)*(PP_N+1)*nGlobalElems/), Elem_xGP_Shared_Win,Elem_xGP_Array)
-MPISharedSize = MPI_SIZE((3*3*(NGeo+1)**3*nGlobalElems),SIZE_REAL)
-CALL Allocate_Shared(MPISharedSize,(/3*3*(NGeo+1)*(NGeo+1)*(NGeo+1)*nGlobalElems/),dXCL_NGeo_Shared_Win,dXCL_NGeo_Array)
+CALL Allocate_Shared((/3*  (NGeo+1)*(NGeo+1)*(NGeo+1)*nGlobalElems/), XCL_NGeo_Shared_Win,XCL_NGeo_Array)
+CALL Allocate_Shared((/3*  (PP_N+1)*(PP_N+1)*(PP_N+1)*nGlobalElems/), Elem_xGP_Shared_Win,Elem_xGP_Array)
+CALL Allocate_Shared((/3*3*(NGeo+1)*(NGeo+1)*(NGeo+1)*nGlobalElems/),dXCL_NGeo_Shared_Win,dXCL_NGeo_Array)
 CALL MPI_WIN_LOCK_ALL(0,XCL_NGeo_Shared_Win,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,Elem_xGP_Shared_Win,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,dXCL_NGeo_Shared_Win,IERROR)
@@ -1435,9 +1422,7 @@ INTEGER                        :: firstElem,lastElem,firstSide,lastSide
 INTEGER                        :: p,q,pq(2)
 REAL                           :: tmp(3,0:NGeo,0:NGeo)
 REAL                           :: tmp2(3,0:NGeo,0:NGeo)
-#if USE_MPI
-INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
-#else
+#if !USE_MPI
 INTEGER                        :: ALLOCSTAT
 #endif /*USE_MPI*/
 !===================================================================================================================================
@@ -1451,17 +1436,15 @@ SWRITE(UNIT_stdOut,'(A)') ' CALCULATING BezierControlPoints ...'
 
 ! Build BezierControlPoints3D (compute-node local+halo)
 #if USE_MPI
-MPISharedSize = MPI_SIZE((3*(NGeo+1)**2*nNonUniqueGlobalSides),SIZE_REAL)
 ! This is a trick. Allocate as 1D array and then set a pointer with the proper array bounds
-CALL Allocate_Shared(MPISharedSize,(/3*(NGeo+1)*(NGeo+1)*nNonUniqueGlobalSides/),BezierControlPoints3D_Shared_Win,BezierControlPoints3D_Shared)
+CALL Allocate_Shared((/3*(NGeo+1)*(NGeo+1)*nNonUniqueGlobalSides/),BezierControlPoints3D_Shared_Win,BezierControlPoints3D_Shared)
 CALL MPI_WIN_LOCK_ALL(0,BezierControlPoints3D_Shared_Win,IERROR)
 BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nNonUniqueGlobalSides) => BezierControlPoints3D_Shared
 IF (myComputeNodeRank.EQ.0) THEN
   BezierControlPoints3D         = 0.
 END IF
 IF (BezierElevation.GT.0) THEN
-  MPISharedSize = MPI_SIZE((3*(NGeoElevated+1)**2*nNonUniqueGlobalSides),SIZE_REAL)
-  CALL Allocate_Shared(MPISharedSize,(/3*(NGeoElevated+1)*(NGeoElevated+1)*nNonUniqueGlobalSides/),BezierControlPoints3DElevated_Shared_Win,BezierControlPoints3DElevated_Shared)
+  CALL Allocate_Shared((/3*(NGeoElevated+1)*(NGeoElevated+1)*nNonUniqueGlobalSides/),BezierControlPoints3DElevated_Shared_Win,BezierControlPoints3DElevated_Shared)
   CALL MPI_WIN_LOCK_ALL(0,BezierControlPoints3DElevated_Shared_Win,IERROR)
   BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nNonUniqueGlobalSides) => BezierControlPoints3DElevated_Shared
   IF (myComputeNodeRank.EQ.0) THEN
@@ -1584,9 +1567,6 @@ INTEGER            :: iNode
 INTEGER            :: nStart, NodeNum
 INTEGER            :: NodeMap(4,6)
 REAL               :: A(3,3),detcon
-#if USE_MPI
-INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
-#endif
 INTEGER            :: CornerNodeIDswitch(8)
 !===================================================================================================================================
 
@@ -1614,18 +1594,15 @@ ASSOCIATE(CNS => CornerNodeIDswitch )
   NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
 
 #if USE_MPI
-  MPISharedSize = MPI_SIZE(6*nComputeNodeTotalElems,SIZE_LOG)
-  CALL Allocate_Shared(MPISharedSize,(/6,nComputeNodeTotalElems/),ConcaveElemSide_Shared_Win,ConcaveElemSide_Shared)
+  CALL Allocate_Shared((/6,nComputeNodeTotalElems/),ConcaveElemSide_Shared_Win,ConcaveElemSide_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ConcaveElemSide_Shared_Win,IERROR)
   firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
   lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 
-  MPISharedSize = MPI_SIZE(4*6*nComputeNodeTotalElems,SIZE_INT)
-  CALL Allocate_Shared(MPISharedSize,(/4,6,nComputeNodeTotalElems/),ElemSideNodeID_Shared_Win,ElemSideNodeID_Shared)
+  CALL Allocate_Shared((/4,6,nComputeNodeTotalElems/),ElemSideNodeID_Shared_Win,ElemSideNodeID_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemSideNodeID_Shared_Win,IERROR)
 
-  MPISharedSize = MPI_SIZE(3*nComputeNodeTotalElems,SIZE_REAL)
-  CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalElems/),ElemMidPoint_Shared_Win,ElemMidPoint_Shared)
+  CALL Allocate_Shared((/3,nComputeNodeTotalElems/),ElemMidPoint_Shared_Win,ElemMidPoint_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemMidPoint_Shared_Win,IERROR)
 #else
   ALLOCATE(ConcaveElemSide_Shared(   1:6,1:nElems))
@@ -1757,9 +1734,6 @@ USE MOD_Mesh_Vars              ,ONLY: nElems
 ! LOCAL VARIABLES
 INTEGER            :: iElem,firstElem,lastElem,GlobalElemID
 INTEGER            :: iNode
-#if USE_MPI
-INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
-#endif
 INTEGER            :: CornerNodeIDswitch(8)
 !===================================================================================================================================
 
@@ -1778,8 +1752,7 @@ ASSOCIATE(CNS => CornerNodeIDswitch )
 #if USE_MPI
   firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
   lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
-  MPISharedSize = MPI_SIZE(8*nComputeNodeTotalElems,SIZE_INT)
-  CALL Allocate_Shared(MPISharedSize,(/8,nComputeNodeTotalElems/),ElemNodeID_Shared_Win,ElemNodeID_Shared)
+  CALL Allocate_Shared((/8,nComputeNodeTotalElems/),ElemNodeID_Shared_Win,ElemNodeID_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemNodeID_Shared_Win,IERROR)
 #else
   ALLOCATE(ElemNodeID_Shared(1:8,1:nElems))

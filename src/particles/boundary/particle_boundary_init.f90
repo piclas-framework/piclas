@@ -727,16 +727,12 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                           :: firstSide, lastSide, iSide, SideID, iBC
-#if USE_MPI
-INTEGER(KIND=MPI_ADDRESS_KIND)    :: MPISharedSize
-#endif
 !===================================================================================================================================
 IF (.NOT.(ANY(PartBound%UseAdaptedWallTemp))) RETURN
 
 #if USE_MPI
 !> Then shared arrays for boundary sampling
-MPISharedSize = MPI_SIZE((nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),SIZE_REAL)
-CALL Allocate_Shared(MPISharedSize,(/nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),BoundaryWallTemp_Shared_Win,BoundaryWallTemp_Shared)
+CALL Allocate_Shared((/nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),BoundaryWallTemp_Shared_Win,BoundaryWallTemp_Shared)
 CALL MPI_WIN_LOCK_ALL(0,BoundaryWallTemp_Shared_Win,IERROR)
 IF (myComputeNodeRank.EQ.0) THEN
   BoundaryWallTemp_Shared = 0.

@@ -187,7 +187,7 @@ END SUBROUTINE InitMPIShared
 !==================================================================================================================================
 !> Allocate data with MPI-3 shared memory option
 !==================================================================================================================================
-SUBROUTINE Allocate_Shared_Logical_1(Datasize_Byte,nVal,SM_WIN,DataPointer&
+SUBROUTINE Allocate_Shared_Logical_1(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
         ,SM_WIN_NAME&
 #endif /*DEBUG_MEMORY*/
@@ -200,7 +200,6 @@ USE MOD_MPI_Shared_Vars
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(KIND=MPI_ADDRESS_KIND),INTENT(IN) :: Datasize_Byte            !> Length of the data size in bytes
 INTEGER,INTENT(IN)                        :: nVal(1)                  !> Local number of variables in each rank
 INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
 LOGICAL,INTENT(OUT),POINTER               :: DataPointer(:)           !> Pointer to the RMA window
@@ -214,7 +213,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
+WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -241,7 +240,7 @@ END SUBROUTINE ALLOCATE_SHARED_LOGICAL_1
 !==================================================================================================================================
 !> Allocate data with MPI-3 shared memory option
 !==================================================================================================================================
-SUBROUTINE Allocate_Shared_Logical_2(Datasize_Byte,nVal,SM_WIN,DataPointer&
+SUBROUTINE Allocate_Shared_Logical_2(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
         ,SM_WIN_NAME&
 #endif /*DEBUG_MEMORY*/
@@ -254,7 +253,6 @@ USE MOD_MPI_Shared_Vars
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(KIND=MPI_ADDRESS_KIND),INTENT(IN) :: Datasize_Byte            !> Length of the data size in bytes
 INTEGER,INTENT(IN)                        :: nVal(2)                  !> Local number of variables in each rank
 INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
 LOGICAL,INTENT(OUT),POINTER               :: DataPointer(:,:)         !> Pointer to the RMA window
@@ -268,7 +266,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
+WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -295,7 +293,7 @@ END SUBROUTINE ALLOCATE_SHARED_LOGICAL_2
 !==================================================================================================================================
 !> Allocate data with MPI-3 shared memory option
 !==================================================================================================================================
-SUBROUTINE Allocate_Shared_Int_1(Datasize_Byte,nVal,SM_WIN,DataPointer&
+SUBROUTINE Allocate_Shared_Int_1(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
         ,SM_WIN_NAME&
 #endif /*DEBUG_MEMORY*/
@@ -308,7 +306,6 @@ USE MOD_MPI_Shared_Vars
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(KIND=MPI_ADDRESS_KIND),INTENT(IN) :: Datasize_Byte            !> Length of the data size in bytes
 INTEGER,INTENT(IN)                        :: nVal(1)                  !> Local number of variables in each rank
 INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
 INTEGER,INTENT(OUT),POINTER               :: DataPointer(:)         !> Pointer to the RMA window
@@ -322,7 +319,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
+WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -350,7 +347,7 @@ END SUBROUTINE ALLOCATE_SHARED_INT_1
 !==================================================================================================================================
 !> Allocate data with MPI-3 shared memory option
 !==================================================================================================================================
-SUBROUTINE Allocate_Shared_Int_2(Datasize_Byte,nVal,SM_WIN,DataPointer&
+SUBROUTINE Allocate_Shared_Int_2(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
         ,SM_WIN_NAME&
 #endif /*DEBUG_MEMORY*/
@@ -363,7 +360,6 @@ USE MOD_MPI_Shared_Vars
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(KIND=MPI_ADDRESS_KIND),INTENT(IN) :: Datasize_Byte            !> Length of the data size in bytes
 INTEGER,INTENT(IN)                        :: nVal(2)                  !> Local number of variables in each rank
 INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
 INTEGER,INTENT(OUT),POINTER               :: DataPointer(:,:)         !> Pointer to the RMA window
@@ -377,7 +373,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
+WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -405,7 +401,7 @@ END SUBROUTINE ALLOCATE_SHARED_INT_2
 !==================================================================================================================================
 !> Allocate data with MPI-3 shared memory option
 !==================================================================================================================================
-SUBROUTINE Allocate_Shared_Int_3(Datasize_Byte,nVal,SM_WIN,DataPointer&
+SUBROUTINE Allocate_Shared_Int_3(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
         ,SM_WIN_NAME&
 #endif /*DEBUG_MEMORY*/
@@ -418,7 +414,6 @@ USE MOD_MPI_Shared_Vars
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(KIND=MPI_ADDRESS_KIND),INTENT(IN) :: Datasize_Byte            !> Length of the data size in bytes
 INTEGER,INTENT(IN)                        :: nVal(3)                  !> Local number of variables in each rank
 INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
 INTEGER,INTENT(OUT),POINTER               :: DataPointer(:,:,:)       !> Pointer to the RMA window
@@ -432,7 +427,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
+WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -460,7 +455,7 @@ END SUBROUTINE ALLOCATE_SHARED_INT_3
 !==================================================================================================================================
 !> Allocate data with MPI-3 shared memory option
 !==================================================================================================================================
-SUBROUTINE Allocate_Shared_Int_4(Datasize_Byte,nVal,SM_WIN,DataPointer&
+SUBROUTINE Allocate_Shared_Int_4(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
         ,SM_WIN_NAME&
 #endif /*DEBUG_MEMORY*/
@@ -473,7 +468,6 @@ USE MOD_MPI_Shared_Vars
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(KIND=MPI_ADDRESS_KIND),INTENT(IN) :: Datasize_Byte            !> Length of the data size in bytes
 INTEGER,INTENT(IN)                        :: nVal(4)                  !> Local number of variables in each rank
 INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
 INTEGER,INTENT(OUT),POINTER               :: DataPointer(:,:,:,:)     !> Pointer to the RMA window
@@ -487,7 +481,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
+WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -515,7 +509,7 @@ END SUBROUTINE ALLOCATE_SHARED_INT_4
 !==================================================================================================================================
 !> Allocate data with MPI-3 shared memory option
 !==================================================================================================================================
-SUBROUTINE Allocate_Shared_Real_1(Datasize_Byte,nVal,SM_WIN,DataPointer&
+SUBROUTINE Allocate_Shared_Real_1(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
         ,SM_WIN_NAME&
 #endif /*DEBUG_MEMORY*/
@@ -528,7 +522,6 @@ USE MOD_MPI_Shared_Vars
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(KIND=MPI_ADDRESS_KIND),INTENT(IN) :: Datasize_Byte            !> Length of the data size in bytes
 INTEGER,INTENT(IN)                        :: nVal(1)                  !> Local number of variables in each rank
 INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:)         !> Pointer to the RMA window
@@ -542,7 +535,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
+WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -571,7 +564,7 @@ END SUBROUTINE ALLOCATE_SHARED_REAL_1
 !==================================================================================================================================
 !> Allocate data with MPI-3 shared memory option
 !==================================================================================================================================
-SUBROUTINE Allocate_Shared_Real_2(Datasize_Byte,nVal,SM_WIN,DataPointer&
+SUBROUTINE Allocate_Shared_Real_2(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
         ,SM_WIN_NAME&
 #endif /*DEBUG_MEMORY*/
@@ -584,7 +577,6 @@ USE MOD_MPI_Shared_Vars
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(KIND=MPI_ADDRESS_KIND),INTENT(IN) :: Datasize_Byte            !> Length of the data size in bytes
 INTEGER,INTENT(IN)                        :: nVal(2)                  !> Local number of variables in each rank
 INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:,:)         !> Pointer to the RMA window
@@ -598,7 +590,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
+WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -626,7 +618,7 @@ END SUBROUTINE ALLOCATE_SHARED_REAL_2
 !==================================================================================================================================
 !> Allocate data with MPI-3 shared memory option
 !==================================================================================================================================
-SUBROUTINE Allocate_Shared_Real_3(Datasize_Byte,nVal,SM_WIN,DataPointer&
+SUBROUTINE Allocate_Shared_Real_3(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
         ,SM_WIN_NAME&
 #endif /*DEBUG_MEMORY*/
@@ -639,7 +631,6 @@ USE MOD_MPI_Shared_Vars
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(KIND=MPI_ADDRESS_KIND),INTENT(IN) :: Datasize_Byte            !> Length of the data size in bytes
 INTEGER,INTENT(IN)                        :: nVal(3)                  !> Local number of variables in each rank
 INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:,:,:)       !> Pointer to the RMA window
@@ -653,7 +644,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
+WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -681,7 +672,7 @@ END SUBROUTINE ALLOCATE_SHARED_REAL_3
 !==================================================================================================================================
 !> Allocate data with MPI-3 shared memory option
 !==================================================================================================================================
-SUBROUTINE Allocate_Shared_Real_4(Datasize_Byte,nVal,SM_WIN,DataPointer&
+SUBROUTINE Allocate_Shared_Real_4(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
         ,SM_WIN_NAME&
 #endif /*DEBUG_MEMORY*/
@@ -694,7 +685,6 @@ USE MOD_MPI_Shared_Vars
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(KIND=MPI_ADDRESS_KIND),INTENT(IN) :: Datasize_Byte            !> Length of the data size in bytes
 INTEGER,INTENT(IN)                        :: nVal(4)                  !> Local number of variables in each rank
 INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:,:,:,:)     !> Pointer to the RMA window
@@ -708,7 +698,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
+WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -736,7 +726,7 @@ END SUBROUTINE ALLOCATE_SHARED_REAL_4
 !==================================================================================================================================
 !> Allocate data with MPI-3 shared memory option
 !==================================================================================================================================
-SUBROUTINE Allocate_Shared_Real_5(Datasize_Byte,nVal,SM_WIN,DataPointer&
+SUBROUTINE Allocate_Shared_Real_5(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
         ,SM_WIN_NAME&
 #endif /*DEBUG_MEMORY*/
@@ -749,7 +739,6 @@ USE MOD_MPI_Shared_Vars
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(KIND=MPI_ADDRESS_KIND),INTENT(IN) :: Datasize_Byte            !> Length of the data size in bytes
 INTEGER,INTENT(IN)                        :: nVal(5)                  !> Local number of variables in each rank
 INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:,:,:,:,:)   !> Pointer to the RMA window
@@ -763,7 +752,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
+WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -791,7 +780,7 @@ END SUBROUTINE ALLOCATE_SHARED_REAL_5
 !==================================================================================================================================
 !> Allocate data with MPI-3 shared memory option
 !==================================================================================================================================
-SUBROUTINE Allocate_Shared_Real_6(Datasize_Byte,nVal,SM_WIN,DataPointer&
+SUBROUTINE Allocate_Shared_Real_6(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
         ,SM_WIN_NAME&
 #endif /*DEBUG_MEMORY*/
@@ -804,7 +793,6 @@ USE MOD_MPI_Shared_Vars
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(KIND=MPI_ADDRESS_KIND),INTENT(IN) :: Datasize_Byte            !> Length of the data size in bytes
 INTEGER,INTENT(IN)                        :: nVal(6)                  !> Local number of variables in each rank
 INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:,:,:,:,:,:) !> Pointer to the RMA window
@@ -818,7 +806,7 @@ INTEGER                                   :: DISP_UNIT                !> Displac
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-WIN_SIZE  = MERGE(datasize_byte,INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
+WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
 DISP_UNIT = 1
 
 #ifdef DEBUG_MEMORY
@@ -943,8 +931,8 @@ USE MOD_Globals
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: nVal
-INTEGER,INTENT(IN) :: VarSize
+INTEGER(KIND=8),INTENT(IN) :: nVal
+INTEGER,INTENT(IN)         :: VarSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPI_SIZE
@@ -952,7 +940,7 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPI_SIZE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-IF (INT(INT(nVal,KIND=16)*INT(VarSize,KIND=16),KIND=16).LT.INT(HUGE(INT(1,KIND=MPI_ADDRESS_KIND)),KIND=16)) THEN
+IF (INT(nVal*INT(VarSize,KIND=8),KIND=8).LT.INT(HUGE(INT(1,KIND=MPI_ADDRESS_KIND)),KIND=8)) THEN
   MPI_SIZE = INT(nVal,KIND=MPI_ADDRESS_KIND) * INT(VarSize,KIND=MPI_ADDRESS_KIND)
 ELSE
   CALL ABORT(__STAMP__,'MPI_SIZE for shared array too large!')
