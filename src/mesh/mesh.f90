@@ -825,7 +825,6 @@ REAL                            :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 INTEGER                         :: offsetElemCNProc
 #if USE_MPI
 #ifdef PARTICLES
-INTEGER(KIND=MPI_ADDRESS_KIND)  :: MPISharedSize
 REAL                            :: CNVolume                       ! Total CN volume
 #endif /*PARTICLES*/
 #endif /*USE_MPI*/
@@ -842,10 +841,9 @@ offsetElemCNProc = 0
 
 ! In case of MPI=ON and PARTICLES=OFF, no shared array is created and all arrays are processor-local
 #if USE_MPI && defined(PARTICLES)
-MPISharedSize = MPI_SIZE(nComputeNodeElems,SIZE_REAL)
-CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemVolume_Shared_Win,ElemVolume_Shared)
+CALL Allocate_Shared((/nComputeNodeElems/),ElemVolume_Shared_Win,ElemVolume_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemVolume_Shared_Win,IERROR)
-CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemCharLength_Shared_Win,ElemCharLength_Shared)
+CALL Allocate_Shared((/nComputeNodeElems/),ElemCharLength_Shared_Win,ElemCharLength_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemCharLength_Shared_Win,IERROR)
 
 ! Only root nullifies

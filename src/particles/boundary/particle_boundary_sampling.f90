@@ -151,7 +151,6 @@ REAL                                   :: xNod, zNod, yNod, Vector1(3), Vector2(
 #if USE_MPI
 INTEGER                                :: offsetSurfSidesProc
 INTEGER                                :: GlobalElemID,GlobalElemRank
-INTEGER(KIND=MPI_ADDRESS_KIND)         :: MPISharedSize
 INTEGER                                :: sendbuf,recvbuf
 #endif /*USE_MPI*/
 INTEGER                                :: NbGlobalElemID, NbGlobalSideID, NbElemRank, NbLeaderID
@@ -171,8 +170,7 @@ CalcSurfaceImpact = GETLOGICAL('CalcSurfaceImpact')
 
 ! Allocate shared array for surf sides
 #if USE_MPI
-MPISharedSize = MPI_SIZE((3*nNonUniqueGlobalSides),SIZE_INT)
-CALL Allocate_Shared(MPISharedSize,(/3,nNonUniqueGlobalSides/),GlobalSide2SurfSide_Shared_Win,GlobalSide2SurfSide_Shared)
+CALL Allocate_Shared((/3,nNonUniqueGlobalSides/),GlobalSide2SurfSide_Shared_Win,GlobalSide2SurfSide_Shared)
 CALL MPI_WIN_LOCK_ALL(0,GlobalSide2SurfSide_Shared_Win,IERROR)
 GlobalSide2SurfSide => GlobalSide2SurfSide_Shared
 #else
@@ -320,8 +318,7 @@ GlobalSide2SurfSide(:,firstSide:lastSide) = GlobalSide2SurfSideProc(:,firstSide:
 
 ! Build inverse mapping
 #if USE_MPI
-MPISharedSize = MPI_SIZE((3*nComputeNodeSurfTotalSides),SIZE_INT)
-CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeSurfTotalSides/),SurfSide2GlobalSide_Shared_Win,SurfSide2GlobalSide_Shared)
+CALL Allocate_Shared((/3,nComputeNodeSurfTotalSides/),SurfSide2GlobalSide_Shared_Win,SurfSide2GlobalSide_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SurfSide2GlobalSide_Shared_Win,IERROR)
 SurfSide2GlobalSide => SurfSide2GlobalSide_Shared
 
@@ -480,8 +477,7 @@ END IF
 
 #if USE_MPI
 !> Then shared arrays for boundary sampling
-MPISharedSize = MPI_SIZE((SurfSampSize*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),SIZE_REAL)
-CALL Allocate_Shared(MPISharedSize,(/SurfSampSize,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallState_Shared_Win,SampWallState_Shared)
+CALL Allocate_Shared((/SurfSampSize,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallState_Shared_Win,SampWallState_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SampWallState_Shared_Win,IERROR)
 ! #else
 ! ALLOCATE(SampWallState_Shared(1:SurfSampSize,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
@@ -497,8 +493,7 @@ END IF
 CALL BARRIER_AND_SYNC(SampWallState_Shared_Win,MPI_COMM_SHARED)
 !
 IF(nPorousBC.GT.0) THEN
-  MPISharedSize = MPI_SIZE((nComputeNodeSurfTotalSides),SIZE_REAL)
-  CALL Allocate_Shared(MPISharedSize,(/nComputeNodeSurfTotalSides/),SampWallPumpCapacity_Shared_Win,SampWallPumpCapacity_Shared)
+  CALL Allocate_Shared((/nComputeNodeSurfTotalSides/),SampWallPumpCapacity_Shared_Win,SampWallPumpCapacity_Shared)
   CALL MPI_WIN_LOCK_ALL(0,SampWallPumpCapacity_Shared_Win,IERROR)
   IF (myComputeNodeRank.EQ.0) THEN
     SampWallPumpCapacity_Shared = 0.
@@ -508,18 +503,15 @@ END IF
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 IF (CalcSurfaceImpact) THEN
   ! nSpecies*4
-  MPISharedSize = MPI_SIZE((nSpecies*4*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),SIZE_REAL)
-  CALL Allocate_Shared(MPISharedSize,(/nSpecies,4,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactEnergy_Shared_Win,SampWallImpactEnergy_Shared)
+  CALL Allocate_Shared((/nSpecies,4,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactEnergy_Shared_Win,SampWallImpactEnergy_Shared)
   CALL MPI_WIN_LOCK_ALL(0,SampWallImpactEnergy_Shared_Win,IERROR)
   ! nSpecies*3
-  MPISharedSize = MPI_SIZE((nSpecies*3*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),SIZE_REAL)
-  CALL Allocate_Shared(MPISharedSize,(/nSpecies,3,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactVector_Shared_Win,SampWallImpactVector_Shared)
+  CALL Allocate_Shared((/nSpecies,3,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactVector_Shared_Win,SampWallImpactVector_Shared)
   CALL MPI_WIN_LOCK_ALL(0,SampWallImpactVector_Shared_Win,IERROR)
   ! nSpecies
-  MPISharedSize = MPI_SIZE((nSpecies*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),SIZE_REAL)
-  CALL Allocate_Shared(MPISharedSize,(/nSpecies,  nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactAngle_Shared_Win,SampWallImpactAngle_Shared)
+  CALL Allocate_Shared((/nSpecies,  nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactAngle_Shared_Win,SampWallImpactAngle_Shared)
   CALL MPI_WIN_LOCK_ALL(0,SampWallImpactAngle_Shared_Win,IERROR)
-  CALL Allocate_Shared(MPISharedSize,(/nSpecies,  nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactNumber_Shared_Win,SampWallImpactNumber_Shared)
+  CALL Allocate_Shared((/nSpecies,  nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactNumber_Shared_Win,SampWallImpactNumber_Shared)
   CALL MPI_WIN_LOCK_ALL(0,SampWallImpactNumber_Shared_Win,IERROR)
   IF (myComputeNodeRank.EQ.0) THEN
     SampWallImpactEnergy_Shared = 0.
@@ -538,8 +530,7 @@ END IF
 
 ! Surf sides are shared, array calculation can be distributed
 #if USE_MPI
-MPISharedSize = MPI_SIZE((nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),SIZE_REAL)
-CALL Allocate_Shared(MPISharedSize,(/nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SurfSideArea_Shared_Win,SurfSideArea_Shared)
+CALL Allocate_Shared((/nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SurfSideArea_Shared_Win,SurfSideArea_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SurfSideArea_Shared_Win,IERROR)
 SurfSideArea => SurfSideArea_Shared
 

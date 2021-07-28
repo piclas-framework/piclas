@@ -144,9 +144,7 @@ REAL          :: DOF,DOFMax,VolumeShapeFunction,ShapeFunctionFractionLoc
 CHARACTER(32) :: hilf,hilf2
 INTEGER       :: iSpec
 INTEGER       :: offsetElemCNProc,CNElemID
-#if USE_MPI
-INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
-#else
+#if !USE_MPI
 INTEGER       :: ALLOCSTAT
 #endif
 !===================================================================================================================================
@@ -371,10 +369,9 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)TH
   ! Determine the average distances in x, y and z
   ! Move the determination of these variables as soon as they are required for other functions!
 #if USE_MPI
-  MPISharedSize = MPI_SIZE(nComputeNodeElems,SIZE_REAL)
-  CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemCharLengthX_Shared_Win,ElemCharLengthX_Shared)
-  CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemCharLengthY_Shared_Win,ElemCharLengthY_Shared)
-  CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemCharLengthZ_Shared_Win,ElemCharLengthZ_Shared)
+  CALL Allocate_Shared((/nComputeNodeElems/),ElemCharLengthX_Shared_Win,ElemCharLengthX_Shared)
+  CALL Allocate_Shared((/nComputeNodeElems/),ElemCharLengthY_Shared_Win,ElemCharLengthY_Shared)
+  CALL Allocate_Shared((/nComputeNodeElems/),ElemCharLengthZ_Shared_Win,ElemCharLengthZ_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemCharLengthX_Shared_Win,IERROR)
   CALL MPI_WIN_LOCK_ALL(0,ElemCharLengthY_Shared_Win,IERROR)
   CALL MPI_WIN_LOCK_ALL(0,ElemCharLengthZ_Shared_Win,IERROR)
