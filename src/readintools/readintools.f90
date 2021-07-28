@@ -1484,24 +1484,24 @@ DO WHILE (associated(current))
             IF (check%opt%NAMEEQUALS(testname) .AND. check%opt%isSet) THEN
               multi => check%opt
               ! copy value from option to result variable
-              SELECT TYPE (newopt)
+              SELECT TYPE (multi)
                 CLASS IS (IntArrayOption)
-                  IF (SIZE(newopt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+                  IF (SIZE(multi%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
                   SELECT TYPE(value)
                     TYPE IS (INTEGER)
-                    value = newopt%value
+                    value = multi%value
                   END SELECT
                 CLASS IS (RealArrayOption)
-                  IF (SIZE(newopt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+                  IF (SIZE(multi%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
                   SELECT TYPE(value)
                     TYPE IS (REAL)
-                    value = newopt%value
+                    value = multi%value
                   END SELECT
                 CLASS IS (LogicalArrayOption)
-                  IF (SIZE(newopt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+                  IF (SIZE(multi%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
                   SELECT TYPE(value)
                     TYPE IS (LOGICAL)
-                    value = newopt%value
+                    value = multi%value
                   END SELECT
               END SELECT
               ! print option and value to stdout. Custom print, so do it here
