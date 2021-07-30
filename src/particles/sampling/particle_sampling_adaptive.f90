@@ -281,7 +281,7 @@ IF (DoRestart) THEN
     CALL DatasetExists(File_ID,'AdaptiveRunningAverage',RunningAverageExists)
     IF(RunningAverageExists)THEN
       ! Read-in the number of sampling iterations from the restart file (might differ from the current number)
-      IF(.NOT.PerformLoadBalance) CALL ReadAttribute(File_ID,'AdaptBCSampIter',1,IntegerScalar=AdaptBCSampIterReadIn)
+      IF(.NOT.PerformLoadBalance) CALL ReadAttribute(File_ID,'AdaptBCSampIter',1,IntScalar=AdaptBCSampIterReadIn)
       ! Get the data size of the read-in array
       CALL GetDataSize(File_ID,'AdaptiveRunningAverage',nDims,HSize)
       nVar=INT(HSize(2),4)

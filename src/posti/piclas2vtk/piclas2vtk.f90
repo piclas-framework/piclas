@@ -278,7 +278,7 @@ DO iArgs = iArgsStart,nArgs
 
   ! Read-in of the mesh
   IF(.NOT.ReadMeshFinished) THEN
-    CALL InitMesh(1,TRIM(MeshFile))
+    CALL InitMesh(1,MeshFile_IN=MeshFile)
     CALL InitGetGlobalElemID()
     CALL InitGetCNElemID()
 #if USE_MPI
@@ -296,7 +296,7 @@ DO iArgs = iArgsStart,nArgs
   IF(ElemDataExists.AND..NOT.ElemMeshInit) THEN
 #ifdef PARTICLES
     CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-    CALL ReadAttribute(File_ID,'nUniqueNodes',1,IntegerScalar=nUniqueNodes)
+    CALL ReadAttribute(File_ID,'nUniqueNodes',1,IntScalar=nUniqueNodes)
     CALL CloseDataFile()
     ALLOCATE(ElemUniqueNodeID(1:8,1:nGlobalElems))
     ALLOCATE(NodeCoords_Connect(1:3,1:nUniqueNodes))
@@ -897,7 +897,7 @@ INTEGER                         :: iSide
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
-CALL ReadAttribute(File_ID,'DSMC_nSurfSample',1,IntegerScalar=nSurfSample)
+CALL ReadAttribute(File_ID,'DSMC_nSurfSample',1,IntScalar=nSurfSample)
 IF(nSurfSample.NE.1) THEN
   CALL abort(&
       __STAMP__&

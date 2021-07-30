@@ -274,9 +274,9 @@ CALL CPU_TIME(StartT)
 ! Get ElemInfo from Mesh file
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
-CALL ReadAttribute(File_ID,'nUniqueSides',1,IntegerScalar=nGlobalUniqueSidesFromMesh)
-CALL ReadAttribute(File_ID,'nSides',1,IntegerScalar=nNonUniqueGlobalSides)
-CALL ReadAttribute(File_ID,'nNodes',1,IntegerScalar=nNonUniqueGlobalNodes)
+CALL ReadAttribute(File_ID,'nUniqueSides',1,IntScalar=nGlobalUniqueSidesFromMesh)
+CALL ReadAttribute(File_ID,'nSides',1,IntScalar=nNonUniqueGlobalSides)
+CALL ReadAttribute(File_ID,'nNodes',1,IntScalar=nNonUniqueGlobalNodes)
 CALL CloseDataFile()
 ! INTEGER KIND=4 check for number of elements
 CHECKSAFEINT(HSize(2),4)
