@@ -667,7 +667,7 @@ CHARACTER(LEN=255),INTENT(OUT) :: NextFileName_HDF5 !< output: follow up file ac
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: ReadError
-INTEGER(HID_T)                 :: File_ID_loc,Plist_ID
+INTEGER(HID_T)                 :: File_ID_loc,Plist_ID,Attr_ID
 !===================================================================================================================================
 LOGWRITE(*,*)' GET NEXT FILE NAME FROM HDF5 FILE ', TRIM (FileName),' ...'
 ReadError=0
@@ -690,9 +690,14 @@ ReadError=iError
 CALL H5PCLOSE_F(Plist_ID, iError)
 iError=ReadError
 IF (iError .EQ. 0) THEN
-  ! Get Name of the mesh file, stored as third atrribute with name "NextFile"
-  ! Open the attribute "NextFile" of opened file
-  CALL ReadAttribute(File_ID_loc,'NextFile',1,StrScalar=NextFileName_HDF5)
+  ! Check if the attribute 'NextFile' exists (Create the attribute for group File_ID_loc.)
+  CALL H5AOPEN_F(File_ID_loc, 'NextFile', Attr_ID, iError)
+  IF(iError.EQ.0)THEN
+    ! Open the attribute "NextFile" of opened file
+    CALL ReadAttribute(File_ID_loc,'NextFile',1,StrScalar=NextFileName_HDF5)
+  ELSE
+    NextFileName_HDF5=TRIM(FileName) ! fall back to old file name, which will be deleted anyway
+  END IF ! NextFileExists
   ! Close the file.
   CALL H5FCLOSE_F(File_ID_loc, iError)
   ! Close FORTRAN predefined datatypes
