@@ -71,7 +71,8 @@ CALL prms%CreateRealOption(   'Radiation-MaxWaveLen',                  'Upper wa
 CALL prms%CreateIntOption(    'Radiation-WaveLenDiscr',                'Number of discretization points', '10000')
 CALL prms%CreateIntOption(    'Radiation-RadType',                     'Select radiation type:\n'//&
                                                                        '1: particle radiation\n'//&
-                                                                       '2: black body radiation', '2')
+                                                                       '2: black body radiation\n'//&
+                                                                       '3: radiation solver only', '3')
 CALL prms%CreateLogicalOption('Radiation-ff',                          'Enable free-free radiation', '.FALSE.')
 CALL prms%CreateLogicalOption('Radiation-bf',                          'Enable bound-free radiation (only atomic)', '.FALSE.')
 CALL prms%CreateLogicalOption('Radiation-bb-atoms',                    'Enable atomic bound-bound radiation', '.FALSE.')
@@ -121,7 +122,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)') ' INIT RADIATION SOLVER...'
 
-RadiationSwitches%RadType       = GETINT('Radiation-RadType',           '2')
+RadiationSwitches%RadType       = GETINT('Radiation-RadType',           '3')
 ALLOCATE(RadiationInput(nSpecies))
 ALLOCATE(SpeciesRadiation(nSpecies))
 SpeciesRadiation(:)%nLevels = 0

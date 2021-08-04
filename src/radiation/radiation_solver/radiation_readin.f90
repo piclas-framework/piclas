@@ -205,6 +205,7 @@ USE MOD_ReadInTools
       REWIND(304)
       DO WHILE (hilf .NE. '['//TRIM(SpeciesRadiation(iSpec)%EnergyLevelName(iLoop))//']')
         READ(304,*,IOSTAT = errtemp) hilf
+      IF (hilf(1:1).EQ.'c') CYCLE
       END DO
       READ(304,*,IOSTAT = errtemp) hilf
       i=0

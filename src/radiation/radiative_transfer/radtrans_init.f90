@@ -80,26 +80,25 @@ USE MOD_DSMC_Vars,              ONLY: RadialWeighting
 INTEGER               :: iWave, iElem, iNode
 REAL                  :: LocTemp
 !===================================================================================================================================
-!SWRITE(UNIT_StdOut,'(132("-"))')
-!SWRITE(UNIT_stdOut,'(A)') ' INIT RADIATION TRANSPORT SOLVER ...'
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)') ' INIT RADIATION TRANSPORT SOLVER ...'
 
 !ALLOCATE(RadiationElemEnergy(1:2,1:nTotalElems))
 !RadiationElemEnergy=0.0
 
-!RadiationDirectionModel = GETINT('Radiation-DirectionModel','1')
-!RadTrans%NumPhotonsPerCell = GETINT('Radiation-NumPhotonsPerCell','1')
-!RadiationAbsorptionModel = GETINT('Radiation-AbsorptionModel','1')
-!RadiationPhotonPosModel = GETINT('Radiation-PhotonPosModel','1')
-!RadEmiAdaptPhotonNum = GETLOGICAL('Radiation-AdaptivePhotonNumEmission','.FALSE.')
+RadiationDirectionModel = GETINT('Radiation-DirectionModel','1')
+RadTrans%NumPhotonsPerCell = GETINT('Radiation-NumPhotonsPerCell','1')
+RadiationAbsorptionModel = GETINT('Radiation-AbsorptionModel','1')
+RadiationPhotonPosModel = GETINT('Radiation-PhotonPosModel','1')
+RadEmiAdaptPhotonNum = GETLOGICAL('Radiation-AdaptivePhotonNumEmission','.FALSE.')
 
 ALLOCATE(Radiation_Emission_Spec_Total(nElems), RadTrans%PhotPerCell(nElems))
 Radiation_Emission_Spec_Total=0.0
-!RadTrans%PhotPerCell=0.0
+RadTrans%PhotPerCell=0.0
 
-!SELECT CASE(RadiationSwitches%RadType)
-!CASE(1) !calls radition solver module
+SELECT CASE(RadiationSwitches%RadType)
+CASE(1) !calls radition solver module
 !  DO iElem = 1, nElems    
-!    ! CALL radiation_main(1)
 !    CALL radiation_main(iElem)
 !!    DO iWave = 1, RadiationParameter%WaveLenDiscr
 !!      Radiation_Emission_Spec_Total(iElem) = Radiation_Emission_Spec_Total(iElem) &
@@ -107,7 +106,7 @@ Radiation_Emission_Spec_Total=0.0
 !!    END DO
 !  END DO
 
-!CASE(2) ! Black body radiation
+CASE(2) ! Black body radiation
 !  DO iElem = 1, nElems
 !    IF (GEO%ElemMidPoint(1,iElem).LT.1) THEN
 !      LocTemp = 10000. !GEO%ElemMidPoint(2,iElem)/GEO%ymaxglob*10000.
@@ -117,8 +116,6 @@ Radiation_Emission_Spec_Total=0.0
 !    DO iWave = 1, RadiationParameter%WaveLenDiscr
 !      IF (LocTemp.GT.0.0) Radiation_Emission_Spec(iWave, iElem) = 2.*PlanckConst*c*c/(RadiationParameter%WaveLen(iWave)**5. &
 !          *(EXP(PlanckConst*c/(RadiationParameter%WaveLen(iWave)*BoltzmannConst*LocTemp))-1.) )
-!  !    Radiation_Emission_Spec(iWave, iElem) = 8.*pi*PlanckConst*c/(RadiationParameter%WaveLen(iWave)**5. &
-!  !        *(EXP(PlanckConst*c/(RadiationParameter%WaveLen(iWave)*BoltzmannConst*LocTemp))-1.) )
 !      Radiation_Emission_Spec_Total(iElem) = Radiation_Emission_Spec_Total(iElem) &
 !          + 4.*Pi*Radiation_Emission_Spec(iWave, iElem) * RadiationParameter%WaveLenIncr
 !    END DO
@@ -129,7 +126,7 @@ Radiation_Emission_Spec_Total=0.0
 !    END DO
 !  END DO
 
-!CASE(3) !only radiation
+CASE(3) !only radiation
   ALLOCATE(Radiation_Absorption_Spec_Total(nElems))
   Radiation_Absorption_Spec_Total = 0.0
   DO iElem = 1, nElems
@@ -142,11 +139,11 @@ Radiation_Emission_Spec_Total=0.0
     END DO
 
   END DO
-!CASE DEFAULT
-!  CALL abort(&
-!      __STAMP__&
-!      ,' ERROR: Radiation type is not implemented! (unknown case)')
-!END SELECT
+CASE DEFAULT
+  CALL abort(&
+      __STAMP__&
+      ,' ERROR: Radiation type is not implemented! (unknown case)')
+END SELECT
 
 !  RadTrans%GlobalRadiationPower = 0.0
 !  RadTrans%ScaledGlobalRadiationPower = 0.0
@@ -170,8 +167,8 @@ Radiation_Emission_Spec_Total=0.0
 !ALLOCATE(PhotonSampWall(2,1:SurfMesh%nTotalSides))
 !PhotonSampWall=0.0
 
-!SWRITE(UNIT_stdOut,'(A)')' INIT RADIATION TRANSPORT SOLVER DONE!'
-!SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)')' INIT RADIATION TRANSPORT SOLVER DONE!'
+SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitRadiationTransport
 
 
