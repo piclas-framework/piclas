@@ -16,6 +16,11 @@ IF(NOT(${CMAKE_VERSION} VERSION_LESS "3.13.0"))
   CMAKE_POLICY(SET CMP0079 NEW)
 ENDIF()
 
+# =========================================================================
+# Project definition
+# =========================================================================
+PROJECT(PICLas Fortran C CXX)
+
 # Folder for custom CMake source files
 LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 SET_PROPERTY(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -42,12 +47,8 @@ FILE(WRITE ${commit} "! Define the current commit hash. The default must remain 
 EXECUTE_PROCESS(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh ${commit})
 
 # =========================================================================
-# Project definitions and output paths
-# =========================================================================
-
-PROJECT(PICLas)
-
 # Check IPO support:
+# =========================================================================
 # we need to have languages enabled and compilers defined for this
 IF(NOT(${CMAKE_VERSION} VERSION_LESS "3.9.0"))
   CMAKE_POLICY(SET CMP0069 NEW)
@@ -57,6 +58,9 @@ ELSE()
   SET(HASIPO FALSE)
 ENDIF()
 
+# =========================================================================
+# Output paths
+# =========================================================================
 SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 SET(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include)
 SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
@@ -72,7 +76,7 @@ ENDIF()
 # =========================================================================
 # make sure that the default is a RELEASE
 IF (NOT CMAKE_BUILD_TYPE)
-  SET (CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: Debug, Release, Profile, SANI (only GNU), Nitro (only GNU)." FORCE)
+  SET (CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: Debug, Release, Profile, Sanitize (only GNU), Nitro (only GNU)." FORCE)
    IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
      SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release Profile Sanitize Nitro)
    ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
@@ -83,13 +87,29 @@ IF (NOT CMAKE_BUILD_TYPE)
 ENDIF (NOT CMAKE_BUILD_TYPE)
 
 STRING(TOLOWER ${CMAKE_BUILD_TYPE} BUILD_TYPE_LC)
-IF (BUILD_TYPE_LC MATCHES "debug")
+IF (BUILD_TYPE_LC MATCHES "debug" OR BUILD_TYPE_LC MATCHES "sanitize")
   ADD_DEFINITIONS(-DUSE_DEBUG=1)
 ELSE()
   ADD_DEFINITIONS(-DUSE_DEBUG=0)
   IF (HASIPO)
     # enable IPO globally (IPO branding: Intel => IPO, GNU => LTO, PGI => IPA)
-    SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)  # enable IPO globally
+    IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+      # Do not use the standard CMake LTO option for GNU (-flto -fno-fat-lto-objects), as it does not allow speed-up during linking
+      SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)
+      # Static libraries require either fat LTO objects (increases compilation time) or the use of linker plugins (per default enabled); the jobserver option reduces linking time
+      # More information at: https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html#Optimize-Options
+      SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=jobserver -fuse-linker-plugin")
+      # Use the GCC wrapper for the complete toolchain to provide the path to the linker plugin (this might be the problem with using the CMAKE IPO)
+      # SET(CMAKE_AR  "gcc-ar")
+      # set(CMAKE_Fortran_COMPILER_AR "${CMAKE_AR}")
+      # set(CMAKE_Fortran_COMPILER_RANLIB "${CMAKE_RANLIB}")
+      # SET(CMAKE_Fortran_ARCHIVE_CREATE "<CMAKE_AR> qcs <TARGET> <LINK_FLAGS> <OBJECTS>")
+      # SET(CMAKE_Fortran_ARCHIVE_FINISH TRUE)
+      # SET(CMAKE_NM  "gcc-nm")
+      # SET(CMAKE_RANLIB  "gcc-ranlib")
+    ELSE()
+      SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)  # enable IPO globally
+    ENDIF()
   ENDIF()
 ENDIF()
 
@@ -153,7 +173,7 @@ ENDFOREACH()
 INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/CMakeListsLib.txt)
 
 # =========================================================================
-# FLEXI
+# PICLas
 # =========================================================================
 INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/src/CMakeLists.txt)
 

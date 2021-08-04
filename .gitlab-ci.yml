@@ -505,7 +505,7 @@ NIG_Photoionization_debug:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly_build_all": Build and run
 #                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
-#                                    - sanitizer for maxwell/poisson (CMAKE_BUILD_TYPE=SANI,Profile)
+#                                    - sanitizer for maxwell/poisson (CMAKE_BUILD_TYPE=Sanitize,Profile)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 build_all:
   <<: *defaults_nightly

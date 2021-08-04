@@ -140,7 +140,7 @@ The first set of options describe general CMake behaviour:
     * Release: "Normal" execution.
     * Profile: Performance profiling using gprof.
     * Debug: Debug compiler for detailed error messages during code development.
-    * SANI: Sanitizer compiler for even more detailed error messages during code development.
+    * Sanitize: Sanitizer compiler for even more detailed error messages during code development.
 
 * ``CMAKE_HOSTNAME``: This will display the host name of the machine you are compiling on.
 
