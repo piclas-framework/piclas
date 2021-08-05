@@ -399,7 +399,7 @@ DO iSpec=1,nSpecies
     CASE ('IMD')
        RegionOnProc=.TRUE.
     CASE ('background')
-      !
+       RegionOnProc=.TRUE.
     CASE DEFAULT
       IPWRITE(*,*) 'ERROR: Species ', iSpec, 'of', iInit, 'is using an unknown SpaceIC!'
       CALL ABORT(__STAMP__&
