@@ -96,17 +96,26 @@ ELSE()
     IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
       # Do not use the standard CMake LTO option for GNU (-flto -fno-fat-lto-objects), as it does not allow speed-up during linking
       SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)
-      # Static libraries require either fat LTO objects (increases compilation time) or the use of linker plugins (per default enabled); the jobserver option reduces linking time
-      # More information at: https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html#Optimize-Options
-      SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=jobserver -fuse-linker-plugin")
-      # Use the GCC wrapper for the complete toolchain to provide the path to the linker plugin (this might be the problem with using the CMAKE IPO)
-      # SET(CMAKE_AR  "gcc-ar")
-      # set(CMAKE_Fortran_COMPILER_AR "${CMAKE_AR}")
-      # set(CMAKE_Fortran_COMPILER_RANLIB "${CMAKE_RANLIB}")
-      # SET(CMAKE_Fortran_ARCHIVE_CREATE "<CMAKE_AR> qcs <TARGET> <LINK_FLAGS> <OBJECTS>")
-      # SET(CMAKE_Fortran_ARCHIVE_FINISH TRUE)
-      # SET(CMAKE_NM  "gcc-nm")
-      # SET(CMAKE_RANLIB  "gcc-ranlib")
+      # Check the GCC wrapper for the complete toolchain
+      FIND_PROGRAM(CMAKE_GCC_AR     NAMES ${_CMAKE_TOOLCHAIN_PREFIX}gcc-ar${_CMAKE_TOOLCHAIN_SUFFIX} HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
+      FIND_PROGRAM(CMAKE_GCC_NM     NAMES ${_CMAKE_TOOLCHAIN_PREFIX}gcc-nm                           HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
+      FIND_PROGRAM(CMAKE_GCC_RANLIB NAMES ${_CMAKE_TOOLCHAIN_PREFIX}gcc-ranlib                       HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
+      IF(CMAKE_GCC_AR AND CMAKE_GCC_NM AND CMAKE_GCC_RANLIB)
+        MESSAGE(STATUS "Found GCC binutils wrappers for LTO. Linker plugin is enabled.")
+        # Static libraries require either fat LTO objects (increases compilation time) or the use of linker plugins (per default enabled); the jobserver option reduces linking time
+        # More information at: https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html#Optimize-Options
+        SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=jobserver -fuse-linker-plugin")
+        # Set the GCC wrapper
+        SET(CMAKE_AR     "${CMAKE_GCC_AR}" )
+        SET(CMAKE_NM     "${CMAKE_GCC_NM}" )
+        SET(CMAKE_RANLIB "${CMAKE_GCC_RANLIB}" )
+        MARK_AS_ADVANCED(FORCE CMAKE_AR)
+        MARK_AS_ADVANCED(FORCE CMAKE_NM)
+        MARK_AS_ADVANCED(FORCE CMAKE_RANLIB)
+      ELSE()
+        MESSAGE(WARNING "GCC binutils wrappers for LTO not found. Linker plugin might not be available, enabling fat LTO objects.")
+        SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=jobserver -ffat-lto-objects")
+      ENDIF()
     ELSE()
       SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)  # enable IPO globally
     ENDIF()
