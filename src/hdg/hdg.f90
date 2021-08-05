@@ -1286,7 +1286,7 @@ DO iteration=1,MaxIterCG
   lambda=lambda+omega*V
   R=R-omega*Z
   CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),rr)
-  IF(ISNAN(rr)) CALL abort(__STAMP__,'res=NaN')
+  IF(ISNAN(rr)) CALL abort(__STAMP__,'HDG solver residual rr = NaN for CG iteration =', IntInfoOpt=iteration)
 #if USE_MPI
   IF(MPIroot) converged=(rr.LT.AbortCrit2)
   CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
