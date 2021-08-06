@@ -73,6 +73,7 @@ CALL prms%CreateLogicalOption('CheckExchangeProcs' , 'Check if proc communicatio
 #endif /*PARTICLES*/
 END SUBROUTINE DefineParametersMPI
 
+
 SUBROUTINE InitMPI(mpi_comm_IN)
 !===================================================================================================================================
 ! Basic MPI initialization.

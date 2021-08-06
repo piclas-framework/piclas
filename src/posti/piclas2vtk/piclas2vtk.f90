@@ -135,6 +135,7 @@ IF ((nArgs.EQ.1).AND.(ParameterFile(iExt+1:iExt+2) .NE. 'h5')) THEN
   CALL CollectiveStop(__STAMP__,'ERROR - Please supply at least one .h5 file!')
 END IF
 
+CmdLineMode = .FALSE. ! Initialize
 IF(ParameterFile(iExt+1:iExt+3) .EQ. 'ini') THEN
   ! Parameter file has been supplied
   CmdLineMode = .FALSE.

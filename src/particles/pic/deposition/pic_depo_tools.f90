@@ -171,10 +171,10 @@ INTEGER                          :: j,k,l,iElem, firstElem, lastElem
 #if USE_MPI
 INTEGER                          :: MessageSize
 REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
-#endif
 #if USE_DEBUG
 INTEGER                          :: I
 #endif /*USE_DEBUG*/
+#endif
 INTEGER                          :: NodeID(1:8)
 !===================================================================================================================================
 #if USE_MPI

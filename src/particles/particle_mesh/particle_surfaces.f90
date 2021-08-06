@@ -897,7 +897,7 @@ SUBROUTINE GetBezierSampledAreas(SideID,BezierSampleN,BezierSurfFluxProjection_o
                                 ,SurfMeshSubSideVec_nOut_opt,SurfMeshSubSideVec_t1_opt,SurfMeshSubSideVec_t2_opt &
                                 ,DmaxSampleN_opt,Dmax_opt,BezierControlPoints2D_opt)
 !===================================================================================================================================
-! equidistanlty super-sampled bezier surface area and vector calculation. Required for surface flux
+! equidistantly super-sampled Bezier surface area and vector calculation. Required for surface flux
 ! --------------------------------------
 ! book: see also for general remarks
 ! author = {Farin, Gerald},
@@ -949,6 +949,7 @@ IF (PRESENT(BezierSurfFluxProjection_opt)) THEN
 ELSE
   BezierSurfFluxProjection=.FALSE.
 END IF
+CalcDmax=.FALSE. ! default
 IF (PRESENT(Dmax_opt)) THEN
   IF (PRESENT(DmaxSampleN_opt)) THEN
     IF (DmaxSampleN_opt.GT.0) THEN
@@ -958,12 +959,8 @@ IF (PRESENT(Dmax_opt)) THEN
       CalcDmax=.FALSE.
     END IF
   ELSE
-    CALL Abort(&
-      __STAMP__&
-      ,'DmaxSampleN not defined in GetBezierSampledAreas!')
+    CALL Abort(__STAMP__,'DmaxSampleN not defined in GetBezierSampledAreas!')
   END IF
-ELSE
-  CalcDmax=.FALSE.
 END IF
 
 Xi(1) =-SQRT(1./3.)

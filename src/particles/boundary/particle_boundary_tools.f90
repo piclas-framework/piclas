@@ -528,6 +528,7 @@ END DO
 
 !-- check where the points are located relative to radius
 done=.FALSE.
+insideBound=.FALSE. ! Initialize
 DO iDir1=0,1
   IF(done) EXIT
   DO iDir2=0,1
