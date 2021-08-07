@@ -1265,6 +1265,12 @@ DO WHILE (associated(current))
         ! Start replacing the index from the left
         IF(INDEX('0123456789',name(i:i)).GT.0) THEN
           testname(i:i) = '$'
+          ! Remove multiple $ in case of multi-digit numbers
+          IF(i.GT.1 .AND. testname(i-1:i-1).EQ.'$')THEN
+            testname(i-1:LEN(testname)-1)         = testname(i:LEN(testname))
+            testname(LEN(testname):LEN(testname)) = ' '
+            testname = TRIM(testname)
+          END IF
           ! Check if we can find this name
           check => prms%firstLink
           DO WHILE (associated(check))
@@ -1466,30 +1472,36 @@ DO WHILE (associated(current))
         ! Start replacing the index from the left
         IF(INDEX('0123456789',name(i:i)).GT.0) THEN
           testname(i:i) = '$'
+          ! Remove multiple $ in case of multi-digit numbers
+          IF(i.GT.1 .AND. testname(i-1:i-1).EQ.'$')THEN
+            testname(i-1:LEN(testname)-1)         = testname(i:LEN(testname))
+            testname(LEN(testname):LEN(testname)) = ' '
+            testname = TRIM(testname)
+          END IF
           ! Check if we can find this name
           check => prms%firstLink
           DO WHILE (associated(check))
             IF (check%opt%NAMEEQUALS(testname) .AND. check%opt%isSet) THEN
               multi => check%opt
               ! copy value from option to result variable
-              SELECT TYPE (newopt)
+              SELECT TYPE (multi)
                 CLASS IS (IntArrayOption)
-                  IF (SIZE(newopt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+                  IF (SIZE(multi%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
                   SELECT TYPE(value)
                     TYPE IS (INTEGER)
-                    value = newopt%value
+                    value = multi%value
                   END SELECT
                 CLASS IS (RealArrayOption)
-                  IF (SIZE(newopt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+                  IF (SIZE(multi%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
                   SELECT TYPE(value)
                     TYPE IS (REAL)
-                    value = newopt%value
+                    value = multi%value
                   END SELECT
                 CLASS IS (LogicalArrayOption)
-                  IF (SIZE(newopt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+                  IF (SIZE(multi%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
                   SELECT TYPE(value)
                     TYPE IS (LOGICAL)
-                    value = newopt%value
+                    value = multi%value
                   END SELECT
               END SELECT
               ! print option and value to stdout. Custom print, so do it here
@@ -1791,6 +1803,12 @@ DO WHILE (associated(current))
         ! Start replacing the index from the left
         IF(INDEX('0123456789',name(iChar:iChar)).GT.0) THEN
           testname(iChar:iChar) = '$'
+          ! Remove multiple $ in case of multi-digit numbers
+          IF(iChar.GT.1 .AND. testname(iChar-1:iChar-1).EQ.'$')THEN
+            testname(iChar-1:LEN(testname)-1)     = testname(iChar:LEN(testname))
+            testname(LEN(testname):LEN(testname)) = ' '
+            testname = TRIM(testname)
+          END IF
           ! Check if we can find this name
           check => prms%firstLink
           DO WHILE (associated(check))
