@@ -16,6 +16,9 @@ MARK_AS_ADVANCED(FORCE LIBS_EXTERNAL_LIB_DIR)
 # =========================================================================
 EXECUTE_PROCESS(COMMAND git ls-remote --get-url OUTPUT_VARIABLE GIT_ORIGIN)
 
+# Strip lead and trailing white space
+string(STRIP ${GIT_ORIGIN} GIT_ORIGIN)
+
 # Origin pointing to gitlab?
 MESSAGE(STATUS "Checking git origin: " ${GIT_ORIGIN})
 IF("${GIT_ORIGIN}" MATCHES "gitlab.com")
@@ -112,7 +115,11 @@ ELSE()
   IF("${GIT_ORIGIN}" MATCHES ".github.com")
     SET (HDF5DOWNLOAD "https://github.com/HDFGroup/hdf5.git")
   ELSE()
-    SET (HDF5DOWNLOAD ${LIBS_DLPATH}hdf5.git )
+    IF("${GIT_ORIGIN}" MATCHES "https://gitlab-ci-token")
+      STRING(REGEX REPLACE "/piclas.git" "/hdf5.git" HDF5DOWNLOAD ${GIT_ORIGIN})
+    ELSE()
+      SET (HDF5DOWNLOAD ${LIBS_DLPATH}hdf5.git )
+    ENDIF()
   ENDIF()
   SET (HDF5_DOWNLOAD ${HDF5DOWNLOAD} CACHE STRING "HDF5 Download-link")
   MESSAGE (STATUS "HDF5 download link: ${HDF5DOWNLOAD}")
