@@ -197,17 +197,24 @@ DO iLoop = 1, nPart
   IF(CollisMode.GT.1) THEN
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
       ! Rotational and vibrational energy
-      E_vib = E_vib + (PartStateIntEn(1,iPartIndx_Node(iLoop)) - SpecDSMC(iSpec)%EZeroPoint) * partWeight + CellEvib_vMPF(iSpec, iElem)
-      CellEvib_vMPF(iSpec, iElem) = 0.0
+      E_vib = E_vib + (PartStateIntEn(1,iPartIndx_Node(iLoop)) - SpecDSMC(iSpec)%EZeroPoint) * partWeight
       E_rot = E_rot + partWeight * PartStateIntEn(2,iPartIndx_Node(iLoop))
     END IF
     ! Electronic energy
     IF(DSMC%ElectronicModel.GT.0.AND.SpecDSMC(iSpec)%InterID.NE.4) THEN
-      E_elec = E_elec + partWeight * PartStateIntEn(3,iPartIndx_Node(iLoop)) + CellEelec_vMPF(iSpec, iElem)
-      CellEelec_vMPF(iSpec, iElem) = 0.0
+      E_elec = E_elec + partWeight * PartStateIntEn(3,iPartIndx_Node(iLoop))
     END IF
   END IF
 END DO
+IF((E_vib + CellEvib_vMPF(iSpec, iElem)).GT.0.0) THEN
+  E_vib = E_vib + CellEvib_vMPF(iSpec, iElem)
+  CellEvib_vMPF(iSpec, iElem) = 0.0
+END IF
+IF((E_elec + CellEelec_vMPF(iSpec, iElem)).GT.0.0) THEN
+  E_elec = E_elec + CellEelec_vMPF(iSpec, iElem)
+  CellEelec_vMPF(iSpec, iElem) = 0.0
+END IF
+
 
 ! 2.2) Calc temperature and degree of fredoms
 IF(CollisMode.GT.1) THEN
@@ -325,7 +332,7 @@ IF(CollisMode.GT.1) THEN
 !        END IF
       END DO
     END IF
-    CellEelec_vMPF(iSpec, iElem) = Energy_Sum
+    CellEelec_vMPF(iSpec, iElem) = CellEelec_vMPF(iSpec, iElem) + Energy_Sum
     Energy_Sum = 0.0
   END IF
 END IF
@@ -406,7 +413,7 @@ IF(CollisMode.GT.1) THEN
         END IF ! SpecDSMC(1)%PolyatomicMol
       END DO
     END IF
-    CellEvib_vMPF(iSpec, iElem) = Energy_Sum
+    CellEvib_vMPF(iSpec, iElem) = CellEvib_vMPF(iSpec, iElem) + Energy_Sum
     Energy_Sum = 0.0
 
 ! 6.3) ensuring rotational excitation
