@@ -216,7 +216,7 @@ END IF ! SkipAnalyzeWindow.GT.0.
 
 OutputTimeFixed   = GETREAL('OutputTimeFixed')
 ! Time averaged quantises fields (Maxwell/Poisson solver) and deposited particles (PIC)
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509)
   doCalcTimeAverage = GETLOGICAL('CalcTimeAverage')
 #else
   doCalcTimeAverage = .FALSE.
